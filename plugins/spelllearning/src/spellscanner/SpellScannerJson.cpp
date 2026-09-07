@@ -1,0 +1,308 @@
+#include "Common.h"
+#include "SpellScanner.h"
+#include "EncodingUtils.h"
+
+#include <filesystem>
+
+namespace SpellScanner
+{
+    namespace
+    {
+        // Scan dumps live next to the rest of the SpellLearning runtime data.
+        constexpr const char* SCAN_OUTPUT_DIR = "Data/SKSE/Plugins/SpellLearning";
+        constexpr const char* SCAN_OUTPUT_FILE = "spell_scan_output.json";
+    }
+
+    // =============================================================================
+    // NAME TABLES
+    // =============================================================================
+    //
+    // Archetype and actor value names are emitted as strings, never raw numbers:
+    // the librarian's classification rules (librarian/*.json) match on them, so
+    // they have to stay stable across game versions and load orders.
+
+    std::string GetArchetypeName(RE::EffectArchetype archetype)
+    {
+        switch (archetype) {
+            case RE::EffectArchetype::kValueModifier: return "ValueModifier";
+            case RE::EffectArchetype::kScript: return "Script";
+            case RE::EffectArchetype::kDispel: return "Dispel";
+            case RE::EffectArchetype::kCureDisease: return "CureDisease";
+            case RE::EffectArchetype::kAbsorb: return "Absorb";
+            case RE::EffectArchetype::kDualValueModifier: return "DualValueModifier";
+            case RE::EffectArchetype::kCalm: return "Calm";
+            case RE::EffectArchetype::kDemoralize: return "Demoralize";
+            case RE::EffectArchetype::kFrenzy: return "Frenzy";
+            case RE::EffectArchetype::kDisarm: return "Disarm";
+            case RE::EffectArchetype::kCommandSummoned: return "CommandSummoned";
+            case RE::EffectArchetype::kInvisibility: return "Invisibility";
+            case RE::EffectArchetype::kLight: return "Light";
+            case RE::EffectArchetype::kDarkness: return "Darkness";
+            case RE::EffectArchetype::kNightEye: return "NightEye";
+            case RE::EffectArchetype::kLock: return "Lock";
+            case RE::EffectArchetype::kOpen: return "Open";
+            case RE::EffectArchetype::kBoundWeapon: return "BoundWeapon";
+            case RE::EffectArchetype::kSummonCreature: return "SummonCreature";
+            case RE::EffectArchetype::kDetectLife: return "DetectLife";
+            case RE::EffectArchetype::kTelekinesis: return "Telekinesis";
+            case RE::EffectArchetype::kParalysis: return "Paralysis";
+            case RE::EffectArchetype::kReanimate: return "Reanimate";
+            case RE::EffectArchetype::kSoulTrap: return "SoulTrap";
+            case RE::EffectArchetype::kTurnUndead: return "TurnUndead";
+            case RE::EffectArchetype::kGuide: return "Guide";
+            case RE::EffectArchetype::kWerewolfFeed: return "WerewolfFeed";
+            case RE::EffectArchetype::kCureParalysis: return "CureParalysis";
+            case RE::EffectArchetype::kCureAddiction: return "CureAddiction";
+            case RE::EffectArchetype::kCurePoison: return "CurePoison";
+            case RE::EffectArchetype::kConcussion: return "Concussion";
+            case RE::EffectArchetype::kValueAndParts: return "ValueAndParts";
+            case RE::EffectArchetype::kAccumulateMagnitude: return "AccumulateMagnitude";
+            case RE::EffectArchetype::kStagger: return "Stagger";
+            case RE::EffectArchetype::kPeakValueModifier: return "PeakValueModifier";
+            case RE::EffectArchetype::kCloak: return "Cloak";
+            case RE::EffectArchetype::kWerewolf: return "Werewolf";
+            case RE::EffectArchetype::kSlowTime: return "SlowTime";
+            case RE::EffectArchetype::kRally: return "Rally";
+            case RE::EffectArchetype::kEnhanceWeapon: return "EnhanceWeapon";
+            case RE::EffectArchetype::kSpawnHazard: return "SpawnHazard";
+            case RE::EffectArchetype::kEtherealize: return "Etherealize";
+            case RE::EffectArchetype::kBanish: return "Banish";
+            case RE::EffectArchetype::kSpawnScriptedRef: return "SpawnScriptedRef";
+            case RE::EffectArchetype::kDisguise: return "Disguise";
+            case RE::EffectArchetype::kGrabActor: return "GrabActor";
+            case RE::EffectArchetype::kVampireLord: return "VampireLord";
+            default: return "None";
+        }
+    }
+
+    std::string GetActorValueName(RE::ActorValue actorValue)
+    {
+        // The engine name table is indexed by the raw enum value, so anything
+        // outside [0, kTotal) would read out of bounds.
+        const auto raw = std::to_underlying(actorValue);
+        if (raw < 0 || raw >= std::to_underlying(RE::ActorValue::kTotal)) {
+            return "None";
+        }
+        return std::string(RE::ActorValueToString(actorValue));
+    }
+
+    // =============================================================================
+    // SPELL / EFFECT JSON
+    // =============================================================================
+
+    RE::ActorValue GetSpellSchool(RE::SpellItem* spell)
+    {
+        if (!spell || spell->effects.empty()) {
+            return RE::ActorValue::kNone;
+        }
+
+        auto* firstEffect = spell->effects[0];
+        if (!firstEffect || !firstEffect->baseEffect) {
+            return RE::ActorValue::kNone;
+        }
+
+        return firstEffect->baseEffect->GetMagickSkill();
+    }
+
+    json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields)
+    {
+        json effectJson;
+
+        auto* baseEffect = effect->baseEffect;
+
+        effectJson["name"] = EncodingUtils::SanitizeToUTF8(baseEffect->GetFullName());
+        effectJson["magnitude"] = effect->effectItem.magnitude;
+        effectJson["duration"] = effect->effectItem.duration;
+        effectJson["area"] = effect->effectItem.area;
+
+        const char* description = baseEffect->magicItemDescription.c_str();
+        if (description && strlen(description) > 0) {
+            effectJson["description"] = EncodingUtils::SanitizeToUTF8(description);
+        }
+
+        if (!fields.effectDetails) {
+            return effectJson;
+        }
+
+        // MGEF structure - the language independent evidence the librarian
+        // classifies on. Vanilla Magic* keywords live here, not on the SPEL.
+        json keywordsArray = json::array();
+        for (auto* keyword : baseEffect->GetKeywords()) {
+            if (!keyword) continue;
+            const char* keywordEditorId = keyword->GetFormEditorID();
+            if (keywordEditorId && strlen(keywordEditorId) > 0) {
+                keywordsArray.push_back(keywordEditorId);
+            }
+        }
+        effectJson["keywords"] = keywordsArray;
+
+        effectJson["archetype"] = GetArchetypeName(baseEffect->data.archetype);
+        effectJson["primaryAV"] = GetActorValueName(baseEffect->data.primaryAV);
+        effectJson["secondaryAV"] = GetActorValueName(baseEffect->data.secondaryAV);
+        effectJson["resistance"] = GetActorValueName(baseEffect->data.resistVariable);
+        effectJson["hostile"] = baseEffect->IsHostile();
+        effectJson["detrimental"] = baseEffect->IsDetrimental();
+        effectJson["castingType"] = GetCastingTypeName(baseEffect->data.castingType);
+        effectJson["delivery"] = GetDeliveryName(baseEffect->data.delivery);
+        effectJson["magicSkill"] = GetSchoolName(baseEffect->GetMagickSkill());
+
+        // Summons, bound weapons and scripted refs point at the form they spawn.
+        if (baseEffect->data.associatedForm) {
+            effectJson["associatedForm"] = GetPersistentFormId(baseEffect->data.associatedForm->GetFormID());
+        }
+
+        return effectJson;
+    }
+
+    json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields)
+    {
+        json spellJson;
+
+        // Essential fields (always included)
+        spellJson["formId"] = std::format("0x{:08X}", formId);
+        spellJson["persistentId"] = GetPersistentFormId(formId);  // Load order resilient ID
+        spellJson["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
+        spellJson["school"] = GetSchoolName(GetSpellSchool(spell));
+        spellJson["skillLevel"] = DetermineSpellTier(spell);
+
+        // Optional fields
+        const char* rawEditorId = spell->GetFormEditorID();
+        const bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
+        if (fields.editorId) {
+            // Empty string when not available (SE 1.5.97 without po3 Tweaks)
+            spellJson["editorId"] = hasEditorId ? std::string(rawEditorId) : std::string();
+        }
+        if (fields.magickaCost) {
+            spellJson["magickaCost"] = spell->CalculateMagickaCost(nullptr);
+        }
+        if (fields.minimumSkill) {
+            uint32_t minSkill = 0;
+            if (spell->effects.size() > 0 && spell->effects[0] && spell->effects[0]->baseEffect) {
+                minSkill = spell->effects[0]->baseEffect->GetMinimumSkillLevel();
+            }
+            spellJson["minimumSkill"] = minSkill;
+        }
+        if (fields.castingType) {
+            spellJson["castingType"] = GetCastingTypeName(spell->data.castingType);
+        }
+        if (fields.delivery) {
+            spellJson["delivery"] = GetDeliveryName(spell->data.delivery);
+        }
+        if (fields.chargeTime) {
+            spellJson["chargeTime"] = spell->data.chargeTime;
+        }
+        if (fields.plugin) {
+            spellJson["plugin"] = GetPluginName(formId);
+        }
+
+        // Effects
+        if (fields.effects) {
+            json effectsArray = json::array();
+            for (auto* effect : spell->effects) {
+                if (!effect || !effect->baseEffect) continue;
+                effectsArray.push_back(BuildEffectJson(effect, fields));
+            }
+            spellJson["effects"] = effectsArray;
+        } else if (fields.effectNames) {
+            json effectNamesArray = json::array();
+            for (auto* effect : spell->effects) {
+                if (effect && effect->baseEffect) {
+                    effectNamesArray.push_back(EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName()));
+                }
+            }
+            spellJson["effectNames"] = effectNamesArray;
+        }
+
+        // Keywords (SPEL level - framework tags like KIT_/OCF_ live here)
+        if (fields.keywords && spell->keywords) {
+            json keywordsArray = json::array();
+            for (uint32_t i = 0; i < spell->numKeywords; i++) {
+                if (spell->keywords[i]) {
+                    const char* kwEditorId = spell->keywords[i]->GetFormEditorID();
+                    if (kwEditorId && strlen(kwEditorId) > 0) {
+                        keywordsArray.push_back(kwEditorId);
+                    }
+                }
+            }
+            spellJson["keywords"] = keywordsArray;
+        }
+
+        return spellJson;
+    }
+
+    // =============================================================================
+    // SCAN OUTPUT FILE
+    // =============================================================================
+
+    std::string WriteScanOutput(const std::string& content)
+    {
+        try {
+            std::filesystem::path outputDir(SCAN_OUTPUT_DIR);
+            std::filesystem::create_directories(outputDir);
+
+            std::filesystem::path outputPath = outputDir / SCAN_OUTPUT_FILE;
+            std::ofstream file(outputPath);
+            if (!file.is_open()) {
+                logger::error("SpellScanner: Failed to open {} for writing", outputPath.string());
+                return "";
+            }
+
+            file << content;
+            file.close();
+
+            logger::info("SpellScanner: Wrote scan output to {} ({} bytes)", outputPath.string(), content.size());
+            return outputPath.string();
+        } catch (const std::exception& e) {
+            logger::error("SpellScanner: Exception while writing scan output: {}", e.what());
+            return "";
+        }
+    }
+
+    // Mirrors the presets in PrismaUI modules/llmApiSettings.js applyPreset().
+    // Keep the two in step: the UI and Papyrus must produce the same dump.
+    static FieldConfig FieldsForPreset(const std::string& preset)
+    {
+        FieldConfig fields;
+
+        if (preset == "minimal") {
+            fields.magickaCost = false;
+            fields.effectNames = true;
+        } else if (preset == "balanced") {
+            fields.effectNames = true;
+        } else {
+            // "full" - everything the librarian needs, including MGEF structure
+            fields.minimumSkill = true;
+            fields.castingType = true;
+            fields.delivery = true;
+            fields.chargeTime = true;
+            fields.plugin = true;
+            fields.effects = true;
+            fields.keywords = true;
+            fields.effectDetails = true;
+        }
+
+        return fields;
+    }
+
+    std::string RunScanToFile(const std::string& mode, const std::string& preset)
+    {
+        const std::string effectivePreset = preset.empty() ? "full" : preset;
+        if (effectivePreset != "minimal" && effectivePreset != "balanced" && effectivePreset != "full") {
+            logger::warn("SpellScanner: Unknown scan preset '{}', using 'full'", effectivePreset);
+        }
+
+        ScanConfig config;
+        config.fields = FieldsForPreset(effectivePreset);
+
+        if (!mode.empty() && mode != "tomes" && mode != "all") {
+            logger::warn("SpellScanner: Unknown scan mode '{}', using 'tomes'", mode);
+        }
+        const bool tomeMode = (mode != "all");
+
+        logger::info("SpellScanner: RunScanToFile mode='{}' preset='{}'",
+            tomeMode ? "tomes" : "all", effectivePreset);
+
+        const std::string result = tomeMode ? ScanSpellTomes(config) : ScanAllSpells(config);
+        return WriteScanOutput(result);
+    }
+}

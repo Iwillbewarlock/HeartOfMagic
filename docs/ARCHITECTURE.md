@@ -37,7 +37,7 @@ Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Displa
 ## Component Architecture
 
 ### 1. **SpellScanner** (`plugins/spelllearning/src/spellscanner/`, `plugins/spelllearning/include/SpellScanner.h`)
-Split across: SpellScannerScan.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp
+Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -50,12 +50,51 @@ Split across: SpellScannerScan.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.
 **Key Functions:**
 - `ScanAllSpells(config)` - Main scan function
 - `ScanSpellTomes(config)` - Alternative scan via tomes
+- `RunScanToFile(mode, preset)` - Scan and write the dump in one call, for callers outside the UI
+- `BuildSpellJson(spell, formId, fields)` - The single source of the scan JSON shape (SpellScannerJson.cpp)
+- `BuildEffectJson(effect, fields)` - One effect, including MGEF structure when `effectDetails` is on
+- `WriteScanOutput(content)` - Write `spell_scan_output.json`, return its path
 - `GetSpellInfoByFormId(formId)` - Lookup spell details
 - `GetSystemInstructions()` - LLM output format spec
 - `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
+
+**Field Config and the MGEF Structure Fields:**
+
+`FieldConfig` decides which optional fields a scan emits. The UI presets live in
+`PrismaUI/.../modules/llmApiSettings.js` (`applyPreset`) and are mirrored in C++ by
+`FieldsForPreset()` in SpellScannerJson.cpp - change one, change the other.
+
+`effectDetails` (on in the `full` preset) adds the MGEF structure to every entry of
+`effects[]`. That structure is the language-independent evidence the tag librarian
+classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
+
+```json
+"effects": [{
+  "name": "Fire Damage", "magnitude": 60, "duration": 0, "area": 0,
+  "keywords": ["MagicDamageFire"],
+  "archetype": "ValueModifier",
+  "primaryAV": "Health", "secondaryAV": "None", "resistance": "ResistFire",
+  "hostile": true, "detrimental": true,
+  "castingType": "Fire and Forget", "delivery": "Aimed",
+  "magicSkill": "Destruction",
+  "associatedForm": "Skyrim.esm|0x01CB01"
+}]
+```
+
+`archetype` and the actor value fields are always names, never raw numbers -
+classification rules match on those strings, so they have to stay stable.
+`associatedForm` only appears when the effect has one (summons, bound weapons).
+
+**Scanning from outside the UI:**
+
+`SpellLearning.RunScan(mode, preset)` (Papyrus, see PapyrusAPI.cpp) runs a scan on the
+game thread, writes `Data/SKSE/Plugins/SpellLearning/spell_scan_output.json` and returns
+the path. `mode` is `"tomes"` or `"all"`, `preset` is `"minimal"`, `"balanced"` or
+`"full"`. Unlike the UI's Save button it never routes the dump through the panel, so the
+file is exactly the scan JSON.
 
 **FormID Persistence:**
 ```
@@ -975,6 +1014,7 @@ HeartOfMagic/
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
+│   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)

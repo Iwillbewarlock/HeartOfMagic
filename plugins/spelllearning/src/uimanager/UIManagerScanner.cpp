@@ -66,27 +66,10 @@ void UIManager::OnSaveOutput(const char* argument)
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;
 
-        // Create output directory
-        std::filesystem::path outputDir = "Data/SKSE/Plugins/SpellLearning";
-
-        // Write to file
-        std::filesystem::path outputPath = outputDir / "spell_scan_output.json";
-
-        try {
-            std::filesystem::create_directories(outputDir);
-            std::ofstream file(outputPath);
-            if (file.is_open()) {
-                file << argStr;
-                file.close();
-                logger::info("UIManager: Saved output to {}", outputPath.string());
-                instance->UpdateStatus("Saved to spell_scan_output.json");
-            } else {
-                logger::error("UIManager: Failed to open output file");
-                instance->UpdateStatus("Failed to save file");
-            }
-        } catch (const std::exception& e) {
-            logger::error("UIManager: Exception while saving: {}", e.what());
-            instance->UpdateStatus("Error saving file");
+        if (SpellScanner::WriteScanOutput(argStr).empty()) {
+            instance->UpdateStatus("Failed to save file");
+        } else {
+            instance->UpdateStatus("Saved to spell_scan_output.json");
         }
     });
 }

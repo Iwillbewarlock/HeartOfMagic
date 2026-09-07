@@ -104,20 +104,30 @@
 - 미해결: `console capture=true` 읽기가 빈 결과(markersFound=false). 콘솔 대체 모드와 충돌 추정. Papyrus 호출로 대체 가능하므로 보류
 - 남은 구멍: **빌드·게임 실행용 셸 없음.** 코드 수정 후 빌드는 아직 사용자가 직접. 셸 MCP 등록 시 완전 자동화
 
-### [ ] M1. 스캐너 리팩터 + MGEF 필드
+### [x] M1. 스캐너 리팩터 + MGEF 필드 (2026-09-07 구현·빌드 완료, 게임 검증 대기)
 - 역할: 스캔 JSON 생성을 한 곳으로 모으고, 이펙트 구조 정보를 내보낸다
 - 입력: `RE::SpellItem*`, `FieldConfig` / 출력: 2-1 스키마의 `json`
 - 파일:
-  - [ ] 신규 `src/spellscanner/SpellScannerJson.cpp` — `json BuildSpellJson(RE::SpellItem*, RE::FormID, const FieldConfig&)`
+  - [x] 신규 `src/spellscanner/SpellScannerJson.cpp` — `json BuildSpellJson(RE::SpellItem*, RE::FormID, const FieldConfig&)`
         + `json BuildEffectJson(const RE::Effect*, const FieldConfig&)` + 이름표 헬퍼(`ArchetypeName`, `ActorValueName`)
-  - [ ] `SpellScannerScan.cpp` — L200~310, L435~530 중복 블록을 `BuildSpellJson` 호출로 교체 (→ 600줄 이하)
-  - [ ] `include/SpellScanner.h` — `FieldConfig::effectDetails` 추가, 새 함수 선언
-  - [ ] `SpellScannerHelpers.cpp` `ParseFieldConfig` — `effectDetails` 파싱
-  - [ ] `PrismaUI/.../modules/llmApiSettings.js:219-238` — `full` 프리셋에 `effectDetails: true` (`var`만!)
-  - [ ] **스캔 트리거** — Papyrus 전역 함수 `SpellLearning.RunScan(string mode, string preset) -> string`(출력 파일 경로 반환) 추가. `PapyrusAPI.cpp`에 등록. DevBench `papyrus call`로 외부에서 호출 가능해짐. C-ABI 등록 불필요
-  - [ ] (별건) 덤프 파일 선두에 `[CANVAS]` 콘솔 로그가 섞여 저장되는 문제 원인 조사 — `UIManagerIO.cpp` 추정. 고치기 쉬우면 같이, 아니면 이슈로
+  - [x] `SpellScannerScan.cpp` — 중복 블록 2개를 `BuildSpellJson` 호출로 교체. **711 → 523줄.**
+        `GetSpellInfoByFormId` 의 세 번째 사본도 `BuildEffectJson` 으로 통합
+  - [x] `include/SpellScanner.h` — `FieldConfig::effectDetails` 추가, 새 함수 선언
+  - [x] `SpellScannerHelpers.cpp` — `ParseFieldConfig` + `ParseScanConfig` 양쪽에 `effectDetails` 파싱
+  - [x] `PrismaUI/.../modules/llmApiSettings.js` — 프리셋 3종에 `effectDetails` 추가(`full` 만 true).
+        `modules/state.js` 기본값과 `script.js` 의 `fieldIds` 목록도 갱신. C++ 쪽 거울은
+        `SpellScannerJson.cpp` 의 `FieldsForPreset()` — 한쪽만 고치지 말 것
+  - [x] **스캔 트리거** — Papyrus 전역 함수 `SpellLearning.RunScan(string mode, string preset) -> string`(출력 파일 경로 반환) 추가. `PapyrusAPI.cpp`에 등록. DevBench `papyrus call`로 외부에서 호출 가능해짐. C-ABI 등록 불필요
+  - [x] (별건) 덤프 선두 `[CANVAS]` 로그 오염 — **원인은 `UIManagerIO.cpp` 가 아니었다.**
+        `modules/cppCallbacks.js` 의 `window.debugOutput` 이 디버그 줄을 `outputArea` textarea **맨 앞에 붙여** 넣고,
+        저장 버튼(`onSaveClick`)이 그 textarea 내용을 그대로 C++ 로 넘겨 파일에 쓴다.
+        `debugOutput` 을 `console.log` 전용으로 바꿔 해결. `RunScan` 은 애초에 textarea 를 거치지 않는다
 - 의존: M0
-- 테스트: 빌드 통과 → 게임에서 **톰 모드 + full** 스캔 → 덤프의 `effects[0].archetype`이 문자열이고 `MagicDamageFire`가 1건 이상 등장하면 통과. `join_coverage.py`가 기존 필드로 여전히 동작하면 회귀 없음
+- 테스트: **빌드 통과 (VS 2026, 경고 0).** 게임 검증은 아직 — 다음 단계에서
+  `Dvb papyrus @{ action = "call"; script = "SpellLearning"; function = "RunScan"; args = @("tomes", "full"); timeoutMs = 60000 }`
+  로 스캔 후 덤프의 `effects[0].archetype` 이 문자열이고 `MagicDamageFire` 가 1건 이상인지 확인.
+  `join_coverage.py` 가 기존 필드로 여전히 동작하면 회귀 없음
+- 미검증: PrismaUI JS 테스트(`node run-tests.js`)를 **못 돌렸다 — 이 PC에 Node.js 가 없다.** JS 변경은 3곳뿐이고 모두 기계적
 - 문서: `docs/ARCHITECTURE.md`(스캐너 절), `docs/PRESETS.md`
 
 ### [ ] M2. 측정 — *Python, 게임 밖*

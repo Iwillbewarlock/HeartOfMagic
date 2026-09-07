@@ -578,13 +578,11 @@ window.updateSpellInfoBatch = function(json) {
     }
 };
 
-// Helper to log to output textarea (global so other modules can use it)
+// Helper to log debug traces (global so other modules can use it).
+// It used to prepend every line to the outputArea textarea, which is also what
+// the Save button writes to spell_scan_output.json - so canvas and learning
+// traces ended up above the JSON and broke every parser reading the dump.
 window.debugOutput = function(msg) {
-    var output = document.getElementById('outputArea');
-    if (output) {
-        var timestamp = new Date().toLocaleTimeString();
-        output.value = '[' + timestamp + '] ' + msg + '\n' + output.value;
-    }
     console.log(msg);
 };
 

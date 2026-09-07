@@ -19,6 +19,10 @@ namespace SpellScanner
         bool effects = false;
         bool effectNames = false;
         bool keywords = false;
+        // MGEF structure per effect: keywords, archetype, actor values, resistance.
+        // Only has an effect when effects is also on. This is the evidence the
+        // librarian classifies on, so it is off unless asked for.
+        bool effectDetails = false;
     };
 
     // Scan configuration (fields + user prompt)
@@ -91,6 +95,28 @@ namespace SpellScanner
     std::string GetSkillLevelFromPerk(RE::BGSPerk* perk);
     std::string DetermineSpellTier(RE::SpellItem* spell);
     std::string GetPluginName(RE::FormID formId);
+
+    // Magic school of a spell (school of its first effect), kNone if it has none
+    RE::ActorValue GetSpellSchool(RE::SpellItem* spell);
+
+    // Stable string names for MGEF structure fields. Classification rules match
+    // on these, so they must not become raw numbers.
+    std::string GetArchetypeName(RE::EffectArchetype archetype);
+    std::string GetActorValueName(RE::ActorValue actorValue);
+
+    // Single source of the scan JSON shape, shared by every scan entry point.
+    // Callers must have checked effect->baseEffect / spell for null.
+    json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
+    json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
+
+    // Write a scan dump to Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
+    // Returns the written path, or an empty string on failure.
+    std::string WriteScanOutput(const std::string& content);
+
+    // Run a scan and write it to disk in one call, for callers outside the UI
+    // (Papyrus, tests). mode is "tomes" or "all"; preset is "minimal",
+    // "balanced" or "full". Returns the written path, or an empty string.
+    std::string RunScanToFile(const std::string& mode, const std::string& preset);
 
     // Internal scanning (returns spell array JSON, used by ScanAllSpells/ScanSpellTomes)
     json ScanSpellsToJson(const FieldConfig& fields);

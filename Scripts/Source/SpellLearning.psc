@@ -125,3 +125,13 @@ float Function GetXPForTier(string tier) global native
 ; Get the cap percentage for a source. Works for built-in ("any", "school",
 ; "direct", "self") and modded sources.
 float Function GetSourceCap(string sourceName) global native
+
+; === Scanning ===
+
+; Scan the load order and write the dump to
+; Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
+;   mode   - "tomes" (spells taught by a spell tome, default) or "all"
+;   preset - "minimal", "balanced" or "full" (default). "full" includes the
+;            MGEF structure the tag librarian classifies on.
+; Blocks until the scan finishes and returns the written path, or "" on failure.
+string Function RunScan(string mode = "tomes", string preset = "full") global native

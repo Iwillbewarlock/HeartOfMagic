@@ -359,7 +359,9 @@ var state = {
         plugin: true,
         effects: true,
         effectNames: false,
-        keywords: true
+        keywords: true,
+        // MGEF structure per effect - what the tag librarian classifies on
+        effectDetails: true
     },
     // Tree viewer state
     treeData: null,

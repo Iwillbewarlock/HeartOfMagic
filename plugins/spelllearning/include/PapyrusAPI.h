@@ -44,6 +44,9 @@
 //   - GetXPForTier()               : XP required for a tier
 //   - GetSourceCap()               : Cap for any source (built-in or modded)
 //
+// === SCANNING ===
+//   - RunScan()                    : Scan spells, write the dump, return its path
+//
 // =============================================================================
 // MOD EVENTS - Other mods can listen for these events
 // =============================================================================
@@ -97,6 +100,12 @@ namespace PapyrusAPI
     float GetGlobalXPMultiplier(RE::StaticFunctionTag*);
     float GetXPForTier(RE::StaticFunctionTag*, RE::BSFixedString tier);
     float GetSourceCap(RE::StaticFunctionTag*, RE::BSFixedString sourceName);
+
+    // === Scanning ===
+    // mode: "tomes" (default) or "all". preset: "minimal", "balanced" or "full".
+    // Runs on the game thread and blocks the calling script until the dump is
+    // written; returns the output path, or an empty string on failure.
+    RE::BSFixedString RunScan(RE::StaticFunctionTag*, RE::BSFixedString mode, RE::BSFixedString preset);
 
     // === ModEvent senders (called by UIManager) ===
     void SendMenuOpenedEvent();

@@ -674,7 +674,7 @@ function initializePanel() {
     
     // Field checkbox listeners
     var fieldIds = ['editorId', 'magickaCost', 'minimumSkill', 'castingType', 'delivery', 
-                    'chargeTime', 'plugin', 'effects', 'effectNames', 'keywords'];
+                    'chargeTime', 'plugin', 'effects', 'effectNames', 'keywords', 'effectDetails'];
     fieldIds.forEach(function(fieldId) {
         var checkbox = document.getElementById('field_' + fieldId);
         if (checkbox) {

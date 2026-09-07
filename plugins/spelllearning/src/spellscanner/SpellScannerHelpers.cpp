@@ -81,6 +81,7 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
                 if (f.contains("effects")) config.fields.effects = f["effects"].get<bool>();
                 if (f.contains("effectNames")) config.fields.effectNames = f["effectNames"].get<bool>();
                 if (f.contains("keywords")) config.fields.keywords = f["keywords"].get<bool>();
+                if (f.contains("effectDetails")) config.fields.effectDetails = f["effectDetails"].get<bool>();
             }
 
             // Parse tree rules prompt
@@ -118,6 +119,7 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
             if (j.contains("effects")) config.effects = j["effects"].get<bool>();
             if (j.contains("effectNames")) config.effectNames = j["effectNames"].get<bool>();
             if (j.contains("keywords")) config.keywords = j["keywords"].get<bool>();
+            if (j.contains("effectDetails")) config.effectDetails = j["effectDetails"].get<bool>();
 
             logger::info("SpellScanner: FieldConfig parsed - editorId:{}, magickaCost:{}",
                 config.editorId, config.magickaCost);

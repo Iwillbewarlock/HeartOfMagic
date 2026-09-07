@@ -1,12 +1,20 @@
 #include "PapyrusAPI.h"
 #include "uimanager/UIManager.h"
 #include "ProgressionManager.h"
+#include "SpellScanner.h"
+#include "ThreadUtils.h"
 #include "SKSE/SKSE.h"
+
+#include <future>
 
 namespace PapyrusAPI
 {
     constexpr const char* SCRIPT_NAME = "SpellLearning";
     constexpr const char* MOD_VERSION = "1.0.0";
+
+    // A full-load-order scan takes a few seconds; the ceiling is only there so a
+    // dropped game-thread task cannot hang the calling script forever.
+    constexpr int SCAN_TIMEOUT_SECONDS = 120;
 
     // ModEvent names
     constexpr const char* EVENT_MENU_OPENED = "SpellLearning_MenuOpened";
@@ -252,6 +260,42 @@ namespace PapyrusAPI
     }
 
     // =========================================================================
+    // SCANNING
+    // =========================================================================
+
+    RE::BSFixedString RunScan(RE::StaticFunctionTag*, RE::BSFixedString mode, RE::BSFixedString preset)
+    {
+        const std::string modeStr = mode.c_str() ? mode.c_str() : "";
+        const std::string presetStr = preset.c_str() ? preset.c_str() : "";
+
+        logger::info("PapyrusAPI: RunScan called (mode='{}', preset='{}')", modeStr, presetStr);
+
+        // The scan walks the game's form arrays, so it has to run on the game
+        // thread. The calling script waits for the result.
+        auto resultPromise = std::make_shared<std::promise<std::string>>();
+        auto resultFuture = resultPromise->get_future();
+
+        AddTaskToGameThread("RunScan", [resultPromise, modeStr, presetStr]() {
+            resultPromise->set_value(SpellScanner::RunScanToFile(modeStr, presetStr));
+        });
+
+        if (resultFuture.wait_for(std::chrono::seconds(SCAN_TIMEOUT_SECONDS)) != std::future_status::ready) {
+            logger::error("PapyrusAPI: RunScan timed out after {} seconds", SCAN_TIMEOUT_SECONDS);
+            return RE::BSFixedString("");
+        }
+
+        try {
+            const std::string outputPath = resultFuture.get();
+            logger::info("PapyrusAPI: RunScan finished, output '{}'", outputPath);
+            return RE::BSFixedString(outputPath.c_str());
+        } catch (const std::exception& e) {
+            // The task was dropped before it could produce a value
+            logger::error("PapyrusAPI: RunScan failed: {}", e.what());
+            return RE::BSFixedString("");
+        }
+    }
+
+    // =========================================================================
     // MOD EVENT SENDERS
     // =========================================================================
 
@@ -316,7 +360,10 @@ namespace PapyrusAPI
         vm->RegisterFunction("GetXPForTier", SCRIPT_NAME, GetXPForTier);
         vm->RegisterFunction("GetSourceCap", SCRIPT_NAME, GetSourceCap);
 
-        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 26, SCRIPT_NAME);
+        // === Scanning ===
+        vm->RegisterFunction("RunScan", SCRIPT_NAME, RunScan);
+
+        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 27, SCRIPT_NAME);
 
         return true;
     }
