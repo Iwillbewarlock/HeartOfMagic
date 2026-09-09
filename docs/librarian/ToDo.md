@@ -187,7 +187,10 @@
   (사이드 상세 패널 토글, 카메라 설정 저장, `uiPatchDefaults` 마커, 그리고 **약 30개 UI 핸들러가
   호출하는 `scheduleAutoSave()` 정의**)이 통째로 가려졌다. 그 함수가 없으면 핸들러가 던진다.
   → Dev 에 넣을 이 세 파일은 **UI-Patch 판을 바탕으로 수정**해야 한다.
-  `modules/state.js` 는 이미 그렇게 병합돼 있다(카메라 설정 + `effectDetails`)
+  2026-09-10 복구 완료: Dev 의 두 파일 모두 UI-Patch 판 대비 차이가 의도한 한 곳뿐이다.
+  `settingsPanel.js` 는 `state.fields = data.fields;` → 병합 루프,
+  `state.js` 는 `keywords: true` 뒤에 `effectDetails: true` 추가.
+  게임이 켜져 있으면 MO2 VFS 가 파일을 잡고 있어 덮어쓰기도 삭제도 안 되므로 반드시 끄고 할 것
 - **UI-Patch 의 `index.html` 은 `tagVocabulary.js` 를 로드하지 않는다.** Dev 에 index.html 이 없어
   UI-Patch 판이 유일본이기 때문이다. 지금은 `TAG_ELEMENTS` 를 쓰는 코드가 없어 무해하지만,
   M4/M5 에서 UI 가 태그를 읽기 시작하면 UI-Patch 의 index.html 에도 스크립트 태그를 넣어야 한다
