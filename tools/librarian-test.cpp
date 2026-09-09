@@ -28,6 +28,7 @@
 #include <nlohmann/json.hpp>
 
 #include "librarian/Librarian.h"
+#include "librarian/TagVocabulary.h"
 
 using json = nlohmann::json;
 
@@ -52,7 +53,119 @@ namespace
             << "  -a, --answers <file>  Answer set to score against\n"
             << "  -o, --output  <file>  Write the tagged catalog here\n"
             << "  -v, --verbose         List per spell misses for the answer set\n"
-            << "  -h, --help            Show this help\n";
+            << "  -h, --help            Show this help\n"
+            << "\n"
+            << "Vocabulary check (no dump needed):\n"
+            << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
+            << "      Fails when a rule file uses a tag outside TagVocabulary.h,\n"
+            << "      or when the JavaScript mirror has drifted from it.\n";
+    }
+
+    // ========================================================================
+    // Vocabulary check
+    // ========================================================================
+
+    // Pulls the entries of one `var NAME = [ 'a', 'b' ];` array out of the
+    // JavaScript mirror. A real parser would be overkill for a flat string
+    // list that exists only to be kept identical to the C++ one.
+    std::vector<std::string> ReadJsArray(const std::string& source, const std::string& name)
+    {
+        std::vector<std::string> entries;
+
+        const auto declaration = source.find("var " + name);
+        if (declaration == std::string::npos) {
+            return entries;
+        }
+        const auto open = source.find('[', declaration);
+        const auto close = source.find(']', open);
+        if (open == std::string::npos || close == std::string::npos) {
+            return entries;
+        }
+
+        const std::string body = source.substr(open + 1, close - open - 1);
+        std::size_t cursor = 0;
+        while (true) {
+            const auto quote = body.find('\'', cursor);
+            if (quote == std::string::npos) {
+                break;
+            }
+            const auto end = body.find('\'', quote + 1);
+            if (end == std::string::npos) {
+                break;
+            }
+            entries.push_back(body.substr(quote + 1, end - quote - 1));
+            cursor = end + 1;
+        }
+        return entries;
+    }
+
+    bool CompareMirror(const char* label, const std::vector<std::string>& script,
+        const std::vector<std::string>& native)
+    {
+        if (script.empty()) {
+            std::cout << "  " << label << ": could not read the JavaScript array\n";
+            return false;
+        }
+        if (script == native) {
+            std::cout << "  " << label << ": " << native.size() << " tags, mirror matches\n";
+            return true;
+        }
+
+        std::cout << "  " << label << ": MIRROR DRIFT (" << native.size()
+            << " in C++, " << script.size() << " in JavaScript)\n";
+        for (const auto& tag : native) {
+            if (std::find(script.begin(), script.end(), tag) == script.end()) {
+                std::cout << "    only in C++:        " << tag << "\n";
+            }
+        }
+        for (const auto& tag : script) {
+            if (std::find(native.begin(), native.end(), tag) == native.end()) {
+                std::cout << "    only in JavaScript: " << tag << "\n";
+            }
+        }
+        return false;
+    }
+
+    // Rule files are checked by loading them: LibrarianRules drops any tag the
+    // vocabulary does not know and counts it, so a clean load is a clean file.
+    int CheckVocabulary(const std::string& rulesPath, const std::string& scriptPath)
+    {
+        bool ok = true;
+
+        const Librarian::RuleSet rules = Librarian::LoadRules(rulesPath);
+        std::cout << "\nVOCABULARY CHECK\n";
+        if (rules.rejectedTags > 0) {
+            std::cout << "  rules: " << rules.rejectedTags
+                << " tag(s) outside the vocabulary - see the warnings above\n";
+            ok = false;
+        } else {
+            std::cout << "  rules: " << rules.rules.size()
+                << " loaded, every tag is in the vocabulary\n";
+        }
+
+        if (!scriptPath.empty()) {
+            std::ifstream file(scriptPath);
+            if (!file.is_open()) {
+                std::cout << "  mirror: cannot open " << scriptPath << "\n";
+                ok = false;
+            } else {
+                const std::string source((std::istreambuf_iterator<char>(file)),
+                    std::istreambuf_iterator<char>());
+
+                const std::vector<std::string> nativeElements(
+                    std::begin(Librarian::ELEMENTS), std::end(Librarian::ELEMENTS));
+                const std::vector<std::string> nativeTechniques(
+                    std::begin(Librarian::TECHNIQUES), std::end(Librarian::TECHNIQUES));
+
+                ok &= CompareMirror("elements",
+                    ReadJsArray(source, "TAG_ELEMENTS"), nativeElements);
+                ok &= CompareMirror("techniques",
+                    ReadJsArray(source, "TAG_TECHNIQUES"), nativeTechniques);
+            }
+        }
+
+        std::cout << (ok ? "\nOK\n" : "\nFAILED\n");
+        return ok ? 0 : 1;
     }
 
     // A scan dump can carry console noise ahead of the JSON when it was saved
@@ -460,7 +573,9 @@ int main(int argc, char* argv[])
     std::string rulesPath;
     std::string answersPath;
     std::string outputPath;
+    std::string scriptPath;
     bool verbose = false;
+    bool checkVocabulary = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -474,6 +589,10 @@ int main(int argc, char* argv[])
             answersPath = argv[++i];
         } else if ((arg == "-o" || arg == "--output") && hasNext) {
             outputPath = argv[++i];
+        } else if ((arg == "-j" || arg == "--script") && hasNext) {
+            scriptPath = argv[++i];
+        } else if (arg == "--check-vocab") {
+            checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
             verbose = true;
         } else if (arg == "-h" || arg == "--help") {
@@ -482,6 +601,19 @@ int main(int argc, char* argv[])
         } else {
             std::cerr << "Unknown or incomplete argument: " << arg << "\n\n";
             PrintUsage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (checkVocabulary) {
+        if (rulesPath.empty()) {
+            PrintUsage(argv[0]);
+            return 1;
+        }
+        try {
+            return CheckVocabulary(rulesPath, scriptPath);
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << "\n";
             return 1;
         }
     }

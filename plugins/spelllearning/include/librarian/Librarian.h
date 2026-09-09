@@ -118,6 +118,11 @@ namespace Librarian
 
         // Rules skipped because they had no conditions or added no tags.
         std::size_t skipped = 0;
+
+        // Tags dropped because they are not in the vocabulary. A typo in a
+        // user's rule file lands here rather than inventing a tag no adapter
+        // can translate, so a non-zero count means a rule file needs fixing.
+        std::size_t rejectedTags = 0;
     };
 
     // =========================================================================

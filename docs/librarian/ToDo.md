@@ -211,17 +211,23 @@
 - 의존: M1
 - 테스트: `librarian-test` 가 같은 입력에 같은 숫자를 낸다. 숫자를 Concept.md 2-2절에 반영
 
-### [ ] M3. 태그 어휘 확정
+### [x] M3. 태그 어휘 확정 (2026-09-09) — `tags-v1`, **원소 38 / 기법 18**
 - 역할: 태그의 정의를 못 박는다. 이후 모든 모듈이 이 목록만 쓴다
-- 출력: `docs/librarian/TAGS.md` (태그·정의·예시 주문 3개씩), `include/librarian/TagVocabulary.h`(`static constexpr` 배열), `modules/tagVocabulary.js` — **두 파일은 내용 동일, 수동 동기화** (빌드 시 검증 스크립트 하나 두면 좋음)
-- 의존: M2 (측정에서 실제로 구분되는 태그만 남긴다)
-- M2 가 넘긴 판단거리: 실제로 붙는 것은 원소 24종 / 기법 15종. `apparition`(2건), `time`(1건)
-  처럼 거의 안 붙는 태그를 남길지, `resistance`(2오탐 0적중)를 뺄지, 그리고 MGEF 로는 절대
-  볼 수 없는 `earth`·`metal`·`air`·`sun`(Stoneflesh 와 Ironflesh 는 MGEF 구조가 완전히 같다)을
-  어휘에 두고 M7 에 맡길지
-- 테스트: `librarian-test` 에 어휘 검사 모드를 추가 — `00_mgef.json` 의 모든 `add` 값이
-  `TagVocabulary.h` 에 있는지. 어휘가 생기면 `LibrarianRules.cpp` 의 검증(어휘 밖 태그 →
-  경고 후 무시)도 이때 켠다
+- [x] `docs/librarian/TAGS.md` — 정본. 태그·정의·바닐라 예시. 헷갈리는 정의 6가지를 3절에 모았다
+- [x] `include/librarian/TagVocabulary.h` — `inline constexpr std::string_view` 배열 + `IsElement`/`IsTechnique`.
+      헤더 온리라 .cpp 가 필요 없다
+- [x] `modules/tagVocabulary.js` — 거울. `var` 만 사용
+- [x] `LibrarianRules.cpp` 어휘 검증 — 어휘 밖 태그는 경고 후 버리고 `RuleSet::rejectedTags` 로 센다.
+      사용자 룰 파일의 오타가 아무도 번역할 수 없는 태그를 만들어내지 못한다
+- [x] `librarian-test --check-vocab -r <룰> -j <js>` — 룰의 태그가 어휘 안에 있는지 + **C++/JS 거울이
+      어긋나지 않았는지** 검사하고 어긋나면 종료 코드 1. 오타 룰 파일로 동작 확인함
+- **결정: 안 붙는 태그도 남긴다.** Concept 4절 "뭉치는 건 언제나 되지만 쪼개는 건 안 된다".
+  M2 에서 실제로 붙은 건 원소 24 / 기법 15 뿐이지만, 나머지는 M7 이 붙일 것이고 지금 지우면
+  카탈로그를 다시 만들어야 한다. 손님에게 나갈 때 뭉치는 것은 **어댑터의 일**이다
+- **SR 34/15 에 7종을 더했다.** 이 로드오더의 키워드 체계가 실제로 구분하는데 SR 이 표현
+  못 하는 것들 — 원소 `blood` `eldritch` `holy` `necrotic`, 기법 `dispel` `sacrifice` `teleport`.
+  근거 키워드는 TAGS.md 각 항목에 적었다 (KIT `SpellDamageType_Blood`, OCF `MgefClassEldritch` 등)
+- 의존: M2
 
 ### [ ] M4. 사서 게임 내 연결 + 카탈로그
 - 역할: 스캔 결과에 태그를 붙여 카탈로그로 저장. 1·2단계(MGEF 룰, 프레임워크 룰)만. 텍스트·LLM은 M7
@@ -265,14 +271,14 @@
 
 ## 4. 지금 당장 (다음 세션 시작점)
 
-M0, M1 완료. **M2 의 핵심 질문에 답이 나왔다** — MGEF 구조만으로 81.4% 에 태그가 붙는다.
-프레임워크 없는 환경이 성립한다는 뜻이고, 이게 공개 배포의 전제였다(`MEASURED.md`).
+M0 · M1 · M3 완료, M2 는 (a) 완료. **MGEF 구조만으로 81.4% 에 태그가 붙고**(`MEASURED.md`),
+어휘는 `tags-v1` 원소 38 / 기법 18 로 못 박혔다(`TAGS.md`). 프레임워크 없는 환경이 성립한다.
 
-**다음은 M3 (태그 어휘 확정) 이다.** 게임이 필요 없다.
-
-1. **M3** — 실제로 붙는 원소 24종 / 기법 15종을 놓고 어휘를 못 박는다. 판단거리는 M3 절에 적어뒀다.
-   어휘가 정해지면 `LibrarianRules.cpp` 의 어휘 검증을 켜고 `librarian-test` 에 검사 모드를 넣는다
-2. M2 의 남은 (b)(c) — 프레임워크 룰(`10_kit.json` 등)과 이펙트명 룰. 룰 파일만 추가하면
-   같은 하네스로 바로 잰다. **M3 어휘 확정 후에 하는 편이 낫다** — 지금 재면 어휘가 흔들린다
+1. **M2 의 남은 (b)** — 프레임워크 룰 `10_kit.json` / `10_ocf.json` / `10_nsv.json`.
+   어휘가 확정됐으므로 이제 해도 된다. 이 로드오더에 KIT 130 · OCF 125 · ADAR 93 · NSV 25 종이
+   있고 접두사가 구조적이라 `spellKeywordPrefix` 로 잡힌다. 게임 불필요, 하네스로 바로 잰다.
+   기대: MGEF 가 놓치는 `earth`·`metal`·`blood` 등을 프레임워크가 이름으로 구분해준다
+2. **(c) 이펙트명 룰** — 그 다음. 여기부터는 언어 의존이라 한글 로드오더에서 안 먹는다.
+   공개 배포에서는 영어 환경 보너스로만 취급할 것
 3. M4 (게임 내 연결 + 카탈로그) 전에 정리할 것 두 가지: `RunScan` 블로킹(M1 버그 2, 해법 미결정)과
    포커스 잃으면 프레임 정지(M0-T). 둘 다 게임 테스트를 다시 해야 할 때 걸린다

@@ -1,4 +1,5 @@
 #include "librarian/Librarian.h"
+#include "librarian/TagVocabulary.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -33,17 +34,37 @@ namespace Librarian
             }
         }
 
+        using TagPredicate = bool (*)(std::string_view);
+
         // Reads a "tags" list, accepting a bare string as a list of one so a
-        // rule that adds a single tag does not need brackets.
-        void ReadTagList(const json& object, const char* key, std::vector<std::string>& target)
+        // rule that adds a single tag does not need brackets. Tags outside the
+        // vocabulary are dropped: a typo must not become a tag that no adapter
+        // knows how to translate.
+        void ReadTagList(const json& object, const char* key, const char* noun,
+            TagPredicate inVocabulary, const std::string& originFile,
+            std::vector<std::string>& target, std::size_t& rejected)
         {
             const auto found = object.find(key);
             if (found == object.end()) {
                 return;
             }
 
+            const auto accept = [&](const json& entry) {
+                if (!entry.is_string()) {
+                    return;
+                }
+                std::string tag = entry.get<std::string>();
+                if (!inVocabulary(tag)) {
+                    ++rejected;
+                    logger::warn("Librarian: '{}' uses '{}', which is not a known {} - dropped",
+                        originFile, tag, noun);
+                    return;
+                }
+                target.push_back(std::move(tag));
+            };
+
             if (found->is_string()) {
-                target.push_back(found->get<std::string>());
+                accept(*found);
                 return;
             }
 
@@ -52,9 +73,7 @@ namespace Librarian
             }
 
             for (const auto& entry : *found) {
-                if (entry.is_string()) {
-                    target.push_back(entry.get<std::string>());
-                }
+                accept(entry);
             }
         }
 
@@ -83,7 +102,7 @@ namespace Librarian
         // One rule object. Returns false when it would never do anything, so
         // the caller can count it as skipped instead of carrying dead weight.
         bool ParseRule(const json& ruleObject, const std::string& originFile,
-            std::size_t index, Rule& target)
+            std::size_t index, Rule& target, std::size_t& rejectedTags)
         {
             if (!ruleObject.is_object()) {
                 return false;
@@ -101,8 +120,10 @@ namespace Librarian
 
             const auto addField = ruleObject.find("add");
             if (addField != ruleObject.end() && addField->is_object()) {
-                ReadTagList(*addField, "elements", target.addElements);
-                ReadTagList(*addField, "techniques", target.addTechniques);
+                ReadTagList(*addField, "elements", "element", &IsElement, originFile,
+                    target.addElements, rejectedTags);
+                ReadTagList(*addField, "techniques", "technique", &IsTechnique, originFile,
+                    target.addTechniques, rejectedTags);
             }
 
             if (target.addElements.empty() && target.addTechniques.empty()) {
@@ -168,7 +189,7 @@ namespace Librarian
         std::size_t index = 0;
         for (const auto& ruleObject : *ruleArray) {
             Rule rule;
-            if (ParseRule(ruleObject, originFile, index, rule)) {
+            if (ParseRule(ruleObject, originFile, index, rule, target.rejectedTags)) {
                 target.rules.push_back(std::move(rule));
             } else {
                 ++target.skipped;
@@ -225,8 +246,8 @@ namespace Librarian
                 ruleSet.rules.size() - before, name);
         }
 
-        logger::info("Librarian: {} rules from {} files ({} skipped)",
-            ruleSet.rules.size(), ruleSet.files.size(), ruleSet.skipped);
+        logger::info("Librarian: {} rules from {} files ({} skipped, {} tags outside the vocabulary)",
+            ruleSet.rules.size(), ruleSet.files.size(), ruleSet.skipped, ruleSet.rejectedTags);
 
         return ruleSet;
     }
