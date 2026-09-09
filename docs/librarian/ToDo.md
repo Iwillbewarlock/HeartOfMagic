@@ -176,13 +176,21 @@
   `profile_local_inis=true` 인데도). DevBench 는 메인 스레드가 돌아야 도구를 실행하므로,
   스캔 전에 창을 앞으로 가져와야 한다(`ShowWindow(hWnd, SW_RESTORE)` 로 충분했다).
   M1 과 무관한 환경 문제지만 앞으로 모든 게임 테스트에 영향
-- **배포 함정: `HeartOfMagic-UI-Patch` 가 `HeartOfMagic-Librarian-Dev` 를 덮어쓴다.**
-  MO2 우선순위가 UI-Patch 19 / Dev 6 이라 UI-Patch 가 이긴다. UI-Patch 는
-  `index.html` · `modules/settingsPanel.js` · `modules/state.js` 를 갖고 있으므로,
-  **Dev 폴더에 넣은 이 세 파일의 수정은 게임에 반영되지 않는다.**
-  DLL · `script.js` · `uiHelpers.js` · `tagVocabulary.js` 는 UI-Patch 에 없어 정상 반영된다.
-  → 게임에서 UI 경로를 검증하려면 Dev 를 UI-Patch **아래(높은 우선순위)** 로 옮기고 게임을 재시작할 것.
-  MO2 의 VFS 는 실행 시점에 고정되므로 게임을 켠 채로는 바꿀 수 없다
+- **MO2 우선순위 읽는 법 — `modlist.txt` 는 앞줄이 높은 우선순위다.**
+  파일 끝쪽에 `Creation Club Files` 와 `##Base Mods_separator` 가 있는 것이 근거다. 베이스가
+  가장 낮은 우선순위이므로 끝줄이 가장 약하고 첫줄이 가장 세다.
+  현재: `HeartOfMagic-Librarian-Dev`(6줄) > `HeartOfMagic-UI-Patch`(19줄) > `HeartOfMagic-KR`(2043줄).
+  **즉 Dev 가 이긴다.** 2026-09-10 에 이걸 거꾸로 적었다가 사용자가 잡아줬다
+- **그래서 Dev 에 파일을 넣을 때는 UI-Patch 를 가리지 않는지 반드시 확인할 것.**
+  UI-Patch 가 가진 파일은 `index.html` · `modules/settingsPanel.js` · `modules/state.js` 셋이다.
+  Dev 에 리포판 `settingsPanel.js` 를 그대로 넣었더니 UI-Patch 고유 89줄
+  (사이드 상세 패널 토글, 카메라 설정 저장, `uiPatchDefaults` 마커, 그리고 **약 30개 UI 핸들러가
+  호출하는 `scheduleAutoSave()` 정의**)이 통째로 가려졌다. 그 함수가 없으면 핸들러가 던진다.
+  → Dev 에 넣을 이 세 파일은 **UI-Patch 판을 바탕으로 수정**해야 한다.
+  `modules/state.js` 는 이미 그렇게 병합돼 있다(카메라 설정 + `effectDetails`)
+- **UI-Patch 의 `index.html` 은 `tagVocabulary.js` 를 로드하지 않는다.** Dev 에 index.html 이 없어
+  UI-Patch 판이 유일본이기 때문이다. 지금은 `TAG_ELEMENTS` 를 쓰는 코드가 없어 무해하지만,
+  M4/M5 에서 UI 가 태그를 읽기 시작하면 UI-Patch 의 index.html 에도 스크립트 태그를 넣어야 한다
 - 미검증: PrismaUI JS 테스트(`node run-tests.js`)를 **못 돌렸다 — 이 PC에 Node.js 가 없다.** JS 변경은 3곳뿐이고 모두 기계적
 - 문서: `docs/ARCHITECTURE.md`(스캐너 절), `docs/PRESETS.md`
 
