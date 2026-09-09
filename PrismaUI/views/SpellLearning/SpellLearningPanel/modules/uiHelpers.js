@@ -47,38 +47,9 @@ function setTreeStatus(msg) {
     if (el) el.textContent = msg;
 }
 
-// =============================================================================
-// FIELD PRESETS
-// =============================================================================
-
-function applyPreset(presetName) {
-    var presets = {
-        minimal: {
-            editorId: false, magickaCost: false, minimumSkill: false,
-            castingType: false, delivery: false, chargeTime: false,
-            plugin: false, effects: false, effectNames: false, keywords: false
-        },
-        balanced: {
-            editorId: true, magickaCost: true, minimumSkill: false,
-            castingType: false, delivery: false, chargeTime: false,
-            plugin: false, effects: false, effectNames: false, keywords: false
-        },
-        full: {
-            editorId: true, magickaCost: true, minimumSkill: true,
-            castingType: true, delivery: true, chargeTime: true,
-            plugin: true, effects: true, effectNames: false, keywords: true
-        }
-    };
-    
-    var preset = presets[presetName];
-    if (!preset) return;
-    
-    for (var field in preset) {
-        state.fields[field] = preset[field];
-        var checkbox = document.getElementById('field_' + field);
-        if (checkbox) checkbox.checked = preset[field];
-    }
-}
+// Field presets live in llmApiSettings.js (applyPreset), mirrored by
+// FieldsForPreset() in SpellScannerJson.cpp. A second copy used to sit here
+// and had quietly drifted from the live one.
 
 // =============================================================================
 // DRAGGING

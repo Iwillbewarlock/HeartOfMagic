@@ -14,6 +14,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | Module | Lines | Purpose |
 |--------|------:|---------|
 | `constants.js` | 267 | Core constants, difficulty profiles, keycodes |
+| `tagVocabulary.js` | 97 | Closed tag list for the librarian; mirrors `include/librarian/TagVocabulary.h` |
 | `state.js` | 143 | Settings object, app state, XP overrides |
 | `config.js` | 266 | Tree layout and visual configuration |
 | `spellCache.js` | 114 | Async spell data caching |
@@ -40,6 +41,7 @@ Modules must load in dependency order before `script.js`:
 ```html
 <!-- 1. Constants and Configuration -->
 <script src="modules/constants.js"></script>
+<script src="modules/tagVocabulary.js"></script>
 <script src="modules/state.js"></script>
 <script src="modules/config.js"></script>
 
@@ -76,6 +78,8 @@ Modules must load in dependency order before `script.js`:
 ```
 constants.js          (no deps)
     ↓
+tagVocabulary.js      (no deps; kept identical to TagVocabulary.h by hand,
+    ↓                  checked by librarian-test --check-vocab)
 state.js              (uses: constants.js)
     ↓
 config.js             (no deps)

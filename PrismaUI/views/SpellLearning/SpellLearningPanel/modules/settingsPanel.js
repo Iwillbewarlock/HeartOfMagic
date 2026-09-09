@@ -2061,8 +2061,13 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         
         // === Field Settings ===
         if (data.fields) {
-            state.fields = data.fields;
-            
+            // Merge over the defaults rather than replace them: a settings file
+            // written before a field existed (effectDetails, 2026-09) would
+            // otherwise wipe that field out and the scan would silently omit it.
+            for (var savedField in data.fields) {
+                state.fields[savedField] = data.fields[savedField];
+            }
+
             // Update field checkboxes
             for (var fieldName in data.fields) {
                 var checkbox = document.getElementById('field_' + fieldName);

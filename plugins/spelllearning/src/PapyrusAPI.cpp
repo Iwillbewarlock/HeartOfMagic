@@ -280,13 +280,23 @@ namespace PapyrusAPI
             return RE::BSFixedString(outputPath.c_str());
         }
 
-        // The calling script waits for the result.
+        // The calling script waits for the result. The task is the promise's
+        // only owner (moved in, not shared with this frame): if it is dropped
+        // before running, or destroyed after an exception, the promise breaks
+        // and the wait below ends at once instead of sitting out the whole
+        // timeout. A shared_ptr rather than the promise itself because
+        // std::function needs a copyable callable.
         auto resultPromise = std::make_shared<std::promise<std::string>>();
         auto resultFuture = resultPromise->get_future();
 
-        AddTaskToGameThread("RunScan", [resultPromise, modeStr, presetStr]() {
-            resultPromise->set_value(SpellScanner::RunScanToFile(modeStr, presetStr));
-        });
+        AddTaskToGameThread("RunScan",
+            [resultPromise = std::move(resultPromise), modeStr, presetStr]() {
+                try {
+                    resultPromise->set_value(SpellScanner::RunScanToFile(modeStr, presetStr));
+                } catch (...) {
+                    resultPromise->set_exception(std::current_exception());
+                }
+            });
 
         if (resultFuture.wait_for(std::chrono::seconds(SCAN_TIMEOUT_SECONDS)) != std::future_status::ready) {
             logger::error("PapyrusAPI: RunScan timed out after {} seconds", SCAN_TIMEOUT_SECONDS);
@@ -298,7 +308,8 @@ namespace PapyrusAPI
             logger::info("PapyrusAPI: RunScan finished, output '{}'", outputPath);
             return RE::BSFixedString(outputPath.c_str());
         } catch (const std::exception& e) {
-            // The task was dropped before it could produce a value
+            // Either the scan threw, or the task was dropped without running
+            // (broken_promise)
             logger::error("PapyrusAPI: RunScan failed: {}", e.what());
             return RE::BSFixedString("");
         }

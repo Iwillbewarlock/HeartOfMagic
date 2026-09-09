@@ -13,6 +13,7 @@
 // ============================================================================
 
 #include "Common.h"
+#include "JsonFile.h"
 
 #include <chrono>
 #include <fstream>
@@ -57,15 +58,6 @@ static void PrintUsage(const char* argv0)
         << "  -s, --seed   <n>      Random seed (default: 0)\n"
         << "  -c, --config <file>   Config JSON file (default: built-in defaults)\n"
         << "  -h, --help            Show this help\n";
-}
-
-static json ReadJsonFile(const std::string& path)
-{
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Cannot open file: " + path);
-    }
-    return json::parse(file);
 }
 
 static void WriteJsonFile(const std::string& path, const json& data)

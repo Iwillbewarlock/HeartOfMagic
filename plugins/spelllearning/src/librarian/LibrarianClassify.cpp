@@ -63,17 +63,29 @@ namespace Librarian
             return false;
         }
 
-        using AffixTest = bool (*)(const std::string&, const std::string&);
-
-        bool HasKeywordWithAffix(const json& owner, const std::string& affix, AffixTest test)
+        // Prefix and suffix describe one keyword, not two: ADAR_SPEL_Earth_Rune
+        // is earth by its prefix and a trap by its suffix, and a rule naming
+        // both wants both on that same keyword. An empty affix is not a
+        // condition. Returns true when no affix was asked for at all.
+        bool HasKeywordWithAffixes(const json& owner, const std::string& prefix,
+            const std::string& suffix)
         {
+            if (prefix.empty() && suffix.empty()) {
+                return true;
+            }
+
             const auto keywords = owner.find("keywords");
             if (keywords == owner.end() || !keywords->is_array()) {
                 return false;
             }
 
             for (const auto& entry : *keywords) {
-                if (entry.is_string() && test(entry.get<std::string>(), affix)) {
+                if (!entry.is_string()) {
+                    continue;
+                }
+                const std::string keyword = entry.get<std::string>();
+                if ((prefix.empty() || StartsWith(keyword, prefix))
+                    && (suffix.empty() || EndsWith(keyword, suffix))) {
                     return true;
                 }
             }
@@ -86,12 +98,7 @@ namespace Librarian
             if (!match.mgefKeyword.empty() && !HasKeyword(effect, match.mgefKeyword)) {
                 return false;
             }
-            if (!match.mgefKeywordPrefix.empty()
-                && !HasKeywordWithAffix(effect, match.mgefKeywordPrefix, &StartsWith)) {
-                return false;
-            }
-            if (!match.mgefKeywordSuffix.empty()
-                && !HasKeywordWithAffix(effect, match.mgefKeywordSuffix, &EndsWith)) {
+            if (!HasKeywordWithAffixes(effect, match.mgefKeywordPrefix, match.mgefKeywordSuffix)) {
                 return false;
             }
             if (!match.archetype.empty() && ReadField(effect, "archetype") != match.archetype) {
@@ -123,12 +130,7 @@ namespace Librarian
             if (!match.spellKeyword.empty() && !HasKeyword(spell, match.spellKeyword)) {
                 return false;
             }
-            if (!match.spellKeywordPrefix.empty()
-                && !HasKeywordWithAffix(spell, match.spellKeywordPrefix, &StartsWith)) {
-                return false;
-            }
-            if (!match.spellKeywordSuffix.empty()
-                && !HasKeywordWithAffix(spell, match.spellKeywordSuffix, &EndsWith)) {
+            if (!HasKeywordWithAffixes(spell, match.spellKeywordPrefix, match.spellKeywordSuffix)) {
                 return false;
             }
 
