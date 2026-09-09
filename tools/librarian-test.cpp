@@ -18,6 +18,7 @@
 
 #include "Common.h"
 #include "JsonFile.h"
+#include "LibrarianScore.h"
 #include "LibrarianVocabCheck.h"
 
 #include <algorithm>
@@ -57,6 +58,12 @@ namespace
             << "                        e.g. \"mgef\" to measure without frameworks\n"
             << "  -h, --help            Show this help\n"
             << "\n"
+            << "Score a catalog instead of a dump (no rules needed):\n"
+            << "  --catalog <spell_catalog.json> -a <answers>\n"
+            << "      Scores tags and the four axes straight out of a catalog,\n"
+            << "      which is how a catalog the game wrote gets checked against\n"
+            << "      the numbers the offline run produces.\n"
+            << "\n"
             << "Vocabulary check (no dump needed):\n"
             << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
             << "      Fails when a rule file uses a tag outside TagVocabulary.h,\n"
@@ -94,371 +101,6 @@ namespace
         return json::parse(body);
     }
 
-    // ========================================================================
-    // Join key
-    // ========================================================================
-
-    struct JoinKey
-    {
-        std::string plugin;
-        std::uint32_t localId = 0;
-
-        bool operator<(const JoinKey& other) const
-        {
-            if (plugin != other.plugin) {
-                return plugin < other.plugin;
-            }
-            return localId < other.localId;
-        }
-    };
-
-    std::string Lowered(std::string text)
-    {
-        std::transform(text.begin(), text.end(), text.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return text;
-    }
-
-    std::uint32_t ParseLocalId(const std::string& formId)
-    {
-        try {
-            return static_cast<std::uint32_t>(std::stoul(formId, nullptr, 16)) & LOCAL_FORM_ID_MASK;
-        } catch (const std::exception&) {
-            return 0;
-        }
-    }
-
-    // persistentId is "Plugin.esp|0x00123456"; fall back to the separate
-    // plugin and formId fields when a narrower preset left it out.
-    bool MakeScanKey(const json& spell, JoinKey& key)
-    {
-        std::string plugin;
-        std::string formId;
-
-        const auto persistent = spell.find("persistentId");
-        if (persistent != spell.end() && persistent->is_string()) {
-            const std::string text = persistent->get<std::string>();
-            const auto bar = text.find('|');
-            if (bar != std::string::npos) {
-                plugin = text.substr(0, bar);
-                formId = text.substr(bar + 1);
-            }
-        }
-
-        if (plugin.empty()) {
-            const auto pluginField = spell.find("plugin");
-            if (pluginField != spell.end() && pluginField->is_string()) {
-                plugin = pluginField->get<std::string>();
-            }
-        }
-        if (formId.empty()) {
-            const auto formField = spell.find("formId");
-            if (formField != spell.end() && formField->is_string()) {
-                formId = formField->get<std::string>();
-            }
-        }
-
-        if (plugin.empty() || formId.empty()) {
-            return false;
-        }
-
-        key.plugin = Lowered(plugin);
-        key.localId = ParseLocalId(formId);
-        return true;
-    }
-
-    // ========================================================================
-    // Scoring
-    // ========================================================================
-
-    struct AxisScore
-    {
-        std::size_t truePositives = 0;
-        std::size_t predicted = 0;
-        std::size_t actual = 0;
-        std::size_t exactMatches = 0;
-
-        [[nodiscard]] double Precision() const
-        {
-            return predicted ? static_cast<double>(truePositives) / static_cast<double>(predicted) : 0.0;
-        }
-        [[nodiscard]] double Recall() const
-        {
-            return actual ? static_cast<double>(truePositives) / static_cast<double>(actual) : 0.0;
-        }
-        [[nodiscard]] double F1() const
-        {
-            const double p = Precision();
-            const double r = Recall();
-            return (p + r) > 0.0 ? 2.0 * p * r / (p + r) : 0.0;
-        }
-    };
-
-    std::set<std::string> ReadTagSet(const json& object, const char* key)
-    {
-        std::set<std::string> tags;
-        const auto found = object.find(key);
-        if (found == object.end() || !found->is_array()) {
-            return tags;
-        }
-        for (const auto& entry : *found) {
-            if (entry.is_string()) {
-                tags.insert(entry.get<std::string>());
-            }
-        }
-        return tags;
-    }
-
-    // Per tag error counts. Which tag is wrong matters more than the totals:
-    // it says which rule to fix first.
-    struct TagError
-    {
-        std::size_t truePositives = 0;
-        std::size_t falsePositives = 0;
-        std::size_t falseNegatives = 0;
-
-        [[nodiscard]] std::size_t Errors() const { return falsePositives + falseNegatives; }
-    };
-
-    using TagErrors = std::map<std::string, TagError>;
-
-    void Accumulate(const std::set<std::string>& predicted,
-        const std::set<std::string>& actual, AxisScore& score, TagErrors& errors)
-    {
-        std::size_t hits = 0;
-        for (const auto& tag : predicted) {
-            if (actual.count(tag)) {
-                ++hits;
-                ++errors[tag].truePositives;
-            } else {
-                ++errors[tag].falsePositives;
-            }
-        }
-        for (const auto& tag : actual) {
-            if (!predicted.count(tag)) {
-                ++errors[tag].falseNegatives;
-            }
-        }
-
-        score.truePositives += hits;
-        score.predicted += predicted.size();
-        score.actual += actual.size();
-        if (predicted == actual) {
-            ++score.exactMatches;
-        }
-    }
-
-    void PrintTagErrors(const char* label, const TagErrors& errors)
-    {
-        std::vector<std::pair<std::string, TagError>> sorted(errors.begin(), errors.end());
-        std::sort(sorted.begin(), sorted.end(),
-            [](const auto& a, const auto& b) { return a.second.Errors() > b.second.Errors(); });
-
-        std::cout << "\n  " << label << " - worst tags (hit / false alarm / missed)\n";
-        for (const auto& [tag, error] : sorted) {
-            if (error.Errors() == 0) {
-                continue;
-            }
-            std::cout << "    " << std::left << std::setw(14) << tag << std::right
-                << std::setw(4) << error.truePositives
-                << std::setw(6) << error.falsePositives
-                << std::setw(6) << error.falseNegatives << "\n";
-        }
-    }
-
-    void PrintAxis(const char* label, const AxisScore& score, std::size_t pairs)
-    {
-        std::cout << "  " << std::left << std::setw(12) << label
-            << std::right << std::fixed << std::setprecision(1)
-            << "  P " << std::setw(5) << score.Precision() * 100.0
-            << "  R " << std::setw(5) << score.Recall() * 100.0
-            << "  F1 " << std::setw(5) << score.F1() * 100.0
-            << "   exact " << score.exactMatches << "/" << pairs
-            << "\n";
-    }
-
-    // ========================================================================
-    // Reporting
-    // ========================================================================
-
-    void ReportCoverage(const json& spells, const Librarian::RuleSet& rules,
-        std::map<JoinKey, Librarian::TagSet>& tagged)
-    {
-        std::size_t noTags = 0;
-        std::size_t elementsOnly = 0;
-        std::size_t techniquesOnly = 0;
-        std::size_t both = 0;
-        std::map<std::string, std::size_t> elementCounts;
-        std::map<std::string, std::size_t> techniqueCounts;
-
-        for (const auto& spell : spells) {
-            const Librarian::TagSet tags = Librarian::Classify(spell, rules);
-
-            JoinKey key;
-            if (MakeScanKey(spell, key)) {
-                tagged[key] = tags;
-            }
-
-            if (tags.Empty()) {
-                ++noTags;
-            } else if (tags.techniques.empty()) {
-                ++elementsOnly;
-            } else if (tags.elements.empty()) {
-                ++techniquesOnly;
-            } else {
-                ++both;
-            }
-
-            for (const auto& tag : tags.elements) {
-                ++elementCounts[tag];
-            }
-            for (const auto& tag : tags.techniques) {
-                ++techniqueCounts[tag];
-            }
-        }
-
-        const auto total = spells.size();
-        const auto percent = [total](std::size_t n) {
-            return total ? static_cast<double>(n) * 100.0 / static_cast<double>(total) : 0.0;
-        };
-
-        std::cout << "COVERAGE  (" << total << " spells)\n"
-            << std::fixed << std::setprecision(1)
-            << "  elements + techniques  " << std::setw(5) << both << "  " << percent(both) << "%\n"
-            << "  elements only          " << std::setw(5) << elementsOnly << "  " << percent(elementsOnly) << "%\n"
-            << "  techniques only        " << std::setw(5) << techniquesOnly << "  " << percent(techniquesOnly) << "%\n"
-            << "  no tags at all         " << std::setw(5) << noTags << "  " << percent(noTags)
-            << "%   <- what the fallback has to cover\n\n";
-
-        std::cout << "TAGS ASSIGNED\n  elements  ";
-        for (const auto& [tag, count] : elementCounts) {
-            std::cout << tag << "(" << count << ") ";
-        }
-        std::cout << "\n  techniques  ";
-        for (const auto& [tag, count] : techniqueCounts) {
-            std::cout << tag << "(" << count << ") ";
-        }
-        std::cout << "\n\n";
-    }
-
-    void ReportScore(const json& answers, const std::map<JoinKey, Librarian::TagSet>& tagged,
-        bool verbose)
-    {
-        AxisScore elements;
-        AxisScore techniques;
-        TagErrors elementErrors;
-        TagErrors techniqueErrors;
-        std::size_t pairs = 0;
-        std::size_t unmatched = 0;
-        std::map<std::string, std::size_t> unmatchedByPlugin;
-
-        for (const auto& answer : answers) {
-            if (!answer.is_object()) {
-                continue;
-            }
-
-            const auto esp = answer.find("esp");
-            const auto formId = answer.find("formId");
-            if (esp == answer.end() || formId == answer.end()
-                || !esp->is_string() || !formId->is_string()) {
-                continue;
-            }
-
-            JoinKey key{ Lowered(esp->get<std::string>()),
-                ParseLocalId(formId->get<std::string>()) };
-
-            const auto found = tagged.find(key);
-            if (found == tagged.end()) {
-                ++unmatched;
-                ++unmatchedByPlugin[key.plugin];
-                continue;
-            }
-
-            ++pairs;
-            const auto actualElements = ReadTagSet(answer, "elements");
-            const auto actualTechniques = ReadTagSet(answer, "techniques");
-            Accumulate(found->second.elements, actualElements, elements, elementErrors);
-            Accumulate(found->second.techniques, actualTechniques, techniques, techniqueErrors);
-
-            if (verbose && (found->second.elements != actualElements
-                || found->second.techniques != actualTechniques)) {
-                std::cout << "  MISS " << key.plugin << "|0x" << std::hex << key.localId << std::dec
-                    << "  got {";
-                for (const auto& tag : found->second.elements) std::cout << tag << " ";
-                for (const auto& tag : found->second.techniques) std::cout << "+" << tag << " ";
-                std::cout << "}  want {";
-                for (const auto& tag : actualElements) std::cout << tag << " ";
-                for (const auto& tag : actualTechniques) std::cout << "+" << tag << " ";
-                std::cout << "}\n";
-            }
-        }
-
-        if (verbose) {
-            std::cout << "\n";
-        }
-
-        std::cout << "SCORE vs answer set  (" << pairs << " joined, "
-            << unmatched << " unmatched)\n";
-        PrintAxis("elements", elements, pairs);
-        PrintAxis("techniques", techniques, pairs);
-
-        AxisScore combined;
-        combined.truePositives = elements.truePositives + techniques.truePositives;
-        combined.predicted = elements.predicted + techniques.predicted;
-        combined.actual = elements.actual + techniques.actual;
-        PrintAxis("both", combined, pairs);
-
-        PrintTagErrors("elements", elementErrors);
-        PrintTagErrors("techniques", techniqueErrors);
-
-        std::cout << "\n  unmatched by plugin: ";
-        for (const auto& [plugin, count] : unmatchedByPlugin) {
-            std::cout << plugin << "(" << count << ") ";
-        }
-        std::cout << "\n";
-    }
-
-    // Writes the tags ReportCoverage already computed; nothing is classified
-    // a second time.
-    void WriteCatalog(const std::string& path, const json& spells,
-        const std::map<JoinKey, Librarian::TagSet>& tagged)
-    {
-        json catalog;
-        catalog["version"] = 1;
-        catalog["vocab"] = "tags-draft";
-        catalog["spells"] = json::object();
-
-        for (const auto& spell : spells) {
-            const auto persistent = spell.find("persistentId");
-            if (persistent == spell.end() || !persistent->is_string()) {
-                continue;
-            }
-
-            JoinKey key;
-            if (!MakeScanKey(spell, key)) {
-                continue;
-            }
-            const auto found = tagged.find(key);
-            if (found == tagged.end()) {
-                continue;
-            }
-            const Librarian::TagSet& tags = found->second;
-
-            json entry;
-            entry["elements"] = tags.elements;
-            entry["techniques"] = tags.techniques;
-            entry["source"] = { { "elements", tags.elementSource },
-                { "techniques", tags.techniqueSource } };
-            catalog["spells"][persistent->get<std::string>()] = entry;
-        }
-
-        std::ofstream file(path);
-        if (!file.is_open()) {
-            throw std::runtime_error("Cannot write: " + path);
-        }
-        file << catalog.dump(2) << "\n";
-        std::cout << "\nWrote catalog to " << path << "\n";
-    }
 }
 
 int main(int argc, char* argv[])
@@ -471,6 +113,7 @@ int main(int argc, char* argv[])
     std::string outputPath;
     std::string scriptPath;
     std::string tier;
+    std::string catalogPath;
     bool verbose = false;
     bool checkVocabulary = false;
 
@@ -490,6 +133,8 @@ int main(int argc, char* argv[])
             scriptPath = argv[++i];
         } else if ((arg == "-t" || arg == "--tier") && hasNext) {
             tier = argv[++i];
+        } else if (arg == "--catalog" && hasNext) {
+            catalogPath = argv[++i];
         } else if (arg == "--check-vocab") {
             checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
@@ -517,6 +162,30 @@ int main(int argc, char* argv[])
         }
     }
 
+    if (!catalogPath.empty()) {
+        if (answersPath.empty()) {
+            std::cerr << "--catalog needs -a <answers> to score against\n\n";
+            PrintUsage(argv[0]);
+            return 1;
+        }
+        try {
+            const auto entries = IndexCatalog(ReadJsonFile(catalogPath));
+            if (entries.empty()) {
+                std::cerr << "Catalog has no spells\n";
+                return 1;
+            }
+            std::cout << "\nCATALOG  (" << entries.size() << " spells)\n";
+
+            const json answers = ReadJsonFile(answersPath);
+            ReportScore(answers, TagsFromCatalog(entries), verbose);
+            ReportAxes(answers, entries);
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << "\n";
+            return 1;
+        }
+        return 0;
+    }
+
     if (inputPath.empty() || rulesPath.empty()) {
         PrintUsage(argv[0]);
         return 1;
@@ -524,12 +193,6 @@ int main(int argc, char* argv[])
 
     try {
         const json dump = ReadDump(inputPath);
-        const auto spellsField = dump.find("spells");
-        if (spellsField == dump.end() || !spellsField->is_array()) {
-            std::cerr << "Dump has no spells array\n";
-            return 1;
-        }
-        const json& spells = *spellsField;
 
         Librarian::RuleSet rules = Librarian::LoadRules(rulesPath);
         if (!tier.empty()) {
@@ -545,15 +208,31 @@ int main(int argc, char* argv[])
         }
         std::cout << "\n";
 
-        std::map<JoinKey, Librarian::TagSet> tagged;
-        ReportCoverage(spells, rules, tagged);
+        // Build the catalog the plugin would build, then report on that. The
+        // numbers below therefore describe what actually ships, and the -o file
+        // is the same object rather than a second rendering of it.
+        Librarian::CatalogStats stats;
+        const json catalog = Librarian::BuildCatalog(dump, rules, stats);
+        if (stats.skipped > 0) {
+            std::cout << stats.skipped << " scan entries had no persistentId and were skipped\n";
+        }
+
+        const auto entries = IndexCatalog(catalog);
+        ReportCoverage(entries);
 
         if (!answersPath.empty()) {
-            ReportScore(ReadJsonFile(answersPath), tagged, verbose);
+            const json answers = ReadJsonFile(answersPath);
+            ReportScore(answers, TagsFromCatalog(entries), verbose);
+            ReportAxes(answers, entries);
         }
 
         if (!outputPath.empty()) {
-            WriteCatalog(outputPath, spells, tagged);
+            std::ofstream file(outputPath);
+            if (!file.is_open()) {
+                throw std::runtime_error("Cannot write: " + outputPath);
+            }
+            file << catalog.dump(2) << "\n";
+            std::cout << "\nWrote catalog to " << outputPath << "\n";
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";

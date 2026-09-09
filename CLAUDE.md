@@ -32,6 +32,12 @@ What are you doing?
 ├─► Working with presets?
 │   └─► docs/PRESETS.md
 │
+├─► Working with the spell tag librarian (classification, spell_catalog.json)?
+│   ├─► How it works, rule format → docs/librarian/LIBRARIAN.md
+│   ├─► Tag definitions → docs/librarian/TAGS.md
+│   ├─► Measured coverage and accuracy → docs/librarian/MEASURED.md
+│   └─► Why it exists, what is left → docs/librarian/Concept.md, docs/librarian/ToDo.md
+│
 ├─► Working with DEST/ISL compatibility?
 │   └─► docs/DEST-IMPROVEMENTS.md
 │

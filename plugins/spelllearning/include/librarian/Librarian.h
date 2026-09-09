@@ -36,6 +36,15 @@ namespace Librarian
     inline constexpr const char* SOURCE_MGEF = "mgef";
     inline constexpr const char* SOURCE_FRAMEWORK = "framework";
 
+    // How far the evidence behind a tag can be trusted to exist at all on
+    // someone else's setup. MGEF structure is on every record in every load
+    // order; a framework keyword is only there when that framework is
+    // installed. This ranks availability, and is deliberately not a measured
+    // probability that the tag is correct - for that see docs/librarian/MEASURED.md.
+    inline constexpr double CONFIDENCE_MGEF = 1.0;
+    inline constexpr double CONFIDENCE_FRAMEWORK = 0.8;
+    inline constexpr double CONFIDENCE_NONE = 0.0;
+
     // =========================================================================
     // TAGS
     // =========================================================================
@@ -147,4 +156,55 @@ namespace Librarian
 
     // Tags one spell object from the scan dump.
     TagSet Classify(const json& spell, const RuleSet& rules);
+
+    // =========================================================================
+    // AXES
+    // =========================================================================
+    //
+    // The four axes fall out of scan fields with no rules involved: school and
+    // tier are the scanner's own values lowercased, casting and targeting are
+    // read off the delivery and the effect areas. The derivation is the one
+    // checked against the answer set in HANDOFF section 3.
+
+    struct SpellAxes
+    {
+        std::string school;                // alteration | conjuration | destruction | illusion | restoration
+        std::string tier;                  // novice | apprentice | adept | expert | master
+        std::string casting;               // fireforget | concentration
+        std::set<std::string> targeting;   // actor | aoe | location | self, more than one is normal
+    };
+
+    SpellAxes DeriveAxes(const json& spell);
+
+    // =========================================================================
+    // CATALOG
+    // =========================================================================
+    //
+    // The catalog is the librarian's output and the single thing every guest
+    // reads: persistentId -> axes, tags, which evidence tier supplied them.
+    // Written next to the scan dump, in Data/SKSE/Plugins/SpellLearning.
+
+    inline constexpr int CATALOG_VERSION = 1;
+    inline constexpr const char* CATALOG_VOCAB = "tags-v1";
+
+    struct CatalogStats
+    {
+        std::size_t spells = 0;      // entries written
+        std::size_t tagged = 0;      // entries with at least one tag
+        std::size_t skipped = 0;     // scan entries with no persistentId to key on
+    };
+
+    // Classifies every spell in a parsed scan dump. Pure: no file access, so
+    // the offline harness builds the same catalog the game does.
+    json BuildCatalog(const json& scanDump, const RuleSet& rules, CatalogStats& stats);
+
+    // Loads the rules, builds the catalog for one scan dump and writes it.
+    // Takes the dump as the scanner's own JSON text so a caller that has just
+    // produced one does not have to parse it first. Returns the written path,
+    // or an empty string if anything went wrong - a failure here must never
+    // take the scan down with it.
+    std::string BuildAndWriteCatalog(const std::string& scanJson);
+
+    // Reads the catalog back. Returns false when it is missing or unreadable.
+    bool LoadCatalog(json& catalog);
 }

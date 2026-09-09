@@ -2,6 +2,7 @@
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
+#include "librarian/Librarian.h"
 
 using json = nlohmann::json;
 
@@ -45,6 +46,11 @@ void UIManager::OnScanSpells(const char* argument)
             instance->UpdateStatus("Scanning all spells...");
             result = SpellScanner::ScanAllSpells(scanConfig);
         }
+
+        // Classify what was just scanned. Same call the Papyrus path makes, so
+        // the Scan button and RunScan leave the same catalog behind. It logs
+        // its own failures rather than interrupting the scan.
+        Librarian::BuildAndWriteCatalog(result);
 
         // Send result back to UI
         instance->SendSpellData(result);

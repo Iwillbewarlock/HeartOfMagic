@@ -52,9 +52,11 @@ set_source_files_properties(${SL_SRC_DIR}/treebuilder/SimdKernels.cpp PROPERTIES
 
 add_executable(librarian-test
     librarian-test.cpp
+    librarian-score.cpp
     librarian-vocab-check.cpp
     ${SL_SRC_DIR}/librarian/LibrarianRules.cpp
     ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianCatalog.cpp
 )
 
 target_compile_features(librarian-test PRIVATE cxx_std_23)

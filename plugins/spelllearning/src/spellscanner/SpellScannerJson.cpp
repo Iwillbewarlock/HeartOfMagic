@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
+#include "librarian/Librarian.h"
 
 #include <filesystem>
 
@@ -313,6 +314,13 @@ namespace SpellScanner
             tomeMode ? "tomes" : "all", effectivePreset);
 
         const std::string result = tomeMode ? ScanSpellTomes(config) : ScanAllSpells(config);
-        return WriteScanOutput(result);
+        const std::string outputPath = WriteScanOutput(result);
+
+        // The librarian classifies whatever the scan just produced. It reports
+        // its own failures and returns an empty path; the scan's own result
+        // stands either way.
+        Librarian::BuildAndWriteCatalog(result);
+
+        return outputPath;
     }
 }
