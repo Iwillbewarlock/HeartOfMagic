@@ -86,8 +86,10 @@ namespace Librarian
 
             ReadString(matchObject, "spellKeyword", match.spellKeyword);
             ReadString(matchObject, "spellKeywordPrefix", match.spellKeywordPrefix);
+            ReadString(matchObject, "spellKeywordSuffix", match.spellKeywordSuffix);
             ReadString(matchObject, "mgefKeyword", match.mgefKeyword);
             ReadString(matchObject, "mgefKeywordPrefix", match.mgefKeywordPrefix);
+            ReadString(matchObject, "mgefKeywordSuffix", match.mgefKeywordSuffix);
             ReadString(matchObject, "archetype", match.archetype);
             ReadString(matchObject, "primaryAV", match.primaryAV);
             ReadString(matchObject, "secondaryAV", match.secondaryAV);
@@ -102,7 +104,8 @@ namespace Librarian
         // One rule object. Returns false when it would never do anything, so
         // the caller can count it as skipped instead of carrying dead weight.
         bool ParseRule(const json& ruleObject, const std::string& originFile,
-            std::size_t index, Rule& target, std::size_t& rejectedTags)
+            std::size_t index, const std::string& defaultSource, Rule& target,
+            std::size_t& rejectedTags)
         {
             if (!ruleObject.is_object()) {
                 return false;
@@ -130,7 +133,7 @@ namespace Librarian
                 return false;
             }
 
-            target.source = SOURCE_MGEF;
+            target.source = defaultSource;
             ReadString(ruleObject, "tier", target.source);
 
             target.originFile = originFile;
@@ -147,6 +150,7 @@ namespace Librarian
     {
         return !mgefKeyword.empty()
             || !mgefKeywordPrefix.empty()
+            || !mgefKeywordSuffix.empty()
             || !archetype.empty()
             || !primaryAV.empty()
             || !secondaryAV.empty()
@@ -160,7 +164,8 @@ namespace Librarian
     {
         return !HasEffectCondition()
             && spellKeyword.empty()
-            && spellKeywordPrefix.empty();
+            && spellKeywordPrefix.empty()
+            && spellKeywordSuffix.empty();
     }
 
     // =========================================================================
@@ -172,6 +177,7 @@ namespace Librarian
         // A rule file is either a bare array of rules or an object with a
         // "rules" array, so it can carry a version or a comment alongside them.
         const json* ruleArray = nullptr;
+        std::string defaultSource = SOURCE_MGEF;
         if (document.is_array()) {
             ruleArray = &document;
         } else if (document.is_object()) {
@@ -179,6 +185,8 @@ namespace Librarian
             if (found != document.end() && found->is_array()) {
                 ruleArray = &(*found);
             }
+            // A file of framework rules should not repeat its tier on every line.
+            ReadString(document, "tier", defaultSource);
         }
 
         if (!ruleArray) {
@@ -189,7 +197,7 @@ namespace Librarian
         std::size_t index = 0;
         for (const auto& ruleObject : *ruleArray) {
             Rule rule;
-            if (ParseRule(ruleObject, originFile, index, rule, target.rejectedTags)) {
+            if (ParseRule(ruleObject, originFile, index, defaultSource, rule, target.rejectedTags)) {
                 target.rules.push_back(std::move(rule));
             } else {
                 ++target.skipped;

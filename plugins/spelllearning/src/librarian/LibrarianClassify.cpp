@@ -17,6 +17,12 @@ namespace Librarian
                 && text.compare(0, prefix.size(), prefix) == 0;
         }
 
+        bool EndsWith(const std::string& text, const std::string& suffix)
+        {
+            return text.size() >= suffix.size()
+                && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
+        }
+
         // Reads a string field, returning an empty string when it is missing or
         // is not a string. Scan dumps written with a narrower preset simply do
         // not carry some fields, and a rule naming one just will not match.
@@ -57,7 +63,9 @@ namespace Librarian
             return false;
         }
 
-        bool HasKeywordWithPrefix(const json& owner, const std::string& prefix)
+        using AffixTest = bool (*)(const std::string&, const std::string&);
+
+        bool HasKeywordWithAffix(const json& owner, const std::string& affix, AffixTest test)
         {
             const auto keywords = owner.find("keywords");
             if (keywords == owner.end() || !keywords->is_array()) {
@@ -65,7 +73,7 @@ namespace Librarian
             }
 
             for (const auto& entry : *keywords) {
-                if (entry.is_string() && StartsWith(entry.get<std::string>(), prefix)) {
+                if (entry.is_string() && test(entry.get<std::string>(), affix)) {
                     return true;
                 }
             }
@@ -79,7 +87,11 @@ namespace Librarian
                 return false;
             }
             if (!match.mgefKeywordPrefix.empty()
-                && !HasKeywordWithPrefix(effect, match.mgefKeywordPrefix)) {
+                && !HasKeywordWithAffix(effect, match.mgefKeywordPrefix, &StartsWith)) {
+                return false;
+            }
+            if (!match.mgefKeywordSuffix.empty()
+                && !HasKeywordWithAffix(effect, match.mgefKeywordSuffix, &EndsWith)) {
                 return false;
             }
             if (!match.archetype.empty() && ReadField(effect, "archetype") != match.archetype) {
@@ -112,7 +124,11 @@ namespace Librarian
                 return false;
             }
             if (!match.spellKeywordPrefix.empty()
-                && !HasKeywordWithPrefix(spell, match.spellKeywordPrefix)) {
+                && !HasKeywordWithAffix(spell, match.spellKeywordPrefix, &StartsWith)) {
+                return false;
+            }
+            if (!match.spellKeywordSuffix.empty()
+                && !HasKeywordWithAffix(spell, match.spellKeywordSuffix, &EndsWith)) {
                 return false;
             }
 

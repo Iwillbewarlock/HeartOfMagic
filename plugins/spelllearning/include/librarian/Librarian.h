@@ -75,10 +75,15 @@ namespace Librarian
         // Spell level
         std::string spellKeyword;
         std::string spellKeywordPrefix;
+        std::string spellKeywordSuffix;
 
         // Effect level - all of these must hold for one and the same effect
         std::string mgefKeyword;
         std::string mgefKeywordPrefix;
+
+        // The frameworks put the subject in the prefix and the shape in the
+        // suffix: ADAR_SPEL_Earth_Rune is earth by prefix and a trap by suffix.
+        std::string mgefKeywordSuffix;
         std::string archetype;
         std::string primaryAV;
         std::string secondaryAV;
@@ -134,8 +139,10 @@ namespace Librarian
     // Missing directory is not an error - it yields an empty rule set.
     RuleSet LoadRules(const std::string& directory);
 
-    // Parses one already-read rule document. Exposed for tests and for callers
-    // that keep rules somewhere other than a directory.
+    // Parses one already-read rule document. A document may set a "tier" of its
+    // own, which becomes the default for every rule in it - a whole file of
+    // framework rules should not have to repeat itself. Exposed for tests and
+    // for callers that keep rules somewhere other than a directory.
     void AppendRules(const json& document, const std::string& originFile, RuleSet& target);
 
     // Tags one spell object from the scan dump.

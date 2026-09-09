@@ -53,6 +53,8 @@ namespace
             << "  -a, --answers <file>  Answer set to score against\n"
             << "  -o, --output  <file>  Write the tagged catalog here\n"
             << "  -v, --verbose         List per spell misses for the answer set\n"
+            << "  -t, --tier    <name>  Use only rules of this evidence tier,\n"
+            << "                        e.g. \"mgef\" to measure without frameworks\n"
             << "  -h, --help            Show this help\n"
             << "\n"
             << "Vocabulary check (no dump needed):\n"
@@ -574,6 +576,7 @@ int main(int argc, char* argv[])
     std::string answersPath;
     std::string outputPath;
     std::string scriptPath;
+    std::string tier;
     bool verbose = false;
     bool checkVocabulary = false;
 
@@ -591,6 +594,8 @@ int main(int argc, char* argv[])
             outputPath = argv[++i];
         } else if ((arg == "-j" || arg == "--script") && hasNext) {
             scriptPath = argv[++i];
+        } else if ((arg == "-t" || arg == "--tier") && hasNext) {
+            tier = argv[++i];
         } else if (arg == "--check-vocab") {
             checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
@@ -632,7 +637,14 @@ int main(int argc, char* argv[])
         }
         const json& spells = *spellsField;
 
-        const Librarian::RuleSet rules = Librarian::LoadRules(rulesPath);
+        Librarian::RuleSet rules = Librarian::LoadRules(rulesPath);
+        if (!tier.empty()) {
+            const std::size_t before = rules.rules.size();
+            std::erase_if(rules.rules,
+                [&tier](const Librarian::Rule& rule) { return rule.source != tier; });
+            std::cout << "\nTIER FILTER '" << tier << "': kept " << rules.rules.size()
+                << " of " << before << " rules\n";
+        }
         if (rules.rules.empty()) {
             std::cerr << "No rules loaded from " << rulesPath << "\n";
             return 1;
