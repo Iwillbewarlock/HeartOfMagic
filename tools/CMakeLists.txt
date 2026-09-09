@@ -43,3 +43,29 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 set_source_files_properties(${SL_SRC_DIR}/treebuilder/SimdKernels.cpp PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )
+
+# =============================================================================
+# librarian-test  -  offline harness for the tag librarian
+# =============================================================================
+# Compiles the same classifier the plugin uses, so the coverage and precision
+# it reports are the plugin's own numbers, not a second implementation's.
+
+add_executable(librarian-test
+    librarian-test.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianRules.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
+)
+
+target_compile_features(librarian-test PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(librarian-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(librarian-test PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+)

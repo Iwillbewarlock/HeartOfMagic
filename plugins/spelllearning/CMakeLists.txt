@@ -46,6 +46,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spellscanner/SpellScannerFormId.cpp
     src/spellscanner/SpellScannerJson.cpp
     src/spellscanner/SpellScannerScan.cpp
+    src/librarian/LibrarianRules.cpp
+    src/librarian/LibrarianClassify.cpp
     src/OpenRouterAPI.cpp
     src/SpellCastHandler.cpp
     src/progressionmanager/ProgressionManagerCore.cpp

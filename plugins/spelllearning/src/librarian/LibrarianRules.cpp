@@ -1,0 +1,233 @@
+#include "librarian/Librarian.h"
+
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+
+// =============================================================================
+// LibrarianRules - loading and merging the classification rule files
+// =============================================================================
+
+namespace Librarian
+{
+    namespace
+    {
+        constexpr const char* RULE_FILE_EXTENSION = ".json";
+
+        // Reads an optional string field, leaving the target alone when absent.
+        void ReadString(const json& object, const char* key, std::string& target)
+        {
+            const auto found = object.find(key);
+            if (found != object.end() && found->is_string()) {
+                target = found->get<std::string>();
+            }
+        }
+
+        // Reads an optional boolean field. Absent leaves the condition unset,
+        // which is different from setting it to false.
+        void ReadBool(const json& object, const char* key, std::optional<bool>& target)
+        {
+            const auto found = object.find(key);
+            if (found != object.end() && found->is_boolean()) {
+                target = found->get<bool>();
+            }
+        }
+
+        // Reads a "tags" list, accepting a bare string as a list of one so a
+        // rule that adds a single tag does not need brackets.
+        void ReadTagList(const json& object, const char* key, std::vector<std::string>& target)
+        {
+            const auto found = object.find(key);
+            if (found == object.end()) {
+                return;
+            }
+
+            if (found->is_string()) {
+                target.push_back(found->get<std::string>());
+                return;
+            }
+
+            if (!found->is_array()) {
+                return;
+            }
+
+            for (const auto& entry : *found) {
+                if (entry.is_string()) {
+                    target.push_back(entry.get<std::string>());
+                }
+            }
+        }
+
+        RuleMatch ParseMatch(const json& matchObject)
+        {
+            RuleMatch match;
+            if (!matchObject.is_object()) {
+                return match;
+            }
+
+            ReadString(matchObject, "spellKeyword", match.spellKeyword);
+            ReadString(matchObject, "spellKeywordPrefix", match.spellKeywordPrefix);
+            ReadString(matchObject, "mgefKeyword", match.mgefKeyword);
+            ReadString(matchObject, "mgefKeywordPrefix", match.mgefKeywordPrefix);
+            ReadString(matchObject, "archetype", match.archetype);
+            ReadString(matchObject, "primaryAV", match.primaryAV);
+            ReadString(matchObject, "secondaryAV", match.secondaryAV);
+            ReadString(matchObject, "resistance", match.resistance);
+            ReadString(matchObject, "magicSkill", match.magicSkill);
+            ReadBool(matchObject, "hostile", match.hostile);
+            ReadBool(matchObject, "detrimental", match.detrimental);
+
+            return match;
+        }
+
+        // One rule object. Returns false when it would never do anything, so
+        // the caller can count it as skipped instead of carrying dead weight.
+        bool ParseRule(const json& ruleObject, const std::string& originFile,
+            std::size_t index, Rule& target)
+        {
+            if (!ruleObject.is_object()) {
+                return false;
+            }
+
+            const auto matchField = ruleObject.find("match");
+            if (matchField == ruleObject.end()) {
+                return false;
+            }
+
+            target.match = ParseMatch(*matchField);
+            if (target.match.Empty()) {
+                return false;
+            }
+
+            const auto addField = ruleObject.find("add");
+            if (addField != ruleObject.end() && addField->is_object()) {
+                ReadTagList(*addField, "elements", target.addElements);
+                ReadTagList(*addField, "techniques", target.addTechniques);
+            }
+
+            if (target.addElements.empty() && target.addTechniques.empty()) {
+                return false;
+            }
+
+            target.source = SOURCE_MGEF;
+            ReadString(ruleObject, "tier", target.source);
+
+            target.originFile = originFile;
+            target.originIndex = index;
+            return true;
+        }
+    }
+
+    // =========================================================================
+    // MATCH SHAPE
+    // =========================================================================
+
+    bool RuleMatch::HasEffectCondition() const
+    {
+        return !mgefKeyword.empty()
+            || !mgefKeywordPrefix.empty()
+            || !archetype.empty()
+            || !primaryAV.empty()
+            || !secondaryAV.empty()
+            || !resistance.empty()
+            || !magicSkill.empty()
+            || hostile.has_value()
+            || detrimental.has_value();
+    }
+
+    bool RuleMatch::Empty() const
+    {
+        return !HasEffectCondition()
+            && spellKeyword.empty()
+            && spellKeywordPrefix.empty();
+    }
+
+    // =========================================================================
+    // LOADING
+    // =========================================================================
+
+    void AppendRules(const json& document, const std::string& originFile, RuleSet& target)
+    {
+        // A rule file is either a bare array of rules or an object with a
+        // "rules" array, so it can carry a version or a comment alongside them.
+        const json* ruleArray = nullptr;
+        if (document.is_array()) {
+            ruleArray = &document;
+        } else if (document.is_object()) {
+            const auto found = document.find("rules");
+            if (found != document.end() && found->is_array()) {
+                ruleArray = &(*found);
+            }
+        }
+
+        if (!ruleArray) {
+            logger::warn("Librarian: '{}' has no rules array - ignored", originFile);
+            return;
+        }
+
+        std::size_t index = 0;
+        for (const auto& ruleObject : *ruleArray) {
+            Rule rule;
+            if (ParseRule(ruleObject, originFile, index, rule)) {
+                target.rules.push_back(std::move(rule));
+            } else {
+                ++target.skipped;
+                logger::warn("Librarian: '{}' rule #{} has no conditions or no tags - skipped",
+                    originFile, index);
+            }
+            ++index;
+        }
+    }
+
+    RuleSet LoadRules(const std::string& directory)
+    {
+        RuleSet ruleSet;
+
+        std::error_code error;
+        if (!std::filesystem::is_directory(directory, error)) {
+            logger::info("Librarian: no rule directory at '{}' - no rules loaded", directory);
+            return ruleSet;
+        }
+
+        // File name order is the merge order: 00_mgef before 10_kit before
+        // 90_user, so stronger evidence is applied first and later files can
+        // only add to what earlier ones found.
+        std::vector<std::filesystem::path> paths;
+        for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+            if (entry.is_regular_file() && entry.path().extension() == RULE_FILE_EXTENSION) {
+                paths.push_back(entry.path());
+            }
+        }
+        std::sort(paths.begin(), paths.end());
+
+        for (const auto& path : paths) {
+            const std::string name = path.filename().string();
+
+            std::ifstream file(path);
+            if (!file.is_open()) {
+                logger::error("Librarian: cannot open rule file '{}'", name);
+                continue;
+            }
+
+            json document;
+            try {
+                file >> document;
+            } catch (const std::exception& e) {
+                logger::error("Librarian: rule file '{}' is not valid JSON - {}", name, e.what());
+                continue;
+            }
+
+            const std::size_t before = ruleSet.rules.size();
+            AppendRules(document, name, ruleSet);
+            ruleSet.files.push_back(name);
+
+            logger::info("Librarian: loaded {} rules from '{}'",
+                ruleSet.rules.size() - before, name);
+        }
+
+        logger::info("Librarian: {} rules from {} files ({} skipped)",
+            ruleSet.rules.size(), ruleSet.files.size(), ruleSet.skipped);
+
+        return ruleSet;
+    }
+}

@@ -173,8 +173,11 @@
 - 미검증: PrismaUI JS 테스트(`node run-tests.js`)를 **못 돌렸다 — 이 PC에 Node.js 가 없다.** JS 변경은 3곳뿐이고 모두 기계적
 - 문서: `docs/ARCHITECTURE.md`(스캐너 절), `docs/PRESETS.md`
 
-### [ ] M2. 룰 엔진 + 측정 하네스 — *C++, 게임 밖*
+### [~] M2. 룰 엔진 + 측정 하네스 — *C++, 게임 밖* (2026-09-09 (a) 측정 완료, (b)(c) 남음)
 - 역할: 프레임워크 없는 환경의 진짜 커버리지를 안다. **여기서 나온 숫자가 룰의 우선순위를 정한다**
+- **결론: MGEF 구조만으로 81.4% 에 태그가 붙는다.** 프레임워크 키워드 분류기가 그것들이
+  설치된 환경에서 낸 63.3% 보다 넓다. 프레임워크 룰은 이제 필수가 아니라 보너스다.
+  전체 숫자와 주의사항은 `MEASURED.md`
 - **Python 을 쓰지 않는다.** 리포의 확정 스택은 C++23(CMake · nlohmann_json · spdlog) +
   PowerShell + PrismaUI JS + Papyrus 뿐이고 Python 은 리포에 한 줄도 없다. 1절의
   "확정 스택 외 추가 금지"가 언어에도 적용된다. `magi scan` 폴더의 `join_coverage.py`,
@@ -188,16 +191,23 @@
 - 입력: M1 덤프, `spellresearch_archetypes_1160.json`(정답셋) / 출력: `docs/librarian/MEASURED.md`,
   `librarian/00_mgef.json` 초안
 - 파일:
-  - [ ] `src/librarian/LibrarianRules.cpp` — 룰 파일 로드·검증, 파일명 순 병합 (M4 것을 앞당김)
-  - [ ] `src/librarian/LibrarianClassify.cpp` — `TagSet Classify(const json& spell)` 순수 함수 (M4 것을 앞당김)
-  - [ ] `include/librarian/Librarian.h`
-  - [ ] `tools/librarian-test.cpp` + `tools/CMakeLists.txt` 에 타깃 추가 —
-        덤프와 룰을 읽어 분류하고, 정답셋과 조인해 P/R 을 낸다.
+  - [x] `src/librarian/LibrarianRules.cpp` — 룰 파일 로드·검증, 파일명 순 병합 (M4 것을 앞당김)
+  - [x] `src/librarian/LibrarianClassify.cpp` — `TagSet Classify(const json&, const RuleSet&)` 순수 함수.
+        RE/SKSE 타입을 쓰지 않으므로 플러그인과 하네스 양쪽에 그대로 컴파일된다
+  - [x] `include/librarian/Librarian.h`
+  - [x] `tools/librarian-test.cpp` + `tools/CMakeLists.txt` 에 타깃 추가 —
+        덤프와 룰을 읽어 분류하고, 정답셋과 조인해 P/R 과 **태그별 적중/오탐/미탐**을 낸다.
         조인 키는 `(plugin.lower(), formId & 0xFFFFFF)` 정확 비교만. **ESL 12비트 폴백 금지**(오탐 100%)
-- [ ] 새 덤프로 재조인 (톰 모드라 분모가 바뀐다 — 2026-09-09 실측 1440건, 정확 매칭 104쌍)
-- [ ] `00_mgef.json` 초안 — MGEF 키워드·archetype·resistance·AV → 태그
-- [ ] P/R: (a) MGEF만 (b) MGEF + 프레임워크 (c) + 이펙트명
-- [ ] 전체 장서 중 "라벨 0개" 비율 — 이게 LLM 폴백이 감당할 크기
+  - [x] 룰 매칭 조건: `mgefKeyword`(+`Prefix`) `spellKeyword`(+`Prefix`) `archetype`
+        `primaryAV` `secondaryAV` `resistance` `magicSkill` `hostile` `detrimental`.
+        **이펙트 레벨 조건은 하나의 같은 이펙트에서 모두 성립해야 한다** — 서로 다른 이펙트에서
+        긁어모은 archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니다
+- [x] 새 덤프로 재조인 (톰 모드라 분모가 바뀐다 — 2026-09-09 실측 1440건, 정확 매칭 104쌍)
+- [x] `00_mgef.json` — 66룰. 초안이 아니라 정답셋 패턴을 반영해 2회 보정한 것
+- [x] (a) MGEF만 측정 완료 — **커버리지 81.4%, P68.7 / R79.5 / F1 73.7**
+- [ ] (b) MGEF + 프레임워크 (c) + 이펙트명 — 룰 파일만 추가하면 같은 하네스로 바로 잰다
+- [x] 태그 0개 비율 = **18.6% (268/1440)** — 이게 LLM 폴백이 감당할 크기
+- 산출: `docs/librarian/MEASURED.md` (숫자·근거·주의사항 전문)
 - 의존: M1
 - 테스트: `librarian-test` 가 같은 입력에 같은 숫자를 낸다. 숫자를 Concept.md 2-2절에 반영
 
@@ -205,6 +215,10 @@
 - 역할: 태그의 정의를 못 박는다. 이후 모든 모듈이 이 목록만 쓴다
 - 출력: `docs/librarian/TAGS.md` (태그·정의·예시 주문 3개씩), `include/librarian/TagVocabulary.h`(`static constexpr` 배열), `modules/tagVocabulary.js` — **두 파일은 내용 동일, 수동 동기화** (빌드 시 검증 스크립트 하나 두면 좋음)
 - 의존: M2 (측정에서 실제로 구분되는 태그만 남긴다)
+- M2 가 넘긴 판단거리: 실제로 붙는 것은 원소 24종 / 기법 15종. `apparition`(2건), `time`(1건)
+  처럼 거의 안 붙는 태그를 남길지, `resistance`(2오탐 0적중)를 뺄지, 그리고 MGEF 로는 절대
+  볼 수 없는 `earth`·`metal`·`air`·`sun`(Stoneflesh 와 Ironflesh 는 MGEF 구조가 완전히 같다)을
+  어휘에 두고 M7 에 맡길지
 - 테스트: `librarian-test` 에 어휘 검사 모드를 추가 — `00_mgef.json` 의 모든 `add` 값이
   `TagVocabulary.h` 에 있는지. 어휘가 생기면 `LibrarianRules.cpp` 의 검증(어휘 밖 태그 →
   경고 후 무시)도 이때 켠다
@@ -251,13 +265,14 @@
 
 ## 4. 지금 당장 (다음 세션 시작점)
 
-M0 완료. **M1 은 목적을 달성했다** — MGEF 구조가 언어 무관한 형태로 덤프에 나온다(2026-09-09
-2회차 검증, `scan_2026-09-09_tomes_full_v2.json`). M2 를 막는 것은 없다.
+M0, M1 완료. **M2 의 핵심 질문에 답이 나왔다** — MGEF 구조만으로 81.4% 에 태그가 붙는다.
+프레임워크 없는 환경이 성립한다는 뜻이고, 이게 공개 배포의 전제였다(`MEASURED.md`).
 
-1. **M2 착수** — `tools/librarian-test` + 룰 엔진 2파일 + `00_mgef.json` 초안.
-   입력 덤프는 이미 있으므로 **게임이 필요 없다.**
-   `00_mgef.json` 은 `RE/E/EffectArchetypes.h` 의 archetype 47종과 실측 덤프의 바닐라 `Magic*`
-   키워드 34종으로 시작한다. 저항 AV 는 `FireResist` 꼴(`ResistFire` 아님)
-2. M2 숫자 → M3 어휘 확정 → M4
-3. 남은 것 두 가지는 M2 를 막지 않으므로 뒤로 미룬다 — `RunScan` 블로킹(M1 버그 2, 해법 미결정)과
-   포커스 잃으면 프레임 정지(M0-T). 다음에 게임 테스트가 필요해지는 M4 전에 정리한다
+**다음은 M3 (태그 어휘 확정) 이다.** 게임이 필요 없다.
+
+1. **M3** — 실제로 붙는 원소 24종 / 기법 15종을 놓고 어휘를 못 박는다. 판단거리는 M3 절에 적어뒀다.
+   어휘가 정해지면 `LibrarianRules.cpp` 의 어휘 검증을 켜고 `librarian-test` 에 검사 모드를 넣는다
+2. M2 의 남은 (b)(c) — 프레임워크 룰(`10_kit.json` 등)과 이펙트명 룰. 룰 파일만 추가하면
+   같은 하네스로 바로 잰다. **M3 어휘 확정 후에 하는 편이 낫다** — 지금 재면 어휘가 흔들린다
+3. M4 (게임 내 연결 + 카탈로그) 전에 정리할 것 두 가지: `RunScan` 블로킹(M1 버그 2, 해법 미결정)과
+   포커스 잃으면 프레임 정지(M0-T). 둘 다 게임 테스트를 다시 해야 할 때 걸린다
