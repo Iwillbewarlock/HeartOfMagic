@@ -271,10 +271,9 @@ namespace PapyrusAPI
         logger::info("PapyrusAPI: RunScan called (mode='{}', preset='{}')", modeStr, presetStr);
 
         // The scan walks the game's form arrays, so it has to run on the game
-        // thread. Papyrus calls this from the VM thread, but a debug harness can
-        // call it from the game thread itself - and there, submitting a task and
-        // waiting for it deadlocks, because the task only runs once this call
-        // returns. Already on the right thread, so just do the work.
+        // thread. Papyrus calls this from the VM thread, but a caller already on
+        // the game thread cannot submit a task and wait for it - the task only
+        // runs once this call returns. Already on the right thread, so just work.
         if (IsOnGameThread()) {
             const std::string outputPath = SpellScanner::RunScanToFile(modeStr, presetStr);
             logger::info("PapyrusAPI: RunScan finished on the game thread, output '{}'", outputPath);

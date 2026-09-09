@@ -46,7 +46,7 @@
   "archetype":    "ValueModifier",            // EffectArchetypes 이름표 (숫자 아님)
   "primaryAV":    "Health",                   // ActorValue 이름표
   "secondaryAV":  "None",
-  "resistance":   "ResistFire",               // resistVariable
+  "resistance":   "FireResist",               // resistVariable
   "hostile": true, "detrimental": true,
   "castingType":  "FireAndForget", "delivery": "Aimed",   // 이펙트 레벨
   "magicSkill":   "Destruction",
@@ -107,8 +107,13 @@
 - 확인된 HoM Papyrus 전역 함수: GetVersion, GetLearningMode, IsSpellUnlocked, GetSpellProgress, GetAllLearningTargets, AddSourcedXP, SetLearningTarget … (**스캔 트리거 없음** → M1에서 추가)
 - 미해결: `console capture=true` 읽기가 빈 결과(markersFound=false). 콘솔 대체 모드와 충돌 추정. Papyrus 호출로 대체 가능하므로 보류
 - 남은 구멍: **빌드·게임 실행용 셸 없음.** 코드 수정 후 빌드는 아직 사용자가 직접. 셸 MCP 등록 시 완전 자동화
+- **추가 (2026-09-09): 게임 창이 포커스를 잃으면 프레임이 멈춘다.** `bAlwaysActive=1` 이 프로필
+  ini 에 있고 `profile_local_inis=true` 인데도 그렇다. 창이 최소화된 것도, 일시정지 메뉴가 열린
+  것도 아니었다(`menu list` 에 HUD 위젯뿐). DevBench 는 메인 스레드가 돌아야 도구를 실행하므로
+  **모든 호출 전에 게임 창을 앞으로 가져와야 한다.** `ShowWindow(hWnd, SW_RESTORE)` 로 프레임이
+  다시 돌았다(`SetForegroundWindow` 는 실패해도 무관). 원인 미규명 — 모드 충돌 가능성
 
-### [~] M1. 스캐너 리팩터 + MGEF 필드 (2026-09-07 구현, 2026-09-09 게임 검증 → 버그 2건 수정, 재검증 대기)
+### [~] M1. 스캐너 리팩터 + MGEF 필드 (2026-09-07 구현, 2026-09-09 게임 검증 2회 — 필드 확인, 버그 1 해결, 버그 2 미해결)
 - 역할: 스캔 JSON 생성을 한 곳으로 모으고, 이펙트 구조 정보를 내보낸다
 - 입력: `RE::SpellItem*`, `FieldConfig` / 출력: 2-1 스키마의 `json`
 - 파일:
@@ -131,22 +136,40 @@
   **2026-09-09 게임 검증 1회차 — MGEF 필드는 나온다.** 톰 모드 + full 로 1440 주문 / 4246 이펙트.
   덤프 선두 로그 오염 없음, `archetype` 문자열 31종, MGEF 키워드 이펙트 4233건 · 고유 731종
   (그중 바닐라 `Magic*` 34종, `MagicDamageFire` 73건). 전량 스캔에서 0건이던 정보가 100% 나온다
-- **버그 1 — ActorValue 필드가 로컬라이즈된다 (수정 완료, 재검증 대기).**
+- **버그 1 — ActorValue 필드가 로컬라이즈된다. 수정·검증 완료 (2회차).**
   `primaryAV`/`secondaryAV`/`resistance` 가 한글 로드오더에서 "체력", "화염 저항" 으로 나왔다.
   원인은 `RE::ActorValueToString` → `ActorValueList::GetActorValueName` 이 AVIF 의 **표시 이름**을
   반환하는 것. 영어 환경도 안전하지 않다 — 표시 이름은 "Resist Fire"(공백)이고 룰이 매칭할
-  enum 이름은 `ResistFire` 다. 룰 JSON 은 전 사용자에게 같은 파일로 배포되므로 키가 언어마다
+  enum 이름은 `FireResist` 다. 룰 JSON 은 전 사용자에게 같은 파일로 배포되므로 키가 언어마다
   달라지면 성립하지 않는다(Concept 8절 다국어 항목).
   → `SpellScannerJson.cpp` 의 `GetActorValueName` 이 `ActorValueList::GetActorValueInfo(av)->enumName`
-  을 쓰도록 교체. `archetype`·`school`·`castingType`·`delivery` 는 손으로 쓴 switch 라 원래 안전했다
-- **버그 2 — `RunScan` 이 게임 스레드에서 불리면 데드락 (수정 완료, 재검증 대기).**
-  DevBench 는 네이티브를 게임 스레드에서 호출하는데, `RunScan` 이 다시 게임 스레드 태스크를
-  큐에 넣고 기다렸다. 그 태스크는 호출이 끝나야 실행되므로 120초 타임아웃까지 교착하고,
-  그 뒤에야 스캔이 150ms 만에 끝났으며 반환값은 빈 문자열. 게임은 그대로 행에 빠졌다
-  (실제 Papyrus 스크립트는 VM 스레드라 이 경로를 타지 않는다).
-  → `ThreadUtils.h` 에 `MarkGameThread()`/`IsOnGameThread()` 추가, `Main.cpp` 의 `MessageHandler`
-  가 스레드 ID 를 찍고, `PapyrusAPI.cpp` 의 `RunScan` 은 같은 스레드면 인라인 실행
-- 재검증 항목: `RunScan` 이 **즉시 경로를 반환**하는가 / `primaryAV`·`resistance` 가 영어 enum 이름인가
+  을 쓰도록 교체. `archetype`·`school`·`castingType`·`delivery` 는 손으로 쓴 switch 라 원래 안전했다.
+  **2회차 결과: 한글 0종.** primaryAV 35종·secondaryAV 5종·resistance 7종 전부 영어 enum 이름
+  (`Health`, `Magicka`, `Stamina`, `DamageResist`, `FireResist`, `FrostResist`, `ElectricResist`,
+  `PoisonResist`, `MagicResist`, `DiseaseResist` …). 저항 계열의 실제 enum 이름은 `ResistFire` 가
+  아니라 **`FireResist`** 순서다 — 룰을 쓸 때 주의
+- **버그 2 — `RunScan` 호출이 게임을 120초 멈춘다. 원인 진단이 틀렸고, 아직 안 고쳐졌다.**
+  1회차에서 "DevBench 가 네이티브를 게임 스레드에서 부르는데 `RunScan` 이 다시 게임 스레드
+  태스크를 큐에 넣고 기다려서 교착한다"고 보고 `IsOnGameThread()` 인라인 경로를 넣었다.
+  **2회차 로그가 이를 반증한다** — `RunScan` 은 스레드 5200 에서 돌았고 스캔 태스크는 20696
+  에서 돌았다. 호출 스레드가 게임 스레드가 아니므로 인라인 경로를 타지 않았고, 증상은 그대로였다
+  (호출 15:31:28 → 120초 타임아웃 15:33:28.410 → 태스크 실행 15:33:28.421, **11ms 차이**).
+  실제 구조는 이쪽으로 보인다: DevBench 가 papyrus 호출을 VM(5200)에 넘기고 **자기 메인 스레드
+  태스크에서 결과를 기다린다.** 그동안 메인 스레드가 막혀 SKSE 태스크 큐가 안 돌고, 우리 태스크는
+  `RunScan` 이 타임아웃으로 포기해 DevBench 태스크가 끝난 직후에야 실행된다. 즉 교착 상대가
+  우리 코드가 아니라 DevBench 의 대기다
+  → 넣은 `IsOnGameThread()` 가드는 무해하고 그 자체로는 옳으므로 남겨둔다. 진짜 해법 후보:
+  (a) `RunScan` 을 논블로킹으로 바꿔 태스크만 걸고 즉시 반환, 완료는 파일이나 별도 조회로 확인
+  (b) 스캔이 정말 게임 스레드를 요구하는지 재검토 (읽기 전용 순회)
+  (c) 테스트는 패널의 스캔 버튼 경로를 쓰고 `RunScan` 은 실사용(Papyrus) 전용으로 둔다
+  **결정 전까지 스캔은 창을 포커스한 채로 걸고 120초 기다리면 파일은 정상적으로 나온다**
+- 재검증 결과(2026-09-09 2회차, 1440 주문 / 4246 이펙트): 덤프 선두 오염 없음 · `archetype` 31종
+  전부 문자열(숫자 0건) · MGEF 키워드 31104건 / 고유 729종 · `Magic*` 34종 · `MagicDamageFire` 73건 ·
+  MGEF 증거 없는 주문 **0건** · AV 한글 0종. 덤프는 `scan_2026-09-09_tomes_full_v2.json`
+- **게임이 포커스를 잃으면 프레임이 멈춘다** (`bAlwaysActive=1` 이 프로필 ini 에 있고
+  `profile_local_inis=true` 인데도). DevBench 는 메인 스레드가 돌아야 도구를 실행하므로,
+  스캔 전에 창을 앞으로 가져와야 한다(`ShowWindow(hWnd, SW_RESTORE)` 로 충분했다).
+  M1 과 무관한 환경 문제지만 앞으로 모든 게임 테스트에 영향
 - 미검증: PrismaUI JS 테스트(`node run-tests.js`)를 **못 돌렸다 — 이 PC에 Node.js 가 없다.** JS 변경은 3곳뿐이고 모두 기계적
 - 문서: `docs/ARCHITECTURE.md`(스캐너 절), `docs/PRESETS.md`
 
@@ -228,13 +251,13 @@
 
 ## 4. 지금 당장 (다음 세션 시작점)
 
-M0, M1 완료. **M1 재검증이 먼저다** — 2026-09-09 첫 게임 검증에서 버그 2개가 나와 고쳤고,
-빌드·배포까지 끝냈지만 고친 결과를 게임에서 아직 못 봤다.
+M0 완료. **M1 은 목적을 달성했다** — MGEF 구조가 언어 무관한 형태로 덤프에 나온다(2026-09-09
+2회차 검증, `scan_2026-09-09_tomes_full_v2.json`). M2 를 막는 것은 없다.
 
-1. 게임 실행 → `RunScan("tomes","full")` 이 **즉시 경로를 반환**하는지(데드락 수정 확인),
-   덤프의 `primaryAV`/`resistance` 가 **영어 enum 이름**인지(`ResistFire`, `Health`) 확인.
-   되면 M1 을 닫고 커밋
-2. M2 착수 — `tools/librarian-test` + 룰 엔진 2파일 + `00_mgef.json` 초안.
-   `00_mgef.json` 은 `RE/E/EffectArchetypes.h` 의 archetype 47종과 실측 덤프의
-   바닐라 `Magic*` 키워드 34종(2026-09-09 톰 모드 기준)으로 시작한다. 게임 불필요
-3. M2 숫자 → M3 어휘 확정 → M4
+1. **M2 착수** — `tools/librarian-test` + 룰 엔진 2파일 + `00_mgef.json` 초안.
+   입력 덤프는 이미 있으므로 **게임이 필요 없다.**
+   `00_mgef.json` 은 `RE/E/EffectArchetypes.h` 의 archetype 47종과 실측 덤프의 바닐라 `Magic*`
+   키워드 34종으로 시작한다. 저항 AV 는 `FireResist` 꼴(`ResistFire` 아님)
+2. M2 숫자 → M3 어휘 확정 → M4
+3. 남은 것 두 가지는 M2 를 막지 않으므로 뒤로 미룬다 — `RunScan` 블로킹(M1 버그 2, 해법 미결정)과
+   포커스 잃으면 프레임 정지(M0-T). 다음에 게임 테스트가 필요해지는 M4 전에 정리한다

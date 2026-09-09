@@ -76,7 +76,7 @@ classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
   "name": "Fire Damage", "magnitude": 60, "duration": 0, "area": 0,
   "keywords": ["MagicDamageFire"],
   "archetype": "ValueModifier",
-  "primaryAV": "Health", "secondaryAV": "None", "resistance": "ResistFire",
+  "primaryAV": "Health", "secondaryAV": "None", "resistance": "FireResist",
   "hostile": true, "detrimental": true,
   "castingType": "Fire and Forget", "delivery": "Aimed",
   "magicSkill": "Destruction",
@@ -91,7 +91,7 @@ classification rules match on those strings, so they have to stay stable.
 Actor values come from the AVIF record's `enumName`, not `RE::ActorValueToString`. That
 helper hands back the localized display name, so a translated load order emits `"체력"`
 where an English one emits `"Health"` - and even the English display name
-(`"Resist Fire"`) differs from the enum name (`"ResistFire"`) the rules are written
+(`"Resist Fire"`) differs from the enum name (`"FireResist"`) the rules are written
 against. The rule files ship once for every language, so these keys have to be language
 independent.
 
@@ -104,11 +104,17 @@ the path. `mode` is `"tomes"` or `"all"`, `preset` is `"minimal"`, `"balanced"` 
 file is exactly the scan JSON.
 
 Papyrus calls it from the VM thread, so it submits the scan as a game thread task and
-waits. A debug harness can call the same native from the game thread, and there that wait
-would deadlock - the task only runs once the call returns. `RunScan` checks
-`IsOnGameThread()` (ThreadUtils.h) and runs the scan inline when it is already there.
-`MessageHandler` in Main.cpp stamps the thread id, since SKSE delivers those messages on
-the game thread.
+blocks until that task reports back, with a timeout so a dropped task cannot hang the
+script forever. It also checks `IsOnGameThread()` (ThreadUtils.h) and runs the scan
+inline when the caller is already on the game thread, where submitting a task and waiting
+for it could not complete. `MessageHandler` in Main.cpp stamps the thread id, since SKSE
+delivers those messages on the game thread.
+
+Known limitation: the wait makes `RunScan` unusable from a caller that itself blocks the
+game thread while waiting for the Papyrus result, which is how the DevBench harness
+drives it. The scan task then cannot run until `RunScan` gives up, so the call takes the
+full timeout and returns an empty string even though the file is written correctly a few
+milliseconds later. A non-blocking variant that only queues the scan would avoid this.
 
 **FormID Persistence:**
 ```
