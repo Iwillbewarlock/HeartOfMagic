@@ -88,6 +88,13 @@ classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
 classification rules match on those strings, so they have to stay stable.
 `associatedForm` only appears when the effect has one (summons, bound weapons).
 
+Actor values come from the AVIF record's `enumName`, not `RE::ActorValueToString`. That
+helper hands back the localized display name, so a translated load order emits `"체력"`
+where an English one emits `"Health"` - and even the English display name
+(`"Resist Fire"`) differs from the enum name (`"ResistFire"`) the rules are written
+against. The rule files ship once for every language, so these keys have to be language
+independent.
+
 **Scanning from outside the UI:**
 
 `SpellLearning.RunScan(mode, preset)` (Papyrus, see PapyrusAPI.cpp) runs a scan on the
@@ -95,6 +102,13 @@ game thread, writes `Data/SKSE/Plugins/SpellLearning/spell_scan_output.json` and
 the path. `mode` is `"tomes"` or `"all"`, `preset` is `"minimal"`, `"balanced"` or
 `"full"`. Unlike the UI's Save button it never routes the dump through the panel, so the
 file is exactly the scan JSON.
+
+Papyrus calls it from the VM thread, so it submits the scan as a game thread task and
+waits. A debug harness can call the same native from the game thread, and there that wait
+would deadlock - the task only runs once the call returns. `RunScan` checks
+`IsOnGameThread()` (ThreadUtils.h) and runs the scan inline when it is already there.
+`MessageHandler` in Main.cpp stamps the thread id, since SKSE delivers those messages on
+the game thread.
 
 **FormID Persistence:**
 ```

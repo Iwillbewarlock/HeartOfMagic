@@ -83,7 +83,17 @@ namespace SpellScanner
         if (raw < 0 || raw >= std::to_underlying(RE::ActorValue::kTotal)) {
             return "None";
         }
-        return std::string(RE::ActorValueToString(actorValue));
+
+        // Deliberately not RE::ActorValueToString: that hands back the AVIF's
+        // localized display name, so a translated load order emits "체력" where an
+        // English one emits "Health", and neither matches the name the rules are
+        // written against ("Resist Fire" vs "ResistFire"). enumName is the record's
+        // language independent name, which is what the rule files can rely on.
+        const auto* info = RE::ActorValueList::GetActorValueInfo(actorValue);
+        if (!info || !info->enumName) {
+            return "None";
+        }
+        return info->enumName;
     }
 
     // =============================================================================

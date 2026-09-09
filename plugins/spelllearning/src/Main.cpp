@@ -11,6 +11,7 @@
 #include "SpellTomeHook.h"
 #include "PapyrusAPI.h"
 #include "SpellLearningAPI.h"
+#include "ThreadUtils.h"
 
 // =============================================================================
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
@@ -369,6 +370,10 @@ void OnPostLoadGame()
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
+    // SKSE delivers these on the game thread, which is the one piece of code
+    // guaranteed to run there before anything else needs to recognise it.
+    MarkGameThread();
+
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kPostLoad:
             // Install hooks after all plugins are loaded but before game data
