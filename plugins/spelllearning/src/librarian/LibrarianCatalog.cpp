@@ -1,9 +1,7 @@
 #include "librarian/Librarian.h"
+#include "librarian/LibrarianInternal.h"
 
-#include <algorithm>
 #include <chrono>
-#include <filesystem>
-#include <fstream>
 #include <sstream>
 
 // =============================================================================
@@ -15,36 +13,15 @@
 
 namespace Librarian
 {
+    using namespace Librarian::Detail;
+
     namespace
     {
-        constexpr const char* CATALOG_DIR = "Data/SKSE/Plugins/SpellLearning";
         constexpr const char* CATALOG_FILE = "spell_catalog.json";
-        constexpr const char* RULE_SUBDIR = "librarian";
-
-        std::string Lowered(std::string text)
-        {
-            std::transform(text.begin(), text.end(), text.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            return text;
-        }
-
-        std::string ReadField(const json& object, const char* key)
-        {
-            const auto found = object.find(key);
-            if (found != object.end() && found->is_string()) {
-                return found->get<std::string>();
-            }
-            return {};
-        }
 
         std::string CatalogPath()
         {
-            return (std::filesystem::path(CATALOG_DIR) / CATALOG_FILE).string();
-        }
-
-        std::string RulesPath()
-        {
-            return (std::filesystem::path(CATALOG_DIR) / RULE_SUBDIR).string();
+            return DataPath(CATALOG_FILE).string();
         }
 
         std::string UtcTimestamp()
@@ -259,18 +236,9 @@ namespace Librarian
 
     bool LoadCatalog(json& catalog)
     {
-        const std::string path = CatalogPath();
-
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            logger::info("Librarian: no catalog at '{}'", path);
-            return false;
-        }
-
-        try {
-            file >> catalog;
-        } catch (const std::exception& e) {
-            logger::error("Librarian: catalog '{}' is not valid JSON - {}", path, e.what());
+        const auto path = DataPath(CATALOG_FILE);
+        if (!ReadJsonFile(path, catalog)) {
+            logger::info("Librarian: no readable catalog at '{}'", path.string());
             return false;
         }
         return true;
@@ -283,7 +251,7 @@ namespace Librarian
         // because the librarian tripped would be the worse outcome.
         try {
             const json scanDump = json::parse(scanJson);
-            const RuleSet rules = LoadRules(RulesPath());
+            const RuleSet rules = LoadRules(RulesPath().string());
             if (rules.rules.empty()) {
                 logger::warn("Librarian: no rules loaded - skipping catalog");
                 return "";
@@ -292,7 +260,7 @@ namespace Librarian
             CatalogStats stats;
             const json catalog = BuildCatalog(scanDump, rules, stats);
 
-            std::filesystem::create_directories(CATALOG_DIR);
+            std::filesystem::create_directories(DATA_DIR);
             const std::string path = CatalogPath();
 
             std::ofstream file(path);

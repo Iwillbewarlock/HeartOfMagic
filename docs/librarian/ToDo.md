@@ -301,12 +301,28 @@
 - 테스트: 태그 있음/없음으로 트리 2회 생성, 같은 학파 내 간선이 원소별로 뭉치는지 정성 비교. 스크린샷 2장
 - 문서: `docs/TREE_BUILDING_SYSTEM.md`
 
-### [ ] M6. 손님 2 — 퍽 모드 호환 보정
-- 역할: 카탈로그 태그 기준으로 MGEF에 **빠진 바닐라 `Magic*` 키워드를 추가**. 삭제 없음
-- 파일: `src/librarian/LibrarianKeywordPatch.cpp` — `kDataLoaded` 후 실행, 어댑터 룰 `librarian/adapter_vanilla_keywords.json`(`{"tag":"fire","mgefKeyword":"MagicDamageFire"}`), 플러그인 제외 목록, 설정 토글(기본 ON)
-- 주의: `BGSKeywordForm::AddKeywords` 사용(헤더 확인됨). 원본 폼 수정이므로 로그에 변경 건수 기록. 세이브 영향 없음(런타임 폼 데이터)
+### [~] M6. 손님 2 — 퍽 모드 호환 보정 (2026-09-10 구현·빌드 완료, 게임 검증 대기)
+- 역할: MGEF에 **빠진 바닐라 `Magic*` 키워드를 추가**. 삭제 없음
+- **카탈로그를 읽지 않는다.** 이 절의 원래 계획은 "카탈로그 태그 기준"이었으나 그렇게 만들 수 없다.
+  카탈로그는 **주문** 단위인데 퍽은 `HasMagicEffectKeyword` 로 **이펙트**에게 묻는다.
+  주문에 이펙트가 여럿이면 어느 이펙트에 붙일지 카탈로그가 모른다.
+  → `ApplyVanillaKeywordPatch` 는 로드오더의 모든 `EffectSetting` 을 **하나씩 분류**한다.
+  카탈로그도, 사전 스캔도 필요 없다. 새로 설치한 사용자에게도 바로 동작한다
+- [x] `src/librarian/LibrarianKeywordPatch.cpp` — `kDataLoaded` 후 `OnDataLoaded` 에서 1회 실행.
+      어댑터 `librarian/adapter_vanilla_keywords.json` 21개, 플러그인 제외 목록, 설정 토글(기본 ON)
+- [x] 어댑터 항목은 태그만으로 판단하지 않는다. `match` 가 분류 룰과 **같은 조건 구조**라
+      기존 매처를 그대로 쓴다. 이게 없으면 화염 아트로나크 소환에도 `MagicDamageFire` 가 붙는다
+      (그것도 `fire` 태그를 받는다) — 화염 강화 퍽이 소환 주문에 걸리게 된다
+- [x] 어댑터 태그도 **어휘 게이트를 통과한다.** 룰 파일과 같은 대우. 오타는 경고 후 버려진다
+- [x] `BGSKeywordForm::AddKeywords` 사용. **반환값은 항상 true 라 믿을 수 없다**
+      (`commonlibsse-ng/src/RE/B/BGSKeywordForm.cpp:39`) → 키워드 개수를 전후로 재서 판정한다
+- [x] **스캔 덤프에 `keywordPatchApplied` 를 찍는다.** 패치가 돈 뒤의 스캔은 플러그인 파일에 없는
+      키워드를 보므로 커버리지가 실제보다 높게 나온다. `librarian-test` 가 그 덤프를 읽으면 경고한다.
+      **`MEASURED.md` 의 숫자는 패치 이전 덤프 기준이다**
+- 한계: 랩이 이펙트 하나뿐이라 `spellKeyword` 로 매칭하는 룰(10_nsv.json 18개)은 이 경로에서
+  발동할 수 없다. 의도한 것이다 — NSV 태그는 주문을 설명하고, 붙이는 키워드는 이펙트의 것이다
 - 의존: M4
-- 테스트: 바닐라 키워드 없는 모드 주문 하나 골라 → 보정 후 화염 강화 퍽 효과 수치 변화 확인
+- [ ] 테스트: 바닐라 키워드 없는 모드 주문 하나 골라 → 보정 후 화염 강화 퍽 효과 수치 변화 확인
 - 문서: `docs/librarian/LIBRARIAN.md` 보정 절 + 호환성 안내(FOMOD/README)
 
 ### [ ] M7. 사서 3·4단계 — 텍스트 룰 + LLM 폴백

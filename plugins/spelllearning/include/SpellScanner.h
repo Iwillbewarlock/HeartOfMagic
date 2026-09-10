@@ -106,6 +106,12 @@ namespace SpellScanner
 
     // Single source of the scan JSON shape, shared by every scan entry point.
     // Callers must have checked effect->baseEffect / spell for null.
+    //
+    // BuildBaseEffectJson is the MGEF half on its own, for a caller that has a
+    // base effect and no spell to put it in - the librarian's keyword patch
+    // classifies effects one at a time, because that is the unit a perk's
+    // HasMagicEffectKeyword condition looks at.
+    json BuildBaseEffectJson(const RE::EffectSetting* baseEffect, const FieldConfig& fields);
     json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
 

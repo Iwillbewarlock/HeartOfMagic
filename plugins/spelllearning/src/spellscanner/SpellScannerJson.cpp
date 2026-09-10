@@ -115,16 +115,14 @@ namespace SpellScanner
         return firstEffect->baseEffect->GetMagickSkill();
     }
 
-    json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields)
+    // Everything that comes from the MGEF record itself. Split out so the
+    // librarian's keyword patch can classify a base effect that is not part of
+    // any particular spell - it reads the same fields the rules match on.
+    json BuildBaseEffectJson(const RE::EffectSetting* baseEffect, const FieldConfig& fields)
     {
         json effectJson;
 
-        auto* baseEffect = effect->baseEffect;
-
         effectJson["name"] = EncodingUtils::SanitizeToUTF8(baseEffect->GetFullName());
-        effectJson["magnitude"] = effect->effectItem.magnitude;
-        effectJson["duration"] = effect->effectItem.duration;
-        effectJson["area"] = effect->effectItem.area;
 
         const char* description = baseEffect->magicItemDescription.c_str();
         if (description && strlen(description) > 0) {
@@ -161,6 +159,18 @@ namespace SpellScanner
         if (baseEffect->data.associatedForm) {
             effectJson["associatedForm"] = GetPersistentFormId(baseEffect->data.associatedForm->GetFormID());
         }
+
+        return effectJson;
+    }
+
+    json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields)
+    {
+        // The MGEF half, plus what this particular spell asks of it.
+        json effectJson = BuildBaseEffectJson(effect->baseEffect, fields);
+
+        effectJson["magnitude"] = effect->effectItem.magnitude;
+        effectJson["duration"] = effect->effectItem.duration;
+        effectJson["area"] = effect->effectItem.area;
 
         return effectJson;
     }

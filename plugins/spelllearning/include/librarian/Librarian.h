@@ -148,6 +148,10 @@ namespace Librarian
     // Missing directory is not an error - it yields an empty rule set.
     RuleSet LoadRules(const std::string& directory);
 
+    // Parses one "match" object into conditions. Shared with the keyword patch,
+    // whose adapter entries carry the same conditions.
+    RuleMatch ParseRuleMatch(const json& matchObject);
+
     // Parses one already-read rule document. A document may set a "tier" of its
     // own, which becomes the default for every rule in it - a whole file of
     // framework rules should not have to repeat itself. Exposed for tests and
@@ -156,6 +160,10 @@ namespace Librarian
 
     // Tags one spell object from the scan dump.
     TagSet Classify(const json& spell, const RuleSet& rules);
+
+    // Whether one effect satisfies a rule's effect level conditions. Exposed
+    // for the keyword patch, which asks the same question of a single effect.
+    bool EffectMatches(const json& effect, const RuleMatch& match);
 
     // =========================================================================
     // AXES
@@ -207,4 +215,45 @@ namespace Librarian
 
     // Reads the catalog back. Returns false when it is missing or unreadable.
     bool LoadCatalog(json& catalog);
+
+    // =========================================================================
+    // VANILLA KEYWORD PATCH
+    // =========================================================================
+    //
+    // Perk mods gate their bonuses on the vanilla keywords - Adamant, Ordinator
+    // and vanilla itself all ask HasMagicEffectKeyword MagicDamageFire. A modded
+    // fire spell whose MGEF never got that keyword is invisible to every one of
+    // them. The librarian knows the effect is fire, so it can fill the keyword
+    // in, and a whole category of "this mod's spells ignore my perks" goes away
+    // without anyone writing a patch.
+    //
+    // Rules of engagement, in order of importance:
+    //   - keywords are only ever ADDED, never removed
+    //   - only keywords that already exist in the load order are added
+    //   - an effect that already has the keyword is left alone
+    //   - plugins the user lists are skipped entirely
+    //   - the whole thing is one config switch away from being off
+    //
+    // This edits runtime form data, which is not written to saves, so removing
+    // the mod removes the change.
+
+    struct KeywordPatchStats
+    {
+        std::size_t effectsSeen = 0;              // base effects worth examining
+        std::size_t effectsPatched = 0;           // effects that gained at least one keyword
+        std::size_t keywordsAdded = 0;            // keywords added in total
+        std::size_t keywordsAlreadyPresent = 0;   // adapter hits the effect already satisfied
+        std::size_t excluded = 0;                 // effects skipped, plugin is excluded
+    };
+
+    // Reads librarian/adapter_vanilla_keywords.json and the classification
+    // rules, then walks every base effect in the load order. Safe to call when
+    // the feature is off or the adapter file is missing - it does nothing and
+    // says so. Call after kDataLoaded, on the game thread.
+    KeywordPatchStats ApplyVanillaKeywordPatch();
+
+    // What the last patch run did, zeroed if it never ran. A scan taken after
+    // the patch sees keywords that are not in anyone's plugin files, so the
+    // dump records this and anything measuring off that dump can say so.
+    KeywordPatchStats LastKeywordPatchStats();
 }

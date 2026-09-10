@@ -1,4 +1,5 @@
 #include "librarian/Librarian.h"
+#include "librarian/LibrarianInternal.h"
 
 // =============================================================================
 // LibrarianClassify - matching rules against one scanned spell
@@ -23,17 +24,7 @@ namespace Librarian
                 && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
         }
 
-        // Reads a string field, returning an empty string when it is missing or
-        // is not a string. Scan dumps written with a narrower preset simply do
-        // not carry some fields, and a rule naming one just will not match.
-        std::string ReadField(const json& object, const char* key)
-        {
-            const auto found = object.find(key);
-            if (found != object.end() && found->is_string()) {
-                return found->get<std::string>();
-            }
-            return {};
-        }
+        using Detail::ReadField;
 
         // A missing boolean cannot satisfy a rule that asks about it: the
         // narrower presets leave these fields out entirely.
@@ -92,38 +83,6 @@ namespace Librarian
             return false;
         }
 
-        // Every effect level condition the rule names, against one effect.
-        bool EffectMatches(const json& effect, const RuleMatch& match)
-        {
-            if (!match.mgefKeyword.empty() && !HasKeyword(effect, match.mgefKeyword)) {
-                return false;
-            }
-            if (!HasKeywordWithAffixes(effect, match.mgefKeywordPrefix, match.mgefKeywordSuffix)) {
-                return false;
-            }
-            if (!match.archetype.empty() && ReadField(effect, "archetype") != match.archetype) {
-                return false;
-            }
-            if (!match.primaryAV.empty() && ReadField(effect, "primaryAV") != match.primaryAV) {
-                return false;
-            }
-            if (!match.secondaryAV.empty() && ReadField(effect, "secondaryAV") != match.secondaryAV) {
-                return false;
-            }
-            if (!match.resistance.empty() && ReadField(effect, "resistance") != match.resistance) {
-                return false;
-            }
-            if (!match.magicSkill.empty() && ReadField(effect, "magicSkill") != match.magicSkill) {
-                return false;
-            }
-            if (!BoolFieldMatches(effect, "hostile", match.hostile)) {
-                return false;
-            }
-            if (!BoolFieldMatches(effect, "detrimental", match.detrimental)) {
-                return false;
-            }
-            return true;
-        }
 
         bool SpellMatches(const json& spell, const RuleMatch& match)
         {
@@ -162,6 +121,40 @@ namespace Librarian
                 axisSource = ruleSource;
             }
         }
+    }
+
+    // Every effect level condition the rule names, against one effect. Public
+    // because the keyword patch matches adapter conditions the same way.
+    bool EffectMatches(const json& effect, const RuleMatch& match)
+    {
+        if (!match.mgefKeyword.empty() && !HasKeyword(effect, match.mgefKeyword)) {
+            return false;
+        }
+        if (!HasKeywordWithAffixes(effect, match.mgefKeywordPrefix, match.mgefKeywordSuffix)) {
+            return false;
+        }
+        if (!match.archetype.empty() && ReadField(effect, "archetype") != match.archetype) {
+            return false;
+        }
+        if (!match.primaryAV.empty() && ReadField(effect, "primaryAV") != match.primaryAV) {
+            return false;
+        }
+        if (!match.secondaryAV.empty() && ReadField(effect, "secondaryAV") != match.secondaryAV) {
+            return false;
+        }
+        if (!match.resistance.empty() && ReadField(effect, "resistance") != match.resistance) {
+            return false;
+        }
+        if (!match.magicSkill.empty() && ReadField(effect, "magicSkill") != match.magicSkill) {
+            return false;
+        }
+        if (!BoolFieldMatches(effect, "hostile", match.hostile)) {
+            return false;
+        }
+        if (!BoolFieldMatches(effect, "detrimental", match.detrimental)) {
+            return false;
+        }
+        return true;
     }
 
     TagSet Classify(const json& spell, const RuleSet& rules)

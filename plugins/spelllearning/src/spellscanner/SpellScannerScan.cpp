@@ -2,9 +2,26 @@
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
+#include "librarian/Librarian.h"
 
 namespace SpellScanner
 {
+    namespace
+    {
+        // A scan taken after the keyword patch has run sees keywords that are
+        // in no plugin file, so the dump says so. Anything measuring rule
+        // coverage off a stamped dump is measuring a patched load order, not
+        // what another user would get.
+        void StampKeywordPatch(json& output)
+        {
+            const auto patch = Librarian::LastKeywordPatchStats();
+            output["keywordPatchApplied"] = (patch.keywordsAdded > 0);
+            if (patch.keywordsAdded > 0) {
+                output["keywordPatchAdded"] = patch.keywordsAdded;
+            }
+        }
+    }
+
     // =============================================================================
     // SPELL SCANNING
     // =============================================================================
@@ -264,6 +281,7 @@ namespace SpellScanner
         output["scanTimestamp"] = ss.str();
         output["spellCount"] = spellArray.size();
         output["spells"] = spellArray;
+        StampKeywordPatch(output);
 
         // Combine prompts: User's tree rules + System instructions + Spell data
         std::string combinedPrompt;
@@ -368,6 +386,7 @@ namespace SpellScanner
         output["scanMode"] = "spell_tomes";
         output["spellCount"] = spellArray.size();
         output["spells"] = spellArray;
+        StampKeywordPatch(output);
 
         // Combine prompts
         std::string combinedPrompt;

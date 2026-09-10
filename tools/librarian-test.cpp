@@ -194,6 +194,14 @@ int main(int argc, char* argv[])
     try {
         const json dump = ReadDump(inputPath);
 
+        // A dump taken after the keyword patch ran describes a load order the
+        // plugin itself edited, so its coverage is not what another user sees.
+        const auto patched = dump.find("keywordPatchApplied");
+        if (patched != dump.end() && patched->is_boolean() && patched->get<bool>()) {
+            std::cout << "\nWARNING: this dump was taken after the vanilla keyword patch ran"
+                << " - coverage here is higher than an unpatched load order would give\n";
+        }
+
         Librarian::RuleSet rules = Librarian::LoadRules(rulesPath);
         if (!tier.empty()) {
             const std::size_t before = rules.rules.size();

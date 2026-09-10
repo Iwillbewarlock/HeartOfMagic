@@ -12,6 +12,7 @@
 #include "PapyrusAPI.h"
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
+#include "librarian/Librarian.h"
 
 // =============================================================================
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
@@ -319,8 +320,13 @@ void OnDataLoaded()
     registry.Register<SpellLearning::SpellCastXPSource>();
     registry.Register<SpellLearning::PassiveLearningSource>();
     registry.InitializeAll();
-    logger::info("XP sources registered: {} total, {} active", 
+    logger::info("XP sources registered: {} total, {} active",
                  registry.GetAll().size(), registry.GetActive().size());
+
+    // Fill in the vanilla keywords modded effects are missing, so perk mods
+    // recognise them. Additive, and off with one config switch. Runs here
+    // because every form is loaded by now and nothing has been cast yet.
+    Librarian::ApplyVanillaKeywordPatch();
 }
 
 void OnNewGame()

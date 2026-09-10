@@ -1,9 +1,8 @@
 #include "librarian/Librarian.h"
+#include "librarian/LibrarianInternal.h"
 #include "librarian/TagVocabulary.h"
 
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
+#include <vector>
 
 // =============================================================================
 // LibrarianRules - loading and merging the classification rule files
@@ -146,6 +145,13 @@ namespace Librarian
     // MATCH SHAPE
     // =========================================================================
 
+    // The keyword patch's adapter entries carry the same conditions a rule
+    // does, so they read them through the same parser rather than a second one.
+    RuleMatch ParseRuleMatch(const json& matchObject)
+    {
+        return ParseMatch(matchObject);
+    }
+
     bool RuleMatch::HasEffectCondition() const
     {
         return !mgefKeyword.empty()
@@ -190,7 +196,12 @@ namespace Librarian
         }
 
         if (!ruleArray) {
-            logger::warn("Librarian: '{}' has no rules array - ignored", originFile);
+            // The keyword patch keeps its adapter table in this same directory
+            // and it is not a rule file. Anything else without rules is a
+            // mistake worth mentioning.
+            if (!document.is_object() || document.find("adapters") == document.end()) {
+                logger::warn("Librarian: '{}' has no rules array - ignored", originFile);
+            }
             return;
         }
 
@@ -232,17 +243,9 @@ namespace Librarian
         for (const auto& path : paths) {
             const std::string name = path.filename().string();
 
-            std::ifstream file(path);
-            if (!file.is_open()) {
-                logger::error("Librarian: cannot open rule file '{}'", name);
-                continue;
-            }
-
             json document;
-            try {
-                file >> document;
-            } catch (const std::exception& e) {
-                logger::error("Librarian: rule file '{}' is not valid JSON - {}", name, e.what());
+            if (!Detail::ReadJsonFile(path, document)) {
+                logger::error("Librarian: could not read rule file '{}'", name);
                 continue;
             }
 
