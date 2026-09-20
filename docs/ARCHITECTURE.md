@@ -113,16 +113,28 @@ same on every load order and in every language.
 | effect | `baseCost`, `minimumSkill` | `EffectSettingData` |
 | effect | `projectile{form,type,speed,range,gravity,explodes}` | `projectileBase`. `type` is one of Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow. Only when set |
 | effect | `explosion{form,source,radius}` | the effect's own explosion, otherwise its projectile's. `source` says which. Only when set |
-| effect | `hazard` | true/false only, see below |
+| effect | `hazard`, `hazardSource` | true/false, and where it was found. See below |
 | effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
 | effect | `counterEffects[]` | persistent ids of the MGEF's counter effects |
 | effect | `conditions{base,item}` | whether the MGEF / this spell's effect item has conditions. Presence only, contents are not unpacked |
 | effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
 
-`hazard` is presence only - no radius, no lifetime. It is true when any of these holds:
-the MGEF's associated form is a hazard (SpawnHazard archetype); the effect's explosion,
-or its projectile's explosion, has a hazard as placed object; any of those explosions'
-impact data sets, or the MGEF's own, carries a hazard.
+`hazard` is presence only - no radius, no lifetime. When it is true, `hazardSource`
+says where the hazard hangs, strongest link first:
+
+| `hazardSource` | Meaning | Seen in game (2026-09-21, 4246 effects) |
+|---|---|---|
+| `effect` | the MGEF's associated form is a hazard | 33 - Blizzard, Circle of Protection, Clairvoyance |
+| `explosion` | the effect's explosion, or its projectile's, drops a hazard as placed object | 15 |
+| `impact` | an impact data set (the MGEF's, or one of those explosions') carries a hazard | 735 |
+
+The three are not the same kind of thing, which is why the scan names the source
+instead of folding them into one flag. `effect` and `explosion` are hazards a spell is
+built around. `impact` is whatever a hit leaves on a surface, and the engine uses
+hazards for lingering visuals too: in vanilla it fires for Firebolt and Fireball, but
+also for atronach summons, Banish and the mass illusion spells. A consumer that means
+"leaves something dangerous on the ground" should not read `impact` that way. Runes are
+not hazards at all - the rune is a Lobber projectile.
 
 **Scanning from outside the UI:**
 

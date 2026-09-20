@@ -50,28 +50,36 @@ namespace SpellScanner
             return false;
         }
 
-        bool ExplosionLeavesHazard(const RE::BGSExplosion* explosion)
+        bool PlacedObjectIsHazard(const RE::BGSExplosion* explosion)
         {
             if (!explosion) return false;
 
             // The header types the placed object as a reference, but the record
             // stores a base object. Asking any form for its type is safe either way.
             const RE::TESForm* placed = explosion->data.impactPlacedObject;
-            if (placed && placed->Is(RE::FormType::Hazard)) return true;
-
-            return ImpactSetHasHazard(explosion->data.impactDataSet);
+            return placed && placed->Is(RE::FormType::Hazard);
         }
 
-        bool EffectHasHazard(const RE::EffectSetting* baseEffect)
+        // Where the hazard hangs, strongest link first, or nullptr for none.
+        // The three are not the same thing: "effect" and "explosion" are hazards
+        // the spell is built around (walls, runes), while "impact" is the patch a
+        // hit leaves on a surface, which a plain firebolt has too. Which one a
+        // consumer cares about is its own call; the scan only says which it saw.
+        const char* HazardSource(const RE::EffectSetting* baseEffect)
         {
             const auto& data = baseEffect->data;
+            const RE::BGSExplosion* projectileExplosion =
+                data.projectileBase ? data.projectileBase->data.explosionType : nullptr;
 
-            if (data.associatedForm && data.associatedForm->Is(RE::FormType::Hazard)) return true;
-            if (ExplosionLeavesHazard(data.explosion)) return true;
-            if (ImpactSetHasHazard(data.impactDataSet)) return true;
-            if (data.projectileBase && ExplosionLeavesHazard(data.projectileBase->data.explosionType)) return true;
+            if (data.associatedForm && data.associatedForm->Is(RE::FormType::Hazard)) return "effect";
 
-            return false;
+            if (PlacedObjectIsHazard(data.explosion) || PlacedObjectIsHazard(projectileExplosion)) return "explosion";
+
+            if (ImpactSetHasHazard(data.impactDataSet)) return "impact";
+            if (data.explosion && ImpactSetHasHazard(data.explosion->data.impactDataSet)) return "impact";
+            if (projectileExplosion && ImpactSetHasHazard(projectileExplosion->data.impactDataSet)) return "impact";
+
+            return nullptr;
         }
 
         json BuildEffectFlagsJson(const RE::EffectSetting* baseEffect)
@@ -146,7 +154,11 @@ namespace SpellScanner
             effectJson["explosion"] = BuildExplosionJson(data.projectileBase->data.explosionType, "projectile");
         }
 
-        effectJson["hazard"] = EffectHasHazard(baseEffect);
+        const char* hazardSource = HazardSource(baseEffect);
+        effectJson["hazard"] = (hazardSource != nullptr);
+        if (hazardSource) {
+            effectJson["hazardSource"] = hazardSource;
+        }
 
         if (data.perk) {
             effectJson["perk"] = FormRef(data.perk);
