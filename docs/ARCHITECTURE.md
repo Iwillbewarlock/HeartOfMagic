@@ -95,6 +95,35 @@ where an English one emits `"Health"` - and even the English display name
 against. The rule files ship once for every language, so these keys have to be language
 independent.
 
+**Structure evidence (SpellScannerEvidence.cpp):**
+
+`effectDetails` also adds the fields below. Every one of them is copied out of the
+record as it is; the scan never interprets a value. Deciding that something is "an
+area spell" or "a fire spell" is the consumer's job, which is what keeps the dump the
+same on every load order and in every language.
+
+| Where | Field | Source |
+|---|---|---|
+| spell | `castingPerk` | `SpellItem::Data::castingPerk` - the half cost perk. Only when set |
+| spell | `equipSlot`, `twoHanded` | `BGSEquipType::GetEquipSlot()`, `SpellItem::IsTwoHanded()` |
+| spell | `castDuration`, `range` | `SpellItem::Data` |
+| spell | `flags{}` | `SpellItem::SpellFlag`: costOverride, pcStartSpell, instantCast, ignoreLOSCheck, ignoreResistance, noAbsorb, noDualCastMods |
+| spell (tome scan) | `tomePersistentId`, `tomeValue` | the teaching book and its gold value |
+| effect | `flags{}` | every `EffectSettingData::Flag` except hostile/detrimental, which stay top level |
+| effect | `baseCost`, `minimumSkill` | `EffectSettingData` |
+| effect | `projectile{form,type,speed,range,gravity,explodes}` | `projectileBase`. `type` is one of Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow. Only when set |
+| effect | `explosion{form,source,radius}` | the effect's own explosion, otherwise its projectile's. `source` says which. Only when set |
+| effect | `hazard` | true/false only, see below |
+| effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
+| effect | `counterEffects[]` | persistent ids of the MGEF's counter effects |
+| effect | `conditions{base,item}` | whether the MGEF / this spell's effect item has conditions. Presence only, contents are not unpacked |
+| effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
+
+`hazard` is presence only - no radius, no lifetime. It is true when any of these holds:
+the MGEF's associated form is a hazard (SpawnHazard archetype); the effect's explosion,
+or its projectile's explosion, has a hazard as placed object; any of those explosions'
+impact data sets, or the MGEF's own, carries a hazard.
+
 **Scanning from outside the UI:**
 
 `SpellLearning.RunScan(mode, preset)` (Papyrus, see PapyrusAPI.cpp) runs a scan on the

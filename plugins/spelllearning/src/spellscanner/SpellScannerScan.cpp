@@ -364,6 +364,11 @@ namespace SpellScanner
             // Also include tome info for reference (sanitize - mods like DynDOLOD can have invalid UTF-8 in book names)
             spellJson["tomeFormId"] = std::format("0x{:08X}", book->GetFormID());
             spellJson["tomeName"] = EncodingUtils::SanitizeToUTF8(book->GetFullName());
+            if (fields.effectDetails) {
+                // tomeFormId above shifts with the load order; this one does not.
+                spellJson["tomePersistentId"] = GetPersistentFormId(book->GetFormID());
+                spellJson["tomeValue"] = book->GetGoldValue();
+            }
 
             spellArray.push_back(spellJson);
             tomeCount++;

@@ -160,6 +160,8 @@ namespace SpellScanner
             effectJson["associatedForm"] = GetPersistentFormId(baseEffect->data.associatedForm->GetFormID());
         }
 
+        AppendBaseEffectEvidence(effectJson, baseEffect);
+
         return effectJson;
     }
 
@@ -219,9 +221,17 @@ namespace SpellScanner
         // Effects
         if (fields.effects) {
             json effectsArray = json::array();
-            for (auto* effect : spell->effects) {
+            for (std::size_t index = 0; index < spell->effects.size(); index++) {
+                const auto* effect = spell->effects[static_cast<std::uint32_t>(index)];
                 if (!effect || !effect->baseEffect) continue;
-                effectsArray.push_back(BuildEffectJson(effect, fields));
+
+                json effectJson = BuildEffectJson(effect, fields);
+                if (fields.effectDetails) {
+                    // index is the slot in the record, so a skipped broken
+                    // effect leaves a gap instead of renumbering the rest.
+                    AppendEffectItemEvidence(effectJson, effect, index);
+                }
+                effectsArray.push_back(effectJson);
             }
             spellJson["effects"] = effectsArray;
         } else if (fields.effectNames) {
@@ -246,6 +256,10 @@ namespace SpellScanner
                 }
             }
             spellJson["keywords"] = keywordsArray;
+        }
+
+        if (fields.effectDetails) {
+            AppendSpellEvidence(spellJson, spell);
         }
 
         return spellJson;

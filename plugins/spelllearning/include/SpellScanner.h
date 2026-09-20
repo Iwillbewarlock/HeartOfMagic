@@ -115,6 +115,14 @@ namespace SpellScanner
     json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
 
+    // Structure evidence added on top of the builders above when effectDetails
+    // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard
+    // presence, perks, counter effects, whether conditions exist. Copied from
+    // the records as they are - nothing in here interprets a value.
+    void AppendBaseEffectEvidence(json& effectJson, const RE::EffectSetting* baseEffect);
+    void AppendEffectItemEvidence(json& effectJson, const RE::Effect* effect, std::size_t index);
+    void AppendSpellEvidence(json& spellJson, RE::SpellItem* spell);
+
     // Write a scan dump to Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
     // Returns the written path, or an empty string on failure.
     std::string WriteScanOutput(const std::string& content);
