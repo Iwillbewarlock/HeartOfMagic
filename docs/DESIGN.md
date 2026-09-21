@@ -101,6 +101,15 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 - **Edit mode** — move nodes, pen tool, eraser (developer feature)
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 
+### Decided: the tree stays 2D (2026-09-22)
+
+A 3D tree was considered and dropped. PrismaUI has no WebGL (see the note in `index.html`), so 3D would
+mean projecting every spell by hand onto the 2D canvas each frame, the way the centre globe does with 200
+particles. A probe that rotated a tree sized scene - 1440 points, 2370 lines, depth sort, 150 labels - was
+run in game on the dev setup and judged unusable by the mod's owner; it was removed again afterwards
+(commit `4fbed77` has it). No frame numbers were kept: the probe only wrote its report at the end of the
+run. Depth, if wanted, has to come from 2D means - layering, size, dimming - not from a camera.
+
 ### Visual Effects
 - **Starfield** (`starfield.js`) — animated star background, parallax with pan
 - **3D Globe** (`globe3D.js`) — rotating globe at tree center
