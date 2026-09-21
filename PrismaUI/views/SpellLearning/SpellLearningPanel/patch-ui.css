@@ -101,6 +101,36 @@
     font-weight: 600;
 }
 
+/* ---- Spell card keyword chips ----
+   One line under the name. Elements pick up the school colours the themes
+   already define; everything else stays neutral so the line reads as a set. */
+.spell-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.spell-chip {
+    font-size: 0.68em;
+    letter-spacing: 0.5px;
+    padding: 1px 7px;
+    border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.12)));
+    border-radius: 2px;
+    color: var(--text-secondary, #9A9A8A);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.05));
+    white-space: nowrap;
+}
+
+.spell-chip.chip-element { color: var(--text-bright, var(--text-primary, #E8E8D8)); border-color: currentColor; }
+.spell-chip.chip-element-fire    { color: var(--destruction, #ef4444); }
+.spell-chip.chip-element-frost   { color: var(--illusion, #38bdf8); }
+.spell-chip.chip-element-shock   { color: var(--conjuration, #a855f7); }
+.spell-chip.chip-element-poison  { color: var(--alteration, #22c55e); }
+.spell-chip.chip-element-disease { color: var(--alteration, #22c55e); }
+.spell-chip.chip-school { color: var(--text-muted, #6A6A5A); }
+.spell-chip.hidden-info { font-style: italic; }
+
 /* ---- Bottom details bar (settings.detailsLayout = 'bottom') ----
    Same #details-panel element as the sidebar, re-flowed as a horizontal bar
    above the tree footer. Section columns are placed with CSS grid so the
@@ -153,9 +183,12 @@
     min-width: 0;
 }
 
+/* Card column: chips over the description, so it gets the room */
 #contentSpellTree.details-bottom .details-col-main {
-    flex: 0 0 120px;
+    flex: 1.4 1 0;
 }
+
+#contentSpellTree.details-bottom #details-desc-section { margin-top: 0; }
 
 #contentSpellTree.details-bottom .details-col-links {
     flex: 1.2 1 0;
@@ -163,7 +196,6 @@
 
 #contentSpellTree.details-bottom .detail-section { margin-top: 0; }
 #contentSpellTree.details-bottom .details-col-links .detail-section + .detail-section { margin-top: 8px; }
-#contentSpellTree.details-bottom #details-desc-section { margin-top: 6px; }
 
 #contentSpellTree.details-bottom .progress-section {
     width: 200px;

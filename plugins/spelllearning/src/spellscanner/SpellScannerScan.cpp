@@ -497,6 +497,7 @@ namespace SpellScanner
         spellInfo["effects"] = effectsArray;
         spellInfo["effectNames"] = effectNamesArray;
         spellInfo["description"] = description;
+        spellInfo["chips"] = BuildSpellChips(spell);
 
         // Add effectiveness info for early-learned spells
         auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();

@@ -122,6 +122,11 @@ namespace SpellScanner
     void AppendEffectItemEvidence(json& effectJson, const RE::Effect* effect, std::size_t index);
     void AppendSpellEvidence(json& spellJson, RE::SpellItem* spell);
 
+    // Keyword line for the spell card, as stable ids the panel translates
+    // ("element.fire", "form.projectile", "school.destruction"). Derived only
+    // from closed engine sets (SpellScannerChips.cpp). Not part of the scan dump.
+    json BuildSpellChips(RE::SpellItem* spell);
+
     // Write a scan dump to Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
     // Returns the written path, or an empty string on failure.
     std::string WriteScanOutput(const std::string& content);

@@ -767,7 +767,18 @@
                     
                     <div class="details-body">
                         <!-- Column wrappers: stacked in the sidebar layout, side by side in the bottom bar -->
+                        <!-- Spell card, top to bottom: name (header above) / keyword chips /
+                             description / figures. Revealed in that order as progress grows. -->
                         <div class="details-col details-col-main">
+                        <div id="spell-chips" class="spell-chips"></div>
+
+                        <div class="detail-section" id="details-desc-section">
+                            <span class="detail-label" data-i18n="details.description">Description</span>
+                            <p id="spell-description" class="detail-desc">-</p>
+                        </div>
+                        </div>
+
+                        <div class="details-col details-col-effects">
                         <div class="detail-row">
                             <span class="detail-label" data-i18n="details.level">Level</span>
                             <span id="spell-level" class="detail-value">-</span>
@@ -781,13 +792,6 @@
                             <span id="spell-type" class="detail-value">-</span>
                         </div>
 
-                        <div class="detail-section" id="details-desc-section">
-                            <span class="detail-label" data-i18n="details.description">Description</span>
-                            <p id="spell-description" class="detail-desc">-</p>
-                        </div>
-                        </div>
-
-                        <div class="details-col details-col-effects">
                         <div class="detail-section" id="details-effects-section">
                             <span class="detail-label" data-i18n="details.effects">Effects</span>
                             <ul id="spell-effects" class="detail-list"></ul>
@@ -1916,6 +1920,7 @@
     <!-- 5. UI Panels and Features -->
     <script src="modules/colorPicker.js"></script>
     <script src="modules/settingsPanel.js"></script>
+    <script src="modules/spellCard.js"></script>
     <script src="modules/treeViewerUI.js"></script>
     <script src="modules/treeNav.js"></script>
     <script src="modules/progressionUI.js"></script>

@@ -1253,9 +1253,13 @@ function showSpellDetails(node) {
     var isLocked = node.state === 'locked';
     // Locked/mystery nodes never reveal info via progress threshold - only via cheat/edit/hasSpell
     var showName = showFullInfo || isLearning || (!isLocked && progressPercent >= settings.revealName);
-    var showEffects = showFullInfo || (!isLocked && progressPercent >= settings.revealEffects);
+    // Card reveal order: name -> keyword chips -> description and figures.
+    // The chips take over the threshold the effects list used to have; the effects,
+    // cost and type now open together with the description.
+    var showChips = showFullInfo || (!isLocked && progressPercent >= settings.revealEffects);
     var showDescription = showFullInfo || (!isLocked && progressPercent >= settings.revealDescription);
-    var showLevelAndCost = !isLocked || settings.cheatMode || isEditActive;
+    var showLevel = !isLocked || settings.cheatMode || isEditActive;
+    var showFigures = showDescription;
     
     // School badge always visible
     document.getElementById('spell-school').textContent = node.school;
@@ -1272,16 +1276,14 @@ function showSpellDetails(node) {
         document.getElementById('spell-name').textContent = '???';
     }
     
-    // Level and cost - show for available (learning) and unlocked
-    if (showLevelAndCost) {
-        document.getElementById('spell-level').textContent = node.level || '?';
-        document.getElementById('spell-cost').textContent = node.cost || '?';
-        document.getElementById('spell-type').textContent = node.type || '?';
-    } else {
-        document.getElementById('spell-level').textContent = '???';
-        document.getElementById('spell-cost').textContent = '???';
-        document.getElementById('spell-type').textContent = '???';
-    }
+    // Keyword chips - second thing to open up, after the name
+    SpellCard.renderChips(document.getElementById('spell-chips'), node.chips, showChips,
+        isLocked ? '???' : '??? (' + settings.revealEffects + '%)');
+
+    // Level is what the node's size already gives away; cost and type are figures
+    document.getElementById('spell-level').textContent = showLevel ? (node.level || '?') : '???';
+    document.getElementById('spell-cost').textContent = showFigures ? (node.cost || '?') : '???';
+    document.getElementById('spell-type').textContent = showFigures ? (node.type || '?') : '???';
     
     // Effects - progressive reveal with weakened info
     var effectsList = document.getElementById('spell-effects');
@@ -1291,7 +1293,7 @@ function showSpellDetails(node) {
     var isWeakened = node.isWeakened === true || (node.effectiveness && node.effectiveness < 100);
     var effectiveness = node.effectiveness || 100;
     
-    if (showEffects) {
+    if (showFigures) {
         // Show effectiveness warning if weakened
         if (isWeakened) {
             var weakenedLi = document.createElement('li');
@@ -1329,13 +1331,17 @@ function showSpellDetails(node) {
                     li.textContent = text;
                     if (isWeakened) li.style.color = '#fbbf24';
                 } else {
-                    li.textContent = e.name || JSON.stringify(e);
+                    // Plain effect from C++: name, then magnitude and duration when it has them
+                    var plainText = e.name || JSON.stringify(e);
+                    if (e.magnitude > 0) plainText += ' (' + Math.round(e.magnitude) + ')';
+                    if (e.duration > 0) plainText += ' ' + e.duration + 's';
+                    li.textContent = plainText;
                 }
                 effectsList.appendChild(li);
             });
         }
     } else {
-        effectsList.innerHTML = '<li class="hidden-info">??? (' + settings.revealEffects + '% to reveal)</li>';
+        effectsList.innerHTML = '<li class="hidden-info">??? (' + settings.revealDescription + '% to reveal)</li>';
     }
     
     // Description - progressive reveal
