@@ -60,7 +60,10 @@ var CanvasRenderer = {
 
     // Performance
     _rafId: null,
-    _needsRender: true,
+    _needsRender: true,           // replaced by an accessor at the end of this file
+    __needsRender: true,
+    _treeDirty: true,             // the tree layer must be redrawn before it is pasted
+    USE_TREE_LAYER: true,         // off = draw the tree straight onto the canvas every frame, as before
     _animationOnlyRender: false,  // True when only animations need update (can be throttled)
     _lastRenderTime: 0,
     _logNextRender: false,
@@ -1139,8 +1142,11 @@ var CanvasRenderer = {
             if (typeof PerfMeter !== 'undefined') PerfMeter.tick(timestamp);
             var shouldRender = self._needsRender;
             
-            // For animation-only updates, throttle to save CPU
-            if (shouldRender && self._animationOnlyRender) {
+            // For animation-only updates, throttle to save CPU. A frame the tree
+            // itself asked for (pan, zoom, hover, selection) is never held back:
+            // the flag below is raised by every frame that draws the heart, so
+            // without the second test dragging ran at the idle rate of 20 a second.
+            if (shouldRender && self._animationOnlyRender && !self._treeDirty) {
                 if (timestamp - lastAnimationRender < animationThrottleMs) {
                     shouldRender = false;
                 } else {
@@ -1160,6 +1166,12 @@ var CanvasRenderer = {
         loop(performance.now());
     },
     
+    /** A frame for the heart, the globe or the stars: the tree layer is pasted, not redrawn. */
+    _requestAnimationOnlyFrame: function() {
+        this.__needsRender = true;
+        this._animationOnlyRender = true;
+    },
+
     stopRenderLoop: function() {
         if (this._rafId) {
             cancelAnimationFrame(this._rafId);
@@ -1243,8 +1255,7 @@ var CanvasRenderer = {
                 Starfield.renderWorldSpace(ctx, this.panX, this.panY, this.zoom, this._width, this._height);
             }
             // Keep animation running (throttled)
-            this._needsRender = true;
-            this._animationOnlyRender = true;
+            this._requestAnimationOnlyFrame();
         }
         
         // Calculate rotation values
@@ -1268,6 +1279,86 @@ var CanvasRenderer = {
         var viewTop = worldCenterY - viewExtent;
         var viewBottom = worldCenterY + viewExtent;
         
+        // =====================================================================
+        // THE TREE: drawn into its own layer when something changed, otherwise
+        // the layer is pasted as it is (see _drawTree)
+        // =====================================================================
+        this._drawTree(ctx, dpr, {
+            cx: cx, cy: cy, rotRad: rotRad, cos: cos, sin: sin,
+            viewLeft: viewLeft, viewRight: viewRight, viewTop: viewTop, viewBottom: viewBottom
+        });
+
+        // =====================================================================
+        // RENDER CENTER HUB ON TOP (does NOT rotate with wheel) - with heartbeat
+        // =====================================================================
+        this._renderHubAndFinish(ctx, cx, cy, startTime);
+    },
+
+    /**
+     * Everything that only changes when the player does something: dividers,
+     * edges, nodes, bridges, labels. About 3,300 paint calls for 1440 spells,
+     * and the heart in the middle used to make all of it be redrawn 20 times a
+     * second just to beat. Now it is drawn once into a see-through layer and the
+     * layer is pasted until `_treeDirty` says the tree changed. See-through,
+     * because the starfield behind it keeps moving.
+     */
+    _drawTree: function(ctx, dpr, view) {
+        var layer = this.USE_TREE_LAYER ? this._ensureTreeLayer() : null;
+        if (!layer) {
+            this._renderTreeInto(ctx, view);
+            this._treeDirty = false;
+            return;
+        }
+
+        // Particles the globe threw off live inside the tree layer and move every frame
+        var movingInside = typeof Globe3D !== 'undefined' && Globe3D.detachedParticles &&
+                           Globe3D.detachedParticles.length > 0;
+
+        if (this._treeDirty || movingInside || this._treeLayerStale) {
+            var lctx = this._treeLayerCtx;
+            lctx.setTransform(1, 0, 0, 1, 0, 0);
+            lctx.globalAlpha = 1.0;
+            lctx.globalCompositeOperation = 'source-over';
+            lctx.clearRect(0, 0, layer.width, layer.height);
+            lctx.scale(dpr, dpr);
+            this._renderTreeInto(lctx, view);
+            this._treeDirty = false;
+            this._treeLayerStale = false;
+            this._treeLayerDraws = (this._treeLayerDraws || 0) + 1;
+        }
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(layer, 0, 0);
+        ctx.restore();
+    },
+
+    /** The layer canvas, kept the size of the visible one. Null if it cannot be made. */
+    _ensureTreeLayer: function() {
+        if (this._treeLayerFailed) return null;
+        try {
+            if (!this._treeLayer) {
+                this._treeLayer = document.createElement('canvas');
+                this._treeLayerCtx = this._treeLayer.getContext('2d');
+                if (!this._treeLayerCtx) throw new Error('no 2d context');
+            }
+            if (this._treeLayer.width !== this.canvas.width || this._treeLayer.height !== this.canvas.height) {
+                this._treeLayer.width = this.canvas.width;
+                this._treeLayer.height = this.canvas.height;
+                this._treeLayerStale = true;
+            }
+            return this._treeLayer;
+        } catch (e) {
+            console.warn('[CanvasRenderer] Tree layer unavailable, drawing directly: ' + e.message);
+            this._treeLayerFailed = true;
+            return null;
+        }
+    },
+
+    _renderTreeInto: function(ctx, view) {
+        var cx = view.cx, cy = view.cy, rotRad = view.rotRad, cos = view.cos, sin = view.sin;
+        var viewLeft = view.viewLeft, viewRight = view.viewRight, viewTop = view.viewTop, viewBottom = view.viewBottom;
+
         // =====================================================================
         // RENDER ROTATING ELEMENTS FIRST (dividers, edges, nodes)
         // =====================================================================
@@ -1309,10 +1400,16 @@ var CanvasRenderer = {
         }
 
         ctx.restore();
-        
+
         // =====================================================================
-        // RENDER CENTER HUB ON TOP (does NOT rotate with wheel) - with heartbeat
+        // RENDER LABELS (screen-aligned, do NOT rotate with wheel)
+        // Part of the layer: they only move when the tree does. They used to be
+        // drawn after the hub; now the hub sits over any label that reaches it.
         // =====================================================================
+        this.renderLabels(ctx, cx, cy, cos, sin);
+    },
+
+    _renderHubAndFinish: function(ctx, cx, cy, startTime) {
         var globeData = (state.treeData && state.treeData.globe) || { x: 0, y: 0, radius: 45 };
         ctx.save();
         ctx.translate(cx + this.panX, cy + this.panY);
@@ -1363,8 +1460,7 @@ var CanvasRenderer = {
         // Keep animation running for heartbeat or globe (throttled to reduce CPU)
         var globeEnabled = this._globeEnabled && (typeof Globe3D !== 'undefined') && Globe3D.enabled;
         if (this._heartAnimationEnabled || globeEnabled) {
-            this._needsRender = true;
-            this._animationOnlyRender = true;  // Mark as throttleable
+            this._requestAnimationOnlyFrame();  // throttleable, and the tree layer stays as it is
         }
         
         ctx.scale(scale, scale);
@@ -1440,12 +1536,7 @@ var CanvasRenderer = {
         }
         
         ctx.restore();
-        
-        // =====================================================================
-        // RENDER LABELS (screen-aligned, do NOT rotate with wheel)
-        // =====================================================================
-        this.renderLabels(ctx, cx, cy, cos, sin);
-        
+
         var elapsed = performance.now() - startTime;
         if (typeof PerfMeter !== 'undefined') PerfMeter.frame(elapsed);
         if (elapsed > 16 || this._logNextRender) {
@@ -3292,6 +3383,22 @@ var CanvasRenderer = {
         return { x: lastSeg.to.x, y: lastSeg.to.y };
     }
 };
+
+// Dozens of places, in this file and in other modules, say "something about the
+// tree changed" by setting _needsRender. Catching that one assignment is what
+// lets the tree layer know when it is out of date without touching any of them.
+// Frames asked for by animation alone go through _requestAnimationOnlyFrame,
+// which writes the backing field directly and so leaves the layer alone.
+Object.defineProperty(CanvasRenderer, '_needsRender', {
+    get: function() { return this.__needsRender; },
+    set: function(value) {
+        this.__needsRender = value;
+        if (value) this._treeDirty = true;
+    },
+    enumerable: true,
+    configurable: true
+});
+CanvasRenderer._needsRender = true;
 
 // Export
 window.CanvasRenderer = CanvasRenderer;
