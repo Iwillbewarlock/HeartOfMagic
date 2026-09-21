@@ -51,6 +51,17 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 - **Canvas 2D renderer** — primary renderer for 200+ node trees
 - **Node interaction** — click to see spell details, prerequisites, XP progress
 - **Details sidebar** — spell name, school, tier, effects, prerequisites, learning controls
+- **Spell card** — the details panel reads top to bottom as a card: name (+ school badge) →
+  keyword chips → description → figures (cost, type, effects with magnitude and duration).
+  It opens in that order as learning progress grows: name at `revealName`, chips at
+  `revealEffects`, description and figures together at `revealDescription`. Tier is always
+  shown for non-locked nodes because the node's size already gives it away.
+  Chips are stable ids built in C++ (`SpellScannerChips.cpp`, sent as `chips[]` by
+  `GetSpellInfo`) from closed engine sets only — resist value, projectile type, delivery,
+  archetype, school — never from names or mod keywords, so they are the same in every
+  language and load order. `modules/spellCard.js` translates them through `chips.*` lang keys
+  and falls back to English labels for languages that do not have the keys yet.
+  Works in both the bottom bar and the side layout. No spell icon yet.
 - **How-to-Learn panel** — shows what the player needs to do to unlock a spell
 - **Discovery mode** — hides spell names/effects until XP thresholds are met
 - **Zoom/pan** — mouse wheel + drag
