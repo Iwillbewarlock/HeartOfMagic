@@ -58,8 +58,11 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   shown for non-locked nodes because the node's size already gives it away.
   Chips are stable ids built in C++ (`SpellScannerChips.cpp`, sent as `chips[]` by
   `GetSpellInfo`) from closed engine sets only — resist value, projectile type, delivery,
-  archetype, school — never from names or mod keywords, so they are the same in every
-  language and load order. Chips only read effects the record does not flag **Hide in UI**:
+  archetype, school — and from the **base game's own magic keywords** (`MagicSummonFire`,
+  `MagicSummonUndead`, `MagicRune`, `MagicWard` ...; only keywords a vanilla plugin defines, fixed
+  table in `SpellScannerChips.cpp`). Never from names or mod keywords, so they are the same in
+  every language and load order. The vanilla keywords are what give a summon its element: Flame
+  Atronach reads as fire + summon, which is what lets a fire mage's branch include it. Chips only read effects the record does not flag **Hide in UI**:
   mods hang helper effects on spells built from whatever MGEF was at hand (in this load order
   vanilla Fire Storm carries a hidden `ScreenShake` that resists frost, which put a Frost chip
   next to Fire). If every effect is hidden, all of them are read. `modules/spellCard.js` translates them through `chips.*` lang keys

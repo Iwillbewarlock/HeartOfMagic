@@ -84,6 +84,13 @@ classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
 }]
 ```
 
+`vanillaKeywords` sits next to `keywords` on every effect, and on the spell: the subset whose
+keyword record is defined by the base game or an official DLC (Skyrim, Update, Dawnguard,
+HearthFires, Dragonborn - judged by the defining plugin, `IsVanillaKeyword`, not by the name, so a
+mod's own `MagicSomething` does not pass). Every load order has these and means the same thing by
+them, which no mod keyword can promise. They carry what the engine values cannot: a summon effect
+has no resist value, but vanilla marks Flame Atronach with `MagicSummonFire`.
+
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.
 `associatedForm` only appears when the effect has one (summons, bound weapons).

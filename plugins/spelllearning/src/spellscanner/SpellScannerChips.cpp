@@ -22,9 +22,44 @@ namespace SpellScanner
         // description off the bottom bar.
         constexpr std::size_t kMaxChips = 6;
 
-        // Runes are told apart by the vanilla keyword the game itself uses for
-        // them. It is a fixed vanilla name, not a mod's vocabulary.
-        constexpr const char* kVanillaRuneKeyword = "MagicRune";
+        // What the base game's own magic keywords say about an effect. Only
+        // keywords the base game or an official DLC defines are looked up here
+        // (IsVanillaKeyword), so this list cannot grow: it is the vanilla
+        // vocabulary, the same in every load order. It fills what the engine
+        // values above cannot see - a summon has no resist value, but vanilla
+        // marks Flame Atronach with MagicSummonFire.
+        struct VanillaKeywordTraits
+        {
+            std::string_view keyword;
+            const char* first;
+            const char* second;  // may be null
+        };
+
+        constexpr VanillaKeywordTraits kVanillaKeywordTraits[] = {
+            { "MagicDamageFire", "element.fire", nullptr },
+            { "MagicDamageFrost", "element.frost", nullptr },
+            { "MagicDamageShock", "element.shock", nullptr },
+            { "MagicSummonFire", "element.fire", "kind.summon" },
+            { "MagicSummonFrost", "element.frost", "kind.summon" },
+            { "MagicSummonShock", "element.shock", "kind.summon" },
+            { "MagicSummonUndead", "kind.undead", "kind.summon" },
+            { "MagicSummonFamiliar", "kind.familiar", "kind.summon" },
+            { "MagicRune", "kind.rune", nullptr },
+            { "MagicCloak", "kind.cloak", nullptr },
+            { "MagicWard", "kind.ward", nullptr },
+            { "MagicArmorSpell", "kind.armor", nullptr },
+            { "MagicRestoreHealth", "kind.heal", nullptr },
+            { "MagicTurnUndead", "kind.turnUndead", nullptr },
+            { "MagicParalysis", "kind.paralysis", nullptr },
+            { "MagicInvisibility", "kind.invisibility", nullptr },
+            { "MagicNightEye", "kind.nightEye", nullptr },
+            { "MagicTelekinesis", "kind.telekinesis", nullptr },
+            { "MagicInfluenceFear", "kind.fear", nullptr },
+            { "MagicInfluenceFrenzy", "kind.frenzy", nullptr },
+            { "MagicInfluenceCharm", "kind.calm", nullptr },
+            { "MagicVampireDrain", "kind.absorb", nullptr },
+            { "MagicSlow", "kind.slow", nullptr },
+        };
 
         // Set for the duration of one build: the card line is capped, the full
         // trait list the icon rules read is not.
@@ -206,9 +241,32 @@ namespace SpellScanner
 
         const auto effects = PlayerFacingEffects(spell);
 
+        // Traits the vanilla keywords give, gathered once and placed below.
+        std::vector<const char*> keywordElements;
+        std::vector<const char*> keywordKinds;
+        for (const auto* effect : effects) {
+            for (const auto* keyword : effect->baseEffect->GetKeywords()) {
+                if (!keyword || !IsVanillaKeyword(keyword)) continue;
+                const char* editorId = keyword->GetFormEditorID();
+                if (!editorId) continue;
+
+                for (const auto& entry : kVanillaKeywordTraits) {
+                    if (entry.keyword != editorId) continue;
+                    for (const char* trait : { entry.first, entry.second }) {
+                        if (!trait) continue;
+                        const bool isElement = std::string_view(trait).starts_with("element.");
+                        (isElement ? keywordElements : keywordKinds).push_back(trait);
+                    }
+                }
+            }
+        }
+
         // Elements first: they are what a player sorts spells by.
         for (const auto* effect : effects) {
             AddChip(chips, ElementChip(effect->baseEffect->data.resistVariable));
+        }
+        for (const char* element : keywordElements) {
+            AddChip(chips, element);
         }
 
         // How it leaves the hand: the first projectile, otherwise the delivery.
@@ -238,15 +296,16 @@ namespace SpellScanner
         const bool hasElement = !chips.empty() &&
             chips[0].get_ref<const std::string&>().starts_with("element.");
         for (const auto* effect : effects) {
-            if (effect->baseEffect->HasKeywordString(kVanillaRuneKeyword)) {
-                AddChip(chips, "kind.rune");
-            }
             AddChip(chips, ArchetypeChip(effect->baseEffect->data.archetype));
 
             const char* valueChip = ActorValueChip(effect->baseEffect);
             if (valueChip && !(hasElement && std::string_view(valueChip) == "kind.damage")) {
                 AddChip(chips, valueChip);
             }
+        }
+
+        for (const char* kind : keywordKinds) {
+            AddChip(chips, kind);
         }
 
         if (spell->data.castingType == RE::MagicSystem::CastingType::kConcentration) {

@@ -5,7 +5,7 @@
     "only counts if its icon file is installed, so more specific rules go first and a rule for a pack",
     "you do not have is skipped. Traits are the ids the card's keyword line is made of:",
     "element.fire|frost|shock|poison|disease, form.projectile|lobbed|beam|spray|cone|self|touch|target|location,",
-    "area.blast|hazard, kind.rune|cloak|summon|bound|paralysis|..., cast.concentration|twoHanded, school.<name>.",
+    "area.blast|hazard, kind.rune|cloak|summon|undead|familiar|bound|paralysis|..., cast.concentration|twoHanded, school.<name>.",
     "An icon is '<folder>/<file name without .svg>' under Data/SKSE/Plugins/wheeler/resources, folder being",
     "'icons_custom' or 'icons'. {S} becomes the school letter (A C D I R), {school} the school name.",
     "The rules below use the icon set of Kome's Inventory Tweaks (KIT), which this mod requires for icons."
@@ -27,6 +27,7 @@
     { "when": ["kind.summon", "element.fire"],  "icon": "icons_custom/KWD_KIT_SpellSummonType_Fire_{S}" },
     { "when": ["kind.summon", "element.frost"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Frost_{S}" },
     { "when": ["kind.summon", "element.shock"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Shock_{S}" },
+    { "when": ["kind.summon", "kind.undead"],   "icon": "icons_custom/KWD_KIT_SpellSummonType_Undead_{S}" },
     { "when": ["kind.summon"],                  "icon": "icons_custom/KWD_KIT_SpellSummonType_Creature_{S}" },
     { "when": ["kind.reanimate"],               "icon": "icons_custom/KWD_KIT_SpellReanimateType_Undead_{S}" },
     { "when": ["kind.command"],                 "icon": "icons_custom/KWD_KIT_SpellCommandType_Normal_{S}" },

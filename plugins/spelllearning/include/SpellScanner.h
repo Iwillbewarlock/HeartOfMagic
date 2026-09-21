@@ -104,6 +104,11 @@ namespace SpellScanner
     std::string GetArchetypeName(RE::EffectArchetype archetype);
     std::string GetActorValueName(RE::ActorValue actorValue);
 
+    // True when the keyword record is defined by the base game or an official
+    // DLC (judged by its plugin, not its name). The scan lists these separately
+    // as vanillaKeywords, and they are the only keywords the card traits read.
+    bool IsVanillaKeyword(const RE::BGSKeyword* keyword);
+
     // Single source of the scan JSON shape, shared by every scan entry point.
     // Callers must have checked effect->baseEffect / spell for null.
     //
