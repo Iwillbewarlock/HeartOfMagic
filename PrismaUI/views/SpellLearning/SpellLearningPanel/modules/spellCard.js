@@ -154,13 +154,33 @@ var SpellCard = {
         }
 
         var list = Array.isArray(chips) ? chips : [];
+        var filters = (typeof BridgeView !== 'undefined') ? BridgeView : null;
         for (var i = 0; i < list.length; i++) {
+            var id = String(list[i]);
             var chip = document.createElement('span');
             // "element.fire" -> classes "spell-chip chip-element chip-element-fire"
-            var parts = String(list[i]).split('.');
+            var parts = id.split('.');
             chip.className = 'spell-chip chip-' + parts[0] + ' chip-' + parts.join('-');
-            chip.textContent = this.label(list[i]);
+            chip.textContent = this.label(id);
+            // Press a keyword to light up every spell that shares it, in any
+            // school. Only keywords the tree actually carries can be pressed.
+            if (filters && filters.isFilterable(id) && filters.countOf(id) > 0) {
+                chip.className += ' spell-chip-filter' + (filters.isFilter(id) ? ' active' : '');
+                chip.setAttribute('data-trait', id);
+                chip.setAttribute('role', 'button');
+                chip.setAttribute('tabindex', '0');
+                chip.setAttribute('aria-pressed', filters.isFilter(id) ? 'true' : 'false');
+                chip.title = this.label(id) + ' (' + filters.countOf(id) + ')';
+                this._bindChipFilter(chip, id);
+            }
             container.appendChild(chip);
         }
+    },
+
+    _bindChipFilter: function(chip, trait) {
+        chip.addEventListener('click', function() { BridgeView.toggleFilter(trait); });
+        chip.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chip.click(); }
+        });
     }
 };

@@ -1135,6 +1135,9 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
         node.softNeeded = softNeeded;
     });
 
+    // Also on this path, or the bridges of the previous tree would stay on screen
+    if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
+
     // Mirror bidirectional soft prereqs — DISABLED for now
     // mirrorBidirectionalSoftPrereqs(result.nodes);
 

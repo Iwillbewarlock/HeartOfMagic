@@ -1272,7 +1272,11 @@ var CanvasRenderer = {
         this.renderNodes(ctx, viewLeft, viewRight, viewTop, viewBottom);
 
         // Cross school bridges and the trait filter, on top of the nodes
-        if (typeof BridgeView !== 'undefined') BridgeView.render(ctx, this);
+        if (typeof BridgeView !== 'undefined') {
+            BridgeView.render(ctx, this, {
+                left: viewLeft, right: viewRight, top: viewTop, bottom: viewBottom
+            });
+        }
 
         // Edit mode overlay (pen line, eraser path)
         if (typeof EditMode !== 'undefined' && EditMode.isActive) {
@@ -2563,8 +2567,13 @@ var CanvasRenderer = {
         var learningColor = this._learningPathColor || '#00ffff';
         var candidates = [];
 
+        // Labels are drawn after the tree transform is undone, so the trait
+        // filter's veil cannot dim them: they have to drop out themselves.
+        var filtering = typeof BridgeView !== 'undefined' && BridgeView.hasFilter();
+
         for (var i = 0; i < this.nodes.length; i++) {
             var node = this.nodes[i];
+            if (filtering && !BridgeView.matchesFilter(node)) continue;
 
             // In edit mode: show ALL labels. Otherwise: only unlocked/learning/available
             if (!isEditActive && node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') continue;

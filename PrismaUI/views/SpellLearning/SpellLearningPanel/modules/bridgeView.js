@@ -32,12 +32,14 @@ var BridgeView = {
     VEIL_ALPHA: 0.62,
     VEIL_EXTENT: 20000,        // larger than any tree, in tree units
     FILTER_DOT: 5,
+    FILTER_DOT_SCREEN_PX: 4,   // a lit spell never shrinks below this on screen
     MIN_SPELLS_PER_FILTER: 10, // kinds rarer than this do not get a button
     MAX_KIND_FILTERS: 8,       // the bar has to fit on one or two rows
     TOO_BROAD: 'kind.damage',  // every attack spell has it
 
     _byNode: {},
     _filterTrait: null,
+    _counts: {},
 
     // =========================================================================
     // DATA
@@ -90,10 +92,10 @@ var BridgeView = {
     // CANVAS - called by CanvasRenderer inside the rotated tree transform
     // =========================================================================
 
-    render: function (ctx, renderer) {
+    render: function (ctx, renderer, bounds) {
         if (!renderer || !renderer._nodeMap) return;
-        if (this._filterTrait) this._renderFilter(ctx, renderer);
-        this._renderMarkers(ctx, renderer);
+        if (this._filterTrait) this._renderFilter(ctx, renderer, bounds);
+        this._renderMarkers(ctx, renderer, bounds);
 
         var shown = renderer.selectedNode;
         if (shown) this._renderBridgesOf(ctx, renderer, shown, 0.95);
@@ -101,7 +103,56 @@ var BridgeView = {
         if (hovered && hovered !== shown) this._renderBridgesOf(ctx, renderer, hovered, 0.6);
     },
 
-    _renderMarkers: function (ctx, renderer) {
+    /**
+     * The same three tests renderNodes makes. Without them this module would
+     * draw a ring or a dot where the renderer is deliberately drawing nothing -
+     * in discovery mode that would give away an undiscovered spell's place.
+     */
+    isHidden: function (renderer, node) {
+        if (!node) return true;
+        if (settings.schoolVisibility && settings.schoolVisibility[node.school] === false) return true;
+        var editing = typeof EditMode !== 'undefined' && EditMode.isActive;
+        if (renderer._discoveryVisibleIds && !editing) {
+            if (!renderer._discoveryVisibleIds.has(node.id) &&
+                !renderer._discoveryVisibleIds.has(node.formId)) return true;
+        }
+        return false;
+    },
+
+    _outsideView: function (node, bounds) {
+        if (!bounds) return false;
+        return node.x < bounds.left || node.x > bounds.right ||
+               node.y < bounds.top || node.y > bounds.bottom;
+    },
+
+    /** Does this spell carry the trait the filter is on? */
+    matchesFilter: function (node) {
+        if (!this._filterTrait) return true;
+        return !!node && !!node.traits && node.traits.indexOf(this._filterTrait) >= 0;
+    },
+
+    hasFilter: function () {
+        return !!this._filterTrait;
+    },
+
+    isFilter: function (trait) {
+        return this._filterTrait === trait;
+    },
+
+    countOf: function (trait) {
+        return this._counts[trait] || 0;
+    },
+
+    /**
+     * Can this keyword light up the tree? The school is left out - the school
+     * tabs do that - and so is the one kind every attack spell carries.
+     */
+    isFilterable: function (trait) {
+        if (!trait || trait === this.TOO_BROAD) return false;
+        return String(trait).indexOf('school.') !== 0;
+    },
+
+    _renderMarkers: function (ctx, renderer, bounds) {
         if (renderer._lodTier === 'minimal') return;
         ctx.save();
         ctx.lineWidth = 1;
@@ -109,9 +160,10 @@ var BridgeView = {
         for (var id in this._byNode) {
             if (!this._byNode.hasOwnProperty(id)) continue;
             var node = renderer._nodeMap.get(id);
-            if (!node) continue;
+            if (!node || this.isHidden(renderer, node) || this._outsideView(node, bounds)) continue;
             // A spell the player has not reached yet keeps its secrets
             if (node.state === 'locked' && !settings.cheatMode) continue;
+            if (!this.matchesFilter(node)) continue;
             ctx.strokeStyle = this.colorOf(this._byNode[id][0].shared);
             ctx.beginPath();
             ctx.arc(node.x, node.y, this.MARKER_RADIUS, 0, Math.PI * 2);
@@ -129,7 +181,9 @@ var BridgeView = {
         if (ctx.setLineDash) ctx.setLineDash([8, 6]);
         for (var i = 0; i < list.length; i++) {
             var other = renderer._nodeMap.get(list[i].other);
-            if (!other) continue;
+            // Not culled by the viewport: a line running off the edge still
+            // tells the player which way the other spell lies.
+            if (!other || this.isHidden(renderer, other)) continue;
             var color = this.colorOf(list[i].shared);
             ctx.strokeStyle = color;
             // Bowed toward the centre so the line does not hide the branches it passes
@@ -147,28 +201,41 @@ var BridgeView = {
         ctx.restore();
     },
 
-    _renderFilter: function (ctx, renderer) {
+    _renderFilter: function (ctx, renderer, bounds) {
         var trait = this._filterTrait;
         var color = this.TRAIT_COLORS[trait] || this.DEFAULT_COLOR;
-        var e = this.VEIL_EXTENT;
         ctx.save();
         ctx.globalAlpha = this.VEIL_ALPHA;
         ctx.fillStyle = '#000000';
-        ctx.fillRect(-e, -e, e * 2, e * 2);
+        if (bounds) {
+            // The bounds are axis-aligned in tree space while the wheel is turned,
+            // so a rect of exactly that size would leave the corners bare. Double it.
+            var w = bounds.right - bounds.left, h = bounds.bottom - bounds.top;
+            ctx.fillRect(bounds.left - w / 2, bounds.top - h / 2, w * 2, h * 2);
+        } else {
+            ctx.fillRect(-this.VEIL_EXTENT, -this.VEIL_EXTENT, this.VEIL_EXTENT * 2, this.VEIL_EXTENT * 2);
+        }
 
         ctx.globalAlpha = 1;
+        // A filter is most useful looking at the whole wheel, and there a dot of
+        // a fixed size in tree units is a pinprick. Keep it the same on screen.
+        var zoom = renderer.zoom || 1;
+        var dot = Math.max(this.FILTER_DOT, this.FILTER_DOT_SCREEN_PX / zoom);
+        var halo = dot + Math.max(3, 3 / zoom);
+        ctx.lineWidth = Math.max(1.5, 1.5 / zoom);
+
         var nodes = renderer.nodes || [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (!node.traits || node.traits.indexOf(trait) < 0) continue;
+            if (this.isHidden(renderer, node) || this._outsideView(node, bounds)) continue;
             ctx.fillStyle = renderer._getSchoolColor(node.school);
             ctx.beginPath();
-            ctx.arc(node.x, node.y, this.FILTER_DOT, 0, Math.PI * 2);
+            ctx.arc(node.x, node.y, dot, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(node.x, node.y, this.FILTER_DOT + 3, 0, Math.PI * 2);
+            ctx.arc(node.x, node.y, halo, 0, Math.PI * 2);
             ctx.stroke();
         }
         ctx.restore();
@@ -229,20 +296,24 @@ var BridgeView = {
         if (!bar) return;
         bar.innerHTML = '';
 
+        // Every trait is counted, because the spell card's chips can be pressed
+        // too and a chip may be a form or a school. Only elements and the
+        // commoner kinds get a button of their own up here.
         var nodes = (state.treeData && state.treeData.nodes) || [];
         var counts = {};
         for (var i = 0; i < nodes.length; i++) {
             var traits = nodes[i].traits || [];
             for (var k = 0; k < traits.length; k++) {
-                var trait = traits[k];
-                if (trait === this.TOO_BROAD) continue;
-                if (trait.indexOf('element.') !== 0 && trait.indexOf('kind.') !== 0) continue;
-                counts[trait] = (counts[trait] || 0) + 1;
+                counts[traits[k]] = (counts[traits[k]] || 0) + 1;
             }
         }
+        this._counts = counts;
+
         var self = this;
         var shown = Object.keys(counts).filter(function (trait) {
-            return trait.indexOf('element.') === 0 || counts[trait] >= self.MIN_SPELLS_PER_FILTER;
+            if (!self.isFilterable(trait)) return false;
+            if (trait.indexOf('element.') === 0) return true;
+            return trait.indexOf('kind.') === 0 && counts[trait] >= self.MIN_SPELLS_PER_FILTER;
         });
         shown.sort(function (a, b) {
             var ea = a.indexOf('element.') === 0 ? 0 : 1, eb = b.indexOf('element.') === 0 ? 0 : 1;
@@ -268,16 +339,19 @@ var BridgeView = {
     },
 
     toggleFilter: function (trait) {
+        if (!this.isFilterable(trait)) return;
         this._filterTrait = (this._filterTrait === trait) ? null : trait;
-        var bar = document.getElementById('tree-trait-filter');
-        if (bar) {
-            var buttons = bar.querySelectorAll('.trait-filter-btn');
-            for (var i = 0; i < buttons.length; i++) {
-                var on = buttons[i].getAttribute('data-trait') === this._filterTrait;
-                if (on) buttons[i].classList.add('active'); else buttons[i].classList.remove('active');
-                buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
-            }
-        }
+        // The same keyword can be pressed in two places: the bar and the card
+        this._markPressed(document.querySelectorAll('.trait-filter-btn'));
+        this._markPressed(document.querySelectorAll('.spell-chip-filter'));
         this._redraw();
+    },
+
+    _markPressed: function (elements) {
+        for (var i = 0; i < elements.length; i++) {
+            var on = elements[i].getAttribute('data-trait') === this._filterTrait;
+            if (on) elements[i].classList.add('active'); else elements[i].classList.remove('active');
+            elements[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
     }
 };

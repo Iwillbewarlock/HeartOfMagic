@@ -516,6 +516,19 @@ is shared; a click selects the other spell, `???` while it is locked). The trait
 spell's traits after a restart, when the scan is gone, so `applyToOutput` bakes `traits` into each saved
 node.
 
+The filter is reached two ways: the bar above the tree (elements, plus kinds carried by 10+ spells), and
+**the keywords on the spell card, which are buttons** - press "fire" on any spell and every fire spell in
+every school lights up. A chip is pressable when the tree carries that keyword and it is not the school
+(the school tabs do that) nor `kind.damage`. Both places show the same pressed state.
+
+`BridgeView` makes the same three checks `renderNodes` makes before it draws anything - viewport, hidden
+schools, and **discovery mode**. Without the last one the filter and the bridge rings would light up
+spells the renderer is deliberately hiding, giving away where undiscovered spells sit. A consequence: on
+a save with discovery on, a keyword lights only the spells the player has already found. Labels are drawn
+after the tree transform is undone, where the veil cannot reach them, so `renderLabels` drops
+non-matching spells itself. Lit dots are sized in screen pixels, not tree units, or they vanish at the
+zoomed-out view where a filter is most wanted.
+
 *Tried and dropped:* nudging bridged spells and their themes toward the neighbour's border in
 `classicLayout.js` (`_findSlots` score term, theme sector order). Classic placement follows the parent
 along a spoke; with and without the nudge the mean bridge length stayed at ~63% of the tree radius.
