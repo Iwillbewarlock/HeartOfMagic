@@ -305,11 +305,22 @@ Destruction `blood` 16, `shadow` 13, `stone` 13, `arcane` 11, `water` 11, `wind`
 `sun` 10, `moon` 6; Alteration `polymomrph` 8 (the mod's own spelling), `resist` 8, `lock` 6, `teleport` 4 ... -
 and 62 (4%) stay without a theme. With names only and no traits, rule 2 named 52 and 318 had none.
 
-Still rough: words that describe a spell's form (`touch`, `grasp`, `bolt`) are themes like any other and
-take spells that a nature word would group better - `astral` fell from 16 to 10 when `touch` got a slot.
-Nothing mechanical tells a form word from a nature word yet. 26 themes are still held by one spell
-after assignment. And in the classic builder the similarity change barely moves the links (spell and
-parent sharing an id word: 37% -> 38%), because a theme match outweighs text similarity there.
+**Keyword affinity - nature and shape both count.** A spell gets one theme, so `LUN_MoonTouch` had to
+be either a moon spell or a touch spell, and nothing mechanical tells a nature word from a shape word.
+It does not have to: both are its keywords. `ComputeSimilarityMatrix` keeps, per spell, one bag of
+keywords - its traits (minus the school, the matrix is per school) and its editor id words (minus the
+author's prefix and anything with a digit) - and two spells are alike by the keywords they share, each
+weighed by how few spells carry it (inverse document frequency, from the data): sharing
+`form.projectile` with eight hundred others says little, sharing `word.moon` with thirteen says a lot.
+A keyword only one spell has is dropped, it cannot be shared. The result goes into the effect
+affinity, which every builder already weighs highest, as the better of the two values - without a full
+scan there are no keywords and the effect names decide alone, as before.
+
+Classic builder, same 1440 spells: a spell and its parent share an id word in 38% -> 45% of links and
+an element or kind trait in 60% -> 62%. In the tree the moon family now links both ways: `LunarDetonation`
+under `LunarBolt` (nature), `MoonlightTouch` under `AstralTouch`, `LunarAura` under `AstralAura`,
+`MoonlightRune` under `SunlightRune` (shape). The single theme is still what branches and colours go by,
+and 26 themes are still held by one spell; the affinity is what ties those in anyway.
 **Audit, 2026-09-22.** Every rule was re-run over all 1440 spells / 4246 effects of the dev load
 order and each answer sorted into: arbitrary (more than one candidate, first one wins), missing
 (nothing to say), or self-contradicting (two sources disagree). Found and fixed:

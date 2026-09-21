@@ -127,6 +127,11 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
     const auto modTags = FindModTags(spells);
     constexpr int kIdWordWeight = 2;  // same weight the name gets
 
+    // Everything a spell can be called, as one bag of keywords: its traits and
+    // the words of its editor ids. No choosing between them - "LUN_MoonTouch" is
+    // a moon spell and a touch spell, and is close to both families for it.
+    std::vector<std::vector<std::string>> keywordSets;
+
     for (const auto& s : spells) {
         auto fid = s.value("formId", std::string(""));
         if (fid.empty()) continue;
@@ -174,11 +179,28 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
 
         auto text = TreeNLP::BuildSpellText(spellForText);
         auto tokens = TreeNLP::Tokenize(text);
+        std::vector<std::string> keywords;
         for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(s))) {
             if (modTags.contains(idWord)) continue;
             for (int i = 0; i < kIdWordWeight; ++i) tokens.push_back(idWord);
+
+            const bool hasDigit = std::any_of(idWord.begin(), idWord.end(),
+                [](unsigned char ch) { return std::isdigit(ch) != 0; });
+            if (!hasDigit) keywords.push_back("word." + idWord);
         }
         tokenizedDocs.push_back(std::move(tokens));
+
+        if (const auto traits = s.find("traits"); traits != s.end() && traits->is_array()) {
+            for (const auto& trait : *traits) {
+                if (!trait.is_string()) continue;
+                auto name = trait.get<std::string>();
+                // The matrix is built per school, so the school tells nothing apart
+                if (!name.starts_with("school.")) keywords.push_back(std::move(name));
+            }
+        }
+        std::sort(keywords.begin(), keywords.end());
+        keywords.erase(std::unique(keywords.begin(), keywords.end()), keywords.end());
+        keywordSets.push_back(std::move(keywords));
     }
 
     auto n = formIds.size();
@@ -374,6 +396,76 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
                 }
                 matrix.effectSims[i * nSigned + j] = bestSim;
                 matrix.effectSims[j * nSigned + i] = bestSim;
+            }
+        }
+    }
+
+    // =========================================================================
+    // Keyword affinity: shared keywords, the rare ones counting for more
+    // =========================================================================
+    //
+    // Effect names above are translated text, compared byte by byte. The
+    // keywords are not: traits come from engine values, id words are English
+    // everywhere. Two spells are alike by the keywords they share, weighed by
+    // how few spells carry each one - sharing "form.projectile" with eight
+    // hundred others says little, sharing "word.moon" with thirteen says a lot.
+    // The weights come from the data (inverse document frequency), not a list.
+    //
+    // It goes into the effect affinity, the signal every builder already weighs
+    // highest, as the better of the two: without a full scan there are no
+    // keywords and the effect names decide alone, as before.
+    {
+        std::unordered_map<std::string, int> keywordIds;
+        std::vector<int> spellsWithKeyword;
+        for (const auto& set : keywordSets) {
+            for (const auto& keyword : set) {
+                const auto [it, isNew] = keywordIds.try_emplace(keyword, static_cast<int>(keywordIds.size()));
+                if (isNew) spellsWithKeyword.push_back(0);
+                spellsWithKeyword[it->second]++;
+            }
+        }
+
+        std::vector<float> weights(spellsWithKeyword.size(), 0.0f);
+        for (size_t k = 0; k < weights.size(); ++k) {
+            weights[k] = std::log(static_cast<float>(n + 1) / static_cast<float>(spellsWithKeyword[k] + 1));
+        }
+
+        // Sorted id lists; a keyword only one spell has cannot be shared, and
+        // left in it would only water down that spell's every comparison.
+        std::vector<std::vector<int>> ids(n);
+        std::vector<float> totalWeight(n, 0.0f);
+        for (size_t i = 0; i < n && i < keywordSets.size(); ++i) {
+            for (const auto& keyword : keywordSets[i]) {
+                const int id = keywordIds[keyword];
+                if (spellsWithKeyword[id] < 2) continue;
+                ids[i].push_back(id);
+                totalWeight[i] += weights[id];
+            }
+            std::sort(ids[i].begin(), ids[i].end());
+        }
+
+        const auto nSigned = static_cast<int>(n);
+        #pragma omp parallel for schedule(dynamic, 16)
+        for (int i = 0; i < nSigned; ++i) {
+            if (ids[i].empty()) continue;
+            for (int j = i + 1; j < nSigned; ++j) {
+                if (ids[j].empty()) continue;
+
+                std::vector<int> shared;
+                std::set_intersection(ids[i].begin(), ids[i].end(), ids[j].begin(), ids[j].end(),
+                    std::back_inserter(shared));
+                if (shared.empty()) continue;
+
+                float sharedWeight = 0.0f;
+                for (const int id : shared) sharedWeight += weights[id];
+                const float unionWeight = totalWeight[i] + totalWeight[j] - sharedWeight;
+                const float affinity = (unionWeight > 0.0f) ? sharedWeight / unionWeight : 0.0f;
+
+                float& cell = matrix.effectSims[i * nSigned + j];
+                if (affinity > cell) {
+                    cell = affinity;
+                    matrix.effectSims[j * nSigned + i] = affinity;
+                }
             }
         }
     }
