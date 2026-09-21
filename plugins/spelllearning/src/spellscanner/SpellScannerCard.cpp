@@ -20,13 +20,24 @@
 // So the icon for a spell is found by file name alone: walk the spell's keywords
 // and take the first one that has such a file. Nothing is listed here per mod;
 // whatever icon packs the player has installed are picked up as they are.
+//
+// Wheeler's standard set sits one folder over and carries the vanilla school
+// emblems (alteration.svg, conjuration.svg, destruction.svg and its _fire /
+// _frost / _shock variants, illusion.svg, restoration.svg). Those are the
+// stand-in when no keyword icon matches.
+//
+// An icon key is "<folder>/<file stem>": "icons_custom/KWD_<keyword>" or
+// "icons/<name>". The panel treats it as opaque and hands it back to
+// ReadSpellIconSvg.
 
 namespace SpellScanner
 {
     namespace
     {
-        constexpr const char* kIconDir = "Data/SKSE/Plugins/wheeler/resources/icons_custom";
-        constexpr const char* kIconPrefix = "KWD_";
+        constexpr const char* kIconRoot = "Data/SKSE/Plugins/wheeler/resources";
+        constexpr const char* kCustomDir = "icons_custom";
+        constexpr const char* kStandardDir = "icons";
+        constexpr const char* kKeywordPrefix = "KWD_";
         constexpr const char* kIconExtension = ".svg";
 
         // An icon is a few KB. Anything far past that is not something to push
@@ -36,19 +47,39 @@ namespace SpellScanner
         std::mutex g_iconMutex;
         std::unordered_map<std::string, bool> g_iconExists;
 
-        // Keyword editor ids become file names, so only plain identifier
-        // characters are let through - no separators, no dots.
-        bool IsSafeIconKey(const std::string& key)
+        bool IsPlainName(const std::string& name)
         {
-            if (key.empty()) return false;
-            return std::all_of(key.begin(), key.end(), [](unsigned char c) {
+            if (name.empty()) return false;
+            return std::all_of(name.begin(), name.end(), [](unsigned char c) {
                 return std::isalnum(c) || c == '_' || c == '-';
             });
         }
 
+        // Keys come back from the panel and turn into file paths, so they are
+        // held to exactly one of the two known folders plus a plain file stem -
+        // no dots, no further separators.
+        bool IsSafeIconKey(const std::string& key)
+        {
+            const auto slash = key.find('/');
+            if (slash == std::string::npos) return false;
+            const std::string folder = key.substr(0, slash);
+            if (folder != kCustomDir && folder != kStandardDir) return false;
+            return IsPlainName(key.substr(slash + 1));
+        }
+
         std::filesystem::path IconPath(const std::string& key)
         {
-            return std::filesystem::path(kIconDir) / (std::string(kIconPrefix) + key + kIconExtension);
+            return std::filesystem::path(kIconRoot) / (key + kIconExtension);
+        }
+
+        std::string KeywordIconKey(const std::string& keywordEditorId)
+        {
+            return std::string(kCustomDir) + "/" + kKeywordPrefix + keywordEditorId;
+        }
+
+        std::string StandardIconKey(const std::string& name)
+        {
+            return std::string(kStandardDir) + "/" + name;
         }
 
         bool IconExists(const std::string& key)
@@ -72,7 +103,9 @@ namespace SpellScanner
                 const auto* keyword = keywordForm->keywords[i];
                 if (!keyword) continue;
                 const char* editorId = keyword->GetFormEditorID();
-                if (editorId && IconExists(editorId)) return editorId;
+                if (!editorId) continue;
+                const std::string key = KeywordIconKey(editorId);
+                if (IconExists(key)) return key;
             }
             return "";
         }
@@ -103,6 +136,41 @@ namespace SpellScanner
             if (!key.empty()) return key;
         }
         return "";
+    }
+
+    std::string FindSchoolIconKey(RE::SpellItem* spell, bool withElement)
+    {
+        if (!spell) return "";
+
+        std::string school = GetSchoolName(GetSpellSchool(spell));
+        std::transform(school.begin(), school.end(), school.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!IsPlainName(school)) return "";
+
+        // destruction_fire and friends, from the same resist value the chips use
+        if (withElement) {
+            using Flag = RE::EffectSetting::EffectSettingData::Flag;
+            for (const auto* effect : spell->effects) {
+                if (!effect || !effect->baseEffect) continue;
+                if (effect->baseEffect->data.flags.any(Flag::kHideInUI)) continue;
+
+                const char* element = nullptr;
+                switch (effect->baseEffect->data.resistVariable) {
+                    case RE::ActorValue::kResistFire: element = "fire"; break;
+                    case RE::ActorValue::kResistFrost: element = "frost"; break;
+                    case RE::ActorValue::kResistShock: element = "shock"; break;
+                    default: break;
+                }
+                if (!element) continue;
+
+                const std::string key = StandardIconKey(school + "_" + element);
+                if (IconExists(key)) return key;
+                break;
+            }
+        }
+
+        const std::string key = StandardIconKey(school);
+        return IconExists(key) ? key : "";
     }
 
     std::string ReadSpellIconSvg(const std::string& key)

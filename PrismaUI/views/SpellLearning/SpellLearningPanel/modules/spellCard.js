@@ -84,73 +84,79 @@ var SpellCard = {
     _icons: {},
     _iconWaiting: {},
 
-    // Stand-in drawn when no installed icon pack covers the spell: one glyph per
-    // school, in the style the packs use - a flat single-colour silhouette, no
-    // outlines, no gradients. These are ours, so they go in as real SVG and take
-    // the school colour from the theme through currentColor. Cut-outs rely on
-    // fill-rule evenodd.
+    // Last resort, when neither an icon pack nor Wheeler's standard emblems are
+    // installed: our own drawing of each school's vanilla emblem - the tree, the
+    // Oblivion sigil, the flame over an orb, the three rings, the phoenix - as the
+    // flat single-colour silhouettes the packs use. They take the school colour
+    // from the theme through currentColor; cut-outs rely on fill-rule evenodd.
     _schoolGlyphs: {
-        // flame with a hollow core
-        destruction: '<path d="M12 1.5c1.2 4.2 6.5 6.6 6.5 12.2a6.5 6.5 0 0 1-13 0c0-2.6 1.2-4.4 2.8-5.8.1 2 .9 3.3 2.2 3.6.4-3.6-.9-6.4 1.5-10zM12 13.6c.6 1.6 2.3 2.4 2.3 4.2a2.3 2.3 0 0 1-4.6 0c0-1.8 1.7-2.6 2.3-4.2z"/>',
-        // sun: disc and eight rays
-        restoration: '<circle cx="12" cy="12" r="4.3"/>' +
-            '<path d="M12 1.2l1.5 4.1h-3z"/><path d="M12 22.8l-1.5-4.1h3z"/>' +
-            '<path d="M1.2 12l4.1-1.5v3z"/><path d="M22.8 12l-4.1 1.5v-3z"/>' +
-            '<path d="M4.4 4.4l4 1.8-2.2 2.2z"/><path d="M19.6 19.6l-4-1.8 2.2-2.2z"/>' +
-            '<path d="M19.6 4.4l-1.8 4-2.2-2.2z"/><path d="M4.4 19.6l1.8-4 2.2 2.2z"/>',
-        // cut gem: three facets with a gap between them
-        alteration: '<path d="M12 2l7.6 4.6L12 11.2 4.4 6.6z"/>' +
-            '<path d="M3.6 8.1l7.6 4.6v9.1l-7.6-4.6z"/>' +
-            '<path d="M20.4 8.1l-7.6 4.6v9.1l7.6-4.6z"/>',
-        // portal: ring around a four-point star
-        conjuration: '<path d="M12 1.5a10.5 10.5 0 1 0 0 21 10.5 10.5 0 0 0 0-21zM12 4.3a7.7 7.7 0 1 1 0 15.4 7.7 7.7 0 0 1 0-15.4z"/>' +
-            '<path d="M12 6.6l1.6 3.8 3.8 1.6-3.8 1.6-1.6 3.8-1.6-3.8-3.8-1.6 3.8-1.6z"/>',
-        // eye: lid shape, hollow iris, solid pupil
-        illusion: '<path d="M1.2 12s4.1-7.2 10.8-7.2S22.8 12 22.8 12s-4.1 7.2-10.8 7.2S1.2 12 1.2 12zM12 7.9a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2z"/>' +
-            '<circle cx="12" cy="12" r="2"/>'
+        alteration:
+            '<path d="M10.4 22l1-4.6V11h1.6v6.4l1 4.6h-1.3l-.5-1.4-.5 1.4z"/>' +
+            '<path d="M12.6 12V3.8a3 3 0 0 1 5.4 1.3 2.9 2.9 0 0 1 1.5 5.2 2.9 2.9 0 0 1-4.9 1.7z"/>' +
+            '<path d="M11.6 12.2L6.8 9l-.5-3.4h1.1l.4 2.6 1.7 1.1V5.2h1.1v4.9l1 .7z"/>' +
+            '<path d="M7.7 9.9L3.8 9.2l-.3-1.1 3.6.6z"/>',
+        conjuration:
+            '<path d="M7.2 1.8c-.5 5.2.3 9.3 2.1 13.3.9 2.1 1.8 4.5 2.7 7.1.9-2.6 1.8-5 2.7-7.1 1.8-4 2.6-8.1 2.1-13.3-.9 4.7-1.8 7.8-3 10.5-.6 1.4-1.2 2.8-1.8 4.4-.6-1.6-1.2-3-1.8-4.4-1.2-2.7-2.1-5.8-3-10.5z"/>' +
+            '<path d="M12 6.8a2.5 2.5 0 1 1-2.5 2.5h1.3A1.2 1.2 0 1 0 12 8.1z"/>',
+        destruction:
+            '<path d="M12 1.5c.9 3 2.6 4.6 2.6 7.6 0 1.4-.5 2.5-1.2 3.4h-2.8c-.7-.9-1.2-2-1.2-3.4 0-3 1.7-4.6 2.6-7.6z"/>' +
+            '<path d="M6.8 4.8c.3 2.5 1.6 3.8 1.6 6 0 .8-.2 1.5-.5 2.1l-1.9-.6C5.3 11.3 4.9 10.3 4.9 9.2c0-1.8 1.4-2.8 1.9-4.4z"/>' +
+            '<path d="M17.2 4.8c-.3 2.5-1.6 3.8-1.6 6 0 .8.2 1.5.5 2.1l1.9-.6c.7-1 1.1-2 1.1-3.1 0-1.8-1.4-2.8-1.9-4.4z"/>' +
+            '<path d="M6.2 12.2h11.6l-2.3 2.6H8.5z"/>' +
+            '<path d="M12 13.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zM12 16.3a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z"/>',
+        illusion:
+            '<path d="M12 2.2a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zM12 3.8a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 0 1 0-6.2z"/>' +
+            '<path d="M7.2 11.2a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zM7.2 12.8a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 0 1 0-6.2z"/>' +
+            '<path d="M16.8 11.2a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zM16.8 12.8a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 0 1 0-6.2z"/>',
+        restoration:
+            '<path d="M12 9.2C9.9 6.6 6.3 5.6 1.6 6.1c1 1.3 2.3 1.9 3.7 2.1-1.1.3-2.1.3-3.2 0 1.1 1.9 2.8 2.9 5 3.1-.8.5-1.7.7-2.7.6 1.6 1.5 3.7 2.1 6.1 1.5L12 11.2z"/>' +
+            '<path d="M12 9.2c2.1-2.6 5.7-3.6 10.4-3.1-1 1.3-2.3 1.9-3.7 2.1 1.1.3 2.1.3 3.2 0-1.1 1.9-2.8 2.9-5 3.1.8.5 1.7.7 2.7.6-1.6 1.5-3.7 2.1-6.1 1.5L12 11.2z"/>' +
+            '<path d="M12 5.8a1.7 1.7 0 0 1 1.2 2.9l.9 4.4c.3 1.5-.3 3.1-1.2 4.6-.3 1.5-.6 2.8-.9 4.1-.3-1.3-.6-2.6-.9-4.1-.9-1.5-1.5-3.1-1.2-4.6l.9-4.4A1.7 1.7 0 0 1 12 5.8z"/>' +
+            '<path d="M12.7 2.2l1.9 1.3-1.4.5.8 1.6-2.1-.9z"/>'
     },
-
     _schoolGlyphSvg: function(school) {
         var paths = this._schoolGlyphs[String(school || '').toLowerCase()];
         if (!paths) return '';
         return '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" stroke="none">' + paths + '</svg>';
     },
     /**
-     * Icon in front of the name. An installed icon pack's picture when there is one
-     * and the name is revealed; otherwise the school glyph, so the slot is never
-     * empty. The school is always visible on the card anyway, so the glyph gives
-     * nothing away. Pack pictures go into an <img> as a data URI, so nothing inside
-     * a mod's SVG can run as script.
-     * @param {string} iconKey - node.iconKey from C++, '' when there is no pack icon
-     * @param {string} school - node.school
-     * @param {boolean} revealed - pack icons follow the name: held back while it is "???"
+     * Icon in front of the name, best source first:
+     *   1. an installed icon pack's picture for this spell      (iconKey)
+     *   2. the vanilla school emblem from Wheeler's standard set (schoolIconKey)
+     *   3. our own school glyph, so the slot is never empty
+     * While the name is still "???" only the plain school emblem or glyph shows:
+     * the school is always visible on the card anyway, a pack icon or a fire/frost
+     * variant would give the spell away. Pictures from disk go into an <img> as a
+     * data URI, so nothing inside a mod's SVG can run as script.
+     * @param {Object} node - uses iconKey, schoolIconKey, school
+     * @param {boolean} revealed - true once the name is shown
      */
-    renderIcon: function(iconKey, school, revealed) {
+    renderIcon: function(node, revealed) {
         var img = document.getElementById('spell-icon');
         var glyph = document.getElementById('spell-school-glyph');
-        if (!img || !glyph) return;
+        if (!img || !glyph || !node) return;
 
-        var wantsPack = !!(revealed && iconKey);
-        img.dataset.iconKey = wantsPack ? iconKey : '';
+        var key = (revealed && node.iconKey) ? node.iconKey : (node.schoolIconKey || '');
+        this._shown = { node: node, revealed: revealed, key: key };
 
-        var packReady = wantsPack && !!this._icons[iconKey];
-        if (packReady) {
-            img.src = this._icons[iconKey];
+        var ready = !!(key && this._icons[key]);
+        if (ready) {
+            img.src = this._icons[key];
             img.classList.remove('hidden');
         } else {
             img.classList.add('hidden');
             img.removeAttribute('src');
         }
 
-        // Glyph whenever the pack picture is not on screen (none, held back, or still loading)
-        var glyphSvg = packReady ? '' : this._schoolGlyphSvg(school);
+        // Glyph whenever no picture is on screen (none installed, or still loading)
+        var school = String(node.school || '').toLowerCase();
+        var glyphSvg = ready ? '' : this._schoolGlyphSvg(school);
         glyph.innerHTML = glyphSvg;
-        glyph.className = 'spell-icon school-glyph ' + String(school || '').toLowerCase() + (glyphSvg ? '' : ' hidden');
-        glyph.dataset.school = school || '';
+        glyph.className = 'spell-icon school-glyph ' + school + (glyphSvg ? '' : ' hidden');
 
-        if (wantsPack && this._icons[iconKey] === undefined && !this._iconWaiting[iconKey] && window.callCpp) {
-            this._iconWaiting[iconKey] = true;
-            window.callCpp('GetSpellIcon', iconKey);
+        if (key && this._icons[key] === undefined && !this._iconWaiting[key] && window.callCpp) {
+            this._iconWaiting[key] = true;
+            window.callCpp('GetSpellIcon', key);
         }
     },
 
@@ -163,10 +169,8 @@ var SpellCard = {
             : '';
 
         // Only repaint if the card is still showing the spell that asked
-        var img = document.getElementById('spell-icon');
-        var glyph = document.getElementById('spell-school-glyph');
-        if (img && img.dataset.iconKey === data.key) {
-            this.renderIcon(data.key, glyph ? glyph.dataset.school : '', true);
+        if (this._shown && this._shown.key === data.key) {
+            this.renderIcon(this._shown.node, this._shown.revealed);
         }
     },
     /**

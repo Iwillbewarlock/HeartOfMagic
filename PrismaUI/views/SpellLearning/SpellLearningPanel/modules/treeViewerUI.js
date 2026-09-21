@@ -1276,8 +1276,8 @@ function showSpellDetails(node) {
         document.getElementById('spell-name').textContent = '???';
     }
     
-    // Icon in front of the name: an installed icon pack's picture, else the school glyph
-    SpellCard.renderIcon(node.iconKey, node.school, showName);
+    // Icon in front of the name: pack picture, else the school emblem, else our glyph
+    SpellCard.renderIcon(node, showName);
 
     // Keyword chips - second thing to open up, after the name
     SpellCard.renderChips(document.getElementById('spell-chips'), node.chips, showChips,

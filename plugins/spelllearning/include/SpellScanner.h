@@ -131,6 +131,9 @@ namespace SpellScanner
     // KWD_<keyword>.svg for Wheeler; the key is the first keyword of the spell,
     // then of its effects, that has one. Empty when nothing is installed.
     std::string FindSpellIconKey(RE::SpellItem* spell);
+    // Wheeler's standard school emblem (icons/<school>.svg), optionally the
+    // destruction_fire/_frost/_shock variant. Empty when not installed.
+    std::string FindSchoolIconKey(RE::SpellItem* spell, bool withElement);
     std::string ReadSpellIconSvg(const std::string& key);
 
     // Fills <mag>/<dur>/<area> from the effect and strips <..> emphasis marks.

@@ -65,13 +65,23 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   next to Fire). If every effect is hidden, all of them are read. `modules/spellCard.js` translates them through `chips.*` lang keys
   and falls back to English labels for languages that do not have the keys yet.
   Works in both the bottom bar and the side layout.
-  **Icon**: custom I4 icon packs ship their spell icons a second time as SVG for Wheeler, named by
-  keyword (`Data/SKSE/Plugins/wheeler/resources/icons_custom/KWD_<keyword>.svg`). C++
-  (`SpellScannerCard.cpp`) takes the first keyword of the spell, then of its effects, that has such
-  a file and sends its name as `iconKey`; the card fetches the picture on demand (`GetSpellIcon` →
-  `updateSpellIcon`) and shows it in front of the name as an `<img>` data URI, so nothing inside a
-  mod's SVG can run. Nothing is listed per mod. A spell no installed pack covers gets a glyph for its school instead, drawn the way the packs draw theirs (flat single-colour silhouette) (`_schoolGlyphs` in `spellCard.js`), so the slot is never empty; the glyph also stands in while the name is still hidden. The SWF icons the inventory
-  menus use cannot be drawn in a web view.
+  **Icon** in front of the name, best source first, all found by file name (`SpellScannerCard.cpp`):
+  1. an installed icon pack's picture. Custom I4 icon packs ship their spell icons a second time
+     as SVG for Wheeler, named by keyword
+     (`Data/SKSE/Plugins/wheeler/resources/icons_custom/KWD_<keyword>.svg`); the first keyword of
+     the spell, then of its effects, that has such a file wins. Sent as `iconKey`.
+  2. the vanilla school emblem from Wheeler's standard set, one folder over
+     (`icons/<school>.svg`, or `icons/destruction_fire|_frost|_shock.svg` by the same resist value
+     the chips use). Sent as `iconKey` when 1 found nothing, and always as `schoolIconKey` (plain
+     school, no element).
+  3. our own drawing of the same five emblems (`_schoolGlyphs` in `spellCard.js`), flat
+     single-colour silhouettes like the packs use, coloured by the theme's school colour. This is
+     what a player with no Wheeler icons installed sees, so the slot is never empty.
+  While the name is still hidden only `schoolIconKey` or the glyph shows: the school is always
+  visible anyway, a pack icon or an element variant would give the spell away. Pictures are
+  fetched on demand (`GetSpellIcon` -> `updateSpellIcon`) and shown as an `<img>` data URI, so
+  nothing inside a mod's SVG can run. Nothing is listed per mod. The SWF icons the inventory menus
+  use cannot be drawn in a web view.
   **Effects list** is hidden outside edit mode: it shows how a spell is wired (helper effects,
   duplicates, internal names), which the description and chips already say in player terms.
   **Description**: `<mag>`/`<dur>`/`<area>` are filled in from the effect and `<25>` style emphasis
