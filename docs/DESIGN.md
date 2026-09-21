@@ -70,7 +70,7 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   (`SpellScannerCard.cpp`) takes the first keyword of the spell, then of its effects, that has such
   a file and sends its name as `iconKey`; the card fetches the picture on demand (`GetSpellIcon` →
   `updateSpellIcon`) and shows it in front of the name as an `<img>` data URI, so nothing inside a
-  mod's SVG can run. Nothing is listed per mod. A spell no installed pack covers gets a plain glyph for its school instead (`_schoolGlyphs` in `spellCard.js`), so the slot is never empty; the glyph also stands in while the name is still hidden. The SWF icons the inventory
+  mod's SVG can run. Nothing is listed per mod. A spell no installed pack covers gets a glyph for its school instead, drawn the way the packs draw theirs (flat single-colour silhouette) (`_schoolGlyphs` in `spellCard.js`), so the slot is never empty; the glyph also stands in while the name is still hidden. The SWF icons the inventory
   menus use cannot be drawn in a web view.
   **Effects list** is hidden outside edit mode: it shows how a spell is wired (helper effects,
   duplicates, internal names), which the description and chips already say in player terms.

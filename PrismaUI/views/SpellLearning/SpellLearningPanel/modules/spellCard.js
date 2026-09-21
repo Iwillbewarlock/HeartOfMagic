@@ -84,24 +84,37 @@ var SpellCard = {
     _icons: {},
     _iconWaiting: {},
 
-    // Stand-in drawn when no installed icon pack covers the spell: one plain glyph
-    // per school. These are ours, so they go in as real SVG and take the school
-    // colour from the theme through currentColor.
+    // Stand-in drawn when no installed icon pack covers the spell: one glyph per
+    // school, in the style the packs use - a flat single-colour silhouette, no
+    // outlines, no gradients. These are ours, so they go in as real SVG and take
+    // the school colour from the theme through currentColor. Cut-outs rely on
+    // fill-rule evenodd.
     _schoolGlyphs: {
-        destruction: '<path d="M12 2.5c.8 3.6 5 5.6 5 10.3a5 5 0 0 1-10 0c0-2 .9-3.2 2-4.2 0 1.9.9 3 2 3 .2-3.6-1-5.7 1-9.1z"/>',
-        restoration: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
-        alteration: '<path d="M12 2.5l8 5.5v8l-8 5.5-8-5.5v-8z"/><path d="M4 8l8 5 8-5M12 13v8.5"/>',
-        conjuration: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
-        illusion: '<path d="M2.5 12s3.8-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.8 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'
+        // flame with a hollow core
+        destruction: '<path d="M12 1.5c1.2 4.2 6.5 6.6 6.5 12.2a6.5 6.5 0 0 1-13 0c0-2.6 1.2-4.4 2.8-5.8.1 2 .9 3.3 2.2 3.6.4-3.6-.9-6.4 1.5-10zM12 13.6c.6 1.6 2.3 2.4 2.3 4.2a2.3 2.3 0 0 1-4.6 0c0-1.8 1.7-2.6 2.3-4.2z"/>',
+        // sun: disc and eight rays
+        restoration: '<circle cx="12" cy="12" r="4.3"/>' +
+            '<path d="M12 1.2l1.5 4.1h-3z"/><path d="M12 22.8l-1.5-4.1h3z"/>' +
+            '<path d="M1.2 12l4.1-1.5v3z"/><path d="M22.8 12l-4.1 1.5v-3z"/>' +
+            '<path d="M4.4 4.4l4 1.8-2.2 2.2z"/><path d="M19.6 19.6l-4-1.8 2.2-2.2z"/>' +
+            '<path d="M19.6 4.4l-1.8 4-2.2-2.2z"/><path d="M4.4 19.6l1.8-4 2.2 2.2z"/>',
+        // cut gem: three facets with a gap between them
+        alteration: '<path d="M12 2l7.6 4.6L12 11.2 4.4 6.6z"/>' +
+            '<path d="M3.6 8.1l7.6 4.6v9.1l-7.6-4.6z"/>' +
+            '<path d="M20.4 8.1l-7.6 4.6v9.1l7.6-4.6z"/>',
+        // portal: ring around a four-point star
+        conjuration: '<path d="M12 1.5a10.5 10.5 0 1 0 0 21 10.5 10.5 0 0 0 0-21zM12 4.3a7.7 7.7 0 1 1 0 15.4 7.7 7.7 0 0 1 0-15.4z"/>' +
+            '<path d="M12 6.6l1.6 3.8 3.8 1.6-3.8 1.6-1.6 3.8-1.6-3.8-3.8-1.6 3.8-1.6z"/>',
+        // eye: lid shape, hollow iris, solid pupil
+        illusion: '<path d="M1.2 12s4.1-7.2 10.8-7.2S22.8 12 22.8 12s-4.1 7.2-10.8 7.2S1.2 12 1.2 12zM12 7.9a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2z"/>' +
+            '<circle cx="12" cy="12" r="2"/>'
     },
 
     _schoolGlyphSvg: function(school) {
         var paths = this._schoolGlyphs[String(school || '').toLowerCase()];
         if (!paths) return '';
-        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"' +
-               ' stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+        return '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" stroke="none">' + paths + '</svg>';
     },
-
     /**
      * Icon in front of the name. An installed icon pack's picture when there is one
      * and the name is revealed; otherwise the school glyph, so the slot is never
