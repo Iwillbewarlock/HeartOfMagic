@@ -84,12 +84,16 @@ classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
 }]
 ```
 
-`vanillaKeywords` sits next to `keywords` on every effect, and on the spell: the subset whose
-keyword record is defined by the base game or an official DLC (Skyrim, Update, Dawnguard,
-HearthFires, Dragonborn - judged by the defining plugin, `IsVanillaKeyword`, not by the name, so a
-mod's own `MagicSomething` does not pass). Every load order has these and means the same thing by
-them, which no mod keyword can promise. They carry what the engine values cannot: a summon effect
-has no resist value, but vanilla marks Flame Atronach with `MagicSummonFire`.
+**Two keyword columns, not three.** `keywords` is the raw names as the plugins wrote them (kept
+because icon lookup and other mods need the real names). `traits`, on the spell, is the one
+normalised column: what the engine values and the base game's own keywords boil down to in a fixed
+vocabulary - `element.fire`, `kind.summon`, `kind.undead`, `form.projectile`, `school.destruction` ...
+A fire resist value and `MagicSummonFire` both come out as `element.fire`, so Flame Atronach reads
+`element.fire` + `kind.summon`. Only keywords whose record a vanilla plugin defines are folded in
+(Skyrim, Update, Dawnguard, HearthFires, Dragonborn - judged by the defining plugin,
+`IsVanillaKeyword`, not by the name). Effects flagged Hide in UI are not read. `traits` is derived
+rather than copied, which is why it has its own name; everything else in the dump stays as recorded.
+Built by `BuildSpellTraits` (SpellScannerChips.cpp), the same list the spell card and the icon rules use.
 
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.

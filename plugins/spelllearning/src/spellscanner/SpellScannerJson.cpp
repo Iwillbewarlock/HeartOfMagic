@@ -157,21 +157,14 @@ namespace SpellScanner
         // MGEF structure - the language independent evidence the librarian
         // classifies on. Vanilla Magic* keywords live here, not on the SPEL.
         json keywordsArray = json::array();
-        json vanillaKeywordsArray = json::array();
         for (auto* keyword : baseEffect->GetKeywords()) {
             if (!keyword) continue;
             const char* keywordEditorId = keyword->GetFormEditorID();
             if (keywordEditorId && strlen(keywordEditorId) > 0) {
                 keywordsArray.push_back(keywordEditorId);
-                if (IsVanillaKeyword(keyword)) {
-                    vanillaKeywordsArray.push_back(keywordEditorId);
-                }
             }
         }
         effectJson["keywords"] = keywordsArray;
-        // The subset the base game itself defines. Every load order has these
-        // and means the same thing by them, which no mod keyword can promise.
-        effectJson["vanillaKeywords"] = vanillaKeywordsArray;
 
         effectJson["archetype"] = GetArchetypeName(baseEffect->data.archetype);
         effectJson["primaryAV"] = GetActorValueName(baseEffect->data.primaryAV);
@@ -275,24 +268,27 @@ namespace SpellScanner
         // Keywords (SPEL level - framework tags like KIT_/OCF_ live here)
         if (fields.keywords && spell->keywords) {
             json keywordsArray = json::array();
-            json vanillaKeywordsArray = json::array();
             for (uint32_t i = 0; i < spell->numKeywords; i++) {
                 if (spell->keywords[i]) {
                     const char* kwEditorId = spell->keywords[i]->GetFormEditorID();
                     if (kwEditorId && strlen(kwEditorId) > 0) {
                         keywordsArray.push_back(kwEditorId);
-                        if (IsVanillaKeyword(spell->keywords[i])) {
-                            vanillaKeywordsArray.push_back(kwEditorId);
-                        }
                     }
                 }
             }
             spellJson["keywords"] = keywordsArray;
-            spellJson["vanillaKeywords"] = vanillaKeywordsArray;
         }
 
         if (fields.effectDetails) {
             AppendSpellEvidence(spellJson, spell);
+
+            // The one normalised column. "keywords" above stays the raw names as
+            // the plugins wrote them; traits is what those and the engine values
+            // boil down to in a fixed vocabulary (element.fire, kind.summon ...),
+            // with the base game's own keywords folded in - MagicSummonFire and a
+            // fire resist value both come out as element.fire. Derived, not
+            // copied, which is why it has its own name.
+            spellJson["traits"] = BuildSpellTraits(spell);
         }
 
         return spellJson;

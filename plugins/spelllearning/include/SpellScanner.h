@@ -105,8 +105,8 @@ namespace SpellScanner
     std::string GetActorValueName(RE::ActorValue actorValue);
 
     // True when the keyword record is defined by the base game or an official
-    // DLC (judged by its plugin, not its name). The scan lists these separately
-    // as vanillaKeywords, and they are the only keywords the card traits read.
+    // DLC (judged by its plugin, not its name). These are the only keywords the
+    // traits read; the scan folds them into "traits" rather than listing them twice.
     bool IsVanillaKeyword(const RE::BGSKeyword* keyword);
 
     // Single source of the scan JSON shape, shared by every scan entry point.
