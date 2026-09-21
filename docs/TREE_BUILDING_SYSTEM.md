@@ -472,6 +472,12 @@ links between them: `TreeBuilder::Build` appends the same `bridges` array to the
   "affinity": 0.48, "evidence": 5.1, "shared": ["element.fire", "word.flame"], "twoWay": false }
 ```
 
+**Decided (2026-09-22): a bridge really does open the spell.** Mastering one Conjuration fire spell can
+open a Destruction fire spell of the same tier or one above, without progressing Destruction. Asked
+whether to tighten this, the author said no: Skyrim's own skill level already limits how useful a spell
+is, so a spell learned early is not a spell that can be used early. Access stays generous; balance is
+left to the skill level.
+
 A bridge is an **extra way in, never a requirement**. The layout is meant to add `from` to the soft
 prerequisites of `to` (which already mean "any one of these"), so a school's tree stays complete without
 them. That is why bridges sit next to the trees and are not written into them.
