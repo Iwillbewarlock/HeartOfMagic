@@ -984,6 +984,13 @@
                         <div class="settings-block-content">
                             <div class="setting-row">
                                 <div class="setting-info">
+                                    <span class="setting-label" data-i18n="settings.ui.language">Language</span>
+                                    <span class="setting-desc" id="uiLanguageHint" data-i18n="settings.ui.languageDesc">Translations live in the lang folder; see TRANSLATING.md there to add one.</span>
+                                </div>
+                                <select id="uiLanguageSelect" class="setting-select"></select>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.ui.theme">UI Theme</span>
                                 </div>
                                 <div class="theme-selector-row">
@@ -1894,15 +1901,24 @@
     
     <!-- 0. i18n Translation Engine (must load first) -->
     <script src="lang/locale.js"></script>
+    <script src="lang/languages.js"></script>
     <script src="lang/en.js"></script>
     <script>
+    // Which language: the one picked in Settings > UI Display if the browser
+    // remembers it, else the pack's default in locale.js. It has to be known
+    // here, before anything draws - the saved settings only arrive later.
+    var _loc = window._i18nLocale || 'en';
+    try {
+        var _picked = window.localStorage ? localStorage.getItem('hom_language') : null;
+        if (_picked) _loc = _picked;
+    } catch (e) { /* storage unavailable: keep locale.js */ }
+    window._i18nStartLocale = _loc;
     // Load locale-specific preload if non-English (overwrites en.js preload)
     // Uses document.write for synchronous loading - required by Ultralight/USVFS
-    var _loc = window._i18nLocale || 'en';
     if (_loc !== 'en') document.write('<script src="lang/' + _loc + '.js"><\/script>');
     </script>
     <script src="modules/i18n.js"></script>
-    <script>initI18n(window._i18nLocale || 'en');</script>
+    <script>initI18n(window._i18nStartLocale);</script>
 
     <!-- 1. Constants and Configuration -->
     <script src="modules/constants.js"></script>
@@ -1938,6 +1954,7 @@
     
     <!-- 5. UI Panels and Features -->
     <script src="modules/colorPicker.js"></script>
+    <script src="modules/languageSetting.js"></script>
     <script src="modules/settingsPanel.js"></script>
     <script src="modules/spellCard.js"></script>
     <script src="modules/treeViewerUI.js"></script>

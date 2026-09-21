@@ -185,6 +185,51 @@
     }
 
     /**
+     * Change language while the panel is open. Loads lang/<locale>.js the same
+     * way the page does at start - a script tag, the one way the game's browser
+     * reads these files reliably - then re-labels everything marked data-i18n.
+     * Text that a script already built with t() stays as it was until the next
+     * start; the caller says so to the player.
+     * @param {string} locale
+     * @param {function(boolean)} [onDone] - true when the language is now active
+     */
+    function switchLocale(locale, onDone) {
+        var done = function(ok) { if (typeof onDone === 'function') onDone(ok); };
+        if (!locale || locale === _locale) { done(true); return; }
+
+        var script = document.createElement('script');
+        script.src = _detectBasePath() + 'lang/' + locale + '.js';
+        script.onload = function() {
+            var loaded = window._i18nPreload && window._i18nPreload['_meta.locale'];
+            if (loaded !== locale) { done(false); return; }
+            initI18n(locale);
+            applyI18nToDOM();
+            done(true);
+        };
+        script.onerror = function() {
+            console.warn('[i18n] No preload file for "' + locale + '"');
+            done(false);
+        };
+        document.head.appendChild(script);
+    }
+
+    /**
+     * The languages the picker offers: lang/languages.js, plus the pack's own
+     * default if its maker did not list it there.
+     * @returns {Array<{code:string, name:string}>}
+     */
+    function getLanguages() {
+        var list = (window._i18nLanguages || []).slice();
+        var known = function(code) {
+            for (var i = 0; i < list.length; i++) if (list[i].code === code) return true;
+            return false;
+        };
+        if (!known('en')) list.unshift({ code: 'en', name: 'English' });
+        if (!known(_locale)) list.push({ code: _locale, name: _translations['_meta.language'] || _locale });
+        return list;
+    }
+
+    /**
      * Get the currently loaded locale code.
      * @returns {string}
      */
@@ -205,6 +250,8 @@
     window.initI18n = initI18n;
     window.applyI18nToDOM = applyI18nToDOM;
     window.getLocale = getLocale;
+    window.switchLocale = switchLocale;
+    window.getLanguages = getLanguages;
     window.getLoadedKeys = getLoadedKeys;
 
 })();
