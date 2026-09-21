@@ -40,9 +40,11 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
     for (const auto& [school, sSpells] : schoolSpells) {
         if (sSpells.size() < 2) continue;
 
-        // Build text corpus for this school
+        // Build text corpus for this school. Spells that get their theme from
+        // traits stay out of it: the word themes only have to cover the rest.
         std::vector<std::vector<std::string>> documents;
         for (const auto& spell : sSpells) {
+            if (!ThemeFromTraits(spell).empty()) continue;
             auto text = TreeNLP::BuildThemeText(spell);
             auto tokens = TreeNLP::Tokenize(text);
             // Filter stop words
@@ -126,12 +128,81 @@ TreeBuilder::MergeWithHints(
 }
 
 // =============================================================================
+// TRAIT THEMES
+// =============================================================================
+//
+// Word themes only work where spell names are English: on a translated load
+// order the most frequent "words" left are fragments of mod keyword names, and
+// the branches end up grouped by which framework tagged a spell. The scan's
+// traits column says what a spell is without reading any text, so a spell that
+// has traits takes its theme from them and the word path is left for the rest.
+//
+// One theme per spell, most telling trait first: what is summoned, then the
+// element, then what the spell does.
+
+namespace
+{
+    constexpr int kTraitThemeScore = 100;  // top of CalculateThemeScore's range
+
+    constexpr std::string_view kElementPrefix = "element.";
+    constexpr std::string_view kKindPrefix = "kind.";
+    constexpr std::string_view kSummonTrait = "kind.summon";
+
+    // Says "this hurts" and nothing else; every attack spell has it.
+    constexpr std::string_view kTooBroadKind = "kind.damage";
+
+    // Which of the summon's other traits names the branch, best first.
+    constexpr std::string_view kSummonQualifiers[] = {
+        "element.fire", "element.frost", "element.shock", "kind.undead", "kind.familiar"
+    };
+
+    std::string AfterDot(std::string_view trait)
+    {
+        const auto dot = trait.find('.');
+        return std::string(dot == std::string_view::npos ? trait : trait.substr(dot + 1));
+    }
+}
+
+std::string TreeBuilder::ThemeFromTraits(const json& spell)
+{
+    const auto it = spell.find("traits");
+    if (it == spell.end() || !it->is_array()) return "";
+
+    std::vector<std::string> traits;
+    for (const auto& trait : *it) {
+        if (trait.is_string()) traits.push_back(trait.get<std::string>());
+    }
+    const auto has = [&traits](std::string_view wanted) {
+        return std::find(traits.begin(), traits.end(), wanted) != traits.end();
+    };
+
+    if (has(kSummonTrait)) {
+        for (const auto qualifier : kSummonQualifiers) {
+            if (has(qualifier)) return "summon_" + AfterDot(qualifier);
+        }
+        return "summon";
+    }
+
+    for (const auto& trait : traits) {
+        if (trait.starts_with(kElementPrefix)) return AfterDot(trait);
+    }
+    for (const auto& trait : traits) {
+        if (trait.starts_with(kKindPrefix) && trait != kTooBroadKind) return AfterDot(trait);
+    }
+    return "";
+}
+
+// =============================================================================
 // SPELL GROUPING
 // =============================================================================
 
 std::pair<std::string, int>
 TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::string>& themes)
 {
+    // What the spell is beats what its name happens to contain.
+    const std::string traitTheme = ThemeFromTraits(spell);
+    if (!traitTheme.empty()) return {traitTheme, kTraitThemeScore};
+
     if (themes.empty()) return {"_unassigned", 0};
 
     std::string bestTheme;

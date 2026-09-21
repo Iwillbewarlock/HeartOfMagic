@@ -115,6 +115,10 @@ namespace TreeBuilder
                       const std::vector<std::string>& themes,
                       int minScore = 30);
 
+    // Theme straight from the scan's "traits" column, empty when the spell has
+    // none that make a branch. Language independent, unlike the word themes.
+    std::string ThemeFromTraits(const json& spell);
+
     // Get the best matching theme for a single spell
     std::pair<std::string, int>
     GetSpellPrimaryTheme(const json& spell, const std::vector<std::string>& themes);

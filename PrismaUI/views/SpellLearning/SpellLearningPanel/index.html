@@ -60,7 +60,8 @@
                     <button id="scanBtn" class="btn btn-primary" data-i18n-html="buttons.scanSpells">
                         <span class="btn-icon">[*]</span> Scan Spells
                     </button>
-                    <button id="saveBtn" class="btn btn-secondary" disabled data-i18n-html="buttons.exportScan">
+                    <!-- Raw scan dump (mod keyword names and all): a modder's tool, so Developer Mode only -->
+                        <button id="saveBtn" class="btn btn-secondary dev-only hidden" style="display:none;" disabled data-i18n-html="buttons.exportScan">
                         <span class="btn-icon">[S]</span> Export Scan
                     </button>
                 </div>

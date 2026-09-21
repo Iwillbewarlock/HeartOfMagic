@@ -134,8 +134,29 @@ std::string TreeNLP::BuildThemeText(const json& spellData)
         }
     }
 
+    // A full scan marks the effects a mod hides from the player (Hide in UI):
+    // screen shakes, perk staggers, script controllers. Their names are internal
+    // English labels ("TA CC Control Base Effect") that show up on hundreds of
+    // spells and would otherwise win the theme count.
+    const auto isHiddenEffect = [](const json& eff) {
+        const auto flags = eff.find("flags");
+        return flags != eff.end() && flags->is_object() && flags->value("hideInUI", false);
+    };
+    const bool hasEffectObjects = spellData.contains("effects") && spellData["effects"].is_array() &&
+        !spellData["effects"].empty() && spellData["effects"][0].is_object();
+
     // Effect names (3x weight)
-    if (spellData.contains("effectNames") && spellData["effectNames"].is_array()) {
+    if (hasEffectObjects) {
+        for (const auto& eff : spellData["effects"]) {
+            if (!eff.is_object() || isHiddenEffect(eff)) continue;
+            if (eff.contains("name") && eff["name"].is_string()) {
+                auto s = eff["name"].get<std::string>();
+                if (!s.empty()) {
+                    parts += s + " " + s + " " + s + " ";
+                }
+            }
+        }
+    } else if (spellData.contains("effectNames") && spellData["effectNames"].is_array()) {
         for (const auto& en : spellData["effectNames"]) {
             if (en.is_string()) {
                 auto s = en.get<std::string>();
@@ -149,7 +170,7 @@ std::string TreeNLP::BuildThemeText(const json& spellData)
     // Full effect descriptions (1x)
     if (spellData.contains("effects") && spellData["effects"].is_array()) {
         for (const auto& eff : spellData["effects"]) {
-            if (eff.is_object()) {
+            if (eff.is_object() && !isHiddenEffect(eff)) {
                 if (eff.contains("name") && eff["name"].is_string())
                     parts += eff["name"].get<std::string>() + " ";
                 if (eff.contains("description") && eff["description"].is_string())
@@ -163,10 +184,15 @@ std::string TreeNLP::BuildThemeText(const json& spellData)
         for (const auto& kw : spellData["keywords"]) {
             if (kw.is_string()) {
                 auto s = kw.get<std::string>();
-                // Strip "Magic" prefix and split camelCase
-                if (s.size() > 5 && s.substr(0, 5) == "Magic") {
-                    s = s.substr(5);
+                // Only the vanilla style Magic* keywords read as words
+                // ("MagicDamageFire" -> "Damage Fire"). Framework keywords
+                // (KIT_Spell..., ADAR_SPEL_..., mod internals) are identifiers,
+                // not vocabulary: left in, their fragments out-count every real
+                // word on a translated load order and become the themes.
+                if (s.size() <= 5 || s.substr(0, 5) != "Magic") {
+                    continue;
                 }
+                s = s.substr(5);
                 // Insert spaces before uppercase letters (camelCase splitting)
                 std::string split;
                 for (size_t i = 0; i < s.size(); ++i) {

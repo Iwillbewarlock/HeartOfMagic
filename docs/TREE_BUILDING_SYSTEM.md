@@ -229,6 +229,33 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
 - If nodes remain unreachable after 20 repair passes, logs warning
 - Repair strategies: remove blocking prereqs → find new parent → spread across available
 
+### Trait Themes (`TreeBuilder::ThemeFromTraits`) — tried first, by every builder
+
+A full scan gives each spell a `traits` column (see ARCHITECTURE.md): what the spell is, in a fixed
+vocabulary built from engine values and the base game's own keywords, never from text. A spell that
+has a telling trait takes its theme from it, and `GetSpellPrimaryTheme` returns it with the top score
+before any word matching happens. One theme per spell, most telling first:
+
+1. a summon: `summon_fire` / `summon_frost` / `summon_shock` / `summon_undead` / `summon_familiar`, else `summon`
+2. the element: `fire`, `frost`, `shock`, `poison`, `disease`
+3. what it does: `cloak`, `rune`, `ward`, `armor`, `heal`, `paralysis`, `calm`, `fear` ... (`damage` is skipped, every attack has it)
+
+Why: the word themes below only work where spell names are English. On the Korean dev load order the
+tree saved on 2026-09-02 had these as its biggest themes - `spel` 299, `_misc` 212, `adar` 174, `kit` 125,
+`madabsorbredonekeyworddamageignore` 107 - fragments of mod keyword names, so branches were grouped by
+which framework had tagged a spell. With trait themes the same load order gives (classic builder,
+1440 tome spells): Destruction `fire` 61 / `shock` 48 / `frost` 47 / `absorb` 21 ..., Conjuration
+`summon_familiar` 203 / `summon_undead` 187 / `summon_shock` 60 / `summon_fire` 35 / `bound` 22 ...,
+and 312 spells (22%) with no theme at all - honest about what cannot be told, instead of a junk theme.
+
+Two things keep the word path clean for the spells that still need it: only vanilla style `Magic*`
+keywords are read as words (framework keywords are identifiers, not vocabulary), and effects the
+record flags Hide in UI are left out of the theme text (their internal English names, e.g.
+"TA CC Control Base Effect", sit on hundreds of spells). Spells with a trait theme are also kept out of
+the TF-IDF corpus, so the discovered words only describe the remainder.
+
+Needs a scan taken with the `full` preset (`effectDetails`); without `traits` everything below applies
+as before.
 ### TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
 
 **Shared by all builders.** Discovers keyword themes per school from spell text using `TreeNLP::ComputeTfIdf()`.
