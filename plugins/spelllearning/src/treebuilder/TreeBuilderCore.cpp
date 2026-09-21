@@ -140,7 +140,27 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         size_t idx = formIds.size();
         formIds.push_back(fid);
         matrix.formIdToIndex[fid] = idx;
-        names.push_back(s.value("name", std::string("")));
+        // Name similarity compares spellings letter by letter, so it has to run
+        // on the editor id where there is one: "Firebolt" and "Fireball" share
+        // most of their trigrams, the translated names share none of it. Only
+        // graph and thematic lean on this, but on a translated load order it was
+        // giving them noise. The author's prefix goes, or every spell of a mod
+        // would look like a near duplicate of every other.
+        {
+            auto spelling = s.value("editorId", std::string(""));
+            if (spelling.empty()) {
+                spelling = s.value("name", std::string(""));
+            } else {
+                const auto tag = LeadingIdWordOf(spelling);
+                if (!tag.empty() && modTags.contains(tag) && spelling.size() > tag.size()) {
+                    spelling.erase(0, tag.size());
+                    while (!spelling.empty() && !std::isalnum(static_cast<unsigned char>(spelling.front()))) {
+                        spelling.erase(0, 1);
+                    }
+                }
+            }
+            names.push_back(std::move(spelling));
+        }
 
         // Extract effect names
         std::vector<std::string> effs;

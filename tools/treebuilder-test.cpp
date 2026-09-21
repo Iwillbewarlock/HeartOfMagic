@@ -22,21 +22,37 @@
 #include <nlohmann/json.hpp>
 
 #include "treebuilder/TreeBuilder.h"
+#include "OpenRouterAPI.h"
 
 using json = nlohmann::json;
 
 // ============================================================================
-// Oracle stub  —  satisfies the linker without compiling TreeBuilderOracle.cpp
+// OpenRouter stub  —  the one thing in the oracle builder that needs the game
+//
+// The builder itself compiles here; only the call out to the API cannot. With
+// no key it takes its own NLP fallback path (cluster lanes), which is what
+// there is to test offline, so the stub answers as an unconfigured install would.
 // ============================================================================
 
-namespace TreeBuilder {
-    BuildResult BuildOracle(const std::vector<json>& /*spells*/,
-                            const BuildConfig& /*config*/)
+namespace OpenRouterAPI {
+    static Config g_config;
+
+    bool    Initialize() { return false; }
+    void    Shutdown() {}
+    Config& GetConfig() { return g_config; }
+    void    SaveConfig() {}
+
+    Response SendPrompt(const std::string&, const std::string&)
     {
-        BuildResult result;
-        result.success = false;
-        result.error   = "Oracle mode is not available in the standalone test harness.";
-        return result;
+        Response response;
+        response.error = "no API key in the standalone test harness";
+        return response;
+    }
+
+    void SendPromptAsync(const std::string& systemPrompt, const std::string& userPrompt,
+                         std::function<void(const Response&)> callback)
+    {
+        if (callback) callback(SendPrompt(systemPrompt, userPrompt));
     }
 }
 
@@ -52,7 +68,7 @@ static void PrintUsage(const char* argv0)
         << "Required:\n"
         << "  -i, --input  <file>   Input spell JSON file\n"
         << "  -o, --output <file>   Output tree JSON file\n"
-        << "  -t, --type   <type>   Builder type: classic, tree, graph, thematic\n"
+        << "  -t, --type   <type>   Builder type: classic, tree, graph, thematic, oracle\n"
         << "\n"
         << "Optional:\n"
         << "  -s, --seed   <n>      Random seed (default: 0)\n"
@@ -117,6 +133,7 @@ int main(int argc, char* argv[])
         {"tree",     "build_tree"},
         {"graph",    "build_tree_graph"},
         {"thematic", "build_tree_thematic"},
+    {"oracle",   "build_tree_oracle"},   // no API key here, so the NLP fallback path
     };
 
     auto it = kTypeToCommand.find(type);

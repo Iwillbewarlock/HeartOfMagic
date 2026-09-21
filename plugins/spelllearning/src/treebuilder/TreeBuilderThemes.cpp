@@ -55,10 +55,16 @@ namespace
         return TreeNLP::ToLower(plugin);
     }
 
-    // First word of the editor id, as the tokenizer would see it.
     std::string LeadingIdWord(const json& spell)
     {
-        const auto editorId = spell.value("editorId", std::string(""));
+        return TreeBuilder::LeadingIdWordOf(spell.value("editorId", std::string("")));
+    }
+}
+
+// First word of the editor id, as the tokenizer would see it.
+std::string TreeBuilder::LeadingIdWordOf(const std::string& editorId)
+{
+    {
         std::string word;
         unsigned char previous = 0;  // as written, before lower-casing
         for (const char c : editorId) {
@@ -74,6 +80,10 @@ namespace
         }
         return word;
     }
+}
+
+namespace
+{
 }
 
 std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>& spells)

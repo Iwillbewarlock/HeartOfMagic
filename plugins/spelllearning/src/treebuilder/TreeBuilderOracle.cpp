@@ -501,6 +501,10 @@ static json BuildSchoolTreeFallback(
             if (!fid.empty() && nodes.contains(fid)) {
                 chainIds.push_back(fid);
                 nodes[fid].theme = themeName;
+                // The fallback groups by the real theme list, so the nodes can
+                // carry all of theirs. The LLM path above cannot: its chain
+                // names are the model's own words, not themes.
+                nodes[fid].themes = TreeBuilder::GetSpellThemes(s, themes);
             }
         }
         if (chainIds.empty()) continue;

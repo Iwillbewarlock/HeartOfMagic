@@ -116,6 +116,9 @@ namespace TreeBuilder
                       const std::vector<std::string>& themes,
                       int minScore = 30);
 
+    // The first word of an editor id, as FindModTags reads it.
+    std::string LeadingIdWordOf(const std::string& editorId);
+
     // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
     std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);
 

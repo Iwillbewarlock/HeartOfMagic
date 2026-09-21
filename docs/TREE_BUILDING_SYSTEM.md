@@ -336,6 +336,28 @@ Same 1440 spells, links where spell and parent share an editor id word / an elem
 | + every theme counts (classic) | 49% | 61% |
 | + every theme counts (tree builder) | 46% | 54% |
 
+**All five builders, same scan, same seed.** The harness now runs the oracle builder too: only its call
+out to the API is stubbed, so it takes its own NLP fallback (cluster lanes) - the path a player without
+an API key gets. "id word" and "elem/kind" are the share of parent-child links whose two spells have an
+editor id word, or an element or kind trait, in common.
+
+| builder | links | id word | elem/kind | themed | orphans |
+|---|---:|---:|---:|---:|---:|
+| classic | 1435 | 49% | 61% | 96% | 0 |
+| tree | 2370 | 46% | 54% | 96% | 0 |
+| graph | 1435 | 37% | 52% | 96% | 0 |
+| thematic | 1435 | 30% | 66% | 100% | 0 |
+| oracle (fallback) | 1435 | 42% | 69% | 96% | 0 |
+
+No builder leaves an unreachable node. The tree builder's extra links are its convergence
+prerequisites. Thematic groups by nature hardest and by spelling least - it walks out from one seed
+spell per theme - while classic and oracle sit in between.
+
+**Name similarity compares editor ids** (`ComputeSimilarityMatrix`), with the author's prefix taken
+off. It is a character trigram comparison - "Firebolt" and "Fireball" share most of their trigrams -
+which on a translated load order was run on Korean names that share none of it, and the graph builder
+weighs it heavily. That alone took graph from 24% to 37% on id words and 48% to 52% on traits; the
+builders that lean on it less did not move.
 972 of the 1440 spells answer to two or more themes. The moon family under the classic builder, before
 and after: `LuminousMoonbeam` hung under `SLENDetectAroused` and `MoonFire` under `INQ_HolyDagger`; now
 `LuminousMoonbeam <- MoonFire <- Moonlight`, `LunarAura <- MoonlightTouch`, `LunarSingularity <- LunarBolt`.
