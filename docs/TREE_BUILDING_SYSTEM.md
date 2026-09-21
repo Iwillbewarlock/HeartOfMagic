@@ -264,9 +264,20 @@ the TF-IDF corpus, so the discovered words only describe the remainder.
    nature, so for a spell without an element they wait until the words have had a go: a wind cloak
    lands in `wind` when the words can tell, in `cloak` when they cannot.
 
-On the dev load order: rule 1 names 1070 spells, rule 2 names 52 (`blood` 13, `stone` 13, `water` 6 ...),
-318 stay without a theme. Rule 2 reads text, so what it finds depends on the language of the load
-order; bare numbers are not accepted as themes (`"Armor 100"`).
+**Rule 2 reads editor ids**, not just names. Names are translated; editor ids are English on every
+load order (`Fireball`, `FireDamageFFAimedArea`, `WindBladeSpell`). The engine drops spell and effect
+editor ids after loading, so the scan asks powerofthree's Tweaks for them (`SpellScanner::GetEditorId`;
+without po3 Tweaks they are empty and rule 2 falls back to names alone). `BuildThemeText` splits them
+into words and weighs them like the name. Two filters keep ids from polluting the themes: the
+shorthand in ids (`MGEF`, `FFSelf`, `ConcAimed` ...) is on the stop list, and **mod tags** - an
+author's prefix such as `ADAR_` - are found from the data alone (`FindModTags`: a word on >= 80% of
+one plugin's spells that gets >= 80% of its uses from that plugin) and dropped. Bare numbers are not
+accepted as themes either (`"Armor 100"`).
+
+On the dev load order (Korean, 1440 tome spells): rule 1 names 1099 spells, rule 2 names 132 -
+`water` 13, `wind` 13, `stone` 13, `sun` 15, `lock` 6, `bolt` 5, `transmute` 3 ... - and 209 stay without
+a theme. Before editor ids rule 2 named 52 and 318 had none. A few short mod tags still slip through
+the filter (`dar` 13, `nat` 6, `ill25` 5, `alt50` 6).
 Needs a scan taken with the `full` preset (`effectDetails`); without `traits` everything below applies
 as before.
 ### Theme Rule 2 — TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)

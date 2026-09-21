@@ -19,6 +19,66 @@ const std::unordered_map<std::string, std::vector<std::string>>& TreeBuilder::Ge
     return hints;
 }
 
+// =============================================================================
+// MOD TAGS
+// =============================================================================
+//
+// Editor ids carry the author's prefix ("ADAR_", "mad", "zzz"): a word that is
+// on nearly every spell of one plugin and hardly anywhere else. It says which
+// mod a spell is from, not what the spell is, and with a big mod installed it
+// would top the theme count. Found from the data alone - no list of prefixes.
+
+namespace
+{
+    constexpr std::size_t kMinPluginSpellsForTag = 5;  // too few spells prove nothing
+    constexpr float kTagCoverageInPlugin = 0.8f;       // on this share of the plugin's spells
+    constexpr float kTagShareFromPlugin = 0.8f;        // and this share of all its uses are that plugin's
+
+    std::string SpellPlugin(const json& spell)
+    {
+        auto plugin = spell.value("plugin", std::string(""));
+        if (plugin.empty()) {
+            const auto persistentId = spell.value("persistentId", std::string(""));
+            plugin = persistentId.substr(0, persistentId.find('|'));
+        }
+        return TreeNLP::ToLower(plugin);
+    }
+
+    std::unordered_set<std::string> FindModTags(
+        const std::vector<std::vector<std::string>>& documents,
+        const std::vector<std::string>& documentPlugins)
+    {
+        std::unordered_map<std::string, std::size_t> pluginSizes;
+        std::unordered_map<std::string, std::size_t> termTotals;
+        std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> termByPlugin;
+
+        for (std::size_t i = 0; i < documents.size(); ++i) {
+            pluginSizes[documentPlugins[i]]++;
+            const std::unordered_set<std::string> unique(documents[i].begin(), documents[i].end());
+            for (const auto& term : unique) {
+                termTotals[term]++;
+                termByPlugin[term][documentPlugins[i]]++;
+            }
+        }
+
+        std::unordered_set<std::string> tags;
+        for (const auto& [term, perPlugin] : termByPlugin) {
+            for (const auto& [plugin, count] : perPlugin) {
+                const std::size_t pluginSize = pluginSizes[plugin];
+                if (plugin.empty() || pluginSize < kMinPluginSpellsForTag) continue;
+
+                const float coverage = static_cast<float>(count) / static_cast<float>(pluginSize);
+                const float share = static_cast<float>(count) / static_cast<float>(termTotals[term]);
+                if (coverage >= kTagCoverageInPlugin && share >= kTagShareFromPlugin) {
+                    tags.insert(term);
+                    break;
+                }
+            }
+        }
+        return tags;
+    }
+}
+
 std::unordered_map<std::string, std::vector<std::string>>
 TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
 {
@@ -43,8 +103,10 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         // Build text corpus for this school. Spells that get their theme from
         // traits stay out of it: the word themes only have to cover the rest.
         std::vector<std::vector<std::string>> documents;
+        std::vector<std::string> documentPlugins;
         for (const auto& spell : sSpells) {
             if (!ThemeFromTraits(spell).empty()) continue;
+            documentPlugins.push_back(SpellPlugin(spell));
             auto text = TreeNLP::BuildThemeText(spell);
             auto tokens = TreeNLP::Tokenize(text);
             // Filter stop words
@@ -73,9 +135,12 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         std::sort(sorted.begin(), sorted.end(),
             [](const auto& a, const auto& b) { return a.second > b.second; });
 
+        const auto modTags = FindModTags(documents, documentPlugins);
+
         std::vector<std::string> themes;
         for (const auto& [term, score] : sorted) {
             if (TreeNLP::IsStopWord(term)) continue;
+            if (modTags.contains(term)) continue;
             if (term.size() <= 2) continue;
             // Magnitudes from effect names ("Armor 100") are not a nature.
             if (std::all_of(term.begin(), term.end(), [](unsigned char c) { return std::isdigit(c); })) continue;

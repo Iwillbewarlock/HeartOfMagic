@@ -28,6 +28,12 @@ static const std::unordered_set<std::string> kStopWords = {
     "extra", "takes", "take", "time", "over", "while", "also",
     "resistance", "chance", "once", "each", "within", "range",
     "stronger", "powerful", "greater", "lesser", "more", "less",
+    // Editor id conventions: record types and the casting/delivery shorthand
+    // Bethesda and most mod authors put in ids ("FireDamageFFAimedArea", "xxxMGEF")
+    "mgef", "spel", "ench", "proj", "expl", "effect", "script", "dummy",
+    "ffself", "ffaimed", "ffcontact", "ffactor", "fflocation", "fftargetactor", "fftargetlocation",
+    "concself", "concaimed", "conccontact", "concactor", "conctargetactor", "conc",
+    "self", "aimed", "contact", "area", "lefthand", "righthand", "left", "right", "hand",
     // Skill level words
     "novice", "apprentice", "adept", "expert", "master",
     // Common prepositions, articles, etc.
@@ -122,9 +128,46 @@ std::string TreeNLP::BuildSpellText(const json& spellData)
     return parts;
 }
 
+namespace
+{
+    // "FireDamageFFAimed" -> "Fire Damage FFAimed": a space before an upper case
+    // letter that follows a lower case one or a digit. Underscores are turned
+    // into spaces later by Tokenize.
+    std::string SplitIdentifier(const std::string& identifier)
+    {
+        std::string split;
+        for (size_t i = 0; i < identifier.size(); ++i) {
+            const auto current = static_cast<unsigned char>(identifier[i]);
+            if (i > 0 && std::isupper(current)) {
+                const auto previous = static_cast<unsigned char>(identifier[i - 1]);
+                if (std::islower(previous) || std::isdigit(previous)) split += ' ';
+            }
+            split += identifier[i];
+        }
+        return split;
+    }
+
+    // Editor ids count as much as the name: they are English on every load order.
+    constexpr int kEditorIdWeight = 3;
+
+    void AppendEditorId(std::string& parts, const json& holder)
+    {
+        const auto it = holder.find("editorId");
+        if (it == holder.end() || !it->is_string()) return;
+        const std::string words = SplitIdentifier(it->get<std::string>());
+        if (words.empty()) return;
+        for (int i = 0; i < kEditorIdWeight; ++i) {
+            parts += words + " ";
+        }
+    }
+}
+
 std::string TreeNLP::BuildThemeText(const json& spellData)
 {
     std::string parts;
+
+    // Editor id of the spell ("WindBladeSpell" -> wind blade spell)
+    AppendEditorId(parts, spellData);
 
     // Name (3x weight)
     if (spellData.contains("name") && spellData["name"].is_string()) {
@@ -149,6 +192,7 @@ std::string TreeNLP::BuildThemeText(const json& spellData)
     if (hasEffectObjects) {
         for (const auto& eff : spellData["effects"]) {
             if (!eff.is_object() || isHiddenEffect(eff)) continue;
+            AppendEditorId(parts, eff);
             if (eff.contains("name") && eff["name"].is_string()) {
                 auto s = eff["name"].get<std::string>();
                 if (!s.empty()) {
@@ -193,15 +237,7 @@ std::string TreeNLP::BuildThemeText(const json& spellData)
                     continue;
                 }
                 s = s.substr(5);
-                // Insert spaces before uppercase letters (camelCase splitting)
-                std::string split;
-                for (size_t i = 0; i < s.size(); ++i) {
-                    if (i > 0 && std::isupper(static_cast<unsigned char>(s[i]))) {
-                        split += ' ';
-                    }
-                    split += s[i];
-                }
-                parts += split + " ";
+                parts += SplitIdentifier(s) + " ";
             }
         }
     }

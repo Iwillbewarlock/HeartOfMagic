@@ -104,6 +104,10 @@ namespace SpellScanner
     std::string GetArchetypeName(RE::EffectArchetype archetype);
     std::string GetActorValueName(RE::ActorValue actorValue);
 
+    // Editor id of any form: the engine's own when it kept one, otherwise from
+    // powerofthree's Tweaks (Load EditorIDs). Empty when neither has it.
+    std::string GetEditorId(const RE::TESForm* form);
+
     // True when the keyword record is defined by the base game or an official
     // DLC (judged by its plugin, not its name). These are the only keywords the
     // traits read; the scan folds them into "traits" rather than listing them twice.

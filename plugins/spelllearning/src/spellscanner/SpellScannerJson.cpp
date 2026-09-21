@@ -99,6 +99,36 @@ namespace SpellScanner
     }
 
     // =============================================================================
+    // EDITOR IDS
+    // =============================================================================
+    //
+    // The engine throws most editor ids away after loading - keywords keep
+    // theirs, spells and magic effects do not, so GetFormEditorID() on a spell
+    // is always empty. powerofthree's Tweaks ("Load EditorIDs") keeps them all
+    // and hands them out through an exported function; nearly every modded setup
+    // has it. Editor ids matter here because they are English on every load
+    // order, whatever language the names were translated into.
+
+    std::string GetEditorId(const RE::TESForm* form)
+    {
+        if (!form) return "";
+
+        const char* native = form->GetFormEditorID();
+        if (native && native[0] != '\0') return native;
+
+        using GetFormEditorID_t = const char* (*)(std::uint32_t);
+        static const GetFormEditorID_t tweaksLookup = []() -> GetFormEditorID_t {
+            const HMODULE tweaks = GetModuleHandleW(L"po3_Tweaks");
+            if (!tweaks) return nullptr;
+            return reinterpret_cast<GetFormEditorID_t>(GetProcAddress(tweaks, "GetFormEditorID"));
+        }();
+
+        if (!tweaksLookup) return "";
+        const char* cached = tweaksLookup(form->GetFormID());
+        return cached ? cached : "";
+    }
+
+    // =============================================================================
     // VANILLA KEYWORDS
     // =============================================================================
     //
@@ -144,6 +174,12 @@ namespace SpellScanner
         json effectJson;
 
         effectJson["name"] = EncodingUtils::SanitizeToUTF8(baseEffect->GetFullName());
+
+        // English on every load order, unlike the name (empty without po3 Tweaks)
+        const std::string effectEditorId = GetEditorId(baseEffect);
+        if (!effectEditorId.empty()) {
+            effectJson["editorId"] = effectEditorId;
+        }
 
         const char* description = baseEffect->magicItemDescription.c_str();
         if (description && strlen(description) > 0) {
@@ -210,11 +246,9 @@ namespace SpellScanner
         spellJson["skillLevel"] = DetermineSpellTier(spell);
 
         // Optional fields
-        const char* rawEditorId = spell->GetFormEditorID();
-        const bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
         if (fields.editorId) {
-            // Empty string when not available (SE 1.5.97 without po3 Tweaks)
-            spellJson["editorId"] = hasEditorId ? std::string(rawEditorId) : std::string();
+            // Empty string when not available (no po3 Tweaks)
+            spellJson["editorId"] = GetEditorId(spell);
         }
         if (fields.magickaCost) {
             spellJson["magickaCost"] = spell->CalculateMagickaCost(nullptr);

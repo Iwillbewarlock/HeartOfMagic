@@ -84,6 +84,11 @@ classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
 }]
 ```
 
+**Editor ids.** `editorId` is written for the spell and, with `effectDetails`, for every effect. The
+engine only keeps editor ids for a few record types (keywords yes, spells and magic effects no), so
+`GetEditorId` asks powerofthree's Tweaks (`Load EditorIDs`) through its exported `GetFormEditorID`.
+Without po3 Tweaks the field is empty. Verified in game: 1440 / 1440 spells, 4246 / 4246 effects.
+
 **Two keyword columns, not three.** `keywords` is the raw names as the plugins wrote them (kept
 because icon lookup and other mods need the real names). `traits`, on the spell, is the one
 normalised column: what the engine values and the base game's own keywords boil down to in a fixed
