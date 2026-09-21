@@ -202,8 +202,11 @@ function detectSpellElement(spell) {
     }
 
     // Build text from all spell info
+    // The element keywords below are English, so the editor ids have to be in
+    // here: on a translated load order the name and description never match one.
     var text = [
         spell.name || '',
+        (typeof spellIdWords === 'function') ? spellIdWords(spell) : '',
         (spell.effectNames || []).join(' '),
         spell.description || ''
     ].join(' ').toLowerCase();

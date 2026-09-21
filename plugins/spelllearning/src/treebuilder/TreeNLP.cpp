@@ -435,10 +435,16 @@ int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
 int TreeNLP::CalculateThemeScore(const json& spellData, const std::string& theme)
 {
     std::string text = ToLower(BuildThemeText(spellData));
-    std::string spellName = ToLower(
-        spellData.contains("name") && spellData["name"].is_string()
-            ? spellData["name"].get<std::string>()
-            : "");
+    // The spell's own wording, weighed heavier than the rest of its text below.
+    // The editor id is what that has to be on a translated load order: themes
+    // are English words, and a Korean name can never contain one.
+    std::string spelling = spellData.value("editorId", std::string(""));
+    if (spelling.empty()) {
+        spelling = spellData.value("name", std::string(""));
+    } else {
+        spelling = SplitIdentifier(spelling);
+    }
+    std::string spellName = ToLower(spelling);
     std::string themeLower = ToLower(theme);
 
     // Strategy 1: Substring check (exact match bonus)

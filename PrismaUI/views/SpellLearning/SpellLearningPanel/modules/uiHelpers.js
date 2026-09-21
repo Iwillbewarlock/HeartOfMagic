@@ -484,3 +484,32 @@ function getXPForTier(tierName) {
         default: return settings.xpNovice;
     }
 }
+
+/**
+ * Editor id as words: "LUN_MoonFire" -> "moon fire". Names are translated and
+ * editor ids are not, so anything that matches English words has to read these
+ * too or it finds nothing on a translated load order.
+ * @param {Object} holder - anything with an editorId (a spell or one effect)
+ * @returns {string} lower case words, empty when there is no editor id
+ */
+function editorIdWords(holder) {
+    var id = holder && holder.editorId;
+    if (!id) return '';
+    return String(id).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[^A-Za-z0-9]+/g, ' ').toLowerCase();
+}
+
+/**
+ * Every editor id of a spell, its own and its player facing effects', as words.
+ * @param {Object} spell - a scanned spell
+ * @returns {string}
+ */
+function spellIdWords(spell) {
+    if (!spell) return '';
+    var parts = [editorIdWords(spell)];
+    var effects = spell.effects || [];
+    for (var i = 0; i < effects.length; i++) {
+        if (effects[i] && effects[i].flags && effects[i].flags.hideInUI) continue;
+        parts.push(editorIdWords(effects[i]));
+    }
+    return parts.join(' ');
+}

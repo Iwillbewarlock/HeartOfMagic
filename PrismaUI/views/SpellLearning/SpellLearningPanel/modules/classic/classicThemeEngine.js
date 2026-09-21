@@ -96,6 +96,12 @@ var ClassicThemeEngine = {
             var name = (spell && spell.name) || node.name || '';
             if (name) parts.push(name);
 
+            // Editor ids: the name above is translated, these are not
+            if (typeof spellIdWords === 'function') {
+                var idWords = spellIdWords(spell);
+                if (idWords) parts.push(idWords);
+            }
+
             // Effect names
             if (spell && spell.effectNames) {
                 for (var ei = 0; ei < spell.effectNames.length; ei++) {

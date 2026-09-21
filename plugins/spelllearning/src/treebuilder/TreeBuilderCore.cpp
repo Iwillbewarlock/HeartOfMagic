@@ -162,23 +162,42 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
             names.push_back(std::move(spelling));
         }
 
-        // Extract effect names
+        // What the effects are called, for the trigram comparison below.
+        //
+        // Their names, not their editor ids, even though the names are
+        // translated. The comparison is letter by letter, and effect ids are
+        // built to a convention - "FireDamageFFAimed", "FrostDamageFFAimed" -
+        // so most of the string is the delivery and the two elements agree on
+        // nearly all of it. Tried it: the graph builder fell from 37% to 29%.
+        // What the ids are good for is their words, and the keyword affinity
+        // further down already reads those. On a translated load order this
+        // score simply comes out near zero and the keywords carry it.
+        //
+        // Effects flagged Hide in UI are left out. One mod's script controller
+        // sits on hundreds of unrelated spells, and this score is the best
+        // matching pair of effects - one shared helper made any two of those
+        // spells score a perfect match, on the signal every builder weighs
+        // highest.
         std::vector<std::string> effs;
         if (s.contains("effects") && s["effects"].is_array()) {
             for (const auto& e : s["effects"]) {
                 std::string ename;
-                if (e.is_object() && e.contains("name") && e["name"].is_string())
-                    ename = e["name"].get<std::string>();
-                else if (e.is_string())
+                if (e.is_object()) {
+                    const auto flags = e.find("flags");
+                    if (flags != e.end() && flags->is_object() && flags->value("hideInUI", false)) continue;
+                    if (e.contains("name") && e["name"].is_string())
+                        ename = e["name"].get<std::string>();
+                } else if (e.is_string()) {
                     ename = e.get<std::string>();
-                if (!ename.empty()) effs.push_back(ename);
+                }
+                if (!ename.empty()) effs.push_back(std::move(ename));
             }
         }
-        if (s.contains("effectNames") && s["effectNames"].is_array()) {
+        if (effs.empty() && s.contains("effectNames") && s["effectNames"].is_array()) {
             for (const auto& e : s["effectNames"]) {
                 if (e.is_string()) {
                     auto en = e.get<std::string>();
-                    if (!en.empty()) effs.push_back(en);
+                    if (!en.empty()) effs.push_back(std::move(en));
                 }
             }
         }
@@ -725,7 +744,9 @@ void TreeBuilder::Internal::SortByTierAndCost(std::vector<json>& spells)
         if (costA == 0.0f) costA = a.value("baseCost", 0.0f);
         if (costB == 0.0f) costB = b.value("baseCost", 0.0f);
         if (costA != costB) return costA < costB;
-        return a.value("name", std::string("")) < b.value("name", std::string(""));
+        // Last resort, and it has to be language independent or the same load
+        // order would order spells differently once translated.
+        return a.value("formId", std::string("")) < b.value("formId", std::string(""));
     });
 }
 

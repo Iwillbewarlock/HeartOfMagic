@@ -361,6 +361,43 @@ builders that lean on it less did not move.
 972 of the 1440 spells answer to two or more themes. The moon family under the classic builder, before
 and after: `LuminousMoonbeam` hung under `SLENDetectAroused` and `MoonFire` under `INQ_HolyDagger`; now
 `LuminousMoonbeam <- MoonFire <- Moonlight`, `LunarAura <- MoonlightTouch`, `LunarSingularity <- LunarBolt`.
+**Audit of translated text, 2026-09-22.** Every place a spell's wording drives behaviour was checked,
+because on a translated load order those places are reading Korean. The tokenizer drops non-ASCII, so
+Korean names and descriptions do not mislead anything - they simply vanish, and whatever was supposed
+to read them found nothing. Fixed:
+
+- *effect name similarity* (`ComputeSimilarityMatrix`), the score every builder weighs highest: it
+  compared the names of **all** effects, hidden helpers included. One mod's script controller sits on
+  hundreds of unrelated spells, and the score is the best matching pair, so a shared helper made any
+  two of them a perfect match. Hide in UI effects are now left out.
+- *theme scoring* (`CalculateThemeScore`): its strongest signal is the theme word appearing in the
+  spell's **name**, worth 40 of 100. Themes are English words, so on Korean that never fired. It reads
+  the editor id now.
+- *sort order*: spells tied on tier and cost were ordered by name, so the same load order ordered them
+  differently once translated. They go by form id now.
+- *JS*: `classicThemeEngine` discovered themes from name + effect names, and `edgeScoring` matched
+  English element words against name + description. Both now also read editor id words
+  (`spellIdWords` in `uiHelpers.js`).
+
+*Tried and rejected*: comparing effect **editor ids** instead of names. Effect ids follow a convention -
+`FireDamageFFAimed`, `FrostDamageFFAimed` - so most of the string is the delivery and two different
+elements agree on nearly all of it. The graph builder fell from 37% to 29% on shared id words. What
+the ids are good for is their words, which the keyword affinity already reads.
+
+*On reading these numbers*: both measures are proxies and each flatters a different part of the
+machinery. "Shares an id word" rewards whatever drives name similarity, "shares an element or kind"
+rewards theme matching. Excluding the hidden helpers moved graph from 37%/52% to 30%/54% - worse by one
+measure, better by the other - because with the effect score no longer stuck near 1.0 it competes with
+name similarity again. The change is kept on the grounds that a shared script controller is not
+evidence two spells belong together, not because a number went up.
+
+| builder | id word | elem/kind | (before this audit) |
+|---|---:|---:|---|
+| classic | 51% | 63% | 49% / 61% |
+| tree | 45% | 54% | 46% / 54% |
+| graph | 30% | 54% | 37% / 52% |
+| thematic | 29% | 64% | 30% / 66% |
+| oracle | 43% | 67% | 42% / 69% |
 **Audit, 2026-09-22.** Every rule was re-run over all 1440 spells / 4246 effects of the dev load
 order and each answer sorted into: arbitrary (more than one candidate, first one wins), missing
 (nothing to say), or self-contradicting (two sources disagree). Found and fixed:
