@@ -1819,10 +1819,14 @@ var EditMode = {
             return;
         }
 
-        // Center the view on this node
-        CanvasRenderer.panX = -node.x * CanvasRenderer.zoom;
-        CanvasRenderer.panY = -node.y * CanvasRenderer.zoom;
-        CanvasRenderer._needsRender = true;
+        // Center the view on this node (rotation-aware when TreeCamera is available)
+        if (typeof TreeCamera !== 'undefined') {
+            TreeCamera.focusNode(node, { rotate: false, zoom: CanvasRenderer.zoom, instant: true });
+        } else {
+            CanvasRenderer.panX = -node.x * CanvasRenderer.zoom;
+            CanvasRenderer.panY = -node.y * CanvasRenderer.zoom;
+            CanvasRenderer._needsRender = true;
+        }
 
         // Select the node
         state.selectedNode = node;

@@ -56,6 +56,12 @@ var settings = {
     // Connection visibility settings
     showSelectionPath: true,      // Show white highlight path when node selected
     showBaseConnections: true,    // Show dim connection lines between all nodes
+    // Camera (vanilla perk-menu style navigation)
+    focusOnClick: true,           // Center the clicked node on screen
+    focusZoomOnClick: true,       // Zoom in to focusZoom when centering (never zooms out)
+    focusZoom: 1.0,               // Target zoom level for click focus (0.5 - 2.0)
+    detailsLayout: 'bottom',      // 'bottom' = info bar under the tree, 'side' = right sidebar
+    focusDimOthers: true,         // Fade nodes outside the selected node's path (other schools most)
     edgeStyle: 'straight',        // 'straight' or 'curved' (Bezier) edge rendering
     nodeSizeScaling: true,
     showNodeNames: true,

@@ -36,6 +36,16 @@ var CanvasRenderer = {
     panStartY: 0,
     selectedNode: null,
     hoveredNode: null,
+    _pressX: 0,               // Screen position where the mouse button went down
+    _pressY: 0,
+    _dragMoved: false,        // True once a press moved past DRAG_THRESHOLD (suppresses click)
+    DRAG_THRESHOLD: 5,        // px of movement before a press counts as a drag
+    MIN_HIT_RADIUS_PX: 12,    // Minimum on-screen hit radius for node picking
+    MIN_NODE_SCREEN_RADIUS: 4, // px: node shapes never render smaller than this on screen
+    LABEL_MIN_ZOOM: 0.5,      // Below this zoom no labels are drawn
+    LABEL_FOCUS_ZOOM: 0.8,    // Below this zoom only important labels (selected/learning/available) are drawn
+    DIM_OTHER_SCHOOL: 0.3,    // Focus+context: alpha factor for nodes of other schools while a node is selected
+    DIM_SAME_SCHOOL: 0.6,     // Focus+context: alpha factor for off-path nodes of the selected school
     
     // Spatial index for hit detection
     _nodeGrid: null,
@@ -163,14 +173,27 @@ var CanvasRenderer = {
         var showName = showFullInfo || isLearning || (!isLocked && progressPercent >= revealThreshold) || isRootWithReveal;
         var showDetails = node.state !== 'locked' || (typeof settings !== 'undefined' && settings.cheatMode);
 
+        // Translated with English fallback (t() returns the key when missing)
+        function tt(key, params, fallback) {
+            if (typeof t !== 'function') return fallback;
+            var s = t(key, params);
+            return s === key ? fallback : s;
+        }
+
         var nameText = showName ? (node.name || node.formId) : '???';
         var infoText;
         if (node.state === 'locked') {
-            infoText = 'Unlock prerequisites first';
+            // Undiscovered: tell the player what it is (school/tier) and how to reveal it
+            var tierText = node.level || node.skillLevel || '';
+            infoText = node.school + (tierText ? ' \u2022 ' + tierText : '') + ' \u2022 ' +
+                       tt('tooltip.lockedHint', null, 'Unlock a linked spell to reveal');
         } else if (showDetails) {
             infoText = node.school + ' \u2022 ' + (node.level || '?') + ' \u2022 ' + (node.cost || '?') + ' magicka';
         } else {
-            infoText = node.school + ' \u2022 Progress: ' + Math.round(progressPercent) + '%';
+            infoText = node.school + ' \u2022 ' + tt('tooltip.progress', { pct: Math.round(progressPercent) }, 'Progress: ' + Math.round(progressPercent) + '%');
+        }
+        if (!showName && node.state !== 'locked') {
+            nameText = '??? (' + tt('tooltip.revealAt', { pct: revealThreshold }, 'name at ' + revealThreshold + '%') + ')';
         }
 
         var nameEl = tooltip.querySelector('.tooltip-name');
@@ -458,6 +481,9 @@ var CanvasRenderer = {
         this._needsRender = true;
         this._logNextRender = true;
 
+        // Navigation chrome follows the loaded schools (all load paths end up here)
+        if (typeof TreeNav !== 'undefined') TreeNav.buildSchoolTabs();
+
         console.log('[CanvasRenderer] Data set:', this.nodes.length, 'nodes,', this.edges.length, 'edges');
     },
     
@@ -722,29 +748,55 @@ var CanvasRenderer = {
         return { x: worldX, y: worldY };
     },
     
+    /**
+     * Find the node under a world-space point.
+     * Picks the NEAREST node within its hit radius (not the first found), and
+     * guarantees a minimum on-screen hit radius so small nodes stay clickable
+     * when zoomed out.
+     */
     findNodeAt: function(worldX, worldY) {
+        if (!this._nodeGrid) return null;
+
+        var zoom = this.zoom || 1;
+        var minWorldRadius = this.MIN_HIT_RADIUS_PX / zoom;
+        var maxRadius = Math.max(14, minWorldRadius);
+        var cellRange = Math.max(1, Math.ceil(maxRadius / this._gridCellSize));
+
         var cellX = Math.floor(worldX / this._gridCellSize);
         var cellY = Math.floor(worldY / this._gridCellSize);
-        
-        for (var dx = -1; dx <= 1; dx++) {
-            for (var dy = -1; dy <= 1; dy++) {
+
+        var best = null;
+        var bestDist = Infinity;
+
+        // Undiscovered nodes are not drawn, so they must not be hoverable/clickable either
+        var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
+        var discovery = (this._discoveryVisibleIds && !isEditActive) ? this._discoveryVisibleIds : null;
+        var schoolVis = (typeof settings !== 'undefined') ? settings.schoolVisibility : null;
+
+        for (var dx = -cellRange; dx <= cellRange; dx++) {
+            for (var dy = -cellRange; dy <= cellRange; dy++) {
                 var key = (cellX + dx) + ',' + (cellY + dy);
                 var cell = this._nodeGrid[key];
                 if (!cell) continue;
-                
+
                 for (var i = 0; i < cell.length; i++) {
                     var node = cell[i];
-                    var dist = Math.sqrt(Math.pow(node.x - worldX, 2) + Math.pow(node.y - worldY, 2));
-                    var hitRadius = node.state === 'unlocked' ? 14 : 10;
-                    
-                    if (dist <= hitRadius) {
-                        return node;
+                    if (discovery && !discovery.has(node.id) && !discovery.has(node.formId)) continue;
+                    if (schoolVis && schoolVis[node.school] === false) continue;
+                    var ddx = node.x - worldX;
+                    var ddy = node.y - worldY;
+                    var dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                    var hitRadius = Math.max(node.state === 'unlocked' ? 14 : 10, minWorldRadius);
+
+                    if (dist <= hitRadius && dist < bestDist) {
+                        best = node;
+                        bestDist = dist;
                     }
                 }
             }
         }
-        
-        return null;
+
+        return best;
     },
 
     findGlobeAt: function(worldX, worldY) {
@@ -761,17 +813,32 @@ var CanvasRenderer = {
     
     onMouseDown: function(e) {
         if (e.button === 0 || e.button === 2) {
+            // User takes control: stop any camera focus animation in flight
+            if (typeof TreeCamera !== 'undefined') TreeCamera.cancel();
+
             this.isPanning = true;
+            this._dragMoved = false;
+            this._pressX = e.clientX;
+            this._pressY = e.clientY;
             this.panStartX = e.clientX - this.panX;
             this.panStartY = e.clientY - this.panY;
             this.canvas.style.cursor = 'grabbing';
             this._needsRender = true;
         }
     },
-    
+
     onMouseMove: function(e) {
         var self = this;
         if (this.isPanning) {
+            // Once the press travels past the threshold it is a drag, not a click
+            if (!this._dragMoved) {
+                var mdx = e.clientX - this._pressX;
+                var mdy = e.clientY - this._pressY;
+                if (mdx * mdx + mdy * mdy > this.DRAG_THRESHOLD * this.DRAG_THRESHOLD) {
+                    this._dragMoved = true;
+                }
+            }
+
             // Batch pan updates using RAF to prevent multiple renders per frame
             this._pendingPanX = e.clientX - this.panStartX;
             this._pendingPanY = e.clientY - this.panStartY;
@@ -795,6 +862,16 @@ var CanvasRenderer = {
                 this.canvas.style.cursor = node ? 'pointer' : 'grab';
                 this._needsRender = true;
 
+                // Hover preview: light up the hovered node's dependency path before any click
+                if (node && (!this.selectedNode || this.selectedNode.id !== node.id)) {
+                    var hoverSets = this._computePathSets(node);
+                    this._hoverPathEdges = hoverSets.edges;
+                    this._hoverPathNodes = hoverSets.nodes;
+                } else {
+                    this._hoverPathEdges = null;
+                    this._hoverPathNodes = null;
+                }
+
                 if (node) {
                     self._showTooltip(node, e);
                 } else {
@@ -811,6 +888,9 @@ var CanvasRenderer = {
     },
     
     onWheel: function(e) {
+        // User takes control: stop any camera focus animation in flight
+        if (typeof TreeCamera !== 'undefined') TreeCamera.cancel();
+
         var zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
         var newZoom = this.zoom * zoomFactor;
         newZoom = Math.max(0.1, Math.min(5, newZoom));
@@ -830,22 +910,18 @@ var CanvasRenderer = {
     },
     
     onClick: function(e) {
+        // A press that turned into a drag must not select whatever is under the cursor on release
+        if (this._dragMoved) {
+            this._dragMoved = false;
+            return;
+        }
+
         var rect = this.canvas.getBoundingClientRect();
         var world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
         var clickedNode = this.findNodeAt(world.x, world.y);
 
         if (clickedNode) {
-            this.selectedNode = clickedNode;
-            this._buildSelectedPathToRoot(clickedNode);
-            this._needsRender = true;
-
-            console.log('[CanvasRenderer] Node clicked:', clickedNode.name || clickedNode.id);
-
-            // ALWAYS rotate school to top on click
-            this.rotateSchoolToTop(clickedNode.school);
-
-            // Dispatch nodeSelected event (same as WheelRenderer) for detail panel
-            window.dispatchEvent(new CustomEvent('nodeSelected', { detail: clickedNode }));
+            this.selectNodeAndFocus(clickedNode);
         } else {
             if (this.selectedNode) {
                 this.selectedNode = null;
@@ -857,72 +933,168 @@ var CanvasRenderer = {
     },
 
     /**
+     * Select a node, open its details, and bring it to the center of the view
+     * (vanilla perk-menu style). Used by click, Find Spell, and prereq links.
+     * @param {Object} node
+     * @param {Object} [focusOpts] Options forwarded to TreeCamera.focusNode
+     */
+    selectNodeAndFocus: function(node, focusOpts) {
+        if (!node) return;
+
+        this.selectedNode = node;
+        this._buildSelectedPathToRoot(node);
+        this._needsRender = true;
+
+        console.log('[CanvasRenderer] Node selected:', node.name || node.id);
+
+        // Dispatch nodeSelected FIRST so the details panel is open when the
+        // camera computes its side-panel offset
+        window.dispatchEvent(new CustomEvent('nodeSelected', { detail: node }));
+
+        var focusEnabled = (typeof settings === 'undefined') || settings.focusOnClick !== false;
+        if (focusEnabled && typeof TreeCamera !== 'undefined') {
+            TreeCamera.focusNode(node, focusOpts);
+        } else {
+            // Legacy behavior: only rotate the school to the top
+            this.rotateSchoolToTop(node.school);
+        }
+    },
+
+    /**
      * Build the complete path from selected node in BOTH directions:
      * - Back to root (ancestors via prerequisites)
      * - Forward to leaves (descendants via children)
      * Stores edges in _selectedPathEdges for highlighting.
      */
     _buildSelectedPathToRoot: function(node) {
-        this._selectedPathEdges = new Set();
-        this._selectedPathNodes = new Set();
+        var sets = this._computePathSets(node);
+        this._selectedPathEdges = sets.edges;
+        this._selectedPathNodes = sets.nodes;
 
-        if (!node || !this._nodeMap) return;
+        // A selected node no longer needs its hover preview
+        this._hoverPathEdges = null;
+        this._hoverPathNodes = null;
 
-        this._selectedPathNodes.add(node.id);
+        console.log('[CanvasRenderer] Selected path (bidirectional): ' + sets.nodes.size + ' nodes, ' + sets.edges.size + ' edges');
+    },
 
-        // === TRACE BACK TO ROOT (via prerequisites) ===
-        var visitedBack = new Set();
-        var queueBack = [node.id];
+    /**
+     * Compute the bidirectional dependency path sets for a node
+     * (ancestors via prerequisites, descendants via children).
+     * Shared by selection highlighting and hover preview.
+     * @param {Object} node
+     * @returns {{edges: Set, nodes: Set}} edge keys are 'from->to'
+     */
+    _computePathSets: function(node) {
+        var edges = new Set();
+        var nodes = new Set();
+        if (!node || !this._nodeMap) return { edges: edges, nodes: nodes };
 
-        while (queueBack.length > 0) {
-            var currentId = queueBack.shift();
-            if (visitedBack.has(currentId)) continue;
-            visitedBack.add(currentId);
+        nodes.add(node.id);
 
-            var currentNode = this._nodeMap.get(currentId);
-            if (!currentNode) continue;
+        // Walk one direction: getLinks(node) returns ids, makeKey(id, currentId) builds the edge key
+        var self = this;
+        function walk(getLinks, makeKey) {
+            var visited = new Set();
+            var queue = [node.id];
+            while (queue.length > 0) {
+                var currentId = queue.shift();
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
 
-            this._selectedPathNodes.add(currentId);
+                var currentNode = self._nodeMap.get(currentId);
+                if (!currentNode) continue;
 
-            var prereqs = currentNode.prerequisites || [];
-            for (var i = 0; i < prereqs.length; i++) {
-                var prereqId = prereqs[i];
-                var edgeKey = prereqId + '->' + currentId;
-                this._selectedPathEdges.add(edgeKey);
+                nodes.add(currentId);
 
-                if (!visitedBack.has(prereqId)) {
-                    queueBack.push(prereqId);
+                var links = getLinks(currentNode) || [];
+                for (var i = 0; i < links.length; i++) {
+                    var linkId = links[i];
+                    edges.add(makeKey(linkId, currentId));
+                    if (!visited.has(linkId)) queue.push(linkId);
                 }
             }
         }
 
-        // === TRACE FORWARD TO LEAVES (via children) ===
-        var visitedForward = new Set();
-        var queueForward = [node.id];
+        // Back to root (via prerequisites): edge is prereq -> current
+        walk(function(n) { return n.prerequisites; }, function(linkId, currentId) { return linkId + '->' + currentId; });
+        // Forward to leaves (via children): edge is current -> child
+        walk(function(n) { return n.children; }, function(linkId, currentId) { return currentId + '->' + linkId; });
 
-        while (queueForward.length > 0) {
-            var currentId = queueForward.shift();
-            if (visitedForward.has(currentId)) continue;
-            visitedForward.add(currentId);
+        return { edges: edges, nodes: nodes };
+    },
 
-            var currentNode = this._nodeMap.get(currentId);
-            if (!currentNode) continue;
+    /**
+     * Focus + context: while a node is selected, everything outside its
+     * dependency path fades (other schools more than the selected school) so
+     * the eye lands on the path and the next unlock candidates. Hovered nodes
+     * and hover paths stay bright so the user can still explore.
+     * @returns {number} alpha multiplier 0..1
+     */
+    _contextFactor: function(node) {
+        if (!this.selectedNode || (typeof settings !== 'undefined' && settings.focusDimOthers === false)) return 1;
+        if (this._selectedPathNodes && this._selectedPathNodes.has(node.id)) return 1;
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return 1;
+        if (this.hoveredNode && this.hoveredNode.id === node.id) return 1;
+        return node.school === this.selectedNode.school ? this.DIM_SAME_SCHOOL : this.DIM_OTHER_SCHOOL;
+    },
 
-            this._selectedPathNodes.add(currentId);
+    /**
+     * Clamp a world-space node radius so it never renders below
+     * MIN_NODE_SCREEN_RADIUS pixels at the current zoom.
+     */
+    _minSize: function(size) {
+        var minWorld = this.MIN_NODE_SCREEN_RADIUS / (this.zoom || 1);
+        return size < minWorld ? minWorld : size;
+    },
 
-            var children = currentNode.children || [];
-            for (var i = 0; i < children.length; i++) {
-                var childId = children[i];
-                var edgeKey = currentId + '->' + childId;
-                this._selectedPathEdges.add(edgeKey);
+    /**
+     * Label priority for collision resolution (higher wins):
+     * 5 selected, 4 hovered / hover path, 3 learning, 2 available, 1 unlocked.
+     */
+    _labelPriority: function(node) {
+        if (this.selectedNode && this.selectedNode.id === node.id) return 5;
+        if (this.hoveredNode && this.hoveredNode.id === node.id) return 4;
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return 4;
+        if (node.state === 'learning') return 3;
+        if (node.state === 'available') return 2;
+        return 1;
+    },
 
-                if (!visitedForward.has(childId)) {
-                    queueForward.push(childId);
-                }
-            }
+    /**
+     * Mystery (undiscovered) node radius grows with tier so the silhouette
+     * still tells the player roughly how advanced the hidden spell is.
+     */
+    _mysterySize: function(node) {
+        var tierIndex = 0;
+        var level = (node.level || node.skillLevel || '').toString().toLowerCase();
+        var byLevel = { novice: 0, apprentice: 1, adept: 2, expert: 3, master: 4 };
+        if (byLevel[level] !== undefined) {
+            tierIndex = byLevel[level];
+        } else if (typeof node.tier === 'number' && node.tier > 0) {
+            tierIndex = Math.min(node.tier - 1, 4);
         }
+        return 7 + tierIndex;
+    },
 
-        console.log('[CanvasRenderer] Selected path (bidirectional): ' + this._selectedPathNodes.size + ' nodes, ' + this._selectedPathEdges.size + ' edges');
+    /**
+     * XP progress (0..1) for a node, using the same lookups as the details panel.
+     * Returns 0 when there is no progress data.
+     */
+    _getNodeProgressPct: function(node) {
+        if (typeof state === 'undefined' || !state.spellProgress) return 0;
+        var canonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
+        var progress = state.spellProgress[canonId];
+        if (!progress || !progress.xp) return 0;
+
+        var required = null;
+        if (typeof xpOverrides !== 'undefined' && xpOverrides[node.formId] !== undefined) {
+            required = xpOverrides[node.formId];
+        } else if (typeof getXPForTier === 'function') {
+            required = getXPForTier(node.level);
+        }
+        if (!required) required = progress.required || 100;
+        return required > 0 ? Math.min(progress.xp / required, 1) : 0;
     },
     
     // =========================================================================
@@ -1520,6 +1692,22 @@ var CanvasRenderer = {
         }
         } // end LOD skip for MINIMAL
 
+        // === PASS 1.5: Hover preview path (hovered node's school color) ===
+        if (this._lodTier !== 'minimal' && this._hoverPathEdges && this._hoverPathEdges.size > 0 && this.hoveredNode) {
+            ctx.strokeStyle = this._getSchoolColor(this.hoveredNode.school);
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.55;
+            for (var hi = 0; hi < this.edges.length; hi++) {
+                var hEdge = this.edges[hi];
+                if (!this._hoverPathEdges.has(hEdge.from + '->' + hEdge.to)) continue;
+                var hNodes = shouldDrawEdge(hEdge);
+                if (!hNodes) continue;
+                ctx.beginPath();
+                this._drawEdgePath(ctx, hNodes.fromNode.x, hNodes.fromNode.y, hNodes.toNode.x, hNodes.toNode.y, curved);
+                ctx.stroke();
+            }
+        }
+
         // === PASS 2: Selected path edges (WHITE, middle layer) ===
         // LOD: Skip in MINIMAL tier
         // Only draw if selection path highlighting is enabled
@@ -1699,6 +1887,11 @@ var CanvasRenderer = {
                 dotSize = 2; alpha = 0.4;
             }
 
+            // Focus + context at bucket granularity (per-node path checks are too costly here)
+            if (this.selectedNode && settings.focusDimOthers !== false && bucketSchool !== this.selectedNode.school) {
+                alpha *= this.DIM_OTHER_SCHOOL;
+            }
+
             // Set style once per bucket
             var color = bucket[0]._cachedSchoolColor || this._getSchoolColor(bucketSchool);
             ctx.fillStyle = color;
@@ -1788,6 +1981,9 @@ var CanvasRenderer = {
                 strokeWidth = 1; alpha = 0.4;
             }
 
+            alpha *= this._contextFactor(node);
+            size = this._minSize(size);
+
             if (isSelected || isHovered) {
                 size += 1.5; strokeColor = '#fff'; strokeWidth = 1.5; alpha = 1.0;
             }
@@ -1851,8 +2047,9 @@ var CanvasRenderer = {
     renderMysteryNode: function(ctx, node) {
         var color = this._getSchoolColor(node.school);
         var dimmedColor = this.dimColor(color, 0.4);
-        var size = 8;
+        var size = this._minSize(this._mysterySize(node));
         var path = this._getShapePath(node.school);
+        var contextFactor = this._contextFactor(node);
         
         ctx.save();
         ctx.translate(node.x, node.y);
@@ -1881,26 +2078,28 @@ var CanvasRenderer = {
         }
         
         ctx.scale(size, size);
-        
+
         ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
         ctx.strokeStyle = dimmedColor;
         ctx.lineWidth = 1 / size;
-        ctx.globalAlpha = 0.6;
-        
+        ctx.globalAlpha = 0.6 * contextFactor;
+
         ctx.fill(path);
+        ctx.setLineDash([0.5, 0.4]);   // Undiscovered: dashed silhouette
         ctx.stroke(path);
-        
+        ctx.setLineDash([]);
+
         ctx.restore();
-        
+
         // Draw "?" - counter-rotate so it stays screen-aligned
         ctx.save();
         ctx.translate(node.x, node.y);
-        
+
         // Counter-rotate to cancel out the wheel rotation
         var rotRad = this.rotation * Math.PI / 180;
         ctx.rotate(-rotRad);
-        
-        ctx.globalAlpha = 0.8;
+
+        ctx.globalAlpha = 0.8 * contextFactor;
         ctx.fillStyle = dimmedColor;
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
@@ -1968,6 +2167,15 @@ var CanvasRenderer = {
             alpha = 0.4;
         }
         
+        // Nodes on the hovered node's dependency path stand out a little
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) {
+            alpha = Math.max(alpha, 0.85);
+        }
+
+        // Focus + context dimming and minimum on-screen size
+        alpha *= this._contextFactor(node);
+        size = this._minSize(size);
+
         if (isSelected || isHovered) {
             size += 1.5;  // Subtle hover expansion
             strokeColor = '#fff';
@@ -1987,9 +2195,32 @@ var CanvasRenderer = {
                 lockGrayFill = true;     // Not yet unlocked: gray body + school color hole
             }
         }
-        
+
         ctx.save();
         ctx.translate(node.x, node.y);
+
+        // XP progress ring: learning nodes and partially-studied available nodes.
+        // Drawn before the shape (unrotated) so the arc starts at the screen's top.
+        if (node.state === 'learning' || node.state === 'available') {
+            var ringPct = this._getNodeProgressPct(node);
+            if (ringPct > 0) {
+                var ringRadius = size + 4;
+                var ringStart = -Math.PI / 2 - (this.rotation * Math.PI / 180);
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.22;
+                ctx.strokeStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.95;
+                ctx.strokeStyle = isLearning ? learningPathColor : schoolColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, ringRadius, ringStart, ringStart + Math.PI * 2 * ringPct);
+                ctx.stroke();
+            }
+        }
         
         // Rotate all shapes so flat edge faces toward center (tangent to central circle)
         var angleToCenter = Math.atan2(node.y, node.x);
@@ -2070,7 +2301,10 @@ var CanvasRenderer = {
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = strokeWidth / size;
             ctx.fill(path);
+            // State is encoded in the outline too (not only color): locked = dashed
+            if (node.state === 'locked') ctx.setLineDash([0.5, 0.4]);
             ctx.stroke(path);
+            ctx.setLineDash([]);
 
             // Draw inner accent for unlocked nodes
             if (node.state === 'unlocked') {
@@ -2307,25 +2541,29 @@ var CanvasRenderer = {
     },
     
     /**
-     * Render labels - SCREEN ALIGNED (don't rotate with wheel)
+     * Render labels - SCREEN ALIGNED (don't rotate with wheel).
+     * Labels are placed by priority (selected > hovered > learning > available >
+     * unlocked) with screen-space collision rejection, so overlapping names no
+     * longer pile up. Zoomed out, only the important labels remain.
      */
     renderLabels: function(ctx, cx, cy, cos, sin) {
-        if (this.zoom < 0.6) return;  // Show labels at lower zoom too
+        if (this.zoom < this.LABEL_MIN_ZOOM) return;
         if (settings.showNodeNames === false) return;
 
+        var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
         var fontSize = settings.nodeFontSize || 10;
         ctx.font = fontSize + 'px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        
-        var labelsDrawn = 0;
-        var maxLabels = 150;  // Allow more labels
-        
-        for (var i = 0; i < this.nodes.length && labelsDrawn < maxLabels; i++) {
+
+        var focusOnly = this.zoom < this.LABEL_FOCUS_ZOOM;
+        var learningColor = this._learningPathColor || '#00ffff';
+        var candidates = [];
+
+        for (var i = 0; i < this.nodes.length; i++) {
             var node = this.nodes[i];
-            
+
             // In edit mode: show ALL labels. Otherwise: only unlocked/learning/available
-            var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
             if (!isEditActive && node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') continue;
             if (!node.name && !isEditActive) continue;
             if (settings.schoolVisibility && settings.schoolVisibility[node.school] === false) continue;
@@ -2342,36 +2580,72 @@ var CanvasRenderer = {
                 }
             }
 
-            // Set color based on state
-            if (node.state === 'unlocked') {
-                ctx.fillStyle = '#fff';
-            } else if (node.state === 'learning') {
-                // Learning - static cyan text
-                ctx.fillStyle = this._learningPathColor || '#00ffff';
-            } else if (labelText === '???') {
-                // Hidden name - very dim
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-            } else {
-                // Available/learnable - use dimmer color
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            }
+            var priority = labelText === '???' ? 0 : this._labelPriority(node);
+            // Zoomed out: keep only selected / hovered / learning / available names
+            if (focusOnly && priority < 2) continue;
 
             // Transform node position WITH rotation, but text stays screen-aligned
             var rotatedX = node.x * cos - node.y * sin;
             var rotatedY = node.x * sin + node.y * cos;
-
             var screenX = rotatedX * this.zoom + this.panX + cx;
             var screenY = rotatedY * this.zoom + this.panY + cy;
 
             // Viewport check
-            if (screenX < -50 || screenX > this._width + 50 || screenY < -50 || screenY > this._height + 50) {
-                continue;
+            if (screenX < -50 || screenX > this._width + 50 || screenY < -50 || screenY > this._height + 50) continue;
+
+            // Color by state
+            var color;
+            if (node.state === 'unlocked') {
+                color = '#fff';
+            } else if (node.state === 'learning') {
+                color = learningColor;
+            } else if (labelText === '???') {
+                color = 'rgba(255, 255, 255, 0.35)';
+            } else {
+                color = 'rgba(255, 255, 255, 0.7)';
             }
 
-            // Draw text at screen position (no rotation)
-            ctx.fillText(labelText.substring(0, 12), screenX, screenY + (fontSize + 4) * this.zoom);
-            labelsDrawn++;
+            candidates.push({
+                node: node,
+                text: labelText.substring(0, 12),
+                priority: priority,
+                x: screenX,
+                y: screenY + (fontSize + 4) * this.zoom,
+                color: color
+            });
         }
+
+        // High priority first; stable on index so results don't flicker between frames
+        candidates.sort(function(a, b) { return b.priority - a.priority; });
+
+        var maxLabels = 150;
+        var pad = 2;
+        var placed = [];
+        var drawn = 0;
+
+        for (var c = 0; c < candidates.length && drawn < maxLabels; c++) {
+            var cand = candidates[c];
+            var halfW = ctx.measureText(cand.text).width / 2 + pad;
+            var rect = { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
+
+            // Collision rejection: the selected node's label always wins
+            var collides = false;
+            if (cand.priority < 5) {
+                for (var p = 0; p < placed.length; p++) {
+                    var o = placed[p];
+                    if (rect.l < o.r && rect.r > o.l && rect.t < o.b && rect.b > o.t) { collides = true; break; }
+                }
+            }
+            if (collides) continue;
+
+            placed.push(rect);
+            ctx.globalAlpha = this._contextFactor(cand.node);
+            ctx.fillStyle = cand.color;
+            ctx.fillText(cand.text, cand.x, cand.y);
+            drawn++;
+        }
+
+        ctx.globalAlpha = 1.0;
     },
     
     // =========================================================================
@@ -2528,26 +2802,31 @@ var CanvasRenderer = {
         var start = this.rotation;
         var duration = 300;
         var startTime = performance.now();
-        
-        if (this.isAnimating) return;
+
+        // Re-target instead of dropping the request when already animating
+        if (this._rotationRafId) {
+            cancelAnimationFrame(this._rotationRafId);
+            this._rotationRafId = null;
+        }
         this.isAnimating = true;
-        
+
         function animate() {
             var elapsed = performance.now() - startTime;
             var progress = Math.min(elapsed / duration, 1);
             var eased = 1 - Math.pow(1 - progress, 3);
-            
+
             self.rotation = start + (target - start) * eased;
             self._needsRender = true;
-            
+
             if (progress < 1) {
-                requestAnimationFrame(animate);
+                self._rotationRafId = requestAnimationFrame(animate);
             } else {
                 self.rotation = target;
+                self._rotationRafId = null;
                 self.isAnimating = false;
             }
         }
-        
+
         animate();
     },
     

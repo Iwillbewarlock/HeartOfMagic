@@ -3,9 +3,8 @@
         "language": "한국어",
         "locale": "ko",
         "author": "Claude (기계 번역)",
-        "version": "2.0.0"
+        "version": "2.4.0"
     },
-
     "buildProgress.analyzingSpellRelationships": "주문 관계 분석 중...",
     "buildProgress.buildFailed": "구축 실패",
     "buildProgress.close": "닫기",
@@ -14,7 +13,6 @@
     "buildProgress.finalizingLayout": "레이아웃 마무리 중...",
     "buildProgress.prmDisabled": "Pre Req Master 비활성화",
     "buildProgress.scoringPrereqCandidates": "Pre Req Master 실행 중...",
-
     "buttons.activeRenderer": "활성 렌더러",
     "buttons.applyTree": "<span class=\"btn-icon\">[A]</span> 트리 적용",
     "buttons.buildTree": "<span class=\"btn-icon\">[B]</span> 트리 구축",
@@ -23,7 +21,9 @@
     "buttons.editTree": "트리 편집",
     "buttons.eraserTool": "지우개 도구 - 연결 제거",
     "buttons.exportScan": "<span class=\"btn-icon\">[S]</span> 스캔 내보내기",
+    "buttons.findSpell": "마법 검색 (F)",
     "buttons.heartSettings": "하트 애니메이션 설정",
+    "buttons.homeView": "처음 보기 (카메라 초기화)",
     "buttons.moveTool": "이동 도구",
     "buttons.penTool": "펜 도구 - 선행 조건 그리기",
     "buttons.replay": "<span class=\"btn-icon\">[R]</span> 다시 재생",
@@ -31,7 +31,6 @@
     "buttons.toggleFullscreen": "전체 화면 전환",
     "buttons.zoomIn": "확대",
     "buttons.zoomOut": "축소",
-
     "details.description": "설명",
     "details.effects": "효과",
     "details.learningProgress": "학습 진행도",
@@ -49,21 +48,17 @@
     "details.unlocks": "잠금 해제 대상",
     "details.unlockSpell": "주문 해제",
     "details.xpUnit": "경험치",
-
     "easyMode.choosePreset": "프리셋 선택",
     "easyMode.noPresets": "프리셋이 없습니다. 현재 설정으로 구축됩니다.",
     "easyMode.statusWrap": "상태: <span id=\"easyStatus\">스캔 대기 중...</span>",
-
     "editMode.editTree": "트리 편집",
     "editMode.exitEditMode": "편집 모드 종료",
     "editMode.nothingToUndo": "되돌릴 작업이 없습니다",
     "editMode.undoAction": "되돌리기: {{action}}",
-
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> 블랙리스트",
     "filter.title": "필터",
     "filter.tomesOnly": "마법서만",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> 화이트리스트",
-
     "footer.import": "가져오기",
     "footer.spellCount": "{{total}} 주문 | {{unlocked}} 해제됨",
     "footer.legendAvailable": "사용 가능",
@@ -75,7 +70,6 @@
     "footer.spellsLabel": "주문",
     "footer.statusReady": "준비됨",
     "footer.unlockedLabel": "해제됨",
-
     "generationMode.cannotParseJson": "JSON을 구문 분석할 수 없습니다. 형식을 확인하세요.",
     "generationMode.clearTreeConfirm": "현재 주문 트리를 삭제하시겠습니까? 되돌릴 수 없습니다.",
     "generationMode.configApplied": "설정이 성공적으로 적용되었습니다!",
@@ -85,10 +79,8 @@
     "generationMode.noLlmResponse": "적용할 LLM 응답이 없습니다. 먼저 응답을 붙여넣으세요.",
     "generationMode.noSpellDataError": "// 오류: 주문 데이터가 없습니다. 먼저 주문을 스캔하세요.",
     "generationMode.noValidJson": "응답에서 유효한 JSON을 찾을 수 없습니다. 형식을 확인하세요.",
-
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",
-
     "howto.currentSettings": "[i] 현재 설정",
     "howto.gainingXp": "[^] 경험치 획득",
     "howto.loading": "로딩 중...",
@@ -98,7 +90,6 @@
     "howto.tips": "(!) 팁",
     "howto.tipSetTargets": "학습 목표 설정 (학파별 하나)",
     "howto.title": "주문 학습 방법",
-
     "modals.blacklist.clearAll": "모두 지우기",
     "modals.blacklist.done": "완료",
     "modals.blacklist.empty": "블랙리스트에 주문이 없습니다",
@@ -132,10 +123,8 @@
     "modals.whitelist.modPlugins": "모드 플러그인",
     "modals.whitelist.none": "없음",
     "modals.whitelist.title": "플러그인 화이트리스트",
-
     "presets.save": "[+] 저장",
     "presets.title": "프리셋",
-
     "preview.clumping": "군집도",
     "preview.dragHandles": "핸들을 드래그하여 조정",
     "preview.dragDividers": "구분선을 드래그하여 조정",
@@ -149,7 +138,6 @@
     "preview.scanToPreview": "미리보기를 위해 주문을 스캔하세요",
     "preview.sectionSplit": "섹션 분할",
     "preview.title": "루트 베이스 미리보기",
-
     "preview.classic.dynamicExpansion": "동적 그리드 확장",
     "preview.classic.globeMask": "글로브 마스크",
     "preview.classic.layered": "레이어",
@@ -161,11 +149,10 @@
     "preview.classic.tierAdept": "숙련자",
     "preview.classic.tierApprentice": "견습생",
     "preview.classic.tierExpert": "전문가",
-    "preview.classic.tierMaster": "대가",
+    "preview.classic.tierMaster": "달인",
     "preview.classic.tierNovice": "초보자",
     "preview.classic.tierZones": "등급 구역",
     "preview.classic.title": "클래식 성장 설정",
-
     "preview.flat.direction": "방향",
     "preview.flat.horizontal": "가로",
     "preview.flat.invert": "반전",
@@ -173,7 +160,6 @@
     "preview.flat.normal": "보통",
     "preview.flat.title": "루트 라인 설정",
     "preview.flat.vertical": "세로",
-
     "preview.sun.equalArea": "균등 면적",
     "preview.sun.fibonacci": "피보나치",
     "preview.sun.gridType": "그리드 유형",
@@ -186,7 +172,6 @@
     "preview.sun.square": "정사각형",
     "preview.sun.tierDensity": "등급 밀도",
     "preview.sun.title": "루트 링 설정",
-
     "preview.tree.branchSpread": "가지 분산",
     "preview.tree.branches": "가지",
     "preview.tree.root": "뿌리",
@@ -195,7 +180,6 @@
     "preview.tree.title": "트리 성장 설정",
     "preview.tree.trunk": "줄기",
     "preview.tree.trunkThickness": "줄기 두께",
-
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> 잠금 적용",
     "prm.bidirectionalSoftPrereqs": "양방향 소프트 선행 조건",
     "prm.bidirectionalSoftPrereqsDesc": "소프트 선행 조건이 양방향으로 작동 — 한쪽을 숙달하면 다른 쪽이 학습 가능",
@@ -227,14 +211,13 @@
     "prm.selectionPool": "선택 풀",
     "prm.tabAltPaths": "대체 경로",
     "prm.tabCore": "핵심",
-    "prm.tabLocks": "Pre Req Master",
+    "prm.tabLocks": "선행 잠금",
     "prm.tierAdept": "숙련자",
     "prm.tierApprentice": "견습생",
     "prm.tierExpert": "전문가",
-    "prm.tierMaster": "대가",
+    "prm.tierMaster": "달인",
     "prm.tierNovice": "초보자",
     "prm.vOffset": "수직 오프셋",
-
     "progression.available": "사용 가능",
     "progression.fullPower": "100% 위력",
     "progression.fullXp": "100% 경험치",
@@ -280,18 +263,15 @@
     "progression.stoppedLearning": "{{name}} 학습 중단 - 주문 제거됨",
     "progression.unlocked": "해제됨",
     "progression.unlocking": "{{name}} 해제 중...",
-
     "scanner.complexStatusWrap": "상태: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">스캔 대기 중...</span>",
     "scanner.modeComplex": "복합",
     "scanner.modeEasy": "간편",
     "scanner.mods": "모드",
-    "scanner.primed": "준비됨",
+    "scanner.primed": "선별됨",
     "scanner.readyToScan": "스캔 준비 완료",
     "scanner.scanResults": "스캔 결과",
     "scanner.totalSpells": "전체 주문 수",
-
     "scannerPresets.overwriteConfirm": "\"{{name}}\" 이름의 프리셋이 이미 존재합니다. 덮어쓰시겠습니까?",
-
     "settings.actions.resetDefaults": "기본값 복원",
     "settings.actions.saveSettings": "설정 저장",
     "settings.colorPicker.apply": "적용",
@@ -372,7 +352,7 @@
     "settings.progression.tierAdept": "숙련자",
     "settings.progression.tierApprentice": "견습생",
     "settings.progression.tierExpert": "전문가",
-    "settings.progression.tierMaster": "대가",
+    "settings.progression.tierMaster": "달인",
     "settings.progression.tierNovice": "초보자",
     "settings.progression.title": "진행 설정",
     "settings.progression.xpCaps": "경험치 상한 (최대 기여)",
@@ -386,6 +366,8 @@
     "settings.render.apply": "적용",
     "settings.render.baseLines": "기준선",
     "settings.render.bgFill": "배경",
+    "settings.render.camera": "카메라",
+    "settings.render.centerOnClick": "클릭 시 중앙 이동",
     "settings.render.color": "색상",
     "settings.render.connections": "연결",
     "settings.render.coreBg": "배경",
@@ -393,6 +375,7 @@
     "settings.render.coreSize": "코어 크기",
     "settings.render.delay": "지연",
     "settings.render.density": "밀도",
+    "settings.render.dimOthers": "무관 노드 어둡게",
     "settings.render.dividerColor": "색상",
     "settings.render.dividerModeCustom": "사용자 정의",
     "settings.render.dividerModeSchool": "학파",
@@ -402,6 +385,7 @@
     "settings.render.enable": "활성화",
     "settings.render.fade": "페이드",
     "settings.render.fixed": "고정",
+    "settings.render.focusZoom": "포커스 배율",
     "settings.render.font": "글꼴",
     "settings.render.globe": "글로브",
     "settings.render.globeText": "글로브 텍스트",
@@ -425,6 +409,7 @@
     "settings.render.title": "렌더링 커스터마이징",
     "settings.render.trail": "궤적",
     "settings.render.width": "너비",
+    "settings.render.zoomOnClick": "클릭 시 확대",
     "settings.tomeLearning.desc": "마법서가 진행 시스템과 어떻게 작동하는지 설정합니다.",
     "settings.tomeLearning.inventoryBoost": "인벤토리 보너스",
     "settings.tomeLearning.inventoryBoostDesc": "마법서 소지 시 보너스 경험치",
@@ -480,15 +465,14 @@
     "settings.ui.fontSize": "글꼴 크기",
     "settings.ui.learningColor": "학습 색상",
     "settings.ui.refreshThemesTitle": "테마 폴더 재스캔",
+    "settings.ui.sideDetails": "우측 상세 패널",
+    "settings.ui.sideDetailsDesc": "마법 정보를 트리 아래 바 대신 우측 사이드바에 표시",
     "settings.ui.theme": "UI 테마",
     "settings.ui.title": "UI 표시",
-
     "settingsPanel.generationFailed": "생성 실패",
     "settingsPanel.pressAKey": "키를 누르세요...",
     "settingsPanel.unreachableNodes": "도달 불가 노드 {{count}}개",
-
     "settingsPresets.overwriteConfirm": "\"{{name}}\" 이름의 프리셋이 이미 존재합니다. 덮어쓰시겠습니까?",
-
     "status.apiKeyPasted": "클립보드에서 API 키 붙여넣기 완료",
     "status.buildingTree": "주문 트리 구축 중...",
     "status.cannotSaveNoBridge": "저장 불가 - C++ 브릿지 미준비",
@@ -534,22 +518,22 @@
     "status.treeValidationFailed": "트리 검증 실패: {{error}}",
     "status.warningUnreachable": "경고: {{count}}개 도달 불가 주문 - 트리를 재생성하세요",
     "status.working": "작업 중...",
-
     "tabs.scan": "스캔",
     "tabs.scanTitle": "주문 스캐너",
     "tabs.settings": "설정",
     "tabs.settingsTitle": "설정",
-
     "tree.emptyState.goToScanner": "스캐너로 이동",
     "tree.emptyState.hint": "주문을 스캔하고 트리를 구축하여 시작하세요.",
     "tree.emptyState.icon": "*",
     "tree.emptyState.title": "로드된 주문 트리 없음",
     "tree.instructions": "드래그하여 이동 / 스크롤하여 확대 / 노드 클릭하여 선택",
-
+    "tree.schoolTabsHint": "이 학파로 이동",
+    "tooltip.lockedHint": "연결된 마법을 해금하면 공개",
+    "tooltip.progress": "진행도 {{pct}}%",
+    "tooltip.revealAt": "{{pct}}%에서 이름 공개",
     "treeGrowth.builderNotFound": "SpellTreeBuilder를 찾을 수 없습니다",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} 노드 배치됨",
     "treeGrowth.treeBuilt": "트리 구축 완료",
-
     "treeViewer.clearTree": "트리 초기화",
     "treeViewer.clickAgainConfirm": "확인하려면 다시 클릭",
     "treeViewer.noSettingsAvailable": "사용 가능한 설정 없음",

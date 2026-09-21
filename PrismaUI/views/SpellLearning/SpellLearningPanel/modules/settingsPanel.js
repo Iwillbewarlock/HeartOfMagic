@@ -586,6 +586,18 @@ function initializeSettings() {
         });
     }
     
+    // Side details panel toggle (off = bottom info bar)
+    var sideDetailsToggle = document.getElementById('sideDetailsToggle');
+    if (sideDetailsToggle) {
+        sideDetailsToggle.checked = settings.detailsLayout === 'side';
+        sideDetailsToggle.addEventListener('change', function() {
+            settings.detailsLayout = this.checked ? 'side' : 'bottom';
+            if (typeof TreeNav !== 'undefined') TreeNav.applyDetailsLayout();
+            console.log('[SpellLearning] Details layout:', settings.detailsLayout);
+            scheduleAutoSave();
+        });
+    }
+
     // Preserve multi-prerequisites toggle
     var preserveMultiPrereqsToggle = document.getElementById('preserveMultiPrereqsToggle');
     if (preserveMultiPrereqsToggle) {
@@ -1164,6 +1176,15 @@ function saveSettings() {
 
 // Auto-save settings (debounced to avoid excessive saves)
 var autoSaveTimer = null;
+/**
+ * Alias used by ~30 UI handlers (theme, font size, layout, ...). It was never
+ * defined, so those handlers threw after applying their change and the value
+ * only got persisted by some later save. Route it to the debounced autosave.
+ */
+function scheduleAutoSave() {
+    autoSaveSettings();
+}
+
 function autoSaveSettings() {
     // Clear any pending save
     if (autoSaveTimer) {
@@ -1294,6 +1315,14 @@ function saveUnifiedConfig() {
         heartBgColor: settings.heartBgColor,
         heartRingColor: settings.heartRingColor,
         
+        // Camera settings
+        focusOnClick: settings.focusOnClick,
+        focusZoomOnClick: settings.focusZoomOnClick,
+        focusZoom: settings.focusZoom,
+        detailsLayout: settings.detailsLayout,
+        focusDimOthers: settings.focusDimOthers,
+        uiPatchDefaults: settings.uiPatchDefaults || 1,   // Marker: patch defaults (tomes-only scan) already applied once
+
         // Starfield settings
         starfieldEnabled: settings.starfieldEnabled,
         starfieldFixed: settings.starfieldFixed,
@@ -1806,7 +1835,11 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             updateSliderFillGlobal(fontSizeSlider);
             applyFontSizeMultiplier(settings.fontSizeMultiplier);
         }
-        
+
+        // Update details layout UI
+        var sideDetailsToggleEl = document.getElementById('sideDetailsToggle');
+        if (sideDetailsToggleEl) sideDetailsToggleEl.checked = settings.detailsLayout === 'side';
+
         // Update ISL settings UI
         var islEnabledToggle = document.getElementById('islEnabledToggle');
         var islXpPerHourInput = document.getElementById('islXpPerHourInput');
@@ -2078,12 +2111,18 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         }
         
         // === Scan Mode ===
-        if (data.scanModeTomes !== undefined) {
-            var scanModeCheckbox = document.getElementById('scanModeTomes');
-            if (scanModeCheckbox) {
+        // UI patch default: "Tomes only" is ON. Configs saved before the patch
+        // carry an unchecked value from the old default, so honor a saved value
+        // only once the patch marker has been written.
+        var scanModeCheckbox = document.getElementById('scanModeTomes');
+        if (scanModeCheckbox) {
+            if (data.uiPatchDefaults && data.scanModeTomes !== undefined) {
                 scanModeCheckbox.checked = data.scanModeTomes;
+            } else {
+                scanModeCheckbox.checked = true;
             }
         }
+        settings.uiPatchDefaults = data.uiPatchDefaults || 1;
         
         // === Heart Animation Settings ===
         settings.heartAnimationEnabled = data.heartAnimationEnabled !== false;
@@ -2093,6 +2132,14 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.heartBgColor = data.heartBgColor || '#000000';
         settings.heartRingColor = data.heartRingColor || '#b8a878';
         
+        // === Camera Settings ===
+        settings.focusOnClick = data.focusOnClick !== false;          // default true
+        settings.focusZoomOnClick = data.focusZoomOnClick !== false;  // default true
+        settings.focusZoom = (typeof data.focusZoom === 'number' && data.focusZoom > 0) ? data.focusZoom : 1.0;
+        settings.detailsLayout = data.detailsLayout === 'side' ? 'side' : 'bottom';
+        if (typeof TreeNav !== 'undefined') TreeNav.applyDetailsLayout();
+        settings.focusDimOthers = data.focusDimOthers !== false;   // default true
+
         // === Starfield Settings ===
         settings.starfieldEnabled = data.starfieldEnabled !== false;
         settings.starfieldFixed = data.starfieldFixed === true;
@@ -3132,6 +3179,53 @@ function initializeHeartSettings() {
             if (state.treeData && typeof CanvasRenderer !== 'undefined') {
                 CanvasRenderer._needsRender = true;
             }
+            autoSaveSettings();
+        });
+    }
+
+    // === Camera Settings ===
+
+    // Center clicked node toggle
+    var focusOnClickToggle = document.getElementById('focus-on-click');
+    if (focusOnClickToggle) {
+        focusOnClickToggle.checked = settings.focusOnClick !== false;
+        focusOnClickToggle.addEventListener('change', function() {
+            settings.focusOnClick = this.checked;
+            autoSaveSettings();
+        });
+    }
+
+    // Zoom on click toggle
+    var focusZoomToggle = document.getElementById('focus-zoom-on-click');
+    if (focusZoomToggle) {
+        focusZoomToggle.checked = settings.focusZoomOnClick !== false;
+        focusZoomToggle.addEventListener('change', function() {
+            settings.focusZoomOnClick = this.checked;
+            autoSaveSettings();
+        });
+    }
+
+    // Dim others (focus + context) toggle
+    var focusDimToggle = document.getElementById('focus-dim-others');
+    if (focusDimToggle) {
+        focusDimToggle.checked = settings.focusDimOthers !== false;
+        focusDimToggle.addEventListener('change', function() {
+            settings.focusDimOthers = this.checked;
+            if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+            autoSaveSettings();
+        });
+    }
+
+    // Focus zoom level slider
+    var focusZoomSlider = document.getElementById('popup-focus-zoom');
+    var focusZoomVal = document.getElementById('popup-focus-zoom-val');
+    if (focusZoomSlider) {
+        var focusZoomValue = (typeof settings.focusZoom === 'number' && settings.focusZoom > 0) ? settings.focusZoom : 1.0;
+        focusZoomSlider.value = focusZoomValue;
+        if (focusZoomVal) focusZoomVal.textContent = Math.round(focusZoomValue * 100) + '%';
+        focusZoomSlider.addEventListener('input', function() {
+            settings.focusZoom = parseFloat(this.value);
+            if (focusZoomVal) focusZoomVal.textContent = Math.round(settings.focusZoom * 100) + '%';
             autoSaveSettings();
         });
     }

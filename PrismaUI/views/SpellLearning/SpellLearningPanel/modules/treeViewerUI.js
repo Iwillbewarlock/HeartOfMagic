@@ -140,6 +140,7 @@ var SmartRenderer = {
             CanvasRenderer.hide();
         }
         WheelRenderer.clear();
+        if (typeof TreeNav !== 'undefined') TreeNav.clearSchoolTabs();
     },
 
     render: function() {
@@ -326,6 +327,8 @@ function initializeTreeViewer() {
     var closeDetails = document.getElementById('close-details');
     if (closeDetails) closeDetails.addEventListener('click', function() {
         document.getElementById('details-panel').classList.add('hidden');
+        var treePage = document.getElementById('contentSpellTree');
+        if (treePage) treePage.classList.remove('details-open');
     });
     
     // How-to-Learn panel
@@ -1177,6 +1180,8 @@ function showSpellDetails(node) {
     var panel = document.getElementById('details-panel');
     if (!panel) return;
     panel.classList.remove('hidden');
+    var treePage = document.getElementById('contentSpellTree');
+    if (treePage) treePage.classList.add('details-open');
 
     // Reveal locks for this node (Pre Req Master)
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.revealLocksForNode) {
@@ -1750,10 +1755,17 @@ function updateDetailsProgression(node) {
 function selectNodeById(id) {
     if (!state.treeData) return;
     var node = _findNodeById(id);
-    if (node) {
-        WheelRenderer.selectNode(node);
-        WheelRenderer.rotateSchoolToTop(node.school);
+    if (!node) return;
+
+    // Canvas renderer: select + center the node (same path as a click)
+    if (SmartRenderer.activeRenderer === 'canvas' && typeof CanvasRenderer !== 'undefined' && CanvasRenderer.canvas) {
+        var canvasNode = CanvasRenderer._nodeMap ? (CanvasRenderer._nodeMap.get(node.id) || CanvasRenderer._nodeMap.get(node.formId)) : null;
+        CanvasRenderer.selectNodeAndFocus(canvasNode || node);
+        return;
     }
+
+    WheelRenderer.selectNode(node);
+    WheelRenderer.rotateSchoolToTop(node.school);
 }
 
 // =============================================================================
@@ -1871,6 +1883,11 @@ function renderFindSpellList(searchTerm) {
         }
     }
 
+    // Discovery mode: undiscovered (locked) spells must not be searchable by name
+    if (settings.discoveryMode !== false && !settings.cheatMode) {
+        nodes = nodes.filter(function(node) { return node.state !== 'locked'; });
+    }
+
     // Filter by search term
     var filtered;
     if (searchTerm) {
@@ -1922,15 +1939,25 @@ function renderFindSpellList(searchTerm) {
             displayName = highlightMatch(displayName, searchTerm);
         }
 
+        // State chip reuses the footer legend labels (already translated)
+        var stateKeys = {
+            locked: 'footer.legendLocked',
+            available: 'footer.legendAvailable',
+            learning: 'footer.legendLearning',
+            unlocked: 'footer.legendUnlocked'
+        };
+        var stateLabel = stateKeys[node.state] ? t(stateKeys[node.state]) : '';
+
         item.innerHTML =
             '<div class="find-spell-dot" style="background:' + color + '"></div>' +
             '<div class="find-spell-text">' +
                 '<div class="find-spell-name">' + displayName + '</div>' +
                 '<div class="find-spell-info">' +
-                    '<span>' + (node.school || '') + '</span>' +
+                    '<span class="find-spell-school" style="color:' + color + '">' + (node.school || '') + '</span>' +
                 '</div>' +
             '</div>' +
-            (node.level ? '<span class="find-spell-tier">' + node.level + '</span>' : '');
+            (node.level ? '<span class="find-spell-tier">' + node.level + '</span>' : '') +
+            (stateLabel ? '<span class="find-spell-state ' + node.state + '">' + stateLabel + '</span>' : '');
 
         item.addEventListener('click', function() {
             _findSpellSelectedIndex = idx;
@@ -1996,6 +2023,19 @@ function smoothPanToNode(targetNode) {
         if (found) node = found;
     }
 
+    // Preferred path: TreeCamera handles rotation-aware centering + selection
+    if (typeof TreeCamera !== 'undefined' && CanvasRenderer.canvas) {
+        CanvasRenderer.selectNodeAndFocus(node, {
+            onComplete: function() {
+                if (typeof setTreeStatus === 'function') {
+                    setTreeStatus('Found: ' + (node.name || node.formId));
+                }
+            }
+        });
+        return;
+    }
+
+    // Legacy fallback (no TreeCamera): pan only, ignores wheel rotation
     var targetPanX = -node.x * CanvasRenderer.zoom;
     var targetPanY = -node.y * CanvasRenderer.zoom;
 
