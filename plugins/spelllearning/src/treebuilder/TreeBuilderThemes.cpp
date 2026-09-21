@@ -380,6 +380,71 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell, bool fallback)
 }
 
 // =============================================================================
+// ALL THE THEMES OF A SPELL
+// =============================================================================
+//
+// GetSpellPrimaryTheme has to settle on one, because a branch needs one name.
+// Comparing two spells does not: judged by that single pick, a moon touch spell
+// filed under "touch" counted as a MISMATCH against every other moon spell and
+// was pushed away from them. Here nothing is picked - the spell answers to every
+// theme it qualifies for, and two spells match when any of them coincide.
+
+std::vector<std::string> TreeBuilder::GetSpellThemes(const json& spell, const std::vector<std::string>& themes)
+{
+    std::vector<std::string> result;
+    const auto add = [&result](std::string theme) {
+        if (theme.empty() || theme == "_unassigned") return;
+        if (std::find(result.begin(), result.end(), theme) == result.end()) result.push_back(std::move(theme));
+    };
+
+    // The pick goes first, so themes.front() is always the branch name
+    const auto [picked, pickedScore] = GetSpellPrimaryTheme(spell, themes);
+    if (pickedScore > kWordThemeMinScore) add(picked);
+
+    // Every trait theme, not just the most telling one
+    if (const auto it = spell.find("traits"); it != spell.end() && it->is_array()) {
+        std::vector<std::string> traits;
+        for (const auto& trait : *it) {
+            if (trait.is_string()) traits.push_back(trait.get<std::string>());
+        }
+        const bool summon = std::find(traits.begin(), traits.end(), kSummonTrait) != traits.end();
+        for (const auto& trait : traits) {
+            if (trait == kTooBroadKind) continue;
+            const bool element = trait.starts_with(kElementPrefix);
+            if (!element && !trait.starts_with(kKindPrefix) && !trait.starts_with(kValuePrefix)) continue;
+
+            add(AfterDot(trait));
+            // A fire atronach is a summon_fire and, for a fire mage, plain fire too
+            if (summon && std::find(std::begin(kSummonQualifiers), std::end(kSummonQualifiers), trait) !=
+                              std::end(kSummonQualifiers)) {
+                add("summon_" + AfterDot(trait));
+            }
+        }
+    }
+
+    // Every word theme that is literally one of the spell's words. Whole words
+    // only: the fuzzy score is for choosing one, not for claiming many.
+    const auto words = TreeNLP::Tokenize(TreeNLP::BuildThemeText(spell));
+    const std::unordered_set<std::string> wordSet(words.begin(), words.end());
+    for (const auto& theme : themes) {
+        if (wordSet.contains(TreeNLP::ToLower(theme))) add(theme);
+    }
+
+    return result;
+}
+
+bool TreeBuilder::SharesTheme(const TreeNode& a, const TreeNode& b)
+{
+    if (a.themes.empty() || b.themes.empty()) {
+        return !a.theme.empty() && a.theme != "_unassigned" && a.theme == b.theme;
+    }
+    for (const auto& theme : a.themes) {
+        if (std::find(b.themes.begin(), b.themes.end(), theme) != b.themes.end()) return true;
+    }
+    return false;
+}
+
+// =============================================================================
 // SPELL GROUPING
 // =============================================================================
 

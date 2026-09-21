@@ -39,7 +39,8 @@ namespace TreeBuilder
         std::string name;
         std::string tier       = "Unknown";
         std::string school     = "Unknown";
-        std::string theme;                       // NLP-assigned theme (may be empty)
+        std::string theme;                       // the one theme branches and colours go by (may be empty)
+        std::vector<std::string> themes;         // every theme the spell answers to; theme is among them
         std::string section;                     // "root", "trunk", "branch" (may be empty)
 
         std::vector<std::string> children;       // formIds of child nodes
@@ -123,6 +124,15 @@ namespace TreeBuilder
     // fallback asks for the weaker answers instead - shape, then actor value -
     // which only count once rule 2 has failed (see TreeBuilderThemes.cpp).
     std::string ThemeFromTraits(const json& spell, bool fallback = false);
+
+    // Every theme a spell answers to: all its trait themes and every word theme
+    // found in its text. A spell is not one thing - "LUN_MoonTouch" is a moon
+    // spell and a touch spell - so this is what two spells are compared by.
+    std::vector<std::string> GetSpellThemes(const json& spell, const std::vector<std::string>& themes);
+
+    // True when the two nodes have a theme in common. Falls back to comparing the
+    // single theme for nodes that were never given a list (LLM chains).
+    bool SharesTheme(const TreeNode& a, const TreeNode& b);
 
     // Get the best matching theme for a single spell
     std::pair<std::string, int>

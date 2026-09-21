@@ -316,11 +316,29 @@ A keyword only one spell has is dropped, it cannot be shared. The result goes in
 affinity, which every builder already weighs highest, as the better of the two values - without a full
 scan there are no keywords and the effect names decide alone, as before.
 
-Classic builder, same 1440 spells: a spell and its parent share an id word in 38% -> 45% of links and
-an element or kind trait in 60% -> 62%. In the tree the moon family now links both ways: `LunarDetonation`
-under `LunarBolt` (nature), `MoonlightTouch` under `AstralTouch`, `LunarAura` under `AstralAura`,
-`MoonlightRune` under `SunlightRune` (shape). The single theme is still what branches and colours go by,
-and 26 themes are still held by one spell; the affinity is what ties those in anyway.
+**A spell answers to every theme it qualifies for** (`TreeNode::themes`, `GetSpellThemes`, `SharesTheme`).
+One theme per spell was the root of the trouble. Every builder scored parents by "same theme: bonus,
+different theme: penalty" (classic +15/25 and -10, tree +170 and -50), judged by the single pick - so a
+moon touch spell filed under `touch` counted as a *mismatch* against every other moon spell and was
+pushed away from its own family, while the keyword affinity above pulled the other way. Now a node
+keeps the whole list: all its trait themes (a fire atronach is `summon_fire` and plain `fire`), and
+every word theme that is literally one of its words. All nine comparisons in the five builders ask
+`SharesTheme` - any theme in common - instead of comparing the pick. `theme` stays, as the first of the
+list: a branch still needs one name and the panel one colour. Nodes that never got a list (LLM chains
+in the oracle builder) fall back to comparing the single theme.
+
+Same 1440 spells, links where spell and parent share an editor id word / an element or kind trait:
+
+| | id word | element or kind |
+|---|---|---|
+| single theme, effect names only | 38% | 60% |
+| + keyword affinity | 45% | 62% |
+| + every theme counts (classic) | 49% | 61% |
+| + every theme counts (tree builder) | 46% | 54% |
+
+972 of the 1440 spells answer to two or more themes. The moon family under the classic builder, before
+and after: `LuminousMoonbeam` hung under `SLENDetectAroused` and `MoonFire` under `INQ_HolyDagger`; now
+`LuminousMoonbeam <- MoonFire <- Moonlight`, `LunarAura <- MoonlightTouch`, `LunarSingularity <- LunarBolt`.
 **Audit, 2026-09-22.** Every rule was re-run over all 1440 spells / 4246 effects of the dev load
 order and each answer sorted into: arbitrary (more than one candidate, first one wins), missing
 (nothing to say), or self-contradicting (two sources disagree). Found and fixed:
@@ -393,7 +411,8 @@ struct TreeNode {
     std::string name;            // "Flames"
     std::string tier;            // "Novice"
     std::string school;          // "Destruction"
-    std::string theme;           // "fire" (may be empty)
+    std::string theme;           // "fire" - the branch name (may be empty)
+    std::vector<std::string> themes;  // every theme the spell answers to, theme first
     std::string section;         // "root" / "trunk" / "branch" (may be empty)
 
     std::vector<std::string> children;       // formIds of child nodes

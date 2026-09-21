@@ -393,7 +393,7 @@ static json BuildSchoolTreeLLM(
             auto& cnode = nodes[cid];
             int ct = std::max(0, TreeBuilder::TierIndex(cnode.tier));
             float sc = (ct <= nodeTier) ? 100.0f - (nodeTier - ct) * 5.0f : -200.0f;
-            if (!node.theme.empty() && node.theme == cnode.theme) sc += 25.0f;
+            if (SharesTheme(node, cnode)) sc += 25.0f;
             sc -= static_cast<float>(cnode.children.size()) * 10.0f;
             if (sc > bestSc) { bestSc = sc; bestP = &cnode; }
         }
@@ -600,7 +600,7 @@ static json BuildSchoolTreeFallback(
             auto& cnd = nodes[cid];
             int ct = std::max(0, TreeBuilder::TierIndex(cnd.tier));
             float sc = (ct <= nodeTier) ? 100.0f - (nodeTier - ct) * 5.0f : -200.0f;
-            if (!nd.theme.empty() && nd.theme == cnd.theme) sc += 25.0f;
+            if (SharesTheme(nd, cnd)) sc += 25.0f;
             sc -= static_cast<float>(cnd.children.size()) * 10.0f;
             if (sc > bestSc) { bestSc = sc; bestP = &cnd; }
         }
