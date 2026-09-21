@@ -858,7 +858,9 @@ TreeBuilder::BuildResult TreeBuilder::Build(
     // The same for every builder: links between the schools, handed to the
     // layout as data. See TreeBuilderBridges.cpp for why they stay out of the trees.
     if (result.success && result.treeData.is_object()) {
-        result.treeData["bridges"] = ComputeCrossSchoolBridges(spells);
+        auto links = ComputeCrossSchoolBridges(spells);
+        result.treeData["bridges"] = std::move(links["bridges"]);
+        result.treeData["schoolLinks"] = std::move(links["schoolLinks"]);
         logger::info("TreeBuilder: {} cross school bridges", result.treeData["bridges"].size());
     }
     return result;

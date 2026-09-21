@@ -493,6 +493,28 @@ Measured on the 1440-spell test load order: 180 bridges (44 two-way) touching 24
 all five builders. Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
 Conjuration-Restoration are full (24), Illusion-Restoration has 6.
 
+**`schoolLinks`** (`[{a, b, kin}]`, next to `bridges`) counts, per pair of schools, every spell that found
+kin in the other school - before the caps, which make most pairs look equally full. Test load order:
+Conjuration-Destruction 172, Destruction-Restoration 136, then 49 and below; Illusion-Restoration 17.
+
+**What the layout does with them** (`modules/schoolBridges.js`, same for all five build modes):
+
+1. *School order.* `onProceduralTreeComplete` calls `SchoolBridges.applyOrderToPreview` before any layout
+   reads the preview: every order of the schools is tried (first school fixed on the circle, up to 8
+   schools) and the one with the most kin between neighbours wins; ties keep the scan's order. The preview
+   is redrawn so roots and sectors are already in the new order.
+2. *Prerequisites.* Right before `SaveSpellTree`, `SchoolBridges.applyToOutput` adds `from` to the
+   `softPrereqs` of `to` (both ways for `twoWay`), never to `prerequisites`, never to roots or spells that
+   are open anyway, and copies the applied bridges to `output.bridges` for the viewer. Test load order:
+   180 bridges, 224 cross-school soft prerequisites, all 1440 spells still placed.
+
+*Tried and dropped:* nudging bridged spells and their themes toward the neighbour's border in
+`classicLayout.js` (`_findSlots` score term, theme sector order). Classic placement follows the parent
+along a spoke; with and without the nudge the mean bridge length stayed at ~63% of the tree radius.
+Found on the way and left alone: `_computeThemeSectors` deals theme centres over a fixed 140° whatever
+the school's wedge (72° with five schools), and its angular score barely differs between neighbouring
+grid points, so theme sectors hardly steer classic placement at all.
+
 **Known limits.** A single id word can still bridge two spells, and nothing mechanical tells a telling
 word (`twilight`, `mudcrab`) from a generic one (`explosion`, `cloud`); rarity does not separate them
 (checked: `summon` is rarer than `shadow`). On a load order rich in mods, an element alone carries the

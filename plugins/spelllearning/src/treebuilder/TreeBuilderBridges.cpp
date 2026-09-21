@@ -186,6 +186,19 @@ json TreeBuilder::ComputeCrossSchoolBridges(const std::vector<json>& spells)
         }
     }
 
+    // How much two schools have in common, counted before the caps below even it
+    // out: every spell that found kin in the other school. The layout puts the
+    // schools with the most between them side by side.
+    std::map<std::pair<std::string, std::string>, std::size_t> kinBetween;
+    for (const auto& [pair, candidates] : byPair) {
+        const auto key = pair.first < pair.second ? pair : std::make_pair(pair.second, pair.first);
+        kinBetween[key] += candidates.size();
+    }
+    json schoolLinks = json::array();
+    for (const auto& [pair, count] : kinBetween) {
+        schoolLinks.push_back({ { "a", pair.first }, { "b", pair.second }, { "kin", count } });
+    }
+
     // Most evidence first within each pair. Not closest first: a spell with a
     // single keyword is a perfect match for anything that has it, and would
     // crowd out pairs that share three.
@@ -230,5 +243,5 @@ json TreeBuilder::ComputeCrossSchoolBridges(const std::vector<json>& spells)
             });
         }
     }
-    return bridges;
+    return { { "bridges", bridges }, { "schoolLinks", schoolLinks } };
 }

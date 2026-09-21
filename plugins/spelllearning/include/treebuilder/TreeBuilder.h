@@ -125,6 +125,7 @@ namespace TreeBuilder
     // Links between schools: spells of different schools that share a telling
     // keyword. Returned as data for the layout to add as an extra way in, never
     // written into the trees, so every school still stands on its own.
+    // Returns { bridges: [...], schoolLinks: [{a, b, kin}] }.
     json ComputeCrossSchoolBridges(const std::vector<json>& spells);
 
     // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.

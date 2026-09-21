@@ -514,6 +514,9 @@ var TreeGrowthThematic = {
             }
         }
 
+        // Cross school bridges: extra soft prerequisites, and the list itself for the viewer
+        if (typeof SchoolBridges !== 'undefined') SchoolBridges.applyToOutput(output, this._treeData);
+
         // Save to disk via C++
         window.callCpp('SaveSpellTree', JSON.stringify(output));
 

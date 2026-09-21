@@ -463,7 +463,7 @@ struct SparseVector {
 ```
 
 ### 10. **TreeBuilder** (`plugins/spelllearning/src/treebuilder/`, `plugins/spelllearning/include/treebuilder/TreeBuilder.h`)
-Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderGraph.cpp, TreeBuilderOracle.cpp, TreeBuilderThematic.cpp, TreeBuilderThemes.cpp, TreeBuilderTree.cpp, SimdKernels.cpp
+Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderGraph.cpp, TreeBuilderOracle.cpp, TreeBuilderThematic.cpp, TreeBuilderThemes.cpp, TreeBuilderBridges.cpp, TreeBuilderTree.cpp, SimdKernels.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -1121,6 +1121,7 @@ HeartOfMagic/
 │   │           ├── TreeBuilderThematic.cpp      (Thematic mode: 3D similarity BFS)
 │   │           ├── TreeBuilderOracle.cpp        (Oracle mode: LLM-guided)
 │   │           ├── TreeBuilderThemes.cpp        (theme discovery + spell grouping)
+│   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
 │   │           └── SimdKernels.cpp              (SIMD-optimized compute kernels)
 │   ├── DummyDEST/                 # DEST compatibility shim

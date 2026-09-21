@@ -1398,6 +1398,12 @@ window.onProceduralTreeComplete = function(resultStr) {
     try {
         var result = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
 
+        // Bridged schools become neighbours before any layout reads the preview
+        if (result.success && result.treeData && typeof SchoolBridges !== 'undefined') {
+            if (typeof result.treeData === 'string') result.treeData = JSON.parse(result.treeData);
+            SchoolBridges.applyOrderToPreview(result.treeData);
+        }
+
         // Route to Classic Growth mode if it triggered this build
         if (state._classicGrowthBuildPending) {
             state._classicGrowthBuildPending = false;
