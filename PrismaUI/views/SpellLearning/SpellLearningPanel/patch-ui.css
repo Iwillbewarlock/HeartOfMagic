@@ -93,7 +93,8 @@
     padding: 6px 10px;
     min-height: 24px;
     font-family: inherit;
-    font-size: 0.7em;
+    /* 12px on the panel's 14px base; game UI text below that is hard to read on a TV */
+    font-size: 0.85em;
     cursor: pointer;
 }
 

@@ -211,7 +211,10 @@ var BridgeView = {
             });
             li.style.borderLeftColor = self.colorOf(entry.shared);
             // Plain text: the list's click handler only reacts to the <li> itself
-            li.textContent = arrow + name + '  ·  ' + entry.otherSchool + (what ? ' · ' + what : '');
+            // School names are translated under the same keys the spell card's chips use
+            var school = self._labelOf('school.' + String(entry.otherSchool).toLowerCase());
+            if (school.indexOf('school.') === 0) school = entry.otherSchool;
+            li.textContent = arrow + name + '  ·  ' + school + (what ? ' · ' + what : '');
             listEl.appendChild(li);
         });
     },
