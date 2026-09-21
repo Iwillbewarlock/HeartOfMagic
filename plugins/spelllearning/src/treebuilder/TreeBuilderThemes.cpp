@@ -150,8 +150,12 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
 
         // Sort by score descending, take top N
         std::vector<std::pair<std::string, float>> sorted(termScores.begin(), termScores.end());
-        std::sort(sorted.begin(), sorted.end(),
-            [](const auto& a, const auto& b) { return a.second > b.second; });
+        // Ties broken by the term, or the cut at topN would keep a different set
+        // of themes depending on how the hash map happened to be walked.
+        std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+            if (a.second != b.second) return a.second > b.second;
+            return a.first < b.first;
+        });
 
         // Prefixes are judged over every spell of the plugin, not just this
         // school's leftovers: the more ids, the surer the prefix.
@@ -250,8 +254,28 @@ namespace
     // Says "this hurts" and nothing else; every attack spell has it.
     constexpr std::string_view kTooBroadKind = "kind.damage";
 
+    constexpr std::string_view kValuePrefix = "value.";
+
     // Shape, not nature: only used when rule 2 finds nothing better.
     constexpr std::string_view kShapeKinds[] = { "kind.cloak", "kind.rune", "kind.stagger" };
+
+    // A spell often carries several kinds and only one can name the branch.
+    // Taking the first one listed means the record's effect order decides, and
+    // it decides badly: vanilla Paralyze leads with a Rally helper, so it came
+    // out as "rally". This is the order of how much a kind narrows down what a
+    // spell is - a paralysis is always more telling than a rally, on any load
+    // order, because that is what the engine's archetypes mean. Not a ranking of
+    // this install: the archetypes are a closed set and their sense does not
+    // change, so the order cannot go stale the way a list of mod keywords would.
+    // The influence four sit at the end; they ride along on other spells most.
+    constexpr std::string_view kKindPriority[] = {
+        "kind.bound", "kind.soulTrap", "kind.banish", "kind.turnUndead",
+        "kind.paralysis", "kind.invisibility", "kind.ethereal", "kind.slowTime",
+        "kind.telekinesis", "kind.grab", "kind.guide", "kind.detect", "kind.nightEye",
+        "kind.light", "kind.lock", "kind.open", "kind.disarm", "kind.dispel",
+        "kind.command", "kind.cure", "kind.ward", "kind.armor", "kind.heal",
+        "kind.absorb", "kind.slow", "kind.frenzy", "kind.fear", "kind.calm", "kind.rally",
+    };
 
     // Below this a word match is noise (same cut the builders apply).
     constexpr int kWordThemeMinScore = 30;
@@ -273,7 +297,7 @@ namespace
     }
 }
 
-std::string TreeBuilder::ThemeFromTraits(const json& spell, bool shapeOnly)
+std::string TreeBuilder::ThemeFromTraits(const json& spell, bool fallback)
 {
     const auto it = spell.find("traits");
     if (it == spell.end() || !it->is_array()) return "";
@@ -286,9 +310,14 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell, bool shapeOnly)
         return std::find(traits.begin(), traits.end(), wanted) != traits.end();
     };
 
-    if (shapeOnly) {
+    // After rule 2 has had its say: the spell's shape, then the actor value it
+    // changes. Better than nothing, but only once the words have failed.
+    if (fallback) {
         for (const auto& trait : traits) {
             if (IsShapeKind(trait)) return AfterDot(trait);
+        }
+        for (const auto& trait : traits) {
+            if (trait.starts_with(kValuePrefix)) return AfterDot(trait);
         }
         return "";
     }
@@ -307,6 +336,11 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell, bool shapeOnly)
     for (const auto& trait : traits) {
         if (trait.starts_with(kElementPrefix)) return AfterDot(trait);
     }
+    // Most telling kind first, whatever order the record happened to list them in
+    for (const auto wanted : kKindPriority) {
+        if (has(wanted)) return AfterDot(wanted);
+    }
+    // A kind the order above has not heard of yet still counts
     for (const auto& trait : traits) {
         if (trait.starts_with(kKindPrefix) && trait != kTooBroadKind && !IsShapeKind(trait)) {
             return AfterDot(trait);
@@ -326,11 +360,11 @@ TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::stri
     const std::string traitTheme = ThemeFromTraits(spell);
     if (!traitTheme.empty()) return {traitTheme, kTraitThemeScore};
 
-    // Rule 1's shape traits, kept in hand in case rule 2 comes up empty.
-    const std::string shapeTheme = ThemeFromTraits(spell, true);
+    // Rule 1's weaker answers, kept in hand in case rule 2 comes up empty.
+    const std::string fallbackTheme = ThemeFromTraits(spell, true);
 
     if (themes.empty()) {
-        if (!shapeTheme.empty()) return {shapeTheme, kTraitThemeScore};
+        if (!fallbackTheme.empty()) return {fallbackTheme, kTraitThemeScore};
         return {"_unassigned", 0};
     }
 
@@ -346,8 +380,8 @@ TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::stri
     }
 
     // Rule 2 did not find a convincing word: fall back to the spell's shape.
-    if (bestScore <= kWordThemeMinScore && !shapeTheme.empty()) {
-        return {shapeTheme, kTraitThemeScore};
+    if (bestScore <= kWordThemeMinScore && !fallbackTheme.empty()) {
+        return {fallbackTheme, kTraitThemeScore};
     }
 
     return {bestTheme.empty() ? "_unassigned" : bestTheme, bestScore};

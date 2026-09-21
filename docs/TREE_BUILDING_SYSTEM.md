@@ -260,9 +260,11 @@ the TF-IDF corpus, so the discovered words only describe the remainder.
 2. Rule 2 - the word themes below (the original method). It is kept on purpose: it is the only thing
    that can name a nature the game has no value for - water, wind, stone, blood. Such spells have no
    resist value and no vanilla keyword, so rule 1 cannot say anything about them.
-3. Rule 1's shape traits - `cloak`, `rune`, `stagger`. They describe the shape of a spell, not its
-   nature, so for a spell without an element they wait until the words have had a go: a wind cloak
-   lands in `wind` when the words can tell, in `cloak` when they cannot.
+3. Rule 1's weaker answers, in this order: the spell's shape (`cloak`, `rune`, `stagger`) and then
+   the actor value it changes (`value.speedmult`, `value.fireresist`, `value.carryweight` ...). Shape is
+   not nature, so a wind cloak lands in `wind` when the words can tell and in `cloak` when they
+   cannot. The actor value is the last word of all: health, magicka and stamina are skipped there,
+   since every attack changes health and one bucket of everything is no better than none.
 
 **Rule 2 reads editor ids**, not just names. Names are translated; editor ids are English on every
 load order (`Fireball`, `FireDamageFFAimedArea`, `WindBladeSpell`). The engine drops spell and effect
@@ -282,30 +284,51 @@ into words and weighs them like the name. Filters that keep ids from polluting t
   (`MergeWithHints`). The hints are fire / frost / shock / summon ... - what rule 1 already settles -
   and when they went first they used 8 of the 12 slots, so `wind` and `arcane` fell off the end.
 
-On the dev load order (Korean, 1440 tome spells): rule 1 names 1090 spells, rule 2 names 212 -
+On the dev load order (Korean, 1440 tome spells): rule 1 names 1118 spells, rule 2 names 211 -
 Destruction `blood` 16, `shadow` 15, `arcane` 14, `stone` 13, `water` 13, `wind` 13; Restoration `astral` 16,
-`sun` 15, `moon` 13; Alteration `resist` 7, `lock` 6 ... - and 138 (10%) stay without a theme. With names
-only, rule 2 named 52 and 318 had none.
+`sun` 15, `moon` 13; Alteration `resist` 7, `lock` 6 ... - and 111 (8%) stay without a theme. With names
+only and no traits, rule 2 named 52 and 318 had none. 23 of the themes are held by a single spell,
+which groups no better than no theme at all.
 
-**Reviewed 2026-09-22 - what was found and fixed in the rules**
-- reanimate spells carry vanilla's `MagicSummonUndead` and were read as undead summons: `reanimate` now
-  wins over `summon_*`, in the themes and in the icon rules;
-- `heal` was given to fortify-health effects (Courage, Rally): an effect flagged Recover hands the value
-  back when it ends, so it is not a heal;
-- `area.blast` was given for an explosion record with no radius: now needs a radius or an effect area;
-- the card's description could come from a Hide in UI helper effect: a visible effect's goes first.
+**Audit, 2026-09-22.** Every rule was re-run over all 1440 spells / 4246 effects of the dev load
+order and each answer sorted into: arbitrary (more than one candidate, first one wins), missing
+(nothing to say), or self-contradicting (two sources disagree). Found and fixed:
+
+- *reanimate read as a summon.* Raising a corpse carries vanilla's `MagicSummonUndead` too, so 6
+  spells came out as undead summons. `reanimate` now wins, in the themes and in the icon rules.
+- *fortify read as a heal.* Courage, Rally and Call to Arms raise health, so they were `heal`. An
+  effect flagged Recover hands the value back when it ends: that is a fortify, not a heal.
+- *area without a radius.* 8 spells were `area.blast` because of an explosion record kept only for the
+  flash. An area now needs a radius or an effect area.
+- *description from a hidden effect.* 4 cards took their text from a Hide in UI helper. A visible
+  effect's description goes first.
+- *effect order decided which kind named the branch.* Vanilla Paralyze leads with a Rally helper, so
+  it themed as `rally`; so did Mass Paralysis and one mod spell. Kinds are now taken in a fixed order
+  of how much each narrows down what a spell is (`kKindPriority`) - paralysis beats rally on every
+  load order, because that is what the engine's archetypes mean. Nine spells carried two kinds; all
+  nine now pick the telling one. Measured alternatives first: the costliest effect gets Paralyze
+  wrong (the Rally helper costs more), and rarity-within-this-load-order would not carry to another.
+- *ties in the word themes were resolved by hash order.* Terms with equal TF-IDF scores were sorted
+  by score alone out of an `unordered_map`, so which themes survived the topN cut was not guaranteed
+  to be the same twice. Ties now break on the term.
+- *nothing said about 187 value-modifier spells.* They harm or help an actor value with no element
+  and no archetype to name - the third tier now reads the actor value itself (a closed engine enum,
+  its own name is the theme), which names 66 spells and takes the unthemed from 138 to 111.
+
+Checks that came back clean: no spell has a resist value and a vanilla keyword that disagree about
+its element (0 of 1440); every spell has one of the five schools; no spell has zero effects; only 3
+spells have every effect flagged Hide in UI, where the rules read the hidden ones rather than give up.
 
 **Known and left as it is**
 - school is the school of the first effect (upstream behaviour); the engine uses the costliest effect.
   They differ for 2 of 1440 spells here. Changing it would move spells between schools in existing trees.
-- a spell with two elements (5 here, e.g. the Creation Club fire-and-frost spells) goes to whichever
-  element its first such effect has.
+- a spell with two elements (5 here, the Creation Club fire-and-frost spells and one dispel) goes to
+  whichever element its first such effect has. They really are dual-element; no single answer is right.
+- 111 spells stay unthemed, 49 of them one mod's. 168 spells have nothing but Script effects: a script
+  does whatever its author wrote, and no record says what. That is the floor for structure alone.
 - an icon pack that keyworded a spell twice (252 here) gives whichever keyword the spell lists first.
 - "vanilla keyword" is judged by the defining plugin; a mod that injects a record into a vanilla
-  plugin's id range would pass. Only the names in the fixed table are read, so it would also have to be
-  called exactly `MagicSummonFire` or the like.
-Needs a scan taken with the `full` preset (`effectDetails`); without `traits` everything below applies
-as before.
+  plugin's id range would pass. It would also have to be named exactly `MagicSummonFire` or the like.
 ### Theme Rule 2 — TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
 
 **Shared by all builders.** Discovers keyword themes per school from spell text using `TreeNLP::ComputeTfIdf()`.

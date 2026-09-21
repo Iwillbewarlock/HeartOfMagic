@@ -117,8 +117,9 @@ namespace TreeBuilder
 
     // Theme straight from the scan's "traits" column, empty when the spell has
     // none that make a branch. Language independent, unlike the word themes.
-    // shapeOnly asks for the cloak / rune / stagger fallback instead (see TreeBuilderThemes.cpp).
-    std::string ThemeFromTraits(const json& spell, bool shapeOnly = false);
+    // fallback asks for the weaker answers instead - shape, then actor value -
+    // which only count once rule 2 has failed (see TreeBuilderThemes.cpp).
+    std::string ThemeFromTraits(const json& spell, bool fallback = false);
 
     // Get the best matching theme for a single spell
     std::pair<std::string, int>

@@ -223,6 +223,50 @@ namespace SpellScanner
     namespace
     {
         json BuildChipsImpl(RE::SpellItem* spell, std::size_t limit);
+
+        // The actor value a spell changes, as "value.<enum name>" - a last word
+        // for spells the rest of the rules cannot name. The actor values are an
+        // engine enum, so this cannot be outgrown by a mod; the enum's own name
+        // is the trait, nothing is written down here.
+        //
+        // Health, magicka and stamina are left out on purpose: every attack
+        // changes health, so it would make one bucket of everything, and heal /
+        // damage already cover what can be said about it. What is left is the
+        // narrow ones - speed, armour, carry weight, the resistances - where the
+        // value really is what the spell is about.
+        //
+        // Traits only, never a card chip: "speedmult" is the engine's word, not
+        // something to show a player.
+        void AppendValueTrait(json& traits, RE::SpellItem* spell)
+        {
+            using Flag = RE::EffectSetting::EffectSettingData::Flag;
+
+            const RE::Effect* best = nullptr;
+            for (const auto* effect : spell->effects) {
+                if (!effect || !effect->baseEffect) continue;
+                if (effect->baseEffect->data.flags.any(Flag::kHideInUI)) continue;
+                if (!ModifiesActorValue(effect->baseEffect->data.archetype)) continue;
+
+                switch (effect->baseEffect->data.primaryAV) {
+                    case RE::ActorValue::kNone:
+                    case RE::ActorValue::kHealth:
+                    case RE::ActorValue::kMagicka:
+                    case RE::ActorValue::kStamina:
+                        continue;
+                    default:
+                        break;
+                }
+                // The costliest one is the point of the spell.
+                if (!best || effect->cost > best->cost) best = effect;
+            }
+            if (!best) return;
+
+            std::string name = GetActorValueName(best->baseEffect->data.primaryAV);
+            if (name.empty() || name == "None") return;
+            std::transform(name.begin(), name.end(), name.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            traits.push_back("value." + name);
+        }
     }
 
     json BuildSpellChips(RE::SpellItem* spell)
@@ -232,7 +276,9 @@ namespace SpellScanner
 
     json BuildSpellTraits(RE::SpellItem* spell)
     {
-        return BuildChipsImpl(spell, std::numeric_limits<std::size_t>::max());
+        json traits = BuildChipsImpl(spell, std::numeric_limits<std::size_t>::max());
+        AppendValueTrait(traits, spell);
+        return traits;
     }
 
     namespace
