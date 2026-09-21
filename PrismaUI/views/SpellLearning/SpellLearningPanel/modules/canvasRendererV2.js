@@ -400,6 +400,12 @@ var CanvasRenderer = {
         this.canvas.addEventListener('mouseleave', function(e) {
             self.onMouseUp(e);
         });
+
+        // A release that lands anywhere else (the details bar that just opened,
+        // a button, outside the panel) must still let go of the tree
+        window.addEventListener('mouseup', function(e) {
+            if (self.isPanning) self.onMouseUp(e);
+        });
         
         this.canvas.addEventListener('wheel', function(e) {
             e.preventDefault();
@@ -822,21 +828,35 @@ var CanvasRenderer = {
             this._pressY = e.clientY;
             this.panStartX = e.clientX - this.panX;
             this.panStartY = e.clientY - this.panY;
-            this.canvas.style.cursor = 'grabbing';
+            // Does this browser say which buttons are down? Only then can a
+            // lost release be noticed later (see onMouseMove).
+            this._buttonsReported = typeof e.buttons === 'number' && e.buttons > 0;
             this._needsRender = true;
         }
     },
 
     onMouseMove: function(e) {
         var self = this;
+        // The release never arrived (it happens in the game's browser) and the
+        // tree would follow the cursor until the next click. No button is down
+        // any more, so let go now.
+        if (this.isPanning && this._buttonsReported && e.buttons === 0) {
+            this.onMouseUp(e);
+        }
+
         if (this.isPanning) {
-            // Once the press travels past the threshold it is a drag, not a click
+            // Until the press travels past the threshold it is a click in the
+            // making, and a click must not move the tree: the hand always shakes
+            // a pixel or two, and the spell under it would slide along with it.
             if (!this._dragMoved) {
                 var mdx = e.clientX - this._pressX;
                 var mdy = e.clientY - this._pressY;
-                if (mdx * mdx + mdy * mdy > this.DRAG_THRESHOLD * this.DRAG_THRESHOLD) {
-                    this._dragMoved = true;
-                }
+                if (mdx * mdx + mdy * mdy <= this.DRAG_THRESHOLD * this.DRAG_THRESHOLD) return;
+                this._dragMoved = true;
+                // Start the drag from here, or the tree would jump by the threshold
+                this.panStartX = e.clientX - this.panX;
+                this.panStartY = e.clientY - this.panY;
+                this.canvas.style.cursor = 'grabbing';
             }
 
             // Batch pan updates using RAF to prevent multiple renders per frame

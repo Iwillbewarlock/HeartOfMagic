@@ -119,6 +119,16 @@ behaviour back. Nothing had to change for the text: `renderLabels` draws every l
 tree transform is undone, whatever the wheel's angle. A caller can still force either way with
 `opts.rotate`.
 
+### Click and drag on the tree (2026-09-22)
+
+A press on the canvas used to grab the tree at once, so the pixel or two a hand shakes during a click
+slid the tree - and the spell under the cursor - along with it. Now a press moves nothing until it has
+travelled `DRAG_THRESHOLD` (5px); from there the drag starts, without a jump. Two guards against the tree
+staying stuck to the cursor: `mouseup` is also heard on `window` (a release over the details bar or
+outside the canvas), and a `mousemove` that reports no button down ends a drag whose release never
+arrived - only when the browser was seen reporting buttons at the press, so an engine that always says
+0 cannot break dragging.
+
 ### Visual Effects
 - **Starfield** (`starfield.js`) — animated star background, parallax with pan
 - **3D Globe** (`globe3D.js`) — rotating globe at tree center
