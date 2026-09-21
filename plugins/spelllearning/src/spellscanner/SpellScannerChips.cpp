@@ -22,9 +22,17 @@ namespace SpellScanner
         // description off the bottom bar.
         constexpr std::size_t kMaxChips = 6;
 
+        // Runes are told apart by the vanilla keyword the game itself uses for
+        // them. It is a fixed vanilla name, not a mod's vocabulary.
+        constexpr const char* kVanillaRuneKeyword = "MagicRune";
+
+        // Set for the duration of one build: the card line is capped, the full
+        // trait list the icon rules read is not.
+        thread_local std::size_t t_chipLimit = kMaxChips;
+
         void AddChip(json& chips, const char* chip)
         {
-            if (!chip || chips.size() >= kMaxChips) return;
+            if (!chip || chips.size() >= t_chipLimit) return;
             for (const auto& existing : chips) {
                 if (existing.get_ref<const std::string&>() == chip) return;
             }
@@ -172,10 +180,29 @@ namespace SpellScanner
         }
     }
 
+    namespace
+    {
+        json BuildChipsImpl(RE::SpellItem* spell, std::size_t limit);
+    }
+
     json BuildSpellChips(RE::SpellItem* spell)
+    {
+        return BuildChipsImpl(spell, kMaxChips);
+    }
+
+    json BuildSpellTraits(RE::SpellItem* spell)
+    {
+        return BuildChipsImpl(spell, std::numeric_limits<std::size_t>::max());
+    }
+
+    namespace
+    {
+    json BuildChipsImpl(RE::SpellItem* spell, std::size_t limit)
     {
         json chips = json::array();
         if (!spell) return chips;
+
+        t_chipLimit = limit;
 
         const auto effects = PlayerFacingEffects(spell);
 
@@ -211,6 +238,9 @@ namespace SpellScanner
         const bool hasElement = !chips.empty() &&
             chips[0].get_ref<const std::string&>().starts_with("element.");
         for (const auto* effect : effects) {
+            if (effect->baseEffect->HasKeywordString(kVanillaRuneKeyword)) {
+                AddChip(chips, "kind.rune");
+            }
             AddChip(chips, ArchetypeChip(effect->baseEffect->data.archetype));
 
             const char* valueChip = ActorValueChip(effect->baseEffect);
@@ -228,12 +258,13 @@ namespace SpellScanner
 
         // The school always makes it onto the line, at the cost of the last chip.
         if (const char* schoolChip = SchoolChip(GetSpellSchool(spell))) {
-            if (chips.size() >= kMaxChips) {
+            if (chips.size() >= limit) {
                 chips.erase(chips.size() - 1);
             }
             chips.push_back(schoolChip);
         }
 
         return chips;
+    }
     }
 }

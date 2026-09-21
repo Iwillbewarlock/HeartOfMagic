@@ -503,13 +503,13 @@ namespace SpellScanner
         // Name of the keyword an installed icon pack has an SVG for, if any.
         // The picture itself is fetched on demand (GetSpellIcon) - a whole tree
         // of them would not fit through one batch reply.
-        // An icon pack's own picture first, else the school emblem with its element.
+        // The pack author's own choice for this spell first, else the icon rules.
         // schoolIconKey is the plain emblem, safe to show while the name is hidden.
         std::string iconKey = FindSpellIconKey(spell);
         if (iconKey.empty()) {
-            iconKey = FindSchoolIconKey(spell, true);
+            iconKey = FindRuleIconKey(spell);
         }
-        const std::string schoolIconKey = FindSchoolIconKey(spell, false);
+        const std::string schoolIconKey = FindSchoolIconKey(spell);
         if (!schoolIconKey.empty()) {
             spellInfo["schoolIconKey"] = schoolIconKey;
         }

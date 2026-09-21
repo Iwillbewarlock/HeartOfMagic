@@ -55,6 +55,7 @@ window._i18nPreload = {
     "chips.kind.nightEye": "야간 시야",
     "chips.kind.detect": "탐지",
     "chips.kind.telekinesis": "염동력",
+    "chips.kind.rune": "룬",
     "chips.kind.reanimate": "시체 되살리기",
     "chips.kind.soulTrap": "영혼 포획",
     "chips.kind.turnUndead": "언데드 퇴치",

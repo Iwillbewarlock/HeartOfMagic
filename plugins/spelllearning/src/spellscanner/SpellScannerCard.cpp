@@ -6,6 +6,7 @@
 #include <mutex>
 #include <regex>
 #include <unordered_map>
+#include <unordered_set>
 
 // =============================================================================
 // SPELL CARD - ICON AND DESCRIPTION
@@ -21,10 +22,16 @@
 // and take the first one that has such a file. Nothing is listed here per mod;
 // whatever icon packs the player has installed are picked up as they are.
 //
-// Wheeler's standard set sits one folder over and carries the vanilla school
-// emblems (alteration.svg, conjuration.svg, destruction.svg and its _fire /
-// _frost / _shock variants, illusion.svg, restoration.svg). Those are the
-// stand-in when no keyword icon matches.
+// A spell no pack keyworded still gets a fitting picture through the icon rules
+// (SKSE/Plugins/SpellLearning/card_icons.json). A rule says "a spell with these
+// traits uses this file" - traits being the same closed-set ids the chips are
+// made of (element.fire, kind.cloak, school.destruction ...). Rules are tried in
+// order and one only counts if its file is actually installed, so a rule for a
+// pack the player does not have is simply skipped. The shipped rules point at
+// the icon set of Kome's Inventory Tweaks, which is the mod's icon requirement;
+// the file is data, so another pack can be wired in without touching the DLL.
+// The last rules are the vanilla school emblems from Wheeler's standard set
+// (icons/<school>.svg), one folder over.
 //
 // An icon key is "<folder>/<file stem>": "icons_custom/KWD_<keyword>" or
 // "icons/<name>". The panel treats it as opaque and hands it back to
@@ -44,8 +51,23 @@ namespace SpellScanner
         // through the JS bridge for a 20px picture.
         constexpr std::uintmax_t kMaxIconBytes = 256 * 1024;
 
+        constexpr const char* kRulesPath = "Data/SKSE/Plugins/SpellLearning/card_icons.json";
+
+        // Placeholders a rule's icon may carry.
+        constexpr const char* kSchoolLetterTag = "{S}";     // A C D I R
+        constexpr const char* kSchoolNameTag = "{school}";  // alteration ...
+
+        struct IconRule
+        {
+            std::vector<std::string> when;  // every trait must be present
+            std::string icon;               // icon key, may carry placeholders
+        };
+
         std::mutex g_iconMutex;
         std::unordered_map<std::string, bool> g_iconExists;
+
+        std::once_flag g_rulesOnce;
+        std::vector<IconRule> g_rules;
 
         bool IsPlainName(const std::string& name)
         {
@@ -138,36 +160,83 @@ namespace SpellScanner
         return "";
     }
 
-    std::string FindSchoolIconKey(RE::SpellItem* spell, bool withElement)
+    namespace
     {
-        if (!spell) return "";
+        std::string LowerSchoolName(RE::SpellItem* spell)
+        {
+            std::string school = GetSchoolName(GetSpellSchool(spell));
+            std::transform(school.begin(), school.end(), school.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return IsPlainName(school) ? school : std::string();
+        }
 
-        std::string school = GetSchoolName(GetSpellSchool(spell));
-        std::transform(school.begin(), school.end(), school.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (!IsPlainName(school)) return "";
-
-        // destruction_fire and friends, from the same resist value the chips use
-        if (withElement) {
-            using Flag = RE::EffectSetting::EffectSettingData::Flag;
-            for (const auto* effect : spell->effects) {
-                if (!effect || !effect->baseEffect) continue;
-                if (effect->baseEffect->data.flags.any(Flag::kHideInUI)) continue;
-
-                const char* element = nullptr;
-                switch (effect->baseEffect->data.resistVariable) {
-                    case RE::ActorValue::kResistFire: element = "fire"; break;
-                    case RE::ActorValue::kResistFrost: element = "frost"; break;
-                    case RE::ActorValue::kResistShock: element = "shock"; break;
-                    default: break;
-                }
-                if (!element) continue;
-
-                const std::string key = StandardIconKey(school + "_" + element);
-                if (IconExists(key)) return key;
-                break;
+        void ReplaceTag(std::string& text, const std::string& tag, const std::string& value)
+        {
+            for (auto at = text.find(tag); at != std::string::npos; at = text.find(tag, at + value.size())) {
+                text.replace(at, tag.size(), value);
             }
         }
+
+        void LoadIconRules()
+        {
+            try {
+                std::ifstream file(kRulesPath);
+                if (!file.is_open()) {
+                    logger::info("SpellScanner: no {} - spell cards use keyword icons only", kRulesPath);
+                    return;
+                }
+
+                const json data = json::parse(file, nullptr, true, true);
+                for (const auto& entry : data.value("rules", json::array())) {
+                    IconRule rule;
+                    rule.icon = entry.value("icon", std::string());
+                    for (const auto& trait : entry.value("when", json::array())) {
+                        if (trait.is_string()) rule.when.push_back(trait.get<std::string>());
+                    }
+                    if (!rule.icon.empty()) g_rules.push_back(std::move(rule));
+                }
+                logger::info("SpellScanner: loaded {} spell card icon rules", g_rules.size());
+            } catch (const std::exception& e) {
+                logger::warn("SpellScanner: could not read {}: {}", kRulesPath, e.what());
+                g_rules.clear();
+            }
+        }
+    }
+
+    std::string FindRuleIconKey(RE::SpellItem* spell)
+    {
+        if (!spell) return "";
+        std::call_once(g_rulesOnce, LoadIconRules);
+        if (g_rules.empty()) return "";
+
+        std::unordered_set<std::string> traits;
+        for (const auto& trait : BuildSpellTraits(spell)) {
+            traits.insert(trait.get<std::string>());
+        }
+
+        const std::string school = LowerSchoolName(spell);
+        const std::string letter = school.empty()
+            ? std::string()
+            : std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(school[0]))));
+
+        for (const auto& rule : g_rules) {
+            const bool matches = std::all_of(rule.when.begin(), rule.when.end(),
+                [&traits](const std::string& trait) { return traits.contains(trait); });
+            if (!matches) continue;
+
+            std::string key = rule.icon;
+            ReplaceTag(key, kSchoolLetterTag, letter);
+            ReplaceTag(key, kSchoolNameTag, school);
+            if (IconExists(key)) return key;  // also rejects anything that is not a safe key
+        }
+        return "";
+    }
+
+    std::string FindSchoolIconKey(RE::SpellItem* spell)
+    {
+        if (!spell) return "";
+        const std::string school = LowerSchoolName(spell);
+        if (school.empty()) return "";
 
         const std::string key = StandardIconKey(school);
         return IconExists(key) ? key : "";

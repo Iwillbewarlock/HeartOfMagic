@@ -117,16 +117,6 @@
 .spell-icon.hidden {
     display: none;
 }
-/* School glyph: stand-in when no installed icon pack covers the spell */
-.school-glyph { display: inline-flex; color: var(--text-secondary, #9A9A8A); }
-.school-glyph svg { width: 100%; height: 100%; }
-.school-glyph.destruction { color: var(--destruction, #ef4444); }
-.school-glyph.restoration { color: var(--restoration, #facc15); }
-.school-glyph.alteration  { color: var(--alteration, #22c55e); }
-.school-glyph.conjuration { color: var(--conjuration, #a855f7); }
-.school-glyph.illusion    { color: var(--illusion, #38bdf8); }
-.school-glyph.hidden { display: none; }
-
 /* ---- Spell card keyword chips ----
    One line under the name. Elements pick up the school colours the themes
    already define; everything else stays neutral so the line reads as a set. */

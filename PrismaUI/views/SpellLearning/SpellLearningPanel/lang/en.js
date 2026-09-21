@@ -55,6 +55,7 @@ window._i18nPreload = {
     "chips.kind.nightEye": "Night Eye",
     "chips.kind.detect": "Detect",
     "chips.kind.telekinesis": "Telekinesis",
+    "chips.kind.rune": "Rune",
     "chips.kind.reanimate": "Reanimate",
     "chips.kind.soulTrap": "Soul Trap",
     "chips.kind.turnUndead": "Turn Undead",

@@ -65,23 +65,28 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   next to Fire). If every effect is hidden, all of them are read. `modules/spellCard.js` translates them through `chips.*` lang keys
   and falls back to English labels for languages that do not have the keys yet.
   Works in both the bottom bar and the side layout.
-  **Icon** in front of the name, best source first, all found by file name (`SpellScannerCard.cpp`):
-  1. an installed icon pack's picture. Custom I4 icon packs ship their spell icons a second time
-     as SVG for Wheeler, named by keyword
-     (`Data/SKSE/Plugins/wheeler/resources/icons_custom/KWD_<keyword>.svg`); the first keyword of
-     the spell, then of its effects, that has such a file wins. Sent as `iconKey`.
-  2. the vanilla school emblem from Wheeler's standard set, one folder over
-     (`icons/<school>.svg`, or `icons/destruction_fire|_frost|_shock.svg` by the same resist value
-     the chips use). Sent as `iconKey` when 1 found nothing, and always as `schoolIconKey` (plain
-     school, no element).
-  3. our own drawing of the same five emblems (`_schoolGlyphs` in `spellCard.js`), flat
-     single-colour silhouettes like the packs use, coloured by the theme's school colour. This is
-     what a player with no Wheeler icons installed sees, so the slot is never empty.
-  While the name is still hidden only `schoolIconKey` or the glyph shows: the school is always
-  visible anyway, a pack icon or an element variant would give the spell away. Pictures are
-  fetched on demand (`GetSpellIcon` -> `updateSpellIcon`) and shown as an `<img>` data URI, so
-  nothing inside a mod's SVG can run. Nothing is listed per mod. The SWF icons the inventory menus
-  use cannot be drawn in a web view.
+  **Icon** in front of the name. The mod draws no icons of its own: **Kome's Inventory Tweaks (KIT)
+  is the icon requirement**, and its Wheeler SVG set is read from the player's install
+  (`Data/SKSE/Plugins/wheeler/resources/`), never bundled. Picked in C++ (`SpellScannerCard.cpp`),
+  best source first:
+  1. the pack author's own choice - a keyword on the spell, then on its effects, that has
+     `icons_custom/KWD_<keyword>.svg`. Any custom I4 icon pack that ships Wheeler SVGs counts.
+  2. the **icon rules**, `SKSE/Plugins/SpellLearning/card_icons.json`. A rule is "spell has these
+     traits -> this file", traits being the uncapped chip ids (`BuildSpellTraits`: element.fire,
+     kind.cloak, kind.rune, kind.summon, school.* ...). Rules run top to bottom, specific first
+     (fire + cloak before fire), and a rule only counts if its file is installed. `{S}` is the
+     school letter KIT suffixes its files with (A C D I R), `{school}` the school name. The last
+     rules are the vanilla school emblems (`icons/destruction_fire`, `icons/{school}`).
+  `schoolIconKey` is always the plain emblem; while the name is hidden only that shows, since a
+  pack icon or an element variant would give the spell away. Pictures are fetched on demand
+  (`GetSpellIcon` -> `updateSpellIcon`) and shown as an `<img>` data URI, so nothing inside a
+  mod's SVG can run. Without the icon set there is no icon.
+  What the rules are and are not: the trait side is closed engine sets, the file-name side is a
+  hand-written list of KIT's names as of 2026-09. If KIT renames a file that rule goes quiet and
+  the next one (in the end the school emblem) takes over; the file is data so it can be fixed or
+  pointed at another pack without a new DLL. On the dev load order (1440 tome spells): 977 get
+  the pack's own icon, 266 an icon rule (248 of those the generic summon), 197 the school emblem,
+  0 nothing. The SWF icons the inventory menus use cannot be drawn in a web view.
   **Effects list** is hidden outside edit mode: it shows how a spell is wired (helper effects,
   duplicates, internal names), which the description and chips already say in player terms.
   **Description**: `<mag>`/`<dur>`/`<area>` are filled in from the effect and `<25>` style emphasis

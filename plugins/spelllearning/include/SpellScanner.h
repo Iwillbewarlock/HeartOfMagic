@@ -126,14 +126,18 @@ namespace SpellScanner
     // ("element.fire", "form.projectile", "school.destruction"). Derived only
     // from closed engine sets (SpellScannerChips.cpp). Not part of the scan dump.
     json BuildSpellChips(RE::SpellItem* spell);
+    // The same ids without the card's length cap - what the icon rules match on.
+    json BuildSpellTraits(RE::SpellItem* spell);
 
     // Spell card icon (SpellScannerCard.cpp). Icon packs ship SVGs named
     // KWD_<keyword>.svg for Wheeler; the key is the first keyword of the spell,
     // then of its effects, that has one. Empty when nothing is installed.
     std::string FindSpellIconKey(RE::SpellItem* spell);
-    // Wheeler's standard school emblem (icons/<school>.svg), optionally the
-    // destruction_fire/_frost/_shock variant. Empty when not installed.
-    std::string FindSchoolIconKey(RE::SpellItem* spell, bool withElement);
+    // Icon rules (card_icons.json): first rule whose traits the spell has and
+    // whose file is installed. Traits are BuildSpellTraits ids.
+    std::string FindRuleIconKey(RE::SpellItem* spell);
+    // Wheeler's standard school emblem (icons/<school>.svg). Empty when not installed.
+    std::string FindSchoolIconKey(RE::SpellItem* spell);
     std::string ReadSpellIconSvg(const std::string& key);
 
     // Fills <mag>/<dur>/<area> from the effect and strips <..> emphasis marks.
