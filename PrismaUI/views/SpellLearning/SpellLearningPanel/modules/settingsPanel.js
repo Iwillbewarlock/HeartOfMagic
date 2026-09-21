@@ -1319,6 +1319,7 @@ function saveUnifiedConfig() {
         focusOnClick: settings.focusOnClick,
         focusZoomOnClick: settings.focusZoomOnClick,
         focusZoom: settings.focusZoom,
+        focusRotate: settings.focusRotate,
         detailsLayout: settings.detailsLayout,
         focusDimOthers: settings.focusDimOthers,
         uiPatchDefaults: settings.uiPatchDefaults || 1,   // Marker: patch defaults (tomes-only scan) already applied once
@@ -2136,6 +2137,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.focusOnClick = data.focusOnClick !== false;          // default true
         settings.focusZoomOnClick = data.focusZoomOnClick !== false;  // default true
         settings.focusZoom = (typeof data.focusZoom === 'number' && data.focusZoom > 0) ? data.focusZoom : 1.0;
+        settings.focusRotate = data.focusRotate === true;             // default false
         settings.detailsLayout = data.detailsLayout === 'side' ? 'side' : 'bottom';
         if (typeof TreeNav !== 'undefined') TreeNav.applyDetailsLayout();
         settings.focusDimOthers = data.focusDimOthers !== false;   // default true
@@ -3201,6 +3203,16 @@ function initializeHeartSettings() {
         focusZoomToggle.checked = settings.focusZoomOnClick !== false;
         focusZoomToggle.addEventListener('change', function() {
             settings.focusZoomOnClick = this.checked;
+            autoSaveSettings();
+        });
+    }
+
+    // Rotate the wheel on focus toggle
+    var focusRotateToggle = document.getElementById('focus-rotate');
+    if (focusRotateToggle) {
+        focusRotateToggle.checked = settings.focusRotate === true;
+        focusRotateToggle.addEventListener('change', function() {
+            settings.focusRotate = this.checked;
             autoSaveSettings();
         });
     }

@@ -954,7 +954,7 @@ var CanvasRenderer = {
         var focusEnabled = (typeof settings === 'undefined') || settings.focusOnClick !== false;
         if (focusEnabled && typeof TreeCamera !== 'undefined') {
             TreeCamera.focusNode(node, focusOpts);
-        } else {
+        } else if (typeof settings !== 'undefined' && settings.focusRotate === true) {
             // Legacy behavior: only rotate the school to the top
             this.rotateSchoolToTop(node.school);
         }

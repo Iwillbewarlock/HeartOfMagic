@@ -110,6 +110,15 @@ run in game on the dev setup and judged unusable by the mod's owner; it was remo
 (commit `4fbed77` has it). No frame numbers were kept: the probe only wrote its report at the end of the
 run. Depth, if wanted, has to come from 2D means - layering, size, dimming - not from a camera.
 
+### Decided: the view travels, the wheel does not turn (2026-09-22)
+
+Focusing a spell or pressing a school tab used to turn the whole wheel so that school stood on top.
+Going from school to school that way is dizzying, so `TreeCamera.computeTarget` now only pans (and zooms)
+unless `settings.focusRotate` is on - a toggle in the render settings, off by default, that brings the old
+behaviour back. Nothing had to change for the text: `renderLabels` draws every label upright after the
+tree transform is undone, whatever the wheel's angle. A caller can still force either way with
+`opts.rotate`.
+
 ### Visual Effects
 - **Starfield** (`starfield.js`) — animated star background, parallax with pan
 - **3D Globe** (`globe3D.js`) — rotating globe at tree center

@@ -106,7 +106,14 @@ var TreeCamera = {
     computeTarget: function(renderer, node, opts) {
         opts = opts || {};
         var rotation = renderer.rotation;
-        if (opts.rotate !== false && !renderer.noRotate) {
+        // Turning the whole wheel on every school change is dizzying, so by
+        // default the view only travels. Labels are drawn upright whatever the
+        // wheel's angle, so nothing needs turning for the text's sake either.
+        // A caller can still ask for it; the setting brings the old way back.
+        var wantRotate = (typeof opts.rotate === 'boolean')
+            ? opts.rotate
+            : (typeof settings !== 'undefined' && settings.focusRotate === true);
+        if (wantRotate && !renderer.noRotate) {
             var schoolRot = this.getSchoolTopRotation(renderer, node);
             if (schoolRot !== null) {
                 rotation = renderer.rotation + this._shortestDelta(renderer.rotation, schoolRot);

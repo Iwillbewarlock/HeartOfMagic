@@ -481,6 +481,7 @@ window._i18nPreload = {
     "settings.render.trail": "궤적",
     "settings.render.width": "너비",
     "settings.render.zoomOnClick": "클릭 시 확대",
+    "settings.render.rotateOnFocus": "이동 시 바퀴 회전",
     "settings.tomeLearning.desc": "마법서가 진행 시스템과 어떻게 작동하는지 설정합니다.",
     "settings.tomeLearning.inventoryBoost": "인벤토리 보너스",
     "settings.tomeLearning.inventoryBoostDesc": "마법서 소지 시 보너스 경험치",

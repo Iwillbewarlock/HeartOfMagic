@@ -515,6 +515,7 @@
     "settings.render.trail": "Trail",
     "settings.render.width": "Width",
     "settings.render.zoomOnClick": "Zoom on Click",
+    "settings.render.rotateOnFocus": "Rotate Wheel on Focus",
     "settings.tomeLearning.desc": "Configure how spell tomes work with the progression system.",
     "settings.tomeLearning.inventoryBoost": "Inventory Boost",
     "settings.tomeLearning.inventoryBoostDesc": "Bonus XP while carrying tome",
