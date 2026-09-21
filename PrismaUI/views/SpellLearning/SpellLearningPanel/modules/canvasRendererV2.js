@@ -831,6 +831,7 @@ var CanvasRenderer = {
             // Does this browser say which buttons are down? Only then can a
             // lost release be noticed later (see onMouseMove).
             this._buttonsReported = typeof e.buttons === 'number' && e.buttons > 0;
+            if (typeof PerfMeter !== 'undefined') PerfMeter.press(e);
             this._needsRender = true;
         }
     },
@@ -843,6 +844,8 @@ var CanvasRenderer = {
         if (this.isPanning && this._buttonsReported && e.buttons === 0) {
             this.onMouseUp(e);
         }
+
+        if (this.isPanning && typeof PerfMeter !== 'undefined') PerfMeter.move(e);
 
         if (this.isPanning) {
             // Until the press travels past the threshold it is a click in the
@@ -902,6 +905,7 @@ var CanvasRenderer = {
     },
     
     onMouseUp: function(e) {
+        if (this.isPanning && typeof PerfMeter !== 'undefined') PerfMeter.release(e, this._dragMoved);
         this.isPanning = false;
         this.canvas.style.cursor = this.hoveredNode ? 'pointer' : 'grab';
         this._needsRender = true;
@@ -1132,6 +1136,7 @@ var CanvasRenderer = {
         var animationThrottleMs = 50;  // ~20fps for passive animations
         
         function loop(timestamp) {
+            if (typeof PerfMeter !== 'undefined') PerfMeter.tick(timestamp);
             var shouldRender = self._needsRender;
             
             // For animation-only updates, throttle to save CPU
@@ -1442,6 +1447,7 @@ var CanvasRenderer = {
         this.renderLabels(ctx, cx, cy, cos, sin);
         
         var elapsed = performance.now() - startTime;
+        if (typeof PerfMeter !== 'undefined') PerfMeter.frame(elapsed);
         if (elapsed > 16 || this._logNextRender) {
             console.log('[CanvasRenderer] Render:', Math.round(elapsed) + 'ms,', this.nodes.length, 'nodes');
             this._logNextRender = false;

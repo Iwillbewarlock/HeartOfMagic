@@ -147,6 +147,8 @@ function updateRetrySchoolUI() {
 function updateDeveloperModeVisibility(enabled) {
     console.log('[SpellLearning] Updating developer mode visibility:', enabled);
     
+    if (typeof PerfMeter !== 'undefined') PerfMeter.syncVisibility();
+
     // Get all elements with dev-only class
     var devOnlyElements = document.querySelectorAll('.dev-only');
     devOnlyElements.forEach(function(el) {
