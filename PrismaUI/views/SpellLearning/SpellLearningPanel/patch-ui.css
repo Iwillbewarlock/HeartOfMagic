@@ -63,7 +63,7 @@
     color: var(--text-bright, var(--text-primary, #E8E8D8));
 }
 
-/* ---- Trait filter (second row under the school tabs) ---- */
+/* ---- Trait filter: one pill, shown only while a filter is on ---- */
 #tree-trait-filter {
     position: absolute;
     top: 50px;
@@ -84,13 +84,13 @@
     display: none;
 }
 
-.trait-filter-btn {
-    background: var(--btn-bg, rgba(255, 255, 255, 0.06));
+.trait-filter-active {
+    background: rgba(255, 255, 255, 0.14);
     border: none;
     border-bottom: 2px solid transparent;
-    color: var(--text-secondary, #9A9A8A);
+    color: var(--text-bright, var(--text-primary, #E8E8D8));
     /* 24px tall at least: the smallest target WCAG 2.2 allows */
-    padding: 6px 10px;
+    padding: 6px 12px;
     min-height: 24px;
     font-family: inherit;
     /* 12px on the panel's 14px base; game UI text below that is hard to read on a TV */
@@ -98,8 +98,12 @@
     cursor: pointer;
 }
 
+.trait-filter-active:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
 /* Plain :focus, not :focus-visible - the in-game engine is an old WebKit */
-.trait-filter-btn:focus,
+.trait-filter-active:focus,
 button.easy-preset-chip:focus,
 .bridge-item:focus {
     outline: 1px solid var(--accent, #b8a878);
@@ -113,15 +117,6 @@ button.easy-preset-chip {
     line-height: inherit;
 }
 
-.trait-filter-btn:hover {
-    background: var(--btn-bg-hover, rgba(255, 255, 255, 0.12));
-    color: var(--text-primary, #C8C8B8);
-}
-
-.trait-filter-btn.active {
-    background: rgba(255, 255, 255, 0.2);
-    color: var(--text-bright, var(--text-primary, #E8E8D8));
-}
 
 /* ---- Spell card: a keyword you can press to filter the tree ---- */
 .spell-chip-filter {

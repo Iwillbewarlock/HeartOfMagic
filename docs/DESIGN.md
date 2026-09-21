@@ -420,7 +420,7 @@ Tree applied
 | `scannerPresets.js` | Scanner preset save/load |
 | `easyMode.js` | Easy mode scan page, incl. the Tree Style picker (same choice as the Complex page's build mode tabs; the player's pick beats a preset's) |
 | `schoolBridges.js` | Cross school bridges at build time: school order by kinship, bridge sources as soft prerequisites, traits and bridges baked into the saved tree |
-| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter bar (`#tree-trait-filter`) that veils the tree and lights one trait across all schools |
+| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, with a single pill (`#tree-trait-filter`) to clear it |
 | `generationModeUI.js` | Complex mode per-school controls |
 | `buttonHandlers.js` | Scan/build/apply button handlers |
 | `buildProgress.js` | Build progress modal |

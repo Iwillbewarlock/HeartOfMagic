@@ -600,6 +600,7 @@
     "tree.emptyState.title": "로드된 주문 트리 없음",
     "tree.instructions": "드래그하여 이동 / 스크롤하여 확대 / 노드 클릭하여 선택",
     "tree.schoolTabsHint": "이 학파로 이동",
+    "tree.clearTraitFilter": "필터 끄기",
     "tooltip.lockedHint": "연결된 마법을 해금하면 공개",
     "tooltip.progress": "진행도 {{pct}}%",
     "tooltip.revealAt": "{{pct}}%에서 이름 공개",

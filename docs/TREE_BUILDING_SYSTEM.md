@@ -522,10 +522,13 @@ is shared; a click selects the other spell, `???` while it is locked). The trait
 spell's traits after a restart, when the scan is gone, so `applyToOutput` bakes `traits` into each saved
 node.
 
-The filter is reached two ways: the bar above the tree (elements, plus kinds carried by 10+ spells), and
-**the keywords on the spell card, which are buttons** - press "fire" on any spell and every fire spell in
+**The keywords on the spell card are the filter**: press "fire" on any spell and every fire spell in
 every school lights up. A chip is pressable when the tree carries that keyword and it is not the school
-(the school tabs do that) nor `kind.damage`. Both places show the same pressed state.
+(the school tabs do that) nor `kind.damage`. A bar of keyword buttons above the tree was tried and
+removed the same day - thirteen buttons in two rows, and the card's own chips say the same thing where
+the player is already looking. What is left up there is one pill, shown only while a filter is on, which
+names the keyword and turns it off again; without it a filter set from one spell card could only be
+cleared from that same card.
 
 `BridgeView` makes the same three checks `renderNodes` makes before it draws anything - viewport, hidden
 schools, and **discovery mode**. Without the last one the filter and the bridge rings would light up

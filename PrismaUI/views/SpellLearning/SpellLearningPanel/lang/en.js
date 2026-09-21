@@ -602,6 +602,7 @@ window._i18nPreload = {
     "tooltip.progress": "Progress: {{pct}}%",
     "tooltip.revealAt": "name at {{pct}}%",
     "tree.schoolTabsHint": "Jump to this school",
+    "tree.clearTraitFilter": "Clear filter",
     "treeGrowth.builderNotFound": "SpellTreeBuilder not found",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} nodes placed",
     "treeGrowth.treeBuilt": "Tree built",

@@ -33,9 +33,7 @@ var BridgeView = {
     VEIL_EXTENT: 20000,        // larger than any tree, in tree units
     FILTER_DOT: 5,
     FILTER_DOT_SCREEN_PX: 4,   // a lit spell never shrinks below this on screen
-    MIN_SPELLS_PER_FILTER: 10, // kinds rarer than this do not get a button
-    MAX_KIND_FILTERS: 8,       // the bar has to fit on one or two rows
-    TOO_BROAD: 'kind.damage',  // every attack spell has it
+    TOO_BROAD: 'kind.damage',  // says only "this hurts"; too many spells share it
 
     _byNode: {},
     _filterTrait: null,
@@ -56,7 +54,8 @@ var BridgeView = {
             this._add(b.to, b.from, b, false);
         }
         this._filterTrait = null;
-        this.buildFilterBar();
+        this.countTraits();
+        this._renderActiveChip();
     },
 
     _add: function (ownId, otherId, bridge, isSource) {
@@ -290,15 +289,12 @@ var BridgeView = {
     // TRAIT FILTER
     // =========================================================================
 
-    /** One button per element, and per kind that enough spells carry. */
-    buildFilterBar: function () {
-        var bar = document.getElementById('tree-trait-filter');
-        if (!bar) return;
-        bar.innerHTML = '';
-
-        // Every trait is counted, because the spell card's chips can be pressed
-        // too and a chip may be a form or a school. Only elements and the
-        // commoner kinds get a button of their own up here.
+    /**
+     * Counts every keyword the tree carries, so the spell card knows which of
+     * its chips can be pressed. There is no bar of keyword buttons: the card's
+     * own chips are the filter, and a bar of 13 more was just clutter.
+     */
+    countTraits: function () {
         var nodes = (state.treeData && state.treeData.nodes) || [];
         var counts = {};
         for (var i = 0; i < nodes.length; i++) {
@@ -308,42 +304,34 @@ var BridgeView = {
             }
         }
         this._counts = counts;
-
-        var self = this;
-        var shown = Object.keys(counts).filter(function (trait) {
-            if (!self.isFilterable(trait)) return false;
-            if (trait.indexOf('element.') === 0) return true;
-            return trait.indexOf('kind.') === 0 && counts[trait] >= self.MIN_SPELLS_PER_FILTER;
-        });
-        shown.sort(function (a, b) {
-            var ea = a.indexOf('element.') === 0 ? 0 : 1, eb = b.indexOf('element.') === 0 ? 0 : 1;
-            if (ea !== eb) return ea - eb;
-            if (counts[b] !== counts[a]) return counts[b] - counts[a];
-            return a < b ? -1 : 1;
-        });
-        if (shown.length === 0) return;
-        var elements = shown.filter(function (trait) { return trait.indexOf('element.') === 0; });
-        shown = shown.slice(0, elements.length + this.MAX_KIND_FILTERS);
-
-        shown.forEach(function (trait) {
-            var btn = document.createElement('button');
-            btn.className = 'trait-filter-btn';
-            btn.setAttribute('data-trait', trait);
-            btn.setAttribute('type', 'button');
-            btn.setAttribute('aria-pressed', 'false');
-            btn.textContent = self._labelOf(trait) + ' ' + counts[trait];
-            btn.style.borderBottomColor = self.TRAIT_COLORS[trait] || self.DEFAULT_COLOR;
-            btn.addEventListener('click', function () { self.toggleFilter(trait); });
-            bar.appendChild(btn);
-        });
     },
 
+    /**
+     * While a filter is on, one pill above the tree says which keyword it is
+     * and turns it off again. Without it a filter set from a spell card could
+     * only be cleared from that same card.
+     */
+    _renderActiveChip: function () {
+        var bar = document.getElementById('tree-trait-filter');
+        if (!bar) return;
+        bar.innerHTML = '';
+        if (!this._filterTrait) return;
+
+        var self = this;
+        var btn = document.createElement('button');
+        btn.className = 'trait-filter-active';
+        btn.setAttribute('type', 'button');
+        btn.textContent = this._labelOf(this._filterTrait) + ' ' + this.countOf(this._filterTrait) + '  \u00d7';
+        btn.title = (typeof t === 'function') ? t('tree.clearTraitFilter') : 'Clear filter';
+        btn.style.borderBottomColor = this.TRAIT_COLORS[this._filterTrait] || this.DEFAULT_COLOR;
+        btn.addEventListener('click', function () { self.toggleFilter(self._filterTrait); });
+        bar.appendChild(btn);
+    },
     toggleFilter: function (trait) {
         if (!this.isFilterable(trait)) return;
         this._filterTrait = (this._filterTrait === trait) ? null : trait;
-        // The same keyword can be pressed in two places: the bar and the card
-        this._markPressed(document.querySelectorAll('.trait-filter-btn'));
         this._markPressed(document.querySelectorAll('.spell-chip-filter'));
+        this._renderActiveChip();
         this._redraw();
     },
 
