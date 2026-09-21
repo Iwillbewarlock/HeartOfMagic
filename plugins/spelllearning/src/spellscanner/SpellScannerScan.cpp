@@ -481,18 +481,28 @@ namespace SpellScanner
         // The tree viewer only shows the plain effect fields, no MGEF structure
         const FieldConfig viewerFields{};
 
+        // The spell's description is the first described effect's - one the
+        // player is meant to see if there is any, a Hide in UI helper only as a
+        // last resort. <mag>/<dur> are filled in from that same effect.
+        std::string hiddenDescription;
         for (auto* effect : spell->effects) {
             if (!effect || !effect->baseEffect) continue;
 
             json effectJson = BuildEffectJson(effect, viewerFields);
             effectNamesArray.push_back(effectJson["name"]);
 
-            if (description.empty() && effectJson.contains("description")) {
-                // Use first effect's description as spell description, with the
-                // game's <mag>/<dur> placeholders filled in from that same effect
-                description = ResolveDescriptionTags(effectJson["description"].get<std::string>(), effect);
+            if (effectJson.contains("description")) {
+                const bool hidden = effect->baseEffect->data.flags.any(
+                    RE::EffectSetting::EffectSettingData::Flag::kHideInUI);
+                std::string& slot = hidden ? hiddenDescription : description;
+                if (slot.empty()) {
+                    slot = ResolveDescriptionTags(effectJson["description"].get<std::string>(), effect);
+                }
             }
             effectsArray.push_back(effectJson);
+        }
+        if (description.empty()) {
+            description = hiddenDescription;
         }
 
         spellInfo["effects"] = effectsArray;

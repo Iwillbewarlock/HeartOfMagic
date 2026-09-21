@@ -24,12 +24,12 @@
     { "when": ["kind.rune", "kind.fear"],       "icon": "icons_custom/KWD_KIT_SpellFearType_NormalRune_{S}" },
     { "when": ["kind.rune", "kind.frenzy"],     "icon": "icons_custom/KWD_KIT_SpellFrenzyType_NormalRune_{S}" },
 
+    { "when": ["kind.reanimate"],               "icon": "icons_custom/KWD_KIT_SpellReanimateType_Undead_{S}" },
     { "when": ["kind.summon", "element.fire"],  "icon": "icons_custom/KWD_KIT_SpellSummonType_Fire_{S}" },
     { "when": ["kind.summon", "element.frost"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Frost_{S}" },
     { "when": ["kind.summon", "element.shock"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Shock_{S}" },
     { "when": ["kind.summon", "kind.undead"],   "icon": "icons_custom/KWD_KIT_SpellSummonType_Undead_{S}" },
     { "when": ["kind.summon"],                  "icon": "icons_custom/KWD_KIT_SpellSummonType_Creature_{S}" },
-    { "when": ["kind.reanimate"],               "icon": "icons_custom/KWD_KIT_SpellReanimateType_Undead_{S}" },
     { "when": ["kind.command"],                 "icon": "icons_custom/KWD_KIT_SpellCommandType_Normal_{S}" },
 
     { "when": ["kind.absorb"],                  "icon": "icons_custom/KWD_KIT_SpellAbsorbType_Health_{S}" },

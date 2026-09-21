@@ -160,8 +160,13 @@ namespace SpellScanner
             if (!ModifiesActorValue(baseEffect->data.archetype)) return nullptr;
 
             const bool harmful = baseEffect->IsDetrimental();
+            // Recover: the value is handed back when the effect ends. Raising
+            // health that way is a fortify (Courage, Rally), not a heal.
+            const bool lent = baseEffect->data.flags.any(RE::EffectSetting::EffectSettingData::Flag::kRecover);
             switch (baseEffect->data.primaryAV) {
-                case RE::ActorValue::kHealth: return harmful ? "kind.damage" : "kind.heal";
+                case RE::ActorValue::kHealth:
+                    if (harmful) return "kind.damage";
+                    return lent ? nullptr : "kind.heal";
                 case RE::ActorValue::kDamageResist: return harmful ? nullptr : "kind.armor";
                 case RE::ActorValue::kWardPower: return harmful ? nullptr : "kind.ward";
                 default: return nullptr;
@@ -279,8 +284,12 @@ namespace SpellScanner
             if (!formChip && data.projectileBase) {
                 formChip = ProjectileChip(data.projectileBase);
             }
-            if (effect->effectItem.area > 0 || data.explosion ||
-                (data.projectileBase && data.projectileBase->data.explosionType)) {
+            // An explosion record alone is not an area: plenty are there for the
+            // flash and have no radius.
+            const RE::BGSExplosion* explosion = data.explosion
+                ? data.explosion
+                : (data.projectileBase ? data.projectileBase->data.explosionType : nullptr);
+            if (effect->effectItem.area > 0 || (explosion && explosion->data.radius > 0.0f)) {
                 blast = true;
             }
             if (LeavesHazard(effect->baseEffect)) {

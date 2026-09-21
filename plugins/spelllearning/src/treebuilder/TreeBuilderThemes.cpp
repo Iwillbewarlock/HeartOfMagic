@@ -23,16 +23,20 @@ const std::unordered_map<std::string, std::vector<std::string>>& TreeBuilder::Ge
 // MOD TAGS
 // =============================================================================
 //
-// Editor ids carry the author's prefix ("ADAR_", "mad", "zzz"): a word that is
-// on nearly every spell of one plugin and hardly anywhere else. It says which
-// mod a spell is from, not what the spell is, and with a big mod installed it
-// would top the theme count. Found from the data alone - no list of prefixes.
+// Editor ids carry the author's prefix: "ABY_ShadowGrasp", "NAT_WaterSpray",
+// "DAR_ArcaneBlast". It says which mod a spell is from, not what the spell is,
+// and with a big mod installed it would top the theme count.
+//
+// A prefix is told by POSITION: the word an id starts with, shared by most of
+// that plugin's spells. How often a word appears is no test - a mod about one
+// thing (Abyss: shadow, Bloodmoon: blood) uses that word on nearly every spell
+// too, and it is exactly the word the branch should be named after. It never
+// leads the id, though: the prefix does.
 
 namespace
 {
     constexpr std::size_t kMinPluginSpellsForTag = 5;  // too few spells prove nothing
-    constexpr float kTagCoverageInPlugin = 0.8f;       // on this share of the plugin's spells
-    constexpr float kTagShareFromPlugin = 0.8f;        // and this share of all its uses are that plugin's
+    constexpr float kTagLeadShareInPlugin = 0.8f;      // leads this share of the plugin's ids
 
     std::string SpellPlugin(const json& spell)
     {
@@ -44,41 +48,57 @@ namespace
         return TreeNLP::ToLower(plugin);
     }
 
-    std::unordered_set<std::string> FindModTags(
-        const std::vector<std::vector<std::string>>& documents,
-        const std::vector<std::string>& documentPlugins)
+    // First word of the editor id, as the tokenizer would see it.
+    std::string LeadingIdWord(const json& spell)
+    {
+        const auto editorId = spell.value("editorId", std::string(""));
+        std::string word;
+        unsigned char previous = 0;  // as written, before lower-casing
+        for (const char c : editorId) {
+            const auto current = static_cast<unsigned char>(c);
+            if (!std::isalnum(current)) {
+                if (word.empty()) continue;  // ids like "_NV_Player_..." start with a separator
+                break;
+            }
+            // camelCase boundary: "madAbsorb" leads with "mad"
+            if (!word.empty() && std::isupper(current) && std::islower(previous)) break;
+            word += static_cast<char>(std::tolower(current));
+            previous = current;
+        }
+        return word;
+    }
+
+    std::unordered_set<std::string> FindModTags(const std::vector<json>& spells)
     {
         std::unordered_map<std::string, std::size_t> pluginSizes;
-        std::unordered_map<std::string, std::size_t> termTotals;
-        std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> termByPlugin;
-
-        for (std::size_t i = 0; i < documents.size(); ++i) {
-            pluginSizes[documentPlugins[i]]++;
-            const std::unordered_set<std::string> unique(documents[i].begin(), documents[i].end());
-            for (const auto& term : unique) {
-                termTotals[term]++;
-                termByPlugin[term][documentPlugins[i]]++;
-            }
+        std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
+        for (const auto& spell : spells) {
+            const std::string plugin = SpellPlugin(spell);
+            const std::string lead = LeadingIdWord(spell);
+            if (plugin.empty() || lead.empty()) continue;
+            pluginSizes[plugin]++;
+            leadsByPlugin[plugin][lead]++;
         }
 
         std::unordered_set<std::string> tags;
-        for (const auto& [term, perPlugin] : termByPlugin) {
-            for (const auto& [plugin, count] : perPlugin) {
-                const std::size_t pluginSize = pluginSizes[plugin];
-                if (plugin.empty() || pluginSize < kMinPluginSpellsForTag) continue;
-
-                const float coverage = static_cast<float>(count) / static_cast<float>(pluginSize);
-                const float share = static_cast<float>(count) / static_cast<float>(termTotals[term]);
-                if (coverage >= kTagCoverageInPlugin && share >= kTagShareFromPlugin) {
-                    tags.insert(term);
-                    break;
+        for (const auto& [plugin, leads] : leadsByPlugin) {
+            const std::size_t pluginSize = pluginSizes[plugin];
+            if (pluginSize < kMinPluginSpellsForTag) continue;
+            for (const auto& [lead, count] : leads) {
+                if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin) {
+                    tags.insert(lead);
                 }
             }
         }
         return tags;
     }
-}
 
+    // "alt50", "ill25", "100": level codes and magnitudes, never a nature.
+    bool HasDigit(const std::string& term)
+    {
+        return std::any_of(term.begin(), term.end(), [](unsigned char c) { return std::isdigit(c); });
+    }
+}
 std::unordered_map<std::string, std::vector<std::string>>
 TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
 {
@@ -103,10 +123,8 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         // Build text corpus for this school. Spells that get their theme from
         // traits stay out of it: the word themes only have to cover the rest.
         std::vector<std::vector<std::string>> documents;
-        std::vector<std::string> documentPlugins;
         for (const auto& spell : sSpells) {
             if (!ThemeFromTraits(spell).empty()) continue;
-            documentPlugins.push_back(SpellPlugin(spell));
             auto text = TreeNLP::BuildThemeText(spell);
             auto tokens = TreeNLP::Tokenize(text);
             // Filter stop words
@@ -135,15 +153,16 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         std::sort(sorted.begin(), sorted.end(),
             [](const auto& a, const auto& b) { return a.second > b.second; });
 
-        const auto modTags = FindModTags(documents, documentPlugins);
+        // Prefixes are judged over every spell of the plugin, not just this
+        // school's leftovers: the more ids, the surer the prefix.
+        const auto modTags = FindModTags(spells);
 
         std::vector<std::string> themes;
         for (const auto& [term, score] : sorted) {
             if (TreeNLP::IsStopWord(term)) continue;
             if (modTags.contains(term)) continue;
             if (term.size() <= 2) continue;
-            // Magnitudes from effect names ("Armor 100") are not a nature.
-            if (std::all_of(term.begin(), term.end(), [](unsigned char c) { return std::isdigit(c); })) continue;
+            if (HasDigit(term)) continue;
             themes.push_back(term);
             if (static_cast<int>(themes.size()) >= topN) break;
         }
@@ -165,19 +184,22 @@ TreeBuilder::MergeWithHints(
     for (const auto& [school, themes] : discovered) {
         auto hintIt = hints.find(school);
         if (hintIt != hints.end()) {
-            // Hints first, then fill with discovered themes
-            auto result = hintIt->second;
-            std::unordered_set<std::string> hintLower;
-            for (const auto& h : result) hintLower.insert(TreeNLP::ToLower(h));
+            // Discovered themes first, hints after, and the hints do not eat into
+            // the discovered ones' room. The hints are fire / frost / shock /
+            // summon ... - what rule 1 already settles - so when they went first
+            // they used 8 of the 12 slots and words like "wind" or "arcane", the
+            // very thing rule 2 is kept for, fell off the end.
+            std::vector<std::string> result(themes.begin(),
+                themes.begin() + std::min(static_cast<int>(themes.size()), maxThemes));
+            std::unordered_set<std::string> present;
+            for (const auto& t : result) present.insert(TreeNLP::ToLower(t));
 
-            for (const auto& t : themes) {
-                if (!hintLower.contains(TreeNLP::ToLower(t))) {
-                    result.push_back(t);
-                    if (static_cast<int>(result.size()) >= maxThemes) break;
+            for (const auto& h : hintIt->second) {
+                if (present.insert(TreeNLP::ToLower(h)).second) {
+                    result.push_back(h);
                 }
             }
-            merged[school] = std::vector<std::string>(result.begin(),
-                result.begin() + std::min(static_cast<int>(result.size()), maxThemes));
+            merged[school] = std::move(result);
         } else {
             merged[school] = std::vector<std::string>(themes.begin(),
                 themes.begin() + std::min(static_cast<int>(themes.size()), maxThemes));
@@ -223,6 +245,7 @@ namespace
     constexpr std::string_view kElementPrefix = "element.";
     constexpr std::string_view kKindPrefix = "kind.";
     constexpr std::string_view kSummonTrait = "kind.summon";
+    constexpr std::string_view kReanimateTrait = "kind.reanimate";
 
     // Says "this hurts" and nothing else; every attack spell has it.
     constexpr std::string_view kTooBroadKind = "kind.damage";
@@ -269,6 +292,10 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell, bool shapeOnly)
         }
         return "";
     }
+
+    // Raising a corpse carries vanilla's MagicSummonUndead as well, but it is its
+    // own craft: it needs a body, a conjured thrall does not.
+    if (has(kReanimateTrait)) return AfterDot(kReanimateTrait);
 
     if (has(kSummonTrait)) {
         for (const auto qualifier : kSummonQualifiers) {

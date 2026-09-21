@@ -268,16 +268,42 @@ the TF-IDF corpus, so the discovered words only describe the remainder.
 load order (`Fireball`, `FireDamageFFAimedArea`, `WindBladeSpell`). The engine drops spell and effect
 editor ids after loading, so the scan asks powerofthree's Tweaks for them (`SpellScanner::GetEditorId`;
 without po3 Tweaks they are empty and rule 2 falls back to names alone). `BuildThemeText` splits them
-into words and weighs them like the name. Two filters keep ids from polluting the themes: the
-shorthand in ids (`MGEF`, `FFSelf`, `ConcAimed` ...) is on the stop list, and **mod tags** - an
-author's prefix such as `ADAR_` - are found from the data alone (`FindModTags`: a word on >= 80% of
-one plugin's spells that gets >= 80% of its uses from that plugin) and dropped. Bare numbers are not
-accepted as themes either (`"Armor 100"`).
+into words and weighs them like the name. Filters that keep ids from polluting the themes:
 
-On the dev load order (Korean, 1440 tome spells): rule 1 names 1099 spells, rule 2 names 132 -
-`water` 13, `wind` 13, `stone` 13, `sun` 15, `lock` 6, `bolt` 5, `transmute` 3 ... - and 209 stay without
-a theme. Before editor ids rule 2 named 52 and 318 had none. A few short mod tags still slip through
-the filter (`dar` 13, `nat` 6, `ill25` 5, `alt50` 6).
+- the shorthand in ids (`MGEF`, `FFSelf`, `ConcAimed` ...) is on the stop list;
+- **mod tags** - an author's prefix such as `ABY_`, `NAT_`, `GRIM_` - are found from the data
+  (`FindModTags`) by **position**: the word an id starts with, leading >= 80% of that plugin's spell
+  ids. Frequency is no test. The first version used it ("on most of one plugin's spells and hardly
+  anywhere else") and threw away `shadow` for Abyss and `blood` for Bloodmoon - a mod about one thing
+  puts that word on every spell too, and it is the word the branch should be named after - while short
+  real prefixes (`dar`, `nat`) slipped through. A nature word never leads the id; the prefix does;
+- a word with a digit in it is never a theme (`alt50`, `ill25`, `100`);
+- discovered themes keep their slots and the vanilla hint words are appended after them
+  (`MergeWithHints`). The hints are fire / frost / shock / summon ... - what rule 1 already settles -
+  and when they went first they used 8 of the 12 slots, so `wind` and `arcane` fell off the end.
+
+On the dev load order (Korean, 1440 tome spells): rule 1 names 1090 spells, rule 2 names 212 -
+Destruction `blood` 16, `shadow` 15, `arcane` 14, `stone` 13, `water` 13, `wind` 13; Restoration `astral` 16,
+`sun` 15, `moon` 13; Alteration `resist` 7, `lock` 6 ... - and 138 (10%) stay without a theme. With names
+only, rule 2 named 52 and 318 had none.
+
+**Reviewed 2026-09-22 - what was found and fixed in the rules**
+- reanimate spells carry vanilla's `MagicSummonUndead` and were read as undead summons: `reanimate` now
+  wins over `summon_*`, in the themes and in the icon rules;
+- `heal` was given to fortify-health effects (Courage, Rally): an effect flagged Recover hands the value
+  back when it ends, so it is not a heal;
+- `area.blast` was given for an explosion record with no radius: now needs a radius or an effect area;
+- the card's description could come from a Hide in UI helper effect: a visible effect's goes first.
+
+**Known and left as it is**
+- school is the school of the first effect (upstream behaviour); the engine uses the costliest effect.
+  They differ for 2 of 1440 spells here. Changing it would move spells between schools in existing trees.
+- a spell with two elements (5 here, e.g. the Creation Club fire-and-frost spells) goes to whichever
+  element its first such effect has.
+- an icon pack that keyworded a spell twice (252 here) gives whichever keyword the spell lists first.
+- "vanilla keyword" is judged by the defining plugin; a mod that injects a record into a vanilla
+  plugin's id range would pass. Only the names in the fixed table are read, so it would also have to be
+  called exactly `MagicSummonFire` or the like.
 Needs a scan taken with the `full` preset (`effectDetails`); without `traits` everything below applies
 as before.
 ### Theme Rule 2 — TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
