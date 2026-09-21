@@ -1276,6 +1276,9 @@ function showSpellDetails(node) {
         document.getElementById('spell-name').textContent = '???';
     }
     
+    // Icon from an installed icon pack, shown with the name and hidden with it
+    SpellCard.renderIcon(document.getElementById('spell-icon'), node.iconKey, showName);
+
     // Keyword chips - second thing to open up, after the name
     SpellCard.renderChips(document.getElementById('spell-chips'), node.chips, showChips,
         isLocked ? '???' : '??? (' + settings.revealEffects + '%)');
@@ -1285,6 +1288,12 @@ function showSpellDetails(node) {
     document.getElementById('spell-cost').textContent = showFigures ? (node.cost || '?') : '???';
     document.getElementById('spell-type').textContent = showFigures ? (node.type || '?') : '???';
     
+    // The raw effect list is how the spell is wired, not something a player reads:
+    // helper effects, duplicates, internal names. The card's description and chips say
+    // what the spell does, so the list only shows while editing the tree.
+    var effectsSection = document.getElementById('details-effects-section');
+    if (effectsSection) effectsSection.style.display = isEditActive ? '' : 'none';
+
     // Effects - progressive reveal with weakened info
     var effectsList = document.getElementById('spell-effects');
     effectsList.innerHTML = '';

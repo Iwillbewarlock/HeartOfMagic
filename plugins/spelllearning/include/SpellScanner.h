@@ -127,6 +127,15 @@ namespace SpellScanner
     // from closed engine sets (SpellScannerChips.cpp). Not part of the scan dump.
     json BuildSpellChips(RE::SpellItem* spell);
 
+    // Spell card icon (SpellScannerCard.cpp). Icon packs ship SVGs named
+    // KWD_<keyword>.svg for Wheeler; the key is the first keyword of the spell,
+    // then of its effects, that has one. Empty when nothing is installed.
+    std::string FindSpellIconKey(RE::SpellItem* spell);
+    std::string ReadSpellIconSvg(const std::string& key);
+
+    // Fills <mag>/<dur>/<area> from the effect and strips <..> emphasis marks.
+    std::string ResolveDescriptionTags(std::string text, const RE::Effect* effect);
+
     // Write a scan dump to Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
     // Returns the written path, or an empty string on failure.
     std::string WriteScanOutput(const std::string& content);

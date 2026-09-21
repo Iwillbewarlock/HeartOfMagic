@@ -80,6 +80,57 @@ var SpellCard = {
         return this._fallbackLabels[chipId] || chipId;
     },
 
+    // iconKey -> data URI, '' when C++ found nothing, undefined while unknown
+    _icons: {},
+    _iconWaiting: {},
+
+    /**
+     * Show the icon an installed icon pack has for this spell, in front of the name.
+     * The picture goes into an <img> as a data URI, so nothing inside a mod's SVG
+     * can run as script.
+     * @param {HTMLImageElement} img
+     * @param {string} iconKey - node.iconKey from C++, '' when there is no icon
+     * @param {boolean} revealed - icons follow the name: hidden while it is "???"
+     */
+    renderIcon: function(img, iconKey, revealed) {
+        if (!img) return;
+        img.dataset.iconKey = (revealed && iconKey) ? iconKey : '';
+
+        if (!revealed || !iconKey || this._icons[iconKey] === '') {
+            img.classList.add('hidden');
+            img.removeAttribute('src');
+            return;
+        }
+
+        if (this._icons[iconKey]) {
+            img.src = this._icons[iconKey];
+            img.classList.remove('hidden');
+            return;
+        }
+
+        // Not fetched yet: stay hidden until updateSpellIcon comes back
+        img.classList.add('hidden');
+        if (!this._iconWaiting[iconKey] && window.callCpp) {
+            this._iconWaiting[iconKey] = true;
+            window.callCpp('GetSpellIcon', iconKey);
+        }
+    },
+
+    /** C++ reply for GetSpellIcon: { key, svg } */
+    onIconData: function(data) {
+        if (!data || !data.key) return;
+        delete this._iconWaiting[data.key];
+        this._icons[data.key] = data.svg
+            ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data.svg)
+            : '';
+
+        // Only paint it if the card is still showing the spell that asked
+        var img = document.getElementById('spell-icon');
+        if (img && img.dataset.iconKey === data.key) {
+            this.renderIcon(img, data.key, true);
+        }
+    },
+
     /**
      * Fill the chip row.
      * @param {HTMLElement} container

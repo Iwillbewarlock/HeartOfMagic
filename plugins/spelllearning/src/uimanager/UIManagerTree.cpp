@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
+#include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "treebuilder/TreeBuilder.h"
 #include "treebuilder/TreeNLP.h"
@@ -147,6 +148,27 @@ void UIManager::OnGetSpellInfo(const char* argument)
         } else {
             logger::warn("UIManager: No spell found for formId: {}", argStr);
         }
+    });
+}
+
+// The spell card asks for one icon at a time, by the key GetSpellInfo handed it.
+// Replies with { key, svg }; svg is empty when the file is gone or unreadable.
+void UIManager::OnGetSpellIcon(const char* argument)
+{
+    if (!argument || strlen(argument) == 0) {
+        return;
+    }
+
+    std::string key(argument);
+
+    AddTaskToGameThread("GetSpellIcon", [key]() {
+        auto* instance = GetSingleton();
+        if (!instance || !instance->m_prismaUI || !instance->m_prismaUI->IsValid(instance->m_view)) return;
+
+        nlohmann::json reply;
+        reply["key"] = key;
+        reply["svg"] = EncodingUtils::SanitizeToUTF8(SpellScanner::ReadSpellIconSvg(key));
+        instance->m_prismaUI->InteropCall(instance->m_view, "updateSpellIcon", reply.dump().c_str());
     });
 }
 

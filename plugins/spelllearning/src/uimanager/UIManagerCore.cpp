@@ -75,6 +75,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "LoadSpellTree", OnLoadSpellTree);
     m_prismaUI->RegisterJSListener(m_view, "GetSpellInfo", OnGetSpellInfo);
     m_prismaUI->RegisterJSListener(m_view, "GetSpellInfoBatch", OnGetSpellInfoBatch);
+    m_prismaUI->RegisterJSListener(m_view, "GetSpellIcon", OnGetSpellIcon);
     m_prismaUI->RegisterJSListener(m_view, "SaveSpellTree", OnSaveSpellTree);
 
     // Register JS callbacks - Progression system

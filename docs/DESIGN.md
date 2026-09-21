@@ -61,7 +61,18 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   archetype, school — never from names or mod keywords, so they are the same in every
   language and load order. `modules/spellCard.js` translates them through `chips.*` lang keys
   and falls back to English labels for languages that do not have the keys yet.
-  Works in both the bottom bar and the side layout. No spell icon yet.
+  Works in both the bottom bar and the side layout.
+  **Icon**: custom I4 icon packs ship their spell icons a second time as SVG for Wheeler, named by
+  keyword (`Data/SKSE/Plugins/wheeler/resources/icons_custom/KWD_<keyword>.svg`). C++
+  (`SpellScannerCard.cpp`) takes the first keyword of the spell, then of its effects, that has such
+  a file and sends its name as `iconKey`; the card fetches the picture on demand (`GetSpellIcon` →
+  `updateSpellIcon`) and shows it in front of the name as an `<img>` data URI, so nothing inside a
+  mod's SVG can run. No icon pack, no icon - nothing is listed per mod. The SWF icons the inventory
+  menus use cannot be drawn in a web view.
+  **Effects list** is hidden outside edit mode: it shows how a spell is wired (helper effects,
+  duplicates, internal names), which the description and chips already say in player terms.
+  **Description**: `<mag>`/`<dur>`/`<area>` are filled in from the effect and `<25>` style emphasis
+  marks are stripped, since the web view does not do what the game menus do with them.
 - **How-to-Learn panel** — shows what the player needs to do to unlock a spell
 - **Discovery mode** — hides spell names/effects until XP thresholds are met
 - **Zoom/pan** — mouse wheel + drag

@@ -488,8 +488,9 @@ namespace SpellScanner
             effectNamesArray.push_back(effectJson["name"]);
 
             if (description.empty() && effectJson.contains("description")) {
-                // Use first effect's description as spell description
-                description = effectJson["description"].get<std::string>();
+                // Use first effect's description as spell description, with the
+                // game's <mag>/<dur> placeholders filled in from that same effect
+                description = ResolveDescriptionTags(effectJson["description"].get<std::string>(), effect);
             }
             effectsArray.push_back(effectJson);
         }
@@ -498,6 +499,14 @@ namespace SpellScanner
         spellInfo["effectNames"] = effectNamesArray;
         spellInfo["description"] = description;
         spellInfo["chips"] = BuildSpellChips(spell);
+
+        // Name of the keyword an installed icon pack has an SVG for, if any.
+        // The picture itself is fetched on demand (GetSpellIcon) - a whole tree
+        // of them would not fit through one batch reply.
+        const std::string iconKey = FindSpellIconKey(spell);
+        if (!iconKey.empty()) {
+            spellInfo["iconKey"] = iconKey;
+        }
 
         // Add effectiveness info for early-learned spells
         auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();

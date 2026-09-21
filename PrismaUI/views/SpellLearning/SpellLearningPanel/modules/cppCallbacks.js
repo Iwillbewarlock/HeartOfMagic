@@ -536,6 +536,14 @@ window.updateSpellInfo = function(json) {
     }
 };
 
+// Reply to GetSpellIcon: one installed icon pack SVG, asked for by the spell card
+window.updateSpellIcon = function(json) {
+    var data = typeof json === 'string' ? JSON.parse(json) : json;
+    if (typeof SpellCard !== 'undefined') {
+        SpellCard.onIconData(data);
+    }
+};
+
 window.updateSpellInfoBatch = function(json) {
     console.log('[SpellLearning] Received spell info batch');
     var dataArray = typeof json === 'string' ? JSON.parse(json) : json;

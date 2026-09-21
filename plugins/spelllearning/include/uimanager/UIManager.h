@@ -97,6 +97,7 @@ private:
     static void OnLoadSpellTree(const char* argument);
     static void OnGetSpellInfo(const char* argument);
     static void OnGetSpellInfoBatch(const char* argument);
+    static void OnGetSpellIcon(const char* argument);
     static void OnSaveSpellTree(const char* argument);
     
     // Progression callbacks

@@ -101,6 +101,23 @@
     font-weight: 600;
 }
 
+/* ---- Spell card icon (from an installed icon pack, in front of the name) ---- */
+.spell-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.spell-icon {
+    width: 1.5em;
+    height: 1.5em;
+    flex-shrink: 0;
+}
+
+.spell-icon.hidden {
+    display: none;
+}
+
 /* ---- Spell card keyword chips ----
    One line under the name. Elements pick up the school colours the themes
    already define; everything else stays neutral so the line reads as a set. */
