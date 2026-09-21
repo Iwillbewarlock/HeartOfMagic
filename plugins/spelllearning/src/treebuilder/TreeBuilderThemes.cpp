@@ -77,6 +77,8 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         for (const auto& [term, score] : sorted) {
             if (TreeNLP::IsStopWord(term)) continue;
             if (term.size() <= 2) continue;
+            // Magnitudes from effect names ("Armor 100") are not a nature.
+            if (std::all_of(term.begin(), term.end(), [](unsigned char c) { return std::isdigit(c); })) continue;
             themes.push_back(term);
             if (static_cast<int>(themes.size()) >= topN) break;
         }
@@ -137,8 +139,17 @@ TreeBuilder::MergeWithHints(
 // traits column says what a spell is without reading any text, so a spell that
 // has traits takes its theme from them and the word path is left for the rest.
 //
-// One theme per spell, most telling trait first: what is summoned, then the
-// element, then what the spell does.
+// RULE 1 - traits. One theme per spell, most telling trait first: what is
+// summoned, then the element, then what the spell does.
+// RULE 2 - words (DiscoverThemesPerSchool + CalculateThemeScore, the original
+// method). It stays, because it is the only thing that can name a nature the
+// game has no value for: water, wind, stone, blood. Those spells have no resist
+// value and no vanilla keyword, so rule 1 has nothing to say about them.
+//
+// Order in GetSpellPrimaryTheme: rule 1 -> rule 2 -> rule 1's shape traits.
+// Cloak, rune and stagger describe the shape of a spell rather than its nature,
+// so for a spell without an element they wait until the words have had a go: a
+// wind cloak should land in "wind" when the words can tell, in "cloak" when not.
 
 namespace
 {
@@ -150,6 +161,17 @@ namespace
 
     // Says "this hurts" and nothing else; every attack spell has it.
     constexpr std::string_view kTooBroadKind = "kind.damage";
+
+    // Shape, not nature: only used when rule 2 finds nothing better.
+    constexpr std::string_view kShapeKinds[] = { "kind.cloak", "kind.rune", "kind.stagger" };
+
+    // Below this a word match is noise (same cut the builders apply).
+    constexpr int kWordThemeMinScore = 30;
+
+    bool IsShapeKind(std::string_view trait)
+    {
+        return std::find(std::begin(kShapeKinds), std::end(kShapeKinds), trait) != std::end(kShapeKinds);
+    }
 
     // Which of the summon's other traits names the branch, best first.
     constexpr std::string_view kSummonQualifiers[] = {
@@ -163,7 +185,7 @@ namespace
     }
 }
 
-std::string TreeBuilder::ThemeFromTraits(const json& spell)
+std::string TreeBuilder::ThemeFromTraits(const json& spell, bool shapeOnly)
 {
     const auto it = spell.find("traits");
     if (it == spell.end() || !it->is_array()) return "";
@@ -176,6 +198,13 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell)
         return std::find(traits.begin(), traits.end(), wanted) != traits.end();
     };
 
+    if (shapeOnly) {
+        for (const auto& trait : traits) {
+            if (IsShapeKind(trait)) return AfterDot(trait);
+        }
+        return "";
+    }
+
     if (has(kSummonTrait)) {
         for (const auto qualifier : kSummonQualifiers) {
             if (has(qualifier)) return "summon_" + AfterDot(qualifier);
@@ -187,7 +216,9 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell)
         if (trait.starts_with(kElementPrefix)) return AfterDot(trait);
     }
     for (const auto& trait : traits) {
-        if (trait.starts_with(kKindPrefix) && trait != kTooBroadKind) return AfterDot(trait);
+        if (trait.starts_with(kKindPrefix) && trait != kTooBroadKind && !IsShapeKind(trait)) {
+            return AfterDot(trait);
+        }
     }
     return "";
 }
@@ -199,11 +230,17 @@ std::string TreeBuilder::ThemeFromTraits(const json& spell)
 std::pair<std::string, int>
 TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::string>& themes)
 {
-    // What the spell is beats what its name happens to contain.
+    // Rule 1: what the spell is beats what its name happens to contain.
     const std::string traitTheme = ThemeFromTraits(spell);
     if (!traitTheme.empty()) return {traitTheme, kTraitThemeScore};
 
-    if (themes.empty()) return {"_unassigned", 0};
+    // Rule 1's shape traits, kept in hand in case rule 2 comes up empty.
+    const std::string shapeTheme = ThemeFromTraits(spell, true);
+
+    if (themes.empty()) {
+        if (!shapeTheme.empty()) return {shapeTheme, kTraitThemeScore};
+        return {"_unassigned", 0};
+    }
 
     std::string bestTheme;
     int bestScore = 0;
@@ -214,6 +251,11 @@ TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::stri
             bestScore = score;
             bestTheme = theme;
         }
+    }
+
+    // Rule 2 did not find a convincing word: fall back to the spell's shape.
+    if (bestScore <= kWordThemeMinScore && !shapeTheme.empty()) {
+        return {shapeTheme, kTraitThemeScore};
     }
 
     return {bestTheme.empty() ? "_unassigned" : bestTheme, bestScore};

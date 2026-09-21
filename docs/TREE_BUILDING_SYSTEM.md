@@ -229,7 +229,7 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
 - If nodes remain unreachable after 20 repair passes, logs warning
 - Repair strategies: remove blocking prereqs → find new parent → spread across available
 
-### Trait Themes (`TreeBuilder::ThemeFromTraits`) — tried first, by every builder
+### Theme Rule 1 — Trait Themes (`TreeBuilder::ThemeFromTraits`), tried first by every builder
 
 A full scan gives each spell a `traits` column (see ARCHITECTURE.md): what the spell is, in a fixed
 vocabulary built from engine values and the base game's own keywords, never from text. A spell that
@@ -254,9 +254,22 @@ record flags Hide in UI are left out of the theme text (their internal English n
 "TA CC Control Base Effect", sit on hundreds of spells). Spells with a trait theme are also kept out of
 the TF-IDF corpus, so the discovered words only describe the remainder.
 
+**Rule 1 and Rule 2 work together, in this order** (`GetSpellPrimaryTheme`):
+
+1. Rule 1 - summon kind, element, what the spell does (above).
+2. Rule 2 - the word themes below (the original method). It is kept on purpose: it is the only thing
+   that can name a nature the game has no value for - water, wind, stone, blood. Such spells have no
+   resist value and no vanilla keyword, so rule 1 cannot say anything about them.
+3. Rule 1's shape traits - `cloak`, `rune`, `stagger`. They describe the shape of a spell, not its
+   nature, so for a spell without an element they wait until the words have had a go: a wind cloak
+   lands in `wind` when the words can tell, in `cloak` when they cannot.
+
+On the dev load order: rule 1 names 1070 spells, rule 2 names 52 (`blood` 13, `stone` 13, `water` 6 ...),
+318 stay without a theme. Rule 2 reads text, so what it finds depends on the language of the load
+order; bare numbers are not accepted as themes (`"Armor 100"`).
 Needs a scan taken with the `full` preset (`effectDetails`); without `traits` everything below applies
 as before.
-### TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
+### Theme Rule 2 — TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
 
 **Shared by all builders.** Discovers keyword themes per school from spell text using `TreeNLP::ComputeTfIdf()`.
 
