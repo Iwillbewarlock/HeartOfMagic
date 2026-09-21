@@ -110,6 +110,31 @@ float TreeBuilder::SimilarityMatrix::GetEffectSim(const std::string& a, const st
     return effectSims[ia->second * n + ib->second];
 }
 
+// Everything a spell can be called, as one sorted bag: its traits and the words
+// of its editor ids. The school is left out - the callers compare within a
+// school or across two, and either way it tells nothing apart.
+std::vector<std::string> TreeBuilder::SpellKeywords(const json& spell,
+                                                    const std::unordered_set<std::string>& modTags)
+{
+    std::vector<std::string> keywords;
+    for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(spell))) {
+        if (modTags.contains(idWord)) continue;
+        const bool hasDigit = std::any_of(idWord.begin(), idWord.end(),
+            [](unsigned char ch) { return std::isdigit(ch) != 0; });
+        if (!hasDigit) keywords.push_back("word." + idWord);
+    }
+    if (const auto traits = spell.find("traits"); traits != spell.end() && traits->is_array()) {
+        for (const auto& trait : *traits) {
+            if (!trait.is_string()) continue;
+            auto name = trait.get<std::string>();
+            if (!name.starts_with("school.")) keywords.push_back(std::move(name));
+        }
+    }
+    std::sort(keywords.begin(), keywords.end());
+    keywords.erase(std::unique(keywords.begin(), keywords.end()), keywords.end());
+    return keywords;
+}
+
 TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::vector<json>& spells)
 {
     SimilarityMatrix matrix;
@@ -219,28 +244,12 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
 
         auto text = TreeNLP::BuildSpellText(spellForText);
         auto tokens = TreeNLP::Tokenize(text);
-        std::vector<std::string> keywords;
         for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(s))) {
             if (modTags.contains(idWord)) continue;
             for (int i = 0; i < kIdWordWeight; ++i) tokens.push_back(idWord);
-
-            const bool hasDigit = std::any_of(idWord.begin(), idWord.end(),
-                [](unsigned char ch) { return std::isdigit(ch) != 0; });
-            if (!hasDigit) keywords.push_back("word." + idWord);
         }
         tokenizedDocs.push_back(std::move(tokens));
-
-        if (const auto traits = s.find("traits"); traits != s.end() && traits->is_array()) {
-            for (const auto& trait : *traits) {
-                if (!trait.is_string()) continue;
-                auto name = trait.get<std::string>();
-                // The matrix is built per school, so the school tells nothing apart
-                if (!name.starts_with("school.")) keywords.push_back(std::move(name));
-            }
-        }
-        std::sort(keywords.begin(), keywords.end());
-        keywords.erase(std::unique(keywords.begin(), keywords.end()), keywords.end());
-        keywordSets.push_back(std::move(keywords));
+        keywordSets.push_back(SpellKeywords(s, modTags));
     }
 
     auto n = formIds.size();
@@ -829,20 +838,28 @@ TreeBuilder::BuildResult TreeBuilder::Build(
     logger::info("TreeBuilder::Build command='{}', spells={}, seed={}",
                  command, spells.size(), config.seed);
 
+    BuildResult result;
     if (command == "build_tree_classic") {
-        return BuildClassic(spells, config);
+        result = BuildClassic(spells, config);
     } else if (command == "build_tree") {
-        return BuildTree(spells, config);
+        result = BuildTree(spells, config);
     } else if (command == "build_tree_thematic") {
-        return BuildThematic(spells, config);
+        result = BuildThematic(spells, config);
     } else if (command == "build_tree_graph") {
-        return BuildGraph(spells, config);
+        result = BuildGraph(spells, config);
     } else if (command == "build_tree_oracle") {
-        return BuildOracle(spells, config);
+        result = BuildOracle(spells, config);
     } else {
-        BuildResult result;
         result.success = false;
         result.error = "Unknown build command: " + command;
         return result;
     }
+
+    // The same for every builder: links between the schools, handed to the
+    // layout as data. See TreeBuilderBridges.cpp for why they stay out of the trees.
+    if (result.success && result.treeData.is_object()) {
+        result.treeData["bridges"] = ComputeCrossSchoolBridges(spells);
+        logger::info("TreeBuilder: {} cross school bridges", result.treeData["bridges"].size());
+    }
+    return result;
 }

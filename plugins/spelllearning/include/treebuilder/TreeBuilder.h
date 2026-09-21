@@ -119,6 +119,14 @@ namespace TreeBuilder
     // The first word of an editor id, as FindModTags reads it.
     std::string LeadingIdWordOf(const std::string& editorId);
 
+    // A spell's traits and editor id words as one sorted bag (school left out).
+    std::vector<std::string> SpellKeywords(const json& spell, const std::unordered_set<std::string>& modTags);
+
+    // Links between schools: spells of different schools that share a telling
+    // keyword. Returned as data for the layout to add as an extra way in, never
+    // written into the trees, so every school still stands on its own.
+    json ComputeCrossSchoolBridges(const std::vector<json>& spells);
+
     // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
     std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);
 
@@ -127,6 +135,9 @@ namespace TreeBuilder
     // fallback asks for the weaker answers instead - shape, then actor value -
     // which only count once rule 2 has failed (see TreeBuilderThemes.cpp).
     std::string ThemeFromTraits(const json& spell, bool fallback = false);
+
+    // Cloak, rune, stagger: the shape of a spell, not its nature
+    bool IsShapeKind(std::string_view trait);
 
     // Every theme a spell answers to: all its trait themes and every word theme
     // found in its text. A spell is not one thing - "LUN_MoonTouch" is a moon

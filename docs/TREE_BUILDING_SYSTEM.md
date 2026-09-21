@@ -462,6 +462,42 @@ Conjuration: summon, conjure, bound, portal, familiar
 Illusion:    invisibility, charm, fury, calm, fear
 ```
 
+### Cross School Bridges (`TreeBuilder::ComputeCrossSchoolBridges`, `TreeBuilderBridges.cpp`)
+
+Every builder splits the spells by school and grows five trees that never see each other. Bridges are the
+links between them: `TreeBuilder::Build` appends the same `bridges` array to the output of all five builders.
+
+```json
+{ "from": "0x..", "to": "0x..", "fromSchool": "Destruction", "toSchool": "Conjuration",
+  "affinity": 0.48, "evidence": 5.1, "shared": ["element.fire", "word.flame"], "twoWay": false }
+```
+
+A bridge is an **extra way in, never a requirement**. The layout is meant to add `from` to the soft
+prerequisites of `to` (which already mean "any one of these"), so a school's tree stays complete without
+them. That is why bridges sit next to the trees and are not written into them.
+
+Rules, all mechanical:
+
+| Rule | Why |
+|---|---|
+| Only telling keywords count: traits except `form.*`, `area.*`, `cast.*`, `kind.damage` and the shape kinds (cloak, rune, stagger); plus editor id words | Two projectiles or two cloaks are not kin |
+| An id word counts only when spells of **two plugins** use it | A word one plugin uses is the author's shorthand (`styy`, `dcd`); being rare it outweighed everything and bridged a mod to itself |
+| An id word that repeats a trait of the same spell is dropped (`word.frost` next to `element.frost`) | One fact, counted once |
+| Weighted Jaccard over IDF weights (whole load order) ≥ `kMinAffinity` 0.34 | |
+| `from` is the same tier or one below (`kMaxTierGap`) | You learn the source first |
+| Per target, the closest source of each other school | |
+| Per school pair: most **evidence** (summed weight of what is shared) first, at most 12, at most 3 with the identical shared set, a source used at most twice | A one-keyword spell is a "perfect" match for anything; one mod's family of detect spells took every slot |
+| Two spells of one tier that pick each other become one record, `twoWay` | |
+
+Measured on the 1440-spell test load order: 180 bridges (44 two-way) touching 245 spells; identical for
+all five builders. Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
+Conjuration-Restoration are full (24), Illusion-Restoration has 6.
+
+**Known limits.** A single id word can still bridge two spells, and nothing mechanical tells a telling
+word (`twilight`, `mudcrab`) from a generic one (`explosion`, `cloud`); rarity does not separate them
+(checked: `summon` is rarer than `shadow`). On a load order rich in mods, an element alone carries the
+least evidence, so vanilla pairs such as Firebolt → Flame Atronach lose their place to better-documented
+modded pairs; on a small load order they are what is left.
 ### TreeNode Data Model (`TreeBuilder::TreeNode`)
 
 ```cpp

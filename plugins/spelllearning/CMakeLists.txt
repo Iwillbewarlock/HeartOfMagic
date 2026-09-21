@@ -70,6 +70,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/treebuilder/TreeNLP.cpp
     src/treebuilder/TreeBuilderCore.cpp
     src/treebuilder/TreeBuilderThemes.cpp
+    src/treebuilder/TreeBuilderBridges.cpp
     src/treebuilder/TreeBuilderClassic.cpp
     src/treebuilder/TreeBuilderTree.cpp
     src/treebuilder/TreeBuilderThematic.cpp

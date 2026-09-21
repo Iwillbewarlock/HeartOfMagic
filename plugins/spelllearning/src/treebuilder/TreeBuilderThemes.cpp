@@ -320,10 +320,6 @@ namespace
     // How far ahead a smaller theme must score to take a spell from a bigger one.
     constexpr int kClearWinMargin = 10;
 
-    bool IsShapeKind(std::string_view trait)
-    {
-        return std::find(std::begin(kShapeKinds), std::end(kShapeKinds), trait) != std::end(kShapeKinds);
-    }
 
     // Which of the summon's other traits names the branch, best first.
     constexpr std::string_view kSummonQualifiers[] = {
@@ -335,6 +331,11 @@ namespace
         const auto dot = trait.find('.');
         return std::string(dot == std::string_view::npos ? trait : trait.substr(dot + 1));
     }
+}
+
+bool TreeBuilder::IsShapeKind(std::string_view trait)
+{
+    return std::find(std::begin(kShapeKinds), std::end(kShapeKinds), trait) != std::end(kShapeKinds);
 }
 
 std::string TreeBuilder::ThemeFromTraits(const json& spell, bool fallback)

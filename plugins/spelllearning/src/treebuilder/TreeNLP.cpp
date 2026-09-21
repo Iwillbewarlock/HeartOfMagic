@@ -34,6 +34,8 @@ static const std::unordered_set<std::string> kStopWords = {
     "ffself", "ffaimed", "ffcontact", "ffactor", "fflocation", "fftargetactor", "fftargetlocation",
     "concself", "concaimed", "conccontact", "concactor", "conctargetactor", "conc",
     "self", "aimed", "contact", "area", "lefthand", "righthand", "left", "right", "hand",
+    // Who an effect is addressed to, not what it does
+    "player", "other", "actor", "npc",
     // Skill level words
     "novice", "apprentice", "adept", "expert", "master",
     // Common prepositions, articles, etc.
