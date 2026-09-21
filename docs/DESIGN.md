@@ -59,7 +59,10 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   Chips are stable ids built in C++ (`SpellScannerChips.cpp`, sent as `chips[]` by
   `GetSpellInfo`) from closed engine sets only — resist value, projectile type, delivery,
   archetype, school — never from names or mod keywords, so they are the same in every
-  language and load order. `modules/spellCard.js` translates them through `chips.*` lang keys
+  language and load order. Chips only read effects the record does not flag **Hide in UI**:
+  mods hang helper effects on spells built from whatever MGEF was at hand (in this load order
+  vanilla Fire Storm carries a hidden `ScreenShake` that resists frost, which put a Frost chip
+  next to Fire). If every effect is hidden, all of them are read. `modules/spellCard.js` translates them through `chips.*` lang keys
   and falls back to English labels for languages that do not have the keys yet.
   Works in both the bottom bar and the side layout.
   **Icon**: custom I4 icon packs ship their spell icons a second time as SVG for Wheeler, named by
@@ -67,7 +70,7 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   (`SpellScannerCard.cpp`) takes the first keyword of the spell, then of its effects, that has such
   a file and sends its name as `iconKey`; the card fetches the picture on demand (`GetSpellIcon` →
   `updateSpellIcon`) and shows it in front of the name as an `<img>` data URI, so nothing inside a
-  mod's SVG can run. No icon pack, no icon - nothing is listed per mod. The SWF icons the inventory
+  mod's SVG can run. Nothing is listed per mod. A spell no installed pack covers gets a plain glyph for its school instead (`_schoolGlyphs` in `spellCard.js`), so the slot is never empty; the glyph also stands in while the name is still hidden. The SWF icons the inventory
   menus use cannot be drawn in a web view.
   **Effects list** is hidden outside edit mode: it shows how a spell is wired (helper effects,
   duplicates, internal names), which the description and chips already say in player terms.

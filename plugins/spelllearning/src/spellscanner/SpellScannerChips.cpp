@@ -147,14 +147,40 @@ namespace SpellScanner
         }
     }
 
+    namespace
+    {
+        // The effects the chips are read from. Mods hang helper effects on a
+        // spell - screen shake, perk staggers, script controllers - and build
+        // them from whatever MGEF was at hand, so vanilla Fire Storm ends up
+        // carrying a hidden "ScreenShake" that resists frost. The record itself
+        // says which effects are not for the player: the Hide in UI flag. Those
+        // are skipped, unless that would leave nothing to read.
+        std::vector<const RE::Effect*> PlayerFacingEffects(RE::SpellItem* spell)
+        {
+            using Flag = RE::EffectSetting::EffectSettingData::Flag;
+
+            std::vector<const RE::Effect*> shown;
+            std::vector<const RE::Effect*> all;
+            for (const auto* effect : spell->effects) {
+                if (!effect || !effect->baseEffect) continue;
+                all.push_back(effect);
+                if (!effect->baseEffect->data.flags.any(Flag::kHideInUI)) {
+                    shown.push_back(effect);
+                }
+            }
+            return shown.empty() ? all : shown;
+        }
+    }
+
     json BuildSpellChips(RE::SpellItem* spell)
     {
         json chips = json::array();
         if (!spell) return chips;
 
+        const auto effects = PlayerFacingEffects(spell);
+
         // Elements first: they are what a player sorts spells by.
-        for (const auto* effect : spell->effects) {
-            if (!effect || !effect->baseEffect) continue;
+        for (const auto* effect : effects) {
             AddChip(chips, ElementChip(effect->baseEffect->data.resistVariable));
         }
 
@@ -162,8 +188,7 @@ namespace SpellScanner
         const char* formChip = nullptr;
         bool blast = false;
         bool hazard = false;
-        for (const auto* effect : spell->effects) {
-            if (!effect || !effect->baseEffect) continue;
+        for (const auto* effect : effects) {
             const auto& data = effect->baseEffect->data;
 
             if (!formChip && data.projectileBase) {
@@ -185,8 +210,7 @@ namespace SpellScanner
         // only shows when there is no element to say it.
         const bool hasElement = !chips.empty() &&
             chips[0].get_ref<const std::string&>().starts_with("element.");
-        for (const auto* effect : spell->effects) {
-            if (!effect || !effect->baseEffect) continue;
+        for (const auto* effect : effects) {
             AddChip(chips, ArchetypeChip(effect->baseEffect->data.archetype));
 
             const char* valueChip = ActorValueChip(effect->baseEffect);

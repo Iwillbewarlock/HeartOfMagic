@@ -84,33 +84,58 @@ var SpellCard = {
     _icons: {},
     _iconWaiting: {},
 
+    // Stand-in drawn when no installed icon pack covers the spell: one plain glyph
+    // per school. These are ours, so they go in as real SVG and take the school
+    // colour from the theme through currentColor.
+    _schoolGlyphs: {
+        destruction: '<path d="M12 2.5c.8 3.6 5 5.6 5 10.3a5 5 0 0 1-10 0c0-2 .9-3.2 2-4.2 0 1.9.9 3 2 3 .2-3.6-1-5.7 1-9.1z"/>',
+        restoration: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
+        alteration: '<path d="M12 2.5l8 5.5v8l-8 5.5-8-5.5v-8z"/><path d="M4 8l8 5 8-5M12 13v8.5"/>',
+        conjuration: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+        illusion: '<path d="M2.5 12s3.8-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.8 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'
+    },
+
+    _schoolGlyphSvg: function(school) {
+        var paths = this._schoolGlyphs[String(school || '').toLowerCase()];
+        if (!paths) return '';
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"' +
+               ' stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+    },
+
     /**
-     * Show the icon an installed icon pack has for this spell, in front of the name.
-     * The picture goes into an <img> as a data URI, so nothing inside a mod's SVG
-     * can run as script.
-     * @param {HTMLImageElement} img
-     * @param {string} iconKey - node.iconKey from C++, '' when there is no icon
-     * @param {boolean} revealed - icons follow the name: hidden while it is "???"
+     * Icon in front of the name. An installed icon pack's picture when there is one
+     * and the name is revealed; otherwise the school glyph, so the slot is never
+     * empty. The school is always visible on the card anyway, so the glyph gives
+     * nothing away. Pack pictures go into an <img> as a data URI, so nothing inside
+     * a mod's SVG can run as script.
+     * @param {string} iconKey - node.iconKey from C++, '' when there is no pack icon
+     * @param {string} school - node.school
+     * @param {boolean} revealed - pack icons follow the name: held back while it is "???"
      */
-    renderIcon: function(img, iconKey, revealed) {
-        if (!img) return;
-        img.dataset.iconKey = (revealed && iconKey) ? iconKey : '';
+    renderIcon: function(iconKey, school, revealed) {
+        var img = document.getElementById('spell-icon');
+        var glyph = document.getElementById('spell-school-glyph');
+        if (!img || !glyph) return;
 
-        if (!revealed || !iconKey || this._icons[iconKey] === '') {
-            img.classList.add('hidden');
-            img.removeAttribute('src');
-            return;
-        }
+        var wantsPack = !!(revealed && iconKey);
+        img.dataset.iconKey = wantsPack ? iconKey : '';
 
-        if (this._icons[iconKey]) {
+        var packReady = wantsPack && !!this._icons[iconKey];
+        if (packReady) {
             img.src = this._icons[iconKey];
             img.classList.remove('hidden');
-            return;
+        } else {
+            img.classList.add('hidden');
+            img.removeAttribute('src');
         }
 
-        // Not fetched yet: stay hidden until updateSpellIcon comes back
-        img.classList.add('hidden');
-        if (!this._iconWaiting[iconKey] && window.callCpp) {
+        // Glyph whenever the pack picture is not on screen (none, held back, or still loading)
+        var glyphSvg = packReady ? '' : this._schoolGlyphSvg(school);
+        glyph.innerHTML = glyphSvg;
+        glyph.className = 'spell-icon school-glyph ' + String(school || '').toLowerCase() + (glyphSvg ? '' : ' hidden');
+        glyph.dataset.school = school || '';
+
+        if (wantsPack && this._icons[iconKey] === undefined && !this._iconWaiting[iconKey] && window.callCpp) {
             this._iconWaiting[iconKey] = true;
             window.callCpp('GetSpellIcon', iconKey);
         }
@@ -124,13 +149,13 @@ var SpellCard = {
             ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data.svg)
             : '';
 
-        // Only paint it if the card is still showing the spell that asked
+        // Only repaint if the card is still showing the spell that asked
         var img = document.getElementById('spell-icon');
+        var glyph = document.getElementById('spell-school-glyph');
         if (img && img.dataset.iconKey === data.key) {
-            this.renderIcon(img, data.key, true);
+            this.renderIcon(data.key, glyph ? glyph.dataset.school : '', true);
         }
     },
-
     /**
      * Fill the chip row.
      * @param {HTMLElement} container
