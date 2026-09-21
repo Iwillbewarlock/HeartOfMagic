@@ -130,6 +130,18 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
+### Deploying to the development mod folder
+
+```powershell
+.\DeployDev.ps1              # plugin + UI panel
+.\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
+```
+
+**ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
+open (PrismaUI holds the panel files, so a copy would leave the mod half written), it keeps the
+dev install's `lang/locale.js` instead of resetting the language to the shipped `en`, and it
+verifies the copy landed.
+
 ### Local Build Configuration
 
 Copy `Build_Config_Template.ps1` to `Build_Config_Local.ps1` and edit to set:
