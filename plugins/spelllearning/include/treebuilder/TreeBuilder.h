@@ -115,6 +115,9 @@ namespace TreeBuilder
                       const std::vector<std::string>& themes,
                       int minScore = 30);
 
+    // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
+    std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);
+
     // Theme straight from the scan's "traits" column, empty when the spell has
     // none that make a branch. Language independent, unlike the word themes.
     // fallback asks for the weaker answers instead - shape, then actor value -

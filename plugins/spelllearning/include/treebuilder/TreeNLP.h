@@ -47,6 +47,10 @@ namespace TreeNLP
     // Build combined text with heavier name/effect weighting for theme discovery
     std::string BuildThemeText(const json& spellData);
 
+    // Editor ids of the spell and of the effects it shows the player, split into
+    // words ("WindBladeSpell" -> "Wind Blade Spell"). English on every load order.
+    std::string BuildIdText(const json& spellData);
+
     // =========================================================================
     // TF-IDF
     // =========================================================================

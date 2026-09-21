@@ -36,6 +36,13 @@ const std::unordered_map<std::string, std::vector<std::string>>& TreeBuilder::Ge
 namespace
 {
     constexpr std::size_t kMinPluginSpellsForTag = 5;  // too few spells prove nothing
+
+    constexpr std::size_t kMinSpellsPerTheme = 2;  // one spell is not a group
+
+    // topN was sized for the days when the word themes had to cover fire, frost
+    // and the rest. Rule 1 has those now; what is left for the words is a long
+    // tail of small natures (polymorph, teleport, aura ...), so they get more room.
+    constexpr int kWordThemeRoom = 3;
     constexpr float kTagLeadShareInPlugin = 0.8f;      // leads this share of the plugin's ids
 
     std::string SpellPlugin(const json& spell)
@@ -67,32 +74,35 @@ namespace
         }
         return word;
     }
+}
 
-    std::unordered_set<std::string> FindModTags(const std::vector<json>& spells)
-    {
-        std::unordered_map<std::string, std::size_t> pluginSizes;
-        std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
-        for (const auto& spell : spells) {
-            const std::string plugin = SpellPlugin(spell);
-            const std::string lead = LeadingIdWord(spell);
-            if (plugin.empty() || lead.empty()) continue;
-            pluginSizes[plugin]++;
-            leadsByPlugin[plugin][lead]++;
-        }
-
-        std::unordered_set<std::string> tags;
-        for (const auto& [plugin, leads] : leadsByPlugin) {
-            const std::size_t pluginSize = pluginSizes[plugin];
-            if (pluginSize < kMinPluginSpellsForTag) continue;
-            for (const auto& [lead, count] : leads) {
-                if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin) {
-                    tags.insert(lead);
-                }
-            }
-        }
-        return tags;
+std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>& spells)
+{
+    std::unordered_map<std::string, std::size_t> pluginSizes;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
+    for (const auto& spell : spells) {
+        const std::string plugin = SpellPlugin(spell);
+        const std::string lead = LeadingIdWord(spell);
+        if (plugin.empty() || lead.empty()) continue;
+        pluginSizes[plugin]++;
+        leadsByPlugin[plugin][lead]++;
     }
 
+    std::unordered_set<std::string> tags;
+    for (const auto& [plugin, leads] : leadsByPlugin) {
+        const std::size_t pluginSize = pluginSizes[plugin];
+        if (pluginSize < kMinPluginSpellsForTag) continue;
+        for (const auto& [lead, count] : leads) {
+            if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin) {
+                tags.insert(lead);
+            }
+        }
+    }
+    return tags;
+}
+
+namespace
+{
     // "alt50", "ill25", "100": level codes and magnitudes, never a nature.
     bool HasDigit(const std::string& term)
     {
@@ -149,10 +159,26 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         }
 
         // Sort by score descending, take top N
-        std::vector<std::pair<std::string, float>> sorted(termScores.begin(), termScores.end());
-        // Ties broken by the term, or the cut at topN would keep a different set
-        // of themes depending on how the hash map happened to be walked.
-        std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+        // A theme is worth the spells it brings together, so words are ranked by
+        // how many spells carry them. The TF-IDF sum alone ranks by how heavy a
+        // word is inside its document, which favours short documents: "blink", on
+        // one spell with a two word id, beat "polymorph" on eight spells with long
+        // descriptions, and a theme of one spell groups nothing.
+        std::unordered_map<std::string, std::size_t> spellsWithTerm;
+        for (const auto& doc : documents) {
+            const std::unordered_set<std::string> unique(doc.begin(), doc.end());
+            for (const auto& term : unique) spellsWithTerm[term]++;
+        }
+
+        std::vector<std::pair<std::string, float>> sorted;
+        for (const auto& [term, score] : termScores) {
+            if (spellsWithTerm[term] >= kMinSpellsPerTheme) sorted.emplace_back(term, score);
+        }
+        // Score, then the term itself, settle ties - never the hash map's order.
+        std::sort(sorted.begin(), sorted.end(), [&spellsWithTerm](const auto& a, const auto& b) {
+            const std::size_t spellsA = spellsWithTerm[a.first];
+            const std::size_t spellsB = spellsWithTerm[b.first];
+            if (spellsA != spellsB) return spellsA > spellsB;
             if (a.second != b.second) return a.second > b.second;
             return a.first < b.first;
         });
@@ -168,7 +194,7 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
             if (term.size() <= 2) continue;
             if (HasDigit(term)) continue;
             themes.push_back(term);
-            if (static_cast<int>(themes.size()) >= topN) break;
+            if (static_cast<int>(themes.size()) >= topN * kWordThemeRoom) break;
         }
 
         result[school] = std::move(themes);
@@ -193,8 +219,9 @@ TreeBuilder::MergeWithHints(
             // summon ... - what rule 1 already settles - so when they went first
             // they used 8 of the 12 slots and words like "wind" or "arcane", the
             // very thing rule 2 is kept for, fell off the end.
-            std::vector<std::string> result(themes.begin(),
-                themes.begin() + std::min(static_cast<int>(themes.size()), maxThemes));
+            // DiscoverThemesPerSchool has already cut the list to size
+            (void)maxThemes;
+            std::vector<std::string> result(themes.begin(), themes.end());
             std::unordered_set<std::string> present;
             for (const auto& t : result) present.insert(TreeNLP::ToLower(t));
 
@@ -279,6 +306,9 @@ namespace
 
     // Below this a word match is noise (same cut the builders apply).
     constexpr int kWordThemeMinScore = 30;
+
+    // How far ahead a smaller theme must score to take a spell from a bigger one.
+    constexpr int kClearWinMargin = 10;
 
     bool IsShapeKind(std::string_view trait)
     {
@@ -371,9 +401,15 @@ TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::stri
     std::string bestTheme;
     int bestScore = 0;
 
+    // The themes come ordered by how many spells they group. A spell whose id
+    // holds two of them ("LUN_MoonTouch": moon, touch) scores both about the same,
+    // and the fuzzy part of the score is too noisy to pick between them - so a
+    // later, smaller theme has to win clearly, or the bigger group keeps the
+    // spell. That sends it to "moon" with the other thirteen rather than to a
+    // "touch" of six scattered across mods.
     for (const auto& theme : themes) {
         int score = TreeNLP::CalculateThemeScore(spell, theme);
-        if (score > bestScore) {
+        if (bestTheme.empty() ? score > bestScore : score > bestScore + kClearWinMargin) {
             bestScore = score;
             bestTheme = theme;
         }

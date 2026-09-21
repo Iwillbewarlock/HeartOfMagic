@@ -162,6 +162,29 @@ namespace
     }
 }
 
+std::string TreeNLP::BuildIdText(const json& spellData)
+{
+    std::string parts;
+    const auto append = [&parts](const json& holder) {
+        const auto it = holder.find("editorId");
+        if (it != holder.end() && it->is_string()) {
+            parts += SplitIdentifier(it->get<std::string>()) + " ";
+        }
+    };
+
+    append(spellData);
+    const auto effects = spellData.find("effects");
+    if (effects != spellData.end() && effects->is_array()) {
+        for (const auto& eff : *effects) {
+            if (!eff.is_object()) continue;
+            const auto flags = eff.find("flags");
+            if (flags != eff.end() && flags->is_object() && flags->value("hideInUI", false)) continue;
+            append(eff);
+        }
+    }
+    return parts;
+}
+
 std::string TreeNLP::BuildThemeText(const json& spellData)
 {
     std::string parts;

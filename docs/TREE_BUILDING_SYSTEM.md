@@ -284,12 +284,32 @@ into words and weighs them like the name. Filters that keep ids from polluting t
   (`MergeWithHints`). The hints are fire / frost / shock / summon ... - what rule 1 already settles -
   and when they went first they used 8 of the 12 slots, so `wind` and `arcane` fell off the end.
 
-On the dev load order (Korean, 1440 tome spells): rule 1 names 1118 spells, rule 2 names 211 -
-Destruction `blood` 16, `shadow` 15, `arcane` 14, `stone` 13, `water` 13, `wind` 13; Restoration `astral` 16,
-`sun` 15, `moon` 13; Alteration `resist` 7, `lock` 6 ... - and 111 (8%) stay without a theme. With names
-only and no traits, rule 2 named 52 and 318 had none. 23 of the themes are held by a single spell,
-which groups no better than no theme at all.
+**How the word themes are ranked and handed out**
+- ranked by how many spells carry the word, not by the TF-IDF sum. The sum measures how heavy a word
+  is inside its own document, which favours short documents: `blink`, on one spell with a two word id,
+  beat the eight polymorph spells with their long descriptions. A theme is worth the spells it brings
+  together, so a word on a single spell is not a theme at all (`kMinSpellsPerTheme`);
+- they get three times the room `topN` used to give (`kWordThemeRoom`). `topN` was sized for when the
+  words had to cover fire, frost and the rest; rule 1 has those now, and what is left for the words is
+  a long tail of small natures (polymorph, teleport, corpse, aura ...);
+- a spell whose id holds two themes (`LUN_MoonTouch`) stays with the bigger group unless the smaller
+  one scores clearly higher (`kClearWinMargin`) - the fuzzy part of the score is too noisy to split them.
 
+**Editor id words also feed the pairwise similarity** (`ComputeSimilarityMatrix`, used by every
+builder), with the author's prefix taken off first. Before, it read names, descriptions and effect
+names only - Korean text the tokenizer cannot split - so on a translated load order two spells only
+looked alike by accident.
+
+On the dev load order (Korean, 1440 tome spells): rule 1 names 1122 spells, rule 2 names 256 -
+Destruction `blood` 16, `shadow` 13, `stone` 13, `arcane` 11, `water` 11, `wind` 11; Restoration `astral` 10,
+`sun` 10, `moon` 6; Alteration `polymomrph` 8 (the mod's own spelling), `resist` 8, `lock` 6, `teleport` 4 ... -
+and 62 (4%) stay without a theme. With names only and no traits, rule 2 named 52 and 318 had none.
+
+Still rough: words that describe a spell's form (`touch`, `grasp`, `bolt`) are themes like any other and
+take spells that a nature word would group better - `astral` fell from 16 to 10 when `touch` got a slot.
+Nothing mechanical tells a form word from a nature word yet. 26 themes are still held by one spell
+after assignment. And in the classic builder the similarity change barely moves the links (spell and
+parent sharing an id word: 37% -> 38%), because a theme match outweighs text similarity there.
 **Audit, 2026-09-22.** Every rule was re-run over all 1440 spells / 4246 effects of the dev load
 order and each answer sorted into: arbitrary (more than one candidate, first one wins), missing
 (nothing to say), or self-contradicting (two sources disagree). Found and fixed:

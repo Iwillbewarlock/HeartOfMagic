@@ -119,6 +119,14 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
     std::vector<std::vector<std::string>> effectNames;
     std::vector<std::vector<std::string>> tokenizedDocs;
 
+    // Names and descriptions are translated; editor ids are not. On a Korean
+    // load order the text below is Korean, which the tokenizer cannot split, so
+    // without the ids two spells only ever looked alike by accident. The
+    // author's prefix is taken off first or every spell of a mod would look
+    // like every other.
+    const auto modTags = FindModTags(spells);
+    constexpr int kIdWordWeight = 2;  // same weight the name gets
+
     for (const auto& s : spells) {
         auto fid = s.value("formId", std::string(""));
         if (fid.empty()) continue;
@@ -165,7 +173,12 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         spellForText["effects"] = effectsFlat;
 
         auto text = TreeNLP::BuildSpellText(spellForText);
-        tokenizedDocs.push_back(TreeNLP::Tokenize(text));
+        auto tokens = TreeNLP::Tokenize(text);
+        for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(s))) {
+            if (modTags.contains(idWord)) continue;
+            for (int i = 0; i < kIdWordWeight; ++i) tokens.push_back(idWord);
+        }
+        tokenizedDocs.push_back(std::move(tokens));
     }
 
     auto n = formIds.size();
