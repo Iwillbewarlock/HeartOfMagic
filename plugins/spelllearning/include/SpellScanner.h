@@ -108,17 +108,16 @@ namespace SpellScanner
     // Callers must have checked effect->baseEffect / spell for null.
     //
     // BuildBaseEffectJson is the MGEF half on its own, for a caller that has a
-    // base effect and no spell to put it in - the librarian's keyword patch
-    // classifies effects one at a time, because that is the unit a perk's
-    // HasMagicEffectKeyword condition looks at.
+    // base effect and no spell to put it in.
     json BuildBaseEffectJson(const RE::EffectSetting* baseEffect, const FieldConfig& fields);
     json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
 
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard
-    // presence, perks, counter effects, whether conditions exist. Copied from
-    // the records as they are - nothing in here interprets a value.
+    // presence, perks. Copied from the records as they are - nothing in here
+    // interprets a value. Only fields checked against a real game run live
+    // here; counter effects and condition presence were dropped as unverified.
     void AppendBaseEffectEvidence(json& effectJson, const RE::EffectSetting* baseEffect);
     void AppendEffectItemEvidence(json& effectJson, const RE::Effect* effect, std::size_t index);
     void AppendSpellEvidence(json& spellJson, RE::SpellItem* spell);

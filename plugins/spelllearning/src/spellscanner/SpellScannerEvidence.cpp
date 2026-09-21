@@ -167,19 +167,6 @@ namespace SpellScanner
             effectJson["equipAbility"] = FormRef(data.equipAbility);
         }
 
-        // BSSimpleList's const begin() does not compile in this CommonLib, so the
-        // list is walked through a non-const reference. Nothing is written to it.
-        auto& counterEffectList = const_cast<RE::EffectSetting*>(baseEffect)->counterEffects;
-        json counterEffects = json::array();
-        for (const auto* counterEffect : counterEffectList) {
-            if (counterEffect) {
-                counterEffects.push_back(FormRef(counterEffect));
-            }
-        }
-        effectJson["counterEffects"] = counterEffects;
-
-        // Presence only. What the conditions say is not unpacked.
-        effectJson["conditions"]["base"] = (baseEffect->conditions.head != nullptr);
     }
 
     // =============================================================================
@@ -190,7 +177,6 @@ namespace SpellScanner
     {
         effectJson["index"] = index;
         effectJson["cost"] = effect->cost;
-        effectJson["conditions"]["item"] = (effect->conditions.head != nullptr);
     }
 
     // =============================================================================

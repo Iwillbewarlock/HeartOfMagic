@@ -135,56 +135,21 @@ librarian-test --catalog <카탈로그> -a <정답셋>          # 게임이 쓴 
 **2026-09-10 확인**: 게임이 쓴 카탈로그와 하네스가 만든 카탈로그가 1440건 전부 항목 단위로
 동일했다(`generated` 만 다름). 게임 안 경로와 게임 밖 경로가 같은 결과를 낸다.
 
-## 6. 퍽 모드 호환 보정
+## 6. 퍽 모드 호환 보정 — 제거됨 (2026-09-21)
 
-퍽 모드는 바닐라 키워드로 조건을 건다. 바닐라·Adamant·Ordinator 전부
-`HasMagicEffectKeyword MagicDamageFire` 를 묻는다. 모드가 만든 화염 주문의 MGEF 에 그 키워드가
-없으면 화염 강화 퍽이 통째로 안 먹는다. 사서는 그 이펙트가 화염이라는 걸 아니까 키워드를 채워준다.
-**패치를 쓰는 게 아니라, 모두가 이미 읽는 키워드를 채우는 것이다.**
+MGEF 에 빠진 바닐라 `Magic*` 키워드를 채워 넣던 기능(`LibrarianKeywordPatch.cpp`,
+`adapter_vanilla_keywords.json`)은 이 포크에서 **뺐다.** 이유는 둘이다.
 
-`kDataLoaded` 직후 `OnDataLoaded` 에서 한 번 돈다. 어댑터는
-`librarian/adapter_vanilla_keywords.json`:
+- **범위 밖이다.** 키워드 주입은 나중에 만들 별도 모드의 일이고, 이 포크는 스캔까지만 한다
+- **처음 게임에서 돌려 보니 엉뚱한 곳에 붙었다.** `MagicNightEye` 가 생명·시체 감지 이펙트 82개에,
+  `MagicRune` 이 눈보라·보호의 원 같은 SpawnHazard 이펙트 31개에, `MagicArmorSpell` 이 퍽 보조용
+  내부 이펙트에 붙었다. 기본값이 켜짐이었으므로 배포하면 남의 게임에서 퍽이 엉뚱한 주문에 걸린다.
+  게다가 보정이 돈 뒤의 스캔은 플러그인 파일에 없는 키워드를 적게 되어 "있는 그대로 받아 적는다"는
+  스캔 원칙과 부딪힌다
 
-```json
-{ "tag": "fire", "match": { "detrimental": true }, "keyword": "MagicDamageFire" }
-```
-
-`match` 는 분류 룰과 같은 조건 구조다. **태그만 보면 안 된다** — 화염 아트로나크 소환도 `fire`
-태그를 받으므로, 조건이 없으면 소환 주문에 `MagicDamageFire` 가 붙어 화염 강화 퍽이 걸린다.
-
-### 이펙트 단위로 분류한다
-
-카탈로그를 읽지 않는다. **카탈로그는 주문 단위인데 퍽은 이펙트에게 묻기 때문이다.** 주문에
-이펙트가 여럿이면 어느 이펙트에 붙일지 카탈로그가 알 수 없다. 그래서 로드오더의 모든
-`EffectSetting` 을 하나씩 분류한다. 카탈로그도 사전 스캔도 필요 없다.
-
-부작용으로 `spellKeyword` 로 매칭하는 룰(`10_nsv.json` 18개)은 이 경로에서 발동하지 않는다.
-의도한 것이다 — NSV 태그는 주문을 설명하고, 붙이는 키워드는 이펙트의 것이다.
-
-### 안전장치
-
-- 추가만 한다. 삭제 없음
-- 로드오더에 이미 있는 키워드만 쓴다. 없으면 그 어댑터는 비활성이고 로그에 남는다
-- 이미 가진 이펙트는 건드리지 않는다
-- 사용자가 지정한 플러그인은 통째로 건너뛴다
-- `config.json` 의 `vanillaKeywordPatch.enabled` 로 전부 끈다 (없으면 켜짐)
-- 런타임 폼 데이터라 **세이브에 안 남는다.** 모드를 빼면 원상복구된다
-
-```json
-{ "vanillaKeywordPatch": { "enabled": true, "excludePlugins": ["SomeMod.esp"] } }
-```
-
-`AddKeywords` 의 반환값은 항상 `true` 라 믿을 수 없다
-(`commonlibsse-ng/src/RE/B/BGSKeywordForm.cpp:39`). 키워드 개수를 전후로 재서 판정한다.
-
-### 측정에 미치는 영향
-
-**패치가 돈 뒤의 스캔은 플러그인 파일에 없는 키워드를 본다.** 모드 화염 이펙트에
-`MagicDamageFire` 가 채워지면 다음 스캔에서 `00_mgef.json` 룰이 매칭되고, 카탈로그의 `source` 가
-`framework` 에서 `mgef` 로, `confidence` 가 0.8 에서 1.0 으로 바뀐다. 커버리지도 올라간다.
-
-그래서 스캔 덤프에 `keywordPatchApplied` 를 찍는다. `librarian-test` 가 그런 덤프를 읽으면
-경고를 낸다. **`MEASURED.md` 의 숫자는 패치 이전 덤프 기준이다.**
+코드는 `feature/librarian` 브랜치의 커밋 `c7e7670` 에 남아 있다. 별도 모드를 만들 때 참고하되,
+위 오탐 사례를 먼저 풀어야 한다. 옛 덤프에 찍힌 `keywordPatchApplied` 는 `librarian-test` 가 여전히
+읽고 경고한다.
 
 ## 7. 아직 없는 것
 

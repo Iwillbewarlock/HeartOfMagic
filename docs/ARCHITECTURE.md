@@ -115,8 +115,6 @@ same on every load order and in every language.
 | effect | `explosion{form,source,radius}` | the effect's own explosion, otherwise its projectile's. `source` says which. Only when set |
 | effect | `hazard`, `hazardSource` | true/false, and where it was found. See below |
 | effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
-| effect | `counterEffects[]` | persistent ids of the MGEF's counter effects |
-| effect | `conditions{base,item}` | whether the MGEF / this spell's effect item has conditions. Presence only, contents are not unpacked |
 | effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
 
 `hazard` is presence only - no radius, no lifetime. When it is true, `hazardSource`

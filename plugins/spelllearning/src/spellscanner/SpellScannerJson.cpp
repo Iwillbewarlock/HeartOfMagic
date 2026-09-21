@@ -115,9 +115,8 @@ namespace SpellScanner
         return firstEffect->baseEffect->GetMagickSkill();
     }
 
-    // Everything that comes from the MGEF record itself. Split out so the
-    // librarian's keyword patch can classify a base effect that is not part of
-    // any particular spell - it reads the same fields the rules match on.
+    // Everything that comes from the MGEF record itself, split from what a
+    // particular spell asks of it (magnitude, duration, area).
     json BuildBaseEffectJson(const RE::EffectSetting* baseEffect, const FieldConfig& fields)
     {
         json effectJson;
