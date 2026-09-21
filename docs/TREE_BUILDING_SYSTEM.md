@@ -502,17 +502,22 @@ Conjuration-Restoration are full (24), Illusion-Restoration has 6.
 **`schoolLinks`** (`[{a, b, kin}]`, next to `bridges`) counts, per pair of schools, every spell that found
 kin in the other school - before the caps, which make most pairs look equally full. Test load order:
 Conjuration-Destruction 172, Destruction-Restoration 136, then 49 and below; Illusion-Restoration 17.
+Nothing consumes it any more (see below); it is kept because it is the one number that says which schools
+are kin, and the next attempt at an intermixed layout will want it.
 
-**What the layout does with them** (`modules/schoolBridges.js`, same for all five build modes):
+**Decided: the bridges move nothing.** Both attempts to let them shape the tree are gone.
 
-1. *School order.* `onProceduralTreeComplete` calls `SchoolBridges.applyOrderToPreview` before any layout
-   reads the preview: every order of the schools is tried (first school fixed on the circle, up to 8
-   schools) and the one with the most kin between neighbours wins; ties keep the scan's order. The preview
-   is redrawn so roots and sectors are already in the new order.
-2. *Prerequisites.* Right before `SaveSpellTree`, `SchoolBridges.applyToOutput` adds `from` to the
-   `softPrereqs` of `to` (both ways for `twoWay`), never to `prerequisites`, never to roots or spells that
-   are open anyway, and copies the applied bridges to `output.bridges` for the viewer. Test load order:
-   180 bridges, 224 cross-school soft prerequisites, all 1440 spells still placed.
+- *Pulling bridged spells toward the neighbour school's border* moved nothing measurable: classic
+  placement follows the parent along a spoke.
+- *Reordering the schools around the wheel* so the kin schools became neighbours did work, and that was
+  the problem - it rearranged the whole picture. The author asked for the familiar shape back, so the
+  schools keep the order the scan finds them in, which is what HoM always did.
+
+**What `modules/schoolBridges.js` still does**, the same for all five build modes: right before
+`SaveSpellTree`, `applyToOutput` adds `from` to the `softPrereqs` of `to` (both ways for `twoWay`), never
+to `prerequisites`, never to roots or spells that are open anyway, and copies the applied bridges to
+`output.bridges` for the viewer. Test load order: 180 bridges, 224 cross-school soft prerequisites, all
+1440 spells still placed, and the schools sit exactly where the scan put them.
 
 **In the viewer** (`modules/bridgeView.js`, hooked into `CanvasRenderer.render` after the nodes): all 180
 lines at once cover the wheel, so a bridge is drawn only for the selected or hovered spell - dashed, bowed

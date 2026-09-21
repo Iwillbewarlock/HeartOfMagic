@@ -1,123 +1,27 @@
 /**
- * SchoolBridges - what the layout does with the cross school bridges
+ * SchoolBridges - what the build does with the cross school bridges
  *
- * C++ (TreeBuilderBridges.cpp) hands every build a `bridges` list - pairs of
- * spells from different schools that share what they are - and `schoolLinks`,
- * how much kin each pair of schools has. This module turns them into two
- * things, the same way for every build mode:
+ * C++ (TreeBuilderBridges.cpp) hands every build a `bridges` list: pairs of
+ * spells from different schools that share what they are. On save, each
+ * bridge's source becomes one more soft prerequisite of its target - an extra
+ * way in, never a requirement - and the list itself is copied into the saved
+ * tree for the viewer to draw. Every spell's traits are baked in at the same
+ * time, because after a restart the scan is gone and the saved tree is all the
+ * viewer has.
  *
- *  1. School order  - schools with the most in common become neighbours
- *  2. Prerequisites - the bridge's source becomes one more soft prerequisite
- *                     of its target: an extra way in, never a requirement
+ * Two attempts to make the bridges move things were tried and both are gone:
  *
- * Tried and dropped (2026-09-22): nudging bridged spells and themes toward the
- * neighbour's border inside the classic layout. Placement there follows the
- * parent along a spoke; the nudge moved nothing measurable.
+ *  - Nudging bridged spells and themes toward the neighbour school's border
+ *    (2026-09-22). Classic placement follows the parent along a spoke, so the
+ *    nudge moved nothing measurable.
+ *  - Reordering the schools around the wheel so the ones with the most kin
+ *    became neighbours (2026-09-22). It worked, but it rearranged the whole
+ *    picture, and the author asked for the familiar shape back. The schools
+ *    keep the order the scan finds them in.
  *
  * Loaded after treePreview.js and before the *Main.js growth modules.
  */
 var SchoolBridges = {
-
-    // Beyond this many schools every order cannot be tried (8! = 40320)
-    MAX_SCHOOLS_FOR_FULL_SEARCH: 8,
-
-    // =========================================================================
-    // 1. SCHOOL ORDER
-    // =========================================================================
-
-    _pairKey: function (a, b) {
-        return a < b ? a + '|' + b : b + '|' + a;
-    },
-
-    /**
-     * How much each pair of schools has in common. `schoolLinks` counts every
-     * spell with kin in the other school; the bridge list is capped per pair
-     * and says little (most pairs are simply full), so it is only the fallback.
-     */
-    pairCounts: function (treeData) {
-        var counts = {};
-        var links = treeData.schoolLinks || [];
-        for (var l = 0; l < links.length; l++) {
-            counts[this._pairKey(links[l].a, links[l].b)] = links[l].kin || 0;
-        }
-        if (links.length > 0) return counts;
-
-        var bridges = treeData.bridges || [];
-        for (var i = 0; i < bridges.length; i++) {
-            var key = this._pairKey(bridges[i].fromSchool, bridges[i].toSchool);
-            counts[key] = (counts[key] || 0) + 1;
-        }
-        return counts;
-    },
-
-    /** Bridges between neighbours when the schools stand in this order. */
-    _orderScore: function (order, counts, circular) {
-        var score = 0;
-        var last = circular ? order.length : order.length - 1;
-        for (var i = 0; i < last; i++) {
-            score += counts[this._pairKey(order[i], order[(i + 1) % order.length])] || 0;
-        }
-        return score;
-    },
-
-    /**
-     * The order that puts the most bridges between neighbours. The first
-     * school keeps its place (a circle has no start), ties keep the order
-     * the schools came in, so the same load order always gives the same tree.
-     */
-    orderSchools: function (names, treeData, circular) {
-        if (!treeData || names.length < 4) return names.slice();
-        if (names.length > this.MAX_SCHOOLS_FOR_FULL_SEARCH) return names.slice();
-
-        var counts = this.pairCounts(treeData);
-        var self = this;
-        var best = names.slice();
-        var bestScore = this._orderScore(best, counts, circular);
-
-        var rest = names.slice(circular ? 1 : 0);
-        var head = circular ? [names[0]] : [];
-        var permute = function (done, left) {
-            if (left.length === 0) {
-                var score = self._orderScore(done, counts, circular);
-                if (score > bestScore) { bestScore = score; best = done.slice(); }
-                return;
-            }
-            for (var i = 0; i < left.length; i++) {
-                var next = left.slice();
-                var picked = next.splice(i, 1);
-                permute(done.concat(picked), next);
-            }
-        };
-        permute(head, rest);
-        return best;
-    },
-
-    /**
-     * Reorders the preview's schools and redraws it, so that the roots and
-     * sectors every layout reads are already in the new order.
-     * @returns {boolean} true when the order changed
-     */
-    applyOrderToPreview: function (treeData) {
-        if (!treeData || !treeData.bridges || typeof TreePreview === 'undefined') return false;
-        var schoolData = TreePreview.schoolData;
-        if (!schoolData) return false;
-
-        var names = Object.keys(schoolData);
-        var circular = TreePreview.activeMode !== 'flat';
-        var ordered = this.orderSchools(names, treeData, circular);
-        if (ordered.join('|') === names.join('|')) return false;
-
-        var reordered = {};
-        for (var i = 0; i < ordered.length; i++) reordered[ordered[i]] = schoolData[ordered[i]];
-        TreePreview.schoolData = reordered;
-        if (typeof TreePreview._render === 'function') TreePreview._render();
-        console.log('[SchoolBridges] School order: ' + ordered.join(' > '));
-        return true;
-    },
-
-    // =========================================================================
-    // 2. PREREQUISITES
-    // =========================================================================
 
     /**
      * Adds the bridges to a finished tree. A target keeps needing one of its
@@ -135,13 +39,14 @@ var SchoolBridges = {
             for (var n = 0; n < nodes.length; n++) nodeById[nodes[n].formId] = nodes[n];
         }
 
-        // The viewer's trait filter needs every spell's traits, and after a
+        // The viewer's keyword filter needs every spell's traits, and after a
         // restart the scan is gone - only the saved tree is left.
         var spells = (typeof state !== 'undefined' && state.lastSpellData && state.lastSpellData.spells) || [];
         for (var s = 0; s < spells.length; s++) {
             var owner = nodeById[spells[s].formId];
             if (owner && spells[s].traits) owner.traits = spells[s].traits;
         }
+
         var open = function (sourceId, targetId) {
             var target = nodeById[targetId];
             if (!target || target.isRoot || !target.softNeeded) return false;
