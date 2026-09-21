@@ -508,6 +508,14 @@ Conjuration-Destruction 172, Destruction-Restoration 136, then 49 and below; Ill
    are open anyway, and copies the applied bridges to `output.bridges` for the viewer. Test load order:
    180 bridges, 224 cross-school soft prerequisites, all 1440 spells still placed.
 
+**In the viewer** (`modules/bridgeView.js`, hooked into `CanvasRenderer.render` after the nodes): all 180
+lines at once cover the wheel, so a bridge is drawn only for the selected or hovered spell - dashed, bowed
+toward the centre, coloured by the first shared trait. Bridged spells the player has reached wear a thin
+ring; locked ones do not. The spell card lists the spell's bridges (arrow for the direction, school, what
+is shared; a click selects the other spell, `???` while it is locked). The trait filter needs every
+spell's traits after a restart, when the scan is gone, so `applyToOutput` bakes `traits` into each saved
+node.
+
 *Tried and dropped:* nudging bridged spells and their themes toward the neighbour's border in
 `classicLayout.js` (`_findSlots` score term, theme sector order). Classic placement follows the parent
 along a spoke; with and without the nudge the mean bridge length stayed at ~63% of the tree radius.

@@ -109,10 +109,33 @@
     "details.statusLocked": "LOCKED",
     "details.type": "Type",
     "details.unlocks": "Unlocks",
+    "details.bridges": "Paths to other schools",
     "details.unlockSpell": "Unlock Spell",
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Choose a Preset",
+
+    "easyMode.buildMethod": "Tree Style",
+
+    "easyMode.method.classic": "Classic",
+
+    "easyMode.method.tree": "Branches",
+
+    "easyMode.method.graph": "Web",
+
+    "easyMode.method.oracle": "Oracle",
+
+    "easyMode.method.thematic": "Themes",
+
+    "easyMode.methodHint.classic": "Tier by tier, the default",
+
+    "easyMode.methodHint.tree": "One trunk per theme with side branches",
+
+    "easyMode.methodHint.graph": "Links the most similar spells",
+
+    "easyMode.methodHint.oracle": "Chains of related spells",
+
+    "easyMode.methodHint.thematic": "Groups by theme first",
     "easyMode.noPresets": "No presets yet. Build will use current settings.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Waiting for scan...</span>",
 

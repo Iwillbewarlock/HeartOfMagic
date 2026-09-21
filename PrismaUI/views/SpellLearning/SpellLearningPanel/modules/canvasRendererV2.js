@@ -1271,6 +1271,9 @@ var CanvasRenderer = {
         // Nodes
         this.renderNodes(ctx, viewLeft, viewRight, viewTop, viewBottom);
 
+        // Cross school bridges and the trait filter, on top of the nodes
+        if (typeof BridgeView !== 'undefined') BridgeView.render(ctx, this);
+
         // Edit mode overlay (pen line, eraser path)
         if (typeof EditMode !== 'undefined' && EditMode.isActive) {
             EditMode.renderOverlay(ctx);

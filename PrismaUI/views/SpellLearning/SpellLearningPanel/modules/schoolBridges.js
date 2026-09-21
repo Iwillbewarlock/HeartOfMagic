@@ -125,7 +125,8 @@ var SchoolBridges = {
      * spells without prerequisites are open anyway and are left alone.
      */
     applyToOutput: function (output, treeData) {
-        if (!output || !treeData || !treeData.bridges) return;
+        if (!output || !treeData) return;
+        var bridges = treeData.bridges || [];
 
         var nodeById = {};
         for (var schoolName in output.schools) {
@@ -134,6 +135,13 @@ var SchoolBridges = {
             for (var n = 0; n < nodes.length; n++) nodeById[nodes[n].formId] = nodes[n];
         }
 
+        // The viewer's trait filter needs every spell's traits, and after a
+        // restart the scan is gone - only the saved tree is left.
+        var spells = (typeof state !== 'undefined' && state.lastSpellData && state.lastSpellData.spells) || [];
+        for (var s = 0; s < spells.length; s++) {
+            var owner = nodeById[spells[s].formId];
+            if (owner && spells[s].traits) owner.traits = spells[s].traits;
+        }
         var open = function (sourceId, targetId) {
             var target = nodeById[targetId];
             if (!target || target.isRoot || !target.softNeeded) return false;
@@ -145,14 +153,14 @@ var SchoolBridges = {
         };
 
         var kept = [];
-        for (var i = 0; i < treeData.bridges.length; i++) {
-            var bridge = treeData.bridges[i];
+        for (var i = 0; i < bridges.length; i++) {
+            var bridge = bridges[i];
             if (!nodeById[bridge.from] || !nodeById[bridge.to]) continue;
             var forward = open(bridge.from, bridge.to);
             var back = bridge.twoWay ? open(bridge.to, bridge.from) : false;
             if (forward || back) kept.push(bridge);
         }
         output.bridges = kept;
-        console.log('[SchoolBridges] ' + kept.length + ' of ' + treeData.bridges.length + ' bridges applied');
+        console.log('[SchoolBridges] ' + kept.length + ' of ' + bridges.length + ' bridges applied');
     }
 };

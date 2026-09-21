@@ -63,6 +63,54 @@
     color: var(--text-bright, var(--text-primary, #E8E8D8));
 }
 
+/* ---- Trait filter (second row under the school tabs) ---- */
+#tree-trait-filter {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+    z-index: 100;
+    max-width: calc(100% - 320px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#tree-trait-filter:empty {
+    display: none;
+}
+
+.trait-filter-btn {
+    background: var(--btn-bg, rgba(255, 255, 255, 0.06));
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary, #9A9A8A);
+    padding: 3px 8px;
+    font-family: inherit;
+    font-size: 0.65em;
+    cursor: pointer;
+}
+
+.trait-filter-btn:hover {
+    background: var(--btn-bg-hover, rgba(255, 255, 255, 0.12));
+    color: var(--text-primary, #C8C8B8);
+}
+
+.trait-filter-btn.active {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-bright, var(--text-primary, #E8E8D8));
+}
+
+/* ---- Spell card: paths to other schools ---- */
+.bridge-item {
+    border-left: 3px solid transparent;
+    padding-left: 6px;
+}
+
 /* ---- Footer legend: locked state is dashed on the tree too ---- */
 .legend-item.locked .legend-dot {
     border-style: dashed;

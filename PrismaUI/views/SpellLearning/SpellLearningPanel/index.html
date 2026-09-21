@@ -121,6 +121,10 @@
                                 <div class="easy-presets-label" data-i18n="easyMode.choosePreset">Choose a Preset</div>
                                 <div class="easy-preset-chips" id="easyPresetChips"></div>
                             </div>
+                            <div class="easy-presets-section">
+                                <div class="easy-presets-label" data-i18n="easyMode.buildMethod">Tree Style</div>
+                                <div class="easy-preset-chips" id="easyMethodChips"></div>
+                            </div>
                             <div class="easy-actions-section">
                                 <button id="easyBuildBtn" class="btn btn-success easy-action-btn" disabled data-i18n-html="buttons.buildTree">
                                     <span class="btn-icon">[B]</span> Build Tree
@@ -482,6 +486,8 @@
                     
                     <!-- School jump tabs (built by treeNav.js when a tree loads) -->
                     <div id="tree-school-tabs"></div>
+                    <!-- Trait filter (built by bridgeView.js when a tree loads) -->
+                    <div id="tree-trait-filter"></div>
 
                     <!-- Render Customization Settings Popup -->
                     <div id="heart-settings-popup" class="heart-settings-popup" style="display: none;">
@@ -819,6 +825,11 @@
                             <ul id="spell-unlocks" class="detail-list clickable"></ul>
                         </div>
                         
+                        <div class="detail-section hidden" id="details-bridges-section">
+                            <span class="detail-label" data-i18n="details.bridges">Paths to other schools</span>
+                            <ul id="spell-bridges" class="detail-list clickable"></ul>
+                        </div>
+
                         <div class="detail-section" id="locks-section" style="display:none;">
                             <span class="detail-label" data-i18n="details.locks">Locks <span class="lock-label" data-i18n="details.lockBadge">LOCK</span></span>
                             <ul id="locks-list" class="detail-list clickable"></ul>
@@ -1941,6 +1952,7 @@
     <script src="modules/treePreviewFlat.js"></script>
     <script src="modules/treePreview.js"></script>
     <script src="modules/schoolBridges.js"></script>
+    <script src="modules/bridgeView.js"></script>
 
     <!-- 5b2. Core Settings -->
     <script src="modules/treeCore.js"></script>

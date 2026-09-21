@@ -364,6 +364,8 @@ function initializeTreeViewer() {
     if (unlocksList) unlocksList.addEventListener('click', handlePrereqClick);
     if (hardPrereqsList) hardPrereqsList.addEventListener('click', handlePrereqClick);
     if (softPrereqsList) softPrereqsList.addEventListener('click', handlePrereqClick);
+    var bridgesList = document.getElementById('spell-bridges');
+    if (bridgesList) bridgesList.addEventListener('click', handlePrereqClick);
 
     // Find Spell (F key)
     initializeFindSpell();
@@ -665,7 +667,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 // Theme data baked from tree generator
                 theme: nd.theme || null,
                 themeColor: nd.themeColor || null,
-                skillLevel: nd.skillLevel || null
+                skillLevel: nd.skillLevel || null,
+                traits: nd.traits || null
             };
 
             // Roots and prereq-less nodes are available
@@ -744,6 +747,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
     // mirrorBidirectionalSoftPrereqs(nodes);
 
     // Send prereqs to C++ (already baked, no splitting needed)
+    if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
+
     if (window.callCpp) {
         var prereqData = [];
         for (var pi = 0; pi < nodes.length; pi++) {
@@ -1547,6 +1552,8 @@ function showSpellDetails(node) {
         li.dataset.id = id;
         unlocksList.appendChild(li);
     });
+
+    if (typeof BridgeView !== 'undefined') BridgeView.renderCard(node);
 
     // === LOCKS (Pre Req Master) ===
     var locksSection = document.getElementById('locks-section');
