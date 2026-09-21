@@ -1556,7 +1556,9 @@ function showSpellDetails(node) {
         unlocksList.appendChild(li);
     });
 
-    if (typeof BridgeView !== 'undefined') BridgeView.renderCard(node);
+    // Opens with the keyword chips: the paths name another spell and the
+    // keywords it shares, which is more than this spell's own card shows yet
+    if (typeof BridgeView !== 'undefined') BridgeView.renderCard(node, showChips);
 
     // === LOCKS (Pre Req Master) ===
     var locksSection = document.getElementById('locks-section');

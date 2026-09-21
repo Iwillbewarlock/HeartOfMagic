@@ -135,8 +135,11 @@ button.easy-preset-chip {
 }
 
 .spell-chip-filter.active {
-    box-shadow: inset 0 0 0 1px currentColor;
-    filter: brightness(1.5);
+    /* A solid, thicker underline: inset box-shadow is not proven in the game's
+       browser, and brightness alone is too subtle on an already-bright chip */
+    border-bottom: 2px solid currentColor;
+    padding-bottom: 0;
+    filter: brightness(1.4);
 }
 
 /* ---- Spell card: paths to other schools ---- */

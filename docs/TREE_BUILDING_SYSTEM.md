@@ -518,7 +518,10 @@ Conjuration-Destruction 172, Destruction-Restoration 136, then 49 and below; Ill
 lines at once cover the wheel, so a bridge is drawn only for the selected or hovered spell - dashed, bowed
 toward the centre, coloured by the first shared trait. Bridged spells the player has reached wear a thin
 ring; locked ones do not. The spell card lists the spell's bridges (arrow for the direction, school, what
-is shared; a click selects the other spell, `???` while it is locked). The trait filter needs every
+is shared; a click selects the other spell, `???` while it is locked). The section opens with the keyword
+chips, not before: it names another spell and the keywords the two share, which is more than the card
+itself is showing at that point. A bridge opens its target once the source is **mastered** - learned, at
+100%, or already known - the same test every other soft prerequisite uses (`IsSpellMastered`). The trait filter needs every
 spell's traits after a restart, when the scan is gone, so `applyToOutput` bakes `traits` into each saved
 node.
 

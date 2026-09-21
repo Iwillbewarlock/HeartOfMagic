@@ -248,13 +248,13 @@ var BridgeView = {
     // SPELL CARD
     // =========================================================================
 
-    renderCard: function (node) {
+    renderCard: function (node, revealed) {
         var section = document.getElementById('details-bridges-section');
         var listEl = document.getElementById('spell-bridges');
         if (!section || !listEl) return;
         listEl.innerHTML = '';
 
-        var list = this.forNode(node);
+        var list = (revealed === false) ? [] : this.forNode(node);
         if (list.length === 0) { section.classList.add('hidden'); return; }
         section.classList.remove('hidden');
 
