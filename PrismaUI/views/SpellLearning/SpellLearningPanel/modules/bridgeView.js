@@ -203,6 +203,12 @@ var BridgeView = {
             var li = document.createElement('li');
             li.dataset.id = entry.other;
             li.className = 'bridge-item';
+            // Reachable and usable without a mouse
+            li.tabIndex = 0;
+            li.setAttribute('role', 'button');
+            li.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); li.click(); }
+            });
             li.style.borderLeftColor = self.colorOf(entry.shared);
             // Plain text: the list's click handler only reacts to the <li> itself
             li.textContent = arrow + name + '  ·  ' + entry.otherSchool + (what ? ' · ' + what : '');
@@ -249,6 +255,8 @@ var BridgeView = {
             var btn = document.createElement('button');
             btn.className = 'trait-filter-btn';
             btn.setAttribute('data-trait', trait);
+            btn.setAttribute('type', 'button');
+            btn.setAttribute('aria-pressed', 'false');
             btn.textContent = self._labelOf(trait) + ' ' + counts[trait];
             btn.style.borderBottomColor = self.TRAIT_COLORS[trait] || self.DEFAULT_COLOR;
             btn.addEventListener('click', function () { self.toggleFilter(trait); });
@@ -264,6 +272,7 @@ var BridgeView = {
             for (var i = 0; i < buttons.length; i++) {
                 var on = buttons[i].getAttribute('data-trait') === this._filterTrait;
                 if (on) buttons[i].classList.add('active'); else buttons[i].classList.remove('active');
+                buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
             }
         }
         this._redraw();

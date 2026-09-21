@@ -127,7 +127,9 @@ function updateEasyMethodChips() {
         var hintKey = 'easyMode.methodHint.' + name;
         var hint = (typeof t === 'function') ? t(hintKey) : '';
 
-        var chip = document.createElement('div');
+        var chip = document.createElement('button');
+        chip.setAttribute('type', 'button');
+        chip.setAttribute('aria-pressed', name === active ? 'true' : 'false');
         chip.className = 'easy-preset-chip' + (name === active ? ' selected' : '');
         chip.textContent = label;
         if (hint && hint !== hintKey) chip.title = hint;

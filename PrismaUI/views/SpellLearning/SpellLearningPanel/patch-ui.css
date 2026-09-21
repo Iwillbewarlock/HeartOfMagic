@@ -89,10 +89,27 @@
     border: none;
     border-bottom: 2px solid transparent;
     color: var(--text-secondary, #9A9A8A);
-    padding: 3px 8px;
+    /* 24px tall at least: the smallest target WCAG 2.2 allows */
+    padding: 6px 10px;
+    min-height: 24px;
     font-family: inherit;
-    font-size: 0.65em;
+    font-size: 0.7em;
     cursor: pointer;
+}
+
+/* Plain :focus, not :focus-visible - the in-game engine is an old WebKit */
+.trait-filter-btn:focus,
+button.easy-preset-chip:focus,
+.bridge-item:focus {
+    outline: 1px solid var(--accent, #b8a878);
+    outline-offset: 1px;
+}
+
+/* Tree style chips are real buttons (the preset chips they sit under are divs) */
+button.easy-preset-chip {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
 }
 
 .trait-filter-btn:hover {
