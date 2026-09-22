@@ -1319,6 +1319,7 @@ var CanvasRenderer = {
         if (!layer) {
             this._renderTreeInto(ctx, view);
             this._treeDirty = false;
+            this._drawDetachedParticles(ctx, view);
             return;
         }
 
@@ -1340,18 +1341,24 @@ var CanvasRenderer = {
         ctx.drawImage(layer, 0, 0);
         ctx.restore();
 
-        // The globe throws these off on every heartbeat and they move every
-        // frame. Kept out of the layer, they cost a handful of paint calls;
-        // inside it they cost a full redraw of all 1440 spells. They now sit
-        // over the nodes rather than under them, which is the price.
-        if (typeof Globe3D !== 'undefined' && Globe3D.detachedParticles && Globe3D.detachedParticles.length > 0) {
-            ctx.save();
-            ctx.translate(view.cx + this.panX, view.cy + this.panY);
-            ctx.rotate(view.rotRad);
-            ctx.scale(this.zoom, this.zoom);
-            Globe3D._renderDetachedParticles(ctx);
-            ctx.restore();
-        }
+        this._drawDetachedParticles(ctx, view);
+    },
+
+    /**
+     * The particles a learning animation sends out from the globe. They move
+     * every frame, so they are painted over the finished tree rather than into
+     * it - inside the layer, anything moving costs a full redraw of all 1440
+     * spells every frame. The price is that they now sit over the nodes
+     * instead of under them. Drawn on both paths, layer or no layer.
+     */
+    _drawDetachedParticles: function(ctx, view) {
+        if (typeof Globe3D === 'undefined' || !Globe3D.detachedParticles || Globe3D.detachedParticles.length === 0) return;
+        ctx.save();
+        ctx.translate(view.cx + this.panX, view.cy + this.panY);
+        ctx.rotate(view.rotRad);
+        ctx.scale(this.zoom, this.zoom);
+        Globe3D._renderDetachedParticles(ctx);
+        ctx.restore();
     },
 
     /** The layer canvas, kept the size of the visible one. Null if it cannot be made. */

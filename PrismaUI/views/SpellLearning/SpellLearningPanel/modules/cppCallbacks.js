@@ -1181,16 +1181,20 @@ window.onPrismaReady = function() {
         }
     };
 
-    // loadTreeData() calls GetProgress and GetPlayerKnownSpells once the tree
-    // arrives; do not ask for them here or the two races collide.
-    step('load tree', function() { window.callCpp('LoadSpellTree', ''); });
-    step('load config', function() { window.callCpp('LoadUnifiedConfig', ''); });
-    step('load prompt', function() { window.callCpp('LoadPrompt', ''); });
-    step('check LLM', function() { checkLLMAvailability(); });
+    // The order is the one this has always used: the config is asked for
+    // first so the player's settings have a head start on the tree that will
+    // read them. Only the guards are new - before them, a throw in the status
+    // line or the LLM check meant LoadSpellTree was never reached at all.
     step('status', function() {
         updateStatus('Ready to scan spells...');
         setStatusIcon('*');
     });
+    step('load config', function() { window.callCpp('LoadUnifiedConfig', ''); });
+    step('load prompt', function() { window.callCpp('LoadPrompt', ''); });
+    step('check LLM', function() { checkLLMAvailability(); });
+    // loadTreeData() calls GetProgress and GetPlayerKnownSpells once the tree
+    // arrives; do not ask for them here or the two races collide.
+    step('load tree', function() { window.callCpp('LoadSpellTree', ''); });
 };
 
 // Track panel visibility state

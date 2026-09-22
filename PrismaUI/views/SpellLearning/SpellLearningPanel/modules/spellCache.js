@@ -98,7 +98,8 @@ var SpellCache = {
      * C++ looked and the spell is not there - its mod was removed since the
      * tree was built. Without this the id stayed in _pending for good, so
      * requestBatch filtered it out of every later request and the node kept
-     * its "???" for the rest of the session.
+     * its "???" for the rest of the session. Anyone waiting on this id is
+     * called with null, meaning "resolved, there is nothing".
      */
     markNotFound: function(formId) {
         this._pending.delete(formId);
