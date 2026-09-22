@@ -115,9 +115,26 @@ function startScan(autoGenerate) {
     }
 }
 
+/**
+ * The scan result as text, made when a button asks for it. The scan itself no
+ * longer pretty-prints its ~20 MB into the hidden textarea, because doing that
+ * froze the panel on every scan and then held the copy for the session.
+ */
+function _scanResultText() {
+    var el = document.getElementById('outputArea');
+    if (el && el.value && el.value.trim().length > 0) return el.value;   // pasted by hand
+    if (typeof state === 'undefined' || !state.lastSpellData) return '';
+    try {
+        return JSON.stringify(state.lastSpellData, null, 2);
+    } catch (e) {
+        console.error('[SpellLearning] Could not render the scan result: ' + (e && e.message ? e.message : e));
+        return '';
+    }
+}
+
 function onSaveClick() {
     var outputAreaEl = document.getElementById('outputArea');
-    var content = outputAreaEl ? outputAreaEl.value : '';
+    var content = _scanResultText();
     
     if (!content || content.trim().length === 0) {
         updateStatus(t('status.nothingToExport'));
@@ -137,7 +154,7 @@ function onSaveClick() {
 
 function onSaveBySchoolClick() {
     var outputAreaEl = document.getElementById('outputArea');
-    var content = outputAreaEl ? outputAreaEl.value : '';
+    var content = _scanResultText();
     
     if (!content || content.trim().length === 0) {
         updateStatus(t('status.nothingToSave'));
@@ -219,7 +236,7 @@ function onSaveBySchoolClick() {
 
 function onCopyClick() {
     var outputArea = document.getElementById('outputArea');
-    var content = outputArea ? outputArea.value : '';
+    var content = _scanResultText();
     
     if (!content || content.trim().length === 0) {
         updateStatus(t('status.nothingToCopy'));
@@ -233,8 +250,10 @@ function onCopyClick() {
         updateStatus(t('status.copiedClipboard'));
         setStatusIcon('X');
     } else {
-        // Fallback for browser testing
+        // Fallback for browser testing. The textarea is empty until something
+        // asks for the text, so put it there before selecting it.
         try {
+            if (outputArea) outputArea.value = content;
             outputArea.select();
             document.execCommand('copy');
             updateStatus(t('status.copiedToClipboard'));

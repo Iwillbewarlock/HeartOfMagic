@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
@@ -111,9 +112,14 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                         instance->SendSpellInfoBatch(spellInfoArray.dump());
                     }
                 } catch (const std::exception& e) {
-                    logger::error("UIManager: Failed to parse/validate tree: {}", e.what());
-                    // Still try to send raw content as fallback
-                    instance->SendTreeData(treeContent);
+                    // Do NOT pass the bytes on. They failed to parse here and
+                    // they will fail to parse in the panel too, where the only
+                    // sign of it is a tree that never appears. Say so instead,
+                    // and leave the file alone so it can be recovered by hand.
+                    logger::error("UIManager: spell_tree.json could not be read: {}", e.what());
+                    logger::error("UIManager: the file is at {} - it has not been touched",
+                        treePath.string());
+                    instance->UpdateTreeStatus("Saved tree is damaged - see SpellLearning.log");
                 }
 
             } else {
@@ -275,19 +281,13 @@ void UIManager::OnSaveSpellTree(const char* argument)
         auto treePath = GetTreeFilePath();
 
         try {
-            std::ofstream file(treePath);
-            if (file.is_open()) {
-                file << argStr;
-                file.flush();
-                if (file.fail()) {
-                    logger::error("UIManager: Failed to write spell tree to {}", treePath.string());
-                    instance->UpdateTreeStatus("Save failed");
-                } else {
-                    logger::info("UIManager: Saved spell tree to {}", treePath.string());
-                    instance->UpdateTreeStatus("Tree saved");
-                }
+            // Through a temp file and a move, keeping one .bak: this is the
+            // player's whole generated tree, and truncating the real file meant
+            // a crash partway through lost it with nothing to fall back on.
+            if (FileUtils::WriteAtomically(treePath, argStr)) {
+                logger::info("UIManager: Saved spell tree to {}", treePath.string());
+                instance->UpdateTreeStatus("Tree saved");
             } else {
-                logger::error("UIManager: Failed to open spell tree file for writing");
                 instance->UpdateTreeStatus("Save failed");
             }
         } catch (const std::exception& e) {

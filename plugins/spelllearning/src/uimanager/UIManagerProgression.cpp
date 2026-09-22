@@ -539,12 +539,14 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                     }
                 }
 
-                // Log spells with prerequisites for debugging
+                // No line per spell here. This runs on the game thread for every
+                // spell in the tree on every tree load - which is every game load -
+                // and it was looking the form up and fetching its name for the sake
+                // of the log alone: 1423 lookups and 1423 lines in 22 ms, two thirds
+                // of the whole log file. The count is logged once, below.
                 if (!reqs.hardPrereqs.empty() || !reqs.softPrereqs.empty()) {
-                    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
-                    logger::info("UIManager: Setting prereqs for {:08X} '{}': {} hard, {} soft (need {})",
-                        formId, spell ? spell->GetName() : "UNKNOWN",
-                        reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
+                    logger::trace("UIManager: prereqs {:08X}: {} hard, {} soft (need {})",
+                        formId, reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
                 }
 
                 pm->SetPrereqRequirements(formId, reqs);

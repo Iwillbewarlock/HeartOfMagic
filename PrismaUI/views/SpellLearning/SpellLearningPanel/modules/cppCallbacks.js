@@ -121,9 +121,14 @@ window.updateSpellData = function(jsonStr) {
         var data = JSON.parse(jsonStr);
         state.lastSpellData = data;
         
-        var formatted = JSON.stringify(data, null, 2);
+        // The scan came over as one string - 19.8 MB on the author's load order.
+        // Pretty-printing it made a ~20 MB second copy and put it in a hidden
+        // textarea, which froze the panel for seconds on every scan and then
+        // held the copy for the rest of the session. The buttons that read the
+        // textarea (Save, Copy, Export) build it from state.lastSpellData when
+        // they are pressed, which is the only time anyone needs it.
         var outputArea = document.getElementById('outputArea');
-        if (outputArea) outputArea.value = formatted;
+        if (outputArea) outputArea.value = '';
         
         if (state.fullAutoMode) {
             updateStatus(t('status.step2Generating', {count: data.spellCount}));

@@ -114,8 +114,16 @@ public:
     
     // Called by SKSE serialization callbacks
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc);
     void OnRevert(SKSE::SerializationInterface* a_intfc);
+
+    // Co-save reading. There is one record stream and more than one owner, so
+    // nobody may run their own GetNextRecordInfo loop - the first to do it
+    // drains the stream and the next owner silently gets nothing. Main.cpp runs
+    // the single loop and offers each record here; this returns true when the
+    // record was ours, false to let the next owner see it.
+    void BeginLoad();
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, uint32_t type, uint32_t version, uint32_t length);
+    void EndLoad();
 
     // Legacy save/load (for external JSON files - kept for backwards compat)
     void LoadProgress(const std::string& saveName);

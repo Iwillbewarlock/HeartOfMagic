@@ -142,8 +142,12 @@ public:
     static constexpr uint32_t kEarlyLearnedRecord = 'SLEL';  // Spell Learning Early Learned
     static constexpr uint32_t kDisplayCacheRecord = 'SLDC';  // Spell Learning Display Cache
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc);
     void OnRevert(SKSE::SerializationInterface* a_intfc);
+
+    // See the note on ProgressionManager: one stream, several owners, one loop.
+    void BeginLoad();
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, uint32_t type, uint32_t version, uint32_t length);
+    void EndLoad();
 
 private:
     SpellEffectivenessHook() = default;

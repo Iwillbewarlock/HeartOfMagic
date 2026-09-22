@@ -269,8 +269,27 @@ void OnGameSaved(SKSE::SerializationInterface* a_intfc)
 void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
 {
     logger::info("SKSE Serialization: Game loaded");
-    ProgressionManager::GetSingleton()->OnGameLoaded(a_intfc);
-    SpellEffectivenessHook::GetSingleton()->OnGameLoaded(a_intfc);
+
+    // One record stream, read once. Each owner used to run its own
+    // GetNextRecordInfo loop, and the first one drained the stream: the
+    // progression reader consumed the early-learned record, logged it as an
+    // unknown type and threw it away, so a spell learned early lost its
+    // weakened state on every load.
+    auto* progression = ProgressionManager::GetSingleton();
+    auto* effectiveness = SpellEffectivenessHook::GetSingleton();
+
+    progression->BeginLoad();
+    effectiveness->BeginLoad();
+
+    uint32_t type = 0, version = 0, length = 0;
+    while (a_intfc->GetNextRecordInfo(type, version, length)) {
+        if (progression->ReadRecord(a_intfc, type, version, length)) continue;
+        if (effectiveness->ReadRecord(a_intfc, type, version, length)) continue;
+        logger::warn("SKSE Serialization: no owner for record type {:08X}, skipped", type);
+    }
+
+    progression->EndLoad();
+    effectiveness->EndLoad();
     // NOTE: DEST registrations are handled via AutoRegisterISLAliases()
     // in OnPostLoadGame, not through serialization.
 }

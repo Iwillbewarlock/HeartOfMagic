@@ -69,160 +69,165 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     m_dirty = false;
 }
 
-void ProgressionManager::OnGameLoaded(SKSE::SerializationInterface* a_intfc)
+void ProgressionManager::BeginLoad()
 {
     logger::info("ProgressionManager: Loading from co-save...");
-
-    // Clear existing data first
     ClearAllProgress();
+}
 
-    uint32_t type, version, length;
+void ProgressionManager::EndLoad()
+{
+    logger::info("ProgressionManager: Co-save load complete");
+}
 
-    while (a_intfc->GetNextRecordInfo(type, version, length)) {
-        if (version != kSerializationVersion && version != 1) {
-            logger::warn("ProgressionManager: Skipping record with unsupported version (got {}, expected {} or 1)",
-                version, kSerializationVersion);
-            continue;
-        }
+bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
+                                    uint32_t type, uint32_t version, [[maybe_unused]] uint32_t length)
+{
+    // Not ours: say so before looking at the version, or a record belonging to
+    // another owner would be rejected here for a version it never claimed.
+    if (type != kTargetsRecord && type != kProgressRecord) return false;
 
-        switch (type) {
-            case kTargetsRecord: {
-                // Read learning targets
-                uint32_t numTargets = 0;
-                if (!a_intfc->ReadRecordData(&numTargets, sizeof(numTargets))) {
-                    logger::error("ProgressionManager: Failed to read numTargets");
-                    break;
-                }
-
-                for (uint32_t i = 0; i < numTargets; ++i) {
-                    uint32_t schoolLen = 0;
-                    if (!a_intfc->ReadRecordData(&schoolLen, sizeof(schoolLen))) {
-                        logger::error("ProgressionManager: Failed to read schoolLen at target {}", i);
-                        break;
-                    }
-                    if (schoolLen > 4096) {
-                        logger::error("ProgressionManager: schoolLen {} exceeds limit at target {}", schoolLen, i);
-                        break;
-                    }
-
-                    std::string school(schoolLen, '\0');
-                    if (!a_intfc->ReadRecordData(school.data(), schoolLen)) {
-                        logger::error("ProgressionManager: Failed to read school string at target {}", i);
-                        break;
-                    }
-
-                    RE::FormID formId = 0;
-                    if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                        logger::error("ProgressionManager: Failed to read formId at target {}", i);
-                        break;
-                    }
-
-                    // Resolve formId (handles load order changes)
-                    RE::FormID resolvedId = 0;
-                    if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                        m_learningTargets[school] = resolvedId;
-                        logger::info("ProgressionManager: Loaded target {} -> {:08X}", school, resolvedId);
-                    } else {
-                        logger::warn("ProgressionManager: Failed to resolve target formId {:08X}", formId);
-                    }
-                }
-
-                logger::info("ProgressionManager: Loaded {} learning targets", m_learningTargets.size());
-                break;
-            }
-
-            case kProgressRecord: {
-                // Read spell progress
-                uint32_t numProgress = 0;
-                if (!a_intfc->ReadRecordData(&numProgress, sizeof(numProgress))) {
-                    logger::error("ProgressionManager: Failed to read numProgress");
-                    break;
-                }
-
-                for (uint32_t i = 0; i < numProgress; ++i) {
-                    RE::FormID formId = 0;
-                    if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                        logger::error("ProgressionManager: Failed to read formId at progress entry {}", i);
-                        break;
-                    }
-
-                    float progressPercent = 0.0f;
-                    if (!a_intfc->ReadRecordData(&progressPercent, sizeof(progressPercent))) {
-                        logger::error("ProgressionManager: Failed to read progressPercent at progress entry {}", i);
-                        break;
-                    }
-
-                    uint8_t unlocked = 0;
-                    if (!a_intfc->ReadRecordData(&unlocked, sizeof(unlocked))) {
-                        logger::error("ProgressionManager: Failed to read unlocked at progress entry {}", i);
-                        break;
-                    }
-
-                    // v2: Read modded source XP tracking
-                    std::unordered_map<std::string, float> moddedXP;
-                    if (version >= 2) {
-                        uint32_t moddedCount = 0;
-                        if (!a_intfc->ReadRecordData(&moddedCount, sizeof(moddedCount))) {
-                            logger::error("ProgressionManager: Failed to read moddedCount at progress entry {}", i);
-                            break;
-                        }
-                        if (moddedCount > 4096) {
-                            logger::error("ProgressionManager: moddedCount {} exceeds limit at progress entry {}", moddedCount, i);
-                            break;
-                        }
-                        for (uint32_t m = 0; m < moddedCount; ++m) {
-                            uint32_t nameLen = 0;
-                            if (!a_intfc->ReadRecordData(&nameLen, sizeof(nameLen))) {
-                                logger::error("ProgressionManager: Failed to read nameLen at progress entry {}, modded {}", i, m);
-                                break;
-                            }
-                            if (nameLen > 4096) {
-                                logger::error("ProgressionManager: nameLen {} exceeds limit at progress entry {}, modded {}", nameLen, i, m);
-                                break;
-                            }
-                            std::string name(nameLen, '\0');
-                            if (!a_intfc->ReadRecordData(name.data(), nameLen)) {
-                                logger::error("ProgressionManager: Failed to read name string at progress entry {}, modded {}", i, m);
-                                break;
-                            }
-                            float xp = 0.0f;
-                            if (!a_intfc->ReadRecordData(&xp, sizeof(xp))) {
-                                logger::error("ProgressionManager: Failed to read xp at progress entry {}, modded {}", i, m);
-                                break;
-                            }
-                            moddedXP[name] = xp;
-                        }
-                    }
-
-                    // Resolve formId (handles load order changes)
-                    RE::FormID resolvedId = 0;
-                    if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                        SpellProgress progress;
-                        progress.progressPercent = progressPercent;
-                        progress.unlocked = unlocked != 0;
-                        progress.xpFromModded = std::move(moddedXP);
-                        // requiredXP will be set from tree data later
-                        m_spellProgress[resolvedId] = progress;
-
-                        logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",
-                            resolvedId, progressPercent * 100.0f, unlocked ? "(unlocked)" : "",
-                            progress.xpFromModded.size());
-                    } else {
-                        logger::warn("ProgressionManager: Failed to resolve progress formId {:08X}", formId);
-                    }
-                }
-
-                logger::info("ProgressionManager: Loaded {} spell progress entries", m_spellProgress.size());
-                break;
-            }
-
-            default:
-                logger::warn("ProgressionManager: Unknown record type: {}", type);
-                break;
-        }
+    if (version != kSerializationVersion && version != 1) {
+        logger::warn("ProgressionManager: Skipping record with unsupported version (got {}, expected {} or 1)",
+            version, kSerializationVersion);
+        return true;
     }
 
-    logger::info("ProgressionManager: Co-save load complete");
+    switch (type) {
+        case kTargetsRecord: {
+            // Read learning targets
+            uint32_t numTargets = 0;
+            if (!a_intfc->ReadRecordData(&numTargets, sizeof(numTargets))) {
+                logger::error("ProgressionManager: Failed to read numTargets");
+                break;
+            }
+
+            for (uint32_t i = 0; i < numTargets; ++i) {
+                uint32_t schoolLen = 0;
+                if (!a_intfc->ReadRecordData(&schoolLen, sizeof(schoolLen))) {
+                    logger::error("ProgressionManager: Failed to read schoolLen at target {}", i);
+                    break;
+                }
+                if (schoolLen > 4096) {
+                    logger::error("ProgressionManager: schoolLen {} exceeds limit at target {}", schoolLen, i);
+                    break;
+                }
+
+                std::string school(schoolLen, '\0');
+                if (!a_intfc->ReadRecordData(school.data(), schoolLen)) {
+                    logger::error("ProgressionManager: Failed to read school string at target {}", i);
+                    break;
+                }
+
+                RE::FormID formId = 0;
+                if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
+                    logger::error("ProgressionManager: Failed to read formId at target {}", i);
+                    break;
+                }
+
+                // Resolve formId (handles load order changes)
+                RE::FormID resolvedId = 0;
+                if (a_intfc->ResolveFormID(formId, resolvedId)) {
+                    m_learningTargets[school] = resolvedId;
+                    logger::info("ProgressionManager: Loaded target {} -> {:08X}", school, resolvedId);
+                } else {
+                    logger::warn("ProgressionManager: Failed to resolve target formId {:08X}", formId);
+                }
+            }
+
+            logger::info("ProgressionManager: Loaded {} learning targets", m_learningTargets.size());
+            break;
+        }
+
+        case kProgressRecord: {
+            // Read spell progress
+            uint32_t numProgress = 0;
+            if (!a_intfc->ReadRecordData(&numProgress, sizeof(numProgress))) {
+                logger::error("ProgressionManager: Failed to read numProgress");
+                break;
+            }
+
+            for (uint32_t i = 0; i < numProgress; ++i) {
+                RE::FormID formId = 0;
+                if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
+                    logger::error("ProgressionManager: Failed to read formId at progress entry {}", i);
+                    break;
+                }
+
+                float progressPercent = 0.0f;
+                if (!a_intfc->ReadRecordData(&progressPercent, sizeof(progressPercent))) {
+                    logger::error("ProgressionManager: Failed to read progressPercent at progress entry {}", i);
+                    break;
+                }
+
+                uint8_t unlocked = 0;
+                if (!a_intfc->ReadRecordData(&unlocked, sizeof(unlocked))) {
+                    logger::error("ProgressionManager: Failed to read unlocked at progress entry {}", i);
+                    break;
+                }
+
+                // v2: Read modded source XP tracking
+                std::unordered_map<std::string, float> moddedXP;
+                if (version >= 2) {
+                    uint32_t moddedCount = 0;
+                    if (!a_intfc->ReadRecordData(&moddedCount, sizeof(moddedCount))) {
+                        logger::error("ProgressionManager: Failed to read moddedCount at progress entry {}", i);
+                        break;
+                    }
+                    if (moddedCount > 4096) {
+                        logger::error("ProgressionManager: moddedCount {} exceeds limit at progress entry {}", moddedCount, i);
+                        break;
+                    }
+                    for (uint32_t m = 0; m < moddedCount; ++m) {
+                        uint32_t nameLen = 0;
+                        if (!a_intfc->ReadRecordData(&nameLen, sizeof(nameLen))) {
+                            logger::error("ProgressionManager: Failed to read nameLen at progress entry {}, modded {}", i, m);
+                            break;
+                        }
+                        if (nameLen > 4096) {
+                            logger::error("ProgressionManager: nameLen {} exceeds limit at progress entry {}, modded {}", nameLen, i, m);
+                            break;
+                        }
+                        std::string name(nameLen, '\0');
+                        if (!a_intfc->ReadRecordData(name.data(), nameLen)) {
+                            logger::error("ProgressionManager: Failed to read name string at progress entry {}, modded {}", i, m);
+                            break;
+                        }
+                        float xp = 0.0f;
+                        if (!a_intfc->ReadRecordData(&xp, sizeof(xp))) {
+                            logger::error("ProgressionManager: Failed to read xp at progress entry {}, modded {}", i, m);
+                            break;
+                        }
+                        moddedXP[name] = xp;
+                    }
+                }
+
+                // Resolve formId (handles load order changes)
+                RE::FormID resolvedId = 0;
+                if (a_intfc->ResolveFormID(formId, resolvedId)) {
+                    SpellProgress progress;
+                    progress.progressPercent = progressPercent;
+                    progress.unlocked = unlocked != 0;
+                    progress.xpFromModded = std::move(moddedXP);
+                    // requiredXP will be set from tree data later
+                    m_spellProgress[resolvedId] = progress;
+
+                    logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",
+                        resolvedId, progressPercent * 100.0f, unlocked ? "(unlocked)" : "",
+                        progress.xpFromModded.size());
+                } else {
+                    logger::warn("ProgressionManager: Failed to resolve progress formId {:08X}", formId);
+                }
+            }
+
+            logger::info("ProgressionManager: Loaded {} spell progress entries", m_spellProgress.size());
+            break;
+        }
+
+        default:
+            break;
+    }
+    return true;
 }
 
 void ProgressionManager::OnRevert(SKSE::SerializationInterface*)

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
@@ -427,7 +428,14 @@ void UIManager::DoSaveUnifiedConfig(const std::string& configData)
             try {
                 std::ifstream existingFile(path);
                 existingConfig = json::parse(existingFile);
-            } catch (...) {}
+            } catch (const std::exception& e) {
+                // The merge below would start from nothing and the write would
+                // then replace every setting the player had with defaults.
+                // Better to save nothing and say why.
+                logger::error("UIManager: {} could not be read ({}) - settings were NOT saved, "
+                              "so the file can be recovered by hand", path.string(), e.what());
+                return;
+            }
         }
 
         // Deep merge new config into existing (preserves nested keys)
@@ -487,15 +495,8 @@ void UIManager::DoSaveUnifiedConfig(const std::string& configData)
         // Apply early learning, tome, passive, and notification settings
         ApplySettingsFromConfig(existingConfig);
 
-        // Write merged config
-        std::ofstream file(path);
-        if (!file.is_open()) {
-            logger::error("UIManager: Failed to open unified config for writing: {}", path.string());
-            return;
-        }
-        file << existingConfig.dump(2);
-        file.flush();
-        if (file.fail()) {
+        // Write merged config through a temp file and a move, keeping one .bak
+        if (!FileUtils::WriteAtomically(path, existingConfig.dump(2))) {
             logger::error("UIManager: Failed to write unified config to {}", path.string());
             return;
         }
