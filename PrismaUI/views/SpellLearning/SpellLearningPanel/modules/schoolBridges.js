@@ -39,13 +39,29 @@ var SchoolBridges = {
             for (var n = 0; n < nodes.length; n++) nodeById[nodes[n].formId] = nodes[n];
         }
 
-        // The viewer's keyword filter needs every spell's traits, and after a
-        // restart the scan is gone - only the saved tree is left.
+        // Two things the saved tree needs from the scan, because after a restart
+        // the scan is gone and the tree is all there is:
+        //
+        //  traits        the viewer's keyword filter
+        //  persistentId  "SomeMod.esp|0x000800", which does not move. A light
+        //                plugin's form ids are numbered by where it sits in the
+        //                load order, so one reshuffle renames every spell it
+        //                owns. ValidateAndFixTree exists to put those back, and
+        //                persistentId is the only thing it can put them back
+        //                from - but the node written here was built field by
+        //                field and never carried it, so the recovery could
+        //                never fire. Seen in game: 430 of 1428 spells dropped
+        //                from the tree, "0 resolved from persistent".
         var spells = (typeof state !== 'undefined' && state.lastSpellData && state.lastSpellData.spells) || [];
+        var baked = 0;
         for (var s = 0; s < spells.length; s++) {
             var owner = nodeById[spells[s].formId];
-            if (owner && spells[s].traits) owner.traits = spells[s].traits;
+            if (!owner) continue;
+            if (spells[s].traits) owner.traits = spells[s].traits;
+            if (spells[s].persistentId) { owner.persistentId = spells[s].persistentId; baked++; }
         }
+        console.log('[SchoolBridges] ' + baked + ' of ' + Object.keys(nodeById).length +
+                    ' nodes carry a persistent id');
 
         var open = function (sourceId, targetId) {
             var target = nodeById[targetId];
