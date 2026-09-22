@@ -541,20 +541,11 @@ function handleColorSuggestionResponse(result) {
 // INITIALIZATION
 // =============================================================================
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('[SpellLearning] Panel initializing...');
-    
-    initializePanel();
-    initializeTabs();
-    initializePromptEditor();
-    initializeDragging();
-    initializeResizing();
-    initializeTreeViewer();
-    initializeSettings();
-    initializeTextareaEnterKey();
-    
-    console.log('[SpellLearning] Panel initialized');
-});
+// Initialization lives in modules/main.js, which calls every function this
+// block used to call and several more, each guarded. Running both meant every
+// listener registered twice: one click on a settings toggle fired it twice, one
+// Save wrote the config twice, and the Clear Tree double-click guard was
+// defeated because a single click reached both copies of the handler.
 
 // Fix Enter key in textareas - allow new lines
 function initializeTextareaEnterKey() {

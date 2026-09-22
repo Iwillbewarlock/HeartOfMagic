@@ -1641,6 +1641,17 @@ window.onProceduralTreeComplete = function(resultStr) {
         }
     } catch (e) {
         console.error('[Procedural] Error parsing C++ result:', e);
+        // Whatever went wrong, let go of the build. A pending flag left standing
+        // sends the NEXT build's result down this mode's branch, and a progress
+        // modal with nothing left to close it sits over the panel for good.
+        state._classicGrowthBuildPending = false;
+        state._treeGrowthBuildPending = false;
+        state._graphGrowthBuildPending = false;
+        state._oracleGrowthBuildPending = false;
+        state._thematicGrowthBuildPending = false;
+        if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
+            BuildProgress.fail('Result parse error');
+        }
         // Check if visual-first was pending - fall back to defaults
         if (state.visualFirstConfigPending) {
             state.visualFirstConfigPending = false;

@@ -283,10 +283,10 @@ function onCloseClick() {
 }
 
 // Called when panel is about to be hidden (from C++)
-window.onPanelHiding = function() {
-    // Auto-save settings when panel is closed
-    autoSaveSettings();
-};
+// onPanelHiding lives in cppCallbacks.js. A copy here was dead code: that file
+// loads later and replaced this one, so the save it did never ran. The live
+// handler stops the render loops and the polls, and saves at once rather than
+// on a debounce, which is what a closing panel needs.
 
 function toggleMinimize() {
     var panel = document.getElementById('spellPanel');

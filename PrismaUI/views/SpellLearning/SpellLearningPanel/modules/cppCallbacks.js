@@ -495,8 +495,23 @@ window.updateTreeData = function(json) {
  * Called by C++ when Classic Growth tree build completes
  * Receives NLP-built tree data for preview layout
  */
+/**
+ * Reads a payload C++ handed over. Returns null when it cannot be read, so a
+ * malformed message ends the one callback instead of throwing back across the
+ * bridge into native code.
+ */
+function _readPayload(json, where) {
+    try {
+        return typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+        console.error('[SpellLearning] ' + where + ': unreadable payload - ' + (e && e.message ? e.message : e));
+        return null;
+    }
+}
+
 window.onClassicGrowthTreeData = function(json) {
-    var data = typeof json === 'string' ? JSON.parse(json) : json;
+    var data = _readPayload(json, 'onClassicGrowthTreeData');
+    if (!data) return;
     console.log('[SpellLearning] Classic Growth tree data received');
     if (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic.loadTreeData) {
         TreeGrowthClassic.loadTreeData(data);
@@ -511,7 +526,8 @@ window.onClassicGrowthTreeData = function(json) {
  * Receives NLP-built tree data with trunk/branch/root structure
  */
 window.onTreeGrowthTreeData = function(json) {
-    var data = typeof json === 'string' ? JSON.parse(json) : json;
+    var data = _readPayload(json, 'onTreeGrowthTreeData');
+    if (!data) return;
     console.log('[SpellLearning] Tree Growth tree data received');
     if (typeof TreeGrowthTree !== 'undefined' && TreeGrowthTree.loadTreeData) {
         TreeGrowthTree.loadTreeData(data);
@@ -522,8 +538,8 @@ window.onTreeGrowthTreeData = function(json) {
 };
 
 window.updateSpellInfo = function(json) {
-    var data = typeof json === 'string' ? JSON.parse(json) : json;
-    if (data.formId) {
+    var data = _readPayload(json, 'updateSpellInfo');
+    if (data && data.formId) {
         SpellCache.set(data.formId, data);
         
         if (state.treeData) {
@@ -538,37 +554,46 @@ window.updateSpellInfo = function(json) {
 
 // Reply to GetSpellIcon: one installed icon pack SVG, asked for by the spell card
 window.updateSpellIcon = function(json) {
-    var data = typeof json === 'string' ? JSON.parse(json) : json;
-    if (typeof SpellCard !== 'undefined') {
+    var data = _readPayload(json, 'updateSpellIcon');
+    if (data && typeof SpellCard !== 'undefined') {
         SpellCard.onIconData(data);
     }
 };
 
 window.updateSpellInfoBatch = function(json) {
-    console.log('[SpellLearning] Received spell info batch');
-    var dataArray = typeof json === 'string' ? JSON.parse(json) : json;
-    if (!Array.isArray(dataArray)) {
-        console.warn('[SpellLearning] Batch response is not an array');
+    var dataArray;
+    try {
+        dataArray = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+        // Leaving here without onBatchComplete would strand the waiting
+        // callback, and no spell in the tree would ever get its name.
+        console.error('[SpellLearning] Batch reply could not be read: ' + (e && e.message ? e.message : e));
+        SpellCache.onBatchComplete();
         return;
     }
-    
+    if (!Array.isArray(dataArray)) {
+        console.warn('[SpellLearning] Batch response is not an array');
+        SpellCache.onBatchComplete();
+        return;
+    }
+
     var foundCount = 0;
     var notFoundCount = 0;
-    
+
     dataArray.forEach(function(data) {
-        if (data.formId) {
+        if (data && data.formId) {
             if (data.notFound) {
                 notFoundCount++;
-                console.warn('[SpellLearning] Spell not found: ' + data.formId);
+                SpellCache.markNotFound(data.formId);
             } else {
                 foundCount++;
                 SpellCache.set(data.formId, data);
             }
         }
     });
-    
+
     console.log('[SpellLearning] Batch: ' + foundCount + ' found, ' + notFoundCount + ' not found');
-    
+
     // Signal batch complete
     SpellCache.onBatchComplete();
     
@@ -1143,26 +1168,29 @@ window.onPlayerKnownSpells = function(dataStr) {
 
 window.onPrismaReady = function() {
     console.log('[SpellLearning] Prisma connection established');
-    updateStatus('Ready to scan spells...');
-    setStatusIcon('*');
+    if (!window.callCpp) return;
 
-    if (window.callCpp) {
-        // Load unified config (all settings, API key, field settings in one file)
-        console.log('[SpellLearning] Loading unified config...');
-        window.callCpp('LoadUnifiedConfig', '');
+    // C++ calls this once, and it is the only thing that asks for the saved
+    // tree. It used to run unguarded, so one throw anywhere above that request
+    // - a missing element, an LLM check - left the player looking at an empty
+    // panel with no error and nothing to retry. Each step now stands alone,
+    // and the tree is asked for first.
+    var step = function(what, fn) {
+        try { fn(); } catch (e) {
+            console.error('[SpellLearning] Startup step "' + what + '" failed: ' + (e && e.message ? e.message : e));
+        }
+    };
 
-        // Load tree rules prompt
-        window.callCpp('LoadPrompt', '');
-
-        // Check API availability (uses settings from unified config)
-        checkLLMAvailability();
-
-        // Auto-load saved spell tree (if exists)
-        // loadTreeData() in treeViewerUI.js calls GetProgress and GetPlayerKnownSpells after loading
-        // Do NOT call those here - let loadTreeData handle it to avoid race conditions
-        console.log('[SpellLearning] Auto-loading saved spell tree...');
-        window.callCpp('LoadSpellTree', '');
-    }
+    // loadTreeData() calls GetProgress and GetPlayerKnownSpells once the tree
+    // arrives; do not ask for them here or the two races collide.
+    step('load tree', function() { window.callCpp('LoadSpellTree', ''); });
+    step('load config', function() { window.callCpp('LoadUnifiedConfig', ''); });
+    step('load prompt', function() { window.callCpp('LoadPrompt', ''); });
+    step('check LLM', function() { checkLLMAvailability(); });
+    step('status', function() {
+        updateStatus('Ready to scan spells...');
+        setStatusIcon('*');
+    });
 };
 
 // Track panel visibility state

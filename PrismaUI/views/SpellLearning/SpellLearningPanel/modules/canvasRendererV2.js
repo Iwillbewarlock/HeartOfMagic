@@ -1154,13 +1154,25 @@ var CanvasRenderer = {
                 }
             }
             
-            if (shouldRender) {
-                self._needsRender = false;
-                self._animationOnlyRender = false;
-                self.render();
+            // The next frame is booked in `finally`. Booking it after render()
+            // meant one throw ended the loop for good: _rafId still held the id
+            // of the frame that had already fired, so startRenderLoop's guard
+            // treated the dead loop as running and the tree never came back.
+            try {
+                if (shouldRender) {
+                    self._needsRender = false;
+                    self._animationOnlyRender = false;
+                    self.render();
+                }
+            } catch (e) {
+                // Once per session: a frame that throws usually throws every frame
+                if (!self._renderErrorLogged) {
+                    self._renderErrorLogged = true;
+                    console.error('[CanvasRenderer] Frame failed, loop continues: ' + (e && e.message ? e.message : e));
+                }
+            } finally {
+                self._rafId = requestAnimationFrame(loop);
             }
-            
-            self._rafId = requestAnimationFrame(loop);
         }
         
         loop(performance.now());
@@ -1310,11 +1322,7 @@ var CanvasRenderer = {
             return;
         }
 
-        // Particles the globe threw off live inside the tree layer and move every frame
-        var movingInside = typeof Globe3D !== 'undefined' && Globe3D.detachedParticles &&
-                           Globe3D.detachedParticles.length > 0;
-
-        if (this._treeDirty || movingInside || this._treeLayerStale) {
+        if (this._treeDirty || this._treeLayerStale) {
             var lctx = this._treeLayerCtx;
             lctx.setTransform(1, 0, 0, 1, 0, 0);
             lctx.globalAlpha = 1.0;
@@ -1331,6 +1339,19 @@ var CanvasRenderer = {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(layer, 0, 0);
         ctx.restore();
+
+        // The globe throws these off on every heartbeat and they move every
+        // frame. Kept out of the layer, they cost a handful of paint calls;
+        // inside it they cost a full redraw of all 1440 spells. They now sit
+        // over the nodes rather than under them, which is the price.
+        if (typeof Globe3D !== 'undefined' && Globe3D.detachedParticles && Globe3D.detachedParticles.length > 0) {
+            ctx.save();
+            ctx.translate(view.cx + this.panX, view.cy + this.panY);
+            ctx.rotate(view.rotRad);
+            ctx.scale(this.zoom, this.zoom);
+            Globe3D._renderDetachedParticles(ctx);
+            ctx.restore();
+        }
     },
 
     /** The layer canvas, kept the size of the visible one. Null if it cannot be made. */
@@ -1379,11 +1400,10 @@ var CanvasRenderer = {
         // Learning path animation (glowing line from center to learned spell)
         this.renderLearningPath(ctx);
         
-        // Detached particles (above lines, below nodes)
-        if (typeof Globe3D !== 'undefined' && Globe3D.detachedParticles && Globe3D.detachedParticles.length > 0) {
-            Globe3D._renderDetachedParticles(ctx);
-        }
-        
+        // Detached particles are NOT drawn here: they move every frame, and
+        // anything moving inside the layer forces the whole tree to be redrawn.
+        // _drawTree paints them over the pasted layer instead.
+
         // Nodes
         this.renderNodes(ctx, viewLeft, viewRight, viewTop, viewBottom);
 
@@ -1539,7 +1559,11 @@ var CanvasRenderer = {
 
         var elapsed = performance.now() - startTime;
         if (typeof PerfMeter !== 'undefined') PerfMeter.frame(elapsed);
-        if (elapsed > 16 || this._logNextRender) {
+        // No per-frame log here. It used to fire on every frame over 16 ms,
+        // and in the game's browser a console call crosses into native code -
+        // so a tree that was already too slow logged itself slower still.
+        // PerfMeter above is the read-out; _logNextRender asks for one line.
+        if (this._logNextRender) {
             console.log('[CanvasRenderer] Render:', Math.round(elapsed) + 'ms,', this.nodes.length, 'nodes');
             this._logNextRender = false;
         }

@@ -94,6 +94,19 @@ var SpellCache = {
         }
     },
     
+    /**
+     * C++ looked and the spell is not there - its mod was removed since the
+     * tree was built. Without this the id stayed in _pending for good, so
+     * requestBatch filtered it out of every later request and the node kept
+     * its "???" for the rest of the session.
+     */
+    markNotFound: function(formId) {
+        this._pending.delete(formId);
+        var callbacks = this._callbacks.get(formId) || [];
+        callbacks.forEach(function(cb) { cb(null); });
+        this._callbacks.delete(formId);
+    },
+
     onBatchComplete: function() {
         if (this._batchCallback) {
             this._batchCallback();

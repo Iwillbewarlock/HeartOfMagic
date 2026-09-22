@@ -2310,18 +2310,9 @@ window.onSettingsLoaded = window.onUnifiedConfigLoaded;
 
 // Export updateDeveloperModeVisibility for use by other modules (e.g., when school controls are created)
 window.updateDeveloperModeVisibility = updateDeveloperModeVisibility;
-window.onLLMConfigLoaded = function(dataStr) {
-    // This is now handled by onUnifiedConfigLoaded
-    // But keep for backwards compatibility with any existing code
-    try {
-        var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
-        if (data && data.apiKey) {
-            state.llmConfig.apiKey = data.apiKey;
-            state.llmConfig.model = data.model || state.llmConfig.model;
-            state.llmConfig.maxTokens = data.maxTokens || state.llmConfig.maxTokens;
-        }
-    } catch (e) { }
-};
+// onLLMConfigLoaded lives in llmApiSettings.js, which loads after this file and
+// replaced the copy that used to sit here - so this one never ran. The live one
+// stores the same config and fills in the API-key and model fields as well.
 
 // =============================================================================
 // MODDED XP SOURCES - Dynamic UI for external mod XP sources
