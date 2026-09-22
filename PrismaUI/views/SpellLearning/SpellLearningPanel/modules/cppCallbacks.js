@@ -87,12 +87,70 @@ window.onBuilderStatus = function(statusStr) {
     }
 };
 
+/**
+ * ScanRef - lets a tree build name its spells instead of sending them
+ *
+ * C++ keeps the last full scan it sent here and tells us its number
+ * (onScanStored). A build request that carries only spells from that scan,
+ * untouched since, can send their ids and the scan number instead: a few KB
+ * in place of the 9-20 MB this panel had to stringify, and C++ had to parse
+ * and copy while the game waited.
+ *
+ * "Untouched" matters. The builder reads fields the panel can add later -
+ * the LLM keyword pass writes llm_keyword onto the scanned spells - and C++
+ * would not see those in its copy. So the ids go only when every spell in
+ * the request is one of the scanned objects and nothing has written to them
+ * since (invalidate() is called by whatever does). Anything else is sent in
+ * full, as before.
+ */
+var ScanRef = {
+    _id: null,
+    _spells: null,   // the scanned spell objects, by identity
+
+    reset: function(data) {
+        this._id = null;
+        this._spells = (data && data.spells && typeof Set !== 'undefined') ? new Set(data.spells) : null;
+    },
+
+    stored: function(id) {
+        var n = parseInt(id, 10);
+        this._id = (this._spells && n > 0) ? n : null;
+    },
+
+    invalidate: function() {
+        this._id = null;
+    },
+
+    /** The request as it should go over: spells replaced by ids when that is safe. */
+    compact: function(request) {
+        if (!request || !request.spells || this._id === null || !this._spells) return request;
+        var spells = request.spells, ids = [];
+        for (var i = 0; i < spells.length; i++) {
+            if (!this._spells.has(spells[i]) || typeof spells[i].formId !== 'string') return request;
+            ids.push(spells[i].formId);
+        }
+        var out = {};
+        for (var key in request) {
+            if (request.hasOwnProperty(key) && key !== 'spells') out[key] = request[key];
+        }
+        out.spellIds = ids;
+        out.scanId = this._id;
+        console.log('[ScanRef] Sending ' + ids.length + ' spell ids for scan #' + this._id + ' instead of the spells');
+        return out;
+    }
+};
+
+window.onScanStored = function(id) {
+    ScanRef.stored(id);
+};
+
 window.updateSpellData = function(jsonStr) {
     console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
 
     // Check if this is a tome-only scan response (used for filtering, not main data)
+    var parsed = null;
     try {
-        var parsed = JSON.parse(jsonStr);
+        parsed = JSON.parse(jsonStr);
         if (parsed.scanMode === 'spell_tomes') {
             console.log('[SpellLearning] Tome scan received: ' + (parsed.spells ? parsed.spells.length : 0) + ' tomed spells');
             state.tomedSpellIds = {};
@@ -118,8 +176,11 @@ window.updateSpellData = function(jsonStr) {
 
     var scanSuccess = false;
     try {
-        var data = JSON.parse(jsonStr);
+        // Already parsed above for the tome check; a 9-20 MB parse is not
+        // done twice
+        var data = parsed || JSON.parse(jsonStr);
         state.lastSpellData = data;
+        ScanRef.reset(data);
         
         // The scan came over as one string - 19.8 MB on the author's load order.
         // Pretty-printing it made a ~20 MB second copy and put it in a hidden

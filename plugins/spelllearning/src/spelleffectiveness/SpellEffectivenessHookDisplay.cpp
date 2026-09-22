@@ -301,6 +301,40 @@ void SpellEffectivenessHook::RefreshAllSpellNames()
 // effect will all show the modified description. We track usage counts to
 // only restore when the last spell using an effect is mastered.
 
+// Whether another spell the player has uses this same effect. An effect's
+// description is one piece of text shared by every spell that uses it, so
+// writing "[20% Power]" and a scaled number into it shows up on those spells
+// too - a mastered spell would read as weakened, with the other spell's
+// numbers. In that case the description is left alone; the "(Learning - N%)"
+// on the name is per spell and still tells the player.
+// Only the player's own spells are checked: those are the ones whose
+// descriptions they see.
+static bool EffectSharedWithAnotherPlayerSpell(const RE::EffectSetting* baseEffect, const RE::SpellItem* self)
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!player) return false;
+
+    auto uses = [&](const RE::SpellItem* other) {
+        if (!other || other == self) return false;
+        for (const auto* effect : other->effects) {
+            if (effect && effect->baseEffect == baseEffect) return true;
+        }
+        return false;
+    };
+
+    if (auto* actorBase = player->GetActorBase()) {
+        if (auto* spellList = actorBase->GetSpellList(); spellList && spellList->spells) {
+            for (std::uint32_t i = 0; i < spellList->numSpells; ++i) {
+                if (uses(spellList->spells[i])) return true;
+            }
+        }
+    }
+    for (const auto* other : player->GetActorRuntimeData().addedSpells) {
+        if (uses(other)) return true;
+    }
+    return false;
+}
+
 void SpellEffectivenessHook::ApplyModifiedDescriptions(RE::FormID spellFormId)
 {
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellFormId);
@@ -320,6 +354,27 @@ void SpellEffectivenessHook::ApplyModifiedDescriptions(RE::FormID spellFormId)
 
         auto* baseEffect = effect->baseEffect;
         RE::FormID effectId = baseEffect->GetFormID();
+
+        if (EffectSharedWithAnotherPlayerSpell(baseEffect, spell)) {
+            // It may have been changed earlier, before the other spell was
+            // learned; put the original back and stop tracking it.
+            std::string original;
+            {
+                std::unique_lock<std::shared_mutex> lock(m_mutex);
+                auto descIt = m_originalEffectDescriptions.find(effectId);
+                if (descIt != m_originalEffectDescriptions.end()) {
+                    original = std::move(descIt->second);
+                    m_originalEffectDescriptions.erase(descIt);
+                }
+                m_effectSpellTracking.erase(effectId);
+            }
+            if (!original.empty()) {
+                baseEffect->magicItemDescription = original;
+            }
+            logger::info("SpellEffectivenessHook: effect {:08X} is shared with another of the player's spells - "
+                         "its description is left as it is", effectId);
+            continue;
+        }
 
         // Store original description and track spell-effect relationship (write operation)
         bool alreadyTrackedForThisSpell = false;

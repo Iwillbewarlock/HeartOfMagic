@@ -300,6 +300,37 @@ void UIManager::OnSaveSpellTree(const char* argument)
 // PROCEDURAL TREE GENERATION (C++ native)
 // =============================================================================
 
+// The spells named by `ids`, in that order, out of a full scan's JSON text.
+// Runs on the build thread. An id the scan does not have is skipped and
+// counted, never guessed at.
+static std::vector<json> PickSpellsFromScan(const std::string& scanText, const std::vector<std::string>& ids)
+{
+    json scan = json::parse(scanText);
+    auto& all = scan.at("spells");
+
+    std::unordered_map<std::string, std::size_t> byId;
+    byId.reserve(all.size());
+    for (std::size_t i = 0; i < all.size(); ++i) {
+        const auto& s = all[i];
+        if (s.contains("formId") && s["formId"].is_string()) {
+            byId.emplace(s["formId"].get<std::string>(), i);
+        }
+    }
+
+    std::vector<json> picked;
+    picked.reserve(ids.size());
+    std::size_t missing = 0;
+    for (const auto& id : ids) {
+        auto it = byId.find(id);
+        if (it == byId.end()) { ++missing; continue; }
+        picked.push_back(std::move(all[it->second]));
+    }
+    if (missing > 0) {
+        logger::warn("UIManager: {} of {} requested spells are not in the held scan", missing, ids.size());
+    }
+    return picked;
+}
+
 void UIManager::OnProceduralTreeGenerate(const char* argument)
 {
     logger::info("UIManager: ProceduralTreeGenerate callback triggered (C++ native)");
@@ -332,21 +363,49 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                 command = request["command"].get<std::string>();
             }
 
-            auto spellsJson = request.value("spells", nlohmann::json::array());
             auto configJson = request.value("config", nlohmann::json::object());
 
-            // Convert spells array (plain C++ data — no RE:: needed)
+            // Either the spells themselves, or - the usual case - their ids in
+            // the scan this plugin already holds (see m_scanText). The ids are
+            // a few KB where the spells were 9-20 MB, which the panel had to
+            // stringify and this thread had to parse and copy while the game
+            // waited.
             std::vector<json> spells;
-            spells.reserve(spellsJson.size());
-            for (const auto& s : spellsJson) {
-                spells.push_back(s);
+            std::vector<std::string> spellIds;
+            std::shared_ptr<const std::string> scanText;
+            if (request.contains("spellIds") && request["spellIds"].is_array()) {
+                const auto scanId = request.value("scanId", std::uint32_t{0});
+                if (!instance->m_scanText || scanId != instance->m_scanId) {
+                    logger::warn("UIManager: build asked for scan #{} but the held scan is #{}", scanId, instance->m_scanId);
+                    instance->m_treeBuildInProgress = false;
+                    nlohmann::json response;
+                    response["success"] = false;
+                    response["error"] = "The spell scan changed while this build was being set up. Build again.";
+                    instance->CallView("onProceduralTreeComplete", response.dump().c_str());
+                    return;
+                }
+                scanText = instance->m_scanText;
+                spellIds.reserve(request["spellIds"].size());
+                for (const auto& id : request["spellIds"]) {
+                    if (id.is_string()) spellIds.push_back(id.get<std::string>());
+                }
+            } else {
+                auto spellsJson = request.value("spells", nlohmann::json::array());
+                spells.reserve(spellsJson.size());
+                for (auto& s : spellsJson) {
+                    spells.push_back(std::move(s));
+                }
             }
 
-            logger::info("UIManager: Dispatching tree build to background thread ({} command, {} spells)", command, spells.size());
+            logger::info("UIManager: Dispatching tree build to background thread ({} command, {} spells{})",
+                command, scanText ? spellIds.size() : spells.size(), scanText ? ", from the held scan" : "");
 
             // Launch background thread — TreeBuilder has ZERO RE:: dependencies
-            std::thread([command, spells = std::move(spells), configJson]() {
+            std::thread([command, spells = std::move(spells), spellIds = std::move(spellIds), scanText, configJson]() mutable {
                 try {
+                    if (scanText) {
+                        spells = PickSpellsFromScan(*scanText, spellIds);
+                    }
                     auto result = TreeBuilder::Build(command, spells, configJson);
 
                     // Marshal result back to game thread for UI callback

@@ -562,6 +562,9 @@ function classifySpellKeywordsWithLLM(spells, callback) {
                                 spells[si].llm_keyword = cls.keyword.toLowerCase();
                                 spells[si].llm_keyword_parent = cls.parent ? cls.parent.toLowerCase() : null;
                                 spells[si].llm_keyword_confidence = cls.confidence || 50;
+                                // C++'s copy of the scan does not have this, so a
+                                // build must now send the spells themselves
+                                if (typeof ScanRef !== 'undefined') ScanRef.invalidate();
                                 classified++;
                                 break;
                             }

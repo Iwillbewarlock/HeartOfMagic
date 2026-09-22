@@ -54,6 +54,15 @@ void UIManager::OnScanSpells(const char* argument)
 
         // Send result back to UI
         instance->SendSpellData(result);
+
+        // Keep the full scan for tree builds (see m_scanText). A tome scan is
+        // a filter list, not the spells a tree is built from, so it does not
+        // replace it.
+        if (!useTomeMode) {
+            instance->m_scanText = std::make_shared<const std::string>(std::move(result));
+            ++instance->m_scanId;
+            instance->CallView("onScanStored", std::to_string(instance->m_scanId).c_str());
+        }
     });
 }
 

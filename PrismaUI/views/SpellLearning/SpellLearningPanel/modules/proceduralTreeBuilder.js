@@ -1311,7 +1311,7 @@ function startProceduralTreeGenerate(schoolFilter, schoolConfig) {
         });
         // Defer to let UI render progress modal before blocking on JSON.stringify
         setTimeout(function() {
-            window.callCpp('ProceduralTreeGenerate', JSON.stringify(request));
+            window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact(request)));
         }, 0);
     } else {
         updateStatus('C++ bridge not available');
@@ -1369,12 +1369,12 @@ function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, bui
             if (settingsModule) settingsModule.setStatusText('Retrying with fallback...', '#f59e0b');
             // Defer to let UI render before blocking on JSON.stringify
             setTimeout(function() {
-                window.callCpp('ProceduralTreeGenerate', JSON.stringify({
+                window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
                     command: retryConfig.command || 'build_tree',
                     spells: state.lastSpellData.spells,
                     config: retryConfig.config || {},
                     fallback: true
-                }));
+                })));
             }, 0);
         }
     };
@@ -2023,7 +2023,7 @@ function startVisualFirstTreeConfig() {
         console.log('[VisualFirst] LLM Groups:', config.llm_groups.enabled);
         // Defer to let UI render before blocking on JSON.stringify
         setTimeout(function() {
-            window.callCpp('ProceduralTreeGenerate', JSON.stringify(request));
+            window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact(request)));
         }, 0);
     } else {
         console.warn('[VisualFirst] C++ bridge not available, using JS fallback');

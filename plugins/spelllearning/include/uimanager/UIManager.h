@@ -187,6 +187,13 @@ private:
 
     // Background computation guards - prevent concurrent builds/scoring
     std::atomic<bool> m_treeBuildInProgress{false};
+
+    // The last full scan, exactly as sent to the panel, and its number. A tree
+    // build names the spells it wants by id and scan number instead of sending
+    // the 9-20 MB back; the text is parsed on the build thread, not here.
+    // Game thread only.
+    std::shared_ptr<const std::string> m_scanText;
+    std::uint32_t m_scanId = 0;
     std::atomic<bool> m_prmScoreInProgress{false};
 
 };

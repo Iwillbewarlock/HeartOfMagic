@@ -271,11 +271,11 @@ var TreeGrowthThematic = {
 
         // Defer to let UI render progress modal before blocking on JSON.stringify
         setTimeout(function() {
-            window.callCpp('ProceduralTreeGenerate', JSON.stringify({
+            window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
                 command: 'build_tree_thematic',
                 spells: spellsToProcess,
                 config: config
-            }));
+            })));
         }, 0);
     },
 
