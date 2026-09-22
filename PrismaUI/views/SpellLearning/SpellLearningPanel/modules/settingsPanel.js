@@ -3205,8 +3205,6 @@ function initializeHeartSettings() {
         });
     }
 
-    initializeLanguageSelect();
-
     // Rotate the wheel on focus toggle
     var focusRotateToggle = document.getElementById('focus-rotate');
     if (focusRotateToggle) {

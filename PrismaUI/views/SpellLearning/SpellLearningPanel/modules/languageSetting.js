@@ -2,8 +2,8 @@
  * Language setting - the picker in Settings > UI Display and what keeps its choice.
  *
  * Depends on: i18n.js (switchLocale, getLanguages, getLocale, t), state.js (settings),
- *             settingsPanel.js (autoSaveSettings; it calls initializeLanguageSelect and
- *             applySavedLanguage)
+ *             settingsPanel.js (autoSaveSettings, and onUnifiedConfigLoaded calls
+ *             applySavedLanguage); main.js calls initializeLanguageSelect
  */
 
 // =============================================================================

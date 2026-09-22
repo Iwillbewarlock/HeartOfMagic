@@ -197,19 +197,32 @@
         var done = function(ok) { if (typeof onDone === 'function') onDone(ok); };
         if (!locale || locale === _locale) { done(true); return; }
 
+        var previous = window._i18nPreload;
         var script = document.createElement('script');
+        script.id = 'i18n-switch-script';   // one tag, reused on every switch
         script.src = _detectBasePath() + 'lang/' + locale + '.js';
         script.onload = function() {
             var loaded = window._i18nPreload && window._i18nPreload['_meta.locale'];
-            if (loaded !== locale) { done(false); return; }
+            if (loaded !== locale) {
+                // The file is there but it is not the language it was filed
+                // under. Put the old preload back: leaving the wrong one in
+                // place would make a later initI18n reject it and fall through
+                // to the XHR path, which truncates in the game's browser.
+                window._i18nPreload = previous;
+                done(false);
+                return;
+            }
             initI18n(locale);
             applyI18nToDOM();
             done(true);
         };
         script.onerror = function() {
             console.warn('[i18n] No preload file for "' + locale + '"');
+            window._i18nPreload = previous;
             done(false);
         };
+        var old = document.getElementById('i18n-switch-script');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
         document.head.appendChild(script);
     }
 

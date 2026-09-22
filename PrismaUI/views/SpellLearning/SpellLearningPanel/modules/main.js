@@ -58,6 +58,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('[SpellLearning] Heart settings init error:', heartErr);
             }
         }
+
+        // Its own step: it used to be wired from inside initializeHeartSettings,
+        // so any throw in there left the player unable to change language at all
+        if (typeof initializeLanguageSelect === 'function') {
+            try {
+                initializeLanguageSelect();
+            } catch (langErr) {
+                console.error('[SpellLearning] Language picker init error:', langErr);
+            }
+        }
         
         // Tree building settings (scoring factors, LLM features) - independent fallback
         // in case initializeSettings() crashed before reaching initializeDynamicTreeBuildingSettings()

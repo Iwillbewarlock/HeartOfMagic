@@ -981,8 +981,10 @@ var CanvasRenderer = {
         var focusEnabled = (typeof settings === 'undefined') || settings.focusOnClick !== false;
         if (focusEnabled && typeof TreeCamera !== 'undefined') {
             TreeCamera.focusNode(node, focusOpts);
-        } else if (typeof settings !== 'undefined' && settings.focusRotate === true) {
-            // Legacy behavior: only rotate the school to the top
+        } else if (focusEnabled || (typeof settings !== 'undefined' && settings.focusRotate === true)) {
+            // No camera module: the wheel turning to the school is all that is
+            // left, so do it rather than leave the selection off screen. When
+            // the player turned focus off, only an explicit focusRotate asks.
             this.rotateSchoolToTop(node.school);
         }
     },
@@ -1142,11 +1144,12 @@ var CanvasRenderer = {
             if (typeof PerfMeter !== 'undefined') PerfMeter.tick(timestamp);
             var shouldRender = self._needsRender;
             
-            // For animation-only updates, throttle to save CPU. A frame the tree
-            // itself asked for (pan, zoom, hover, selection) is never held back:
-            // the flag below is raised by every frame that draws the heart, so
-            // without the second test dragging ran at the idle rate of 20 a second.
-            if (shouldRender && self._animationOnlyRender && !self._treeDirty) {
+            // For animation-only updates, throttle to save CPU. Setting
+            // _needsRender clears the flag, so a frame the player asked for
+            // (pan, zoom, hover, selection) is never held back; an animation
+            // sets it again afterwards and keeps the throttle - including the
+            // learning path, which redraws the whole tree layer per frame.
+            if (shouldRender && self._animationOnlyRender) {
                 if (timestamp - lastAnimationRender < animationThrottleMs) {
                     shouldRender = false;
                 } else {
@@ -3424,7 +3427,14 @@ Object.defineProperty(CanvasRenderer, '_needsRender', {
     get: function() { return this.__needsRender; },
     set: function(value) {
         this.__needsRender = value;
-        if (value) this._treeDirty = true;
+        if (value) {
+            this._treeDirty = true;
+            // This is the player asking, so the frame is not throttleable.
+            // The flag was left over from the previous frame's heartbeat, and
+            // leaving it set is what used to hold a drag to 20 frames a second.
+            // An animation that wants the throttle sets it again right after.
+            this._animationOnlyRender = false;
+        }
     },
     enumerable: true,
     configurable: true
