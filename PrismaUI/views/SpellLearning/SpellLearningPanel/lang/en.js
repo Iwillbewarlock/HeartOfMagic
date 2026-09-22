@@ -544,6 +544,8 @@ window._i18nPreload = {
     "perf.stall": "stall",
     "perf.press": "press",
     "perf.lag": "late",
+    "perf.moves": "moves",
+    "perf.max": "max",
     "perf.drag": "DRAG",
     "perf.click": "click",
     "settings.ui.language": "Language",

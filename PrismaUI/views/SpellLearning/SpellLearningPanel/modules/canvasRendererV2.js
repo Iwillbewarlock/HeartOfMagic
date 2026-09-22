@@ -1141,7 +1141,7 @@ var CanvasRenderer = {
         var animationThrottleMs = 50;  // ~20fps for passive animations
         
         function loop(timestamp) {
-            if (typeof PerfMeter !== 'undefined') PerfMeter.tick(timestamp);
+            if (typeof PerfMeter !== 'undefined') PerfMeter.tick();
             var shouldRender = self._needsRender;
             
             // For animation-only updates, throttle to save CPU. Setting
@@ -1188,6 +1188,7 @@ var CanvasRenderer = {
     },
 
     stopRenderLoop: function() {
+        if (typeof PerfMeter !== 'undefined') PerfMeter.pause();
         if (this._rafId) {
             cancelAnimationFrame(this._rafId);
             this._rafId = null;

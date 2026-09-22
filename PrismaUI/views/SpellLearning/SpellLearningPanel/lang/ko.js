@@ -544,6 +544,8 @@ window._i18nPreload = {
     "perf.stall": "멈춤",
     "perf.press": "누름",
     "perf.lag": "지연",
+    "perf.moves": "이동",
+    "perf.max": "최대",
     "perf.drag": "드래그로 판정",
     "perf.click": "클릭으로 판정",
     "settings.ui.language": "언어",
