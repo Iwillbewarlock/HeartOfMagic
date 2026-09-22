@@ -573,28 +573,19 @@ bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player) return false;
     
-    auto inventory = player->GetInventory();
-    
-    for (const auto& [item, data] : inventory) {
-        if (!item) continue;
-        
-        // data.first is count, data.second is InventoryEntryData
-        if (data.first <= 0) continue;
-        
-        // Check if it's a book
-        auto* book = item->As<RE::TESObjectBOOK>();
-        if (!book) continue;
-        
-        // Check if it's a spell tome
-        if (!book->TeachesSpell()) continue;
-        
-        // Check if it teaches the spell we're looking for
+    // Runs on every cast, once per learning target. Counting only the books
+    // that teach this spell skips copying every item the player carries - the
+    // unfiltered GetInventory() duplicates each entry's extra data just so it
+    // can be looked at and thrown away.
+    const auto counts = player->GetInventoryCounts([spellFormId](RE::TESBoundObject& a_object) {
+        auto* book = a_object.As<RE::TESObjectBOOK>();
+        if (!book || !book->TeachesSpell()) return false;
         auto* taughtSpell = book->GetSpell();
-        if (taughtSpell && taughtSpell->GetFormID() == spellFormId) {
-            return true;
-        }
+        return taughtSpell && taughtSpell->GetFormID() == spellFormId;
+    });
+    for (const auto& [item, count] : counts) {
+        if (count > 0) return true;
     }
-    
     return false;
 }
 

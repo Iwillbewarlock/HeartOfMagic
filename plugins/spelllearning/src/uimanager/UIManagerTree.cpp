@@ -60,8 +60,7 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                     // Send validated tree data to viewer
                     instance->SendTreeData(treeContent);
 
-                    // Collect all formIds, fetch spell info, and sync requiredXP to ProgressionManager
-                    std::vector<std::string> formIds;
+                    // Sync requiredXP to ProgressionManager
                     auto* pm = ProgressionManager::GetSingleton();
                     int xpSyncCount = 0;
 
@@ -71,8 +70,6 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                                 for (auto& node : schoolData["nodes"]) {
                                     if (node.contains("formId")) {
                                         std::string formIdStr = node["formId"].get<std::string>();
-                                        formIds.push_back(formIdStr);
-
                                         // Sync requiredXP from tree to ProgressionManager
                                         if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
                                             float reqXP = node["requiredXP"].get<float>();
@@ -96,21 +93,10 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                         logger::info("UIManager: Synced requiredXP for {} spells from tree to ProgressionManager", xpSyncCount);
                     }
 
-                    // Fetch spell info for all formIds and send as batch
-                    if (!formIds.empty()) {
-                        json spellInfoArray = json::array();
-                        for (const auto& formIdStr : formIds) {
-                            auto spellInfo = SpellScanner::GetSpellInfoByFormId(formIdStr);
-                            if (!spellInfo.empty()) {
-                                try {
-                                    spellInfoArray.push_back(json::parse(spellInfo));
-                                } catch (const std::exception& e) {
-                                    logger::warn("UIManager: Failed to parse spell info for formId {}: {}", formIdStr, e.what());
-                                }
-                            }
-                        }
-                        instance->SendSpellInfoBatch(spellInfoArray.dump());
-                    }
+                    // No spell info is pushed from here. The panel asks for it
+                    // (GetSpellInfoBatch) the moment it has the tree, on both of
+                    // its load paths; pushing it as well looked up all 1428
+                    // spells and sent 1.6 MB twice on every game start.
                 } catch (const std::exception& e) {
                     // Do NOT pass the bytes on. They failed to parse here and
                     // they will fail to parse in the panel too, where the only
@@ -361,16 +347,24 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         if (result.success) {
                             response["success"] = true;
-                            response["treeData"] = result.treeData.dump();
+                            // The tree goes in as an object, not as a string of JSON.
+                            // As a string it was written out three times (once here,
+                            // once more for the size in the log, once escaped inside
+                            // the reply) and the panel had to parse it twice.
+                            response["treeData"] = result.treeData;
                             response["elapsed"] = result.elapsedMs / 1000.0;
-                            logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)", command, result.elapsedMs / 1000.0, result.treeData.dump().size());
                         } else {
                             response["success"] = false;
                             response["error"] = result.error;
                             logger::error("UIManager: {} failed: {}", command, result.error);
                         }
 
-                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
+                        const std::string payload = response.dump();
+                        if (result.success) {
+                            logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)",
+                                command, result.elapsedMs / 1000.0, payload.size());
+                        }
+                        inst->CallView("onProceduralTreeComplete", payload.c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: TreeBuilder::Build exception: {}", e.what());
