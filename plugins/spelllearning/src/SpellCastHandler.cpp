@@ -1,6 +1,7 @@
 #include "SpellCastHandler.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
+#include "ThreadUtils.h"
 
 SpellCastHandler* SpellCastHandler::GetSingleton()
 {
@@ -58,22 +59,35 @@ RE::BSEventNotifyControl SpellCastHandler::ProcessEvent(
         return RE::BSEventNotifyControl::kContinue;
     }
 
-    // Get the spell that was cast
-    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(a_event->spell);
-    if (!spell) {
-        return RE::BSEventNotifyControl::kContinue;
+    // The engine sends this event from whichever thread did the casting (seen
+    // in game: four different ones), with nothing ordering it against anything
+    // else. Everything below grants XP, early-grants spells and renames them -
+    // unlocked state that every other writer changes through the SKSE task
+    // queue, one task at a time. So the cast joins that queue too. Only the
+    // spell id travels; the rest is looked up again when the task runs.
+    const RE::FormID spellId = a_event->spell;
+    AddTaskToGameThread("SpellCast", [this, spellId]() { HandlePlayerCast(spellId); });
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+void SpellCastHandler::HandlePlayerCast(RE::FormID spellId)
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+    if (!player || !spell) {
+        return;
     }
 
     // Filter out non-spell items (powers, lesser powers, abilities, etc.)
     auto spellType = spell->GetSpellType();
     if (spellType != RE::MagicSystem::SpellType::kSpell) {
-        return RE::BSEventNotifyControl::kContinue;
+        return;
     }
 
     // Get spell school
     auto* effect = spell->GetCostliestEffectItem();
     if (!effect || !effect->baseEffect) {
-        return RE::BSEventNotifyControl::kContinue;
+        return;
     }
 
     auto school = effect->baseEffect->GetMagickSkill();
@@ -84,7 +98,7 @@ RE::BSEventNotifyControl SpellCastHandler::ProcessEvent(
         case RE::ActorValue::kDestruction: schoolName = "Destruction"; break;
         case RE::ActorValue::kIllusion:    schoolName = "Illusion"; break;
         case RE::ActorValue::kRestoration: schoolName = "Restoration"; break;
-        default: return RE::BSEventNotifyControl::kContinue;
+        default: return;
     }
 
     // Calculate XP based on magicka cost (higher cost = more XP)
@@ -141,6 +155,4 @@ RE::BSEventNotifyControl SpellCastHandler::ProcessEvent(
             }
         }
     }
-
-    return RE::BSEventNotifyControl::kContinue;
 }

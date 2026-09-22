@@ -637,9 +637,11 @@ amount → × source multiplier (0-200%) → × global multiplier
 
 The plugin uses a game-thread-primary model with targeted background offloading. All game-thread dispatch goes through `AddTaskToGameThread()` (defined in `ThreadUtils.h`), which provides null-safety, exception handling, and named-task logging. A caller off the game thread that needs an answer back uses `RunOnGameThreadAndWait(name, work, timeout)`, which posts the work, waits up to `timeout` (normally `kPapyrusWait`, 2 s; the answer usually arrives within a frame) and returns `std::optional` - empty when the task was dropped, timed out, or threw. It runs the work inline when already on the game thread, so it cannot deadlock itself.
 
+Note on "game thread": SKSE drains its task queue one task at a time, but not always on the thread that runs the main loop. In game the same queued task was seen running on four different thread ids. What the queue guarantees is order - no two tasks at once - and that is the property the lock-free state here relies on. Event sinks that the engine fires from worker threads (`SpellCastHandler`) therefore post their work into the queue instead of touching that state where they are called.
+
 **Game thread (SKSE main thread):**
 - All `RE::` engine calls (form lookups, spell add/remove, HUD messages)
-- Event sinks (SpellCastHandler, InputHandler, BookMenuWatcher)
+- Event sinks (InputHandler, BookMenuWatcher). `SpellCastHandler` is called on the casting thread and posts its work to the task queue
 - Hooks (SpellTomeHook, SpellEffectivenessHook) - both entry points are wrapped in try/catch: they sit above engine machine code with no unwind information, so an exception leaving them would end the process instead of reaching any handler
 - Papyrus native functions (PapyrusAPI, ISLIntegration) - **not called there**: the script VM runs natives on its own worker threads. Natives that return nothing post their work with `AddTaskToGameThread()`; natives that return a value use `RunOnGameThreadAndWait()` and hand the script a fallback if the game thread does not answer. `IsMenuOpen` is the exception and reads an atomic flag directly
 - SKSE serialization callbacks (co-save read/write)

@@ -29,6 +29,9 @@ private:
     SpellCastHandler(const SpellCastHandler&) = delete;
     SpellCastHandler& operator=(const SpellCastHandler&) = delete;
 
+    // The work for one player cast, run on the game thread
+    void HandlePlayerCast(RE::FormID spellId);
+
     bool m_registered = false;
     
     // Configurable notification settings
