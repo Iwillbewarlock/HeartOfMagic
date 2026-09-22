@@ -1,4 +1,5 @@
 #include "ISLIntegration.h"
+#include "ThreadUtils.h"
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
@@ -266,10 +267,18 @@ namespace DESTIntegration {
 
     namespace Papyrus {
 
+        // These three are called by ISL's scripts, which run on Papyrus worker
+        // threads. What they touch - progression maps, the effectiveness hook's
+        // caches, the panel - has no lock and belongs to the game thread, so
+        // each hops there first: a native with an answer to give waits a frame
+        // for it, one with nothing to return posts its work and moves on.
+
         bool OnTomeRead(RE::StaticFunctionTag*, RE::TESObjectBOOK* book,
                         RE::SpellItem* spell, RE::TESObjectREFR* container)
         {
-            return OnSpellTomeRead(book, spell, container);
+            return RunOnGameThreadAndWait("ISL.OnTomeRead",
+                [book, spell, container] { return OnSpellTomeRead(book, spell, container); },
+                kPapyrusWait).value_or(false);
         }
 
         bool IsIntegrationActive(RE::StaticFunctionTag*)
@@ -289,69 +298,75 @@ namespace DESTIntegration {
         {
             if (!a_spell || a_hoursToMaster <= 0.0f) return;
 
-            RE::FormID formId = a_spell->GetFormID();
-            char formIdStr[32];
-            snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
+            AddTaskToGameThread("ISL.OnStudyProgress", [a_spell, a_hoursStudied, a_totalStudied, a_hoursToMaster]() {
 
-            auto* pm = ProgressionManager::GetSingleton();
-            auto* effectHook = SpellEffectivenessHook::GetSingleton();
-            if (!pm || !effectHook) return;
+                RE::FormID formId = a_spell->GetFormID();
+                char formIdStr[32];
+                snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
 
-            // Calculate proportional XP: this study session's fraction of the
-            // total unlock-threshold XP (25% of required by default).
-            float reqXP = pm->GetRequiredXP(formIdStr);
-            if (reqXP <= 0) reqXP = pm->GetXPForTier("novice");
+                auto* pm = ProgressionManager::GetSingleton();
+                auto* effectHook = SpellEffectivenessHook::GetSingleton();
+                if (!pm || !effectHook) return;
 
-            float threshold = effectHook->GetSettings().unlockThreshold / 100.0f;
-            float totalStudyXP = reqXP * threshold;  // Total XP across all study
-            float sessionXP = (static_cast<float>(a_hoursStudied) / a_hoursToMaster) * totalStudyXP;
+                // Calculate proportional XP: this study session's fraction of the
+                // total unlock-threshold XP (25% of required by default).
+                float reqXP = pm->GetRequiredXP(formIdStr);
+                if (reqXP <= 0) reqXP = pm->GetXPForTier("novice");
 
-            pm->AddXPNoGrant(formIdStr, sessionXP);
+                float threshold = effectHook->GetSettings().unlockThreshold / 100.0f;
+                float totalStudyXP = reqXP * threshold;  // Total XP across all study
+                float sessionXP = (static_cast<float>(a_hoursStudied) / a_hoursToMaster) * totalStudyXP;
 
-            logger::info("DESTIntegration: OnStudyProgress — {} studied {} hrs ({:.0f}/{:.0f}), "
-                         "granted {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
-                         a_spell->GetName(), a_hoursStudied,
-                         a_totalStudied, a_hoursToMaster,
-                         sessionXP, (sessionXP / totalStudyXP) * 100.0f, totalStudyXP);
+                pm->AddXPNoGrant(formIdStr, sessionXP);
 
-            // Do NOT call CheckAndUpdatePowerStep here — the player doesn't have
-            // the spell yet, so we shouldn't modify its name/description during study.
-            // Name modifications happen in OnStudyComplete after ISL grants the spell.
+                logger::info("DESTIntegration: OnStudyProgress — {} studied {} hrs ({:.0f}/{:.0f}), "
+                             "granted {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
+                             a_spell->GetName(), a_hoursStudied,
+                             a_totalStudied, a_hoursToMaster,
+                             sessionXP, (sessionXP / totalStudyXP) * 100.0f, totalStudyXP);
 
-            // Notify UI
-            UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+                // Do NOT call CheckAndUpdatePowerStep here — the player doesn't have
+                // the spell yet, so we shouldn't modify its name/description during study.
+                // Name modifications happen in OnStudyComplete after ISL grants the spell.
+
+                // Notify UI
+                UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+            });
         }
 
         void OnStudyComplete(RE::StaticFunctionTag*, RE::SpellItem* a_spell)
         {
             if (!a_spell) return;
 
-            RE::FormID formId = a_spell->GetFormID();
-            char formIdStr[32];
-            snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
+            AddTaskToGameThread("ISL.OnStudyComplete", [a_spell]() {
 
-            auto* effectHook = SpellEffectivenessHook::GetSingleton();
-            if (!effectHook) return;
+                RE::FormID formId = a_spell->GetFormID();
+                char formIdStr[32];
+                snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
 
-            // Ensure spell is in early-learned tracking (should already be from
-            // RegisterISLPendingSpell, but belt-and-suspenders)
-            if (!effectHook->IsEarlyLearnedSpell(formId)) {
-                effectHook->RegisterISLPendingSpell(a_spell);
-            }
+                auto* effectHook = SpellEffectivenessHook::GetSingleton();
+                if (!effectHook) return;
 
-            // NOW apply the modified name/description — ISL has granted the spell,
-            // so it's safe to rename. During study we deliberately left the name
-            // untouched so ISL's notifications showed the clean spell name.
-            effectHook->UpdateSpellDisplayCache(formId, a_spell);
-            effectHook->ApplyModifiedSpellName(formId);
-            effectHook->ApplyModifiedDescriptions(formId);
+                // Ensure spell is in early-learned tracking (should already be from
+                // RegisterISLPendingSpell, but belt-and-suspenders)
+                if (!effectHook->IsEarlyLearnedSpell(formId)) {
+                    effectHook->RegisterISLPendingSpell(a_spell);
+                }
 
-            logger::info("DESTIntegration: OnStudyComplete — {} ({:08X}) learned via ISL, "
-                         "now at weakened power, name/description modified",
-                         a_spell->GetName(), formId);
+                // NOW apply the modified name/description — ISL has granted the spell,
+                // so it's safe to rename. During study we deliberately left the name
+                // untouched so ISL's notifications showed the clean spell name.
+                effectHook->UpdateSpellDisplayCache(formId, a_spell);
+                effectHook->ApplyModifiedSpellName(formId);
+                effectHook->ApplyModifiedDescriptions(formId);
 
-            // Notify UI
-            UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+                logger::info("DESTIntegration: OnStudyComplete — {} ({:08X}) learned via ISL, "
+                             "now at weakened power, name/description modified",
+                             a_spell->GetName(), formId);
+
+                // Notify UI
+                UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+            });
         }
     }
 

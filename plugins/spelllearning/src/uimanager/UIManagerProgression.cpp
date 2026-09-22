@@ -66,7 +66,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             response["success"] = true;
             response["school"] = school;
             response["formId"] = formIdStr;
-            instance->m_prismaUI->InteropCall(instance->m_view, "onLearningTargetSet", response.dump().c_str());
+            instance->CallView("onLearningTargetSet", response.dump().c_str());
 
             // Update spell state to "learning" so canvas renderer shows learning visuals
             instance->UpdateSpellState(formIdStr, "learning");
@@ -281,7 +281,7 @@ void UIManager::OnGetPlayerKnownSpells([[maybe_unused]] const char* argument)
         result["count"] = knownSpells.size();
 
         logger::info("UIManager: Found {} valid combat spells", knownSpells.size());
-        instance->m_prismaUI->InteropCall(instance->m_view, "onPlayerKnownSpells", result.dump().c_str());
+        instance->CallView("onPlayerKnownSpells", result.dump().c_str());
     });
 }
 
@@ -382,7 +382,7 @@ void UIManager::OnRelockSpell(const char* argument)
             notify["success"] = true;
             notify["relocked"] = true;
 
-            instance->m_prismaUI->InteropCall(instance->m_view, "onSpellRelocked", notify.dump().c_str());
+            instance->CallView("onSpellRelocked", notify.dump().c_str());
             instance->UpdateSpellState(formIdStr, "available");
 
         } catch (const std::exception& e) {

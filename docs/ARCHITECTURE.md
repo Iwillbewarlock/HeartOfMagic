@@ -429,7 +429,8 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 - `Initialize()` - Load config
 - `SendPromptAsync(systemPrompt, userPrompt, callback)` - Background thread
 - `SendPrompt(systemPrompt, userPrompt)` - Blocking call
-- `GetConfig()` / `SaveConfig()` - Persistence
+- `GetConfigCopy()` / `UpdateConfig(fn)` / `SaveConfig()` - Persistence. The config is read from the game thread and from the tree-build thread, so there is no reference-returning getter: readers take a copy, writers edit under `s_configMutex` through `UpdateConfig`. `SendPrompt(const Config&, ...)` lets a background thread send with the copy it took
+- HTTPS verifies the server certificate (`CURLOPT_SSL_VERIFYPEER`/`VERIFYHOST` on, native Windows CA store)
 
 ### 9. **TreeNLP** (`plugins/spelllearning/src/treebuilder/TreeNLP.cpp`, `plugins/spelllearning/include/treebuilder/TreeNLP.h`)
 **Status:** ✅ Implemented
@@ -634,13 +635,13 @@ amount → × source multiplier (0-200%) → × global multiplier
 
 ### Threading Model
 
-The plugin uses a game-thread-primary model with targeted background offloading. All game-thread dispatch goes through `AddTaskToGameThread()` (defined in `ThreadUtils.h`), which provides null-safety, exception handling, and named-task logging.
+The plugin uses a game-thread-primary model with targeted background offloading. All game-thread dispatch goes through `AddTaskToGameThread()` (defined in `ThreadUtils.h`), which provides null-safety, exception handling, and named-task logging. A caller off the game thread that needs an answer back uses `RunOnGameThreadAndWait(name, work, timeout)`, which posts the work, waits up to `timeout` (normally `kPapyrusWait`, 2 s; the answer usually arrives within a frame) and returns `std::optional` - empty when the task was dropped, timed out, or threw. It runs the work inline when already on the game thread, so it cannot deadlock itself.
 
 **Game thread (SKSE main thread):**
 - All `RE::` engine calls (form lookups, spell add/remove, HUD messages)
 - Event sinks (SpellCastHandler, InputHandler, BookMenuWatcher)
-- Hooks (SpellTomeHook, SpellEffectivenessHook)
-- Papyrus native functions (PapyrusAPI, ISLIntegration)
+- Hooks (SpellTomeHook, SpellEffectivenessHook) - both entry points are wrapped in try/catch: they sit above engine machine code with no unwind information, so an exception leaving them would end the process instead of reaching any handler
+- Papyrus native functions (PapyrusAPI, ISLIntegration) - **not called there**: the script VM runs natives on its own worker threads. Natives that return nothing post their work with `AddTaskToGameThread()`; natives that return a value use `RunOnGameThreadAndWait()` and hand the script a fallback if the game thread does not answer. `IsMenuOpen` is the exception and reads an atomic flag directly
 - SKSE serialization callbacks (co-save read/write)
 - UIManager callbacks dispatch to game thread via `AddTaskToGameThread()`
 
@@ -654,7 +655,8 @@ The plugin uses a game-thread-primary model with targeted background offloading.
 - `SpellEffectivenessHook` — `std::shared_mutex` (reader-writer) for hot-path spell data
 - `SpellTomeHook` — `std::mutex` for tome XP tracking set
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
-- `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention
+- `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
+- `OpenRouterAPI` — `std::mutex` around the config; readers copy, writers go through `UpdateConfig`
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)
 
 ### C++ Plugin Performance (Feb 2026)

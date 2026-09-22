@@ -31,6 +31,9 @@ SpellEffectivenessHook* SpellEffectivenessHook::GetSingleton()
 // returns the same pointer for the entire game session.
 // Atomic to avoid formal UB under the C++ memory model (zero cost on x86-64).
 static std::atomic<RE::PlayerCharacter*> g_cachedPlayer{nullptr};
+// One flag for every hooked vtable: a persistent failure is logged once, not
+// once per effect class it happens to hit first.
+static std::atomic<bool> g_scalingFailureReported{false};
 
 template<std::size_t UniqueID>
 struct EffectivenessHook
@@ -55,8 +58,21 @@ struct EffectivenessHook
             return;
         }
 
-        // Player spell — apply effectiveness scaling
-        SpellEffectivenessHook::GetSingleton()->ApplyEffectivenessScalingFast(a_effect);
+        // Player spell — apply effectiveness scaling. Nothing may throw out of
+        // here: this frame was entered from the engine's own vtable, with no
+        // unwind information above it, and an exception that escapes ends the
+        // process outright. Anything that goes wrong is logged once instead.
+        try {
+            SpellEffectivenessHook::GetSingleton()->ApplyEffectivenessScalingFast(a_effect);
+        } catch (const std::exception& e) {
+            if (!g_scalingFailureReported.exchange(true)) {
+                logger::error("SpellEffectivenessHook: scaling threw ({}); further failures are not logged", e.what());
+            }
+        } catch (...) {
+            if (!g_scalingFailureReported.exchange(true)) {
+                logger::error("SpellEffectivenessHook: scaling threw an unknown exception");
+            }
+        }
     }
 
     static inline REL::Relocation<decltype(thunk)> func;

@@ -108,6 +108,17 @@ SpellTomeHook* SpellTomeHook::GetSingleton()
 
 void SpellTomeHook::OnSpellTomeRead(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell)
 {
+    try {
+        OnSpellTomeReadImpl(a_book, a_spell);
+    } catch (const std::exception& e) {
+        logger::error("SpellTomeHook: reading a tome threw: {}", e.what());
+    } catch (...) {
+        logger::error("SpellTomeHook: reading a tome threw an unknown exception");
+    }
+}
+
+void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell)
+{
     auto* hook = GetSingleton();
     
     if (!a_book || !a_spell) {

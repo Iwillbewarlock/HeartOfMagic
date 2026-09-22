@@ -357,7 +357,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Send to UI
     std::string configStr = unifiedConfig.dump();
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());
-    instance->m_prismaUI->InteropCall(instance->m_view, "onUnifiedConfigLoaded", configStr.c_str());
+    instance->CallView("onUnifiedConfigLoaded", configStr.c_str());
 
     // Re-notify all registered external modded XP sources to the UI.
     // Sources registered before PrismaUI was ready had their notifications dropped,
@@ -506,14 +506,14 @@ void UIManager::DoSaveUnifiedConfig(const std::string& configData)
         // Also update OpenRouter if LLM settings changed
         if (newConfig.contains("llm") && !newConfig["llm"].is_null()) {
             auto& llm = newConfig["llm"];
-            auto& config = OpenRouterAPI::GetConfig();
-
-            std::string newKey = SafeJsonValue<std::string>(llm, "apiKey", "");
-            if (!newKey.empty() && newKey.find("...") == std::string::npos) {
-                config.apiKey = newKey;
-            }
-            config.model = SafeJsonValue<std::string>(llm, "model", config.model);
-            config.maxTokens = SafeJsonValue<int>(llm, "maxTokens", config.maxTokens);
+            OpenRouterAPI::UpdateConfig([&](OpenRouterAPI::Config& config) {
+                std::string newKey = SafeJsonValue<std::string>(llm, "apiKey", "");
+                if (!newKey.empty() && newKey.find("...") == std::string::npos) {
+                    config.apiKey = newKey;
+                }
+                config.model = SafeJsonValue<std::string>(llm, "model", config.model);
+                config.maxTokens = SafeJsonValue<int>(llm, "maxTokens", config.maxTokens);
+            });
 
             // Save to OpenRouter's config file too for compatibility
             OpenRouterAPI::SaveConfig();

@@ -155,11 +155,19 @@ private:
     // Console message callback
     static void OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageLevel level, const char* message);
 
+    // Every call into the panel goes through here. Work that finished on a
+    // background thread reaches the panel some time later, and by then the
+    // view may have been torn down - and InteropCall on a dead view is not
+    // something PrismaUI defines. IsValid is cheap; the Notify functions
+    // already did this by hand, the completion paths did not.
+    bool ViewReady() const;
+    void CallView(const char* function, const char* payload);
+
     // PrismaUI members
     PRISMA_UI_API::IVPrismaUI1* m_prismaUI = nullptr;
     PRISMA_UI_API::IVPrismaUI2* m_prismaUIv2 = nullptr;
     PrismaView m_view = 0;
-    bool m_isPanelVisible = false;
+    std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
     bool m_isInitialized = false;
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists

@@ -179,7 +179,7 @@ void UIManager::ShowPanel()
     logger::info("UIManager: Show + Focus applied (hasFocus={})", m_prismaUI->HasFocus(m_view));
 
     // Notify JS that panel is now visible - triggers refresh of known spells
-    m_prismaUI->InteropCall(m_view, "onPanelShowing", "");
+    CallView("onPanelShowing", "");
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuOpenedEvent();
@@ -204,7 +204,7 @@ void UIManager::HidePanel()
     m_hasFocus = false;
 
     // Notify JS
-    m_prismaUI->InteropCall(m_view, "onPanelHiding", "");
+    CallView("onPanelHiding", "");
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuClosedEvent();
@@ -372,5 +372,5 @@ void UIManager::NotifyDESTDetectionStatus()
     std::string js = detected ? "true" : "false";
 
     logger::info("UIManager: Notifying UI of DEST detection status: {}", detected ? "Detected" : "Not Detected");
-    m_prismaUI->InteropCall(m_view, "onDESTDetectionUpdate", js.c_str());
+    CallView("onDESTDetectionUpdate", js.c_str());
 }

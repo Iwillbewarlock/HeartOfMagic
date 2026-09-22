@@ -21,47 +21,76 @@ namespace PapyrusAPI
     constexpr const char* EVENT_MENU_CLOSED = "SpellLearning_MenuClosed";
 
     // =========================================================================
+    // THREADING
+    // =========================================================================
+    //
+    // Papyrus runs these on its own worker threads, never on the game thread.
+    // ProgressionManager has no lock and says so in its header: every caller
+    // must be on the game thread. These used to reach straight into it, so a
+    // script adding XP while the game thread was inserting into the same map
+    // was a crash waiting for the right frame. Now a native with nothing to
+    // return posts its work and returns at once; one that returns a value
+    // posts it and waits - a frame, usually - for the game thread to come
+    // round. A script that arrives already on the game thread just runs.
+
+    template <typename F>
+    auto Ask(const char* name, F&& work)
+    {
+        return RunOnGameThreadAndWait(name, std::forward<F>(work), kPapyrusWait);
+    }
+
+    static std::string FormIdString(RE::FormID formId)
+    {
+        return std::format("0x{:08X}", formId);
+    }
+
+    // =========================================================================
     // MENU FUNCTIONS
     // =========================================================================
 
     void OpenMenu(RE::StaticFunctionTag*)
     {
         logger::info("PapyrusAPI: OpenMenu called");
-        auto* uiManager = UIManager::GetSingleton();
-        if (uiManager && uiManager->IsInitialized()) {
-            uiManager->ShowPanel();
-        } else {
-            logger::warn("PapyrusAPI: UIManager not initialized, cannot open menu");
-        }
+        AddTaskToGameThread("Papyrus.OpenMenu", []() {
+            auto* uiManager = UIManager::GetSingleton();
+            if (uiManager && uiManager->IsInitialized()) {
+                uiManager->ShowPanel();
+            } else {
+                logger::warn("PapyrusAPI: UIManager not initialized, cannot open menu");
+            }
+        });
     }
 
     void CloseMenu(RE::StaticFunctionTag*)
     {
         logger::info("PapyrusAPI: CloseMenu called");
-        auto* uiManager = UIManager::GetSingleton();
-        if (uiManager && uiManager->IsInitialized()) {
-            uiManager->HidePanel();
-        }
+        AddTaskToGameThread("Papyrus.CloseMenu", []() {
+            auto* uiManager = UIManager::GetSingleton();
+            if (uiManager && uiManager->IsInitialized()) {
+                uiManager->HidePanel();
+            }
+        });
     }
 
     void ToggleMenu(RE::StaticFunctionTag*)
     {
         logger::info("PapyrusAPI: ToggleMenu called");
-        auto* uiManager = UIManager::GetSingleton();
-        if (uiManager && uiManager->IsInitialized()) {
-            uiManager->TogglePanel();
-        } else {
-            logger::warn("PapyrusAPI: UIManager not initialized, cannot toggle menu");
-        }
+        AddTaskToGameThread("Papyrus.ToggleMenu", []() {
+            auto* uiManager = UIManager::GetSingleton();
+            if (uiManager && uiManager->IsInitialized()) {
+                uiManager->TogglePanel();
+            } else {
+                logger::warn("PapyrusAPI: UIManager not initialized, cannot toggle menu");
+            }
+        });
     }
 
     bool IsMenuOpen(RE::StaticFunctionTag*)
     {
+        // The one read that need not wait: the flag is atomic, and a script
+        // polling it every update must not pay a frame per poll.
         auto* uiManager = UIManager::GetSingleton();
-        if (uiManager) {
-            return uiManager->IsPanelVisible();
-        }
-        return false;
+        return uiManager != nullptr && uiManager->IsPanelVisible();
     }
 
     RE::BSFixedString GetVersion(RE::StaticFunctionTag*)
@@ -81,8 +110,10 @@ namespace PapyrusAPI
             logger::warn("PapyrusAPI: RegisterXPSource called with empty sourceId");
             return;
         }
-        logger::info("PapyrusAPI: RegisterXPSource('{}', '{}')", id, name);
-        ProgressionManager::GetSingleton()->RegisterModdedXPSource(id, name);
+        AddTaskToGameThread("Papyrus.RegisterXPSource", [id, name]() {
+            logger::info("PapyrusAPI: RegisterXPSource('{}', '{}')", id, name);
+            ProgressionManager::GetSingleton()->RegisterModdedXPSource(id, name);
+        });
     }
 
     float AddSourcedXP(RE::StaticFunctionTag*, RE::SpellItem* spell, float amount, RE::BSFixedString sourceName)
@@ -93,8 +124,11 @@ namespace PapyrusAPI
         }
         std::string source = sourceName.c_str();
         if (source.empty()) source = "direct";
-        logger::info("PapyrusAPI: AddSourcedXP({:08X}, {:.1f}, '{}')", spell->GetFormID(), amount, source);
-        return ProgressionManager::GetSingleton()->AddSourcedXP(spell->GetFormID(), amount, source);
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.AddSourcedXP", [formId, amount, source]() {
+            logger::info("PapyrusAPI: AddSourcedXP({:08X}, {:.1f}, '{}')", formId, amount, source);
+            return ProgressionManager::GetSingleton()->AddSourcedXP(formId, amount, source);
+        }).value_or(0.0f);
     }
 
     float AddRawXP(RE::StaticFunctionTag*, RE::SpellItem* spell, float amount)
@@ -103,8 +137,11 @@ namespace PapyrusAPI
             logger::warn("PapyrusAPI: AddRawXP called with null spell");
             return 0.0f;
         }
-        logger::info("PapyrusAPI: AddRawXP({:08X}, {:.1f})", spell->GetFormID(), amount);
-        return ProgressionManager::GetSingleton()->AddRawXP(spell->GetFormID(), amount);
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.AddRawXP", [formId, amount]() {
+            logger::info("PapyrusAPI: AddRawXP({:08X}, {:.1f})", formId, amount);
+            return ProgressionManager::GetSingleton()->AddRawXP(formId, amount);
+        }).value_or(0.0f);
     }
 
     void SetSpellXP(RE::StaticFunctionTag*, RE::SpellItem* spell, float xp)
@@ -113,8 +150,11 @@ namespace PapyrusAPI
             logger::warn("PapyrusAPI: SetSpellXP called with null spell");
             return;
         }
-        logger::info("PapyrusAPI: SetSpellXP({:08X}, {:.1f})", spell->GetFormID(), xp);
-        ProgressionManager::GetSingleton()->SetSpellXP(spell->GetFormID(), xp);
+        const RE::FormID formId = spell->GetFormID();
+        AddTaskToGameThread("Papyrus.SetSpellXP", [formId, xp]() {
+            logger::info("PapyrusAPI: SetSpellXP({:08X}, {:.1f})", formId, xp);
+            ProgressionManager::GetSingleton()->SetSpellXP(formId, xp);
+        });
     }
 
     // =========================================================================
@@ -124,45 +164,64 @@ namespace PapyrusAPI
     float GetSpellProgress(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return 0.0f;
-        auto progress = ProgressionManager::GetSingleton()->GetProgress(spell->GetFormID());
-        return progress.progressPercent * 100.0f;
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.GetSpellProgress", [formId]() {
+            return ProgressionManager::GetSingleton()->GetProgress(formId).progressPercent * 100.0f;
+        }).value_or(0.0f);
     }
 
     float GetSpellCurrentXP(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return 0.0f;
-        auto progress = ProgressionManager::GetSingleton()->GetProgress(spell->GetFormID());
-        return progress.GetCurrentXP();
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.GetSpellCurrentXP", [formId]() {
+            return ProgressionManager::GetSingleton()->GetProgress(formId).GetCurrentXP();
+        }).value_or(0.0f);
     }
 
     float GetSpellRequiredXP(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return 0.0f;
-        return ProgressionManager::GetSingleton()->GetRequiredXP(spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.GetSpellRequiredXP", [formId]() {
+            return ProgressionManager::GetSingleton()->GetRequiredXP(formId);
+        }).value_or(0.0f);
     }
 
     bool IsSpellMastered(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return false;
-        return ProgressionManager::GetSingleton()->IsSpellMastered(spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.IsSpellMastered", [formId]() {
+            return ProgressionManager::GetSingleton()->IsSpellMastered(formId);
+        }).value_or(false);
     }
 
     bool IsSpellUnlocked(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return false;
-        return ProgressionManager::GetSingleton()->IsUnlocked(spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.IsSpellUnlocked", [formId]() {
+            return ProgressionManager::GetSingleton()->IsUnlocked(formId);
+        }).value_or(false);
     }
 
     bool IsSpellAvailableToLearn(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return false;
-        return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.IsSpellAvailableToLearn", [formId]() {
+            return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(formId);
+        }).value_or(false);
     }
 
     bool ArePrerequisitesMet(RE::StaticFunctionTag*, RE::SpellItem* spell)
     {
         if (!spell) return false;
-        return ProgressionManager::GetSingleton()->AreTreePrerequisitesMet(spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        return Ask("Papyrus.ArePrerequisitesMet", [formId]() {
+            return ProgressionManager::GetSingleton()->AreTreePrerequisitesMet(formId);
+        }).value_or(false);
     }
 
     // =========================================================================
@@ -172,31 +231,38 @@ namespace PapyrusAPI
     RE::SpellItem* GetLearningTarget(RE::StaticFunctionTag*, RE::BSFixedString schoolName)
     {
         std::string school = schoolName.c_str();
-        RE::FormID formId = ProgressionManager::GetSingleton()->GetLearningTarget(school);
-        if (formId == 0) return nullptr;
-        return RE::TESForm::LookupByID<RE::SpellItem>(formId);
+        return Ask("Papyrus.GetLearningTarget", [school]() -> RE::SpellItem* {
+            RE::FormID formId = ProgressionManager::GetSingleton()->GetLearningTarget(school);
+            if (formId == 0) return nullptr;
+            return RE::TESForm::LookupByID<RE::SpellItem>(formId);
+        }).value_or(nullptr);
     }
 
     std::vector<RE::SpellItem*> GetAllLearningTargets(RE::StaticFunctionTag*)
     {
-        std::vector<RE::SpellItem*> result;
-        auto* pm = ProgressionManager::GetSingleton();
-        const char* schools[] = {"Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"};
-        for (const char* school : schools) {
-            RE::FormID formId = pm->GetLearningTarget(school);
-            if (formId != 0) {
-                auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
-                if (spell) {
-                    result.push_back(spell);
+        return Ask("Papyrus.GetAllLearningTargets", []() {
+            std::vector<RE::SpellItem*> result;
+            auto* pm = ProgressionManager::GetSingleton();
+            const char* schools[] = {"Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"};
+            for (const char* school : schools) {
+                RE::FormID formId = pm->GetLearningTarget(school);
+                if (formId != 0) {
+                    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
+                    if (spell) {
+                        result.push_back(spell);
+                    }
                 }
             }
-        }
-        return result;
+            return result;
+        }).value_or(std::vector<RE::SpellItem*>{});
     }
 
     RE::BSFixedString GetLearningMode(RE::StaticFunctionTag*)
     {
-        return RE::BSFixedString(ProgressionManager::GetSingleton()->GetXPSettings().learningMode.c_str());
+        const std::string mode = Ask("Papyrus.GetLearningMode", []() {
+            return ProgressionManager::GetSingleton()->GetXPSettings().learningMode;
+        }).value_or(std::string("perSchool"));
+        return RE::BSFixedString(mode.c_str());
     }
 
     void SetLearningTarget(RE::StaticFunctionTag*, RE::SpellItem* spell)
@@ -205,11 +271,11 @@ namespace PapyrusAPI
             logger::warn("PapyrusAPI: SetLearningTarget called with null spell");
             return;
         }
-        logger::info("PapyrusAPI: SetLearningTarget({:08X})", spell->GetFormID());
-        // Use the tome-reading path which auto-determines school
-        std::stringstream ss;
-        ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spell->GetFormID();
-        ProgressionManager::GetSingleton()->SetLearningTargetFromTome(ss.str(), spell);
+        AddTaskToGameThread("Papyrus.SetLearningTarget", [spell]() {
+            logger::info("PapyrusAPI: SetLearningTarget({:08X})", spell->GetFormID());
+            // Use the tome-reading path which auto-determines school
+            ProgressionManager::GetSingleton()->SetLearningTargetFromTome(FormIdString(spell->GetFormID()), spell);
+        });
     }
 
     void SetLearningTargetForSchool(RE::StaticFunctionTag*, RE::BSFixedString schoolName, RE::SpellItem* spell)
@@ -219,25 +285,32 @@ namespace PapyrusAPI
             return;
         }
         std::string school = schoolName.c_str();
-        logger::info("PapyrusAPI: SetLearningTargetForSchool('{}', {:08X})", school, spell->GetFormID());
-        ProgressionManager::GetSingleton()->SetLearningTarget(school, spell->GetFormID());
+        const RE::FormID formId = spell->GetFormID();
+        AddTaskToGameThread("Papyrus.SetLearningTargetForSchool", [school, formId]() {
+            logger::info("PapyrusAPI: SetLearningTargetForSchool('{}', {:08X})", school, formId);
+            ProgressionManager::GetSingleton()->SetLearningTarget(school, formId);
+        });
     }
 
     void ClearLearningTarget(RE::StaticFunctionTag*, RE::BSFixedString schoolName)
     {
         std::string school = schoolName.c_str();
-        logger::info("PapyrusAPI: ClearLearningTarget('{}')", school);
-        ProgressionManager::GetSingleton()->ClearLearningTarget(school);
+        AddTaskToGameThread("Papyrus.ClearLearningTarget", [school]() {
+            logger::info("PapyrusAPI: ClearLearningTarget('{}')", school);
+            ProgressionManager::GetSingleton()->ClearLearningTarget(school);
+        });
     }
 
     void ClearAllLearningTargets(RE::StaticFunctionTag*)
     {
-        logger::info("PapyrusAPI: ClearAllLearningTargets");
-        auto* pm = ProgressionManager::GetSingleton();
-        const char* schools[] = {"Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"};
-        for (const char* school : schools) {
-            pm->ClearLearningTarget(school);
-        }
+        AddTaskToGameThread("Papyrus.ClearAllLearningTargets", []() {
+            logger::info("PapyrusAPI: ClearAllLearningTargets");
+            auto* pm = ProgressionManager::GetSingleton();
+            const char* schools[] = {"Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"};
+            for (const char* school : schools) {
+                pm->ClearLearningTarget(school);
+            }
+        });
     }
 
     // =========================================================================
@@ -246,17 +319,25 @@ namespace PapyrusAPI
 
     float GetGlobalXPMultiplier(RE::StaticFunctionTag*)
     {
-        return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        return Ask("Papyrus.GetGlobalXPMultiplier", []() {
+            return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        }).value_or(1.0f);
     }
 
     float GetXPForTier(RE::StaticFunctionTag*, RE::BSFixedString tier)
     {
-        return ProgressionManager::GetSingleton()->GetXPForTier(tier.c_str());
+        std::string tierName = tier.c_str();
+        return Ask("Papyrus.GetXPForTier", [tierName]() {
+            return ProgressionManager::GetSingleton()->GetXPForTier(tierName);
+        }).value_or(0.0f);
     }
 
     float GetSourceCap(RE::StaticFunctionTag*, RE::BSFixedString sourceName)
     {
-        return ProgressionManager::GetSingleton()->GetSourceCap(sourceName.c_str());
+        std::string source = sourceName.c_str();
+        return Ask("Papyrus.GetSourceCap", [source]() {
+            return ProgressionManager::GetSingleton()->GetSourceCap(source);
+        }).value_or(0.0f);
     }
 
     // =========================================================================

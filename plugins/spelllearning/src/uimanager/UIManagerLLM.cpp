@@ -21,16 +21,16 @@ void UIManager::OnCheckLLM([[maybe_unused]] const char* argument)
 
         json result;
         result["available"] = hasApiKey;
-        result["version"] = hasApiKey ? "OpenRouter: " + OpenRouterAPI::GetConfig().model : "No API key";
+        result["version"] = hasApiKey ? "OpenRouter: " + OpenRouterAPI::GetConfigCopy().model : "No API key";
 
         if (!hasApiKey) {
             logger::warn("UIManager: OpenRouter API key not configured. Edit: Data/SKSE/Plugins/SpellLearning/openrouter_config.json");
         } else {
-            logger::info("UIManager: OpenRouter ready with model: {}", OpenRouterAPI::GetConfig().model);
+            logger::info("UIManager: OpenRouter ready with model: {}", OpenRouterAPI::GetConfigCopy().model);
         }
 
         // Send result to UI
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMStatus", result.dump().c_str());
+        instance->CallView("onLLMStatus", result.dump().c_str());
     });
 }
 
@@ -60,28 +60,31 @@ void UIManager::OnLLMGenerate([[maybe_unused]] const char* argument)
         std::string spellData = request.value("spellData", "");
         std::string promptRules = request.value("promptRules", "");
 
-        // NOTE: Mutates global config for this request. Thread safety depends on
-        // UI callbacks being serialized via AddTaskToGameThread.
-        auto& config = OpenRouterAPI::GetConfig();
-        if (request.contains("model") && !request["model"].get<std::string>().empty()) {
-            config.model = request["model"].get<std::string>();
-            logger::info("UIManager: Using model from request: {}", config.model);
-        }
-        if (request.contains("maxTokens") && request["maxTokens"].is_number_integer()) {
-            int maxTokens = request["maxTokens"].get<int>();
-            if (maxTokens > 0 && maxTokens <= 100000) {
-                config.maxTokens = maxTokens;
-                logger::info("UIManager: Using maxTokens from request: {}", config.maxTokens);
-            } else {
-                logger::warn("UIManager: maxTokens {} out of range, keeping default {}", maxTokens, config.maxTokens);
+        // The request may carry its own model, token budget and key. They are
+        // written under the module's lock, because a background prompt may be
+        // reading the same config at this moment.
+        OpenRouterAPI::UpdateConfig([&](OpenRouterAPI::Config& config) {
+            if (request.contains("model") && !request["model"].get<std::string>().empty()) {
+                config.model = request["model"].get<std::string>();
+                logger::info("UIManager: Using model from request: {}", config.model);
             }
-        }
-        if (request.contains("apiKey") && !request["apiKey"].get<std::string>().empty()) {
-            std::string newKey = request["apiKey"].get<std::string>();
-            if (newKey.find("...") == std::string::npos) {  // Not masked
-                config.apiKey = newKey;
+            if (request.contains("maxTokens") && request["maxTokens"].is_number_integer()) {
+                int maxTokens = request["maxTokens"].get<int>();
+                if (maxTokens > 0 && maxTokens <= 100000) {
+                    config.maxTokens = maxTokens;
+                    logger::info("UIManager: Using maxTokens from request: {}", config.maxTokens);
+                } else {
+                    logger::warn("UIManager: maxTokens {} out of range, keeping default {}", maxTokens, config.maxTokens);
+                }
             }
-        }
+            if (request.contains("apiKey") && !request["apiKey"].get<std::string>().empty()) {
+                std::string newKey = request["apiKey"].get<std::string>();
+                if (newKey.find("...") == std::string::npos) {  // Not masked
+                    config.apiKey = newKey;
+                }
+            }
+        });
+        const auto config = OpenRouterAPI::GetConfigCopy();
 
         // Get tree generation settings
         bool allowMultiplePrereqs = request.value("allowMultiplePrereqs", true);
@@ -96,7 +99,7 @@ void UIManager::OnLLMGenerate([[maybe_unused]] const char* argument)
             errorResponse["status"] = "error";
             errorResponse["school"] = schoolName;
             errorResponse["message"] = "API key not configured - check Settings";
-            instance->m_prismaUI->InteropCall(instance->m_view, "onLLMQueued", errorResponse.dump().c_str());
+            instance->CallView("onLLMQueued", errorResponse.dump().c_str());
             return;
         }
 
@@ -105,7 +108,7 @@ void UIManager::OnLLMGenerate([[maybe_unused]] const char* argument)
         queuedResponse["status"] = "queued";
         queuedResponse["school"] = schoolName;
         queuedResponse["message"] = "Sending to OpenRouter...";
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMQueued", queuedResponse.dump().c_str());
+        instance->CallView("onLLMQueued", queuedResponse.dump().c_str());
 
         // Build prompts
         std::string systemPrompt = R"(You are a Skyrim spell tree architect. Your task is to create a logical spell learning tree for a single magic school. You MUST return ONLY valid JSON - no explanations, no markdown code blocks, just raw JSON.
@@ -229,7 +232,7 @@ You have more freedom in tree design:
                     logger::error("UIManager: OpenRouter error for {}: {}", schoolName, response.error);
                 }
 
-                instance->m_prismaUI->InteropCall(instance->m_view, "onLLMPollResult", result.dump().c_str());
+                instance->CallView("onLLMPollResult", result.dump().c_str());
             });
 
     } catch (const std::exception& e) {
@@ -239,7 +242,7 @@ You have more freedom in tree design:
         errorResult["hasResponse"] = true;
         errorResult["success"] = 0;
         errorResult["response"] = std::string("Exception: ") + e.what();
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMPollResult", errorResult.dump().c_str());
+        instance->CallView("onLLMPollResult", errorResult.dump().c_str());
     }
     });
 }
@@ -303,7 +306,7 @@ void UIManager::OnPollLLMResponse([[maybe_unused]] const char* argument)
             }
         }
 
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMPollResult", result.dump().c_str());
+        instance->CallView("onLLMPollResult", result.dump().c_str());
     });
 }
 
@@ -322,14 +325,14 @@ void UIManager::OnLoadLLMConfig([[maybe_unused]] const char* argument)
         // Initialize OpenRouter (loads config from file)
         OpenRouterAPI::Initialize();
 
-        auto& config = OpenRouterAPI::GetConfig();
+        const auto config = OpenRouterAPI::GetConfigCopy();
 
         json result;
         result["apiKey"] = config.apiKey;  // Will be masked in JS
         result["model"] = config.model;
         result["maxTokens"] = config.maxTokens;
 
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMConfigLoaded", result.dump().c_str());
+        instance->CallView("onLLMConfigLoaded", result.dump().c_str());
 
         logger::info("UIManager: LLM config sent to UI, hasKey: {}", !config.apiKey.empty());
     });
@@ -351,35 +354,35 @@ void UIManager::OnSaveLLMConfig(const char* argument)
         try {
             json request = json::parse(argStr);
 
-            auto& config = OpenRouterAPI::GetConfig();
+            OpenRouterAPI::UpdateConfig([&](OpenRouterAPI::Config& config) {
+                // Only update API key if a new one was provided
+                std::string newKey = SafeJsonValue<std::string>(request, "apiKey", "");
+                if (!newKey.empty() && newKey.find("...") == std::string::npos) {
+                    config.apiKey = newKey;
+                    logger::info("UIManager: Updated API key, length: {}", newKey.length());
+                }
 
-            // Only update API key if a new one was provided
-            std::string newKey = SafeJsonValue<std::string>(request, "apiKey", "");
-            if (!newKey.empty() && newKey.find("...") == std::string::npos) {
-                config.apiKey = newKey;
-                logger::info("UIManager: Updated API key, length: {}", newKey.length());
-            }
+                // Always update model
+                config.model = SafeJsonValue<std::string>(request, "model", config.model);
 
-            // Always update model
-            config.model = SafeJsonValue<std::string>(request, "model", config.model);
-
-            // Update maxTokens if provided
-            int newMaxTokens = SafeJsonValue<int>(request, "maxTokens", config.maxTokens);
-            if (newMaxTokens > 0 && newMaxTokens <= 100000) {
-                config.maxTokens = newMaxTokens;
-            }
+                // Update maxTokens if provided
+                int newMaxTokens = SafeJsonValue<int>(request, "maxTokens", config.maxTokens);
+                if (newMaxTokens > 0 && newMaxTokens <= 100000) {
+                    config.maxTokens = newMaxTokens;
+                }
+            });
 
             // Save to file
             OpenRouterAPI::SaveConfig();
 
             result["success"] = true;
-            logger::info("UIManager: LLM config saved, model: {}", config.model);
+            logger::info("UIManager: LLM config saved, model: {}", OpenRouterAPI::GetConfigCopy().model);
 
         } catch (const std::exception& e) {
             result["error"] = e.what();
             logger::error("UIManager: Failed to save LLM config: {}", e.what());
         }
 
-        instance->m_prismaUI->InteropCall(instance->m_view, "onLLMConfigSaved", result.dump().c_str());
+        instance->CallView("onLLMConfigSaved", result.dump().c_str());
     });
 }

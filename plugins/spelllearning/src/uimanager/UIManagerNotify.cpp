@@ -14,7 +14,7 @@ void UIManager::SendSpellData(const std::string& jsonData)
     }
 
     logger::info("UIManager: Sending spell data to UI ({} bytes)", jsonData.size());
-    m_prismaUI->InteropCall(m_view, "updateSpellData", jsonData.c_str());
+    CallView("updateSpellData", jsonData.c_str());
 }
 
 void UIManager::UpdateStatus(const std::string& message)
@@ -24,7 +24,7 @@ void UIManager::UpdateStatus(const std::string& message)
     }
 
     json statusJson = message;
-    m_prismaUI->InteropCall(m_view, "updateStatus", statusJson.dump().c_str());
+    CallView("updateStatus", statusJson.dump().c_str());
 }
 
 void UIManager::SendPrompt(const std::string& promptContent)
@@ -35,7 +35,7 @@ void UIManager::SendPrompt(const std::string& promptContent)
     }
 
     logger::info("UIManager: Sending prompt to UI ({} bytes)", promptContent.size());
-    m_prismaUI->InteropCall(m_view, "updatePrompt", promptContent.c_str());
+    CallView("updatePrompt", promptContent.c_str());
 }
 
 void UIManager::NotifyPromptSaved(bool success)
@@ -45,7 +45,7 @@ void UIManager::NotifyPromptSaved(bool success)
     }
 
     std::string result = success ? "true" : "false";
-    m_prismaUI->InteropCall(m_view, "onPromptSaved", result.c_str());
+    CallView("onPromptSaved", result.c_str());
 }
 
 // =============================================================================
@@ -60,7 +60,7 @@ void UIManager::SendTreeData(const std::string& jsonData)
     }
 
     logger::info("UIManager: Sending tree data to UI ({} bytes)", jsonData.size());
-    m_prismaUI->InteropCall(m_view, "updateTreeData", jsonData.c_str());
+    CallView("updateTreeData", jsonData.c_str());
 }
 
 void UIManager::SendSpellInfo(const std::string& jsonData)
@@ -70,7 +70,7 @@ void UIManager::SendSpellInfo(const std::string& jsonData)
         return;
     }
 
-    m_prismaUI->InteropCall(m_view, "updateSpellInfo", jsonData.c_str());
+    CallView("updateSpellInfo", jsonData.c_str());
 }
 
 void UIManager::SendSpellInfoBatch(const std::string& jsonData)
@@ -81,7 +81,7 @@ void UIManager::SendSpellInfoBatch(const std::string& jsonData)
     }
 
     logger::info("UIManager: Sending batch spell info to UI ({} bytes)", jsonData.size());
-    m_prismaUI->InteropCall(m_view, "updateSpellInfoBatch", jsonData.c_str());
+    CallView("updateSpellInfoBatch", jsonData.c_str());
 }
 
 void UIManager::UpdateSpellState(const std::string& formId, const std::string& state)
@@ -94,7 +94,7 @@ void UIManager::UpdateSpellState(const std::string& formId, const std::string& s
     json stateData;
     stateData["formId"] = formId;
     stateData["state"] = state;
-    m_prismaUI->InteropCall(m_view, "updateSpellState", stateData.dump().c_str());
+    CallView("updateSpellState", stateData.dump().c_str());
 }
 
 void UIManager::UpdateTreeStatus(const std::string& message)
@@ -104,7 +104,7 @@ void UIManager::UpdateTreeStatus(const std::string& message)
     }
 
     json statusJson = message;
-    m_prismaUI->InteropCall(m_view, "updateTreeStatus", statusJson.dump().c_str());
+    CallView("updateTreeStatus", statusJson.dump().c_str());
 }
 
 // =============================================================================
@@ -119,7 +119,7 @@ void UIManager::SendClipboardContent(const std::string& content)
     }
 
     logger::info("UIManager: Sending clipboard content to UI ({} bytes)", content.size());
-    m_prismaUI->InteropCall(m_view, "onClipboardContent", content.c_str());
+    CallView("onClipboardContent", content.c_str());
 }
 
 void UIManager::NotifyCopyComplete(bool success)
@@ -129,7 +129,7 @@ void UIManager::NotifyCopyComplete(bool success)
     }
 
     std::string result = success ? "true" : "false";
-    m_prismaUI->InteropCall(m_view, "onCopyComplete", result.c_str());
+    CallView("onCopyComplete", result.c_str());
 }
 
 // =============================================================================
@@ -165,7 +165,7 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     // PERFORMANCE: Use trace for frequent progress updates
     logger::trace("UIManager: Sending progress update to UI - formId: {}, XP: {:.1f}/{:.1f}, unlocked: {}",
         ss.str(), currentXP, requiredXP, progress.unlocked);
-    m_prismaUI->InteropCall(m_view, "onProgressUpdate", update.dump().c_str());
+    CallView("onProgressUpdate", update.dump().c_str());
 }
 
 void UIManager::NotifyProgressUpdate(const std::string& formIdStr)
@@ -200,7 +200,7 @@ void UIManager::NotifySpellReady(RE::FormID formId)
     notify["formId"] = ss.str();
     notify["ready"] = true;
 
-    m_prismaUI->InteropCall(m_view, "onSpellReady", notify.dump().c_str());
+    CallView("onSpellReady", notify.dump().c_str());
 }
 
 void UIManager::NotifySpellUnlocked(RE::FormID formId, bool success)
@@ -215,7 +215,7 @@ void UIManager::NotifySpellUnlocked(RE::FormID formId, bool success)
     notify["formId"] = ss.str();
     notify["success"] = success;
 
-    m_prismaUI->InteropCall(m_view, "onSpellUnlocked", notify.dump().c_str());
+    CallView("onSpellUnlocked", notify.dump().c_str());
 }
 
 void UIManager::NotifyLearningTargetSet(const std::string& school, RE::FormID formId, const std::string& spellName)
@@ -234,7 +234,7 @@ void UIManager::NotifyLearningTargetSet(const std::string& school, RE::FormID fo
     notify["spellName"] = spellName;
 
     logger::info("UIManager: Notifying UI of learning target set: {} -> {} ({})", school, spellName, formIdStr);
-    m_prismaUI->InteropCall(m_view, "onLearningTargetSet", notify.dump().c_str());
+    CallView("onLearningTargetSet", notify.dump().c_str());
 
     // Also update the spell state to "learning" so canvas renderer shows learning visuals
     UpdateSpellState(formIdStr, "learning");
@@ -277,7 +277,7 @@ void UIManager::NotifyModdedSourceRegistered(const std::string& sourceId,
     j["enabled"] = true;
 
     logger::info("UIManager: Notifying UI - modded XP source registered: '{}' ('{}')", sourceId, displayName);
-    m_prismaUI->InteropCall(m_view, "onModdedXPSourceRegistered", j.dump().c_str());
+    CallView("onModdedXPSourceRegistered", j.dump().c_str());
 }
 
 void UIManager::NotifyMainMenuLoaded()
@@ -288,7 +288,7 @@ void UIManager::NotifyMainMenuLoaded()
     }
 
     logger::info("UIManager: Notifying UI - main menu loaded, resetting tree states");
-    m_prismaUI->InteropCall(m_view, "onResetTreeStates", "");
+    CallView("onResetTreeStates", "");
 }
 
 void UIManager::NotifySaveGameLoaded()
@@ -302,7 +302,7 @@ void UIManager::NotifySaveGameLoaded()
     }
 
     logger::info("UIManager: Notifying UI - save game loaded, refreshing player data");
-    m_prismaUI->InteropCall(m_view, "onSaveGameLoaded", "");
+    CallView("onSaveGameLoaded", "");
 }
 
 void UIManager::SendProgressData(const std::string& jsonData)
@@ -311,5 +311,23 @@ void UIManager::SendProgressData(const std::string& jsonData)
         return;
     }
 
-    m_prismaUI->InteropCall(m_view, "onProgressData", jsonData.c_str());
+    CallView("onProgressData", jsonData.c_str());
+}
+
+// =============================================================================
+// THE ONE DOOR INTO THE PANEL
+// =============================================================================
+
+bool UIManager::ViewReady() const
+{
+    return m_prismaUI != nullptr && m_prismaUI->IsValid(m_view);
+}
+
+void UIManager::CallView(const char* function, const char* payload)
+{
+    if (!ViewReady()) {
+        logger::warn("UIManager: '{}' dropped - the panel's view is gone", function);
+        return;
+    }
+    m_prismaUI->InteropCall(m_view, function, payload);
 }

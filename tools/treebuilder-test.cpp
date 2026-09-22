@@ -39,7 +39,8 @@ namespace OpenRouterAPI {
 
     bool    Initialize() { return false; }
     void    Shutdown() {}
-    Config& GetConfig() { return g_config; }
+    Config  GetConfigCopy() { return g_config; }
+    void    UpdateConfig(const std::function<void(Config&)>& edit) { edit(g_config); }
     void    SaveConfig() {}
 
     Response SendPrompt(const std::string&, const std::string&)
@@ -47,6 +48,11 @@ namespace OpenRouterAPI {
         Response response;
         response.error = "no API key in the standalone test harness";
         return response;
+    }
+
+    Response SendPrompt(const Config&, const std::string& systemPrompt, const std::string& userPrompt)
+    {
+        return SendPrompt(systemPrompt, userPrompt);
     }
 
     void SendPromptAsync(const std::string& systemPrompt, const std::string& userPrompt,

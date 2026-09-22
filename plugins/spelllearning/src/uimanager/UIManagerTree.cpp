@@ -174,7 +174,7 @@ void UIManager::OnGetSpellIcon(const char* argument)
         nlohmann::json reply;
         reply["key"] = key;
         reply["svg"] = EncodingUtils::SanitizeToUTF8(SpellScanner::ReadSpellIconSvg(key));
-        instance->m_prismaUI->InteropCall(instance->m_view, "updateSpellIcon", reply.dump().c_str());
+        instance->CallView("updateSpellIcon", reply.dump().c_str());
     });
 }
 
@@ -321,7 +321,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "Tree build already in progress. Please wait for the current build to finish.";
-            instance->m_prismaUI->InteropCall(instance->m_view, "onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
             return;
         }
 
@@ -370,7 +370,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                             logger::error("UIManager: {} failed: {}", command, result.error);
                         }
 
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: TreeBuilder::Build exception: {}", e.what());
@@ -382,7 +382,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = error;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: TreeBuilder::Build unknown exception");
@@ -394,7 +394,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = "Unknown internal error during tree build";
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
                     });
                 }
             }).detach();
@@ -406,7 +406,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->m_prismaUI->InteropCall(instance->m_view, "onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
         }
     });
 }
@@ -432,7 +432,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "PRM scoring already in progress. Please wait.";
-            instance->m_prismaUI->InteropCall(instance->m_view, "onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
             return;
         }
 
@@ -457,7 +457,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         inst->m_prmScoreInProgress = false;
 
                         if (!inst->m_prismaUI) return;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: ProcessPRMRequest exception: {}", e.what());
@@ -469,7 +469,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = error;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: ProcessPRMRequest unknown exception");
@@ -481,7 +481,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = "Unknown internal error during PRM scoring";
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 }
             }).detach();
@@ -493,7 +493,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->m_prismaUI->InteropCall(instance->m_view, "onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
         }
     });
 }

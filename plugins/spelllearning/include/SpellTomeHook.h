@@ -71,10 +71,14 @@ private:
     SpellTomeHook(const SpellTomeHook&) = delete;
     SpellTomeHook& operator=(const SpellTomeHook&) = delete;
 
-    // Called when player reads a spell tome
-    // Handles tome reading: grants XP, sets target, keeps book
-    // Falls through to vanilla if spell not in our system
+    // The entry point the patched engine code jumps to. It only guards; the work
+    // is in OnSpellTomeReadImpl. That frame sits above hand-written machine code
+    // with no unwind information, so an exception that left it would end the
+    // process rather than reach any handler.
     static void OnSpellTomeRead(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell);
+    // Handles tome reading: grants XP, sets target, keeps book.
+    // Falls through to vanilla if the spell is not in our system.
+    static void OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell);
 
     // Check prereqs + skill level — returns true if player can learn, false if blocked
     // Shows notification if blocked. Used by both ISL and non-ISL paths.

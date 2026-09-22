@@ -287,7 +287,7 @@ void UIManager::OnLoadPresets(const char* argument)
             std::string resultStr = result.dump();
             logger::info("UIManager: LoadPresets - sending {} {} presets to UI",
                          result["presets"].size(), type);
-            instance->m_prismaUI->InteropCall(instance->m_view, "onPresetsLoaded", resultStr.c_str());
+            instance->CallView("onPresetsLoaded", resultStr.c_str());
 
         } catch (const std::exception& e) {
             logger::error("UIManager: LoadPresets exception: {}", e.what());
@@ -315,7 +315,7 @@ void UIManager::OnLoadTestConfig([[maybe_unused]] const char* argument)
                 // Send empty/disabled response
                 nlohmann::json response;
                 response["enabled"] = false;
-                instance->m_prismaUI->InteropCall(instance->m_view, "onTestConfigLoaded", response.dump().c_str());
+                instance->CallView("onTestConfigLoaded", response.dump().c_str());
                 return;
             }
 
@@ -337,7 +337,7 @@ void UIManager::OnLoadTestConfig([[maybe_unused]] const char* argument)
                          config.value("preset", "unknown"));
 
             // Send to JS
-            instance->m_prismaUI->InteropCall(instance->m_view, "onTestConfigLoaded", config.dump().c_str());
+            instance->CallView("onTestConfigLoaded", config.dump().c_str());
 
         } catch (const std::exception& e) {
             logger::error("UIManager: Exception loading test config: {}", e.what());
