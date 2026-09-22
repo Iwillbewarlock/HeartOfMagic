@@ -260,7 +260,15 @@ var TreeCamera = {
         renderer.zoom = cam.zoom;
         renderer.panX = cam.panX;
         renderer.panY = cam.panY;
-        renderer._needsRender = true;
+        if (renderer._layerZoom !== undefined) {
+            // The view moved, the tree did not. The canvas renderer notices
+            // what moved by itself: it slides its tree layer when only the
+            // pan changed and redraws it when zoom or rotation did.
+            renderer.__needsRender = true;
+            renderer._animationOnlyRender = false;
+        } else {
+            renderer._needsRender = true;
+        }
 
         var zoomEl = renderer._zoomLevelEl || document.getElementById('zoom-level');
         if (zoomEl) zoomEl.textContent = Math.round(cam.zoom * 100) + '%';

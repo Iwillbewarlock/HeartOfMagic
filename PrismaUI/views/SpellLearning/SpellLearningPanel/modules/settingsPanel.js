@@ -1200,6 +1200,8 @@ function autoSaveSettings() {
     }, 500);
 }
 
+var _lastSavedConfigText = null;
+
 function saveUnifiedConfig() {
     if (!window.callCpp) return;
     
@@ -1363,8 +1365,15 @@ function saveUnifiedConfig() {
         activeScannerPreset: typeof _activeScannerPreset !== 'undefined' ? _activeScannerPreset : ''
     };
 
+    // Closing the panel saves, and so do many handlers that change nothing.
+    // Each save made C++ read, merge and rewrite config.json and re-apply
+    // every setting. The same text twice in a row is skipped.
+    var configText = JSON.stringify(unifiedConfig);
+    if (configText === _lastSavedConfigText) return;
+    _lastSavedConfigText = configText;
+
     console.log('[SpellLearning] Saving unified config');
-    window.callCpp('SaveUnifiedConfig', JSON.stringify(unifiedConfig));
+    window.callCpp('SaveUnifiedConfig', configText);
 }
 
 function resetSettings() {

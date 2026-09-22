@@ -305,6 +305,28 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
 void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterface* a_intfc)
 {
     std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+    // Names and descriptions live on the forms, and the forms outlive the
+    // save: loading another one does not reset them. Forgetting the originals
+    // here without putting them back left "(Learning - 20%)" on the spell,
+    // and the next grant then stored that as the original - seen in game as
+    // "Spell (Learning - 20%) (Learning - 20%)", and after mastery the name
+    // stayed wrong until the game was restarted. Put them back first.
+    for (const auto& [spellId, name] : m_originalSpellNames) {
+        if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId)) {
+            spell->fullName = name;
+        }
+    }
+    for (const auto& [effectId, description] : m_originalEffectDescriptions) {
+        if (auto* effect = RE::TESForm::LookupByID<RE::EffectSetting>(effectId)) {
+            effect->magicItemDescription = description;
+        }
+    }
+    if (!m_originalSpellNames.empty() || !m_originalEffectDescriptions.empty()) {
+        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions before revert",
+            m_originalSpellNames.size(), m_originalEffectDescriptions.size());
+    }
+
     m_earlyLearnedSpells.clear();
     m_earlySpellCount.store(0, std::memory_order_release);
     m_displayCache.clear();

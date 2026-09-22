@@ -266,11 +266,24 @@ void UIManager::OnSaveSpellTree(const char* argument)
         // Write to file
         auto treePath = GetTreeFilePath();
 
+        // The same tree again - applying twice, or a builder that saves on
+        // every step - is not written again. Rewriting it would also rotate
+        // the .bak, replacing the real previous tree with a copy of this one.
+        static std::size_t s_lastSavedHash = 0;
+        const std::size_t hash = std::hash<std::string>{}(argStr);
+        std::error_code existsError;
+        if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
+            logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
+            instance->UpdateTreeStatus("Tree saved");
+            return;
+        }
+
         try {
             // Through a temp file and a move, keeping one .bak: this is the
             // player's whole generated tree, and truncating the real file meant
             // a crash partway through lost it with nothing to fall back on.
             if (FileUtils::WriteAtomically(treePath, argStr)) {
+                s_lastSavedHash = hash;
                 logger::info("UIManager: Saved spell tree to {}", treePath.string());
                 instance->UpdateTreeStatus("Tree saved");
             } else {

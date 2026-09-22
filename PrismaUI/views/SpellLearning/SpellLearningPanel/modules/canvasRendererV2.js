@@ -64,6 +64,11 @@ var CanvasRenderer = {
     __needsRender: true,
     _treeDirty: true,             // the tree layer must be redrawn before it is pasted
     USE_TREE_LAYER: true,         // off = draw the tree straight onto the canvas every frame, as before
+    TREE_LAYER_MARGIN: 256,       // css px drawn beyond each edge, so a drag slides the layer
+    _layerPanX: 0,                // where the view was when the layer was last drawn
+    _layerPanY: 0,
+    _layerZoom: null,
+    _layerRotation: null,
     _animationOnlyRender: false,  // True when only animations need update (can be throttled)
     _lastRenderTime: 0,
     _logNextRender: false,
@@ -875,7 +880,10 @@ var CanvasRenderer = {
                     self._panRafPending = false;
                     self.panX = self._pendingPanX;
                     self.panY = self._pendingPanY;
-                    self._needsRender = true;
+                    // A frame, but not "the tree changed": _drawTree sees the
+                    // pan moved and slides the layer it already has.
+                    self.__needsRender = true;
+                    self._animationOnlyRender = false;
                 });
             }
         } else {
@@ -1319,7 +1327,7 @@ var CanvasRenderer = {
      * because the starfield behind it keeps moving.
      */
     _drawTree: function(ctx, dpr, view) {
-        var layer = this.USE_TREE_LAYER ? this._ensureTreeLayer() : null;
+        var layer = this.USE_TREE_LAYER ? this._ensureTreeLayer(dpr) : null;
         if (!layer) {
             this._renderTreeInto(ctx, view);
             this._treeDirty = false;
@@ -1327,22 +1335,45 @@ var CanvasRenderer = {
             return;
         }
 
-        if (this._treeDirty || this._treeLayerStale) {
+        // The layer is drawn with a margin all round, so a drag can slide it
+        // instead of redrawing all 1440 spells every frame. It is redrawn
+        // only when the tree changed, when zoom or rotation moved, or when
+        // the drag has gone past the margin and would show its bare edge.
+        var margin = this.TREE_LAYER_MARGIN;
+        var dx = this.panX - this._layerPanX;
+        var dy = this.panY - this._layerPanY;
+        var slid = Math.abs(dx) > margin || Math.abs(dy) > margin;
+        if (this._treeDirty || this._treeLayerStale || slid ||
+            this._layerZoom !== this.zoom || this._layerRotation !== this.rotation) {
             var lctx = this._treeLayerCtx;
             lctx.setTransform(1, 0, 0, 1, 0, 0);
             lctx.globalAlpha = 1.0;
             lctx.globalCompositeOperation = 'source-over';
             lctx.clearRect(0, 0, layer.width, layer.height);
             lctx.scale(dpr, dpr);
-            this._renderTreeInto(lctx, view);
+            lctx.translate(margin, margin);
+            // Whatever lies in the margin must be drawn too, not culled
+            var extra = margin / this.zoom;
+            this._renderTreeInto(lctx, {
+                cx: view.cx, cy: view.cy, rotRad: view.rotRad, cos: view.cos, sin: view.sin,
+                viewLeft: view.viewLeft - extra, viewRight: view.viewRight + extra,
+                viewTop: view.viewTop - extra, viewBottom: view.viewBottom + extra
+            });
             this._treeDirty = false;
             this._treeLayerStale = false;
+            this._layerPanX = this.panX;
+            this._layerPanY = this.panY;
+            this._layerZoom = this.zoom;
+            this._layerRotation = this.rotation;
             this._treeLayerDraws = (this._treeLayerDraws || 0) + 1;
+            dx = 0;
+            dy = 0;
         }
 
+        var w = this.canvas.width, h = this.canvas.height;
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(layer, 0, 0);
+        ctx.drawImage(layer, Math.round((margin - dx) * dpr), Math.round((margin - dy) * dpr), w, h, 0, 0, w, h);
         ctx.restore();
 
         this._drawDetachedParticles(ctx, view);
@@ -1365,8 +1396,8 @@ var CanvasRenderer = {
         ctx.restore();
     },
 
-    /** The layer canvas, kept the size of the visible one. Null if it cannot be made. */
-    _ensureTreeLayer: function() {
+    /** The layer canvas: the visible one plus the margin all round. Null if it cannot be made. */
+    _ensureTreeLayer: function(dpr) {
         if (this._treeLayerFailed) return null;
         try {
             if (!this._treeLayer) {
@@ -1374,9 +1405,10 @@ var CanvasRenderer = {
                 this._treeLayerCtx = this._treeLayer.getContext('2d');
                 if (!this._treeLayerCtx) throw new Error('no 2d context');
             }
-            if (this._treeLayer.width !== this.canvas.width || this._treeLayer.height !== this.canvas.height) {
-                this._treeLayer.width = this.canvas.width;
-                this._treeLayer.height = this.canvas.height;
+            var pad = Math.ceil(2 * this.TREE_LAYER_MARGIN * (dpr || 1));
+            if (this._treeLayer.width !== this.canvas.width + pad || this._treeLayer.height !== this.canvas.height + pad) {
+                this._treeLayer.width = this.canvas.width + pad;
+                this._treeLayer.height = this.canvas.height + pad;
                 this._treeLayerStale = true;
             }
             return this._treeLayer;

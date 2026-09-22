@@ -26,6 +26,13 @@ public:
     
     // Settings
     void SetPauseGameOnFocus(bool pause) { m_pauseGameOnFocus = pause; }
+
+    // Developer mode, from the config. The panel's ordinary console lines
+    // reach SpellLearning.log only while it is on; warnings and errors always
+    // do. Off by default, so a player never pays for hundreds of lines per
+    // panel load they will not read.
+    static void SetPanelInfoLogging(bool enabled) { s_panelInfoLogging.store(enabled, std::memory_order_relaxed); }
+    static bool PanelInfoLogging() { return s_panelInfoLogging.load(std::memory_order_relaxed); }
     bool GetPauseGameOnFocus() const { return m_pauseGameOnFocus; }
 
     // Send data to Scanner Tab
@@ -168,6 +175,7 @@ private:
     PRISMA_UI_API::IVPrismaUI2* m_prismaUIv2 = nullptr;
     PrismaView m_view = 0;
     std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
+    static inline std::atomic<bool> s_panelInfoLogging{false};
     bool m_isInitialized = false;
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists

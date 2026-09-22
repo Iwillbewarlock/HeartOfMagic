@@ -326,10 +326,12 @@ void UIManager::OnLogMessage(const char* argument)
         } else if (level == "error") {
             logger::error("{}", message);
         } else {
+            if (!PanelInfoLogging()) return;
             logger::info("{}", message);
         }
     } catch (...) {
         // Fallback: just log the raw argument
+        if (!PanelInfoLogging()) return;
         logger::info("JS: {}", argument);
     }
 }
@@ -338,7 +340,6 @@ void UIManager::OnLogMessage(const char* argument)
 // CONSOLE MESSAGE CALLBACK
 // =============================================================================
 
-// TODO: change level based on devMode and verboseMode
 void UIManager::OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageLevel level, const char* message)
 {
     switch (level) {
@@ -349,9 +350,11 @@ void UIManager::OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageL
             logger::warn("[JS]: {}", message);
             break;
         case PRISMA_UI_API::ConsoleMessageLevel::Debug:
+            if (!PanelInfoLogging()) break;
             logger::debug("[JS] View {}: {}", view, message);
             break;
         default:
+            if (!PanelInfoLogging()) break;
             logger::info("[JS] View {}: {}", view, message);
             break;
     }

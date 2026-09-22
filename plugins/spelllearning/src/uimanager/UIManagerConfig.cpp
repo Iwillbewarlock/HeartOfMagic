@@ -20,6 +20,8 @@
 // Handles: early learning, spell tome, passive learning, and notification settings.
 static void ApplySettingsFromConfig(const nlohmann::json& config)
 {
+    UIManager::SetPanelInfoLogging(SafeJsonValue<bool>(config, "developerMode", false));
+
     // Early learning settings
     if (config.contains("earlySpellLearning") && !config["earlySpellLearning"].is_null()) {
         auto& elConfig = config["earlySpellLearning"];
