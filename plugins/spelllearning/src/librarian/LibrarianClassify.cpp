@@ -173,10 +173,18 @@ namespace Librarian
             return tags;
         }
 
+        // Removals wait until every rule has added: a rule taking a tag off
+        // must win whatever file order put the rule that added it
+        std::set<std::string> removeElements;
+        std::set<std::string> removeTechniques;
+
         for (const auto& rule : rules.rules) {
             if (!SpellMatches(spell, rule.match)) {
                 continue;
             }
+
+            removeElements.insert(rule.removeElements.begin(), rule.removeElements.end());
+            removeTechniques.insert(rule.removeTechniques.begin(), rule.removeTechniques.end());
 
             if (!rule.addElements.empty()) {
                 tags.elements.insert(rule.addElements.begin(), rule.addElements.end());
@@ -187,6 +195,11 @@ namespace Librarian
                 RecordSource(rule.source, tags.techniqueSource);
             }
         }
+
+        for (const auto& tag : removeElements) tags.elements.erase(tag);
+        for (const auto& tag : removeTechniques) tags.techniques.erase(tag);
+        if (tags.elements.empty()) tags.elementSource.clear();
+        if (tags.techniques.empty()) tags.techniqueSource.clear();
 
         return tags;
     }

@@ -123,6 +123,11 @@ namespace Librarian
         RuleMatch match;
         std::vector<std::string> addElements;
         std::vector<std::string> addTechniques;
+        // "remove": tags taken off the spell after every rule has added its
+        // own - for a hand-made rule correcting a tag the records got wrong
+        // (a rune's shared blast effect reading as fire on a water rune)
+        std::vector<std::string> removeElements;
+        std::vector<std::string> removeTechniques;
 
         // Evidence tier, from the rule's "tier" field. Defaults to mgef.
         std::string source;

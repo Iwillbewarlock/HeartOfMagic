@@ -139,7 +139,16 @@ namespace Librarian
                     target.addTechniques, rejectedTags);
             }
 
-            if (target.addElements.empty() && target.addTechniques.empty()) {
+            const auto removeField = ruleObject.find("remove");
+            if (removeField != ruleObject.end() && removeField->is_object()) {
+                ReadTagList(*removeField, "elements", "element", &IsElement, originFile,
+                    target.removeElements, rejectedTags);
+                ReadTagList(*removeField, "techniques", "technique", &IsTechnique, originFile,
+                    target.removeTechniques, rejectedTags);
+            }
+
+            if (target.addElements.empty() && target.addTechniques.empty() &&
+                target.removeElements.empty() && target.removeTechniques.empty()) {
                 return false;
             }
 
