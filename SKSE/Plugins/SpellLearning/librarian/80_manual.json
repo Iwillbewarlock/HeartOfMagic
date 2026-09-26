@@ -84,6 +84,57 @@
       ] },
       "add": { "elements": ["necrotic"] } },
 
+    { "_": "Read from the spell descriptions (2026-09-27): Glenmoril's Saint Vazra's Torch deals fire damage",
+      "match": { "spell": "Glenmoril.esm|0x60025C" },
+      "add": { "elements": ["fire"] } },
+
+    { "_": "Mysticism's scripted absorb cloaks, the same call as the absorb rules below: health and stamina are blood, magicka arcane",
+      "match": { "spell": [
+        "MysticismMagic.esp|0x445FA0",
+        "MysticismMagic.esp|0x445FB2"
+      ] },
+      "add": { "elements": ["blood"] } },
+
+    { "match": { "spell": "MysticismMagic.esp|0x445FA8" },
+      "add": { "elements": ["arcane"] } },
+
+    { "_": "Mysticism's resist shells and shields carry their element, like its weakness spells do",
+      "match": { "spell": ["MysticismMagic.esp|0x29265D", "MysticismMagic.esp|0x29265E"] },
+      "add": { "elements": ["fire", "resistance"] } },
+
+    { "match": { "spell": ["MysticismMagic.esp|0x292664", "MysticismMagic.esp|0x292665"] },
+      "add": { "elements": ["shock", "resistance"] } },
+
+    { "match": { "spell": ["MysticismMagic.esp|0x29266B", "MysticismMagic.esp|0x29266C"] },
+      "add": { "elements": ["frost", "resistance"] } },
+
+    { "match": { "spell": ["MysticismMagic.esp|0x292672", "MysticismMagic.esp|0x292673"] },
+      "add": { "elements": ["poison", "resistance"] } },
+
+    { "_": "Lost Grimoire's Venom Cloak deals poison damage",
+      "match": { "spell": "LostGrimoire.esp|0x1B1D56" },
+      "add": { "elements": ["poison"] } },
+
+    { "_": "Mysticism's Soul Harvest traps souls, like Soul Trap",
+      "match": { "spell": "MysticismMagic.esp|0x9F8524" },
+      "add": { "elements": ["soul"] } },
+
+    { "_": "Holy light: Lightpower's Holy Flame, Sanctuary, Holy Purification, Judgement; Lost Grimoire's divine blessing, guardian and shield (not castable after a murder)",
+      "match": { "spell": [
+        "Lightpower.esl|0x000822",
+        "Lightpower.esl|0x000825",
+        "Lightpower.esl|0x000826",
+        "Lightpower.esl|0x000829",
+        "LostGrimoire.esp|0x1D5500",
+        "LostGrimoire.esp|0x1D5515",
+        "LostGrimoire.esp|0x1DA65D"
+      ] },
+      "add": { "elements": ["holy"] } },
+
+    { "_": "Lightpower's Judgement calls down sunlight",
+      "match": { "spell": "Lightpower.esl|0x000829" },
+      "add": { "elements": ["sun"] } },
+
     { "_": "Absorbing health or stamina is blood magic (decided 2026-09-27): every absorb effect, any mod",
       "match": { "archetype": "Absorb", "primaryAV": "Health" },
       "add": { "elements": ["blood"] } },
@@ -150,6 +201,10 @@
         "LostGrimoire.esp|0x249D5C",
         "KittySpellPack02.esl|0x000816"
       ] },
-      "remove": { "elements": ["soul"] } }
+      "remove": { "elements": ["soul"] } },
+
+    { "_": "Mysticism's Frost Weakness is a frost bolt; the north-wind perk keyword is not wind",
+      "match": { "spell": "MysticismMagic.esp|0x29267C" },
+      "remove": { "elements": ["air"] } }
   ]
 }
