@@ -31,7 +31,7 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | `acid` | 산성 부식 피해 | (바닐라 없음. 모드 전용) |
 | `air` | 바람·기류. KIT 의 `Wind` 를 여기로 합친다 | Whirlwind Cloak / Muffle / Waterbreathing |
 | `apparition` | 유령·혼령 형태의 존재 | Summon Arniel's Shade |
-| `arcane` | 속성 없는 순수 마력 피해 | Freeze / Ignite / Arniel's Convection |
+| `arcane` | 속성 없는 순수 마력 피해. **기본 룰은 붙이지 않는다**(2026-09-27): 순수 마력은 무속성으로 둔다. 사용자 룰용으로 어휘에만 남아 있다 | Freeze / Ignite / Arniel's Convection |
 | `armor` | 방어도 자체를 올리고 내리는 것 | Oakflesh / Stoneflesh / Ironflesh |
 | **`blood`** | 피를 대가로 쓰거나 피로 해치는 마법. **SR 에 없음** — KIT `SpellDamageType_Blood`, `SpellSacrificeType_Blood`, OCF `MgefClassBlood` 가 구분한다 | (모드 전용) |
 | `construct` | 세상에 남는 물체를 만든다. 룬·수호진·촛불 | Ash Rune / Conjure Ash Guardian / Candlelight |

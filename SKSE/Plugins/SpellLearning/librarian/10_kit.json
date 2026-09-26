@@ -11,9 +11,8 @@
   ],
   "rules": [
 
-    { "_": "KIT_MagicElement_* - the framework says outright what the magic is",
-      "match": { "mgefKeyword": "KIT_MagicElement_Arcane" },   "add": { "elements": ["arcane"] } },
-    { "match": { "mgefKeyword": "KIT_MagicElement_AshFire" },  "add": { "elements": ["fire", "earth"] } },
+    { "_": "KIT_MagicElement_* - the framework says outright what the magic is (Arcane gets no element: plain magic, decided 2026-09-27)",
+      "match": { "mgefKeyword": "KIT_MagicElement_AshFire" },  "add": { "elements": ["fire", "earth"] } },
     { "match": { "mgefKeyword": "KIT_MagicElement_Astral" },   "add": { "elements": ["holy"] } },
     { "match": { "mgefKeyword": "KIT_MagicElement_Blood" },    "add": { "elements": ["blood"] } },
     { "match": { "mgefKeyword": "KIT_MagicElement_ColdFire" }, "add": { "elements": ["fire", "frost"] } },
@@ -37,7 +36,7 @@
 
     { "_": "KIT_MagicSummonType_* - what is being called up",
       "match": { "mgefKeyword": "KIT_MagicSummonType_Arcane" },
-      "add": { "elements": ["arcane"], "techniques": ["summoning"] } },
+      "add": { "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "KIT_MagicSummonType_ColdFire" },
       "add": { "elements": ["fire", "frost"], "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "KIT_MagicSummonType_Creature" },
@@ -73,7 +72,6 @@
     { "match": { "mgefKeywordPrefix": "KIT_MagicDamageType_AshFire" }, "add": { "elements": ["fire", "earth"] } },
     { "match": { "mgefKeywordPrefix": "KIT_MagicDamageType_ColdFire" }, "add": { "elements": ["fire", "frost"] } },
     { "match": { "mgefKeywordPrefix": "KIT_MagicDamageType_Shadow" }, "add": { "elements": ["shadow"] } },
-    { "match": { "mgefKeywordPrefix": "KIT_MagicDamageType_Arcane" }, "add": { "elements": ["arcane"] } },
     { "match": { "mgefKeywordPrefix": "KIT_MagicDamageType_Construct" }, "add": { "elements": ["construct"] } },
 
     { "_": "shape suffixes - a rune is laid down, a cloak is worn",

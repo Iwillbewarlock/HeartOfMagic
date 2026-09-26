@@ -10,9 +10,8 @@
   ],
   "rules": [
 
-    { "_": "subjects - the half of the keyword before the shape",
-      "match": { "mgefKeywordPrefix": "ADAR_SPEL_Arcane_" },    "add": { "elements": ["arcane"] } },
-    { "match": { "mgefKeywordPrefix": "ADAR_SPEL_Blood_" },     "add": { "elements": ["blood"] } },
+    { "_": "subjects - the half of the keyword before the shape (Arcane_ is left without an element: arcane is not an element here, decided 2026-09-27)",
+      "match": { "mgefKeywordPrefix": "ADAR_SPEL_Blood_" },     "add": { "elements": ["blood"] } },
     { "match": { "mgefKeywordPrefix": "ADAR_SPEL_Earth_" },     "add": { "elements": ["earth"] } },
     { "match": { "mgefKeywordPrefix": "ADAR_SPEL_Eldritch_" },  "add": { "elements": ["eldritch"] } },
     { "match": { "mgefKeywordPrefix": "ADAR_SPEL_FrostFire_" }, "add": { "elements": ["frost", "fire"] } },

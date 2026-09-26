@@ -72,6 +72,7 @@ F1 은 사실상 같고(74.5 → 74.9), 정밀도는 4pt 내리고 재현율은 
 
 프레임워크만 새로 붙이는 태그: `air`(29) `arcane`(26) `blood`(33) `earth`(54) `eldritch`(35)
 `holy`(56) `metal`(10) `nature`(40) `necrotic`(56) `sun`(60) `water`(33).
+(측정 당시 기준. `arcane` 은 2026-09-27 부터 기본 룰이 붙이지 않는다 - LIBRARIAN.md 참고.)
 **4절에서 "MGEF 로는 절대 볼 수 없다"고 적은 바로 그 태그들이다.** ADAR 가 특히 그렇다 —
 `ADAR_SPEL_Earth_*` / `Water_*` / `Wind_*` / `Nature*` 가 구조가 같은 주문을 이름으로 가른다.
 
