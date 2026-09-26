@@ -59,6 +59,7 @@ add_executable(librarian-test
     ${SL_SRC_DIR}/librarian/LibrarianRules.cpp
     ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
     ${SL_SRC_DIR}/librarian/LibrarianCatalog.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianTraits.cpp
 )
 
 target_compile_features(librarian-test PRIVATE cxx_std_23)

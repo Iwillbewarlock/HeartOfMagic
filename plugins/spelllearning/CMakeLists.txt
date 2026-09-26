@@ -55,6 +55,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianRules.cpp
     src/librarian/LibrarianClassify.cpp
     src/librarian/LibrarianCatalog.cpp
+    src/librarian/LibrarianTraits.cpp
     src/OpenRouterAPI.cpp
     src/SpellCastHandler.cpp
     src/progressionmanager/ProgressionManagerCore.cpp

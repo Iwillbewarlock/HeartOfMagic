@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "librarian/Librarian.h"
 
 // =============================================================================
 // SPELL CARD CHIPS
@@ -20,7 +21,7 @@ namespace SpellScanner
     {
         // The card has one line for these; past this they wrap and push the
         // description off the bottom bar.
-        constexpr std::size_t kMaxChips = 6;
+        constexpr std::size_t kMaxChips = Librarian::MAX_CARD_CHIPS;
 
         // What the base game's own magic keywords say about an effect. Only
         // keywords the base game or an official DLC defines are looked up here

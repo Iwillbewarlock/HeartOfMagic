@@ -47,10 +47,12 @@ void UIManager::OnScanSpells(const char* argument)
             result = SpellScanner::ScanAllSpells(scanConfig);
         }
 
-        // Classify what was just scanned. Same call the Papyrus path makes, so
-        // the Scan button and RunScan leave the same catalog behind. It logs
-        // its own failures rather than interrupting the scan.
-        Librarian::BuildAndWriteCatalog(result);
+        // Classify what was just scanned and hand the catalog's elements on to
+        // the traits the tree builder groups by and the chips the card shows.
+        // Same call the Papyrus path makes, so the Scan button and RunScan
+        // leave the same catalog behind. It logs its own failures and leaves
+        // the result as it was rather than interrupting the scan.
+        Librarian::ClassifyScan(result);
 
         // Send result back to UI
         instance->SendSpellData(result);

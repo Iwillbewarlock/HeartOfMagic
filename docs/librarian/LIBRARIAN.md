@@ -10,13 +10,30 @@
 
 ```
 스캔 (SpellScanner)                사서 (Librarian)                    손님
-spell_scan_output.json  ──▶  룰 매칭 + 축 도출  ──▶  spell_catalog.json  ──▶  트리 / 퍽 모드
+spell_scan_output.json  ──▶  룰 매칭 + 축 도출  ──▶  spell_catalog.json  ──▶  트리 / 카드 / 퍽 모드
                               librarian/*.json
 ```
 
 스캔이 끝나면 **자동으로** 돈다. 버튼이 따로 없다. 스캔 진입점 두 곳
-(`RunScanToFile`, UI 의 `OnScanSpells`)이 같은 `Librarian::BuildAndWriteCatalog` 를 부르므로
+(`RunScanToFile`, UI 의 `OnScanSpells`)이 같은 `Librarian::ClassifyScan` 을 부르므로
 Papyrus 로 돌리든 패널의 Scan 버튼을 누르든 같은 카탈로그가 남는다.
+
+**카탈로그는 트리가 읽는다(2026-09-27).** `ClassifyScan` 은 카탈로그를 만든 뒤(효과 없는 스펠북
+스캔이면 마지막 전체 스캔이 남긴 카탈로그를 읽어) 각 주문의 `traits`·`chips` 의 `element.*` 를 카탈로그
+원소로 **바꿔 끼운다**(`LibrarianTraits.cpp`). 트리 빌더·학파 다리·스펠 카드가 모두 이걸 본다. 그래서
+룰이 붙인 혈·물·신성 같은 원소가 트리 묶음에 쓰이고, 룰이 뗀 원소는 트리에서도 빠진다. 넘어가는 것은
+"무엇으로 된 마법인가"뿐이다(`TREE_ELEMENTS`: acid, air, arcane, blood, disease, earth, eldritch, fire,
+force, frost, holy, light, metal, nature, necrotic, poison, shadow, shock, soul, sun, time, water).
+creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*` 가 이미 말하고, 거의 모든 주문에
+붙어 다리가 재는 드문 태그를 묻어 버리므로 넘기지 않는다. 소환·무기 소환·시체 되살리기의 `soul` 도
+넘기지 않는다(Spell Research 가 소환물에 붙이는 표시일 뿐 테마가 아니다). 카드 아이콘 규칙은 여전히
+스캐너 자신의 traits 를 본다. 하네스로 게임과 같은 병합을 볼 수 있다:
+`librarian-test -i <스캔> -r <룰> -m merged.json` 후 `treebuilder-test -i merged.json`.
+
+**원칙: 규칙으로 동작해야 한다.** 이 태그는 개발자 한 사람의 로드오더를 손으로 고치는 것이 아니라
+모든 플레이어의 로드오더에서 스스로 도는 규칙이다. 먼저 공통 구조(MGEF 키워드, archetype + 액터 값,
+프레임워크 키워드, 테마 모드)를 룰로 쓰고, `spell` 로 주문을 직접 찍는 것은 기록으로 표현할 수 없는
+진짜 예외에만 쓴다.
 
 사서가 실패해도 스캔은 살아남는다. 예외를 잡아 로그만 남기고 빈 경로를 반환한다.
 

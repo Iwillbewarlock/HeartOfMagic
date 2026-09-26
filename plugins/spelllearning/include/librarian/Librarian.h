@@ -6,6 +6,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using json = nlohmann::json;
@@ -220,13 +221,56 @@ namespace Librarian
     // the offline harness builds the same catalog the game does.
     json BuildCatalog(const json& scanDump, const RuleSet& rules, CatalogStats& stats);
 
-    // Loads the rules, builds the catalog for one scan dump and writes it.
-    // Takes the dump as the scanner's own JSON text so a caller that has just
-    // produced one does not have to parse it first. Returns the written path,
-    // or an empty string if anything went wrong - a failure here must never
-    // take the scan down with it.
-    std::string BuildAndWriteCatalog(const std::string& scanJson);
+    // Loads the rules, builds the catalog for one parsed scan dump and writes
+    // it. Returns false, leaving the file there alone, when the dump has
+    // nothing to classify (no effects) or anything went wrong - a failure here
+    // must never take the scan down with it. On success `catalog` holds what
+    // was written.
+    bool BuildAndWriteCatalog(const json& scanDump, json& catalog);
 
     // Reads the catalog back. Returns false when it is missing or unreadable.
     bool LoadCatalog(json& catalog);
+
+    // =========================================================================
+    // TREE TRAITS - the catalog handed on to the tree builder and spell card
+    // =========================================================================
+    //
+    // The tree builder groups spells by their "traits" and the spell card shows
+    // their "chips"; both used to know only the five elements vanilla keywords
+    // name (fire, frost, shock, poison, disease). The catalog's elements replace
+    // those, so a blood, water or holy spell - tagged by a framework or a manual
+    // rule - groups with its kind, and a tag a rule removed is gone there too.
+    //
+    // Only what the magic is made of crosses over. The rest of the element axis
+    // (creature, human, undead, armor, health, magicka, trap ...) says what a
+    // spell acts on, which the scanner's kind.* traits already cover, and on
+    // nearly every spell it would drown the rarer tags the bridges weigh.
+    inline constexpr std::string_view TREE_ELEMENTS[] = {
+        "acid", "air", "arcane", "blood", "disease", "earth", "eldritch", "fire",
+        "force", "frost", "holy", "light", "metal", "nature", "necrotic", "poison",
+        "shadow", "shock", "soul", "sun", "time", "water",
+    };
+
+    // Spell Research files every conjured thing under soul. On a summon, bound
+    // weapon or raised corpse that is the conjuring, not a theme; kind.summon
+    // and the rest already group those, so soul is not handed on for them.
+    inline constexpr std::string_view CONJURED_KINDS[] = {
+        "kind.summon", "kind.bound", "kind.reanimate",
+    };
+
+    // The spell card shows at most this many chips (SpellScannerChips uses it
+    // too, so the scanner and the merge agree).
+    inline constexpr std::size_t MAX_CARD_CHIPS = 6;
+
+    // Replaces the element.* traits and chips of every spell in a parsed scan
+    // dump with that spell's catalog elements (those in TREE_ELEMENTS). Pure, so
+    // the offline harness merges exactly as the game does. Returns how many
+    // spells' element sets changed.
+    std::size_t MergeCatalogElements(json& scanDump, const json& catalog);
+
+    // What a caller does with a scan it has just produced: classifies it (or,
+    // for a scan without effects, reads the catalog already there) and merges
+    // the catalog's elements into scanJson in place. On any failure scanJson is
+    // left exactly as it was.
+    void ClassifyScan(std::string& scanJson);
 }

@@ -247,17 +247,16 @@ namespace Librarian
         return true;
     }
 
-    std::string BuildAndWriteCatalog(const std::string& scanJson)
+    bool BuildAndWriteCatalog(const json& scanDump, json& catalog)
     {
         // A failure anywhere in here is logged and swallowed: the scan itself
         // has already succeeded by the time this runs, and losing the dump
         // because the librarian tripped would be the worse outcome.
         try {
-            const json scanDump = json::parse(scanJson);
             const RuleSet rules = LoadRules(RulesPath().string());
             if (rules.rules.empty()) {
                 logger::warn("Librarian: no rules loaded - skipping catalog");
-                return "";
+                return false;
             }
 
             // A scan without effects (its field settings left them out) has
@@ -277,11 +276,11 @@ namespace Librarian
             }
             if (!anyEffects) {
                 logger::warn("Librarian: the scan has no effects to classify - catalog left as it is");
-                return "";
+                return false;
             }
 
             CatalogStats stats;
-            const json catalog = BuildCatalog(scanDump, rules, stats);
+            catalog = BuildCatalog(scanDump, rules, stats);
 
             std::filesystem::create_directories(DATA_DIR);
             const std::string path = CatalogPath();
@@ -289,17 +288,17 @@ namespace Librarian
             std::ofstream file(path);
             if (!file.is_open()) {
                 logger::error("Librarian: cannot open '{}' for writing", path);
-                return "";
+                return false;
             }
             file << catalog.dump(2);
             file.close();
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
                 path, stats.spells, stats.tagged, stats.skipped);
-            return path;
+            return true;
         } catch (const std::exception& e) {
             logger::error("Librarian: catalog build failed - {}", e.what());
-            return "";
+            return false;
         }
     }
 }

@@ -100,6 +100,14 @@ A fire resist value and `MagicSummonFire` both come out as `element.fire`, so Fl
 rather than copied, which is why it has its own name; everything else in the dump stays as recorded.
 Built by `BuildSpellTraits` (SpellScannerChips.cpp), the same list the spell card and the icon rules use.
 
+**The librarian's elements replace the scanner's (2026-09-27).** Vanilla keywords only name fire,
+frost, shock, poison and disease. Right after a scan, `Librarian::ClassifyScan` builds the tag
+catalog (docs/librarian/LIBRARIAN.md) and rewrites every spell's `element.*` entries in `traits` and
+`chips` from it, so the tree builder, the bridges and the card see blood, water, holy, shadow ... as
+the rule files tag them, and a tag a rule removes is gone there too. A tome scan (no effects) takes
+the catalog the last full scan left. The held scan (`m_scanText`) and the result sent to the panel
+are the merged text. The card icon rules still read the scanner's own traits.
+
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.
 `associatedForm` only appears when the effect has one (summons, bound weapons).

@@ -400,14 +400,14 @@ namespace SpellScanner
         logger::info("SpellScanner: RunScanToFile mode='{}' preset='{}'",
             tomeMode ? "tomes" : "all", effectivePreset);
 
-        const std::string result = tomeMode ? ScanSpellTomes(config) : ScanAllSpells(config);
-        const std::string outputPath = WriteScanOutput(result);
+        std::string result = tomeMode ? ScanSpellTomes(config) : ScanAllSpells(config);
 
-        // The librarian classifies whatever the scan just produced. It reports
-        // its own failures and returns an empty path; the scan's own result
+        // The librarian classifies whatever the scan just produced and merges
+        // its elements into the traits, before the dump is written so the file
+        // carries them. It reports its own failures; the scan's own result
         // stands either way.
-        Librarian::BuildAndWriteCatalog(result);
+        Librarian::ClassifyScan(result);
 
-        return outputPath;
+        return WriteScanOutput(result);
     }
 }

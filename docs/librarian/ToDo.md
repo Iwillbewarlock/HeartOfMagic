@@ -266,7 +266,7 @@
   여기서는 그것을 게임 안에 붙이고 결과를 파일로 남기는 일만 했다
 - 입력: 스캔 JSON, `librarian/*.json` 룰 / 출력: `spell_catalog.json`(2-2)
 - [x] `LibrarianCatalog.cpp` — 네 축 도출 + 카탈로그 생성·읽기·쓰기, `persistentId` 키
-- [x] 훅: **스캔 진입점 두 곳 모두**에서 같은 `BuildAndWriteCatalog` 를 부른다 —
+- [x] 훅: **스캔 진입점 두 곳 모두**에서 같은 `ClassifyScan`(카탈로그 생성 + traits 병합)을 부른다 —
       `RunScanToFile`(Papyrus·도구)와 `UIManagerScanner::OnScanSpells`(패널 버튼).
       한쪽에만 걸면 Papyrus 로 돌렸을 때 카탈로그가 안 생긴다.
       사서가 실패해도 스캔은 살아남도록 예외를 삼키고 로그만 남긴다

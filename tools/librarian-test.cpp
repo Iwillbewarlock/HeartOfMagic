@@ -9,6 +9,7 @@
 //   librarian-test -i spell_scan_output.json -r SKSE/Plugins/SpellLearning/librarian
 //   librarian-test -i dump.json -r rules -a spellresearch_archetypes_1160.json
 //   librarian-test -i dump.json -r rules -o catalog.json
+//   librarian-test -i dump.json -r rules -m merged_scan.json
 //
 // The answer set is the Spell Research archetype export: an array of
 // { name, formId, esp, elements[], techniques[] }. Joining it to the dump is
@@ -53,6 +54,9 @@ namespace
             << "Optional:\n"
             << "  -a, --answers <file>  Answer set to score against\n"
             << "  -o, --output  <file>  Write the tagged catalog here\n"
+            << "  -m, --merged  <file>  Write the scan dump with the catalog's elements\n"
+            << "                        merged into traits and chips, as the game hands\n"
+            << "                        it to the tree builder (feed it to treebuilder-test)\n"
             << "  -v, --verbose         List per spell misses for the answer set\n"
             << "  -t, --tier    <name>  Use only rules of this evidence tier,\n"
             << "                        e.g. \"mgef\" to measure without frameworks\n"
@@ -111,6 +115,7 @@ int main(int argc, char* argv[])
     std::string rulesPath;
     std::string answersPath;
     std::string outputPath;
+    std::string mergedPath;
     std::string scriptPath;
     std::string tier;
     std::string catalogPath;
@@ -129,6 +134,8 @@ int main(int argc, char* argv[])
             answersPath = argv[++i];
         } else if ((arg == "-o" || arg == "--output") && hasNext) {
             outputPath = argv[++i];
+        } else if ((arg == "-m" || arg == "--merged") && hasNext) {
+            mergedPath = argv[++i];
         } else if ((arg == "-j" || arg == "--script") && hasNext) {
             scriptPath = argv[++i];
         } else if ((arg == "-t" || arg == "--tier") && hasNext) {
@@ -241,6 +248,17 @@ int main(int argc, char* argv[])
             }
             file << catalog.dump(2) << "\n";
             std::cout << "\nWrote catalog to " << outputPath << "\n";
+        }
+
+        if (!mergedPath.empty()) {
+            json merged = dump;
+            const std::size_t changed = Librarian::MergeCatalogElements(merged, catalog);
+            std::ofstream file(mergedPath);
+            if (!file.is_open()) {
+                throw std::runtime_error("Cannot write: " + mergedPath);
+            }
+            file << merged.dump() << "\n";
+            std::cout << "Wrote merged scan to " << mergedPath << " (" << changed << " spells changed)\n";
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
