@@ -15,11 +15,8 @@
   ],
   "rules": [
 
-    { "_": "Blood magic the rules below cannot see: Occult Cradle's The Power Within, Mysticism's Blood Lance",
-      "match": { "spell": [
-        "HAG - Occult Cradle Stone Tower.esp|0x00013F",
-        "MysticismMagic.esp|0x1B8A09"
-      ] },
+    { "_": "Blood magic the rules below cannot see: Mysticism's Blood Lance",
+      "match": { "spell": "MysticismMagic.esp|0x1B8A09" },
       "add": { "elements": ["blood"] } },
 
     { "_": "Mysticism's Vampiric spells (\"Entropy\" in the Korean translation): Vampiric Touch, Bolt, Grasp, Blast, Rune - health absorbed from the living",

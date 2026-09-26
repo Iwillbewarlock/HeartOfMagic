@@ -107,9 +107,9 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 
 `80_manual.json` 은 1,440개 주문 로드오더의 스캔(2026-09-21)을 보고 만든 것이다(73개 주문이 바뀐다):
 
-- 혈: AncientBlood 의 흡혈의 오로라, 피의 불꽃 소용돌이, 박쥐의 연회, Occult Cradle 의 내면의 힘,
-  Mysticism 의 Blood Lance(피의 창)와 Vampiric 다섯 개(Touch·Bolt·Grasp·Blast·Rune - 한국어 번역에서는
-  "엔트로피"라 헷갈리지만 원문은 Vampiric, 원작자 설명도 산 자의 체력을 흡수하는 흡혈 마법이다)
+- 혈(주문 직접 지정, 혈 기준 규칙으로는 안 잡히는 예외): Mysticism 의 Blood Lance(피의 창)와 Vampiric 다섯 개(Touch·Bolt·Grasp·Blast·Rune - 한국어 번역에서는
+  "엔트로피"라 헷갈리지만 원문은 Vampiric, 원작자 설명도 산 자의 체력을 흡수하는 흡혈 마법이다). AncientBlood 주문은 이제 이름 규칙이 잡는다. Occult Cradle 의 내면의 힘은
+  새 기준으로 혈이 아니라 뺐다(2026-09-27)
 - 물: Natura 의 물 튀김(같은 세트에서 혼자 물 키워드가 없다)
 - 흙: Natura 의 돌 던지기(같은 이유)
 - 바람: Lost Grimoire 의 울부짖는 돌풍, 속박 풀린 빙결(차가운 바람)
