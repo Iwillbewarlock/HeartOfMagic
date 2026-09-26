@@ -21,9 +21,11 @@ Papyrus 로 돌리든 패널의 Scan 버튼을 누르든 같은 카탈로그가 
 **카탈로그는 트리가 읽는다(2026-09-27).** `ClassifyScan` 은 카탈로그를 만든 뒤(효과 없는 스펠북
 스캔이면 마지막 전체 스캔이 남긴 카탈로그를 읽어) 각 주문의 `traits`·`chips` 의 `element.*` 를 카탈로그
 원소로 **바꿔 끼운다**(`LibrarianTraits.cpp`). 트리 빌더·학파 다리·스펠 카드가 모두 이걸 본다. 그래서
-룰이 붙인 혈·물·신성 같은 원소가 트리 묶음에 쓰이고, 룰이 뗀 원소는 트리에서도 빠진다. 넘어가는 것은
+룰이 붙인 혈·물·바람 같은 원소가 트리 묶음에 쓰이고, 룰이 뗀 원소는 트리에서도 빠진다. 넘어가는 것은
 "무엇으로 된 마법인가"뿐이다(`TREE_ELEMENTS`: acid, air, arcane, blood, disease, earth, eldritch, fire,
-force, frost, holy, light, metal, nature, necrotic, poison, shadow, shock, soul, sun, time, water).
+force, frost, light, metal, nature, necrotic, poison, shadow, shock, soul, sun, time, water). `holy` 는
+카탈로그에는 남지만 넘기지 않는다: 신성 주문은 거의 다 회복 학파(이 로드오더에서 63개 중 57개)라 학파 안에서
+따로 묶어 줄 것이 없다(2026-09-27 결정).
 creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*` 가 이미 말하고, 거의 모든 주문에
 붙어 다리가 재는 드문 태그를 묻어 버리므로 넘기지 않는다. 소환·무기 소환·시체 되살리기의 `soul` 도
 넘기지 않는다(Spell Research 가 소환물에 붙이는 표시일 뿐 테마가 아니다). 카드 아이콘 규칙은 여전히
@@ -127,8 +129,7 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
   `KIT_MagicAbsorbType_Dispel<X>Cloak`, `KIT_MagicSoulTrapType_DispelNormalCloak` 는 접두어 룰이 놓치던
   망토용 키워드라 따로 받는다(맹독 망토 → 독, Mysticism 영혼 수확 → 영혼 등)
 - 설명으로 판단한 예외(주문 직접 지정, 기록에 신호가 없다): Glenmoril 성 바즈라의 횃불(화염 피해 →
-  화염), 신성: Lightpower 의 신성한 불꽃·성역·신성한 정화·천벌(천벌은 태양빛이라 태양도), Lost Grimoire
-  의 신성한 축복·수호자·방패
+  화염), Lightpower 천벌(태양빛 → 태양)
 - 빼기(기록이 잘못 붙인 것): 바닐라 화염 폭풍의 냉기, Natura 룬 여섯 개의 화염(룬이 공유하는 폭발
   효과 탓)과 바람의 룬의 물, Natura 바람 손 주문 세 개의 흙, 돌풍의 전격, Arclight 뇌광의 벽의 화염,
   Mysticism 폭풍격류의 냉기와 냉기 취약의 바람(북풍 퍽 키워드 탓, 설명은 냉기 화살), 소환·무기 생성 주문 네 개(불꽃심장, 파이어-브랜드, 아이스-브레이커,

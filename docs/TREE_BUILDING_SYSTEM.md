@@ -240,7 +240,7 @@ before any word matching happens. One theme per spell, most telling first:
 
 1. a summon: `summon_fire` / `summon_frost` / `summon_shock` / `summon_undead` / `summon_familiar`, else `summon`
 2. the element: `fire`, `frost`, `shock`, `poison`, `disease`, and since 2026-09-27 every element the
-   tag librarian gives (`blood`, `water`, `air`, `earth`, `holy`, `sun`, `shadow`, `necrotic`,
+   tag librarian gives (`blood`, `water`, `air`, `earth`, `sun`, `shadow`, `necrotic`,
    `eldritch`, `arcane` ... - `Librarian::TREE_ELEMENTS`), merged into `traits` right after the scan.
    On the 1,440-spell test load order that cut the number of separate same-element clusters in the
    classic tree by 17-19% (seeds 1-3), e.g. shadow 19 -> 10, eldritch 26 -> 17

@@ -252,9 +252,11 @@ namespace Librarian
     // (creature, human, undead, armor, health, magicka, trap ...) says what a
     // spell acts on, which the scanner's kind.* traits already cover, and on
     // nearly every spell it would drown the rarer tags the bridges weigh.
+    // Holy stays out too: nearly every holy spell is Restoration, so within a
+    // school it groups nothing the school does not (decided 2026-09-27).
     inline constexpr std::string_view TREE_ELEMENTS[] = {
         "acid", "air", "arcane", "blood", "disease", "earth", "eldritch", "fire",
-        "force", "frost", "holy", "light", "metal", "nature", "necrotic", "poison",
+        "force", "frost", "light", "metal", "nature", "necrotic", "poison",
         "shadow", "shock", "soul", "sun", "time", "water",
     };
 

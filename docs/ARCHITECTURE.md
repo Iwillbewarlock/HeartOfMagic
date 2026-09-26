@@ -103,7 +103,7 @@ Built by `BuildSpellTraits` (SpellScannerChips.cpp), the same list the spell car
 **The librarian's elements replace the scanner's (2026-09-27).** Vanilla keywords only name fire,
 frost, shock, poison and disease. Right after a scan, `Librarian::ClassifyScan` builds the tag
 catalog (docs/librarian/LIBRARIAN.md) and rewrites every spell's `element.*` entries in `traits` and
-`chips` from it, so the tree builder, the bridges and the card see blood, water, holy, shadow ... as
+`chips` from it, so the tree builder, the bridges and the card see blood, water, air, shadow ... as
 the rule files tag them, and a tag a rule removes is gone there too. A tome scan (no effects) takes
 the catalog the last full scan left. The held scan (`m_scanText`) and the result sent to the panel
 are the merged text. The card icon rules still read the scanner's own traits.

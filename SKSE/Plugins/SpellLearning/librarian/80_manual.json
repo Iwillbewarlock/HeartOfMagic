@@ -104,18 +104,6 @@
     { "match": { "archetype": "ValueModifier", "primaryAV": "DiseaseResist", "hostile": false },
       "add": { "elements": ["disease", "resistance"] } },
 
-    { "_": "Holy light: Lightpower's Holy Flame, Sanctuary, Holy Purification, Judgement; Lost Grimoire's divine blessing, guardian and shield (not castable after a murder)",
-      "match": { "spell": [
-        "Lightpower.esl|0x000822",
-        "Lightpower.esl|0x000825",
-        "Lightpower.esl|0x000826",
-        "Lightpower.esl|0x000829",
-        "LostGrimoire.esp|0x1D5500",
-        "LostGrimoire.esp|0x1D5515",
-        "LostGrimoire.esp|0x1DA65D"
-      ] },
-      "add": { "elements": ["holy"] } },
-
     { "_": "Lightpower's Judgement calls down sunlight",
       "match": { "spell": "Lightpower.esl|0x000829" },
       "add": { "elements": ["sun"] } },
