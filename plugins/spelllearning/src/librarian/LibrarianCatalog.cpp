@@ -43,6 +43,9 @@ namespace Librarian
             if (source == SOURCE_FRAMEWORK) {
                 return CONFIDENCE_FRAMEWORK;
             }
+            if (source == SOURCE_MANUAL) {
+                return CONFIDENCE_MANUAL;
+            }
             return CONFIDENCE_NONE;
         }
 
@@ -254,6 +257,26 @@ namespace Librarian
             const RuleSet rules = LoadRules(RulesPath().string());
             if (rules.rules.empty()) {
                 logger::warn("Librarian: no rules loaded - skipping catalog");
+                return "";
+            }
+
+            // A scan without effects (its field settings left them out) has
+            // nothing to classify: every spell would come out untagged. Keep
+            // the catalog there is rather than overwrite it with that - seen
+            // once, all 1,440 spells written without an element.
+            bool anyEffects = false;
+            const auto spellList = scanDump.find("spells");
+            if (spellList != scanDump.end() && spellList->is_array()) {
+                for (const auto& spell : *spellList) {
+                    const auto effects = spell.find("effects");
+                    if (effects != spell.end() && effects->is_array() && !effects->empty()) {
+                        anyEffects = true;
+                        break;
+                    }
+                }
+            }
+            if (!anyEffects) {
+                logger::warn("Librarian: the scan has no effects to classify - catalog left as it is");
                 return "";
             }
 

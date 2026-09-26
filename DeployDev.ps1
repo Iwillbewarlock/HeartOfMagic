@@ -54,6 +54,16 @@ if (Test-Path $designSrc) {
     Write-Host ("designs {0}" -f ((Get-ChildItem $designSrc -Filter '*.json').Count))
 }
 
+# The librarian's rule files (the hand-made 80_manual.json among them): the
+# plugin reads them at every scan, so a changed rule needs them in the install
+$rulesSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\librarian'
+$rulesDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\librarian'
+if (Test-Path $rulesSrc) {
+    New-Item -ItemType Directory -Force -Path $rulesDst | Out-Null
+    Copy-Item (Join-Path $rulesSrc '*.json') $rulesDst -Force
+    Write-Host ("rules   {0}" -f ((Get-ChildItem $rulesSrc -Filter '*.json').Count))
+}
+
 # Keep the language line the dev install is set to
 $localeDst = Join-Path $panelDst 'lang\locale.js'
 $keptLocale = if (Test-Path $localeDst) { Get-Content $localeDst -Raw -Encoding UTF8 } else { $null }

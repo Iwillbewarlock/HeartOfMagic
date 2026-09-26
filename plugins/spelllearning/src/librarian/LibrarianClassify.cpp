@@ -1,6 +1,8 @@
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
 
+#include <algorithm>
+
 // =============================================================================
 // LibrarianClassify - matching rules against one scanned spell
 //
@@ -86,6 +88,12 @@ namespace Librarian
 
         bool SpellMatches(const json& spell, const RuleMatch& match)
         {
+            if (!match.spells.empty()) {
+                const std::string id = ReadField(spell, "persistentId");
+                if (id.empty() || std::find(match.spells.begin(), match.spells.end(), id) == match.spells.end()) {
+                    return false;
+                }
+            }
             if (!match.spellKeyword.empty() && !HasKeyword(spell, match.spellKeyword)) {
                 return false;
             }

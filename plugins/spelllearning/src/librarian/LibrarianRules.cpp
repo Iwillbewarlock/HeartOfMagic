@@ -83,6 +83,17 @@ namespace Librarian
                 return match;
             }
 
+            // "spell": one persistentId or a list of them
+            const auto spellField = matchObject.find("spell");
+            if (spellField != matchObject.end()) {
+                if (spellField->is_string()) {
+                    match.spells.push_back(spellField->get<std::string>());
+                } else if (spellField->is_array()) {
+                    for (const auto& entry : *spellField) {
+                        if (entry.is_string()) match.spells.push_back(entry.get<std::string>());
+                    }
+                }
+            }
             ReadString(matchObject, "spellKeyword", match.spellKeyword);
             ReadString(matchObject, "spellKeywordPrefix", match.spellKeywordPrefix);
             ReadString(matchObject, "spellKeywordSuffix", match.spellKeywordSuffix);
@@ -169,6 +180,7 @@ namespace Librarian
     bool RuleMatch::Empty() const
     {
         return !HasEffectCondition()
+            && spells.empty()
             && spellKeyword.empty()
             && spellKeywordPrefix.empty()
             && spellKeywordSuffix.empty();

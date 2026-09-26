@@ -1,0 +1,73 @@
+{
+  "tier": "manual",
+  "_comment": [
+    "Hand-made tags for spells whose records do not say what they are: blood,",
+    "water or wind magic that deals plain health damage through a script, and",
+    "elemental spells whose effect carries no element keyword or resistance.",
+    "Each rule names its spells by persistentId (\"Plugin.esp|0x000D62\" - the",
+    "id inside the plugin, so load order does not matter); a spell that is not",
+    "installed is simply never matched. Rules only add tags.",
+    "Picked from a scan of a 1,440-spell load order (2026-09-21). To add your",
+    "own, copy a rule, or put yours in 90_user.json so an update of this file",
+    "does not overwrite them."
+  ],
+  "rules": [
+
+    { "_": "Blood magic: life drained in blood's name, blood boiling for power",
+      "match": { "spell": [
+        "AncientBloodII.esl|0x000843",
+        "AncientBloodII.esl|0x00084C",
+        "AncientBloodII.esl|0x00090E",
+        "HAG - Occult Cradle Stone Tower.esp|0x00013F",
+        "MysticismMagic.esp|0x1B8A09"
+      ] },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Mysticism's vampiric spells (Entropy in the Korean names): life drained from the target",
+      "match": { "spell": [
+        "MysticismMagic.esp|0x1B8A10",
+        "MysticismMagic.esp|0x1B8A15",
+        "MysticismMagic.esp|0x2DE640",
+        "MysticismMagic.esp|0x2E8863",
+        "MysticismMagic.esp|0x46E8A8"
+      ] },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Water: Natura's Water Spray, the one water spell of the set without the water keyword",
+      "match": { "spell": "Natura.esp|0x000B2C" },
+      "add": { "elements": ["water"] } },
+
+    { "_": "Wind: a frozen gale, and cold wind wrapped round the caster",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x1F3B7C",
+        "ccbgssse014-spellpack01.esl|0x00080D"
+      ] },
+      "add": { "elements": ["air"] } },
+
+    { "_": "Chaos Crucible: fire, frost and shock at once, through a script",
+      "match": { "spell": "KittySpellPack02.esl|0x00082F" },
+      "add": { "elements": ["fire", "frost", "shock"] } },
+
+    { "_": "Lost Grimoire's scripted frost spells: Arctic Fortress, Icy Veil",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x2172CD",
+        "LostGrimoire.esp|0x2C876F"
+      ] },
+      "add": { "elements": ["frost"] } },
+
+    { "_": "Lost Grimoire's scripted shock spells: Storm Rift, Electric Field",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x207FB4",
+        "LostGrimoire.esp|0x2D7A90"
+      ] },
+      "add": { "elements": ["shock"] } },
+
+    { "_": "Lost Grimoire's Salamander Scales: fire ward that feeds on fire spells",
+      "match": { "spell": "LostGrimoire.esp|0x2D7A82" },
+      "add": { "elements": ["fire"] } },
+
+    { "_": "Necromancer's Magic's Death's Touch: soul energy released as damage",
+      "match": { "spell": "NecromancersMagic.esl|0x000828" },
+      "add": { "elements": ["soul"] } }
+  ]
+}

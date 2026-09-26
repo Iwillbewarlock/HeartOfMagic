@@ -35,6 +35,10 @@ namespace Librarian
 
     inline constexpr const char* SOURCE_MGEF = "mgef";
     inline constexpr const char* SOURCE_FRAMEWORK = "framework";
+    // A person looked at the spell and named what it is (a "spell" rule in a
+    // manual file): for what the structure cannot say - blood, water or wind
+    // magic dealing plain health damage through a script.
+    inline constexpr const char* SOURCE_MANUAL = "manual";
 
     // How far the evidence behind a tag can be trusted to exist at all on
     // someone else's setup. MGEF structure is on every record in every load
@@ -43,6 +47,8 @@ namespace Librarian
     // probability that the tag is correct - for that see docs/librarian/MEASURED.md.
     inline constexpr double CONFIDENCE_MGEF = 1.0;
     inline constexpr double CONFIDENCE_FRAMEWORK = 0.8;
+    // Keyed on the spell itself: present wherever the spell is.
+    inline constexpr double CONFIDENCE_MANUAL = 1.0;
     inline constexpr double CONFIDENCE_NONE = 0.0;
 
     // =========================================================================
@@ -82,6 +88,9 @@ namespace Librarian
     struct RuleMatch
     {
         // Spell level
+        // The spell itself, by persistentId ("Plugin.esp|0x000D62"): one or
+        // more. For hand-made rules, when nothing in the records says it.
+        std::vector<std::string> spells;
         std::string spellKeyword;
         std::string spellKeywordPrefix;
         std::string spellKeywordSuffix;
