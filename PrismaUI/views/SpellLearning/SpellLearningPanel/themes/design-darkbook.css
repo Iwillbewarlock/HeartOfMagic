@@ -1,0 +1,235 @@
+/*
+ * Dark book - the panel of a spellbook read in the dark: a tooled cover with a
+ * gold line round it, serif gold lettering, and dark pages (the spell card, the
+ * hover card, the How to learn page, popups) where Arcane has parchment.
+ *
+ * Shared by the Night Grimoire and Candlelit Tome presets
+ * (SKSE/Plugins/SpellLearning/presets/design/*.json, "cssFile"): each sets only
+ * the --book-* palette below in its inline "css". A new dark look can do the
+ * same with its own colours. Laid over the Skyrim Edge theme (styles-skyrim.css)
+ * like the other design sheets; the tree is drawn by the preset's tree tokens.
+ */
+
+:root {
+    /* Palette - every preset using this sheet sets these (values here are a
+       neutral fallback) */
+    --book-cover-top: #26201a;
+    --book-cover-bottom: #120e0a;
+    --book-cover-glow: rgba(120, 90, 50, 0.25);
+    --book-edge: #5a4628;
+    --book-gold: #d8b86c;
+    --book-gold-bright: #ecd08a;
+    --book-text: #e8dcc0;
+    --book-text-soft: #b8a888;
+    --book-text-faint: #857658;
+    --book-text-bright: #fff4d6;
+    --book-tools: rgba(30, 24, 18, 0.94);
+    --book-page: #1e1812;
+    --book-page-edge: #16110c;
+    --book-well: rgba(8, 6, 4, 0.55);
+
+    /* The theme's variables, from the palette */
+    --panel-bg: var(--book-cover-bottom);
+    --panel-bg-solid: var(--book-cover-bottom);
+    --panel-border: var(--book-edge);
+    --text-primary: var(--book-text);
+    --text-secondary: var(--book-text-soft);
+    --text-muted: var(--book-text-faint);
+    --text-bright: var(--book-text-bright);
+    --accent-gold: var(--book-gold);
+    --accent-gold-hover: var(--book-gold-bright);
+    --btn-bg: rgba(255, 240, 200, 0.06);
+    --btn-bg-hover: rgba(255, 240, 200, 0.12);
+    --input-bg: var(--book-well);
+    --divider: rgba(255, 240, 200, 0.1);
+    /* The canvas reads this one itself: the presets set it to a plain colour
+       too, in case the engine does not resolve var() here */
+    --preview-bg: var(--book-page-edge);
+
+    --book-serif: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+}
+
+/* ---------------------------------------------------------------- the cover */
+
+.spell-panel {
+    background:
+        radial-gradient(ellipse at 50% 0%, var(--book-cover-glow) 0%, transparent 60%),
+        linear-gradient(180deg, var(--book-cover-top) 0%, var(--book-cover-bottom) 100%);
+    border: 1px solid var(--book-edge);
+    /* gold tooling: a thin inset line a few pixels in from the edge */
+    box-shadow:
+        inset 0 0 0 3px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 4px var(--book-edge),
+        0 0 0 2px rgba(0, 0, 0, 0.65);          /* crisp, not blurred: repainted on the CPU in game */
+}
+
+.panel-header {
+    background: linear-gradient(180deg, rgba(255, 240, 200, 0.05) 0%, rgba(0, 0, 0, 0.2) 100%);
+    border-bottom: 1px solid var(--book-edge);
+}
+
+.panel-title {
+    font-family: var(--book-serif);
+    color: var(--book-gold-bright);
+    /* The serif runs wider than the theme's narrow sans: one line, with room
+       for the Return button on the settings and scan screens */
+    font-size: 1.9em;
+    letter-spacing: 3px;
+    white-space: nowrap;
+}
+
+.version-tag {
+    background: rgba(255, 240, 200, 0.08);
+    border: 1px solid var(--book-edge);
+}
+
+.header-btn {
+    white-space: nowrap;
+}
+
+.header-btn,
+.btn,
+.settings-block-title,
+.subsection-title,
+.popup-section-title,
+.school-tab,
+.modal-header h2,
+.modal-header h3,
+.howto-header h3,
+.howto-section h4,
+.details-header #spell-name,
+.details-panel .spell-name,
+#tooltip .tooltip-name {
+    font-family: var(--book-serif);
+}
+
+.btn {
+    border-color: var(--book-edge);
+}
+
+.btn-primary {
+    background: rgba(255, 220, 140, 0.14);
+    border-color: var(--book-gold);
+    color: var(--book-gold-bright);
+}
+
+.settings-block {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--book-edge);
+}
+
+.settings-block-header {
+    background: rgba(255, 240, 200, 0.04);
+    border-bottom: 1px solid var(--book-edge);
+}
+
+.settings-block-title {
+    color: var(--book-gold-bright);
+    letter-spacing: 1.5px;
+}
+
+/* Switches in gold, not the theme's green */
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(255, 220, 140, 0.2);
+    border-color: var(--book-gold);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    background: var(--book-gold);
+}
+
+/* ------------------------------------------------------------ the tree page */
+
+.tree-container {
+    border: 1px solid var(--book-edge);
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.6),
+        0 0 0 4px var(--book-edge),
+        inset 0 0 22px rgba(0, 0, 0, 0.5);
+}
+
+/* Tools on the page: the cover's leather */
+.zoom-controls,
+.tree-footer,
+#tree-school-tabs,
+#tree-trait-filter,
+#howto-tab {
+    background: var(--book-tools);
+    border-color: var(--book-edge);
+}
+
+#howto-tab {
+    color: var(--book-gold-bright);
+}
+
+/* The render settings popup: a tool like the zoom bar */
+.heart-settings-popup {
+    background: var(--book-cover-bottom);
+    border-color: var(--book-edge);
+}
+
+.heart-settings-popup .popup-header {
+    background: rgba(255, 220, 140, 0.08);
+    color: var(--book-gold-bright);
+    font-family: var(--book-serif);
+}
+
+.school-tab.active {
+    background: rgba(255, 220, 140, 0.16);
+    color: var(--book-gold-bright);
+}
+
+/* --------------------------------------------------------------- the pages */
+
+/* The spell card, the how-to page, the popups and the hover card: dark pages
+   with a gold-edged frame; section headings in gold */
+.details-panel,
+#contentSpellTree.details-bottom .details-panel,
+.howto-panel,
+.modal-content,
+#tooltip.tooltip {
+    background: linear-gradient(180deg, var(--book-page) 0%, var(--book-page-edge) 100%);
+    border: 1px solid var(--book-edge);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.55);   /* crisp (see .spell-panel) */
+}
+
+.howto-panel {
+    --accent-blue: var(--book-gold);
+    border-left: 3px solid var(--book-edge);
+}
+
+.howto-section {
+    background: rgba(255, 240, 200, 0.04);
+}
+
+.details-header,
+.details-footer,
+.modal-header {
+    background: rgba(255, 240, 200, 0.04);
+}
+
+#tooltip .tooltip-name {
+    color: var(--book-text-bright);
+}
+
+/* Thin scrollbars in the cover's gold */
+.spell-panel ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.spell-panel ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.spell-panel ::-webkit-scrollbar-thumb {
+    background: var(--book-edge);
+}
+
+/* Under the opaque tree canvas the inner shadow is never seen, but was
+   blurred again on every change of the canvas: only the frame while it shows */
+.tree-container.canvas-shown {
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.6),
+        0 0 0 4px var(--book-edge);
+}

@@ -258,8 +258,31 @@
         return Object.keys(_translations);
     }
 
+    /**
+     * t() for text built by script: a translation that does not have the key
+     * yet shows the English fallback instead of the raw key.
+     * @param {string} key
+     * @param {Object|null} params - {{variable}} values, also applied to the fallback
+     * @param {string} fallback - English text, may contain the same {{variables}}
+     * @returns {string}
+     */
+    function tOr(key, params, fallback) {
+        var s = t(key, params);
+        if (s !== key) return s;
+        var str = fallback;
+        if (params) {
+            for (var name in params) {
+                if (params.hasOwnProperty(name)) {
+                    str = str.replace(new RegExp('\\{\\{' + name + '\\}\\}', 'g'), params[name]);
+                }
+            }
+        }
+        return str;
+    }
+
     // Expose globally
     window.t = t;
+    window.tOr = tOr;
     window.initI18n = initI18n;
     window.applyI18nToDOM = applyI18nToDOM;
     window.getLocale = getLocale;

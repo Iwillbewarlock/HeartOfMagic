@@ -115,6 +115,12 @@ function updateRetrySchoolUI() {
         }
     });
     
+    // Nothing changed since the last look (it runs every 2 s): leave the DOM
+    // alone - rebuilding the list repainted the panel and closed an open dropdown
+    var shownKey = allProblemSchools.map(function(p) { return p.school + '|' + p.reason; }).join(';');
+    if (shownKey === updateRetrySchoolUI._shown) return;
+    updateRetrySchoolUI._shown = shownKey;
+
     // Show/hide the row
     if (allProblemSchools.length > 0) {
         retrySchoolRow.style.display = 'flex';
@@ -546,6 +552,13 @@ function initializeSettings() {
     
     // UI Theme selector
     initializeThemeSelector();
+
+    // Design preset selector (whole-panel look; add-ons add presets/design/*.json)
+    DesignPresets.initSelector();
+
+    // Known higher spells: open the spells below, how far, at what XP
+    if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.init();
+    if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.init();
     
     // Learning color picker
     var learningColorPicker = document.getElementById('learningColorPicker');
@@ -555,7 +568,12 @@ function initializeSettings() {
         if (learningColorValue) learningColorValue.textContent = learningColorPicker.value.toUpperCase();
         applyLearningColor(settings.learningColor || '#7890A8');
         
+        // While the colour is being picked only its label follows; the colour is
+        // applied (four page-wide CSS variables, a tree render) once it is chosen
         learningColorPicker.addEventListener('input', function() {
+            if (learningColorValue) learningColorValue.textContent = this.value.toUpperCase();
+        });
+        learningColorPicker.addEventListener('change', function() {
             settings.learningColor = this.value;
             if (learningColorValue) learningColorValue.textContent = this.value.toUpperCase();
             applyLearningColor(this.value);
@@ -577,7 +595,13 @@ function initializeSettings() {
         updateSliderFillGlobal(fontSizeSlider);
         applyFontSizeMultiplier(settings.fontSizeMultiplier || 1.0);
         
+        // Dragging moves the label; the size (a layout of the whole page) is
+        // applied when the slider is let go
         fontSizeSlider.addEventListener('input', function() {
+            if (fontSizeValue) fontSizeValue.textContent = parseFloat(this.value).toFixed(1) + 'x';
+            updateSliderFillGlobal(this);
+        });
+        fontSizeSlider.addEventListener('change', function() {
             var value = parseFloat(this.value);
             settings.fontSizeMultiplier = value;
             if (fontSizeValue) fontSizeValue.textContent = value.toFixed(1) + 'x';
@@ -596,6 +620,18 @@ function initializeSettings() {
             settings.detailsLayout = this.checked ? 'side' : 'bottom';
             if (typeof TreeNav !== 'undefined') TreeNav.applyDetailsLayout();
             console.log('[SpellLearning] Details layout:', settings.detailsLayout);
+            scheduleAutoSave();
+        });
+    }
+
+    // Hover preview toggle (off = the card only opens on a click)
+    var hoverDetailsToggle = document.getElementById('hoverDetailsToggle');
+    if (hoverDetailsToggle) {
+        hoverDetailsToggle.checked = settings.detailsOnHover !== false;
+        hoverDetailsToggle.addEventListener('change', function() {
+            settings.detailsOnHover = this.checked;
+            if (typeof DetailsPeek !== 'undefined') DetailsPeek.applyLayout();
+            console.log('[SpellLearning] Details on hover:', settings.detailsOnHover);
             scheduleAutoSave();
         });
     }
@@ -681,7 +717,7 @@ function initializeSettings() {
     // Check for schools needing attention periodically and update UI
     // Only runs when panel is visible to avoid wasting CPU
     setInterval(function() {
-        if (window._panelVisible !== false) {
+        if (window._panelVisible !== false && state.currentTab === 'settings') {
             updateRetrySchoolUI();
         }
     }, 2000);
@@ -966,6 +1002,11 @@ function initializeSettings() {
                 settings[settingKey] = parseInt(this.value);
                 valueDisplay.textContent = this.value + '%';
                 updateSliderFill(this);
+            });
+
+            // Let go: the tree and the card follow the new threshold (once, not
+            // per step of the drag), and it is saved
+            slider.addEventListener('change', function() {
                 // Re-render tree labels when reveal thresholds change
                 if (settingKey === 'revealName' || settingKey === 'revealEffects' || settingKey === 'revealDescription') {
                     if (typeof CanvasRenderer !== 'undefined') { CanvasRenderer._needsRender = true; }
@@ -976,12 +1017,8 @@ function initializeSettings() {
                         showSpellDetails(state.selectedNode);
                     }
                 }
-            });
-
-            // Save on change (when user releases slider)
-            slider.addEventListener('change', function() {
                 console.log('[SpellLearning] ' + settingKey + ':', settings[settingKey]);
-                    autoSaveSettings();
+                autoSaveSettings();
             });
         }
     }
@@ -1028,7 +1065,8 @@ function initializeSettings() {
                 this.value = val;
                 settings[settingKey] = val;
                 console.log('[SpellLearning] ' + settingKey + ':', settings[settingKey]);
-                    autoSaveSettings();
+                if (typeof RequiredXPSync !== 'undefined') RequiredXPSync.sync();
+                autoSaveSettings();
             });
             
             // Also save on blur
@@ -1223,6 +1261,7 @@ function saveUnifiedConfig() {
         verboseLogging: settings.verboseLogging,
         // UI Display settings
         uiTheme: settings.uiTheme,
+        designPreset: settings.designPreset,
         learningColor: settings.learningColor,
         fontSizeMultiplier: settings.fontSizeMultiplier,
         aggressivePathValidation: settings.aggressivePathValidation,
@@ -1322,10 +1361,13 @@ function saveUnifiedConfig() {
         // Camera settings
         focusOnClick: settings.focusOnClick,
         focusZoomOnClick: settings.focusZoomOnClick,
+        showSelectionPath: settings.showSelectionPath,
+        showBaseConnections: settings.showBaseConnections,
         focusZoom: settings.focusZoom,
         focusRotate: settings.focusRotate,
         language: settings.language || '',
         detailsLayout: settings.detailsLayout,
+        detailsOnHover: settings.detailsOnHover,
         focusDimOthers: settings.focusDimOthers,
         uiPatchDefaults: settings.uiPatchDefaults || 1,   // Marker: patch defaults (tomes-only scan) already applied once
 
@@ -1364,6 +1406,10 @@ function saveUnifiedConfig() {
         // Active scanner preset name (preset data now in individual files)
         activeScannerPreset: typeof _activeScannerPreset !== 'undefined' ? _activeScannerPreset : ''
     };
+    // Known higher spells (reverse unlock): what they open, XP share, own gain rates
+    if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(unifiedConfig);
+    if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
+    if (typeof RenderSettings !== 'undefined') RenderSettings.saveTo(unifiedConfig);
 
     // Closing the panel saves, and so do many handlers that change nothing.
     // Each save made C++ read, merge and rewrite config.json and re-apply
@@ -1387,11 +1433,16 @@ function resetSettings() {
     settings.verboseLogging = false;
     // UI Display defaults
     settings.uiTheme = 'skyrim';
+    settings.designPreset = DesignPresets.DEFAULT_ID;
+    DesignPresets.apply(settings.designPreset);
     settings.learningColor = '#7890A8';
     settings.fontSizeMultiplier = 1.0;
     settings.learningMode = 'perSchool';
     settings.autoAdvanceLearning = true;
     settings.autoAdvanceMode = 'branch';
+    if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
+    if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.reset();
+    if (typeof RenderSettings !== 'undefined') RenderSettings.reset();
     settings.xpGlobalMultiplier = 1;
     settings.xpMultiplierDirect = 100;
     settings.xpMultiplierSchool = 50;
@@ -1539,7 +1590,13 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.preserveMultiPrereqs = data.preserveMultiPrereqs !== false;  // default true
         settings.verboseLogging = data.verboseLogging || false;
         // UI Display settings
-        settings.uiTheme = data.uiTheme || 'skyrim';
+        // Known higher spells (reverse unlock): what they open, XP share, own gain rates
+        if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.loadFrom(data);
+        if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.loadFrom(data);
+        if (typeof RenderSettings !== 'undefined') RenderSettings.loadFrom(data);
+        // One design sets the UI theme too (DesignPresets); older configs are carried over
+        settings.designPreset = DesignPresets.savedChoice(data);
+        DesignPresets.apply(settings.designPreset);
         settings.learningColor = data.learningColor || '#7890A8';
         settings.fontSizeMultiplier = data.fontSizeMultiplier !== undefined ? data.fontSizeMultiplier : 1.0;
         settings.aggressivePathValidation = data.aggressivePathValidation !== false;  // default true
@@ -1812,24 +1869,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             popupDividerCustomColor.value = customColor;
         }
         
-        // Update theme UI
-        var themeSelect = document.getElementById('uiThemeSelect');
-        var themeDesc = document.getElementById('themeDescription');
-        if (themeSelect && settings.uiTheme) {
-            themeSelect.value = settings.uiTheme;
-            if (themeDesc && UI_THEMES[settings.uiTheme]) {
-                themeDesc.textContent = UI_THEMES[settings.uiTheme].description;
-            }
-            // Apply saved theme if different from current
-            var currentStylesheet = document.querySelector('link[rel="stylesheet"][href*="styles"]');
-            if (currentStylesheet && UI_THEMES[settings.uiTheme]) {
-                var currentFile = currentStylesheet.getAttribute('href');
-                if (currentFile !== UI_THEMES[settings.uiTheme].file) {
-                    applyTheme(settings.uiTheme);
-                }
-            }
-        }
-        
         // Update learning color UI
         var learningColorPicker = document.getElementById('learningColorPicker');
         var learningColorValue = document.getElementById('learningColorValue');
@@ -1852,6 +1891,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         // Update details layout UI
         var sideDetailsToggleEl = document.getElementById('sideDetailsToggle');
         if (sideDetailsToggleEl) sideDetailsToggleEl.checked = settings.detailsLayout === 'side';
+        var hoverDetailsToggleEl = document.getElementById('hoverDetailsToggle');
+        if (hoverDetailsToggleEl) hoverDetailsToggleEl.checked = settings.detailsOnHover !== false;
 
         // Update ISL settings UI
         var islEnabledToggle = document.getElementById('islEnabledToggle');
@@ -2147,6 +2188,9 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         
         // === Camera Settings ===
         settings.focusOnClick = data.focusOnClick !== false;          // default true
+        // Were never saved: they came back on with every start
+        settings.showSelectionPath = data.showSelectionPath !== false;     // default true
+        settings.showBaseConnections = data.showBaseConnections !== false; // default true
         settings.focusZoomOnClick = data.focusZoomOnClick !== false;  // default true
         settings.focusZoom = (typeof data.focusZoom === 'number' && data.focusZoom > 0) ? data.focusZoom : 1.0;
         settings.focusRotate = data.focusRotate === true;             // default false
@@ -2156,6 +2200,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         applySavedLanguage();
         settings.detailsLayout = data.detailsLayout === 'side' ? 'side' : 'bottom';
         if (typeof TreeNav !== 'undefined') TreeNav.applyDetailsLayout();
+        settings.detailsOnHover = data.detailsOnHover !== false;   // default true
+        if (typeof DetailsPeek !== 'undefined') DetailsPeek.applyLayout();
         settings.focusDimOthers = data.focusDimOthers !== false;   // default true
 
         // === Starfield Settings ===
@@ -2286,6 +2332,9 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             }
         }
 
+        // Render popup: retire values it no longer offers, show the loaded ones
+        if (typeof RenderSettings !== 'undefined') RenderSettings.afterLoad(data);
+
         // Apply heart settings to renderer
         applyHeartSettingsToRenderer();
         applyGlobeSettings();
@@ -2307,6 +2356,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             console.log('[SpellLearning] Loading preset files from disk...');
             window.callCpp('LoadPresets', JSON.stringify({ type: 'settings' }));
             window.callCpp('LoadPresets', JSON.stringify({ type: 'scanner' }));
+            DesignPresets.requestFromDisk();
         }
         
     } catch (e) {
@@ -2467,6 +2517,20 @@ window.onModdedXPSourceRegistered = function(dataStr) {
 // =============================================================================
 
 /**
+ * A theme's stylesheet as the page must link it. The theme files write cssFile
+ * relative to themes/ ("../styles-skyrim.css"), but the link sits in index.html, one
+ * folder up: taken as it was, "../styles-skyrim.css" pointed outside the panel, never
+ * loaded, and switching to that theme left the old stylesheet in place.
+ * @param {Object} theme - a themes/*.json definition
+ * @returns {string} path relative to the panel
+ */
+function themeCssPath(theme) {
+    var css = theme.cssFile || (theme.id + '.css');
+    if (css.indexOf('../') === 0) return css.substring(3);
+    return 'themes/' + css;
+}
+
+/**
  * Load all available themes from the themes/ folder
  * Reads manifest.json to get theme list, then loads each theme definition
  */
@@ -2520,7 +2584,7 @@ function loadThemesFromFolder() {
                     if (theme && theme.id) {
                         UI_THEMES[theme.id] = {
                             name: theme.name || theme.id,
-                            file: theme.cssFile || ('themes/' + theme.id + '.css'),
+                            file: themeCssPath(theme),
                             description: theme.description || '',
                             author: theme.author || '',
                             version: theme.version || '1.0'
@@ -2536,11 +2600,6 @@ function loadThemesFromFolder() {
                 console.error('[SpellLearning] Failed to load themes:', err);
                 // Fall back to built-in themes
                 UI_THEMES = {
-                    'default': {
-                        name: 'Default (Modern Dark)',
-                        file: 'styles.css',
-                        description: 'Modern dark UI with gradients and glow effects'
-                    },
                     'skyrim': {
                         name: 'Skyrim Edge',
                         file: 'styles-skyrim.css',
@@ -2555,121 +2614,12 @@ function loadThemesFromFolder() {
 }
 
 /**
- * Initialize the theme selector dropdown
- * Call after loadThemesFromFolder() completes
+ * Load the UI themes for the designs. The theme has no selector of its own any
+ * more: a design sets it (DesignPresets.onThemesLoaded).
  */
 function initializeThemeSelector() {
-    var themeSelect = document.getElementById('uiThemeSelect');
-    var themeDesc = document.getElementById('themeDescription');
-    
-    if (!themeSelect) {
-        console.warn('[SpellLearning] Theme selector not found');
-        return;
-    }
-    
-    // If themes not loaded yet, load them first
-    if (!themesLoaded || Object.keys(UI_THEMES).length === 0) {
-        loadThemesFromFolder().then(function() {
-            populateThemeSelector(themeSelect, themeDesc);
-        });
-    } else {
-        populateThemeSelector(themeSelect, themeDesc);
-    }
-}
-
-/**
- * Populate the theme selector dropdown with loaded themes
- */
-function populateThemeSelector(themeSelect, themeDesc) {
-    // Populate dropdown from UI_THEMES
-    themeSelect.innerHTML = '';
-    
-    var themeKeys = Object.keys(UI_THEMES);
-    if (themeKeys.length === 0) {
-        var option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No themes found';
-        option.disabled = true;
-        themeSelect.appendChild(option);
-        return;
-    }
-    
-    themeKeys.forEach(function(themeKey) {
-        var theme = UI_THEMES[themeKey];
-        var option = document.createElement('option');
-        option.value = themeKey;
-        option.textContent = theme.name + (theme.author ? ' by ' + theme.author : '');
-        themeSelect.appendChild(option);
-    });
-    
-    // Set current value
-    var currentTheme = settings.uiTheme || 'skyrim';
-    if (!UI_THEMES[currentTheme]) {
-        currentTheme = themeKeys[0];
-        settings.uiTheme = currentTheme;
-    }
-    themeSelect.value = currentTheme;
-    
-    // Update description
-    if (themeDesc && UI_THEMES[currentTheme]) {
-        themeDesc.textContent = UI_THEMES[currentTheme].description;
-    }
-    
-    // Handle theme change
-    themeSelect.addEventListener('change', function() {
-        var newTheme = this.value;
-        if (!UI_THEMES[newTheme]) {
-            console.error('[SpellLearning] Unknown theme:', newTheme);
-            return;
-        }
-        
-        settings.uiTheme = newTheme;
-        
-        // Update description
-        if (themeDesc) {
-            themeDesc.textContent = UI_THEMES[newTheme].description;
-        }
-        
-        // Hot-swap the stylesheet
-        applyTheme(newTheme);
-        
-        console.log('[SpellLearning] Theme changed to:', newTheme);
-        scheduleAutoSave();
-    });
-    
-    console.log('[SpellLearning] Theme selector initialized with', themeKeys.length, 'themes');
-    
-    // Setup refresh button
-    var refreshBtn = document.getElementById('refreshThemesBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
-            refreshBtn.disabled = true;
-            refreshBtn.textContent = '⏳';
-            
-            refreshThemes().then(function() {
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '[R]';
-                console.log('[SpellLearning] Themes refreshed');
-            }).catch(function() {
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '[R]';
-            });
-        });
-    }
-}
-
-/**
- * Refresh the theme list by re-scanning the themes folder
- */
-function refreshThemes() {
-    themesLoaded = false;
-    return loadThemesFromFolder().then(function() {
-        var themeSelect = document.getElementById('uiThemeSelect');
-        var themeDesc = document.getElementById('themeDescription');
-        if (themeSelect) {
-            populateThemeSelector(themeSelect, themeDesc);
-        }
-        return UI_THEMES;
+    loadThemesFromFolder().then(function() {
+        if (typeof DesignPresets !== 'undefined') DesignPresets.onThemesLoaded();
     });
 }
 
@@ -2685,7 +2635,9 @@ function applyTheme(themeKey) {
     }
     
     // Find the current stylesheet link
-    var styleLink = document.querySelector('link[rel="stylesheet"][href*="styles"]');
+    // By id: an add-on theme's stylesheet need not have "styles" in its name
+    var styleLink = document.getElementById('ui-theme-css') ||
+        document.querySelector('link[rel="stylesheet"][href*="styles"]');
     if (!styleLink) {
         console.error('[SpellLearning] Could not find stylesheet link');
         return;
@@ -2707,6 +2659,7 @@ function applyTheme(themeKey) {
     var newLink = document.createElement('link');
     newLink.rel = 'stylesheet';
     newLink.href = newHref;
+    newLink.id = 'ui-theme-css';
     
     // When the new stylesheet loads, remove the old one
     newLink.onload = function() {
@@ -2991,101 +2944,8 @@ function initializeHeartSettings() {
         });
     }
     
-    // Pulse speed slider
-    var pulseSpeed = document.getElementById('heart-pulse-speed');
-    var pulseSpeedVal = document.getElementById('heart-pulse-speed-val');
-    if (pulseSpeed) {
-        pulseSpeed.value = settings.heartPulseSpeed !== undefined ? settings.heartPulseSpeed : 1;
-        if (pulseSpeedVal) pulseSpeedVal.textContent = parseFloat(pulseSpeed.value).toFixed(2);
-        pulseSpeed.addEventListener('input', function() {
-            settings.heartPulseSpeed = parseFloat(this.value);
-            if (pulseSpeedVal) pulseSpeedVal.textContent = parseFloat(this.value).toFixed(2);
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Pulse delay slider (time between pulse groups)
-    var pulseDelay = document.getElementById('heart-pulse-delay');
-    var pulseDelayVal = document.getElementById('heart-pulse-delay-val');
-    if (pulseDelay) {
-        var delayValue = settings.heartPulseDelay !== undefined ? settings.heartPulseDelay : 0.75;
-        pulseDelay.value = delayValue;
-        if (pulseDelayVal) pulseDelayVal.textContent = parseFloat(delayValue).toFixed(1) + 's';
-        pulseDelay.addEventListener('input', function() {
-            settings.heartPulseDelay = parseFloat(this.value);
-            if (pulseDelayVal) pulseDelayVal.textContent = parseFloat(this.value).toFixed(1) + 's';
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
     // Background opacity - no longer a slider, controlled by globeBgFill toggle
     // heartBgOpacity is kept as a fixed value (1.0) for renderer compatibility
-    
-    // Helper to setup color swatch with ColorPicker
-    function setupColorSwatch(swatchId, hiddenInputId, settingKey, defaultColor) {
-        var swatch = document.getElementById(swatchId);
-        var hiddenInput = document.getElementById(hiddenInputId);
-        
-        if (!swatch) {
-            console.log('[HeartSettings] Missing swatch:', swatchId);
-            return;
-        }
-        
-        // Initialize from settings
-        var color = settings[settingKey] || defaultColor;
-        swatch.style.background = color;
-        if (hiddenInput) hiddenInput.value = color;
-        
-        // Click handler - open color picker
-        swatch.addEventListener('click', function(e) {
-            e.stopPropagation();
-            
-            if (typeof ColorPicker !== 'undefined') {
-                ColorPicker.show(swatch, color, function(newColor) {
-                    color = newColor;
-                    settings[settingKey] = newColor;
-                    swatch.style.background = newColor;
-                    if (hiddenInput) hiddenInput.value = newColor;
-                    applyHeartSettingsToRenderer();
-                    autoSaveSettings();
-                    console.log('[HeartSettings]', settingKey, '=', newColor);
-                });
-            } else {
-                console.warn('[HeartSettings] ColorPicker not available');
-            }
-        });
-    }
-    
-    // Setup color swatches
-    setupColorSwatch('heart-bg-color-swatch', 'heart-bg-color', 'heartBgColor', '#000000');
-    setupColorSwatch('heart-ring-color-swatch', 'heart-ring-color', 'heartRingColor', '#b8a878');
-    setupColorSwatch('learning-path-color-swatch', 'learning-path-color', 'learningPathColor', '#00ffff');
-    setupColorSwatch('starfield-bg-color-swatch', 'starfield-bg-color', 'starfieldBgColor', '#000000');
-    setupColorSwatch('starfield-color-swatch', 'starfield-color', 'starfieldColor', '#ffffff');
-    
-    // Starfield background color Apply button
-    var starfieldBgApply = document.getElementById('starfield-bg-apply');
-    if (starfieldBgApply) {
-        starfieldBgApply.addEventListener('click', function() {
-            var color = settings.starfieldBgColor || '#000000';
-            var treeContainer = document.getElementById('tree-container');
-            if (treeContainer) {
-                treeContainer.style.background = color;
-            }
-            // Also update canvas renderer background
-            if (typeof CanvasRenderer !== 'undefined') {
-                CanvasRenderer._bgColor = color;
-                CanvasRenderer._needsRender = true;
-            }
-            autoSaveSettings();
-            console.log('[HeartSettings] Applied starfield background color:', color);
-        });
-    }
-    setupColorSwatch('divider-custom-color-swatch', 'popup-divider-custom-color', 'dividerCustomColor', '#ffffff');
-    setupColorSwatch('globe-color-swatch', 'popup-globe-color', 'globeColor', '#b8a878');
-    setupColorSwatch('magic-text-color-swatch', 'popup-magic-text-color', 'magicTextColor', '#b8a878');
     
     // =========================================================================
     // STARFIELD SETTINGS
@@ -3102,68 +2962,6 @@ function initializeHeartSettings() {
         });
     }
     
-    // Starfield fixed to screen toggle
-    var starfieldFixed = document.getElementById('starfield-fixed');
-    if (starfieldFixed) {
-        starfieldFixed.checked = settings.starfieldFixed === true;
-        starfieldFixed.addEventListener('change', function() {
-            settings.starfieldFixed = this.checked;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Starfield density slider
-    var starfieldDensity = document.getElementById('starfield-density');
-    var starfieldDensityVal = document.getElementById('starfield-density-val');
-    if (starfieldDensity) {
-        var densityValue = settings.starfieldDensity || 200;
-        starfieldDensity.value = densityValue;
-        if (starfieldDensityVal) starfieldDensityVal.textContent = densityValue;
-        starfieldDensity.addEventListener('input', function() {
-            settings.starfieldDensity = parseInt(this.value);
-            if (starfieldDensityVal) starfieldDensityVal.textContent = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Starfield size slider
-    var starfieldSize = document.getElementById('starfield-size');
-    var starfieldSizeVal = document.getElementById('starfield-size-val');
-    if (starfieldSize) {
-        var sizeValue = settings.starfieldMaxSize || 2.5;
-        starfieldSize.value = sizeValue;
-        if (starfieldSizeVal) starfieldSizeVal.textContent = sizeValue;
-        starfieldSize.addEventListener('input', function() {
-            settings.starfieldMaxSize = parseFloat(this.value);
-            if (starfieldSizeVal) starfieldSizeVal.textContent = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-
-    // Starfield seed
-    var starfieldSeed = document.getElementById('starfield-seed');
-    var starfieldSeedVal = document.getElementById('starfield-seed-val');
-    if (starfieldSeed) {
-        starfieldSeed.value = settings.starfieldSeed || 42;
-        if (starfieldSeedVal) starfieldSeedVal.textContent = settings.starfieldSeed || 42;
-        starfieldSeed.addEventListener('input', function() {
-            settings.starfieldSeed = parseInt(this.value);
-            if (starfieldSeedVal) starfieldSeedVal.textContent = this.value;
-            if (typeof CanvasRenderer !== 'undefined') {
-                CanvasRenderer._starfieldSeed = settings.starfieldSeed;
-                CanvasRenderer._needsRender = true;
-            }
-            if (typeof Starfield !== 'undefined') {
-                Starfield.seed = settings.starfieldSeed;
-                Starfield.stars = null;  // Force reinit with new seed
-            }
-            autoSaveSettings();
-        });
-    }
-
     // === Connection Lines Settings ===
 
     // Selection path toggle
@@ -3236,8 +3034,8 @@ function initializeHeartSettings() {
     }
 
     // Focus zoom level slider
-    var focusZoomSlider = document.getElementById('popup-focus-zoom');
-    var focusZoomVal = document.getElementById('popup-focus-zoom-val');
+    var focusZoomSlider = document.getElementById('tree-focus-zoom');
+    var focusZoomVal = document.getElementById('tree-focus-zoom-val');
     if (focusZoomSlider) {
         var focusZoomValue = (typeof settings.focusZoom === 'number' && settings.focusZoom > 0) ? settings.focusZoom : 1.0;
         focusZoomSlider.value = focusZoomValue;
@@ -3264,121 +3062,6 @@ function initializeHeartSettings() {
 
     // === Globe Settings ===
 
-    // Core Size slider (controls heart ring visual size)
-    var coreSize = document.getElementById('popup-core-size');
-    var coreSizeVal = document.getElementById('popup-core-size-val');
-    if (coreSize) {
-        coreSize.value = settings.globeSize || 50;
-        if (coreSizeVal) coreSizeVal.textContent = settings.globeSize || 50;
-        coreSize.addEventListener('input', function() {
-            settings.globeSize = parseInt(this.value);
-            if (coreSizeVal) coreSizeVal.textContent = this.value;
-            applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-
-    // Globe Size slider (controls particle area radius independently)
-    var globeParticleRadius = document.getElementById('popup-globe-particle-radius');
-    var globeParticleRadiusVal = document.getElementById('popup-globe-particle-radius-val');
-    if (globeParticleRadius) {
-        globeParticleRadius.value = settings.globeParticleRadius || 50;
-        if (globeParticleRadiusVal) globeParticleRadiusVal.textContent = settings.globeParticleRadius || 50;
-        globeParticleRadius.addEventListener('input', function() {
-            settings.globeParticleRadius = parseInt(this.value);
-            if (globeParticleRadiusVal) globeParticleRadiusVal.textContent = this.value;
-            applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe density (particle count) slider
-    var globeDensity = document.getElementById('popup-globe-density');
-    var globeDensityVal = document.getElementById('popup-globe-density-val');
-    if (globeDensity) {
-        globeDensity.value = settings.globeDensity || 50;
-        if (globeDensityVal) globeDensityVal.textContent = settings.globeDensity || 50;
-        globeDensity.addEventListener('input', function() {
-            settings.globeDensity = parseInt(this.value);
-            if (globeDensityVal) globeDensityVal.textContent = this.value;
-            applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe dot size min slider
-    var globeDotMin = document.getElementById('popup-globe-dot-min');
-    var globeDotMinVal = document.getElementById('popup-globe-dot-min-val');
-    if (globeDotMin) {
-        globeDotMin.value = settings.globeDotMin || 0.5;
-        if (globeDotMinVal) globeDotMinVal.textContent = settings.globeDotMin || 0.5;
-        globeDotMin.addEventListener('input', function() {
-            settings.globeDotMin = parseFloat(this.value);
-            if (globeDotMinVal) globeDotMinVal.textContent = this.value;
-            applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe dot size max slider
-    var globeDotMax = document.getElementById('popup-globe-dot-max');
-    var globeDotMaxVal = document.getElementById('popup-globe-dot-max-val');
-    if (globeDotMax) {
-        globeDotMax.value = settings.globeDotMax || 1;
-        if (globeDotMaxVal) globeDotMaxVal.textContent = settings.globeDotMax || 1;
-        globeDotMax.addEventListener('input', function() {
-            settings.globeDotMax = parseFloat(this.value);
-            if (globeDotMaxVal) globeDotMaxVal.textContent = this.value;
-            applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe color change listener
-    var globeColorInput = document.getElementById('popup-globe-color');
-    if (globeColorInput) {
-        globeColorInput.addEventListener('change', function() {
-            settings.globeColor = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Magic text color change listener
-    var magicTextColorInput = document.getElementById('popup-magic-text-color');
-    if (magicTextColorInput) {
-        magicTextColorInput.addEventListener('change', function() {
-            settings.magicTextColor = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe text input
-    var globeTextInput = document.getElementById('popup-globe-text');
-    if (globeTextInput) {
-        globeTextInput.value = settings.globeText || 'HEART';
-        globeTextInput.addEventListener('input', function() {
-            settings.globeText = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
-    // Globe text size slider
-    var globeTextSize = document.getElementById('popup-globe-text-size');
-    var globeTextSizeVal = document.getElementById('popup-globe-text-size-val');
-    if (globeTextSize) {
-        globeTextSize.value = settings.globeTextSize || 16;
-        if (globeTextSizeVal) globeTextSizeVal.textContent = settings.globeTextSize || 16;
-        globeTextSize.addEventListener('input', function() {
-            settings.globeTextSize = parseInt(this.value);
-            if (globeTextSizeVal) globeTextSizeVal.textContent = this.value;
-            applyHeartSettingsToRenderer();
-            autoSaveSettings();
-        });
-    }
-    
     // Particle trail toggle
     var particleTrailToggle = document.getElementById('popup-particle-trail');
     if (particleTrailToggle) {
@@ -3386,34 +3069,6 @@ function initializeHeartSettings() {
         particleTrailToggle.addEventListener('change', function() {
             settings.particleTrailEnabled = this.checked;
             applyGlobeSettings();
-            autoSaveSettings();
-        });
-    }
-
-    // Globe background fill toggle
-    var globeBgFillToggle = document.getElementById('popup-globe-bg-fill');
-    if (globeBgFillToggle) {
-        globeBgFillToggle.checked = settings.globeBgFill !== false;
-        globeBgFillToggle.addEventListener('change', function() {
-            settings.globeBgFill = this.checked;
-            if (typeof CanvasRenderer !== 'undefined') {
-                CanvasRenderer._globeBgFill = this.checked;
-                CanvasRenderer._needsRender = true;
-            }
-            autoSaveSettings();
-        });
-    }
-
-    // Particle core toggle (replaces center text with vibrating particles)
-    var particleCoreToggle = document.getElementById('popup-particle-core');
-    if (particleCoreToggle) {
-        particleCoreToggle.checked = settings.particleCoreEnabled === true;
-        particleCoreToggle.addEventListener('change', function() {
-            settings.particleCoreEnabled = this.checked;
-            if (typeof CanvasRenderer !== 'undefined') {
-                CanvasRenderer._particleCoreEnabled = this.checked;
-                CanvasRenderer._needsRender = true;
-            }
             autoSaveSettings();
         });
     }
@@ -3432,8 +3087,8 @@ function initializeHeartSettings() {
     }
 
     // Node font size slider
-    var nodeFontSize = document.getElementById('popup-node-font-size');
-    var nodeFontSizeVal = document.getElementById('popup-node-font-size-val');
+    var nodeFontSize = document.getElementById('tree-node-font-size');
+    var nodeFontSizeVal = document.getElementById('tree-node-font-size-val');
     if (nodeFontSize) {
         nodeFontSize.value = settings.nodeFontSize || 10;
         if (nodeFontSizeVal) nodeFontSizeVal.textContent = settings.nodeFontSize || 10;
@@ -3446,44 +3101,6 @@ function initializeHeartSettings() {
             autoSaveSettings();
         });
     }
-
-    // === Tree Color Pickers (per-school colors in popup) ===
-    var treeColorSchools = [
-        { key: 'Destruction', swatchId: 'tree-color-destruction-swatch', inputId: 'tree-color-destruction' },
-        { key: 'Restoration', swatchId: 'tree-color-restoration-swatch', inputId: 'tree-color-restoration' },
-        { key: 'Alteration', swatchId: 'tree-color-alteration-swatch', inputId: 'tree-color-alteration' },
-        { key: 'Conjuration', swatchId: 'tree-color-conjuration-swatch', inputId: 'tree-color-conjuration' },
-        { key: 'Illusion', swatchId: 'tree-color-illusion-swatch', inputId: 'tree-color-illusion' }
-    ];
-
-    treeColorSchools.forEach(function(school) {
-        var swatch = document.getElementById(school.swatchId);
-        var hiddenInput = document.getElementById(school.inputId);
-        if (!swatch) return;
-
-        var color = (settings.schoolColors && settings.schoolColors[school.key]) || hiddenInput.value;
-        swatch.style.background = color;
-        if (hiddenInput) hiddenInput.value = color;
-
-        swatch.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (typeof ColorPicker !== 'undefined') {
-                ColorPicker.show(swatch, color, function(newColor) {
-                    color = newColor;
-                    if (!settings.schoolColors) settings.schoolColors = {};
-                    settings.schoolColors[school.key] = newColor;
-                    swatch.style.background = newColor;
-                    if (hiddenInput) hiddenInput.value = newColor;
-                    // Apply to CSS and re-render
-                    if (typeof applySchoolColorsToCSS === 'function') applySchoolColorsToCSS();
-                    if (typeof updateSchoolColorPickerUI === 'function') updateSchoolColorPickerUI();
-                    if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
-                    autoSaveSettings();
-                    console.log('[HeartSettings] Tree color ' + school.key + ' = ' + newColor);
-                });
-            }
-        });
-    });
 
     // === PRM Enable/Disable Toggle (inside Pre Req Master tab) ===
     // Disables the content area below the tab bar, not the tab bar itself
@@ -3509,10 +3126,7 @@ function initializeHeartSettings() {
     // Apply initial settings to renderer
     applyHeartSettingsToRenderer();
     applyGlobeSettings();
-    // Apply globe bg fill
-    if (typeof CanvasRenderer !== 'undefined') {
-        CanvasRenderer._globeBgFill = settings.globeBgFill !== false;
-    }
+    if (typeof RenderSettings !== 'undefined') RenderSettings.init();
     console.log('[HeartSettings] Initialized successfully');
 
 }
@@ -4410,22 +4024,29 @@ window.TREE_GENERATION_PRESETS = TREE_GENERATION_PRESETS;
  */
 function applyGlobeSettings() {
     if (typeof Globe3D !== 'undefined') {
-        var globeRadius = settings.globeParticleRadius || settings.globeSize || 50;
+        // The design's render block decides these (DesignPresets.renderValue)
+        var rv = renderValue;
+        // A design that sets the core size but not the particle radius means the
+        // one size for both; the player's particle radius counts only when the
+        // design says nothing about either
+        var designSetsSize = typeof DesignPresets !== 'undefined' && DesignPresets.renderHas &&
+            DesignPresets.renderHas('globeSize') && !DesignPresets.renderHas('globeParticleRadius');
+        var globeRadius = designSetsSize ? rv('globeSize', 0) : (rv('globeParticleRadius', 0) || rv('globeSize', 0) || 50);
         var sizeChanged = Globe3D.radius !== globeRadius;
-        var countChanged = Globe3D.particleCount !== (settings.globeDensity || 50);
-        var dotMinChanged = Globe3D.dotSizeMin !== (settings.globeDotMin || 0.5);
-        var dotMaxChanged = Globe3D.dotSizeMax !== (settings.globeDotMax || 1);
+        var countChanged = Globe3D.particleCount !== (rv('globeDensity', 0) || 50);
+        var dotMinChanged = Globe3D.dotSizeMin !== (rv('globeDotMin', 0) || 0.5);
+        var dotMaxChanged = Globe3D.dotSizeMax !== (rv('globeDotMax', 0) || 1);
 
         Globe3D.radius = globeRadius;
         Globe3D.globeCenterZ = -globeRadius;
-        Globe3D.particleCount = settings.globeDensity || 50;
+        Globe3D.particleCount = rv('globeDensity', 0) || 50;
 
         // Store size range for particle initialization
-        Globe3D.dotSizeMin = settings.globeDotMin || 0.5;
-        Globe3D.dotSizeMax = settings.globeDotMax || 1;
+        Globe3D.dotSizeMin = rv('globeDotMin', 0) || 0.5;
+        Globe3D.dotSizeMax = rv('globeDotMax', 0) || 1;
 
         // Particle trail enabled
-        Globe3D.trailEnabled = settings.particleTrailEnabled !== false;
+        Globe3D.trailEnabled = stilled('particleTrailEnabled', settings.particleTrailEnabled !== false);
 
         // Reinitialize if particle count, size, or dot sizes changed
         if (countChanged || sizeChanged || dotMinChanged || dotMaxChanged) {
@@ -4441,40 +4062,62 @@ function applyGlobeSettings() {
 /**
  * Apply heart settings to the canvas renderer
  */
+/**
+ * A renderer value: the design's render block if it sets the key
+ * (DesignPresets.renderValue), else the player's setting, else the fallback.
+ */
+function renderValue(key, fallback) {
+    if (typeof DesignPresets !== 'undefined' && DesignPresets.renderValue) return DesignPresets.renderValue(key, fallback);
+    return settings[key] !== undefined ? settings[key] : fallback;
+}
+
+/** A moving part's switch with the master "still everything" switch in mind (RenderSettings). */
+function stilled(key, value) {
+    if (typeof RenderSettings !== 'undefined' && RenderSettings.stilled) return RenderSettings.stilled(key, value);
+    return value;
+}
+
 function applyHeartSettingsToRenderer() {
+    var rv = renderValue;
     if (typeof CanvasRenderer !== 'undefined') {
         // Heart settings
-        CanvasRenderer._heartbeatSpeed = settings.heartPulseSpeed !== undefined ? settings.heartPulseSpeed : 1;
-        CanvasRenderer._heartPulseDelay = settings.heartPulseDelay !== undefined ? settings.heartPulseDelay : 0.75;
-        CanvasRenderer._heartAnimationEnabled = settings.heartAnimationEnabled !== false;
+        CanvasRenderer._heartbeatSpeed = rv('heartPulseSpeed', 1);
+        CanvasRenderer._heartPulseDelay = rv('heartPulseDelay', 0.75);
+        CanvasRenderer._heartAnimationEnabled = stilled('heartAnimationEnabled', settings.heartAnimationEnabled !== false);
         CanvasRenderer._heartBgOpacity = 1.0;
-        CanvasRenderer._heartBgColor = settings.heartBgColor || '#000000';
-        CanvasRenderer._heartRingColor = settings.heartRingColor || '#b8a878';
-        CanvasRenderer._learningPathColor = settings.learningPathColor || '#00ffff';
-        
+        CanvasRenderer._heartBgColor = rv('heartBgColor', '') || '#000000';
+        CanvasRenderer._heartRingColor = rv('heartRingColor', '') || '#b8a878';
+        CanvasRenderer._learningPathColor = rv('learningPathColor', '') || '#00ffff';
+
         // Globe colors and text
-        CanvasRenderer._globeColor = settings.globeColor || settings.heartRingColor || '#b8a878';
-        CanvasRenderer._magicTextColor = settings.magicTextColor || settings.heartRingColor || '#ffecb3';
-        CanvasRenderer._globeText = settings.globeText || 'HEART';
-        CanvasRenderer._globeTextSize = settings.globeTextSize || 16;
-        CanvasRenderer._particleCoreEnabled = settings.particleCoreEnabled === true;
-        
+        CanvasRenderer._globeColor = rv('globeColor', '') || rv('heartRingColor', '') || '#b8a878';
+        CanvasRenderer._magicTextColor = rv('magicTextColor', '') || rv('heartRingColor', '') || '#ffecb3';
+        CanvasRenderer._globeText = rv('globeText', '') || 'HEART';
+        CanvasRenderer._globeTextSize = rv('globeTextSize', 0) || 16;
+        CanvasRenderer._particleCoreEnabled = rv('particleCoreEnabled', false) === true;
+        CanvasRenderer._globeBgFill = rv('globeBgFill', true) !== false;
+
         // Starfield settings
         CanvasRenderer._starfieldEnabled = settings.starfieldEnabled !== false;
         CanvasRenderer._starfieldFixed = settings.starfieldFixed === true;
-        CanvasRenderer._starfieldColor = settings.starfieldColor || '#ffffff';
-        CanvasRenderer._starfieldDensity = settings.starfieldDensity || 200;
-        CanvasRenderer._starfieldMaxSize = settings.starfieldMaxSize || 2.5;
-        CanvasRenderer._bgColor = settings.starfieldBgColor || '#000000';
-        
+        // Stars and globe held still: the twinkle switch, or "still everything"
+        CanvasRenderer._starsStill = stilled('starTwinkle', settings.starTwinkle !== false) === false;
+        CanvasRenderer._globeStill = stilled('globeSpin', true) === false;
+        CanvasRenderer._starfieldColor = rv('starfieldColor', '') || '#ffffff';
+        CanvasRenderer._starfieldDensity = rv('starfieldDensity', 0) || 200;
+        CanvasRenderer._starfieldMaxSize = rv('starfieldMaxSize', 0) || 2.5;
+        CanvasRenderer._starfieldSeed = rv('starfieldSeed', 0) || 42;
+        CanvasRenderer._bgColor = rv('starfieldBgColor', '') || '#000000';
+
         CanvasRenderer._needsRender = true;
     }
-    
+
     // Apply background color to tree container
-    if (settings.starfieldBgColor) {
+    var bg = rv('starfieldBgColor', '');
+    if (bg) {
         var treeContainer = document.getElementById('tree-container');
         if (treeContainer) {
-            treeContainer.style.background = settings.starfieldBgColor;
+            treeContainer.style.background = bg;
         }
     }
 }

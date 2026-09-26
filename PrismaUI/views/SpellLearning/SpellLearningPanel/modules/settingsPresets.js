@@ -292,6 +292,8 @@ function saveSettingsPreset(name) {
         notifications: JSON.parse(JSON.stringify(settings.notifications || {})),
         moddedXPSources: JSON.parse(JSON.stringify(settings.moddedXPSources || {}))
     };
+    // Known higher spells (reverse unlock), flat keys like the ones above
+    if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(preset.settings);
 
     settingsPresets[name] = preset;
     _activeSettingsPreset = name;
@@ -339,6 +341,7 @@ function applySettingsPreset(name) {
         'learningMode', 'revealName', 'revealEffects', 'revealDescription',
         'discoveryMode', 'showRootSpellNames'
     ];
+    if (typeof ReverseUnlockSetting !== 'undefined') flatKeys = flatKeys.concat(ReverseUnlockSetting.keys());
     for (var i = 0; i < flatKeys.length; i++) {
         var key = flatKeys[i];
         if (ps[key] !== undefined) {
@@ -387,6 +390,7 @@ function applySettingsPreset(name) {
 
     // --- Update all UI controls ---
     updateProgressionSettingsUI();
+    if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.sync();
 
     if (typeof updateEarlyLearningUI === 'function') {
         updateEarlyLearningUI();

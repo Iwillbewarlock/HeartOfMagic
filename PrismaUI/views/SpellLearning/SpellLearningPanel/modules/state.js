@@ -63,6 +63,7 @@ var settings = {
     language: '',                 // Panel language code; '' = the default in lang/locale.js
     focusRotate: false,           // Turn the wheel so the focused school is on top (off: the view just travels there)
     detailsLayout: 'bottom',      // 'bottom' = info bar under the tree, 'side' = right sidebar
+    detailsOnHover: true,         // Resting the cursor on a spell previews its card; the panel stays open (modules/detailsPeek.js)
     focusDimOthers: true,         // Fade nodes outside the selected node's path (other schools most)
     edgeStyle: 'straight',        // 'straight' or 'curved' (Bezier) edge rendering
     nodeSizeScaling: true,
@@ -79,6 +80,28 @@ var settings = {
     verboseLogging: false,
     // UI Display settings
     uiTheme: 'skyrim',          // Current UI theme key
+    reverseUnlock: true,        // A known spell opens its direct prerequisites (recalculateNodeAvailability, C++ IsUnlockedByKnownChild)
+    reverseUnlockToRoot: false, // ...and every spell below them down to the root, not just the direct ones
+    // ...and they cost this share of their XP, by the opened spell's tier (getRequiredXPForNode)
+    reverseUnlockXPNovice: 0.3,
+    reverseUnlockXPApprentice: 0.4,
+    reverseUnlockXPAdept: 0.5,
+    reverseUnlockXPExpert: 0.7,
+    reverseUnlockXPMaster: 0.8,
+    // ...and, with reverseXpSeparate, gain XP at their own rates (C++ GetGainRates)
+    reverseXpSeparate: false,
+    reverseXpGlobalMultiplier: 1,
+    reverseXpMultiplierDirect: 100,
+    reverseXpMultiplierSchool: 50,
+    reverseXpMultiplierAny: 10,
+    reverseXpCapAny: 5,
+    reverseXpCapSchool: 15,
+    reverseXpCapDirect: 50,
+    // Design preset effects the player turned off (designEffectsSetting.js); empty = all on
+    designEffects: {},
+    animationsOff: false,       // Render popup: one switch that stills every moving part (renderSettings.js)
+    starTwinkle: true,          // Render popup: stars drift and twinkle (off: drawn still)
+    designPreset: 'arcane',     // Design preset id (modules/designPresets.js); add-ons add more in presets/design/
     learningColor: '#7890A8',   // Color for learning state nodes/lines
     fontSizeMultiplier: 1.0,    // Global font size multiplier (0.5 - 2.0)
     // Tree generation settings
