@@ -2,7 +2,9 @@
 #include "librarian/LibrarianInternal.h"
 
 #include <algorithm>
+#include <mutex>
 #include <string_view>
+#include <unordered_map>
 
 // =============================================================================
 // LibrarianTraits - the catalog's elements handed on to the tree and the card
@@ -19,6 +21,7 @@ namespace Librarian
     {
         constexpr std::string_view kElementPrefix = "element.";
         constexpr std::string_view kSoul = "soul";
+        constexpr std::string_view kSchoolPrefix = "school.";
         // Says "this hurts" and nothing more; the scanner leaves it off the
         // card once an element says so, and so does the merge.
         constexpr std::string_view kPlainDamageChip = "kind.damage";
@@ -35,12 +38,21 @@ namespace Librarian
             });
         }
 
+        bool HasConjuredKind(const json& list)
+        {
+            return std::any_of(std::begin(CONJURED_KINDS), std::end(CONJURED_KINDS),
+                [&list](std::string_view kind) { return HasString(list, kind); });
+        }
+
+        // Traits are uncapped, so they are the better witness; a scan without
+        // them (a tome list) still has its chips.
         bool IsConjured(const json& spell)
         {
-            const auto traits = spell.find("traits");
-            if (traits == spell.end() || !traits->is_array()) return false;
-            return std::any_of(std::begin(CONJURED_KINDS), std::end(CONJURED_KINDS),
-                [&traits](std::string_view kind) { return HasString(*traits, kind); });
+            for (const char* field : { "traits", "chips" }) {
+                const auto list = spell.find(field);
+                if (list != spell.end() && list->is_array()) return HasConjuredKind(*list);
+            }
+            return false;
         }
 
         // The element traits one spell should carry, as "element.<tag>" ids.
@@ -92,11 +104,75 @@ namespace Librarian
                 }
                 rebuilt.push_back(std::move(item));
             }
-            if (cardChips && rebuilt.size() > MAX_CARD_CHIPS) {
-                rebuilt.erase(rebuilt.begin() + static_cast<std::ptrdiff_t>(MAX_CARD_CHIPS), rebuilt.end());
+            // Over the card's length: drop from the end, but never an element
+            // and never the school, which the scanner always keeps last.
+            while (cardChips && rebuilt.size() > MAX_CARD_CHIPS) {
+                auto victim = rebuilt.end();
+                for (auto it = rebuilt.end(); it != rebuilt.begin() + static_cast<std::ptrdiff_t>(elements.size());) {
+                    --it;
+                    if (!(it->is_string() && it->get_ref<const std::string&>().starts_with(kSchoolPrefix))) {
+                        victim = it;
+                        break;
+                    }
+                }
+                if (victim == rebuilt.end()) break;
+                rebuilt.erase(victim);
             }
             list = std::move(rebuilt);
             return true;
+        }
+    }
+
+    // =========================================================================
+    // CATALOG IN MEMORY - for the spell card
+    // =========================================================================
+
+    namespace
+    {
+        std::mutex g_cardMutex;
+        bool g_cardLoaded = false;
+        // persistentId -> the catalog entry's "elements" array
+        std::unordered_map<std::string, json> g_cardElements;
+
+        void RememberCatalogLocked(const json& catalog)
+        {
+            g_cardElements.clear();
+            g_cardLoaded = true;
+            const auto entries = catalog.find("spells");
+            if (entries == catalog.end() || !entries->is_object()) return;
+            for (const auto& [id, entry] : entries->items()) {
+                const auto elements = entry.find("elements");
+                if (elements != entry.end() && elements->is_array()) g_cardElements.emplace(id, *elements);
+            }
+        }
+
+        void RememberCatalog(const json& catalog)
+        {
+            std::lock_guard lock(g_cardMutex);
+            RememberCatalogLocked(catalog);
+        }
+    }
+
+    void MergeCatalogChips(json& chips, const std::string& persistentId)
+    {
+        if (persistentId.empty() || !chips.is_array()) return;
+        try {
+            std::lock_guard lock(g_cardMutex);
+            if (!g_cardLoaded) {
+                json catalog;
+                if (LoadCatalog(catalog)) {
+                    RememberCatalogLocked(catalog);
+                } else {
+                    g_cardLoaded = true;  // no catalog yet; the next scan stores one
+                }
+            }
+            const auto found = g_cardElements.find(persistentId);
+            if (found == g_cardElements.end()) return;
+
+            const json entry = { { "elements", found->second } };
+            ReplaceElements(chips, CatalogElementIds(entry, HasConjuredKind(chips)), true);
+        } catch (const std::exception& e) {
+            logger::warn("Librarian: card chips for {} left as the scanner built them - {}", persistentId, e.what());
         }
     }
 
@@ -143,8 +219,12 @@ namespace Librarian
             }
 
             const std::size_t changed = MergeCatalogElements(scanDump, catalog);
-            if (changed == 0) return;
+            if (changed == 0) {
+                RememberCatalog(catalog);
+                return;
+            }
 
+            RememberCatalog(catalog);
             scanJson = scanDump.dump();
             logger::info("Librarian: catalog elements merged into the traits of {} spells", changed);
         } catch (const std::exception& e) {

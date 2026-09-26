@@ -69,7 +69,11 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   Atronach reads as fire + summon, which is what lets a fire mage's branch include it. Chips only read effects the record does not flag **Hide in UI**:
   mods hang helper effects on spells built from whatever MGEF was at hand (in this load order
   vanilla Fire Storm carries a hidden `ScreenShake` that resists frost, which put a Frost chip
-  next to Fire). If every effect is hidden, all of them are read. `modules/spellCard.js` translates them through `chips.*` lang keys
+  next to Fire). If every effect is hidden, all of them are read. Since 2026-09-27 the element chips
+  come from the tag librarian's catalog when it knows the spell (`Librarian::MergeCatalogChips`,
+  catalog kept in memory): blood, water, holy, shadow ... show and filter like fire does, a wrong
+  vanilla-keyword element a rule removed is gone, plain Damage drops once an element is there, and the
+  school chip is never the one trimmed. The catalog itself is rule data, so this stays load-order independent. `modules/spellCard.js` translates them through `chips.*` lang keys
   and falls back to English labels for languages that do not have the keys yet.
   Works in both the bottom bar and the side layout.
   **Icon** in front of the name. The mod draws no icons of its own: **Kome's Inventory Tweaks (KIT)

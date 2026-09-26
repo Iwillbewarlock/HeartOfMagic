@@ -2,6 +2,7 @@
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
+#include "librarian/Librarian.h"
 
 namespace SpellScanner
 {
@@ -508,7 +509,11 @@ namespace SpellScanner
         spellInfo["effects"] = effectsArray;
         spellInfo["effectNames"] = effectNamesArray;
         spellInfo["description"] = description;
-        spellInfo["chips"] = BuildSpellChips(spell);
+        // The card's keyword line, with the elements the tag librarian gives
+        // (blood, water, holy ...) in place of the vanilla-keyword ones.
+        json chips = BuildSpellChips(spell);
+        Librarian::MergeCatalogChips(chips, GetPersistentFormId(spell->GetFormID()));
+        spellInfo["chips"] = std::move(chips);
 
         // Name of the keyword an installed icon pack has an SVG for, if any.
         // The picture itself is fetched on demand (GetSpellIcon) - a whole tree

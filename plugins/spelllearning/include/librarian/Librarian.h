@@ -273,4 +273,11 @@ namespace Librarian
     // the catalog's elements into scanJson in place. On any failure scanJson is
     // left exactly as it was.
     void ClassifyScan(std::string& scanJson);
+
+    // The spell card builds its chips when a card opens, long after the scan,
+    // so the catalog's elements are kept in memory for it: ClassifyScan stores
+    // the catalog it used, and the first card before any scan this session
+    // reads the file. Replaces the element chips of one spell like the merge
+    // above does; leaves them alone when the catalog does not know the spell.
+    void MergeCatalogChips(json& chips, const std::string& persistentId);
 }

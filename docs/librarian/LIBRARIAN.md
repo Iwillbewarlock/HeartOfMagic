@@ -27,7 +27,8 @@ force, frost, holy, light, metal, nature, necrotic, poison, shadow, shock, soul,
 creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*` 가 이미 말하고, 거의 모든 주문에
 붙어 다리가 재는 드문 태그를 묻어 버리므로 넘기지 않는다. 소환·무기 소환·시체 되살리기의 `soul` 도
 넘기지 않는다(Spell Research 가 소환물에 붙이는 표시일 뿐 테마가 아니다). 카드 아이콘 규칙은 여전히
-스캐너 자신의 traits 를 본다. 하네스로 게임과 같은 병합을 볼 수 있다:
+스캐너 자신의 traits 를 본다. 카드 칩은 카드를 열 때 만들어지므로(`GetSpellInfo`) 카탈로그를 메모리에
+두고 같은 규칙으로 바꿔 끼운다(`MergeCatalogChips`; 스캔 전 첫 카드는 파일을 읽는다). 하네스로 게임과 같은 병합을 볼 수 있다:
 `librarian-test -i <스캔> -r <룰> -m merged.json` 후 `treebuilder-test -i merged.json`.
 
 **원칙: 규칙으로 동작해야 한다.** 이 태그는 개발자 한 사람의 로드오더를 손으로 고치는 것이 아니라
