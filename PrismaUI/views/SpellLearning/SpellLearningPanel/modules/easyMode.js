@@ -41,6 +41,10 @@ function initializeEasyMode() {
                     applyScannerPreset(_easySelectedPreset);
                 }
             }
+            // A preset may carry its own tree style; the player's pick here wins
+            if (_easyChosenMethod && typeof TreeGrowth !== 'undefined') {
+                TreeGrowth.switchMode(_easyChosenMethod);
+            }
             // Relay to Complex Build button
             var tgBuild = document.getElementById('tgBuildBtn');
             if (tgBuild && !tgBuild.disabled) {
@@ -103,6 +107,41 @@ function initializeEasyMode() {
 // MODE SWITCHING
 // =============================================================================
 
+// =============================================================================
+// TREE STYLE (build method) - the same choice as the CLASSIC/TREE/GRAPH/... tabs
+// on the Complex page, which sit below the fold and only appear after a scan
+// =============================================================================
+
+var _easyChosenMethod = null;
+
+function updateEasyMethodChips() {
+    var container = document.getElementById('easyMethodChips');
+    if (!container || typeof TreeGrowth === 'undefined' || !TreeGrowth.modes) return;
+    container.innerHTML = '';
+
+    var active = _easyChosenMethod || TreeGrowth.activeMode;
+    Object.keys(TreeGrowth.modes).forEach(function(name) {
+        var key = 'easyMode.method.' + name;
+        var label = (typeof t === 'function') ? t(key) : key;
+        if (!label || label === key) label = TreeGrowth.modes[name].tabLabel || name.toUpperCase();
+        var hintKey = 'easyMode.methodHint.' + name;
+        var hint = (typeof t === 'function') ? t(hintKey) : '';
+
+        var chip = document.createElement('button');
+        chip.setAttribute('type', 'button');
+        chip.setAttribute('aria-pressed', name === active ? 'true' : 'false');
+        chip.className = 'easy-preset-chip' + (name === active ? ' selected' : '');
+        chip.textContent = label;
+        if (hint && hint !== hintKey) chip.title = hint;
+        chip.addEventListener('click', function() {
+            _easyChosenMethod = name;
+            TreeGrowth.switchMode(name);
+            updateEasyMethodChips();
+        });
+        container.appendChild(chip);
+    });
+}
+
 function switchScannerMode(mode) {
     var easyContent = document.getElementById('scannerEasyContent');
     var complexContent = document.getElementById('scannerComplexContent');
@@ -137,6 +176,7 @@ function switchScannerMode(mode) {
 // =============================================================================
 
 function updateEasyPresetChips() {
+    updateEasyMethodChips();
     var container = document.getElementById('easyPresetChips');
     if (!container) return;
 

@@ -247,7 +247,11 @@ TreeBuilder::BuildResult TreeBuilder::BuildThematic(
         root.theme = trunkTheme;
 
         for (auto& [fid, tm] : spellThemeMap)
-            if (nodes.contains(fid)) nodes[fid].theme = tm;
+            if (nodes.contains(fid)) {
+                nodes[fid].theme = tm;
+                nodes[fid].themes = GetSpellThemes(nodes[fid].spellData, schoolThemes);
+            }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         std::unordered_set<std::string> connected;
         connected.insert(rootFormId);
@@ -316,7 +320,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildThematic(
                 score += sims.GetEffectSim(fid, cid) * 30.0f;
                 score += sims.GetTextSim(fid, cid) * 15.0f;
                 score += sims.GetNameSim(fid, cid) * 10.0f;
-                if (!node.theme.empty() && !cnode.theme.empty() && node.theme == cnode.theme)
+                if (SharesTheme(node, cnode))
                     score += 15.0f;
                 score -= static_cast<float>(cnode.children.size()) * 8.0f;
                 if (score > bestScore) { bestScore = score; bestParent = &cnode; }

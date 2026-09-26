@@ -61,6 +61,7 @@ json TreeBuilder::TreeNode::ToDict() const
     if (!tier.empty() && tier != "Unknown") result["skillLevel"] = tier;
     if (!section.empty()) result["section"] = section;
     if (!theme.empty()) result["theme"] = theme;
+    if (!themes.empty()) result["themes"] = themes;
 
     return result;
 }
@@ -109,6 +110,31 @@ float TreeBuilder::SimilarityMatrix::GetEffectSim(const std::string& a, const st
     return effectSims[ia->second * n + ib->second];
 }
 
+// Everything a spell can be called, as one sorted bag: its traits and the words
+// of its editor ids. The school is left out - the callers compare within a
+// school or across two, and either way it tells nothing apart.
+std::vector<std::string> TreeBuilder::SpellKeywords(const json& spell,
+                                                    const std::unordered_set<std::string>& modTags)
+{
+    std::vector<std::string> keywords;
+    for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(spell))) {
+        if (modTags.contains(idWord)) continue;
+        const bool hasDigit = std::any_of(idWord.begin(), idWord.end(),
+            [](unsigned char ch) { return std::isdigit(ch) != 0; });
+        if (!hasDigit) keywords.push_back("word." + idWord);
+    }
+    if (const auto traits = spell.find("traits"); traits != spell.end() && traits->is_array()) {
+        for (const auto& trait : *traits) {
+            if (!trait.is_string()) continue;
+            auto name = trait.get<std::string>();
+            if (!name.starts_with("school.")) keywords.push_back(std::move(name));
+        }
+    }
+    std::sort(keywords.begin(), keywords.end());
+    keywords.erase(std::unique(keywords.begin(), keywords.end()), keywords.end());
+    return keywords;
+}
+
 TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::vector<json>& spells)
 {
     SimilarityMatrix matrix;
@@ -119,6 +145,19 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
     std::vector<std::vector<std::string>> effectNames;
     std::vector<std::vector<std::string>> tokenizedDocs;
 
+    // Names and descriptions are translated; editor ids are not. On a Korean
+    // load order the text below is Korean, which the tokenizer cannot split, so
+    // without the ids two spells only ever looked alike by accident. The
+    // author's prefix is taken off first or every spell of a mod would look
+    // like every other.
+    const auto modTags = FindModTags(spells);
+    constexpr int kIdWordWeight = 2;  // same weight the name gets
+
+    // Everything a spell can be called, as one bag of keywords: its traits and
+    // the words of its editor ids. No choosing between them - "LUN_MoonTouch" is
+    // a moon spell and a touch spell, and is close to both families for it.
+    std::vector<std::vector<std::string>> keywordSets;
+
     for (const auto& s : spells) {
         auto fid = s.value("formId", std::string(""));
         if (fid.empty()) continue;
@@ -126,25 +165,64 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         size_t idx = formIds.size();
         formIds.push_back(fid);
         matrix.formIdToIndex[fid] = idx;
-        names.push_back(s.value("name", std::string("")));
+        // Name similarity compares spellings letter by letter, so it has to run
+        // on the editor id where there is one: "Firebolt" and "Fireball" share
+        // most of their trigrams, the translated names share none of it. Only
+        // graph and thematic lean on this, but on a translated load order it was
+        // giving them noise. The author's prefix goes, or every spell of a mod
+        // would look like a near duplicate of every other.
+        {
+            auto spelling = s.value("editorId", std::string(""));
+            if (spelling.empty()) {
+                spelling = s.value("name", std::string(""));
+            } else {
+                const auto tag = LeadingIdWordOf(spelling);
+                if (!tag.empty() && modTags.contains(tag) && spelling.size() > tag.size()) {
+                    spelling.erase(0, tag.size());
+                    while (!spelling.empty() && !std::isalnum(static_cast<unsigned char>(spelling.front()))) {
+                        spelling.erase(0, 1);
+                    }
+                }
+            }
+            names.push_back(std::move(spelling));
+        }
 
-        // Extract effect names
+        // What the effects are called, for the trigram comparison below.
+        //
+        // Their names, not their editor ids, even though the names are
+        // translated. The comparison is letter by letter, and effect ids are
+        // built to a convention - "FireDamageFFAimed", "FrostDamageFFAimed" -
+        // so most of the string is the delivery and the two elements agree on
+        // nearly all of it. Tried it: the graph builder fell from 37% to 29%.
+        // What the ids are good for is their words, and the keyword affinity
+        // further down already reads those. On a translated load order this
+        // score simply comes out near zero and the keywords carry it.
+        //
+        // Effects flagged Hide in UI are left out. One mod's script controller
+        // sits on hundreds of unrelated spells, and this score is the best
+        // matching pair of effects - one shared helper made any two of those
+        // spells score a perfect match, on the signal every builder weighs
+        // highest.
         std::vector<std::string> effs;
         if (s.contains("effects") && s["effects"].is_array()) {
             for (const auto& e : s["effects"]) {
                 std::string ename;
-                if (e.is_object() && e.contains("name") && e["name"].is_string())
-                    ename = e["name"].get<std::string>();
-                else if (e.is_string())
+                if (e.is_object()) {
+                    const auto flags = e.find("flags");
+                    if (flags != e.end() && flags->is_object() && flags->value("hideInUI", false)) continue;
+                    if (e.contains("name") && e["name"].is_string())
+                        ename = e["name"].get<std::string>();
+                } else if (e.is_string()) {
                     ename = e.get<std::string>();
-                if (!ename.empty()) effs.push_back(ename);
+                }
+                if (!ename.empty()) effs.push_back(std::move(ename));
             }
         }
-        if (s.contains("effectNames") && s["effectNames"].is_array()) {
+        if (effs.empty() && s.contains("effectNames") && s["effectNames"].is_array()) {
             for (const auto& e : s["effectNames"]) {
                 if (e.is_string()) {
                     auto en = e.get<std::string>();
-                    if (!en.empty()) effs.push_back(en);
+                    if (!en.empty()) effs.push_back(std::move(en));
                 }
             }
         }
@@ -165,7 +243,13 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         spellForText["effects"] = effectsFlat;
 
         auto text = TreeNLP::BuildSpellText(spellForText);
-        tokenizedDocs.push_back(TreeNLP::Tokenize(text));
+        auto tokens = TreeNLP::Tokenize(text);
+        for (const auto& idWord : TreeNLP::Tokenize(TreeNLP::BuildIdText(s))) {
+            if (modTags.contains(idWord)) continue;
+            for (int i = 0; i < kIdWordWeight; ++i) tokens.push_back(idWord);
+        }
+        tokenizedDocs.push_back(std::move(tokens));
+        keywordSets.push_back(SpellKeywords(s, modTags));
     }
 
     auto n = formIds.size();
@@ -365,6 +449,76 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         }
     }
 
+    // =========================================================================
+    // Keyword affinity: shared keywords, the rare ones counting for more
+    // =========================================================================
+    //
+    // Effect names above are translated text, compared byte by byte. The
+    // keywords are not: traits come from engine values, id words are English
+    // everywhere. Two spells are alike by the keywords they share, weighed by
+    // how few spells carry each one - sharing "form.projectile" with eight
+    // hundred others says little, sharing "word.moon" with thirteen says a lot.
+    // The weights come from the data (inverse document frequency), not a list.
+    //
+    // It goes into the effect affinity, the signal every builder already weighs
+    // highest, as the better of the two: without a full scan there are no
+    // keywords and the effect names decide alone, as before.
+    {
+        std::unordered_map<std::string, int> keywordIds;
+        std::vector<int> spellsWithKeyword;
+        for (const auto& set : keywordSets) {
+            for (const auto& keyword : set) {
+                const auto [it, isNew] = keywordIds.try_emplace(keyword, static_cast<int>(keywordIds.size()));
+                if (isNew) spellsWithKeyword.push_back(0);
+                spellsWithKeyword[it->second]++;
+            }
+        }
+
+        std::vector<float> weights(spellsWithKeyword.size(), 0.0f);
+        for (size_t k = 0; k < weights.size(); ++k) {
+            weights[k] = std::log(static_cast<float>(n + 1) / static_cast<float>(spellsWithKeyword[k] + 1));
+        }
+
+        // Sorted id lists; a keyword only one spell has cannot be shared, and
+        // left in it would only water down that spell's every comparison.
+        std::vector<std::vector<int>> ids(n);
+        std::vector<float> totalWeight(n, 0.0f);
+        for (size_t i = 0; i < n && i < keywordSets.size(); ++i) {
+            for (const auto& keyword : keywordSets[i]) {
+                const int id = keywordIds[keyword];
+                if (spellsWithKeyword[id] < 2) continue;
+                ids[i].push_back(id);
+                totalWeight[i] += weights[id];
+            }
+            std::sort(ids[i].begin(), ids[i].end());
+        }
+
+        const auto nSigned = static_cast<int>(n);
+        #pragma omp parallel for schedule(dynamic, 16)
+        for (int i = 0; i < nSigned; ++i) {
+            if (ids[i].empty()) continue;
+            for (int j = i + 1; j < nSigned; ++j) {
+                if (ids[j].empty()) continue;
+
+                std::vector<int> shared;
+                std::set_intersection(ids[i].begin(), ids[i].end(), ids[j].begin(), ids[j].end(),
+                    std::back_inserter(shared));
+                if (shared.empty()) continue;
+
+                float sharedWeight = 0.0f;
+                for (const int id : shared) sharedWeight += weights[id];
+                const float unionWeight = totalWeight[i] + totalWeight[j] - sharedWeight;
+                const float affinity = (unionWeight > 0.0f) ? sharedWeight / unionWeight : 0.0f;
+
+                float& cell = matrix.effectSims[i * nSigned + j];
+                if (affinity > cell) {
+                    cell = affinity;
+                    matrix.effectSims[j * nSigned + i] = affinity;
+                }
+            }
+        }
+    }
+
     return matrix;
 }
 
@@ -388,6 +542,7 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     bc.branchStyle = config.value("branch_style", std::string("chain"));
     bc.chainStyle = config.value("chain_style", std::string("linear"));
     bc.batchSize = std::max(5, config.value("batch_size", 20));
+    bc.commonThemeShare = config.value("common_theme_share", bc.commonThemeShare);
 
     // LLM API config
     if (config.contains("llm_api") && config["llm_api"].is_object()) {
@@ -599,7 +754,9 @@ void TreeBuilder::Internal::SortByTierAndCost(std::vector<json>& spells)
         if (costA == 0.0f) costA = a.value("baseCost", 0.0f);
         if (costB == 0.0f) costB = b.value("baseCost", 0.0f);
         if (costA != costB) return costA < costB;
-        return a.value("name", std::string("")) < b.value("name", std::string(""));
+        // Last resort, and it has to be language independent or the same load
+        // order would order spells differently once translated.
+        return a.value("formId", std::string("")) < b.value("formId", std::string(""));
     });
 }
 
@@ -682,20 +839,30 @@ TreeBuilder::BuildResult TreeBuilder::Build(
     logger::info("TreeBuilder::Build command='{}', spells={}, seed={}",
                  command, spells.size(), config.seed);
 
+    BuildResult result;
     if (command == "build_tree_classic") {
-        return BuildClassic(spells, config);
+        result = BuildClassic(spells, config);
     } else if (command == "build_tree") {
-        return BuildTree(spells, config);
+        result = BuildTree(spells, config);
     } else if (command == "build_tree_thematic") {
-        return BuildThematic(spells, config);
+        result = BuildThematic(spells, config);
     } else if (command == "build_tree_graph") {
-        return BuildGraph(spells, config);
+        result = BuildGraph(spells, config);
     } else if (command == "build_tree_oracle") {
-        return BuildOracle(spells, config);
+        result = BuildOracle(spells, config);
     } else {
-        BuildResult result;
         result.success = false;
         result.error = "Unknown build command: " + command;
         return result;
     }
+
+    // The same for every builder: links between the schools, handed to the
+    // layout as data. See TreeBuilderBridges.cpp for why they stay out of the trees.
+    if (result.success && result.treeData.is_object()) {
+        auto links = ComputeCrossSchoolBridges(spells);
+        result.treeData["bridges"] = std::move(links["bridges"]);
+        result.treeData["schoolLinks"] = std::move(links["schoolLinks"]);
+        logger::info("TreeBuilder: {} cross school bridges", result.treeData["bridges"].size());
+    }
+    return result;
 }

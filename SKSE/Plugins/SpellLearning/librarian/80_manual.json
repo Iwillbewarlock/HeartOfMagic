@@ -1,0 +1,194 @@
+{
+  "tier": "manual",
+  "_comment": [
+    "Hand-made tags for spells whose records do not say what they are: blood,",
+    "water or wind magic that deals plain health damage through a script, and",
+    "elemental spells whose effect carries no element keyword or resistance.",
+    "Each rule names its spells by persistentId (\"Plugin.esp|0x000D62\" - the",
+    "id inside the plugin, so load order does not matter); a spell that is not",
+    "installed is simply never matched. \"add\" puts tags on; \"remove\" takes",
+    "wrong ones off, after every rule has added its own (the corrections at the",
+    "end: a rune's shared blast effect read as fire on a water rune, and so on).",
+    "Picked from a scan of a 1,440-spell load order (2026-09-21). To add your",
+    "own, copy a rule, or put yours in 90_user.json so an update of this file",
+    "does not overwrite them."
+  ],
+  "rules": [
+
+    { "_": "Blood magic the rules below cannot see: Mysticism's Blood Lance",
+      "match": { "spell": "MysticismMagic.esp|0x1B8A09" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Mysticism's Vampiric spells (\"Entropy\" in the Korean translation): Vampiric Touch, Bolt, Grasp, Blast, Rune - health absorbed from the living",
+      "match": { "spell": [
+        "MysticismMagic.esp|0x1B8A10",
+        "MysticismMagic.esp|0x1B8A15",
+        "MysticismMagic.esp|0x2DE640",
+        "MysticismMagic.esp|0x2E8863",
+        "MysticismMagic.esp|0x46E8A8"
+      ] },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Water: Natura's Water Spray, the one water spell of the set without the water keyword",
+      "match": { "spell": "Natura.esp|0x000B2C" },
+      "add": { "elements": ["water"] } },
+
+    { "_": "Earth: Natura's Stone Spray, the one stone spell of the set without the earth keyword",
+      "match": { "spell": "Natura.esp|0x000AB4" },
+      "add": { "elements": ["earth"] } },
+
+    { "_": "Wind: a frozen gale, and cold wind wrapped round the caster",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x1F3B7C",
+        "ccbgssse014-spellpack01.esl|0x00080D"
+      ] },
+      "add": { "elements": ["air"] } },
+
+    { "_": "Chaos Crucible: fire, frost and shock at once, through a script",
+      "match": { "spell": "KittySpellPack02.esl|0x00082F" },
+      "add": { "elements": ["fire", "frost", "shock"] } },
+
+    { "_": "Lost Grimoire's scripted frost spells: Arctic Fortress, Icy Veil",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x2172CD",
+        "LostGrimoire.esp|0x2C876F"
+      ] },
+      "add": { "elements": ["frost"] } },
+
+    { "_": "Lost Grimoire's scripted shock spells: Storm Rift, Electric Field",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x207FB4",
+        "LostGrimoire.esp|0x2D7A90"
+      ] },
+      "add": { "elements": ["shock"] } },
+
+    { "_": "Lost Grimoire's Salamander Scales: fire ward that feeds on fire spells",
+      "match": { "spell": "LostGrimoire.esp|0x2D7A82" },
+      "add": { "elements": ["fire"] } },
+
+    { "_": "Necromancer's Magic's Death's Touch: soul energy released as damage",
+      "match": { "spell": "NecromancersMagic.esl|0x000828" },
+      "add": { "elements": ["soul"] } },
+
+    { "_": "Necromancer's Magic's unholy curses: Boneyard, and the lingering magicka and stamina curses",
+      "match": { "spell": [
+        "NecromancersMagic.esl|0x00082C",
+        "NecromancersMagic.esl|0x00081F",
+        "NecromancersMagic.esl|0x000820"
+      ] },
+      "add": { "elements": ["necrotic"] } },
+
+    { "_": "Read from the spell descriptions (2026-09-27): Glenmoril's Saint Vazra's Torch deals fire damage",
+      "match": { "spell": "Glenmoril.esm|0x60025C" },
+      "add": { "elements": ["fire"] } },
+
+    { "_": "Resist buffs carry their element (a fire shield is fire magic), as the weakness curses already do: raising a resist, not hostile",
+      "match": { "archetype": "PeakValueModifier", "primaryAV": "FireResist", "hostile": false },
+      "add": { "elements": ["fire", "resistance"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "FrostResist", "hostile": false },
+      "add": { "elements": ["frost", "resistance"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "ElectricResist", "hostile": false },
+      "add": { "elements": ["shock", "resistance"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "PoisonResist", "hostile": false },
+      "add": { "elements": ["poison", "resistance"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "DiseaseResist", "hostile": false },
+      "add": { "elements": ["disease", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "FireResist", "hostile": false },
+      "add": { "elements": ["fire", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "FrostResist", "hostile": false },
+      "add": { "elements": ["frost", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "ElectricResist", "hostile": false },
+      "add": { "elements": ["shock", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "PoisonResist", "hostile": false },
+      "add": { "elements": ["poison", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "DiseaseResist", "hostile": false },
+      "add": { "elements": ["disease", "resistance"] } },
+
+    { "_": "Lightpower's Judgement calls down sunlight",
+      "match": { "spell": "Lightpower.esl|0x000829" },
+      "add": { "elements": ["sun"] } },
+
+    { "_": "Blood magic, by rule (decided 2026-09-27): everything from a mod named for blood or vampires ...",
+      "match": { "pluginContains": ["blood", "vampir", "sanguin"] },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "... and the absorbs and drains vampires cast (castByVampires: a vampire NPC carries it, in its records or through an SPID ini). A mage's absorb health is not blood magic; a vampire's ice spike is not either",
+      "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Stamina" },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "mgefKeyword": "MagicVampireDrain", "hostile": true },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Health" },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Stamina" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Absorbing magicka is arcane",
+      "match": { "archetype": "Absorb", "primaryAV": "Magicka" },
+      "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Magicka" }, "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelMagickaCloak" }, "add": { "elements": ["arcane"] } },
+
+    { "_": "Except the Creation Club Oblivion absorbs (Choking Grasp, Strangulation, Hangman's Noose, Touch of Death): choking, not blood - left without an element",
+      "match": { "spell": [
+        "ccbgssse014-spellpack01.esl|0x00085A",
+        "ccbgssse014-spellpack01.esl|0x000859",
+        "ccbgssse014-spellpack01.esl|0x000858",
+        "ccbgssse014-spellpack01.esl|0x000857"
+      ] },
+      "remove": { "elements": ["blood"] } },
+
+    { "_": "Skyrim's Fire Storm is fire only",
+      "match": { "spell": "Skyrim.esm|0x07A82B" },
+      "remove": { "elements": ["frost"] } },
+
+    { "_": "Natura's runes share a blast effect that reads as fire: stone, water and wind runes are not fire",
+      "match": { "spell": [
+        "Natura.esp|0x000C83",
+        "Natura.esp|0x000C84",
+        "Natura.esp|0x000C8C",
+        "Natura.esp|0x000C8D",
+        "Natura.esp|0x000C8E",
+        "Natura.esp|0x000C8F"
+      ] },
+      "remove": { "elements": ["fire"] } },
+
+    { "_": "Natura's Wind Rune is not water either",
+      "match": { "spell": "Natura.esp|0x000C8E" },
+      "remove": { "elements": ["water"] } },
+
+    { "_": "Natura's wind touch spells (Wind Touch, Wind Push, Wind Grasp) are not earth",
+      "match": { "spell": [
+        "Natura.esp|0x000C4A",
+        "Natura.esp|0x000C4B",
+        "Natura.esp|0x000C4C"
+      ] },
+      "remove": { "elements": ["earth"] } },
+
+    { "_": "Natura's Squall is wind, not shock",
+      "match": { "spell": "Natura.esp|0x000E31" },
+      "remove": { "elements": ["shock"] } },
+
+    { "_": "Arclight's Wall of Arclight is shock, not fire",
+      "match": { "spell": "Arclight.esp|0x000837" },
+      "remove": { "elements": ["fire"] } },
+
+    { "_": "Mysticism's Stormblast is lightning only",
+      "match": { "spell": "MysticismMagic.esp|0x399C05" },
+      "remove": { "elements": ["frost"] } },
+
+    { "_": "Summoned or conjured, not soul magic: Lost Grimoire's Flameheart, Fire-Brand, Ice-Breaker, Kitty's Supercharged Wisps",
+      "match": { "spell": [
+        "LostGrimoire.esp|0x202EA8",
+        "LostGrimoire.esp|0x23FB3E",
+        "LostGrimoire.esp|0x249D5C",
+        "KittySpellPack02.esl|0x000816"
+      ] },
+      "remove": { "elements": ["soul"] } },
+
+    { "_": "Mysticism's Frost Weakness is a frost bolt; the north-wind perk keyword is not wind",
+      "match": { "spell": "MysticismMagic.esp|0x29267C" },
+      "remove": { "elements": ["air"] } }
+  ]
+}

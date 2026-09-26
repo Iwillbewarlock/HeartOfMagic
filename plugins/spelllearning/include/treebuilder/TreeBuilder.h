@@ -39,7 +39,12 @@ namespace TreeBuilder
         std::string name;
         std::string tier       = "Unknown";
         std::string school     = "Unknown";
-        std::string theme;                       // NLP-assigned theme (may be empty)
+        std::string theme;                       // the one theme branches and colours go by (may be empty)
+        std::vector<std::string> themes;         // every theme the spell answers to; theme is among them
+        // What SharesTheme compares: themes minus the ones most of the school carries
+        // (DropCommonThemes). Not written out. Unset = compare themes.
+        std::vector<std::string> matchThemes;
+        bool matchThemesSet = false;
         std::string section;                     // "root", "trunk", "branch" (may be empty)
 
         std::vector<std::string> children;       // formIds of child nodes
@@ -109,11 +114,50 @@ namespace TreeBuilder
     // SPELL GROUPING (replaced former spell_grouper.py)
     // =========================================================================
 
-    // Assign each spell to its best-matching theme
+    // Assign each spell to its best-matching theme; a spell must score above
+    // minScore, else it goes to "_unassigned"
     std::unordered_map<std::string, std::vector<json>>
     GroupSpellsBestFit(const std::vector<json>& spells,
                       const std::vector<std::string>& themes,
                       int minScore = 30);
+
+    // The first word of an editor id, as FindModTags reads it.
+    std::string LeadingIdWordOf(const std::string& editorId);
+
+    // A spell's traits and editor id words as one sorted bag (school left out).
+    std::vector<std::string> SpellKeywords(const json& spell, const std::unordered_set<std::string>& modTags);
+
+    // Links between schools: spells of different schools that share a telling
+    // keyword. Returned as data for the layout to add as an extra way in, never
+    // written into the trees, so every school still stands on its own.
+    // Returns { bridges: [...], schoolLinks: [{a, b, kin}] }.
+    json ComputeCrossSchoolBridges(const std::vector<json>& spells);
+
+    // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
+    std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);
+
+    // Theme straight from the scan's "traits" column, empty when the spell has
+    // none that make a branch. Language independent, unlike the word themes.
+    // fallback asks for the weaker answers instead - shape, then actor value -
+    // which only count once rule 2 has failed (see TreeBuilderThemes.cpp).
+    std::string ThemeFromTraits(const json& spell, bool fallback = false);
+
+    // Cloak, rune, stagger: the shape of a spell, not its nature
+    bool IsShapeKind(std::string_view trait);
+
+    // Every theme a spell answers to: all its trait themes and every word theme
+    // found in its text. A spell is not one thing - "LUN_MoonTouch" is a moon
+    // spell and a touch spell - so this is what two spells are compared by.
+    std::vector<std::string> GetSpellThemes(const json& spell, const std::vector<std::string>& themes);
+
+    // True when the two nodes have a theme in common. Falls back to comparing the
+    // single theme for nodes that were never given a list (LLM chains).
+    bool SharesTheme(const TreeNode& a, const TreeNode& b);
+
+    // Set matchThemes on one school's nodes: their themes minus those carried by
+    // at least `share` of the school (see BuildConfig::commonThemeShare). share <= 0
+    // leaves every node comparing its full theme list.
+    void DropCommonThemes(std::unordered_map<std::string, TreeNode>& nodes, float share);
 
     // Get the best matching theme for a single spell
     std::pair<std::string, int>
@@ -177,6 +221,11 @@ namespace TreeBuilder
         std::string branchStyle = "chain";  // "chain", "bfs", "balanced"
         std::string chainStyle = "linear"; // Oracle: "linear" or "branching"
         int batchSize = 20;                // Oracle: spells per LLM batch
+        // A theme carried by at least this share of a school's spells tells
+        // nothing apart inside that school (Conjuration: "summon" 89%, "conjure"
+        // 41%), so SharesTheme ignores it there. 0 = off, the behaviour before
+        // 2026-09-23. Request config key "common_theme_share".
+        float commonThemeShare = 0.4f;
 
         // LLM API config (Oracle builder)
         struct LLMApiConfig {

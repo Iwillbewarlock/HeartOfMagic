@@ -1,0 +1,490 @@
+/* =============================================================================
+   UI PATCH - navigation chrome, bottom details bar, search chips
+   Theme-agnostic: only uses variables defined by both styles.css and
+   styles-skyrim.css (with fallbacks). Loaded after the theme stylesheet and
+   kept across theme switches (applyTheme only swaps links whose href
+   contains "styles").
+   ============================================================================= */
+
+/* ---- Toolbar icon buttons (home / search) ---- */
+.zoom-btn svg {
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ---- School jump tabs (a row under the zoom tools, top left of the tree) ----
+   Centred on the top row they covered the right half of the zoom tools (renderer
+   badge, heart settings, edit tree) at the default panel size. */
+#tree-school-tabs {
+    position: absolute;
+    top: 58px;
+    left: 15px;
+    display: flex;
+    gap: 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+    z-index: 100;
+    max-width: calc(100% - 30px);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+#tree-school-tabs:empty {
+    display: none;
+}
+
+.school-tab {
+    background: var(--btn-bg, rgba(255, 255, 255, 0.06));
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary, #9A9A8A);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 0.7em;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+}
+
+.school-tab:hover {
+    background: var(--btn-bg-hover, rgba(255, 255, 255, 0.12));
+    color: var(--text-primary, #C8C8B8);
+}
+
+.school-tab.active {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--text-bright, var(--text-primary, #E8E8D8));
+}
+
+/* ---- Trait filter: one pill, shown only while a filter is on ---- */
+#tree-trait-filter {
+    position: absolute;
+    top: 98px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+    z-index: 100;
+    max-width: calc(100% - 320px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#tree-trait-filter:empty {
+    display: none;
+}
+
+.trait-filter-active {
+    background: rgba(255, 255, 255, 0.14);
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-bright, var(--text-primary, #E8E8D8));
+    /* 24px tall at least: the smallest target WCAG 2.2 allows */
+    padding: 6px 12px;
+    min-height: 24px;
+    font-family: inherit;
+    /* 12px on the panel's 14px base; game UI text below that is hard to read on a TV */
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.trait-filter-active:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+/* Plain :focus, not :focus-visible - the in-game engine is an old WebKit */
+.trait-filter-active:focus,
+button.easy-preset-chip:focus,
+.bridge-item:focus {
+    outline: 1px solid var(--accent, #b8a878);
+    outline-offset: 1px;
+}
+
+/* Tree style chips are real buttons (the preset chips they sit under are divs) */
+button.easy-preset-chip {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+
+/* ---- Developer read-out: draw time, stalls, last mouse press ---- */
+#perf-meter {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 150;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #9fe09f;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    pointer-events: none;
+}
+
+#perf-meter.slow {
+    color: #ffb070;
+    border-color: #ffb070;
+}
+
+/* ---- Spell card: a keyword you can press to filter the tree ---- */
+.spell-chip-filter {
+    cursor: pointer;
+    /* The dotted underline is the only hint that a chip is pressable */
+    border-bottom: 1px dotted currentColor;
+}
+
+.spell-chip-filter:hover {
+    filter: brightness(1.35);
+}
+
+.spell-chip-filter:focus {
+    outline: 1px solid var(--accent, #b8a878);
+    outline-offset: 1px;
+}
+
+.spell-chip-filter.active {
+    /* A solid, thicker underline: inset box-shadow is not proven in the game's
+       browser, and brightness alone is too subtle on an already-bright chip */
+    border-bottom: 2px solid currentColor;
+    padding-bottom: 0;
+    filter: brightness(1.4);
+}
+
+/* ---- Spell card: paths to other schools ---- */
+.bridge-item {
+    border-left: 3px solid transparent;
+    padding-left: 6px;
+}
+
+/* ---- Footer legend: locked state is dashed on the tree too ---- */
+.legend-item.locked .legend-dot {
+    border-style: dashed;
+}
+
+/* ---- Find Spell result chips ---- */
+/* Row layout fallback (the default theme has no find-spell rules of its own) */
+.find-spell-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.find-spell-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.find-spell-state {
+    font-size: 0.65em;
+    padding: 0 5px;
+    border: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+    border-radius: 2px;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted, #6A6A5A);
+}
+
+.find-spell-state.available { color: var(--accent-green, #88A878); border-color: currentColor; }
+.find-spell-state.learning  { color: var(--learning-color, var(--accent-blue, #7890A8)); border-color: currentColor; }
+.find-spell-state.unlocked  { color: var(--accent-gold, #B8A878); border-color: currentColor; }
+
+.find-spell-school {
+    font-weight: 600;
+}
+
+/* ---- Spell card icon (from an installed icon pack, in front of the name) ---- */
+.spell-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.spell-icon {
+    width: 1.5em;
+    height: 1.5em;
+    flex-shrink: 0;
+}
+
+.spell-icon.hidden {
+    display: none;
+}
+/* ---- Spell card keyword chips ----
+   One line under the name. Elements pick up the school colours the themes
+   already define; everything else stays neutral so the line reads as a set. */
+.spell-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.spell-chip {
+    font-size: 0.68em;
+    letter-spacing: 0.5px;
+    padding: 1px 7px;
+    border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.12)));
+    border-radius: 2px;
+    color: var(--text-secondary, #9A9A8A);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.05));
+    white-space: nowrap;
+}
+
+.spell-chip.chip-element { color: var(--text-bright, var(--text-primary, #E8E8D8)); border-color: currentColor; }
+.spell-chip.chip-element-fire    { color: var(--destruction, #ef4444); }
+.spell-chip.chip-element-frost   { color: var(--illusion, #38bdf8); }
+.spell-chip.chip-element-shock   { color: var(--conjuration, #a855f7); }
+.spell-chip.chip-element-poison  { color: var(--alteration, #22c55e); }
+.spell-chip.chip-element-disease { color: var(--alteration, #22c55e); }
+.spell-chip.chip-school { color: var(--text-muted, #6A6A5A); }
+.spell-chip.hidden-info { font-style: italic; }
+
+/* ---- Hover preview (modules/detailsPeek.js) ----
+   .is-empty: nothing selected, the panel keeps its place and shows a hint.
+   .peeking: the card previews the spell under the cursor - Learn/Unlock and
+   the cheat XP inputs cannot be pressed until the spell is clicked. */
+.details-empty {
+    display: none;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 0.8em;
+    line-height: 1.5;
+    color: var(--text-muted, #6A6A5A);
+}
+
+/* The id keeps these ahead of the bottom-bar rules below, which also set display */
+#contentSpellTree .details-panel.is-empty > .details-empty { display: flex; }
+#contentSpellTree .details-panel.is-empty > .details-header,
+#contentSpellTree .details-panel.is-empty > .details-body,
+#contentSpellTree .details-panel.is-empty > .progress-section,
+#contentSpellTree .details-panel.is-empty > .details-footer,
+#contentSpellTree .details-panel.is-empty > .details-close { display: none; }
+
+.details-peek-hint {
+    display: none;
+    font-size: 0.7em;
+    font-style: italic;
+    color: var(--text-muted, #6A6A5A);
+}
+
+.details-panel.peeking .details-peek-hint { display: inline; }
+.details-panel.peeking .details-footer .btn,
+.details-panel.peeking .xp-input {
+    pointer-events: none;
+    opacity: 0.45;
+}
+
+/* ---- Bottom details bar (settings.detailsLayout = 'bottom') ----
+   Same #details-panel element as the sidebar, re-flowed as a horizontal bar
+   above the tree footer. Section columns are placed with CSS grid so the
+   existing populate code in treeViewerUI.js keeps working unchanged. */
+#contentSpellTree.details-bottom .details-panel {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: 44px;
+    width: auto;
+    height: 180px;
+    flex-direction: row;
+}
+
+#contentSpellTree.details-bottom .details-header {
+    width: 150px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: none;
+    border-right: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+}
+
+#contentSpellTree.details-bottom .details-header h3 {
+    margin-bottom: 0;
+    white-space: normal;
+    line-height: 1.3;
+}
+
+#contentSpellTree.details-bottom .school-badge {
+    align-self: flex-start;
+}
+
+/* Body: three side-by-side columns (wrappers stack naturally in sidebar mode) */
+#contentSpellTree.details-bottom .details-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 14px;
+    padding: 8px 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#contentSpellTree.details-bottom .details-col {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* Card column: chips over the description, so it gets the room */
+#contentSpellTree.details-bottom .details-col-main {
+    flex: 1.4 1 0;
+}
+
+#contentSpellTree.details-bottom #details-desc-section { margin-top: 0; }
+
+#contentSpellTree.details-bottom .details-col-links {
+    flex: 1.2 1 0;
+}
+
+#contentSpellTree.details-bottom .detail-section { margin-top: 0; }
+#contentSpellTree.details-bottom .details-col-links .detail-section + .detail-section { margin-top: 8px; }
+
+#contentSpellTree.details-bottom .progress-section {
+    width: 200px;
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: 10px 12px;
+    border-top: none;
+    border-left: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#contentSpellTree.details-bottom .progress-section.hidden {
+    display: none;
+}
+
+#contentSpellTree.details-bottom .details-footer {
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    min-width: 110px;
+    padding: 28px 12px 10px;
+    border-top: none;
+    border-left: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
+}
+
+#contentSpellTree.details-bottom .details-footer .btn {
+    width: 100%;
+}
+
+#contentSpellTree.details-bottom .details-footer .state-badge {
+    text-align: center;
+}
+
+/* The instructions pill sits where the bar goes */
+#contentSpellTree.details-bottom.details-open .tree-instructions {
+    display: none;
+}
+
+/* The default theme keeps zoom controls at the bottom-left; move them up in bar mode */
+#contentSpellTree.details-bottom .zoom-controls {
+    top: 14px;
+    bottom: auto;
+}
+
+#contentSpellTree.details-bottom .heart-settings-popup {
+    top: 50px;
+    bottom: auto;
+}
+
+/* Reverse unlock note in the spell card (treeViewerUI): brings its own .hidden
+   rule rather than rely on one in the theme */
+#reverse-unlock-note.hidden { display: none; }
+/* Controls that do nothing right now, greyed out: own XP gain rates while off
+   (reverseUnlockSetting.js), design effects the design has none of and the
+   starfield under a page (designEffectsSetting.js) */
+.disabled-controls { opacity: 0.45; pointer-events: none; }
+
+/* The render popup: one short page (renderSettings.js) */
+.heart-settings-popup { width: 360px; max-width: calc(100% - 40px); }
+.heart-settings-popup .popup-note { white-space: normal; }
+
+/* Its own .hidden, so notes hide under a UI theme add-on without one */
+.heart-settings-popup .hidden { display: none; }
+.heart-settings-popup .popup-section-title { margin-top: 6px; }
+
+/* Its switches as chips: a checkbox inside a label, the label's text lit when on.
+   Theme variables only (with fallbacks), so every design and add-on colours them. */
+.render-chips {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 2px 0 6px;
+}
+.render-chip {
+    display: inline-block;
+    margin: 0 4px 4px 0;
+    cursor: pointer;
+    user-select: none;
+}
+.render-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+.render-chip span {
+    display: inline-block;
+    padding: 3px 9px;
+    font-size: 0.75em;
+    white-space: nowrap;
+    border: 1px solid var(--divider, rgba(184, 168, 120, 0.3));
+    border-radius: 3px;
+    color: var(--text-muted, #8a8070);
+    background: transparent;
+}
+.render-chip:hover span {
+    color: var(--text-secondary, #b8a878);
+}
+.render-chip input:checked + span {
+    border-color: var(--accent-gold, #b8a878);
+    color: var(--accent-gold, #b8a878);
+    background: var(--btn-bg-hover, rgba(184, 168, 120, 0.18));
+}
+
+/* Panel closed (onPanelHiding): endless CSS animations (build stage pulse,
+   armed delete button) stop, so nothing on the page keeps changing */
+body.panel-hidden *,
+body.panel-hidden *::before,
+body.panel-hidden *::after {
+    animation-play-state: paused !important;
+}
+
+/* A line of explanation in the render settings popup */
+.popup-note {
+    font-size: 0.72em;
+    line-height: 1.4;
+    color: var(--text-muted);
+    margin: 2px 0 6px;
+}
+.popup-note.hidden { display: none; }
+
+/* The tree canvas paints its whole box opaque (background colour, page or
+   stars): what the container would paint under it is never seen, but the
+   game's browser painted it again - gradients, a blurred inner shadow in
+   some designs - each time the canvas changed (CanvasRenderer.show) */
+.tree-container.canvas-shown {
+    background-image: none !important;
+}

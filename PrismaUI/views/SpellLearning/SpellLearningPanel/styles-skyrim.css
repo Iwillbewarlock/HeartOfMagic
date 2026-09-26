@@ -121,8 +121,10 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* Subtle outer glow instead of shadow */
-    box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+    /* An outline, not a shadow: the game's browser paints on the CPU, and box
+       shadows (blurred ones most) were worked out again whenever anything near
+       them changed (stalls of 100 ms and more, measured in game) */
+    outline: 2px solid rgba(0, 0, 0, 0.8);
 }
 
 .spell-panel.fullscreen {
@@ -348,7 +350,7 @@ body {
 }
 
 .panel-content::-webkit-scrollbar {
-    width: 4px;
+    width: 8px;
 }
 
 .panel-content::-webkit-scrollbar-track {
@@ -1477,7 +1479,7 @@ body {
     padding: 0;
     min-width: 220px;
     z-index: 200;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    outline: 2px solid rgba(0, 0, 0, 0.5);      /* not a shadow (see .spell-panel) */
 }
 
 .heart-settings-popup .popup-header {
@@ -2320,7 +2322,6 @@ body {
     z-index: 250;
     transform: translateX(-260px);
     transition: transform 0.25s ease;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .howto-panel.hidden {
@@ -2971,7 +2972,7 @@ body {
     z-index: 10;
     background: #1a1a2e;
     border: 1px solid var(--divider);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.85);
+    outline: 2px solid rgba(0, 0, 0, 0.85);     /* not a shadow (see .spell-panel) */
 }
 
 .blacklist-dropdown.hidden {
@@ -3280,7 +3281,7 @@ body {
 }
 
 #contentSettings::-webkit-scrollbar {
-    width: 6px;
+    width: 12px;
 }
 
 #contentSettings::-webkit-scrollbar-track {
@@ -3593,7 +3594,9 @@ body {
 
 .power-step-row {
     display: grid;
-    grid-template-columns: 56px 50px 42px 50px 52px 1fr;
+    /* Fixed so the rows line up; wide enough for the longest translations
+       ("Estágio 6", "% puissance") - "% XP" alone would fit in 42px */
+    grid-template-columns: 64px 50px 72px 50px 72px 1fr;
     align-items: center;
     gap: 6px;
     padding: 5px 8px;

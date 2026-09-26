@@ -586,6 +586,9 @@ var TreeParser = {
             node.type = spellData.type || spellData.castingType || 'Spell';
             node.effects = spellData.effects || spellData.effectNames || [];
             node.desc = spellData.description || '';
+            node.chips = spellData.chips || [];
+            node.iconKey = spellData.iconKey || '';
+            node.schoolIconKey = spellData.schoolIconKey || '';
             if (spellData.school) node.school = spellData.school;
         }
     }

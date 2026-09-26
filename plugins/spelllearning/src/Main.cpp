@@ -11,6 +11,7 @@
 #include "SpellTomeHook.h"
 #include "PapyrusAPI.h"
 #include "SpellLearningAPI.h"
+#include "ThreadUtils.h"
 
 // =============================================================================
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
@@ -263,13 +264,33 @@ void OnGameSaved(SKSE::SerializationInterface* a_intfc)
     // NOTE: DEST registrations are NOT serialized to co-save.
     // They are re-established on each load via AutoRegisterISLAliases()
     // in OnPostLoadGame, since OnInit() only fires once per save creation.
+    FlushLog();
 }
 
 void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
 {
     logger::info("SKSE Serialization: Game loaded");
-    ProgressionManager::GetSingleton()->OnGameLoaded(a_intfc);
-    SpellEffectivenessHook::GetSingleton()->OnGameLoaded(a_intfc);
+
+    // One record stream, read once. Each owner used to run its own
+    // GetNextRecordInfo loop, and the first one drained the stream: the
+    // progression reader consumed the early-learned record, logged it as an
+    // unknown type and threw it away, so a spell learned early lost its
+    // weakened state on every load.
+    auto* progression = ProgressionManager::GetSingleton();
+    auto* effectiveness = SpellEffectivenessHook::GetSingleton();
+
+    progression->BeginLoad();
+    effectiveness->BeginLoad();
+
+    uint32_t type = 0, version = 0, length = 0;
+    while (a_intfc->GetNextRecordInfo(type, version, length)) {
+        if (progression->ReadRecord(a_intfc, type, version, length)) continue;
+        if (effectiveness->ReadRecord(a_intfc, type, version, length)) continue;
+        logger::warn("SKSE Serialization: no owner for record type {:08X}, skipped", type);
+    }
+
+    progression->EndLoad();
+    effectiveness->EndLoad();
     // NOTE: DEST registrations are handled via AutoRegisterISLAliases()
     // in OnPostLoadGame, not through serialization.
 }
@@ -279,6 +300,8 @@ void OnRevert(SKSE::SerializationInterface* a_intfc)
     logger::info("SKSE Serialization: Reverting (new game or loading different save)");
     ProgressionManager::GetSingleton()->OnRevert(a_intfc);
     SpellEffectivenessHook::GetSingleton()->OnRevert(a_intfc);
+    // A different save means a different inventory
+    SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
     // NOTE: Do NOT revert DEST registrations here.
     // AutoRegisterISLAliases() in OnPostLoadGame will re-establish them.
     // Reverting would clear them, and since OnInit() only fires once per
@@ -309,6 +332,9 @@ void OnDataLoaded()
     // Register spell cast event handler for XP tracking
     SpellCastHandler::GetSingleton()->Register();
     logger::info("SpellCastHandler registered for XP tracking");
+
+    // Keeps the per-cast tome inventory check cached until the inventory changes
+    SpellTomeHook::GetSingleton()->RegisterInventoryEvents();
     
     // Initialize ISL/DEST integration (detects DEST_ISL.esp and enables event dispatch)
     DESTIntegration::Initialize();
@@ -318,7 +344,7 @@ void OnDataLoaded()
     registry.Register<SpellLearning::SpellCastXPSource>();
     registry.Register<SpellLearning::PassiveLearningSource>();
     registry.InitializeAll();
-    logger::info("XP sources registered: {} total, {} active", 
+    logger::info("XP sources registered: {} total, {} active",
                  registry.GetAll().size(), registry.GetActive().size());
 }
 
@@ -341,6 +367,9 @@ void OnPostLoadGame()
 {
     logger::info("Save game loaded - notifying UI to refresh player data");
     // Progress is automatically loaded by OnGameLoaded serialization callback
+
+    // The inventory is the loaded save's now, whatever was cached before
+    SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
 
     // Fix input/focus state that may be left bad by other mods or previous session
     if (UIManager::GetSingleton()->IsInitialized()) {
@@ -369,6 +398,10 @@ void OnPostLoadGame()
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
+    // SKSE delivers these on the game thread, which is the one piece of code
+    // guaranteed to run there before anything else needs to recognise it.
+    MarkGameThread();
+
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kPostLoad:
             // Install hooks after all plugins are loaded but before game data
@@ -402,6 +435,8 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             OnPostLoadGame();
             break;
     }
+    // Loading steps are rare and worth having on disk (info lines are buffered)
+    FlushLog();
 }
 
 // =============================================================================

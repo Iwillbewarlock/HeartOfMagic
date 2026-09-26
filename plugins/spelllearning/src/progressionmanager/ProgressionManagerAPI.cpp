@@ -56,8 +56,9 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
     // Already mastered
     if (progress.unlocked && progress.progressPercent >= 1.0f) return 0.0f;
 
-    // Apply global multiplier
-    float adjustedAmount = amount * m_xpSettings.globalMultiplier;
+    // Apply global multiplier (a spell learned downward can have its own rates)
+    const XPGainRates rates = GetGainRates(targetId);
+    float adjustedAmount = amount * rates.globalMultiplier;
 
     // Built-in sources
     if (sourceName == "any" || sourceName == "school" || sourceName == "direct" || sourceName == "self") {
@@ -65,20 +66,20 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
         float currentFromSource = 0.0f;
 
         if (sourceName == "any") {
-            adjustedAmount *= m_xpSettings.multiplierAny;
-            maxFromSource = progress.requiredXP * (m_xpSettings.capAny / 100.0f);
+            adjustedAmount *= rates.multiplierAny;
+            maxFromSource = progress.requiredXP * (rates.capAny / 100.0f);
             currentFromSource = progress.xpFromAny;
         } else if (sourceName == "school") {
-            adjustedAmount *= m_xpSettings.multiplierSchool;
-            maxFromSource = progress.requiredXP * (m_xpSettings.capSchool / 100.0f);
+            adjustedAmount *= rates.multiplierSchool;
+            maxFromSource = progress.requiredXP * (rates.capSchool / 100.0f);
             currentFromSource = progress.xpFromSchool;
         } else if (sourceName == "direct") {
-            adjustedAmount *= m_xpSettings.multiplierDirect;
-            maxFromSource = progress.requiredXP * (m_xpSettings.capDirect / 100.0f);
+            adjustedAmount *= rates.multiplierDirect;
+            maxFromSource = progress.requiredXP * (rates.capDirect / 100.0f);
             currentFromSource = progress.xpFromDirect;
         } else {  // "self" - no cap
             // Self-casting uses the direct multiplier — casting the target spell IS direct interaction
-            adjustedAmount *= m_xpSettings.multiplierDirect;
+            adjustedAmount *= rates.multiplierDirect;
             maxFromSource = progress.requiredXP;
             currentFromSource = progress.xpFromSelf;
         }

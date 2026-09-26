@@ -23,8 +23,12 @@ namespace OpenRouterAPI {
     // Shutdown and cleanup resources
     void Shutdown();
     
-    // Get current config
-    Config& GetConfig();
+    // The config is written by the game thread (settings, requests) and read by
+    // background threads (the Oracle builder, async prompts) at the same time,
+    // and two threads on one std::string is a crash. So: no reference to it
+    // leaves this module. Readers take a copy, writers edit under the lock.
+    Config GetConfigCopy();
+    void UpdateConfig(const std::function<void(Config&)>& edit);
     
     // Save config to file
     void SaveConfig();
@@ -37,8 +41,16 @@ namespace OpenRouterAPI {
         std::function<void(const Response&)> callback
     );
 
-    // Send a prompt (blocking)
+    // Send a prompt (blocking), with the module's current config
     Response SendPrompt(
+        const std::string& systemPrompt,
+        const std::string& userPrompt
+    );
+
+    // Send a prompt (blocking) with a config the caller holds - what a
+    // background thread uses, so it never reads the shared one mid-write
+    Response SendPrompt(
+        const Config& config,
         const std::string& systemPrompt,
         const std::string& userPrompt
     );

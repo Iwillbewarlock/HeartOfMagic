@@ -1,0 +1,38 @@
+{
+  "tier": "framework",
+  "_comment": [
+    "NSV spell keywords. Evidence tier 2, and the smallest of the four - 25",
+    "keywords, all on the SPEL rather than the effect, so these use",
+    "spellKeyword. Coarse by design: it says a spell heals without saying what",
+    "the healing is made of, which is exactly the granularity the other",
+    "frameworks already cover, so most of this is confirmation rather than",
+    "new information."
+  ],
+  "rules": [
+
+    { "match": { "spellKeyword": "NSV_Magic_Absorb" },   "add": { "techniques": ["siphon"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Armour" },
+      "add": { "elements": ["armor"], "techniques": ["infuse"] } },
+    { "match": { "spellKeyword": "NSV_Magic_CalmSeduce" },
+      "add": { "elements": ["creature", "human"], "techniques": ["pacify"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Cloak" },   "add": { "techniques": ["cloak"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Fear" },
+      "add": { "elements": ["creature", "human"], "techniques": ["fear"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Heal" },
+      "add": { "elements": ["health"], "techniques": ["curing"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Invisibility" }, "add": { "elements": ["shadow"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Summon" },  "add": { "techniques": ["summoning"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Teleport" },"add": { "techniques": ["teleport"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Trap" },    "add": { "elements": ["trap"] } },
+    { "match": { "spellKeyword": "NSV_Magic_Ward" },
+      "add": { "elements": ["shield"], "techniques": ["strengthen"] } },
+
+    { "match": { "spellKeyword": "NSV_Tag_Undead" },    "add": { "elements": ["undead"] } },
+    { "match": { "spellKeyword": "NSV_Tag_Vampiric" },  "add": { "elements": ["undead"] } },
+    { "match": { "spellKeyword": "NSV_Tag_Weapon" },    "add": { "elements": ["weapon"] } },
+    { "match": { "spellKeyword": "NSV_Tag_Summoned" },  "add": { "techniques": ["summoning"] } },
+    { "match": { "spellKeyword": "NSV_Tag_pMagicka" },  "add": { "elements": ["magicka"] } },
+    { "match": { "spellKeyword": "NSV_Tag_pStamina" },  "add": { "elements": ["stamina"] } },
+    { "match": { "spellKeyword": "NSV_Tag_Health_to" }, "add": { "elements": ["health"] } }
+  ]
+}

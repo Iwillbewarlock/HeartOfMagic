@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Drag and resize
         if (typeof initializeDragging === 'function') initializeDragging();
         if (typeof initializeResizing === 'function') initializeResizing();
+        if (typeof PanelSnap !== 'undefined') PanelSnap.init();   // whole pixels (panelSnap.js)
         
         // Tree viewer
         if (typeof initializeTreeViewer === 'function') initializeTreeViewer();
@@ -56,6 +57,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 initializeHeartSettings();
             } catch (heartErr) {
                 console.error('[SpellLearning] Heart settings init error:', heartErr);
+            }
+        }
+
+        // Its own step: it used to be wired from inside initializeHeartSettings,
+        // so any throw in there left the player unable to change language at all
+        if (typeof initializeLanguageSelect === 'function') {
+            try {
+                initializeLanguageSelect();
+            } catch (langErr) {
+                console.error('[SpellLearning] Language picker init error:', langErr);
             }
         }
         

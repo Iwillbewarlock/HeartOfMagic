@@ -249,9 +249,11 @@ TreeBuilder::BuildResult TreeBuilder::BuildGraph(
                 if (idxIt != spellIndex.end()) {
                     auto [theme, score] = GetSpellPrimaryTheme(schoolSpellList[idxIt->second], schoolThemes);
                     node.theme = (score > 30) ? theme : "";
+                    node.themes = GetSpellThemes(schoolSpellList[idxIt->second], schoolThemes);
                 }
             }
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Precompute tier indices
         std::unordered_map<std::string, int> tierIdxMap;
@@ -295,7 +297,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildGraph(
                         score += sims.GetTextSim(fid, cand->formId) * 30.0f * chaos;
                         score += sims.GetNameSim(fid, cand->formId) * 20.0f;
 
-                        if (!node.theme.empty() && !cand->theme.empty() && node.theme == cand->theme)
+                        if (SharesTheme(node, *cand))
                             score += 15.0f;
 
                         int td = tierIdx - searchTier;

@@ -18,7 +18,9 @@ add_executable(${PROJECT_NAME}
     ${SL_SRC_DIR}/treebuilder/TreeBuilderTree.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderGraph.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderThematic.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderOracle.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp
     ${SL_SRC_DIR}/treebuilder/SimdKernels.cpp
 )
 
@@ -42,4 +44,63 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 # Highway foreach_target dispatch must not be merged into unity build groups
 set_source_files_properties(${SL_SRC_DIR}/treebuilder/SimdKernels.cpp PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
+)
+
+# =============================================================================
+# librarian-test  -  offline harness for the tag librarian
+# =============================================================================
+# Compiles the same classifier the plugin uses, so the coverage and precision
+# it reports are the plugin's own numbers, not a second implementation's.
+
+add_executable(librarian-test
+    librarian-test.cpp
+    librarian-score.cpp
+    librarian-vocab-check.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianRules.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianCatalog.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianTraits.cpp
+)
+
+target_compile_features(librarian-test PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(librarian-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(librarian-test PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# declutter-test  -  offline harness for the native tree declutter pass
+# =============================================================================
+# The plugin's own LayoutDeclutter sources, so a tree run here comes out as it
+# does for the panel; compare with modules/layoutDeclutter.js on the same tree.
+
+add_executable(declutter-test
+    declutter-test.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutDeclutter.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClear.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClearCost.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineGrid.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutMath.cpp
+)
+
+target_compile_features(declutter-test PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(declutter-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(declutter-test PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
 )

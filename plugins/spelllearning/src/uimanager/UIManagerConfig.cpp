@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
@@ -14,11 +15,71 @@
 // SETTINGS (Legacy - now uses Unified Config)
 // =============================================================================
 
-// Apply runtime settings from a fully-merged config JSON.
-// Shared between OnLoadUnifiedConfig and DoSaveUnifiedConfig to avoid duplication.
-// Handles: early learning, spell tome, passive learning, and notification settings.
-static void ApplySettingsFromConfig(const nlohmann::json& config)
+// Known higher spells (XPSettings::reverseUnlock): what they open, the XP share of
+// the opened spells and their own XP gain rates.
+static void ReadReverseUnlockSettings(const nlohmann::json& config, ProgressionManager::XPSettings& xpSettings)
 {
+    // A share of 0 would make a fresh target need 0 XP, which AddXP ignores for
+    // good; the panel's sliders stay within 10 - 100%
+    constexpr float kMinShare = 0.01f;
+    constexpr float kMaxShare = 1.0f;
+    auto share = [&](const char* key, float fallback) {
+        return std::clamp(SafeJsonValue<float>(config, key, fallback), kMinShare, kMaxShare);
+    };
+    auto percent = [&](const char* key, float fallback) {
+        return (std::max)(0.0f, SafeJsonValue<float>(config, key, fallback));
+    };
+
+    xpSettings.reverseUnlock = SafeJsonValue<bool>(config, "reverseUnlock", true);
+    xpSettings.reverseUnlockToRoot = SafeJsonValue<bool>(config, "reverseUnlockToRoot", false);
+    xpSettings.reverseUnlockXPNovice = share("reverseUnlockXPNovice", 0.3f);
+    xpSettings.reverseUnlockXPApprentice = share("reverseUnlockXPApprentice", 0.4f);
+    xpSettings.reverseUnlockXPAdept = share("reverseUnlockXPAdept", 0.5f);
+    xpSettings.reverseUnlockXPExpert = share("reverseUnlockXPExpert", 0.7f);
+    xpSettings.reverseUnlockXPMaster = share("reverseUnlockXPMaster", 0.8f);
+
+    // Multipliers and caps are percentages in the config, like the xp* keys
+    auto& gain = xpSettings.reverseGain;
+    xpSettings.reverseXPSeparate = SafeJsonValue<bool>(config, "reverseXpSeparate", false);
+    gain.globalMultiplier = percent("reverseXpGlobalMultiplier", 1.0f);
+    gain.multiplierDirect = percent("reverseXpMultiplierDirect", 100.0f) / 100.0f;
+    gain.multiplierSchool = percent("reverseXpMultiplierSchool", 50.0f) / 100.0f;
+    gain.multiplierAny = percent("reverseXpMultiplierAny", 10.0f) / 100.0f;
+    gain.capAny = percent("reverseXpCapAny", 5.0f);
+    gain.capSchool = percent("reverseXpCapSchool", 15.0f);
+    gain.capDirect = percent("reverseXpCapDirect", 50.0f);
+}
+
+ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& config)
+{
+    ProgressionManager::XPSettings xpSettings;
+    xpSettings.learningMode = SafeJsonValue<std::string>(config, "learningMode", "perSchool");
+    xpSettings.globalMultiplier = SafeJsonValue<float>(config, "xpGlobalMultiplier", 1.0f);
+    xpSettings.multiplierDirect = SafeJsonValue<float>(config, "xpMultiplierDirect", 100.0f) / 100.0f;
+    xpSettings.multiplierSchool = SafeJsonValue<float>(config, "xpMultiplierSchool", 50.0f) / 100.0f;
+    xpSettings.multiplierAny = SafeJsonValue<float>(config, "xpMultiplierAny", 10.0f) / 100.0f;
+    // XP caps (max contribution from each source)
+    xpSettings.capAny = SafeJsonValue<float>(config, "xpCapAny", 5.0f);
+    xpSettings.capSchool = SafeJsonValue<float>(config, "xpCapSchool", 15.0f);
+    xpSettings.capDirect = SafeJsonValue<float>(config, "xpCapDirect", 50.0f);
+    // Tier XP requirements
+    xpSettings.xpNovice = SafeJsonValue<float>(config, "xpNovice", 100.0f);
+    xpSettings.xpApprentice = SafeJsonValue<float>(config, "xpApprentice", 200.0f);
+    xpSettings.xpAdept = SafeJsonValue<float>(config, "xpAdept", 400.0f);
+    xpSettings.xpExpert = SafeJsonValue<float>(config, "xpExpert", 800.0f);
+    xpSettings.xpMaster = SafeJsonValue<float>(config, "xpMaster", 1500.0f);
+    ReadReverseUnlockSettings(config, xpSettings);
+    return xpSettings;
+}
+
+// Apply runtime settings from a fully-merged config JSON.
+// Shared between OnLoadUnifiedConfig and the config save (UIManagerConfigSave.cpp).
+// Handles: early learning, spell tome, passive learning, and notification settings.
+// Game thread: every setter here changes state the game thread reads unlocked.
+void ApplySettingsFromConfig(const nlohmann::json& config)
+{
+    UIManager::SetPanelInfoLogging(SafeJsonValue<bool>(config, "developerMode", false));
+
     // Early learning settings
     if (config.contains("earlySpellLearning") && !config["earlySpellLearning"].is_null()) {
         auto& elConfig = config["earlySpellLearning"];
@@ -159,6 +220,22 @@ json GenerateDefaultConfig() {
         {"xpAdept", 400},
         {"xpExpert", 800},
         {"xpMaster", 1500},
+        // Known higher spells (ReadReverseUnlockSettings)
+        {"reverseUnlock", true},
+        {"reverseUnlockToRoot", false},
+        {"reverseUnlockXPNovice", 0.3},
+        {"reverseUnlockXPApprentice", 0.4},
+        {"reverseUnlockXPAdept", 0.5},
+        {"reverseUnlockXPExpert", 0.7},
+        {"reverseUnlockXPMaster", 0.8},
+        {"reverseXpSeparate", false},
+        {"reverseXpGlobalMultiplier", 1},
+        {"reverseXpMultiplierDirect", 100},
+        {"reverseXpMultiplierSchool", 50},
+        {"reverseXpMultiplierAny", 10},
+        {"reverseXpCapAny", 5},
+        {"reverseXpCapSchool", 15},
+        {"reverseXpCapDirect", 50},
         {"revealName", 10},
         {"revealEffects", 25},
         {"revealDescription", 50},
@@ -242,6 +319,11 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
         auto path = GetUnifiedConfigPath();
 
+    // Saves are written off this thread. One still queued would make this read
+    // stale, and one halfway through its write has config.json moved aside -
+    // which would look like "no file" and have the defaults written over it.
+    auto configFileLock = LockUnifiedConfigFile();
+
     // Also check legacy paths and merge if needed
     auto legacySettingsPath = GetSettingsFilePath();
     auto legacyLLMPath = std::filesystem::path("Data/SKSE/Plugins/SpellLearning/openrouter_config.json");
@@ -301,6 +383,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
             logger::warn("UIManager: Failed to save default config: {}", e.what());
         }
     }
+    configFileLock.unlock();
 
     // Update InputHandler with loaded hotkey
     if (unifiedConfig.contains("hotkeyCode") && !unifiedConfig["hotkeyCode"].is_null()) {
@@ -318,28 +401,16 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // Update ProgressionManager with loaded XP settings
     // All fields are guaranteed to exist from defaults, but use SafeJsonValue for extra safety
-    ProgressionManager::XPSettings xpSettings;
-    xpSettings.learningMode = SafeJsonValue<std::string>(unifiedConfig, "learningMode", "perSchool");
-    xpSettings.globalMultiplier = SafeJsonValue<float>(unifiedConfig, "xpGlobalMultiplier", 1.0f);
-    xpSettings.multiplierDirect = SafeJsonValue<float>(unifiedConfig, "xpMultiplierDirect", 100.0f) / 100.0f;
-    xpSettings.multiplierSchool = SafeJsonValue<float>(unifiedConfig, "xpMultiplierSchool", 50.0f) / 100.0f;
-    xpSettings.multiplierAny = SafeJsonValue<float>(unifiedConfig, "xpMultiplierAny", 10.0f) / 100.0f;
-    // XP caps (max contribution from each source)
-    xpSettings.capAny = SafeJsonValue<float>(unifiedConfig, "xpCapAny", 5.0f);
-    xpSettings.capSchool = SafeJsonValue<float>(unifiedConfig, "xpCapSchool", 15.0f);
-    xpSettings.capDirect = SafeJsonValue<float>(unifiedConfig, "xpCapDirect", 50.0f);
-    // Tier XP requirements
-    xpSettings.xpNovice = SafeJsonValue<float>(unifiedConfig, "xpNovice", 100.0f);
-    xpSettings.xpApprentice = SafeJsonValue<float>(unifiedConfig, "xpApprentice", 200.0f);
-    xpSettings.xpAdept = SafeJsonValue<float>(unifiedConfig, "xpAdept", 400.0f);
-    xpSettings.xpExpert = SafeJsonValue<float>(unifiedConfig, "xpExpert", 800.0f);
-    xpSettings.xpMaster = SafeJsonValue<float>(unifiedConfig, "xpMaster", 1500.0f);
+    ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(unifiedConfig);
     // Preserve modded sources registered by API consumers before config loaded
     xpSettings.moddedSources = ProgressionManager::GetSingleton()->GetXPSettings().moddedSources;
     ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
 
     // Apply early learning, tome, passive, and notification settings
     ApplySettingsFromConfig(unifiedConfig);
+
+    // The panel's language, for the page to read before it draws next time
+    WritePanelLocale(unifiedConfig);
 
     // Strip internal sources from config before sending to UI (they have their own UI sections)
     if (unifiedConfig.contains("moddedXPSources") && unifiedConfig["moddedXPSources"].is_object()) {
@@ -356,7 +427,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Send to UI
     std::string configStr = unifiedConfig.dump();
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());
-    instance->m_prismaUI->InteropCall(instance->m_view, "onUnifiedConfigLoaded", configStr.c_str());
+    instance->CallView("onUnifiedConfigLoaded", configStr.c_str());
 
     // Re-notify all registered external modded XP sources to the UI.
     // Sources registered before PrismaUI was ready had their notifications dropped,
@@ -375,150 +446,4 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Notify UI of DEST detection status (fresh detection, not from saved config)
     instance->NotifyDESTDetectionStatus();
     });
-}
-
-void UIManager::OnSaveUnifiedConfig(const char* argument)
-{
-    if (!argument || strlen(argument) == 0) {
-        logger::warn("UIManager: SaveUnifiedConfig - no data provided");
-        return;
-    }
-
-    // Debounce: skip if we saved very recently (prevents double-save on panel close)
-    auto* instance = GetSingleton();
-    {
-        std::scoped_lock lock(instance->m_configSaveMutex);
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - instance->m_lastConfigSaveTime).count();
-        if (elapsed < kConfigSaveDebounceMs) {
-            logger::info("UIManager: SaveUnifiedConfig debounced ({}ms since last save)", elapsed);
-            return;
-        }
-        instance->m_lastConfigSaveTime = now;
-    }
-
-    logger::info("UIManager: SaveUnifiedConfig");
-
-    // Capture the argument as a string so we can defer the heavy work
-    std::string configData(argument);
-
-    // Defer the actual save + settings reapplication to the next game frame
-    // This prevents disk I/O from competing with the game engine during the
-    // critical resume frame when the panel closes and the game un-pauses
-    AddTaskToGameThread("SaveUnifiedConfig", [configData = std::move(configData)]() {
-        auto* inst = GetSingleton();
-        inst->DoSaveUnifiedConfig(configData);
-    });
-}
-
-void UIManager::DoSaveUnifiedConfig(const std::string& configData)
-{
-    auto path = GetUnifiedConfigPath();
-
-    try {
-        // Ensure directory exists
-        std::filesystem::create_directories(path.parent_path());
-        // Parse incoming config
-        json newConfig = json::parse(configData);
-
-        // Load existing config to preserve any fields not in the update
-        json existingConfig;
-        if (std::filesystem::exists(path)) {
-            try {
-                std::ifstream existingFile(path);
-                existingConfig = json::parse(existingFile);
-            } catch (...) {}
-        }
-
-        // Deep merge new config into existing (preserves nested keys)
-        MergeJsonNonNull(existingConfig, newConfig);
-
-        // Update hotkey in InputHandler if changed
-        if (newConfig.contains("hotkeyCode")) {
-            uint32_t keyCode = newConfig["hotkeyCode"].get<uint32_t>();
-            UpdateInputHandlerHotkey(keyCode);
-        }
-
-        // Update pause game on focus if changed
-        if (newConfig.contains("pauseGameOnFocus")) {
-            bool pauseGame = newConfig["pauseGameOnFocus"].get<bool>();
-            GetSingleton()->SetPauseGameOnFocus(pauseGame);
-        }
-
-        // Update XP settings in ProgressionManager if changed
-        ProgressionManager::XPSettings xpSettings;
-        xpSettings.learningMode = SafeJsonValue<std::string>(existingConfig, "learningMode", "perSchool");
-        xpSettings.globalMultiplier = SafeJsonValue<float>(existingConfig, "xpGlobalMultiplier", 1.0f);
-        xpSettings.multiplierDirect = SafeJsonValue<float>(existingConfig, "xpMultiplierDirect", 100.0f) / 100.0f;
-        xpSettings.multiplierSchool = SafeJsonValue<float>(existingConfig, "xpMultiplierSchool", 50.0f) / 100.0f;
-        xpSettings.multiplierAny = SafeJsonValue<float>(existingConfig, "xpMultiplierAny", 10.0f) / 100.0f;
-        // XP caps (max contribution from each source)
-        xpSettings.capAny = SafeJsonValue<float>(existingConfig, "xpCapAny", 5.0f);
-        xpSettings.capSchool = SafeJsonValue<float>(existingConfig, "xpCapSchool", 15.0f);
-        xpSettings.capDirect = SafeJsonValue<float>(existingConfig, "xpCapDirect", 50.0f);
-        // Tier XP requirements
-        xpSettings.xpNovice = SafeJsonValue<float>(existingConfig, "xpNovice", 100.0f);
-        xpSettings.xpApprentice = SafeJsonValue<float>(existingConfig, "xpApprentice", 200.0f);
-        xpSettings.xpAdept = SafeJsonValue<float>(existingConfig, "xpAdept", 400.0f);
-        xpSettings.xpExpert = SafeJsonValue<float>(existingConfig, "xpExpert", 800.0f);
-        xpSettings.xpMaster = SafeJsonValue<float>(existingConfig, "xpMaster", 1500.0f);
-
-        // Load modded XP source settings from config
-        if (existingConfig.contains("moddedXPSources") && existingConfig["moddedXPSources"].is_object()) {
-            for (auto& [srcId, srcData] : existingConfig["moddedXPSources"].items()) {
-                ProgressionManager::ModdedSourceConfig config;
-                config.displayName = SafeJsonValue<std::string>(srcData, "displayName", srcId);
-                config.enabled = SafeJsonValue<bool>(srcData, "enabled", true);
-                config.multiplier = SafeJsonValue<float>(srcData, "multiplier", 100.0f);
-                config.cap = SafeJsonValue<float>(srcData, "cap", 25.0f);
-                xpSettings.moddedSources[srcId] = config;
-            }
-            logger::info("UIManager: Loaded {} modded XP source configs", xpSettings.moddedSources.size());
-        }
-
-        // Preserve modded sources registered by API consumers that aren't in the saved config
-        for (auto& [srcId, srcConfig] : ProgressionManager::GetSingleton()->GetXPSettings().moddedSources) {
-            if (xpSettings.moddedSources.find(srcId) == xpSettings.moddedSources.end()) {
-                xpSettings.moddedSources[srcId] = srcConfig;
-            }
-        }
-        ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
-
-        // Apply early learning, tome, passive, and notification settings
-        ApplySettingsFromConfig(existingConfig);
-
-        // Write merged config
-        std::ofstream file(path);
-        if (!file.is_open()) {
-            logger::error("UIManager: Failed to open unified config for writing: {}", path.string());
-            return;
-        }
-        file << existingConfig.dump(2);
-        file.flush();
-        if (file.fail()) {
-            logger::error("UIManager: Failed to write unified config to {}", path.string());
-            return;
-        }
-
-        logger::info("UIManager: Unified config saved to {}", path.string());
-
-        // Also update OpenRouter if LLM settings changed
-        if (newConfig.contains("llm") && !newConfig["llm"].is_null()) {
-            auto& llm = newConfig["llm"];
-            auto& config = OpenRouterAPI::GetConfig();
-
-            std::string newKey = SafeJsonValue<std::string>(llm, "apiKey", "");
-            if (!newKey.empty() && newKey.find("...") == std::string::npos) {
-                config.apiKey = newKey;
-            }
-            config.model = SafeJsonValue<std::string>(llm, "model", config.model);
-            config.maxTokens = SafeJsonValue<int>(llm, "maxTokens", config.maxTokens);
-
-            // Save to OpenRouter's config file too for compatibility
-            OpenRouterAPI::SaveConfig();
-        }
-
-    } catch (const std::exception& e) {
-        logger::error("UIManager: Failed to save unified config: {}", e.what());
-    }
 }

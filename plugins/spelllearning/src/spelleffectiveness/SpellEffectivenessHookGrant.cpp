@@ -243,59 +243,90 @@ void SpellEffectivenessHook::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     logger::info("SpellEffectivenessHook: Saved {} early-learned spells", count);
 }
 
-void SpellEffectivenessHook::OnGameLoaded(SKSE::SerializationInterface* a_intfc)
+void SpellEffectivenessHook::BeginLoad()
 {
-    {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+    // Nothing to clear here: OnRevert runs before every load and empties the
+    // set. The record itself clears again below, so a save without one leaves
+    // whatever the revert left, which is empty.
+}
 
-        uint32_t type, version, length;
-
-        while (a_intfc->GetNextRecordInfo(type, version, length)) {
-            if (type == kEarlyLearnedRecord) {
-                // Read count
-                uint32_t count = 0;
-                if (!a_intfc->ReadRecordData(&count, sizeof(count))) {
-                    logger::error("SpellEffectivenessHook: Failed to read early-learned count");
-                    return;
-                }
-
-                // Read formIds
-                m_earlyLearnedSpells.clear();
-                m_earlySpellCount.store(0, std::memory_order_release);
-                m_displayCache.clear();  // Clear display cache too
-
-                for (uint32_t i = 0; i < count; ++i) {
-                    RE::FormID formId = 0;
-                    if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                        logger::error("SpellEffectivenessHook: Failed to read formId at index {}", i);
-                        break;
-                    }
-
-                    // Resolve formId in case load order changed
-                    RE::FormID resolvedId = 0;
-                    if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                        m_earlyLearnedSpells.insert(resolvedId);
-                    } else {
-                        logger::warn("SpellEffectivenessHook: Failed to resolve formId {:08X}", formId);
-                    }
-                }
-
-                logger::info("SpellEffectivenessHook: Loaded {} early-learned spells", m_earlyLearnedSpells.size());
-                m_earlySpellCount.store(m_earlyLearnedSpells.size(), std::memory_order_release);
-            }
-        }
-    }
-
-    // Refresh all spell displays after load (outside mutex to avoid deadlock)
-    // Use SKSE task interface to delay this until game is fully loaded
+void SpellEffectivenessHook::EndLoad()
+{
+    // Refresh all spell displays after load (no lock held: RefreshAllSpellDisplays
+    // takes its own). Deferred so the game is fully loaded first.
     AddTaskToGameThread("RefreshSpellDisplays", [this]() {
         RefreshAllSpellDisplays();
     });
 }
 
+bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
+                                        uint32_t type, [[maybe_unused]] uint32_t version,
+                                        [[maybe_unused]] uint32_t length)
+{
+    if (type != kEarlyLearnedRecord) return false;
+
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        // Read count
+        uint32_t count = 0;
+        if (!a_intfc->ReadRecordData(&count, sizeof(count))) {
+            logger::error("SpellEffectivenessHook: Failed to read early-learned count");
+            return true;
+        }
+
+        // Read formIds
+        m_earlyLearnedSpells.clear();
+        m_earlySpellCount.store(0, std::memory_order_release);
+        m_displayCache.clear();  // Clear display cache too
+
+        for (uint32_t i = 0; i < count; ++i) {
+            RE::FormID formId = 0;
+            if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
+                logger::error("SpellEffectivenessHook: Failed to read formId at index {}", i);
+                break;
+            }
+
+            // Resolve formId in case load order changed
+            RE::FormID resolvedId = 0;
+            if (a_intfc->ResolveFormID(formId, resolvedId)) {
+                m_earlyLearnedSpells.insert(resolvedId);
+            } else {
+                logger::warn("SpellEffectivenessHook: Failed to resolve formId {:08X}", formId);
+            }
+        }
+
+        logger::info("SpellEffectivenessHook: Loaded {} early-learned spells", m_earlyLearnedSpells.size());
+        m_earlySpellCount.store(m_earlyLearnedSpells.size(), std::memory_order_release);
+    }
+    return true;
+}
+
 void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterface* a_intfc)
 {
     std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+    // Names and descriptions live on the forms, and the forms outlive the
+    // save: loading another one does not reset them. Forgetting the originals
+    // here without putting them back left "(Learning - 20%)" on the spell,
+    // and the next grant then stored that as the original - seen in game as
+    // "Spell (Learning - 20%) (Learning - 20%)", and after mastery the name
+    // stayed wrong until the game was restarted. Put them back first.
+    for (const auto& [spellId, name] : m_originalSpellNames) {
+        if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId)) {
+            spell->fullName = name;
+        }
+    }
+    for (const auto& [effectId, description] : m_originalEffectDescriptions) {
+        if (auto* effect = RE::TESForm::LookupByID<RE::EffectSetting>(effectId)) {
+            effect->magicItemDescription = description;
+        }
+    }
+    if (!m_originalSpellNames.empty() || !m_originalEffectDescriptions.empty()) {
+        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions before revert",
+            m_originalSpellNames.size(), m_originalEffectDescriptions.size());
+    }
+
     m_earlyLearnedSpells.clear();
     m_earlySpellCount.store(0, std::memory_order_release);
     m_displayCache.clear();

@@ -1,0 +1,434 @@
+/*
+ * Arcane design - an open spellbook: a dark leather cover with gold tooling
+ * round parchment pages. Laid over the Skyrim Edge theme (styles-skyrim.css)
+ * by modules/designPresets.js; the tree canvas draws its own parchment page
+ * (TreeStyle, the Arcane tree tokens).
+ *
+ * The cover (panel, header, settings, buttons) mostly re-points the theme's
+ * variables. The pages - the spell card, the hover card, the how-to page and the
+ * popups - re-point them again
+ * inside their own box, so everything in them that reads a variable turns to ink
+ * on parchment; the few colours the theme writes out are overridden below.
+ */
+
+:root {
+    /* Leather and gold */
+    --panel-bg: rgba(30, 20, 12, 0.97);
+    --panel-bg-solid: #1e140c;
+    --panel-border: rgba(201, 162, 90, 0.35);
+    --text-primary: #E6D8B8;
+    --text-secondary: #BCA882;
+    --text-muted: #8A7658;
+    --text-bright: #F6ECD4;
+    --accent-gold: #C9A25A;
+    --accent-gold-hover: #DDB86C;
+    --btn-bg: rgba(201, 162, 90, 0.08);
+    --btn-bg-hover: rgba(201, 162, 90, 0.16);
+    --input-bg: rgba(12, 7, 3, 0.55);
+    --canvas-bg: #e6d6b0;
+    --divider: rgba(201, 162, 90, 0.2);
+
+    /* Parchment and ink, for the pages */
+    --arcane-parchment: #efe3c4;
+    --arcane-parchment-edge: #dccb9f;
+    --arcane-ink: #2a1c0c;
+    --arcane-ink-soft: #5a4326;
+    --arcane-ink-faint: #7d6647;
+    --arcane-rule: rgba(90, 58, 20, 0.25);
+    --arcane-rubric: #8a2f1c;
+    --arcane-serif: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+
+    /* The scan screen's tree previews (uiHelpers getPreviewBackground) */
+    --preview-bg: #1b130c;
+}
+
+/* ---------------------------------------------------------------- the cover */
+
+.spell-panel {
+    background: #211710;
+    border: 1px solid #6b4e24;
+    /* Flat colours and outlines, no gradients or box shadows: in game the view is
+       painted on the CPU, and those were worked out again whenever anything on
+       the panel changed (stalls of 150-250 ms, measured) */
+    /* gold tooling: a thin line a few pixels in from the edge */
+    outline: 1px solid rgba(201, 162, 90, 0.45);
+    outline-offset: -5px;
+}
+
+.panel-header {
+    background: rgba(44, 29, 16, 0.9);
+    border-bottom: 1px solid rgba(201, 162, 90, 0.45);
+}
+
+.panel-title {
+    font-family: var(--arcane-serif);
+    color: var(--accent-gold-hover);
+    /* The serif runs wider than the theme's narrow sans: kept to one line with
+       room for the Return button on the settings and scan screens */
+    font-size: 1.9em;
+    letter-spacing: 3px;
+    white-space: nowrap;
+}
+
+.header-btn {
+    white-space: nowrap;
+}
+
+.version-tag {
+    background: rgba(201, 162, 90, 0.12);
+    border: 1px solid rgba(201, 162, 90, 0.3);
+}
+
+.header-btn,
+.btn,
+.settings-block-title,
+.subsection-title,
+.popup-section-title,
+.modal-header h2,
+.modal-header h3 {
+    font-family: var(--arcane-serif);
+}
+
+.btn {
+    border-color: rgba(201, 162, 90, 0.28);
+}
+
+.btn-primary {
+    background: rgba(201, 162, 90, 0.2);
+    border-color: rgba(201, 162, 90, 0.45);
+    color: var(--accent-gold-hover);
+}
+
+.settings-block {
+    background: rgba(20, 12, 6, 0.55);
+    border: 1px solid rgba(201, 162, 90, 0.22);
+}
+
+.settings-block-header {
+    background: rgba(48, 32, 16, 0.7);
+    border-bottom: 1px solid rgba(201, 162, 90, 0.3);
+}
+
+.settings-block-title {
+    color: var(--accent-gold-hover);
+    letter-spacing: 1.5px;
+}
+
+/* ----------------------------------------------------------- the tree page */
+
+/* A page set in the cover: gold edge, a dark gutter, shadow where it curls */
+.tree-container {
+    border: 1px solid rgba(201, 162, 90, 0.55);
+    box-shadow:
+        0 0 0 3px rgba(20, 12, 6, 0.9),
+        0 0 0 4px rgba(201, 162, 90, 0.28),
+        inset 0 0 22px rgba(60, 36, 12, 0.5);
+}
+
+/* Tools laid on the page and the strip under it: leather, like the cover */
+.zoom-controls,
+.tree-footer {
+    background: rgba(36, 24, 14, 0.94);
+    border-color: rgba(201, 162, 90, 0.35);
+}
+
+#howto-tab {
+    background: rgba(36, 24, 14, 0.94);
+    border-color: rgba(201, 162, 90, 0.45);
+    color: var(--accent-gold-hover);
+}
+
+/* The render settings popup is a tool, not a page: leather like the zoom bar */
+.heart-settings-popup {
+    background: rgba(30, 20, 12, 0.97);
+    border-color: rgba(201, 162, 90, 0.45);
+}
+
+.heart-settings-popup .popup-header {
+    background: rgba(201, 162, 90, 0.12);
+    color: var(--accent-gold-hover);
+    font-family: var(--arcane-serif);
+}
+
+/* -------------------------------------------------------------- the pages */
+
+/* The spell card, the how-to page and every popup are parchment: re-pointing
+   the variables inside them turns what reads them to ink - blue, green and red
+   ink for the theme's accents. */
+.details-panel,
+#contentSpellTree.details-bottom .details-panel,
+.howto-panel,
+.modal-content {
+    --text-primary: var(--arcane-ink);
+    --text-secondary: var(--arcane-ink-soft);
+    --text-muted: var(--arcane-ink-faint);
+    --text-bright: #1c1208;
+    --divider: var(--arcane-rule);
+    --panel-border: var(--arcane-rule);
+    --panel-bg: var(--arcane-parchment);
+    --input-bg: rgba(255, 250, 235, 0.6);
+    --btn-bg: rgba(90, 58, 20, 0.08);
+    --btn-bg-hover: rgba(90, 58, 20, 0.16);
+    --accent-gold: #8b5e1a;
+    --accent-gold-hover: #6b4410;
+    --accent-blue: #1d6f8a;
+    --accent-green: #3d6b2e;
+    --accent-red: #9a2a1a;
+    /* School colours as inks: the theme's are pale, made for a dark card */
+    --destruction: #9a2a1a;
+    --restoration: #7a5a0c;
+    --alteration: #2f6b3a;
+    --conjuration: #5a3a8a;
+    --illusion: #1d5f8a;
+    color: var(--arcane-ink);
+}
+
+/* ------------------------------------------------------- the spell card page */
+
+.details-panel,
+#contentSpellTree.details-bottom .details-panel {
+    background: var(--arcane-parchment);
+    border: 1px solid #8a6a3a;
+    outline: 1px solid rgba(0, 0, 0, 0.5);       /* no gradient or shadow (see .spell-panel) */
+}
+
+.details-header,
+.details-footer {
+    background: rgba(90, 58, 20, 0.08);
+}
+
+.details-header #spell-name,
+.details-panel .spell-name {
+    font-family: var(--arcane-serif);
+}
+
+.detail-list li,
+.prereq-summary,
+.prereq-edit-item {
+    background: rgba(90, 58, 20, 0.06);
+}
+
+.detail-list.clickable li:hover {
+    background: rgba(90, 58, 20, 0.14);
+}
+
+.progress-bar-container {
+    background: rgba(90, 58, 20, 0.15);
+}
+
+.learning-status-badge.weakened {
+    color: #8a4e2a;
+}
+
+.details-panel .btn,
+.details-panel .header-btn {
+    color: var(--arcane-ink);
+}
+
+/* State stamps: the theme's pale greens and greys are made for a dark card */
+.details-panel .state-badge {
+    background: rgba(90, 58, 20, 0.08);
+}
+.details-panel .state-badge.available { color: #3d6b2e; border-color: #3d6b2e; }
+.details-panel .state-badge.learning  { color: #1d6f8a; border-color: #1d6f8a; }
+.details-panel .state-badge.unlocked  { color: #7a5a14; border-color: #7a5a14; }
+.details-panel .state-badge.locked    { color: #6b5a45; border-color: #6b5a45; }
+
+/* School badge: the tree's school colours are written into an inline stylesheet
+   (.school-badge.<school>), pale for a dark card; on the page they are inks */
+.details-panel .school-badge { background: rgba(90, 58, 20, 0.1); }
+.details-panel .school-badge.destruction { color: var(--destruction); }
+.details-panel .school-badge.restoration { color: var(--restoration); }
+.details-panel .school-badge.alteration  { color: var(--alteration); }
+.details-panel .school-badge.conjuration { color: var(--conjuration); }
+.details-panel .school-badge.illusion    { color: var(--illusion); }
+
+/* -------------------------------------------------------- the hover card slip */
+
+#tooltip.tooltip {
+    background: var(--arcane-parchment);
+    border: 1px solid #8a6a3a;
+    outline: 1px solid rgba(40, 24, 8, 0.45);    /* no shadow (see .spell-panel) */
+}
+
+#tooltip .tooltip-name {
+    color: var(--arcane-ink);
+    font-family: var(--arcane-serif);
+    letter-spacing: 0.02em;
+}
+
+#tooltip .tooltip-info {
+    color: var(--arcane-ink-soft);
+}
+
+/* ------------------------------------------------------------ the how-to page */
+
+/* A page slid out from the left edge of the book */
+.howto-panel {
+    background: var(--arcane-parchment);
+    border: 1px solid #8a6a3a;
+    border-left: 3px solid #6b4e24;              /* no gradient or shadow (see .spell-panel) */
+}
+
+.howto-header {
+    border-bottom-color: var(--arcane-rule);
+}
+
+.howto-header h3,
+.howto-section h4 {
+    font-family: var(--arcane-serif);
+}
+
+/* Section headings in red ink, like the rubrics of an old book */
+.howto-section {
+    background: rgba(90, 58, 20, 0.06);
+    border-left-color: var(--arcane-rubric);
+}
+
+.howto-section h4,
+.howto-list li::before {
+    color: var(--arcane-rubric);
+}
+
+.howto-list li {
+    border-bottom-color: var(--arcane-rule);
+}
+
+/* ------------------------------------------------------------ the popups */
+
+/* A slip of parchment over a darkened book */
+.modal-content {
+    background: var(--arcane-parchment);
+    border: 1px solid #8a6a3a;
+    outline: 2px solid rgba(0, 0, 0, 0.7);       /* no gradient or shadow (see .spell-panel) */
+}
+
+.modal-header {
+    background: rgba(90, 58, 20, 0.08);
+}
+
+.modal-header h3 {
+    color: var(--arcane-ink);
+}
+
+.modal-body textarea {
+    background: rgba(255, 250, 235, 0.6);
+    color: var(--arcane-ink);
+}
+
+.modal-body textarea:focus {
+    border-color: rgba(90, 58, 20, 0.45);
+}
+
+.modal-content .btn,
+.modal-content .btn-primary {
+    color: var(--arcane-ink);
+}
+
+/* Fields and lists the theme fills with black: pale paper and a faint wash */
+.modal-content .spawn-search,
+.modal-content .json-editor,
+.modal-content input[type="text"],
+.modal-content input[type="number"] {
+    background: rgba(255, 250, 235, 0.6);
+    color: var(--arcane-ink);
+    border-color: rgba(90, 58, 20, 0.3);
+}
+
+.modal-content ::placeholder {
+    color: var(--arcane-ink-faint);
+}
+
+.modal-content .spawn-spell-list,
+.modal-content .blacklist-entries,
+.modal-content .whitelist-entries {
+    background: rgba(90, 58, 20, 0.06);
+    border-color: var(--arcane-rule);
+}
+
+/* Hovered and picked rows: a brown wash, the theme's white one vanishes on paper */
+.modal-content .spawn-spell-item:hover,
+.modal-content .find-spell-item:hover,
+.modal-content .find-spell-item.selected,
+.modal-content .whitelist-entry:hover {
+    background: rgba(90, 58, 20, 0.14);
+}
+
+.modal-content .find-spell-item.selected {
+    border-left-color: #6b4410;
+}
+
+/* The search dropdown lies over the list below it, so it needs a solid page */
+.modal-content .blacklist-dropdown {
+    background: var(--arcane-parchment);
+    border-color: #8a6a3a;
+}
+
+/* ------------------------------------------------------ tools on the cover */
+
+/* The school tabs and the trait filter sit on the page like the zoom tools: leather */
+#tree-school-tabs,
+#tree-trait-filter {
+    background: rgba(36, 24, 14, 0.94);
+    border-color: rgba(201, 162, 90, 0.35);
+}
+
+.school-tab {
+    font-family: var(--arcane-serif);
+}
+
+.school-tab.active {
+    background: rgba(201, 162, 90, 0.2);
+    color: var(--accent-gold-hover);
+}
+
+/* Switches in gold, not the theme's green */
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(201, 162, 90, 0.25);
+    border-color: rgba(201, 162, 90, 0.55);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    background: var(--accent-gold);
+}
+
+/* Thin leather scrollbars; darker ones on the parchment */
+.spell-panel ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.spell-panel ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.spell-panel ::-webkit-scrollbar-thumb {
+    background: rgba(201, 162, 90, 0.35);
+}
+
+.details-panel ::-webkit-scrollbar-track,
+.howto-panel ::-webkit-scrollbar-track,
+.modal-content ::-webkit-scrollbar-track {
+    background: rgba(90, 58, 20, 0.08);
+}
+
+.details-panel ::-webkit-scrollbar-thumb,
+.howto-panel ::-webkit-scrollbar-thumb,
+.modal-content ::-webkit-scrollbar-thumb {
+    background: rgba(90, 58, 20, 0.35);
+}
+
+/* The scan screen's tree previews: a dark leaf instead of the night sky */
+.prm-split-right,
+.easy-preview-placeholder,
+.tree-preview-canvas {
+    background: var(--preview-bg);
+}
+
+/* Under the opaque tree canvas the inner shadow is never seen, but was
+   worked out again on every change of the canvas: only the frame while it
+   shows, as an outline (no box shadow at all, see .spell-panel) */
+.tree-container.canvas-shown {
+    box-shadow: none;
+    outline: 3px solid rgba(20, 12, 6, 0.9);
+}

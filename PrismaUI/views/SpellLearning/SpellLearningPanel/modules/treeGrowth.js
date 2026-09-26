@@ -375,21 +375,32 @@ var TreeGrowth = {
 
     _startRenderLoop: function() {
         if (this._rafRunning) return;
+        // Hidden panel (a build finishing after it was closed): onPanelShowing starts it
+        if (window._panelVisible === false) return;
 
         this._rafRunning = true;
         this._idleFrames = 0;
         var self = this;
         function loop() {
-            if (self._needsRender) {
-                self._idleFrames = 0;
-                self._needsRender = false;
-                self._render();
-            } else {
-                self._idleFrames++;
-                if (self._idleFrames >= 60) {
-                    self._rafRunning = false;
-                    self._rafId = null;
-                    return; // Stop loop after ~1s of idle
+            try {
+                if (self._needsRender) {
+                    self._idleFrames = 0;
+                    self._needsRender = false;
+                    self._render();
+                } else {
+                    self._idleFrames++;
+                    if (self._idleFrames >= 60) {
+                        self._rafRunning = false;
+                        self._rafId = null;
+                        return; // Stop loop after ~1s of idle
+                    }
+                }
+            } catch (e) {
+                // A throw must not leave _rafRunning true with a dead loop:
+                // _startRenderLoop would then refuse to start a new one.
+                if (!self._renderErrorLogged) {
+                    self._renderErrorLogged = true;
+                    console.error('[TreeGrowth] Frame failed, loop continues: ' + (e && e.message ? e.message : e));
                 }
             }
             self._rafId = requestAnimationFrame(loop);
@@ -419,7 +430,7 @@ var TreeGrowth = {
         ctx.globalAlpha = 1.0;
 
         // Clear
-        ctx.fillStyle = '#0a0a0f';
+        ctx.fillStyle = (typeof getPreviewBackground === 'function') ? getPreviewBackground() : '#0a0a0f';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Scale for DPR

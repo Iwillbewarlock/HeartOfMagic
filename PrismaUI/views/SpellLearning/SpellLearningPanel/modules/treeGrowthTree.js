@@ -146,11 +146,11 @@ var TreeGrowthTree = {
 
         // Defer to let UI render progress modal before blocking on JSON.stringify
         setTimeout(function() {
-            window.callCpp('ProceduralTreeGenerate', JSON.stringify({
+            window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
                 command: 'build_tree',
                 spells: spellsToProcess,
                 config: config
-            }));
+            })));
         }, 0);
     },
 
@@ -391,24 +391,32 @@ var TreeGrowthTree = {
             output.schools[schoolName] = schoolOut;
         }
 
-        // Save to disk via C++
-        window.callCpp('SaveSpellTree', JSON.stringify(output));
+        // Cross school bridges: extra soft prerequisites, and the list itself for the viewer
+        if (typeof SchoolBridges !== 'undefined') SchoolBridges.applyToOutput(output, this._treeData);
 
-        // Load into the spell tree viewer so it displays immediately
-        if (typeof loadTreeData === 'function') {
-            loadTreeData(output);
-        }
+        // No spell under another or under a line (LayoutDeclutter): a piece at a
+        // time between frames, then saved and shown
+        var self = this;
+        LayoutDeclutter.applyAsync(output, function() {
+            // Save to disk via C++
+            window.callCpp('SaveSpellTree', JSON.stringify(output));
 
-        var schoolCount = Object.keys(output.schools).length;
-        TreeSettings.setStatusText('Tree applied (' + schoolCount + ' schools)', '#22c55e');
-        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: schoolCount}), 'success');
+            // Load into the spell tree viewer so it displays immediately
+            if (typeof loadTreeData === 'function') {
+                loadTreeData(output);
+            }
 
-        // Switch to the Spell Tree tab after a brief delay
-        if (typeof switchTab === 'function') {
-            setTimeout(function() {
-                switchTab('spellTree');
-            }, 300);
-        }
+            var schoolCount = Object.keys(output.schools).length;
+            TreeSettings.setStatusText('Tree applied (' + schoolCount + ' schools)', '#22c55e');
+            if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: schoolCount}), 'success');
+
+            // Switch to the Spell Tree tab after a brief delay
+            if (typeof switchTab === 'function') {
+                setTimeout(function() {
+                    switchTab('spellTree');
+                }, 300);
+            }
+        });
     },
 
     /**

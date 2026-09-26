@@ -9,7 +9,7 @@
  * - Debug grid works without GRID_CONFIG
  * - Reads pre-baked x,y positions from scan system data
  *
- * Depends on: settings, state (no TREE_CONFIG, no WheelRenderer, no GRID_CONFIG)
+ * Depends on: settings, state, TreeStyle (no TREE_CONFIG, no WheelRenderer, no GRID_CONFIG)
  */
 
 var CanvasRenderer = {
@@ -36,6 +36,27 @@ var CanvasRenderer = {
     panStartY: 0,
     selectedNode: null,
     hoveredNode: null,
+    _pressX: 0,               // Screen position where the mouse button went down
+    _pressY: 0,
+    _dragMoved: false,        // True once a press moved past DRAG_THRESHOLD (suppresses click)
+    // Frames asked for by animation alone (heart, globe, stars, sigil) come at
+    // most this often: ~12 a second (was 15, and 20 before). Each is an upload
+    // of the whole panel in the game's browser; the moving parts keep their
+    // speed (AnimClock), they only move in slightly bigger steps
+    ANIMATION_FRAME_MS: 83,
+    WHEEL_SETTLE_MS: 150,        // the wheel counts as still after this long without a notch
+    WHEEL_SETTLE_SLACK_MS: 20,   // the repaint timer fires just after that
+    HEARTBEAT_FRAME_MS: 50,      // the frame the heartbeat speed setting was tuned at
+    HEARTBEAT_MAX_STEP_MS: 250,  // a longer gap (panel shut, a stall) is not caught up
+    DRAG_THRESHOLD: 5,
+    CLICK_WAIT_MS: 500,       // a release with no click event after this long is logged (PerfMeter.input)        // px of movement before a press counts as a drag
+    WHEEL_ZOOM_STEP: 0.15,    // zoom change per wheel notch (was 0.10; out is the exact inverse of in)
+    MIN_HIT_RADIUS_PX: 12,    // Minimum on-screen hit radius for node picking
+    MIN_NODE_SCREEN_RADIUS: 4, // px: node shapes never render smaller than this on screen
+    LABEL_MIN_ZOOM: 0.5,      // Below this zoom no labels are drawn
+    LABEL_FOCUS_ZOOM: 0.8,    // Below this zoom only important labels (selected/learning/available) are drawn
+    DIM_OTHER_SCHOOL: 0.3,    // Focus+context: alpha factor for nodes of other schools while a node is selected
+    DIM_SAME_SCHOOL: 0.6,     // Focus+context: alpha factor for off-path nodes of the selected school
     
     // Spatial index for hit detection
     _nodeGrid: null,
@@ -50,7 +71,39 @@ var CanvasRenderer = {
 
     // Performance
     _rafId: null,
-    _needsRender: true,
+    _fxThisFrame: false,          // this frame draws the moving parts on FxLayer spots
+    _mainShownKey: null,          // StaticBase key of what the tree canvas shows untouched by moving parts
+    _lastPressAt: 0,
+    _lastInputAt: 0,
+    _needsRender: true,           // replaced by an accessor at the end of this file
+    __needsRender: true,
+    _treeDirty: true,             // the tree layer must be redrawn before it is pasted
+    USE_TREE_LAYER: true,         // off = draw the tree straight onto the canvas every frame, as before
+    // What moves every frame (heart, globe, sigil, learning glow, particles) is
+    // drawn on small canvases over the tree (FxLayer), and the tree canvas is
+    // left alone when nothing on it changed: the game's browser repaints only
+    // what changed. Off = everything on the tree canvas every frame, as before.
+    USE_FX_LAYER: true,
+    INPUT_QUIET_MS: 150,          // no animation frame while a button is held or this soon after a press, wheel or key
+    IDLE_AFTER_MS: 15000,         // no input this long: idle
+    IDLE_FRAME_MS: 250,           // idle: animation frames come this far apart at most
+    IDLE_STOP_MS: 45000,          // no input this long: no animation frames at all (the next mouse move or key brings them back)
+    // A design's glows are left out where they would barely show and cost most:
+    // a known spell's halo smaller than this on screen (css px radius; zoomed
+    // out, the whole tree is hundreds of halo sprites per repaint)...
+    HALO_MIN_SCREEN_PX: 20,
+    EDGE_GLOW_MIN_ZOOM: 0.8,      // ...and the wide stroke under known lines below this zoom
+    TREE_LAYER_MARGIN: 128,       // css px drawn beyond each edge, so a drag slides the layer (was 256:
+                                  // the layer was about 1.6 times the pixels, cleared and copied each repaint)
+    // The lock look (hard prerequisites): renderNode and _batchPlainNode
+    LOCK_SHELL_FILL: 'rgba(90, 90, 100, 0.7)',     // a locked spell's grey shell...
+    LOCK_SHELL_STROKE: 'rgba(140, 140, 155, 0.8)',
+    LOCK_RING_FILL: 'rgba(90, 90, 100, 0.25)',     // ...and the grey ring round a known one
+    LOCK_RING_STROKE: 'rgba(150, 150, 160, 0.7)',
+    _layerPanX: 0,                // where the view was when the layer was last drawn
+    _layerPanY: 0,
+    _layerZoom: null,
+    _layerRotation: null,
     _animationOnlyRender: false,  // True when only animations need update (can be throttled)
     _lastRenderTime: 0,
     _logNextRender: false,
@@ -132,13 +185,16 @@ var CanvasRenderer = {
      * Replaces TREE_CONFIG.getSchoolColor()
      */
     _getSchoolColor: function(school) {
+        var color;
         if (typeof settings !== 'undefined' && settings.schoolColors && settings.schoolColors[school]) {
-            return settings.schoolColors[school];
+            color = settings.schoolColors[school];
+        } else if (typeof getOrAssignSchoolColor === 'function') {
+            color = getOrAssignSchoolColor(school);
+        } else {
+            color = this._defaultSchoolColors[school] || '#888888';
         }
-        if (typeof getOrAssignSchoolColor === 'function') {
-            return getOrAssignSchoolColor(school);
-        }
-        return this._defaultSchoolColors[school] || '#888888';
+        // As the design preset's ink (unchanged unless the preset asks)
+        return TreeStyle.ink(color);
     },
 
     // =========================================================================
@@ -163,14 +219,27 @@ var CanvasRenderer = {
         var showName = showFullInfo || isLearning || (!isLocked && progressPercent >= revealThreshold) || isRootWithReveal;
         var showDetails = node.state !== 'locked' || (typeof settings !== 'undefined' && settings.cheatMode);
 
+        // Translated with English fallback (t() returns the key when missing)
+        function tt(key, params, fallback) {
+            if (typeof t !== 'function') return fallback;
+            var s = t(key, params);
+            return s === key ? fallback : s;
+        }
+
         var nameText = showName ? (node.name || node.formId) : '???';
         var infoText;
         if (node.state === 'locked') {
-            infoText = 'Unlock prerequisites first';
+            // Undiscovered: tell the player what it is (school/tier) and how to reveal it
+            var tierText = node.level || node.skillLevel || '';
+            infoText = node.school + (tierText ? ' \u2022 ' + tierText : '') + ' \u2022 ' +
+                       tt('tooltip.lockedHint', null, 'Unlock a linked spell to reveal');
         } else if (showDetails) {
             infoText = node.school + ' \u2022 ' + (node.level || '?') + ' \u2022 ' + (node.cost || '?') + ' magicka';
         } else {
-            infoText = node.school + ' \u2022 Progress: ' + Math.round(progressPercent) + '%';
+            infoText = node.school + ' \u2022 ' + tt('tooltip.progress', { pct: Math.round(progressPercent) }, 'Progress: ' + Math.round(progressPercent) + '%');
+        }
+        if (!showName && node.state !== 'locked') {
+            nameText = '??? (' + tt('tooltip.revealAt', { pct: revealThreshold }, 'name at ' + revealThreshold + '%') + ')';
         }
 
         var nameEl = tooltip.querySelector('.tooltip-name');
@@ -179,7 +248,7 @@ var CanvasRenderer = {
         if (nameEl) nameEl.textContent = nameText;
         if (infoEl) infoEl.textContent = infoText;
         if (stateEl) {
-            stateEl.textContent = node.state;
+            stateEl.textContent = (typeof spellStateLabel === 'function') ? spellStateLabel(node.state) : node.state;
             stateEl.className = 'tooltip-state ' + node.state;
         }
 
@@ -204,70 +273,15 @@ var CanvasRenderer = {
      * Called once at startup - shapes are reused for all nodes
      */
     _initShapePaths: function() {
+        // Diamond Destruction, circle Restoration, hexagon Alteration, pentagon
+        // Conjuration, triangle Illusion (tip inward); the shapes live in NodeBatch
         this._shapePaths = {};
-        
-        // Diamond - Destruction (aggressive, sharp)
-        var diamond = new Path2D();
-        diamond.moveTo(0, -1);
-        diamond.lineTo(1, 0);
-        diamond.lineTo(0, 1);
-        diamond.lineTo(-1, 0);
-        diamond.closePath();
-        this._shapePaths['Destruction'] = diamond;
-        
-        // Circle - Restoration (healing, soft) - NOT oval!
-        var circle = new Path2D();
-        circle.arc(0, 0, 1, 0, Math.PI * 2);
-        this._shapePaths['Restoration'] = circle;
-        
-        // Hexagon - Alteration (transformation)
-        var hexagon = new Path2D();
-        var hexW = 0.9;
-        var hexH = 0.5;
-        hexagon.moveTo(0, -1);
-        hexagon.lineTo(hexW, -hexH);
-        hexagon.lineTo(hexW, hexH);
-        hexagon.lineTo(0, 1);
-        hexagon.lineTo(-hexW, hexH);
-        hexagon.lineTo(-hexW, -hexH);
-        hexagon.closePath();
-        this._shapePaths['Alteration'] = hexagon;
-        
-        // Pentagon - Conjuration (summoning, mystical)
-        var pentagon = new Path2D();
-        for (var i = 0; i < 5; i++) {
-            var angle = (i * 72 - 90) * Math.PI / 180;
-            var x = Math.cos(angle);
-            var y = Math.sin(angle);
-            if (i === 0) {
-                pentagon.moveTo(x, y);
-            } else {
-                pentagon.lineTo(x, y);
-            }
+        var schools = ['Destruction', 'Restoration', 'Alteration', 'Conjuration', 'Illusion'];
+        for (var i = 0; i < schools.length; i++) {
+            this._shapePaths[schools[i]] = NodeBatch.unitPath(schools[i]);
         }
-        pentagon.closePath();
-        this._shapePaths['Conjuration'] = pentagon;
-        
-        // Triangle - Illusion (tip pointing INWARD toward origin)
-        // Since nodes are placed radially, "inward" means toward (0,0)
-        // We draw a downward-pointing triangle, but it will be drawn at each node's position
-        // pointing toward center due to how canvas coordinates work
-        var triangle = new Path2D();
-        triangle.moveTo(0, 1);       // Tip pointing down (toward origin when node is above center)
-        triangle.lineTo(-0.85, -0.6); // Top-left
-        triangle.lineTo(0.85, -0.6);  // Top-right
-        triangle.closePath();
-        this._shapePaths['Illusion'] = triangle;
-        
-        // Default circle for unknown schools
-        this._shapePaths['default'] = circle;
-        
-        console.log('[CanvasRenderer] Path2D cache initialized for', Object.keys(this._shapePaths).length, 'shapes');
+        this._shapePaths['default'] = this._shapePaths['Restoration'];
     },
-    
-    /**
-     * Get cached Path2D for a school
-     */
     _getShapePath: function(school) {
         return this._shapePaths[school] || this._shapePaths['default'];
     },
@@ -305,7 +319,7 @@ var CanvasRenderer = {
             }
             this._nodeBuckets[key].push(node);
             // Pre-cache school color on node
-            node._cachedSchoolColor = node.themeColor || this._getSchoolColor(node.school);
+            node._cachedSchoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
         }
     },
 
@@ -338,16 +352,42 @@ var CanvasRenderer = {
         return this;
     },
     
+    /**
+     * Where the canvas is on the page, measured once and kept: reading it on
+     * every mouse move made the browser lay the page out again each time.
+     * Measured again when the pointer comes onto the canvas, and dropped when
+     * the canvas or the window is resized.
+     */
+    _canvasRect: function() {
+        if (!this._rectCache) this._rectCache = this.canvas.getBoundingClientRect();
+        return this._rectCache;
+    },
+
     updateCanvasSize: function() {
         if (!this.container || !this.canvas) return;
+        this._rectCache = null;
         
         var rect = this.container.getBoundingClientRect();
-        var width = rect.width || 800;
-        var height = rect.height || 600;
+        // Another tab in front (the tree's is display:none): keep the canvas as
+        // it is. Resizing it here, and back on return, cleared it both times and
+        // repainted the whole tree.
+        if (!rect.width || !rect.height) return;
+        // Whole pixels: a fractional CSS size (the panel is centred and sized in
+        // % and vh) left the backing store a fraction off it, and the view then
+        // rescaled the whole canvas each time it painted it
+        var width = Math.floor(rect.width);
+        var height = Math.floor(rect.height);
         var dpr = window.devicePixelRatio || 1;
+        // Same size: nothing to do (setting canvas.width clears the canvas). The
+        // buffer's scale is the one render() last chose (lower when zoomed far out).
+        var active = this._activeDpr || dpr;
+        if (width === this._width && height === this._height &&
+                this.canvas.width === Math.round(width * active) && this.canvas.height === Math.round(height * active)) return;
         
-        this.canvas.width = width * dpr;
-        this.canvas.height = height * dpr;
+        this.canvas.width = Math.round(width * dpr);
+        this.canvas.height = Math.round(height * dpr);
+        this._activeDpr = dpr;       // what the buffer is now; render() lowers it again if it needs to
+        this._mainShownKey = null;   // resizing clears the canvas
         this.canvas.style.width = width + 'px';
         this.canvas.style.height = height + 'px';
         
@@ -366,6 +406,9 @@ var CanvasRenderer = {
             self.onMouseDown(e);
         });
         
+        this.canvas.addEventListener('mouseenter', function() {
+            self._rectCache = null;   // the panel may have moved since (see _canvasRect)
+        });
         this.canvas.addEventListener('mousemove', function(e) {
             self.onMouseMove(e);
         });
@@ -376,7 +419,34 @@ var CanvasRenderer = {
         
         this.canvas.addEventListener('mouseleave', function(e) {
             self.onMouseUp(e);
+            // No more mousemove will come: the cursor is on the details bar
+            // or outside the panel, so the spell under it is no longer hovered
+            self._setHoveredNode(null, e);
         });
+
+        // A release that lands anywhere else (the details bar that just opened,
+        // a button, outside the panel) must still let go of the tree. Heard in
+        // the capture phase, so an element that stops the event cannot keep it.
+        window.addEventListener('mouseup', function(e) {
+            if (self.isPanning) self.onMouseUp(e);
+        }, true);
+        // Focus leaving the page (the game takes the mouse back) or Escape also
+        // let go: the release may never come to the page at all then
+        window.addEventListener('blur', function() {
+            self.releasePointer('blur');
+        });
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) self.releasePointer('escape');
+        });
+        // When the player last did something (INPUT_QUIET_MS, IDLE_AFTER_MS),
+        // anywhere in the panel; heard in the capture phase
+        var pressed = function() { self._lastPressAt = self._lastInputAt = performance.now(); };
+        var moved = function() { self._lastInputAt = performance.now(); };
+        document.addEventListener('mousedown', pressed, true);
+        document.addEventListener('mouseup', pressed, true);
+        document.addEventListener('wheel', pressed, true);
+        document.addEventListener('keydown', pressed, true);
+        document.addEventListener('mousemove', moved, true);
         
         this.canvas.addEventListener('wheel', function(e) {
             e.preventDefault();
@@ -389,6 +459,7 @@ var CanvasRenderer = {
         
         // Window resize handler
         window.addEventListener('resize', function() {
+            self._rectCache = null;
             self.updateCanvasSize();
         });
         
@@ -457,6 +528,9 @@ var CanvasRenderer = {
 
         this._needsRender = true;
         this._logNextRender = true;
+
+        // Navigation chrome follows the loaded schools (all load paths end up here)
+        if (typeof TreeNav !== 'undefined') TreeNav.buildSchoolTabs();
 
         console.log('[CanvasRenderer] Data set:', this.nodes.length, 'nodes,', this.edges.length, 'edges');
     },
@@ -722,29 +796,55 @@ var CanvasRenderer = {
         return { x: worldX, y: worldY };
     },
     
+    /**
+     * Find the node under a world-space point.
+     * Picks the NEAREST node within its hit radius (not the first found), and
+     * guarantees a minimum on-screen hit radius so small nodes stay clickable
+     * when zoomed out.
+     */
     findNodeAt: function(worldX, worldY) {
+        if (!this._nodeGrid) return null;
+
+        var zoom = this.zoom || 1;
+        var minWorldRadius = this.MIN_HIT_RADIUS_PX / zoom;
+        var maxRadius = Math.max(14, minWorldRadius);
+        var cellRange = Math.max(1, Math.ceil(maxRadius / this._gridCellSize));
+
         var cellX = Math.floor(worldX / this._gridCellSize);
         var cellY = Math.floor(worldY / this._gridCellSize);
-        
-        for (var dx = -1; dx <= 1; dx++) {
-            for (var dy = -1; dy <= 1; dy++) {
+
+        var best = null;
+        var bestDist = Infinity;
+
+        // Undiscovered nodes are not drawn, so they must not be hoverable/clickable either
+        var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
+        var discovery = (this._discoveryVisibleIds && !isEditActive) ? this._discoveryVisibleIds : null;
+        var schoolVis = (typeof settings !== 'undefined') ? settings.schoolVisibility : null;
+
+        for (var dx = -cellRange; dx <= cellRange; dx++) {
+            for (var dy = -cellRange; dy <= cellRange; dy++) {
                 var key = (cellX + dx) + ',' + (cellY + dy);
                 var cell = this._nodeGrid[key];
                 if (!cell) continue;
-                
+
                 for (var i = 0; i < cell.length; i++) {
                     var node = cell[i];
-                    var dist = Math.sqrt(Math.pow(node.x - worldX, 2) + Math.pow(node.y - worldY, 2));
-                    var hitRadius = node.state === 'unlocked' ? 14 : 10;
-                    
-                    if (dist <= hitRadius) {
-                        return node;
+                    if (discovery && !discovery.has(node.id) && !discovery.has(node.formId)) continue;
+                    if (schoolVis && schoolVis[node.school] === false) continue;
+                    var ddx = node.x - worldX;
+                    var ddy = node.y - worldY;
+                    var dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                    var hitRadius = Math.max(node.state === 'unlocked' ? 14 : 10, minWorldRadius);
+
+                    if (dist <= hitRadius && dist < bestDist) {
+                        best = node;
+                        bestDist = dist;
                     }
                 }
             }
         }
-        
-        return null;
+
+        return best;
     },
 
     findGlobeAt: function(worldX, worldY) {
@@ -761,17 +861,60 @@ var CanvasRenderer = {
     
     onMouseDown: function(e) {
         if (e.button === 0 || e.button === 2) {
+            // User takes control: stop any camera focus animation in flight
+            if (typeof TreeCamera !== 'undefined') TreeCamera.cancel();
+
             this.isPanning = true;
+            this._dragMoved = false;
+            this._pressX = e.clientX;
+            this._pressY = e.clientY;
             this.panStartX = e.clientX - this.panX;
             this.panStartY = e.clientY - this.panY;
-            this.canvas.style.cursor = 'grabbing';
-            this._needsRender = true;
+            // Does this browser say which buttons are down? Only then can a
+            // lost release be noticed later (see onMouseMove).
+            this._buttonsReported = typeof e.buttons === 'number' && e.buttons > 0;
+            // A frame for the cursor, not a tree change: nothing the layer draws
+            // depends on a press (it used to repaint every spell twice per click)
+            this.__needsRender = true;
+            this._animationOnlyRender = false;
+            if (!this._buttonsLogged) {
+                // Once per session: tells from the game log whether the lost-release
+                // check below can work in this browser
+                this._buttonsLogged = true;
+                console.log('[CanvasRenderer] Mouse press: buttons=' + e.buttons + ' which=' + e.which +
+                    ' (lost-release check ' + (this._buttonsReported ? 'on' : 'off') + ')');
+            }
+            if (typeof PerfMeter !== 'undefined') PerfMeter.press(e);
         }
     },
-    
+
     onMouseMove: function(e) {
         var self = this;
+        // The release never arrived (it happens in the game's browser) and the
+        // tree would follow the cursor until the next click. No button is down
+        // any more, so let go now.
+        if (this.isPanning && this._buttonsReported && e.buttons === 0) {
+            console.log('[CanvasRenderer] Release never arrived - let go on mousemove');
+            this.onMouseUp(e);
+        }
+
+        if (this.isPanning && typeof PerfMeter !== 'undefined') PerfMeter.move(e);
+
         if (this.isPanning) {
+            // Until the press travels past the threshold it is a click in the
+            // making, and a click must not move the tree: the hand always shakes
+            // a pixel or two, and the spell under it would slide along with it.
+            if (!this._dragMoved) {
+                var mdx = e.clientX - this._pressX;
+                var mdy = e.clientY - this._pressY;
+                if (mdx * mdx + mdy * mdy <= this.DRAG_THRESHOLD * this.DRAG_THRESHOLD) return;
+                this._dragMoved = true;
+                // Start the drag from here, or the tree would jump by the threshold
+                this.panStartX = e.clientX - this.panX;
+                this.panStartY = e.clientY - this.panY;
+                this.canvas.style.cursor = 'grabbing';
+            }
+
             // Batch pan updates using RAF to prevent multiple renders per frame
             this._pendingPanX = e.clientX - this.panStartX;
             this._pendingPanY = e.clientY - this.panStartY;
@@ -782,77 +925,181 @@ var CanvasRenderer = {
                     self._panRafPending = false;
                     self.panX = self._pendingPanX;
                     self.panY = self._pendingPanY;
-                    self._needsRender = true;
+                    // A frame, but not "the tree changed": _drawTree sees the
+                    // pan moved and slides the layer it already has.
+                    self.__needsRender = true;
+                    self._animationOnlyRender = false;
                 });
             }
         } else {
-            var rect = this.canvas.getBoundingClientRect();
+            var rect = this._canvasRect();
             var world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-            var node = this.findNodeAt(world.x, world.y);
-
-            if (node !== this.hoveredNode) {
-                this.hoveredNode = node;
-                this.canvas.style.cursor = node ? 'pointer' : 'grab';
-                this._needsRender = true;
-
-                if (node) {
-                    self._showTooltip(node, e);
-                } else {
-                    self._hideTooltip();
-                }
-            }
+            this._setHoveredNode(this.findNodeAt(world.x, world.y), e);
         }
     },
+
+    /**
+     * The spell under the cursor changed (or there is none). Path preview,
+     * tooltip, and the details panel's hover peek all follow from here.
+     * @param {Object|null} node
+     * @param {MouseEvent} e
+     */
+    _setHoveredNode: function(node, e) {
+        if (node === this.hoveredNode) return;
+        this.hoveredNode = node;
+        this.canvas.style.cursor = node ? 'pointer' : 'grab';
+        // A frame, not "the tree changed": the hover is painted over the layer
+        // (HoverOverlay), so the layer is pasted as it is. Not throttled like
+        // an animation frame - the player is waiting for it. Without the layer
+        // (it failed) the hover is part of the tree again and needs a redraw.
+        if (this._treeLayer && !this._treeLayerFailed && typeof HoverOverlay !== 'undefined') {
+            this.__needsRender = true;
+            this._animationOnlyRender = false;
+        } else {
+            this._needsRender = true;
+        }
+
+        // Hover preview: light up the hovered node's dependency path before any click
+        if (node && (!this.selectedNode || this.selectedNode.id !== node.id)) {
+            var hoverSets = this._computePathSets(node);
+            this._hoverPathEdges = hoverSets.edges;
+            this._hoverPathNodes = hoverSets.nodes;
+        } else {
+            this._hoverPathEdges = null;
+            this._hoverPathNodes = null;
+        }
+
+        if (node) {
+            this._showTooltip(node, e);
+        } else {
+            this._hideTooltip();
+        }
+
+        if (typeof DetailsPeek !== 'undefined') DetailsPeek.hover(node);
+    },
     
+    /** Let go of the tree whatever the mouse did (panel hidden, focus lost, Escape). */
+    releasePointer: function(reason) {
+        if (!this.isPanning) return;
+        console.log('[CanvasRenderer] Let go of the tree: ' + reason);
+        this.isPanning = false;
+        this._dragMoved = false;
+        if (this.canvas) this.canvas.style.cursor = 'grab';
+        this.__needsRender = true;
+    },
+
     onMouseUp: function(e) {
+        if (this.isPanning && typeof PerfMeter !== 'undefined') {
+            PerfMeter.release(e, this._dragMoved);
+            // A release that should become a click: say so in the log if the
+            // browser never sends the click (developer mode, PerfMeter.input)
+            if (!this._dragMoved && PerfMeter.isOn()) {
+                var self = this;
+                var pending = this._clickPendingAt = performance.now();
+                setTimeout(function() {
+                    if (self._clickPendingAt === pending) {
+                        self._clickPendingAt = 0;
+                        PerfMeter.input('release without a click event (' + self.CLICK_WAIT_MS + ' ms)');
+                    }
+                }, this.CLICK_WAIT_MS);
+            }
+        }
         this.isPanning = false;
         this.canvas.style.cursor = this.hoveredNode ? 'pointer' : 'grab';
-        this._needsRender = true;
+        this.__needsRender = true;
+        this._animationOnlyRender = false;
     },
     
     onWheel: function(e) {
-        var zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+        // User takes control: stop any camera focus animation in flight
+        if (typeof TreeCamera !== 'undefined') TreeCamera.cancel();
+
+        var zoomFactor = e.deltaY < 0 ? 1 + this.WHEEL_ZOOM_STEP : 1 / (1 + this.WHEEL_ZOOM_STEP);
         var newZoom = this.zoom * zoomFactor;
         newZoom = Math.max(0.1, Math.min(5, newZoom));
         
-        var rect = this.canvas.getBoundingClientRect();
+        var rect = this._canvasRect();
         var mouseX = e.clientX - rect.left - rect.width / 2;
         var mouseY = e.clientY - rect.top - rect.height / 2;
         
         this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
         this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
         this.zoom = newZoom;
-        
-        this._needsRender = true;
-        
-        var zoomEl = this._zoomLevelEl || document.getElementById('zoom-level');
-        if (zoomEl) zoomEl.textContent = Math.round(this.zoom * 100) + '%';
+
+        // A frame with the layer stretched (_drawTree); once the wheel has been
+        // still for WHEEL_SETTLE_MS a last frame repaints it at the new zoom
+        var self = this;
+        this._wheelAt = performance.now();
+        this.__needsRender = true;
+        this._animationOnlyRender = false;
+        if (this._wheelSettleTimer) clearTimeout(this._wheelSettleTimer);
+        this._wheelSettleTimer = setTimeout(function() {
+            self._wheelSettleTimer = null;
+            self.__needsRender = true;
+            self._animationOnlyRender = false;
+        }, this.WHEEL_SETTLE_MS + this.WHEEL_SETTLE_SLACK_MS);
+
+        this.showZoom(this.zoom);
     },
     
     onClick: function(e) {
-        var rect = this.canvas.getBoundingClientRect();
+        this._clickPendingAt = 0;
+        // A press that turned into a drag must not select whatever is under the cursor on release
+        if (this._dragMoved) {
+            this._dragMoved = false;
+            if (typeof PerfMeter !== 'undefined') PerfMeter.input('click ignored: the press was a drag');
+            return;
+        }
+
+        var rect = this._canvasRect();
         var world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
         var clickedNode = this.findNodeAt(world.x, world.y);
+        if (typeof PerfMeter !== 'undefined') {
+            PerfMeter.input('click -> ' + (clickedNode ? (clickedNode.name || clickedNode.id) : 'nothing') +
+                ', late ' + PerfMeter.lateMs(e) + ' ms');
+        }
 
         if (clickedNode) {
-            this.selectedNode = clickedNode;
-            this._buildSelectedPathToRoot(clickedNode);
-            this._needsRender = true;
-
-            console.log('[CanvasRenderer] Node clicked:', clickedNode.name || clickedNode.id);
-
-            // ALWAYS rotate school to top on click
-            this.rotateSchoolToTop(clickedNode.school);
-
-            // Dispatch nodeSelected event (same as WheelRenderer) for detail panel
-            window.dispatchEvent(new CustomEvent('nodeSelected', { detail: clickedNode }));
+            this.selectNodeAndFocus(clickedNode);
         } else {
             if (this.selectedNode) {
                 this.selectedNode = null;
                 this._selectedPathEdges = null;
                 this._selectedPathNodes = null;
                 this._needsRender = true;
+                // The details panel lets go of the spell too
+                window.dispatchEvent(new CustomEvent('nodeDeselected'));
             }
+        }
+    },
+
+    /**
+     * Select a node, open its details, and bring it to the center of the view
+     * (vanilla perk-menu style). Used by click, Find Spell, and prereq links.
+     * @param {Object} node
+     * @param {Object} [focusOpts] Options forwarded to TreeCamera.focusNode
+     */
+    selectNodeAndFocus: function(node, focusOpts) {
+        if (!node) return;
+
+        this.selectedNode = node;
+        this._buildSelectedPathToRoot(node);
+        this._needsRender = true;
+
+        console.log('[CanvasRenderer] Node selected:', node.name || node.id);
+
+        // Dispatch nodeSelected FIRST so the details panel is open when the
+        // camera computes its side-panel offset
+        window.dispatchEvent(new CustomEvent('nodeSelected', { detail: node }));
+
+        var focusEnabled = (typeof settings === 'undefined') || settings.focusOnClick !== false;
+        if (focusEnabled && typeof TreeCamera !== 'undefined') {
+            TreeCamera.focusNode(node, focusOpts);
+        } else if (focusEnabled || (typeof settings !== 'undefined' && settings.focusRotate === true)) {
+            // No camera module: the wheel turning to the school is all that is
+            // left, so do it rather than leave the selection off screen. When
+            // the player turned focus off, only an explicit focusRotate asks.
+            this.rotateSchoolToTop(node.school);
         }
     },
 
@@ -863,66 +1110,161 @@ var CanvasRenderer = {
      * Stores edges in _selectedPathEdges for highlighting.
      */
     _buildSelectedPathToRoot: function(node) {
-        this._selectedPathEdges = new Set();
-        this._selectedPathNodes = new Set();
+        var sets = this._computePathSets(node);
+        this._selectedPathEdges = sets.edges;
+        this._selectedPathNodes = sets.nodes;
 
-        if (!node || !this._nodeMap) return;
+        // A selected node no longer needs its hover preview
+        this._hoverPathEdges = null;
+        this._hoverPathNodes = null;
 
-        this._selectedPathNodes.add(node.id);
+        console.log('[CanvasRenderer] Selected path (bidirectional): ' + sets.nodes.size + ' nodes, ' + sets.edges.size + ' edges');
+    },
 
-        // === TRACE BACK TO ROOT (via prerequisites) ===
-        var visitedBack = new Set();
-        var queueBack = [node.id];
+    /**
+     * Compute the bidirectional dependency path sets for a node
+     * (ancestors via prerequisites, descendants via children).
+     * Shared by selection highlighting and hover preview.
+     * @param {Object} node
+     * @returns {{edges: Set, nodes: Set}} edge keys are 'from->to'
+     */
+    _computePathSets: function(node) {
+        var edges = new Set();
+        var nodes = new Set();
+        if (!node || !this._nodeMap) return { edges: edges, nodes: nodes };
 
-        while (queueBack.length > 0) {
-            var currentId = queueBack.shift();
-            if (visitedBack.has(currentId)) continue;
-            visitedBack.add(currentId);
+        nodes.add(node.id);
 
-            var currentNode = this._nodeMap.get(currentId);
-            if (!currentNode) continue;
+        // Walk one direction: getLinks(node) returns ids, makeKey(id, currentId) builds the edge key
+        var self = this;
+        function walk(getLinks, makeKey) {
+            var visited = new Set();
+            var queue = [node.id];
+            while (queue.length > 0) {
+                var currentId = queue.shift();
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
 
-            this._selectedPathNodes.add(currentId);
+                var currentNode = self._nodeMap.get(currentId);
+                if (!currentNode) continue;
 
-            var prereqs = currentNode.prerequisites || [];
-            for (var i = 0; i < prereqs.length; i++) {
-                var prereqId = prereqs[i];
-                var edgeKey = prereqId + '->' + currentId;
-                this._selectedPathEdges.add(edgeKey);
+                nodes.add(currentId);
 
-                if (!visitedBack.has(prereqId)) {
-                    queueBack.push(prereqId);
+                var links = getLinks(currentNode) || [];
+                for (var i = 0; i < links.length; i++) {
+                    var linkId = links[i];
+                    edges.add(makeKey(linkId, currentId));
+                    if (!visited.has(linkId)) queue.push(linkId);
                 }
             }
         }
 
-        // === TRACE FORWARD TO LEAVES (via children) ===
-        var visitedForward = new Set();
-        var queueForward = [node.id];
+        // Back to root (via prerequisites): edge is prereq -> current
+        walk(function(n) { return n.prerequisites; }, function(linkId, currentId) { return linkId + '->' + currentId; });
+        // Forward to leaves (via children): edge is current -> child
+        walk(function(n) { return n.children; }, function(linkId, currentId) { return currentId + '->' + linkId; });
 
-        while (queueForward.length > 0) {
-            var currentId = queueForward.shift();
-            if (visitedForward.has(currentId)) continue;
-            visitedForward.add(currentId);
+        return { edges: edges, nodes: nodes };
+    },
 
-            var currentNode = this._nodeMap.get(currentId);
-            if (!currentNode) continue;
+    /**
+     * Focus + context: while a node is selected, everything outside its
+     * dependency path fades (other schools more than the selected school) so
+     * the eye lands on the path and the next unlock candidates. Hovered nodes
+     * and hover paths stay bright so the user can still explore.
+     * @returns {number} alpha multiplier 0..1
+     */
+    _contextFactor: function(node) {
+        if (!this.selectedNode || (typeof settings !== 'undefined' && settings.focusDimOthers === false)) return 1;
+        if (this._selectedPathNodes && this._selectedPathNodes.has(node.id)) return 1;
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return 1;
+        if (this.hoveredNode && this.hoveredNode.id === node.id) return 1;
+        return node.school === this.selectedNode.school ? this.DIM_SAME_SCHOOL : this.DIM_OTHER_SCHOOL;
+    },
 
-            this._selectedPathNodes.add(currentId);
+    /**
+     * Clamp a world-space node radius so it never renders below
+     * MIN_NODE_SCREEN_RADIUS pixels at the current zoom.
+     */
+    _minSize: function(size) {
+        var minWorld = this.MIN_NODE_SCREEN_RADIUS / (this.zoom || 1);
+        return size < minWorld ? minWorld : size;
+    },
 
-            var children = currentNode.children || [];
-            for (var i = 0; i < children.length; i++) {
-                var childId = children[i];
-                var edgeKey = currentId + '->' + childId;
-                this._selectedPathEdges.add(edgeKey);
+    /**
+     * Label priority for collision resolution (higher wins):
+     * 5 selected, 4 hovered / hover path, 3 learning, 2 available, 1 unlocked.
+     */
+    _labelPriority: function(node) {
+        if (this.selectedNode && this.selectedNode.id === node.id) return 5;
+        if (this.hoveredNode && this.hoveredNode.id === node.id) return 4;
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return 4;
+        if (node.state === 'learning') return 3;
+        if (node.state === 'available') return 2;
+        return 1;
+    },
 
-                if (!visitedForward.has(childId)) {
-                    queueForward.push(childId);
-                }
-            }
+    /**
+     * Mystery (undiscovered) node radius grows with tier so the silhouette
+     * still tells the player roughly how advanced the hidden spell is.
+     */
+    _mysterySize: function(node) {
+        var tierIndex = 0;
+        var level = (node.level || node.skillLevel || '').toString().toLowerCase();
+        var byLevel = { novice: 0, apprentice: 1, adept: 2, expert: 3, master: 4 };
+        if (byLevel[level] !== undefined) {
+            tierIndex = byLevel[level];
+        } else if (typeof node.tier === 'number' && node.tier > 0) {
+            tierIndex = Math.min(node.tier - 1, 4);
         }
+        return 7 + tierIndex;
+    },
 
-        console.log('[CanvasRenderer] Selected path (bidirectional): ' + this._selectedPathNodes.size + ' nodes, ' + this._selectedPathEdges.size + ' edges');
+    /**
+     * XP progress (0..1) for a node, using the same lookups as the details panel.
+     * Returns 0 when there is no progress data.
+     */
+    /**
+     * Colours both a design and the player set (learning path, heart, globe):
+     * the player's once they changed it from a shipped default, else the design's
+     * token, else the player's. A design like Arcane re-colours them for its page,
+     * but a colour the player picked is kept.
+     */
+    PLAYER_COLOR_DEFAULTS: {
+        learningPathColor: ['#00ffff'],
+        heartRingColor: ['#b8a878'],
+        heartBgColor: ['#000000', '#0a0a14'],   // panel default, C++ default config
+        magicTextColor: ['#ffecb3', '#b8a878'],  // state default, swatch reset
+        globeColor: ['#b8a878']
+    },
+
+    _designOrPlayer: function(tokenName, settingName, playerValue) {
+        var token = TreeStyle.tokens[tokenName];
+        if (!token) return playerValue;
+        var defaults = this.PLAYER_COLOR_DEFAULTS[settingName] || [];
+        var own = playerValue ? String(playerValue).toLowerCase() : '';
+        if (own && defaults.indexOf(own) < 0) return playerValue;
+        return token;
+    },
+
+    /** Learning colour: see _designOrPlayer. */
+    _learningColor: function() {
+        return this._designOrPlayer('learningColor', 'learningPathColor', this._learningPathColor) || '#00ffff';
+    },
+
+    _heartRing: function() {
+        return this._designOrPlayer('hubRing', 'heartRingColor', this._heartRingColor) || '#b8a878';
+    },
+
+    _getNodeProgressPct: function(node) {
+        if (typeof state === 'undefined' || !state.spellProgress) return 0;
+        var canonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
+        var progress = state.spellProgress[canonId];
+        if (!progress || !progress.xp) return 0;
+
+        var required = (typeof getRequiredXPForNode === 'function') ? getRequiredXPForNode(node) : null;
+        if (!required) required = progress.required || 100;
+        return required > 0 ? Math.min(progress.xp / required, 1) : 0;
     },
     
     // =========================================================================
@@ -931,39 +1273,85 @@ var CanvasRenderer = {
     
     startRenderLoop: function() {
         if (this._rafId) return;
+        // Hidden panel (onPrismaReady / onPanelHiding): onPanelShowing starts it
+        if (window._panelVisible === false) return;
+        // Another tab in front (settings, scan): switchTab starts it on the way back
+        if (typeof state !== 'undefined' && state.currentTab && state.currentTab !== 'spellTree') return;
         
         var self = this;
         console.log('[CanvasRenderer] Starting render loop');
+        // Opening the panel or coming back to the tree counts as input: not idle
+        this._lastInputAt = performance.now();
         
         // Throttle animation renders to reduce CPU load
         var lastAnimationRender = 0;
-        var animationThrottleMs = 50;  // ~20fps for passive animations
+        var animationThrottleMs = self.ANIMATION_FRAME_MS;
         
         function loop(timestamp) {
+            if (typeof PerfMeter !== 'undefined') PerfMeter.tick();
             var shouldRender = self._needsRender;
             
-            // For animation-only updates, throttle to save CPU
+            // For animation-only updates, throttle to save CPU. Setting
+            // _needsRender clears the flag, so a frame the player asked for
+            // (pan, zoom, hover, selection) is never held back; an animation
+            // sets it again afterwards and keeps the throttle - including the
+            // learning path, which redraws the whole tree layer per frame.
             if (shouldRender && self._animationOnlyRender) {
-                if (timestamp - lastAnimationRender < animationThrottleMs) {
+                // A click or drag gets the browser first: no animation frame
+                // while a button is held or right after a press, wheel or key.
+                // Idle, a frame that repaints the whole tree canvas (moving
+                // stars) comes less often.
+                // Nobody touching the panel: slower, then none at all. Every
+                // frame, however small what changed, is a repaint and a texture
+                // upload of the whole panel in the game's browser.
+                var nowMs = performance.now();
+                var idleFor = nowMs - self._lastInputAt;
+                var throttle = idleFor > self.IDLE_AFTER_MS ? self.IDLE_FRAME_MS : animationThrottleMs;
+                if (idleFor > self.IDLE_STOP_MS || self.isPanning || nowMs - self._lastPressAt < self.INPUT_QUIET_MS ||
+                        timestamp - lastAnimationRender < throttle) {
                     shouldRender = false;
                 } else {
                     lastAnimationRender = timestamp;
                 }
             }
             
-            if (shouldRender) {
-                self._needsRender = false;
-                self._animationOnlyRender = false;
-                self.render();
+            // The next frame is booked in `finally`. Booking it after render()
+            // meant one throw ended the loop for good: _rafId still held the id
+            // of the frame that had already fired, so startRenderLoop's guard
+            // treated the dead loop as running and the tree never came back.
+            try {
+                if (shouldRender) {
+                    self._needsRender = false;
+                    self._animationOnlyRender = false;
+                    self.render();
+                }
+            } catch (e) {
+                // Once per session: a frame that throws usually throws every frame
+                if (!self._renderErrorLogged) {
+                    self._renderErrorLogged = true;
+                    console.error('[CanvasRenderer] Frame failed, loop continues: ' + (e && e.message ? e.message : e));
+                }
+            } finally {
+                self._rafId = requestAnimationFrame(loop);
             }
-            
-            self._rafId = requestAnimationFrame(loop);
         }
         
         loop(performance.now());
     },
     
+    /** A frame for the heart, the globe or the stars: the tree layer is pasted, not redrawn. */
+    _requestAnimationOnlyFrame: function() {
+        this.__needsRender = true;
+        this._animationOnlyRender = true;
+    },
+
+    /** No mouse or key input for IDLE_AFTER_MS. */
+    _isIdle: function() {
+        return performance.now() - this._lastInputAt > this.IDLE_AFTER_MS;
+    },
+
     stopRenderLoop: function() {
+        if (typeof PerfMeter !== 'undefined') PerfMeter.pause();
         if (this._rafId) {
             cancelAnimationFrame(this._rafId);
             this._rafId = null;
@@ -1000,56 +1388,34 @@ var CanvasRenderer = {
         // Only resize canvas buffer when effective DPR changes (avoids per-frame resize)
         if (this._activeDpr !== effectiveDpr) {
             this._activeDpr = effectiveDpr;
-            this.canvas.width = width * effectiveDpr;
-            this.canvas.height = height * effectiveDpr;
+            this.canvas.width = Math.round(width * effectiveDpr);
+            this._mainShownKey = null;
+            this.canvas.height = Math.round(height * effectiveDpr);
             // CSS size stays the same — browser upscales
         }
         dpr = effectiveDpr;
 
-        // FULL RESET - prevent ghosting
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalAlpha = 1.0;
-        ctx.globalCompositeOperation = 'source-over';
-        
-        // Clear the ENTIRE canvas buffer (including offscreen areas)
-        ctx.fillStyle = this._bgColor || '#000000';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Scale for DPR
-        ctx.scale(dpr, dpr);
-        
-        // =====================================================================
-        // RENDER STARFIELD BACKGROUND (behind everything)
-        // =====================================================================
-        if (this._starfieldEnabled && typeof Starfield !== 'undefined') {
-            // Apply settings
-            Starfield.setColor(this._starfieldColor || '#ffffff');
-            Starfield.maxSize = this._starfieldMaxSize || 2.5;
-            if (Starfield.seed !== this._starfieldSeed) {
-                Starfield.seed = this._starfieldSeed || 42;
-                Starfield.stars = null;  // Force reinit with new seed
-            }
-            if (Starfield.starCount !== this._starfieldDensity) {
-                Starfield.starCount = this._starfieldDensity || 200;
-                Starfield.stars = null;  // Force reinit
-            }
-
-            // Render - either fixed to screen or world-space (seed-based)
-            if (this._starfieldFixed) {
-                // Fixed mode: screen-space stars that drift
-                if (!Starfield.stars || Starfield.width !== this._width || Starfield.height !== this._height) {
-                    Starfield.init(this._width, this._height);
-                }
-                Starfield.render(ctx);
-            } else {
-                // World-space: deterministic tile-based stars from seed
-                Starfield.renderWorldSpace(ctx, this.panX, this.panY, this.zoom, this._width, this._height);
-            }
-            // Keep animation running (throttled)
-            this._needsRender = true;
-            this._animationOnlyRender = true;
+        // Moving parts on their own canvases this frame (FxLayer)?
+        this._fxThisFrame = this.USE_FX_LAYER && typeof FxLayer !== 'undefined' && FxLayer.ready(this.canvas);
+        if (this._fxThisFrame) {
+            FxLayer.begin(this.canvas);
+        } else {
+            this._mainShownKey = null;
+            if (typeof FxLayer !== 'undefined') FxLayer.hideAll();
         }
-        
+
+        // The background: drawn here, or - when it is still - by the tree
+        // pass, which may paste it together with the tree (StaticBase)
+        var bgPending = typeof StaticBase !== 'undefined' && StaticBase.backgroundStill(this);
+        if (bgPending) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.globalAlpha = 1.0;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.scale(dpr, dpr);
+        } else {
+            this._drawBackground(ctx, dpr, width, height);
+        }
+
         // Calculate rotation values
         var rotRad = this.rotation * Math.PI / 180;
         var cos = Math.cos(rotRad);
@@ -1072,32 +1438,368 @@ var CanvasRenderer = {
         var viewBottom = worldCenterY + viewExtent;
         
         // =====================================================================
+        // THE TREE: drawn into its own layer when something changed, otherwise
+        // the layer is pasted as it is (see _drawTree)
+        // =====================================================================
+        this._drawTree(ctx, dpr, {
+            cx: cx, cy: cy, rotRad: rotRad, cos: cos, sin: sin,
+            viewLeft: viewLeft, viewRight: viewRight, viewTop: viewTop, viewBottom: viewBottom
+        }, bgPending);
+
+        // =====================================================================
+        // RENDER CENTER HUB ON TOP (does NOT rotate with wheel) - with heartbeat
+        // =====================================================================
+        this._renderHubAndFinish(ctx, cx, cy, startTime);
+        if (this._fxThisFrame) FxLayer.end();
+    },
+
+    /**
+     * Background colour, then the design's page or the starfield. Leaves ctx
+     * DPR-scaled. ctx is the screen or StaticBase's picture (same size).
+     */
+    _drawBackground: function(ctx, dpr, width, height) {
+        // FULL RESET - prevent ghosting
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Clear the ENTIRE canvas buffer (including offscreen areas)
+        ctx.fillStyle = this._bgColor || '#000000';
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // Scale for DPR
+        ctx.scale(dpr, dpr);
+        
+        // =====================================================================
+        // RENDER STARFIELD BACKGROUND (behind everything)
+        // =====================================================================
+        // A design preset with a page draws it here instead of the stars
+        var pageDrawn = TreeStyle.renderPage(ctx, width, height);
+        if (!pageDrawn && this._starfieldEnabled && typeof Starfield !== 'undefined') {
+            // Apply settings
+            Starfield.setColor(this._starfieldColor || '#ffffff');
+            Starfield.maxSize = this._starfieldMaxSize || 2.5;
+            // Compared with the defaults applied: an unset seed or density
+            // used to count as changed on every frame and re-roll the stars
+            var starSeed = this._starfieldSeed || 42;
+            var starCount = this._starfieldDensity || 200;
+            if (Starfield.seed !== starSeed) {
+                Starfield.seed = starSeed;
+                Starfield.stars = null;  // Force reinit with new seed
+            }
+            if (Starfield.starCount !== starCount) {
+                Starfield.starCount = starCount;
+                Starfield.stars = null;  // Force reinit
+            }
+
+            // Held still (twinkle off, or "still everything"): drawn, not moved
+            Starfield.still = this._starsStill === true;
+
+            // Render - either fixed to screen or world-space (seed-based)
+            if (this._starfieldFixed) {
+                // Fixed mode: screen-space stars that drift
+                if (!Starfield.stars || Starfield.width !== this._width || Starfield.height !== this._height) {
+                    Starfield.init(this._width, this._height);
+                }
+                Starfield.render(ctx);
+            } else {
+                // World-space: deterministic tile-based stars from seed
+                Starfield.renderWorldSpace(ctx, this.panX, this.panY, this.zoom, this._width, this._height);
+            }
+            // Keep animation running (throttled) - not for stars held still
+            if (!Starfield.still) this._requestAnimationOnlyFrame();
+        }
+    },
+
+    /**
+     * Everything that only changes when the player does something: dividers,
+     * edges, nodes, bridges, labels. About 3,300 paint calls for 1440 spells
+     * before the spells were batched (NodeBatch; ~800 since), and the heart in the middle used to make all of it be redrawn 20 times a
+     * second just to beat. Now it is drawn once into a see-through layer and the
+     * layer is pasted until `_treeDirty` says the tree changed. See-through,
+     * because the starfield behind it keeps moving.
+     */
+    _drawTree: function(ctx, dpr, view, bgPending) {
+        var self = this;
+        var drawBackground = function(c) { self._drawBackground(c, dpr, self._width || 800, self._height || 600); };
+        var layer = this.USE_TREE_LAYER ? this._ensureTreeLayer(dpr) : null;
+        if (!layer) {
+            if (bgPending) drawBackground(ctx);
+            this._renderTreeInto(ctx, view);
+            this._treeDirty = false;
+            this._mainShownKey = null;
+            this._drawMoving(ctx, view);
+            return;
+        }
+
+        // The layer is drawn with a margin all round, so a drag can slide it
+        // instead of redrawing all 1440 spells every frame. It is redrawn
+        // only when the tree changed, when zoom or rotation moved, or when
+        // the drag has gone past the margin and would show its bare edge.
+        var margin = this.TREE_LAYER_MARGIN;
+        var dx = this.panX - this._layerPanX;
+        var dy = this.panY - this._layerPanY;
+        var slid = Math.abs(dx) > margin || Math.abs(dy) > margin;
+        var viewTurned = this._layerZoom !== this.zoom || this._layerRotation !== this.rotation;
+        // While the camera glides, the wheel turns or the wheel rotates, zoom
+        // and rotation change every frame. The layer is not repainted for each
+        // of them (a click's focus zoom was ~27 repaints of every spell): it is
+        // pasted stretched and turned to the new view, and repainted once the
+        // motion stops (the frame after it asks for a repaint by itself).
+        // A tree change during the motion waits for it too (it stays dirty): a
+        // click selects a spell and starts the focus glide on the same frame,
+        // and repainting the tree for the old view there was a whole repaint
+        // thrown away when the glide ended. The selection shows as it stops.
+        var stretch = (viewTurned || this._treeDirty) && !this._treeLayerStale &&
+            this._layerZoom > 0 && this._viewInMotion();
+        if (!stretch && (this._treeDirty || this._treeLayerStale || slid || viewTurned)) {
+            var lctx = this._treeLayerCtx;
+            lctx.setTransform(1, 0, 0, 1, 0, 0);
+            lctx.globalAlpha = 1.0;
+            lctx.globalCompositeOperation = 'source-over';
+            lctx.clearRect(0, 0, layer.width, layer.height);
+            lctx.scale(dpr, dpr);
+            lctx.translate(margin, margin);
+            // Whatever lies in the margin must be drawn too, not culled
+            var extra = margin / this.zoom;
+            var drawLayer = function() {
+                self._renderTreeInto(lctx, {
+                    cx: view.cx, cy: view.cy, rotRad: view.rotRad, cos: view.cos, sin: view.sin,
+                    viewLeft: view.viewLeft - extra, viewRight: view.viewRight + extra,
+                    viewTop: view.viewTop - extra, viewBottom: view.viewBottom + extra,
+                    labelMargin: margin
+                });
+            };
+            // The layer does not show the hover: HoverOverlay paints it on top,
+            // so moving the cursor over the tree never repaints every spell
+            if (typeof HoverOverlay !== 'undefined') HoverOverlay.withoutHover(this, drawLayer);
+            else drawLayer();
+            this._treeDirty = false;
+            this._treeLayerStale = false;
+            this._layerPanX = this.panX;
+            this._layerPanY = this.panY;
+            this._layerZoom = this.zoom;
+            this._layerRotation = this.rotation;
+            this._treeLayerDraws = (this._treeLayerDraws || 0) + 1;
+            dx = 0;
+            dy = 0;
+        }
+
+        var w = this.canvas.width, h = this.canvas.height;
+        // With a spell hovered: the preview on its own spot (FxLayer frame), else
+        // the layer with the preview on it, cached until the hover or the layer
+        // changes (HoverOverlay.composite)
+        var hoverSpot = this._fxThisFrame && typeof HoverOverlay !== 'undefined' && HoverOverlay.drawSpot;
+        var src = (!hoverSpot && typeof HoverOverlay !== 'undefined') ? HoverOverlay.composite(this, layer, dpr, margin, view) : layer;
+        var offX = Math.round((margin - dx) * dpr), offY = Math.round((margin - dy) * dpr);
+        var paste = function(c) {
+            c = c || ctx;
+            c.save();
+            c.setTransform(1, 0, 0, 1, 0, 0);
+            c.globalAlpha = 1.0;
+            if (stretch) {
+                // Map the layer's view (zoom, rotation, pan it was drawn at) onto this one
+                var k = self.zoom / self._layerZoom;
+                c.translate(dpr * (view.cx + self.panX), dpr * (view.cy + self.panY));
+                c.rotate((self.rotation - self._layerRotation) * Math.PI / 180);
+                c.scale(k, k);
+                c.translate(-dpr * (margin + view.cx + self._layerPanX), -dpr * (margin + view.cy + self._layerPanY));
+                c.drawImage(src, 0, 0);
+            } else {
+                c.drawImage(src, offX, offY, w, h, 0, 0, w, h);
+            }
+            c.restore();
+        };
+        // A still background and a still tree: one picture of both (StaticBase).
+        // With the moving parts on their own canvases (FxLayer), a tree canvas
+        // that already shows that picture is not touched at all.
+        var pasted = false;
+        var shownKey = null;
+        if (bgPending && !stretch) {
+            var layerKey = (src === layer ? 'layer' : 'hover|' + HoverOverlay._key) + '|' +
+                (this._treeLayerDraws || 0) + '|' + offX + ',' + offY;
+            var mainKey = StaticBase.keyFor(this, layerKey);
+            if (this._fxThisFrame && !this._learningPath && mainKey === this._mainShownKey) {
+                pasted = true;
+            } else {
+                pasted = StaticBase.draw(ctx, this, layerKey, drawBackground, paste);
+            }
+            // The learning path is drawn over it this frame: not the plain picture
+            if (pasted && this._fxThisFrame && !this._learningPath) shownKey = mainKey;
+        }
+        this._mainShownKey = shownKey;
+        if (!pasted) {
+            if (bgPending) drawBackground(ctx);
+            paste();
+        }
+
+        if (hoverSpot) HoverOverlay.drawSpot(this, view, dpr);
+
+        // Selection sigil, learning glow and particles move every frame, so
+        // they sit on top of the layer (on their own canvases with FxLayer)
+        this._drawMoving(ctx, view);
+    },
+
+    /** The learning path drawing itself in, the particles, the sigil and the learning glow. */
+    _drawMoving: function(ctx, view) {
+        this._drawLearningPath(ctx, view);
+        if (!this._fxThisFrame) {
+            this._drawDetachedParticles(ctx, view);
+            TreeStyle.renderOverlay(ctx, this, view);
+            return;
+        }
+        var self = this;
+        var dpr = this._activeDpr || window.devicePixelRatio || 1;
+
+        // Particles: one canvas round all their trails
+        var parts = typeof Globe3D !== 'undefined' ? Globe3D.detachedParticles : null;
+        if (parts && parts.length) {
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, pad = 0;
+            for (var i = 0; i < parts.length; i++) {
+                var dp = parts[i];
+                if ((dp.size || 4) * 1.5 > pad) pad = (dp.size || 4) * 1.5;
+                for (var j = 0; j < dp.trail.length; j++) {
+                    var s = this._worldToScreen(dp.trail[j].x, dp.trail[j].y, view);
+                    if (s[0] < minX) minX = s[0];
+                    if (s[0] > maxX) maxX = s[0];
+                    if (s[1] < minY) minY = s[1];
+                    if (s[1] > maxY) maxY = s[1];
+                }
+            }
+            if (minX <= maxX) {
+                var pp = pad * this.zoom + 3;
+                this._fxDraw('particles', minX - pp, minY - pp, maxX - minX + 2 * pp, maxY - minY + 2 * pp, dpr,
+                    function(c) { self._drawDetachedParticles(c, view); });
+            }
+        }
+
+        // Sigil and learning glow: one small canvas per spell
+        var marks = TreeStyle.overlayNodes(this);
+        if (marks.length) {
+            var reach = TreeStyle.overlayExtent(this) * this.zoom + 3;
+            marks.forEach(function(node) {
+                var p = self._worldToScreen(node.x, node.y, view);
+                self._fxDraw('mark:' + node.id, p[0] - reach, p[1] - reach, 2 * reach, 2 * reach, dpr,
+                    function(c) { TreeStyle.renderOverlay(c, self, view, node); });
+            });
+        }
+    },
+
+    /**
+     * FxLayer.draw; when no spot can be had, drawn on the tree canvas instead
+     * (which then no longer shows the plain picture). Returns whether drawFn ran.
+     */
+    _fxDraw: function(key, x, y, w, h, dpr, drawFn) {
+        if (FxLayer.draw(key, x, y, w, h, dpr, drawFn)) return FxLayer.lastDrawn;
+        this._mainShownKey = null;
+        drawFn(this.ctx);
+        return true;
+    },
+
+    /** Where a point of the (turning) tree is on the canvas, in CSS px. */
+    _worldToScreen: function(x, y, view) {
+        var z = this.zoom;
+        return [view.cx + this.panX + z * (x * view.cos - y * view.sin),
+                view.cy + this.panY + z * (x * view.sin + y * view.cos)];
+    },
+
+    /** How far (world units) the heart, its runes and the globe's scattering dots reach from its centre. */
+    _hubExtent: function() {
+        var globeData = (state.treeData && state.treeData.globe) || { radius: 45 };
+        var base = (typeof renderValue === 'function' ? renderValue('globeSize', 0) : 0) || globeData.radius || 45;
+        var globe = (this._globeEnabled && typeof Globe3D !== 'undefined') ? (Globe3D.radius || 0) : 0;
+        return (Math.max(base, globe) + 45) * 1.1;
+    },
+
+    /** The camera, a wheel rotation or the mouse wheel is moving the view right now. */
+    _viewInMotion: function() {
+        return this.isAnimating || (performance.now() - (this._wheelAt || 0)) < this.WHEEL_SETTLE_MS;
+    },
+
+    /**
+     * The path growing towards a newly set learning target. It moves every
+     * frame, so it is painted over the pasted layer: drawn into the layer it
+     * cost a repaint of every spell per frame - and the flag it set for that
+     * was cleared by the repaint itself, so the animation stood still on its
+     * first frame. The layer leaves the animating path out until it ends
+     * (_animatingPathNodes), then is repainted once with the whole path.
+     */
+    _drawLearningPath: function(ctx, view) {
+        if (!this._learningPath) return;
+        ctx.save();
+        ctx.translate(view.cx + this.panX, view.cy + this.panY);
+        ctx.rotate(view.rotRad);
+        ctx.scale(this.zoom, this.zoom);
+        this.renderLearningPath(ctx);
+        ctx.restore();
+    },
+
+    /**
+     * The particles a learning animation sends out from the globe. They move
+     * every frame, so they are painted over the finished tree rather than into
+     * it - inside the layer, anything moving costs a full redraw of all 1440
+     * spells every frame. The price is that they now sit over the nodes
+     * instead of under them. Drawn on both paths, layer or no layer.
+     */
+    _drawDetachedParticles: function(ctx, view) {
+        if (typeof Globe3D === 'undefined' || !Globe3D.detachedParticles || Globe3D.detachedParticles.length === 0) return;
+        ctx.save();
+        ctx.translate(view.cx + this.panX, view.cy + this.panY);
+        ctx.rotate(view.rotRad);
+        ctx.scale(this.zoom, this.zoom);
+        Globe3D._renderDetachedParticles(ctx);
+        ctx.restore();
+    },
+
+    /** The layer canvas: the visible one plus the margin all round. Null if it cannot be made. */
+    _ensureTreeLayer: function(dpr) {
+        if (this._treeLayerFailed) return null;
+        try {
+            if (!this._treeLayer) {
+                this._treeLayer = document.createElement('canvas');
+                this._treeLayerCtx = this._treeLayer.getContext('2d');
+                if (!this._treeLayerCtx) throw new Error('no 2d context');
+            }
+            var pad = Math.ceil(2 * this.TREE_LAYER_MARGIN * (dpr || 1));
+            if (this._treeLayer.width !== this.canvas.width + pad || this._treeLayer.height !== this.canvas.height + pad) {
+                this._treeLayer.width = this.canvas.width + pad;
+                this._treeLayer.height = this.canvas.height + pad;
+                this._treeLayerStale = true;
+            }
+            return this._treeLayer;
+        } catch (e) {
+            console.warn('[CanvasRenderer] Tree layer unavailable, drawing directly: ' + e.message);
+            this._treeLayerFailed = true;
+            return null;
+        }
+    },
+
+    _renderTreeInto: function(ctx, view) {
+        var cx = view.cx, cy = view.cy, rotRad = view.rotRad, cos = view.cos, sin = view.sin;
+        var viewLeft = view.viewLeft, viewRight = view.viewRight, viewTop = view.viewTop, viewBottom = view.viewBottom;
+
+        // =====================================================================
         // RENDER ROTATING ELEMENTS FIRST (dividers, edges, nodes)
         // =====================================================================
+        // Developer mode: how long each part of a repaint takes (PerfMeter.part)
+        var pm = typeof PerfMeter !== 'undefined' && PerfMeter.isOn();
+        this._partAt = pm ? performance.now() : 0;
+
         ctx.save();
         ctx.translate(cx + this.panX, cy + this.panY);
         ctx.rotate(rotRad);  // Apply wheel rotation
         ctx.scale(this.zoom, this.zoom);
         
-        // School dividers
-        this.renderSchoolDividers(ctx);
-        
-        // Debug grid (behind edges/nodes)
-        this.renderDebugGrid(ctx);
-        
-        // Edges
-        this.renderEdges(ctx, viewLeft, viewRight, viewTop, viewBottom);
-        
-        // Learning path animation (glowing line from center to learned spell)
-        this.renderLearningPath(ctx);
-        
-        // Detached particles (above lines, below nodes)
-        if (typeof Globe3D !== 'undefined' && Globe3D.detachedParticles && Globe3D.detachedParticles.length > 0) {
-            Globe3D._renderDetachedParticles(ctx);
+        // Dividers, edges and nodes
+        this._drawTreeShapes(ctx, viewLeft, viewRight, viewTop, viewBottom);
+
+        // Cross school bridges and the trait filter, on top of the nodes
+        if (typeof BridgeView !== 'undefined') {
+            BridgeView.render(ctx, this, {
+                left: viewLeft, right: viewRight, top: viewTop, bottom: viewBottom
+            });
         }
-        
-        // Nodes
-        this.renderNodes(ctx, viewLeft, viewRight, viewTop, viewBottom);
+        if (pm) this._partAt = PerfMeter.part('bridges', this._partAt);
 
         // Edit mode overlay (pen line, eraser path)
         if (typeof EditMode !== 'undefined' && EditMode.isActive) {
@@ -1105,22 +1807,84 @@ var CanvasRenderer = {
         }
 
         ctx.restore();
-        
+
         // =====================================================================
-        // RENDER CENTER HUB ON TOP (does NOT rotate with wheel) - with heartbeat
+        // RENDER LABELS (screen-aligned, do NOT rotate with wheel)
+        // Part of the layer: they only move when the tree does. They used to be
+        // drawn after the hub; now the hub sits over any label that reaches it.
         // =====================================================================
-        var globeData = (state.treeData && state.treeData.globe) || { x: 0, y: 0, radius: 45 };
-        ctx.save();
-        ctx.translate(cx + this.panX, cy + this.panY);
-        ctx.scale(this.zoom, this.zoom);
-        ctx.translate(globeData.x, globeData.y);
-        // No rotation applied to hub!
-        
+        this.renderLabels(ctx, cx, cy, cos, sin, view.labelMargin || 0);
+        if (pm) this._partAt = PerfMeter.part('labels', this._partAt);
+
+        // Chapter titles: school names past each school's outer edge (design preset)
+        TreeStyle.renderChapters(ctx, this, cx, cy, cos, sin);
+        if (pm) {
+            this._partAt = PerfMeter.part('chapters', this._partAt);
+            // The browser may only rasterize the calls when the canvas is read
+            // or painted: a one-pixel read makes it do it here, to be timed
+            try { ctx.getImageData(0, 0, 1, 1); } catch (e) { /* tainted or no support: untimed */ }
+            PerfMeter.part('raster', this._partAt);
+        }
+    },
+
+    /** School dividers, debug grid, edges and nodes (world coordinates, rotated context). */
+    _drawTreeShapes: function(ctx, viewLeft, viewRight, viewTop, viewBottom) {
+        var pm = this._partAt > 0;
+        this.renderSchoolDividers(ctx);
+        this.renderDebugGrid(ctx);          // behind edges and nodes
+        if (pm) this._partAt = PerfMeter.part('dividers', this._partAt);
+        this.renderEdges(ctx, viewLeft, viewRight, viewTop, viewBottom);
+        if (pm) this._partAt = PerfMeter.part('edges', this._partAt);
+        // The learning path animation and the detached particles move every
+        // frame: they are drawn over the pasted layer (_drawLearningPath, _drawTree)
+        this.renderNodes(ctx, viewLeft, viewRight, viewTop, viewBottom);
+        if (pm) this._partAt = PerfMeter.part('nodes', this._partAt);
+    },
+
+    _renderHubAndFinish: function(ctx, cx, cy, startTime) {
+        if (this._fxThisFrame) {
+            var self = this;
+            var g = (state.treeData && state.treeData.globe) || { x: 0, y: 0 };
+            var half = this._hubExtent() * this.zoom + 2;
+            var hx = cx + this.panX + (g.x || 0) * this.zoom, hy = cy + this.panY + (g.y || 0) * this.zoom;
+            var drawn = this._fxDraw('hub', hx - half, hy - half, 2 * half, 2 * half, this._activeDpr || window.devicePixelRatio || 1,
+                function(c) { self._renderHub(c, cx, cy); });
+            // Off screen it is not drawn, but it still beats: the beat sends
+            // the particles out and asks for the frames everything else moves in
+            if (!drawn) this._hubOffscreen();
+        } else {
+            this._renderHub(ctx, cx, cy);
+        }
+
+        var elapsed = performance.now() - startTime;
+        if (typeof PerfMeter !== 'undefined') PerfMeter.frame(elapsed);
+        // No per-frame log here. It used to fire on every frame over 16 ms,
+        // and in the game's browser a console call crosses into native code -
+        // so a tree that was already too slow logged itself slower still.
+        // PerfMeter above is the read-out; _logNextRender asks for one line.
+        if (this._logNextRender) {
+            console.log('[CanvasRenderer] Render:', Math.round(elapsed) + 'ms,', this.nodes.length, 'nodes');
+            this._logNextRender = false;
+        }
+    },
+
+    /**
+     * Advance the heartbeat (by time), fire the beat's effects (globe scatter,
+     * particle core flash, a particle for each learning path) and ask for the
+     * next animation frame. Returns the pulse (0 .. ~0.08). Runs whether or not
+     * the heart is drawn (off screen, FxLayer).
+     */
+    _heartBeat: function() {
         // Heartbeat animation - pulsing scale with configurable delay between pulse groups
         var pulse = 0;
-        var scale = 1;
         if (this._heartAnimationEnabled) {
-            this._heartbeatPhase += this._heartbeatSpeed;
+            // Advanced by time, not per frame: a drag or the camera asking for
+            // full-rate frames used to make the heart race. HEARTBEAT_FRAME_MS is
+            // the frame the speed setting was tuned at (the old 20-a-second rate).
+            var beatNow = performance.now();
+            var beatDt = this._lastBeatAt ? Math.min(beatNow - this._lastBeatAt, this.HEARTBEAT_MAX_STEP_MS) : this.HEARTBEAT_FRAME_MS;
+            this._lastBeatAt = beatNow;
+            this._heartbeatPhase += this._heartbeatSpeed * beatDt / this.HEARTBEAT_FRAME_MS;
             
             // Heartbeat animation: double beat (systole-diastole) then delay
             // pulse_speed controls how fast each beat is
@@ -1141,7 +1905,6 @@ var CanvasRenderer = {
                 var beat2 = Math.max(0, Math.sin(cyclePos * 2 - 0.8));
                 pulse = (beat1 + beat2 * 0.6) * 0.08;  // Max ~8% scale change
             }
-            scale = 1 + pulse;
 
             // Global rising-edge detection — fires once per beat start
             var nowBeatingGlobal = cyclePos < beatDuration && cyclePos < 0.5;
@@ -1152,23 +1915,51 @@ var CanvasRenderer = {
                 }
                 // Boost particle core flash on heartbeat
                 this._coreFlashBoost = 1.0;
+                // A particle leaves for each learning path. This fired from
+                // renderEdges, which only runs when the tree layer is repainted,
+                // so with the tree still hardly any particle ever left.
+                // Not while idle: nobody is looking, and they cost frames.
+                if (!this._isIdle()) this._detachGlobeParticleToLearningPath();
             }
             this._lastHeartbeatGlobal = nowBeatingGlobal;
         }
 
         // Keep animation running for heartbeat or globe (throttled to reduce CPU)
         var globeEnabled = this._globeEnabled && (typeof Globe3D !== 'undefined') && Globe3D.enabled;
-        if (this._heartAnimationEnabled || globeEnabled) {
-            this._needsRender = true;
-            this._animationOnlyRender = true;  // Mark as throttleable
+        if (typeof Globe3D !== 'undefined') Globe3D.still = this._globeStill === true;
+        if (this._heartAnimationEnabled || (globeEnabled && !this._globeStill)) {
+            this._requestAnimationOnlyFrame();  // throttleable, and the tree layer stays as it is
         }
+        return pulse;
+    },
+
+    /** The heart off screen: the beat, the globe's movement and the frames, without drawing. */
+    _hubOffscreen: function() {
+        this._heartBeat();
+        if (this._globeEnabled && typeof Globe3D !== 'undefined' && Globe3D.enabled && !Globe3D.still && Globe3D.advance) {
+            Globe3D.advance();
+        }
+    },
+
+    /** The heart: glow, rings, runes, text or particle core, and the globe; with the heartbeat. */
+    _renderHub: function(ctx, cx, cy) {
+        var globeData = (state.treeData && state.treeData.globe) || { x: 0, y: 0, radius: 45 };
+        ctx.save();
+        ctx.translate(cx + this.panX, cy + this.panY);
+        ctx.scale(this.zoom, this.zoom);
+        ctx.translate(globeData.x, globeData.y);
+        // No rotation applied to hub!
+        
+        // Heartbeat: the pulse, the beat's side effects, the next frame
+        var pulse = this._heartBeat();
+        var scale = 1 + pulse;
         
         ctx.scale(scale, scale);
         
         // Core Size: use settings.globeSize if available, else fall back to globeData
-        var baseRadius = (typeof settings !== 'undefined' && settings.globeSize) ? settings.globeSize : (globeData.radius || 45);
-        var ringColor = this._heartRingColor || '#b8a878';
-        var bgColor = this._heartBgColor || '#000000';
+        var baseRadius = (typeof renderValue === 'function' ? renderValue('globeSize', 0) : (typeof settings !== 'undefined' && settings.globeSize)) || globeData.radius || 45;
+        var ringColor = this._heartRing();
+        var bgColor = this._designOrPlayer('hubFill', 'heartBgColor', this._heartBgColor) || '#000000';
         
         // Parse ring color for glow
         var ringRgb = this.parseColor(ringColor);
@@ -1202,13 +1993,16 @@ var CanvasRenderer = {
         ctx.strokeStyle = ringColor;
         ctx.lineWidth = 2.5;
         ctx.stroke();
+
+        // Rune circle round the heart (design preset)
+        TreeStyle.renderHubRunes(ctx, baseRadius);
         
         // Center content: particle core OR text
         if (this._particleCoreEnabled) {
             this._renderParticleCore(ctx, pulse);
         } else {
             // Globe text - use separate text color if set, supports \n for line breaks
-            var textColor = this._magicTextColor || ringColor;
+            var textColor = this._designOrPlayer('hubText', 'magicTextColor', this._magicTextColor) || ringColor;
             var fontSize = this._globeTextSize || 16;
             var globeText = this._globeText || 'HoM';
             ctx.fillStyle = textColor;
@@ -1230,23 +2024,12 @@ var CanvasRenderer = {
         // 3D Globe particle effect (uses Globe3D module)
         if (this._globeEnabled && typeof Globe3D !== 'undefined') {
             // Use globe color if set, otherwise ring color
-            var globeColor = this._globeColor || ringColor;
+            var globeColor = this._designOrPlayer('globeColor', 'globeColor', this._globeColor) || ringColor;
             Globe3D.setColor(globeColor);
             Globe3D.render(ctx);
         }
-        
+
         ctx.restore();
-        
-        // =====================================================================
-        // RENDER LABELS (screen-aligned, do NOT rotate with wheel)
-        // =====================================================================
-        this.renderLabels(ctx, cx, cy, cos, sin);
-        
-        var elapsed = performance.now() - startTime;
-        if (elapsed > 16 || this._logNextRender) {
-            console.log('[CanvasRenderer] Render:', Math.round(elapsed) + 'ms,', this.nodes.length, 'nodes');
-            this._logNextRender = false;
-        }
     },
     
     renderSchoolDividers: function(ctx) {
@@ -1265,6 +2048,9 @@ var CanvasRenderer = {
         var colorMode = settings.dividerColorMode || 'school';
         var customColor = settings.dividerCustomColor || '#ffffff';
         var gd = (state.treeData && state.treeData.globe) || { x: 0, y: 0 };
+
+        // A design preset can draw them as book rules instead
+        if (TreeStyle.renderOrnamentDividers(ctx, this, length, gd)) return;
 
         // Build cache key from all settings that affect gradients
         var cacheKey = length + '|' + fade + '|' + lineWidth + '|' + colorMode + '|' + customColor + '|' + gd.x + '|' + gd.y + '|' + schoolNames.length;
@@ -1352,7 +2138,7 @@ var CanvasRenderer = {
     },
 
     renderEdges: function(ctx, viewLeft, viewRight, viewTop, viewBottom) {
-        var learningPathColor = this._learningPathColor || '#00ffff';
+        var learningPathColor = this._learningColor();
         var hasLearningPaths = this._learningPathNodes instanceof Set && this._learningPathNodes.size > 0;
         var curved = settings.edgeStyle === 'curved';
         
@@ -1367,9 +2153,8 @@ var CanvasRenderer = {
             
             // Detect start of heartbeat (rising edge) for learning path particles
             var nowBeating = cyclePos < beatDuration && cyclePos < 0.5;
-            if (nowBeating && !this._lastHeartbeatPulse) {
-                this._detachGlobeParticleToLearningPath();
-            }
+            // (particles to the learning path leave from _renderHubAndFinish,
+            // which runs every frame; this only runs when the layer is repainted)
             this._lastHeartbeatPulse = nowBeating;
             isHeartbeating = cyclePos < beatDuration;
         }
@@ -1463,14 +2248,24 @@ var CanvasRenderer = {
             return { fromNode: fromNode, toNode: toNode };
         }
 
+        var S = TreeStyle.tokens;
+
         // === PASS 1: Dim/normal edges (background) ===
         // LOD: Skip entirely in MINIMAL (biggest edge savings)
         if (this._lodTier !== 'minimal') {
         // Check if base connections should be shown (setting)
         var showBaseConnections = settings.showBaseConnections !== false;
         var lodSimple = this._lodTier === 'simple';
+        // Only dim when selection path highlighting is enabled
+        var dimAll = hasSelectedPath && settings.showSelectionPath !== false;
+        var showFrontier = S.frontierEdgeAlpha > 0;
 
-        ctx.lineWidth = 1;
+        // Edges that look alike are stroked together, one path per look, instead
+        // of one beginPath/stroke per edge. Where two edges of a batch cross, the
+        // crossing is no longer painted twice.
+        var batches = { dim: [], locked: [] };
+        var frontierKeys = [], unlockedKeys = [];
+
         for (var i = 0; i < this.edges.length; i++) {
             var edge = this.edges[i];
             var nodes = shouldDrawEdge(edge);
@@ -1488,37 +2283,92 @@ var CanvasRenderer = {
             if (isOnSelectedPath || isLearningEdge) continue;
 
             var bothUnlocked = fromNode.state === 'unlocked' && toNode.state === 'unlocked';
+            // Frontier: from a known spell to one that can be learned now
+            var isFrontier = showFrontier && !bothUnlocked && fromNode.state === 'unlocked' &&
+                             (toNode.state === 'available' || toNode.state === 'learning');
 
-            // LOD SIMPLE: skip edges where neither node is unlocked
-            if (lodSimple && !bothUnlocked) continue;
+            // LOD SIMPLE: only edges that lead somewhere the player has been or can go
+            if (lodSimple && !bothUnlocked && !isFrontier) continue;
 
-            // Unlocked connections always show; base connections respect setting
-            if (!bothUnlocked && !showBaseConnections) continue;
+            // Unlocked and frontier connections always show; base connections respect setting
+            if (!bothUnlocked && !isFrontier && !showBaseConnections) continue;
 
-            // Only dim when selection path highlighting is enabled
-            var showSelectionPathDim = settings.showSelectionPath !== false;
-
-            if (hasSelectedPath && showSelectionPathDim) {
-                // Node selected but this edge NOT on path - dim heavily
-                ctx.strokeStyle = '#222';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.08;
-            } else if (bothUnlocked) {
-                // Unlocked connections always visible at full opacity
-                ctx.strokeStyle = this._getSchoolColor(fromNode.school);
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.5;
+            var bucket;
+            if (dimAll) {
+                bucket = batches.dim;
+            } else if (bothUnlocked || isFrontier) {
+                var key = bothUnlocked ? 'u|' + (S.unlockedEdgeColor || this._getSchoolColor(fromNode.school))
+                                       : 'f|' + this._getSchoolColor(fromNode.school);
+                bucket = batches[key];
+                if (!bucket) {
+                    bucket = batches[key] = [];
+                    (bothUnlocked ? unlockedKeys : frontierKeys).push(key);
+                }
             } else {
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.15;
+                bucket = batches.locked;
             }
+            bucket.push(fromNode, toNode);
+        }
 
+        function strokeBatch(list) {
             ctx.beginPath();
-            this._drawEdgePath(ctx, fromNode.x, fromNode.y, toNode.x, toNode.y, curved);
+            for (var b = 0; b < list.length; b += 2) {
+                self._drawEdgePath(ctx, list[b].x, list[b].y, list[b + 1].x, list[b + 1].y, curved);
+            }
             ctx.stroke();
         }
+
+        // Bottom to top: dimmed, locked, frontier, unlocked
+        if (batches.dim.length) {
+            // Node selected but these edges NOT on its path - dim heavily
+            ctx.strokeStyle = S.dimEdgeColor;
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.08;
+            strokeBatch(batches.dim);
+        }
+        if (batches.locked.length) {
+            ctx.strokeStyle = S.lockedEdgeColor;
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = S.lockedEdgeAlpha;
+            strokeBatch(batches.locked);
+        }
+        for (var fk = 0; fk < frontierKeys.length; fk++) {
+            ctx.strokeStyle = frontierKeys[fk].substring(2);
+            ctx.lineWidth = 1.25;
+            ctx.globalAlpha = S.frontierEdgeAlpha;
+            strokeBatch(batches[frontierKeys[fk]]);
+        }
+        for (var uk = 0; uk < unlockedKeys.length; uk++) {
+            var uList = batches[unlockedKeys[uk]];
+            ctx.strokeStyle = unlockedKeys[uk].substring(2);
+            if (S.edgeGlow > 0 && this.zoom >= this.EDGE_GLOW_MIN_ZOOM) {
+                // A wide faint stroke under the line: the channel glows
+                ctx.lineWidth = S.unlockedEdgeWidth * 3;
+                ctx.globalAlpha = S.edgeGlow;
+                strokeBatch(uList);
+            }
+            // Unlocked connections always visible
+            ctx.lineWidth = S.unlockedEdgeWidth;
+            ctx.globalAlpha = S.unlockedEdgeAlpha;
+            strokeBatch(uList);
+        }
         } // end LOD skip for MINIMAL
+
+        // === PASS 1.5: Hover preview path (hovered node's school color) ===
+        if (this._lodTier !== 'minimal' && this._hoverPathEdges && this._hoverPathEdges.size > 0 && this.hoveredNode) {
+            ctx.strokeStyle = this._getSchoolColor(this.hoveredNode.school);
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = S.hoverPathAlpha;
+            for (var hi = 0; hi < this.edges.length; hi++) {
+                var hEdge = this.edges[hi];
+                if (!this._hoverPathEdges.has(hEdge.from + '->' + hEdge.to)) continue;
+                var hNodes = shouldDrawEdge(hEdge);
+                if (!hNodes) continue;
+                ctx.beginPath();
+                this._drawEdgePath(ctx, hNodes.fromNode.x, hNodes.fromNode.y, hNodes.toNode.x, hNodes.toNode.y, curved);
+                ctx.stroke();
+            }
+        }
 
         // === PASS 2: Selected path edges (WHITE, middle layer) ===
         // LOD: Skip in MINIMAL tier
@@ -1539,9 +2389,9 @@ var CanvasRenderer = {
                 var toOnPath = hasLearningPaths && this._learningPathNodes.has(nodes.toNode.id);
                 if (fromOnPath && toOnPath) continue;
 
-                ctx.strokeStyle = '#555555';  // Gray highlight (not pure white)
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.5;
+                ctx.strokeStyle = S.selectedPathColor;
+                ctx.lineWidth = S.selectedPathWidth;
+                ctx.globalAlpha = S.selectedPathAlpha;
 
                 ctx.beginPath();
                 this._drawEdgePath(ctx, nodes.fromNode.x, nodes.fromNode.y, nodes.toNode.x, nodes.toNode.y, curved);
@@ -1694,9 +2544,14 @@ var CanvasRenderer = {
             if (bucketState === 'unlocked') {
                 dotSize = 4; alpha = 1.0;
             } else if (bucketState === 'available' || bucketState === 'learning') {
-                dotSize = 3; alpha = 0.8;
+                dotSize = 3; alpha = TreeStyle.tokens.availableAlpha;
             } else {
                 dotSize = 2; alpha = 0.4;
+            }
+
+            // Focus + context at bucket granularity (per-node path checks are too costly here)
+            if (this.selectedNode && settings.focusDimOthers !== false && bucketSchool !== this.selectedNode.school) {
+                alpha *= this.DIM_OTHER_SCHOOL;
             }
 
             // Set style once per bucket
@@ -1742,8 +2597,12 @@ var CanvasRenderer = {
     renderNodesSimple: function(ctx, viewLeft, viewRight, viewTop, viewBottom) {
         var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
         var hasDiscovery = this._discoveryVisibleIds && !isEditActive;
-        var learningPathColor = this._learningPathColor || '#00ffff';
+        var learningPathColor = this._learningColor();
 
+        // Every spell but the selected and hovered one into NodeBatch, unturned
+        // (a few paint calls for all of them instead of nine each); those two after
+        var own = [];
+        NodeBatch.begin(true);
         for (var i = 0; i < this.nodes.length; i++) {
             var node = this.nodes[i];
 
@@ -1766,45 +2625,70 @@ var CanvasRenderer = {
                 }
             }
 
-            var schoolColor = node._cachedSchoolColor || this._getSchoolColor(node.school);
-            var isSelected = this.selectedNode && this.selectedNode.id === node.id;
-            var isHovered = this.hoveredNode && this.hoveredNode.id === node.id;
-            var path = this._getShapePath(node.school);
-            var isLearning = node.state === 'learning';
-
-            var size, fillColor, strokeColor, strokeWidth, alpha;
-
-            if (node.state === 'unlocked') {
-                size = 12; fillColor = schoolColor; strokeColor = schoolColor;
-                strokeWidth = 1.5; alpha = 1.0;
-            } else if (isLearning) {
-                size = 12; fillColor = learningPathColor; strokeColor = learningPathColor;
-                strokeWidth = 1.5; alpha = 1.0;
-            } else if (node.state === 'available') {
-                size = 9; fillColor = '#1a1a2e'; strokeColor = schoolColor;
-                strokeWidth = 1; alpha = 0.8;
+            if ((this.selectedNode && this.selectedNode.id === node.id) ||
+                    (this.hoveredNode && this.hoveredNode.id === node.id)) {
+                own.push(node);
             } else {
-                size = 7; fillColor = '#1a1a2e'; strokeColor = schoolColor;
-                strokeWidth = 1; alpha = 0.4;
+                this._renderNodeSimple(ctx, node, learningPathColor, true);
             }
-
-            if (isSelected || isHovered) {
-                size += 1.5; strokeColor = '#fff'; strokeWidth = 1.5; alpha = 1.0;
-            }
-
-            ctx.save();
-            ctx.translate(node.x, node.y);
-            // NO rotation — skip atan2 + rotate (main LOD saving)
-            ctx.scale(size, size);
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = fillColor;
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = strokeWidth / size;
-            ctx.fill(path);
-            ctx.stroke(path);
-            ctx.restore();
         }
+        NodeBatch.flush(ctx, this.rotation, this._backdrop());
+        for (var k = 0; k < own.length; k++) this._renderNodeSimple(ctx, own[k], learningPathColor);
         ctx.globalAlpha = 1.0;
+    },
+
+    /**
+     * One spell at the simple level of detail (renderNodesSimple; HoverOverlay
+     * redraws the hovered one). batch: into NodeBatch instead of drawn.
+     */
+    _renderNodeSimple: function(ctx, node, learningPathColor, batch) {
+        var schoolColor = node._cachedSchoolColor || this._getSchoolColor(node.school);
+        var isSelected = this.selectedNode && this.selectedNode.id === node.id;
+        var isHovered = this.hoveredNode && this.hoveredNode.id === node.id;
+        var path = this._getShapePath(node.school);
+        var isLearning = node.state === 'learning';
+
+        var size, fillColor, strokeColor, strokeWidth, alpha;
+
+        var style = TreeStyle.tokens;
+        if (node.state === 'unlocked') {
+            size = 12; fillColor = style.unlockedFill || schoolColor; strokeColor = style.unlockedRim || schoolColor;
+            strokeWidth = 1.5; alpha = 1.0;
+        } else if (isLearning) {
+            size = 12; fillColor = learningPathColor; strokeColor = learningPathColor;
+            strokeWidth = 1.5; alpha = 1.0;
+        } else if (node.state === 'available') {
+            size = 9; fillColor = style.nodeFill; strokeColor = schoolColor;
+            strokeWidth = 1; alpha = style.availableAlpha;
+        } else {
+            size = 7; fillColor = style.nodeFill; strokeColor = style.lockedStroke || schoolColor;
+            strokeWidth = 1; alpha = 0.4;
+        }
+
+        alpha *= this._contextFactor(node);
+        size = this._minSize(size);
+
+        if (isSelected || isHovered) {
+            size += 1.5; strokeColor = style.focusStroke; strokeWidth = 1.5; alpha = 1.0;
+        }
+
+        if (batch) {
+            NodeBatch.addShape(node.school, node.x, node.y, size, fillColor, strokeColor, alpha, false, strokeWidth);
+            return;
+        }
+
+        ctx.save();
+        ctx.translate(node.x, node.y);
+        // NO rotation — skip atan2 + rotate (main LOD saving)
+        ctx.scale(size, size);
+        if (alpha < 1) this._underlay(ctx, path);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = fillColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = strokeWidth / size;
+        ctx.fill(path);
+        ctx.stroke(path);
+        ctx.restore();
     },
 
     renderNodes: function(ctx, viewLeft, viewRight, viewTop, viewBottom) {
@@ -1818,6 +2702,11 @@ var CanvasRenderer = {
             return;
         }
 
+        // Locked, known (lock look too) and undiscovered spells go into NodeBatch
+        // (a few paint calls for all of them); the rest are drawn one by one on top
+        var discovery = this._discoveryVisibleIds && !(typeof EditMode !== 'undefined' && EditMode.isActive);
+        var special = [];
+        NodeBatch.begin();
         for (var i = 0; i < this.nodes.length; i++) {
             var node = this.nodes[i];
 
@@ -1832,75 +2721,140 @@ var CanvasRenderer = {
             }
 
             // Discovery mode visibility (disabled in edit mode - show everything)
-            if (this._discoveryVisibleIds && !(typeof EditMode !== 'undefined' && EditMode.isActive)) {
+            if (discovery) {
                 if (!this._discoveryVisibleIds.has(node.id) && !this._discoveryVisibleIds.has(node.formId)) {
                     continue;
                 }
 
                 // Show locked nodes as mystery
                 if (node.state === 'locked') {
-                    this.renderMysteryNode(ctx, node);
+                    this._batchMysteryNode(node);
                     continue;
                 }
             }
 
-            this.renderNode(ctx, node);
+            if (!this._batchPlainNode(node)) special.push(node);
         }
+        NodeBatch.flush(ctx, this.rotation, this._backdrop());
+        for (var k = 0; k < special.length; k++) this.renderNode(ctx, special[k]);
+    },
+
+    /**
+     * A locked or known spell with nothing of its own (not selected, hovered or
+     * on the hover path) goes into NodeBatch, with the look renderNode would
+     * give it - the lock look too (hard prerequisites: a grey shell with a
+     * school-coloured hole while locked, a grey ring once known). Returns false
+     * for the others.
+     */
+    _batchPlainNode: function(node) {
+        var locked = node.state === 'locked';
+        if (!locked && node.state !== 'unlocked') return false;
+        if (this.selectedNode && this.selectedNode.id === node.id) return false;
+        if (this.hoveredNode && this.hoveredNode.id === node.id) return false;
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return false;
+        var style = TreeStyle.tokens;
+        var schoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
+        var cf = this._contextFactor(node);
+        var lock = node.hardPrereqs && node.hardPrereqs.length > 0;
+        if (locked) {
+            var lsize = this._minSize(7), alpha = 0.4 * cf;
+            if (lock) {
+                NodeBatch.addShape(node.school, node.x, node.y, lsize + 2, this.LOCK_SHELL_FILL,
+                    this.LOCK_SHELL_STROKE, Math.min(alpha + 0.2, 0.75), false, 1.2, 0);
+                NodeBatch.addShape(node.school, node.x, node.y, Math.max(lsize * 0.45, 3), schoolColor,
+                    null, Math.min(alpha + 0.15, 0.65), false, 1, 2);
+                return true;
+            }
+            NodeBatch.addShape(node.school, node.x, node.y, lsize, style.nodeFill,
+                style.lockedStroke || schoolColor, alpha, true);
+            return true;
+        }
+        var size = this._minSize(12);
+        var onPath = (this._learningPathNodes instanceof Set) && this._learningPathNodes.has(node.id) &&
+                     !(this._animatingPathNodes && this._animatingPathNodes.has(node.id));
+        if (style.nodeGlow > 0 && size * 2.6 * this.zoom >= this.HALO_MIN_SCREEN_PX) {
+            NodeBatch.addHalo(node.x, node.y, size * 2.6, schoolColor, style.nodeGlow * cf);
+        }
+        if (lock) {
+            NodeBatch.addShape(node.school, node.x, node.y, size + 3, this.LOCK_RING_FILL,
+                this.LOCK_RING_STROKE, 0.5, false, 1.5, 0, true);
+        }
+        // The lock ring's spell is not underlaid (renderNode draws it straight over the ring)
+        NodeBatch.addShape(node.school, node.x, node.y, size, style.unlockedFill || schoolColor,
+            onPath ? this._heartRing() : (style.unlockedRim || schoolColor), cf, false, 1.5, 1, lock);
+        NodeBatch.addShape(node.school, node.x, node.y, size * 0.5,
+            style.unlockedCore || this.getInnerAccentColor(schoolColor), null, cf, false, 1, 2);
+        return true;
+    },
+
+    /**
+     * What is behind the tree: the design's page colour, else the background
+     * colour. A see-through spell is filled with it first, so the lines drawn
+     * before the spells do not show through them.
+     */
+    _backdrop: function() {
+        return (TreeStyle.tokens && TreeStyle.tokens.pageColor) || this._bgColor || '#000000';
+    },
+
+    /** Fill `path` with the backdrop, opaque (the spell's own fill goes on top). */
+    _underlay: function(ctx, path) {
+        var a = ctx.globalAlpha;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = this._backdrop();
+        ctx.fill(path);
+        ctx.globalAlpha = a;
+    },
+
+    /** An undiscovered spell (renderMysteryNode's look) goes into NodeBatch. */
+    _batchMysteryNode: function(node) {
+        var dimmed = this.dimColor(this._getSchoolColor(node.school), 0.4);
+        var cf = this._contextFactor(node);
+        NodeBatch.addShape(node.school, node.x, node.y, this._minSize(this._mysterySize(node)),
+            TreeStyle.tokens.mysteryFill, dimmed, 0.6 * cf, true);
+        NodeBatch.addMark(node.x, node.y, dimmed, 0.8 * cf);
     },
     
     renderMysteryNode: function(ctx, node) {
         var color = this._getSchoolColor(node.school);
         var dimmedColor = this.dimColor(color, 0.4);
-        var size = 8;
+        var size = this._minSize(this._mysterySize(node));
         var path = this._getShapePath(node.school);
+        var contextFactor = this._contextFactor(node);
         
         ctx.save();
         ctx.translate(node.x, node.y);
         
-        // Rotate all shapes so flat edge faces toward center (tangent to central circle)
-        var angleToCenter = Math.atan2(node.y, node.x);
-        var rotationOffset = 0;
+        // Flat edge toward the centre (circles are not turned)
         
-        switch (node.school) {
-            case 'Destruction':  // Diamond (4 sides)
-                rotationOffset = Math.PI / 4;
-                break;
-            case 'Alteration':   // Hexagon (6 sides)
-                rotationOffset = Math.PI / 6;
-                break;
-            case 'Conjuration':  // Pentagon (5 sides) - tip points toward center
-                rotationOffset = Math.PI / 2;
-                break;
-            case 'Illusion':     // Triangle (3 sides)
-                rotationOffset = Math.PI / 2;
-                break;
-        }
+        var turn = NodeBatch.rotationAt(node.school, node.x, node.y);
         
-        if (rotationOffset !== 0) {
-            ctx.rotate(angleToCenter + rotationOffset);
-        }
+        if (turn !== 0) ctx.rotate(turn);
         
         ctx.scale(size, size);
-        
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
+
+        ctx.fillStyle = TreeStyle.tokens.mysteryFill;
         ctx.strokeStyle = dimmedColor;
         ctx.lineWidth = 1 / size;
-        ctx.globalAlpha = 0.6;
-        
+        ctx.globalAlpha = 0.6 * contextFactor;
+
+        this._underlay(ctx, path);
+        ctx.fillStyle = TreeStyle.tokens.mysteryFill;
         ctx.fill(path);
+        ctx.setLineDash([0.5, 0.4]);   // Undiscovered: dashed silhouette
         ctx.stroke(path);
-        
+        ctx.setLineDash([]);
+
         ctx.restore();
-        
+
         // Draw "?" - counter-rotate so it stays screen-aligned
         ctx.save();
         ctx.translate(node.x, node.y);
-        
+
         // Counter-rotate to cancel out the wheel rotation
         var rotRad = this.rotation * Math.PI / 180;
         ctx.rotate(-rotRad);
-        
-        ctx.globalAlpha = 0.8;
+
+        ctx.globalAlpha = 0.8 * contextFactor;
         ctx.fillStyle = dimmedColor;
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
@@ -1912,14 +2866,15 @@ var CanvasRenderer = {
     },
     
     renderNode: function(ctx, node) {
-        var schoolColor = node.themeColor || this._getSchoolColor(node.school);
+        var schoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
         var isSelected = this.selectedNode && this.selectedNode.id === node.id;
         var isHovered = this.hoveredNode && this.hoveredNode.id === node.id;
         var path = this._getShapePath(node.school);
         
         var size, fillColor, strokeColor, strokeWidth, alpha;
-        var learningPathColor = this._learningPathColor || '#00ffff';
-        var ringColor = this._heartRingColor || '#b8a878';  // Gold ring color for outlines
+        var learningPathColor = this._learningColor();
+        var ringColor = this._heartRing();  // Gold ring color for outlines
+        var style = TreeStyle.tokens;
         // Check if on learning path
         var isOnLearningPath = (this._learningPathNodes instanceof Set) &&
                                this._learningPathNodes.has(node.id);
@@ -1941,9 +2896,9 @@ var CanvasRenderer = {
 
         if (node.state === 'unlocked') {
             size = 12;
-            fillColor = schoolColor;
+            fillColor = style.unlockedFill || schoolColor;
             // Use ring color only if on learning path, else school color
-            strokeColor = isOnLearningPath ? ringColor : schoolColor;
+            strokeColor = isOnLearningPath ? ringColor : (style.unlockedRim || schoolColor);
             strokeWidth = 1.5;
             alpha = 1.0;
         } else if (showLearningStyle) {
@@ -1956,21 +2911,30 @@ var CanvasRenderer = {
         } else if (node.state === 'available' || (isLearning && isBeingAnimated)) {
             // Available nodes OR learning nodes still being animated (show as available temporarily)
             size = 9;
-            fillColor = '#1a1a2e';
+            fillColor = style.nodeFill;
             strokeColor = schoolColor;  // Use school/tree color for available nodes
             strokeWidth = 1;
-            alpha = 0.8;
+            alpha = style.availableAlpha;
         } else {
             size = 7;
-            fillColor = '#1a1a2e';
-            strokeColor = schoolColor;  // Use school/tree color for locked nodes (dimmed by alpha)
+            fillColor = style.nodeFill;
+            strokeColor = style.lockedStroke || schoolColor;  // Use school/tree color for locked nodes (dimmed by alpha)
             strokeWidth = 1;
             alpha = 0.4;
         }
         
+        // Nodes on the hovered node's dependency path stand out a little
+        if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) {
+            alpha = Math.max(alpha, 0.85);
+        }
+
+        // Focus + context dimming and minimum on-screen size
+        alpha *= this._contextFactor(node);
+        size = this._minSize(size);
+
         if (isSelected || isHovered) {
             size += 1.5;  // Subtle hover expansion
-            strokeColor = '#fff';
+            strokeColor = style.focusStroke;
             strokeWidth = 1.5;
             alpha = 1.0;
         }
@@ -1987,33 +2951,56 @@ var CanvasRenderer = {
                 lockGrayFill = true;     // Not yet unlocked: gray body + school color hole
             }
         }
-        
+
         ctx.save();
         ctx.translate(node.x, node.y);
-        
-        // Rotate all shapes so flat edge faces toward center (tangent to central circle)
-        var angleToCenter = Math.atan2(node.y, node.x);
-        var rotationOffset = 0;
-        
-        switch (node.school) {
-            case 'Destruction':  // Diamond (4 sides) - rotate 45° for flat edge
-                rotationOffset = Math.PI / 4;
-                break;
-            case 'Alteration':   // Hexagon (6 sides) - rotate 30° for flat edge
-                rotationOffset = Math.PI / 6;
-                break;
-            case 'Conjuration':  // Pentagon (5 sides) - rotate 90° so tip points toward center
-                rotationOffset = Math.PI / 2;
-                break;
-            case 'Illusion':     // Triangle (3 sides) - rotate 90° so tip points in
-                rotationOffset = Math.PI / 2;
-                break;
-            // Restoration (circle) needs no rotation
+
+        // Halo behind known spells and the one being learned (one sprite each)
+        var glow = node.state === 'unlocked' ? style.nodeGlow : (showLearningStyle ? style.learningGlow : 0);
+        // A known spell's halo is left out when small on screen (HALO_MIN_SCREEN_PX); the learning one stays
+        if (node.state === 'unlocked' && size * 2.6 * this.zoom < this.HALO_MIN_SCREEN_PX) glow = 0;
+        if (glow > 0) {
+            TreeStyle.drawHalo(ctx, size * 2.6, showLearningStyle ? learningPathColor : schoolColor, glow * alpha);
+        }
+
+        // XP progress ring: learning nodes and partially-studied available nodes.
+        // Drawn before the shape (unrotated) so the arc starts at the screen's top.
+        // A learnable spell with no progress yet gets a thin ring of its own, so
+        // the spells the player can go for next stand apart from the locked ones.
+        if (node.state === 'learning' || node.state === 'available') {
+            var ringPct = this._getNodeProgressPct(node);
+            if (ringPct <= 0 && style.availableRing && node.state === 'available') {
+                ctx.lineWidth = 1.2;
+                ctx.globalAlpha = 0.6 * this._contextFactor(node);
+                ctx.strokeStyle = schoolColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, size + 4, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (ringPct > 0) {
+                var ringRadius = size + 4;
+                var ringStart = -Math.PI / 2 - (this.rotation * Math.PI / 180);
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.22;
+                ctx.strokeStyle = style.ringTrack;
+                ctx.beginPath();
+                ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.95;
+                ctx.strokeStyle = isLearning ? learningPathColor : schoolColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, ringRadius, ringStart, ringStart + Math.PI * 2 * ringPct);
+                ctx.stroke();
+            }
         }
         
-        if (rotationOffset !== 0) {
-            ctx.rotate(angleToCenter + rotationOffset);
-        }
+        // Flat edge toward the centre (circles are not turned)
+        
+        var turn = NodeBatch.rotationAt(node.school, node.x, node.y);
+        
+        if (turn !== 0) ctx.rotate(turn);
         
         if (lockGrayFill) {
             // === LOCKED NODE WITH HARD PREREQS ===
@@ -2021,9 +3008,10 @@ var CanvasRenderer = {
             var outerSize = size + 2;
             ctx.save();
             ctx.scale(outerSize, outerSize);
+            this._underlay(ctx, path);
             ctx.globalAlpha = Math.min(alpha + 0.2, 0.75);
-            ctx.fillStyle = 'rgba(90, 90, 100, 0.7)';
-            ctx.strokeStyle = 'rgba(140, 140, 155, 0.8)';
+            ctx.fillStyle = this.LOCK_SHELL_FILL;
+            ctx.strokeStyle = this.LOCK_SHELL_STROKE;
             ctx.lineWidth = 1.2 / outerSize;
             ctx.fill(path);
             ctx.stroke(path);
@@ -2042,8 +3030,8 @@ var CanvasRenderer = {
             ctx.save();
             ctx.scale(ringSize, ringSize);
             ctx.globalAlpha = 0.5;
-            ctx.fillStyle = 'rgba(90, 90, 100, 0.25)';
-            ctx.strokeStyle = 'rgba(150, 150, 160, 0.7)';
+            ctx.fillStyle = this.LOCK_RING_FILL;
+            ctx.strokeStyle = this.LOCK_RING_STROKE;
             ctx.lineWidth = 1.5 / ringSize;
             ctx.fill(path);
             ctx.stroke(path);
@@ -2060,22 +3048,26 @@ var CanvasRenderer = {
 
             // Inner accent
             ctx.scale(0.5, 0.5);
-            ctx.fillStyle = this.getInnerAccentColor(schoolColor);
+            ctx.fillStyle = style.unlockedCore || this.getInnerAccentColor(schoolColor);
             ctx.fill(path);
         } else {
             // === NORMAL NODE (no lock prereqs) ===
             ctx.scale(size, size);
+            if (alpha < 1) this._underlay(ctx, path);
             ctx.globalAlpha = alpha;
             ctx.fillStyle = fillColor;
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = strokeWidth / size;
             ctx.fill(path);
+            // State is encoded in the outline too (not only color): locked = dashed
+            if (node.state === 'locked') ctx.setLineDash([0.5, 0.4]);
             ctx.stroke(path);
+            ctx.setLineDash([]);
 
             // Draw inner accent for unlocked nodes
             if (node.state === 'unlocked') {
                 ctx.scale(0.5, 0.5);
-                ctx.fillStyle = this.getInnerAccentColor(schoolColor);
+                ctx.fillStyle = style.unlockedCore || this.getInnerAccentColor(schoolColor);
                 ctx.fill(path);
             }
 
@@ -2183,7 +3175,7 @@ var CanvasRenderer = {
             return;
         }
         
-        var color = this._learningPathColor || '#00ffff';
+        var color = this._learningColor();
 
         // Pre-compute segment lengths for animation (avoids sqrt per frame)
         var segmentLengths = [];
@@ -2277,7 +3269,7 @@ var CanvasRenderer = {
         }
         
         // Draw line - same style as static learning path
-        var learningPathColor = this._learningPathColor || '#00ffff';
+        var learningPathColor = this._learningColor();
         ctx.strokeStyle = learningPathColor;
         ctx.lineWidth = 3;
         ctx.globalAlpha = 0.7;
@@ -2289,45 +3281,72 @@ var CanvasRenderer = {
         
         // Continue animation or end it
         if (progress >= 1) {
-            // Animation complete - mark as done so static path can show
-            this._learningPathAnimationComplete = true;
-            this._animatingPathNodes = null;  // Clear animating nodes - all paths now visible
+            if (!this._learningPathAnimationComplete) {
+                // Done: the layer is repainted once, now with the whole path in it
+                this._learningPathAnimationComplete = true;
+                this._animatingPathNodes = null;
+                this._needsRender = true;
+            }
 
             // Clear the animation object shortly after completion
             if (elapsed > this._learningPathDuration + 200) {
                 this._learningPath = null;
             }
         }
-        
-        // Keep rendering while animation is active (throttled)
-        if (this._learningPath) {
-            this._needsRender = true;
-            this._animationOnlyRender = true;
-        }
+
+        // Keep the frames coming while it runs, without touching the layer
+        if (this._learningPath) this._requestAnimationOnlyFrame();
     },
     
     /**
-     * Render labels - SCREEN ALIGNED (don't rotate with wheel)
+     * Render labels - SCREEN ALIGNED (don't rotate with wheel).
+     * Labels are placed by priority (selected > hovered > learning > available >
+     * unlocked) with screen-space collision rejection, so overlapping names no
+     * longer pile up. Zoomed out, only the important labels remain.
      */
-    renderLabels: function(ctx, cx, cy, cos, sin) {
-        if (this.zoom < 0.6) return;  // Show labels at lower zoom too
+    /**
+     * Spell names, screen-aligned. margin: CSS px drawn round the canvas (the
+     * tree layer's): the names there are drawn too, so a drag that slides the
+     * layer does not show spells without them - after the ones in view, which
+     * come out as they would without it.
+     */
+    renderLabels: function(ctx, cx, cy, cos, sin, margin) {
+        if (this.zoom < this.LABEL_MIN_ZOOM) return;
+        margin = margin || 0;
         if (settings.showNodeNames === false) return;
 
+        var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
         var fontSize = settings.nodeFontSize || 10;
-        ctx.font = fontSize + 'px sans-serif';
+        var style = TreeStyle.tokens;
+        TreeStyle.beginLabels(ctx, fontSize);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        
-        var labelsDrawn = 0;
-        var maxLabels = 150;  // Allow more labels
-        
-        for (var i = 0; i < this.nodes.length && labelsDrawn < maxLabels; i++) {
+
+        var focusOnly = this.zoom < this.LABEL_FOCUS_ZOOM;
+        var learningColor = this._learningColor();
+        var candidates = [];
+
+        // Labels are drawn after the tree transform is undone, so the trait
+        // filter's veil cannot dim them: they have to drop out themselves.
+        var filtering = typeof BridgeView !== 'undefined' && BridgeView.hasFilter();
+
+        var edgeX0 = -50 - margin, edgeX1 = this._width + 50 + margin;
+        var edgeY0 = -50 - margin, edgeY1 = this._height + 50 + margin;
+        for (var i = 0; i < this.nodes.length; i++) {
             var node = this.nodes[i];
-            
             // In edit mode: show ALL labels. Otherwise: only unlocked/learning/available
-            var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
             if (!isEditActive && node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') continue;
             if (!node.name && !isEditActive) continue;
+
+            // Transform node position WITH rotation, but text stays screen-aligned;
+            // off the canvas (and its margin) is ruled out before the lookups below
+            var rotatedX = node.x * cos - node.y * sin;
+            var rotatedY = node.x * sin + node.y * cos;
+            var screenX = rotatedX * this.zoom + this.panX + cx;
+            var screenY = rotatedY * this.zoom + this.panY + cy;
+            if (screenX < edgeX0 || screenX > edgeX1 || screenY < edgeY0 || screenY > edgeY1) continue;
+
+            if (filtering && !BridgeView.matchesFilter(node)) continue;
             if (settings.schoolVisibility && settings.schoolVisibility[node.school] === false) continue;
 
             // Check if name should be revealed based on XP progress
@@ -2342,38 +3361,92 @@ var CanvasRenderer = {
                 }
             }
 
-            // Set color based on state
+            var priority = labelText === '???' ? 0 : this._labelPriority(node);
+            // Zoomed out: keep only selected / hovered / learning / available names
+            if (focusOnly && priority < 2) continue;
+
+            // In view, as before; in the margin only
+            var inView = !(screenX < -50 || screenX > this._width + 50 || screenY < -50 || screenY > this._height + 50);
+
+            // Color by state
+            var color;
             if (node.state === 'unlocked') {
-                ctx.fillStyle = '#fff';
+                color = style.labelUnlocked;
             } else if (node.state === 'learning') {
-                // Learning - static cyan text
-                ctx.fillStyle = this._learningPathColor || '#00ffff';
+                color = learningColor;
             } else if (labelText === '???') {
-                // Hidden name - very dim
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                color = style.labelHidden;
             } else {
-                // Available/learnable - use dimmer color
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                color = style.labelAvailable;
             }
 
-            // Transform node position WITH rotation, but text stays screen-aligned
-            var rotatedX = node.x * cos - node.y * sin;
-            var rotatedY = node.x * sin + node.y * cos;
-
-            var screenX = rotatedX * this.zoom + this.panX + cx;
-            var screenY = rotatedY * this.zoom + this.panY + cy;
-
-            // Viewport check
-            if (screenX < -50 || screenX > this._width + 50 || screenY < -50 || screenY > this._height + 50) {
-                continue;
+            // The shortened name, kept on the spell while its name and the limit stay
+            if (node._labelSrc !== labelText || node._labelMax !== style.labelMaxChars) {
+                node._labelSrc = labelText;
+                node._labelMax = style.labelMaxChars;
+                node._labelText = TreeStyle.clipLabel(labelText);
             }
-
-            // Draw text at screen position (no rotation)
-            ctx.fillText(labelText.substring(0, 12), screenX, screenY + (fontSize + 4) * this.zoom);
-            labelsDrawn++;
+            candidates.push({
+                node: node,
+                text: node._labelText,
+                inView: inView,
+                priority: priority,
+                x: screenX,
+                y: screenY + (fontSize + 4) * this.zoom,
+                color: color
+            });
         }
+
+        // In view before the margin, then high priority first; stable on index so
+        // results don't flicker between frames
+        candidates.sort(this._byLabelOrder);
+
+        var maxLabels = 150;
+        var pad = 2;
+        var placed = [];
+        var drawn = 0;
+
+        for (var c = 0; c < candidates.length && drawn < maxLabels; c++) {
+            var cand = candidates[c];
+            var halfW = this._labelWidth(ctx, cand.text) / 2 + pad;
+            var rect = { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
+
+            // Collision rejection: the selected node's label always wins
+            var collides = false;
+            if (cand.priority < 5) {
+                for (var p = 0; p < placed.length; p++) {
+                    var o = placed[p];
+                    if (rect.l < o.r && rect.r > o.l && rect.t < o.b && rect.b > o.t) { collides = true; break; }
+                }
+            }
+            if (collides) continue;
+
+            placed.push(rect);
+            ctx.globalAlpha = this._contextFactor(cand.node);
+            TreeStyle.drawLabel(ctx, cand.text, cand.x, cand.y, cand.color);
+            drawn++;
+        }
+
+        ctx.globalAlpha = 1.0;
     },
     
+    _byLabelOrder: function(a, b) {
+        if (a.inView !== b.inView) return a.inView ? -1 : 1;
+        return b.priority - a.priority;
+    },
+
+    /** measureText's width, kept per font and text (the names do not change between repaints). */
+    _labelWidth: function(ctx, text) {
+        if (this._labelWidthFont !== ctx.font) {
+            this._labelWidthFont = ctx.font;
+            this._labelWidths = {};
+        }
+        var key = '#' + text;          // never an Object.prototype name
+        var w = this._labelWidths[key];
+        if (w === undefined) w = this._labelWidths[key] = ctx.measureText(text).width;
+        return w;
+    },
+
     // =========================================================================
     // COLOR UTILITIES
     // =========================================================================
@@ -2404,11 +3477,14 @@ var CanvasRenderer = {
     },
     
     getInnerAccentColor: function(color) {
+        var cache = this._innerAccentCache || (this._innerAccentCache = {});
+        if (cache.hasOwnProperty(color)) return cache[color];
         var rgb = this.parseColor(color);
-        if (!rgb) return '#1a1a2e';
-        return 'rgb(' + Math.round(rgb.r * 0.35) + ',' + 
-                        Math.round(rgb.g * 0.3) + ',' + 
-                        Math.round(rgb.b * 0.4) + ')';
+        var accent = !rgb ? '#1a1a2e' : 'rgb(' + Math.round(rgb.r * 0.35) + ',' +
+                                                 Math.round(rgb.g * 0.3) + ',' +
+                                                 Math.round(rgb.b * 0.4) + ')';
+        cache[color] = accent;
+        return accent;
     },
     
     // =========================================================================
@@ -2528,26 +3604,34 @@ var CanvasRenderer = {
         var start = this.rotation;
         var duration = 300;
         var startTime = performance.now();
-        
-        if (this.isAnimating) return;
+
+        // Re-target instead of dropping the request when already animating
+        if (this._rotationRafId) {
+            cancelAnimationFrame(this._rotationRafId);
+            this._rotationRafId = null;
+        }
         this.isAnimating = true;
-        
+
         function animate() {
             var elapsed = performance.now() - startTime;
             var progress = Math.min(elapsed / duration, 1);
             var eased = 1 - Math.pow(1 - progress, 3);
-            
+
             self.rotation = start + (target - start) * eased;
-            self._needsRender = true;
-            
+            // The layer is stretched and turned while this runs (_drawTree) and
+            // repainted on the frame after it ends
+            self.__needsRender = true;
+            self._animationOnlyRender = false;
+
             if (progress < 1) {
-                requestAnimationFrame(animate);
+                self._rotationRafId = requestAnimationFrame(animate);
             } else {
                 self.rotation = target;
+                self._rotationRafId = null;
                 self.isAnimating = false;
             }
         }
-        
+
         animate();
     },
     
@@ -2567,7 +3651,12 @@ var CanvasRenderer = {
         if (!this.canvas.parentNode) {
             this.container.appendChild(this.canvas);
         }
-        
+        // The container's own background and inner shadow lie under the opaque
+        // canvas: not painted while it is there (patch-ui.css, design CSS)
+        this.container.classList.add('canvas-shown');
+        // The moving parts' canvases go back over it (FxLayer)
+        if (typeof FxLayer !== 'undefined') FxLayer.reattach(this.canvas);
+
         // Update canvas size immediately
         this.updateCanvasSize();
         this.startRenderLoop();
@@ -2584,6 +3673,7 @@ var CanvasRenderer = {
     
     hide: function() {
         this.stopRenderLoop();
+        if (typeof FxLayer !== 'undefined') FxLayer.hideAll();
         
         // Clear any pending resize timeout
         if (this._resizeTimeout) {
@@ -2594,6 +3684,7 @@ var CanvasRenderer = {
         if (this.canvas && this.canvas.parentNode) {
             this.canvas.parentNode.removeChild(this.canvas);
         }
+        if (this.container) this.container.classList.remove('canvas-shown');
         
         var svg = document.getElementById('tree-svg');
         if (svg) svg.style.display = 'block';
@@ -2606,16 +3697,25 @@ var CanvasRenderer = {
         this.rotation = 0;
         this._needsRender = true;
         
-        var zoomEl = this._zoomLevelEl || document.getElementById('zoom-level');
-        if (zoomEl) zoomEl.textContent = Math.round(this.zoom * 100) + '%';
+        this.showZoom(this.zoom);
     },
     
+    /**
+     * The zoom read-out; the text is only written when the shown number changes
+     * (compared with the element, which the other tree views write too).
+     */
+    showZoom: function(zoom) {
+        var zoomEl = this._zoomLevelEl || document.getElementById('zoom-level');
+        if (!zoomEl) return;
+        var text = Math.round(zoom * 100) + '%';
+        if (zoomEl.textContent !== text) zoomEl.textContent = text;
+    },
+
     setZoom: function(z) {
         this.zoom = Math.max(0.1, Math.min(5, z));
         this._needsRender = true;
         
-        var zoomEl = this._zoomLevelEl || document.getElementById('zoom-level');
-        if (zoomEl) zoomEl.textContent = Math.round(this.zoom * 100) + '%';
+        this.showZoom(this.zoom);
     },
     
     clear: function() {
@@ -2855,7 +3955,7 @@ var CanvasRenderer = {
         if (!this._learningPathSegments || this._learningPathSegments.length === 0) return;
         
         // For each learning path, detach a globe particle with learning color
-        var learningColor = this._learningPathColor || '#00ffff';
+        var learningColor = this._learningColor();
         for (var i = 0; i < this._learningPathSegments.length; i++) {
             var pathData = this._learningPathSegments[i];
             Globe3D.detachParticleToPath(pathData.segments, this._learningPulseSpeed, learningColor);
@@ -2868,10 +3968,11 @@ var CanvasRenderer = {
     _updateLearningPulses: function() {
         if (!this._learningPulses || this._learningPulses.length === 0) return;
         
-        // Update each pulse
+        // Update each pulse, by the steps due (AnimClock: not faster or slower with the frame rate)
+        var steps = typeof AnimClock !== 'undefined' ? AnimClock.steps('pulses') : 1;
         for (var i = this._learningPulses.length - 1; i >= 0; i--) {
             var pulse = this._learningPulses[i];
-            pulse.progress += pulse.speed;
+            pulse.progress += pulse.speed * steps;
             
             // Fade out near the end
             if (pulse.progress > 0.8) {
@@ -2892,7 +3993,7 @@ var CanvasRenderer = {
         if (!this._learningPulses || this._learningPulses.length === 0) return;
         if (!this._learningPathSegments || this._learningPathSegments.length === 0) return;
         
-        var learningPathColor = this._learningPathColor || '#00ffff';
+        var learningPathColor = this._learningColor();
         
         for (var i = 0; i < this._learningPulses.length; i++) {
             var pulse = this._learningPulses[i];
@@ -2975,6 +4076,29 @@ var CanvasRenderer = {
         return { x: lastSeg.to.x, y: lastSeg.to.y };
     }
 };
+
+// Dozens of places, in this file and in other modules, say "something about the
+// tree changed" by setting _needsRender. Catching that one assignment is what
+// lets the tree layer know when it is out of date without touching any of them.
+// Frames asked for by animation alone go through _requestAnimationOnlyFrame,
+// which writes the backing field directly and so leaves the layer alone.
+Object.defineProperty(CanvasRenderer, '_needsRender', {
+    get: function() { return this.__needsRender; },
+    set: function(value) {
+        this.__needsRender = value;
+        if (value) {
+            this._treeDirty = true;
+            // This is the player asking, so the frame is not throttleable.
+            // The flag was left over from the previous frame's heartbeat, and
+            // leaving it set is what used to hold a drag to 20 frames a second.
+            // An animation that wants the throttle sets it again right after.
+            this._animationOnlyRender = false;
+        }
+    },
+    enumerable: true,
+    configurable: true
+});
+CanvasRenderer._needsRender = true;
 
 // Export
 window.CanvasRenderer = CanvasRenderer;

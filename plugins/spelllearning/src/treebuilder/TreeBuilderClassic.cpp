@@ -82,7 +82,7 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
 
         // Theme match
         if (!node.theme.empty() && !candidate->theme.empty()) {
-            if (node.theme == candidate->theme) {
+            if (SharesTheme(node, *candidate)) {
                 float themeBonus = (effectSim > 0.5f) ? 25.0f : 15.0f;
                 score += themeBonus;
             } else {
@@ -202,8 +202,10 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
             if (!schoolThemes.empty()) {
                 auto [theme, score] = GetSpellPrimaryTheme(node.spellData, schoolThemes);
                 node.theme = (score > 30) ? theme : "";
+                node.themes = GetSpellThemes(node.spellData, schoolThemes);
             }
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Build tree tier-by-tier
         std::unordered_set<std::string> connected;
@@ -289,7 +291,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 float effectSim = sims.GetEffectSim(orphanId, cid);
                 score += effectSim * 30.0f;
 
-                if (!orphanNode.theme.empty() && !cnode.theme.empty() && orphanNode.theme == cnode.theme) {
+                if (SharesTheme(orphanNode, cnode)) {
                     score += 15.0f;
                 }
 

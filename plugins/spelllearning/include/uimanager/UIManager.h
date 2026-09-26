@@ -26,6 +26,13 @@ public:
     
     // Settings
     void SetPauseGameOnFocus(bool pause) { m_pauseGameOnFocus = pause; }
+
+    // Developer mode, from the config. The panel's ordinary console lines
+    // reach SpellLearning.log only while it is on; warnings and errors always
+    // do. Off by default, so a player never pays for hundreds of lines per
+    // panel load they will not read.
+    static void SetPanelInfoLogging(bool enabled) { s_panelInfoLogging.store(enabled, std::memory_order_relaxed); }
+    static bool PanelInfoLogging() { return s_panelInfoLogging.load(std::memory_order_relaxed); }
     bool GetPauseGameOnFocus() const { return m_pauseGameOnFocus; }
 
     // Send data to Scanner Tab
@@ -41,6 +48,7 @@ public:
     void SendValidationResult(const std::string& jsonData);
     void UpdateSpellState(const std::string& formId, const std::string& state);
     void UpdateTreeStatus(const std::string& message);
+    void SendDeclutterResult(const std::string& jsonData);  // onDeclutterResult (UIManagerDeclutter.cpp)
 
     // Clipboard support
     void SendClipboardContent(const std::string& content);
@@ -97,6 +105,7 @@ private:
     static void OnLoadSpellTree(const char* argument);
     static void OnGetSpellInfo(const char* argument);
     static void OnGetSpellInfoBatch(const char* argument);
+    static void OnGetSpellIcon(const char* argument);
     static void OnSaveSpellTree(const char* argument);
     
     // Progression callbacks
@@ -107,6 +116,7 @@ private:
     static void OnCheatUnlockSpell(const char* argument);
     static void OnRelockSpell(const char* argument);
     static void OnSetSpellXP(const char* argument);
+    static void OnSetRequiredXP(const char* argument);
     static void OnGetPlayerKnownSpells(const char* argument);
     static void OnSetHotkey(const char* argument);
     static void OnSetPauseGameOnFocus(const char* argument);
@@ -118,8 +128,7 @@ private:
     
     // Unified config callbacks
     static void OnLoadUnifiedConfig(const char* argument);
-    static void OnSaveUnifiedConfig(const char* argument);
-    void DoSaveUnifiedConfig(const std::string& configData);  // Deferred actual save + apply
+    static void OnSaveUnifiedConfig(const char* argument);  // UIManagerConfigSave.cpp
 
     // Clipboard callbacks
     static void OnCopyToClipboard(const char* argument);
@@ -139,6 +148,9 @@ private:
     // Pre Req Master NLP scoring (C++ native)
     static void OnPreReqMasterScore(const char* argument);
 
+    // Tree declutter before save (C++ native, UIManagerDeclutter.cpp)
+    static void OnDeclutterTree(const char* argument);
+
     // Panel control callbacks
     static void OnHidePanel(const char* argument);
 
@@ -154,11 +166,20 @@ private:
     // Console message callback
     static void OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageLevel level, const char* message);
 
+    // Every call into the panel goes through here. Work that finished on a
+    // background thread reaches the panel some time later, and by then the
+    // view may have been torn down - and InteropCall on a dead view is not
+    // something PrismaUI defines. IsValid is cheap; the Notify functions
+    // already did this by hand, the completion paths did not.
+    bool ViewReady() const;
+    void CallView(const char* function, const char* payload);
+
     // PrismaUI members
     PRISMA_UI_API::IVPrismaUI1* m_prismaUI = nullptr;
     PRISMA_UI_API::IVPrismaUI2* m_prismaUIv2 = nullptr;
     PrismaView m_view = 0;
-    bool m_isPanelVisible = false;
+    std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
+    static inline std::atomic<bool> s_panelInfoLogging{false};
     bool m_isInitialized = false;
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists
@@ -170,6 +191,13 @@ private:
 
     // Background computation guards - prevent concurrent builds/scoring
     std::atomic<bool> m_treeBuildInProgress{false};
+
+    // The last full scan, exactly as sent to the panel, and its number. A tree
+    // build names the spells it wants by id and scan number instead of sending
+    // the 9-20 MB back; the text is parsed on the build thread, not here.
+    // Game thread only.
+    std::shared_ptr<const std::string> m_scanText;
+    std::uint32_t m_scanId = 0;
     std::atomic<bool> m_prmScoreInProgress{false};
 
 };

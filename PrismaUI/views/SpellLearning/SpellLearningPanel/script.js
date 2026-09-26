@@ -541,20 +541,11 @@ function handleColorSuggestionResponse(result) {
 // INITIALIZATION
 // =============================================================================
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('[SpellLearning] Panel initializing...');
-    
-    initializePanel();
-    initializeTabs();
-    initializePromptEditor();
-    initializeDragging();
-    initializeResizing();
-    initializeTreeViewer();
-    initializeSettings();
-    initializeTextareaEnterKey();
-    
-    console.log('[SpellLearning] Panel initialized');
-});
+// Initialization lives in modules/main.js, which calls every function this
+// block used to call and several more, each guarded. Running both meant every
+// listener registered twice: one click on a settings toggle fired it twice, one
+// Save wrote the config twice, and the Clear Tree double-click guard was
+// defeated because a single click reached both copies of the handler.
 
 // Fix Enter key in textareas - allow new lines
 function initializeTextareaEnterKey() {
@@ -674,7 +665,7 @@ function initializePanel() {
     
     // Field checkbox listeners
     var fieldIds = ['editorId', 'magickaCost', 'minimumSkill', 'castingType', 'delivery', 
-                    'chargeTime', 'plugin', 'effects', 'effectNames', 'keywords'];
+                    'chargeTime', 'plugin', 'effects', 'effectNames', 'keywords', 'effectDetails'];
     fieldIds.forEach(function(fieldId) {
         var checkbox = document.getElementById('field_' + fieldId);
         if (checkbox) {
@@ -723,6 +714,7 @@ function toggleFullscreen() {
     // Save state
     settings.isFullscreen = state.isFullscreen;
     autoSaveSettings();
+    if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
     
     // Re-render tree if on tree tab
     if (state.currentTab === 'spellTree' && WheelRenderer.svg) {
@@ -748,10 +740,19 @@ function initializeKeyboardShortcuts() {
             activeElement.isContentEditable
         );
         
-        // Escape always closes (even when typing)
+        // Escape: with a spell selected on the tree, the first press only drops
+        // the selection; the next one closes (even when typing)
         if (e.key === 'Escape') {
+            // A dialog's own field already used this press (Find Spell closes itself)
+            if (e.defaultPrevented) return;
             e.preventDefault();
             e.stopPropagation();
+            var onTree = state.currentTab === 'spellTree' &&
+                document.querySelectorAll('.modal:not(.hidden)').length === 0;
+            if (onTree && state.selectedNode && typeof clearSpellSelection === 'function') {
+                clearSpellSelection();
+                return;
+            }
             onCloseClick();
             return;
         }
@@ -821,6 +822,17 @@ function switchTab(tabId) {
     }
 
     state.currentTab = tabId;
+
+    // The tree is only drawn while its tab is in front (CanvasRenderer.startRenderLoop
+    // refuses otherwise); it used to go on animating behind the settings page
+    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.canvas) {
+        if (tabId === 'spellTree') {
+            CanvasRenderer.startRenderLoop();
+            CanvasRenderer._needsRender = true;
+        } else {
+            CanvasRenderer.stopRenderLoop();
+        }
+    }
 
     // Update header button active states
     document.querySelectorAll('.header-btn[data-tab]').forEach(function(btn) {
@@ -971,6 +983,7 @@ function applyWindowPositionAndSize() {
         panel.style.top = settings.windowY + 'px';
         console.log('[SpellLearning] Applied window position:', settings.windowX, settings.windowY);
     }
+    if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
 }
 
 function applyFullscreenState() {
@@ -989,6 +1002,7 @@ function applyFullscreenState() {
     if (btn) {
         btn.title = state.isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
     }
+    if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
 }
 
 function initializeDragging() {
@@ -1004,10 +1018,13 @@ function initializeDragging() {
         startX = e.clientX;
         startY = e.clientY;
         
+        // Whole pixels (PanelSnap): the margin that centred it goes too
         var rect = panel.getBoundingClientRect();
-        initialX = rect.left;
-        initialY = rect.top;
+        initialX = Math.round(rect.left);
+        initialY = Math.round(rect.top);
         
+        panel.style.marginLeft = '';
+        panel.style.marginTop = '';
         panel.style.transform = 'none';
         panel.style.left = initialX + 'px';
         panel.style.top = initialY + 'px';
@@ -1020,8 +1037,8 @@ function initializeDragging() {
         if (!state.isDragging) return;
         var dx = e.clientX - startX;
         var dy = e.clientY - startY;
-        panel.style.left = (initialX + dx) + 'px';
-        panel.style.top = (initialY + dy) + 'px';
+        panel.style.left = Math.round(initialX + dx) + 'px';
+        panel.style.top = Math.round(initialY + dy) + 'px';
     }
     
     function onDragEnd() {
@@ -1074,6 +1091,7 @@ function initializeResizing() {
         settings.windowHeight = panel.offsetHeight;
         console.log('[SpellLearning] Window size saved:', settings.windowWidth, 'x', settings.windowHeight);
         autoSaveSettings();
+        if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
     }
 }
 

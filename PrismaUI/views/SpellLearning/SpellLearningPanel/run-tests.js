@@ -55,6 +55,12 @@ loadModule('layoutEngine', './modules/layoutEngine.js');
 loadModule('growthBehaviors', './modules/growthBehaviors.js');
 loadModule('growthDSL', './modules/growthDSL.js');
 loadModule('settingsAwareTreeBuilder', './modules/settingsAwareTreeBuilder.js');
+loadModule('layoutLineClear', './modules/layoutLineClear.js');
+loadModule('layoutLineGrid', './modules/layoutLineGrid.js');
+loadModule('layoutDeclutter', './modules/layoutDeclutter.js');
+loadModule('layoutDeclutterTest', './modules/layoutDeclutterTest.js');
+loadModule('openRefreshGate', './modules/openRefreshGate.js');
+loadModule('openRefreshGateTest', './modules/openRefreshGateTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -104,6 +110,16 @@ console.log('');
 
 if (typeof UnificationTest !== 'undefined') {
     var results = UnificationTest.runAll();
+    if (typeof LayoutDeclutterTest !== 'undefined') {
+        var declutter = LayoutDeclutterTest.run();
+        results.failed += declutter.failed;
+        console.log('LayoutDeclutter: ' + declutter.passed + ' passed, ' + declutter.failed + ' failed');
+    }
+    if (typeof OpenRefreshGateTest !== 'undefined') {
+        var gate = OpenRefreshGateTest.run();
+        results.failed += gate.failed;
+        console.log('OpenRefreshGate: ' + gate.passed + ' passed, ' + gate.failed + ' failed');
+    }
 
     // Exit with appropriate code
     process.exit(results.failed > 0 ? 1 : 0);

@@ -2,6 +2,7 @@
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
+#include "librarian/Librarian.h"
 
 using json = nlohmann::json;
 
@@ -46,8 +47,24 @@ void UIManager::OnScanSpells(const char* argument)
             result = SpellScanner::ScanAllSpells(scanConfig);
         }
 
+        // Classify what was just scanned and hand the catalog's elements on to
+        // the traits the tree builder groups by and the chips the card shows.
+        // Same call the Papyrus path makes, so the Scan button and RunScan
+        // leave the same catalog behind. It logs its own failures and leaves
+        // the result as it was rather than interrupting the scan.
+        Librarian::ClassifyScan(result);
+
         // Send result back to UI
         instance->SendSpellData(result);
+
+        // Keep the full scan for tree builds (see m_scanText). A tome scan is
+        // a filter list, not the spells a tree is built from, so it does not
+        // replace it.
+        if (!useTomeMode) {
+            instance->m_scanText = std::make_shared<const std::string>(std::move(result));
+            ++instance->m_scanId;
+            instance->CallView("onScanStored", std::to_string(instance->m_scanId).c_str());
+        }
     });
 }
 
@@ -66,27 +83,10 @@ void UIManager::OnSaveOutput(const char* argument)
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;
 
-        // Create output directory
-        std::filesystem::path outputDir = "Data/SKSE/Plugins/SpellLearning";
-
-        // Write to file
-        std::filesystem::path outputPath = outputDir / "spell_scan_output.json";
-
-        try {
-            std::filesystem::create_directories(outputDir);
-            std::ofstream file(outputPath);
-            if (file.is_open()) {
-                file << argStr;
-                file.close();
-                logger::info("UIManager: Saved output to {}", outputPath.string());
-                instance->UpdateStatus("Saved to spell_scan_output.json");
-            } else {
-                logger::error("UIManager: Failed to open output file");
-                instance->UpdateStatus("Failed to save file");
-            }
-        } catch (const std::exception& e) {
-            logger::error("UIManager: Exception while saving: {}", e.what());
-            instance->UpdateStatus("Error saving file");
+        if (SpellScanner::WriteScanOutput(argStr).empty()) {
+            instance->UpdateStatus("Failed to save file");
+        } else {
+            instance->UpdateStatus("Saved to spell_scan_output.json");
         }
     });
 }

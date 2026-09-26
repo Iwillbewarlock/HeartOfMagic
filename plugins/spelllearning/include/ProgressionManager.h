@@ -58,6 +58,9 @@ public:
     
     // Direct prerequisite checking (for XP bonuses)
     bool IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const;
+    // True when the cast spell lists the target as a prerequisite: the spell above
+    // it that opened it, for a spell learned downward (see XPSettings::reverseUnlock)
+    bool IsDirectChild(RE::FormID targetSpellId, RE::FormID castSpellId) const;
     void SetTargetPrerequisites(RE::FormID targetSpellId, const std::vector<RE::FormID>& prereqs);
     
     // Tree prerequisites - unified hard/soft system
@@ -73,6 +76,10 @@ public:
     void ClearAllTreePrerequisites();  // Called when tree reloads
     PrereqRequirements GetPrereqRequirements(RE::FormID spellId) const;
     bool AreTreePrerequisitesMet(RE::FormID spellId) const;
+    // True when XPSettings::reverseUnlock is on and a spell that lists this one as
+    // a prerequisite (hard or soft) is mastered - or, with reverseUnlockToRoot,
+    // any spell further up that chain
+    bool IsUnlockedByKnownChild(RE::FormID spellId) const;
     std::vector<RE::FormID> GetUnmetHardPrerequisites(RE::FormID spellId) const;
     std::pair<int, int> GetSoftPrerequisiteStatus(RE::FormID spellId) const;  // (mastered, needed)
     bool IsSpellMastered(RE::FormID spellId) const;  // 100% progress or explicitly unlocked
@@ -87,6 +94,9 @@ public:
     void AddXP(const std::string& formIdStr, float amount);  // String overload for DEST integration
     void AddXPNoGrant(const std::string& formIdStr, float amount);  // Record XP without early spell grant (ISL compat)
     SpellProgress GetProgress(RE::FormID formId) const;
+    // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
+    // whose modded-source map allocates. For the per-effect and per-cast paths.
+    float GetProgressPercent(RE::FormID formId) const;
     void SetRequiredXP(RE::FormID formId, float required);
     
     // Get required XP for a spell (from progress data or tier default)
@@ -114,8 +124,16 @@ public:
     
     // Called by SKSE serialization callbacks
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc);
     void OnRevert(SKSE::SerializationInterface* a_intfc);
+
+    // Co-save reading. There is one record stream and more than one owner, so
+    // nobody may run their own GetNextRecordInfo loop - the first to do it
+    // drains the stream and the next owner silently gets nothing. Main.cpp runs
+    // the single loop and offers each record here; this returns true when the
+    // record was ours, false to let the next owner see it.
+    void BeginLoad();
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, uint32_t type, uint32_t version, uint32_t length);
+    void EndLoad();
 
     // Legacy save/load (for external JSON files - kept for backwards compat)
     void LoadProgress(const std::string& saveName);
@@ -138,6 +156,18 @@ public:
         bool internal = false;      // Internal sources use cap tracking but don't show in modded UI
     };
 
+    // How fast XP comes in: the overall multiplier, and a multiplier and a cap
+    // (max % of the required XP) per built-in source
+    struct XPGainRates {
+        float globalMultiplier = 1.0f;
+        float multiplierDirect = 1.0f;
+        float multiplierSchool = 0.5f;
+        float multiplierAny = 0.1f;
+        float capAny = 5.0f;
+        float capSchool = 15.0f;
+        float capDirect = 50.0f;
+    };
+
     // XP Settings (loaded from unified config)
     struct XPSettings {
         std::string learningMode = "perSchool";  // "perSchool" or "single"
@@ -155,6 +185,25 @@ public:
         float xpAdept = 400.0f;
         float xpExpert = 800.0f;
         float xpMaster = 1500.0f;
+        // A spell the player already knows opens its direct prerequisites - or,
+        // with reverseUnlockToRoot, every spell below it down to the root: they
+        // become learnable whatever their own prerequisites (IsUnlockedByKnownChild),
+        // and cost a share of their XP set per tier of the opened spell
+        // (GetReverseUnlockXPShare). Config "reverseUnlock", "reverseUnlockToRoot",
+        // "reverseUnlockXPNovice" ... "reverseUnlockXPMaster".
+        bool reverseUnlock = true;
+        bool reverseUnlockToRoot = false;
+        float reverseUnlockXPNovice = 0.3f;
+        float reverseUnlockXPApprentice = 0.4f;
+        float reverseUnlockXPAdept = 0.5f;
+        float reverseUnlockXPExpert = 0.7f;
+        float reverseUnlockXPMaster = 0.8f;
+        // With reverseXPSeparate on, spells learned downward gain XP at their own
+        // rates (reverseGain) instead of the ones above (GetGainRates). Config
+        // "reverseXpSeparate", "reverseXpGlobalMultiplier", "reverseXpMultiplier*",
+        // "reverseXpCap*".
+        bool reverseXPSeparate = false;
+        XPGainRates reverseGain;
         // Modded XP sources (registered by external mods)
         std::unordered_map<std::string, ModdedSourceConfig> moddedSources;
     };
@@ -163,6 +212,11 @@ public:
     const XPSettings& GetXPSettings() const { return m_xpSettings; }
     XPSettings& GetXPSettingsMutable() { return m_xpSettings; }
     float GetXPForTier(const std::string& tier) const;
+    // Share of its XP an opened spell of this tier costs (see XPSettings::reverseUnlock)
+    float GetReverseUnlockXPShare(const std::string& tier) const;
+    // The XP gain rates for a learning target: reverseGain for a spell learned
+    // downward with reverseXPSeparate on, the usual ones otherwise
+    XPGainRates GetGainRates(RE::FormID targetId) const;
 
     // Direct XP manipulation (cheat mode)
     void SetSpellXP(RE::FormID formId, float xp);
@@ -207,6 +261,14 @@ private:
     
     // Tree prerequisites: spell formId -> hard/soft prereq requirements
     std::unordered_map<RE::FormID, PrereqRequirements> m_prereqRequirements;
+
+    // The same links the other way: spell formId -> spells that list it as a hard
+    // or soft prerequisite (IsUnlockedByKnownChild), so the per-cast checks look
+    // children up instead of scanning every spell in the tree. Kept in step by
+    // SetPrereqRequirements / ClearAllTreePrerequisites, never rebuilt on a read.
+    const std::vector<RE::FormID>& GetRequiredBy(RE::FormID spellId) const;
+    void LinkRequiredBy(RE::FormID spellId, const PrereqRequirements& reqs, bool link);
+    std::unordered_map<RE::FormID, std::vector<RE::FormID>> m_requiredBy;
 
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;

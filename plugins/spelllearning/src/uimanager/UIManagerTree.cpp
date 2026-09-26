@@ -1,6 +1,8 @@
 #include "Common.h"
+#include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
+#include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "treebuilder/TreeBuilder.h"
 #include "treebuilder/TreeNLP.h"
@@ -58,8 +60,7 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                     // Send validated tree data to viewer
                     instance->SendTreeData(treeContent);
 
-                    // Collect all formIds, fetch spell info, and sync requiredXP to ProgressionManager
-                    std::vector<std::string> formIds;
+                    // Sync requiredXP to ProgressionManager
                     auto* pm = ProgressionManager::GetSingleton();
                     int xpSyncCount = 0;
 
@@ -69,8 +70,6 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                                 for (auto& node : schoolData["nodes"]) {
                                     if (node.contains("formId")) {
                                         std::string formIdStr = node["formId"].get<std::string>();
-                                        formIds.push_back(formIdStr);
-
                                         // Sync requiredXP from tree to ProgressionManager
                                         if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
                                             float reqXP = node["requiredXP"].get<float>();
@@ -94,25 +93,19 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                         logger::info("UIManager: Synced requiredXP for {} spells from tree to ProgressionManager", xpSyncCount);
                     }
 
-                    // Fetch spell info for all formIds and send as batch
-                    if (!formIds.empty()) {
-                        json spellInfoArray = json::array();
-                        for (const auto& formIdStr : formIds) {
-                            auto spellInfo = SpellScanner::GetSpellInfoByFormId(formIdStr);
-                            if (!spellInfo.empty()) {
-                                try {
-                                    spellInfoArray.push_back(json::parse(spellInfo));
-                                } catch (const std::exception& e) {
-                                    logger::warn("UIManager: Failed to parse spell info for formId {}: {}", formIdStr, e.what());
-                                }
-                            }
-                        }
-                        instance->SendSpellInfoBatch(spellInfoArray.dump());
-                    }
+                    // No spell info is pushed from here. The panel asks for it
+                    // (GetSpellInfoBatch) the moment it has the tree, on both of
+                    // its load paths; pushing it as well looked up all 1428
+                    // spells and sent 1.6 MB twice on every game start.
                 } catch (const std::exception& e) {
-                    logger::error("UIManager: Failed to parse/validate tree: {}", e.what());
-                    // Still try to send raw content as fallback
-                    instance->SendTreeData(treeContent);
+                    // Do NOT pass the bytes on. They failed to parse here and
+                    // they will fail to parse in the panel too, where the only
+                    // sign of it is a tree that never appears. Say so instead,
+                    // and leave the file alone so it can be recovered by hand.
+                    logger::error("UIManager: spell_tree.json could not be read: {}", e.what());
+                    logger::error("UIManager: the file is at {} - it has not been touched",
+                        treePath.string());
+                    instance->UpdateTreeStatus("Saved tree is damaged - see SpellLearning.log");
                 }
 
             } else {
@@ -147,6 +140,27 @@ void UIManager::OnGetSpellInfo(const char* argument)
         } else {
             logger::warn("UIManager: No spell found for formId: {}", argStr);
         }
+    });
+}
+
+// The spell card asks for one icon at a time, by the key GetSpellInfo handed it.
+// Replies with { key, svg }; svg is empty when the file is gone or unreadable.
+void UIManager::OnGetSpellIcon(const char* argument)
+{
+    if (!argument || strlen(argument) == 0) {
+        return;
+    }
+
+    std::string key(argument);
+
+    AddTaskToGameThread("GetSpellIcon", [key]() {
+        auto* instance = GetSingleton();
+        if (!instance || !instance->m_prismaUI || !instance->m_prismaUI->IsValid(instance->m_view)) return;
+
+        nlohmann::json reply;
+        reply["key"] = key;
+        reply["svg"] = EncodingUtils::SanitizeToUTF8(SpellScanner::ReadSpellIconSvg(key));
+        instance->CallView("updateSpellIcon", reply.dump().c_str());
     });
 }
 
@@ -196,20 +210,12 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
                     continue;
                 }
 
-                std::string spellInfo = SpellScanner::GetSpellInfoByFormId(formIdStr);
+                // Built as JSON and kept that way - no text round trip per spell
+                json spellInfo = SpellScanner::GetSpellInfoJsonByFormId(formIdStr);
 
-                if (!spellInfo.empty()) {
-                    try {
-                        resultArray.push_back(json::parse(spellInfo));
-                        foundCount++;
-                    } catch (const std::exception& e) {
-                        logger::warn("UIManager: Failed to parse spell info in batch for {}: {}", formIdStr, e.what());
-                        json notFound;
-                        notFound["formId"] = formIdStr;
-                        notFound["notFound"] = true;
-                        resultArray.push_back(notFound);
-                        notFoundCount++;
-                    }
+                if (!spellInfo.is_null()) {
+                    resultArray.push_back(std::move(spellInfo));
+                    foundCount++;
                 } else {
                     json notFound;
                     notFound["formId"] = formIdStr;
@@ -252,20 +258,27 @@ void UIManager::OnSaveSpellTree(const char* argument)
         // Write to file
         auto treePath = GetTreeFilePath();
 
+        // The same tree again - applying twice, or a builder that saves on
+        // every step - is not written again. Rewriting it would also rotate
+        // the .bak, replacing the real previous tree with a copy of this one.
+        static std::size_t s_lastSavedHash = 0;
+        const std::size_t hash = std::hash<std::string>{}(argStr);
+        std::error_code existsError;
+        if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
+            logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
+            instance->UpdateTreeStatus("Tree saved");
+            return;
+        }
+
         try {
-            std::ofstream file(treePath);
-            if (file.is_open()) {
-                file << argStr;
-                file.flush();
-                if (file.fail()) {
-                    logger::error("UIManager: Failed to write spell tree to {}", treePath.string());
-                    instance->UpdateTreeStatus("Save failed");
-                } else {
-                    logger::info("UIManager: Saved spell tree to {}", treePath.string());
-                    instance->UpdateTreeStatus("Tree saved");
-                }
+            // Through a temp file and a move, keeping one .bak: this is the
+            // player's whole generated tree, and truncating the real file meant
+            // a crash partway through lost it with nothing to fall back on.
+            if (FileUtils::WriteAtomically(treePath, argStr)) {
+                s_lastSavedHash = hash;
+                logger::info("UIManager: Saved spell tree to {}", treePath.string());
+                instance->UpdateTreeStatus("Tree saved");
             } else {
-                logger::error("UIManager: Failed to open spell tree file for writing");
                 instance->UpdateTreeStatus("Save failed");
             }
         } catch (const std::exception& e) {
@@ -278,6 +291,37 @@ void UIManager::OnSaveSpellTree(const char* argument)
 // =============================================================================
 // PROCEDURAL TREE GENERATION (C++ native)
 // =============================================================================
+
+// The spells named by `ids`, in that order, out of a full scan's JSON text.
+// Runs on the build thread. An id the scan does not have is skipped and
+// counted, never guessed at.
+static std::vector<json> PickSpellsFromScan(const std::string& scanText, const std::vector<std::string>& ids)
+{
+    json scan = json::parse(scanText);
+    auto& all = scan.at("spells");
+
+    std::unordered_map<std::string, std::size_t> byId;
+    byId.reserve(all.size());
+    for (std::size_t i = 0; i < all.size(); ++i) {
+        const auto& s = all[i];
+        if (s.contains("formId") && s["formId"].is_string()) {
+            byId.emplace(s["formId"].get<std::string>(), i);
+        }
+    }
+
+    std::vector<json> picked;
+    picked.reserve(ids.size());
+    std::size_t missing = 0;
+    for (const auto& id : ids) {
+        auto it = byId.find(id);
+        if (it == byId.end()) { ++missing; continue; }
+        picked.push_back(std::move(all[it->second]));
+    }
+    if (missing > 0) {
+        logger::warn("UIManager: {} of {} requested spells are not in the held scan", missing, ids.size());
+    }
+    return picked;
+}
 
 void UIManager::OnProceduralTreeGenerate(const char* argument)
 {
@@ -299,7 +343,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "Tree build already in progress. Please wait for the current build to finish.";
-            instance->m_prismaUI->InteropCall(instance->m_view, "onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
             return;
         }
 
@@ -311,21 +355,49 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                 command = request["command"].get<std::string>();
             }
 
-            auto spellsJson = request.value("spells", nlohmann::json::array());
             auto configJson = request.value("config", nlohmann::json::object());
 
-            // Convert spells array (plain C++ data — no RE:: needed)
+            // Either the spells themselves, or - the usual case - their ids in
+            // the scan this plugin already holds (see m_scanText). The ids are
+            // a few KB where the spells were 9-20 MB, which the panel had to
+            // stringify and this thread had to parse and copy while the game
+            // waited.
             std::vector<json> spells;
-            spells.reserve(spellsJson.size());
-            for (const auto& s : spellsJson) {
-                spells.push_back(s);
+            std::vector<std::string> spellIds;
+            std::shared_ptr<const std::string> scanText;
+            if (request.contains("spellIds") && request["spellIds"].is_array()) {
+                const auto scanId = request.value("scanId", std::uint32_t{0});
+                if (!instance->m_scanText || scanId != instance->m_scanId) {
+                    logger::warn("UIManager: build asked for scan #{} but the held scan is #{}", scanId, instance->m_scanId);
+                    instance->m_treeBuildInProgress = false;
+                    nlohmann::json response;
+                    response["success"] = false;
+                    response["error"] = "The spell scan changed while this build was being set up. Build again.";
+                    instance->CallView("onProceduralTreeComplete", response.dump().c_str());
+                    return;
+                }
+                scanText = instance->m_scanText;
+                spellIds.reserve(request["spellIds"].size());
+                for (const auto& id : request["spellIds"]) {
+                    if (id.is_string()) spellIds.push_back(id.get<std::string>());
+                }
+            } else {
+                auto spellsJson = request.value("spells", nlohmann::json::array());
+                spells.reserve(spellsJson.size());
+                for (auto& s : spellsJson) {
+                    spells.push_back(std::move(s));
+                }
             }
 
-            logger::info("UIManager: Dispatching tree build to background thread ({} command, {} spells)", command, spells.size());
+            logger::info("UIManager: Dispatching tree build to background thread ({} command, {} spells{})",
+                command, scanText ? spellIds.size() : spells.size(), scanText ? ", from the held scan" : "");
 
             // Launch background thread — TreeBuilder has ZERO RE:: dependencies
-            std::thread([command, spells = std::move(spells), configJson]() {
+            std::thread([command, spells = std::move(spells), spellIds = std::move(spellIds), scanText, configJson]() mutable {
                 try {
+                    if (scanText) {
+                        spells = PickSpellsFromScan(*scanText, spellIds);
+                    }
                     auto result = TreeBuilder::Build(command, spells, configJson);
 
                     // Marshal result back to game thread for UI callback
@@ -339,16 +411,24 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         if (result.success) {
                             response["success"] = true;
-                            response["treeData"] = result.treeData.dump();
+                            // The tree goes in as an object, not as a string of JSON.
+                            // As a string it was written out three times (once here,
+                            // once more for the size in the log, once escaped inside
+                            // the reply) and the panel had to parse it twice.
+                            response["treeData"] = result.treeData;
                             response["elapsed"] = result.elapsedMs / 1000.0;
-                            logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)", command, result.elapsedMs / 1000.0, result.treeData.dump().size());
                         } else {
                             response["success"] = false;
                             response["error"] = result.error;
                             logger::error("UIManager: {} failed: {}", command, result.error);
                         }
 
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        const std::string payload = response.dump();
+                        if (result.success) {
+                            logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)",
+                                command, result.elapsedMs / 1000.0, payload.size());
+                        }
+                        inst->CallView("onProceduralTreeComplete", payload.c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: TreeBuilder::Build exception: {}", e.what());
@@ -360,7 +440,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = error;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: TreeBuilder::Build unknown exception");
@@ -372,7 +452,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = "Unknown internal error during tree build";
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
                     });
                 }
             }).detach();
@@ -384,7 +464,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->m_prismaUI->InteropCall(instance->m_view, "onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
         }
     });
 }
@@ -410,7 +490,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "PRM scoring already in progress. Please wait.";
-            instance->m_prismaUI->InteropCall(instance->m_view, "onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
             return;
         }
 
@@ -435,7 +515,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         inst->m_prmScoreInProgress = false;
 
                         if (!inst->m_prismaUI) return;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: ProcessPRMRequest exception: {}", e.what());
@@ -447,7 +527,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = error;
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: ProcessPRMRequest unknown exception");
@@ -459,7 +539,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = "Unknown internal error during PRM scoring";
-                        inst->m_prismaUI->InteropCall(inst->m_view, "onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
                     });
                 }
             }).detach();
@@ -471,7 +551,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->m_prismaUI->InteropCall(instance->m_view, "onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
         }
     });
 }

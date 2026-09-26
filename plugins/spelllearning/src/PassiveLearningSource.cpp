@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "ProgressionManager.h"
+#include "SpellScanner.h"
 #include "uimanager/UIManager.h"
 
 namespace SpellLearning {
@@ -130,7 +131,7 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
         if (progress.unlocked && progress.progressPercent >= 1.0f) continue;
 
         // Check tier cap for passive source
-        float tierCap = GetTierCap(progress.requiredXP);
+        float tierCap = GetTierCap(targetId);
         if (tierCap <= 0.0f) continue;
 
         // Calculate max XP allowed from passive for this spell
@@ -164,21 +165,21 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
     }
 }
 
-float PassiveLearningSource::GetTierCap(float requiredXP) const {
-    // Determine tier from required XP and return the matching cap
-    const auto& xpSettings = ProgressionManager::GetSingleton()->GetXPSettings();
-
+float PassiveLearningSource::GetTierCap(RE::FormID spellId) const {
+    // The spell's own tier, not one read off its required XP: a spell learned
+    // downward costs a share of its XP (reverse unlock) and would pass for a lower tier
     Settings currentSettings;
     {
         std::lock_guard<std::mutex> lock(m_settingsMutex);
         currentSettings = m_settings;
     }
 
-    if (requiredXP <= xpSettings.xpNovice) return currentSettings.maxNovice;
-    if (requiredXP <= xpSettings.xpApprentice) return currentSettings.maxApprentice;
-    if (requiredXP <= xpSettings.xpAdept) return currentSettings.maxAdept;
-    if (requiredXP <= xpSettings.xpExpert) return currentSettings.maxExpert;
-    return currentSettings.maxMaster;
+    const std::string tier = SpellScanner::DetermineSpellTier(RE::TESForm::LookupByID<RE::SpellItem>(spellId));
+    if (tier == "Apprentice") return currentSettings.maxApprentice;
+    if (tier == "Adept") return currentSettings.maxAdept;
+    if (tier == "Expert") return currentSettings.maxExpert;
+    if (tier == "Master") return currentSettings.maxMaster;
+    return currentSettings.maxNovice;
 }
 
 bool PassiveLearningSource::IsSpellEligible(RE::FormID spellId) const {
@@ -199,10 +200,9 @@ bool PassiveLearningSource::IsSpellEligible(RE::FormID spellId) const {
         return reqs.hardPrereqs.empty() && reqs.softPrereqs.empty();
     }
 
-    // "novice" - only novice-tier spells (requiredXP <= xpNovice setting)
+    // "novice" - only novice-tier spells (by the spell's tier, see GetTierCap)
     if (currentSettings.scope == "novice") {
-        auto progress = pm->GetProgress(spellId);
-        return progress.requiredXP <= pm->GetXPSettings().xpNovice;
+        return SpellScanner::DetermineSpellTier(RE::TESForm::LookupByID<RE::SpellItem>(spellId)) == "Novice";
     }
 
     return false;

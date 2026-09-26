@@ -8,6 +8,7 @@
 
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <mutex>
 #include <thread>
 
 
@@ -17,6 +18,7 @@ using json = nlohmann::json;
 namespace OpenRouterAPI {
 
     static Config s_config;
+    static std::mutex s_configMutex;   // guards s_config; see GetConfigCopy / UpdateConfig
     static bool s_initialized = false;
     static bool s_curlInitialized = false;
     static std::filesystem::path s_configPath = "Data/SKSE/Plugins/SpellLearning/openrouter_config.json";
@@ -45,11 +47,15 @@ namespace OpenRouterAPI {
                 json j;
                 file >> j;
                 
-                s_config.apiKey = j.value("apiKey", "");
-                s_config.model = j.value("model", "anthropic/claude-sonnet-4");
-                s_config.maxTokens = j.value("maxTokens", 4096);
-                
-                logger::info("OpenRouterAPI: Loaded config, key length: {}", s_config.apiKey.length());
+                Config loaded;
+                loaded.apiKey = j.value("apiKey", "");
+                loaded.model = j.value("model", "anthropic/claude-sonnet-4");
+                loaded.maxTokens = j.value("maxTokens", 4096);
+                {
+                    std::lock_guard<std::mutex> lock(s_configMutex);
+                    s_config = loaded;
+                }
+                logger::info("OpenRouterAPI: Loaded config, key length: {}", loaded.apiKey.length());
             } catch (const std::exception& e) {
                 logger::error("OpenRouterAPI: Failed to load config: {}", e.what());
             }
@@ -60,7 +66,7 @@ namespace OpenRouterAPI {
         }
 
         s_initialized = true;
-        return !s_config.apiKey.empty();
+        return !GetConfigCopy().apiKey.empty();
     }
 
     void Shutdown() {
@@ -72,16 +78,23 @@ namespace OpenRouterAPI {
         s_initialized = false;
     }
 
-    Config& GetConfig() {
+    Config GetConfigCopy() {
+        std::lock_guard<std::mutex> lock(s_configMutex);
         return s_config;
+    }
+
+    void UpdateConfig(const std::function<void(Config&)>& edit) {
+        std::lock_guard<std::mutex> lock(s_configMutex);
+        edit(s_config);
     }
 
     void SaveConfig() {
         try {
             json j;
-            j["apiKey"] = s_config.apiKey;
-            j["model"] = s_config.model;
-            j["maxTokens"] = s_config.maxTokens;
+            const Config current = GetConfigCopy();
+            j["apiKey"] = current.apiKey;
+            j["model"] = current.model;
+            j["maxTokens"] = current.maxTokens;
 
             std::ofstream file(s_configPath);
             if (!file.is_open()) {
@@ -126,8 +139,15 @@ namespace OpenRouterAPI {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.length());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // Disable SSL verification for now
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L); // Disable host verification for now
+        // The request carries the player's API key in a header. With
+        // verification off, anyone on the path could present any certificate
+        // and read it. Verify - and since this curl is OpenSSL-backed and ships
+        // no CA bundle, trust the Windows certificate store for the check.
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+#ifdef CURLSSLOPT_NATIVE_CA
+        curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_NATIVE_CA));
+#endif
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout
         
         // Set up headers
@@ -243,7 +263,11 @@ namespace OpenRouterAPI {
     }
 
     Response SendPrompt(const std::string& systemPrompt, const std::string& userPrompt) {
-        return SendPromptWithConfig(systemPrompt, userPrompt, s_config);
+        return SendPromptWithConfig(systemPrompt, userPrompt, GetConfigCopy());
+    }
+
+    Response SendPrompt(const Config& config, const std::string& systemPrompt, const std::string& userPrompt) {
+        return SendPromptWithConfig(systemPrompt, userPrompt, config);
     }
 
     void SendPromptAsync(const std::string& systemPrompt, const std::string& userPrompt,
@@ -251,7 +275,7 @@ namespace OpenRouterAPI {
         logger::info("OpenRouterAPI: Starting async request thread");
         
         // Snapshot config so the background thread doesn't race with game-thread mutations
-        Config configCopy = s_config;
+        Config configCopy = GetConfigCopy();
         
         std::thread([systemPrompt, userPrompt, callback, configCopy]() {
             logger::info("OpenRouterAPI: Thread started, calling SendPrompt");

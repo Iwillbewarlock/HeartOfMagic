@@ -2,6 +2,7 @@
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
+#include "librarian/Librarian.h"
 
 namespace SpellScanner
 {
@@ -195,16 +196,7 @@ namespace SpellScanner
                 if (lowerName == "yourspellname" || lowerName == "yourspell") { filteredCount++; continue; }
             }
 
-            RE::ActorValue school = RE::ActorValue::kNone;
-
-            if (spell->effects.size() > 0) {
-                auto* firstEffect = spell->effects[0];
-                if (firstEffect && firstEffect->baseEffect) {
-                    school = firstEffect->baseEffect->GetMagickSkill();
-                }
-            }
-
-            if (!IsValidMagicSchool(school)) {
+            if (!IsValidMagicSchool(GetSpellSchool(spell))) {
                 skipNoSchool++;
                 skippedCount++;
                 continue;
@@ -228,88 +220,7 @@ namespace SpellScanner
                 continue;
             }
 
-            json spellJson;
-
-            // Essential fields (always included)
-            spellJson["formId"] = std::format("0x{:08X}", formId);
-            spellJson["persistentId"] = GetPersistentFormId(formId);  // Load order resilient ID
-            spellJson["name"] = EncodingUtils::SanitizeToUTF8(name);  // Sanitize for valid UTF-8 JSON
-            spellJson["school"] = GetSchoolName(school);
-            spellJson["skillLevel"] = DetermineSpellTier(spell);
-
-            // Optional fields
-            if (fields.editorId && hasEditorId) {
-                spellJson["editorId"] = editorIdStr;
-            } else if (fields.editorId) {
-                spellJson["editorId"] = "";  // Empty string when not available (SE 1.5.97)
-            }
-            if (fields.magickaCost) {
-                spellJson["magickaCost"] = spell->CalculateMagickaCost(nullptr);
-            }
-            if (fields.minimumSkill) {
-                uint32_t minSkill = 0;
-                if (spell->effects.size() > 0 && spell->effects[0] && spell->effects[0]->baseEffect) {
-                    minSkill = spell->effects[0]->baseEffect->GetMinimumSkillLevel();
-                }
-                spellJson["minimumSkill"] = minSkill;
-            }
-            if (fields.castingType) {
-                spellJson["castingType"] = GetCastingTypeName(spell->data.castingType);
-            }
-            if (fields.delivery) {
-                spellJson["delivery"] = GetDeliveryName(spell->data.delivery);
-            }
-            if (fields.chargeTime) {
-                spellJson["chargeTime"] = spell->data.chargeTime;
-            }
-            if (fields.plugin) {
-                spellJson["plugin"] = GetPluginName(formId);
-            }
-
-            // Effects
-            if (fields.effects) {
-                json effectsArray = json::array();
-                for (auto* effect : spell->effects) {
-                    if (!effect || !effect->baseEffect) continue;
-
-                    json effectJson;
-                    effectJson["name"] = EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName());
-                    effectJson["magnitude"] = effect->effectItem.magnitude;
-                    effectJson["duration"] = effect->effectItem.duration;
-                    effectJson["area"] = effect->effectItem.area;
-
-                    const char* description = effect->baseEffect->magicItemDescription.c_str();
-                    if (description && strlen(description) > 0) {
-                        effectJson["description"] = EncodingUtils::SanitizeToUTF8(description);
-                    }
-                    effectsArray.push_back(effectJson);
-                }
-                spellJson["effects"] = effectsArray;
-            } else if (fields.effectNames) {
-                json effectNamesArray = json::array();
-                for (auto* effect : spell->effects) {
-                    if (effect && effect->baseEffect) {
-                        effectNamesArray.push_back(EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName()));
-                    }
-                }
-                spellJson["effectNames"] = effectNamesArray;
-            }
-
-            // Keywords
-            if (fields.keywords && spell->keywords) {
-                json keywordsArray = json::array();
-                for (uint32_t i = 0; i < spell->numKeywords; i++) {
-                    if (spell->keywords[i]) {
-                        const char* kwEditorId = spell->keywords[i]->GetFormEditorID();
-                        if (kwEditorId && strlen(kwEditorId) > 0) {
-                            keywordsArray.push_back(kwEditorId);
-                        }
-                    }
-                }
-                spellJson["keywords"] = keywordsArray;
-            }
-
-            spellArray.push_back(spellJson);
+            spellArray.push_back(BuildSpellJson(spell, formId, fields));
             scannedCount++;
         }
 
@@ -424,108 +335,22 @@ namespace SpellScanner
             seenSpellIds.insert(spellFormId);
 
             // Get spell info
-            const char* spellEditorId = spell->GetFormEditorID();
             std::string spellName = spell->GetFullName();
 
             if (spellName.empty()) continue;
 
-            // Get school from first effect
-            RE::ActorValue school = RE::ActorValue::kNone;
-
-            if (spell->effects.size() > 0) {
-                auto* firstEffect = spell->effects[0];
-                if (firstEffect && firstEffect->baseEffect) {
-                    school = firstEffect->baseEffect->GetMagickSkill();
-                }
-            }
-
             // Skip non-magic spells (only allow the 5 vanilla schools)
-            if (!IsValidMagicSchool(school)) continue;
+            if (!IsValidMagicSchool(GetSpellSchool(spell))) continue;
 
-            // Build spell JSON (same format as ScanSpellsToJson)
-            json spellJson;
-
-            // Essential fields (always included)
-            spellJson["formId"] = std::format("0x{:08X}", spellFormId);
-            spellJson["persistentId"] = GetPersistentFormId(spellFormId);  // Load order resilient ID
-            spellJson["name"] = EncodingUtils::SanitizeToUTF8(spellName);  // Sanitize for valid UTF-8 JSON
-            spellJson["school"] = GetSchoolName(school);
-            spellJson["skillLevel"] = DetermineSpellTier(spell);
+            json spellJson = BuildSpellJson(spell, spellFormId, fields);
 
             // Also include tome info for reference (sanitize - mods like DynDOLOD can have invalid UTF-8 in book names)
             spellJson["tomeFormId"] = std::format("0x{:08X}", book->GetFormID());
             spellJson["tomeName"] = EncodingUtils::SanitizeToUTF8(book->GetFullName());
-
-            // Optional fields
-            if (fields.editorId && spellEditorId) {
-                spellJson["editorId"] = spellEditorId;
-            } else if (fields.editorId) {
-                spellJson["editorId"] = "";
-            }
-            if (fields.magickaCost) {
-                spellJson["magickaCost"] = spell->CalculateMagickaCost(nullptr);
-            }
-            if (fields.minimumSkill) {
-                uint32_t minSkill = 0;
-                if (spell->effects.size() > 0 && spell->effects[0] && spell->effects[0]->baseEffect) {
-                    minSkill = spell->effects[0]->baseEffect->GetMinimumSkillLevel();
-                }
-                spellJson["minimumSkill"] = minSkill;
-            }
-            if (fields.castingType) {
-                spellJson["castingType"] = GetCastingTypeName(spell->data.castingType);
-            }
-            if (fields.delivery) {
-                spellJson["delivery"] = GetDeliveryName(spell->data.delivery);
-            }
-            if (fields.chargeTime) {
-                spellJson["chargeTime"] = spell->data.chargeTime;
-            }
-            if (fields.plugin) {
-                spellJson["plugin"] = GetPluginName(spellFormId);
-            }
-
-            // Effects
-            if (fields.effects) {
-                json effectsArray = json::array();
-                for (auto* effect : spell->effects) {
-                    if (!effect || !effect->baseEffect) continue;
-
-                    json effectJson;
-                    effectJson["name"] = EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName());
-                    effectJson["magnitude"] = effect->effectItem.magnitude;
-                    effectJson["duration"] = effect->effectItem.duration;
-                    effectJson["area"] = effect->effectItem.area;
-
-                    const char* description = effect->baseEffect->magicItemDescription.c_str();
-                    if (description && strlen(description) > 0) {
-                        effectJson["description"] = EncodingUtils::SanitizeToUTF8(description);
-                    }
-                    effectsArray.push_back(effectJson);
-                }
-                spellJson["effects"] = effectsArray;
-            } else if (fields.effectNames) {
-                json effectNamesArray = json::array();
-                for (auto* effect : spell->effects) {
-                    if (effect && effect->baseEffect) {
-                        effectNamesArray.push_back(EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName()));
-                    }
-                }
-                spellJson["effectNames"] = effectNamesArray;
-            }
-
-            // Keywords
-            if (fields.keywords && spell->keywords) {
-                json keywordsArray = json::array();
-                for (uint32_t i = 0; i < spell->numKeywords; i++) {
-                    if (spell->keywords[i]) {
-                        const char* kwEditorId = spell->keywords[i]->GetFormEditorID();
-                        if (kwEditorId && strlen(kwEditorId) > 0) {
-                            keywordsArray.push_back(kwEditorId);
-                        }
-                    }
-                }
-                spellJson["keywords"] = keywordsArray;
+            if (fields.effectDetails) {
+                // tomeFormId above shifts with the load order; this one does not.
+                spellJson["tomePersistentId"] = GetPersistentFormId(book->GetFormID());
+                spellJson["tomeValue"] = book->GetGoldValue();
             }
 
             spellArray.push_back(spellJson);
@@ -567,7 +392,7 @@ namespace SpellScanner
     // GET SPELL INFO BY FORMID (For Tree Viewer)
     // =============================================================================
 
-    std::string GetSpellInfoByFormId(const std::string& formIdStr)
+    json GetSpellInfoJsonByFormId(const std::string& formIdStr)
     {
         // Parse formId from hex string (e.g., "0x00012FCC" or "00012FCC")
         RE::FormID formId = 0;
@@ -580,34 +405,34 @@ namespace SpellScanner
             // Validate: FormIDs should be max 8 hex characters
             if (cleanId.length() > 8) {
                 logger::error("SpellScanner: FormId too long ({} chars), rejecting: {}", cleanId.length(), formIdStr);
-                return "";
+                return {};
             }
 
             // Validate hex characters only
             for (char c : cleanId) {
                 if (!std::isxdigit(static_cast<unsigned char>(c))) {
                     logger::error("SpellScanner: Invalid hex character in formId: {}", formIdStr);
-                    return "";
+                    return {};
                 }
             }
 
             formId = std::stoul(cleanId, nullptr, 16);
         } catch (const std::exception& e) {
             logger::error("SpellScanner: Invalid formId format: {} ({})", formIdStr, e.what());
-            return "";
+            return {};
         }
 
         // Look up the spell form
         auto* form = RE::TESForm::LookupByID(formId);
         if (!form) {
             logger::warn("SpellScanner: Form not found for ID: {} (parsed: 0x{:08X})", formIdStr, formId);
-            return "";
+            return {};
         }
 
         auto* spell = form->As<RE::SpellItem>();
         if (!spell) {
             logger::warn("SpellScanner: Form {} is not a spell", formIdStr);
-            return "";
+            return {};
         }
 
         // Build spell info JSON
@@ -654,32 +479,58 @@ namespace SpellScanner
         json effectNamesArray = json::array();
         std::string description;
 
+        // The tree viewer only shows the plain effect fields, no MGEF structure
+        const FieldConfig viewerFields{};
+
+        // The spell's description is the first described effect's - one the
+        // player is meant to see if there is any, a Hide in UI helper only as a
+        // last resort. <mag>/<dur> are filled in from that same effect.
+        std::string hiddenDescription;
         for (auto* effect : spell->effects) {
             if (!effect || !effect->baseEffect) continue;
 
-            std::string effectName = EncodingUtils::SanitizeToUTF8(effect->baseEffect->GetFullName());
-            effectNamesArray.push_back(effectName);
+            json effectJson = BuildEffectJson(effect, viewerFields);
+            effectNamesArray.push_back(effectJson["name"]);
 
-            json effectJson;
-            effectJson["name"] = effectName;
-            effectJson["magnitude"] = effect->effectItem.magnitude;
-            effectJson["duration"] = effect->effectItem.duration;
-            effectJson["area"] = effect->effectItem.area;
-
-            const char* desc = effect->baseEffect->magicItemDescription.c_str();
-            if (desc && strlen(desc) > 0) {
-                std::string descSanitized = EncodingUtils::SanitizeToUTF8(desc);
-                effectJson["description"] = descSanitized;
-                if (description.empty()) {
-                    description = descSanitized;  // Use first effect's description as spell description
+            if (effectJson.contains("description")) {
+                const bool hidden = effect->baseEffect->data.flags.any(
+                    RE::EffectSetting::EffectSettingData::Flag::kHideInUI);
+                std::string& slot = hidden ? hiddenDescription : description;
+                if (slot.empty()) {
+                    slot = ResolveDescriptionTags(effectJson["description"].get<std::string>(), effect);
                 }
             }
             effectsArray.push_back(effectJson);
+        }
+        if (description.empty()) {
+            description = hiddenDescription;
         }
 
         spellInfo["effects"] = effectsArray;
         spellInfo["effectNames"] = effectNamesArray;
         spellInfo["description"] = description;
+        // The card's keyword line, with the elements the tag librarian gives
+        // (blood, water, holy ...) in place of the vanilla-keyword ones.
+        json chips = BuildSpellChips(spell);
+        Librarian::MergeCatalogChips(chips, GetPersistentFormId(spell->GetFormID()));
+        spellInfo["chips"] = std::move(chips);
+
+        // Name of the keyword an installed icon pack has an SVG for, if any.
+        // The picture itself is fetched on demand (GetSpellIcon) - a whole tree
+        // of them would not fit through one batch reply.
+        // The pack author's own choice for this spell first, else the icon rules.
+        // schoolIconKey is the plain emblem, safe to show while the name is hidden.
+        std::string iconKey = FindSpellIconKey(spell);
+        if (iconKey.empty()) {
+            iconKey = FindRuleIconKey(spell);
+        }
+        const std::string schoolIconKey = FindSchoolIconKey(spell);
+        if (!schoolIconKey.empty()) {
+            spellInfo["schoolIconKey"] = schoolIconKey;
+        }
+        if (!iconKey.empty()) {
+            spellInfo["iconKey"] = iconKey;
+        }
 
         // Add effectiveness info for early-learned spells
         auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
@@ -706,6 +557,12 @@ namespace SpellScanner
             spellInfo["effectiveness"] = 100;
         }
 
-        return spellInfo.dump();
+        return spellInfo;
+    }
+
+    std::string GetSpellInfoByFormId(const std::string& formIdStr)
+    {
+        json spellInfo = GetSpellInfoJsonByFormId(formIdStr);
+        return spellInfo.is_null() ? std::string() : spellInfo.dump();
     }
 }

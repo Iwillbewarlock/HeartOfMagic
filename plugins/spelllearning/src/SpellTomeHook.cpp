@@ -27,68 +27,46 @@ namespace
     // Size of code we're replacing (must NOP this much)
     constexpr std::size_t PatchSize = 0x56;
 
-    // Scan the function body for the patch site pattern.
-    // We look for: 48 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ??
-    //   (mov rcx, [rip+disp32]; call rel32)
-    // This is the instruction sequence right before the spell-teach call,
-    // and it's the same signature across SE 1.5.97, AE 1.6.318, and AE 1.6.1170+.
-    // Returns offset from function start, or -1 on failure.
-    inline std::ptrdiff_t ScanForPatchSite(std::uintptr_t funcBase)
+    // Where the patch goes, measured from the start of TESObjectBOOK::Read.
+    // The spot is recognised by: 48 8B 0D xx xx xx xx  E8 xx xx xx xx
+    //   (mov rcx, [rip+disp32]; call rel32 - the player loaded for AddSpell)
+    //   SE 1.5.97:                 +0xE8
+    //   AE 1.6.318 and 1.6.1170:   +0x11D
+    //
+    // It used to be found by scanning 0x80-0x200 and taking the last match.
+    // That is the dangerous way round: when another mod has already rewritten
+    // this spot (Don't Eat Spell Tomes patches the very same place), the
+    // pattern is gone from it and the scan settles on a different, earlier
+    // mov/call - and 0x56 bytes of unrelated engine code get overwritten. The
+    // game then crashes the first time a book is read, far from any clue.
+    // Now the pattern has to be exactly where it is known to be; anything
+    // else means someone else is there or the layout is new, and the hook
+    // stays out. Tomes then work the vanilla way, which is recoverable.
+    // Returns the offset, or -1 with the reason logged.
+    inline std::ptrdiff_t FindPatchSite(std::uintptr_t funcBase)
     {
-        // Pattern: mov rcx,[rip+??] ; call ??
-        // Bytes:   48 8B 0D xx xx xx xx  E8 xx xx xx xx
-        // This pattern occurs at the point where PlayerCharacter singleton is
-        // loaded into rcx before AddSpell is called. It's deep into the function
-        // body (SE: +0xE8, AE 1.6.318: +0x11D) so we skip the first 0x80 bytes
-        // to avoid matching earlier mov rcx,[rip+??] ; call ?? sequences in the
-        // function prologue / branch-condition checks.
-        constexpr std::size_t kScanStart = 0x80;   // skip prologue
-        constexpr std::size_t kScanEnd   = 0x200;  // search up to 512 bytes
-
-        const auto* bytes = reinterpret_cast<const std::uint8_t*>(funcBase);
-
-        // Collect all matches; pick the LAST one in range (closest to the spell-teach site)
-        std::ptrdiff_t lastMatch = -1;
-        for (std::size_t i = kScanStart; i + 12 <= kScanEnd; ++i) {
-            if (bytes[i]     == 0x48 &&
-                bytes[i + 1] == 0x8B &&
-                bytes[i + 2] == 0x0D &&
-                bytes[i + 7] == 0xE8) {
-                lastMatch = static_cast<std::ptrdiff_t>(i);
-            }
+        const std::ptrdiff_t expected = REL::Module::IsAE() ? 0x11D : 0xE8;
+        const auto* bytes = reinterpret_cast<const std::uint8_t*>(funcBase + expected);
+        if (bytes[0] == 0x48 && bytes[1] == 0x8B && bytes[2] == 0x0D && bytes[7] == 0xE8) {
+            return expected;
         }
-        return lastMatch;
+        logger::error("SpellTomeHook: the code at +{:X} is not the expected mov rcx/call "
+                      "(found {:02X} {:02X} {:02X} .. {:02X})",
+            expected, bytes[0], bytes[1], bytes[2], bytes[7]);
+        logger::error("SpellTomeHook: another mod has probably changed tome reading already "
+                      "(Don't Eat Spell Tomes does), or this game version lays it out differently");
+        return -1;
     }
 
-    // After the patch site, find the end of the block we replace.
-    // We search forward from the patch site for the instruction that
-    // follows the spell-teach region — typically a test/jmp or mov rsi sequence.
-    // The "jump offset" is the distance from patch site to just past the NOPd region.
-    // We scan for the first "48 83 C4" (add rsp, imm8) or "48 8D" (lea) after
-    // the patch site as the resume point. If not found, fall back to known offsets.
-    inline std::ptrdiff_t FindJumpOffset(std::uintptr_t patchAddr)
+    // Where the engine resumes after the replaced block, measured from the
+    // patch site.
+    inline std::ptrdiff_t FindJumpOffset()
     {
-        // Scan forward from patch site for a safe resume point.
-        // The original code region is ~0x56 bytes. The resume point should be
-        // at roughly +0x70 (SE) or +0x72 (AE) from the patch site.
-        // We look for a "test" or "mov" instruction near that range.
-        // For safety, use known offsets as primary, with a bounded search.
-        if (REL::Module::IsAE()) {
-            // Try common AE offsets: 0x72 (1.6.318), then scan nearby
-            const auto* bytes = reinterpret_cast<const std::uint8_t*>(patchAddr);
-            // Check a range of offsets for a valid instruction boundary
-            for (std::ptrdiff_t off = 0x6E; off <= 0x7A; ++off) {
-                // Look for common instruction starts after the block:
-                // 48 (REX.W prefix), 40 (REX prefix), 0F (two-byte opcode)
-                std::uint8_t b = bytes[off];
-                if (b == 0x48 || b == 0x40 || b == 0x0F || b == 0x33 || b == 0x45) {
-                    return off;
-                }
-            }
-            return 0x72;  // fallback
-        } else {
-            return 0x70;  // SE known offset
-        }
+        // Measured on the builds listed above. It used to be hunted for by
+        // looking for a byte that often starts an instruction; a byte like
+        // that also turns up inside instructions, and jumping into the middle
+        // of one is a crash.
+        return REL::Module::IsAE() ? 0x72 : 0x70;
     }
 }
 
@@ -107,6 +85,17 @@ SpellTomeHook* SpellTomeHook::GetSingleton()
 // =============================================================================
 
 void SpellTomeHook::OnSpellTomeRead(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell)
+{
+    try {
+        OnSpellTomeReadImpl(a_book, a_spell);
+    } catch (const std::exception& e) {
+        logger::error("SpellTomeHook: reading a tome threw: {}", e.what());
+    } catch (...) {
+        logger::error("SpellTomeHook: reading a tome threw an unknown exception");
+    }
+}
+
+void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem* a_spell)
 {
     auto* hook = GetSingleton();
     
@@ -321,7 +310,8 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
         logger::info("SpellTomeHook: Prereqs for {:08X}: {} hard, {} soft (need {})",
             spellFormId, reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
 
-        if (hasAnyPrereqs) {
+        // A known higher spell opens this one whatever its own prerequisites
+        if (hasAnyPrereqs && !pm->IsUnlockedByKnownChild(spellFormId)) {
             // Check hard prerequisites - ALL must be mastered
             std::vector<RE::FormID> unmetHard;
             for (RE::FormID prereqId : reqs.hardPrereqs) {
@@ -478,11 +468,8 @@ bool SpellTomeHook::Install()
     const std::uintptr_t funcBase = ProcessBookID.address();
     logger::info("SpellTomeHook: Function base at {:X}", funcBase);
 
-    // Scan the function body for the patch site (version-independent)
-    const auto patchOffset = ScanForPatchSite(funcBase);
+    const auto patchOffset = FindPatchSite(funcBase);
     if (patchOffset < 0) {
-        logger::error("SpellTomeHook: Could not find patch site pattern (48 8B 0D xx E8 xx) in function body");
-        logger::error("SpellTomeHook: This game version may have a different TESObjectBOOK::Read layout.");
         return false;
     }
 
@@ -490,7 +477,7 @@ bool SpellTomeHook::Install()
     logger::info("SpellTomeHook: Patch site found at offset +{:X} (addr {:X})", patchOffset, hookAddr);
 
     // Find the jump offset (resume point after patched region)
-    const auto jumpOffset = FindJumpOffset(hookAddr);
+    const auto jumpOffset = FindJumpOffset();
     const auto patchSize = PatchSize;
     logger::info("SpellTomeHook: Jump offset = +{:X}, patch size = {:X}", jumpOffset, patchSize);
     
@@ -551,58 +538,6 @@ bool SpellTomeHook::Install()
     logger::info("SpellTomeHook: Hook installed successfully!");
     
     return true;
-}
-
-// =============================================================================
-// Helper: Check if player has a spell tome for a specific spell
-// =============================================================================
-
-bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
-{
-    auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player) return false;
-    
-    auto inventory = player->GetInventory();
-    
-    for (const auto& [item, data] : inventory) {
-        if (!item) continue;
-        
-        // data.first is count, data.second is InventoryEntryData
-        if (data.first <= 0) continue;
-        
-        // Check if it's a book
-        auto* book = item->As<RE::TESObjectBOOK>();
-        if (!book) continue;
-        
-        // Check if it's a spell tome
-        if (!book->TeachesSpell()) continue;
-        
-        // Check if it teaches the spell we're looking for
-        auto* taughtSpell = book->GetSpell();
-        if (taughtSpell && taughtSpell->GetFormID() == spellFormId) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-// =============================================================================
-// Helper: Get XP multiplier (includes tome inventory boost)
-// =============================================================================
-
-float SpellTomeHook::GetXPMultiplier(RE::FormID spellFormId) const
-{
-    float multiplier = 1.0f;
-    
-    // Check if tome inventory boost is enabled and player has the tome
-    if (m_settings.tomeInventoryBoost && PlayerHasSpellTome(spellFormId)) {
-        multiplier += m_settings.tomeInventoryBoostPercent / 100.0f;
-        logger::trace("SpellTomeHook: Tome inventory boost active for {:08X}, multiplier = {:.2f}",
-                     spellFormId, multiplier);
-    }
-    
-    return multiplier;
 }
 
 // =============================================================================

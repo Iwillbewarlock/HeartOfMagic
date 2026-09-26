@@ -227,7 +227,8 @@ static std::vector<json> MergeSimilarChains(const std::vector<json>& chains)
 static std::vector<json> LLMGroupSpells(
     const std::vector<json>& spells,
     const std::string& schoolName,
-    int batchSize)
+    int batchSize,
+    const OpenRouterAPI::Config& llm)
 {
     std::unordered_set<std::string> validIds;
     for (const auto& s : spells)
@@ -238,6 +239,7 @@ static std::vector<json> LLMGroupSpells(
         // Single batch
         auto prompt = BuildLLMGroupingPrompt(spells, schoolName);
         auto response = OpenRouterAPI::SendPrompt(
+            llm,
             "You are a game design AI that outputs only valid JSON.",
             prompt);
 
@@ -262,6 +264,7 @@ static std::vector<json> LLMGroupSpells(
 
         auto prompt = BuildLLMGroupingPrompt(batch, schoolName);
         auto response = OpenRouterAPI::SendPrompt(
+            llm,
             "You are a game design AI that outputs only valid JSON.",
             prompt);
 
@@ -393,7 +396,7 @@ static json BuildSchoolTreeLLM(
             auto& cnode = nodes[cid];
             int ct = std::max(0, TreeBuilder::TierIndex(cnode.tier));
             float sc = (ct <= nodeTier) ? 100.0f - (nodeTier - ct) * 5.0f : -200.0f;
-            if (!node.theme.empty() && node.theme == cnode.theme) sc += 25.0f;
+            if (SharesTheme(node, cnode)) sc += 25.0f;
             sc -= static_cast<float>(cnode.children.size()) * 10.0f;
             if (sc > bestSc) { bestSc = sc; bestP = &cnode; }
         }
@@ -501,6 +504,10 @@ static json BuildSchoolTreeFallback(
             if (!fid.empty() && nodes.contains(fid)) {
                 chainIds.push_back(fid);
                 nodes[fid].theme = themeName;
+                // The fallback groups by the real theme list, so the nodes can
+                // carry all of theirs. The LLM path above cannot: its chain
+                // names are the model's own words, not themes.
+                nodes[fid].themes = TreeBuilder::GetSpellThemes(s, themes);
             }
         }
         if (chainIds.empty()) continue;
@@ -591,6 +598,7 @@ static json BuildSchoolTreeFallback(
     }
 
     // Force-connect remaining
+    TreeBuilder::DropCommonThemes(nodes, config.commonThemeShare);
     for (auto& [fid, nd] : nodes) {
         if (connected.contains(fid)) continue;
         int nodeTier = std::max(0, TreeBuilder::TierIndex(nd.tier));
@@ -600,7 +608,7 @@ static json BuildSchoolTreeFallback(
             auto& cnd = nodes[cid];
             int ct = std::max(0, TreeBuilder::TierIndex(cnd.tier));
             float sc = (ct <= nodeTier) ? 100.0f - (nodeTier - ct) * 5.0f : -200.0f;
-            if (!nd.theme.empty() && nd.theme == cnd.theme) sc += 25.0f;
+            if (SharesTheme(nd, cnd)) sc += 25.0f;
             sc -= static_cast<float>(cnd.children.size()) * 10.0f;
             if (sc > bestSc) { bestSc = sc; bestP = &cnd; }
         }
@@ -649,19 +657,21 @@ TreeBuilder::BuildResult TreeBuilder::BuildOracle(
     int maxChildren = std::clamp(config.maxChildrenPerNode, 1, 8);
     if (maxChildren == 3) maxChildren = 4;  // Oracle defaults to 4
 
-    // Check if LLM is available
+    // This runs on the build thread. It used to write its key and model into
+    // the shared OpenRouter config while the game thread could be writing the
+    // same strings from a settings change - so it keeps a config of its own
+    // and hands that down to every call it makes.
+    OpenRouterAPI::Config llmConfig;
     bool llmAvailable = false;
     if (config.llmApi && config.llmApi->enabled && !config.llmApi->apiKey.empty()) {
-        // NOTE: Mutates global config. Thread safety depends on single-threaded tree building.
-        auto& orConfig = OpenRouterAPI::GetConfig();
-        orConfig.apiKey = config.llmApi->apiKey;
-        if (!config.llmApi->model.empty()) orConfig.model = config.llmApi->model;
-        orConfig.maxTokens = 3000;
+        llmConfig.apiKey = config.llmApi->apiKey;
+        if (!config.llmApi->model.empty()) llmConfig.model = config.llmApi->model;
+        llmConfig.maxTokens = 3000;
         llmAvailable = true;
     } else {
-        // Try loading from OpenRouterAPI's own config file
-        OpenRouterAPI::Initialize();
-        llmAvailable = !OpenRouterAPI::GetConfig().apiKey.empty();
+        // Whatever the game thread loaded at startup; a copy, taken under the lock
+        llmConfig = OpenRouterAPI::GetConfigCopy();
+        llmAvailable = !llmConfig.apiKey.empty();
     }
 
     std::string actualMode = llmAvailable ? "llm" : "fallback";
@@ -695,7 +705,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildOracle(
         // Try LLM mode
         if (llmAvailable) {
             try {
-                auto chains = LLMGroupSpells(schoolSpellList, schoolName, config.batchSize);
+                auto chains = LLMGroupSpells(schoolSpellList, schoolName, config.batchSize, llmConfig);
                 if (!chains.empty()) {
                     schoolResult = BuildSchoolTreeLLM(
                         schoolSpellList, schoolName, chains,

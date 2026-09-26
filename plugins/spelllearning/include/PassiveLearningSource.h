@@ -63,7 +63,7 @@ public:
 private:
     void PollLoop();
     void GrantPassiveXP(float gameHoursElapsed);
-    float GetTierCap(float requiredXP) const;
+    float GetTierCap(RE::FormID spellId) const;
     bool IsSpellEligible(RE::FormID spellId) const;
 
     Settings m_settings;

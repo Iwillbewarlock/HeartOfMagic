@@ -140,6 +140,7 @@ var SmartRenderer = {
             CanvasRenderer.hide();
         }
         WheelRenderer.clear();
+        if (typeof TreeNav !== 'undefined') TreeNav.clearSchoolTabs();
     },
 
     render: function() {
@@ -322,11 +323,11 @@ function initializeTreeViewer() {
     
     // Details panel
     window.addEventListener('nodeSelected', function(e) { showSpellDetails(e.detail); });
-    
+    // A click on nothing (canvas) drops the selection
+    window.addEventListener('nodeDeselected', function() { clearSpellSelection(); });
+
     var closeDetails = document.getElementById('close-details');
-    if (closeDetails) closeDetails.addEventListener('click', function() {
-        document.getElementById('details-panel').classList.add('hidden');
-    });
+    if (closeDetails) closeDetails.addEventListener('click', clearSpellSelection);
     
     // How-to-Learn panel
     initializeHowToPanel();
@@ -361,6 +362,8 @@ function initializeTreeViewer() {
     if (unlocksList) unlocksList.addEventListener('click', handlePrereqClick);
     if (hardPrereqsList) hardPrereqsList.addEventListener('click', handlePrereqClick);
     if (softPrereqsList) softPrereqsList.addEventListener('click', handlePrereqClick);
+    var bridgesList = document.getElementById('spell-bridges');
+    if (bridgesList) bridgesList.addEventListener('click', handlePrereqClick);
 
     // Find Spell (F key)
     initializeFindSpell();
@@ -539,6 +542,7 @@ function showImportError(msg) {
 
 /** Log to both console and spelllearning.log via C++. */
 function _logToSKSE(msg) {
+    if (typeof LogGate !== 'undefined' && !LogGate.on()) return;
     console.log(msg);
     if (window.callCpp) {
         try {
@@ -662,7 +666,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 // Theme data baked from tree generator
                 theme: nd.theme || null,
                 themeColor: nd.themeColor || null,
-                skillLevel: nd.skillLevel || null
+                skillLevel: nd.skillLevel || null,
+                traits: nd.traits || null
             };
 
             // Roots and prereq-less nodes are available
@@ -730,6 +735,7 @@ function _loadTrustedTree(data, switchToTreeTab) {
     // Update UI
     var emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.classList.add('hidden');
+    if (typeof DetailsPeek !== 'undefined') DetailsPeek.applyLayout();
     document.getElementById('total-count').textContent = nodes.length;
     document.getElementById('unlocked-count').textContent = '0';
 
@@ -741,6 +747,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
     // mirrorBidirectionalSoftPrereqs(nodes);
 
     // Send prereqs to C++ (already baked, no splitting needed)
+    if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
+
     if (window.callCpp) {
         var prereqData = [];
         for (var pi = 0; pi < nodes.length; pi++) {
@@ -1084,10 +1092,11 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
 
     // Initial render - use SmartRenderer to auto-switch based on node count
     SmartRenderer.setData(result.nodes, result.edges, result.schools);
-    
+
     var emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.classList.add('hidden');
-    
+    if (typeof DetailsPeek !== 'undefined') DetailsPeek.applyLayout();
+
     document.getElementById('total-count').textContent = result.nodes.length;
     document.getElementById('unlocked-count').textContent = '0';  // Always 0 on load - will be updated after save loads
     
@@ -1126,6 +1135,9 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
         node.softPrereqs = softPrereqs;
         node.softNeeded = softNeeded;
     });
+
+    // Also on this path, or the bridges of the previous tree would stay on screen
+    if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
 
     // Mirror bidirectional soft prereqs — DISABLED for now
     // mirrorBidirectionalSoftPrereqs(result.nodes);
@@ -1173,22 +1185,103 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
     }
 }
 
+/**
+ * Select a spell: make it the card's subject and the Learn/Unlock target.
+ * Selecting is what reveals things and writes state; a hover preview
+ * (DetailsPeek) only draws the card, so it goes through renderSpellCard alone.
+ */
 function showSpellDetails(node) {
-    var panel = document.getElementById('details-panel');
-    if (!panel) return;
-    panel.classList.remove('hidden');
+    if (!node) return;
+    // A refresh of the pinned spell while the cursor previews another one:
+    // keep what the cursor is on, the pinned card comes back when it leaves
+    if (typeof DetailsPeek !== 'undefined' && DetailsPeek.isPeeking() &&
+        state.selectedNode === node && DetailsPeek.peekNode !== node) {
+        selectSpell(node);
+        DetailsPeek.refresh();
+        return;
+    }
+    if (typeof DetailsPeek !== 'undefined') DetailsPeek.onSelected(node);
+    selectSpell(node);
+    renderSpellCard(node, { preview: false });
+}
 
+/** The side effects of picking a spell, kept apart from drawing its card */
+function selectSpell(node) {
     // Reveal locks for this node (Pre Req Master)
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.revealLocksForNode) {
         PreReqMaster.revealLocksForNode(node.id);
     }
+    // Store selected node for button handlers
+    state.selectedNode = node;
+}
+
+/**
+ * Drop the selection: the card empties (or hides when hover preview is off)
+ * and the tree's highlight goes with it. Close button, Esc, click on nothing.
+ */
+function clearSpellSelection() {
+    state.selectedNode = null;
+    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.selectedNode) {
+        CanvasRenderer.selectedNode = null;
+        CanvasRenderer._selectedPathEdges = null;
+        CanvasRenderer._selectedPathNodes = null;
+        CanvasRenderer._needsRender = true;
+    }
+    if (typeof TreeNav !== 'undefined') TreeNav.setActiveSchool(null);
+    if (typeof DetailsPeek !== 'undefined') {
+        DetailsPeek.onSelected(null);
+        DetailsPeek.applyLayout();
+    } else {
+        var panel = document.getElementById('details-panel');
+        if (panel) panel.classList.add('hidden');
+        var treePage = document.getElementById('contentSpellTree');
+        if (treePage) treePage.classList.remove('details-open');
+    }
+}
+
+/**
+ * A node state as the player reads it: the same words as the footer legend,
+ * which every language already translates.
+ * @param {string} nodeState - 'locked' | 'available' | 'learning' | 'unlocked'
+ * @returns {string}
+ */
+function spellStateLabel(nodeState) {
+    var s = String(nodeState || '');
+    var fallback = s.charAt(0).toUpperCase() + s.slice(1);
+    var keys = {
+        locked: 'footer.legendLocked',
+        available: 'footer.legendAvailable',
+        learning: 'footer.legendLearning',
+        unlocked: 'footer.legendUnlocked'
+    };
+    return keys[s] ? tOr(keys[s], null, fallback) : fallback;
+}
+
+/**
+ * Fill the details panel with a spell's card. Draws only: nothing here
+ * changes the selection, reveals a lock or talks to C++.
+ * @param {Object} node
+ * @param {{preview?: boolean}} [opts] preview = hover peek: Learn/Unlock are
+ *        shown but cannot be pressed, and the card says to click to select
+ */
+function renderSpellCard(node, opts) {
+    var preview = !!(opts && opts.preview);
+    var panel = document.getElementById('details-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.classList.remove('is-empty');
+    panel.classList.toggle('peeking', preview);
+    var treePage = document.getElementById('contentSpellTree');
+    if (treePage) treePage.classList.add('details-open');
 
     // Get progress data for progressive reveal
-    // Debug: show what keys are in spellProgress
-    var progressKeys = Object.keys(state.spellProgress);
-    console.log('[SpellLearning] showSpellDetails - Looking for:', node.formId);
-    console.log('[SpellLearning] Available progress keys:', progressKeys.join(', '));
-    
+    // Debug: show what keys are in spellProgress (a hover preview stays quiet)
+    var devLog = !preview && typeof LogGate !== 'undefined' && LogGate.on();
+    if (devLog) {
+        console.log('[SpellLearning] showSpellDetails - Looking for:', node.formId);
+        console.log('[SpellLearning] Available progress keys:', Object.keys(state.spellProgress).join(', '));
+    }
+
     // Use canonical formId for duplicates, then try multiple formats
     var lookupId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
     var formIdVariants = [
@@ -1211,24 +1304,26 @@ function showSpellDetails(node) {
         if (state.spellProgress[formIdVariants[i]]) {
             progress = state.spellProgress[formIdVariants[i]];
             matchedKey = formIdVariants[i];
-            console.log('[SpellLearning] Found progress with key:', matchedKey);
+            if (!preview) console.log('[SpellLearning] Found progress with key:', matchedKey);
             break;
         }
     }
-    
-    if (!progress) {
+
+    if (!progress && !preview) {
         console.log('[SpellLearning] No progress found for any variant of', node.formId);
     }
     progress = progress || { xp: 0, required: 100, progress: 0 };
     
-    // Calculate XP required based on tier (always use current settings, not stale C++ value)
-    var tierXP = getXPForTier(node.level);
-    var requiredXP = xpOverrides[node.formId] !== undefined ? xpOverrides[node.formId] : (tierXP || 100);
+    // XP required from current settings, not a stale C++ value: override, else
+    // tier, times the known-higher-spell share (the reveal thresholds read this too)
+    var requiredXP = getRequiredXPForNode(node);
     
     // Calculate progress percent - use xp/required directly since progress.progress may not be set
     var progressPercent = requiredXP > 0 ? ((progress.xp || 0) / requiredXP) * 100 : 0;
-    console.log('[SpellLearning] Progress:', progress.xp, '/', requiredXP, '=', progressPercent.toFixed(1) + '%',
-        '| revealName:', settings.revealName, '| showName should be:', progressPercent >= settings.revealName);
+    if (!preview) {
+        console.log('[SpellLearning] Progress:', progress.xp, '/', requiredXP, '=', progressPercent.toFixed(1) + '%',
+            '| revealName:', settings.revealName, '| showName should be:', progressPercent >= settings.revealName);
+    }
     
     // Check if player has the spell (via early learning or other means)
     // Use canonical formId for duplicates
@@ -1248,9 +1343,13 @@ function showSpellDetails(node) {
     var isLocked = node.state === 'locked';
     // Locked/mystery nodes never reveal info via progress threshold - only via cheat/edit/hasSpell
     var showName = showFullInfo || isLearning || (!isLocked && progressPercent >= settings.revealName);
-    var showEffects = showFullInfo || (!isLocked && progressPercent >= settings.revealEffects);
+    // Card reveal order: name -> keyword chips -> description and figures.
+    // The chips take over the threshold the effects list used to have; the effects,
+    // cost and type now open together with the description.
+    var showChips = showFullInfo || (!isLocked && progressPercent >= settings.revealEffects);
     var showDescription = showFullInfo || (!isLocked && progressPercent >= settings.revealDescription);
-    var showLevelAndCost = !isLocked || settings.cheatMode || isEditActive;
+    var showLevel = !isLocked || settings.cheatMode || isEditActive;
+    var showFigures = showDescription;
     
     // School badge always visible
     document.getElementById('spell-school').textContent = node.school;
@@ -1267,17 +1366,24 @@ function showSpellDetails(node) {
         document.getElementById('spell-name').textContent = '???';
     }
     
-    // Level and cost - show for available (learning) and unlocked
-    if (showLevelAndCost) {
-        document.getElementById('spell-level').textContent = node.level || '?';
-        document.getElementById('spell-cost').textContent = node.cost || '?';
-        document.getElementById('spell-type').textContent = node.type || '?';
-    } else {
-        document.getElementById('spell-level').textContent = '???';
-        document.getElementById('spell-cost').textContent = '???';
-        document.getElementById('spell-type').textContent = '???';
-    }
+    // Icon in front of the name: pack picture, else the school emblem, else our glyph
+    SpellCard.renderIcon(node, showName);
+
+    // Keyword chips - second thing to open up, after the name
+    SpellCard.renderChips(document.getElementById('spell-chips'), node.chips, showChips,
+        isLocked ? '???' : '??? (' + settings.revealEffects + '%)');
+
+    // Level is what the node's size already gives away; cost and type are figures
+    document.getElementById('spell-level').textContent = showLevel ? (node.level || '?') : '???';
+    document.getElementById('spell-cost').textContent = showFigures ? (node.cost || '?') : '???';
+    document.getElementById('spell-type').textContent = showFigures ? (node.type || '?') : '???';
     
+    // The raw effect list is how the spell is wired, not something a player reads:
+    // helper effects, duplicates, internal names. The card's description and chips say
+    // what the spell does, so the list only shows while editing the tree.
+    var effectsSection = document.getElementById('details-effects-section');
+    if (effectsSection) effectsSection.style.display = isEditActive ? '' : 'none';
+
     // Effects - progressive reveal with weakened info
     var effectsList = document.getElementById('spell-effects');
     effectsList.innerHTML = '';
@@ -1286,12 +1392,12 @@ function showSpellDetails(node) {
     var isWeakened = node.isWeakened === true || (node.effectiveness && node.effectiveness < 100);
     var effectiveness = node.effectiveness || 100;
     
-    if (showEffects) {
+    if (showFigures) {
         // Show effectiveness warning if weakened
         if (isWeakened) {
             var weakenedLi = document.createElement('li');
             weakenedLi.className = 'weakened-warning';
-            weakenedLi.textContent = '! ' + effectiveness + '% Power (practicing...)';
+            weakenedLi.textContent = '! ' + tOr('details.weakenedPower', { pct: effectiveness }, '{{pct}}% Power (practicing...)');
             weakenedLi.style.color = '#f59e0b';
             weakenedLi.style.fontWeight = 'bold';
             effectsList.appendChild(weakenedLi);
@@ -1302,7 +1408,7 @@ function showSpellDetails(node) {
         
         if (effectsToShow.length === 0) {
             var noEffLi = document.createElement('li');
-            noEffLi.textContent = 'No effects';
+            noEffLi.textContent = tOr('details.noEffects', null, 'No effects');
             effectsList.appendChild(noEffLi);
         } else {
             effectsToShow.forEach(function(e) {
@@ -1324,22 +1430,30 @@ function showSpellDetails(node) {
                     li.textContent = text;
                     if (isWeakened) li.style.color = '#fbbf24';
                 } else {
-                    li.textContent = e.name || JSON.stringify(e);
+                    // Plain effect from C++: name, then magnitude and duration when it has them
+                    var plainText = e.name || JSON.stringify(e);
+                    if (e.magnitude > 0) plainText += ' (' + Math.round(e.magnitude) + ')';
+                    if (e.duration > 0) plainText += ' ' + e.duration + 's';
+                    li.textContent = plainText;
                 }
                 effectsList.appendChild(li);
             });
         }
     } else {
-        effectsList.innerHTML = '<li class="hidden-info">??? (' + settings.revealEffects + '% to reveal)</li>';
+        var hiddenEff = document.createElement('li');
+        hiddenEff.className = 'hidden-info';
+        hiddenEff.textContent = '??? (' + tOr('details.revealAtPct', { pct: settings.revealDescription }, '{{pct}}% to reveal') + ')';
+        effectsList.appendChild(hiddenEff);
     }
-    
+
     // Description - progressive reveal
+    var descEl = document.getElementById('spell-description');
     if (showDescription) {
-        document.getElementById('spell-description').textContent = node.desc || 'No description.';
+        descEl.textContent = node.desc || tOr('details.noDescription', null, 'No description.');
     } else if (node.state === 'locked') {
-        document.getElementById('spell-description').textContent = 'Unlock prerequisites to reveal.';
+        descEl.textContent = tOr('details.descLocked', null, 'Unlock prerequisites to reveal.');
     } else {
-        document.getElementById('spell-description').textContent = 'Progress to ' + settings.revealDescription + '% to reveal description...';
+        descEl.textContent = tOr('details.descRevealAt', { pct: settings.revealDescription }, 'Progress to {{pct}}% to reveal description...');
     }
 
     // Populate prerequisites with hard/soft distinction
@@ -1443,12 +1557,12 @@ function showSpellDetails(node) {
             var totalHard = hardPrereqs.length;
             var totalSoft = softPrereqs.length;
             if (totalHard === 0 && totalSoft === 0) {
-                prereqSummary.textContent = 'No prerequisites';
+                prereqSummary.textContent = tOr('details.noPrereqs', null, 'No prerequisites');
                 prereqSummary.className = 'prereq-summary none';
             } else {
                 var parts = [];
-                if (totalHard > 0) parts.push(hardMet + '/' + totalHard + ' required');
-                if (totalSoft > 0) parts.push(softMet + '/' + softNeeded + ' optional');
+                if (totalHard > 0) parts.push(tOr('details.prereqRequiredCount', { met: hardMet, total: totalHard }, '{{met}}/{{total}} required'));
+                if (totalSoft > 0) parts.push(tOr('details.prereqOptionalCount', { met: softMet, total: softNeeded }, '{{met}}/{{total}} optional'));
                 prereqSummary.textContent = parts.join(' • ');
                 prereqSummary.className = 'prereq-summary ' + 
                     (hardMet === totalHard && softMet >= softNeeded ? 'complete' : 'incomplete');
@@ -1490,7 +1604,7 @@ function showSpellDetails(node) {
                 var ofLabel = document.createTextNode(' of ' + softPrereqs.length + ')');
                 softNeededCount.appendChild(ofLabel);
             } else {
-                softNeededCount.textContent = '(need ' + softNeeded + ' of ' + softPrereqs.length + ')';
+                softNeededCount.textContent = '(' + tOr('details.softNeed', { need: softNeeded, total: softPrereqs.length }, 'need {{need}} of {{total}}') + ')';
             }
         }
         
@@ -1505,9 +1619,9 @@ function showSpellDetails(node) {
         legacyPrereqList.classList.remove('hidden');
         
         if (prereqSummary) {
-            prereqSummary.textContent = node.prerequisites.length > 0 
-                ? node.prerequisites.length + ' prerequisite(s)' 
-                : 'No prerequisites';
+            prereqSummary.textContent = node.prerequisites.length > 0
+                ? tOr('details.prereqCount', { n: node.prerequisites.length }, '{{n}} prerequisite(s)')
+                : tOr('details.noPrereqs', null, 'No prerequisites');
             prereqSummary.className = 'prereq-summary';
         }
         
@@ -1527,6 +1641,10 @@ function showSpellDetails(node) {
         li.dataset.id = id;
         unlocksList.appendChild(li);
     });
+
+    // Opens with the keyword chips: the paths name another spell and the
+    // keywords it shares, which is more than this spell's own card shows yet
+    if (typeof BridgeView !== 'undefined') BridgeView.renderCard(node, showChips);
 
     // === LOCKS (Pre Req Master) ===
     var locksSection = document.getElementById('locks-section');
@@ -1558,26 +1676,44 @@ function showSpellDetails(node) {
     }
 
     var stateBadge = document.getElementById('spell-state');
-    var stateText = node.state.charAt(0).toUpperCase() + node.state.slice(1);
+    var stateText = spellStateLabel(node.state);
     var stateClass = node.state;
-    
+
     // Show "Weakened" for early-learned spells
     if (isWeakened && node.state === 'unlocked') {
-        stateText = 'Weakened (' + effectiveness + '%)';
+        stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened ({{pct}}%)');
         stateClass = 'weakened';
     }
     
     stateBadge.textContent = stateText;
     stateBadge.className = 'state-badge ' + stateClass;
 
-    // Store selected node for button handlers
-    state.selectedNode = node;
-    
     // Update progression UI
-    updateDetailsProgression(node);
+    updateDetailsProgression(node, opts);
+
+    // The buttons act on state.selectedNode, not on the spell a preview shows.
+    // CSS stops the mouse; disabled also stops Enter/Space on a focused button.
+    var learnBtnEl = document.getElementById('learn-btn');
+    var unlockBtnEl = document.getElementById('unlock-btn');
+    if (preview) {
+        if (learnBtnEl) learnBtnEl.disabled = true;
+        if (unlockBtnEl) unlockBtnEl.disabled = true;
+    } else if (learnBtnEl) {
+        learnBtnEl.disabled = false;
+    }
 }
 
-function updateDetailsProgression(node) {
+/**
+ * The progress bar and the Learn/Unlock buttons for the spell on the card.
+ * @param {Object} node
+ * @param {{preview?: boolean}} [opts] preview = hover peek, see renderSpellCard
+ */
+function updateDetailsProgression(node, opts) {
+    var preview = !!(opts && opts.preview);
+    // A refresh of the selected spell while another one is previewed would put
+    // its progress under the wrong card; the selected card is redrawn whole
+    // when the cursor leaves
+    if (!preview && typeof DetailsPeek !== 'undefined' && DetailsPeek.isPeeking() && node === state.selectedNode) return;
     var progressSection = document.getElementById('progress-section');
     var learnBtn = document.getElementById('learn-btn');
     var unlockBtn = document.getElementById('unlock-btn');
@@ -1592,17 +1728,19 @@ function updateDetailsProgression(node) {
     var progress = state.spellProgress[canonId] || { xp: 0, required: 100, unlocked: false, ready: false };
     var isLearningTarget = state.learningTargets[node.school] === canonId || state.learningTargets[node.school] === node.formId;
 
-    // Debug: log learning target check to file via C++
-    var debugMsg = '[SELECT] ' + (node.name || node.formId) +
-                   ' | school:' + node.school +
-                   ' | formId:' + node.formId +
-                   ' | targets:' + JSON.stringify(state.learningTargets) +
-                   ' | isTarget:' + isLearningTarget +
-                   ' | state:' + node.state +
-                   ' | isRoot:' + (node.isRoot || false);
-    console.log(debugMsg);
-    if (window.callCpp) {
-        window.callCpp('LogMessage', JSON.stringify({ level: 'info', message: debugMsg }));
+    // Debug: log learning target check to file via C++ (developer mode, not for every hover)
+    if (!preview && typeof LogGate !== 'undefined' && LogGate.on()) {
+        var debugMsg = '[SELECT] ' + (node.name || node.formId) +
+                       ' | school:' + node.school +
+                       ' | formId:' + node.formId +
+                       ' | targets:' + JSON.stringify(state.learningTargets) +
+                       ' | isTarget:' + isLearningTarget +
+                       ' | state:' + node.state +
+                       ' | isRoot:' + (node.isRoot || false);
+        console.log(debugMsg);
+        if (window.callCpp) {
+            window.callCpp('LogMessage', JSON.stringify({ level: 'info', message: debugMsg }));
+        }
     }
     
     // Update learning status badge
@@ -1610,8 +1748,21 @@ function updateDetailsProgression(node) {
     
     // Calculate required XP - use override if exists, otherwise tier-based
     var tierXP = getXPForTier(node.level);
-    var requiredXP = xpOverrides[node.formId] !== undefined ? xpOverrides[node.formId] : tierXP;
+    var requiredXP = getRequiredXPForNode(node);
     progress.required = requiredXP;
+
+    // Opened by a spell the player already knows: say so, it explains both the
+    // open lock and the smaller XP bar
+    var reverseNote = document.getElementById('reverse-unlock-note');
+    if (reverseNote) {
+        var showReverse = node.openedByKnownChild && settings.reverseUnlock !== false && node.state !== 'unlocked';
+        reverseNote.classList.toggle('hidden', !showReverse);
+        if (showReverse) {
+            var reversePct = Math.round(getReverseUnlockXPShare(node.level) * 100);
+            reverseNote.textContent = tOr('details.openedByKnownChild', { pct: reversePct },
+                'You already know a spell this one leads to: open, at ' + reversePct + '% of its XP.');
+        }
+    }
     
     // Hide all buttons by default
     learnBtn.classList.add('hidden');
@@ -1679,13 +1830,13 @@ function updateDetailsProgression(node) {
         
         if (node.state === 'unlocked') {
             // Actually unlocked (node state is the source of truth) - show relock option
-            unlockBtn.textContent = 'Relock Spell';
+            unlockBtn.textContent = tOr('details.relockSpell', null, 'Relock Spell');
             unlockBtn.style.background = '#ef4444';  // Red for relock
             progressBar.classList.add('ready');
             learnBtn.classList.add('hidden');
         } else {
             // Not unlocked - show cheat unlock button (even if progress.unlocked is stale)
-            unlockBtn.textContent = 'Unlock (Cheat)';
+            unlockBtn.textContent = tOr('details.unlockCheat', null, 'Unlock (Cheat)');
             unlockBtn.style.background = '';  // Default color
             progressBar.classList.toggle('ready', progress.xp >= requiredXP);
 
@@ -1694,10 +1845,10 @@ function updateDetailsProgression(node) {
                 learnBtn.classList.remove('hidden');
                 var isLearningTarget = state.learningTargets && state.learningTargets[node.school] === node.formId;
                 if (isLearningTarget) {
-                    learnBtn.textContent = 'Learning...';
+                    learnBtn.textContent = tOr('details.learning', null, 'Learning...');
                     learnBtn.classList.add('active');
                 } else {
-                    learnBtn.textContent = 'Learn This';
+                    learnBtn.textContent = tOr('details.learnThis', null, 'Learn This');
                     learnBtn.classList.remove('active');
                 }
             }
@@ -1729,7 +1880,7 @@ function updateDetailsProgression(node) {
         progressBar.classList.add('ready');
         unlockBtn.classList.remove('hidden');
         unlockBtn.disabled = false;
-        unlockBtn.textContent = 'Unlock Spell';
+        unlockBtn.textContent = tOr('details.unlockSpell', null, 'Unlock Spell');
         unlockBtn.style.background = '';  // Default color
         learnBtn.classList.add('hidden');
     } else {
@@ -1738,10 +1889,10 @@ function updateDetailsProgression(node) {
         learnBtn.classList.remove('hidden');
         
         if (isLearningTarget) {
-            learnBtn.textContent = 'Learning...';
+            learnBtn.textContent = tOr('details.learning', null, 'Learning...');
             learnBtn.classList.add('active');
         } else {
-            learnBtn.textContent = 'Learn This';
+            learnBtn.textContent = tOr('details.learnThis', null, 'Learn This');
             learnBtn.classList.remove('active');
         }
     }
@@ -1750,10 +1901,17 @@ function updateDetailsProgression(node) {
 function selectNodeById(id) {
     if (!state.treeData) return;
     var node = _findNodeById(id);
-    if (node) {
-        WheelRenderer.selectNode(node);
-        WheelRenderer.rotateSchoolToTop(node.school);
+    if (!node) return;
+
+    // Canvas renderer: select + center the node (same path as a click)
+    if (SmartRenderer.activeRenderer === 'canvas' && typeof CanvasRenderer !== 'undefined' && CanvasRenderer.canvas) {
+        var canvasNode = CanvasRenderer._nodeMap ? (CanvasRenderer._nodeMap.get(node.id) || CanvasRenderer._nodeMap.get(node.formId)) : null;
+        CanvasRenderer.selectNodeAndFocus(canvasNode || node);
+        return;
     }
+
+    WheelRenderer.selectNode(node);
+    WheelRenderer.rotateSchoolToTop(node.school);
 }
 
 // =============================================================================
@@ -1871,6 +2029,11 @@ function renderFindSpellList(searchTerm) {
         }
     }
 
+    // Discovery mode: undiscovered (locked) spells must not be searchable by name
+    if (settings.discoveryMode !== false && !settings.cheatMode) {
+        nodes = nodes.filter(function(node) { return node.state !== 'locked'; });
+    }
+
     // Filter by search term
     var filtered;
     if (searchTerm) {
@@ -1899,9 +2062,13 @@ function renderFindSpellList(searchTerm) {
     _findSpellSelectedIndex = filtered.length > 0 ? 0 : -1;
 
     if (filtered.length === 0) {
-        listEl.innerHTML = '<div class="find-spell-empty">' +
-            (searchTerm ? 'No matching spells on tree' : 'No spells on tree') +
-            '</div>';
+        var emptyEl = document.createElement('div');
+        emptyEl.className = 'find-spell-empty';
+        emptyEl.textContent = searchTerm
+            ? tOr('tree.findNoMatch', null, 'No matching spells on tree')
+            : tOr('tree.findNoSpells', null, 'No spells on tree');
+        listEl.innerHTML = '';
+        listEl.appendChild(emptyEl);
         return;
     }
 
@@ -1922,15 +2089,25 @@ function renderFindSpellList(searchTerm) {
             displayName = highlightMatch(displayName, searchTerm);
         }
 
+        // State chip reuses the footer legend labels (already translated)
+        var stateKeys = {
+            locked: 'footer.legendLocked',
+            available: 'footer.legendAvailable',
+            learning: 'footer.legendLearning',
+            unlocked: 'footer.legendUnlocked'
+        };
+        var stateLabel = stateKeys[node.state] ? t(stateKeys[node.state]) : '';
+
         item.innerHTML =
             '<div class="find-spell-dot" style="background:' + color + '"></div>' +
             '<div class="find-spell-text">' +
                 '<div class="find-spell-name">' + displayName + '</div>' +
                 '<div class="find-spell-info">' +
-                    '<span>' + (node.school || '') + '</span>' +
+                    '<span class="find-spell-school" style="color:' + color + '">' + (node.school || '') + '</span>' +
                 '</div>' +
             '</div>' +
-            (node.level ? '<span class="find-spell-tier">' + node.level + '</span>' : '');
+            (node.level ? '<span class="find-spell-tier">' + node.level + '</span>' : '') +
+            (stateLabel ? '<span class="find-spell-state ' + node.state + '">' + stateLabel + '</span>' : '');
 
         item.addEventListener('click', function() {
             _findSpellSelectedIndex = idx;
@@ -1996,6 +2173,19 @@ function smoothPanToNode(targetNode) {
         if (found) node = found;
     }
 
+    // Preferred path: TreeCamera handles rotation-aware centering + selection
+    if (typeof TreeCamera !== 'undefined' && CanvasRenderer.canvas) {
+        CanvasRenderer.selectNodeAndFocus(node, {
+            onComplete: function() {
+                if (typeof setTreeStatus === 'function') {
+                    setTreeStatus('Found: ' + (node.name || node.formId));
+                }
+            }
+        });
+        return;
+    }
+
+    // Legacy fallback (no TreeCamera): pan only, ignores wheel rotation
     var targetPanX = -node.x * CanvasRenderer.zoom;
     var targetPanY = -node.y * CanvasRenderer.zoom;
 

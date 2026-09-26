@@ -186,6 +186,19 @@ window.callCpp = function(method, data) {
             }
             break;
 
+        case 'DeclutterTree':
+            // No plugin here: answer at once so LayoutDeclutter arranges the tree itself
+            (function() {
+                var id = null;
+                try { id = JSON.parse(data).id; } catch (e) {}
+                setTimeout(function() {
+                    if (typeof window.onDeclutterResult === 'function') {
+                        window.onDeclutterResult(JSON.stringify({ id: id, error: 'no plugin in the dev harness' }));
+                    }
+                }, 0);
+            })();
+            break;
+
         case 'ProceduralTreeGenerate':
             // Try dev server first (localhost:5556), fall back to JS builder
             (function() {

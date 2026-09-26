@@ -37,7 +37,7 @@ Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Displa
 ## Component Architecture
 
 ### 1. **SpellScanner** (`plugins/spelllearning/src/spellscanner/`, `plugins/spelllearning/include/SpellScanner.h`)
-Split across: SpellScannerScan.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp
+Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -50,12 +50,139 @@ Split across: SpellScannerScan.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.
 **Key Functions:**
 - `ScanAllSpells(config)` - Main scan function
 - `ScanSpellTomes(config)` - Alternative scan via tomes
+- `RunScanToFile(mode, preset)` - Scan and write the dump in one call, for callers outside the UI
+- `BuildSpellJson(spell, formId, fields)` - The single source of the scan JSON shape (SpellScannerJson.cpp)
+- `BuildEffectJson(effect, fields)` - One effect, including MGEF structure when `effectDetails` is on
+- `WriteScanOutput(content)` - Write `spell_scan_output.json`, return its path
 - `GetSpellInfoByFormId(formId)` - Lookup spell details
 - `GetSystemInstructions()` - LLM output format spec
 - `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
+
+**Field Config and the MGEF Structure Fields:**
+
+`FieldConfig` decides which optional fields a scan emits. The UI presets live in
+`PrismaUI/.../modules/llmApiSettings.js` (`applyPreset`) and are mirrored in C++ by
+`FieldsForPreset()` in SpellScannerJson.cpp - change one, change the other.
+
+`effectDetails` (on in the `full` preset) adds the MGEF structure to every entry of
+`effects[]`. That structure is the language-independent evidence the tag librarian
+classifies on, and vanilla `Magic*` keywords live on the MGEF, not on the SPEL:
+
+```json
+"effects": [{
+  "name": "Fire Damage", "magnitude": 60, "duration": 0, "area": 0,
+  "keywords": ["MagicDamageFire"],
+  "archetype": "ValueModifier",
+  "primaryAV": "Health", "secondaryAV": "None", "resistance": "FireResist",
+  "hostile": true, "detrimental": true,
+  "castingType": "Fire and Forget", "delivery": "Aimed",
+  "magicSkill": "Destruction",
+  "associatedForm": "Skyrim.esm|0x01CB01"
+}]
+```
+
+**Editor ids.** `editorId` is written for the spell and, with `effectDetails`, for every effect. The
+engine only keeps editor ids for a few record types (keywords yes, spells and magic effects no), so
+`GetEditorId` asks powerofthree's Tweaks (`Load EditorIDs`) through its exported `GetFormEditorID`.
+Without po3 Tweaks the field is empty. Verified in game: 1440 / 1440 spells, 4246 / 4246 effects.
+
+**Two keyword columns, not three.** `keywords` is the raw names as the plugins wrote them (kept
+because icon lookup and other mods need the real names). `traits`, on the spell, is the one
+normalised column: what the engine values and the base game's own keywords boil down to in a fixed
+vocabulary - `element.fire`, `kind.summon`, `kind.undead`, `form.projectile`, `school.destruction` ...
+A fire resist value and `MagicSummonFire` both come out as `element.fire`, so Flame Atronach reads
+`element.fire` + `kind.summon`. Only keywords whose record a vanilla plugin defines are folded in
+(Skyrim, Update, Dawnguard, HearthFires, Dragonborn - judged by the defining plugin,
+`IsVanillaKeyword`, not by the name). Effects flagged Hide in UI are not read. `traits` is derived
+rather than copied, which is why it has its own name; everything else in the dump stays as recorded.
+Built by `BuildSpellTraits` (SpellScannerChips.cpp), the same list the spell card and the icon rules use.
+
+**The librarian's elements replace the scanner's (2026-09-27).** Vanilla keywords only name fire,
+frost, shock, poison and disease. Right after a scan, `Librarian::ClassifyScan` builds the tag
+catalog (docs/librarian/LIBRARIAN.md) and rewrites every spell's `element.*` entries in `traits` and
+`chips` from it, so the tree builder, the bridges and the card see blood, water, air, shadow ... as
+the rule files tag them, and a tag a rule removes is gone there too. A tome scan (no effects) takes
+the catalog the last full scan left. The held scan (`m_scanText`) and the result sent to the panel
+are the merged text. The card icon rules still read the scanner's own traits.
+
+`castByVampires: true` marks a spell a vampire NPC carries - an NPC whose race or record has the
+`Vampire` keyword, through its own or its race's spell list and the leveled spell lists in them, plus
+spells SPID hands to `Vampire` in any `Data/*_DISTR.ini` (SpellScannerCasters.cpp, read once). The tag
+librarian's blood rules use it; it is absent, not false, for every other spell.
+
+`archetype` and the actor value fields are always names, never raw numbers -
+classification rules match on those strings, so they have to stay stable.
+`associatedForm` only appears when the effect has one (summons, bound weapons).
+
+Actor values come from the AVIF record's `enumName`, not `RE::ActorValueToString`. That
+helper hands back the localized display name, so a translated load order emits `"체력"`
+where an English one emits `"Health"` - and even the English display name
+(`"Resist Fire"`) differs from the enum name (`"FireResist"`) the rules are written
+against. The rule files ship once for every language, so these keys have to be language
+independent.
+
+**Structure evidence (SpellScannerEvidence.cpp):**
+
+`effectDetails` also adds the fields below. Every one of them is copied out of the
+record as it is; the scan never interprets a value. Deciding that something is "an
+area spell" or "a fire spell" is the consumer's job, which is what keeps the dump the
+same on every load order and in every language.
+
+| Where | Field | Source |
+|---|---|---|
+| spell | `castingPerk` | `SpellItem::Data::castingPerk` - the half cost perk. Only when set |
+| spell | `equipSlot`, `twoHanded` | `BGSEquipType::GetEquipSlot()`, `SpellItem::IsTwoHanded()` |
+| spell | `castDuration`, `range` | `SpellItem::Data` |
+| spell | `flags{}` | `SpellItem::SpellFlag`: costOverride, pcStartSpell, instantCast, ignoreLOSCheck, ignoreResistance, noAbsorb, noDualCastMods |
+| spell (tome scan) | `tomePersistentId`, `tomeValue` | the teaching book and its gold value |
+| effect | `flags{}` | every `EffectSettingData::Flag` except hostile/detrimental, which stay top level |
+| effect | `baseCost`, `minimumSkill` | `EffectSettingData` |
+| effect | `projectile{form,type,speed,range,gravity,explodes}` | `projectileBase`. `type` is one of Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow. Only when set |
+| effect | `explosion{form,source,radius}` | the effect's own explosion, otherwise its projectile's. `source` says which. Only when set |
+| effect | `hazard`, `hazardSource` | true/false, and where it was found. See below |
+| effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
+| effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
+
+`hazard` is presence only - no radius, no lifetime. When it is true, `hazardSource`
+says where the hazard hangs, strongest link first:
+
+| `hazardSource` | Meaning | Seen in game (2026-09-21, 4246 effects) |
+|---|---|---|
+| `effect` | the MGEF's associated form is a hazard | 33 - Blizzard, Circle of Protection, Clairvoyance |
+| `explosion` | the effect's explosion, or its projectile's, drops a hazard as placed object | 15 |
+| `impact` | an impact data set (the MGEF's, or one of those explosions') carries a hazard | 735 |
+
+The three are not the same kind of thing, which is why the scan names the source
+instead of folding them into one flag. `effect` and `explosion` are hazards a spell is
+built around. `impact` is whatever a hit leaves on a surface, and the engine uses
+hazards for lingering visuals too: in vanilla it fires for Firebolt and Fireball, but
+also for atronach summons, Banish and the mass illusion spells. A consumer that means
+"leaves something dangerous on the ground" should not read `impact` that way. Runes are
+not hazards at all - the rune is a Lobber projectile.
+
+**Scanning from outside the UI:**
+
+`SpellLearning.RunScan(mode, preset)` (Papyrus, see PapyrusAPI.cpp) runs a scan on the
+game thread, writes `Data/SKSE/Plugins/SpellLearning/spell_scan_output.json` and returns
+the path. `mode` is `"tomes"` or `"all"`, `preset` is `"minimal"`, `"balanced"` or
+`"full"`. Unlike the UI's Save button it never routes the dump through the panel, so the
+file is exactly the scan JSON.
+
+Papyrus calls it from the VM thread, so it submits the scan as a game thread task and
+blocks until that task reports back, with a timeout so a dropped task cannot hang the
+script forever. It also checks `IsOnGameThread()` (ThreadUtils.h) and runs the scan
+inline when the caller is already on the game thread, where submitting a task and waiting
+for it could not complete. `MessageHandler` in Main.cpp stamps the thread id, since SKSE
+delivers those messages on the game thread.
+
+Known limitation: the wait makes `RunScan` unusable from a caller that itself blocks the
+game thread while waiting for the Papyrus result, which is how the DevBench harness
+drives it. The scan task then cannot run until `RunScan` gives up, so the call takes the
+full timeout and returns an empty string even though the file is written correctly a few
+milliseconds later. A non-blocking variant that only queues the scan would avoid this.
 
 **FormID Persistence:**
 ```
@@ -67,7 +194,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerDeclutter.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -86,6 +213,8 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 - `OnLoadUnifiedConfig()` / `OnSaveUnifiedConfig()` - Settings persistence
 - `NotifyDESTDetectionStatus()` - Update UI with DEST mod status
 - Various `On*` callback functions for UI interop
+
+**Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file and the OpenRouter config are written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
 
 **PrismaUI View Path:**
 ```
@@ -115,13 +244,72 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 **Key Functions:**
 - `SetLearningTarget(school, formId, prereqs)` - Set active target with prerequisites
 - `SetTargetPrerequisites(targetId, prereqs)` - Update prerequisites for a target
-- `IsDirectPrerequisite(targetId, castId)` - Check if cast spell is direct prereq
+- `IsDirectPrerequisite(targetId, castId)` - Check if cast spell is direct prereq (the list the UI sent, else the tree's hard/soft prerequisites - a target set from a spell tome comes with no list)
 - `AddXP(formId, amount)` - Add XP to spell (triggers early grant/mastery)
 - `OnSpellCast(school, castSpellId, baseXP)` - Handle cast event
 - `GetProgress(formId)` - Get SpellProgress struct
 - `IsSpellAvailableToLearn(formId)` - Check if spell can receive XP
 - `ClearLearningTargetForSpell(formId)` - Clear target after mastery
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
+
+**Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the
+player already knows - a higher spell from a tome, a vendor, another mod - now opens its **direct**
+prerequisites (hard, soft and PRM locks alike): they become learnable whatever their own prerequisites,
+and cost a share of their XP set per tier of the opened spell - `reverseUnlockXPNovice` ...
+`reverseUnlockXPMaster`, defaults 30 / 40 / 50 / 70 / 80%, so an Expert spell opened by a known Master
+spell costs 70%. This applies only to spells opened from above; learning upward keeps the tier XP as it
+is. "Opened from above" means a mastered spell lists it as a prerequisite, however that spell was
+learned: a spell with soft prerequisites (need one of A1/A2/A3), once mastered through A1, opens A2 and A3
+at their share too. By default only one step: the prerequisite's
+own prerequisites open once it is learned in turn; `reverseUnlockToRoot` opens every spell below it
+down to the root at once. One rule, three places that ask it:
+- C++ `ProgressionManager::IsUnlockedByKnownChild` - `AreTreePrerequisitesMet` (the mod API, Papyrus,
+  ISL; it checks the spell's own prerequisites first and walks up only when they are not met) and the
+  spell tome hook's prerequisite check accept it. The walk looks children up in `m_requiredBy`
+  (`GetRequiredBy`), the prerequisite links the other way round, kept in step as links are set
+  (`SetPrereqRequirements` -> `LinkRequiredBy`) - not a scan of every spell per step. Both survive a
+  save load (`ClearAllProgress` leaves them): they are tree data, sent only when a tree loads; `GetRequiredXP` applies the share to a
+  spell that has no required XP from the panel yet (a tome read before the spell was ever a target).
+- JS `recalculateNodeAvailability` (`cppCallbacks.js`) sets `node.openedByKnownChild` and opens the node.
+- JS `getRequiredXPForNode` (`progressionUI.js`) - the one place the panel works out a spell's required
+  XP: override, else tier, times `getReverseUnlockXPShare(tier)` when `openedByKnownChild`. C++ has the
+  same lookup (`ProgressionManager::GetReverseUnlockXPShare`). C++ keeps the number it was sent with
+  the target; `RequiredXPSync` (`modules/requiredXPSync.js`) sends it again through the `SetRequiredXP`
+  listener whenever C++ reports another one - after a load (the co-save keeps only the percent, so C++
+  starts from tier XP: `GetRequiredXP` with no stored value), or when a known higher spell or a share
+  slider changes it mid-session. The Learn button, auto-advance,
+  the progress read-out, the spell card and the tree's XP rings all use it. The Learn button used to
+  send `node.requiredXP || 100`, and nothing ever set `node.requiredXP`, so every spell started from
+  the button was a 100 XP target in C++ whatever its tier.
+
+The spell card says why such a spell is open (`#reverse-unlock-note`). Config: `reverseUnlock` (default
+true), `reverseUnlockToRoot` (default false) and `reverseUnlockXPNovice` ... `reverseUnlockXPMaster`
+(0.1 - 1.0 in the panel; C++ clamps to 0.01 - 1),
+read by both sides (`UIManagerConfig.cpp`, `settingsPanel.js`); `reverseUnlock: false` gives the old
+behaviour. In the panel: *Settings > Progression > Known Higher Spells*, right under the XP per tier -
+a switch for the rule, one for "down to the root" and a slider per tier for the XP share
+(`modules/reverseUnlockSetting.js`, which also saves, loads, resets and puts in settings presets
+every key below).
+
+Everything else about learning works downward too:
+- **XP gain rates.** With `reverseXpSeparate` on, spells learned downward (C++ `IsUnlockedByKnownChild`)
+  gain XP at their own rates - `reverseXpGlobalMultiplier` (x1 - x1000), `reverseXpMultiplierDirect` /
+  `School` / `Any` and `reverseXpCapAny` / `School` / `Direct` (percent, like the `xp*` keys; defaults
+  the same as theirs). `ProgressionManager::GetGainRates(targetId)` picks the set, for spell casts
+  (`OnSpellCast`) and for `AddSourcedXP` (the mod API, passive learning, BookXP), whose modded sources
+  take the downward overall multiplier. Off (the default), both directions share the upward rates.
+  Turning it on the first time starts the sliders from the upward values.
+- **Direct source.** A cast counts as "direct" when the spell cast leads to the target
+  (`IsDirectPrerequisite`, which also reads the tree's prerequisites, so targets set from a spell tome
+  get it too) or - learning downward, with `reverseUnlock` on - is the spell above it that opened it
+  (`IsDirectChild`: the cast spell lists the target as a hard or soft prerequisite).
+- **Auto-advance, branch mode.** `_autoAdvanceBranchNext` (`progressionUI.js`) follows the direction
+  the mastered spell was learned in: its children when learned upward, its own prerequisites (which it
+  opens once mastered) when learned downward, the other direction when that one has nothing
+  available. Random mode already picks from every available spell in the school.
+- **Passive learning** reads the tier from the spell (`SpellScanner::DetermineSpellTier`) for its
+  per-tier cap and its "novice" scope. It used to read it off the required XP, so a spell at a
+  reverse-unlock share passed for a lower tier (an Adept spell at 50% = 200 XP took the Apprentice cap).
 
 **XP Source Priority:**
 1. **Self-cast** (casting the learning target itself) - 100% multiplier, no cap
@@ -239,7 +427,7 @@ struct EarlyLearningSettings {
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
 
-### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`)
+### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -248,6 +436,7 @@ struct EarlyLearningSettings {
 - When spell is NOT in system: let vanilla proceed (teach + consume)
 - Configurable XP grant per read (default 25% of required)
 - **Tome inventory boost** - bonus XP while tome in inventory (25%)
+- **Tome inventory cache** (2026-09-25) - the boost is checked once per learning target on every cast, and answering it meant walking the player's whole inventory each time. `SpellTomeHookInventory.cpp` keeps the answer per spell until the inventory changes: a `TESContainerChangedEvent` sink (registered at kDataLoaded) invalidates it when the player is the old or new container and the moved item is a spell tome (or cannot be looked up), and revert and post-load invalidate it too. The event can come from any thread, so the sink only bumps an atomic counter; the cache compares that number on its next lookup and starts over when it moved, and an answer computed while the counter moved is not kept
 - Prerequisite checking before allowing tome XP
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
 
@@ -315,7 +504,8 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 - `Initialize()` - Load config
 - `SendPromptAsync(systemPrompt, userPrompt, callback)` - Background thread
 - `SendPrompt(systemPrompt, userPrompt)` - Blocking call
-- `GetConfig()` / `SaveConfig()` - Persistence
+- `GetConfigCopy()` / `UpdateConfig(fn)` / `SaveConfig()` - Persistence. The config is read from the game thread and from the tree-build thread, so there is no reference-returning getter: readers take a copy, writers edit under `s_configMutex` through `UpdateConfig`. `SendPrompt(const Config&, ...)` lets a background thread send with the copy it took
+- HTTPS verifies the server certificate (`CURLOPT_SSL_VERIFYPEER`/`VERIFYHOST` on, native Windows CA store)
 
 ### 9. **TreeNLP** (`plugins/spelllearning/src/treebuilder/TreeNLP.cpp`, `plugins/spelllearning/include/treebuilder/TreeNLP.h`)
 **Status:** ✅ Implemented
@@ -349,7 +539,7 @@ struct SparseVector {
 ```
 
 ### 10. **TreeBuilder** (`plugins/spelllearning/src/treebuilder/`, `plugins/spelllearning/include/treebuilder/TreeBuilder.h`)
-Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderGraph.cpp, TreeBuilderOracle.cpp, TreeBuilderThematic.cpp, TreeBuilderThemes.cpp, TreeBuilderTree.cpp, SimdKernels.cpp
+Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderGraph.cpp, TreeBuilderOracle.cpp, TreeBuilderThematic.cpp, TreeBuilderThemes.cpp, TreeBuilderBridges.cpp, TreeBuilderTree.cpp, SimdKernels.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -419,6 +609,27 @@ struct BuildResult {
     float elapsedMs;
 };
 ```
+
+### 10a. **LayoutDeclutter** (`plugins/spelllearning/src/treebuilder/Layout*.cpp`, `plugins/spelllearning/include/treebuilder/LayoutDeclutter.h`)
+Split across: LayoutDeclutter.cpp, LayoutLineClear.cpp, LayoutLineClearCost.cpp, LayoutLineGrid.cpp, LayoutMath.cpp (internal types in `LayoutDeclutterInternal.h`)
+**Status:** ✅ Implemented
+
+The native twin of the panel's tree declutter pass (`modules/layoutDeclutter.js`, `layoutLineClear.js`,
+`layoutLineGrid.js`): spreads a built tree, moves spells off its lines, apart and off the heart, with the
+same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, every sum in the same order).
+`LayoutDeclutter::Run(request) -> reply` has no RE:: use and keeps all state per call.
+
+```
+JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
+  └─ UIManager::OnDeclutterTree (UIManagerDeclutter.cpp)
+       └─ AddTaskToGameThread ─► std::thread (worker): parse + LayoutDeclutter::Run
+            └─ AddTaskToGameThread ─► CallView("onDeclutterResult", {id, positions, moved, rounds, ...})
+                 └─ JS writes x/y onto the nodes, onDone saves the tree
+                    (error / no reply in 30 s / stale id: the sliced JavaScript pass or nothing)
+```
+
+Details, fallback and timings: [TREE_BUILDING_SYSTEM.md](TREE_BUILDING_SYSTEM.md#decluttering-before-save-layoutdeclutterjs-layoutlineclearjs-layoutlinegridjs-2026-09-26).
+Offline check: `tools/declutter-test`.
 
 ### 11. **PapyrusAPI** (`plugins/spelllearning/src/PapyrusAPI.cpp`, `plugins/spelllearning/include/PapyrusAPI.h`)
 **Status:** ✅ Implemented
@@ -520,13 +731,15 @@ amount → × source multiplier (0-200%) → × global multiplier
 
 ### Threading Model
 
-The plugin uses a game-thread-primary model with targeted background offloading. All game-thread dispatch goes through `AddTaskToGameThread()` (defined in `ThreadUtils.h`), which provides null-safety, exception handling, and named-task logging.
+The plugin uses a game-thread-primary model with targeted background offloading. All game-thread dispatch goes through `AddTaskToGameThread()` (defined in `ThreadUtils.h`), which provides null-safety, exception handling, and named-task logging. A caller off the game thread that needs an answer back uses `RunOnGameThreadAndWait(name, work, timeout)`, which posts the work, waits up to `timeout` (normally `kPapyrusWait`, 2 s; the answer usually arrives within a frame) and returns `std::optional` - empty when the task was dropped, timed out, or threw. It runs the work inline when already on the game thread, so it cannot deadlock itself.
+
+Note on "game thread": SKSE drains its task queue one task at a time, but not always on the thread that runs the main loop. In game the same queued task was seen running on four different thread ids. What the queue guarantees is order - no two tasks at once - and that is the property the lock-free state here relies on. Event sinks that the engine fires from worker threads (`SpellCastHandler`) therefore post their work into the queue instead of touching that state where they are called.
 
 **Game thread (SKSE main thread):**
 - All `RE::` engine calls (form lookups, spell add/remove, HUD messages)
-- Event sinks (SpellCastHandler, InputHandler, BookMenuWatcher)
-- Hooks (SpellTomeHook, SpellEffectivenessHook)
-- Papyrus native functions (PapyrusAPI, ISLIntegration)
+- Event sinks (InputHandler, BookMenuWatcher). `SpellCastHandler` is called on the casting thread and posts its work to the task queue
+- Hooks (SpellTomeHook, SpellEffectivenessHook) - both entry points are wrapped in try/catch: they sit above engine machine code with no unwind information, so an exception leaving them would end the process instead of reaching any handler
+- Papyrus native functions (PapyrusAPI, ISLIntegration) - **not called there**: the script VM runs natives on its own worker threads. Natives that return nothing post their work with `AddTaskToGameThread()`; natives that return a value use `RunOnGameThreadAndWait()` and hand the script a fallback if the game thread does not answer. `IsMenuOpen` is the exception and reads an atomic flag directly
 - SKSE serialization callbacks (co-save read/write)
 - UIManager callbacks dispatch to game thread via `AddTaskToGameThread()`
 
@@ -535,13 +748,34 @@ The plugin uses a game-thread-primary model with targeted background offloading.
 - `OpenRouterAPI` — detached `std::thread` for HTTP requests, dispatches callback to game thread via `AddTaskToGameThread()`
 - `TreeBuilder::Build()` — detached `std::thread` for NLP tree construction (TF-IDF, similarity matrices, Edmonds' arborescence). Uses OpenMP for inner-loop parallelism. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - `TreeNLP::ProcessPRMRequest()` — detached `std::thread` for prerequisite-master scoring. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
+- Config save worker (`UIManagerConfigSave.cpp`) — one detached `std::thread`, started on the first save, that reads, merges and writes `config.json` for queued saves in order and posts the settings back to the game thread via `AddTaskToGameThread()` (2026-09-25)
 
 **Synchronization primitives:**
 - `SpellEffectivenessHook` — `std::shared_mutex` (reader-writer) for hot-path spell data
-- `SpellTomeHook` — `std::mutex` for tome XP tracking set
+- `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink only touches the counter)
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
-- `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention
+- `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
+- `OpenRouterAPI` — `std::mutex` around the config; readers copy, writers go through `UpdateConfig`
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)
+
+### Logging (2026-09-25)
+
+CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all three DLLs) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
+
+### Tree load (2026-09-25)
+- `GetSpellInfoBatch` keeps each spell's info as JSON (`SpellScanner::GetSpellInfoJsonByFormId`) instead of building text and parsing it back once per spell; `GetSpellInfoByFormId` is the serialized wrapper for the single-spell path
+- `ProgressionManager::LinkRequiredBy` checks a child list before adding to it instead of building a set on every call
+- `GetPlayerKnownSpells` formats ids with `std::format` and logs each spell at trace level only
+
+### Effect hook and XP notifications (2026-09-26)
+- The effect hook (`ApplyEffectivenessScalingFast`, every effect of every player spell) reads the progress
+  with `ProgressionManager::GetProgressPercent` (no copy of `SpellProgress`, whose modded-source map
+  allocates) and takes one shared lock for the early-learned check, the power step and the binary threshold
+  (`SpellEffectivenessHook::ScalingFor`); it took the lock four or five times and copied the progress twice.
+  `GetCurrentPowerStep` reads the progress the same way.
+- `UIManager::NotifyProgressUpdate` (every XP gain) returns for a hidden panel before anything else, and its
+  "PrismaUI not valid" warning - written to disk at once - is logged once, not once per cast.
+- `PapyrusAPI` `AddSourcedXP`/`AddRawXP` log at debug (another mod may call them on every hit).
 
 ### C++ Plugin Performance (Feb 2026)
 - **`std::shared_mutex`** for read-heavy concurrent access (replaces `std::mutex`)
@@ -562,7 +796,7 @@ The plugin uses a game-thread-primary model with targeted background offloading.
 
 **Core Files:**
 - `index.html` - UI structure, module load order
-- `styles.css` + `styles-skyrim.css` - Styling (dark theme + Skyrim theme)
+- `styles-skyrim.css` - Styling (Skyrim Edge, the one UI theme); designs lay `themes/design-*.css` over it
 - `script.js` - Main initialization, tabs, button wiring (e.g. proceduralBtn → onProceduralClick), early learning helpers
 
 **JavaScript Modules (`modules/`) – key ones:**
@@ -873,6 +1107,22 @@ All settings stored in single config file, managed through UI:
   "xpAdept": 400,
   "xpExpert": 800,
   "xpMaster": 1500,
+
+  "reverseUnlock": true,
+  "reverseUnlockToRoot": false,
+  "reverseUnlockXPNovice": 0.3,
+  "reverseUnlockXPApprentice": 0.4,
+  "reverseUnlockXPAdept": 0.5,
+  "reverseUnlockXPExpert": 0.7,
+  "reverseUnlockXPMaster": 0.8,
+  "reverseXpSeparate": false,
+  "reverseXpGlobalMultiplier": 1,
+  "reverseXpMultiplierDirect": 100,
+  "reverseXpMultiplierSchool": 50,
+  "reverseXpMultiplierAny": 10,
+  "reverseXpCapAny": 5,
+  "reverseXpCapSchool": 15,
+  "reverseXpCapDirect": 50,
   
   "revealName": 10,
   "revealEffects": 25,
@@ -960,6 +1210,9 @@ HeartOfMagic/
 │   │   │   ├── treebuilder/
 │   │   │   │   ├── TreeBuilder.h            ✅ Tree construction engine header
 │   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers
+│   │   │   │   ├── LayoutDeclutter.h        ✅ Native tree declutter (Run: request -> reply)
+│   │   │   │   ├── LayoutDeclutterInternal.h ✅ Its internal types and constants
+│   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
 │   │   │   │   └── TreeNLP.h                ✅ Core NLP header
 │   │   │   └── uimanager/
 │   │   │       ├── UIManager.h              ✅ UI manager header
@@ -969,22 +1222,27 @@ HeartOfMagic/
 │   │       ├── SpellCastHandler.cpp         ✅ Spell cast events, notification throttling
 │   │       ├── SpellCastXPSource.cpp        ✅ XP source implementation
 │   │       ├── SpellTomeHook.cpp            ✅ Tome interception, XP grant, keep book
+│   │       ├── SpellTomeHookInventory.cpp   ✅ Tome inventory boost and its cache
 │   │       ├── OpenRouterAPI.cpp            ✅ LLM API client (OpenRouter/WinHTTP)
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
+│   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (8 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (11 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen, PRM scoring)
+│   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
-│   │       │   ├── UIManagerConfig.cpp          (unified config load/save/apply)
+│   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)
+│   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
+│   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
 │   │       │   ├── UIManagerLLM.cpp             (LLM/OpenRouter integration)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
 │   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (5 files)
@@ -998,7 +1256,7 @@ HeartOfMagic/
 │   │       │   ├── SpellEffectivenessHookDisplay.cpp (display name/description modification)
 │   │       │   ├── SpellEffectivenessHookLegacy.cpp (legacy compatibility)
 │   │       │   └── SpellEffectivenessHookGrant.cpp  (early spell granting/removal)
-│   │       └── treebuilder/                 ✅ Native NLP tree construction (9 files)
+│   │       └── treebuilder/                 ✅ Native NLP tree construction + tree declutter (14 files)
 │   │           ├── TreeBuilderCore.cpp          (build dispatch, validation, repair)
 │   │           ├── TreeBuilderClassic.cpp       (Classic mode: tier-first)
 │   │           ├── TreeBuilderTree.cpp          (Tree mode: NLP thematic)
@@ -1006,7 +1264,13 @@ HeartOfMagic/
 │   │           ├── TreeBuilderThematic.cpp      (Thematic mode: 3D similarity BFS)
 │   │           ├── TreeBuilderOracle.cpp        (Oracle mode: LLM-guided)
 │   │           ├── TreeBuilderThemes.cpp        (theme discovery + spell grouping)
+│   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
+│   │           ├── LayoutDeclutter.cpp          (declutter: collect, spread, push apart, reply; JS twin: modules/layoutDeclutter.js)
+│   │           ├── LayoutLineClear.cpp          (declutter line search: passes, one spell's search)
+│   │           ├── LayoutLineClearCost.cpp      (declutter line search: the cost of a spot)
+│   │           ├── LayoutLineGrid.cpp           (declutter line search: grids and fans)
+│   │           ├── LayoutMath.cpp               (fdlibm sin/cos/atan2)
 │   │           └── SimdKernels.cpp              (SIMD-optimized compute kernels)
 │   ├── DummyDEST/                 # DEST compatibility shim
 │   │   ├── CMakeLists.txt
@@ -1027,7 +1291,7 @@ HeartOfMagic/
 ├── PrismaUI/views/SpellLearning/
 │   └── SpellLearningPanel/          ✅ Main UI (39 modules)
 │       ├── index.html               ✅ UI structure + module loading
-│       ├── styles.css               ✅ Default dark styling
+│       ├── themes/design-*.css      Designs laid over styles-skyrim.css (Arcane, Modern Dark)
 │       ├── styles-skyrim.css        ✅ Skyrim-themed styling
 │       ├── script.js                ✅ Main app logic
 │       ├── themes/                  ✅ Theme definitions (default, skyrim)
@@ -1059,7 +1323,6 @@ MO2/mods/HeartOfMagic_RELEASE/
 │           └── SpellLearningPanel/
 │               ├── index.html
 │               ├── script.js
-│               ├── styles.css
 │               ├── styles-skyrim.css
 │               ├── themes/
 │               └── modules/            # JavaScript modules

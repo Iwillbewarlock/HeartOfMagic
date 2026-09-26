@@ -221,19 +221,19 @@ function applyPreset(preset) {
         state.fields = {
             editorId: true, magickaCost: false, minimumSkill: false, castingType: false,
             delivery: false, chargeTime: false, plugin: false, effects: false,
-            effectNames: true, keywords: false
+            effectNames: true, keywords: false, effectDetails: false
         };
     } else if (preset === 'balanced') {
         state.fields = {
             editorId: true, magickaCost: true, minimumSkill: false, castingType: false,
             delivery: false, chargeTime: false, plugin: false, effects: false,
-            effectNames: true, keywords: false
+            effectNames: true, keywords: false, effectDetails: false
         };
     } else if (preset === 'full') {
         state.fields = {
             editorId: true, magickaCost: true, minimumSkill: true, castingType: true,
             delivery: true, chargeTime: true, plugin: true, effects: true,
-            effectNames: false, keywords: true
+            effectNames: false, keywords: true, effectDetails: true
         };
     }
     

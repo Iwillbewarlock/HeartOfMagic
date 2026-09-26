@@ -1,6 +1,6 @@
 # Presets: Creating and Sharing
 
-Heart of Magic has two preset systems that let you save, share, and load configurations.
+Heart of Magic has three preset systems that let you save, share, and load configurations.
 
 ## Preset Types
 
@@ -8,6 +8,10 @@ Heart of Magic has two preset systems that let you save, share, and load configu
 |------|---------------|----------|
 | **Settings Presets** | XP rates, tier requirements, progression tuning, early spell learning, tome learning | "Easy mode", "Hardcore", custom difficulty |
 | **Scanner Presets** | Root layout, growth algorithm settings, grid config, spell matching mode, PreReq Master locks | "Wide radial tree", "Tight clustered", custom visual style |
+| **Design Presets** | How the panel looks: how the spell tree is drawn, the UI theme, extra CSS | "Arcane" spellbook, "Modern Dark", "Classic", looks shipped by add-ons |
+
+Design presets are picked from a list (*Settings > UI Display > Design*), not saved from the
+panel; they come from the mod and from files. See [Design Presets](#design-presets) below.
 
 ## In-Game Operations
 
@@ -188,6 +192,112 @@ Scanner preset example:
   }
 }
 ```
+
+## Design Presets
+
+A design preset decides how the panel looks. Three are built in: **Arcane** (the default, an open
+spellbook on parchment), **Modern Dark** (slate-blue glass, amber accent, rounded) and **Classic** (the
+tree as it looked before presets). Two more ship with the mod as preset files, **Night Grimoire** and
+**Candlelit Tome** (`SKSE/Plugins/SpellLearning/presets/design/` in the repository) - copy one to start
+your own. Add-ons and players add more with
+one `.json` file each in:
+
+```
+Skyrim SE/Data/SKSE/Plugins/SpellLearning/presets/design/
+```
+
+Each file is its own design, so add-ons never have to share or overwrite a list. The file's `name` is
+what the list shows; `id` (optional, else the name) is what the player's choice is saved as. A built-in
+id (`arcane`, `modern`, `classic`) cannot be replaced.
+
+A player can turn off a design's page, selection sigil, learning glow and heart runes in the
+render popup (its chips), or still everything at once; a design does not need
+to offer its own switches for them.
+
+### The `render` block
+
+The heart, globe and starfield are the design's to shape: a preset's optional `render` object sets any
+of the panel's renderer settings by their config names, and the value counts over the player's saved
+one. Keys: `globeSize`, `globeParticleRadius`, `globeDensity`, `globeDotMin`, `globeDotMax`,
+`globeBgFill`, `particleCoreEnabled`, `heartPulseSpeed`, `heartPulseDelay`, `heartBgColor`,
+`heartRingColor`, `learningPathColor`, `globeColor`, `magicTextColor`, `globeText`, `globeTextSize`,
+`starfieldColor`, `starfieldDensity`, `starfieldMaxSize`, `starfieldSeed`, `starfieldBgColor`. A key
+the design leaves out keeps the shipped value. `globeSize` alone sizes the particle globe too. A value
+of the wrong type is converted when it can be ("60" -> 60) and skipped otherwise.
+
+```json
+"render": { "globeSize": 60, "globeText": "ARCANUM", "starfieldDensity": 120 }
+```
+
+Several looks can share one stylesheet: `cssFile` points at the sheet and each preset's inline `css`
+sets the variables it reads - the inline CSS is always applied after the sheet. The shipped Night
+Grimoire and Candlelit Tome do this with `themes/design-darkbook.css` and a `:root { --book-... }`
+palette; a new dark look only needs its own palette.
+(`--book-cover` is the leather's one colour; without it the sheet uses `--book-cover-top`.)
+
+**Keep a design's CSS cheap.** In game PrismaUI paints the panel on the CPU and repaints whatever lies
+under or over anything that changes, several times a second. Measured there: box shadows (blurred ones
+worst, but plain rings too) and gradients on large surfaces - the panel, its header, the cards, tools,
+tooltip, modals - tripled the stalls (223 vs 69 ms with a design's shadows and gradients off). Use one
+colour and `border`/`outline` for those (an inner rule: `outline` with a negative `outline-offset`); keep
+gradients and shadows to small things such as buttons.
+
+The heart, globe and learning-path colours can be set as tree tokens (`hubRing`, `hubFill`, `hubText`,
+`globeColor`, `learningColor`) or in the `render` block below. The render popup no longer offers them;
+a player's old value from before is put back to the shipped default once, so a design's colours show
+(`CanvasRenderer._designOrPlayer` still lets a non-default value through, for configs edited by hand).
+
+```json
+{
+  "id": "frost-codex",
+  "name": "Frost Codex",
+  "author": "SomeModder",
+  "description": "Pale blue vellum, silver ink.",
+  "names": { "ko": "서리 사본", "de": "Frost-Kodex" },
+  "descriptions": { "ko": "옅은 푸른 양피지, 은빛 잉크." },
+  "uiTheme": "skyrim",
+  "cssFile": "themes/frost-codex.css",
+  "css": ["#tooltip .tooltip-name { font-family: Georgia, serif; }"],
+  "tree": {
+    "pageColor": "#dfe8ee",
+    "schoolInk": 0.3,
+    "schoolInkTone": "#1a2a3a",
+    "labelFont": "Georgia, serif",
+    "chapterTitles": true
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `tree` | Tokens for the spell tree (below). Anything left out keeps the Classic value. |
+| `names`, `descriptions` | Optional. The name and description per language code (`ko`, `de`, `zh-cn`, ...), since an add-on cannot add lines to the mod's `lang/` files. Languages not listed show `name` / `description`. |
+| `uiTheme` | The UI theme the design is built on: an id from `themes/manifest.json` (`skyrim` = Skyrim Edge, the only one shipped; Modern Dark is Skyrim Edge with `themes/design-modern.css` over it). Left out, `skyrim`. The UI theme has no selector of its own any more - the design sets it. A design's CSS can also set `--preview-bg`, the background of the scan screen's tree previews. |
+| `cssFile` | Optional. A stylesheet laid over the theme, path relative to the panel folder (`PrismaUI/views/SpellLearning/SpellLearningPanel/`). Ship it under your own name in `themes/`. |
+| `css` | Optional. The same, written inline: a string or an array of lines. |
+
+Colours in `tree` are `#rrggbb` or `rgba(r, g, b, a)`. A token with the wrong type (text where a number
+belongs) is ignored and keeps its Classic value; unknown tokens are ignored, so a preset written for a
+newer version still loads.
+
+### Tree tokens
+
+| Group | Tokens |
+|-------|--------|
+| Page | `pageColor` (`""` keeps the starfield), `pageGrain` 0-1, `pageGrainColor`, `pageGlow`, `pageGlowAlpha`, `pageGlowRadius`, `pageEdge`, `pageEdgeAlpha` |
+| Ink | `schoolInk` 0-1 and `schoolInkTone`: school colours mixed toward the tone, so the player's own school colours still read on the page. `learningColor` (`""` = the player's setting) |
+| Labels | `labelFont`, `labelMaxChars`, `labelHalo` (outline colour, `""` = none), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
+| Spells | `nodeFill`, `unlockedFill`, `unlockedRim`, `unlockedCore` (`""` = school colour or its dark shade), `lockedStroke`, `mysteryFill`, `focusStroke`, `ringTrack`, `availableAlpha`, `availableRing`, `nodeGlow`, `learningGlow` |
+| Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes` |
+| Lines | `dimEdgeColor`, `unlockedEdgeColor`, `unlockedEdgeAlpha`, `unlockedEdgeWidth`, `edgeGlow`, `lockedEdgeColor`, `lockedEdgeAlpha`, `frontierEdgeAlpha` (edges into learnable spells; 0 = drawn as locked), `selectedPathColor`, `selectedPathAlpha`, `selectedPathWidth`, `hoverPathAlpha` |
+| Book | `accent` (sigil, runes, chapter titles, dividers), `selectionSigil`, `chapterTitles`, `chapterSize`, `dividerOrnament` (`reveal`, `revealMs` and `inkColor` - the ink reveal on opening - were removed and are ignored) |
+
+`TreeStyle.DEFAULTS` in `modules/treeStyle.js` is the authoritative list with the Classic values, and
+the Arcane preset in `modules/designPresets.js` is a full worked example. `nodeGlow` and `edgeGlow` are
+the costly ones (a sprite per learned spell, a wide stroke per learned edge); the rest cost about the
+same as Classic. See [DESIGN.md](DESIGN.md) for measurements.
+
+Restart the game after adding a file: presets are read once, when the panel first loads its settings.
 
 ## Tips
 

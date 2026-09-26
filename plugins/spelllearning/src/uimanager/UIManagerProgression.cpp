@@ -66,7 +66,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             response["success"] = true;
             response["school"] = school;
             response["formId"] = formIdStr;
-            instance->m_prismaUI->InteropCall(instance->m_view, "onLearningTargetSet", response.dump().c_str());
+            instance->CallView("onLearningTargetSet", response.dump().c_str());
 
             // Update spell state to "learning" so canvas renderer shows learning visuals
             instance->UpdateSpellState(formIdStr, "learning");
@@ -226,54 +226,42 @@ void UIManager::OnGetPlayerKnownSpells([[maybe_unused]] const char* argument)
             return true;
         };
 
+        // One entry per spell, whichever list it came from. Per-spell lines are
+        // trace: this runs on every panel open and a late game knows hundreds.
+        auto addKnownSpell = [&](RE::SpellItem* spell, const char* source) {
+            if (!spell || foundSpells.contains(spell->GetFormID())) return;
+            if (!isValidCombatSpell(spell)) {
+                logger::trace("UIManager: Skipping non-combat spell/ability: {} ({:08X})",
+                    spell->GetName(), spell->GetFormID());
+                return;
+            }
+            foundSpells.insert(spell->GetFormID());
+            std::string formIdStr = std::format("0x{:08X}", spell->GetFormID());
+
+            // Check if this spell is weakened (early-learned)
+            const bool weakened = effectivenessHook && effectivenessHook->IsEarlyLearnedSpell(spell->GetFormID());
+            logger::trace("UIManager: Player {} spell: {} ({}){}", source, spell->GetName(), formIdStr,
+                weakened ? " [WEAKENED]" : "");
+            if (weakened) {
+                weakenedSpells.push_back(formIdStr);
+            }
+            knownSpells.push_back(std::move(formIdStr));
+        };
+
         // Get the player's spell list from ActorBase
         auto* actorBase = player->GetActorBase();
         if (actorBase) {
             auto* spellList = actorBase->GetSpellList();
             if (spellList && spellList->spells) {
                 for (uint32_t i = 0; i < spellList->numSpells; ++i) {
-                    auto* spell = spellList->spells[i];
-                    if (spell && foundSpells.find(spell->GetFormID()) == foundSpells.end()) {
-                        if (isValidCombatSpell(spell)) {
-                            std::stringstream ss;
-                            ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spell->GetFormID();
-                            knownSpells.push_back(ss.str());
-                            foundSpells.insert(spell->GetFormID());
-
-                            // Check if this spell is weakened (early-learned)
-                            if (effectivenessHook && effectivenessHook->IsEarlyLearnedSpell(spell->GetFormID())) {
-                                weakenedSpells.push_back(ss.str());
-                                logger::info("UIManager: Player knows spell: {} ({}) [WEAKENED]", spell->GetName(), ss.str());
-                            } else {
-                                logger::info("UIManager: Player knows spell: {} ({})", spell->GetName(), ss.str());
-                            }
-                        } else {
-                            logger::trace("UIManager: Skipping non-combat spell/ability: {} ({:08X})",
-                                spell->GetName(), spell->GetFormID());
-                        }
-                    }
+                    addKnownSpell(spellList->spells[i], "knows");
                 }
             }
         }
 
         // Also check spells added at runtime via AddSpell
         for (auto* spell : player->GetActorRuntimeData().addedSpells) {
-            if (spell && foundSpells.find(spell->GetFormID()) == foundSpells.end()) {
-                if (isValidCombatSpell(spell)) {
-                    std::stringstream ss;
-                    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spell->GetFormID();
-                    knownSpells.push_back(ss.str());
-                    foundSpells.insert(spell->GetFormID());
-
-                    // Check if this spell is weakened (early-learned)
-                    if (effectivenessHook && effectivenessHook->IsEarlyLearnedSpell(spell->GetFormID())) {
-                        weakenedSpells.push_back(ss.str());
-                        logger::info("UIManager: Player added spell: {} ({}) [WEAKENED]", spell->GetName(), ss.str());
-                    } else {
-                        logger::info("UIManager: Player added spell: {} ({})", spell->GetName(), ss.str());
-                    }
-                }
-            }
+            addKnownSpell(spell, "added");
         }
 
         result["knownSpells"] = knownSpells;
@@ -281,7 +269,7 @@ void UIManager::OnGetPlayerKnownSpells([[maybe_unused]] const char* argument)
         result["count"] = knownSpells.size();
 
         logger::info("UIManager: Found {} valid combat spells", knownSpells.size());
-        instance->m_prismaUI->InteropCall(instance->m_view, "onPlayerKnownSpells", result.dump().c_str());
+        instance->CallView("onPlayerKnownSpells", result.dump().c_str());
     });
 }
 
@@ -382,7 +370,7 @@ void UIManager::OnRelockSpell(const char* argument)
             notify["success"] = true;
             notify["relocked"] = true;
 
-            instance->m_prismaUI->InteropCall(instance->m_view, "onSpellRelocked", notify.dump().c_str());
+            instance->CallView("onSpellRelocked", notify.dump().c_str());
             instance->UpdateSpellState(formIdStr, "available");
 
         } catch (const std::exception& e) {
@@ -425,6 +413,28 @@ void UIManager::OnSetSpellXP(const char* argument)
             }
         } catch (const std::exception& e) {
             logger::error("UIManager: SetSpellXP exception: {}", e.what());
+        }
+    });
+}
+
+// The panel's required XP for a learning target (RequiredXPSync.js): after a load,
+// which keeps only the percent, and whenever the number changes mid-session
+// (a known higher spell opens the target, a share slider moves).
+void UIManager::OnSetRequiredXP(const char* argument)
+{
+    if (!argument || strlen(argument) == 0) return;
+    std::string argStr(argument);
+    AddTaskToGameThread("SetRequiredXP", [argStr]() {
+        try {
+            json request = json::parse(argStr);
+            std::string formIdStr = request.value("formId", "");
+            float requiredXP = request.value("requiredXP", 0.0f);
+            RE::FormID formId = formIdStr.empty() ? 0 : std::stoul(formIdStr, nullptr, 0);
+            if (formId == 0 || requiredXP <= 0.0f) return;
+            ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP);
+            GetSingleton()->NotifyProgressUpdate(formIdStr);
+        } catch (const std::exception& e) {
+            logger::error("UIManager: SetRequiredXP exception: {}", e.what());
         }
     });
 }
@@ -539,12 +549,14 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                     }
                 }
 
-                // Log spells with prerequisites for debugging
+                // No line per spell here. This runs on the game thread for every
+                // spell in the tree on every tree load - which is every game load -
+                // and it was looking the form up and fetching its name for the sake
+                // of the log alone: 1423 lookups and 1423 lines in 22 ms, two thirds
+                // of the whole log file. The count is logged once, below.
                 if (!reqs.hardPrereqs.empty() || !reqs.softPrereqs.empty()) {
-                    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
-                    logger::info("UIManager: Setting prereqs for {:08X} '{}': {} hard, {} soft (need {})",
-                        formId, spell ? spell->GetName() : "UNKNOWN",
-                        reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
+                    logger::trace("UIManager: prereqs {:08X}: {} hard, {} soft (need {})",
+                        formId, reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
                 }
 
                 pm->SetPrereqRequirements(formId, reqs);

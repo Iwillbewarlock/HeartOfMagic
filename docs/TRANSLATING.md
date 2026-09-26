@@ -69,6 +69,14 @@ Update this with your translation info:
 
 If a key is missing from your file, the English text from the HTML is shown as fallback. You don't need to translate every key to get started.
 
+Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
+
+To see which keys your file lacks, compare it with `en.json`:
+
+```
+node -e "var en=require('./lang/en.json'),x=require('./lang/fr.json');console.log(Object.keys(en).filter(k=>!(k in x)).join('\n'))"
+```
+
 ## Generating the Preload File
 
 You need **both** files: the `.json` (source of truth you edit) and the `.js` (what the game loads at runtime).
@@ -133,6 +141,9 @@ Users install your translation by dropping these 3 files into the `lang/` folder
    ```js
    window._i18nLocale = 'de';
    ```
+   A language the player picked in *Settings > UI Display > Language* wins over `locale.js`: the plugin
+   writes it to `lang/user_locale.js` (under MO2 you find it in overwrite). If your locale does not show
+   up, that file - or the picker - may still name another language.
 3. Launch the game and open the Heart of Magic panel
 4. If testing in a browser (dev harness), check console (F12) for `[i18n]` messages:
    - `[i18n] Loaded locale "de" from preload (524 keys)` = working

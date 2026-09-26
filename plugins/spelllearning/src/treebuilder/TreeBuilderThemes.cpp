@@ -19,6 +19,126 @@ const std::unordered_map<std::string, std::vector<std::string>>& TreeBuilder::Ge
     return hints;
 }
 
+// =============================================================================
+// MOD TAGS
+// =============================================================================
+//
+// Editor ids carry the author's prefix: "ABY_ShadowGrasp", "NAT_WaterSpray",
+// "DAR_ArcaneBlast". It says which mod a spell is from, not what the spell is,
+// and with a big mod installed it would top the theme count.
+//
+// A prefix is told by POSITION: the word an id starts with, shared by most of
+// that plugin's spells. How often a word appears is no test - a mod about one
+// thing (Abyss: shadow, Bloodmoon: blood) uses that word on nearly every spell
+// too, and it is exactly the word the branch should be named after. It never
+// leads the id, though: the prefix does.
+//
+// Except when a mod names every spell after what it does: Witcher Horses
+// starts 19 of its 20 ids with "Conjure", and "conjure" then vanished as a word
+// from every mod's ids. So a word the base game's own ids use is never a
+// prefix - the base game has no author prefixes to mistake for one.
+
+namespace
+{
+    constexpr std::size_t kMinPluginSpellsForTag = 5;  // too few spells prove nothing
+
+    constexpr std::size_t kMinSpellsPerTheme = 2;  // one spell is not a group
+
+    // topN was sized for the days when the word themes had to cover fire, frost
+    // and the rest. Rule 1 has those now; what is left for the words is a long
+    // tail of small natures (polymorph, teleport, aura ...), so they get more room.
+    constexpr int kWordThemeRoom = 3;
+    constexpr float kTagLeadShareInPlugin = 0.8f;      // leads this share of the plugin's ids
+
+    // The game and its DLC: their ids carry no author prefix, so their words are words
+    const std::unordered_set<std::string> kBaseGamePlugins = {
+        "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"
+    };
+
+    std::string SpellPlugin(const json& spell)
+    {
+        auto plugin = spell.value("plugin", std::string(""));
+        if (plugin.empty()) {
+            const auto persistentId = spell.value("persistentId", std::string(""));
+            plugin = persistentId.substr(0, persistentId.find('|'));
+        }
+        return TreeNLP::ToLower(plugin);
+    }
+
+    std::string LeadingIdWord(const json& spell)
+    {
+        return TreeBuilder::LeadingIdWordOf(spell.value("editorId", std::string("")));
+    }
+}
+
+// First word of the editor id, as the tokenizer would see it.
+std::string TreeBuilder::LeadingIdWordOf(const std::string& editorId)
+{
+    {
+        std::string word;
+        unsigned char previous = 0;  // as written, before lower-casing
+        for (const char c : editorId) {
+            const auto current = static_cast<unsigned char>(c);
+            if (!std::isalnum(current)) {
+                if (word.empty()) continue;  // ids like "_NV_Player_..." start with a separator
+                break;
+            }
+            // camelCase boundary: "madAbsorb" leads with "mad"
+            if (!word.empty() && std::isupper(current) && std::islower(previous)) break;
+            word += static_cast<char>(std::tolower(current));
+            previous = current;
+        }
+        return word;
+    }
+}
+
+namespace
+{
+}
+
+std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>& spells)
+{
+    std::unordered_map<std::string, std::size_t> pluginSizes;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
+    std::unordered_set<std::string> baseGameWords;
+    for (const auto& spell : spells) {
+        const std::string plugin = SpellPlugin(spell);
+        if (kBaseGamePlugins.contains(plugin)) {
+            // The spell's own id only: effect ids use shorthand ("Mag...") that
+            // would pass a real mod prefix (GTS Spells' "MAG_") off as a word
+            const json idOnly = {{"editorId", spell.value("editorId", std::string(""))}};
+            for (auto& word : TreeNLP::Tokenize(TreeNLP::BuildIdText(idOnly))) {
+                baseGameWords.insert(std::move(word));
+            }
+        }
+        const std::string lead = LeadingIdWord(spell);
+        if (plugin.empty() || lead.empty()) continue;
+        pluginSizes[plugin]++;
+        leadsByPlugin[plugin][lead]++;
+    }
+
+    std::unordered_set<std::string> tags;
+    for (const auto& [plugin, leads] : leadsByPlugin) {
+        const std::size_t pluginSize = pluginSizes[plugin];
+        if (pluginSize < kMinPluginSpellsForTag) continue;
+        for (const auto& [lead, count] : leads) {
+            if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin &&
+                !baseGameWords.contains(lead)) {
+                tags.insert(lead);
+            }
+        }
+    }
+    return tags;
+}
+
+namespace
+{
+    // "alt50", "ill25", "100": level codes and magnitudes, never a nature.
+    bool HasDigit(const std::string& term)
+    {
+        return std::any_of(term.begin(), term.end(), [](unsigned char c) { return std::isdigit(c); });
+    }
+}
 std::unordered_map<std::string, std::vector<std::string>>
 TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
 {
@@ -40,9 +160,11 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
     for (const auto& [school, sSpells] : schoolSpells) {
         if (sSpells.size() < 2) continue;
 
-        // Build text corpus for this school
+        // Build text corpus for this school. Spells that get their theme from
+        // traits stay out of it: the word themes only have to cover the rest.
         std::vector<std::vector<std::string>> documents;
         for (const auto& spell : sSpells) {
+            if (!ThemeFromTraits(spell).empty()) continue;
             auto text = TreeNLP::BuildThemeText(spell);
             auto tokens = TreeNLP::Tokenize(text);
             // Filter stop words
@@ -67,16 +189,42 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         }
 
         // Sort by score descending, take top N
-        std::vector<std::pair<std::string, float>> sorted(termScores.begin(), termScores.end());
-        std::sort(sorted.begin(), sorted.end(),
-            [](const auto& a, const auto& b) { return a.second > b.second; });
+        // A theme is worth the spells it brings together, so words are ranked by
+        // how many spells carry them. The TF-IDF sum alone ranks by how heavy a
+        // word is inside its document, which favours short documents: "blink", on
+        // one spell with a two word id, beat "polymorph" on eight spells with long
+        // descriptions, and a theme of one spell groups nothing.
+        std::unordered_map<std::string, std::size_t> spellsWithTerm;
+        for (const auto& doc : documents) {
+            const std::unordered_set<std::string> unique(doc.begin(), doc.end());
+            for (const auto& term : unique) spellsWithTerm[term]++;
+        }
+
+        std::vector<std::pair<std::string, float>> sorted;
+        for (const auto& [term, score] : termScores) {
+            if (spellsWithTerm[term] >= kMinSpellsPerTheme) sorted.emplace_back(term, score);
+        }
+        // Score, then the term itself, settle ties - never the hash map's order.
+        std::sort(sorted.begin(), sorted.end(), [&spellsWithTerm](const auto& a, const auto& b) {
+            const std::size_t spellsA = spellsWithTerm[a.first];
+            const std::size_t spellsB = spellsWithTerm[b.first];
+            if (spellsA != spellsB) return spellsA > spellsB;
+            if (a.second != b.second) return a.second > b.second;
+            return a.first < b.first;
+        });
+
+        // Prefixes are judged over every spell of the plugin, not just this
+        // school's leftovers: the more ids, the surer the prefix.
+        const auto modTags = FindModTags(spells);
 
         std::vector<std::string> themes;
         for (const auto& [term, score] : sorted) {
             if (TreeNLP::IsStopWord(term)) continue;
+            if (modTags.contains(term)) continue;
             if (term.size() <= 2) continue;
+            if (HasDigit(term)) continue;
             themes.push_back(term);
-            if (static_cast<int>(themes.size()) >= topN) break;
+            if (static_cast<int>(themes.size()) >= topN * kWordThemeRoom) break;
         }
 
         result[school] = std::move(themes);
@@ -96,19 +244,23 @@ TreeBuilder::MergeWithHints(
     for (const auto& [school, themes] : discovered) {
         auto hintIt = hints.find(school);
         if (hintIt != hints.end()) {
-            // Hints first, then fill with discovered themes
-            auto result = hintIt->second;
-            std::unordered_set<std::string> hintLower;
-            for (const auto& h : result) hintLower.insert(TreeNLP::ToLower(h));
+            // Discovered themes first, hints after, and the hints do not eat into
+            // the discovered ones' room. The hints are fire / frost / shock /
+            // summon ... - what rule 1 already settles - so when they went first
+            // they used 8 of the 12 slots and words like "wind" or "arcane", the
+            // very thing rule 2 is kept for, fell off the end.
+            // DiscoverThemesPerSchool has already cut the list to size
+            (void)maxThemes;
+            std::vector<std::string> result(themes.begin(), themes.end());
+            std::unordered_set<std::string> present;
+            for (const auto& t : result) present.insert(TreeNLP::ToLower(t));
 
-            for (const auto& t : themes) {
-                if (!hintLower.contains(TreeNLP::ToLower(t))) {
-                    result.push_back(t);
-                    if (static_cast<int>(result.size()) >= maxThemes) break;
+            for (const auto& h : hintIt->second) {
+                if (present.insert(TreeNLP::ToLower(h)).second) {
+                    result.push_back(h);
                 }
             }
-            merged[school] = std::vector<std::string>(result.begin(),
-                result.begin() + std::min(static_cast<int>(result.size()), maxThemes));
+            merged[school] = std::move(result);
         } else {
             merged[school] = std::vector<std::string>(themes.begin(),
                 themes.begin() + std::min(static_cast<int>(themes.size()), maxThemes));
@@ -126,23 +278,278 @@ TreeBuilder::MergeWithHints(
 }
 
 // =============================================================================
+// TRAIT THEMES
+// =============================================================================
+//
+// Word themes only work where spell names are English: on a translated load
+// order the most frequent "words" left are fragments of mod keyword names, and
+// the branches end up grouped by which framework tagged a spell. The scan's
+// traits column says what a spell is without reading any text, so a spell that
+// has traits takes its theme from them and the word path is left for the rest.
+//
+// RULE 1 - traits. One theme per spell, most telling trait first: what is
+// summoned, then the element, then what the spell does.
+// RULE 2 - words (DiscoverThemesPerSchool + CalculateThemeScore, the original
+// method). It stays, because it is the only thing that can name a nature the
+// game has no value for: water, wind, stone, blood. Those spells have no resist
+// value and no vanilla keyword, so rule 1 has nothing to say about them.
+//
+// Order in GetSpellPrimaryTheme: rule 1 -> rule 2 -> rule 1's shape traits.
+// Cloak, rune and stagger describe the shape of a spell rather than its nature,
+// so for a spell without an element they wait until the words have had a go: a
+// wind cloak should land in "wind" when the words can tell, in "cloak" when not.
+
+namespace
+{
+    constexpr int kTraitThemeScore = 100;  // top of CalculateThemeScore's range
+
+    constexpr std::string_view kElementPrefix = "element.";
+    constexpr std::string_view kKindPrefix = "kind.";
+    constexpr std::string_view kSummonTrait = "kind.summon";
+    constexpr std::string_view kReanimateTrait = "kind.reanimate";
+
+    // Says "this hurts" and nothing else; every attack spell has it.
+    constexpr std::string_view kTooBroadKind = "kind.damage";
+
+    constexpr std::string_view kValuePrefix = "value.";
+
+    // Shape, not nature: only used when rule 2 finds nothing better.
+    constexpr std::string_view kShapeKinds[] = { "kind.cloak", "kind.rune", "kind.stagger" };
+
+    // A spell often carries several kinds and only one can name the branch.
+    // Taking the first one listed means the record's effect order decides, and
+    // it decides badly: vanilla Paralyze leads with a Rally helper, so it came
+    // out as "rally". This is the order of how much a kind narrows down what a
+    // spell is - a paralysis is always more telling than a rally, on any load
+    // order, because that is what the engine's archetypes mean. Not a ranking of
+    // this install: the archetypes are a closed set and their sense does not
+    // change, so the order cannot go stale the way a list of mod keywords would.
+    // The influence four sit at the end; they ride along on other spells most.
+    constexpr std::string_view kKindPriority[] = {
+        "kind.bound", "kind.soulTrap", "kind.banish", "kind.turnUndead",
+        "kind.paralysis", "kind.invisibility", "kind.ethereal", "kind.slowTime",
+        "kind.telekinesis", "kind.grab", "kind.guide", "kind.detect", "kind.nightEye",
+        "kind.light", "kind.lock", "kind.open", "kind.disarm", "kind.dispel",
+        "kind.command", "kind.cure", "kind.ward", "kind.armor", "kind.heal",
+        "kind.absorb", "kind.slow", "kind.frenzy", "kind.fear", "kind.calm", "kind.rally",
+    };
+
+    // Below this a word match is noise (same cut the builders apply).
+    constexpr int kWordThemeMinScore = 30;
+
+    // How far ahead a smaller theme must score to take a spell from a bigger one.
+    constexpr int kClearWinMargin = 10;
+
+
+    // Which of the summon's other traits names the branch, best first.
+    constexpr std::string_view kSummonQualifiers[] = {
+        "element.fire", "element.frost", "element.shock", "kind.undead", "kind.familiar"
+    };
+
+    std::string AfterDot(std::string_view trait)
+    {
+        const auto dot = trait.find('.');
+        return std::string(dot == std::string_view::npos ? trait : trait.substr(dot + 1));
+    }
+}
+
+bool TreeBuilder::IsShapeKind(std::string_view trait)
+{
+    return std::find(std::begin(kShapeKinds), std::end(kShapeKinds), trait) != std::end(kShapeKinds);
+}
+
+std::string TreeBuilder::ThemeFromTraits(const json& spell, bool fallback)
+{
+    const auto it = spell.find("traits");
+    if (it == spell.end() || !it->is_array()) return "";
+
+    std::vector<std::string> traits;
+    for (const auto& trait : *it) {
+        if (trait.is_string()) traits.push_back(trait.get<std::string>());
+    }
+    const auto has = [&traits](std::string_view wanted) {
+        return std::find(traits.begin(), traits.end(), wanted) != traits.end();
+    };
+
+    // After rule 2 has had its say: the spell's shape, then the actor value it
+    // changes. Better than nothing, but only once the words have failed.
+    if (fallback) {
+        for (const auto& trait : traits) {
+            if (IsShapeKind(trait)) return AfterDot(trait);
+        }
+        for (const auto& trait : traits) {
+            if (trait.starts_with(kValuePrefix)) return AfterDot(trait);
+        }
+        return "";
+    }
+
+    // Raising a corpse carries vanilla's MagicSummonUndead as well, but it is its
+    // own craft: it needs a body, a conjured thrall does not.
+    if (has(kReanimateTrait)) return AfterDot(kReanimateTrait);
+
+    if (has(kSummonTrait)) {
+        for (const auto qualifier : kSummonQualifiers) {
+            if (has(qualifier)) return "summon_" + AfterDot(qualifier);
+        }
+        return "summon";
+    }
+
+    for (const auto& trait : traits) {
+        if (trait.starts_with(kElementPrefix)) return AfterDot(trait);
+    }
+    // Most telling kind first, whatever order the record happened to list them in
+    for (const auto wanted : kKindPriority) {
+        if (has(wanted)) return AfterDot(wanted);
+    }
+    // A kind the order above has not heard of yet still counts
+    for (const auto& trait : traits) {
+        if (trait.starts_with(kKindPrefix) && trait != kTooBroadKind && !IsShapeKind(trait)) {
+            return AfterDot(trait);
+        }
+    }
+    return "";
+}
+
+// =============================================================================
+// ALL THE THEMES OF A SPELL
+// =============================================================================
+//
+// GetSpellPrimaryTheme has to settle on one, because a branch needs one name.
+// Comparing two spells does not: judged by that single pick, a moon touch spell
+// filed under "touch" counted as a MISMATCH against every other moon spell and
+// was pushed away from them. Here nothing is picked - the spell answers to every
+// theme it qualifies for, and two spells match when any of them coincide.
+
+std::vector<std::string> TreeBuilder::GetSpellThemes(const json& spell, const std::vector<std::string>& themes)
+{
+    std::vector<std::string> result;
+    const auto add = [&result](std::string theme) {
+        if (theme.empty() || theme == "_unassigned") return;
+        if (std::find(result.begin(), result.end(), theme) == result.end()) result.push_back(std::move(theme));
+    };
+
+    // The pick goes first, so themes.front() is always the branch name
+    const auto [picked, pickedScore] = GetSpellPrimaryTheme(spell, themes);
+    if (pickedScore > kWordThemeMinScore) add(picked);
+
+    // Every trait theme, not just the most telling one
+    if (const auto it = spell.find("traits"); it != spell.end() && it->is_array()) {
+        std::vector<std::string> traits;
+        for (const auto& trait : *it) {
+            if (trait.is_string()) traits.push_back(trait.get<std::string>());
+        }
+        const bool summon = std::find(traits.begin(), traits.end(), kSummonTrait) != traits.end();
+        for (const auto& trait : traits) {
+            if (trait == kTooBroadKind) continue;
+            const bool element = trait.starts_with(kElementPrefix);
+            if (!element && !trait.starts_with(kKindPrefix) && !trait.starts_with(kValuePrefix)) continue;
+
+            add(AfterDot(trait));
+            // A fire atronach is a summon_fire and, for a fire mage, plain fire too
+            if (summon && std::find(std::begin(kSummonQualifiers), std::end(kSummonQualifiers), trait) !=
+                              std::end(kSummonQualifiers)) {
+                add("summon_" + AfterDot(trait));
+            }
+        }
+    }
+
+    // Every word theme that is literally one of the spell's words. Whole words
+    // only: the fuzzy score is for choosing one, not for claiming many.
+    const auto words = TreeNLP::Tokenize(TreeNLP::BuildThemeText(spell));
+    const std::unordered_set<std::string> wordSet(words.begin(), words.end());
+    for (const auto& theme : themes) {
+        if (wordSet.contains(TreeNLP::ToLower(theme))) add(theme);
+    }
+
+    return result;
+}
+
+bool TreeBuilder::SharesTheme(const TreeNode& a, const TreeNode& b)
+{
+    if (a.themes.empty() || b.themes.empty()) {
+        return !a.theme.empty() && a.theme != "_unassigned" && a.theme == b.theme;
+    }
+    const auto& aThemes = a.matchThemesSet ? a.matchThemes : a.themes;
+    const auto& bThemes = b.matchThemesSet ? b.matchThemes : b.themes;
+    for (const auto& theme : aThemes) {
+        if (std::find(bThemes.begin(), bThemes.end(), theme) != bThemes.end()) return true;
+    }
+    return false;
+}
+
+namespace
+{
+    // Below this many spells a school's shares are noise: 2 of 3 is not "most"
+    constexpr std::size_t kMinSpellsForCommonTheme = 10;
+}
+
+// A theme almost every spell of a school carries says nothing about which of
+// them belong together. Measured on a 1,428-spell load order: in Conjuration
+// "summon" is on 89% of the spells and "conjure" on 41%, and 41% of the classic
+// builder's theme matches (49% in the tree builder) rested on such words
+// alone - the bonus fired for nearly any pair. The widest theme anywhere else
+// was fire in Destruction at 32%, which still tells spells apart.
+void TreeBuilder::DropCommonThemes(std::unordered_map<std::string, TreeNode>& nodes, float share)
+{
+    std::unordered_map<std::string, std::size_t> carriers;
+    for (const auto& [fid, node] : nodes) {
+        for (const auto& theme : node.themes) carriers[theme]++;
+    }
+    std::unordered_set<std::string> common;
+    if (share > 0.0f && nodes.size() >= kMinSpellsForCommonTheme) {
+        const float threshold = share * static_cast<float>(nodes.size());
+        for (const auto& [theme, count] : carriers) {
+            if (static_cast<float>(count) >= threshold) common.insert(theme);
+        }
+    }
+    for (auto& [fid, node] : nodes) {
+        node.matchThemes.clear();
+        for (const auto& theme : node.themes) {
+            if (!common.contains(theme)) node.matchThemes.push_back(theme);
+        }
+        node.matchThemesSet = true;
+    }
+}
+
+// =============================================================================
 // SPELL GROUPING
 // =============================================================================
 
 std::pair<std::string, int>
 TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::string>& themes)
 {
-    if (themes.empty()) return {"_unassigned", 0};
+    // Rule 1: what the spell is beats what its name happens to contain.
+    const std::string traitTheme = ThemeFromTraits(spell);
+    if (!traitTheme.empty()) return {traitTheme, kTraitThemeScore};
+
+    // Rule 1's weaker answers, kept in hand in case rule 2 comes up empty.
+    const std::string fallbackTheme = ThemeFromTraits(spell, true);
+
+    if (themes.empty()) {
+        if (!fallbackTheme.empty()) return {fallbackTheme, kTraitThemeScore};
+        return {"_unassigned", 0};
+    }
 
     std::string bestTheme;
     int bestScore = 0;
 
+    // The themes come ordered by how many spells they group. A spell whose id
+    // holds two of them ("LUN_MoonTouch": moon, touch) scores both about the same,
+    // and the fuzzy part of the score is too noisy to pick between them - so a
+    // later, smaller theme has to win clearly, or the bigger group keeps the
+    // spell. That sends it to "moon" with the other thirteen rather than to a
+    // "touch" of six scattered across mods.
     for (const auto& theme : themes) {
         int score = TreeNLP::CalculateThemeScore(spell, theme);
-        if (score > bestScore) {
+        if (bestTheme.empty() ? score > bestScore : score > bestScore + kClearWinMargin) {
             bestScore = score;
             bestTheme = theme;
         }
+    }
+
+    // Rule 2 did not find a convincing word: fall back to the spell's shape.
+    if (bestScore <= kWordThemeMinScore && !fallbackTheme.empty()) {
+        return {fallbackTheme, kTraitThemeScore};
     }
 
     return {bestTheme.empty() ? "_unassigned" : bestTheme, bestScore};
@@ -162,7 +569,12 @@ TreeBuilder::GroupSpellsBestFit(const std::vector<json>& spells,
     for (const auto& spell : spells) {
         auto [bestTheme, bestScore] = GetSpellPrimaryTheme(spell, themes);
 
-        if (bestScore >= minScore && !bestTheme.empty() && bestTheme != "_unassigned") {
+        // Strictly above, like every other place that reads this score: the nodes'
+        // `theme` (score > 30 in the builders) and their `themes` list
+        // (GetSpellThemes). With >= a spell scoring exactly the minimum was put in
+        // a branch whose theme it did not carry, so SharesTheme counted it a
+        // stranger among its own siblings.
+        if (bestScore > minScore && !bestTheme.empty() && bestTheme != "_unassigned") {
             groups[bestTheme].push_back(spell);
         } else {
             groups["_unassigned"].push_back(spell);

@@ -37,14 +37,26 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerNotify.cpp
     src/uimanager/UIManagerScanner.cpp
     src/uimanager/UIManagerTree.cpp
+    src/uimanager/UIManagerDeclutter.cpp
     src/uimanager/UIManagerProgression.cpp
     src/uimanager/UIManagerConfig.cpp
+    src/uimanager/UIManagerConfigSave.cpp
+    src/uimanager/UIManagerLocale.cpp
     src/uimanager/UIManagerLLM.cpp
     src/uimanager/UIManagerIO.cpp
     src/EncodingUtils.cpp
     src/spellscanner/SpellScannerHelpers.cpp
     src/spellscanner/SpellScannerFormId.cpp
+    src/spellscanner/SpellScannerJson.cpp
+    src/spellscanner/SpellScannerEvidence.cpp
+    src/spellscanner/SpellScannerChips.cpp
+    src/spellscanner/SpellScannerCard.cpp
+    src/spellscanner/SpellScannerCasters.cpp
     src/spellscanner/SpellScannerScan.cpp
+    src/librarian/LibrarianRules.cpp
+    src/librarian/LibrarianClassify.cpp
+    src/librarian/LibrarianCatalog.cpp
+    src/librarian/LibrarianTraits.cpp
     src/OpenRouterAPI.cpp
     src/SpellCastHandler.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
@@ -59,15 +71,22 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spelleffectiveness/SpellEffectivenessHookDisplay.cpp
     src/spelleffectiveness/SpellEffectivenessHookGrant.cpp
     src/SpellTomeHook.cpp
+    src/SpellTomeHookInventory.cpp
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp
     src/treebuilder/TreeBuilderCore.cpp
     src/treebuilder/TreeBuilderThemes.cpp
+    src/treebuilder/TreeBuilderBridges.cpp
     src/treebuilder/TreeBuilderClassic.cpp
     src/treebuilder/TreeBuilderTree.cpp
     src/treebuilder/TreeBuilderThematic.cpp
     src/treebuilder/TreeBuilderGraph.cpp
     src/treebuilder/TreeBuilderOracle.cpp
+    src/treebuilder/LayoutDeclutter.cpp
+    src/treebuilder/LayoutLineClear.cpp
+    src/treebuilder/LayoutLineClearCost.cpp
+    src/treebuilder/LayoutLineGrid.cpp
+    src/treebuilder/LayoutMath.cpp
     src/treebuilder/SimdKernels.cpp
 )
 

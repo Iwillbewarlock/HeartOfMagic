@@ -54,6 +54,10 @@ bool UIManager::Initialize()
     // =========================================================================
     // Create Single Panel View (contains Scanner, Tree Rules, and Spell Tree tabs)
     // =========================================================================
+    // The page reads its language file as it loads, and holds it from then on:
+    // bring it in line with the saved settings first (UIManagerLocale.cpp)
+    WritePanelLocaleFromSavedConfig();
+
     //m_view = m_prismaUI->CreateViewAccelerated("SpellLearning/SpellLearningPanel/index.html", OnDomReady);
     m_view = m_prismaUI->CreateView("SpellLearning/SpellLearningPanel/index.html", OnDomReady);
 
@@ -75,6 +79,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "LoadSpellTree", OnLoadSpellTree);
     m_prismaUI->RegisterJSListener(m_view, "GetSpellInfo", OnGetSpellInfo);
     m_prismaUI->RegisterJSListener(m_view, "GetSpellInfoBatch", OnGetSpellInfoBatch);
+    m_prismaUI->RegisterJSListener(m_view, "GetSpellIcon", OnGetSpellIcon);
     m_prismaUI->RegisterJSListener(m_view, "SaveSpellTree", OnSaveSpellTree);
 
     // Register JS callbacks - Progression system
@@ -86,6 +91,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "RelockSpell", OnRelockSpell);
     m_prismaUI->RegisterJSListener(m_view, "GetPlayerKnownSpells", OnGetPlayerKnownSpells);
     m_prismaUI->RegisterJSListener(m_view, "SetSpellXP", OnSetSpellXP);
+    m_prismaUI->RegisterJSListener(m_view, "SetRequiredXP", OnSetRequiredXP);
     m_prismaUI->RegisterJSListener(m_view, "SetTreePrerequisites", OnSetTreePrerequisites);
 
     // Register JS callbacks - Settings (unified config)
@@ -113,6 +119,9 @@ bool UIManager::Initialize()
 
     // Register JS callbacks - Pre Req Master NLP scoring (C++ native)
     m_prismaUI->RegisterJSListener(m_view, "PreReqMasterScore", OnPreReqMasterScore);
+
+    // Register JS callbacks - Tree declutter before save (C++ native)
+    m_prismaUI->RegisterJSListener(m_view, "DeclutterTree", OnDeclutterTree);
 
     // Register JS callbacks - Preset file I/O
     m_prismaUI->RegisterJSListener(m_view, "SavePreset", OnSavePreset);
@@ -178,7 +187,7 @@ void UIManager::ShowPanel()
     logger::info("UIManager: Show + Focus applied (hasFocus={})", m_prismaUI->HasFocus(m_view));
 
     // Notify JS that panel is now visible - triggers refresh of known spells
-    m_prismaUI->InteropCall(m_view, "onPanelShowing", "");
+    CallView("onPanelShowing", "");
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuOpenedEvent();
@@ -203,7 +212,7 @@ void UIManager::HidePanel()
     m_hasFocus = false;
 
     // Notify JS
-    m_prismaUI->InteropCall(m_view, "onPanelHiding", "");
+    CallView("onPanelHiding", "");
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuClosedEvent();
@@ -325,10 +334,12 @@ void UIManager::OnLogMessage(const char* argument)
         } else if (level == "error") {
             logger::error("{}", message);
         } else {
+            if (!PanelInfoLogging()) return;
             logger::info("{}", message);
         }
     } catch (...) {
         // Fallback: just log the raw argument
+        if (!PanelInfoLogging()) return;
         logger::info("JS: {}", argument);
     }
 }
@@ -337,7 +348,6 @@ void UIManager::OnLogMessage(const char* argument)
 // CONSOLE MESSAGE CALLBACK
 // =============================================================================
 
-// TODO: change level based on devMode and verboseMode
 void UIManager::OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageLevel level, const char* message)
 {
     switch (level) {
@@ -348,9 +358,11 @@ void UIManager::OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageL
             logger::warn("[JS]: {}", message);
             break;
         case PRISMA_UI_API::ConsoleMessageLevel::Debug:
+            if (!PanelInfoLogging()) break;
             logger::debug("[JS] View {}: {}", view, message);
             break;
         default:
+            if (!PanelInfoLogging()) break;
             logger::info("[JS] View {}: {}", view, message);
             break;
     }
@@ -371,5 +383,5 @@ void UIManager::NotifyDESTDetectionStatus()
     std::string js = detected ? "true" : "false";
 
     logger::info("UIManager: Notifying UI of DEST detection status: {}", detected ? "Detected" : "Not Detected");
-    m_prismaUI->InteropCall(m_view, "onDESTDetectionUpdate", js.c_str());
+    CallView("onDESTDetectionUpdate", js.c_str());
 }

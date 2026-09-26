@@ -19,6 +19,10 @@ namespace SpellScanner
         bool effects = false;
         bool effectNames = false;
         bool keywords = false;
+        // MGEF structure per effect: keywords, archetype, actor values, resistance.
+        // Only has an effect when effects is also on. This is the evidence the
+        // librarian classifies on, so it is off unless asked for.
+        bool effectDetails = false;
     };
 
     // Scan configuration (fields + user prompt)
@@ -44,7 +48,10 @@ namespace SpellScanner
     std::string GetSystemInstructions();
 
     // Get spell info by FormID (for Tree Viewer)
-    // Returns JSON with: formId, name, editorId, school, level, cost, type, effects, description
+    // Returns JSON with: formId, name, editorId, school, level, cost, type, effects, description.
+    // Null when the id is malformed or names no spell.
+    json GetSpellInfoJsonByFormId(const std::string& formIdStr);
+    // The same, serialized; empty when not found
     std::string GetSpellInfoByFormId(const std::string& formIdStr);
 
     // =========================================================================
@@ -91,6 +98,75 @@ namespace SpellScanner
     std::string GetSkillLevelFromPerk(RE::BGSPerk* perk);
     std::string DetermineSpellTier(RE::SpellItem* spell);
     std::string GetPluginName(RE::FormID formId);
+
+    // Magic school of a spell (school of its first effect), kNone if it has none
+    RE::ActorValue GetSpellSchool(RE::SpellItem* spell);
+
+    // Stable string names for MGEF structure fields. Classification rules match
+    // on these, so they must not become raw numbers.
+    std::string GetArchetypeName(RE::EffectArchetype archetype);
+    std::string GetActorValueName(RE::ActorValue actorValue);
+
+    // Editor id of any form: the engine's own when it kept one, otherwise from
+    // powerofthree's Tweaks (Load EditorIDs). Empty when neither has it.
+    std::string GetEditorId(const RE::TESForm* form);
+
+    // True when the keyword record is defined by the base game or an official
+    // DLC (judged by its plugin, not its name). These are the only keywords the
+    // traits read; the scan folds them into "traits" rather than listing them twice.
+    bool IsVanillaKeyword(const RE::BGSKeyword* keyword);
+
+    // Single source of the scan JSON shape, shared by every scan entry point.
+    // Callers must have checked effect->baseEffect / spell for null.
+    //
+    // BuildBaseEffectJson is the MGEF half on its own, for a caller that has a
+    // base effect and no spell to put it in.
+    json BuildBaseEffectJson(const RE::EffectSetting* baseEffect, const FieldConfig& fields);
+    json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
+    json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
+
+    // True when a vampire NPC carries the spell (SpellScannerCasters.cpp) -
+    // the tag librarian reads it as evidence of blood magic.
+    bool IsCastByVampires(RE::FormID spellFormId);
+
+    // Structure evidence added on top of the builders above when effectDetails
+    // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard
+    // presence, perks. Copied from the records as they are - nothing in here
+    // interprets a value. Only fields checked against a real game run live
+    // here; counter effects and condition presence were dropped as unverified.
+    void AppendBaseEffectEvidence(json& effectJson, const RE::EffectSetting* baseEffect);
+    void AppendEffectItemEvidence(json& effectJson, const RE::Effect* effect, std::size_t index);
+    void AppendSpellEvidence(json& spellJson, RE::SpellItem* spell);
+
+    // Keyword line for the spell card, as stable ids the panel translates
+    // ("element.fire", "form.projectile", "school.destruction"). Derived only
+    // from closed engine sets (SpellScannerChips.cpp). Not part of the scan dump.
+    json BuildSpellChips(RE::SpellItem* spell);
+    // The same ids without the card's length cap - what the icon rules match on.
+    json BuildSpellTraits(RE::SpellItem* spell);
+
+    // Spell card icon (SpellScannerCard.cpp). Icon packs ship SVGs named
+    // KWD_<keyword>.svg for Wheeler; the key is the first keyword of the spell,
+    // then of its effects, that has one. Empty when nothing is installed.
+    std::string FindSpellIconKey(RE::SpellItem* spell);
+    // Icon rules (card_icons.json): first rule whose traits the spell has and
+    // whose file is installed. Traits are BuildSpellTraits ids.
+    std::string FindRuleIconKey(RE::SpellItem* spell);
+    // Wheeler's standard school emblem (icons/<school>.svg). Empty when not installed.
+    std::string FindSchoolIconKey(RE::SpellItem* spell);
+    std::string ReadSpellIconSvg(const std::string& key);
+
+    // Fills <mag>/<dur>/<area> from the effect and strips <..> emphasis marks.
+    std::string ResolveDescriptionTags(std::string text, const RE::Effect* effect);
+
+    // Write a scan dump to Data/SKSE/Plugins/SpellLearning/spell_scan_output.json.
+    // Returns the written path, or an empty string on failure.
+    std::string WriteScanOutput(const std::string& content);
+
+    // Run a scan and write it to disk in one call, for callers outside the UI
+    // (Papyrus, tests). mode is "tomes" or "all"; preset is "minimal",
+    // "balanced" or "full". Returns the written path, or an empty string.
+    std::string RunScanToFile(const std::string& mode, const std::string& preset);
 
     // Internal scanning (returns spell array JSON, used by ScanAllSpells/ScanSpellTomes)
     json ScanSpellsToJson(const FieldConfig& fields);

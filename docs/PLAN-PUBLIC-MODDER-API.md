@@ -63,6 +63,8 @@ ProgressionManager::AddSourcedXP()
   |
   -> Look up moddedSources["mymod_training"] for multiplier + cap
   -> Apply: amount x (multiplier/100) x globalMultiplier
+     (the target's rates: a spell learned downward uses the reverseXp* set when
+      reverseXpSeparate is on - ProgressionManager::GetGainRates, see ARCHITECTURE.md)
   -> Enforce cap: remaining = (requiredXP x cap/100) - xpFromModded["mymod_training"]
   -> AddXP(targetId, clampedAmount)
   -> UIManager::NotifyProgressUpdate()

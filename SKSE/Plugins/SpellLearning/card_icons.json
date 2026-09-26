@@ -1,0 +1,61 @@
+{
+  "_about": [
+    "Which icon the spell card shows for a spell that no icon pack keyworded itself.",
+    "A rule matches when the spell has every trait in 'when'. Rules are tried top to bottom and a rule",
+    "only counts if its icon file is installed, so more specific rules go first and a rule for a pack",
+    "you do not have is skipped. Traits are the ids the card's keyword line is made of:",
+    "element.fire|frost|shock|poison|disease, form.projectile|lobbed|beam|spray|cone|self|touch|target|location,",
+    "area.blast|hazard, kind.rune|cloak|summon|undead|familiar|bound|paralysis|..., cast.concentration|twoHanded, school.<name>.",
+    "An icon is '<folder>/<file name without .svg>' under Data/SKSE/Plugins/wheeler/resources, folder being",
+    "'icons_custom' or 'icons'. {S} becomes the school letter (A C D I R), {school} the school name.",
+    "The rules below use the icon set of Kome's Inventory Tweaks (KIT), which this mod requires for icons."
+  ],
+  "rules": [
+    { "when": ["kind.cloak", "element.fire"],   "icon": "icons_custom/KWD_KIT_SpellDamageType_FireCloak_{S}" },
+    { "when": ["kind.cloak", "element.frost"],  "icon": "icons_custom/KWD_KIT_SpellDamageType_FrostCloak_{S}" },
+    { "when": ["kind.cloak", "element.shock"],  "icon": "icons_custom/KWD_KIT_SpellDamageType_ShockCloak_{S}" },
+    { "when": ["kind.cloak", "element.poison"], "icon": "icons_custom/KWD_KIT_SpellDamageType_PoisonCloak_{S}" },
+
+    { "when": ["kind.rune", "element.fire"],    "icon": "icons_custom/KWD_KIT_SpellDamageType_FireRune_{S}" },
+    { "when": ["kind.rune", "element.frost"],   "icon": "icons_custom/KWD_KIT_SpellDamageType_FrostRune_{S}" },
+    { "when": ["kind.rune", "element.shock"],   "icon": "icons_custom/KWD_KIT_SpellDamageType_ShockRune_{S}" },
+    { "when": ["kind.rune", "element.poison"],  "icon": "icons_custom/KWD_KIT_SpellDamageType_PoisonRune_{S}" },
+    { "when": ["kind.rune", "kind.paralysis"],  "icon": "icons_custom/KWD_KIT_SpellParalysisType_RuneNormal_{S}" },
+    { "when": ["kind.rune", "kind.fear"],       "icon": "icons_custom/KWD_KIT_SpellFearType_NormalRune_{S}" },
+    { "when": ["kind.rune", "kind.frenzy"],     "icon": "icons_custom/KWD_KIT_SpellFrenzyType_NormalRune_{S}" },
+
+    { "when": ["kind.reanimate"],               "icon": "icons_custom/KWD_KIT_SpellReanimateType_Undead_{S}" },
+    { "when": ["kind.summon", "element.fire"],  "icon": "icons_custom/KWD_KIT_SpellSummonType_Fire_{S}" },
+    { "when": ["kind.summon", "element.frost"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Frost_{S}" },
+    { "when": ["kind.summon", "element.shock"], "icon": "icons_custom/KWD_KIT_SpellSummonType_Shock_{S}" },
+    { "when": ["kind.summon", "kind.undead"],   "icon": "icons_custom/KWD_KIT_SpellSummonType_Undead_{S}" },
+    { "when": ["kind.summon"],                  "icon": "icons_custom/KWD_KIT_SpellSummonType_Creature_{S}" },
+    { "when": ["kind.command"],                 "icon": "icons_custom/KWD_KIT_SpellCommandType_Normal_{S}" },
+
+    { "when": ["kind.absorb"],                  "icon": "icons_custom/KWD_KIT_SpellAbsorbType_Health_{S}" },
+    { "when": ["kind.paralysis"],               "icon": "icons_custom/KWD_KIT_SpellParalysisType_Normal_{S}" },
+    { "when": ["kind.fear"],                    "icon": "icons_custom/KWD_KIT_SpellFearType_Normal_{S}" },
+    { "when": ["kind.frenzy"],                  "icon": "icons_custom/KWD_KIT_SpellFrenzyType_Normal_{S}" },
+    { "when": ["kind.turnUndead"],              "icon": "icons_custom/KWD_KIT_SpellRepelType_Undead_{S}" },
+    { "when": ["kind.ward"],                    "icon": "icons_custom/KWD_KIT_SpellWardType_Normal_{S}" },
+    { "when": ["kind.armor"],                   "icon": "icons_custom/KWD_KIT_SpellEnhanceType_Armor_{S}" },
+    { "when": ["kind.light"],                   "icon": "icons_custom/KWD_KIT_SpellLightType_Normal_{S}" },
+    { "when": ["kind.detect"],                  "icon": "icons_custom/KWD_KIT_SpellDetectType_Normal_{S}" },
+    { "when": ["kind.guide"],                   "icon": "icons_custom/KWD_KIT_SpellGuideType_Normal_{S}" },
+    { "when": ["kind.ethereal"],                "icon": "icons_custom/KWD_KIT_SpellEtheralType_Normal_{S}" },
+    { "when": ["kind.slowTime"],                "icon": "icons_custom/KWD_KIT_SpellSlowTimeType_Normal_{S}" },
+    { "when": ["kind.nightEye"],                "icon": "icons_custom/KWD_KIT_SpellEnhanceType_Sight_{S}" },
+    { "when": ["kind.invisibility"],            "icon": "icons_custom/KWD_KIT_SpellEnhanceType_Sneak_{S}" },
+    { "when": ["kind.dispel"],                  "icon": "icons_custom/KWD_KIT_SpellAADispel_DispelNormal_{S}" },
+
+    { "when": ["element.fire"],                 "icon": "icons_custom/KWD_KIT_SpellDamageType_Fire_{S}" },
+    { "when": ["element.frost"],                "icon": "icons_custom/KWD_KIT_SpellDamageType_Frost_{S}" },
+    { "when": ["element.shock"],                "icon": "icons_custom/KWD_KIT_SpellDamageType_Shock_{S}" },
+    { "when": ["element.poison"],               "icon": "icons_custom/KWD_KIT_SpellDamageType_Poison_{S}" },
+
+    { "when": ["element.fire"],                 "icon": "icons/{school}_fire" },
+    { "when": ["element.frost"],                "icon": "icons/{school}_frost" },
+    { "when": ["element.shock"],                "icon": "icons/{school}_shock" },
+    { "when": [],                               "icon": "icons/{school}" }
+  ]
+}

@@ -1,0 +1,238 @@
+/*
+ * Modern Dark design - a slate-blue glass panel, amber accent, bright accent
+ * colours, rounded corners and Segoe UI. Laid over the Skyrim Edge theme
+ * (styles-skyrim.css) by modules/designPresets.js, like Arcane: the theme brings
+ * every screen and control, this file only changes their colours and shapes, so
+ * a screen added later is styled here too.
+ *
+ * It replaces the old stand-alone modern stylesheet (styles.css), which had
+ * fallen some 200 classes behind the Skyrim one: the header buttons, popups,
+ * scan screen and build progress had no styles at all under it.
+ */
+
+:root {
+    --panel-bg: rgba(15, 23, 42, 0.96);
+    --panel-bg-solid: #0f172a;
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-primary: #e4e4e7;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --text-bright: #fafafa;
+    --accent-gold: #fbbf24;
+    --accent-gold-hover: #f59e0b;
+    --accent-blue: #60a5fa;
+    --accent-green: #4ade80;
+    --accent-red: #f87171;
+    --accent-purple: #c084fc;
+    --btn-bg: rgba(255, 255, 255, 0.08);
+    --btn-bg-hover: rgba(255, 255, 255, 0.14);
+    --input-bg: rgba(0, 0, 0, 0.35);
+    --canvas-bg: #050810;
+    --divider: rgba(255, 255, 255, 0.08);
+
+    --destruction: #ef4444;
+    --restoration: #facc15;
+    --alteration: #22c55e;
+    --conjuration: #a855f7;
+    --illusion: #38bdf8;
+
+    /* Shapes */
+    --modern-radius: 8px;
+    --modern-radius-sm: 6px;
+    --modern-glow: 0 0 14px rgba(251, 191, 36, 0.35);
+    --modern-font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+    /* The scan screen's tree previews (uiHelpers getPreviewBackground) */
+    --preview-bg: #050810;
+}
+
+/* ------------------------------------------------------------------ panel */
+
+body,
+.spell-panel {
+    font-family: var(--modern-font);
+}
+
+.spell-panel {
+    /* One colour and the border, no gradient or box shadow: in game the view is
+       painted on the CPU, and those were worked out again whenever anything on
+       the panel changed (stalls of 150-250 ms, measured). An outline would not
+       follow the rounded corners in the game's browser. */
+    background: rgba(17, 25, 45, 0.97);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.panel-header {
+    background: rgba(0, 0, 0, 0.35);
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.panel-title {
+    font-size: 1.15em;
+    font-weight: 700;
+    color: var(--accent-gold);
+    letter-spacing: 2px;
+}
+
+.version-tag {
+    background: rgba(251, 191, 36, 0.18);
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.header-btn {
+    border-radius: var(--modern-radius-sm);
+}
+
+.header-btn[data-tab].active {
+    background: var(--accent-gold);
+    color: var(--panel-bg-solid);
+}
+
+.header-btn-warn {
+    border-radius: var(--modern-radius-sm);
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.btn,
+.seg-btn,
+.school-tab,
+.zoom-btn,
+.scanner-mode-btn,
+.prm-tab,
+.tree-preview-tab,
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+    border-radius: var(--modern-radius-sm);
+}
+
+.btn {
+    font-family: var(--modern-font);
+    font-weight: 600;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-hover) 100%);
+    border-color: transparent;
+    color: #111827;
+}
+
+.btn-primary:hover:not(:disabled) {
+    box-shadow: var(--modern-glow);
+}
+
+.segmented-toggle {
+    border-radius: var(--modern-radius);
+    overflow: hidden;
+}
+
+.seg-btn.active {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--accent-gold);
+}
+
+/* Pill switches with a round knob, green when on */
+.toggle-slider {
+    border-radius: 999px;
+}
+
+.toggle-slider::before {
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(74, 222, 128, 0.3);
+    border-color: rgba(74, 222, 128, 0.55);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    background: var(--accent-green);
+}
+
+/* ------------------------------------------------------------- the blocks */
+
+.settings-block,
+.modal-content,
+.popup-content,
+.heart-settings-popup {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.settings-block {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--panel-border);
+}
+
+.settings-block-header {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.settings-block-title {
+    color: var(--accent-gold);
+    font-weight: 600;
+}
+
+.modal-content {
+    background: rgba(17, 25, 45, 0.98);         /* no gradient or shadow (see .spell-panel) */
+    border: 1px solid var(--panel-border);
+}
+
+/* ---------------------------------------------------------------- the tree */
+
+.tree-container {
+    border-radius: var(--modern-radius);
+    overflow: hidden;
+    background-image:
+        radial-gradient(circle at center, rgba(251, 191, 36, 0.03) 0%, transparent 50%);
+}
+
+.zoom-controls,
+#tree-school-tabs,
+#tree-trait-filter,
+.tree-footer {
+    border-radius: var(--modern-radius);
+}
+
+.school-tab.active {
+    background: rgba(251, 191, 36, 0.18);
+    color: var(--accent-gold);
+}
+
+.details-panel,
+#tooltip.tooltip {
+    border-radius: 10px;                         /* no shadow (see .spell-panel) */
+}
+
+.details-panel {
+    background: rgba(10, 15, 25, 0.95);
+}
+
+.howto-panel {
+    border-radius: 0 10px 10px 0;
+    background: rgba(10, 15, 25, 0.96);
+}
+
+.howto-tab {
+    border-radius: 0 var(--modern-radius-sm) var(--modern-radius-sm) 0;
+}
+
+/* Scrollbars: thin and rounded */
+.spell-panel ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.spell-panel ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.spell-panel ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}

@@ -145,9 +145,11 @@ TreeBuilder::BuildResult TreeBuilder::BuildTree(
             if (!schoolThemes.empty()) {
                 auto [theme, score] = GetSpellPrimaryTheme(spell, schoolThemes);
                 node.theme = (score > 30) ? theme : "_unassigned";
+                node.themes = GetSpellThemes(spell, schoolThemes);
             }
             nodes[node.formId] = std::move(node);
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Group by tier and pick root
         std::unordered_map<std::string, std::vector<json>> byTier;
@@ -245,7 +247,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildTree(
                         // Theme matching
                         if (!node.theme.empty() && !cand->theme.empty() &&
                             node.theme != "_unassigned" && cand->theme != "_unassigned") {
-                            if (node.theme == cand->theme)
+                            if (SharesTheme(node, *cand))
                                 score += 170.0f;  // 100 + 70 coherence
                             else
                                 score -= 50.0f;
@@ -349,7 +351,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildTree(
                 if (cnd.depth < tierDepth) { score += 50.0f; if (cnd.depth == tierDepth - 1) score += 30.0f; }
                 else if (cnd.depth == tierDepth) score += 10.0f;
                 else score -= 50.0f;
-                if (cnd.theme == orphan.theme && !orphan.theme.empty()) score += 40.0f;
+                if (SharesTheme(cnd, orphan)) score += 40.0f;
                 score -= static_cast<float>(cnd.children.size()) * 15.0f;
                 if (score > bestSc) { bestSc = score; bestP = &cnd; }
             }
@@ -454,7 +456,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildTree(
                         int sc = 0;
                         int td = std::max(0, TierIndex(node.tier));
                         if (cand.depth < td) sc += 50;
-                        if (cand.theme == node.theme && !node.theme.empty()) sc += 40;
+                        if (SharesTheme(cand, node)) sc += 40;
                         sc -= static_cast<int>(cand.children.size()) * 10;
                         if (sc > bestSc) { bestSc = sc; bestP = uid; }
                     }

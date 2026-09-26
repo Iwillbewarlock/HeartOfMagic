@@ -21,11 +21,11 @@ void ProgressionManager::SetXPSettings(const XPSettings& settings)
         m_xpSettings.multiplierDirect * 100,
         m_xpSettings.multiplierSchool * 100,
         m_xpSettings.multiplierAny * 100);
-    logger::info("ProgressionManager: XP caps - any: {:.0f}%, school: {:.0f}%, direct: {:.0f}%",
+    logger::debug("ProgressionManager: XP caps - any: {:.0f}%, school: {:.0f}%, direct: {:.0f}%",
         m_xpSettings.capAny,
         m_xpSettings.capSchool,
         m_xpSettings.capDirect);
-    logger::info("ProgressionManager: Tier XP - Novice: {:.0f}, Apprentice: {:.0f}, Adept: {:.0f}, Expert: {:.0f}, Master: {:.0f}",
+    logger::debug("ProgressionManager: Tier XP - Novice: {:.0f}, Apprentice: {:.0f}, Adept: {:.0f}, Expert: {:.0f}, Master: {:.0f}",
         m_xpSettings.xpNovice,
         m_xpSettings.xpApprentice,
         m_xpSettings.xpAdept,
@@ -75,9 +75,6 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
 
 void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castSpellId, float baseXP)
 {
-    // Apply global multiplier first
-    float adjustedBaseXP = baseXP * m_xpSettings.globalMultiplier;
-
     // Get early learning settings
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     const auto& earlySettings = effectivenessHook->GetSettings();
@@ -89,6 +86,10 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         // Check if target is already fully mastered
         auto progress = GetProgress(targetId);
         if (progress.unlocked && progress.progressPercent >= 1.0f) continue;
+
+        // Spells learned downward can have their own rates (GetGainRates)
+        const XPGainRates rates = GetGainRates(targetId);
+        const float adjustedBaseXP = baseXP * rates.globalMultiplier;
 
         // =========================================================================
         // SELF-CAST REQUIREMENT CHECK
@@ -119,34 +120,37 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
             if (earlySettings.enabled) {
                 // After early unlock, casting the spell itself grants bonus XP
                 if (effectivenessHook->IsEarlyLearnedSpell(targetId)) {
-                    multiplier = m_xpSettings.multiplierDirect * earlySettings.selfCastXPMultiplier;
+                    multiplier = rates.multiplierDirect * earlySettings.selfCastXPMultiplier;
                     logger::trace("ProgressionManager: Self-casting early-learned spell - multiplier {:.0f}% x {:.1f} = {:.0f}%",
-                        m_xpSettings.multiplierDirect * 100, earlySettings.selfCastXPMultiplier, multiplier * 100);
+                        rates.multiplierDirect * 100, earlySettings.selfCastXPMultiplier, multiplier * 100);
                 } else {
                     // Spell not yet early-unlocked - use direct multiplier
-                    multiplier = m_xpSettings.multiplierDirect;
+                    multiplier = rates.multiplierDirect;
                 }
             } else {
-                multiplier = m_xpSettings.multiplierDirect;
+                multiplier = rates.multiplierDirect;
             }
         } else if (targetSchool == school) {
-            // Same school as cast spell - check if DIRECT prereq or just same SCHOOL
-            if (IsDirectPrerequisite(targetId, castSpellId)) {
-                // Cast spell is a direct prerequisite of the target
+            // Same school as cast spell - check if DIRECT prereq or just same SCHOOL.
+            // Direct runs both ways: a spell leading to the target, or - learning
+            // downward - the known spell above it that opened it
+            if (IsDirectPrerequisite(targetId, castSpellId) ||
+                (m_xpSettings.reverseUnlock && IsDirectChild(targetId, castSpellId))) {
+                // Cast spell is a direct link of the target
                 source = XPSource::Direct;
-                multiplier = m_xpSettings.multiplierDirect;
+                multiplier = rates.multiplierDirect;
                 logger::trace("ProgressionManager: Direct prereq cast {:08X} for target {:08X} - using direct multiplier {:.0f}%",
                     castSpellId, targetId, multiplier * 100);
             } else {
                 // Same school but not a direct prereq
                 source = XPSource::School;
-                multiplier = m_xpSettings.multiplierSchool;
+                multiplier = rates.multiplierSchool;
                 logger::trace("ProgressionManager: Same school cast - using school multiplier {:.0f}%", multiplier * 100);
             }
         } else {
             // Different school - ANY source
             source = XPSource::Any;
-            multiplier = m_xpSettings.multiplierAny;
+            multiplier = rates.multiplierAny;
             logger::trace("ProgressionManager: Different school cast - using any multiplier {:.0f}%", multiplier * 100);
         }
 
@@ -178,15 +182,15 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
 
         switch (source) {
             case XPSource::Any:
-                maxXPFromSource = progRef.requiredXP * (m_xpSettings.capAny / 100.0f);
+                maxXPFromSource = progRef.requiredXP * (rates.capAny / 100.0f);
                 currentXPFromSource = progRef.xpFromAny;
                 break;
             case XPSource::School:
-                maxXPFromSource = progRef.requiredXP * (m_xpSettings.capSchool / 100.0f);
+                maxXPFromSource = progRef.requiredXP * (rates.capSchool / 100.0f);
                 currentXPFromSource = progRef.xpFromSchool;
                 break;
             case XPSource::Direct:
-                maxXPFromSource = progRef.requiredXP * (m_xpSettings.capDirect / 100.0f);
+                maxXPFromSource = progRef.requiredXP * (rates.capDirect / 100.0f);
                 currentXPFromSource = progRef.xpFromDirect;
                 break;
             case XPSource::Self:
@@ -202,7 +206,7 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
             logger::trace("ProgressionManager: Source cap reached for {:08X} (source: {}, cap: {:.1f}%)",
                 targetId,
                 source == XPSource::Any ? "any" : source == XPSource::School ? "school" : source == XPSource::Direct ? "direct" : "self",
-                source == XPSource::Any ? m_xpSettings.capAny : source == XPSource::School ? m_xpSettings.capSchool : source == XPSource::Direct ? m_xpSettings.capDirect : 100.0f);
+                source == XPSource::Any ? rates.capAny : source == XPSource::School ? rates.capSchool : source == XPSource::Direct ? rates.capDirect : 100.0f);
             continue;  // Skip this target, cap reached
         }
 
@@ -442,15 +446,48 @@ float ProgressionManager::GetRequiredXP(RE::FormID formId) const
         return it->second.requiredXP;
     }
 
-    // If no progress data, try to determine from spell tier
+    // If no progress data, try to determine from spell tier. The panel sends the
+    // required XP when a spell becomes the learning target, reverse unlock
+    // discount included; this is the same number for a spell it has not sent yet
+    // (a tome read before the spell was ever a target).
+    float required = m_xpSettings.xpNovice;  // Default to novice
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
     if (spell) {
         // Use perk-based tier detection (fixes modded master spells with minimumSkill=0)
         std::string tier = SpellScanner::DetermineSpellTier(spell);
-        return GetXPForTier(tier);
+        required = GetXPForTier(tier);
     }
+    if (spell && IsUnlockedByKnownChild(formId)) {
+        required *= GetReverseUnlockXPShare(SpellScanner::DetermineSpellTier(spell));
+    }
+    return required;
+}
 
-    return m_xpSettings.xpNovice;  // Default to novice
+ProgressionManager::XPGainRates ProgressionManager::GetGainRates(RE::FormID targetId) const
+{
+    if (m_xpSettings.reverseUnlock && m_xpSettings.reverseXPSeparate && IsUnlockedByKnownChild(targetId)) {
+        return m_xpSettings.reverseGain;
+    }
+    XPGainRates rates;
+    rates.globalMultiplier = m_xpSettings.globalMultiplier;
+    rates.multiplierDirect = m_xpSettings.multiplierDirect;
+    rates.multiplierSchool = m_xpSettings.multiplierSchool;
+    rates.multiplierAny = m_xpSettings.multiplierAny;
+    rates.capAny = m_xpSettings.capAny;
+    rates.capSchool = m_xpSettings.capSchool;
+    rates.capDirect = m_xpSettings.capDirect;
+    return rates;
+}
+
+float ProgressionManager::GetReverseUnlockXPShare(const std::string& tier) const
+{
+    std::string t = tier;
+    std::transform(t.begin(), t.end(), t.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (t == "apprentice") return m_xpSettings.reverseUnlockXPApprentice;
+    if (t == "adept") return m_xpSettings.reverseUnlockXPAdept;
+    if (t == "expert") return m_xpSettings.reverseUnlockXPExpert;
+    if (t == "master") return m_xpSettings.reverseUnlockXPMaster;
+    return m_xpSettings.reverseUnlockXPNovice;
 }
 
 // =============================================================================
@@ -497,6 +534,12 @@ ProgressionManager::SpellProgress ProgressionManager::GetProgress(RE::FormID for
         return it->second;
     }
     return SpellProgress{};
+}
+
+float ProgressionManager::GetProgressPercent(RE::FormID formId) const
+{
+    auto it = m_spellProgress.find(formId);
+    return it != m_spellProgress.end() ? it->second.progressPercent : 0.0f;
 }
 
 void ProgressionManager::SetRequiredXP(RE::FormID formId, float required)

@@ -50,3 +50,6 @@ Build_Config_Local.ps1
 nul
 spell_scan_output.json
 /plugins/external/papyrus-compiler
+
+# Written at runtime by SpellLearning.dll (Settings > UI Display > Language)
+PrismaUI/views/SpellLearning/SpellLearningPanel/lang/user_locale.js

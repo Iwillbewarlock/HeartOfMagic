@@ -47,38 +47,9 @@ function setTreeStatus(msg) {
     if (el) el.textContent = msg;
 }
 
-// =============================================================================
-// FIELD PRESETS
-// =============================================================================
-
-function applyPreset(presetName) {
-    var presets = {
-        minimal: {
-            editorId: false, magickaCost: false, minimumSkill: false,
-            castingType: false, delivery: false, chargeTime: false,
-            plugin: false, effects: false, effectNames: false, keywords: false
-        },
-        balanced: {
-            editorId: true, magickaCost: true, minimumSkill: false,
-            castingType: false, delivery: false, chargeTime: false,
-            plugin: false, effects: false, effectNames: false, keywords: false
-        },
-        full: {
-            editorId: true, magickaCost: true, minimumSkill: true,
-            castingType: true, delivery: true, chargeTime: true,
-            plugin: true, effects: true, effectNames: false, keywords: true
-        }
-    };
-    
-    var preset = presets[presetName];
-    if (!preset) return;
-    
-    for (var field in preset) {
-        state.fields[field] = preset[field];
-        var checkbox = document.getElementById('field_' + field);
-        if (checkbox) checkbox.checked = preset[field];
-    }
-}
+// Field presets live in llmApiSettings.js (applyPreset), mirrored by
+// FieldsForPreset() in SpellScannerJson.cpp. A second copy used to sit here
+// and had quietly drifted from the live one.
 
 // =============================================================================
 // DRAGGING
@@ -465,6 +436,9 @@ window.onPresetsLoaded = function(resultStr) {
                 _easySelectedPreset = _activeScannerPreset || scannerKey || '';
                 if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips();
             }
+        } else if (type === 'design') {
+            // Design presets: no in-memory store of their own here, DesignPresets keeps them
+            if (typeof DesignPresets !== 'undefined') DesignPresets.onLoaded(presets);
         } else if (type === 'settings') {
             // Clear and repopulate
             for (var k2 in settingsPresets) {
@@ -501,6 +475,29 @@ window.onPresetsLoaded = function(resultStr) {
 // XP UTILITIES
 // =============================================================================
 
+/**
+ * Background of the scan screen's tree previews (treePreview, treeGrowth,
+ * prereqMaster): the design's --preview-bg, or the old near-black. The previews
+ * repaint every frame, so the value is read at most once a second - a design or
+ * theme switch shows up within that.
+ * @returns {string} CSS colour
+ */
+var _previewBg = { value: '', readAt: 0 };
+var PREVIEW_BG_DEFAULT = '#0a0a0f';
+var PREVIEW_BG_REREAD_MS = 1000;
+function getPreviewBackground() {
+    var now = Date.now();
+    if (!_previewBg.value || now - _previewBg.readAt > PREVIEW_BG_REREAD_MS) {
+        var v = '';
+        try { v = getComputedStyle(document.documentElement).getPropertyValue('--preview-bg').trim(); } catch (e) {}
+        // An engine may hand back a variable pointing at another one unresolved
+        // ("var(--book-page)"), which a canvas would ignore: the default then
+        _previewBg.value = (v && v.indexOf('var(') < 0) ? v : PREVIEW_BG_DEFAULT;
+        _previewBg.readAt = now;
+    }
+    return _previewBg.value;
+}
+
 function getXPForTier(tierName) {
     if (!tierName) return settings.xpNovice;
     
@@ -512,4 +509,38 @@ function getXPForTier(tierName) {
         case 'master': return settings.xpMaster;
         default: return settings.xpNovice;
     }
+}
+
+/**
+ * Editor id as words: "LUN_MoonFire" -> "moon fire". Names are translated and
+ * editor ids are not, so anything that matches English words has to read these
+ * too or it finds nothing on a translated load order.
+ * @param {Object} holder - anything with an editorId (a spell or one effect)
+ * @returns {string} lower case words, empty when there is no editor id
+ */
+function editorIdWords(holder) {
+    var id = holder && holder.editorId;
+    if (!id) return '';
+    return String(id)
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')   // an acronym runs into a word: "WTIce" -> "WT Ice"
+        .replace(/([A-Za-z])([0-9])/g, '$1 $2')       // "DES100" -> "DES 100"
+        .replace(/([0-9])([A-Za-z])/g, '$1 $2')       // "03Headless" -> "03 Headless"
+        .replace(/([a-z])([A-Z])/g, '$1 $2')          // camelCase
+        .replace(/[^A-Za-z0-9]+/g, ' ').toLowerCase();
+}
+
+/**
+ * Every editor id of a spell, its own and its player facing effects', as words.
+ * @param {Object} spell - a scanned spell
+ * @returns {string}
+ */
+function spellIdWords(spell) {
+    if (!spell) return '';
+    var parts = [editorIdWords(spell)];
+    var effects = spell.effects || [];
+    for (var i = 0; i < effects.length; i++) {
+        if (effects[i] && effects[i].flags && effects[i].flags.hideInUI) continue;
+        parts.push(editorIdWords(effects[i]));
+    }
+    return parts.join(' ');
 }

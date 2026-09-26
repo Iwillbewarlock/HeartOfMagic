@@ -1469,7 +1469,7 @@
                 if (resizeTimeout) clearTimeout(resizeTimeout);
                 resizeTimeout = setTimeout(function() {
                     _updatePreviewSize();
-                    _previewNeedsRender = true;
+                    _markPreview();
                 }, 50);
             }).observe(wrap);
         }
@@ -1494,7 +1494,7 @@
 
         _previewWidth = w;
         _previewHeight = h;
-        _previewNeedsRender = true;
+        _markPreview();
     }
 
     function _setupPreviewEvents() {
@@ -1513,7 +1513,7 @@
             if (!_previewIsPanning) return;
             _previewPanX = e.clientX - _previewPanStartX;
             _previewPanY = e.clientY - _previewPanStartY;
-            _previewNeedsRender = true;
+            _markPreview();
         });
 
         document.addEventListener('mouseup', function() {
@@ -1534,27 +1534,63 @@
             _previewPanX = mx - (mx - _previewPanX) * (newZoom / _previewZoom);
             _previewPanY = my - (my - _previewPanY) * (newZoom / _previewZoom);
             _previewZoom = newZoom;
-            _previewNeedsRender = true;
+            _markPreview();
         }, { passive: false });
 
         canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
         canvas.style.cursor = 'grab';
     }
 
+    // The loop stops after PREVIEW_IDLE_FRAMES frames with nothing to draw (it
+    // used to ask for a frame every frame while the panel was open, whatever
+    // the tab); _markPreview starts it again.
+    var PREVIEW_IDLE_FRAMES = 60;
+
     function _startPreviewLoop() {
         if (_previewRafId) return;
+        var idle = 0;
         function loop() {
             if (_previewNeedsRender) {
                 _previewNeedsRender = false;
+                idle = 0;
                 _renderPreview();
+            } else if (++idle > PREVIEW_IDLE_FRAMES) {
+                _previewRafId = null;
+                return;
             }
             _previewRafId = requestAnimationFrame(loop);
         }
-        loop();
+        // First frame on the next animation frame, not called here: drawing
+        // can ask for another draw (_markPreview), and with no frame booked yet
+        // that started the loop again from inside itself - endlessly (a stack
+        // overflow every time PreReqMaster finished or TreeAnimation ticked)
+        _previewRafId = requestAnimationFrame(loop);
+    }
+
+    /** Something to draw: flag it, and wake the loop if it stopped (not while the panel is hidden). */
+    function _markPreview() {
+        _previewNeedsRender = true;
+        if (!_previewRafId && _previewCanvas && window._panelVisible !== false) _startPreviewLoop();
     }
 
     function renderPreview() {
-        _previewNeedsRender = true;
+        _markPreview();
+    }
+
+    /** The panel hid: stop asking for frames (onPanelHiding). */
+    function pausePreview() {
+        if (_previewRafId) {
+            cancelAnimationFrame(_previewRafId);
+            _previewRafId = null;
+        }
+    }
+
+    /** The panel showed again: the loop comes back if the preview was ever set up. */
+    function resumePreview() {
+        if (_previewCanvas && !_previewRafId) {
+            _markPreview();
+            _startPreviewLoop();
+        }
     }
 
     /** Compute fit scale from node positions to auto-zoom content into view. */
@@ -1586,7 +1622,7 @@
         ctx.globalAlpha = 1.0;
 
         // Clear
-        ctx.fillStyle = '#0a0a0f';
+        ctx.fillStyle = (typeof getPreviewBackground === 'function') ? getPreviewBackground() : '#0a0a0f';
         ctx.fillRect(0, 0, _previewCanvas.width, _previewCanvas.height);
 
         // Scale for DPR
@@ -2012,7 +2048,7 @@
                 ctx.fillRect(0, h - 3, w * progress, 3);
 
                 // Keep render loop alive
-                _previewNeedsRender = true;
+                _markPreview();
             }
         } else {
             ctx.fillStyle = 'rgba(184, 168, 120, 0.3)';
@@ -2133,7 +2169,7 @@
         if (altTab) altTab.style.display = (tabId === 'altpaths') ? '' : 'none';
 
         // Trigger preview re-render for new tab
-        _previewNeedsRender = true;
+        _markPreview();
     }
 
     // =========================================================================
@@ -2269,6 +2305,8 @@
         setButtonsEnabled: setButtonsEnabled,
         updateStatus: updateStatus,
         renderPreview: renderPreview,
+        pausePreview: pausePreview,
+        resumePreview: resumePreview,
         updatePreviewSize: _updatePreviewSize
     };
 

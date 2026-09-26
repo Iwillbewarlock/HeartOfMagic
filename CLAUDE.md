@@ -32,6 +32,12 @@ What are you doing?
 ├─► Working with presets?
 │   └─► docs/PRESETS.md
 │
+├─► Working with the spell tag librarian (classification, spell_catalog.json)?
+│   ├─► How it works, rule format → docs/librarian/LIBRARIAN.md
+│   ├─► Tag definitions → docs/librarian/TAGS.md
+│   ├─► Measured coverage and accuracy → docs/librarian/MEASURED.md
+│   └─► Why it exists, what is left → docs/librarian/Concept.md, docs/librarian/ToDo.md
+│
 ├─► Working with DEST/ISL compatibility?
 │   └─► docs/DEST-IMPROVEMENTS.md
 │
@@ -47,7 +53,7 @@ What are you doing?
 4. **Explore before coding**: ALWAYS search for existing utilities before writing new helpers
 5. **Build validation**: ALWAYS run `.\BuildRelease.ps1` before completing a task
 6. **Documentation maintenance**: ALWAYS update relevant docs/ after code changes that affect documented systems
-7. **PrismaUI theme compatibility**: UI changes must work with all themes (default.json, skyrim.json)
+7. **PrismaUI theme compatibility**: UI changes must work with all designs (Classic, Modern Dark, Arcane, Night Grimoire, Candlelit Tome - `themes/skyrim.json` plus `themes/design-*.css`)
 8. **JavaScript compatibility**: Use `var` declarations in PrismaUI code (Ultralight compatibility—no `let`/`const`)
 
 ## Do NOT (Anti-Patterns)
@@ -124,6 +130,18 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
+### Deploying to the development mod folder
+
+```powershell
+.\DeployDev.ps1              # plugin + UI panel
+.\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
+```
+
+**ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
+open (PrismaUI holds the panel files, so a copy would leave the mod half written), it keeps the
+dev install's `lang/locale.js` instead of resetting the language to the shipped `en`, and it
+verifies the copy landed.
+
 ### Local Build Configuration
 
 Copy `Build_Config_Template.ps1` to `Build_Config_Local.ps1` and edit to set:
@@ -173,6 +191,8 @@ node run-tests.js
 |------|---------|
 | `run-tests.js` | Node.js test runner with browser-global mocks |
 | `modules/unificationTest.js` | Module unification/integration tests |
+| `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
+| `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/autoTest.js` | In-game automated test harness (reads `test_config.json`) |
 | `test-runner.html` | Browser-based test runner |
 
@@ -184,6 +204,11 @@ This project does not have a C++ test framework. Validation is done through:
 - Compilation (build succeeds)
 - JavaScript unit tests (above)
 - In-game testing via autoTest.js and manual play
+- Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
+  `treebuilder-test` (tree builders), `librarian-test` (spell tag librarian) and `declutter-test`
+  (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
+  must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")
 
 ## Code Style
 
@@ -236,6 +261,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Runtime SKSE data | `SKSE/Plugins/SpellLearning/` |
 | Documentation | `docs/` |
 | FOMOD installer | `fomod/` |
+| Design presets shipped as files | `SKSE/Plugins/SpellLearning/presets/design/` |
 | Optional ISL patch | `optional/ISLPatch/` |
 | Build output | `build/` (gitignored) |
 | Lab/experiments | `lab/` |

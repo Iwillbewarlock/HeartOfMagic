@@ -217,7 +217,8 @@ function updateLearningStatusBadge(node, progress) {
     }
     
     // Update badge
-    badge.textContent = stage.toUpperCase();
+    // details.statusLocked, details.statusStudying, ... (English stays upper case)
+    badge.textContent = tOr('details.status' + stage.charAt(0).toUpperCase() + stage.slice(1), null, stage.toUpperCase());
     badge.className = 'learning-status-badge ' + stage;
     
     // Update effectiveness display
@@ -271,6 +272,39 @@ function calculateCurrentEffectiveness(progressPercent, el) {
     }
     
     return currentPower;
+}
+
+/**
+ * XP a spell needs: its override if the player set one, else its tier's, and
+ * the reverse unlock share of that when a spell it leads to is already known
+ * (node.openedByKnownChild, set by recalculateNodeAvailability). The one place
+ * this is worked out: the Learn button, auto-advance, the progress read-out and
+ * the tree's XP rings all ask here. C++ gets the number with the learning target.
+ * @param {Object} node - tree node
+ * @returns {number}
+ */
+function getRequiredXPForNode(node) {
+    if (!node) return settings.xpNovice;
+    var required = (typeof xpOverrides !== 'undefined' && xpOverrides[node.formId] !== undefined)
+        ? xpOverrides[node.formId]
+        : getXPForTier(node.level);
+    if (node.openedByKnownChild && settings.reverseUnlock !== false && node.state !== 'unlocked') {
+        required = Math.max(1, Math.round(required * getReverseUnlockXPShare(node.level)));
+    }
+    return required;
+}
+
+/**
+ * Share of its XP a spell opened by a known higher spell costs, set per tier of
+ * the opened spell (Settings > Progression > Known Higher Spells).
+ * @param {string} level - 'Novice' ... 'Master'
+ * @returns {number} 0.1 - 1
+ */
+function getReverseUnlockXPShare(level) {
+    var key = 'reverseUnlockXP' + ({ apprentice: 'Apprentice', adept: 'Adept', expert: 'Expert', master: 'Master' }[
+        String(level || '').toLowerCase()] || 'Novice');
+    var share = settings[key];
+    return (typeof share === 'number' && share > 0) ? share : 1;
 }
 
 // Get XP required for a spell tier
@@ -371,7 +405,7 @@ function onLearnClick() {
         
         // Set as learning target with prerequisites for direct XP detection
         var prereqs = node.prerequisites || [];
-        var reqXP = node.requiredXP || 100;  // Default to 100 if not specified
+        var reqXP = getRequiredXPForNode(node);
         console.log('[SpellLearning] Setting learning target:', node.formId, 'with', prereqs.length, 'prereqs, requiredXP:', reqXP);
 
         if (window.callCpp) {
@@ -492,101 +526,7 @@ function onUnlockClick() {
 }
 
 // C++ Callbacks for progression
-window.onProgressUpdate = function(dataStr) {
-    console.log('[SpellLearning] Progress update received:', dataStr);
-    try {
-        var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
-        console.log('[SpellLearning] Parsed progress data:', JSON.stringify(data));
-        
-        // Store progress data under canonical ID so duplicates share state
-        var canonId = (typeof resolveCanonicalId === 'function') ? resolveCanonicalId(data.formId) : data.formId;
-
-        // Use current JS tier settings as authoritative required XP (not stale C++ value)
-        var _node = state.treeData ? state.treeData.nodes.find(function(n) {
-            var nc = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(n) : n.formId;
-            return nc === canonId;
-        }) : null;
-        var _tierReq = _node ? (getXPForTier(_node.level) || data.requiredXP) : data.requiredXP;
-        var _req = (typeof xpOverrides !== 'undefined' && xpOverrides[data.formId] !== undefined) ? xpOverrides[data.formId] : _tierReq;
-
-        state.spellProgress[canonId] = {
-            xp: data.currentXP,
-            required: _req,
-            progress: _req > 0 ? data.currentXP / _req : 0,
-            unlocked: data.unlocked || false,  // Use unlocked status from C++
-            ready: data.ready || (data.currentXP >= _req)
-        };
-        console.log('[SpellLearning] Stored progress for ' + canonId + ': XP=' + data.currentXP + '/' + _req + ', unlocked=' + (data.unlocked || false));
-
-        // Use UNIFIED mastery check to determine if truly mastered
-        var isMastered = typeof isSpellMastered === 'function' && isSpellMastered(canonId);
-
-        // Only set node state to 'unlocked' if TRULY mastered (100% XP)
-        // Find ALL nodes matching this canonical formId (including duplicates)
-        if (isMastered && state.treeData) {
-            state.treeData.nodes.forEach(function(n) {
-                var nCanon = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(n) : n.formId;
-                if (nCanon === canonId && n.state !== 'unlocked') {
-                    n.state = 'unlocked';
-                    console.log('[SpellLearning] Node MASTERED (100%), state updated to unlocked: ' + n.formId);
-                    if (typeof syncDuplicateState === 'function') syncDuplicateState(n);
-                }
-            });
-            // Recalculate availability for children - NOW they can unlock
-            if (typeof recalculateNodeAvailability === 'function') {
-                recalculateNodeAvailability();
-            }
-
-            // Auto-advance to next spell if enabled
-            if (settings.autoAdvanceLearning) {
-                var _masteredNode = state.treeData.nodes.find(function(n) {
-                    var nc = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(n) : n.formId;
-                    return nc === canonId;
-                });
-                if (_masteredNode) {
-                    // Small delay to let recalculateNodeAvailability() finish updating states
-                    setTimeout(function() {
-                        autoAdvanceLearningTarget(canonId, _masteredNode.school);
-                    }, 100);
-                }
-            }
-        } else if (data.unlocked && !isMastered) {
-            // C++ says unlocked but unified check says not mastered - log warning
-            console.warn('[SpellLearning] C++ says unlocked but not mastered yet: ' + canonId);
-        }
-
-        // Update details panel if this is the selected node (match canonical ID)
-        var selectedCanon = state.selectedNode ? ((typeof getCanonicalFormId === 'function') ? getCanonicalFormId(state.selectedNode) : state.selectedNode.formId) : null;
-        if (state.selectedNode && selectedCanon === canonId) {
-            console.log('[SpellLearning] Updating details panel for selected node');
-            // Only update state to unlocked if truly mastered
-            if (isMastered) {
-                state.selectedNode.state = 'unlocked';
-            }
-            // Refresh FULL details panel (includes name/effects reveal based on progress)
-            if (typeof showSpellDetails === 'function') {
-                showSpellDetails(state.selectedNode);
-            } else {
-                updateDetailsProgression(state.selectedNode);
-            }
-        }
-        
-        // Update node visuals in all renderers
-        if (state.treeData) {
-            console.log('[SpellLearning] Updating node states in tree');
-            WheelRenderer.updateNodeStates();
-            if (typeof CanvasRenderer !== 'undefined') {
-                CanvasRenderer._needsRender = true;
-            }
-            if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
-                SmartRenderer.refresh();
-            }
-        }
-        
-    } catch (e) {
-        console.error('[SpellLearning] Failed to parse progress update:', e);
-    }
-};
+// window.onProgressUpdate lives in modules/progressUpdates.js (the cheap path for XP gains)
 
 // =============================================================================
 // AUTO-ADVANCE LEARNING TARGET
@@ -615,22 +555,13 @@ function autoAdvanceLearningTarget(masteredCanonId, school) {
             return nc === masteredCanonId;
         });
 
-        if (masteredNode && masteredNode.children && masteredNode.children.length > 0) {
-            // Get child nodes that are 'available' (prereqs met, not learning/unlocked)
-            var availableChildren = [];
-            masteredNode.children.forEach(function(childId) {
-                var childNode = state.treeData.nodes.find(function(n) {
-                    return n.formId === childId || n.id === childId;
-                });
-                if (childNode && childNode.state === 'available') {
-                    availableChildren.push(childNode);
-                }
-            });
-
-            if (availableChildren.length > 0) {
-                // Pick randomly from available children
-                candidate = availableChildren[Math.floor(Math.random() * availableChildren.length)];
-                console.log('[SpellLearning] Auto-advance (branch): found ' + availableChildren.length + ' available children, picked ' + (candidate.name || candidate.formId));
+        if (masteredNode) {
+            // Next 'available' spells along the branch, up or down (prereqs met, not learning/unlocked)
+            var branchNext = _autoAdvanceBranchNext(masteredNode);
+            if (branchNext.length > 0) {
+                // Pick randomly from them
+                candidate = branchNext[Math.floor(Math.random() * branchNext.length)];
+                console.log('[SpellLearning] Auto-advance (branch): found ' + branchNext.length + ' available next spells, picked ' + (candidate.name || candidate.formId));
             }
         }
 
@@ -693,7 +624,7 @@ function autoAdvanceLearningTarget(masteredCanonId, school) {
 
     // Set the new learning target
     var prereqs = candidate.prerequisites || [];
-    var reqXP = candidate.requiredXP || getXPForTier(candidate.level) || 100;
+    var reqXP = getRequiredXPForNode(candidate);
 
     if (window.callCpp) {
         window.callCpp('SetLearningTarget', JSON.stringify({
@@ -725,6 +656,31 @@ function autoAdvanceLearningTarget(masteredCanonId, school) {
     if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
         SmartRenderer.refresh();
     }
+}
+
+/**
+ * Helper: the available spells next to a mastered one along its branch, in the
+ * direction it was learned. Learned upward: its children. Learned downward (a
+ * known spell above opened it, reverse unlock): its own prerequisites, which it
+ * opens now it is mastered. The other direction when that one has none.
+ */
+function _autoAdvanceBranchNext(masteredNode) {
+    var seen = {};
+    var availableOf = function(ids) {
+        var out = [];
+        (ids || []).forEach(function(id) {
+            var n = state.treeData.nodes.find(function(x) { return x.formId === id || x.id === id; });
+            if (!n || n === masteredNode || n.state !== 'available' || seen[n.id]) return;
+            seen[n.id] = true;
+            out.push(n);
+        });
+        return out;
+    };
+    var up = availableOf(masteredNode.children);
+    var down = availableOf([].concat(masteredNode.prerequisites || [], masteredNode.hardPrereqs || [], masteredNode.softPrereqs || []));
+    var learnedDownward = masteredNode.openedByKnownChild === true;
+    var first = learnedDownward ? down : up;
+    return first.length ? first : (learnedDownward ? up : down);
 }
 
 /**
@@ -813,6 +769,10 @@ window.onSpellUnlocked = function(dataStr) {
                 }
             }
 
+            // Panel closed (mastered while playing): the states are right, the
+            // redraws and the card wait for onPanelShowing's refresh
+            if (window._panelVisible === false) return;
+
             // Refresh display - full re-render needed in discovery mode to show new nodes
             if (settings.discoveryMode) {
                 WheelRenderer.render();
@@ -883,7 +843,8 @@ window.onLearningTargetSet = function(dataStr) {
 };
 
 window.onProgressData = function(dataStr) {
-    console.log('[SpellLearning] Progress data received:', dataStr);
+    // Every spell's progress: only worth the string in developer mode
+    if (typeof LogGate !== 'undefined' && LogGate.on()) console.log('[SpellLearning] Progress data received:', dataStr);
     try {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         
@@ -925,18 +886,19 @@ window.onProgressData = function(dataStr) {
                     }
                 });
                 
-                // Rebuild CanvasRenderer learning paths if available
-                if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer._nodeMap) {
-                    console.log('[SpellLearning] Rebuilding CanvasRenderer learning paths...');
-                    CanvasRenderer._buildLearningPaths();
-                    CanvasRenderer._needsRender = true;
-                }
+                // CanvasRenderer's learning paths are rebuilt below, once the
+                // progress is in too
+                var rebuildPaths = true;
             }
         }
         
         // Load spell progress
         if (data.spellProgress) {
             state.spellProgress = data.spellProgress;
+            if (typeof RequiredXPSync !== 'undefined') {
+                RequiredXPSync.fromProgressData(data.spellProgress);
+                RequiredXPSync.sync();
+            }
             var count = Object.keys(state.spellProgress).length;
             console.log('[SpellLearning] Loaded progress for ' + count + ' spells');
             
@@ -948,6 +910,16 @@ window.onProgressData = function(dataStr) {
             });
         }
         
+        // Rebuild CanvasRenderer learning paths if available - on an opening,
+        // only if the states or rings differ from what the tree showed
+        // (OpenRefreshGate; asked on every reply, it counts them)
+        var redraw = typeof OpenRefreshGate === 'undefined' || OpenRefreshGate.reply();
+        if (rebuildPaths && redraw && typeof CanvasRenderer !== 'undefined' && CanvasRenderer._nodeMap) {
+            console.log('[SpellLearning] Rebuilding CanvasRenderer learning paths...');
+            CanvasRenderer._buildLearningPaths();
+            CanvasRenderer._needsRender = true;
+        }
+
         // Update display
         if (state.treeData) {
             WheelRenderer.updateNodeStates();
