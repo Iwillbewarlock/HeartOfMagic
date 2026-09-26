@@ -100,7 +100,9 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 에 두면 된다. 판단은 번역 이름이 아니라 원문 이름과 원작자 설명으로 한다. 일부러 뺀 것: Natura 의
 바위 주문들은 "출혈 피해"를 주지만 흙 마법이다. Creation Club 주문 팩(`ccBGSSSE014-SpellPack01.esl`)의
 Oblivion 체력 흡수 네 개(Choking Grasp, Strangulation, Hangman's Noose, Touch of Death)는 질식시켜
-흡수하는 컨셉이라 혈도 바람도 아닌 무속성으로 둔다.
+흡수하는 컨셉이라 혈도 바람도 아닌 무속성으로 둔다. 이름만 폭풍·소용돌이인 주문(번개 폭풍, 얼음 폭풍, 냉기 화염
+폭풍우, 피의 소용돌이 등)에는 바람을 붙이지 않는다 - 바람을 부리는 마법이 아니라 제 원소가 휘몰아치는
+모양일 뿐이다.
 
 ### 어휘 게이트
 
