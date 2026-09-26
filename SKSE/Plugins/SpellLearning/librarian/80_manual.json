@@ -23,16 +23,6 @@
       ] },
       "add": { "elements": ["blood"] } },
 
-    { "_": "Mysticism's vampiric spells (Entropy in the Korean names): life drained from the target",
-      "match": { "spell": [
-        "MysticismMagic.esp|0x1B8A10",
-        "MysticismMagic.esp|0x1B8A15",
-        "MysticismMagic.esp|0x2DE640",
-        "MysticismMagic.esp|0x2E8863",
-        "MysticismMagic.esp|0x46E8A8"
-      ] },
-      "add": { "elements": ["blood"] } },
-
     { "_": "Water: Natura's Water Spray, the one water spell of the set without the water keyword",
       "match": { "spell": "Natura.esp|0x000B2C" },
       "add": { "elements": ["water"] } },
