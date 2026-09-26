@@ -84,6 +84,26 @@
       ] },
       "add": { "elements": ["necrotic"] } },
 
+    { "_": "Absorbing health or stamina is blood magic (decided 2026-09-27): every absorb effect, any mod",
+      "match": { "archetype": "Absorb", "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } },
+
+    { "match": { "archetype": "Absorb", "primaryAV": "Stamina" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Absorbing magicka is arcane",
+      "match": { "archetype": "Absorb", "primaryAV": "Magicka" },
+      "add": { "elements": ["arcane"] } },
+
+    { "_": "Except the Creation Club Oblivion absorbs (Choking Grasp, Strangulation, Hangman's Noose, Touch of Death): choking, not blood - left without an element",
+      "match": { "spell": [
+        "ccbgssse014-spellpack01.esl|0x00085A",
+        "ccbgssse014-spellpack01.esl|0x000859",
+        "ccbgssse014-spellpack01.esl|0x000858",
+        "ccbgssse014-spellpack01.esl|0x000857"
+      ] },
+      "remove": { "elements": ["blood"] } },
+
     { "_": "Skyrim's Fire Storm is fire only",
       "match": { "spell": "Skyrim.esm|0x07A82B" },
       "remove": { "elements": ["frost"] } },
