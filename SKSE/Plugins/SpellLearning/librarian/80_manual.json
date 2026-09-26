@@ -88,36 +88,27 @@
       "match": { "spell": "Glenmoril.esm|0x60025C" },
       "add": { "elements": ["fire"] } },
 
-    { "_": "Mysticism's scripted absorb cloaks, the same call as the absorb rules below: health and stamina are blood, magicka arcane",
-      "match": { "spell": [
-        "MysticismMagic.esp|0x445FA0",
-        "MysticismMagic.esp|0x445FB2"
-      ] },
-      "add": { "elements": ["blood"] } },
-
-    { "match": { "spell": "MysticismMagic.esp|0x445FA8" },
-      "add": { "elements": ["arcane"] } },
-
-    { "_": "Mysticism's resist shells and shields carry their element, like its weakness spells do",
-      "match": { "spell": ["MysticismMagic.esp|0x29265D", "MysticismMagic.esp|0x29265E"] },
+    { "_": "Resist buffs carry their element (a fire shield is fire magic), as the weakness curses already do: raising a resist, not hostile",
+      "match": { "archetype": "PeakValueModifier", "primaryAV": "FireResist", "hostile": false },
       "add": { "elements": ["fire", "resistance"] } },
-
-    { "match": { "spell": ["MysticismMagic.esp|0x292664", "MysticismMagic.esp|0x292665"] },
-      "add": { "elements": ["shock", "resistance"] } },
-
-    { "match": { "spell": ["MysticismMagic.esp|0x29266B", "MysticismMagic.esp|0x29266C"] },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "FrostResist", "hostile": false },
       "add": { "elements": ["frost", "resistance"] } },
-
-    { "match": { "spell": ["MysticismMagic.esp|0x292672", "MysticismMagic.esp|0x292673"] },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "ElectricResist", "hostile": false },
+      "add": { "elements": ["shock", "resistance"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "PoisonResist", "hostile": false },
       "add": { "elements": ["poison", "resistance"] } },
-
-    { "_": "Lost Grimoire's Venom Cloak deals poison damage",
-      "match": { "spell": "LostGrimoire.esp|0x1B1D56" },
-      "add": { "elements": ["poison"] } },
-
-    { "_": "Mysticism's Soul Harvest traps souls, like Soul Trap",
-      "match": { "spell": "MysticismMagic.esp|0x9F8524" },
-      "add": { "elements": ["soul"] } },
+    { "match": { "archetype": "PeakValueModifier", "primaryAV": "DiseaseResist", "hostile": false },
+      "add": { "elements": ["disease", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "FireResist", "hostile": false },
+      "add": { "elements": ["fire", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "FrostResist", "hostile": false },
+      "add": { "elements": ["frost", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "ElectricResist", "hostile": false },
+      "add": { "elements": ["shock", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "PoisonResist", "hostile": false },
+      "add": { "elements": ["poison", "resistance"] } },
+    { "match": { "archetype": "ValueModifier", "primaryAV": "DiseaseResist", "hostile": false },
+      "add": { "elements": ["disease", "resistance"] } },
 
     { "_": "Holy light: Lightpower's Holy Flame, Sanctuary, Holy Purification, Judgement; Lost Grimoire's divine blessing, guardian and shield (not castable after a murder)",
       "match": { "spell": [
@@ -141,6 +132,16 @@
 
     { "match": { "archetype": "Absorb", "primaryAV": "Stamina" },
       "add": { "elements": ["blood"] } },
+
+    { "_": "The same by keyword, for absorbs a script carries (a cloak, a rune): vanilla's vampire drain on a hostile effect (a mod's dispel carries it too), KIT's absorb types",
+      "match": { "mgefKeyword": "MagicVampireDrain", "hostile": true },
+      "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Health" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Stamina" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelHealthCloak" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelStaminaCloak" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Magicka" }, "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelMagickaCloak" }, "add": { "elements": ["arcane"] } },
 
     { "_": "Absorbing magicka is arcane",
       "match": { "archetype": "Absorb", "primaryAV": "Magicka" },

@@ -115,12 +115,16 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
   폭풍 균열·전기장(전격), 살라맨더 비늘(화염), 죽음의 손길(영혼)
 - 괴저: Necromancer's Magic 의 해골 무덤과 부정한 저주 둘(양들의 침묵, 어둠의 무게)
 - 흡수(구조 룰, 모든 모드): 체력·지구력 흡수(`archetype` Absorb + `primaryAV` Health/Stamina)는 혈,
-  매지카 흡수는 비전. 이 로드오더에서는 10개(AncientBlood 연쇄하는 고통·정수 흡수, Lost Grimoire
-  감전사, Mysticism 의 흡수 주문들)가 바뀐다. 이미 혈인 주문(Vampiric 등)은 그대로다
-- 설명으로 판단(2026-09-27): Glenmoril 성 바즈라의 횃불(화염 피해 → 화염), Lost Grimoire 맹독 망토(독),
-  Mysticism 영혼 수확(영혼 - 소울 트랩처럼 영혼을 가둔다), Mysticism 저항 껍질·방패 여덟 개(각 원소 +
-  저항 - 약점 주문과 같게), Mysticism 흡수 망토 셋(체력·지구력은 혈, 매지카는 비전 - 아래 흡수 룰과 같은
-  판단), 신성: Lightpower 의 신성한 불꽃·성역·신성한 정화·천벌(천벌은 태양빛이라 태양도), Lost Grimoire
+  매지카 흡수는 비전. 스크립트가 흡수하는 망토·룬도 키워드로 같은 판단을 한다: 적대 효과의
+  `MagicVampireDrain`(Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다),
+  `KIT_MagicAbsorbType_Health*`/`Stamina*`/`Dispel...Cloak` → 혈, `..._Magicka*` → 비전
+- 저항 강화(구조 룰): 적대가 아닌 `PeakValueModifier`/`ValueModifier` 가 FireResist·FrostResist·
+  ElectricResist·PoisonResist·DiseaseResist 를 올리면 그 원소 + 저항(약점 저주가 이미 그렇듯)
+- KIT 망토 변형(`10_kit.json`, 구조 룰): `KIT_MagicDamageType_Dispel<X>Cloak`,
+  `KIT_MagicAbsorbType_Dispel<X>Cloak`, `KIT_MagicSoulTrapType_DispelNormalCloak` 는 접두어 룰이 놓치던
+  망토용 키워드라 따로 받는다(맹독 망토 → 독, Mysticism 영혼 수확 → 영혼 등)
+- 설명으로 판단한 예외(주문 직접 지정, 기록에 신호가 없다): Glenmoril 성 바즈라의 횃불(화염 피해 →
+  화염), 신성: Lightpower 의 신성한 불꽃·성역·신성한 정화·천벌(천벌은 태양빛이라 태양도), Lost Grimoire
   의 신성한 축복·수호자·방패
 - 빼기(기록이 잘못 붙인 것): 바닐라 화염 폭풍의 냉기, Natura 룬 여섯 개의 화염(룬이 공유하는 폭발
   효과 탓)과 바람의 룬의 물, Natura 바람 손 주문 세 개의 흙, 돌풍의 전격, Arclight 뇌광의 벽의 화염,
