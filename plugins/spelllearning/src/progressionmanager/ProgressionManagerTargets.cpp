@@ -137,12 +137,31 @@ void ProgressionManager::ClearLearningTargetForSpell(RE::FormID formId)
 bool ProgressionManager::IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const
 {
     auto it = m_targetPrerequisites.find(targetSpellId);
-    if (it == m_targetPrerequisites.end()) {
-        return false;
+    if (it != m_targetPrerequisites.end() &&
+        std::find(it->second.begin(), it->second.end(), castSpellId) != it->second.end()) {
+        return true;
     }
 
-    const auto& prereqs = it->second;
-    return std::find(prereqs.begin(), prereqs.end(), castSpellId) != prereqs.end();
+    // The tree's own prerequisites too: a target set from a spell tome comes with
+    // no prerequisite list (SetLearningTargetFromTome), but its tree links still count
+    auto reqIt = m_prereqRequirements.find(targetSpellId);
+    if (reqIt == m_prereqRequirements.end()) {
+        return false;
+    }
+    const auto& reqs = reqIt->second;
+    return std::find(reqs.hardPrereqs.begin(), reqs.hardPrereqs.end(), castSpellId) != reqs.hardPrereqs.end() ||
+           std::find(reqs.softPrereqs.begin(), reqs.softPrereqs.end(), castSpellId) != reqs.softPrereqs.end();
+}
+
+bool ProgressionManager::IsDirectChild(RE::FormID targetSpellId, RE::FormID castSpellId) const
+{
+    auto it = m_prereqRequirements.find(castSpellId);
+    if (it == m_prereqRequirements.end()) {
+        return false;
+    }
+    const auto& reqs = it->second;
+    return std::find(reqs.hardPrereqs.begin(), reqs.hardPrereqs.end(), targetSpellId) != reqs.hardPrereqs.end() ||
+           std::find(reqs.softPrereqs.begin(), reqs.softPrereqs.end(), targetSpellId) != reqs.softPrereqs.end();
 }
 
 void ProgressionManager::SetTargetPrerequisites(RE::FormID targetSpellId, const std::vector<RE::FormID>& prereqs)
@@ -164,6 +183,13 @@ void ProgressionManager::SetTargetPrerequisites(RE::FormID targetSpellId, const 
 
 void ProgressionManager::SetPrereqRequirements(RE::FormID spellId, const PrereqRequirements& reqs)
 {
+    // The reverse index drops the old links and takes the new ones
+    auto old = m_prereqRequirements.find(spellId);
+    if (old != m_prereqRequirements.end()) {
+        LinkRequiredBy(spellId, old->second, false);
+    }
+    LinkRequiredBy(spellId, reqs, true);
+
     if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {
         m_prereqRequirements.erase(spellId);
     } else {
@@ -186,6 +212,7 @@ void ProgressionManager::SetTreePrerequisites(RE::FormID spellId, const std::vec
 void ProgressionManager::ClearAllTreePrerequisites()
 {
     m_prereqRequirements.clear();
+    m_requiredBy.clear();
     logger::info("ProgressionManager: Cleared all tree prerequisites");
 }
 
@@ -234,6 +261,58 @@ bool ProgressionManager::IsSpellMastered(RE::FormID spellId) const
     return false;
 }
 
+void ProgressionManager::LinkRequiredBy(RE::FormID spellId, const PrereqRequirements& reqs, bool link)
+{
+    // A spell both hard and soft counts once. The lists are a handful of ids,
+    // so looking before adding beats a set allocated on every call.
+    auto visit = [&](RE::FormID prereqId) {
+        if (link) {
+            auto& children = m_requiredBy[prereqId];
+            if (std::ranges::find(children, spellId) == children.end()) {
+                children.push_back(spellId);
+            }
+            return;
+        }
+        auto it = m_requiredBy.find(prereqId);
+        if (it == m_requiredBy.end()) return;
+        std::erase(it->second, spellId);
+        if (it->second.empty()) m_requiredBy.erase(it);
+    };
+    for (const RE::FormID prereqId : reqs.hardPrereqs) visit(prereqId);
+    for (const RE::FormID prereqId : reqs.softPrereqs) visit(prereqId);
+}
+
+const std::vector<RE::FormID>& ProgressionManager::GetRequiredBy(RE::FormID spellId) const
+{
+    static const std::vector<RE::FormID> kNone;
+    auto it = m_requiredBy.find(spellId);
+    return it != m_requiredBy.end() ? it->second : kNone;
+}
+
+bool ProgressionManager::IsUnlockedByKnownChild(RE::FormID spellId) const
+{
+    if (!m_xpSettings.reverseUnlock) return false;
+
+    // Walk up from the spell: its children, and with reverseUnlockToRoot their
+    // children too, until one is mastered. Visited set: a lock can point sideways.
+    std::vector<RE::FormID> frontier{ spellId };
+    std::unordered_set<RE::FormID> visited{ spellId };
+    while (!frontier.empty()) {
+        std::vector<RE::FormID> next;
+        for (const RE::FormID current : frontier) {
+            for (const RE::FormID childId : GetRequiredBy(current)) {
+                if (visited.contains(childId)) continue;
+                if (IsSpellMastered(childId)) return true;
+                visited.insert(childId);
+                next.push_back(childId);
+            }
+        }
+        if (!m_xpSettings.reverseUnlockToRoot) break;  // direct children only
+        frontier = std::move(next);
+    }
+    return false;
+}
+
 bool ProgressionManager::AreTreePrerequisitesMet(RE::FormID spellId) const
 {
     auto reqs = GetPrereqRequirements(spellId);
@@ -244,26 +323,29 @@ bool ProgressionManager::AreTreePrerequisitesMet(RE::FormID spellId) const
     }
 
     // Check ALL hard prerequisites must be mastered
+    bool ownMet = true;
     for (RE::FormID prereqId : reqs.hardPrereqs) {
         if (!IsSpellMastered(prereqId)) {
-            return false;
+            ownMet = false;
+            break;
         }
     }
 
     // Check soft prerequisites: need at least softNeeded mastered
-    if (reqs.softNeeded > 0 && !reqs.softPrereqs.empty()) {
+    if (ownMet && reqs.softNeeded > 0 && !reqs.softPrereqs.empty()) {
         int masteredCount = 0;
         for (RE::FormID prereqId : reqs.softPrereqs) {
             if (IsSpellMastered(prereqId)) {
                 masteredCount++;
             }
         }
-        if (masteredCount < reqs.softNeeded) {
-            return false;
-        }
+        ownMet = masteredCount >= reqs.softNeeded;
     }
 
-    return true;
+    // Or the player already knows a spell this one leads to: it is open whatever
+    // its own prerequisites (a higher spell from a tome or a vendor opens the
+    // step below it)
+    return ownMet || IsUnlockedByKnownChild(spellId);
 }
 
 std::vector<RE::FormID> ProgressionManager::GetUnmetHardPrerequisites(RE::FormID spellId) const

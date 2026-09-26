@@ -115,6 +115,7 @@ private:
     static void OnCheatUnlockSpell(const char* argument);
     static void OnRelockSpell(const char* argument);
     static void OnSetSpellXP(const char* argument);
+    static void OnSetRequiredXP(const char* argument);
     static void OnGetPlayerKnownSpells(const char* argument);
     static void OnSetHotkey(const char* argument);
     static void OnSetPauseGameOnFocus(const char* argument);
@@ -126,8 +127,7 @@ private:
     
     // Unified config callbacks
     static void OnLoadUnifiedConfig(const char* argument);
-    static void OnSaveUnifiedConfig(const char* argument);
-    void DoSaveUnifiedConfig(const std::string& configData);  // Deferred actual save + apply
+    static void OnSaveUnifiedConfig(const char* argument);  // UIManagerConfigSave.cpp
 
     // Clipboard callbacks
     static void OnCopyToClipboard(const char* argument);

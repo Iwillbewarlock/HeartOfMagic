@@ -126,7 +126,8 @@ namespace PapyrusAPI
         if (source.empty()) source = "direct";
         const RE::FormID formId = spell->GetFormID();
         return Ask("Papyrus.AddSourcedXP", [formId, amount, source]() {
-            logger::info("PapyrusAPI: AddSourcedXP({:08X}, {:.1f}, '{}')", formId, amount, source);
+            // Debug: another mod may call this on every hit
+            logger::debug("PapyrusAPI: AddSourcedXP({:08X}, {:.1f}, '{}')", formId, amount, source);
             return ProgressionManager::GetSingleton()->AddSourcedXP(formId, amount, source);
         }).value_or(0.0f);
     }
@@ -139,7 +140,7 @@ namespace PapyrusAPI
         }
         const RE::FormID formId = spell->GetFormID();
         return Ask("Papyrus.AddRawXP", [formId, amount]() {
-            logger::info("PapyrusAPI: AddRawXP({:08X}, {:.1f})", formId, amount);
+            logger::debug("PapyrusAPI: AddRawXP({:08X}, {:.1f})", formId, amount);
             return ProgressionManager::GetSingleton()->AddRawXP(formId, amount);
         }).value_or(0.0f);
     }

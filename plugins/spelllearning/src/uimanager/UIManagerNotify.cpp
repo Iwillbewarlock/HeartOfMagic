@@ -138,14 +138,19 @@ void UIManager::NotifyCopyComplete(bool success)
 
 void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP)
 {
-    if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
-        logger::warn("UIManager: Cannot notify progress - PrismaUI not valid");
+    // PERFORMANCE: Skip UI updates when panel is not visible
+    // The UI will refresh when it becomes visible anyway. First: this runs on
+    // every XP gain, and the warning below is written to disk at once
+    // (flush_on warn) - once per cast for a player without a working view.
+    if (!m_isPanelVisible) {
         return;
     }
 
-    // PERFORMANCE: Skip UI updates when panel is not visible
-    // The UI will refresh when it becomes visible anyway
-    if (!m_isPanelVisible) {
+    if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
+        static std::atomic<bool> warned{false};
+        if (!warned.exchange(true)) {
+            logger::warn("UIManager: Cannot notify progress - PrismaUI not valid (not logged again)");
+        }
         return;
     }
 

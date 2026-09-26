@@ -251,6 +251,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildThematic(
                 nodes[fid].theme = tm;
                 nodes[fid].themes = GetSpellThemes(nodes[fid].spellData, schoolThemes);
             }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         std::unordered_set<std::string> connected;
         connected.insert(rootFormId);

@@ -41,6 +41,10 @@ namespace TreeBuilder
         std::string school     = "Unknown";
         std::string theme;                       // the one theme branches and colours go by (may be empty)
         std::vector<std::string> themes;         // every theme the spell answers to; theme is among them
+        // What SharesTheme compares: themes minus the ones most of the school carries
+        // (DropCommonThemes). Not written out. Unset = compare themes.
+        std::vector<std::string> matchThemes;
+        bool matchThemesSet = false;
         std::string section;                     // "root", "trunk", "branch" (may be empty)
 
         std::vector<std::string> children;       // formIds of child nodes
@@ -110,7 +114,8 @@ namespace TreeBuilder
     // SPELL GROUPING (replaced former spell_grouper.py)
     // =========================================================================
 
-    // Assign each spell to its best-matching theme
+    // Assign each spell to its best-matching theme; a spell must score above
+    // minScore, else it goes to "_unassigned"
     std::unordered_map<std::string, std::vector<json>>
     GroupSpellsBestFit(const std::vector<json>& spells,
                       const std::vector<std::string>& themes,
@@ -148,6 +153,11 @@ namespace TreeBuilder
     // True when the two nodes have a theme in common. Falls back to comparing the
     // single theme for nodes that were never given a list (LLM chains).
     bool SharesTheme(const TreeNode& a, const TreeNode& b);
+
+    // Set matchThemes on one school's nodes: their themes minus those carried by
+    // at least `share` of the school (see BuildConfig::commonThemeShare). share <= 0
+    // leaves every node comparing its full theme list.
+    void DropCommonThemes(std::unordered_map<std::string, TreeNode>& nodes, float share);
 
     // Get the best matching theme for a single spell
     std::pair<std::string, int>
@@ -211,6 +221,11 @@ namespace TreeBuilder
         std::string branchStyle = "chain";  // "chain", "bfs", "balanced"
         std::string chainStyle = "linear"; // Oracle: "linear" or "branching"
         int batchSize = 20;                // Oracle: spells per LLM batch
+        // A theme carried by at least this share of a school's spells tells
+        // nothing apart inside that school (Conjuration: "summon" 89%, "conjure"
+        // 41%), so SharesTheme ignores it there. 0 = off, the behaviour before
+        // 2026-09-23. Request config key "common_theme_share".
+        float commonThemeShare = 0.4f;
 
         // LLM API config (Oracle builder)
         struct LLMApiConfig {

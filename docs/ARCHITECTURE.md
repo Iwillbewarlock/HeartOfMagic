@@ -181,7 +181,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -200,6 +200,8 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 - `OnLoadUnifiedConfig()` / `OnSaveUnifiedConfig()` - Settings persistence
 - `NotifyDESTDetectionStatus()` - Update UI with DEST mod status
 - Various `On*` callback functions for UI interop
+
+**Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file and the OpenRouter config are written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
 
 **PrismaUI View Path:**
 ```
@@ -229,13 +231,72 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 **Key Functions:**
 - `SetLearningTarget(school, formId, prereqs)` - Set active target with prerequisites
 - `SetTargetPrerequisites(targetId, prereqs)` - Update prerequisites for a target
-- `IsDirectPrerequisite(targetId, castId)` - Check if cast spell is direct prereq
+- `IsDirectPrerequisite(targetId, castId)` - Check if cast spell is direct prereq (the list the UI sent, else the tree's hard/soft prerequisites - a target set from a spell tome comes with no list)
 - `AddXP(formId, amount)` - Add XP to spell (triggers early grant/mastery)
 - `OnSpellCast(school, castSpellId, baseXP)` - Handle cast event
 - `GetProgress(formId)` - Get SpellProgress struct
 - `IsSpellAvailableToLearn(formId)` - Check if spell can receive XP
 - `ClearLearningTargetForSpell(formId)` - Clear target after mastery
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
+
+**Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the
+player already knows - a higher spell from a tome, a vendor, another mod - now opens its **direct**
+prerequisites (hard, soft and PRM locks alike): they become learnable whatever their own prerequisites,
+and cost a share of their XP set per tier of the opened spell - `reverseUnlockXPNovice` ...
+`reverseUnlockXPMaster`, defaults 30 / 40 / 50 / 70 / 80%, so an Expert spell opened by a known Master
+spell costs 70%. This applies only to spells opened from above; learning upward keeps the tier XP as it
+is. "Opened from above" means a mastered spell lists it as a prerequisite, however that spell was
+learned: a spell with soft prerequisites (need one of A1/A2/A3), once mastered through A1, opens A2 and A3
+at their share too. By default only one step: the prerequisite's
+own prerequisites open once it is learned in turn; `reverseUnlockToRoot` opens every spell below it
+down to the root at once. One rule, three places that ask it:
+- C++ `ProgressionManager::IsUnlockedByKnownChild` - `AreTreePrerequisitesMet` (the mod API, Papyrus,
+  ISL; it checks the spell's own prerequisites first and walks up only when they are not met) and the
+  spell tome hook's prerequisite check accept it. The walk looks children up in `m_requiredBy`
+  (`GetRequiredBy`), the prerequisite links the other way round, kept in step as links are set
+  (`SetPrereqRequirements` -> `LinkRequiredBy`) - not a scan of every spell per step. Both survive a
+  save load (`ClearAllProgress` leaves them): they are tree data, sent only when a tree loads; `GetRequiredXP` applies the share to a
+  spell that has no required XP from the panel yet (a tome read before the spell was ever a target).
+- JS `recalculateNodeAvailability` (`cppCallbacks.js`) sets `node.openedByKnownChild` and opens the node.
+- JS `getRequiredXPForNode` (`progressionUI.js`) - the one place the panel works out a spell's required
+  XP: override, else tier, times `getReverseUnlockXPShare(tier)` when `openedByKnownChild`. C++ has the
+  same lookup (`ProgressionManager::GetReverseUnlockXPShare`). C++ keeps the number it was sent with
+  the target; `RequiredXPSync` (`modules/requiredXPSync.js`) sends it again through the `SetRequiredXP`
+  listener whenever C++ reports another one - after a load (the co-save keeps only the percent, so C++
+  starts from tier XP: `GetRequiredXP` with no stored value), or when a known higher spell or a share
+  slider changes it mid-session. The Learn button, auto-advance,
+  the progress read-out, the spell card and the tree's XP rings all use it. The Learn button used to
+  send `node.requiredXP || 100`, and nothing ever set `node.requiredXP`, so every spell started from
+  the button was a 100 XP target in C++ whatever its tier.
+
+The spell card says why such a spell is open (`#reverse-unlock-note`). Config: `reverseUnlock` (default
+true), `reverseUnlockToRoot` (default false) and `reverseUnlockXPNovice` ... `reverseUnlockXPMaster`
+(0.1 - 1.0 in the panel; C++ clamps to 0.01 - 1),
+read by both sides (`UIManagerConfig.cpp`, `settingsPanel.js`); `reverseUnlock: false` gives the old
+behaviour. In the panel: *Settings > Progression > Known Higher Spells*, right under the XP per tier -
+a switch for the rule, one for "down to the root" and a slider per tier for the XP share
+(`modules/reverseUnlockSetting.js`, which also saves, loads, resets and puts in settings presets
+every key below).
+
+Everything else about learning works downward too:
+- **XP gain rates.** With `reverseXpSeparate` on, spells learned downward (C++ `IsUnlockedByKnownChild`)
+  gain XP at their own rates - `reverseXpGlobalMultiplier` (x1 - x1000), `reverseXpMultiplierDirect` /
+  `School` / `Any` and `reverseXpCapAny` / `School` / `Direct` (percent, like the `xp*` keys; defaults
+  the same as theirs). `ProgressionManager::GetGainRates(targetId)` picks the set, for spell casts
+  (`OnSpellCast`) and for `AddSourcedXP` (the mod API, passive learning, BookXP), whose modded sources
+  take the downward overall multiplier. Off (the default), both directions share the upward rates.
+  Turning it on the first time starts the sliders from the upward values.
+- **Direct source.** A cast counts as "direct" when the spell cast leads to the target
+  (`IsDirectPrerequisite`, which also reads the tree's prerequisites, so targets set from a spell tome
+  get it too) or - learning downward, with `reverseUnlock` on - is the spell above it that opened it
+  (`IsDirectChild`: the cast spell lists the target as a hard or soft prerequisite).
+- **Auto-advance, branch mode.** `_autoAdvanceBranchNext` (`progressionUI.js`) follows the direction
+  the mastered spell was learned in: its children when learned upward, its own prerequisites (which it
+  opens once mastered) when learned downward, the other direction when that one has nothing
+  available. Random mode already picks from every available spell in the school.
+- **Passive learning** reads the tier from the spell (`SpellScanner::DetermineSpellTier`) for its
+  per-tier cap and its "novice" scope. It used to read it off the required XP, so a spell at a
+  reverse-unlock share passed for a lower tier (an Adept spell at 50% = 200 XP took the Apprentice cap).
 
 **XP Source Priority:**
 1. **Self-cast** (casting the learning target itself) - 100% multiplier, no cap
@@ -353,7 +414,7 @@ struct EarlyLearningSettings {
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
 
-### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`)
+### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -362,6 +423,7 @@ struct EarlyLearningSettings {
 - When spell is NOT in system: let vanilla proceed (teach + consume)
 - Configurable XP grant per read (default 25% of required)
 - **Tome inventory boost** - bonus XP while tome in inventory (25%)
+- **Tome inventory cache** (2026-09-25) - the boost is checked once per learning target on every cast, and answering it meant walking the player's whole inventory each time. `SpellTomeHookInventory.cpp` keeps the answer per spell until the inventory changes: a `TESContainerChangedEvent` sink (registered at kDataLoaded) invalidates it when the player is the old or new container and the moved item is a spell tome (or cannot be looked up), and revert and post-load invalidate it too. The event can come from any thread, so the sink only bumps an atomic counter; the cache compares that number on its next lookup and starts over when it moved, and an answer computed while the counter moved is not kept
 - Prerequisite checking before allowing tome XP
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
 
@@ -652,14 +714,34 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 - `OpenRouterAPI` — detached `std::thread` for HTTP requests, dispatches callback to game thread via `AddTaskToGameThread()`
 - `TreeBuilder::Build()` — detached `std::thread` for NLP tree construction (TF-IDF, similarity matrices, Edmonds' arborescence). Uses OpenMP for inner-loop parallelism. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - `TreeNLP::ProcessPRMRequest()` — detached `std::thread` for prerequisite-master scoring. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
+- Config save worker (`UIManagerConfigSave.cpp`) — one detached `std::thread`, started on the first save, that reads, merges and writes `config.json` for queued saves in order and posts the settings back to the game thread via `AddTaskToGameThread()` (2026-09-25)
 
 **Synchronization primitives:**
 - `SpellEffectivenessHook` — `std::shared_mutex` (reader-writer) for hot-path spell data
-- `SpellTomeHook` — `std::mutex` for tome XP tracking set
+- `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink only touches the counter)
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
 - `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
 - `OpenRouterAPI` — `std::mutex` around the config; readers copy, writers go through `UpdateConfig`
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)
+
+### Logging (2026-09-25)
+
+CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all three DLLs) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
+
+### Tree load (2026-09-25)
+- `GetSpellInfoBatch` keeps each spell's info as JSON (`SpellScanner::GetSpellInfoJsonByFormId`) instead of building text and parsing it back once per spell; `GetSpellInfoByFormId` is the serialized wrapper for the single-spell path
+- `ProgressionManager::LinkRequiredBy` checks a child list before adding to it instead of building a set on every call
+- `GetPlayerKnownSpells` formats ids with `std::format` and logs each spell at trace level only
+
+### Effect hook and XP notifications (2026-09-26)
+- The effect hook (`ApplyEffectivenessScalingFast`, every effect of every player spell) reads the progress
+  with `ProgressionManager::GetProgressPercent` (no copy of `SpellProgress`, whose modded-source map
+  allocates) and takes one shared lock for the early-learned check, the power step and the binary threshold
+  (`SpellEffectivenessHook::ScalingFor`); it took the lock four or five times and copied the progress twice.
+  `GetCurrentPowerStep` reads the progress the same way.
+- `UIManager::NotifyProgressUpdate` (every XP gain) returns for a hidden panel before anything else, and its
+  "PrismaUI not valid" warning - written to disk at once - is logged once, not once per cast.
+- `PapyrusAPI` `AddSourcedXP`/`AddRawXP` log at debug (another mod may call them on every hit).
 
 ### C++ Plugin Performance (Feb 2026)
 - **`std::shared_mutex`** for read-heavy concurrent access (replaces `std::mutex`)
@@ -680,7 +762,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 **Core Files:**
 - `index.html` - UI structure, module load order
-- `styles.css` + `styles-skyrim.css` - Styling (dark theme + Skyrim theme)
+- `styles-skyrim.css` - Styling (Skyrim Edge, the one UI theme); designs lay `themes/design-*.css` over it
 - `script.js` - Main initialization, tabs, button wiring (e.g. proceduralBtn → onProceduralClick), early learning helpers
 
 **JavaScript Modules (`modules/`) – key ones:**
@@ -991,6 +1073,22 @@ All settings stored in single config file, managed through UI:
   "xpAdept": 400,
   "xpExpert": 800,
   "xpMaster": 1500,
+
+  "reverseUnlock": true,
+  "reverseUnlockToRoot": false,
+  "reverseUnlockXPNovice": 0.3,
+  "reverseUnlockXPApprentice": 0.4,
+  "reverseUnlockXPAdept": 0.5,
+  "reverseUnlockXPExpert": 0.7,
+  "reverseUnlockXPMaster": 0.8,
+  "reverseXpSeparate": false,
+  "reverseXpGlobalMultiplier": 1,
+  "reverseXpMultiplierDirect": 100,
+  "reverseXpMultiplierSchool": 50,
+  "reverseXpMultiplierAny": 10,
+  "reverseXpCapAny": 5,
+  "reverseXpCapSchool": 15,
+  "reverseXpCapDirect": 50,
   
   "revealName": 10,
   "revealEffects": 25,
@@ -1087,6 +1185,7 @@ HeartOfMagic/
 │   │       ├── SpellCastHandler.cpp         ✅ Spell cast events, notification throttling
 │   │       ├── SpellCastXPSource.cpp        ✅ XP source implementation
 │   │       ├── SpellTomeHook.cpp            ✅ Tome interception, XP grant, keep book
+│   │       ├── SpellTomeHookInventory.cpp   ✅ Tome inventory boost and its cache
 │   │       ├── OpenRouterAPI.cpp            ✅ LLM API client (OpenRouter/WinHTTP)
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
@@ -1097,13 +1196,15 @@ HeartOfMagic/
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (8 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (10 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen, PRM scoring)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
-│   │       │   ├── UIManagerConfig.cpp          (unified config load/save/apply)
+│   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)
+│   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
+│   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
 │   │       │   ├── UIManagerLLM.cpp             (LLM/OpenRouter integration)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
 │   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (5 files)
@@ -1147,7 +1248,7 @@ HeartOfMagic/
 ├── PrismaUI/views/SpellLearning/
 │   └── SpellLearningPanel/          ✅ Main UI (39 modules)
 │       ├── index.html               ✅ UI structure + module loading
-│       ├── styles.css               ✅ Default dark styling
+│       ├── themes/design-*.css      Designs laid over styles-skyrim.css (Arcane, Modern Dark)
 │       ├── styles-skyrim.css        ✅ Skyrim-themed styling
 │       ├── script.js                ✅ Main app logic
 │       ├── themes/                  ✅ Theme definitions (default, skyrim)
@@ -1179,7 +1280,6 @@ MO2/mods/HeartOfMagic_RELEASE/
 │           └── SpellLearningPanel/
 │               ├── index.html
 │               ├── script.js
-│               ├── styles.css
 │               ├── styles-skyrim.css
 │               ├── themes/
 │               └── modules/            # JavaScript modules

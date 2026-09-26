@@ -149,6 +149,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildTree(
             }
             nodes[node.formId] = std::move(node);
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Group by tier and pick root
         std::unordered_map<std::string, std::vector<json>> byTier;

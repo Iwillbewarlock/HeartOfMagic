@@ -209,8 +209,13 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                     progress.progressPercent = progressPercent;
                     progress.unlocked = unlocked != 0;
                     progress.xpFromModded = std::move(moddedXP);
-                    // requiredXP will be set from tree data later
+                    // The co-save keeps only the percent. Start from the spell's tier
+                    // XP (GetRequiredXP with no stored value) rather than the struct's
+                    // 100; the panel then sends its own number - per-spell override,
+                    // known-higher-spell share - through SetRequiredXP.
+                    progress.requiredXP = 0.0f;
                     m_spellProgress[resolvedId] = progress;
+                    m_spellProgress[resolvedId].requiredXP = GetRequiredXP(resolvedId);
 
                     logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",
                         resolvedId, progressPercent * 100.0f, unlocked ? "(unlocked)" : "",

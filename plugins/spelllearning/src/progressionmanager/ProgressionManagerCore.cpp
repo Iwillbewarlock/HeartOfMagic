@@ -53,6 +53,10 @@ void ProgressionManager::ClearAllProgress()
     m_learningTargets.clear();
     m_spellProgress.clear();
     m_targetPrerequisites.clear();
-    ClearAllTreePrerequisites();  // clears m_prereqRequirements
+    // The tree's prerequisites (m_prereqRequirements, m_requiredBy) stay: they
+    // come from the tree, the same for every save, and the panel sends them only
+    // when a tree is loaded or rebuilt (SetTreePrerequisites, which clears first).
+    // Cleared here on every load, they were gone for the rest of the session -
+    // no prerequisite checks, no spells opened by a known higher spell.
     m_dirty = false;
 }

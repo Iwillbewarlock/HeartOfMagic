@@ -54,6 +54,10 @@ bool UIManager::Initialize()
     // =========================================================================
     // Create Single Panel View (contains Scanner, Tree Rules, and Spell Tree tabs)
     // =========================================================================
+    // The page reads its language file as it loads, and holds it from then on:
+    // bring it in line with the saved settings first (UIManagerLocale.cpp)
+    WritePanelLocaleFromSavedConfig();
+
     //m_view = m_prismaUI->CreateViewAccelerated("SpellLearning/SpellLearningPanel/index.html", OnDomReady);
     m_view = m_prismaUI->CreateView("SpellLearning/SpellLearningPanel/index.html", OnDomReady);
 
@@ -87,6 +91,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "RelockSpell", OnRelockSpell);
     m_prismaUI->RegisterJSListener(m_view, "GetPlayerKnownSpells", OnGetPlayerKnownSpells);
     m_prismaUI->RegisterJSListener(m_view, "SetSpellXP", OnSetSpellXP);
+    m_prismaUI->RegisterJSListener(m_view, "SetRequiredXP", OnSetRequiredXP);
     m_prismaUI->RegisterJSListener(m_view, "SetTreePrerequisites", OnSetTreePrerequisites);
 
     // Register JS callbacks - Settings (unified config)

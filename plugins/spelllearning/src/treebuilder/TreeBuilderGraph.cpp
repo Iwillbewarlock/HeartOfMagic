@@ -253,6 +253,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildGraph(
                 }
             }
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Precompute tier indices
         std::unordered_map<std::string, int> tierIdxMap;

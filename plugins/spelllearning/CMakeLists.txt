@@ -39,6 +39,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerTree.cpp
     src/uimanager/UIManagerProgression.cpp
     src/uimanager/UIManagerConfig.cpp
+    src/uimanager/UIManagerConfigSave.cpp
+    src/uimanager/UIManagerLocale.cpp
     src/uimanager/UIManagerLLM.cpp
     src/uimanager/UIManagerIO.cpp
     src/EncodingUtils.cpp
@@ -66,6 +68,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spelleffectiveness/SpellEffectivenessHookDisplay.cpp
     src/spelleffectiveness/SpellEffectivenessHookGrant.cpp
     src/SpellTomeHook.cpp
+    src/SpellTomeHookInventory.cpp
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp
     src/treebuilder/TreeBuilderCore.cpp

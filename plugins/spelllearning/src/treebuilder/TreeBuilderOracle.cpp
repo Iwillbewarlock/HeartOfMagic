@@ -598,6 +598,7 @@ static json BuildSchoolTreeFallback(
     }
 
     // Force-connect remaining
+    TreeBuilder::DropCommonThemes(nodes, config.commonThemeShare);
     for (auto& [fid, nd] : nodes) {
         if (connected.contains(fid)) continue;
         int nodeTier = std::max(0, TreeBuilder::TierIndex(nd.tier));

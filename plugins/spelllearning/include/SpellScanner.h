@@ -48,7 +48,10 @@ namespace SpellScanner
     std::string GetSystemInstructions();
 
     // Get spell info by FormID (for Tree Viewer)
-    // Returns JSON with: formId, name, editorId, school, level, cost, type, effects, description
+    // Returns JSON with: formId, name, editorId, school, level, cost, type, effects, description.
+    // Null when the id is malformed or names no spell.
+    json GetSpellInfoJsonByFormId(const std::string& formIdStr);
+    // The same, serialized; empty when not found
     std::string GetSpellInfoByFormId(const std::string& formIdStr);
 
     // =========================================================================

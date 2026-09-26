@@ -391,7 +391,7 @@ namespace SpellScanner
     // GET SPELL INFO BY FORMID (For Tree Viewer)
     // =============================================================================
 
-    std::string GetSpellInfoByFormId(const std::string& formIdStr)
+    json GetSpellInfoJsonByFormId(const std::string& formIdStr)
     {
         // Parse formId from hex string (e.g., "0x00012FCC" or "00012FCC")
         RE::FormID formId = 0;
@@ -404,34 +404,34 @@ namespace SpellScanner
             // Validate: FormIDs should be max 8 hex characters
             if (cleanId.length() > 8) {
                 logger::error("SpellScanner: FormId too long ({} chars), rejecting: {}", cleanId.length(), formIdStr);
-                return "";
+                return {};
             }
 
             // Validate hex characters only
             for (char c : cleanId) {
                 if (!std::isxdigit(static_cast<unsigned char>(c))) {
                     logger::error("SpellScanner: Invalid hex character in formId: {}", formIdStr);
-                    return "";
+                    return {};
                 }
             }
 
             formId = std::stoul(cleanId, nullptr, 16);
         } catch (const std::exception& e) {
             logger::error("SpellScanner: Invalid formId format: {} ({})", formIdStr, e.what());
-            return "";
+            return {};
         }
 
         // Look up the spell form
         auto* form = RE::TESForm::LookupByID(formId);
         if (!form) {
             logger::warn("SpellScanner: Form not found for ID: {} (parsed: 0x{:08X})", formIdStr, formId);
-            return "";
+            return {};
         }
 
         auto* spell = form->As<RE::SpellItem>();
         if (!spell) {
             logger::warn("SpellScanner: Form {} is not a spell", formIdStr);
-            return "";
+            return {};
         }
 
         // Build spell info JSON
@@ -552,6 +552,12 @@ namespace SpellScanner
             spellInfo["effectiveness"] = 100;
         }
 
-        return spellInfo.dump();
+        return spellInfo;
+    }
+
+    std::string GetSpellInfoByFormId(const std::string& formIdStr)
+    {
+        json spellInfo = GetSpellInfoJsonByFormId(formIdStr);
+        return spellInfo.is_null() ? std::string() : spellInfo.dump();
     }
 }

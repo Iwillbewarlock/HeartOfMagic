@@ -264,6 +264,7 @@ void OnGameSaved(SKSE::SerializationInterface* a_intfc)
     // NOTE: DEST registrations are NOT serialized to co-save.
     // They are re-established on each load via AutoRegisterISLAliases()
     // in OnPostLoadGame, since OnInit() only fires once per save creation.
+    FlushLog();
 }
 
 void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
@@ -299,6 +300,8 @@ void OnRevert(SKSE::SerializationInterface* a_intfc)
     logger::info("SKSE Serialization: Reverting (new game or loading different save)");
     ProgressionManager::GetSingleton()->OnRevert(a_intfc);
     SpellEffectivenessHook::GetSingleton()->OnRevert(a_intfc);
+    // A different save means a different inventory
+    SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
     // NOTE: Do NOT revert DEST registrations here.
     // AutoRegisterISLAliases() in OnPostLoadGame will re-establish them.
     // Reverting would clear them, and since OnInit() only fires once per
@@ -329,6 +332,9 @@ void OnDataLoaded()
     // Register spell cast event handler for XP tracking
     SpellCastHandler::GetSingleton()->Register();
     logger::info("SpellCastHandler registered for XP tracking");
+
+    // Keeps the per-cast tome inventory check cached until the inventory changes
+    SpellTomeHook::GetSingleton()->RegisterInventoryEvents();
     
     // Initialize ISL/DEST integration (detects DEST_ISL.esp and enables event dispatch)
     DESTIntegration::Initialize();
@@ -361,6 +367,9 @@ void OnPostLoadGame()
 {
     logger::info("Save game loaded - notifying UI to refresh player data");
     // Progress is automatically loaded by OnGameLoaded serialization callback
+
+    // The inventory is the loaded save's now, whatever was cached before
+    SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
 
     // Fix input/focus state that may be left bad by other mods or previous session
     if (UIManager::GetSingleton()->IsInitialized()) {
@@ -426,6 +435,8 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             OnPostLoadGame();
             break;
     }
+    // Loading steps are rare and worth having on disk (info lines are buffered)
+    FlushLog();
 }
 
 // =============================================================================

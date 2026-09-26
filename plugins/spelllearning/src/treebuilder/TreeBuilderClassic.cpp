@@ -205,6 +205,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 node.themes = GetSpellThemes(node.spellData, schoolThemes);
             }
         }
+        DropCommonThemes(nodes, config.commonThemeShare);
 
         // Build tree tier-by-tier
         std::unordered_set<std::string> connected;

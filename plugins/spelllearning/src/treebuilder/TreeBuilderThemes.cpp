@@ -32,6 +32,11 @@ const std::unordered_map<std::string, std::vector<std::string>>& TreeBuilder::Ge
 // thing (Abyss: shadow, Bloodmoon: blood) uses that word on nearly every spell
 // too, and it is exactly the word the branch should be named after. It never
 // leads the id, though: the prefix does.
+//
+// Except when a mod names every spell after what it does: Witcher Horses
+// starts 19 of its 20 ids with "Conjure", and "conjure" then vanished as a word
+// from every mod's ids. So a word the base game's own ids use is never a
+// prefix - the base game has no author prefixes to mistake for one.
 
 namespace
 {
@@ -44,6 +49,11 @@ namespace
     // tail of small natures (polymorph, teleport, aura ...), so they get more room.
     constexpr int kWordThemeRoom = 3;
     constexpr float kTagLeadShareInPlugin = 0.8f;      // leads this share of the plugin's ids
+
+    // The game and its DLC: their ids carry no author prefix, so their words are words
+    const std::unordered_set<std::string> kBaseGamePlugins = {
+        "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"
+    };
 
     std::string SpellPlugin(const json& spell)
     {
@@ -90,8 +100,17 @@ std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>
 {
     std::unordered_map<std::string, std::size_t> pluginSizes;
     std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
+    std::unordered_set<std::string> baseGameWords;
     for (const auto& spell : spells) {
         const std::string plugin = SpellPlugin(spell);
+        if (kBaseGamePlugins.contains(plugin)) {
+            // The spell's own id only: effect ids use shorthand ("Mag...") that
+            // would pass a real mod prefix (GTS Spells' "MAG_") off as a word
+            const json idOnly = {{"editorId", spell.value("editorId", std::string(""))}};
+            for (auto& word : TreeNLP::Tokenize(TreeNLP::BuildIdText(idOnly))) {
+                baseGameWords.insert(std::move(word));
+            }
+        }
         const std::string lead = LeadingIdWord(spell);
         if (plugin.empty() || lead.empty()) continue;
         pluginSizes[plugin]++;
@@ -103,7 +122,8 @@ std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>
         const std::size_t pluginSize = pluginSizes[plugin];
         if (pluginSize < kMinPluginSpellsForTag) continue;
         for (const auto& [lead, count] : leads) {
-            if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin) {
+            if (static_cast<float>(count) / static_cast<float>(pluginSize) >= kTagLeadShareInPlugin &&
+                !baseGameWords.contains(lead)) {
                 tags.insert(lead);
             }
         }
@@ -449,10 +469,46 @@ bool TreeBuilder::SharesTheme(const TreeNode& a, const TreeNode& b)
     if (a.themes.empty() || b.themes.empty()) {
         return !a.theme.empty() && a.theme != "_unassigned" && a.theme == b.theme;
     }
-    for (const auto& theme : a.themes) {
-        if (std::find(b.themes.begin(), b.themes.end(), theme) != b.themes.end()) return true;
+    const auto& aThemes = a.matchThemesSet ? a.matchThemes : a.themes;
+    const auto& bThemes = b.matchThemesSet ? b.matchThemes : b.themes;
+    for (const auto& theme : aThemes) {
+        if (std::find(bThemes.begin(), bThemes.end(), theme) != bThemes.end()) return true;
     }
     return false;
+}
+
+namespace
+{
+    // Below this many spells a school's shares are noise: 2 of 3 is not "most"
+    constexpr std::size_t kMinSpellsForCommonTheme = 10;
+}
+
+// A theme almost every spell of a school carries says nothing about which of
+// them belong together. Measured on a 1,428-spell load order: in Conjuration
+// "summon" is on 89% of the spells and "conjure" on 41%, and 41% of the classic
+// builder's theme matches (49% in the tree builder) rested on such words
+// alone - the bonus fired for nearly any pair. The widest theme anywhere else
+// was fire in Destruction at 32%, which still tells spells apart.
+void TreeBuilder::DropCommonThemes(std::unordered_map<std::string, TreeNode>& nodes, float share)
+{
+    std::unordered_map<std::string, std::size_t> carriers;
+    for (const auto& [fid, node] : nodes) {
+        for (const auto& theme : node.themes) carriers[theme]++;
+    }
+    std::unordered_set<std::string> common;
+    if (share > 0.0f && nodes.size() >= kMinSpellsForCommonTheme) {
+        const float threshold = share * static_cast<float>(nodes.size());
+        for (const auto& [theme, count] : carriers) {
+            if (static_cast<float>(count) >= threshold) common.insert(theme);
+        }
+    }
+    for (auto& [fid, node] : nodes) {
+        node.matchThemes.clear();
+        for (const auto& theme : node.themes) {
+            if (!common.contains(theme)) node.matchThemes.push_back(theme);
+        }
+        node.matchThemesSet = true;
+    }
 }
 
 // =============================================================================
@@ -513,7 +569,12 @@ TreeBuilder::GroupSpellsBestFit(const std::vector<json>& spells,
     for (const auto& spell : spells) {
         auto [bestTheme, bestScore] = GetSpellPrimaryTheme(spell, themes);
 
-        if (bestScore >= minScore && !bestTheme.empty() && bestTheme != "_unassigned") {
+        // Strictly above, like every other place that reads this score: the nodes'
+        // `theme` (score > 30 in the builders) and their `themes` list
+        // (GetSpellThemes). With >= a spell scoring exactly the minimum was put in
+        // a branch whose theme it did not carry, so SharesTheme counted it a
+        // stranger among its own siblings.
+        if (bestScore > minScore && !bestTheme.empty() && bestTheme != "_unassigned") {
             groups[bestTheme].push_back(spell);
         } else {
             groups["_unassigned"].push_back(spell);

@@ -310,7 +310,8 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
         logger::info("SpellTomeHook: Prereqs for {:08X}: {} hard, {} soft (need {})",
             spellFormId, reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
 
-        if (hasAnyPrereqs) {
+        // A known higher spell opens this one whatever its own prerequisites
+        if (hasAnyPrereqs && !pm->IsUnlockedByKnownChild(spellFormId)) {
             // Check hard prerequisites - ALL must be mastered
             std::vector<RE::FormID> unmetHard;
             for (RE::FormID prereqId : reqs.hardPrereqs) {
@@ -537,49 +538,6 @@ bool SpellTomeHook::Install()
     logger::info("SpellTomeHook: Hook installed successfully!");
     
     return true;
-}
-
-// =============================================================================
-// Helper: Check if player has a spell tome for a specific spell
-// =============================================================================
-
-bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
-{
-    auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player) return false;
-    
-    // Runs on every cast, once per learning target. Counting only the books
-    // that teach this spell skips copying every item the player carries - the
-    // unfiltered GetInventory() duplicates each entry's extra data just so it
-    // can be looked at and thrown away.
-    const auto counts = player->GetInventoryCounts([spellFormId](RE::TESBoundObject& a_object) {
-        auto* book = a_object.As<RE::TESObjectBOOK>();
-        if (!book || !book->TeachesSpell()) return false;
-        auto* taughtSpell = book->GetSpell();
-        return taughtSpell && taughtSpell->GetFormID() == spellFormId;
-    });
-    for (const auto& [item, count] : counts) {
-        if (count > 0) return true;
-    }
-    return false;
-}
-
-// =============================================================================
-// Helper: Get XP multiplier (includes tome inventory boost)
-// =============================================================================
-
-float SpellTomeHook::GetXPMultiplier(RE::FormID spellFormId) const
-{
-    float multiplier = 1.0f;
-    
-    // Check if tome inventory boost is enabled and player has the tome
-    if (m_settings.tomeInventoryBoost && PlayerHasSpellTome(spellFormId)) {
-        multiplier += m_settings.tomeInventoryBoostPercent / 100.0f;
-        logger::trace("SpellTomeHook: Tome inventory boost active for {:08X}, multiplier = {:.2f}",
-                     spellFormId, multiplier);
-    }
-    
-    return multiplier;
 }
 
 // =============================================================================

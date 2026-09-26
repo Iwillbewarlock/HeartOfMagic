@@ -202,13 +202,17 @@ void SpellEffectivenessHook::ApplyEffectivenessScalingFast(RE::ActiveEffect* a_e
 
     RE::FormID spellId = spell->GetFormID();
 
-    // Check if this spell needs nerfing (uses mutex, but only for player spells)
-    if (!NeedsNerfing(spellId)) {
+    // One lock for the early-learned check, the power step and the binary
+    // threshold, and the progress read without copying its struct. This runs
+    // for every effect of every player spell (several at once for a cloak or
+    // an area spell, again and again for a concentration spell); it used to
+    // take the lock four or five times and copy the progress twice.
+    float progressPercent = ProgressionManager::GetSingleton()->GetProgressPercent(spellId) * 100.0f;
+    float effectiveness = 1.0f;
+    float threshold = 0.0f;
+    if (!ScalingFor(spellId, progressPercent, effectiveness, threshold)) {
         return;
     }
-
-    // Calculate effectiveness
-    float effectiveness = CalculateEffectiveness(spellId);
 
     // Check for binary effects that need minimum threshold
     auto* baseEffect = a_effect->effect ? a_effect->effect->baseEffect : nullptr;
@@ -219,12 +223,6 @@ void SpellEffectivenessHook::ApplyEffectivenessScalingFast(RE::ActiveEffect* a_e
                               archetype == RE::EffectArchetype::kEtherealize);
 
         if (isBinaryEffect) {
-            float progressPercent = ProgressionManager::GetSingleton()->GetProgress(spellId).progressPercent * 100.0f;
-            float threshold;
-            {
-                std::shared_lock<std::shared_mutex> lock(m_mutex);
-                threshold = m_settings.binaryEffectThreshold;
-            }
             if (progressPercent < threshold) {
                 a_effect->magnitude = 0.0f;
                 logger::trace("SpellEffectivenessHook: Binary effect {:08X} blocked", spellId);
@@ -382,7 +380,7 @@ void SpellEffectivenessHook::SetPowerSteps(const std::vector<PowerStep>& steps)
 
     logger::info("SpellEffectivenessHook: Updated power steps ({} steps)", m_powerSteps.size());
     for (size_t i = 0; i < m_powerSteps.size(); ++i) {
-        logger::info("  Step {}: {}% XP -> {}% power ({})",
+        logger::debug("  Step {}: {}% XP -> {}% power ({})",
             i + 1,
             static_cast<int>(m_powerSteps[i].progressThreshold),
             static_cast<int>(m_powerSteps[i].effectiveness * 100),
@@ -396,8 +394,7 @@ void SpellEffectivenessHook::SetPowerSteps(const std::vector<PowerStep>& steps)
 
 int SpellEffectivenessHook::GetCurrentPowerStep(RE::FormID spellFormId) const
 {
-    auto progress = ProgressionManager::GetSingleton()->GetProgress(spellFormId);
-    float progressPercent = progress.progressPercent * 100.0f;
+    float progressPercent = ProgressionManager::GetSingleton()->GetProgressPercent(spellFormId) * 100.0f;
 
     std::shared_lock<std::shared_mutex> lock(m_mutex);
     int numSteps = static_cast<int>(m_powerSteps.size());
@@ -428,6 +425,28 @@ std::string SpellEffectivenessHook::GetPowerStepLabel(int step) const
         return "Unknown";
     }
     return m_powerSteps[step].label;
+}
+
+bool SpellEffectivenessHook::ScalingFor(RE::FormID spellFormId, float progressPercent,
+                                        float& effectiveness, float& binaryThreshold) const
+{
+    std::shared_lock<std::shared_mutex> lock(m_mutex);
+    if (m_earlyLearnedSpells.find(spellFormId) == m_earlyLearnedSpells.end()) {
+        return false;
+    }
+    // Same step as GetCurrentPowerStep / GetSteppedEffectiveness: the highest
+    // step whose threshold the progress has reached, step 0 otherwise
+    int numSteps = static_cast<int>(m_powerSteps.size());
+    int step = 0;
+    for (int i = numSteps - 1; i >= 0; --i) {
+        if (progressPercent >= m_powerSteps[i].progressThreshold) {
+            step = i;
+            break;
+        }
+    }
+    effectiveness = (step < numSteps) ? m_powerSteps[step].effectiveness : 1.0f;
+    binaryThreshold = m_settings.binaryEffectThreshold;
+    return true;
 }
 
 float SpellEffectivenessHook::CalculateEffectiveness(RE::FormID spellFormId) const

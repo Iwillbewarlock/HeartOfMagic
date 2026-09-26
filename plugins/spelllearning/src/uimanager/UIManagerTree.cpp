@@ -210,20 +210,12 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
                     continue;
                 }
 
-                std::string spellInfo = SpellScanner::GetSpellInfoByFormId(formIdStr);
+                // Built as JSON and kept that way - no text round trip per spell
+                json spellInfo = SpellScanner::GetSpellInfoJsonByFormId(formIdStr);
 
-                if (!spellInfo.empty()) {
-                    try {
-                        resultArray.push_back(json::parse(spellInfo));
-                        foundCount++;
-                    } catch (const std::exception& e) {
-                        logger::warn("UIManager: Failed to parse spell info in batch for {}: {}", formIdStr, e.what());
-                        json notFound;
-                        notFound["formId"] = formIdStr;
-                        notFound["notFound"] = true;
-                        resultArray.push_back(notFound);
-                        notFoundCount++;
-                    }
+                if (!spellInfo.is_null()) {
+                    resultArray.push_back(std::move(spellInfo));
+                    foundCount++;
                 } else {
                     json notFound;
                     notFound["formId"] = formIdStr;

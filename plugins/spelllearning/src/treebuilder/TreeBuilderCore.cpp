@@ -542,6 +542,7 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     bc.branchStyle = config.value("branch_style", std::string("chain"));
     bc.chainStyle = config.value("chain_style", std::string("linear"));
     bc.batchSize = std::max(5, config.value("batch_size", 20));
+    bc.commonThemeShare = config.value("common_theme_share", bc.commonThemeShare);
 
     // LLM API config
     if (config.contains("llm_api") && config["llm_api"].is_object()) {

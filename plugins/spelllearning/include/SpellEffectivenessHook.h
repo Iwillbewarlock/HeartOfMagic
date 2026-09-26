@@ -86,6 +86,12 @@ public:
     
     // Calculate effectiveness multiplier (stepped, not continuous)
     float CalculateEffectiveness(RE::FormID spellFormId) const;
+
+    // For the effect hook: is the spell early-learned, and if so its stepped
+    // effectiveness and the binary-effect threshold - one lock, no copies.
+    // progressPercent is 0..100. False: not early-learned (leave it alone).
+    bool ScalingFor(RE::FormID spellFormId, float progressPercent,
+                    float& effectiveness, float& binaryThreshold) const;
     
     // Grant spell to player when unlock threshold reached
     static void GrantEarlySpell(RE::SpellItem* spell);
