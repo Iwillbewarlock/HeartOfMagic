@@ -158,7 +158,9 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
 6. **Per-school tree building:**
    - Create TreeNodes, assign themes (fuzzy match → fallback)
    - Select root (prefer vanilla roots like Flames, Healing, etc.)
-   - **Group spells by theme** via `GroupSpellsBestFit()`
+   - **Group spells by theme** via `GroupSpellsBestFit()` - a spell needs a score above 30, the same
+     test the nodes' `theme` and `themes` use (it used to be 30 or above, so a spell scoring exactly 30
+     sat in a branch whose theme it did not carry and `SharesTheme` treated it as a stranger there)
    - **Round-robin connection:** Cycle through themes, placing one spell per theme per round. This ensures each theme gets fair access to shallow parent positions:
      ```
      Round 1: fire[0] → frost[0] → shock[0] → heal[0]
@@ -278,7 +280,15 @@ into words and weighs them like the name. Filters that keep ids from polluting t
   ids. Frequency is no test. The first version used it ("on most of one plugin's spells and hardly
   anywhere else") and threw away `shadow` for Abyss and `blood` for Bloodmoon - a mod about one thing
   puts that word on every spell too, and it is the word the branch should be named after - while short
-  real prefixes (`dar`, `nat`) slipped through. A nature word never leads the id; the prefix does;
+  real prefixes (`dar`, `nat`) slipped through. A nature word never leads the id; the prefix does.
+  Except when a mod names every spell after what it does: Witcher Horses starts 19 of its 20 ids with
+  `Conjure`, so `conjure` became a "prefix" and vanished as a word from every mod's ids. Since
+  2026-09-23 a word that the base game's own spell ids use (Skyrim, Update, Dawnguard, Hearthfires,
+  Dragonborn - no author prefixes there) is never a mod tag. Only the spells' own ids count: effect ids
+  use shorthand (`Mag...`) that would pass GTS Spells' real `MAG_` prefix off as a word. On the dev load
+  order this frees `conjure` and nothing else of the 23 tags; with a fixed seed the classic builder's
+  parent links sharing a theme go from 82.9% to 85.0% and sharing an id word from 62.3% to 63.8%, and
+  the graph builder's from 4.5% to 16.9% and 38.1% to 42.7%;
 - a word with a digit in it is never a theme (`alt50`, `ill25`, `100`);
 - discovered themes keep their slots and the vanilla hint words are appended after them
   (`MergeWithHints`). The hints are fire / frost / shock / summon ... - what rule 1 already settles -
@@ -326,6 +336,31 @@ every word theme that is literally one of its words. All nine comparisons in the
 `SharesTheme` - any theme in common - instead of comparing the pick. `theme` stays, as the first of the
 list: a branch still needs one name and the panel one colour. Nodes that never got a list (LLM chains
 in the oracle builder) fall back to comparing the single theme.
+
+**Themes most of a school carries do not count as shared** (2026-09-23; `DropCommonThemes`,
+`TreeNode::matchThemes`, `BuildConfig::commonThemeShare`). With every theme counting, a word on nearly
+every spell of a school made nearly every pair "share a theme": in Conjuration `summon` is on 89% of
+the spells and `conjure` on 41%, and 41% of the classic builder's theme matches (49% in the tree
+builder) rested on words like these alone. Each builder now calls `DropCommonThemes` once per school
+after assigning themes; a theme carried by at least `commonThemeShare` (0.4) of a school with 10 or
+more spells is left out of `matchThemes`, which is what `SharesTheme` compares. `themes` and `theme` -
+the output, branch names, colours - are unchanged. On the dev load order 0.4 drops exactly `summon` and
+`conjure` in Conjuration; the widest theme anywhere else is `fire` in Destruction at 32%.
+
+Same scan, seed 42, links whose spell and parent share a theme other than the dropped ones:
+
+| builder | off | on (0.4) | Conjuration off -> on |
+|---|---|---|---|
+| classic | 67.5% | 75.6% | 57% -> 77% |
+| tree | 59.7% | 76.2% | 36% -> 72% |
+| graph | 16.9% | 50.3% | 0% -> 54% (max chain depth 91 -> 27) |
+
+Thematic and oracle trees do not change (their theme comparisons only place leftover nodes).
+
+*To turn it off*: `"common_theme_share": 0` in a build request's config (or a `-c` config file for
+`treebuilder-test`), or set the default `commonThemeShare` in `TreeBuilder.h` to `0` and rebuild. With 0
+every builder produces exactly the trees it did before - checked on all five, same seed, no parent
+changed.
 
 Same 1440 spells, links where spell and parent share an editor id word / an element or kind trait:
 
@@ -377,7 +412,13 @@ to read them found nothing. Fixed:
   differently once translated. They go by form id now.
 - *JS*: `classicThemeEngine` discovered themes from name + effect names, and `edgeScoring` matched
   English element words against name + description. Both now also read editor id words
-  (`spellIdWords` in `uiHelpers.js`).
+  (`spellIdWords` in `uiHelpers.js`). `editorIdWords` also splits an acronym from the word after it
+  (`WTIceVolley` -> `wt ice volley`) and letters from digits (`DES100` -> `des 100`).
+  `detectSpellElement` matched by substring, which the ids exposed: `RestoreHealth` read as earth
+  (`ore`), `Necrotic` / `Daedroth` as poison (`rot`), `Voice` / `Sacrifice` / `Novice` as frost
+  (`ice`) - 84 of 1,428 spells on the dev load order. Keywords of three letters or fewer
+  (`SHORT_KEYWORD`) now count only at the start of a word; longer ones still count anywhere, so
+  `Hearthfire` and `Blastbones` keep theirs. The same rule fixes English descriptions (`restores`).
 
 *Tried and rejected*: comparing effect **editor ids** instead of names. Effect ids follow a convention -
 `FireDamageFFAimed`, `FrostDamageFFAimed` - so most of the string is the delivery and two different
@@ -655,6 +696,35 @@ Per wave:
 **Phase 5 — Force-Placement:**
 - Any remaining unplaced nodes get nearest unoccupied grid point
 
+**Making room (`_densifyGrid`):** when a school has more nodes than grid points - before Phase 1, and
+again each time Phase 5 runs out of open points - grid points are added. First sideways, innermost
+first and repeated from the new points: on the Sun grid one tier spacing along the point's ring in both
+directions, inside the school's arc; on the Flat grid one step left, right, up and down, inside the box
+the school's points cover. Then outward, one tier past the outermost points, round after round: away
+from the center (Sun), or along the school's growth direction (its root's `dir`) without leaving its
+band (Flat). Nothing is added inside the center mask.
+
+Every added point keeps `_densifyMinSpacing()` from all others. That is the mod's existing node-spacing
+rule from `config.js`: `GRID_CONFIG` derives both the minimum node distance and the tier spacing from the
+node size (`minNodeSpacingMultiplier` and `tierSpacingMultiplier`, 0.7 each; the wheel layouts in
+`layoutEngine.js` / `layoutGenerator.js` use it), so nodes keep one tier spacing apart. It is applied as
+tier spacing × (0.7 / 0.7) × `DENSIFY_TOLERANCE` (0.9), because a step along a ring is a chord slightly
+shorter than the tier spacing - 36 units at the default spacing of 40. There is no fixed floor: the Sun
+preview's tier density sets the spacing to `min(40, 250 / density)`, down to 25 at density 10 and lower
+above it, and a floor above the spacing would leave no room at all (the first version of this fix had a
+28-unit floor and dropped spells from the tree at density 10+). The Classic grid layout never read the
+`GRID_CONFIG` rule before.
+
+Until 2026-09-23 it added the midpoint of any two points up to 2.2 tiers apart, with no spacing check.
+On the naive sun grid (30 dots a ring, so far out the dots of one ring are hundreds of units apart) the
+only close pairs are between rings, and Phase 5's repeated calls halved those 40-unit gaps to 20, 10, 5.
+Measured on a real 1,428-spell load order (reproduced offline with `treebuilder-test` and the panel's
+layout code, identical to the tree the game saved): Conjuration, 650 spells on 252 grid points, had 645
+spells within 24 units of another and 154 within 14, down to 2.6 - they could not be clicked apart.
+With the fix: 8 within 24, 2 within 14 (the grid's own inner rings), median and 10th-percentile spacing
+40, and the school reaches no further out than before. The Fibonacci and equal-area grids have enough points for this load
+order and never densify.
+
 **Slot Scoring Formula (`_findSlots`):**
 
 ```
@@ -712,6 +782,103 @@ trunkThickness: 70px
 **Layout:** Trunk module computes a central corridor. Nodes in `trunk` section fill the corridor. `branch` nodes spread outward. `root` nodes cluster near the tree base.
 
 **Ghost preview:** Semi-transparent nodes show where the trunk will fill before building.
+
+### Decluttering before save (`layoutDeclutter.js`, `layoutLineClear.js`, `layoutLineGrid.js`, 2026-09-26)
+
+Every growth mode (classic, tree, graph, oracle, thematic) bakes x/y into the tree and calls
+`LayoutDeclutter.applyAsync(output, onDone)` after `SchoolBridges.applyToOutput`, and saves
+(`SaveSpellTree`), loads and switches tabs in `onDone`. It runs once, when a tree is applied; the renderer
+only reads the saved positions. The game's browser has no JIT and takes seconds for a big tree (6.3 s
+measured in game before the speed-ups below), and all at once the panel froze for them: `applyAsync` works
+`SLICE_MS` (60 ms) at a time and lets the panel draw between (`setTimeout`), with "Arranging spells...
+N%" on the tree builder's status line. The line search is a job (`LayoutLineClear.start` / `step`) that stops
+after its time and picks up where it left off; the push-apart step is quick, but its rounds may also end a
+slice (between rounds). Applying again
+before it is done drops the first run. `apply(output)` does it all at once (tests) - same result either way. None of the layouts checked
+what the tree then looks like. (The old `layoutEngine.js` had a line-against-spell check; it was removed
+in v1.2.5 with a note that curved edges would handle it at render time, which they never did.
+`LayoutEngine.resolveOverlaps` is still there and still not called.) In the game's saved tree (1,428
+spells): 21 pairs of spells closer than two drawn spells (24 units), 2,550 cases of a parent-to-child line
+passing within 20 units of the centre of a spell it does not end at, 428 pairs of lines meeting at a spell
+less than 20 degrees apart (283 under 10), 1,384 pairs of lines not sharing a spell running closer than 11
+units (8 px at the default zoom) without crossing, 329 crossing at less than 15 degrees, and spells on the
+heart.
+
+Three steps, the lines staying straight throughout - the spells move, not the lines:
+1. **Room:** every spell (roots too) is moved out from the centre by `SPREAD` (1.35). Roots keep their
+   direction, so the baked spokes and sectors still fit.
+2. **Off the lines** (`LayoutLineClear`): every parent-to-child line should keep `LINE_CLEAR` (20 tree
+   units: a locked spell's 7 plus about 10 px at the default zoom) from the centre of every spell it does
+   not end at; two lines meeting at a spell should be at least `MIN_ANGLE` (30 degrees) apart; two lines not
+   sharing a spell should keep `LINE_GAP` (11 units, 8 px at the default zoom) apart, or where they cross,
+   cross at least `MIN_CROSS` (15 degrees) steeply. For each spell where any of that fails, a search tries
+   12 directions x 5 distances (10-64) round where the layout put it and round where it is now, and takes
+   the cheapest spot: lines passing it + spells its own lines pass + up to `ANGLE_COST` (3) per pair of
+   lines meeting too narrowly, times `1 + shorter line / LONG_LINE (150)` - long lines at a narrow angle run
+   together a long way, the bundles out of a spell with many children - + up to `LINE_GAP_COST` (1) per line
+   its own lines run too close to or cross too shallowly + a price for spells closer than
+   `2 x NODE_RADIUS + GAP` + a price for the heart + 0.01 per unit moved. Two lines closer to parallel than
+   `BUNDLE_ANGLE` (20 degrees) need `LINE_GAP` more room for every `BUNDLE_LEN` (250) they run side by side,
+   up to `BUNDLE_MAX` (3) x `LINE_GAP`. A spell whose longest line is longer than `REACH_LINE` (200) searches
+   that many times further (up to `MAX_REACH_SCALE` 3): far out, a small move turns a line little. The
+   nearest spots are tried first and the first spot with nothing wrong ends the search. The cheap parts are counted first and a spot is dropped as soon as it costs more than the
+   best so far, so the dear line-against-line part is often not worked out at all. Six passes at most; a pass after
+   the first looks only at spells whose surroundings changed in the one before. Lock lines and cross-school
+   bridges (drawn only for the selected or hovered spell) are not kept clear of.
+3. **Apart:** spells are pushed apart a little at a time (at most `MAX_STEP` 10 per round, `ITERATIONS` 60)
+   until no two are closer than `2 x NODE_RADIUS + GAP` (16 = a known spell with its XP ring, 6) and none
+   sits within `HEART_CLEARANCE` (50) of the globe.
+
+Roots never move except for the spread, and a spell that starts inside its school's sector
+(`startAngle`/`endAngle`) is kept inside it; flat and unturned layouts (`layoutMode: 'flat'`, `noRotate`)
+have no sectors to keep. Deterministic (fixed order, ties split along the golden angle).
+
+Measured on that tree: spell-on-line cases 2,550 → 181, lines meeting under 20 degrees 428 → 29 (under 10:
+283 → 5), pairs of lines over 150 long out of one spell under 15 degrees apart 172 → 6, lines running closer
+than 11 units 1,384 → 58, long lines side by side (250+ together, under 20 degrees, closer than 22) → 3,
+shallow crossings 329 → 60, no touching pairs; about 0.9 s in node, 8 s without a JIT. Fewer passes are
+quicker but leave more (4 passes: 0.6 s, 197 on lines; 2 passes: 0.5 s, 291). What is left is mostly long lines
+across a dense area, and spells with many children in a narrow sector. Getting it that fast: the cells
+near a line are its box's cells whose centre is near the line (numeric keys), not every cell of the box;
+the spells and lines near a spell's own lines are gathered once per spell (with each line's box and
+direction), not per spot tried; the cheap parts of the cost come first; and the dirty passes. Without the
+line-against-line part it went 2.9 s → 0.3 s; with it, 0.72 s → 0.62 s (13 s → 5 s without a JIT). Then
+for the game's browser, with the same result to the unit: no callback per grid cell (`_cellsAlong` hands
+back an array of keys), the spell-against-spell and line-past-spot parts of the cost walked in place instead
+of through helper calls and new arrays, and each neighbour's other lines (direction and length) worked out
+once per spell searched instead of per spot: 5.7 s → 4.6 s without a JIT. A second round, again with the
+same result to the unit (checked against the previous code on the game tree and on made-up trees, with
+other pass and direction counts): a spell's search sorts the spells near its lines by the first ring of
+spots that can bring a line within `LINE_CLEAR` of them (`_ringSpells`: a spot ρ away moves the point a
+share t along the line by (1 - t)ρ), so the inner rings look at a fraction of them; one walk over the
+cells gathers both the spells and the lines near a spell's lines (`_gatherFan`); `_cellsAlong` tests each
+column only over the rows the line can reach there; the line-gap part has `_cross` and `_pointSeg2`
+written out; `_narrow` is called only for a pair it counts; the spell-against-spell part compares squared
+distances first; grid keys are small integers (`KEY_SPAN`); and the push-apart rounds build no string
+keys or arrays. 4.95 s → 4.3 s in `node --jitless` (the game tree, best of five, before and after measured the same day;
+the 4.6 s above was another day's run). What costs the time
+now: the cost of each spot tried (about 390,000 of them), and gathering the lines near a spell's lines.
+Tried and dropped along the way:
+- pushing spells off lines with forces: pushes from many lines cancel out and jam spells together; even
+  with the tree spaced out 1.5 times, 617 cases were left and spells moved 25 on average;
+- bending the lines round spells at render time (a gap, then an arc, then a swerve): the lines read as
+  broken or wavy, and it cost every tree repaint;
+- skipping a spell whose cost has not changed since its last search found nothing better: 12% quicker,
+  but 195 spells left on lines instead of 181;
+- 8 directions instead of 12: 20% quicker, but lines meeting under 20 degrees 29 → 46;
+- skipping `atan2` with dot or cross products first (angle cost, line gap): slower without a JIT - the
+  built-in `atan2` is cheap next to the extra steps of interpreted script around it;
+- cutting the lines near a spell's lines down per ring up front, as for spells: it cost more than it saved,
+  since most spots never get as far as the line-gap part.
+
+**No line shows through a spell.** The tree draws its lines first and the spells over them, and a
+see-through spell (locked 0.4, undiscovered 0.6, available `availableAlpha`) is filled with the backdrop
+first (`CanvasRenderer._backdrop`: the design's page colour, else the background colour; `NodeBatch.flush`'s
+`backdrop`, `renderNode`, `_renderNodeSimple`, `renderMysteryNode`), so what is left of a line stops at the
+spell's edge instead of showing through it. This applies to every tree, also those built before.
+
+Tests: `modules/layoutDeclutterTest.js` (run by `run-tests.js`). A tree built before this keeps its
+positions until it is built again.
 
 ---
 

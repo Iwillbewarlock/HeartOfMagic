@@ -22,6 +22,27 @@ var ClassicLayout = {
 
     _seed: 0,
 
+    // A grid point added to make room must keep this far from every other point
+    // of its school, so the spells placed on them can still be told apart and
+    // clicked. The mod's own rule (GRID_CONFIG, the one the wheel layouts use)
+    // sets the minimum node distance and the tier spacing from the same node
+    // size, 0.7 x nodeSize each: nodes keep one tier apart. A step along a ring
+    // is a chord, a little shorter than the tier spacing, so the rule is applied
+    // with DENSIFY_TOLERANCE. No fixed floor: the Sun preview's tier density
+    // makes the spacing as small as the player asks, and a floor above it would
+    // leave no room anywhere. See _densifyGrid.
+    DENSIFY_TOLERANCE: 0.9,
+    DENSIFY_MAX_ROUNDS: 60,
+
+    /** Minimum spacing between grid points added by _densifyGrid. */
+    _densifyMinSpacing: function (tierSpacing) {
+        var ratio = 1;
+        if (typeof GRID_CONFIG !== 'undefined' && GRID_CONFIG.minNodeSpacingMultiplier && GRID_CONFIG.tierSpacingMultiplier) {
+            ratio = GRID_CONFIG.minNodeSpacingMultiplier / GRID_CONFIG.tierSpacingMultiplier;
+        }
+        return tierSpacing * ratio * this.DENSIFY_TOLERANCE;
+    },
+
     // ---- PUBLIC API ---------------------------------------------------------
 
     layoutAllSchools: function (treeData, baseData, layoutSettings) {
@@ -253,7 +274,8 @@ var ClassicLayout = {
         if (deficit > 0) {
             console.log('[ClassicLayout] Grid deficit: ' + nodeCount + ' nodes vs ' +
                 schoolGridPts.length + ' points, expanding by ' + deficit);
-            schoolGridPts = this._densifyGrid(schoolGridPts, deficit, tierSpacing);
+            schoolGridPts = this._densifyGrid(schoolGridPts, deficit, tierSpacing, mode,
+                schoolRoots.length > 0 ? schoolRoots[0].dir : undefined);
         }
 
         // Compute max grid radius for radius-based tier zone scoring
@@ -843,7 +865,8 @@ var ClassicLayout = {
                     expansionAttempts++;
                     var remaining = unplacedIds.length - fp;
                     var oldCount = schoolGridPts.length;
-                    schoolGridPts = this._densifyGrid(schoolGridPts, Math.max(remaining, 20), tierSpacing);
+                    schoolGridPts = this._densifyGrid(schoolGridPts, Math.max(remaining, 20), tierSpacing, mode,
+                        schoolRoots.length > 0 ? schoolRoots[0].dir : undefined);
 
                     // Stop if densify made no progress (can't grow further)
                     if (schoolGridPts.length <= oldCount) {
@@ -1332,94 +1355,171 @@ var ClassicLayout = {
     },
 
     /**
-     * Densify a school's grid by adding midpoints between existing grid points.
-     * Called when a school has more tree nodes than grid points.
-     * Adds points at midpoints of the outermost ring edges first (most space),
-     * then progressively inward. Preserves the school tag from neighbors.
+     * Make room on a school's grid when it has more tree nodes than grid points.
+     *
+     * 1. Fill sideways, innermost first, repeating from the new points so the
+     *    school fills into an even lattice. Sun: one tier-spacing step along
+     *    the point's ring in both directions, inside the school's arc. Flat
+     *    (schools are bands, not sectors): one step left, right, up and down,
+     *    inside the box the school's points already cover.
+     * 2. What is still missing is added outward, one tier beyond the outermost
+     *    points, round after round: away from the center (Sun), or along the
+     *    school's growth direction without leaving its band (Flat).
+     *
+     * No point goes inside the center mask, where the layout places nothing.
+     * Every added point keeps _densifyMinSpacing() from all others. It used to
+     * add the midpoint of any two points up to 2.2 tiers apart, and Phase 4
+     * calls this again and again: on a naive grid (30 dots a ring, so dots on a
+     * ring sit hundreds of units apart far out) the only close pairs were
+     * between rings, and their 40-unit gaps were halved to 20, 10, 5 - a
+     * 650-spell school ended up with 154 spells under 14 units from another,
+     * down to 2.6, and could not be clicked apart.
      */
-    _densifyGrid: function (pts, needed, tierSpacing) {
+    _densifyGrid: function (pts, needed, tierSpacing, mode, growDir) {
         var result = pts.slice(); // copy original
         var added = 0;
-        var existingSet = {};
-        for (var ei = 0; ei < result.length; ei++) {
-            var ek = Math.round(result[ei].x) + ',' + Math.round(result[ei].y);
-            existingSet[ek] = true;
-        }
         var school = pts.length > 0 ? pts[0].school : '';
-        var maxDist = tierSpacing * 2.2;
-        var maxDist2 = maxDist * maxDist;
+        var isFlat = (mode === 'flat');
+        var minSpacing = this._densifyMinSpacing(tierSpacing);
+        var maskR = (this._centerMask || 0) * tierSpacing;
+        var maskR2 = maskR * maskR;
+        var minSpacing2 = minSpacing * minSpacing;
+        var PI2 = Math.PI * 2;
+        if (pts.length === 0 || needed <= 0) return result;
 
-        // Build pairs sorted by radius (outermost first, most room to add)
-        // Spatial hash for O(N) pair discovery instead of O(N²)
-        var pairCellSize = maxDist;
-        var pairCells = {};
-        for (var phi = 0; phi < pts.length; phi++) {
-            var phcx = Math.floor(pts[phi].x / pairCellSize);
-            var phcy = Math.floor(pts[phi].y / pairCellSize);
-            var phk = phcx + ',' + phcy;
-            if (!pairCells[phk]) pairCells[phk] = [];
-            pairCells[phk].push(phi);
+        // Spatial hash over every point, original and added, for the spacing check
+        var spCell = minSpacing;
+        var spCells = {};
+        function spAdd(pt) {
+            var k = Math.floor(pt.x / spCell) + ',' + Math.floor(pt.y / spCell);
+            if (!spCells[k]) spCells[k] = [];
+            spCells[k].push(pt);
         }
-        var pairs = [];
-        for (var i = 0; i < pts.length; i++) {
-            var pcx = Math.floor(pts[i].x / pairCellSize);
-            var pcy = Math.floor(pts[i].y / pairCellSize);
-            for (var pdcx = -1; pdcx <= 1; pdcx++) {
-                for (var pdcy = -1; pdcy <= 1; pdcy++) {
-                    var pnk = (pcx + pdcx) + ',' + (pcy + pdcy);
-                    var pCell = pairCells[pnk];
-                    if (!pCell) continue;
-                    for (var pci = 0; pci < pCell.length; pci++) {
-                        var j = pCell[pci];
-                        if (j <= i) continue; // avoid duplicate pairs
-                        var dx = pts[j].x - pts[i].x;
-                        var dy = pts[j].y - pts[i].y;
-                        var d2 = dx * dx + dy * dy;
-                        if (d2 <= maxDist2 && d2 > 1) {
-                            var avgR = (Math.sqrt(pts[i].x * pts[i].x + pts[i].y * pts[i].y) +
-                                        Math.sqrt(pts[j].x * pts[j].x + pts[j].y * pts[j].y)) / 2;
-                            pairs.push({ i: i, j: j, avgR: avgR });
-                        }
+        function hasRoom(x, y) {
+            var cx = Math.floor(x / spCell), cy = Math.floor(y / spCell);
+            for (var sdx = -1; sdx <= 1; sdx++) {
+                for (var sdy = -1; sdy <= 1; sdy++) {
+                    var c = spCells[(cx + sdx) + ',' + (cy + sdy)];
+                    if (!c) continue;
+                    for (var ci = 0; ci < c.length; ci++) {
+                        var ddx = c[ci].x - x, ddy = c[ci].y - y;
+                        if (ddx * ddx + ddy * ddy < minSpacing2) return false;
                     }
                 }
             }
+            return true;
         }
-        pairs.sort(function (a, b) { return b.avgR - a.avgR; });
+        for (var ei = 0; ei < result.length; ei++) spAdd(result[ei]);
 
-        for (var pi = 0; pi < pairs.length && added < needed; pi++) {
-            var p = pairs[pi];
-            var mx = (pts[p.i].x + pts[p.j].x) / 2;
-            var my = (pts[p.i].y + pts[p.j].y) / 2;
-            var mk = Math.round(mx) + ',' + Math.round(my);
-            if (existingSet[mk]) continue;
-            existingSet[mk] = true;
-            result.push({ x: mx, y: my, school: school });
-            added++;
+        // The school's arc: the circle minus the widest angular gap between its
+        // points (Sun). Its box: the bounds of its points (Flat).
+        var angles = [];
+        var boxL = Infinity, boxR = -Infinity, boxT = Infinity, boxB = -Infinity;
+        for (var ai = 0; ai < pts.length; ai++) {
+            if (pts[ai].x < boxL) boxL = pts[ai].x;
+            if (pts[ai].x > boxR) boxR = pts[ai].x;
+            if (pts[ai].y < boxT) boxT = pts[ai].y;
+            if (pts[ai].y > boxB) boxB = pts[ai].y;
+            var pr = Math.sqrt(pts[ai].x * pts[ai].x + pts[ai].y * pts[ai].y);
+            if (pr < 1) continue;
+            angles.push(Math.atan2(pts[ai].y, pts[ai].x));
+        }
+        angles.sort(function (a, b) { return a - b; });
+        var arcStart = angles[0], arcSize = PI2, widest = -1;
+        for (var gi = 0; gi < angles.length; gi++) {
+            var next = gi + 1 < angles.length ? angles[gi + 1] : angles[0] + PI2;
+            if (next - angles[gi] > widest) {
+                widest = next - angles[gi];
+                arcStart = next;
+                arcSize = PI2 - widest;
+            }
+        }
+        function inArc(x, y, r) {
+            // Keep half a spacing clear of the arc's edges: the next school starts there
+            var margin = (minSpacing / 2) / Math.max(r, 1);
+            var d = ((Math.atan2(y, x) - arcStart) % PI2 + PI2) % PI2;
+            return d >= margin && d <= arcSize - margin;
         }
 
-        // Multi-round radial extension: keep adding outward tiers until we have enough
+        function inBox(x, y) {
+            return x >= boxL && x <= boxR && y >= boxT && y <= boxB;
+        }
+        // Candidate spots one step away from a point, sideways
+        function sidewaysFrom(fp) {
+            if (isFlat) {
+                return [
+                    { x: fp.x - tierSpacing, y: fp.y }, { x: fp.x + tierSpacing, y: fp.y },
+                    { x: fp.x, y: fp.y - tierSpacing }, { x: fp.x, y: fp.y + tierSpacing }
+                ];
+            }
+            var fr = Math.sqrt(fp.x * fp.x + fp.y * fp.y);
+            if (fr < 1) return [];
+            var step = tierSpacing / fr; // one tier spacing along the ring
+            var fa = Math.atan2(fp.y, fp.x);
+            return [
+                { x: Math.cos(fa - step) * fr, y: Math.sin(fa - step) * fr },
+                { x: Math.cos(fa + step) * fr, y: Math.sin(fa + step) * fr }
+            ];
+        }
+
+        // 1. Fill sideways, innermost first
+        var filled = 0;
+        var frontier = result.slice();
+        for (var round = 0; round < this.DENSIFY_MAX_ROUNDS && added < needed && frontier.length > 0; round++) {
+            frontier.sort(function (a, b) { return (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y); });
+            var nextFrontier = [];
+            for (var fi = 0; fi < frontier.length && added < needed; fi++) {
+                var cands = sidewaysFrom(frontier[fi]);
+                for (var cdi = 0; cdi < cands.length && added < needed; cdi++) {
+                    var cx = cands[cdi].x, cy = cands[cdi].y;
+                    var cr2 = cx * cx + cy * cy;
+                    if (cr2 < maskR2) continue;
+                    if (isFlat ? !inBox(cx, cy) : !inArc(cx, cy, Math.sqrt(cr2))) continue;
+                    if (!hasRoom(cx, cy)) continue;
+                    var cp = { x: cx, y: cy, school: school };
+                    result.push(cp);
+                    spAdd(cp);
+                    nextFrontier.push(cp);
+                    added++;
+                    filled++;
+                }
+            }
+            frontier = nextFrontier;
+        }
+
+        // 2. Multi-round extension: keep adding outward tiers until we have enough.
+        // Flat grows along the school's direction and stays inside its band; Sun
+        // (and Flat without a known direction) grows away from the center.
+        var flatGrow = isFlat && typeof growDir === 'number';
+        var gx = flatGrow ? Math.cos(growDir) : 0, gy = flatGrow ? Math.sin(growDir) : 0;
+        var growsAlongY = Math.abs(gy) >= Math.abs(gx);
+        function outwardFrom(op) {
+            if (flatGrow) {
+                var fx = op.x + gx * tierSpacing, fy = op.y + gy * tierSpacing;
+                var inBand = growsAlongY ? (fx >= boxL && fx <= boxR) : (fy >= boxT && fy <= boxB);
+                return inBand ? { x: fx, y: fy } : null;
+            }
+            var oR = Math.sqrt(op.x * op.x + op.y * op.y);
+            if (oR < 1) return null;
+            return { x: op.x * (1 + tierSpacing / oR), y: op.y * (1 + tierSpacing / oR) };
+        }
+        function reach(p) { return flatGrow ? p.x * gx + p.y * gy : p.x * p.x + p.y * p.y; }
         var extensionRound = 0;
         var seedStart = 0; // index into result to start scanning for outermost seeds
-        while (added < needed && extensionRound < 50) {
+        while (added < needed && extensionRound < this.DENSIFY_MAX_ROUNDS) {
             extensionRound++;
             var addedThisRound = 0;
-            // Sort unprocessed points by radius descending (outermost first)
-            var seeds = result.slice(seedStart).sort(function (a, b) {
-                var ra = a.x * a.x + a.y * a.y;
-                var rb = b.x * b.x + b.y * b.y;
-                return rb - ra;
-            });
+            // Sort unprocessed points outermost first
+            var seeds = result.slice(seedStart).sort(function (a, b) { return reach(b) - reach(a); });
             seedStart = result.length; // next round starts from new points
             for (var oi = 0; oi < seeds.length && added < needed; oi++) {
-                var op = seeds[oi];
-                var oR = Math.sqrt(op.x * op.x + op.y * op.y);
-                if (oR < 1) continue;
-                var nx = op.x * (1 + tierSpacing / oR);
-                var ny = op.y * (1 + tierSpacing / oR);
-                var nk = Math.round(nx) + ',' + Math.round(ny);
-                if (existingSet[nk]) continue;
-                existingSet[nk] = true;
-                result.push({ x: nx, y: ny, school: school });
+                var ext = outwardFrom(seeds[oi]);
+                if (!ext) continue;
+                var nx = ext.x, ny = ext.y;
+                if (nx * nx + ny * ny < maskR2 || !hasRoom(nx, ny)) continue;
+                var np = { x: nx, y: ny, school: school };
+                result.push(np);
+                spAdd(np);
                 added++;
                 addedThisRound++;
             }
@@ -1427,7 +1527,8 @@ var ClassicLayout = {
         }
 
         console.log('[ClassicLayout] Densified grid: ' + pts.length + ' -> ' + result.length +
-            ' points (added ' + added + '/' + needed + ')');
+            ' points (added ' + added + '/' + needed + ': ' + filled + ' sideways, ' + (added - filled) +
+            ' outward; min spacing ' + Math.round(minSpacing) + ')');
         return result;
     },
 

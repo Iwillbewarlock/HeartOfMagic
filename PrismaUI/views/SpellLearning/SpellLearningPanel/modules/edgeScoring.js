@@ -201,27 +201,39 @@ function detectSpellElement(spell) {
         }
     }
 
-    // Build text from all spell info
-    // The element keywords below are English, so the editor ids have to be in
-    // here: on a translated load order the name and description never match one.
-    var text = [
+    // Build text from all spell info. The element keywords below are English,
+    // so the editor ids have to be in here: on a translated load order the name
+    // and description never match one. Anything that is not a letter or digit
+    // becomes a space, so every word starts after one.
+    var text = ' ' + [
         spell.name || '',
         (typeof spellIdWords === 'function') ? spellIdWords(spell) : '',
         (spell.effectNames || []).join(' '),
         spell.description || ''
-    ].join(' ').toLowerCase();
+    ].join(' ').toLowerCase().replace(/[^a-z0-9-￿]+/g, ' ');
 
     // Check each element's keywords
     for (var element in keywords) {
         var kwList = keywords[element];
         for (var i = 0; i < kwList.length; i++) {
-            if (text.indexOf(kwList[i]) >= 0) {
+            var kw = kwList[i];
+            // A keyword of SHORT_KEYWORD letters or fewer counts only at the start
+            // of a word. Anywhere inside one they read "restores" and the id
+            // "RestoreHealth" as earth ("ore"), "Necrotic" and "Daedroth" as poison
+            // ("rot"), "Voice", "Sacrifice" and "Novice" as frost ("ice"): 84 of
+            // 1,428 spells on a real load order through their editor ids, and the
+            // unification test's Healing Hands through its description. Longer
+            // keywords count anywhere, so "Hearthfire" and "Blastbones" still do.
+            if (kw.length <= SHORT_KEYWORD ? text.indexOf(' ' + kw) >= 0 : text.indexOf(kw) >= 0) {
                 return element;
             }
         }
     }
     return null;
 }
+
+/** Keywords this short match only where a word starts (detectSpellElement). */
+var SHORT_KEYWORD = 3;
 
 /**
  * Check if two spells have an element conflict (fire vs frost, etc.)
