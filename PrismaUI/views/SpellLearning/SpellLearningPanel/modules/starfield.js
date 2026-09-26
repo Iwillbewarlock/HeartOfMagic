@@ -10,6 +10,11 @@
  *   Layer 0 (far):  tiny dim stars,  move slowly  (depth 0.15)
  *   Layer 1 (mid):  medium stars,    move moderate (depth 0.40)
  *   Layer 2 (near): larger stars,    move fast     (depth 0.75)
+ *
+ * Drawing: stars are gathered into one path per opacity step (OPACITY_STEP)
+ * and each path is filled once, instead of one fill per star - the game's
+ * view draws on the CPU and pays per fill. The world-space tiles are
+ * generated once and kept (_tileCache) instead of re-rolled every frame.
  */
 
 var Starfield = {
@@ -32,6 +37,14 @@ var Starfield = {
 
     // Twinkle phase accumulator
     _twinklePhase: 0,
+
+    OPACITY_STEP: 0.04,        // stars are drawn in opacity steps this big, one path each
+    TILE_SIZE: 500,            // world-space tile edge, screen pixels
+    TILE_CACHE_MAX: 256,       // tiles kept before the cache starts over
+    _tileCache: {},
+    _tileCacheSize: 0,
+    _buckets: null,            // opacity step -> Path2D, while a frame is drawn
+    still: false,          // set by the renderer: draw without moving (render settings)
 
     // Parallax layer definitions
     // depth: 0 = fixed to screen, 1 = fixed to world
@@ -100,6 +113,11 @@ var Starfield = {
         }
     },
 
+    /** Steps due for `key` (AnimClock: the speed does not follow the frame rate). */
+    _steps: function(key) {
+        return typeof AnimClock !== 'undefined' ? AnimClock.steps('stars-' + key) : 1;
+    },
+
     /**
      * Update star positions and twinkle (fixed mode only)
      */
@@ -124,20 +142,87 @@ var Starfield = {
     render: function(ctx) {
         if (!this.enabled || !this.stars) return;
 
-        this.update();
+        // still: drawn where they are, no drift or twinkle (render settings)
+        if (!this.still) {
+            for (var n = this._steps('drift'); n > 0; n--) this.update();
+        }
 
-        var rgb = this.color;
-
+        this._bucketBegin();
         for (var i = 0; i < this.stars.length; i++) {
             var star = this.stars[i];
             var twinkle = 0.5 + 0.5 * Math.sin(star.phase);
-            var opacity = star.baseOpacity * twinkle;
-
-            ctx.beginPath();
-            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + opacity.toFixed(2) + ')';
-            ctx.fill();
+            this._bucketAdd(star.x, star.y, star.size, star.baseOpacity * twinkle);
         }
+        this._bucketFlush(ctx);
+    },
+
+    // =========================================================================
+    // OPACITY BUCKETS
+    // =========================================================================
+
+    _bucketBegin: function() {
+        this._buckets = [];
+    },
+
+    _bucketAdd: function(x, y, size, opacity) {
+        var step = Math.round(opacity / this.OPACITY_STEP);
+        if (step <= 0) return;
+        var path = this._buckets[step] || (this._buckets[step] = new Path2D());
+        path.moveTo(x + size, y);
+        path.arc(x, y, size, 0, Math.PI * 2);
+    },
+
+    _bucketFlush: function(ctx) {
+        var rgb = this.color;
+        ctx.save();
+        ctx.fillStyle = 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+        for (var step = 1; step < this._buckets.length; step++) {
+            if (!this._buckets[step]) continue;
+            var a = step * this.OPACITY_STEP;
+            ctx.globalAlpha = a > 1 ? 1 : a;
+            ctx.fill(this._buckets[step]);
+        }
+        ctx.restore();
+        this._buckets = null;
+    },
+
+    /**
+     * One tile's stars, generated from its seed once and kept:
+     * [x, y, size, baseOpacity, twinkleRate, phaseOffset] per star, tile-space.
+     */
+    _tileStars: function(li, layer, tx, ty, layerStars, sizeScale) {
+        // Seed, size and density are in the key: the renderer sets them directly
+        var key = this.seed + ',' + sizeScale + ',' + layerStars + ',' + li + ',' + tx + ',' + ty;
+        var cached = this._tileCache[key];
+        if (cached) return cached;
+        if (this._tileCacheSize >= this.TILE_CACHE_MAX) {
+            this._tileCache = {};
+            this._tileCacheSize = 0;
+        }
+        var tileSize = this.TILE_SIZE;
+        // Unique deterministic seed per tile per layer
+        var tileSeed = (this.seed + layer.seedOffset) * 73856093 + tx * 19349663 + ty * 83492791;
+        var rng = this._seededRng(tileSeed);
+        var stars = [];
+        for (var si = 0; si < layerStars; si++) {
+            // Always all six rng() calls per star, in this order: the tile's
+            // stars must come out the same every time
+            stars.push(tx * tileSize + rng() * tileSize,
+                       ty * tileSize + rng() * tileSize,
+                       (layer.sizeMin + rng() * (layer.sizeMax - layer.sizeMin)) * sizeScale,
+                       layer.opacityMin + rng() * (layer.opacityMax - layer.opacityMin),
+                       0.5 + rng() * 1.5,
+                       rng() * Math.PI * 2);
+        }
+        this._tileCache[key] = stars;
+        this._tileCacheSize++;
+        return stars;
+    },
+
+    /** Forget the generated tiles (seed, density or size changed). */
+    _clearTiles: function() {
+        this._tileCache = {};
+        this._tileCacheSize = 0;
     },
 
     /**
@@ -156,14 +241,12 @@ var Starfield = {
      * @param {object} layer - Layer definition { depth, sizeMin, sizeMax, ... }
      * @param {number} starsPerTile - Base stars per tile
      */
-    _renderLayer: function(ctx, camX, camY, canvasW, canvasH, layer, starsPerTile) {
-        var rgb = this.color;
-        var tileSize = 500;
+    _renderLayer: function(ctx, camX, camY, canvasW, canvasH, layer, starsPerTile, li) {
+        var tileSize = this.TILE_SIZE;
         var layerStars = Math.max(1, Math.round(starsPerTile * layer.densityMul));
 
         // Scroll offset for this layer (in screen-space tile units).
         // Camera world position × depth gives zoom-independent parallax.
-        // Multiplied by a scale factor so the scroll rate feels natural.
         var scrollX = camX * layer.depth;
         var scrollY = camY * layer.depth;
 
@@ -179,40 +262,21 @@ var Starfield = {
 
         // Scale star sizes with user's maxSize setting
         var sizeScale = this.maxSize / 2.5;
+        var phase = this._twinklePhase;
 
         for (var tx = tileMinX; tx <= tileMaxX; tx++) {
             for (var ty = tileMinY; ty <= tileMaxY; ty++) {
-                // Unique deterministic seed per tile per layer
-                var tileSeed = (this.seed + layer.seedOffset) * 73856093 + tx * 19349663 + ty * 83492791;
-                var rng = this._seededRng(tileSeed);
-
-                for (var si = 0; si < layerStars; si++) {
-                    // IMPORTANT: Always consume ALL rng() calls per star, even if
-                    // the star is off-screen. Otherwise skipping a star shifts the
-                    // RNG sequence and causes subsequent stars to teleport/blink.
-                    var tsX = tx * tileSize + rng() * tileSize;
-                    var tsY = ty * tileSize + rng() * tileSize;
-                    var size = (layer.sizeMin + rng() * (layer.sizeMax - layer.sizeMin)) * sizeScale;
-                    var baseOpacity = layer.opacityMin + rng() * (layer.opacityMax - layer.opacityMin);
-                    var twinkleRate = 0.5 + rng() * 1.5;
-                    var phaseOffset = rng() * Math.PI * 2;
-
+                var stars = this._tileStars(li, layer, tx, ty, layerStars, sizeScale);
+                for (var i = 0; i < stars.length; i += 6) {
                     // Convert tile-space → screen by subtracting the scroll offset
-                    var screenX = tsX - scrollX;
-                    var screenY = tsY - scrollY;
-
-                    // Skip drawing if off screen (rng already consumed above)
+                    var screenX = stars[i] - scrollX;
+                    var screenY = stars[i + 1] - scrollY;
                     if (screenX < -5 || screenX > canvasW + 5 ||
                         screenY < -5 || screenY > canvasH + 5) continue;
 
                     // Twinkle animation
-                    var twinkle = 0.5 + 0.5 * Math.sin(this._twinklePhase * twinkleRate + phaseOffset);
-                    var opacity = baseOpacity * twinkle;
-
-                    ctx.beginPath();
-                    ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + opacity.toFixed(2) + ')';
-                    ctx.fill();
+                    var twinkle = 0.5 + 0.5 * Math.sin(phase * stars[i + 4] + stars[i + 5]);
+                    this._bucketAdd(screenX, screenY, stars[i + 2], stars[i + 3] * twinkle);
                 }
             }
         }
@@ -236,7 +300,7 @@ var Starfield = {
     renderWorldSpace: function(ctx, panX, panY, zoom, canvasW, canvasH) {
         if (!this.enabled) return;
 
-        this._twinklePhase += this.twinkleSpeed;
+        if (!this.still) this._twinklePhase += this.twinkleSpeed * this._steps('twinkle');
 
         // Derive camera world position from pan/zoom.
         // This is approximately zoom-independent: pure zooming barely
@@ -247,17 +311,20 @@ var Starfield = {
         // Base stars per tile (scale with density setting)
         var starsPerTile = Math.max(2, Math.round(this.starCount / 10));
 
-        // Render each parallax layer (far to near)
+        // Every parallax layer into the same opacity paths
+        this._bucketBegin();
         for (var li = 0; li < this._layers.length; li++) {
-            this._renderLayer(ctx, camX, camY, canvasW, canvasH, this._layers[li], starsPerTile);
+            this._renderLayer(ctx, camX, camY, canvasW, canvasH, this._layers[li], starsPerTile, li);
         }
+        this._bucketFlush(ctx);
     },
 
     /**
      * Set star color from hex
      */
     setColor: function(hex) {
-        if (!hex) return;
+        if (!hex || hex === this._hex) return;
+        this._hex = hex;
         var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         if (result) {
             this.color = {
@@ -285,13 +352,17 @@ var Starfield = {
             this.seed = options.seed;
             needsReinit = true;
         }
-        if (options.maxSize !== undefined) this.maxSize = options.maxSize;
+        if (options.maxSize !== undefined && options.maxSize !== this.maxSize) {
+            this.maxSize = options.maxSize;
+            this._clearTiles();
+        }
         if (options.minSize !== undefined) this.minSize = options.minSize;
         if (options.twinkleSpeed !== undefined) this.twinkleSpeed = options.twinkleSpeed;
         if (options.driftSpeed !== undefined) this.driftSpeed = options.driftSpeed;
         if (options.color) this.setColor(options.color);
 
         if (needsReinit) {
+            this._clearTiles();
             this.init(this.width, this.height);
         }
     }

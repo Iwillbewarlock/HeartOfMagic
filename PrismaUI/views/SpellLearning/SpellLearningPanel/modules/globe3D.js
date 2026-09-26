@@ -16,6 +16,7 @@ var Globe3D = {
     
     // Configuration
     enabled: true,
+    still: false,          // set by the renderer: no spin or drift, only projected (render settings)
     particleCount: 200,       // More particles for denser look
     radius: 30,               // Globe radius
     dotSizeMin: 1,            // Minimum dot size
@@ -23,6 +24,9 @@ var Globe3D = {
     fieldOfView: 80,          // Perspective field of view
     globeCenterZ: -30,        // Globe center behind camera (creates wrap effect)
     rotationSpeed: 0.008,     // Single rotation speed
+    ALPHA_LEVELS: 16,         // dots are drawn in this many alpha steps, one path each
+    GLOW_COUNT: 18,           // frontmost dots drawn with a glow sprite
+    TRAIL_ALPHA_STEP: 0.1,    // a travelling particle's trail is drawn in fade steps this big
     
     // Color (will be updated from renderer settings)
     color: { r: 184, g: 168, b: 120 },
@@ -65,10 +69,12 @@ var Globe3D = {
             var particleSize = sizeMin + Math.random() * sizeRange;
 
             this.particles.push({
-                // Base 3D position (before rotation)
+                // Base 3D position (before rotation) and the angles it came from
                 baseX: x,
                 baseY: y,
                 baseZ: z,
+                origTheta: theta,
+                origPhi: phi,
                 // Current 3D position (after rotation)
                 x: x,
                 y: y,
@@ -104,8 +110,10 @@ var Globe3D = {
      * Set color from hex string
      */
     setColor: function(hex) {
-        if (!hex) return;
-        
+        // Called every frame by the renderer: only a new colour is parsed
+        if (!hex || hex === this._hex) return;
+        this._hex = hex;
+
         // Parse hex color
         var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         if (result) {
@@ -115,6 +123,11 @@ var Globe3D = {
                 b: parseInt(result[3], 16)
             };
         }
+    },
+
+    /** Back to front (project sorts with it every frame). */
+    _byDepth: function(a, b) {
+        return a.z - b.z;
     },
     
     /**
@@ -136,12 +149,8 @@ var Globe3D = {
 
             // Apply drift + scatter to get effective position
             var effectiveRadius = this.radius + p.scatterOffset;
-            var origR = Math.sqrt(p.baseX * p.baseX + p.baseY * p.baseY);
-            var origTheta = Math.atan2(p.baseY, p.baseX);
-            var origPhi = Math.atan2(origR, p.baseZ - centerZ);
-
-            var theta = origTheta + p.driftTheta;
-            var phi = origPhi + p.driftPhi;
+            var theta = p.origTheta + p.driftTheta;
+            var phi = p.origPhi + p.driftPhi;
 
             var driftX = effectiveRadius * Math.sin(phi) * Math.cos(theta);
             var driftY = effectiveRadius * Math.sin(phi) * Math.sin(theta);
@@ -170,13 +179,17 @@ var Globe3D = {
         this._maxScale = maxScale;
 
         // Depth sort (back to front)
-        this.particles.sort(function(a, b) {
-            return a.z - b.z;
-        });
+        this.particles.sort(this._byDepth);
     },
     
+    /** The steps due since the last call (AnimClock; one if it is not loaded). */
+    advance: function() {
+        var n = typeof AnimClock !== 'undefined' ? AnimClock.steps('globe') : 1;
+        for (var i = 0; i < n; i++) this.update();
+    },
+
     /**
-     * Update rotation (call each frame)
+     * One step: rotation, lifecycles, orbiting stars (advance calls it)
      */
     update: function() {
         this.rotation += this.rotationSpeed;
@@ -244,6 +257,8 @@ var Globe3D = {
                     p.baseX = this.radius * Math.sin(phi) * Math.cos(theta);
                     p.baseY = this.radius * Math.sin(phi) * Math.sin(theta);
                     p.baseZ = (this.radius * Math.cos(phi)) + this.globeCenterZ;
+                    p.origTheta = theta;
+                    p.origPhi = phi;
                     p.holdDuration = 60 + Math.floor(Math.random() * 100);
                     p.driftTheta = 0;
                     p.driftPhi = 0;
@@ -429,8 +444,9 @@ var Globe3D = {
     render: function(ctx) {
         if (!this.enabled || !this.particles) return;
 
-        // Update rotation and project
-        this.update();
+        // Update rotation and project - held still, it is only projected (render settings).
+        // As many steps as are due, so the speed does not follow the frame rate (AnimClock)
+        if (!this.still) this.advance();
         this.project();
 
         var rgb = this.color;
@@ -441,10 +457,15 @@ var Globe3D = {
         var scaleRange = maxScale - minScale;
         if (scaleRange < 0.01) scaleRange = 1;
 
-        // Frontmost particles get radial gradient glow (capped for performance)
-        var glowStart = Math.max(0, this.particles.length - 18);
+        // Dots go into ALPHA_LEVELS paths (one fill each instead of one per
+        // dot); the frontmost GLOW_COUNT get a glow on top. A CPU-drawn view
+        // pays per fill, and this runs every frame the heart is shown.
+        var levels = this.ALPHA_LEVELS;
+        var buckets = [];
+        for (var l = 0; l <= levels; l++) buckets.push(null);
+        var glows = [];
+        var glowStart = Math.max(0, this.particles.length - this.GLOW_COUNT);
 
-        // Draw particles (sorted back to front)
         for (var i = 0; i < this.particles.length; i++) {
             var p = this.particles[i];
 
@@ -470,26 +491,32 @@ var Globe3D = {
             // Alpha: combine depth, lifecycle, and fresnel
             var alpha = p.alpha * (0.15 + 0.85 * depthNorm) * fresnelFactor;
             if (alpha > 1) alpha = 1;
+            if (alpha <= 0) continue;
 
             if (i >= glowStart && size > 1.5) {
-                // Radial gradient glow for frontmost particles
-                var glowRadius = size * 2.5;
-                var grad = ctx.createRadialGradient(p.projX, p.projY, 0, p.projX, p.projY, glowRadius);
-                grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.9).toFixed(2) + ')');
-                grad.addColorStop(0.4, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.4).toFixed(2) + ')');
-                grad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
-                ctx.beginPath();
-                ctx.arc(p.projX, p.projY, glowRadius, 0, Math.PI * 2);
-                ctx.fillStyle = grad;
-                ctx.fill();
-            } else {
-                // Simple fill for back/mid particles
-                ctx.beginPath();
-                ctx.arc(p.projX, p.projY, Math.max(0.5, size), 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha.toFixed(2) + ')';
-                ctx.fill();
+                glows.push(p.projX, p.projY, size * 2.5, alpha);
+                continue;
             }
+            var level = Math.round(alpha * levels);
+            if (level === 0) continue;
+            var path = buckets[level] || (buckets[level] = new Path2D());
+            var r = Math.max(0.5, size);
+            path.moveTo(p.projX + r, p.projY);
+            path.arc(p.projX, p.projY, r, 0, Math.PI * 2);
         }
+
+        var rgbStr = 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+        ctx.save();
+        ctx.fillStyle = rgbStr;
+        for (var k = 1; k <= levels; k++) {
+            if (!buckets[k]) continue;
+            ctx.globalAlpha = k / levels;
+            ctx.fill(buckets[k]);
+        }
+        for (var g = 0; g < glows.length; g += 4) {
+            this._drawGlow(ctx, glows[g], glows[g + 1], glows[g + 2], glows[g + 3], rgb, rgbStr);
+        }
+        ctx.restore();
 
         // Draw orbiting stars on top (if enabled)
         this._renderOrbitingStars(ctx);
@@ -498,6 +525,25 @@ var Globe3D = {
         // in the wheel's rotated context (not here in the hub's context)
     },
     
+    /** One glowing dot: the shared glow sprite (TreeStyle), or a gradient without it. */
+    _drawGlow: function(ctx, x, y, glowRadius, alpha, rgb, rgbStr) {
+        if (typeof TreeStyle !== 'undefined' && TreeStyle.drawHalo) {
+            ctx.translate(x, y);
+            TreeStyle.drawHalo(ctx, glowRadius, rgbStr, alpha);
+            ctx.translate(-x, -y);
+            return;
+        }
+        var grad = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+        grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.9).toFixed(2) + ')');
+        grad.addColorStop(0.4, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.4).toFixed(2) + ')');
+        grad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+    },
+
     /**
      * Configure globe settings
      */
@@ -694,19 +740,29 @@ var Globe3D = {
             var dp = this.detachedParticles[i];
             var rgb = dp.color || this.color;  // Use particle's color (learning color)
             
-            // Draw trail (fading behind the head) - only if enabled
+            // Draw trail (fading behind the head) - only if enabled. The dots
+            // go into one path per TRAIL_ALPHA_STEP of fade, one fill each.
             if (this.trailEnabled) {
+                var steps = [];
                 for (var j = dp.trail.length - 1; j >= 1; j--) {
                     var t = dp.trail[j];
                     var trailFade = 1 - j / dp.trail.length;
                     var trailAlpha = trailFade * dp.alpha * 0.7;  // More visible trail
-                    var trailSize = dp.size * (0.3 + trailFade * 0.7);  // Gradual size fade
-                    
-                    ctx.beginPath();
-                    ctx.arc(t.x, t.y, Math.max(1, trailSize), 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + trailAlpha.toFixed(2) + ')';
-                    ctx.fill();
+                    var trailSize = Math.max(1, dp.size * (0.3 + trailFade * 0.7));  // Gradual size fade
+                    var step = Math.round(trailAlpha / this.TRAIL_ALPHA_STEP);
+                    if (step <= 0) continue;
+                    var path = steps[step] || (steps[step] = new Path2D());
+                    path.moveTo(t.x + trailSize, t.y);
+                    path.arc(t.x, t.y, trailSize, 0, Math.PI * 2);
                 }
+                ctx.save();
+                ctx.fillStyle = 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+                for (var k = 1; k < steps.length; k++) {
+                    if (!steps[k]) continue;
+                    ctx.globalAlpha = Math.min(1, k * this.TRAIL_ALPHA_STEP);
+                    ctx.fill(steps[k]);
+                }
+                ctx.restore();
             }
             
             // Draw head - slightly larger and brighter
@@ -733,17 +789,23 @@ var Globe3D = {
      */
     _getPositionAlongPath: function(segments, progress) {
         if (!segments || segments.length === 0) return null;
-        
-        // Calculate total length
-        var totalLength = 0;
-        var lengths = [];
-        for (var i = 0; i < segments.length; i++) {
-            var s = segments[i];
-            var dx = s.to.x - s.from.x;
-            var dy = s.to.y - s.from.y;
-            var len = Math.sqrt(dx * dx + dy * dy);
-            lengths.push(len);
-            totalLength += len;
+
+        // Segment lengths, worked out once per path (asked for every frame)
+        var lengths = segments._lengths;
+        var totalLength = segments._totalLength;
+        if (!lengths || lengths.length !== segments.length) {
+            lengths = [];
+            totalLength = 0;
+            for (var i = 0; i < segments.length; i++) {
+                var s = segments[i];
+                var dx = s.to.x - s.from.x;
+                var dy = s.to.y - s.from.y;
+                var len = Math.sqrt(dx * dx + dy * dy);
+                lengths.push(len);
+                totalLength += len;
+            }
+            segments._lengths = lengths;
+            segments._totalLength = totalLength;
         }
         
         var targetDist = progress * totalLength;

@@ -344,16 +344,9 @@ var OracleSettings = {
             });
         }
 
-        // Watch for clipboard pastes landing on our inputs (poll briefly after paste)
-        if (apiKeyInput) {
-            var origKeyPaste = apiKeyInput.value;
-            setInterval(function () {
-                if (apiKeyInput.value !== origKeyPaste) {
-                    origKeyPaste = apiKeyInput.value;
-                    self._debounceSaveLlmConfig();
-                }
-            }, 300);
-        }
+        // (A 300 ms poll for pasted keys used to run here, a new one every time
+        // Oracle mode was opened and none ever stopped, hidden panel or not.
+        // The key input's own input listener already saves a paste.)
     },
 
     // =========================================================================

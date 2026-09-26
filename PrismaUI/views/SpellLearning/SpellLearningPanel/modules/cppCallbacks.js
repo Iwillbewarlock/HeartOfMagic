@@ -38,16 +38,39 @@ function getCanonicalFormId(node) {
 }
 
 /**
+ * Canonical formId -> every node of that spell, built once and kept until the
+ * node list changes (another array, or nodes added or removed in edit mode).
+ * findDuplicateSiblings used to filter all ~1,400 nodes on every call, and
+ * recalculateNodeAvailability calls it for every prerequisite of every spell:
+ * millions of steps each time the panel opened or a spell was learned.
+ */
+var _duplicateIndex = { nodes: null, length: -1, map: null };
+
+function duplicateGroup(node) {
+    var nodes = state.treeData.nodes;
+    var idx = _duplicateIndex;
+    if (idx.nodes !== nodes || idx.length !== nodes.length || !idx.map) {
+        var map = {};
+        for (var i = 0; i < nodes.length; i++) {
+            var key = getCanonicalFormId(nodes[i]);
+            (map[key] = map[key] || []).push(nodes[i]);
+        }
+        idx.nodes = nodes;
+        idx.length = nodes.length;
+        idx.map = map;
+    }
+    return idx.map[getCanonicalFormId(node)] || [];
+}
+
+/**
  * Find all sibling nodes that share the same original spell.
  * Returns an array of nodes (excluding the source node itself).
  */
 function findDuplicateSiblings(sourceNode) {
     if (!state.treeData || !state.treeData.nodes) return [];
-    var canonicalId = getCanonicalFormId(sourceNode);
-    return state.treeData.nodes.filter(function(n) {
-        if (n === sourceNode) return false;
-        return getCanonicalFormId(n) === canonicalId;
-    });
+    var group = duplicateGroup(sourceNode);
+    if (group.length < 2) return [];
+    return group.filter(function(n) { return n !== sourceNode; });
 }
 
 /**
@@ -667,7 +690,15 @@ window.updateSpellInfoBatch = function(json) {
         state.treeData.nodes.forEach(function(node) {
             TreeParser.updateNodeFromCache(node);
         });
-        WheelRenderer.render();
+        // The canvas tree shares these nodes but was never told: the names only
+        // showed with the next repaint for something else (WheelRenderer, the
+        // SVG tree, holds no nodes while the canvas one is in use)
+        if (typeof SmartRenderer !== 'undefined' && SmartRenderer.activeRenderer === 'canvas' &&
+                typeof CanvasRenderer !== 'undefined') {
+            CanvasRenderer._needsRender = true;
+        } else {
+            WheelRenderer.render();
+        }
         
         var statusMsg = t('status.loadedSpells', {found: foundCount});
         if (notFoundCount > 0) {
@@ -754,6 +785,12 @@ window.updateSpellState = function(jsonOrFormId, newState) {
     var oldState = node.state;
     node.state = stateValue;
     syncDuplicateState(node);
+
+    // Panel closed (a spell learned, mastered or targeted while playing): keep
+    // the state, skip the redraws, paths and counts - onPanelShowing refreshes
+    // all of it, and this runs on a game frame
+    if (window._panelVisible === false) return;
+
     debugOutput('[LEARN] ' + node.name + ': ' + oldState + ' -> ' + stateValue);
     
     var wasLearning = oldState === 'learning' || oldState === 'Learning';
@@ -852,8 +889,9 @@ window.onSaveGameLoaded = function() {
     // First reset tree to clean state
     window.onResetTreeStates();
 
-    // Then request fresh data from C++
-    if (window.callCpp) {
+    // Then request fresh data from C++ - not with the panel closed: opening it
+    // asks for the same (onPanelShowing), and doing it twice cost a load hitch
+    if (window.callCpp && window._panelVisible !== false) {
         window.callCpp('GetProgress', '');
         window.callCpp('GetPlayerKnownSpells', '');
     }
@@ -984,9 +1022,37 @@ function recalculateNodeAvailability() {
         return false;
     }
     
+    // Reverse unlock: a mastered spell opens its direct prerequisites (hard, soft
+    // and PRM locks alike), whatever their own prerequisites - a higher spell got
+    // from a tome or a vendor opens the step below it. Same rule as C++
+    // ProgressionManager::IsUnlockedByKnownChild; the flag also gives them the
+    // per-tier XP share (getRequiredXPForNode).
+    // With reverseUnlockToRoot the opening carries on down to the root.
+    var openedByKnownChild = {};
+    if (settings.reverseUnlock !== false) {
+        var toRoot = settings.reverseUnlockToRoot === true;
+        var parentsOf = function(n) {
+            return [].concat(n.prerequisites || [], n.hardPrereqs || [], n.softPrereqs || []).filter(function(pid) {
+                return pid !== n.id && pid !== n.formId;
+            });
+        };
+        state.treeData.nodes.forEach(function(child) {
+            if (!isPrereqMastered(child.id)) return;
+            var queue = parentsOf(child);
+            while (queue.length) {
+                var pid = queue.shift();
+                if (openedByKnownChild[pid]) continue;   // already walked from here
+                openedByKnownChild[pid] = true;
+                var pnode = nodeMap[pid];
+                if (toRoot && pnode) queue = queue.concat(parentsOf(pnode));
+            }
+        });
+    }
+
     // For each node, check if all prerequisites are MASTERED
     var changedCount = 0;
     state.treeData.nodes.forEach(function(node) {
+        node.openedByKnownChild = !!(openedByKnownChild[node.id] || (node.formId && openedByKnownChild[node.formId]));
         // Use canonical formId for duplicate-aware lookups
         var canonId = getCanonicalFormId(node);
 
@@ -1054,11 +1120,12 @@ function recalculateNodeAvailability() {
             }
             var softSatisfied = softNeeded === 0 || softMet >= softNeeded;
             
-            if (allHardMet && softSatisfied) {
+            if ((allHardMet && softSatisfied) || node.openedByKnownChild) {
                 if (node.state === 'locked') {
                     node.state = 'available';
                     changedCount++;
-                    console.log('[SpellLearning] Node ' + (node.name || node.id) + ' now available (hard/soft prereqs met)');
+                    console.log('[SpellLearning] Node ' + (node.name || node.id) + ' now available (' +
+                        (allHardMet && softSatisfied ? 'hard/soft prereqs met' : 'a spell it leads to is known') + ')');
                 }
             } else {
                 // Prerequisites not met - should be locked (but preserve 'learning' and 'unlocked' states)
@@ -1072,6 +1139,9 @@ function recalculateNodeAvailability() {
         }
     });
     
+    // A target opened or closed by a known higher spell costs a different XP now
+    if (typeof RequiredXPSync !== 'undefined') RequiredXPSync.sync();
+
     return changedCount;
 }
 
@@ -1212,14 +1282,17 @@ window.onPlayerKnownSpells = function(dataStr) {
                         ', Learning: ' + learningCount + ', Relocked: ' + relockedCount + 
                         ', Availability updated: ' + availableCount);
             
-            // Re-render tree and update counts
+            // Re-render tree and update counts - on an opening, only if the
+            // states differ from what the tree showed (OpenRefreshGate)
             // Use SmartRenderer which delegates to active renderer (SVG, Canvas, or WebGL)
-            if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
-                SmartRenderer.refresh();
-            } else {
-                WheelRenderer.render();
+            if (typeof OpenRefreshGate === 'undefined' || OpenRefreshGate.reply()) {
+                if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
+                    SmartRenderer.refresh();
+                } else {
+                    WheelRenderer.render();
+                }
+                WheelRenderer.updateNodeStates();
             }
-            WheelRenderer.updateNodeStates();
             
             // Count all unlocked spells (mastered via our system OR already known)
             var unlockedCount = state.treeData.nodes.filter(function(n) { 
@@ -1234,6 +1307,12 @@ window.onPlayerKnownSpells = function(dataStr) {
 
 window.onPrismaReady = function() {
     console.log('[SpellLearning] Prisma connection established');
+    // Only the game calls this, and the plugin creates the view hidden without
+    // telling the page (onPanelHiding comes only after a first open and close).
+    // Left "visible", the tree loaded below would start its render loop and the
+    // heart, globe and stars would be drawn 15 times a second behind the game
+    // until the panel was first opened - minutes of it. startRenderLoop checks this.
+    if (!window._panelShownOnce) window._panelVisible = false;
     if (!window.callCpp) return;
 
     // C++ calls this once, and it is the only thing that asks for the saved
@@ -1270,13 +1349,23 @@ window._panelVisible = true;
 window.onPanelShowing = function() {
     console.log('[SpellLearning] Panel showing - resuming rendering');
     window._panelVisible = true;
+    window._panelShownOnce = true;
+    if (document.body) document.body.classList.remove('panel-hidden');   // CSS animations run again (patch-ui.css)
 
-    // Resume render loop and force re-render
+    if (typeof PreReqMaster !== 'undefined' && PreReqMaster.resumePreview) PreReqMaster.resumePreview();
+
+    // Progress and known spells are asked for below, to catch XP gained while
+    // the panel was hidden; their replies repaint the tree if anything changed
+    var fetching = !!(window.callCpp && state.treeData);
+
+    // Resume render loop; repaint now only if the replies will not decide it
+    // (OpenRefreshGate: most openings change nothing, and a repaint is a slow frame)
     if (typeof CanvasRenderer !== 'undefined') {
         if (CanvasRenderer.startRenderLoop) {
             CanvasRenderer.startRenderLoop();
         }
-        CanvasRenderer._needsRender = true;
+        var held = fetching && typeof OpenRefreshGate !== 'undefined' && OpenRefreshGate.hold();
+        if (!held) CanvasRenderer._needsRender = true;
     }
     // Resume TreeGrowth if it was visible before hiding
     if (typeof TreeGrowth !== 'undefined' && TreeGrowth._visible) {
@@ -1290,18 +1379,22 @@ window.onPanelShowing = function() {
     }
 
     // Re-fetch progress and known spells from C++ to catch any XP gained while panel was hidden
-    if (window.callCpp && state.treeData) {
+    if (fetching) {
         console.log('[SpellLearning] Panel showing - syncing progress from C++');
         window.callCpp('GetProgress', '');
         window.callCpp('GetPlayerKnownSpells', '');
     }
 
-    // Refresh renderers
-    if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
-        SmartRenderer.refresh();
-    }
-    if (typeof WheelRenderer !== 'undefined') {
-        WheelRenderer.updateNodeStates();
+    // Refresh renderers - unless the known-spells reply is on its way: it
+    // refreshes them itself (onPlayerKnownSpells), and doing it here too was
+    // a second full refresh on the frame the panel opened
+    if (!fetching) {
+        if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
+            SmartRenderer.refresh();
+        }
+        if (typeof WheelRenderer !== 'undefined') {
+            WheelRenderer.updateNodeStates();
+        }
     }
 
     // Refresh selected node details panel if a node is selected
@@ -1314,15 +1407,33 @@ window.onPanelShowing = function() {
 window.onPanelHiding = function() {
     console.log('[SpellLearning] Panel hiding - stopping rendering');
     window._panelVisible = false;
+    if (document.body) document.body.classList.add('panel-hidden');   // CSS animations pause (patch-ui.css)
+    // What the tree shows now: opening again repaints it only if that changed
+    if (typeof OpenRefreshGate !== 'undefined') OpenRefreshGate.onHide();
 
     // Stop ALL render loops to free CPU
     // CanvasRenderer (main tree view - canvasRendererV2)
     if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.stopRenderLoop) {
         CanvasRenderer.stopRenderLoop();
     }
+    // A drag held while the panel closes gets its release in the game, not here:
+    // without this the tree would follow the cursor when the panel comes back
+    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.releasePointer) {
+        CanvasRenderer.releasePointer('panel hidden');
+    }
+    // The cursor is gone with the panel: nothing is hovered or previewed when it
+    // comes back, the selected card (or the empty panel) is what shows
+    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.canvas && CanvasRenderer._setHoveredNode) {
+        CanvasRenderer._setHoveredNode(null, null);
+    }
+    if (typeof DetailsPeek !== 'undefined') DetailsPeek.reset();
     // TreeGrowth preview canvas
     if (typeof TreeGrowth !== 'undefined' && TreeGrowth._stopRenderLoop) {
         TreeGrowth._stopRenderLoop();
+    }
+    // PreReq Master's preview loop ran on for good once started
+    if (typeof PreReqMaster !== 'undefined' && PreReqMaster.pausePreview) {
+        PreReqMaster.pausePreview();
     }
     // TreePreview canvas
     if (typeof TreePreview !== 'undefined' && TreePreview._stopRenderLoop) {

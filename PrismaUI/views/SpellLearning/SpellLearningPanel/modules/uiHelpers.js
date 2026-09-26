@@ -436,6 +436,9 @@ window.onPresetsLoaded = function(resultStr) {
                 _easySelectedPreset = _activeScannerPreset || scannerKey || '';
                 if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips();
             }
+        } else if (type === 'design') {
+            // Design presets: no in-memory store of their own here, DesignPresets keeps them
+            if (typeof DesignPresets !== 'undefined') DesignPresets.onLoaded(presets);
         } else if (type === 'settings') {
             // Clear and repopulate
             for (var k2 in settingsPresets) {
@@ -472,6 +475,29 @@ window.onPresetsLoaded = function(resultStr) {
 // XP UTILITIES
 // =============================================================================
 
+/**
+ * Background of the scan screen's tree previews (treePreview, treeGrowth,
+ * prereqMaster): the design's --preview-bg, or the old near-black. The previews
+ * repaint every frame, so the value is read at most once a second - a design or
+ * theme switch shows up within that.
+ * @returns {string} CSS colour
+ */
+var _previewBg = { value: '', readAt: 0 };
+var PREVIEW_BG_DEFAULT = '#0a0a0f';
+var PREVIEW_BG_REREAD_MS = 1000;
+function getPreviewBackground() {
+    var now = Date.now();
+    if (!_previewBg.value || now - _previewBg.readAt > PREVIEW_BG_REREAD_MS) {
+        var v = '';
+        try { v = getComputedStyle(document.documentElement).getPropertyValue('--preview-bg').trim(); } catch (e) {}
+        // An engine may hand back a variable pointing at another one unresolved
+        // ("var(--book-page)"), which a canvas would ignore: the default then
+        _previewBg.value = (v && v.indexOf('var(') < 0) ? v : PREVIEW_BG_DEFAULT;
+        _previewBg.readAt = now;
+    }
+    return _previewBg.value;
+}
+
 function getXPForTier(tierName) {
     if (!tierName) return settings.xpNovice;
     
@@ -495,7 +521,12 @@ function getXPForTier(tierName) {
 function editorIdWords(holder) {
     var id = holder && holder.editorId;
     if (!id) return '';
-    return String(id).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[^A-Za-z0-9]+/g, ' ').toLowerCase();
+    return String(id)
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')   // an acronym runs into a word: "WTIce" -> "WT Ice"
+        .replace(/([A-Za-z])([0-9])/g, '$1 $2')       // "DES100" -> "DES 100"
+        .replace(/([0-9])([A-Za-z])/g, '$1 $2')       // "03Headless" -> "03 Headless"
+        .replace(/([a-z])([A-Z])/g, '$1 $2')          // camelCase
+        .replace(/[^A-Za-z0-9]+/g, ' ').toLowerCase();
 }
 
 /**

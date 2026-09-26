@@ -27,6 +27,13 @@ var BuildProgress = (function() {
     var _stages = ['tree', 'prereqs', 'finalize'];
     var _stageStartTime = 0;
     var _totalStartTime = 0;
+    var _autoCloseTimer = null;     // complete()'s delayed close; a new start() must cancel it
+    var STALL_LOG_MS = 20000;       // a stage this long without moving on is written to the log
+
+    /** Every transition goes to the log, so a modal that stops moving can be traced. */
+    function _log(msg) {
+        console.log('[BuildProgress] ' + msg + ' (' + ((Date.now() - _totalStartTime) / 1000).toFixed(1) + 's)');
+    }
 
     // Icons: pending ○, active ◎ (animated), done ✓, failed ✗
     var ICON_PENDING  = '\u25CB';  // ○
@@ -44,10 +51,17 @@ var BuildProgress = (function() {
      * @param {boolean} hasPRM - Whether Pre Req Master stage is expected
      */
     function start(hasPRM) {
+        // The previous build's delayed close would otherwise shut this one's
+        // modal 2.5 s in, and every later stage change would be ignored
+        if (_autoCloseTimer) {
+            clearTimeout(_autoCloseTimer);
+            _autoCloseTimer = null;
+        }
         _active = true;
         _hasPRM = hasPRM;
         _currentStage = null;
         _totalStartTime = Date.now();
+        _log('start, prereqs=' + (hasPRM ? 'on' : 'off'));
 
         var modal = _getEl('build-progress-modal');
         if (modal) modal.classList.remove('hidden');
@@ -81,7 +95,11 @@ var BuildProgress = (function() {
      * Advance to a named stage.
      */
     function setStage(stageName) {
-        if (!_active) return;
+        if (!_active) {
+            console.log('[BuildProgress] setStage(' + stageName + ') ignored: modal not active');
+            return;
+        }
+        _log('stage ' + (_currentStage || '-') + ' -> ' + stageName);
 
         // Mark previous stage as done (if any)
         if (_currentStage && _currentStage !== stageName) {
@@ -132,7 +150,11 @@ var BuildProgress = (function() {
      * Mark build as complete.
      */
     function complete(summary) {
-        if (!_active) return;
+        if (!_active) {
+            console.log('[BuildProgress] complete ignored: modal not active');
+            return;
+        }
+        _log('complete' + (summary ? ': ' + summary : ''));
 
         // Finish current stage
         if (_currentStage) {
@@ -162,8 +184,10 @@ var BuildProgress = (function() {
 
         _currentStage = null;
 
-        // Auto-close after 2.5s
-        setTimeout(function() {
+        // Auto-close after 2.5s (cancelled if another build starts first)
+        if (_autoCloseTimer) clearTimeout(_autoCloseTimer);
+        _autoCloseTimer = setTimeout(function() {
+            _autoCloseTimer = null;
             if (_active) close();
         }, 2500);
     }
@@ -173,6 +197,7 @@ var BuildProgress = (function() {
      */
     function fail(errorMsg, retryCallback) {
         if (!_active) return;
+        _log('failed in stage ' + (_currentStage || '-') + ': ' + errorMsg);
 
         if (_currentStage) {
             _setStageIcon(_currentStage, ICON_FAILED);
@@ -212,6 +237,7 @@ var BuildProgress = (function() {
      * Close the modal.
      */
     function close() {
+        if (_active && _currentStage) _log('closed while in stage ' + _currentStage);
         _active = false;
         _currentStage = null;
         var modal = _getEl('build-progress-modal');
@@ -277,14 +303,23 @@ var BuildProgress = (function() {
         var nextStagePercent = { tree: 40, prereqs: 75, finalize: 95 };
         var target = nextStagePercent[stageName] || 95;
         var current = startPercent;
+        var stallLogged = false;
 
         _animTimer = setInterval(function() {
             if (!_active || _currentStage !== stageName) {
                 clearInterval(_animTimer);
                 return;
             }
+            // The bar only creeps toward the next stage; if the signal to move on
+            // never comes it sits just below it (39% in the tree stage). Say so once.
+            if (!stallLogged && Date.now() - _stageStartTime > STALL_LOG_MS) {
+                stallLogged = true;
+                _log('stage ' + stageName + ' still waiting after ' + Math.round((Date.now() - _stageStartTime) / 1000) + 's');
+            }
             // Slow asymptotic approach to target
             current += (target - current) * 0.03;
+            // Panel closed mid-build: nobody sees the bar move, and each write repaints the panel
+            if (window._panelVisible === false) return;
             _setProgressBar(Math.round(current));
         }, 300);
     }

@@ -23,6 +23,7 @@ var TreeCamera = {
 
     // Defaults
     DEFAULT_DURATION: 450,      // ms
+    STILL_EPSILON: 0.5,         // pan (px) and rotation (deg) closer than this: already there (zoom: this / 1000)
     DEFAULT_FOCUS_ZOOM: 1.0,    // Zoom level used when "zoom on click" is enabled
     MIN_ZOOM: 0.1,
     MAX_ZOOM: 5,
@@ -218,6 +219,18 @@ var TreeCamera = {
         var dur = (typeof duration === 'number' && duration >= 0) ? duration : this.DEFAULT_DURATION;
         var startTime = performance.now();
 
+        // Already there (a click on a spell in view): no glide. The renderer
+        // holds tree repaints while the view is in motion, so a glide that
+        // goes nowhere would only delay the new selection's highlight.
+        if (Math.abs(end.rotation - start.rotation) < this.STILL_EPSILON &&
+            Math.abs(end.panX - start.panX) < this.STILL_EPSILON &&
+            Math.abs(end.panY - start.panY) < this.STILL_EPSILON &&
+            Math.abs(end.zoom - start.zoom) < this.STILL_EPSILON * 0.001) {
+            this._apply(renderer, end);
+            if (typeof onComplete === 'function') onComplete();
+            return;
+        }
+
         this._anim = { start: start, end: end, startTime: startTime, duration: dur, onComplete: onComplete };
         renderer.isAnimating = true;
 
@@ -270,8 +283,7 @@ var TreeCamera = {
             renderer._needsRender = true;
         }
 
-        var zoomEl = renderer._zoomLevelEl || document.getElementById('zoom-level');
-        if (zoomEl) zoomEl.textContent = Math.round(cam.zoom * 100) + '%';
+        if (renderer.showZoom) renderer.showZoom(cam.zoom);
     },
 
     /**

@@ -18,19 +18,20 @@
     stroke-linejoin: round;
 }
 
-/* ---- School jump tabs (top center of the tree) ---- */
+/* ---- School jump tabs (a row under the zoom tools, top left of the tree) ----
+   Centred on the top row they covered the right half of the zoom tools (renderer
+   badge, heart settings, edit tree) at the default panel size. */
 #tree-school-tabs {
     position: absolute;
-    top: 14px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 58px;
+    left: 15px;
     display: flex;
     gap: 4px;
     padding: 4px 6px;
     background: rgba(0, 0, 0, 0.8);
     border: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));
     z-index: 100;
-    max-width: calc(100% - 320px);
+    max-width: calc(100% - 30px);
     overflow-x: auto;
     white-space: nowrap;
 }
@@ -66,7 +67,7 @@
 /* ---- Trait filter: one pill, shown only while a filter is on ---- */
 #tree-trait-filter {
     position: absolute;
-    top: 50px;
+    top: 98px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -254,6 +255,44 @@ button.easy-preset-chip {
 .spell-chip.chip-school { color: var(--text-muted, #6A6A5A); }
 .spell-chip.hidden-info { font-style: italic; }
 
+/* ---- Hover preview (modules/detailsPeek.js) ----
+   .is-empty: nothing selected, the panel keeps its place and shows a hint.
+   .peeking: the card previews the spell under the cursor - Learn/Unlock and
+   the cheat XP inputs cannot be pressed until the spell is clicked. */
+.details-empty {
+    display: none;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 0.8em;
+    line-height: 1.5;
+    color: var(--text-muted, #6A6A5A);
+}
+
+/* The id keeps these ahead of the bottom-bar rules below, which also set display */
+#contentSpellTree .details-panel.is-empty > .details-empty { display: flex; }
+#contentSpellTree .details-panel.is-empty > .details-header,
+#contentSpellTree .details-panel.is-empty > .details-body,
+#contentSpellTree .details-panel.is-empty > .progress-section,
+#contentSpellTree .details-panel.is-empty > .details-footer,
+#contentSpellTree .details-panel.is-empty > .details-close { display: none; }
+
+.details-peek-hint {
+    display: none;
+    font-size: 0.7em;
+    font-style: italic;
+    color: var(--text-muted, #6A6A5A);
+}
+
+.details-panel.peeking .details-peek-hint { display: inline; }
+.details-panel.peeking .details-footer .btn,
+.details-panel.peeking .xp-input {
+    pointer-events: none;
+    opacity: 0.45;
+}
+
 /* ---- Bottom details bar (settings.detailsLayout = 'bottom') ----
    Same #details-panel element as the sidebar, re-flowed as a horizontal bar
    above the tree footer. Section columns are placed with CSS grid so the
@@ -368,4 +407,116 @@ button.easy-preset-chip {
 #contentSpellTree.details-bottom .heart-settings-popup {
     top: 50px;
     bottom: auto;
+}
+
+/* Reverse unlock note in the spell card (treeViewerUI): brings its own .hidden
+   rule rather than rely on one in the theme */
+#reverse-unlock-note.hidden { display: none; }
+/* Controls that do nothing right now, greyed out: own XP gain rates while off
+   (reverseUnlockSetting.js), design effects the design has none of and the
+   starfield under a page (designEffectsSetting.js) */
+.disabled-controls { opacity: 0.45; pointer-events: none; }
+
+/* The render popup: one short page (renderSettings.js) */
+.heart-settings-popup { width: 360px; max-width: calc(100% - 40px); }
+.heart-settings-popup .popup-note { white-space: normal; }
+
+/* Its own .hidden, so notes hide under a UI theme add-on without one */
+.heart-settings-popup .hidden { display: none; }
+.heart-settings-popup .popup-section-title { margin-top: 6px; }
+
+/* Its switches as chips: a checkbox inside a label, the label's text lit when on.
+   Theme variables only (with fallbacks), so every design and add-on colours them. */
+.render-chips {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 2px 0 6px;
+}
+.render-chip {
+    display: inline-block;
+    margin: 0 4px 4px 0;
+    cursor: pointer;
+    user-select: none;
+}
+.render-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+.render-chip span {
+    display: inline-block;
+    padding: 3px 9px;
+    font-size: 0.75em;
+    white-space: nowrap;
+    border: 1px solid var(--divider, rgba(184, 168, 120, 0.3));
+    border-radius: 3px;
+    color: var(--text-muted, #8a8070);
+    background: transparent;
+}
+.render-chip:hover span {
+    color: var(--text-secondary, #b8a878);
+}
+.render-chip input:checked + span {
+    border-color: var(--accent-gold, #b8a878);
+    color: var(--accent-gold, #b8a878);
+    background: var(--btn-bg-hover, rgba(184, 168, 120, 0.18));
+}
+
+/* Panel closed (onPanelHiding): endless CSS animations (build stage pulse,
+   armed delete button) stop, so nothing on the page keeps changing */
+body.panel-hidden *,
+body.panel-hidden *::before,
+body.panel-hidden *::after {
+    animation-play-state: paused !important;
+}
+
+/* A line of explanation in the render settings popup */
+.popup-note {
+    font-size: 0.72em;
+    line-height: 1.4;
+    color: var(--text-muted);
+    margin: 2px 0 6px;
+}
+.popup-note.hidden { display: none; }
+
+/* PerfExperiment 'flat' (developer mode, a few seconds at a time): nothing the
+   CPU has to blur, shade or tile, to see whether painting the page is what
+   holds the game's browser up (modules/perfExperiment.js) */
+body.perf-flat *,
+body.perf-flat *::before,
+body.perf-flat *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    background-image: none !important;
+}
+
+/* The tree canvas paints its whole box opaque (background colour, page or
+   stars): what the container would paint under it is never seen, but the
+   game's browser painted it again - gradients, a blurred inner shadow in
+   some designs - each time the canvas changed (CanvasRenderer.show) */
+.tree-container.canvas-shown {
+    background-image: none !important;
+}
+
+/* PerfExperiment 'over' (developer mode, a few seconds at a time): the tools
+   and cards laid over the tree canvas without shadows, filters or background
+   images - is it what lies over the canvas that is slow to paint? */
+body.perf-over .zoom-controls, body.perf-over .zoom-controls *,
+body.perf-over .tree-footer, body.perf-over .tree-footer *,
+body.perf-over .details-panel, body.perf-over .details-panel *,
+body.perf-over #tooltip, body.perf-over #tooltip *,
+body.perf-over .howto-tab, body.perf-over .howto-tab *,
+body.perf-over .howto-panel, body.perf-over .howto-panel *,
+body.perf-over #tree-school-tabs, body.perf-over #tree-school-tabs *,
+body.perf-over #tree-trait-filter, body.perf-over #tree-trait-filter *,
+body.perf-over #perf-meter {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    background-image: none !important;
 }

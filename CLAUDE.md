@@ -53,7 +53,7 @@ What are you doing?
 4. **Explore before coding**: ALWAYS search for existing utilities before writing new helpers
 5. **Build validation**: ALWAYS run `.\BuildRelease.ps1` before completing a task
 6. **Documentation maintenance**: ALWAYS update relevant docs/ after code changes that affect documented systems
-7. **PrismaUI theme compatibility**: UI changes must work with all themes (default.json, skyrim.json)
+7. **PrismaUI theme compatibility**: UI changes must work with all designs (Classic, Modern Dark, Arcane, Night Grimoire, Candlelit Tome - `themes/skyrim.json` plus `themes/design-*.css`)
 8. **JavaScript compatibility**: Use `var` declarations in PrismaUI code (Ultralight compatibility—no `let`/`const`)
 
 ## Do NOT (Anti-Patterns)
@@ -191,6 +191,8 @@ node run-tests.js
 |------|---------|
 | `run-tests.js` | Node.js test runner with browser-global mocks |
 | `modules/unificationTest.js` | Module unification/integration tests |
+| `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
+| `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/autoTest.js` | In-game automated test harness (reads `test_config.json`) |
 | `test-runner.html` | Browser-based test runner |
 
@@ -254,6 +256,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Runtime SKSE data | `SKSE/Plugins/SpellLearning/` |
 | Documentation | `docs/` |
 | FOMOD installer | `fomod/` |
+| Design presets shipped as files | `SKSE/Plugins/SpellLearning/presets/design/` |
 | Optional ISL patch | `optional/ISLPatch/` |
 | Build output | `build/` (gitignored) |
 | Lab/experiments | `lab/` |

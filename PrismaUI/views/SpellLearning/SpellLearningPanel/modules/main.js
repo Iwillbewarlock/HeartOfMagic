@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Drag and resize
         if (typeof initializeDragging === 'function') initializeDragging();
         if (typeof initializeResizing === 'function') initializeResizing();
+        if (typeof PanelSnap !== 'undefined') PanelSnap.init();   // whole pixels (panelSnap.js)
         
         // Tree viewer
         if (typeof initializeTreeViewer === 'function') initializeTreeViewer();

@@ -205,7 +205,20 @@ var BridgeView = {
         var color = this.TRAIT_COLORS[trait] || this.DEFAULT_COLOR;
         ctx.save();
         ctx.globalAlpha = this.VEIL_ALPHA;
-        ctx.fillStyle = '#000000';
+        // Drawn into the see-through tree layer (the page and stars are under it,
+        // on the tree canvas): what the tree drew so far is faded out of the
+        // layer instead of painted over, so the page shows as it is. A black
+        // veil turned a dark design's page (Candlelit Tome) all but black, and
+        // one in the page's colour flattened its light and texture. Drawn
+        // straight onto the tree canvas (no layer), the page is under the veil:
+        // the colour behind the tree, so the rest fades into it.
+        var intoLayer = ctx !== renderer.ctx;
+        if (intoLayer) {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = '#000000';
+        } else {
+            ctx.fillStyle = (renderer._backdrop && renderer._backdrop()) || '#000000';
+        }
         if (bounds) {
             // The bounds are axis-aligned in tree space while the wheel is turned,
             // so a rect of exactly that size would leave the corners bare. Double it.
@@ -216,6 +229,7 @@ var BridgeView = {
         }
 
         ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
         // A filter is most useful looking at the whole wheel, and there a dot of
         // a fixed size in tree units is a pinprick. Keep it the same on screen.
         var zoom = renderer.zoom || 1;

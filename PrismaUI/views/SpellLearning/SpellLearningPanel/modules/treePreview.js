@@ -396,6 +396,8 @@ var TreePreview = {
 
     _startRenderLoop: function() {
         if (this._rafRunning) return;
+        // Hidden panel (a build finishing after it was closed): onPanelShowing starts it
+        if (window._panelVisible === false) return;
 
         this._rafRunning = true;
         this._idleFrames = 0;
@@ -449,7 +451,7 @@ var TreePreview = {
         ctx.globalAlpha = 1.0;
 
         // Clear
-        ctx.fillStyle = '#0a0a0f';
+        ctx.fillStyle = (typeof getPreviewBackground === 'function') ? getPreviewBackground() : '#0a0a0f';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Scale for DPR
