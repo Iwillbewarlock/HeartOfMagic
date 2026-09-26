@@ -94,6 +94,23 @@ namespace Librarian
                     return false;
                 }
             }
+            if (!match.pluginContains.empty()) {
+                // A scan without the plugin column still has it in the persistentId
+                std::string plugin = ReadField(spell, "plugin");
+                if (plugin.empty()) {
+                    const std::string id = ReadField(spell, "persistentId");
+                    plugin = id.substr(0, id.find('|'));
+                }
+                plugin = Detail::Lowered(plugin);
+                const bool named = std::any_of(match.pluginContains.begin(), match.pluginContains.end(),
+                    [&plugin](const std::string& part) { return plugin.find(part) != std::string::npos; });
+                if (!named) return false;
+            }
+            if (match.castByVampires.has_value()) {
+                const auto flag = spell.find("castByVampires");
+                const bool cast = flag != spell.end() && flag->is_boolean() && flag->get<bool>();
+                if (cast != *match.castByVampires) return false;
+            }
             if (!match.spellKeyword.empty() && !HasKeyword(spell, match.spellKeyword)) {
                 return false;
             }

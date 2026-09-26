@@ -125,6 +125,10 @@ namespace SpellScanner
     json BuildEffectJson(const RE::Effect* effect, const FieldConfig& fields);
     json BuildSpellJson(RE::SpellItem* spell, RE::FormID formId, const FieldConfig& fields);
 
+    // True when a vampire NPC carries the spell (SpellScannerCasters.cpp) -
+    // the tag librarian reads it as evidence of blood magic.
+    bool IsCastByVampires(RE::FormID spellFormId);
+
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard
     // presence, perks. Copied from the records as they are - nothing in here

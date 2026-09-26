@@ -244,6 +244,9 @@ namespace SpellScanner
         spellJson["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
         spellJson["school"] = GetSchoolName(GetSpellSchool(spell));
         spellJson["skillLevel"] = DetermineSpellTier(spell);
+        if (IsCastByVampires(formId)) {
+            spellJson["castByVampires"] = true;
+        }
 
         // Optional fields
         if (fields.editorId) {

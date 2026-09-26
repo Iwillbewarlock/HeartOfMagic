@@ -15,11 +15,8 @@
   ],
   "rules": [
 
-    { "_": "Blood magic: life drained in blood's name, blood boiling for power",
+    { "_": "Blood magic the rules below cannot see: Occult Cradle's The Power Within, Mysticism's Blood Lance",
       "match": { "spell": [
-        "AncientBloodII.esl|0x000843",
-        "AncientBloodII.esl|0x00084C",
-        "AncientBloodII.esl|0x00090E",
         "HAG - Occult Cradle Stone Tower.esp|0x00013F",
         "MysticismMagic.esp|0x1B8A09"
       ] },
@@ -126,26 +123,27 @@
       "match": { "spell": "Lightpower.esl|0x000829" },
       "add": { "elements": ["sun"] } },
 
-    { "_": "Absorbing health or stamina is blood magic (decided 2026-09-27): every absorb effect, any mod",
-      "match": { "archetype": "Absorb", "primaryAV": "Health" },
+    { "_": "Blood magic, by rule (decided 2026-09-27): everything from a mod named for blood or vampires ...",
+      "match": { "pluginContains": ["blood", "vampir", "sanguin"] },
       "add": { "elements": ["blood"] } },
 
-    { "match": { "archetype": "Absorb", "primaryAV": "Stamina" },
+    { "_": "... and the absorbs and drains vampires cast (castByVampires: a vampire NPC carries it, in its records or through an SPID ini). A mage's absorb health is not blood magic; a vampire's ice spike is not either",
+      "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Health" },
       "add": { "elements": ["blood"] } },
-
-    { "_": "The same by keyword, for absorbs a script carries (a cloak, a rune): vanilla's vampire drain on a hostile effect (a mod's dispel carries it too), KIT's absorb types",
-      "match": { "mgefKeyword": "MagicVampireDrain", "hostile": true },
+    { "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Stamina" },
       "add": { "elements": ["blood"] } },
-    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Health" }, "add": { "elements": ["blood"] } },
-    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Stamina" }, "add": { "elements": ["blood"] } },
-    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelHealthCloak" }, "add": { "elements": ["blood"] } },
-    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelStaminaCloak" }, "add": { "elements": ["blood"] } },
-    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Magicka" }, "add": { "elements": ["arcane"] } },
-    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelMagickaCloak" }, "add": { "elements": ["arcane"] } },
+    { "match": { "castByVampires": true, "mgefKeyword": "MagicVampireDrain", "hostile": true },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Health" },
+      "add": { "elements": ["blood"] } },
+    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Stamina" },
+      "add": { "elements": ["blood"] } },
 
     { "_": "Absorbing magicka is arcane",
       "match": { "archetype": "Absorb", "primaryAV": "Magicka" },
       "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeywordPrefix": "KIT_MagicAbsorbType_Magicka" }, "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeyword": "KIT_MagicAbsorbType_DispelMagickaCloak" }, "add": { "elements": ["arcane"] } },
 
     { "_": "Except the Creation Club Oblivion absorbs (Choking Grasp, Strangulation, Hangman's Noose, Touch of Death): choking, not blood - left without an element",
       "match": { "spell": [

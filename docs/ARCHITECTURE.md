@@ -108,6 +108,11 @@ the rule files tag them, and a tag a rule removes is gone there too. A tome scan
 the catalog the last full scan left. The held scan (`m_scanText`) and the result sent to the panel
 are the merged text. The card icon rules still read the scanner's own traits.
 
+`castByVampires: true` marks a spell a vampire NPC carries - an NPC whose race or record has the
+`Vampire` keyword, through its own or its race's spell list and the leveled spell lists in them, plus
+spells SPID hands to `Vampire` in any `Data/*_DISTR.ini` (SpellScannerCasters.cpp, read once). The tag
+librarian's blood rules use it; it is absent, not false, for every other spell.
+
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.
 `associatedForm` only appears when the effect has one (summons, bound weapons).

@@ -71,6 +71,8 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 | 키 | 대상 | 비고 |
 |---|---|---|
 | `spell` | 주문 자체 | `persistentId` 하나 또는 목록(`"Natura.esp|0x000B2C"`). 수동 룰용 |
+| `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로 |
+| `castByVampires` | 스캐너의 `castByVampires` | 뱀파이어 NPC 가 가진 주문(NPC·종족 주문 목록과 그 안의 레벨드 리스트, Data 의 SPID `*_DISTR.ini` 에서 `Vampire` 필터로 배포되는 주문) |
 | `spellKeyword` `spellKeywordPrefix` `spellKeywordSuffix` | SPEL 키워드 | |
 | `mgefKeyword` `mgefKeywordPrefix` `mgefKeywordSuffix` | MGEF 키워드 | |
 | `archetype` | 이펙트 archetype | `SummonCreature` 등 |
@@ -114,10 +116,11 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 - 원소 없던 파괴 마법: 혼돈의 용광로(화염·냉기·전격), Lost Grimoire 의 극지 요새·서리 장막(냉기),
   폭풍 균열·전기장(전격), 살라맨더 비늘(화염), 죽음의 손길(영혼)
 - 괴저: Necromancer's Magic 의 해골 무덤과 부정한 저주 둘(양들의 침묵, 어둠의 무게)
-- 흡수(구조 룰, 모든 모드): 체력·지구력 흡수(`archetype` Absorb + `primaryAV` Health/Stamina)는 혈,
-  매지카 흡수는 비전. 스크립트가 흡수하는 망토·룬도 키워드로 같은 판단을 한다: 적대 효과의
-  `MagicVampireDrain`(Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다),
-  `KIT_MagicAbsorbType_Health*`/`Stamina*`/`Dispel...Cloak` → 혈, `..._Magicka*` → 비전
+- 혈 기준(구조 룰, 2026-09-27 결정): **(1)** 플러그인 이름에 blood·vampir·sanguin 이 들어간 모드의
+  주문 전부, **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수·흡혈류(체력·지구력 Absorb, 적대 효과의
+  `MagicVampireDrain` - Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다 - 와
+  `KIT_MagicAbsorbType_Health*`/`Stamina*`). 뱀파이어가 쓰는 얼음 가시 같은 일반 마법은 혈이 아니고,
+  마법사의 체력 흡수도 혈이 아니다. 매지카 흡수는 비전(키워드·망토 변형 포함)
 - 저항 강화(구조 룰): 적대가 아닌 `PeakValueModifier`/`ValueModifier` 가 FireResist·FrostResist·
   ElectricResist·PoisonResist·DiseaseResist 를 올리면 그 원소 + 저항(약점 저주가 이미 그렇듯)
 - KIT 망토 변형(`10_kit.json`, 구조 룰): `KIT_MagicDamageType_Dispel<X>Cloak`,

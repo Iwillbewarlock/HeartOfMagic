@@ -51,6 +51,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spellscanner/SpellScannerEvidence.cpp
     src/spellscanner/SpellScannerChips.cpp
     src/spellscanner/SpellScannerCard.cpp
+    src/spellscanner/SpellScannerCasters.cpp
     src/spellscanner/SpellScannerScan.cpp
     src/librarian/LibrarianRules.cpp
     src/librarian/LibrarianClassify.cpp

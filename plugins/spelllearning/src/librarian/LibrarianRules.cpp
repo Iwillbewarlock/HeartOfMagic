@@ -94,6 +94,18 @@ namespace Librarian
                     }
                 }
             }
+            // "pluginContains": one text or a list of them, any of which will do
+            const auto pluginField = matchObject.find("pluginContains");
+            if (pluginField != matchObject.end()) {
+                if (pluginField->is_string()) {
+                    match.pluginContains.push_back(Detail::Lowered(pluginField->get<std::string>()));
+                } else if (pluginField->is_array()) {
+                    for (const auto& entry : *pluginField) {
+                        if (entry.is_string()) match.pluginContains.push_back(Detail::Lowered(entry.get<std::string>()));
+                    }
+                }
+            }
+            ReadBool(matchObject, "castByVampires", match.castByVampires);
             ReadString(matchObject, "spellKeyword", match.spellKeyword);
             ReadString(matchObject, "spellKeywordPrefix", match.spellKeywordPrefix);
             ReadString(matchObject, "spellKeywordSuffix", match.spellKeywordSuffix);
@@ -190,6 +202,8 @@ namespace Librarian
     {
         return !HasEffectCondition()
             && spells.empty()
+            && pluginContains.empty()
+            && !castByVampires.has_value()
             && spellKeyword.empty()
             && spellKeywordPrefix.empty()
             && spellKeywordSuffix.empty();

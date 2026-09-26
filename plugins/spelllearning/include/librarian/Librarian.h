@@ -92,6 +92,13 @@ namespace Librarian
         // The spell itself, by persistentId ("Plugin.esp|0x000D62"): one or
         // more. For hand-made rules, when nothing in the records says it.
         std::vector<std::string> spells;
+        // The plugin the spell comes from, when its file name contains any of
+        // these (case ignored): a themed mod says what its magic is by name -
+        // "blood", "vampir" for a blood magic mod.
+        std::vector<std::string> pluginContains;
+        // The scanner's castByVampires: a vampire NPC carries the spell, in its
+        // own spell list, its race's, or a leveled list in either.
+        std::optional<bool> castByVampires;
         std::string spellKeyword;
         std::string spellKeywordPrefix;
         std::string spellKeywordSuffix;
