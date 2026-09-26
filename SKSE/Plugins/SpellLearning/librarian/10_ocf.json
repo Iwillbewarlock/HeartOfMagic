@@ -9,8 +9,9 @@
   ],
   "rules": [
 
-    { "_": "OCF_MgefClass* - the tradition the effect belongs to (Arcane gets no element: plain magic, decided 2026-09-27)",
-      "match": { "mgefKeyword": "OCF_MgefClassArtificer" },  "add": { "elements": ["construct"] } },
+    { "_": "OCF_MgefClass* - the tradition the effect belongs to",
+      "match": { "mgefKeyword": "OCF_MgefClassArcane" },     "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeyword": "OCF_MgefClassArtificer" },  "add": { "elements": ["construct"] } },
     { "match": { "mgefKeyword": "OCF_MgefClassAsh" },        "add": { "elements": ["fire", "earth"] } },
     { "match": { "mgefKeyword": "OCF_MgefClassAstral" },     "add": { "elements": ["holy"] } },
     { "match": { "mgefKeyword": "OCF_MgefClassBlood" },      "add": { "elements": ["blood"] } },
@@ -26,8 +27,9 @@
     { "match": { "mgefKeyword": "OCF_MgefClassWater" },      "add": { "elements": ["water"] } },
     { "match": { "mgefKeyword": "OCF_MgefClassWind" },       "add": { "elements": ["air"] } },
 
-    { "_": "OCF_MgefSpellDamage_* - what the damage is made of (Arcane: no element)",
-      "match": { "mgefKeywordPrefix": "OCF_MgefSpellDamage_AshFire" }, "add": { "elements": ["fire", "earth"] } },
+    { "_": "OCF_MgefSpellDamage_* - what the damage is made of",
+      "match": { "mgefKeywordPrefix": "OCF_MgefSpellDamage_Arcane" },  "add": { "elements": ["arcane"] } },
+    { "match": { "mgefKeywordPrefix": "OCF_MgefSpellDamage_AshFire" }, "add": { "elements": ["fire", "earth"] } },
     { "match": { "mgefKeywordPrefix": "OCF_MgefSpellDamage_Blood" },   "add": { "elements": ["blood"] } },
     { "match": { "mgefKeyword": "OCF_MgefSpellDamage_Deconstruct" },   "add": { "elements": ["construct"] } },
     { "match": { "mgefKeywordPrefix": "OCF_MgefSpellDamage_Earth" },   "add": { "elements": ["earth"] } },

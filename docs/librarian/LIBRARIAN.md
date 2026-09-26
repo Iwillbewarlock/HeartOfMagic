@@ -97,10 +97,11 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
   폭풍 균열·전기장(전격), 살라맨더 비늘(화염), 죽음의 손길(영혼)
 - 괴저: Necromancer's Magic 의 해골 무덤과 부정한 저주 둘(양들의 침묵, 어둠의 무게)
 - 흡수(구조 룰, 모든 모드): 체력·지구력 흡수(`archetype` Absorb + `primaryAV` Health/Stamina)는 혈,
-  매지카 흡수는 원소 없음. 이미 혈인 주문(Vampiric 등)은 그대로다
+  매지카 흡수는 비전. 이 로드오더에서는 10개(AncientBlood 연쇄하는 고통·정수 흡수, Lost Grimoire
+  감전사, Mysticism 의 흡수 주문들)가 바뀐다. 이미 혈인 주문(Vampiric 등)은 그대로다
 - 설명으로 판단(2026-09-27): Glenmoril 성 바즈라의 횃불(화염 피해 → 화염), Lost Grimoire 맹독 망토(독),
   Mysticism 영혼 수확(영혼 - 소울 트랩처럼 영혼을 가둔다), Mysticism 저항 껍질·방패 여덟 개(각 원소 +
-  저항 - 약점 주문과 같게), Mysticism 흡수 망토 둘(체력·지구력 → 혈, 아래 흡수 룰과 같은
+  저항 - 약점 주문과 같게), Mysticism 흡수 망토 셋(체력·지구력은 혈, 매지카는 비전 - 아래 흡수 룰과 같은
   판단), 신성: Lightpower 의 신성한 불꽃·성역·신성한 정화·천벌(천벌은 태양빛이라 태양도), Lost Grimoire
   의 신성한 축복·수호자·방패
 - 빼기(기록이 잘못 붙인 것): 바닐라 화염 폭풍의 냉기, Natura 룬 여섯 개의 화염(룬이 공유하는 폭발
@@ -115,16 +116,10 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 바위 주문들은 "출혈 피해"를 주지만 흙 마법이다. Creation Club 주문 팩(`ccBGSSSE014-SpellPack01.esl`)의
 Oblivion 체력 흡수 네 개(Choking Grasp, Strangulation, Hangman's Noose, Touch of Death)는 질식시켜
 흡수하는 컨셉이라 혈도 바람도 아닌 무속성으로 둔다(흡수 룰이 붙인 혈을 `remove` 로 뗀다); 체력 흡수지만 이펙트는 바닐라 매지카 흡수의 파란
-`AbsorbBlueFXS` 를 쓴다). 흡수 룰은 효과만 보고 붙인다: 매지카도 흡수하는 전격 주문 감전사는 전격뿐이고, 효과가 체력 흡수인 Mysticism 뼈 약화는 혈이다(2026-09-27 확인). 이름만 폭풍·소용돌이인 주문(번개 폭풍, 얼음 폭풍, 냉기 화염
+`AbsorbBlueFXS` 를 쓴다). 흡수 룰은 효과만 보고 붙인다: 매지카도 흡수하는 전격 주문 감전사는 전격과
+비전, 효과가 체력 흡수인 Mysticism 뼈 약화는 혈이다(2026-09-27 확인). 이름만 폭풍·소용돌이인 주문(번개 폭풍, 얼음 폭풍, 냉기 화염
 폭풍우, 피의 소용돌이 등)에는 바람을 붙이지 않는다 - 바람을 부리는 마법이 아니라 제 원소가 휘몰아치는
 모양일 뿐이다.
-
-**비전(`arcane`)은 원소로 쓰지 않는다(2026-09-27 결정).** 속성 없는 순수 마력은 그냥 원소가 없는
-주문, 곧 무속성이다. 그래서 KIT(`KIT_MagicElement_Arcane`, `KIT_MagicSummonType_Arcane`,
-`KIT_MagicDamageType_Arcane*`), OCF(`OCF_MgefClassArcane`, `OCF_MgefSpellDamage_Arcane*`), ADAR
-(`ADAR_SPEL_Arcane_*`) 의 Arcane 키워드에는 원소를 붙이지 않고(비전 소환은 `summoning` 기법만), 매지카
-흡수도 원소 없이 둔다. 이 로드오더에서 비전이던 31개(비전 화살·룬·안개·변형·아트로나크 소환 등)가 무속성이
-된다. 태그 자체는 어휘에 남아 있어 사용자 룰(`90_user.json`)이 쓸 수는 있다.
 
 ### 어휘 게이트
 
