@@ -315,31 +315,35 @@ panel closed and in use:
 - **What is left** (measured in game after the above): the slowest frame after a zoom went from 97-144 ms to
   12-19 ms and our drawing is 2-3% of the time, but the loop still turns only every 34-37 ms with the
   animations stilled (43-60 ms with them). The PerfMeter box now rewrites once a second, not four times
-  (each rewrite is a repaint and an upload of the whole panel). To tell whether the rest is the game's own
-  frame, the loop keeping an animation frame booked, or the page's CSS, `modules/perfExperiment.js`
-  switches by itself in developer mode between `base`, `timer` (an idle turn booked with `setTimeout`,
-  `EXPERIMENT_TURN_MS`) and `flat` (`body.perf-flat`, `patch-ui.css`: no shadows, filters or background
-  images), two [Perf] lines each (", exp <mode>"), four rounds, then stops. It goes once the cause is known.
-  First run (Candlelit Tome, animations on, six lines per mode): base 6 frames a second, 58 ms turns, 157 ms
-  worst stall; timer 9, 40 ms, 147 ms; flat 12 (the animation cap), 38 ms, 66 ms. The page's CSS is the
-  main cost: whatever lies under or over the tree canvas is painted again each time the canvas changes.
-  What lies under it is never seen (the canvas is opaque), so while the canvas shows, the container drops
-  its background image (`.tree-container.canvas-shown`, patch-ui.css) and, in Arcane and Candlelit/Dark
-  Book, its blurred inner shadow (kept: the frame rings). The second run adds `over` (`body.perf-over`: no
-  shadows, filters or background images on the zoom bar, footer, card, tooltip and tabs over the canvas)
-  to tell what lies over the canvas from the panel's own background.
-  Second run (the container fix in): base 9 frames a second, 25 ms turns (58 before it), 165 ms worst stall;
-  over 11, 26 ms, 129 ms; timer 12, 25 ms, 128 ms; flat 14, 18 ms, 39 ms. The stalls of 120-250 ms a few
-  times each 5 s went only with everything flat: the page's wide blurred shadows (the panel's 36-60 px drop
-  shadow, 16-40 px ones on the cards, tools, tooltip, how-to panel, modals and popups, 18 px inner glows),
-  blurred again on the CPU whenever anything near them changed. They are crisp now - an outline of 1-2 px in
-  the same colour, no blur - in the base theme and every design (the player chose this over a switch).
-  Small ones stay (a button's hover glow, the Spell Tree tab's text glow).
+  (each rewrite is a repaint and an upload of the whole panel). A temporary experiment (PerfExperiment,
+  removed once it had answered) switched the page between looks in developer mode, one [Perf] line each:
+  - as shipped vs no box/text shadows, filters or background images anywhere (`flat`): 157 vs 66 ms
+    worst stall, 6 vs 12 frames a second (Candlelit Tome). An idle loop turn booked with a timer instead
+    of an animation frame changed little, nor did plain tools over the canvas alone;
+  - what lies under the opaque tree canvas is never seen: while it shows the container drops its
+    background image and blurred inner shadow (`.tree-container.canvas-shown`) - loop turns 58 -> 25 ms;
+  - wide blurred shadows (the panel's 36-60 px, 16-40 px on cards, tools, tooltip, how-to panel, modals,
+    popups, 18 px inner glows) became crisp rings - still 165 ms stalls;
+  - the last run split `flat` (Classic vs Arcane): Classic 80 ms stalls and 15 frames a second whatever
+    was turned off - the base theme has nothing costly; Arcane 223 ms as shipped, 130 without shadows,
+    168 without background images, 69 without both.
+  So the designs now use no box shadows and no gradients on their large surfaces: the panel, its header,
+  the cards, tools, tooltip, how-to panel and modals are one colour (the gradient's middle); rings are
+  `outline`s (the gold tooling line inside the panel is an outline with a negative `outline-offset`; the
+  frame round the tree an outline while the canvas shows). Modern keeps only its border (an outline would
+  not follow its rounded corners). Candlelit Tome and Night Grimoire set `--book-cover`, the leather's
+  one colour; a design without it gets `--book-cover-top`. Small effects stay (a button's hover glow, the
+  Spell Tree tab's text glow, slider fills).
+- **Glows where they barely show:** a known spell's halo is left out when its radius on screen is under
+  `HALO_MIN_SCREEN_PX` (20; the learning spell's glow stays), and a design's glow under known lines below
+  `EDGE_GLOW_MIN_ZOOM` (0.8): zoomed out, Arcane drew hundreds of halo sprites and wide strokes per repaint
+  (spells 25-45 ms, lines 15-30 ms of it).
 - **Repaint parts in the log** (developer mode): each `[Perf]` line ends with the longest time each part of
   a tree repaint took in those 5 s (`PerfMeter.part`, from `_renderTreeInto`: dividers, edges, nodes,
   bridges, labels, chapters, and `raster` - a one-pixel `getImageData` that makes the browser rasterize the
-  calls there, in case it defers them). A third run showed repaints of 59-109 ms again (12-19 ms that
-  afternoon); this is to find which part.
+  calls there, in case it defers them). It showed where repaints of 59-109 ms went: drawing the spells
+  zoomed out, most of all in Arcane (glows), not the JavaScript that prepares them (4.7 ms for the whole
+  tree without a JIT).
 - **The trait filter's veil** fades the tree, not the page: drawn into the see-through tree layer, it takes
   `VEIL_ALPHA` of what the tree drew out of the layer (`destination-out`), so the page, its light and its
   texture show as they are. A black veil turned a dark design's page (Candlelit Tome) all but black, and

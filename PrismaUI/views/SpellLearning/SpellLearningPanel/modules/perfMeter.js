@@ -284,11 +284,8 @@ var PerfMeter = {
             ', still ' + (settings.animationsOff === true ? 'on' : 'off') +
             ', lod ' + (r ? r._lodTier : '?') + ', zoom ' + (r ? r.zoom.toFixed(2) : '?') +
             ', selected ' + (r && r.selectedNode ? 'yes' : 'no') + ', card preview ' + (peek ? 'yes' : 'no') +
-            (typeof PerfExperiment !== 'undefined' && PerfExperiment.mode ? ', exp ' + PerfExperiment.mode : '') +
             this._partsText());
         this._lastLog = now;
-        // The experiment changes mode only between lines, so each line is one mode
-        if (typeof PerfExperiment !== 'undefined') PerfExperiment.onLog();
         this._logLayerDraws = layerDraws;
         this._logFrames = 0; this._logMsTotal = 0; this._logWorst = 0; this._logWorstGap = 0;
         this._logTicks = 0; this._logGapTotal = 0;

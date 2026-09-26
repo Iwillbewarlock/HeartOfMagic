@@ -45,19 +45,18 @@
 /* ---------------------------------------------------------------- the cover */
 
 .spell-panel {
-    background:
-        radial-gradient(ellipse at 50% 0%, rgba(90, 60, 30, 0.35) 0%, transparent 60%),
-        linear-gradient(180deg, #2a1c10 0%, #1e140c 55%, #170f08 100%);
+    background: #211710;
     border: 1px solid #6b4e24;
-    /* gold tooling: a thin inset line a few pixels in from the edge */
-    box-shadow:
-        inset 0 0 0 3px #1a1109,
-        inset 0 0 0 4px rgba(201, 162, 90, 0.45),
-        0 0 0 2px rgba(0, 0, 0, 0.65);          /* crisp, not blurred: repainted on the CPU in game */
+    /* Flat colours and outlines, no gradients or box shadows: in game the view is
+       painted on the CPU, and those were worked out again whenever anything on
+       the panel changed (stalls of 150-250 ms, measured) */
+    /* gold tooling: a thin line a few pixels in from the edge */
+    outline: 1px solid rgba(201, 162, 90, 0.45);
+    outline-offset: -5px;
 }
 
 .panel-header {
-    background: linear-gradient(180deg, rgba(58, 38, 20, 0.9) 0%, rgba(30, 20, 12, 0.9) 100%);
+    background: rgba(44, 29, 16, 0.9);
     border-bottom: 1px solid rgba(201, 162, 90, 0.45);
 }
 
@@ -188,9 +187,9 @@
 
 .details-panel,
 #contentSpellTree.details-bottom .details-panel {
-    background: linear-gradient(180deg, var(--arcane-parchment) 0%, var(--arcane-parchment-edge) 100%);
+    background: var(--arcane-parchment);
     border: 1px solid #8a6a3a;
-    box-shadow: inset 0 0 0 1px rgba(120, 84, 36, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.5);   /* crisp (see .spell-panel) */
+    outline: 1px solid rgba(0, 0, 0, 0.5);       /* no gradient or shadow (see .spell-panel) */
 }
 
 .details-header,
@@ -249,7 +248,7 @@
 #tooltip.tooltip {
     background: var(--arcane-parchment);
     border: 1px solid #8a6a3a;
-    box-shadow: 0 0 0 1px rgba(40, 24, 8, 0.45);   /* crisp (see .spell-panel) */
+    outline: 1px solid rgba(40, 24, 8, 0.45);    /* no shadow (see .spell-panel) */
 }
 
 #tooltip .tooltip-name {
@@ -266,10 +265,9 @@
 
 /* A page slid out from the left edge of the book */
 .howto-panel {
-    background: linear-gradient(90deg, var(--arcane-parchment-edge) 0%, var(--arcane-parchment) 12%, var(--arcane-parchment) 100%);
+    background: var(--arcane-parchment);
     border: 1px solid #8a6a3a;
-    border-left: 3px solid #6b4e24;
-    box-shadow: inset 0 0 0 1px rgba(120, 84, 36, 0.3), 2px 0 0 rgba(0, 0, 0, 0.55);   /* crisp (see .spell-panel) */
+    border-left: 3px solid #6b4e24;              /* no gradient or shadow (see .spell-panel) */
 }
 
 .howto-header {
@@ -300,9 +298,9 @@
 
 /* A slip of parchment over a darkened book */
 .modal-content {
-    background: linear-gradient(180deg, var(--arcane-parchment) 0%, var(--arcane-parchment-edge) 100%);
+    background: var(--arcane-parchment);
     border: 1px solid #8a6a3a;
-    box-shadow: inset 0 0 0 1px rgba(120, 84, 36, 0.3), 0 0 0 2px rgba(0, 0, 0, 0.7);   /* crisp (see .spell-panel) */
+    outline: 2px solid rgba(0, 0, 0, 0.7);       /* no gradient or shadow (see .spell-panel) */
 }
 
 .modal-header {
@@ -428,9 +426,9 @@
 }
 
 /* Under the opaque tree canvas the inner shadow is never seen, but was
-   blurred again on every change of the canvas: only the frame while it shows */
+   worked out again on every change of the canvas: only the frame while it
+   shows, as an outline (no box shadow at all, see .spell-panel) */
 .tree-container.canvas-shown {
-    box-shadow:
-        0 0 0 3px rgba(20, 12, 6, 0.9),
-        0 0 0 4px rgba(201, 162, 90, 0.28);
+    box-shadow: none;
+    outline: 3px solid rgba(20, 12, 6, 0.9);
 }

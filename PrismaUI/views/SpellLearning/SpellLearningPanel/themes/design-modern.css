@@ -54,10 +54,13 @@ body,
 }
 
 .spell-panel {
-    background: linear-gradient(160deg, rgba(22, 32, 56, 0.97) 0%, rgba(12, 18, 34, 0.97) 100%);
+    /* One colour and the border, no gradient or box shadow: in game the view is
+       painted on the CPU, and those were worked out again whenever anything on
+       the panel changed (stalls of 150-250 ms, measured). An outline would not
+       follow the rounded corners in the game's browser. */
+    background: rgba(17, 25, 45, 0.97);
     border: 1px solid var(--panel-border);
     border-radius: 12px;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);   /* crisp, not blurred: repainted on the CPU in game */
     overflow: hidden;
 }
 
@@ -176,9 +179,8 @@ textarea {
 }
 
 .modal-content {
-    background: linear-gradient(160deg, rgba(22, 32, 56, 0.98) 0%, rgba(12, 18, 34, 0.98) 100%);
+    background: rgba(17, 25, 45, 0.98);         /* no gradient or shadow (see .spell-panel) */
     border: 1px solid var(--panel-border);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);    /* crisp (see .spell-panel) */
 }
 
 /* ---------------------------------------------------------------- the tree */
@@ -204,8 +206,7 @@ textarea {
 
 .details-panel,
 #tooltip.tooltip {
-    border-radius: 10px;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);    /* crisp (see .spell-panel) */
+    border-radius: 10px;                         /* no shadow (see .spell-panel) */
 }
 
 .details-panel {

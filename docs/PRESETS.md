@@ -233,6 +233,14 @@ Several looks can share one stylesheet: `cssFile` points at the sheet and each p
 sets the variables it reads - the inline CSS is always applied after the sheet. The shipped Night
 Grimoire and Candlelit Tome do this with `themes/design-darkbook.css` and a `:root { --book-... }`
 palette; a new dark look only needs its own palette.
+(`--book-cover` is the leather's one colour; without it the sheet uses `--book-cover-top`.)
+
+**Keep a design's CSS cheap.** In game PrismaUI paints the panel on the CPU and repaints whatever lies
+under or over anything that changes, several times a second. Measured there: box shadows (blurred ones
+worst, but plain rings too) and gradients on large surfaces - the panel, its header, the cards, tools,
+tooltip, modals - tripled the stalls (223 vs 69 ms with a design's shadows and gradients off). Use one
+colour and `border`/`outline` for those (an inner rule: `outline` with a negative `outline-offset`); keep
+gradients and shadows to small things such as buttons.
 
 The heart, globe and learning-path colours can be set as tree tokens (`hubRing`, `hubFill`, `hubText`,
 `globeColor`, `learningColor`) or in the `render` block below. The render popup no longer offers them;

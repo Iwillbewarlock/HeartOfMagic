@@ -121,9 +121,10 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* Crisp, not blurred: the game's browser paints on the CPU, and a wide blur was
-       worked out again whenever anything near it changed (100 ms+ stalls in game) */
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.8);
+    /* An outline, not a shadow: the game's browser paints on the CPU, and box
+       shadows (blurred ones most) were worked out again whenever anything near
+       them changed (stalls of 100 ms and more, measured in game) */
+    outline: 2px solid rgba(0, 0, 0, 0.8);
 }
 
 .spell-panel.fullscreen {
@@ -1478,7 +1479,7 @@ body {
     padding: 0;
     min-width: 220px;
     z-index: 200;
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);   /* crisp: a blur is repainted on the CPU (see .spell-panel) */
+    outline: 2px solid rgba(0, 0, 0, 0.5);      /* not a shadow (see .spell-panel) */
 }
 
 .heart-settings-popup .popup-header {
@@ -2321,7 +2322,6 @@ body {
     z-index: 250;
     transform: translateX(-260px);
     transition: transform 0.25s ease;
-    box-shadow: 2px 0 0 rgba(0, 0, 0, 0.5);     /* crisp: a blur is repainted on the CPU (see .spell-panel) */
 }
 
 .howto-panel.hidden {
@@ -2972,7 +2972,7 @@ body {
     z-index: 10;
     background: #1a1a2e;
     border: 1px solid var(--divider);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.85);  /* crisp: a blur is repainted on the CPU (see .spell-panel) */
+    outline: 2px solid rgba(0, 0, 0, 0.85);     /* not a shadow (see .spell-panel) */
 }
 
 .blacklist-dropdown.hidden {

@@ -88,7 +88,11 @@ var CanvasRenderer = {
     IDLE_AFTER_MS: 15000,         // no input this long: idle
     IDLE_FRAME_MS: 250,           // idle: animation frames come this far apart at most
     IDLE_STOP_MS: 45000,          // no input this long: no animation frames at all (the next mouse move or key brings them back)
-    EXPERIMENT_TURN_MS: 16,       // PerfExperiment 'timer': an idle loop turn waits this long
+    // A design's glows are left out where they would barely show and cost most:
+    // a known spell's halo smaller than this on screen (css px radius; zoomed
+    // out, the whole tree is hundreds of halo sprites per repaint)...
+    HALO_MIN_SCREEN_PX: 20,
+    EDGE_GLOW_MIN_ZOOM: 0.8,      // ...and the wide stroke under known lines below this zoom
     TREE_LAYER_MARGIN: 128,       // css px drawn beyond each edge, so a drag slides the layer (was 256:
                                   // the layer was about 1.6 times the pixels, cleared and copied each repaint)
     // The lock look (hard prerequisites): renderNode and _batchPlainNode
@@ -1328,12 +1332,7 @@ var CanvasRenderer = {
                     console.error('[CanvasRenderer] Frame failed, loop continues: ' + (e && e.message ? e.message : e));
                 }
             } finally {
-                // PerfExperiment 'timer' (developer mode): a turn with nothing
-                // drawn books the next with a timer, not an animation frame
-                self._rafIsTimer = !shouldRender && typeof PerfExperiment !== 'undefined' && PerfExperiment.timerLoop();
-                self._rafId = self._rafIsTimer
-                    ? setTimeout(function() { loop(performance.now()); }, self.EXPERIMENT_TURN_MS)
-                    : requestAnimationFrame(loop);
+                self._rafId = requestAnimationFrame(loop);
             }
         }
         
@@ -1354,8 +1353,7 @@ var CanvasRenderer = {
     stopRenderLoop: function() {
         if (typeof PerfMeter !== 'undefined') PerfMeter.pause();
         if (this._rafId) {
-            if (this._rafIsTimer) clearTimeout(this._rafId);
-            else cancelAnimationFrame(this._rafId);
+            cancelAnimationFrame(this._rafId);
             this._rafId = null;
         }
     },
@@ -2343,7 +2341,7 @@ var CanvasRenderer = {
         for (var uk = 0; uk < unlockedKeys.length; uk++) {
             var uList = batches[unlockedKeys[uk]];
             ctx.strokeStyle = unlockedKeys[uk].substring(2);
-            if (S.edgeGlow > 0) {
+            if (S.edgeGlow > 0 && this.zoom >= this.EDGE_GLOW_MIN_ZOOM) {
                 // A wide faint stroke under the line: the channel glows
                 ctx.lineWidth = S.unlockedEdgeWidth * 3;
                 ctx.globalAlpha = S.edgeGlow;
@@ -2774,7 +2772,9 @@ var CanvasRenderer = {
         var size = this._minSize(12);
         var onPath = (this._learningPathNodes instanceof Set) && this._learningPathNodes.has(node.id) &&
                      !(this._animatingPathNodes && this._animatingPathNodes.has(node.id));
-        if (style.nodeGlow > 0) NodeBatch.addHalo(node.x, node.y, size * 2.6, schoolColor, style.nodeGlow * cf);
+        if (style.nodeGlow > 0 && size * 2.6 * this.zoom >= this.HALO_MIN_SCREEN_PX) {
+            NodeBatch.addHalo(node.x, node.y, size * 2.6, schoolColor, style.nodeGlow * cf);
+        }
         if (lock) {
             NodeBatch.addShape(node.school, node.x, node.y, size + 3, this.LOCK_RING_FILL,
                 this.LOCK_RING_STROKE, 0.5, false, 1.5, 0, true);
@@ -2957,6 +2957,8 @@ var CanvasRenderer = {
 
         // Halo behind known spells and the one being learned (one sprite each)
         var glow = node.state === 'unlocked' ? style.nodeGlow : (showLearningStyle ? style.learningGlow : 0);
+        // A known spell's halo is left out when small on screen (HALO_MIN_SCREEN_PX); the learning one stays
+        if (node.state === 'unlocked' && size * 2.6 * this.zoom < this.HALO_MIN_SCREEN_PX) glow = 0;
         if (glow > 0) {
             TreeStyle.drawHalo(ctx, size * 2.6, showLearningStyle ? learningPathColor : schoolColor, glow * alpha);
         }

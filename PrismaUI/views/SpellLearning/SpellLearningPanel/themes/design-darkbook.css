@@ -52,19 +52,19 @@
 /* ---------------------------------------------------------------- the cover */
 
 .spell-panel {
-    background:
-        radial-gradient(ellipse at 50% 0%, var(--book-cover-glow) 0%, transparent 60%),
-        linear-gradient(180deg, var(--book-cover-top) 0%, var(--book-cover-bottom) 100%);
+    /* Flat colours and outlines, no gradients or box shadows: in game the view is
+       painted on the CPU, and those were worked out again whenever anything on
+       the panel changed (stalls of 150-250 ms, measured). --book-cover is the
+       leather's one colour; a design without it gets its top colour. */
+    background: var(--book-cover, var(--book-cover-top));
     border: 1px solid var(--book-edge);
-    /* gold tooling: a thin inset line a few pixels in from the edge */
-    box-shadow:
-        inset 0 0 0 3px rgba(0, 0, 0, 0.45),
-        inset 0 0 0 4px var(--book-edge),
-        0 0 0 2px rgba(0, 0, 0, 0.65);          /* crisp, not blurred: repainted on the CPU in game */
+    /* gold tooling: a thin line a few pixels in from the edge */
+    outline: 1px solid var(--book-edge);
+    outline-offset: -5px;
 }
 
 .panel-header {
-    background: linear-gradient(180deg, rgba(255, 240, 200, 0.05) 0%, rgba(0, 0, 0, 0.2) 100%);
+    background: rgba(0, 0, 0, 0.08);
     border-bottom: 1px solid var(--book-edge);
 }
 
@@ -188,9 +188,9 @@
 .howto-panel,
 .modal-content,
 #tooltip.tooltip {
-    background: linear-gradient(180deg, var(--book-page) 0%, var(--book-page-edge) 100%);
+    background: var(--book-page);
     border: 1px solid var(--book-edge);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.55);   /* crisp (see .spell-panel) */
+    outline: 1px solid rgba(0, 0, 0, 0.55);      /* no gradient or shadow (see .spell-panel) */
 }
 
 .howto-panel {
@@ -227,9 +227,9 @@
 }
 
 /* Under the opaque tree canvas the inner shadow is never seen, but was
-   blurred again on every change of the canvas: only the frame while it shows */
+   worked out again on every change of the canvas: only the frame while it
+   shows, as an outline (no box shadow at all, see .spell-panel) */
 .tree-container.canvas-shown {
-    box-shadow:
-        0 0 0 3px rgba(0, 0, 0, 0.6),
-        0 0 0 4px var(--book-edge);
+    box-shadow: none;
+    outline: 3px solid rgba(0, 0, 0, 0.6);
 }

@@ -37,6 +37,7 @@
         ":root {",
         "    --book-cover-top: #231d40;",
         "    --book-cover-bottom: #0e0c1c;",
+        "    --book-cover: #18142e;",
         "    --book-cover-glow: rgba(90, 76, 150, 0.35);",
         "    --book-edge: #5a4c86;",
         "    --book-gold: #e2c170;",

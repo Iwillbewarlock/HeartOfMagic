@@ -481,42 +481,10 @@ body.panel-hidden *::after {
 }
 .popup-note.hidden { display: none; }
 
-/* PerfExperiment 'flat' (developer mode, a few seconds at a time): nothing the
-   CPU has to blur, shade or tile, to see whether painting the page is what
-   holds the game's browser up (modules/perfExperiment.js) */
-body.perf-flat *,
-body.perf-flat *::before,
-body.perf-flat *::after {
-    box-shadow: none !important;
-    text-shadow: none !important;
-    filter: none !important;
-    backdrop-filter: none !important;
-    background-image: none !important;
-}
-
 /* The tree canvas paints its whole box opaque (background colour, page or
    stars): what the container would paint under it is never seen, but the
    game's browser painted it again - gradients, a blurred inner shadow in
    some designs - each time the canvas changed (CanvasRenderer.show) */
 .tree-container.canvas-shown {
-    background-image: none !important;
-}
-
-/* PerfExperiment 'over' (developer mode, a few seconds at a time): the tools
-   and cards laid over the tree canvas without shadows, filters or background
-   images - is it what lies over the canvas that is slow to paint? */
-body.perf-over .zoom-controls, body.perf-over .zoom-controls *,
-body.perf-over .tree-footer, body.perf-over .tree-footer *,
-body.perf-over .details-panel, body.perf-over .details-panel *,
-body.perf-over #tooltip, body.perf-over #tooltip *,
-body.perf-over .howto-tab, body.perf-over .howto-tab *,
-body.perf-over .howto-panel, body.perf-over .howto-panel *,
-body.perf-over #tree-school-tabs, body.perf-over #tree-school-tabs *,
-body.perf-over #tree-trait-filter, body.perf-over #tree-trait-filter *,
-body.perf-over #perf-meter {
-    box-shadow: none !important;
-    text-shadow: none !important;
-    filter: none !important;
-    backdrop-filter: none !important;
     background-image: none !important;
 }
