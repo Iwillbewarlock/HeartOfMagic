@@ -37,6 +37,10 @@
       "match": { "spell": "Natura.esp|0x000B2C" },
       "add": { "elements": ["water"] } },
 
+    { "_": "Earth: Natura's Stone Spray, the one stone spell of the set without the earth keyword",
+      "match": { "spell": "Natura.esp|0x000AB4" },
+      "add": { "elements": ["earth"] } },
+
     { "_": "Wind: a frozen gale, and cold wind wrapped round the caster",
       "match": { "spell": [
         "LostGrimoire.esp|0x1F3B7C",
