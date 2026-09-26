@@ -8,8 +8,9 @@
  * through spells they do not end at, and spells under the heart.
  *
  * applyAsync(output, onDone) runs just before the tree is saved (each mode's
- * applyTree saves in onDone), a piece at a time so the panel keeps drawing;
- * apply(output) does the same at once:
+ * applyTree saves in onDone): in game by the plugin (the same pass in C++,
+ * LayoutDeclutter.cpp, on a worker thread), otherwise here a piece at a time
+ * so the panel keeps drawing; apply(output) does it here at once:
  *   1. the whole tree is spaced out by SPREAD, to make room between lines;
  *   2. spells are moved off the tree's lines - every parent-to-child line keeps
  *      LINE_CLEAR from the centre of every spell it does not end at, as far as
@@ -28,7 +29,12 @@
  * underlaid with the background before their see-through fill
  * (CanvasRenderer._backdrop).
  *
- * Depends on: nothing (works on the saved tree format:
+ * The C++ twin must stay in step: a change to a constant, a step or the order
+ * of a sum here goes into plugins/spelllearning/src/treebuilder/Layout*.cpp
+ * too (tools/declutter-test compares the two on a tree).
+ *
+ * Depends on: window.callCpp (optional; DeclutterTree, answered through
+ *   window.onDeclutterResult) - otherwise nothing (works on the saved tree format:
  *   output.schools[name] = { nodes: [{ formId, x, y, isRoot, children }],
  *   startAngle, endAngle }, output.globe, output.layoutMode, output.noRotate)
  */
@@ -46,7 +52,11 @@ var LayoutDeclutter = {
     MAX_STEP: 10,          // world units a spell moves per round at most
     DONE_BELOW: 0.25,      // a round that moves nothing more than this ends it
     GOLDEN_ANGLE: 2.39996, // spreads spells that sit exactly on each other
-    SLICE_MS: 60,          // applyAsync works this long, then lets the panel draw a frame
+    SLICE_MS: 150,         // applyAsync works this long, then lets the panel draw a frame. In game
+                           // a yielded frame costs 30-50 ms: at 60 the 953-spell graph tree took
+                           // 11 s of wall time for about 5 s of work
+    NATIVE_TIMEOUT_MS: 30000, // applyAsync: no reply from the plugin in this long, the pass runs here
+                           // (a 1,428-spell tree takes it about 0.3 s)
 
     /**
      * Move the spells of a tree about to be saved, all at once.
@@ -60,17 +70,29 @@ var LayoutDeclutter = {
     },
 
     /**
-     * The same, a SLICE_MS piece at a time between frames, then onDone(result).
-     * The game's browser has no JIT: a big tree takes it seconds, and all at
-     * once the panel froze for them. Progress goes to the tree builder's status
-     * line. A second call before the first is done drops the first (its onDone
-     * is never called).
+     * The same without holding up the panel, then onDone(result). In game the
+     * plugin does it (DeclutterTree, the same pass in C++ on a worker thread,
+     * the same positions): the game's browser has no JIT, and a big tree took
+     * it seconds of work and twice that in frames. Without the plugin (tests,
+     * the browser harness), when it answers with an error, or when it has not
+     * answered in NATIVE_TIMEOUT_MS, the pass runs here a SLICE_MS piece at a
+     * time between frames. A second call before the first is done drops the
+     * first (its onDone is never called).
      */
     applyAsync: function(output, onDone) {
-        var self = this, job = this.begin(output), shown = -1;
-        this._asyncJob = job;
+        this._asyncSeq = (this._asyncSeq || 0) + 1;
+        var token = { id: 'declutter-' + new Date().getTime() + '-' + this._asyncSeq, output: output, onDone: onDone };
+        this._asyncJob = token;
+        if (!this._applyNative(token)) this._applySliced(token);
+        return token;
+    },
+
+    /** The sliced JavaScript pass for applyAsync's `token`; progress to the status line. */
+    _applySliced: function(token) {
+        var self = this, job = this.begin(token.output), shown = -1, onDone = token.onDone;
+        token.job = job;
         function tick() {
-            if (self._asyncJob !== job) return;
+            if (self._asyncJob !== token) return;
             var done = self.step(job, self.SLICE_MS);
             var pct = Math.floor(job.progress * 100);
             // Not while the panel is closed: each write repaints the whole view
@@ -84,7 +106,97 @@ var LayoutDeclutter = {
             if (onDone) onDone(job.result);
         }
         setTimeout(tick, 0);
-        return job;
+    },
+
+    // =========================================================================
+    // NATIVE (the plugin's LayoutDeclutter, UIManagerDeclutter.cpp)
+    // =========================================================================
+
+    /**
+     * Send `token`'s tree to the plugin; false when there is no plugin to send
+     * it to (or it stopped answering). The request is the spells as _collect
+     * takes them (schools by name, nodes in order, positioned ones only), so
+     * the reply's positions come back in the same order.
+     */
+    _applyNative: function(token) {
+        if (typeof window === 'undefined' || typeof window.callCpp !== 'function' || this._nativeBroken) return false;
+        var output = token.output;
+        if (!output || !output.schools) return false;
+        var items = this._collect(output, false);
+        if (items.list.length < 2) return false;
+        var names = Object.keys(output.schools).sort(), schools = [], at = 0;
+        for (var s = 0; s < names.length; s++) {
+            var school = output.schools[names[s]], nodes = [];
+            var count = ((school && school.nodes) || []).length;
+            // The positioned ones, as _collect took them
+            for (var i = 0; i < count && at < items.list.length; i++) {
+                var n = school.nodes[i];
+                if (items.list[at].node !== n) continue;
+                at++;
+                nodes.push({ formId: n.formId, x: n.x, y: n.y, isRoot: !!n.isRoot,
+                    children: (n.children && n.children.length) ? n.children : [] });
+            }
+            schools.push({ name: names[s], startAngle: school ? school.startAngle : undefined,
+                endAngle: school ? school.endAngle : undefined, nodes: nodes });
+        }
+        token.items = items;
+        token.native = true;
+        var self = this;
+        token.timer = setTimeout(function() {
+            if (self._asyncJob !== token || token.answered) return;
+            token.answered = true;
+            self._nativeBroken = true;     // an old plugin without DeclutterTree: not waited for again
+            console.warn('[LayoutDeclutter] no reply from the plugin in ' + self.NATIVE_TIMEOUT_MS + ' ms, arranged here');
+            self._applySliced(token);
+        }, this.NATIVE_TIMEOUT_MS);
+        // One write, not a running percentage: each write repaints the whole view
+        if (window._panelVisible !== false && typeof TreeGrowth !== 'undefined' && TreeGrowth.setStatusText) {
+            TreeGrowth.setStatusText('Arranging spells...', '#f59e0b');
+        }
+        window.callCpp('DeclutterTree', JSON.stringify({
+            id: token.id, schools: schools, globe: output.globe || {},
+            layoutMode: output.layoutMode, noRotate: output.noRotate === true
+        }));
+        return true;
+    },
+
+    /** The plugin's reply (window.onDeclutterResult): positions onto the tree, or the JavaScript pass. */
+    _onNativeResult: function(resultStr) {
+        var reply = null;
+        try { reply = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr; } catch (e) { reply = null; }
+        var token = this._asyncJob;
+        if (!token || !token.native || token.answered) return;
+        // A reply to an earlier call (a newer one took over): not ours
+        if (reply && reply.id !== undefined && reply.id !== null && reply.id !== token.id) return;
+        token.answered = true;
+        clearTimeout(token.timer);
+        if (!reply || reply.error || !this._applyPositions(token.items, reply)) {
+            console.warn('[LayoutDeclutter] the plugin could not arrange the tree (' +
+                ((reply && reply.error) || 'bad reply') + '), arranged here');
+            this._applySliced(token);
+            return;
+        }
+        this._asyncJob = null;
+        var result = { moved: reply.moved, rounds: reply.rounds, overlapsLeft: reply.overlapsLeft,
+            linesLeft: reply.linesLeft, native: true };
+        console.log('[LayoutDeclutter] arranged by the plugin: ' + reply.moved + ' of ' + reply.positions.length +
+            ' spells moved, ' + reply.linesLeft + ' still on a line, ' + Math.round(reply.ms || 0) + ' ms');
+        if (token.onDone) token.onDone(result);
+    },
+
+    /** Write the reply's [formId, x, y] onto the items' nodes (as step() does); false, and nothing written, if they do not match. */
+    _applyPositions: function(items, reply) {
+        var list = items.list, pos = reply.positions, i;
+        if (!pos || pos.length !== list.length) return false;
+        for (i = 0; i < list.length; i++) {
+            var p = pos[i], id = list[i].node.formId ? String(list[i].node.formId) : '';
+            if (!p || p[0] !== id || typeof p[1] !== 'number' || typeof p[2] !== 'number') return false;
+        }
+        for (i = 0; i < list.length; i++) {
+            list[i].node.x = pos[i][1];
+            list[i].node.y = pos[i][2];
+        }
+        return true;
     },
 
     /** Set up the work for step(): the tree spread out, the line search started. */
@@ -382,3 +494,7 @@ var LayoutDeclutter = {
 };
 
 window.LayoutDeclutter = LayoutDeclutter;
+// The plugin's answer to DeclutterTree (UIManagerDeclutter.cpp)
+window.onDeclutterResult = function(resultStr) {
+    LayoutDeclutter._onNativeResult(resultStr);
+};

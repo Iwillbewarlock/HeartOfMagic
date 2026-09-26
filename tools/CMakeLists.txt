@@ -74,3 +74,32 @@ target_link_libraries(librarian-test PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# declutter-test  -  offline harness for the native tree declutter pass
+# =============================================================================
+# The plugin's own LayoutDeclutter sources, so a tree run here comes out as it
+# does for the panel; compare with modules/layoutDeclutter.js on the same tree.
+
+add_executable(declutter-test
+    declutter-test.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutDeclutter.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClear.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClearCost.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineGrid.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutMath.cpp
+)
+
+target_compile_features(declutter-test PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(declutter-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(declutter-test PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+)

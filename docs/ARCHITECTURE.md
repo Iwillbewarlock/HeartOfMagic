@@ -181,7 +181,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerDeclutter.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -596,6 +596,27 @@ struct BuildResult {
     float elapsedMs;
 };
 ```
+
+### 10a. **LayoutDeclutter** (`plugins/spelllearning/src/treebuilder/Layout*.cpp`, `plugins/spelllearning/include/treebuilder/LayoutDeclutter.h`)
+Split across: LayoutDeclutter.cpp, LayoutLineClear.cpp, LayoutLineClearCost.cpp, LayoutLineGrid.cpp, LayoutMath.cpp (internal types in `LayoutDeclutterInternal.h`)
+**Status:** ✅ Implemented
+
+The native twin of the panel's tree declutter pass (`modules/layoutDeclutter.js`, `layoutLineClear.js`,
+`layoutLineGrid.js`): spreads a built tree, moves spells off its lines, apart and off the heart, with the
+same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, every sum in the same order).
+`LayoutDeclutter::Run(request) -> reply` has no RE:: use and keeps all state per call.
+
+```
+JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
+  └─ UIManager::OnDeclutterTree (UIManagerDeclutter.cpp)
+       └─ AddTaskToGameThread ─► std::thread (worker): parse + LayoutDeclutter::Run
+            └─ AddTaskToGameThread ─► CallView("onDeclutterResult", {id, positions, moved, rounds, ...})
+                 └─ JS writes x/y onto the nodes, onDone saves the tree
+                    (error / no reply in 30 s / stale id: the sliced JavaScript pass or nothing)
+```
+
+Details, fallback and timings: [TREE_BUILDING_SYSTEM.md](TREE_BUILDING_SYSTEM.md#decluttering-before-save-layoutdeclutterjs-layoutlineclearjs-layoutlinegridjs-2026-09-26).
+Offline check: `tools/declutter-test`.
 
 ### 11. **PapyrusAPI** (`plugins/spelllearning/src/PapyrusAPI.cpp`, `plugins/spelllearning/include/PapyrusAPI.h`)
 **Status:** ✅ Implemented
@@ -1176,6 +1197,9 @@ HeartOfMagic/
 │   │   │   ├── treebuilder/
 │   │   │   │   ├── TreeBuilder.h            ✅ Tree construction engine header
 │   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers
+│   │   │   │   ├── LayoutDeclutter.h        ✅ Native tree declutter (Run: request -> reply)
+│   │   │   │   ├── LayoutDeclutterInternal.h ✅ Its internal types and constants
+│   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
 │   │   │   │   └── TreeNLP.h                ✅ Core NLP header
 │   │   │   └── uimanager/
 │   │   │       ├── UIManager.h              ✅ UI manager header
@@ -1196,11 +1220,12 @@ HeartOfMagic/
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (10 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (11 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen, PRM scoring)
+│   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
 │   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)
 │   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
@@ -1218,7 +1243,7 @@ HeartOfMagic/
 │   │       │   ├── SpellEffectivenessHookDisplay.cpp (display name/description modification)
 │   │       │   ├── SpellEffectivenessHookLegacy.cpp (legacy compatibility)
 │   │       │   └── SpellEffectivenessHookGrant.cpp  (early spell granting/removal)
-│   │       └── treebuilder/                 ✅ Native NLP tree construction (9 files)
+│   │       └── treebuilder/                 ✅ Native NLP tree construction + tree declutter (14 files)
 │   │           ├── TreeBuilderCore.cpp          (build dispatch, validation, repair)
 │   │           ├── TreeBuilderClassic.cpp       (Classic mode: tier-first)
 │   │           ├── TreeBuilderTree.cpp          (Tree mode: NLP thematic)
@@ -1228,6 +1253,11 @@ HeartOfMagic/
 │   │           ├── TreeBuilderThemes.cpp        (theme discovery + spell grouping)
 │   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
+│   │           ├── LayoutDeclutter.cpp          (declutter: collect, spread, push apart, reply; JS twin: modules/layoutDeclutter.js)
+│   │           ├── LayoutLineClear.cpp          (declutter line search: passes, one spell's search)
+│   │           ├── LayoutLineClearCost.cpp      (declutter line search: the cost of a spot)
+│   │           ├── LayoutLineGrid.cpp           (declutter line search: grids and fans)
+│   │           ├── LayoutMath.cpp               (fdlibm sin/cos/atan2)
 │   │           └── SimdKernels.cpp              (SIMD-optimized compute kernels)
 │   ├── DummyDEST/                 # DEST compatibility shim
 │   │   ├── CMakeLists.txt

@@ -29,6 +29,9 @@
  * Roots never move; a spell kept in a sector only tries spots inside it.
  * Deterministic.
  *
+ * The plugin runs the same search in C++ (LayoutLineClear*.cpp, LayoutLineGrid.cpp):
+ * a change here goes there too (see LayoutDeclutter).
+ *
  * Depends on: layoutLineGrid.js (its grids and fans, loaded right after this file);
  *   called by LayoutDeclutter with its items
  */

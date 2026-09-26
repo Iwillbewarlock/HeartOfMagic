@@ -204,6 +204,11 @@ This project does not have a C++ test framework. Validation is done through:
 - Compilation (build succeeds)
 - JavaScript unit tests (above)
 - In-game testing via autoTest.js and manual play
+- Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
+  `treebuilder-test` (tree builders), `librarian-test` (spell tag librarian) and `declutter-test`
+  (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
+  must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")
 
 ## Code Style
 

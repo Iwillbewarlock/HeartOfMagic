@@ -48,6 +48,7 @@ public:
     void SendValidationResult(const std::string& jsonData);
     void UpdateSpellState(const std::string& formId, const std::string& state);
     void UpdateTreeStatus(const std::string& message);
+    void SendDeclutterResult(const std::string& jsonData);  // onDeclutterResult (UIManagerDeclutter.cpp)
 
     // Clipboard support
     void SendClipboardContent(const std::string& content);
@@ -146,6 +147,9 @@ private:
 
     // Pre Req Master NLP scoring (C++ native)
     static void OnPreReqMasterScore(const char* argument);
+
+    // Tree declutter before save (C++ native, UIManagerDeclutter.cpp)
+    static void OnDeclutterTree(const char* argument);
 
     // Panel control callbacks
     static void OnHidePanel(const char* argument);

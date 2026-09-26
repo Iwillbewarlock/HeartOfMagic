@@ -789,9 +789,10 @@ Every growth mode (classic, tree, graph, oracle, thematic) bakes x/y into the tr
 `LayoutDeclutter.applyAsync(output, onDone)` after `SchoolBridges.applyToOutput`, and saves
 (`SaveSpellTree`), loads and switches tabs in `onDone`. It runs once, when a tree is applied; the renderer
 only reads the saved positions. The game's browser has no JIT and takes seconds for a big tree (6.3 s
-measured in game before the speed-ups below), and all at once the panel froze for them: `applyAsync` works
-`SLICE_MS` (60 ms) at a time and lets the panel draw between (`setTimeout`), with "Arranging spells...
-N%" on the tree builder's status line. The line search is a job (`LayoutLineClear.start` / `step`) that stops
+measured in game before the speed-ups below; later about 5 s of work and 11 s of wall time for a 953-spell
+tree, sliced), so in game the plugin does it (see **Native pass** below). Without the plugin, the JavaScript
+pass does it: `applyAsync` works `SLICE_MS` (150 ms) at a time and lets the panel draw between
+(`setTimeout`), with "Arranging spells... N%" on the tree builder's status line. The line search is a job (`LayoutLineClear.start` / `step`) that stops
 after its time and picks up where it left off; the push-apart step is quick, but its rounds may also end a
 slice (between rounds). Applying again
 before it is done drops the first run. `apply(output)` does it all at once (tests) - same result either way. None of the layouts checked
@@ -828,6 +829,40 @@ Three steps, the lines staying straight throughout - the spells move, not the li
 3. **Apart:** spells are pushed apart a little at a time (at most `MAX_STEP` 10 per round, `ITERATIONS` 60)
    until no two are closer than `2 x NODE_RADIUS + GAP` (16 = a known spell with its XP ring, 6) and none
    sits within `HEART_CLEARANCE` (50) of the globe.
+
+**Native pass (`LayoutDeclutter.cpp`, 2026-09-26).** The same pass in C++, in
+`plugins/spelllearning/src/treebuilder/`: `LayoutDeclutter.cpp` (collect, spread, the push-apart rounds,
+rounding, the log line), `LayoutLineClear.cpp` (passes, one spell's search, dirty marks),
+`LayoutLineClearCost.cpp` (the cost of a spot), `LayoutLineGrid.cpp` (grids and fans) and `LayoutMath.cpp`.
+It is a port, not a new design: the same constants, the same order of work (schools by name, nodes in
+order), every sum taken term by term in the same order, the same tie-breaks and early exits, and the same
+rounding (`Math.round(v * 100) / 100`, halves up). `sin`, `cos` and `atan2` are fdlibm (`LayoutMath`), as V8
+has them - the MSVC runtime's differ in the last bit for about one `atan2` in five, and one such bit can pick
+another spot. On the game's 1,428-spell tree the positions are identical to `LayoutDeclutter.apply` in node
+(the tree stringified is byte for byte the same; also with `noRotate`, a flat layout, stacked spells and the
+test tree), in about 0.29 s on one core (node, with its JIT: 0.54 s). Every state lives in one call, so two
+calls can run at once. (The game's own browser engine may take its `Math.sin`/`atan2` from the
+platform runtime rather than fdlibm; if so, its JavaScript fallback can land a few spells differently from
+node and from the plugin; the plugin's result does not depend on it.)
+
+`applyAsync` sends the tree to the plugin when `window.callCpp` is there: `DeclutterTree` with `{ id,
+schools: [{ name, startAngle, endAngle, nodes: [{ formId, x, y, isRoot, children }] }], globe, layoutMode,
+noRotate }` - only the positioned spells, in `_collect`'s order - and shows "Arranging spells..." once. The
+plugin (`UIManagerDeclutter.cpp`) hops to the game thread (never call back into the view from inside its
+listener), starts a worker thread that parses the request and runs the pass, and hops back to the game
+thread to call `onDeclutterResult` with `{ id, positions: [[formId, x, y], ...], moved, rounds,
+overlapsLeft, linesLeft, linesMoved, passes, ms }`; it logs the same `[LayoutDeclutter] ...` line as the
+script, with `(native)`. The panel writes the positions onto the nodes (checking each formId) and calls
+`onDone`. It falls back to the sliced JavaScript pass when the reply has an `error` or does not match the
+tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s; after that, an older plugin without the listener
+is not waited for again that session). A newer `applyAsync` supersedes an older one: a reply whose id is
+not the latest request's is dropped. The browser harness (`dev-harness-bridge.js`) answers `DeclutterTree`
+with an error at once, so it arranges the tree itself.
+
+**Keep the two in step.** A change to the JavaScript pass (a constant, a step, the order of a sum) goes into
+the C++ files too. `tools/declutter-test` (`declutter-test -i tree.json -o reply.json [-r runs]`) runs the
+native pass on a saved tree; apply its positions to the tree in `_collect`'s order and compare with
+`LayoutDeclutter.apply` on the same tree.
 
 Roots never move except for the spread, and a spell that starts inside its school's sector
 (`startAngle`/`endAngle`) is kept inside it; flat and unturned layouts (`layoutMode: 'flat'`, `noRotate`)

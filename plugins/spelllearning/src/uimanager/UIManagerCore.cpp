@@ -120,6 +120,9 @@ bool UIManager::Initialize()
     // Register JS callbacks - Pre Req Master NLP scoring (C++ native)
     m_prismaUI->RegisterJSListener(m_view, "PreReqMasterScore", OnPreReqMasterScore);
 
+    // Register JS callbacks - Tree declutter before save (C++ native)
+    m_prismaUI->RegisterJSListener(m_view, "DeclutterTree", OnDeclutterTree);
+
     // Register JS callbacks - Preset file I/O
     m_prismaUI->RegisterJSListener(m_view, "SavePreset", OnSavePreset);
     m_prismaUI->RegisterJSListener(m_view, "DeletePreset", OnDeletePreset);

@@ -37,6 +37,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerNotify.cpp
     src/uimanager/UIManagerScanner.cpp
     src/uimanager/UIManagerTree.cpp
+    src/uimanager/UIManagerDeclutter.cpp
     src/uimanager/UIManagerProgression.cpp
     src/uimanager/UIManagerConfig.cpp
     src/uimanager/UIManagerConfigSave.cpp
@@ -79,6 +80,11 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/treebuilder/TreeBuilderThematic.cpp
     src/treebuilder/TreeBuilderGraph.cpp
     src/treebuilder/TreeBuilderOracle.cpp
+    src/treebuilder/LayoutDeclutter.cpp
+    src/treebuilder/LayoutLineClear.cpp
+    src/treebuilder/LayoutLineClearCost.cpp
+    src/treebuilder/LayoutLineGrid.cpp
+    src/treebuilder/LayoutMath.cpp
     src/treebuilder/SimdKernels.cpp
 )
 
