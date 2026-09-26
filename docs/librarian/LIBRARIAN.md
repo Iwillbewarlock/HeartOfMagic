@@ -98,7 +98,9 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 이 파일을 적용하면 원소 없는 파괴 마법이 8 → 0 이 되고, 다른 주문은 바뀌지 않는다(하네스로
 전후 카탈로그 비교). 사용자가 직접 추가할 때는 이 파일이 업데이트로 덮이지 않도록 `90_user.json`
 에 두면 된다. 판단은 번역 이름이 아니라 원문 이름과 원작자 설명으로 한다. 일부러 뺀 것: Natura 의
-바위 주문들은 "출혈 피해"를 주지만 흙 마법이다.
+바위 주문들은 "출혈 피해"를 주지만 흙 마법이다. Creation Club 주문 팩(`ccBGSSSE014-SpellPack01.esl`)의
+Oblivion 체력 흡수 네 개(Choking Grasp, Strangulation, Hangman's Noose, Touch of Death)는 질식시켜
+흡수하는 컨셉이라 혈도 바람도 아닌 무속성으로 둔다.
 
 ### 어휘 게이트
 
