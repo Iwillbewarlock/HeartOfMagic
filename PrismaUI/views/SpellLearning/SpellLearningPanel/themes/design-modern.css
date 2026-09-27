@@ -24,6 +24,11 @@
     --accent-green: #4ade80;
     --accent-red: #f87171;
     --accent-purple: #c084fc;
+    /* The tree builder's status line (TreeGrowth.STATUS_COLORS) */
+    --status-idle: var(--text-muted);
+    --status-working: #fbbf24;
+    --status-done: #4ade80;
+    --status-error: #f87171;
     --btn-bg: rgba(255, 255, 255, 0.08);
     --btn-bg-hover: rgba(255, 255, 255, 0.14);
     --input-bg: rgba(0, 0, 0, 0.35);

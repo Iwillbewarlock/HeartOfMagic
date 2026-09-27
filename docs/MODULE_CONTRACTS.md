@@ -444,7 +444,7 @@ if (typeof TreePreviewSun !== 'undefined') {
 | `switchMode(name)` | Switch to a mode |
 | `getSpellData()` | Returns current spell scan data |
 | `setTreeBuilt(built, nodeCount, totalPool)` | Update shared UI state |
-| `setStatusText(text, tone)` | Update status label; `tone` is a `STATUS_COLORS` key (`working`, `done`, `error`), theme colours so every design shows its own |
+| `setStatusText(text, tone)` | Update status label; `tone` is a `STATUS_COLORS` key (`working`, `done`, `error`) - the `--status-working/done/error` tokens, so every design shows its own. Any other string is taken as a CSS colour, as modules written before the tones pass one; prefer a tone |
 | `updateBuildButton()` | Refresh build button enabled state |
 | `_markDirty()` | Request a re-render |
 

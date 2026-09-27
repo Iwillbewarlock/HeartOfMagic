@@ -509,26 +509,30 @@ var TreeGrowth = {
     },
 
     /**
-     * Colours of the build status line, by tone: theme colours, so every UI
-     * theme and design shows its own (the hex is the fallback when a theme
-     * leaves the variable out). easyMode.js mirrors the line's colour as is.
+     * Colours of the build status line, by tone: the status tokens every UI
+     * theme and design sets (styles-skyrim.css :root, the design stylesheets
+     * and presets), kept apart from each other and from the idle line's text;
+     * the hex is the fallback when a theme leaves the variable out.
+     * easyMode.js mirrors the line's colour as is.
      */
     STATUS_COLORS: {
-        working: 'var(--accent-gold, #f59e0b)',
-        done: 'var(--accent-green, #22c55e)',
-        error: 'var(--accent-red, #ef4444)'
+        working: 'var(--status-working, #f59e0b)',
+        done: 'var(--status-done, #22c55e)',
+        error: 'var(--status-error, #ef4444)'
     },
 
     /**
      * @param {string} text
-     * @param {string} [tone] - 'working', 'done' or 'error' (STATUS_COLORS)
+     * @param {string} [tone] - 'working', 'done' or 'error' (STATUS_COLORS). A
+     *   growth module written before the tones passes a CSS colour here instead
+     *   (MODULE_CONTRACTS documented one); that is used as it is.
      */
     setStatusText: function(text, tone) {
         var el = document.getElementById('tgStatus');
         if (!el) return;
         el.textContent = text;
-        var color = tone && this.STATUS_COLORS[tone];
-        if (color) el.style.color = color;
+        var color = tone && (this.STATUS_COLORS.hasOwnProperty(tone) ? this.STATUS_COLORS[tone] : tone);
+        if (color && typeof color === 'string') el.style.color = color;
     },
 
     /**

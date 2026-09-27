@@ -39,6 +39,12 @@
 
     /* The scan screen's tree previews (uiHelpers getPreviewBackground) */
     --preview-bg: #1b130c;
+
+    /* The tree builder's status line (TreeGrowth.STATUS_COLORS), on the leather */
+    --status-idle: var(--text-muted);
+    --status-working: #F0A640;
+    --status-done: #94C870;
+    --status-error: #EC7058;
 }
 
 /* ---------------------------------------------------------------- the type */

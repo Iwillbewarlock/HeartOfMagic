@@ -22,6 +22,14 @@
     --accent-green: #88A878;
     --accent-red: #A87878;
     --accent-purple: #9888A8;
+
+    /* The tree builder's status line (TreeGrowth.STATUS_COLORS): idle, working,
+       done, error - kept apart from each other and from the idle text, where
+       the muted accents above are too close (gold is the idle text's colour) */
+    --status-idle: rgba(184, 168, 120, 0.5);
+    --status-working: #E8A84C;
+    --status-done: #7CC474;
+    --status-error: #E86A5C;
     
     /* UI Elements */
     --btn-bg: rgba(255, 255, 255, 0.06);

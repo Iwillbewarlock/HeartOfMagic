@@ -45,6 +45,12 @@
     /* The canvas reads this one itself: the presets set it to a plain colour
        too, in case the engine does not resolve var() here */
     --preview-bg: var(--book-page-edge);
+    /* The tree builder's status line (TreeGrowth.STATUS_COLORS); a preset may
+       set its own like the palette */
+    --status-idle: var(--book-text-faint);
+    --status-working: #F0B04C;
+    --status-done: #8CCF84;
+    --status-error: #EE7E6E;
 
     --book-serif: Georgia, "Palatino Linotype", "Book Antiqua", serif;
 }
