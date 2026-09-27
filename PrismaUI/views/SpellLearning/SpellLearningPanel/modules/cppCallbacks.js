@@ -1380,9 +1380,6 @@ window.onPanelHiding = function() {
         clearInterval(state.llmPollInterval);
         state.llmPollInterval = null;
     }
-    if (typeof stopFeaturePolling === 'function') {
-        stopFeaturePolling();
-    }
 
     // Auto-save settings when panel closes
     if (typeof saveSettings === 'function') {

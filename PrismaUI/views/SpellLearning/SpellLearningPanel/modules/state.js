@@ -295,7 +295,7 @@ var settings = {
         maxChildrenPerNode: 3,          // Max spells that can have same prereq
 
         // === SHAPE SETTINGS ===
-        // Per-school shapes (from SCHOOL_DEFAULT_SHAPES in shapeProfiles.js):
+        // Per-school shapes (the removed JS builders' SCHOOL_DEFAULT_SHAPES):
         //   Destruction=explosion, Restoration=tree, Alteration=mountain,
         //   Conjuration=portals, Illusion=organic
         // This is only used as fallback when no per-school shape is defined:

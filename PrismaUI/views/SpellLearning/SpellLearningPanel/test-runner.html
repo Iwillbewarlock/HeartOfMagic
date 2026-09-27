@@ -87,15 +87,9 @@
     <script src="modules/state.js"></script>
     <script src="modules/config.js"></script>
 
-    <!-- Unified modules (the ones being tested) -->
-    <script src="modules/edgeScoring.js"></script>
+    <!-- The modules being tested -->
     <script src="modules/shapeProfiles.js"></script>
-    <script src="modules/layoutEngine.js"></script>
-
-    <!-- Dependencies -->
-    <script src="modules/growthBehaviors.js"></script>
     <script src="modules/growthDSL.js"></script>
-    <script src="modules/settingsAwareTreeBuilder.js"></script>
 
     <!-- Minimal wheelRenderer mock -->
     <script>
@@ -202,12 +196,8 @@
         window.onload = function() {
             console.log('Test runner loaded.');
             console.log('Modules available:');
-            console.log('  - EdgeScoring: ' + (typeof EdgeScoring !== 'undefined'));
             console.log('  - SHAPE_PROFILES: ' + (typeof SHAPE_PROFILES !== 'undefined'));
-            console.log('  - LayoutEngine: ' + (typeof LayoutEngine !== 'undefined'));
-            console.log('  - GROWTH_BEHAVIORS: ' + (typeof GROWTH_BEHAVIORS !== 'undefined'));
             console.log('  - GROWTH_DSL: ' + (typeof GROWTH_DSL !== 'undefined'));
-            console.log('  - SettingsAwareTreeBuilder: ' + (typeof SettingsAwareTreeBuilder !== 'undefined'));
             console.log('  - WheelRenderer: ' + (typeof WheelRenderer !== 'undefined'));
             console.log('');
             console.log('Click "Run All Tests" to start.');

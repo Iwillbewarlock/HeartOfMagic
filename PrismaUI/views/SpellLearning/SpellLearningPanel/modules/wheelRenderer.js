@@ -5,7 +5,6 @@
  * Depends on:
  * - config.js (TREE_CONFIG, GRID_CONFIG)
  * - shapeProfiles.js (SHAPE_PROFILES, getShapeProfile) - unified shape definitions
- * - layoutEngine.js (LayoutEngine) - optional, for unified position calculations
  * - settings, state, SpellCache, TreeParser, GROWTH_DSL
  */
 

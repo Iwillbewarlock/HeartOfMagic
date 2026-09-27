@@ -3,6 +3,9 @@
  * 
  * LLM-Driven Procedural Tree Generation system.
  * Defines volumes, modifiers, and constraints for tree layout.
+ * The Growth Style Generator UI (initializeGrowthStyleGenerator,
+ * generatedGrowthRecipes) lives in script.js; the recipe-to-settings helpers
+ * for the JS tree builders went with those builders (2026-09-27).
  */
 
 // =============================================================================
@@ -328,161 +331,9 @@ var GROWTH_DSL = {
 };
 
 // =============================================================================
-// GROWTH STYLE GENERATOR UI
-// =============================================================================
-
-// Store generated recipes
-var generatedGrowthRecipes = {};
-
-function initializeGrowthStyleGenerator() {
-    var header = document.getElementById('growthStyleHeader');
-    var content = document.getElementById('growthStyleContent');
-    var generateBtn = document.getElementById('generateStylesBtn');
-    var applyBtn = document.getElementById('applyStylesBtn');
-    
-    if (!header || !content) {
-        console.log('[GrowthDSL] UI elements not found');
-        return;
-    }
-    
-    // Collapsible header
-    header.addEventListener('click', function() {
-        header.classList.toggle('collapsed');
-    });
-    
-    // Generate styles button
-    if (generateBtn) {
-        generateBtn.addEventListener('click', function() {
-            if (typeof onGenerateGrowthStyles === 'function') {
-                onGenerateGrowthStyles();
-            }
-        });
-    }
-    
-    // Apply to tree button
-    if (applyBtn) {
-        applyBtn.addEventListener('click', function() {
-            if (typeof onApplyGrowthStyles === 'function') {
-                onApplyGrowthStyles();
-            }
-        });
-    }
-    
-    console.log('[GrowthDSL] UI initialized');
-}
-
-// =============================================================================
-// RECIPE TO TREE SETTINGS CONVERTER
-// =============================================================================
-
-/**
- * Convert a GROWTH_DSL recipe to tree generation settings.
- * This bridges the gap between LLM-generated recipes and the tree builder.
- *
- * @param {Object} recipe - A validated GROWTH_DSL recipe
- * @returns {Object} - Tree generation settings compatible with SettingsAwareBuilder
- */
-function recipeToTreeSettings(recipe) {
-    if (!recipe || !recipe.branching) {
-        return {};
-    }
-
-    var branching = recipe.branching;
-    var growth = recipe.growth || {};
-
-    return {
-        // Branching rules from recipe
-        maxChildrenPerNode: branching.maxChildrenPerNode || 3,
-        allowCrossTierLinks: branching.allowCrossTierConnections || false,
-        strictTierOrdering: !branching.allowBackwardBranches,
-        allowSameTierLinks: branching.allowCrossTierConnections || false,
-
-        // Growth style affects convergence
-        convergenceEnabled: branching.clusterSimilarSpells || growth.style === 'clustered',
-        convergenceChance: branching.clusterSimilarSpells ? 50 : 30,
-
-        // Visual settings that affect layout
-        fillEmptySpaces: branching.fillEmptySpaces !== false,
-        preferWideOverDeep: branching.preferWideOverDeep !== false,
-
-        // Source recipe for reference
-        _sourceRecipe: recipe.rationale || 'GROWTH_DSL recipe'
-    };
-}
-
-/**
- * Merge recipe settings with existing tree generation settings.
- * Recipe settings override defaults but user settings take precedence.
- *
- * @param {Object} baseSettings - Base tree generation settings
- * @param {Object} recipe - GROWTH_DSL recipe
- * @param {boolean} recipeOverrides - If true, recipe overrides base (default: false)
- * @returns {Object} - Merged settings
- */
-function mergeRecipeSettings(baseSettings, recipe, recipeOverrides) {
-    var recipeSettings = recipeToTreeSettings(recipe);
-
-    if (recipeOverrides) {
-        // Recipe takes precedence
-        return Object.assign({}, baseSettings, recipeSettings);
-    } else {
-        // Base settings take precedence, recipe fills gaps
-        return Object.assign({}, recipeSettings, baseSettings);
-    }
-}
-
-/**
- * Apply a stored recipe to the active tree configuration.
- * This function is called when "Apply to Tree" button is clicked.
- *
- * @param {string} schoolName - School to apply recipe to
- * @param {Object} recipe - The recipe to apply
- */
-function applyRecipeToSchool(schoolName, recipe) {
-    if (!recipe) {
-        console.warn('[GrowthDSL] No recipe to apply for', schoolName);
-        return;
-    }
-
-    // Store recipe for the tree builder to pick up
-    generatedGrowthRecipes[schoolName] = recipe;
-
-    // If there's a global settings object, update school config
-    if (typeof settings !== 'undefined' && settings.schoolConfigs) {
-        if (!settings.schoolConfigs[schoolName]) {
-            settings.schoolConfigs[schoolName] = {};
-        }
-
-        // Apply branching settings
-        var treeSettings = recipeToTreeSettings(recipe);
-        Object.assign(settings.schoolConfigs[schoolName], {
-            dslRecipe: recipe,
-            maxChildrenPerNode: treeSettings.maxChildrenPerNode
-        });
-
-        console.log('[GrowthDSL] Applied recipe to', schoolName, ':', treeSettings);
-    }
-}
-
-/**
- * Get stored recipe for a school (if any)
- * @param {string} schoolName
- * @returns {Object|null}
- */
-function getSchoolRecipe(schoolName) {
-    return generatedGrowthRecipes[schoolName] || null;
-}
-
-// =============================================================================
 // EXPORTS
 // =============================================================================
 
 window.GROWTH_DSL = GROWTH_DSL;
-window.generatedGrowthRecipes = generatedGrowthRecipes;
-window.initializeGrowthStyleGenerator = initializeGrowthStyleGenerator;
-window.recipeToTreeSettings = recipeToTreeSettings;
-window.mergeRecipeSettings = mergeRecipeSettings;
-window.applyRecipeToSchool = applyRecipeToSchool;
-window.getSchoolRecipe = getSchoolRecipe;
 
 console.log('[GrowthDSL] Module loaded');

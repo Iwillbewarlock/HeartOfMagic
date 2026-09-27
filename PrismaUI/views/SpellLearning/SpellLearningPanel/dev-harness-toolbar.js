@@ -109,25 +109,8 @@
 
             setTimeout(function() {
                 try {
-                    var buildSettings = {
-                        rootCount: 3,
-                        elementIsolation: true,
-                        elementIsolationStrict: true,
-                        strictTierOrdering: false,
-                        allowSameTierLinks: true,
-                        convergenceEnabled: true,
-                        convergenceChance: 40,
-                        convergenceMinTier: 3,
-                        maxChildrenPerNode: 5,
-                        linkStrategy: 'thematic'
-                    };
-
-                    var treeData;
-                    if (typeof buildAllTreesSettingsAware === 'function') {
-                        treeData = buildAllTreesSettingsAware(window._mockSpellData, null, buildSettings);
-                    } else if (typeof buildAllTreesProcedural === 'function') {
-                        treeData = buildAllTreesProcedural(window._mockSpellData);
-                    }
+                    // The panel's Classic build goes through C++; here the bridge's mock tree stands in
+                    var treeData = mockTreeFromSpells(window._mockSpellData);
 
                     if (treeData && treeData.schools) {
                         var schoolNames = Object.keys(treeData.schools);
