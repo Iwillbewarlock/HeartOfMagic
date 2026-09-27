@@ -5,7 +5,7 @@
  * This should be loaded LAST after all other modules.
  * 
  * Load order:
- * 1. constants.js - Default prompts, profiles, palettes
+ * 1. constants.js - Default tree rules, colour palette
  * 2. config.js - TREE_CONFIG
  * 3. state.js - settings, state objects
  * 4. spellCache.js - SpellCache

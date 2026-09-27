@@ -74,7 +74,6 @@ var ClassicTreeOutput = {
         console.log('[ClassicGrowth] applyTree: posLookup=' + posCount +
                     ', placed=' + placedCount + ', childrenEdges=' + Object.keys(childrenLookup).length);
 
-
         var layoutMode = baseData ? baseData.mode : 'sun';
 
         // Build output JSON with layout-derived edges and positions

@@ -12,6 +12,8 @@
  *   classicSettings.js  (ClassicSettings)
  *   classicLayout.js    (ClassicLayout)
  *   classicRenderer.js  (ClassicRenderer)
+ *   classicBuildRequest.js (ClassicBuildRequest - the build request to C++)
+ *   classicTreeOutput.js   (ClassicTreeOutput - the tree JSON to save)
  *   treePreviewUtils.js (TreePreviewUtils)
  *   treePreview.js      (TreePreview.getOutput)
  *   treeGrowth.js       (TreeGrowth — registers into it)
