@@ -24,7 +24,7 @@ Default landing page: **Spell Tree**
 
 The main gameplay page. Shows the interactive spell tree after it's been built.
 
-**Modules:** `treeViewerUI.js`, `canvasRendererV2.js`, `wheelRenderer.js`, `treeCore.js`, `progressionUI.js`
+**Modules:** `treeViewerUI.js`, `canvasRendererV2.js` (and its `canvasRenderer*.js` method files), `wheelRenderer.js`, `treeCore.js`, `progressionUI.js`
 
 ### Layout
 
@@ -184,7 +184,9 @@ same. Without FxLayer, `composite` works as before.
   again on window resize, a panel resize and fullscreen). Otherwise the view resampled the canvas each
   time it painted it.
 - Labels: a spell off the canvas is dropped before the name-reveal lookups, the shortened name is kept on
-  the spell (`_labelText`), and the text widths per font (`_labelWidth`). The names in the layer's margin
+  the spell (`_labelText`), and the text widths per font (`_labelWidth`; since 2026-09-28 also dropped by
+  `TreeStyle.fontsChanged`, since a web face arriving leaves the font string as it was and the widths kept
+  were the fallback's - boxes too wide or narrow, and half names at strip edges). The names in the layer's margin
   are drawn too, after those in view (`renderLabels`' `margin`): a drag that slid the layer used to show
   spells there without names until the next repaint.
 - A reply with spell names (`updateSpellInfoBatch`) now marks the canvas tree for a repaint; it only
@@ -199,8 +201,9 @@ same. Without FxLayer, `composite` works as before.
 layer's margin, the whole layer was repainted - every spell, line and name - in the middle of the drag,
 every ~150 px: on a CPU canvas in the desktop bench (1600x1000, every locked spell shown) 25-60 ms each,
 nine hitches per full circle of dragging. Now, once half the margin is used (`EARLY_SHARE`), the picture
-is copied onto a spare canvas moved by a whole number of device pixels (`'copy'` compositing, then the
-uncovered rects cleared in case an engine copies only inside the picture's box; the two canvases swap)
+is copied onto a spare canvas moved by a whole number of device pixels (the spare cleared, then the
+picture drawn source-over; `'copy'` compositing until 2026-09-28, dropped because an engine that
+composited it as source-over would let the spare's old picture show through; the two canvases swap)
 and `_layerPanX/Y` move by that much, so the paste's rounding keeps the remainder and nothing blurs. The
 strips the move uncovered join a queue of pieces, each drawn clipped to itself with the spells and lines
 culled to its world box (padded by a selected spell's halo; curved and hand-bowed lines widen their own
@@ -216,7 +219,9 @@ only inside strips, against the kept ones; the 150-name cap counts the names on 
 in the margin behind the drag (with twice that kept on the layer at most) (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
 `_keepLabel`, which both use). Chapter titles are drawn through the layer's margin (`renderChapters`'
 `margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
-view. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
+view. In a strip they go on after its names (`LayerScroll._chapters`, clipped to the strip), as a whole
+repaint draws them; until 2026-09-28 they went in with the tree, under the names, which left a seam at a
+strip's edge where a name crossed a title. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
 as before when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on.
 Measured (circular drag, 120 frames, four designs, zoom 0.75-1.3, CPU canvases): frames over 16.7 ms 6-9
 → 0-2, worst frame 20-32 → 15-20 ms; a piece costs 2.5-8 ms, about 1.7 ms of it its own (chapter titles,
@@ -242,13 +247,71 @@ it went (bench: done by the fifth of 18 glide frames). A change during the glide
 dropped when the view it was for is gone (zoom, rotation, glide target, pixel ratio, layer size, edit
 mode) and the tree is then marked for a repaint again, so the change it carried is not lost. Still done
 at once: a quick one (undiscovered spells hidden: 7-9 ms), the first, one with no old picture (stale
-layer, resize) and edit mode; and when the view, held still, is past the old picture's margin (a jump
-without a glide, a drag during the build) the rest is drawn in that frame. The pieces' own costs (the
-culling loops, dividers) make a build a little more work than one repaint at once; `_lastMs` then only
-decides sync or spread. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+layer, resize) and edit mode. When the view, held still, is past the old picture's margin (a jump
+without a glide, a drag during the build) the build goes on urgently (2026-09-28; it used to finish in
+that one frame): `URGENT_TARGET_FRAME_MS` (11) of the frame, the pieces the screen shows first, and the
+swap as soon as those and the names are done; the pieces left go to LayerScroll's queue and are drawn
+like a drag's strips. The old picture's bare edge shows for the frames that takes, as during a glide. Bench (a click's build, then
+the view 200 px past the margin and held, CPU canvases, five designs, a quiet run): the frame that
+finished the build went 65-76 ms → none; the urgent frames take 10-14 ms, the swap comes on the 4th to 6th
+of them (the bare edge shows that long, then one frame for LayerScroll's shift), and the layer is whole
+2-3 frames after. On a busy machine the same run gave 177-239 → 27-42 ms worst. A
+tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row) is
+repainted at once. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
+work than one repaint at once; `_lastMs`, which decides sync or spread, is what the last repaint at once
+took, and a build leaves its pieces' overhead out but once (the cheapest piece stands for it) and may only
+lower it when clearly quick (`QUICK_SHARE`, half of `SYNC_MAX_MS`): so a tree that became quick is not
+spread for ever, and a slow one is not sent back to long frames because its culled pieces now cost less
+than one whole repaint (in the bench a build's pieces took 8-10 ms where a repaint at once took 12-27 ms
+of drawing calls). Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
+
+**Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all
+under 600 lines: `canvasRendererV2.js` holds its state and constants, start-up, canvas size, the render
+loop, the public calls and the `_needsRender` accessor; each `canvasRenderer*.js` file after it is an IIFE
+that copies a table of functions onto the object (as `treeStyleBook.js` does for `TreeStyle`), and
+`index.html` loads them right after it. A frame and the tree layer (`render`, `_drawTree`,
+`_renderTreeInto`) are in `canvasRendererFrame.js`, what moves over it in `canvasRendererMoving.js`, the
+lines in `canvasRendererEdges.js`, the spell passes and batching in `canvasRendererNodes.js`, a spell drawn
+by itself in `canvasRendererSpell.js`, names in `canvasRendererLabels.js`, `setData` and the indexes in
+`canvasRendererData.js`; `modules/README.md` lists them all. The split changed no behaviour: the same 222
+members with the same function bodies, and the tree layer and canvas pixel-identical in all five designs.
+
+**Pieces look only at what is near them** (2026-09-28). Every strip of a drag (LayerScroll) and every
+piece of a spread repaint (LayerBuild) ran the edge passes over all ~1,400 lines - two map lookups, an
+object and a `'from->to'` string per line, three times over with a selection or learning path - and the
+spell pass over all ~1,400 spells, culling each by the box inside the loop. Now `_cullIndex`
+(`canvasRendererData.js`) keeps grids of spell and line indices (`CULL_CELL` 100 world units; a line in
+every cell its ends' box covers), each line's two spells and its key, and the roots, made when first
+needed after `setData` or `buildSpatialIndex` (which edit mode calls when it moves spells) or when the
+node or edge list is another or another length. A box asks the grid for the indices in the cells it
+covers (`_nodesInBox`, `_edgesInBox`, the box grown by the largest line's bow allowance), each once and
+sorted, so they are drawn in the same order as before - order matters where antialiased strokes overlap
+- and the loop keeps its own box test, so the set is the same too. A box over more cells than half the
+number of items (a whole repaint of the view and its margin) looks at every item, as before; spells off
+any finite place and lines too long for the grid (`CULL_EDGE_MAX_CELLS`) are looked at by every box. In
+edit mode, which changes lines in place without telling the renderer, the index is made fresh for each
+use without grids. `renderEdges` works out the lines drawn at all once (`_visibleEdges`) and every pass
+walks that list, with no lookups or strings. Names: the text widths are kept in a `Map` per font,
+`ctx.font` is read once per run of names (`_labelFontFrom`, not per name - reading it builds a string),
+and a strip skips the candidates above or below it before looking up their width. `NodeBatch.addShape`
+compares a shape's look with the last one of its layer before building the look's key string. Spell
+sizes, the halo scale, the learnable ring and the name padding are named constants (`KNOWN_SIZE`,
+`LEARNABLE_SIZE`, `LOCKED_SIZE`, `FOCUS_GROW`, `HALO_SCALE`, `RING_GAP`, `RING_ALPHA`, `RING_WIDTH`,
+`LABEL_PAD`) shared by `renderNode`, `_renderNodeSimple`, `_batchPlainNode`, `LayerScroll._worldBox` and
+`TreeStyle`. The pictures are pixel-identical to before (all five designs, every locked spell shown or
+discovery mode, strips, pieces and whole repaints frame by frame). JavaScript cost with every canvas call
+a no-op (`node --jitless`, the repro tree, Arcane, zoom 0.9, a quiet machine): a drag strip 3.0-3.1 →
+0.7 ms, a 384 px piece 2.8 → 0.4 ms (the same with a spell selected), a whole repaint at once 12-14 →
+10 ms. In the desktop bench (Chrome with its JIT, CPU canvases, pieces rasterised as drawn, every locked
+spell shown, two rounds of five designs) a strip went 1.3-1.8 → 0.9-1.2 ms and a piece 1.0-1.6 →
+0.6-1.0 ms (the edge pass in a strip 0.7-1.0 → 0.2-0.3 ms); frames over 16.7 ms in the drags, clicks and
+wheel zooms stayed where they were (61 before, 64 after, of about 3,400 frames - most of them spikes of
+0.4-0.9 s in both, from the machine and Modern Dark's starfield, not from the tree). The shift itself
+(clear and draw instead of `'copy'`) is 2.6 → 2.4 ms. `modules/canvasCullTest.js` checks the grid
+against the full loop on 300 boxes.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
@@ -1015,7 +1078,10 @@ Tree applied
 ### Tree Rendering
 | Module | Purpose |
 |--------|---------|
-| `canvasRendererV2.js` | **Primary** Canvas 2D renderer (handles 200+ nodes) |
+| `canvasRendererV2.js` | **Primary** Canvas 2D renderer (`CanvasRenderer`): state, constants, start-up, canvas size, render loop, public calls. Its methods are in the files below, each adding a table of functions to the one object, loaded right after it |
+| `canvasRendererColors.js`, `canvasRendererInput.js`, `canvasRendererSelect.js`, `canvasRendererData.js` | Colours; mouse, wheel, hit testing, hover; selection and wheel turns; `setData`, spatial index, level of detail |
+| `canvasRendererFrame.js`, `canvasRendererMoving.js` | A frame and the tree layer (`render`, `_drawTree`, `_renderTreeInto`); what moves over it (heart, particles, sigil spots) |
+| `canvasRendererDividers.js`, `canvasRendererEdges.js`, `canvasRendererNodes.js`, `canvasRendererSpell.js`, `canvasRendererLabels.js`, `canvasRendererLearning.js` | What the layer holds: dividers, lines, spells (batched), a spell by itself, names, learning paths |
 | `treeStyle.js` | `TreeStyle`: the tree's look as tokens a design preset sets; halos, labels, sigil, heart runes, school ink |
 | `treeStyleBook.js` | Adds the spellbook effects to `TreeStyle`: page, chapter titles, ornament dividers |
 | `treeStyleInk.js` | Adds the drawn lines to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |

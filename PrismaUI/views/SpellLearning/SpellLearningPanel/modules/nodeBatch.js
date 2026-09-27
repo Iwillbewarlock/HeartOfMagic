@@ -58,6 +58,7 @@ var NodeBatch = {
     _halos: null,              // [x, y, radius, color, alpha, ...]
     _shapes: null,             // key -> {fill, stroke, alpha, width, dash, path}
     _shapeOrder: null,         // per layer, in the order the looks came
+    _memo: null,               // per layer, the look the last shape had (addShape)
     _marks: null,              // key -> {color, alpha, pts}
     _markOrder: null,
 
@@ -115,7 +116,11 @@ var NodeBatch = {
         this._halos = [];
         this._shapes = {};
         this._shapeOrder = [];
-        for (var i = 0; i < this.LAYERS; i++) this._shapeOrder.push([]);
+        this._memo = [];
+        for (var i = 0; i < this.LAYERS; i++) {
+            this._shapeOrder.push([]);
+            this._memo.push({ b: null });
+        }
         this._marks = {};
         this._markOrder = [];
     },
@@ -136,15 +141,26 @@ var NodeBatch = {
     addShape: function(school, x, y, size, fill, stroke, alpha, dashed, width, layer, bare) {
         width = width || 1;
         if (layer === undefined) layer = 1;
-        var key = layer + '|' + fill + '|' + stroke + '|' + width + '|' + alpha + '|' + (dashed ? size : '') + (bare ? '|b' : '');
-        var b = this._shapes[key];
-        if (!b) {
-            b = this._shapes[key] = {
-                fill: fill, stroke: stroke, alpha: alpha, width: width, bare: !!bare,
-                dash: dashed ? [this.DASH[0] * size, this.DASH[1] * size] : null,
-                path: new Path2D()
-            };
-            this._shapeOrder[layer].push(b);
+        var dsize = dashed ? size : '', isBare = !!bare;
+        // The look the last shape of this layer had, compared field by field: spells
+        // in a row mostly share one, and the key string (numbers made text) is the
+        // costly part of a call. Equal fields make the same key, so the same path.
+        var m = this._memo[layer], b;
+        if (m.b && m.fill === fill && m.stroke === stroke && m.width === width && m.alpha === alpha &&
+                m.dsize === dsize && m.bare === isBare) {
+            b = m.b;
+        } else {
+            var key = layer + '|' + fill + '|' + stroke + '|' + width + '|' + alpha + '|' + dsize + (isBare ? '|b' : '');
+            b = this._shapes[key];
+            if (!b) {
+                b = this._shapes[key] = {
+                    fill: fill, stroke: stroke, alpha: alpha, width: width, bare: isBare,
+                    dash: dashed ? [this.DASH[0] * size, this.DASH[1] * size] : null,
+                    path: new Path2D()
+                };
+                this._shapeOrder[layer].push(b);
+            }
+            m.fill = fill; m.stroke = stroke; m.width = width; m.alpha = alpha; m.dsize = dsize; m.bare = isBare; m.b = b;
         }
         var path = b.path;
         var pts = this.SHAPES[school];

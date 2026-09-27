@@ -58,6 +58,12 @@ loadModule('openRefreshGateTest', './modules/openRefreshGateTest.js');
 loadModule('layerScroll', './modules/layerScroll.js');
 loadModule('layerBuild', './modules/layerBuild.js');
 loadModule('layerScrollTest', './modules/layerScrollTest.js');
+loadModule('canvasRendererV2', './modules/canvasRendererV2.js');
+loadModule('canvasRendererData', './modules/canvasRendererData.js');
+loadModule('canvasRendererEdges', './modules/canvasRendererEdges.js');
+loadModule('canvasRendererFrame', './modules/canvasRendererFrame.js');
+loadModule('canvasCullTest', './modules/canvasCullTest.js');
+loadModule('layerFlowTest', './modules/layerFlowTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -121,6 +127,16 @@ if (typeof UnificationTest !== 'undefined') {
         var scroll = LayerScrollTest.run();
         results.failed += scroll.failed;
         console.log('LayerScroll: ' + scroll.passed + ' passed, ' + scroll.failed + ' failed');
+    }
+    if (typeof CanvasCullTest !== 'undefined') {
+        var cull = CanvasCullTest.run();
+        results.failed += cull.failed;
+        console.log('CanvasCull: ' + cull.passed + ' passed, ' + cull.failed + ' failed');
+    }
+    if (typeof LayerFlowTest !== 'undefined') {
+        var flow = LayerFlowTest.run();
+        results.failed += flow.failed;
+        console.log('LayerFlow: ' + flow.passed + ' passed, ' + flow.failed + ' failed');
     }
 
     // Exit with appropriate code

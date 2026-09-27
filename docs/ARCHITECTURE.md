@@ -801,13 +801,12 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | **Parsers & rendering** | |
 | `treeParser.js` | Tree JSON → nodes/edges; validation, cycle detection, auto-fix |
 | `wheelRenderer.js` | Main 2D radial wheel rendering |
-| `canvasRendererV2.js` | Canvas 2D rendering |
+| `canvasRendererV2.js` | Canvas 2D tree renderer (`CanvasRenderer`); its methods are split over `canvasRenderer*.js` (colours, input, selection, data, frame and tree layer, moving parts, dividers, edges, nodes, a single spell, labels, learning paths), see `modules/README.md` |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
 | **UI & callbacks** | |
 | `settingsPanel.js` | Settings UI, config persistence, plugin whitelist modal |
 | `treeViewerUI.js` | Tree viewer, spell details, node selection |
 | `progressionUI.js` | How-to-Learn panel, learning status badges |
-| `difficultyProfiles.js` | Profile management, presets, custom profiles |
 | `cppCallbacks.js` | C++ ↔ JS (e.g. ProceduralTreeGenerate, GetProgress); enables Complex/Simple buttons when spells loaded |
 | `buttonHandlers.js` | Button click routing and UI state management |
 | **Utilities & effects** | |
@@ -1328,7 +1327,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **C++ side:** Not yet implemented (UI settings ready for timer-based XP granting)
 
 #### Curved Edge Rendering
-- **`_drawEdgePath()`** helper in `canvasRendererV2.js` — quadratic Bezier curves with 15% perpendicular offset
+- **`_drawEdgePath()`** helper in `canvasRendererEdges.js` (was `canvasRendererV2.js`) — quadratic Bezier curves with 15% perpendicular offset
 - **Settings toggle:** `edgeStyle: 'straight'|'curved'` in state.js + checkbox in settings panel
 - Applied to all 3 edge passes (base connections, selected path, learning path)
 

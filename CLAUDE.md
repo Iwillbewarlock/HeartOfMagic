@@ -195,6 +195,8 @@ node run-tests.js
 | `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/layerScrollTest.js` | Drag scroll of the tree layer (uncovered strips, their pieces, waiting strips moved, names moved with the picture) and the whole repaint spread over frames (LayerBuild states) |
+| `modules/canvasCullTest.js` | The tree renderer's culling index (the spells and lines a strip or piece of the tree layer looks at are exactly those the full loop draws, in the same order) |
+| `modules/layerFlowTest.js` | How a frame gets its tree layer: LayerScroll's shift and piece queue, and `_drawTree`'s order (scroll, build over frames, draw at once, stale builds dropped, glide builds, the restart cap, the urgent build) |
 | `test-runner.html` | Browser-based test runner |
 
 ### Code review

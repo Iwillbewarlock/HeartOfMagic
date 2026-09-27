@@ -39,7 +39,6 @@ var LayerScroll = {
                               // costs ~1.7 ms of its own - names, chapter titles - so pieces stay big)
     TARGET_FRAME_MS: 8,       // pieces the screen does not show yet fill a frame up to this, from its start
     LOOKAHEAD_PX: 48,         // css px round the screen that count as shown (the drag's next frames)
-    HALO_SCALE: 2.6,          // a spell's halo radius per its size (CanvasRenderer's glow)
     DESCENT_SHARE: 0.35,      // of the font size, how far letters and outline reach below a name's box
     KEPT_MAX_SHARE: 2,        // names kept on the layer at most, as a multiple of the on-screen cap
 
@@ -205,17 +204,17 @@ var LayerScroll = {
         var spare = this._ensureSpare(layer);
         if (!spare) return false;
 
-        // The picture, moved; then the two canvases trade places
+        // The picture, moved, onto the cleared spare; then the two canvases trade
+        // places. (Not 'copy' compositing: an engine that composites drawImage
+        // under 'copy' as source-over would let the spare's old picture show
+        // through the see-through parts. The clear costs about the same.)
         var g = this._spareCtx;
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.globalAlpha = 1;
-        g.globalCompositeOperation = 'copy';
-        g.drawImage(layer, sx, sy);
         g.globalCompositeOperation = 'source-over';
+        g.clearRect(0, 0, spare.width, spare.height);
+        g.drawImage(layer, sx, sy);
         var uncovered = this.exposedRects(spare.width, spare.height, sx, sy);
-        // 'copy' should leave these clear; an engine that only copies inside the
-        // picture's own box would leave old pixels there
-        for (var i = 0; i < uncovered.length; i++) g.clearRect(uncovered[i][0], uncovered[i][1], uncovered[i][2], uncovered[i][3]);
         this._spare = layer;
         this._spareCtx = r._treeLayerCtx;
         r._treeLayer = spare;
@@ -305,7 +304,7 @@ var LayerScroll = {
         }
         // The largest thing a spell draws past its centre: the halo of a
         // selected spell (a little bigger than the others)
-        var pad = this.HALO_SCALE * (r._minSize(12) + 1.5) + this.CULL_PAD_PX / z;
+        var pad = r.HALO_SCALE * (r._minSize(r.KNOWN_SIZE) + r.FOCUS_GROW) + this.CULL_PAD_PX / z;
         return { l: x0 - pad, r: x1 + pad, t: y0 - pad, b: y1 + pad };
     },
 
@@ -327,10 +326,29 @@ var LayerScroll = {
         r._renderTreeInto(g, {
             cx: view.cx, cy: view.cy, rotRad: view.rotRad, cos: view.cos, sin: view.sin,
             viewLeft: box.l, viewRight: box.r, viewTop: box.t, viewBottom: box.b,
-            labelMargin: margin, noLabels: true, noChapters: !!whole
+            labelMargin: margin, noLabels: true, noChapters: true
         });
         g.restore();
-        if (!whole) this._labels(r, g, rect, dpr, margin, view, viewCss);
+        if (whole) return;
+        // Names, then chapter titles over them, as a whole repaint draws them
+        // (the titles used to go in with the tree, under the names: a seam at the
+        // strip's edge where a name crossed a title)
+        this._labels(r, g, rect, dpr, margin, view, viewCss);
+        this._chapters(r, g, rect, dpr, margin, view);
+    },
+
+    /** The chapter titles in a strip, clipped to it (after its names). */
+    _chapters: function(r, g, rect, dpr, margin, view) {
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.beginPath();
+        g.rect(rect[0], rect[1], rect[2], rect[3]);
+        g.clip();
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.translate(margin, margin);
+        TreeStyle.renderChapters(g, r, view.cx, view.cy, view.cos, view.sin, margin);
+        g.restore();
+        g.globalAlpha = 1;
     },
 
     /**
@@ -350,6 +368,7 @@ var LayerScroll = {
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.translate(margin, margin);
         TreeStyle.beginLabels(g, found.fontSize);
+        r._labelFontFrom(g);
         g.textAlign = 'center';
         g.textBaseline = 'top';
 
@@ -378,10 +397,14 @@ var LayerScroll = {
         }
         var cands = found.candidates;
         var keptMax = found.maxLabels * this.KEPT_MAX_SHARE;
+        var pad = r.LABEL_PAD, fontSize = found.fontSize;
         for (var c = 0; c < cands.length && shown < found.maxLabels && kept.length < keptMax; c++) {
             var cand = cands[c];
             if (have[cand.node.id]) continue;
-            var box = r._labelRect(g, cand, found.fontSize);
+            // Above or below the strip: its box cannot meet it (the box's top and
+            // bottom as _labelRect makes them), and its width need not be looked up
+            if (!(cand.y - pad < st.b && cand.y + fontSize + pad > st.t)) continue;
+            var box = r._labelRect(g, cand, fontSize);
             if (!this._meets(box, st)) continue;
             var collides = false;
             if (cand.priority < 5) {

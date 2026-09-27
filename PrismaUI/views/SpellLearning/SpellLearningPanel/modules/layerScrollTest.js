@@ -113,8 +113,9 @@ var LayerScrollTest = {
             r.zoom = 1.3;
             this.check(!B.valid(r, 1, r._treeLayer), 'a new zoom makes it stale');
             r.zoom = 1.2;
-            done = B.step(r, 0, true);
-            this.check(done && !B.active(), 'all at once finishes it');
+            // A frame with time enough (it started "later") finishes it
+            done = B.step(r, ((typeof performance !== 'undefined') ? performance.now() : Date.now()) + 1e9, false);
+            this.check(done && !B.active(), 'a frame with time enough finishes it');
             this.check(r._treeLayer.id === 'spare' && S._spare.id === 'old', 'the new picture swaps in, the old one becomes the spare');
             this.check(r._layerZoom === 1.2 && r._layerPanX === 5 && r._layerPanY === 6, 'the layer takes the view it was built for');
 
