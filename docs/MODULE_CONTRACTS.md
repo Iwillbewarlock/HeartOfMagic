@@ -307,8 +307,10 @@ Trigger tree construction. Sends spell data to the C++ native builder via `windo
             // ...your config
         };
 
-        // Mark the build as yours, so onProceduralTreeComplete hands you the result
+        // Mark the build as yours, so onProceduralTreeComplete hands you the result,
+        // and keep the Build button disabled until it comes back
         state._myModeBuildPending = true;
+        TreeGrowth.setBuilding(true);
 
         // Call C++ native builder
         window.callCpp('ProceduralTreeGenerate', JSON.stringify({
@@ -494,7 +496,7 @@ window.callCpp('ProceduralTreeGenerate', JSON.stringify({
    `if (!state._classicGrowthBuildPending) return;` - that guard has to become "drop the result only
    if no known pending flag is set", checking your flag alongside Classic's. Then add a branch: if
    `state._myModeBuildPending`, clear it, hand `result.treeData` to your module's `loadTreeData()` on
-   success, or call `_handleBuildFailure()` with `'_myModeBuildPending'` (see Error Handling). Clear the
+   success, or call `_handleBuildFailure()` with your build function as the retry (see Error Handling). Clear the
    flag in the `catch` too, like Classic's, so a stale flag does not capture the next build's result.
    Leave the `result.busy` check above the guard as it is: C++ answers a request it turned away
    because another build was running with `busy: true`, and that answer must not clear anyone's flag.
@@ -602,14 +604,16 @@ Use `_handleBuildFailure()` in `proceduralTreeBuilder.js` for shared error + ret
 
 ```javascript
 _handleBuildFailure(
-    error,                    // Error string
-    '_myModeBuildPending',    // State key for retry routing
-    MyModeSettings,           // Settings module (has .setStatusText)
-    { command: 'build_tree_mymode', config: retryConfig },
-    'myModeBuildBtn',         // Button ID to re-enable
-    '[MyMode]'                // Log prefix
+    error,                                     // Error string
+    MyModeSettings,                            // Settings module (has .setStatusText)
+    function() { TreeGrowthMyMode.buildTree(); },  // Retry: run your build again
+    '[MyMode]'                                 // Log prefix
 );
 ```
+
+The build progress modal's Retry button calls that function, so a retry sends exactly what a Build
+click sends (filters, chosen roots, config) and sets the pending flag and the Build button state the
+same way. `_handleBuildFailure()` itself enables the Build button again (`TreeGrowth.setBuilding(false)`).
 
 ### Existing Builders
 

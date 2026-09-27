@@ -1363,7 +1363,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 
 #### Native C++ Tree Builders (Python Eliminated)
 - **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, char n-gram similarity, Levenshtein distance, fuzzy matching (ratio, partial ratio, token set ratio), theme scoring, PRM candidate scoring
-- **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle; all but Classic removed 2026-09-27), theme discovery, spell grouping, tree validation, unreachable node repair
+- **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle; all but Classic removed 2026-09-27), theme discovery, tree validation, unreachable node repair
 - **Python completely eliminated** — No PythonBridge, no PythonInstaller, no embedded Python, no server.py, no subprocess IPC
 - **All builder modes native** — TF-IDF, fuzzy matching, arborescence, LLM integration all in C++ (only Classic remains since 2026-09-27)
 - **PRM scoring native** — `TreeNLP::ProcessPRMRequest()` replaces Python prereq_master_scorer.py
@@ -1409,7 +1409,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 #### Modular Tree Builders (now native C++)
 - **Classic builder** — Tier-first builder. Novice=depth 0, Master=depth 4. NLP similarity guides within-tier parent selection.
 - **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving. (Removed 2026-09-27.)
-- **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaces duplicate error handlers for Classic/Tree modes
+- **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaces duplicate error handlers for Classic/Tree modes (its Retry reruns `TreeGrowthClassic.buildTree()` since 2026-09-28)
 - **Classic `buildTree()` sends** `command: 'build_tree_classic'` + `tier_zones` config
 - **Tree `buildTree()` sends** `command: 'build_tree'` explicitly (Tree mode removed 2026-09-27)
 - **Fixes Classic tier zone controls** — Tier zone sliders now work because tree structure matches tier ordering (Novice near roots, Master at edges)

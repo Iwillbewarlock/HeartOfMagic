@@ -547,7 +547,6 @@ var TreeGrowthClassic = {
                 if (sn.skillLevel) outNode.skillLevel = sn.skillLevel;
                 if (sn.theme) outNode.theme = sn.theme;
                 if (sn.name) outNode.name = sn.name;
-                if (sn.section) outNode.section = sn.section;
                 if (sn.formId === schoolRootId) {
                     outNode.isRoot = true;
                     outNode.prerequisites = [];

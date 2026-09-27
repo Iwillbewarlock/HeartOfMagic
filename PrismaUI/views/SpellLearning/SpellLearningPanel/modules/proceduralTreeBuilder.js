@@ -113,33 +113,22 @@ window.filterWhitelistedSpells = filterWhitelistedSpells;
  * Error handler for C++ tree build failures of the Classic growth mode
  * (the one builder since 2026-09-27).
  *
+ * Retry runs the builder's own build again (retryBuild), so the retry sends
+ * what a Build click sends: the blacklist, plugin whitelist and tome filters,
+ * the chosen roots, the grid hint and the pending flag and Build button state.
+ *
  * @param {string} error - Error string from C++
- * @param {string} pendingKey - State key to set for retry (e.g. '_classicGrowthBuildPending')
  * @param {Object|null} settingsModule - ClassicSettings (has .setStatusText)
- * @param {Object} retryConfig - Config to pass on retry {command, config}
+ * @param {function|null} retryBuild - Starts the build again (TreeGrowthClassic.buildTree)
  * @param {string} logPrefix - Console log prefix e.g. '[ClassicGrowth]'
  */
-function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, logPrefix) {
+function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
     var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
-    var retryFn = function() {
-        if (state.lastSpellData && state.lastSpellData.spells && window.callCpp) {
-            state[pendingKey] = true;
-            if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
-            var hasPRM = typeof PreReqMaster !== 'undefined' && PreReqMaster.isEnabled && PreReqMaster.isEnabled();
-            if (typeof BuildProgress !== 'undefined') BuildProgress.start(hasPRM);
-            if (settingsModule) settingsModule.setStatusText('Retrying with fallback...', '#f59e0b');
-            // Defer to let UI render before blocking on JSON.stringify
-            setTimeout(function() {
-                window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
-                    command: retryConfig.command || 'build_tree_classic',
-                    spells: state.lastSpellData.spells,
-                    config: retryConfig.config || {},
-                    fallback: true
-                })));
-            }, 0);
-        }
-    };
+    var retryFn = typeof retryBuild === 'function' ? function() {
+        if (settingsModule) settingsModule.setStatusText('Retrying...', '#f59e0b');
+        retryBuild();
+    } : null;
     if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
         BuildProgress.fail(errorMsg, retryFn);
     }
@@ -194,9 +183,8 @@ window.onProceduralTreeComplete = function(resultStr) {
         } else {
             _handleBuildFailure(
                 result.error || 'unknown',
-                '_classicGrowthBuildPending',
                 typeof ClassicSettings !== 'undefined' ? ClassicSettings : null,
-                { command: 'build_tree_classic', config: { shape: 'organic', density: 0.6, symmetry: 0.3, max_children_per_node: 3, top_themes_per_school: 8, prefer_vanilla_roots: true } },
+                typeof TreeGrowthClassic !== 'undefined' ? function() { TreeGrowthClassic.buildTree(); } : null,
                 '[ClassicGrowth]'
             );
         }

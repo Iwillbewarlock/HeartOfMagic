@@ -215,14 +215,14 @@ var BuildProgress = (function() {
             doneBtn.classList.remove('hidden');
         }
 
-        // Show retry-with-fallback button if callback provided
+        // Show a Retry button if a callback is provided (it runs the build again)
         var retryBtn = _getEl('build-progress-retry-btn');
         if (retryBtn) retryBtn.remove();
         if (retryCallback && doneBtn && doneBtn.parentNode) {
             retryBtn = document.createElement('button');
             retryBtn.id = 'build-progress-retry-btn';
             retryBtn.className = doneBtn.className;
-            retryBtn.textContent = 'Retry with Fallback';
+            retryBtn.textContent = 'Retry';
             retryBtn.style.marginLeft = '8px';
             retryBtn.onclick = function() {
                 retryBtn.remove();
