@@ -344,7 +344,7 @@
     "progression.stoppedLearning": "{{name}} 학습 중단 - 주문 제거됨",
     "progression.unlocked": "해제됨",
     "progression.unlocking": "{{name}} 해제 중...",
-    "scanner.complexStatusWrap": "상태: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">스캔 대기 중...</span>",
+    "scanner.complexStatusWrap": "상태: <span id=\"tgStatus\">스캔 대기 중...</span>",
     "scanner.modeComplex": "복합",
     "scanner.modeEasy": "간편",
     "scanner.mods": "모드",

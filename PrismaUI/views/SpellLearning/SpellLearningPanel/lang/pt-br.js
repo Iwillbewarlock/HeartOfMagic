@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Parou de aprender {{name}} - magia removida",
     "progression.unlocked": "Desbloqueada",
     "progression.unlocking": "Desbloqueando {{name}}...",
-    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Aguardando varredura...</span>",
+    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\">Aguardando varredura...</span>",
     "scanner.modeComplex": "COMPLEXO",
     "scanner.modeEasy": "FÁCIL",
     "scanner.mods": "Mods",

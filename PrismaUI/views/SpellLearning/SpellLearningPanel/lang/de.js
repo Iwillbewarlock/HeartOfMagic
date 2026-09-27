@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Lernen von {{name}} beendet - Zauber entfernt",
     "progression.unlocked": "Freigeschaltet",
     "progression.unlocking": "{{name}} wird freigeschaltet...",
-    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Warte auf Scan...</span>",
+    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\">Warte auf Scan...</span>",
     "scanner.modeComplex": "KOMPLEX",
     "scanner.modeEasy": "EINFACH",
     "scanner.mods": "Mods",

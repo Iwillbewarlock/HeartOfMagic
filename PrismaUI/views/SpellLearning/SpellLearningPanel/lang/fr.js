@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Apprentissage arrêté : {{name}} - sort retiré",
     "progression.unlocked": "Débloqué",
     "progression.unlocking": "Déblocage de {{name}}...",
-    "scanner.complexStatusWrap": "Statut : <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">En attente d'analyse...</span>",
+    "scanner.complexStatusWrap": "Statut : <span id=\"tgStatus\">En attente d'analyse...</span>",
     "scanner.modeComplex": "COMPLEXE",
     "scanner.modeEasy": "FACILE",
     "scanner.mods": "Mods",

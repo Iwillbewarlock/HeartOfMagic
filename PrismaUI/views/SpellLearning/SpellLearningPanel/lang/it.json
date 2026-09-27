@@ -363,7 +363,7 @@
     "progression.unlocked": "Sbloccato",
     "progression.unlocking": "Sblocco di {{name}}...",
 
-    "scanner.complexStatusWrap": "Stato: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">In attesa della scansione...</span>",
+    "scanner.complexStatusWrap": "Stato: <span id=\"tgStatus\">In attesa della scansione...</span>",
     "scanner.modeComplex": "COMPLESSA",
     "scanner.modeEasy": "FACILE",
     "scanner.mods": "Mod",

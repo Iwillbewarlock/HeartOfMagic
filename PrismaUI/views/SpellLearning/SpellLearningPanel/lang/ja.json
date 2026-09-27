@@ -363,7 +363,7 @@
     "progression.unlocked": "解放済み",
     "progression.unlocking": "{{name}}を解放中...",
 
-    "scanner.complexStatusWrap": "ステータス: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">スキャン待機中...</span>",
+    "scanner.complexStatusWrap": "ステータス: <span id=\"tgStatus\">スキャン待機中...</span>",
     "scanner.modeComplex": "詳細",
     "scanner.modeEasy": "簡単",
     "scanner.mods": "Mod",

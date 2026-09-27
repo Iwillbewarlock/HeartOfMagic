@@ -512,10 +512,13 @@ var TreeGrowth = {
      * Colours of the build status line, by tone: the status tokens every UI
      * theme and design sets (styles-skyrim.css :root, the design stylesheets
      * and presets), kept apart from each other and from the idle line's text;
-     * the hex is the fallback when a theme leaves the variable out.
+     * the hex is the fallback when a theme leaves the variable out. The line
+     * starts idle from the stylesheet (#tgStatus in styles-skyrim.css), as the
+     * language strings rebuild it.
      * easyMode.js mirrors the line's colour as is.
      */
     STATUS_COLORS: {
+        idle: 'var(--status-idle, rgba(184, 168, 120, 0.5))',
         working: 'var(--status-working, #f59e0b)',
         done: 'var(--status-done, #22c55e)',
         error: 'var(--status-error, #ef4444)'
@@ -523,7 +526,7 @@ var TreeGrowth = {
 
     /**
      * @param {string} text
-     * @param {string} [tone] - 'working', 'done' or 'error' (STATUS_COLORS). A
+     * @param {string} [tone] - 'idle', 'working', 'done' or 'error' (STATUS_COLORS). A
      *   growth module written before the tones passes a CSS colour here instead
      *   (MODULE_CONTRACTS documented one); that is used as it is.
      */

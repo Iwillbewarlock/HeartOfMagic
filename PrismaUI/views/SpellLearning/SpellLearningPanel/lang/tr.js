@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "{{name}} öğrenme durduruldu - büyü kaldırıldı",
     "progression.unlocked": "Açıldı",
     "progression.unlocking": "{{name}} açılıyor...",
-    "scanner.complexStatusWrap": "Durum: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Tarama bekleniyor...</span>",
+    "scanner.complexStatusWrap": "Durum: <span id=\"tgStatus\">Tarama bekleniyor...</span>",
     "scanner.modeComplex": "KARMAŞIK",
     "scanner.modeEasy": "KOLAY",
     "scanner.mods": "Modlar",

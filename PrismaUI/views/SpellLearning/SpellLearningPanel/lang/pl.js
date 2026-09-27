@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Przerwano naukę {{name}} — zaklęcie usunięte",
     "progression.unlocked": "Odblokowane",
     "progression.unlocking": "Odblokowywanie {{name}}...",
-    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Oczekiwanie na skan...</span>",
+    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\">Oczekiwanie na skan...</span>",
     "scanner.modeComplex": "ZAAWANSOWANY",
     "scanner.modeEasy": "ŁATWY",
     "scanner.mods": "Mody",

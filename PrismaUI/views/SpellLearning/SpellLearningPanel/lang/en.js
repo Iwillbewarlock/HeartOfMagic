@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Stopped learning {{name}} - spell removed",
     "progression.unlocked": "Unlocked",
     "progression.unlocking": "Unlocking {{name}}...",
-    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Waiting for scan...</span>",
+    "scanner.complexStatusWrap": "Status: <span id=\"tgStatus\">Waiting for scan...</span>",
     "scanner.modeComplex": "COMPLEX",
     "scanner.modeEasy": "EASY",
     "scanner.mods": "Mods",

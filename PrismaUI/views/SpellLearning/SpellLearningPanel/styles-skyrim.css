@@ -4700,6 +4700,15 @@ body {
     padding-top: 4px;
 }
 
+/* The build status line's idle colour. Here, not inline: the language strings
+   rebuild #tgStatus (scanner.complexStatusWrap) and #easyStatus. The working,
+   done and error tones go inline (TreeGrowth.setStatusText), and easyMode.js
+   mirrors them onto #easyStatus. */
+#tgStatus,
+#easyStatus {
+    color: var(--status-idle, rgba(184, 168, 120, 0.5));
+}
+
 .easy-preview-placeholder {
     position: relative;
     height: 100%;

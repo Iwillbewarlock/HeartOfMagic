@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "停止学习 {{name}} - 法术已移除",
     "progression.unlocked": "已解锁",
     "progression.unlocking": "正在解锁 {{name}}...",
-    "scanner.complexStatusWrap": "状态: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">等待扫描...</span>",
+    "scanner.complexStatusWrap": "状态: <span id=\"tgStatus\">等待扫描...</span>",
     "scanner.modeComplex": "复杂",
     "scanner.modeEasy": "简单",
     "scanner.mods": "模组",

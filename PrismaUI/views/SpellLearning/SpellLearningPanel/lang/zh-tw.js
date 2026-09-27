@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "停止學習 {{name}} - 法術已移除",
     "progression.unlocked": "已解鎖",
     "progression.unlocking": "正在解鎖 {{name}}...",
-    "scanner.complexStatusWrap": "狀態: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">等待掃描...</span>",
+    "scanner.complexStatusWrap": "狀態: <span id=\"tgStatus\">等待掃描...</span>",
     "scanner.modeComplex": "複雜",
     "scanner.modeEasy": "簡單",
     "scanner.mods": "模組",

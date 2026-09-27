@@ -343,7 +343,7 @@ window._i18nPreload = {
     "progression.stoppedLearning": "Se detuvo el aprendizaje de {{name}} - hechizo eliminado",
     "progression.unlocked": "Desbloqueado",
     "progression.unlocking": "Desbloqueando {{name}}...",
-    "scanner.complexStatusWrap": "Estado: <span id=\"tgStatus\" style=\"color:rgba(184,168,120,0.5);\">Esperando escaneo...</span>",
+    "scanner.complexStatusWrap": "Estado: <span id=\"tgStatus\">Esperando escaneo...</span>",
     "scanner.modeComplex": "COMPLEJO",
     "scanner.modeEasy": "FÁCIL",
     "scanner.mods": "Mods",
