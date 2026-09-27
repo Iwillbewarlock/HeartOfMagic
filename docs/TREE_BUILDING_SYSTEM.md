@@ -871,9 +871,45 @@ other lines still count, and the push-apart rounds still take them). A real tree
 unchanged. Every walk along a line (the line grid, a spell's fans, the dirty marks, the count) is as long
 as the line, so before this a few spells moved out to 4.6e5 - within `MAX_COORD` - took the 1,428-spell
 tree from 0.3 s to 4-10 s in either pass, and 476 of them ran over ten minutes; now either takes
-0.2-0.35 s in node and 0.06-0.16 s native. The work still grows with how many lines cross the dense middle of the
-tree: 473 lines of about 5,600 moved across the middle of the same tree (every coordinate within 2,322)
-take 21 s in node and 12 s native, and 473 lines of about 16,000 fanning out from it 17 s and 9 s.
+0.2-0.35 s in node and 0.06-0.16 s native.
+
+Lines at a spell with more than `MAX_SPELL_LINES` of them (`LayoutLineClear.MAX_SPELL_LINES`, the C++
+`kMaxSpellLines`: 64, counted on the lines `MAX_LINE` keeps) are left out the same way, and not counted
+in `linesLeft` either (it counts the kept lines only). The cost makes such a spell dear by its nature: its
+angle cost pairs every two of its lines at every spot it tries (lines squared), and each of its neighbours
+weighs its line against every other line of it at every spot (lines times neighbours). A builder gives a
+spell a few children (the classic and graph builders cap them at 8 or so, and the test trees have at most
+11 lines at a spell); a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
+209 s in node, now 2.8 s.
+
+The work still grows with how many long lines run through a dense part of the tree - not with how far out
+the spells are: every spot a spell tries weighs its lines against the lines near them, and a long line
+through a dense middle is near hundreds. The search does that part exactly as before, only with less
+waste (below, **Cost of the line search**): 473 lines of about 5,600 moved across the middle of the game's
+tree (every coordinate within 2,322) went 21 s → 17 s in node and 13.3 s → 6.8 s native, and 473 lines of
+about 16,000 fanning out from it 19 s → 17 s and 10.2 s → 4.3 s. What is left there is the line-gap part of
+the cost itself (about 110 million lines within reach of a spot's line, over 523,000 spots) and the
+gather's walk, which visits a line again in every cell it shares with the walk (561 million visits for 24
+million lines found): removing those exactly needs an index of each column's runs of cells, and the first
+cell a line shares with the walk, in both passes - not done.
+
+So the line search has a safety cap: once its work passes `MAX_WORK` (`LayoutLineClear.MAX_WORK`, the C++
+`kMaxWork`: 2e9) it stops where it is - the spells not yet searched stay where the spread and the searches
+so far put them - and the push-apart rounds run as usual. The work (`_work`, `m_work`) counts whole
+numbers, the same in both passes, so both stop at the same spell: `CELL_WORK` (11) for each grid cell
+walked, one for each line looked at in the cells a walk passes (`_edgesNear`), and for each spot tried the
+lines and this ring's spells its fans hold, plus the spells and lines in its own cells. It never counts
+anything `_gapFan` decides (that uses `asin`, which the two engines may round differently). The weights
+are measured: on the test and made-up trees native time is 2.3-3.5 ns a unit (the gather-heavy and
+cost-heavy trees alike), and up to 5.7 on a random tree of 3,000 spells. The heaviest test tree
+(`s_synth5`, random parents across a quadrant) takes 0.86e9 (2.5 s native), the game's 1,428-spell tree
+0.04e9; no test tree comes near the cap (the next heaviest are 0.65e9 and below). Trees it has stopped:
+random trees of 2,354, 3,123 and 4,155 spells (the 3,123: 32.6 s → 11.7 s native, 25 s in node; the others
+8.7 s and 13.3 s native, the push-apart rounds included), and the long lines across the middle once they
+are 5,000 long or more (up to 19 s → 5.8 s). The reply and the script's result
+carry `lineWork` and `lineCapped`, and the log line says "stopped at its work cap". The script's pass
+stops at the same work; node takes about twice the plugin's time, and the game's browser without a JIT
+many times that again (see `SLICE_MS`), so the cap bounds it too but does not make it quick.
 
 **Native pass (`LayoutDeclutter.cpp`, 2026-09-26).** The same pass in C++, in
 `plugins/spelllearning/src/treebuilder/`: `LayoutDeclutter.cpp` (collect, spread, the push-apart rounds,
@@ -896,7 +932,7 @@ noRotate }` - only the positioned spells, in `_collect`'s order - and shows "Arr
 plugin (`UIManagerDeclutter.cpp`) hops to the game thread (never call back into the view from inside its
 listener), starts a worker thread that parses the request and runs the pass, and hops back to the game
 thread to call `onDeclutterResult` with `{ id, positions: [[formId, x, y], ...], moved, rounds,
-overlapsLeft, linesLeft, linesMoved, passes, ms }`; it logs the same `[LayoutDeclutter] ...` line as the
+overlapsLeft, linesLeft, linesMoved, passes, lineWork, lineCapped, ms }`; it logs the same `[LayoutDeclutter] ...` line as the
 script, with `(native)`. The panel writes the positions onto the nodes (checking each formId) and calls
 `onDone`. It falls back to the sliced JavaScript pass when the reply has an `error` or does not match the
 tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s). After such a timeout the plugin is not asked
@@ -909,8 +945,8 @@ reply (not JSON) has a request still waiting arranged here at once instead of af
 `applyAsync` supersedes an older one; when the newer one is sent to the plugin (not during the
 `NATIVE_RETRY_MS` pause, nor when the tree has fewer than two positioned spells) the plugin cancels the
 older request's worker (a flag checked once per spell searched and once per push-apart round: it stops
-soon after - a spell with thousands of lines of its own can take a few hundred milliseconds or more
-to search - and sends nothing). Whenever the panel stops waiting for a request - a timeout,
+soon after - one spell's search is short now that `MAX_SPELL_LINES` leaves hubs out - and sends
+nothing). Whenever the panel stops waiting for a request - a timeout,
 an unreadable reply, or a newer `applyAsync` (sent first, so it also covers a newer tree arranged in the
 script) - it sends `DeclutterCancel` with that request's id (in a `try`: an old plugin has no listener),
 and the plugin cancels that worker the same way, so it does not keep a core busy for a reply nobody takes.
@@ -975,6 +1011,42 @@ Tried and dropped along the way:
   built-in `atan2` is cheap next to the extra steps of interpreted script around it;
 - cutting the lines near a spell's lines down per ring up front, as for spells: it cost more than it saved,
   since most spots never get as far as the line-gap part.
+
+**Cost of the line search (2026-09-27).** Every change here leaves every position as it was, bit for
+bit (all the test trees, the game's tree and the made-up ones, in both passes; `tools/declutter-test`
+agrees with node on each): they only skip work that cannot change a sum.
+- `_gapFan` / `GapFan`, once per spell searched: of the lines near each of its lines (the fan), it keeps
+  only those that can add to the line-gap cost from some spot of the search. Every spot is within R
+  (`_ringReach`) of where the spell is, so every line it can have lies within R of the line it has and
+  turns from it by at most asin(R / length). Dropped: lines sharing a spell with it (never counted), lines
+  further than R + `LINE_GAP` x `BUNDLE_MAX` from it, and lines every spot's line crosses at `MIN_CROSS`
+  or more (the spell further than R from the line, both its ends clear of every line from the far end
+  through a spot, the angle wide enough). Each test keeps `FAN_MARGIN` (0.01 units; `FAN_ANGLE_MARGIN`
+  1e-6 rad) to spare, far above rounding. A line that adds nothing never changes a sum, and the cost is
+  only ever compared with the best so far, so whether it reaches that is all that matters (and that
+  stays the same). The cut costs a walk over the whole fan, so a line is cut (`_gapFanLine`,
+  `GapFanLine`) only once `GAP_FAN_AFTER` spots of the search got as far as its line-gap part (6 in the
+  script, `kGapFanAfter` 2 in the plugin: speed only); before that the whole fan is walked, as before. Most
+  lines of a normal tree never get that far. In the plugin the kept lines are copied into records
+  (`GapRec`) read front to back.
+- Per spot, a kept line is passed over when its box in the frame of the spell's line (along it, across
+  it) is nowhere within `LINE_GAP` x `BUNDLE_MAX` of the spot's line; the axis box test alone passes
+  nearly every long diagonal line.
+- A line at `BUNDLE_ANGLE` or more from every spot's line (marked steep by `_gapFan`) adds only by coming
+  within `LINE_GAP` without crossing: its box test uses `LINE_GAP`, a crossing adds nothing without its
+  angle being worked out, and its room is `LINE_GAP` without `_bundleGap`.
+- A spot's line direction and length are worked out once per line (in the script when first needed):
+  every crossing and `_bundleGap` took the same `atan2` again.
+- In the plugin: the line grid is one array over the lines' box of cells (by column past 2 million cells,
+  by hash past a million columns), the once-each marks of a walk are an array by line, and the spells'
+  positions are mirrored in two arrays for the cost's loops.
+On the game's tree: 0.15 s → 0.13 s native, the same in node within a few per cent (0.23-0.26 s); the
+heaviest test tree 2.8 s → 2.4 s native, 3.8 s → 4.0 s in node. Tried and dropped: cutting every line's
+fan up front (in the script it cost more than it saved on normal trees); records in the script too (flat
+arrays: quicker on the long-line trees, slower on normal ones); a first pass over the kept lines' boxes
+without branches, then the lines that passed (native): slower (7.3 s against 6.3 s on the long lines
+across the middle); and a cap on a spell's fan size aimed at the long-line trees: the test trees of random
+parents have fans as big, so no such cap separates them.
 
 **No line shows through a spell.** The tree draws its lines first and the spells over them, and a
 see-through spell (locked 0.4, undiscovered 0.6, available `availableAlpha`) is filled with the backdrop

@@ -127,6 +127,9 @@ var LayoutDeclutterTest = {
         this.check(L.apply(empty).moved === 0, 'an empty tree is left alone');
         this._hostile(L);
         this._longLine(L);
+        this._hubLines(L);
+        this._gapFanExact(L);
+        this._workCap(L);
         this._native(L);
         return { passed: this.passed, failed: this.failed };
     },
@@ -185,6 +188,91 @@ var LayoutDeclutterTest = {
         var on = tree.schools.Long.nodes[2];
         this.check(Math.abs(on.x - far / 2 * L.SPREAD) < 0.01 && Math.abs(on.y - 3 * L.SPREAD) < 0.01 && result.linesLeft === 0,
             'a spell on a line longer than MAX_LINE is left on it, and not counted (' + result.linesLeft + ')');
+    },
+
+    /** A spell with more than MAX_SPELL_LINES lines has them all left out: a spell on one stays, and it is not counted. */
+    _hubLines: function(L) {
+        var log = console.log, lc = LayoutLineClear, kids = [], nodes = [], count = lc.MAX_SPELL_LINES + 1;
+        for (var i = 0; i < count; i++) {
+            var a = (i / (count - 1) - 0.5) * 80 * Math.PI / 180;
+            kids.push('k' + i);
+            nodes.push({ formId: 'k' + i, x: 150 + Math.cos(a) * 2000, y: Math.sin(a) * 2000, children: [] });
+        }
+        // Straight right of the hub, on its line to the middle child
+        var onX = (150 + nodes[(count - 1) / 2].x) / 2;
+        nodes.push({ formId: 'onIt', x: onX, y: 3, children: [] });
+        var tree = { globe: { x: 0, y: 0, radius: 45 }, schools: { Hub: { startAngle: -45, endAngle: 45, nodes: [
+            { formId: 'r', x: 80, y: 0, isRoot: true, children: ['hub'] },
+            { formId: 'hub', x: 150, y: 0, children: kids }
+        ].concat(nodes) } } };
+        var t0 = Date.now();
+        console.log = function() {};
+        var result = L.apply(tree);
+        console.log = log;
+        var on = tree.schools.Hub.nodes[tree.schools.Hub.nodes.length - 1];
+        var stays = Math.abs(on.x - onX * L.SPREAD) < 0.01 && Math.abs(on.y - 3 * L.SPREAD) < 0.01;
+        this.check(stays && result.linesLeft === 0 && Date.now() - t0 < 2000,
+            'a hub over MAX_SPELL_LINES has its lines left out: a spell on one stays, not counted (' + result.linesLeft + ')');
+    },
+
+    /**
+     * _gapFan only drops lines that add nothing: on a small tangled tree, every spell's
+     * _lineGapCost at every spot it tries is the same with the cut fan as with the whole fan.
+     */
+    _gapFanExact: function(L) {
+        var lc = LayoutLineClear, seed = 7, nodes = [], log = console.log;
+        var rnd = function() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        for (var i = 0; i < 80; i++) {
+            var a = (rnd() * 80 - 40) * Math.PI / 180, r = i === 0 ? 120 : 120 + rnd() * 700;
+            nodes.push({ formId: 's' + i, x: Math.cos(a) * r, y: Math.sin(a) * r, isRoot: i === 0, children: [] });
+            if (i) nodes[Math.floor(rnd() * i)].children.push('s' + i);
+        }
+        console.log = function() {};
+        var job = L.begin({ globe: { x: 0, y: 0, radius: 45 }, schools: { T: { startAngle: -45, endAngle: 45, nodes: nodes } } });
+        console.log = log;
+        var list = job.lines.list, spots = 0, same = 0, after = lc.GAP_FAN_AFTER;
+        lc._buildEdgeGrid(job.lines.edges);
+        for (var s = 0; s < list.length; s++) {
+            var it = list[s];
+            if (it.fixed) continue;
+            it._reach = lc._reachScale(it);
+            lc._fan = lc._ringSpells(it, lc._gatherFan(it));
+            lc._gapFan(it);
+            var own = lc._incident[it.index], k;
+            for (k = 0; k < own.length; k++) lc._gapFanLine(it, k);
+            var cut = lc._gapCut;
+            for (k = 0; k < job.lines.offsets.length; k += 2) {
+                var x = it.x + job.lines.offsets[k] * it._reach, y = it.y + job.lines.offsets[k + 1] * it._reach;
+                lc._gapCut = cut;
+                var a1 = lc._lineGapCost(it, x, y, Infinity);
+                // The whole fan: nothing cut yet, and never cut
+                lc._gapCut = own.map(function() { return null; });
+                lc.GAP_FAN_AFTER = Infinity;
+                var a2 = lc._lineGapCost(it, x, y, Infinity);
+                lc.GAP_FAN_AFTER = after;
+                spots++;
+                if (a1 === a2) same++;
+            }
+            lc._fan = lc._edgeFan = lc._gapCut = null;
+        }
+        lc._job = null;
+        this.check(spots > 1000 && same === spots,
+            'the cut line gap fan gives the same cost as the whole fan at every spot (' + same + ' of ' + spots + ')');
+    },
+
+    /** Past MAX_WORK the line search stops where it is (the same every run); the test trees never reach it. */
+    _workCap: function(L) {
+        var lc = LayoutLineClear, log = console.log, max = lc.MAX_WORK;
+        console.log = function() {};
+        var free = L.apply(this._tree());
+        lc.MAX_WORK = 1000;
+        var capped = this._tree(), once = L.apply(capped), again = this._tree();
+        L.apply(again);
+        lc.MAX_WORK = max;
+        console.log = log;
+        this.check(!free.lineCapped && once.lineCapped && once.lineWork > 1000 && once.lineWork < free.lineWork &&
+            JSON.stringify(capped) === JSON.stringify(again),
+            'past MAX_WORK the line search stops, the same every run; the test tree is far below it (' + free.lineWork + ')');
     },
 
     /**

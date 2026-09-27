@@ -43,11 +43,14 @@ namespace LayoutDeclutter
      * reply: { id, positions: [[formId, x, y], ...] in the order the spells
      *   were taken (schools in order, nodes in array order, spells without a
      *   position skipped), moved, rounds, overlapsLeft, linesLeft, linesMoved,
-     *   passes, ms }. Fewer than two positioned spells: positions is empty and
-     *   nothing moves (skipped: true). A spell whose x or y is not a finite
-     *   number within +-1e6 (kMaxCoord) counts as one without a position. A
-     *   line longer than kMaxLine once spread out is not kept clear of spells
-     *   and not counted in linesLeft.
+     *   passes, lineWork, lineCapped, ms }. Fewer than two positioned spells:
+     *   positions is empty and nothing moves (skipped: true). A spell whose x
+     *   or y is not a finite number within +-1e6 (kMaxCoord) counts as one
+     *   without a position. A line longer than kMaxLine once spread out, or at
+     *   a spell with more than kMaxSpellLines lines, is not kept clear of
+     *   spells and not counted in linesLeft. lineWork is the line search's
+     *   work (whole units, the same as the script's); past kMaxWork the search
+     *   stops where it is (lineCapped).
      *
      * cancel (may be null) is checked once per spell searched and once per
      * push-apart round; once it is set, Run throws Cancelled.

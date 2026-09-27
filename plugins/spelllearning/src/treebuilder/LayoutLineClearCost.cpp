@@ -36,7 +36,9 @@ namespace LayoutDeclutter::Internal
         const double hx = x - m_heart.x, hy = y - m_heart.y;
         if (hx * hx + hy * hy < m_heart.r * m_heart.r) c += kHeartCost;
 
-        // Other spells too close
+        // Other spells too close (positions from m_px, m_py: the same numbers, side by side)
+        const double* sx = m_px.data();
+        const double* sy = m_py.data();
         const double min = m_minDist, cell = kCell;
         const double min2 = min * min * kOverlapHair;
         const std::int64_t cx0 = FloorCell(x - min, cell), cx1 = FloorCell(x + min, cell);
@@ -45,10 +47,10 @@ namespace LayoutDeclutter::Internal
             for (std::int64_t cy = cy0; cy <= cy1; cy++) {
                 auto close = m_nodeGrid.find(MakeCellKey(cx, cy));
                 if (close == m_nodeGrid.end()) continue;
+                m_work += close->second.size();
                 for (const int si : close->second) {
                     if (si == it) continue;
-                    const Item& s = m_list[si];
-                    const double dx = s.x - x, dy = s.y - y, d2 = dx * dx + dy * dy;
+                    const double dx = sx[si] - x, dy = sy[si] - y, d2 = dx * dx + dy * dy;
                     if (d2 >= min2) continue;
                     const double d = std::sqrt(d2);
                     if (d < min) c += kOverlapCost * (1 - d / min) + kOverlapBase;
@@ -64,21 +66,21 @@ namespace LayoutDeclutter::Internal
         // Lines passing the spot
         const double clear2 = m_clear2, lo = kEndMargin, hi = 1 - kEndMargin;
         double vx, vy, l2, t, px, py;
-        auto lines = m_edgeGrid.find(MakeCellKey(FloorCell(x, cell), FloorCell(y, cell)));
-        if (lines != m_edgeGrid.end()) {
-            for (const int ei : lines->second) {
+        const std::span<const int> lines = EdgeCell(MakeCellKey(FloorCell(x, cell), FloorCell(y, cell)));
+        if (!lines.empty()) {
+            m_work += lines.size();
+            for (const int ei : lines) {
                 const Edge& e = m_edges[ei];
                 if (e.a == it || e.b == it) continue;
-                const Item& p = m_list[e.a];
-                const Item& q = m_list[e.b];
-                vx = q.x - p.x;
-                vy = q.y - p.y;
+                const double ax = sx[e.a], ay = sy[e.a];
+                vx = sx[e.b] - ax;
+                vy = sy[e.b] - ay;
                 l2 = vx * vx + vy * vy;
                 if (l2 < kTinyLength2) continue;
-                t = ((x - p.x) * vx + (y - p.y) * vy) / l2;
+                t = ((x - ax) * vx + (y - ay) * vy) / l2;
                 if (t < lo || t > hi) continue;
-                px = p.x + vx * t - x;
-                py = p.y + vy * t - y;
+                px = ax + vx * t - x;
+                py = ay + vy * t - y;
                 if (px * px + py * py < clear2) c += 1;
             }
             if (c >= limit) return c;
@@ -106,11 +108,11 @@ namespace LayoutDeclutter::Internal
             for (std::size_t k = 0; k < count; k++) {
                 const int mi = (*nearby)[k];
                 if (mi == it || mi == oi) continue;
-                const Item& m = m_list[mi];
-                t = ((m.x - x) * vx + (m.y - y) * vy) / l2;
+                const double mx2 = sx[mi], my2 = sy[mi];
+                t = ((mx2 - x) * vx + (my2 - y) * vy) / l2;
                 if (t < lo || t > hi) continue;
-                px = x + vx * t - m.x;
-                py = y + vy * t - m.y;
+                px = x + vx * t - mx2;
+                py = y + vy * t - my2;
                 if (px * px + py * py < clear2) c += 1;
             }
             if (c >= limit) return c;
@@ -129,70 +131,110 @@ namespace LayoutDeclutter::Internal
         const double bundle2 = gap2 * kBundleMax * kBundleMax;
         double c = 0;
         double t, dx, dy, d2, d;
+        // A spot's line near a line within this (a steep one, within LINE_GAP)
+        const double pad = box + 2 * kFanMargin, steepPad = gap + 2 * kFanMargin;
+        const Item& self = m_list[it];
         for (std::size_t i = 0; i < own.size(); i++) {
             const int oi = Other(own[i], it);
             const Item& o = m_list[oi];
-            const std::vector<int>* others;
-            if (m_hasFan) {
-                others = &m_edgeFan[i];
-            } else {
-                EdgesNear(own[i], x, y, o.x, o.y, box, m_scratchEdges);
-                Boxed(m_scratchEdges);
-                others = &m_scratchEdges;
-            }
             const double minX = std::min(x, o.x) - box, maxX = std::max(x, o.x) + box;
             const double minY = std::min(y, o.y) - box, maxY = std::max(y, o.y) + box;
-            double ang = -1;
-            // This line, (x, y) to o
+            // Its lines as records: in a search the fan as GapFanLine cut it, or
+            // the whole fan the first kGapFanAfter times (most lines never see
+            // more spots); else those near it here. Uncut, lines sharing a spell
+            // and lines whose box misses this one's are left out (NearRecs: the
+            // loop would pass over both)
+            const std::vector<GapRec>* others = &m_scratchRecs;
+            if (!m_hasFan) {
+                EdgesNear(own[i], x, y, o.x, o.y, box, m_scratchEdges);
+                Boxed(m_scratchEdges);
+                NearRecs(it, oi, m_scratchEdges, minX, maxX, minY, maxY);
+            } else if (m_gapBuilt[i] || ++m_gapUses[i] > kGapFanAfter) {
+                if (!m_gapBuilt[i]) GapFanLine(it, i);
+                others = &m_gapRec[i];
+            } else {
+                NearRecs(it, oi, m_edgeFan[i], minX, maxX, minY, maxY);
+            }
+            // This line, (x, y) to o, its direction and length (worked out once
+            // here: every crossing and BundleGap took the same numbers per line)
             const double vx = o.x - x, vy = o.y - y, l2 = vx * vx + vy * vy;
-            for (const int ei : *others) {
-                const Edge& e = m_edges[ei];
+            const double ang = LayoutMath::Atan2(vy, vx), length = std::sqrt(l2);
+            const double ux = vx / length, uy = vy / length;
+            // In the frame of the line from where `it` is (see GapFan): this
+            // line runs from (su, sw) to (len, 0)
+            const bool framed = others != &m_scratchRecs && m_framed[i];
+            double su = 0, sw = 0, lu = 0, hu = 0, du = 0, inv = 0;
+            if (framed) {
+                const double fx = m_gapFrame[3 * i], fy = m_gapFrame[3 * i + 1], len = m_gapFrame[3 * i + 2];
+                su = (x - self.x) * fx + (y - self.y) * fy;
+                sw = (y - self.y) * fx - (x - self.x) * fy;
+                lu = std::min(su, len);
+                hu = std::max(su, len);
+                du = len - su;
+                inv = du != 0 ? 1 / du : 0;
+            }
+            for (const GapRec& e : *others) {
                 if (e.x1 < minX || e.x0 > maxX || e.y1 < minY || e.y0 > maxY) continue;
-                if (e.a == it || e.b == it || e.a == oi || e.b == oi) continue;
-                const Item& p = m_list[e.a];
-                const Item& q = m_list[e.b];
+                if (framed) {
+                    // Nowhere within `slack` of this line along it and across it: adds nothing
+                    const double slack = e.steep ? steepPad : pad;
+                    const double ua = std::max(e.u0 - slack, lu), uz = std::min(e.u1 + slack, hu);
+                    if (ua > uz) continue;
+                    // Across it, the line runs from wa to wz over ua..uz (all of 0..sw straight across)
+                    double wa = sw, wz = 0;
+                    if (du != 0) {
+                        wa = sw * (1 - (ua - su) * inv);
+                        wz = sw * (1 - (uz - su) * inv);
+                    }
+                    const double wlo = e.w0 - slack, whi = e.w1 + slack;
+                    if ((wa < wlo && wz < wlo) || (wa > whi && wz > whi)) continue;
+                }
+                const double px = e.px, py = e.py, qx = e.qx, qy = e.qy;
                 const double ex = e.ex, ey = e.ey;
                 bool crossing = false;
-                if ((vx * (p.y - y) - vy * (p.x - x)) * (vx * (q.y - y) - vy * (q.x - x)) < 0) {
-                    crossing = (ex * (y - p.y) - ey * (x - p.x)) * (ex * (o.y - p.y) - ey * (o.x - p.x)) < 0;
+                if ((vx * (py - y) - vy * (px - x)) * (vx * (qy - y) - vy * (qx - x)) < 0) {
+                    crossing = (ex * (y - py) - ey * (x - px)) * (ex * (o.y - py) - ey * (o.x - px)) < 0;
                 }
                 if (crossing) {
-                    if (ang < 0) ang = LayoutMath::Atan2(o.y - y, o.x - x);
-                    double an = std::fmod(std::fabs(ang - e.ang), kPi);
-                    if (an > kPi / 2) an = kPi - an;
-                    if (an < kMinCross) c += kLineGapCost * (1 - an / kMinCross);
+                    // A steep line (GapFan) crosses at BUNDLE_ANGLE or more: adds nothing
+                    if (!e.steep) {
+                        double an = std::fmod(std::fabs(ang - e.ang), kPi);
+                        if (an > kPi / 2) an = kPi - an;
+                        if (an < kMinCross) c += kLineGapCost * (1 - an / kMinCross);
+                    }
                 } else {
                     // The nearest of: p and q to this line, its ends to that one
-                    t = l2 > 0 ? ((p.x - x) * vx + (p.y - y) * vy) / l2 : 0;
+                    t = l2 > 0 ? ((px - x) * vx + (py - y) * vy) / l2 : 0;
                     if (t < 0) t = 0;
                     else if (t > 1) t = 1;
-                    dx = x + vx * t - p.x;
-                    dy = y + vy * t - p.y;
+                    dx = x + vx * t - px;
+                    dy = y + vy * t - py;
                     d2 = dx * dx + dy * dy;
-                    t = l2 > 0 ? ((q.x - x) * vx + (q.y - y) * vy) / l2 : 0;
+                    t = l2 > 0 ? ((qx - x) * vx + (qy - y) * vy) / l2 : 0;
                     if (t < 0) t = 0;
                     else if (t > 1) t = 1;
-                    dx = x + vx * t - q.x;
-                    dy = y + vy * t - q.y;
+                    dx = x + vx * t - qx;
+                    dy = y + vy * t - qy;
                     d = dx * dx + dy * dy;
                     if (d < d2) d2 = d;
                     const double el2 = e.l2;
-                    t = el2 > 0 ? ((x - p.x) * ex + (y - p.y) * ey) / el2 : 0;
+                    t = el2 > 0 ? ((x - px) * ex + (y - py) * ey) / el2 : 0;
                     if (t < 0) t = 0;
                     else if (t > 1) t = 1;
-                    dx = p.x + ex * t - x;
-                    dy = p.y + ey * t - y;
+                    dx = px + ex * t - x;
+                    dy = py + ey * t - y;
                     d = dx * dx + dy * dy;
                     if (d < d2) d2 = d;
-                    t = el2 > 0 ? ((o.x - p.x) * ex + (o.y - p.y) * ey) / el2 : 0;
+                    t = el2 > 0 ? ((o.x - px) * ex + (o.y - py) * ey) / el2 : 0;
                     if (t < 0) t = 0;
                     else if (t > 1) t = 1;
-                    dx = p.x + ex * t - o.x;
-                    dy = p.y + ey * t - o.y;
+                    dx = px + ex * t - o.x;
+                    dy = py + ey * t - o.y;
                     d = dx * dx + dy * dy;
                     if (d < d2) d2 = d;
                     if (d2 < bundle2) {
-                        const double need = BundleGap(x, y, o.x, o.y, e, gap);
+                        // A steep line (GapFan) needs LINE_GAP only, as BundleGap would say
+                        const double need = e.steep ? gap : BundleGap(x, y, length, ux, uy, ang, e, gap);
                         if (d2 < need * need) c += kLineGapCost * (1 - std::sqrt(d2) / need) * (need / gap);
                     }
                 }
@@ -204,18 +246,14 @@ namespace LayoutDeclutter::Internal
 
     // The room two lines need: LINE_GAP, plus LINE_GAP for every BUNDLE_LEN
     // they run side by side closer to parallel than BUNDLE_ANGLE
-    double LineClear::BundleGap(double ax, double ay, double bx, double by, const Edge& e, double gap) const
+    // (the line from (ax, ay): its length, unit vector and direction)
+    double LineClear::BundleGap(double ax, double ay, double len, double ux, double uy, double dir, const GapRec& e, double gap) const
     {
-        const double vx = bx - ax, vy = by - ay;
-        const double len = std::sqrt(vx * vx + vy * vy);
         if (len < kTinyDistance) return gap;
-        double an = std::fmod(std::fabs(LayoutMath::Atan2(vy, vx) - e.ang), kPi);
+        double an = std::fmod(std::fabs(dir - e.ang), kPi);
         if (an > kPi / 2) an = kPi - an;
         if (an >= kBundleAngle) return gap;
-        const double ux = vx / len, uy = vy / len;
-        const Item& p = m_list[e.a];
-        const Item& q = m_list[e.b];
-        const double t0 = (p.x - ax) * ux + (p.y - ay) * uy, t1 = (q.x - ax) * ux + (q.y - ay) * uy;
+        const double t0 = (e.px - ax) * ux + (e.py - ay) * uy, t1 = (e.qx - ax) * ux + (e.qy - ay) * uy;
         const double side = std::min(len, std::max(t0, t1)) - std::max(0.0, std::min(t0, t1));
         if (side <= 0) return gap;
         return gap * std::min(kBundleMax, 1 + side / kBundleLen);

@@ -228,7 +228,7 @@ var LayoutDeclutter = {
         }
         this._asyncJob = null;
         var result = { moved: reply.moved, rounds: reply.rounds, overlapsLeft: reply.overlapsLeft,
-            linesLeft: reply.linesLeft, native: true };
+            linesLeft: reply.linesLeft, lineWork: reply.lineWork, lineCapped: reply.lineCapped, native: true };
         console.log('[LayoutDeclutter] arranged by the plugin: ' + reply.moved + ' of ' + reply.positions.length +
             ' spells moved, ' + reply.linesLeft + ' still on a line, ' + Math.round(reply.ms || 0) + ' ms');
         if (token.onDone) token.onDone(result);
@@ -324,11 +324,13 @@ var LayoutDeclutter = {
         // On the lines the search kept (not those past LayoutLineClear.MAX_LINE)
         var linesLeft = lines ? LayoutLineClear.countLinesThrough(list, job.lines.edges) : -1;
         console.log('[LayoutDeclutter] spread x' + this.SPREAD + ', ' + moved + ' of ' + list.length +
-            ' spells moved' + (lines ? ' (' + lines.moved + ' off lines in ' + lines.passes + ' passes)' : '') +
+            ' spells moved' + (lines ? ' (' + lines.moved + ' off lines in ' + lines.passes + ' passes' +
+            (lines.capped ? ', stopped at its work cap' : '') + ')' : '') +
             ', ' + left + ' pairs still touching' + (lines ? ', ' + linesLeft + ' spells still on a line' : '') +
             (job.t0 ? ', ' + Math.round(performance.now() - job.t0) + ' ms' : ''));
         job.progress = 1;
         job.result = { moved: moved, rounds: rounds, overlapsLeft: left, linesLeft: linesLeft };
+        if (lines) { job.result.lineWork = lines.work; job.result.lineCapped = lines.capped; }
         return true;
     },
 

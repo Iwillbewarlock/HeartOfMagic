@@ -30,23 +30,33 @@ namespace LayoutDeclutter::Internal
         m_clear2(clear * clear),
         m_minDist(minDist)
     {
-        // Lines past kMaxLine left out, in place and in order (the JS _shortLines):
+        // Lines past kMaxLine left out, then those at a spell with more than
+        // kMaxSpellLines of them, in place and in order (the JS _shortLines):
         // CountLinesThrough then counts on the same lines
         std::erase_if(m_edges, [this](const Edge& e) {
             const double dx = m_list[e.b].x - m_list[e.a].x, dy = m_list[e.b].y - m_list[e.a].y;
             return !(dx * dx + dy * dy <= kMaxLine * kMaxLine);
         });
+        std::vector<int> lines(list.size(), 0);
+        for (const Edge& e : m_edges) {
+            lines[e.a]++;
+            lines[e.b]++;
+        }
+        std::erase_if(m_edges, [&lines](const Edge& e) { return lines[e.a] > kMaxSpellLines || lines[e.b] > kMaxSpellLines; });
         m_incident.resize(list.size());
         for (auto& item : m_list) {
             item.ox = item.x;
             item.oy = item.y;
             item.v = 0;
+            m_px.push_back(item.x);
+            m_py.push_back(item.y);
         }
         for (int e = 0; e < static_cast<int>(m_edges.size()); e++) {
             m_edges[e].v0 = m_edges[e].v1 = -1;
             m_incident[m_edges[e].a].push_back(e);
             m_incident[m_edges[e].b].push_back(e);
         }
+        m_edgeStamp.assign(m_edges.size(), 0);
         for (int i = 0; i < static_cast<int>(m_list.size()); i++) GridAdd(i);
 
         // The spots to try, as offsets, ring by ring
@@ -70,7 +80,13 @@ namespace LayoutDeclutter::Internal
             int moved = 0;
             for (int at = 0; at < count; at++) {
                 ThrowIfCancelled(m_cancel);
-                if (!m_list[at].fixed && m_dirty[at] && SearchOne(at, next)) moved++;
+                if (m_list[at].fixed || !m_dirty[at]) continue;
+                // Past kMaxWork: the search ends here (the spells left stay put)
+                if (m_work > kMaxWork) {
+                    m_capped = true;
+                    return;
+                }
+                if (SearchOne(at, next)) moved++;
             }
             if (!moved) break;
             m_dirty.swap(next);
@@ -99,12 +115,19 @@ namespace LayoutDeclutter::Internal
         // Gathered once for the widest ring, then cut down per ring
         GatherFan(it);
         RingSpells(it);
+        GapFan(it);  // sets up the cut of m_edgeFan (GapFanLine)
         const auto& own = m_incident[it];
         m_angleFan.resize(own.size());
         for (std::size_t a = 0; a < own.size(); a++) NeighbourLines(it, static_cast<int>(a), m_angleFan[a]);
         m_hasFan = true;
 
         const int perRing = 2 * kDirections;
+        // What each spot tried costs in m_work: its lines' fans, and this ring's share of the spells
+        std::uint64_t fanLines = 0, ringSpells[kRings] = {};
+        for (std::size_t i = 0; i < own.size(); i++) {
+            fanLines += m_edgeFan[i].size();
+            for (int r = 0; r < kRings; r++) ringSpells[r] += static_cast<std::uint64_t>(m_fanEnd[i][static_cast<std::size_t>(r)]);
+        }
         double bx = item.x, by = item.y;
         // Round where the layout put it, and round where it is now (once moved)
         const int rounds = (item.x != item.ox || item.y != item.oy) ? 2 : 1;
@@ -116,6 +139,7 @@ namespace LayoutDeclutter::Internal
                 const double x = (k ? item.x : item.ox) + m_offsets[o] * sc;
                 const double y = (k ? item.y : item.oy) + m_offsets[o + 1] * sc;
                 if (item.hasSector && !InSector(item.sector, x, y)) continue;
+                m_work += fanLines + ringSpells[m_ring];
                 const double c = Cost(it, x, y, best);
                 if (c < best - kBetterBy) {
                     best = c;

@@ -358,6 +358,7 @@ namespace LayoutDeclutter
         std::vector<Edge> edges = MakeEdges(items);
         LineClear lines(list, edges, heart, kLineClear, 2 * kNodeRadius + kGap, cancel);
         lines.Run();
+        const std::uint64_t lineWork = lines.Work();  // the search's (CountLinesThrough below walks too)
 
         int rounds = 0;
         std::vector<int> nearby;
@@ -377,9 +378,10 @@ namespace LayoutDeclutter
         const int left = CountOverlaps(list);
         const int linesLeft = lines.CountLinesThrough();
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        logger::info("[LayoutDeclutter] spread x{}, {} of {} spells moved ({} off lines in {} passes), "
+        logger::info("[LayoutDeclutter] spread x{}, {} of {} spells moved ({} off lines in {} passes{}), "
                      "{} pairs still touching, {} spells still on a line, {} ms (native)",
-            kSpread, moved, list.size(), lines.Moved(), lines.Passes(), left, linesLeft, static_cast<long long>(ms + 0.5));
+            kSpread, moved, list.size(), lines.Moved(), lines.Passes(), lines.Capped() ? ", stopped at its work cap" : "", left,
+            linesLeft, static_cast<long long>(ms + 0.5));
 
         reply["moved"] = moved;
         reply["rounds"] = rounds;
@@ -387,6 +389,8 @@ namespace LayoutDeclutter
         reply["linesLeft"] = linesLeft;
         reply["linesMoved"] = lines.Moved();
         reply["passes"] = lines.Passes();
+        reply["lineWork"] = lineWork;
+        reply["lineCapped"] = lines.Capped();
         reply["ms"] = ms;
         return reply;
     }

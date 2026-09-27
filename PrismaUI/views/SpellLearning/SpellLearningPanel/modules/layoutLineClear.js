@@ -27,7 +27,9 @@
  * Spells are taken in list order, PASSES times or until a pass moves none; a
  * pass after the first looks only at spells whose surroundings changed.
  * Roots never move; a spell kept in a sector only tries spots inside it.
- * Deterministic.
+ * Deterministic. Left out: lines longer than MAX_LINE and lines at a spell
+ * with more than MAX_SPELL_LINES of them; and once its work passes MAX_WORK
+ * the search stops where it is (a safety cap no test tree reaches).
  *
  * The plugin runs the same search in C++ (LayoutLineClear*.cpp, LayoutLineGrid.cpp):
  * a change here goes there too (see LayoutDeclutter).
@@ -62,6 +64,17 @@ var LayoutLineClear = {
     MAX_LINE: 20000,       // a line longer than this (after SPREAD) is left out of the search and the count:
                            // every walk along a line is as long as the line, and a real tree's longest is
                            // under 2,000 (the C++ kMaxLine)
+    MAX_SPELL_LINES: 64,   // lines at a spell with more lines than this are left out too: its angle cost
+                           // pairs every two of them at every spot, and each of its neighbours' every line
+                           // of it (a builder gives a spell a few children; the C++ kMaxSpellLines)
+    FAN_MARGIN: 0.01,      // tree units to spare in _gapFan's tests, far above rounding (see there)
+    FAN_ANGLE_MARGIN: 1e-6, // the same for its angles (radians)
+    MIN_FRAME: 1,          // a line shorter than this gets no frame of its own in _gapFan
+    MAX_WORK: 2000000000,  // past this much work (_work) the search stops where it is: a safety cap, 2.3 times
+                           // the heaviest test tree's 0.86e9 (the game's 1,428-spell tree: 0.04e9); the C++ kMaxWork
+    CELL_WORK: 11,         // a cell walked counts in _work as this many lines or spells looked at (measured)
+    GAP_FAN_AFTER: 6,      // a line's fan is cut (_gapFanLine) once this many spots of a search got to its line gap:
+                           // speed only (the sums are the same either way), tuned per engine (the C++ kGapFanAfter: 2)
 
     /**
      * All at once (tests, and anything that cannot wait).
@@ -104,6 +117,7 @@ var LayoutLineClear = {
         this._nodeGrid = {};
         for (i = 0; i < list.length; i++) this._gridAdd(list[i]);
         this._stamp = 0;
+        this._work = 0;
 
         // The spots to try, as offsets, worked out once
         var offsets = [];
@@ -147,45 +161,46 @@ var LayoutLineClear = {
             }
             while (job.i < list.length) {
                 var at = job.i++;
-                if (!list[at].fixed && job.dirty[at] && this._searchOne(list[at], job)) job.moved++;
+                if (!list[at].fixed && job.dirty[at]) {
+                    // Past MAX_WORK: the search ends here (the spells left stay put)
+                    if (this._work > this.MAX_WORK) { job.capped = true; break; }
+                    if (this._searchOne(list[at], job)) job.moved++;
+                }
                 if (until !== Infinity && clock.now() >= until) {
                     job.progress = (job.pass + job.i / list.length) / this.PASSES;
                     return false;
                 }
             }
+            if (job.capped) break;
             job.i = 0;
             if (!job.moved) break;
             job.dirty = job.next;
             job.pass++;
         }
         job.progress = 1;
-        job.result = { moved: Object.keys(job.movedIds).length, passes: job.pass };
+        job.result = { moved: Object.keys(job.movedIds).length, passes: job.pass,
+            work: this._work, capped: !!job.capped };
         this._job = null;
         return true;
     },
 
-    /**
-     * The lines no longer than MAX_LINE, in order (see MAX_LINE; the C++
-     * LineClear constructor). Where the spells are when the search starts.
-     */
-    _shortLines: function(edges) {
-        var out = [], max2 = this.MAX_LINE * this.MAX_LINE;
-        for (var i = 0; i < edges.length; i++) {
-            var dx = edges[i][1].x - edges[i][0].x, dy = edges[i][1].y - edges[i][0].y;
-            if (dx * dx + dy * dy <= max2) out.push(edges[i]);
-        }
-        return out;
-    },
-
     /** Try the spots round one spell and move it to the cheapest; true if it moved. */
     _searchOne: function(it, job) {
-        this._fan = this._edgeFan = this._angleFan = null;
+        this._fan = this._edgeFan = this._angleFan = this._gapCut = null;
         var best = this._cost(it, it.x, it.y);
         if (best < this.GOOD_ENOUGH) return false;
         it._reach = this._reachScale(it);
         // Gathered once for the widest ring, then cut down per ring (see _ringSpells)
         this._fan = this._ringSpells(it, this._gatherFan(it));   // sets _edgeFan too
+        this._gapFan(it);                                        // sets up _gapCut (see there)
         var perRing = 2 * this.DIRECTIONS;
+        // What each spot tried costs in _work: its lines' fans, and this ring's share of the spells
+        var fanLines = 0, ringSpells = [], r;
+        for (r = 0; r < this.RADII.length; r++) ringSpells.push(0);
+        for (var f = 0; f < this._edgeFan.length; f++) {
+            fanLines += this._edgeFan[f].length;
+            for (r = 0; r < this.RADII.length; r++) ringSpells[r] += this._fanEnd[f][r];
+        }
         this._angleFan = [];
         for (var a = 0; a < this._incident[it.index].length; a++) this._angleFan.push(this._neighbourLines(it, a));
         var bx = it.x, by = it.y, offsets = job.offsets, opts = this._opts;
@@ -200,11 +215,12 @@ var LayoutLineClear = {
             for (var k = 0; k < rounds; k++) {
                 var x = (k ? it.x : it.ox) + offsets[o] * sc, y = (k ? it.y : it.oy) + offsets[o + 1] * sc;
                 if (it.sector && !opts.inSector(it.sector, x, y)) continue;
+                this._work += fanLines + ringSpells[this._ring];
                 var c = this._cost(it, x, y, best);
                 if (c < best - 0.01) { best = c; bx = x; by = y; }
             }
         }
-        this._fan = this._edgeFan = this._angleFan = null;
+        this._fan = this._edgeFan = this._angleFan = this._gapCut = null;
         if (bx === it.x && by === it.y) return false;
         this._markAround(it, job.next);
         this._gridMove(it, bx, by);
@@ -299,6 +315,7 @@ var LayoutLineClear = {
             for (var cy = cy0; cy <= cy1; cy++) {
                 var close = grid[inRange ? (cx + span) * wide + (cy + span) : this._cellKey(cx, cy)];
                 if (!close) continue;
+                this._work += close.length;
                 for (k = 0; k < close.length; k++) {
                     var s = close[k];
                     if (s === it) continue;
@@ -320,6 +337,7 @@ var LayoutLineClear = {
         var ly = inRange ? Math.floor(y / cell) : this._floorCell(y, cell);
         var lines = this._edgeGrid[inRange ? (lx + span) * wide + (ly + span) : this._cellKey(lx, ly)];
         if (lines) {
+            this._work += lines.length;
             for (i = 0; i < lines.length; i++) {
                 var e = lines[i], p = e[0], q = e[1];
                 if (p === it || q === it) continue;
@@ -358,7 +376,11 @@ var LayoutLineClear = {
      * LINE_GAP_COST for each other line one of `it`'s lines (from (x, y)) runs
      * closer than LINE_GAP to without crossing it, or crosses at less than
      * MIN_CROSS. Lines sharing a spell are the angle cost's business.
-     * _cross and _pointSeg2 are written out (the same sums, so the same
+     * In a search the lines come from _gapFan, and a line is passed over
+     * (as the box test does) when its box in the frame of `it`'s line is
+     * nowhere near this spot's line: it would add nothing, so the sum stays
+     * the same, and so does whether it reaches `limit` (the search only asks
+     * that). _cross and _pointSeg2 are written out (the same sums, so the same
      * results): this is the innermost loop of the search, and without a JIT
      * the calls cost more than the sums.
      */
@@ -367,30 +389,65 @@ var LayoutLineClear = {
         var gap = this.LINE_GAP, gap2 = gap * gap, c = 0, box = gap * this.BUNDLE_MAX;
         var bundle2 = gap2 * this.BUNDLE_MAX * this.BUNDLE_MAX;
         var t, dx, dy, d2, d;
+        // A spot's line is near a line within this (a steep one: within LINE_GAP)
+        var pad = box + 2 * this.FAN_MARGIN, steepPad = gap + 2 * this.FAN_MARGIN, frames = this._gapFrame;
         for (var i = 0; i < own.length; i++) {
             var o = own[i][0] === it ? own[i][1] : own[i][0];
-            var others = this._edgeFan ? this._edgeFan[i] : this._boxed(this._edgesNear(own[i], x, y, o.x, o.y, box));
+            // Its lines: the fan as _gapFanLine cut it (fb: each line's box in the frame and
+            // whether it is steep), else the whole fan, else (no search) those near it here
+            var others, fb = null;
+            if (!this._gapCut) others = this._boxed(this._edgesNear(own[i], x, y, o.x, o.y, box));
+            else if (this._gapCut[i]) { others = this._gapCut[i]; fb = this._gapBox[i]; }
+            else if (++this._gapUses[i] <= this.GAP_FAN_AFTER) others = this._edgeFan[i];
+            else { others = this._gapFanLine(it, i); fb = this._gapBox[i]; }
             var minX = Math.min(x, o.x) - box, maxX = Math.max(x, o.x) + box;
             var minY = Math.min(y, o.y) - box, maxY = Math.max(y, o.y) + box;
-            var ang = -1;
-            // This line, (x, y) to o
-            var vx = o.x - x, vy = o.y - y, l2 = vx * vx + vy * vy;
+            // This line, (x, y) to o; its direction and length worked out when first needed,
+            // then kept for the other lines (every crossing and _bundleGap took the same numbers)
+            var ox = o.x, oy = o.y, vx = ox - x, vy = oy - y, l2 = vx * vx + vy * vy;
+            var ang = 0, length = -1, ux = 0, uy = 0;
+            // In the frame of the line from where `it` is (see _gapFan): this
+            // line runs from (su, sw) to (len, 0)
+            var framed = fb !== null && frames[3 * i + 2] >= this.MIN_FRAME;
+            var su = 0, sw = 0, len = 0, lu = 0, hu = 0, du = 0, inv = 0;
+            if (framed) {
+                var fx = frames[3 * i], fy = frames[3 * i + 1];
+                len = frames[3 * i + 2];
+                su = (x - it.x) * fx + (y - it.y) * fy;
+                sw = (y - it.y) * fx - (x - it.x) * fy;
+                lu = Math.min(su, len); hu = Math.max(su, len); du = len - su; inv = du !== 0 ? 1 / du : 0;
+            }
             for (var k = 0; k < others.length; k++) {
                 var e = others[k];
                 if (e._x1 < minX || e._x0 > maxX || e._y1 < minY || e._y0 > maxY) continue;
+                var steep = fb !== null && fb[5 * k + 4] === 1;
+                if (framed) {
+                    // Nowhere within `slack` of this line along it and across it: adds nothing
+                    var b = 5 * k, slack = steep ? steepPad : pad;
+                    var ua = Math.max(fb[b] - slack, lu), uz = Math.min(fb[b + 1] + slack, hu);
+                    if (ua > uz) continue;
+                    // Across it, the line runs from wa to wz over ua..uz (all of 0..sw when it runs straight across)
+                    var wa = sw, wz = 0;
+                    if (du !== 0) { wa = sw * (1 - (ua - su) * inv); wz = sw * (1 - (uz - su) * inv); }
+                    var wlo = fb[b + 2] - slack, whi = fb[b + 3] + slack;
+                    if ((wa < wlo && wz < wlo) || (wa > whi && wz > whi)) continue;
+                }
                 var p = e[0], q = e[1];
                 if (p === it || q === it || p === o || q === o) continue;
                 var ex = e._ex, ey = e._ey;
-                // _cross(x, y, o.x, o.y, p.x, p.y, q.x, q.y)
+                // _cross(x, y, ox, oy, p.x, p.y, q.x, q.y)
                 var crossing = false;
                 if ((vx * (p.y - y) - vy * (p.x - x)) * (vx * (q.y - y) - vy * (q.x - x)) < 0) {
-                    crossing = (ex * (y - p.y) - ey * (x - p.x)) * (ex * (o.y - p.y) - ey * (o.x - p.x)) < 0;
+                    crossing = (ex * (y - p.y) - ey * (x - p.x)) * (ex * (oy - p.y) - ey * (ox - p.x)) < 0;
                 }
                 if (crossing) {
-                    if (ang < 0) ang = Math.atan2(o.y - y, o.x - x);
-                    var an = Math.abs(ang - e._ang) % Math.PI;
-                    if (an > Math.PI / 2) an = Math.PI - an;
-                    if (an < this.MIN_CROSS) c += this.LINE_GAP_COST * (1 - an / this.MIN_CROSS);
+                    // A steep line (_gapFan) crosses at BUNDLE_ANGLE or more: adds nothing
+                    if (!steep) {
+                        if (length < 0) { ang = Math.atan2(vy, vx); length = Math.sqrt(l2); ux = vx / length; uy = vy / length; }
+                        var an = Math.abs(ang - e._ang) % Math.PI;
+                        if (an > Math.PI / 2) an = Math.PI - an;
+                        if (an < this.MIN_CROSS) c += this.LINE_GAP_COST * (1 - an / this.MIN_CROSS);
+                    }
                 } else {
                     // The nearest of: p and q to this line, its ends to that one (_pointSeg2 each)
                     t = l2 > 0 ? ((p.x - x) * vx + (p.y - y) * vy) / l2 : 0;
@@ -408,13 +465,15 @@ var LayoutLineClear = {
                     dx = p.x + ex * t - x; dy = p.y + ey * t - y;
                     d = dx * dx + dy * dy;
                     if (d < d2) d2 = d;
-                    t = el2 > 0 ? ((o.x - p.x) * ex + (o.y - p.y) * ey) / el2 : 0;
+                    t = el2 > 0 ? ((ox - p.x) * ex + (oy - p.y) * ey) / el2 : 0;
                     if (t < 0) t = 0; else if (t > 1) t = 1;
-                    dx = p.x + ex * t - o.x; dy = p.y + ey * t - o.y;
+                    dx = p.x + ex * t - ox; dy = p.y + ey * t - oy;
                     d = dx * dx + dy * dy;
                     if (d < d2) d2 = d;
                     if (d2 < bundle2) {
-                        var need = this._bundleGap(x, y, o.x, o.y, e, gap);
+                        // A steep line needs LINE_GAP only, as _bundleGap would say
+                        if (length < 0) { ang = Math.atan2(vy, vx); length = Math.sqrt(l2); ux = vx / length; uy = vy / length; }
+                        var need = steep ? gap : this._bundleGap(x, y, length, ux, uy, ang, e, gap);
                         if (d2 < need * need) c += this.LINE_GAP_COST * (1 - Math.sqrt(d2) / need) * (need / gap);
                     }
                 }
@@ -427,39 +486,19 @@ var LayoutLineClear = {
     /**
      * The room two lines need: LINE_GAP, plus LINE_GAP for every BUNDLE_LEN
      * they run side by side when they are closer to parallel than
-     * BUNDLE_ANGLE (at most BUNDLE_MAX x LINE_GAP).
+     * BUNDLE_ANGLE (at most BUNDLE_MAX x LINE_GAP). The line from (ax, ay)
+     * given by its length, unit vector and direction.
      */
-    _bundleGap: function(ax, ay, bx, by, e, gap) {
-        var vx = bx - ax, vy = by - ay;
-        var len = Math.sqrt(vx * vx + vy * vy);
+    _bundleGap: function(ax, ay, len, ux, uy, dir, e, gap) {
         if (len < 0.001) return gap;
-        var an = Math.abs(Math.atan2(vy, vx) - e._ang) % Math.PI;
+        var an = Math.abs(dir - e._ang) % Math.PI;
         if (an > Math.PI / 2) an = Math.PI - an;
         if (an >= this.BUNDLE_ANGLE) return gap;
         // How far along this line the other one runs beside it
-        var ux = vx / len, uy = vy / len;
         var t0 = (e[0].x - ax) * ux + (e[0].y - ay) * uy, t1 = (e[1].x - ax) * ux + (e[1].y - ay) * uy;
         var side = Math.min(len, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1));
         if (side <= 0) return gap;
         return gap * Math.min(this.BUNDLE_MAX, 1 + side / this.BUNDLE_LEN);
-    },
-
-    /** Do a-b and c-d cross (strictly)? */
-    _cross: function(ax, ay, bx, by, cx, cy, dx, dy) {
-        var o1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-        var o2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
-        var o3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
-        var o4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
-        return o1 * o2 < 0 && o3 * o4 < 0;
-    },
-
-    /** Squared distance from a point to the whole segment a-b (ends included). */
-    _pointSeg2: function(px, py, ax, ay, bx, by) {
-        var vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
-        var t = l2 > 0 ? ((px - ax) * vx + (py - ay) * vy) / l2 : 0;
-        if (t < 0) t = 0; else if (t > 1) t = 1;
-        var dx = ax + vx * t - px, dy = ay + vy * t - py;
-        return dx * dx + dy * dy;
     },
 
     /**
@@ -525,17 +564,6 @@ var LayoutLineClear = {
         if (d > Math.PI) d = 2 * Math.PI - d;
         if (d >= this.MIN_ANGLE) return 0;
         return this.ANGLE_COST * (1 - d / this.MIN_ANGLE) * (1 + len / this.LONG_LINE);
-    },
-
-    /** Squared distance from (px, py) to the line a-b, away from its ends; Infinity near them. */
-    _segDist2: function(px, py, ax, ay, bx, by) {
-        var vx = bx - ax, vy = by - ay;
-        var l2 = vx * vx + vy * vy;
-        if (l2 < 0.0001) return Infinity;
-        var t = ((px - ax) * vx + (py - ay) * vy) / l2;
-        if (t < this.END_MARGIN || t > 1 - this.END_MARGIN) return Infinity;
-        var cx = ax + vx * t - px, cy = ay + vy * t - py;
-        return cx * cx + cy * cy;
     }
 };
 

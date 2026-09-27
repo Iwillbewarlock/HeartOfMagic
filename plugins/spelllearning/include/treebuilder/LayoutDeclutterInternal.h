@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -68,6 +69,22 @@ namespace LayoutDeclutter::Internal
     // count (LineClear's constructor): every walk along a line is as long as
     // the line, and a real tree's longest is under 2,000 (the JS MAX_LINE)
     inline constexpr double kMaxLine = 20000;
+    // Lines at a spell with more lines than this are left out too: its angle
+    // cost pairs every two of them at every spot, and each of its neighbours'
+    // every line of it (a builder gives a spell a few children; the JS MAX_SPELL_LINES)
+    inline constexpr int kMaxSpellLines = 64;
+    inline constexpr double kFanMargin = 0.01;       // GapFan's tests: tree units to spare (the JS FAN_MARGIN)
+    inline constexpr double kFanAngleMargin = 1e-6;  // ...and radians (FAN_ANGLE_MARGIN)
+    inline constexpr double kMinFrame = 1;           // a line shorter than this gets no frame in GapFan
+    // A line's fan is cut once this many spots got to its gap part. Speed only (the
+    // sums are the same either way), tuned per engine: the JS GAP_FAN_AFTER is 6
+    inline constexpr int kGapFanAfter = 2;
+    // The line search stops (the spells not yet searched stay where they are)
+    // once its work passes this (the JS MAX_WORK; LineClear::m_work says what
+    // counts): a safety cap, 2.3 times the heaviest test tree's 0.86e9 (the
+    // game's 1,428-spell tree: 0.04e9); 2.3-5.7 ns a unit native (measured)
+    inline constexpr std::uint64_t kMaxWork = 2000000000;
+    inline constexpr std::uint64_t kCellWork = 11;  // a cell walked counts as this many lines or spells looked at (measured)
     inline constexpr double kBetterBy = 0.01;          // a spot must beat the best by this
     inline constexpr double kOverlapHair = 1.000001;   // min squared, a hair over
     inline constexpr double kHalfCellDiagonal = 0.7072;
@@ -76,6 +93,13 @@ namespace LayoutDeclutter::Internal
     inline constexpr double kTinyDistance = 0.001;
 
     inline constexpr double kInfinity = std::numeric_limits<double>::infinity();
+
+    // BuildEdgeGrid keeps its cells in one array over the lines' box of cells
+    // up to this many cells (a real tree: some tens of thousands); past it, by
+    // column (each column's cells sorted by row) up to this many columns, and
+    // by hash past that (never from a tree within kMaxCoord)
+    inline constexpr std::int64_t kMaxDenseCells = std::int64_t{ 1 } << 21;
+    inline constexpr std::int64_t kMaxGridColumns = std::int64_t{ 1 } << 20;
 
     // Input bounds (the JS MAX_COORD, MAX_ANGLE, MAX_CELL). A spell further out
     // than kMaxCoord, or not finite, is not taken (left where it is): a real
@@ -139,7 +163,21 @@ namespace LayoutDeclutter::Internal
         int v1 = -1;
         double x0 = 0, x1 = 0, y0 = 0, y1 = 0;
         double ex = 0, ey = 0, l2 = 0, ang = 0;
-        std::uint64_t stamp = 0;
+    };
+
+    // One line as LineGapCost reads it, copied out of Edge and its spells so
+    // the loop over a fan reads one array front to back (the JS record: 17
+    // numbers in this order, steep as 1 or 0): its box, its box in GapFan's
+    // frame (framed lines only), its ends, its vector, length squared and
+    // direction, and whether every spot's line meets it at BUNDLE_ANGLE or
+    // more (GapFan)
+    struct GapRec
+    {
+        double x0 = 0, x1 = 0, y0 = 0, y1 = 0;
+        double u0 = 0, u1 = 0, w0 = 0, w1 = 0;
+        double px = 0, py = 0, qx = 0, qy = 0;
+        double ex = 0, ey = 0, l2 = 0, ang = 0;
+        bool steep = false;
     };
 
     using CellKey = std::int64_t;
@@ -185,6 +223,8 @@ namespace LayoutDeclutter::Internal
         void Run();
         int Moved() const { return static_cast<int>(m_movedIds.size()); }
         int Passes() const { return m_pass; }
+        std::uint64_t Work() const { return m_work; }
+        bool Capped() const { return m_capped; }
         int CountLinesThrough();
 
     private:
@@ -198,7 +238,8 @@ namespace LayoutDeclutter::Internal
         // LayoutLineClearCost.cpp
         double Cost(int it, double x, double y, double limit);
         double LineGapCost(int it, double x, double y, double limit);
-        double BundleGap(double ax, double ay, double bx, double by, const Edge& e, double gap) const;
+        double BundleGap(double ax, double ay, double len, double ux, double uy, double dir, const GapRec& e, double gap) const;
+        GapRec MakeGapRec(const Edge& e) const;
         double AngleCost(int it, double x, double y);
         void NeighbourLines(int it, int i, std::vector<double>& out) const;
         double Narrow(double a, double b, double len) const;
@@ -210,11 +251,16 @@ namespace LayoutDeclutter::Internal
         void CellsAlong(double ax, double ay, double bx, double by, double clear2);
         void NearLine(double ax, double ay, double bx, double by, double clear2, std::vector<int>& out);
         void BuildEdgeGrid();
+        void BuildEdgeColumns(std::int64_t x0, std::int64_t columns);
+        std::span<const int> EdgeCell(CellKey key) const;
         void GatherFan(int it);
         void Boxed(const std::vector<int>& lines);
         void EdgesNear(int self, double ax, double ay, double bx, double by, double extra, std::vector<int>& out);
         double RingReach(int it, int r) const;
         void RingSpells(int it);
+        void GapFan(int it);
+        void GapFanLine(int it, std::size_t i);
+        void NearRecs(int it, int oi, const std::vector<int>& lines, double minX, double maxX, double minY, double maxY);
 
         std::vector<Item>& m_list;
         std::vector<Edge>& m_edges;
@@ -224,9 +270,32 @@ namespace LayoutDeclutter::Internal
         double m_minDist = 0;
 
         std::vector<std::vector<int>> m_incident;  // item -> its edges
+        std::vector<double> m_px, m_py;            // the items' x, y, side by side for the costs (GridMove keeps them)
         Grid m_nodeGrid;
+        // Lines by cell (BuildEdgeGrid): each cell's lines, in line order, end to
+        // end in m_gridLines. Dense: from m_gridStart[cell], the cells of the box
+        // at m_gridX0, m_gridY0, m_gridW x m_gridH. Columns: column cx - m_gridX0
+        // has cells m_colStart[c] up to m_colStart[c + 1], rows m_cellY (sorted),
+        // lines from m_gridStart[cell]. Hash: m_edgeGrid
+        enum class GridMode { Dense, Columns, Hash };
         Grid m_edgeGrid;
+        GridMode m_gridMode = GridMode::Dense;
+        std::vector<int> m_colStart;
+        std::vector<std::int32_t> m_cellY;
+        std::int64_t m_gridX0 = 0, m_gridY0 = 0, m_gridW = 0, m_gridH = 0;
+        std::vector<int> m_gridStart;
+        std::vector<int> m_gridLines;
+        std::vector<CellKey> m_gridKeys;  // BuildEdgeGrid's every (cell, line), in line order
+        std::vector<int> m_gridOf;
+        std::vector<std::uint64_t> m_edgeStamp;  // EdgesNear's once-each marks, by line
         std::uint64_t m_stamp = 0;
+        // Work done (the JS _work): kCellWork per cell walked (CellsAlong), the
+        // lines looked at in them (EdgesNear), per spot tried the lines and spells
+        // its fans hold (SearchOne) and the spells and lines in its own cells
+        // (Cost) - whole numbers, the same in both, so kMaxWork stops both at the
+        // same spell
+        std::uint64_t m_work = 0;
+        bool m_capped = false;
         std::vector<double> m_offsets;
         std::vector<CellKey> m_keyBuf;
         int m_keyCount = 0;
@@ -238,6 +307,15 @@ namespace LayoutDeclutter::Internal
         std::vector<std::vector<int>> m_fanEnd;
         std::vector<std::vector<int>> m_edgeFan;
         std::vector<std::vector<double>> m_angleFan;
+        // GapFan: each line's frame (along x, along y, length; m_framed[i] 0 =
+        // none) and the lines of m_edgeFan[i] it keeps, as GapRecs, once
+        // made (m_gapBuilt; m_gapUses: spots that got to that line's gap part)
+        std::vector<double> m_gapFrame;
+        std::vector<char> m_framed;
+        std::vector<char> m_gapBuilt;
+        std::vector<int> m_gapUses;
+        std::vector<std::vector<GapRec>> m_gapRec;
+        std::vector<GapRec> m_scratchRecs;
 
         // Scratch (no allocation per spot tried)
         std::vector<double> m_dirs;

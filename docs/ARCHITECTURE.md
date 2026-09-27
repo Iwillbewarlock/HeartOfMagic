@@ -618,7 +618,9 @@ The native twin of the panel's tree declutter pass (`modules/layoutDeclutter.js`
 `layoutLineGrid.js`): spreads a built tree, moves spells off its lines, apart and off the heart, with the
 same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, every sum in the same order).
 `LayoutDeclutter::Run(request, cancel) -> reply` has no RE:: use and keeps all state per call; it throws
-`LayoutDeclutter::Cancelled` once its optional cancel flag is set.
+`LayoutDeclutter::Cancelled` once its optional cancel flag is set. Its line search leaves out lines past
+`kMaxLine` and at spells with more than `kMaxSpellLines`, and stops at a work cap (`kMaxWork`, the same
+count in both passes; the reply's `lineWork`, `lineCapped`), which bounds any tree to seconds.
 
 ```
 JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
