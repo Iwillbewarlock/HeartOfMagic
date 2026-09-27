@@ -14,7 +14,7 @@ The tree building pipeline has four layers, each with a distinct responsibility:
 │                                                                         │
 │  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────────┐    │
 │  │ Root Preview │    │ Growth Module │    │ PreReqMaster (PRM)      │    │
-│  │ SUN / FLAT   │───>│ CLASSIC/TREE │───>│ NLP prerequisite locks  │    │
+│  │ SUN / FLAT   │───>│ CLASSIC      │───>│ NLP prerequisite locks  │    │
 │  │ grid + arcs  │    │ layout + BFS │    │ TF-IDF scoring + cycles │    │
 │  └─────────────┘    └──────┬───────┘    └──────────┬──────────────┘    │
 │                             │ buildTree()            │ applyLocks()     │
@@ -96,6 +96,12 @@ Linear layout. Schools arranged along a horizontal or vertical line with growth 
 ## Layer 2: C++ Native Tree Builders
 
 C++ builds the **tree structure** — which spell is parent/child of which. Five builder modes exist in `TreeBuilder.cpp`.
+
+**The panel offers Classic only (2026-09-27).** The Tree, Graph, Thematic and Oracle growth modes and
+their JS modules (`treeGrowthTree.js`, `modules/tree/`, `graph/`, `oracle/`, `thematic/`) were removed;
+a config saved with one of them falls back to Classic, and the build-mode tabs and the Easy page's
+Tree Style picker are hidden while only one mode is registered. Their C++ builders below remain, used by
+`treebuilder-test`; the routing for their replies in `proceduralTreeBuilder.js` is guarded and now idle.
 
 ### Classic Builder (`TreeBuilder::BuildClassic`)
 
@@ -774,7 +780,7 @@ else:
 
 These modes control **visual clustering** (spatial grouping of similar spells), not tree structure. The C++ builder determines parent/child links; the layout engine determines where each node sits on screen.
 
-### Tree Growth Layout (`treeGrowthTree.js`)
+### Tree Growth Layout (`treeGrowthTree.js`) - removed 2026-09-27, kept for reference
 
 Corridor-based trunk layout with section allocation.
 
@@ -797,7 +803,7 @@ trunkThickness: 70px
 
 ### Decluttering before save (`layoutDeclutter.js`, `layoutLineClear.js`, `layoutLineGrid.js`, 2026-09-26)
 
-Every growth mode (classic, tree, graph, oracle, thematic) bakes x/y into the tree and calls
+The growth mode (classic; tree, graph, oracle and thematic did the same before they were removed) bakes x/y into the tree and calls
 `LayoutDeclutter.applyAsync(output, onDone)` after `SchoolBridges.applyToOutput`, and saves
 (`SaveSpellTree`), loads and switches tabs in `onDone`. It runs once, when a tree is applied; the renderer
 only reads the saved positions. The game's browser has no JIT and takes seconds for a big tree (6.3 s

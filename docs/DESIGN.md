@@ -805,7 +805,7 @@ Scan complete
 ```
 Scan complete
   → Switch to Complex mode
-  → Choose growth mode (Classic/Tree/Sun/Flat)
+  → Choose root mode (Sun/Flat); the growth mode is Classic (the only one since 2026-09-27)
   → Adjust settings (root count, branching, shapes)
   → Preview updates in real-time
   → Expand Extra Settings → tune PRM / Core
@@ -888,7 +888,6 @@ Tree applied
 | Module | Purpose |
 |--------|---------|
 | `treeGrowth.js` | Growth mode orchestrator |
-| `treeGrowthTree.js` | Tree growth mode (trunk/branch) |
 | `classic/classicMain.js` | Classic growth mode |
 | `classic/classicRenderer.js` | Classic mode renderer |
 | `classic/classicLayout.js` | Classic layout engine |
@@ -904,7 +903,7 @@ Tree applied
 | `settingsPanel.js` | Settings page (all config) |
 | `settingsPresets.js` | Settings preset save/load |
 | `scannerPresets.js` | Scanner preset save/load |
-| `easyMode.js` | Easy mode scan page, incl. the Tree Style picker (same choice as the Complex page's build mode tabs; the player's pick beats a preset's) |
+| `easyMode.js` | Easy mode scan page, incl. the Tree Style picker (same choice as the Complex page's build mode tabs; the player's pick beats a preset's). With Classic the only mode (2026-09-27) the picker and the tabs are hidden |
 | `schoolBridges.js` | Cross school bridges at build time: school order by kinship, bridge sources as soft prerequisites, traits and bridges baked into the saved tree |
 | `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, with a single pill (`#tree-trait-filter`) to clear it |
 | `generationModeUI.js` | Complex mode per-school controls |

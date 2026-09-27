@@ -613,7 +613,6 @@ _handleBuildFailure(
 | `modules/treePreviewUtils.js` | Shared UI helpers (drag inputs) |
 | `modules/treeGrowth.js` | Tree growth orchestrator |
 | `modules/classic/classicMain.js` | CLASSIC growth module |
-| `modules/treeGrowthTree.js` | TREE growth module |
 | `modules/proceduralTreeBuilder.js` | Shared callback routing + error handler |
 | `modules/sunGrid*.js` | SUN grid sub-modules |
 
