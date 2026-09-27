@@ -2354,10 +2354,12 @@ var CanvasRenderer = {
             var uList = batches[unlockedKeys[uk]];
             ctx.strokeStyle = unlockedKeys[uk].substring(2);
             if (S.edgeGlow > 0 && this.zoom >= this.EDGE_GLOW_MIN_ZOOM) {
-                // A wide faint stroke under the line: the channel glows
+                // A wide faint stroke under the line: the channel glows (not broken)
+                if (breaks) ctx.setLineDash([]);
                 ctx.lineWidth = S.unlockedEdgeWidth * 3;
                 ctx.globalAlpha = S.edgeGlow;
                 strokeBatch(uList);
+                if (breaks) ctx.setLineDash(breaks);
             }
             // Unlocked connections always visible
             ctx.lineWidth = S.unlockedEdgeWidth;
