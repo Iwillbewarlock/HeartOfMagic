@@ -107,12 +107,12 @@ function syncDuplicateState(sourceNode) {
  * in place of the 9-20 MB this panel had to stringify, and C++ had to parse
  * and copy while the game waited.
  *
- * "Untouched" matters. The builder reads fields the panel can add later -
- * the LLM keyword pass writes llm_keyword onto the scanned spells - and C++
- * would not see those in its copy. So the ids go only when every spell in
+ * "Untouched" matters. If the panel wrote fields onto the scanned spells
+ * later (the LLM keyword pass, removed 2026-09-27, wrote llm_keyword), C++
+ * would not see them in its copy. So the ids go only when every spell in
  * the request is one of the scanned objects and nothing has written to them
- * since (invalidate() is called by whatever does). Anything else is sent in
- * full, as before.
+ * since (whatever writes to them must call invalidate(); nothing does
+ * today). Anything else is sent in full, as before.
  */
 var ScanRef = {
     _id: null,

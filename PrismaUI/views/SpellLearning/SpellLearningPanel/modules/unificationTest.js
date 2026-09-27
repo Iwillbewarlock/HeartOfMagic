@@ -5,8 +5,7 @@
  * - shapeProfiles.js
  * - wheelRenderer.js integration
  * - growthDSL.js integration
- * (The edgeScoring, layoutEngine, growthBehaviors and settingsAwareTreeBuilder
- * tests went with those JS tree builder modules, 2026-09-27.)
+ * (The tests of the removed JS tree builder modules went with them, 2026-09-27.)
  */
 
 var UnificationTest = {

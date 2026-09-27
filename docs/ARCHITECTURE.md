@@ -1360,8 +1360,8 @@ MO2/mods/HeartOfMagic_RELEASE/
 - Papyrus API for inter-mod communication
 - Theme system (default + Skyrim theme)
 - Starfield background effect
-- Per-school default shapes (5 schools × distinct visual shapes)
-- LLM keyword classification (batched per-school, optional)
+- Per-school default shapes (5 schools × distinct visual shapes; removed 2026-09-27 with the builders that read them)
+- LLM keyword classification (batched per-school, optional; removed 2026-09-27 with `llmTreeFeatures.js`)
 - Plugin whitelist/blacklist filtering
 - 12 visual shape profiles (organic, explosion, tree, mountain, portals, spiky, radial, cloud, cascade, swords, grid, linear)
 
@@ -1560,6 +1560,6 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **PrismaUI path critical** - CreateView path must exactly match deployment path
 - **Panel auto-refresh** - GetPlayerKnownSpells called when panel opens (catches external spell learning)
 - **LLM naming** - All AI integration uses "LLM" (not "SkyrimNet") in code and UI
-- **Per-school shapes** - Each school has a distinct visual shape; defined in `SCHOOL_DEFAULT_SHAPES` (C++ + JS)
+- **Per-school shapes** - Each school had a distinct visual shape in `SCHOOL_DEFAULT_SHAPES` (C++ + JS); removed 2026-09-27 with the builders that read them
 - **Plugin whitelist** - Users can filter which plugins contribute spells to tree generation
-- **LLM keyword classification** - Optional batched classification for spells with weak keywords; off by default
+- **LLM keyword classification** - Optional batched classification for spells with weak keywords, off by default; removed 2026-09-27 with `llmTreeFeatures.js`

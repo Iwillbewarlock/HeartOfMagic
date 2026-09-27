@@ -1087,7 +1087,7 @@ Pool capped at 50 candidates per spell (performance).
 ### Fallback Strategy
 
 ```
-Try C++ NLP (via "prm_score" command → TreeNLP::ProcessPRMRequest())
+Try C++ NLP (the PreReqMasterScore listener → TreeNLP::ProcessPRMRequest())
   → Success: use top candidates
   → Failure: fall back to JS TF-IDF scorer (synchronous, identical algorithm)
 ```

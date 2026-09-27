@@ -257,7 +257,7 @@ var WheelRenderer = {
                 this.debugGridLayer.appendChild(arc);
                 
                 // Draw candidate positions as small circles
-                var usableAngle = sliceAngle * 0.85;  // Match layoutGenerator
+                var usableAngle = sliceAngle * 0.85;  // 85% of the slice, as the removed layoutGenerator used
                 var angleStep = candidateCount > 1 ? usableAngle / (candidateCount - 1) : 0;
                 var centerAngle = startAngle + sliceAngle / 2;
                 var halfSpread = usableAngle / 2;
@@ -631,14 +631,15 @@ var WheelRenderer = {
         
         if (numSchools === 0) return;
         
-        // Try to use pre-computed sliceInfo from layoutGenerator
+        // Use the tree's own sliceInfo if it has one (trees laid out by the JS
+        // layoutGenerator, removed 2026-09-27, carry it; treeParser passes it through)
         var hasSliceInfo = visibleSchools.some(function(name) {
             return self.schools[name].sliceInfo;
         });
         
         if (hasSliceInfo) {
-            // USE PRE-COMPUTED SLICE INFO (exact match with layoutGenerator)
-            console.log('[WheelRenderer] Using pre-computed sliceInfo from layoutGenerator');
+            // USE THE TREE'S SLICE INFO
+            console.log('[WheelRenderer] Using the sliceInfo saved with the tree');
             
             visibleSchools.forEach(function(schoolName) {
                 var school = self.schools[schoolName];
@@ -663,8 +664,8 @@ var WheelRenderer = {
                 });
             });
         } else {
-            // FALLBACK: Use equal sectors matching layoutEngine's grid system
-            console.log('[WheelRenderer] No sliceInfo, using equal sectors (matching layoutEngine grid)');
+            // FALLBACK: equal sectors
+            console.log('[WheelRenderer] No sliceInfo, using equal sectors');
 
             var totalPadding = numSchools * cfg.schoolPadding;
             var availableAngle = 360 - totalPadding;
