@@ -26,6 +26,8 @@
     var ROUND_POINTS = 9;          // a hand-drawn circle: a smooth loop through this many points
     var BOW_SHARE = 0.5;           // a line's bow, as a share of handDrawn times its length
     var CUT_MIN_SCREEN_PX = 2.2;   // the engraved cut: the line must be this wide on screen
+    var STIPPLE_MIN_ZOOM = 1;      // below this the dots are ~2 px apart and read as a grey line anyway;
+                                   // the pattern costs ~6 ms a repaint on a CPU canvas, so it waits
     var INNER_MIN_SCREEN_PX = 5;   // the inset line: its shape must be this big on screen
     var INNER_WIDTH_PX = 0.8;      // the inset line's width on screen
 
@@ -158,7 +160,7 @@
          */
         inkStipple: function(ctx, color) {
             var n = Math.round(this.tokens.lockedEdgeStipple);
-            if (!(n > 0) || !this._inkFull) return null;
+            if (!(n > 0) || !this._inkFull || this._inkZoom < STIPPLE_MIN_ZOOM) return null;
             n = Math.max(2, Math.min(6, n));
             var key = color + '|' + n;
             if (this._stipple && this._stipple.key === key && this._stipple.ctx === ctx) return this._stipple.pattern;

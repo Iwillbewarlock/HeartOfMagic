@@ -49,6 +49,7 @@ var NodeBatch = {
     },
 
     DASH: [0.5, 0.4],          // locked / undiscovered outline, in shape units
+    RING: '#ring',             // addShape's school for a plain circle that is never hand-drawn (the learnable ring)
     MARK_FONT: '10px sans-serif',
 
     LAYERS: 3,                 // 0 = under the body (lock shell, lock ring), 1 = spell bodies,
@@ -147,7 +148,7 @@ var NodeBatch = {
         }
         var path = b.path;
         var pts = this.SHAPES[school];
-        if (this._hand) {
+        if (this._hand && school !== this.RING) {
             var hr = this.rotationAt(school, x, y);
             TreeStyle.traceShape(path, this._hand[pts ? school : ''][TreeStyle.handVariant(x, y)], x, y,
                 Math.cos(hr) * size, Math.sin(hr) * size);

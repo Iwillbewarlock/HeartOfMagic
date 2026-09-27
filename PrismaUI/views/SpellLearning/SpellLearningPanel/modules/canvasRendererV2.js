@@ -93,7 +93,8 @@ var CanvasRenderer = {
     // out, the whole tree is hundreds of halo sprites per repaint)...
     HALO_MIN_SCREEN_PX: 20,
     EDGE_GLOW_MIN_ZOOM: 0.8,      // ...and the wide stroke under known lines below this zoom
-    TREE_LAYER_MARGIN: 128,       // css px drawn beyond each edge, so a drag slides the layer (was 256:
+    TREE_LAYER_MARGIN: 128,       // css px drawn beyond each edge, so a drag slides the layer; past it the
+                                  // layer is shifted and the uncovered strips drawn (LayerScroll). (Was 256:
                                   // the layer was about 1.6 times the pixels, cleared and copied each repaint)
     // The lock look (hard prerequisites): renderNode and _batchPlainNode
     LOCK_SHELL_FILL: 'rgba(90, 90, 100, 0.7)',     // a locked spell's grey shell...
@@ -1554,7 +1555,19 @@ var CanvasRenderer = {
         // thrown away when the glide ended. The selection shows as it stops.
         var stretch = (viewTurned || this._treeDirty) && !this._treeLayerStale &&
             this._layerZoom > 0 && this._viewInMotion();
-        if (!stretch && (this._treeDirty || this._treeLayerStale || slid || viewTurned)) {
+        // A drag with nothing else changed: once it has used half the margin the
+        // layer is shifted and the uncovered strips drawn, one a frame
+        // (LayerScroll), 3-8 ms instead of a 25-60 ms repaint of the whole tree
+        // in the middle of the drag
+        var scrolled = !stretch && !this._treeDirty && !this._treeLayerStale && !viewTurned &&
+            !(typeof EditMode !== 'undefined' && EditMode.isActive) &&
+            typeof LayerScroll !== 'undefined' && LayerScroll.step(this, dpr, margin, view);
+        if (scrolled) {
+            layer = this._treeLayer;
+            dx = this.panX - this._layerPanX;
+            dy = this.panY - this._layerPanY;
+        } else if (!stretch && (this._treeDirty || this._treeLayerStale || slid || viewTurned)) {
+            if (typeof LayerScroll !== 'undefined') LayerScroll.reset();
             var lctx = this._treeLayerCtx;
             lctx.setTransform(1, 0, 0, 1, 0, 0);
             lctx.globalAlpha = 1.0;
@@ -1815,7 +1828,7 @@ var CanvasRenderer = {
         // Part of the layer: they only move when the tree does. They used to be
         // drawn after the hub; now the hub sits over any label that reaches it.
         // =====================================================================
-        this.renderLabels(ctx, cx, cy, cos, sin, view.labelMargin || 0);
+        if (!view.noLabels) this.renderLabels(ctx, cx, cy, cos, sin, view.labelMargin || 0);
         if (pm) this._partAt = PerfMeter.part('labels', this._partAt);
 
         // Chapter titles: school names past each school's outer edge (design preset)
@@ -2763,15 +2776,18 @@ var CanvasRenderer = {
     },
 
     /**
-     * A locked or known spell with nothing of its own (not selected, hovered or
-     * on the hover path) goes into NodeBatch, with the look renderNode would
-     * give it - the lock look too (hard prerequisites: a grey shell with a
-     * school-coloured hole while locked, a grey ring once known). Returns false
-     * for the others.
+     * A locked, learnable or known spell with nothing of its own (not selected,
+     * hovered or on the hover path, no XP ring) goes into NodeBatch, with the
+     * look renderNode would give it - the lock look too (hard prerequisites: a
+     * grey shell with a school-coloured hole until known, a grey ring once
+     * known). Returns false for the others. Learnable spells used to be drawn one
+     * by one, some nine paint calls each: a tree has hundreds of them.
      */
     _batchPlainNode: function(node) {
         var locked = node.state === 'locked';
-        if (!locked && node.state !== 'unlocked') return false;
+        var available = node.state === 'available';
+        if (!locked && !available && node.state !== 'unlocked') return false;
+        if (available && this._getNodeProgressPct(node) > 0) return false;
         if (this.selectedNode && this.selectedNode.id === node.id) return false;
         if (this.hoveredNode && this.hoveredNode.id === node.id) return false;
         if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return false;
@@ -2779,8 +2795,12 @@ var CanvasRenderer = {
         var schoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
         var cf = this._contextFactor(node);
         var lock = node.hardPrereqs && node.hardPrereqs.length > 0;
-        if (locked) {
-            var lsize = this._minSize(7), alpha = 0.4 * cf;
+        if (locked || available) {
+            var lsize = this._minSize(locked ? 7 : 9), alpha = (locked ? 0.4 : style.availableAlpha) * cf;
+            // A learnable spell's own thin ring (renderNode draws it before the shape, unturned)
+            if (available && style.availableRing) {
+                NodeBatch.addShape(NodeBatch.RING, node.x, node.y, lsize + 4, null, schoolColor, 0.6 * cf, false, 1.2, 0, true);
+            }
             if (lock) {
                 NodeBatch.addShape(node.school, node.x, node.y, lsize + 2, this.LOCK_SHELL_FILL,
                     this.LOCK_SHELL_STROKE, Math.min(alpha + 0.2, 0.75), false, 1.2, 0);
@@ -2789,7 +2809,7 @@ var CanvasRenderer = {
                 return true;
             }
             NodeBatch.addShape(node.school, node.x, node.y, lsize, style.nodeFill,
-                style.lockedStroke || schoolColor, alpha, true);
+                locked ? (style.lockedStroke || schoolColor) : schoolColor, alpha, locked);
             return true;
         }
         var size = this._minSize(12);
@@ -3340,17 +3360,23 @@ var CanvasRenderer = {
      * layer does not show spells without them - after the ones in view, which
      * come out as they would without it.
      */
-    renderLabels: function(ctx, cx, cy, cos, sin, margin) {
-        if (this.zoom < this.LABEL_MIN_ZOOM) return;
+    MAX_LABELS: 150,
+
+    /**
+     * The names that could be drawn at the current pan, in the order they are
+     * placed (in view first, then priority). Null when names are off or the
+     * tree is zoomed out too far for them. Shared by renderLabels and
+     * LayerScroll (the names in a strip uncovered by a drag).
+     * @returns {{candidates: Array, fontSize: number, maxLabels: number}|null}
+     */
+    _labelCandidates: function(cx, cy, cos, sin, margin) {
+        if (this.zoom < this.LABEL_MIN_ZOOM) return null;
         margin = margin || 0;
-        if (settings.showNodeNames === false) return;
+        if (settings.showNodeNames === false) return null;
 
         var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
         var fontSize = settings.nodeFontSize || 10;
         var style = TreeStyle.tokens;
-        TreeStyle.beginLabels(ctx, fontSize);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
 
         var focusOnly = this.zoom < this.LABEL_FOCUS_ZOOM;
         var learningColor = this._learningColor();
@@ -3430,16 +3456,35 @@ var CanvasRenderer = {
         // In view before the margin, then high priority first; stable on index so
         // results don't flicker between frames
         candidates.sort(this._byLabelOrder);
+        return { candidates: candidates, fontSize: fontSize, maxLabels: this.MAX_LABELS };
+    },
 
-        var maxLabels = 150;
+    /** The box a candidate name takes (css px, the canvas's own coordinates); ctx has the label font. */
+    _labelRect: function(ctx, cand, fontSize) {
         var pad = 2;
-        var placed = [];
-        var drawn = 0;
+        var halfW = this._labelWidth(ctx, cand.text) / 2 + pad;
+        return { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
+    },
 
-        for (var c = 0; c < candidates.length && drawn < maxLabels; c++) {
+    /** A placed name as the layer keeps it (_layerLabels): its box, what and how it was drawn. */
+    _keepLabel: function(cand, rect) {
+        return { node: cand.node, text: cand.text, x: cand.x, y: cand.y, color: cand.color,
+                 alpha: this._contextFactor(cand.node), l: rect.l, r: rect.r, t: rect.t, b: rect.b };
+    },
+
+    renderLabels: function(ctx, cx, cy, cos, sin, margin) {
+        // The names on the layer, kept for LayerScroll (a drag moves them with the picture)
+        var placed = this._layerLabels = [];
+        var found = this._labelCandidates(cx, cy, cos, sin, margin);
+        if (!found) return;
+        var candidates = found.candidates, fontSize = found.fontSize;
+        TreeStyle.beginLabels(ctx, fontSize);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        for (var c = 0; c < candidates.length && placed.length < found.maxLabels; c++) {
             var cand = candidates[c];
-            var halfW = this._labelWidth(ctx, cand.text) / 2 + pad;
-            var rect = { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
+            var rect = this._labelRect(ctx, cand, fontSize);
 
             // Collision rejection: the selected node's label always wins
             var collides = false;
@@ -3451,10 +3496,10 @@ var CanvasRenderer = {
             }
             if (collides) continue;
 
-            placed.push(rect);
-            ctx.globalAlpha = this._contextFactor(cand.node);
+            var lab = this._keepLabel(cand, rect);
+            placed.push(lab);
+            ctx.globalAlpha = lab.alpha;
             TreeStyle.drawLabel(ctx, cand.text, cand.x, cand.y, cand.color);
-            drawn++;
         }
 
         ctx.globalAlpha = 1.0;
