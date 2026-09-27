@@ -245,15 +245,6 @@ window.callCpp = function(method, data) {
             console.log('[Bridge] Setting stored (dev mode)');
             break;
 
-        case 'SetupPython':
-            // Legacy — no-op, builder is always ready
-            if (typeof window.onBuilderStatus === 'function') {
-                setTimeout(function() {
-                    window.onBuilderStatus(JSON.stringify({ installed: true, hasScript: true }));
-                }, 200);
-            }
-            break;
-
         case 'DeclutterTree':
             // No plugin here: answer at once so LayoutDeclutter arranges the tree itself
             (function() {
@@ -569,11 +560,6 @@ window.addEventListener('load', function() {
             .then(function(r) {
                 window._devServerAvailable = true;
                 console.log('[DevHarness] Dev server ONLINE (port 5556)');
-                if (typeof window.onBuilderStatus === 'function') {
-                    window.onBuilderStatus(JSON.stringify({
-                        installed: true, hasScript: true
-                    }));
-                }
                 // Show in toolbar
                 var statusEl = document.getElementById('harness-status');
                 if (statusEl) {
@@ -585,11 +571,6 @@ window.addEventListener('load', function() {
             })
             .catch(function() {
                 console.log('[DevHarness] Dev server offline -- JS fallback active');
-                if (typeof window.onBuilderStatus === 'function') {
-                    window.onBuilderStatus(JSON.stringify({
-                        installed: true, hasScript: true
-                    }));
-                }
                 var statusEl = document.getElementById('harness-status');
                 if (statusEl) {
                     var tag = document.createElement('span');

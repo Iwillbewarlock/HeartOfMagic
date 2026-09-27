@@ -1993,18 +1993,6 @@ var EditMode = {
     }
 };
 
-// Callback for C++ to provide all spells (direct call)
-window.onAllSpellsReceived = function(dataStr) {
-    try {
-        var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
-        if (data.spells && Array.isArray(data.spells)) {
-            EditMode._processSpellData(data.spells);
-        }
-    } catch (e) {
-        console.error('[EditMode] Failed to parse all spells:', e);
-    }
-};
-
 // Hook into updateSpellData AFTER all scripts have loaded
 // (editMode.js loads before cppCallbacks.js, so we defer the hook)
 function _installUpdateSpellDataHook() {

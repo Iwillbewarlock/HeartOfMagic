@@ -23,10 +23,9 @@
 
 /**
  * Cached map of { formId/id: node } built once per tree load.
- * Invalidated when _nodeLookupVersion !== current tree version.
+ * Rebuilt when state.treeData is a different object (a new tree was loaded).
  */
 var _nodeLookupMap = {};
-var _nodeLookupVersion = -1;
 var _nodeLookupTreeRef = null;
 
 /**
@@ -743,9 +742,6 @@ function _loadTrustedTree(data, switchToTreeTab) {
         switchTab('spellTree');
     }
 
-    // Mirror bidirectional soft prereqs — DISABLED for now
-    // mirrorBidirectionalSoftPrereqs(nodes);
-
     // Send prereqs to C++ (already baked, no splitting needed)
     if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
 
@@ -791,114 +787,6 @@ function _loadTrustedTree(data, switchToTreeTab) {
 
     _logToSKSE('[_loadTrustedTree] === DONE ===');
     setTreeStatus(t('status.loadedTrustedTree', {count: nodes.length}));
-}
-
-/**
- * Mirror bidirectional soft prerequisites.
- * When A is a soft prereq of B, makes B a soft prereq of A too.
- * Skips nodes where softNeeded === softPrereqs.length (all required = effectively hard).
- * Modifies nodes in-place. Returns count of mirrors added.
- */
-function mirrorBidirectionalSoftPrereqs(nodes) {
-    if (!settings.treeGeneration.bidirectionalSoftPrereqs) return 0;
-
-    // Build nodeMap for O(1) lookup
-    var nodeMap = {};
-    for (var i = 0; i < nodes.length; i++) {
-        var fid = nodes[i].formId || nodes[i].id;
-        if (fid) nodeMap[fid] = nodes[i];
-    }
-
-    // Collect mirrors to apply (avoid cascading during iteration)
-    var mirrors = [];
-
-    for (var n = 0; n < nodes.length; n++) {
-        var node = nodes[n];
-        var softPrereqs = node.softPrereqs;
-        if (!softPrereqs || softPrereqs.length === 0) continue;
-
-        var nodeFormId = node.formId || node.id;
-
-        for (var s = 0; s < softPrereqs.length; s++) {
-            var targetNode = nodeMap[softPrereqs[s]];
-            if (!targetNode) continue;
-
-            // Don't mirror onto root/prereq-free nodes (would deadlock entry points)
-            if (targetNode.isRoot) continue;
-            var targetHasPrereqs = (targetNode.hardPrereqs && targetNode.hardPrereqs.length > 0) ||
-                                   (targetNode.softPrereqs && targetNode.softPrereqs.length > 0) ||
-                                   (targetNode.prerequisites && targetNode.prerequisites.length > 0);
-            if (!targetHasPrereqs) continue;
-
-            // Check if target already has this node in hard or soft prereqs
-            var alreadyExists = false;
-
-            var targetHard = targetNode.hardPrereqs || [];
-            for (var h = 0; h < targetHard.length; h++) {
-                if (targetHard[h] === nodeFormId) { alreadyExists = true; break; }
-            }
-
-            if (!alreadyExists) {
-                var targetSoft = targetNode.softPrereqs || [];
-                for (var ts = 0; ts < targetSoft.length; ts++) {
-                    if (targetSoft[ts] === nodeFormId) { alreadyExists = true; break; }
-                }
-            }
-
-            if (!alreadyExists) {
-                mirrors.push({ target: targetNode, addFormId: nodeFormId });
-            }
-        }
-    }
-
-    // Build a set of legacy prerequisite ids per target for O(1) duplicate check
-    var targetLegacySets = {};
-    for (var m = 0; m < mirrors.length; m++) {
-        var target = mirrors[m].target;
-        var addId = mirrors[m].addFormId;
-        var targetId = target.formId || target.id;
-
-        if (!target.hardPrereqs) target.hardPrereqs = [];
-        if (!target.softPrereqs) target.softPrereqs = [];
-        if (!target.prerequisites) target.prerequisites = [];
-
-        target.softPrereqs.push(addId);
-
-        // Ensure softNeeded is at least 1
-        if (!target.softNeeded || target.softNeeded < 1) {
-            target.softNeeded = 1;
-        }
-
-        // Build legacy set on first encounter of this target
-        if (!targetLegacySets[targetId]) {
-            targetLegacySets[targetId] = {};
-            for (var lp = 0; lp < target.prerequisites.length; lp++) {
-                targetLegacySets[targetId][target.prerequisites[lp]] = true;
-            }
-        }
-
-        // Add to legacy prerequisites array for compatibility (O(1) check)
-        if (!targetLegacySets[targetId][addId]) {
-            targetLegacySets[targetId][addId] = true;
-            target.prerequisites.push(addId);
-        }
-    }
-
-    if (mirrors.length > 0) {
-        console.log('[SpellLearning] Bidirectional soft prereqs: mirrored ' + mirrors.length + ' connections');
-        // Log first few for debugging
-        for (var d = 0; d < Math.min(5, mirrors.length); d++) {
-            var dbgTarget = mirrors[d].target;
-            console.log('[SpellLearning]   mirror: ' + mirrors[d].addFormId + ' -> ' +
-                        (dbgTarget.formId || dbgTarget.id) +
-                        ' (softPrereqs now: ' + (dbgTarget.softPrereqs ? dbgTarget.softPrereqs.length : 0) +
-                        ', softNeeded: ' + dbgTarget.softNeeded + ')');
-        }
-    } else {
-        console.log('[SpellLearning] Bidirectional soft prereqs: 0 mirrors (no eligible soft prereqs found)');
-    }
-
-    return mirrors.length;
 }
 
 function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
@@ -1138,9 +1026,6 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
 
     // Also on this path, or the bridges of the previous tree would stay on screen
     if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
-
-    // Mirror bidirectional soft prereqs — DISABLED for now
-    // mirrorBidirectionalSoftPrereqs(result.nodes);
 
     // Send tree prerequisites (hard/soft system) to C++ for tome learning validation
     if (window.callCpp) {

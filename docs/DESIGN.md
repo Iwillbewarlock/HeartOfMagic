@@ -1129,7 +1129,7 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 **State:** `updateSpellState`, `onResetTreeStates`, `onSaveGameLoaded`
 **Progress:** `onProgressUpdate`, `onSpellReady`, `onSpellUnlocked`, `onProgressData`
 **Config:** `onUnifiedConfigLoaded`, `onPresetsLoaded`
-**Tree Building:** `onProceduralTreeComplete`, `onPreReqMasterComplete`, `onBuilderStatus`
+**Tree Building:** `onProceduralTreeComplete`, `onPreReqMasterComplete`
 **LLM:** `onLLMStatus`, `onLLMQueued`, `onLLMPollResult`, `onLLMConfigLoaded`
 
 ---

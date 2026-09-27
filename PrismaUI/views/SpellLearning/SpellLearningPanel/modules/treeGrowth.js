@@ -524,12 +524,6 @@ var TreeGrowth = {
         }
     },
 
-    /** Called when builder status is reported -- native C++ builder is always ready. */
-    updateBuilderReady: function() {
-        this.setStatusText(t('treeGrowth.builderReady') || 'Builder ready', '#22c55e');
-        this.updateBuildButton();
-    },
-
     updateScanStatus: function(hasSpells) {
         this._hasSpells = hasSpells;
         this.updateBuildButton();

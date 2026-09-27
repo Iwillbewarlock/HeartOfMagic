@@ -2364,9 +2364,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
     }
 };
 
-// Legacy callback for backwards compatibility
-window.onSettingsLoaded = window.onUnifiedConfigLoaded;
-
 // Export updateDeveloperModeVisibility for use by other modules (e.g., when school controls are created)
 window.updateDeveloperModeVisibility = updateDeveloperModeVisibility;
 // onLLMConfigLoaded lives in llmApiSettings.js, which loads after this file and
@@ -2681,13 +2678,6 @@ function applyTheme(themeKey) {
     
     // Insert the new link after the old one
     styleLink.parentNode.insertBefore(newLink, styleLink.nextSibling);
-}
-
-/**
- * Get the current theme key
- */
-function getCurrentTheme() {
-    return settings.uiTheme || 'skyrim';
 }
 
 // =============================================================================

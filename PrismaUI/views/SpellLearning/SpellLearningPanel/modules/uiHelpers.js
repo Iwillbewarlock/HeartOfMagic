@@ -193,14 +193,6 @@ function getLocalFormId(formIdStr) {
     return hex.substring(2);
 }
 
-/**
- * Build a stable blacklist key from plugin + localFormId.
- * This key survives load order changes.
- */
-function blacklistKey(plugin, formId) {
-    return (plugin || '').toLowerCase() + ':' + getLocalFormId(formId);
-}
-
 // =============================================================================
 // PRIMED SPELL FILTERING (after blacklist/whitelist/tome filters)
 // =============================================================================

@@ -1079,14 +1079,7 @@ function updateDESTStatus() {
     badge.classList.add('detected');
 }
 
-// Called from C++ when DEST detection status changes (legacy support)
-window.onISLDetectionUpdate = function(detected) {
-    // Ignore - DEST is always bundled
-    console.log('[SpellLearning] DEST status check (bundled, always available)');
-    updateDESTStatus();
-};
-
-// New callback name for DEST
+// Called from C++ when DEST detection status changes
 window.onDESTDetectionUpdate = function(detected) {
     // Ignore - DEST is always bundled
     console.log('[SpellLearning] DEST status check (bundled, always available)');

@@ -99,18 +99,6 @@ function syncDuplicateState(sourceNode) {
 // =============================================================================
 
 /**
- * Called by C++ when panel opens to report builder availability.
- * Native C++ builder is always available -- enables Build button.
- */
-window.onBuilderStatus = function(statusStr) {
-    // Native C++ builder -- always ready
-    console.log('[SpellLearning] Builder status: native C++');
-    if (typeof TreeGrowth !== 'undefined') {
-        TreeGrowth.updateBuilderReady();
-    }
-};
-
-/**
  * ScanRef - lets a tree build name its spells instead of sending them
  *
  * C++ keeps the last full scan it sent here and tells us its number
@@ -640,24 +628,6 @@ window.updateSpellInfoBatch = function(json) {
 // traces ended up above the JSON and broke every parser reading the dump.
 window.debugOutput = function(msg) {
     console.log(msg);
-};
-
-// Debug function to test learning state - call from console: testLearning('Flames')
-window.testLearning = function(spellName) {
-    if (!state.treeData || !state.treeData.nodes) {
-        debugOutput('[TEST] No tree data!');
-        return;
-    }
-    var node = state.treeData.nodes.find(function(n) { 
-        return n.name && n.name.toLowerCase().includes(spellName.toLowerCase()); 
-    });
-    if (node) {
-        debugOutput('[TEST] Setting ' + node.name + ' to learning state...');
-        window.updateSpellState(node.id, 'learning');
-    } else {
-        debugOutput('[TEST] Node not found: ' + spellName);
-        debugOutput('[TEST] Available: ' + state.treeData.nodes.slice(0, 10).map(function(n) { return n.name; }).join(', '));
-    }
 };
 
 window.updateSpellState = function(jsonOrFormId, newState) {
