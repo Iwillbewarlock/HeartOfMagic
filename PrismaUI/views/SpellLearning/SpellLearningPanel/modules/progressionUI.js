@@ -5,16 +5,14 @@
  * Depends on:
  * - modules/state.js (state, settings, xpOverrides)
  * - modules/wheelRenderer.js (WheelRenderer)
- * - modules/uiHelpers.js (updateStatus, getXPForTier)
+ * - modules/uiHelpers.js (updateUnlockedCount)
  * 
  * Exports (global):
- * - initializeHowToLearnPanel()
- * - updateHowToLearnTab()
- * - initializeLearningStatusBadge()
- * - updateLearningStatusBadge()
- * - initializeProgressionSystem()
- * - calculateXPProgress()
- * - onProgressionSettingChanged()
+ * - initializeHowToPanel(), updateHowToContent()
+ * - updateLearningStatusBadge(node, progress), calculateCurrentEffectiveness()
+ * - getRequiredXPForNode(node), getReverseUnlockXPShare(level), getXPForTier(level)
+ * - setTreeStatus(msg), onLearnClick(), onUnlockClick(), autoAdvanceLearningTarget()
+ * - window.onSpellReady, onSpellUnlocked, onLearningTargetSet, onProgressData (C++ callbacks)
  */
 
 // =============================================================================

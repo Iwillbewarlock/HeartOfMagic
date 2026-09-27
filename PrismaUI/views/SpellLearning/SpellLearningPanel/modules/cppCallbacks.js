@@ -8,15 +8,12 @@
  * - modules/wheelRenderer.js (WheelRenderer)
  * - modules/spellCache.js (SpellCache)
  * 
- * Exports (global):
- * - window.onScanComplete
- * - window.onScanError
- * - window.onTreeDataReceived
- * - window.onSpellDataReceived
- * - window.onProgressionDataReceived
- * - window.onSpellLearned
- * - window.onXPGained
- * - window.onKnownSpellsReceived
+ * Exports (global, called by C++ through CallView):
+ * - window.updateSpellData, onScanStored (scan result)
+ * - window.updateTreeData (saved tree), updateSpellInfo, updateSpellInfoBatch, updateSpellIcon
+ * - window.updateSpellState, onResetTreeStates, onSaveGameLoaded, onPlayerKnownSpells
+ * - window.updateStatus, updateTreeStatus, updatePrompt, onClipboardContent, debugOutput
+ * - window.onPrismaReady, onPanelShowing, onPanelHiding (panel lifecycle)
  */
 
 // =============================================================================

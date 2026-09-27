@@ -209,7 +209,7 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 - `OnLoadUnifiedConfig()` / `OnSaveUnifiedConfig()` - Settings persistence
 - Various `On*` callback functions for UI interop
 
-**Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file and the OpenRouter config are written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
+**Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file (`WritePanelLocale`) is written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
 
 **PrismaUI View Path:**
 ```
@@ -458,10 +458,12 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 
 **Responsibilities:**
 - Detect ISL-DESTified mod (multiple plugin name variants)
-- Register for OnSpellTomeRead events via Papyrus
-- Convert study hours to XP
-- Apply tome inventory bonus
-- Configurable XP per hour setting
+- Register for OnSpellTomeRead events via Papyrus (`DEST_AliasExt` natives, `DispatchSpellTomeRead`)
+- Convert ISL study hours to XP (`OnStudyProgress`): a session grants its share of the hours to master
+  (hours studied / hours to master) of the spell's early-learning threshold XP (the unlock threshold %
+  of its required XP); there is no XP-per-hour setting. `OnStudyComplete` applies the weakened name and
+  descriptions once ISL has taught the spell
+- The tome inventory bonus is `SpellTomeHook`'s (see above), not this module's
 
 **Supported Plugin Names:**
 ```cpp
@@ -472,13 +474,12 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 ```
 
 **Key Functions:**
-- `Initialize()` - Detect mod, build book-spell cache
-- `IsISLInstalled()` / `IsActive()` - Status checks
-- `GetISLPluginName()` - Return detected plugin name
-- `OnSpellTomeRead(book, spell, container)` - Main event handler
-- `CalculateXPFromHours(hours, spell)` - XP calculation
-- `PlayerHasTomeForSpell(spell)` - Inventory bonus check
-- `RegisterPapyrusFunctions(vm)` - Papyrus native bindings
+- `Initialize()` - Detect DEST/ISL plugins in the load order
+- `IsDESTInstalled()` / `IsISLInstalled()` / `IsActive()` - Status checks
+- `GetDESTPluginName()` - Return detected plugin name
+- `OnSpellTomeRead(book, spell, container)` - Legacy handler (non-ISL DEST setups)
+- `RegisterDESTAliasExtFunctions(vm)` / `RegisterPapyrusFunctions(vm)` - Papyrus native bindings
+  (`SpellLearning_ISL.OnStudyProgress` / `OnStudyComplete` compute and apply the study XP)
 
 **Papyrus Scripts:**
 - `SpellLearning_ISL.psc` - Native function stubs

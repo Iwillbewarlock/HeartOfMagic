@@ -1,10 +1,10 @@
 # SpellLearning JavaScript Modules
 
-Modular JavaScript architecture for LLM maintainability. Original 8000+ line monolithic `script.js` split into 17 focused modules.
+Modular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into modules; the table lists the main ones (`index.html` loads them all).
 
 ## Architecture Goals
 
-- **LLM Readability:** Each file under ~1000 lines (16/18 achieved)
+- **LLM Readability:** Each file under 600 lines (the project limit; several older modules are still over it)
 - **Single Responsibility:** Each module handles one domain
 - **Clear Dependencies:** Documented load order and dependencies
 - **No Bundler Required:** Plain `<script>` tags, global scope
@@ -13,28 +13,28 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 
 | Module | Lines | Purpose |
 |--------|------:|---------|
-| `constants.js` | 267 | Default tree rules and colour palette |
+| `constants.js` | 103 | Default tree rules and colour palette |
 | `tagVocabulary.js` | 97 | Closed tag list for the librarian; mirrors `include/librarian/TagVocabulary.h` |
-| `state.js` | 334 | Settings object, app state, XP overrides |
-| `config.js` | 266 | Tree layout and visual configuration, hotkey key codes |
-| `spellCache.js` | 114 | Async spell data caching |
-| `colorUtils.js` | 258 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 189 | Status updates, tooltips, tier helpers |
+| `state.js` | 281 | Settings object, app state, XP overrides |
+| `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
+| `spellCache.js` | 141 | Async spell data caching |
+| `colorUtils.js` | 227 | School colors, dynamic CSS generation |
+| `uiHelpers.js` | 430 | Scan status bar, unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `treeParser.js` | 461 | Tree JSON parsing, validation, cycle detection |
-| `wheelRenderer.js` | 1296 | SVG radial tree rendering engine |
-| `settingsPanel.js` | 3752 | Settings UI initialization and persistence |
-| `treeViewerUI.js` | 618 | Tree viewer, spell details, node selection |
-| `detailsPeek.js` | 213 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
+| `treeParser.js` | 961 | Tree JSON parsing, validation, cycle detection |
+| `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
+| `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
+| `treeViewerUI.js` | 2059 | Tree viewer, spell details, node selection |
+| `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 466 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 313 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
-| `treeStyleInk.js` | 243 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
-| `designPresets.js` | 336 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
+| `treeStyleBook.js` | 317 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
+| `treeStyleInk.js` | 248 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
+| `designPresets.js` | 392 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
-| `layoutDeclutter.js` | 566 | `LayoutDeclutter`: before a built tree is saved, spaces it out, moves spells off its lines (`LayoutLineClear`), off each other and off the heart; every growth mode calls `applyAsync` and saves when it is done. In game `applyAsync` has the plugin do it (`DeclutterTree`, the same pass in C++ on a worker thread, answered through `window.onDeclutterResult`, same positions); without the plugin, on an error or an unreadable reply, or after 30 s without a reply (`NATIVE_TIMEOUT_MS`; the plugin is then not asked again for `NATIVE_RETRY_MS`, 5 minutes, unless a reply comes in) it runs here a piece at a time between frames, progress on the status line. A request it stops waiting for (timeout, unreadable reply, a newer `applyAsync`) is cancelled in the plugin (`DeclutterCancel`), which answers `{ id, cancelled: true }`: nothing applied and the pause kept (only a real reply ends it). A C++ twin: changes go to `plugins/spelllearning/src/treebuilder/Layout*.cpp` too |
-| `layoutLineClear.js` | 542 | `LayoutLineClear`: a search that moves spells so the straight lines pass them by, meet at open angles, and keep apart from each other (bundles of long lines included); runs as a job (`start` / `step`) that can stop and resume |
-| `layoutLineGrid.js` | 307 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
-| `layoutDeclutterTest.js` | 228 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
+| `layoutDeclutter.js` | 569 | `LayoutDeclutter`: before a built tree is saved, spaces it out, moves spells off its lines (`LayoutLineClear`), off each other and off the heart; every growth mode calls `applyAsync` and saves when it is done. In game `applyAsync` has the plugin do it (`DeclutterTree`, the same pass in C++ on a worker thread, answered through `window.onDeclutterResult`, same positions); without the plugin, on an error or an unreadable reply, or after 30 s without a reply (`NATIVE_TIMEOUT_MS`; the plugin is then not asked again for `NATIVE_RETRY_MS`, 5 minutes, unless a reply comes in) it runs here a piece at a time between frames, progress on the status line. A request it stops waiting for (timeout, unreadable reply, a newer `applyAsync`) is cancelled in the plugin (`DeclutterCancel`), which answers `{ id, cancelled: true }`: nothing applied and the pause kept (only a real reply ends it). A C++ twin: changes go to `plugins/spelllearning/src/treebuilder/Layout*.cpp` too |
+| `layoutLineClear.js` | 570 | `LayoutLineClear`: a search that moves spells so the straight lines pass them by, meet at open angles, and keep apart from each other (bundles of long lines included); runs as a job (`start` / `step`) that can stop and resume |
+| `layoutLineGrid.js` | 450 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
+| `layoutDeclutterTest.js` | 362 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
 | `nodeBatch.js` | 246 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
@@ -45,18 +45,17 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
 | `layerScroll.js` | 405 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips (instead of repainting the whole tree mid-drag) |
 | `layerBuild.js` | 196 | `LayerBuild`: a whole repaint of the tree layer drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile; for a camera glide it is built for the glide's end while the camera moves |
-| `progressUpdates.js` | 202 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must. Also `window.onSpellRelocked` (cheat-mode Relock: known spells, availability, card and unlocked count follow) |
+| `progressUpdates.js` | 196 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must. Also `window.onSpellRelocked` (cheat-mode Relock: known spells, availability, card and unlocked count follow) |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |
 | `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
-| `progressionUI.js` | 547 | How-to-Learn panel, learning status badges |
-| `difficultyProfiles.js` | 429 | Profile management, presets, custom profiles |
-| `buttonHandlers.js` | 264 | Scan, learn, import/export button handlers |
-| `cppCallbacks.js` | 438 | C++ SKSE plugin callback handlers |
+| `progressionUI.js` | 918 | How-to-Learn panel, learning status badges |
+| `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
+| `cppCallbacks.js` | 1240 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
-| **script.js** | 1144 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~8245 | |
+| **script.js** | 797 | Main init, tabs, dragging, early learning |
+| **TOTAL** | ~19662 | |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,
@@ -68,7 +67,7 @@ growth recipe modifiers ran on a recipe set nothing filled once the LLM style ge
 
 ## Load Order (index.html)
 
-Modules must load in dependency order before `script.js`:
+Modules must load in dependency order before `script.js` (abridged - `index.html` has the full list):
 
 ```html
 <!-- 1. Constants and Configuration -->
@@ -92,7 +91,6 @@ Modules must load in dependency order before `script.js`:
 <script src="modules/settingsPanel.js"></script>
 <script src="modules/treeViewerUI.js"></script>
 <script src="modules/progressionUI.js"></script>
-<script src="modules/difficultyProfiles.js"></script>
 <script src="modules/buttonHandlers.js"></script>
 
 <!-- 6. Integrations -->
@@ -121,10 +119,9 @@ treeParser.js         (uses: state.js)
     ↓
 wheelRenderer.js      (uses: state.js, config.js, colorUtils.js, treeParser.js)
     ↓
-settingsPanel.js      (uses: state.js, constants.js, colorUtils.js, uiHelpers.js)
+settingsPanel.js      (uses: state.js, config.js, colorUtils.js, uiHelpers.js)
 treeViewerUI.js       (uses: state.js, wheelRenderer.js, colorUtils.js)
 progressionUI.js      (uses: state.js, wheelRenderer.js, uiHelpers.js)
-difficultyProfiles.js (uses: state.js, constants.js, uiHelpers.js)
 buttonHandlers.js     (uses: state.js, treeParser.js, wheelRenderer.js, spellCache.js)
     ↓
 cppCallbacks.js       (uses: state.js, treeParser.js, wheelRenderer.js, spellCache.js)
@@ -140,7 +137,6 @@ script.js             (uses: all modules)
 | `KEY_CODES` | config.js | Keyboard code mapping (DirectInput scancodes) |
 | `settings` | state.js | All user settings (persisted) |
 | `state` | state.js | Runtime state (tree, selection, etc.) |
-| `customProfiles` | state.js | User-created difficulty profiles |
 | `xpOverrides` | state.js | Per-spell XP overrides |
 | `TREE_CONFIG` | config.js | Tree layout configuration |
 | `SpellCache` | spellCache.js | Spell data cache singleton |
@@ -153,7 +149,7 @@ script.js             (uses: all modules)
 - Exports `DEFAULT_TREE_RULES`, `DEFAULT_COLOR_PALETTE`
 
 ### state.js
-- Exports `settings`, `state`, `customProfiles`, `xpOverrides`
+- Exports `settings`, `state`, `xpOverrides`
 - `updateSliderFillGlobal(slider)` - Update slider fill visual
 
 ### colorUtils.js
@@ -176,15 +172,11 @@ script.js             (uses: all modules)
 - `window.onUnifiedConfigLoaded(data)` - C++ callback
 
 ### cppCallbacks.js
-- `window.onScanComplete(data)` - Spell scan callback
-- `window.onTreeDataReceived(data)` - Tree load callback
-- `window.onProgressionDataReceived(data)` - XP data callback
-- `window.onSpellLearned(data)` - Spell learned notification
-
-## Backup Files
-
-- `script-backup.js` - Pre-modularization backup
-- `script-full-backup.js` - Complete original (8190 lines)
+- `window.updateSpellData(json)` - Spell scan result
+- `window.updateTreeData(json)` - Saved tree loaded
+- `window.updateSpellState(formId, state)` - A spell's state changed
+- `window.onPlayerKnownSpells(data)` - Spells the player knows
+- `window.onPrismaReady()` / `onPanelShowing()` / `onPanelHiding()` - Panel lifecycle
 
 ## Notes for LLMs
 
@@ -192,4 +184,4 @@ script.js             (uses: all modules)
 - **Check dependencies** - Load order matters for global object availability
 - **All modules use globals** - No import/export (browser compatibility)
 - **Settings persistence** - Handled by `settingsPanel.js` via C++ bridge
-- **C++ callbacks** - All `window.on*` functions in `cppCallbacks.js`
+- **C++ callbacks** - Most `window.on*` / `window.update*` functions are in `cppCallbacks.js`; others sit with their module (`progressionUI.js`, `progressUpdates.js`, `settingsPanel.js`, ...)
