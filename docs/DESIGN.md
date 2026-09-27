@@ -199,21 +199,45 @@ same. Without FxLayer, `composite` works as before.
 layer's margin, the whole layer was repainted - every spell, line and name - in the middle of the drag,
 every ~150 px: on a CPU canvas in the desktop bench (1600x1000, every locked spell shown) 25-60 ms each,
 nine hitches per full circle of dragging. Now, once half the margin is used (`EARLY_SHARE`), the picture
-is copied onto a spare canvas moved by a whole number of device pixels (`'copy'` compositing, no clear
-pass; the two canvases swap) and `_layerPanX/Y` move by that much, so the paste's rounding keeps the
-remainder and nothing blurs. The strips the move uncovered are still in the margin, off screen: they are
-drawn nearest the view first, each clipped to itself with the spells and lines culled to its world box
-(padded by a halo's reach), as many a frame as fit in `FRAME_BUDGET_MS` (6 ms, at least one); if the view
-reaches a strip still waiting, all of them are drawn at once. Names are screen-aligned and must not
-overlap, so a name cut by a strip edge would show as half a name: the layer keeps the names it placed
-(`_layerLabels`, from `renderLabels`), moves them with the picture, draws the ones reaching into a strip
-again clipped to it, and places new names only inside strips, against the kept ones (`renderLabels` was
-split into `_labelCandidates`, `_labelRect` and `_keepLabel`, which both use). A full repaint as before
-when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on. Measured
-(circular drag, 120 frames, four designs, zoom 0.75 and 1.3, CPU canvases): frames over 16.7 ms 6-9 →
-0, worst frame 20-32 → 10-15 ms. A strip costs 2.5-5 ms; about 1.7 ms of that is its own (chapter
-titles, the name candidates, worked out once a frame), which is why strips are not cut smaller. The
-bench's full repaint (25-60 ms) is heavier than the game's, which logged 12-19 ms worst (`[Perf]`).
+is copied onto a spare canvas moved by a whole number of device pixels (`'copy'` compositing, then the
+uncovered rects cleared in case an engine copies only inside the picture's box; the two canvases swap)
+and `_layerPanX/Y` move by that much, so the paste's rounding keeps the remainder and nothing blurs. The
+strips the move uncovered join a queue of pieces, each drawn clipped to itself with the spells and lines
+culled to its world box (padded by a selected spell's halo; curved and hand-bowed lines widen their own
+box by their bulge). A piece the screen shows, or will within `LOOKAHEAD_PX`, is drawn in that frame
+whatever it costs; the others fill what is left of the frame (`TARGET_FRAME_MS` 8 from the frame's start,
+the next piece at its running average cost) and the rest ask for the next frame through `__needsRender`
+(animation frames are throttled and stop while a button is held, so without it a paused drag would leave
+a strip bare). Another shift moves the queued pieces with the picture (`moveRects`). Names are
+screen-aligned and must not overlap, so a name cut by a strip edge would show as half a name: the layer
+keeps the names it placed (`_layerLabels`, from `renderLabels`), moves them with the picture, draws the
+ones reaching into a strip (outline and descenders counted) again clipped to it, and places new names
+only inside strips, against the kept ones; the 150-name cap counts the names on screen, not those left
+in the margin behind the drag (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
+`_keepLabel`, which both use). Chapter titles are drawn through the layer's margin (`renderChapters`'
+`margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
+view. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
+as before when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on.
+Measured (circular drag, 120 frames, four designs, zoom 0.75-1.3, CPU canvases): frames over 16.7 ms 6-9
+→ 0-2, worst frame 20-32 → 15-20 ms; a piece costs 2.5-8 ms, about 1.7 ms of it its own (chapter titles,
+the name candidates, worked out once a frame), which is why strips are not cut smaller. The bench's full
+repaint (25-60 ms) is heavier than the game's, which logged 12-19 ms worst (`[Perf]`), and it has
+run-to-run noise of a few ms.
+
+**A whole repaint spread over frames** (`modules/layerBuild.js`, 2026-09-27). A click on a spell (its path
+highlighted, the rest dimmed; after the camera's glide) and a wheel zoom coming to rest repaint the whole
+layer - one 33-40 ms frame each in the bench. Now, when the last whole repaint took more than
+`SYNC_MAX_MS` (8), the new picture is drawn onto the spare canvas in 384 px pieces, nearest the middle
+first, as many a frame as fit in what is left of it (`TARGET_FRAME_MS` 8, the next piece at its running
+cost, one at least), then the names and chapter titles whole; the canvases swap when it is done. Until
+then the old picture stays up, mapped onto the view as during a glide (moved, stretched, turned), and
+each frame asks for the next. A new tree change restarts the build with the latest tree; a change of
+zoom, rotation, pixel ratio or layer size drops it (the camera moving again takes over with the stretched
+paste). Still done at once: a quick one (undiscovered spells hidden: 7-9 ms), the first, one with no old
+picture (stale layer, resize) and edit mode. Measured (four clicks and a wheel zoom, four designs): the
+33-40 ms frame becomes 4-8 frames of 3-12 ms; the highlight shows 4-8 frames (~70-130 ms) after the
+glide ends. Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its
+own box, so the work is the same as one whole repaint, only cut up.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring

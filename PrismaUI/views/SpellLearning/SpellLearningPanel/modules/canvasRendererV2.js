@@ -912,6 +912,8 @@ var CanvasRenderer = {
                 var mdy = e.clientY - this._pressY;
                 if (mdx * mdx + mdy * mdy <= this.DRAG_THRESHOLD * this.DRAG_THRESHOLD) return;
                 this._dragMoved = true;
+                // The hover preview lets go: it would be drawn again every frame of the drag
+                this._setHoveredNode(null, e);
                 // Start the drag from here, or the tree would jump by the threshold
                 this.panStartX = e.clientX - this.panX;
                 this.panStartY = e.clientY - this.panY;
@@ -1370,6 +1372,7 @@ var CanvasRenderer = {
         if (!this.ctx || !this.canvas) return;
         
         var startTime = performance.now();
+        this._frameStartAt = startTime;          // LayerBuild fills what is left of the frame
         var ctx = this.ctx;
         var width = this._width || 800;
         var height = this._height || 600;
@@ -1555,19 +1558,35 @@ var CanvasRenderer = {
         // thrown away when the glide ended. The selection shows as it stops.
         var stretch = (viewTurned || this._treeDirty) && !this._treeLayerStale &&
             this._layerZoom > 0 && this._viewInMotion();
+        // A whole repaint in progress over several frames (LayerBuild): dropped
+        // if the view it was for is gone (the camera moves again, a resize)
+        var building = typeof LayerBuild !== 'undefined' && LayerBuild.active();
+        if (building && (stretch || this._treeLayerStale || !LayerBuild.valid(this, dpr, layer))) {
+            LayerBuild.abort();
+            building = false;
+        }
         // A drag with nothing else changed: once it has used half the margin the
         // layer is shifted and the uncovered strips drawn, one a frame
         // (LayerScroll), 3-8 ms instead of a 25-60 ms repaint of the whole tree
         // in the middle of the drag
-        var scrolled = !stretch && !this._treeDirty && !this._treeLayerStale && !viewTurned &&
+        var scrolled = !stretch && !building && !this._treeDirty && !this._treeLayerStale && !viewTurned &&
             !(typeof EditMode !== 'undefined' && EditMode.isActive) &&
             typeof LayerScroll !== 'undefined' && LayerScroll.step(this, dpr, margin, view);
         if (scrolled) {
             layer = this._treeLayer;
             dx = this.panX - this._layerPanX;
             dy = this.panY - this._layerPanY;
-        } else if (!stretch && (this._treeDirty || this._treeLayerStale || slid || viewTurned)) {
+        } else if (!stretch && (!building || this._treeDirty) &&
+                (this._treeDirty || this._treeLayerStale || slid || viewTurned) &&
+                !this._treeLayerStale && typeof LayerBuild !== 'undefined' && LayerBuild.wanted(this, layer) &&
+                LayerBuild.start(this, dpr, margin, view)) {
+            // Spread over the next frames (the old picture stays up meanwhile);
+            // a new change restarts it with the latest tree
+            this._treeDirty = false;
+            building = true;
+        } else if (!stretch && !building && (this._treeDirty || this._treeLayerStale || slid || viewTurned)) {
             if (typeof LayerScroll !== 'undefined') LayerScroll.reset();
+            var syncStart = performance.now();
             var lctx = this._treeLayerCtx;
             lctx.setTransform(1, 0, 0, 1, 0, 0);
             lctx.globalAlpha = 1.0;
@@ -1596,8 +1615,22 @@ var CanvasRenderer = {
             this._layerZoom = this.zoom;
             this._layerRotation = this.rotation;
             this._treeLayerDraws = (this._treeLayerDraws || 0) + 1;
+            if (typeof LayerBuild !== 'undefined') LayerBuild.noteSync(performance.now() - syncStart);
             dx = 0;
             dy = 0;
+        }
+        if (building) {
+            var done = LayerBuild.step(this, this._frameStartAt || performance.now(), false);
+            if (done) {
+                layer = this._treeLayer;
+                dx = this.panX - this._layerPanX;
+                dy = this.panY - this._layerPanY;
+                viewTurned = false;
+                slid = false;
+            }
+            // Until then the old picture, mapped onto the view as during a glide
+            // (moved, stretched, turned) - after a click's glide it may be far off
+            stretch = !done && (viewTurned || slid);
         }
 
         var w = this.canvas.width, h = this.canvas.height;
@@ -1832,7 +1865,7 @@ var CanvasRenderer = {
         if (pm) this._partAt = PerfMeter.part('labels', this._partAt);
 
         // Chapter titles: school names past each school's outer edge (design preset)
-        TreeStyle.renderChapters(ctx, this, cx, cy, cos, sin);
+        if (!view.noChapters) TreeStyle.renderChapters(ctx, this, cx, cy, cos, sin, view.labelMargin || 0);
         if (pm) {
             this._partAt = PerfMeter.part('chapters', this._partAt);
             // The browser may only rasterize the calls when the canvas is read
@@ -2246,6 +2279,8 @@ var CanvasRenderer = {
         var self = this;
 
         // Helper to check visibility and culling
+        // A curved or hand-bowed line bulges past its ends' box: culling allows for it
+        var bend = (curved ? 0.08 : 0) + TreeStyle.handAmount() * 0.25;
         function shouldDrawEdge(edge) {
             var fromNode = self._nodeMap.get(edge.from);
             var toNode = self._nodeMap.get(edge.to);
@@ -2263,7 +2298,8 @@ var CanvasRenderer = {
             var maxX = Math.max(fromNode.x, toNode.x);
             var minY = Math.min(fromNode.y, toNode.y);
             var maxY = Math.max(fromNode.y, toNode.y);
-            if (maxX < viewLeft || minX > viewRight || maxY < viewTop || minY > viewBottom) {
+            var ext = bend ? bend * (maxX - minX + maxY - minY) : 0;
+            if (maxX + ext < viewLeft || minX - ext > viewRight || maxY + ext < viewTop || minY - ext > viewBottom) {
                 return null;
             }
 

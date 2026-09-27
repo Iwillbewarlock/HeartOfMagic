@@ -218,8 +218,11 @@
          * School names past the outer edge of each school, upright and the same size
          * at every zoom, so a zoomed-out view still says which part is which.
          * Screen space; called after the tree transform is undone, like the labels.
+         * margin: css px drawn past the canvas edge (the tree layer's margin), so a
+         * title that a drag later brings into view is already on the layer.
          */
-        renderChapters: function(ctx, r, cx, cy, cos, sin) {
+        renderChapters: function(ctx, r, cx, cy, cos, sin, margin) {
+            margin = margin || 0;
             var t = this.tokens;
             if (!t.chapterTitles) return;
             var names = Object.keys(r.schools || {});
@@ -249,7 +252,8 @@
                 var wy = gd.y + Math.sin(a) * (reach[name] + gap);
                 var sx = (wx * cos - wy * sin) * r.zoom + r.panX + cx;
                 var sy = (wx * sin + wy * cos) * r.zoom + r.panY + cy;
-                if (sx < -200 || sx > r._width + 200 || sy < -50 || sy > r._height + 50) continue;
+                if (sx < -200 - margin || sx > r._width + 200 + margin ||
+                    sy < -50 - margin || sy > r._height + 50 + margin) continue;
                 var text = '—  ' + this._schoolName(name) + '  —';
                 if (t.labelHalo) ctx.strokeText(text, sx, sy);
                 ctx.fillText(text, sx, sy);

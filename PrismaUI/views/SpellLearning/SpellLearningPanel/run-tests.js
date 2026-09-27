@@ -62,6 +62,7 @@ loadModule('layoutDeclutterTest', './modules/layoutDeclutterTest.js');
 loadModule('openRefreshGate', './modules/openRefreshGate.js');
 loadModule('openRefreshGateTest', './modules/openRefreshGateTest.js');
 loadModule('layerScroll', './modules/layerScroll.js');
+loadModule('layerBuild', './modules/layerBuild.js');
 loadModule('layerScrollTest', './modules/layerScrollTest.js');
 
 // Mock WheelRenderer minimally

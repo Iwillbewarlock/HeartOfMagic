@@ -44,7 +44,8 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
-| `layerScroll.js` | 319 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips, a few a frame within a time budget, names kept across strips (instead of repainting the whole tree mid-drag) |
+| `layerScroll.js` | 401 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips (instead of repainting the whole tree mid-drag) |
+| `layerBuild.js` | 167 | `LayerBuild`: a whole repaint of the tree layer (after a click's glide, a zoom coming to rest) drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile |
 | `progressUpdates.js` | 150 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |

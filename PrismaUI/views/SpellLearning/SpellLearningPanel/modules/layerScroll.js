@@ -11,10 +11,10 @@
  * inside them (culled to the strip), clipped to it. 3-6 ms a strip.
  *
  * It starts when half the margin is used up (EARLY_SHARE), so the uncovered
- * strips are still off screen, in the margin. They are drawn nearest the view
- * first, as many a frame as fit in FRAME_BUDGET_MS (at least one); the rest
- * wait for the next frames. Should the
- * view reach a piece still waiting, everything waiting is drawn at once.
+ * strips are still off screen, in the margin. Pieces the screen shows (or is
+ * about to, LOOKAHEAD_PX) are drawn in the same frame whatever the time; the
+ * others fill what is left of the frame (TARGET_FRAME_MS) and ask for the next
+ * frames. Another shift moves the waiting pieces with the picture.
  *
  * Names are screen-aligned and placed so they do not overlap, so a name cut by a
  * strip's edge would come out as half a name. The names on the layer are kept
@@ -37,12 +37,18 @@ var LayerScroll = {
     CULL_PAD_PX: 8,           // css px added round a strip's world box, past the largest spell reach
     CHUNK_PX: 2048,           // device px: a strip is drawn in pieces no longer than this (each piece
                               // costs ~1.7 ms of its own - names, chapter titles - so pieces stay big)
-    FRAME_BUDGET_MS: 6,       // pieces drawn in one frame, until this much time went on them
+    TARGET_FRAME_MS: 8,       // pieces the screen does not show yet fill a frame up to this, from its start
+    LOOKAHEAD_PX: 48,         // css px round the screen that count as shown (the drag's next frames)
+    HALO_SCALE: 2.6,          // a spell's halo radius per its size (CanvasRenderer's glow)
+    DESCENT_SHARE: 0.35,      // of the font size, how far letters and outline reach below a name's box
 
     _spare: null,
     _spareCtx: null,
     _failed: false,
     _pending: [],             // strips uncovered but not drawn yet, [x, y, w, h] layer device px
+    _pieceMs: 3,              // what a piece has cost lately, ms (a running average)
+    _drewThisFrame: false,
+    _found: undefined,        // the name candidates of this frame (_labels)
 
     /**
      * The layer rects (device px) a move of (sx, sy) device px uncovers in a
@@ -82,6 +88,25 @@ var LayerScroll = {
         var d = function(p) { var ex = p[0] + p[2] / 2 - cx, ey = p[1] + p[3] / 2 - cy; return ex * ex + ey * ey; };
         out.sort(function(p, q) { return d(p) - d(q); });
         return out;
+    },
+
+    /**
+     * Move waiting rects [x, y, w, h] by (sx, sy) with the picture and cut them
+     * to the w x h layer; the ones pushed wholly off it are dropped.
+     */
+    moveRects: function(rects, sx, sy, w, h) {
+        var out = [];
+        for (var i = 0; i < rects.length; i++) {
+            var x0 = Math.max(0, rects[i][0] + sx), y0 = Math.max(0, rects[i][1] + sy);
+            var x1 = Math.min(w, rects[i][0] + rects[i][2] + sx), y1 = Math.min(h, rects[i][1] + rects[i][3] + sy);
+            if (x1 > x0 && y1 > y0) out.push([x0, y0, x1 - x0, y1 - y0]);
+        }
+        return out;
+    },
+
+    /** Does rect p [x, y, w, h] overlap rect v [x, y, w, h]? */
+    overlaps: function(p, v) {
+        return p[0] < v[0] + v[2] && p[0] + p[2] > v[0] && p[1] < v[1] + v[3] && p[1] + p[3] > v[1];
     },
 
     /** Do two rects {l, r, t, b} overlap? */
@@ -131,8 +156,19 @@ var LayerScroll = {
     },
 
     /**
-     * The layer's part of a frame, when this module can do it: a waiting strip,
-     * or a shift once the drag has used EARLY_SHARE of the margin. Returns true
+     * What of the layer the screen shows this frame, in layer device px, grown by
+     * LOOKAHEAD_PX so a strip about to come into view counts as shown.
+     */
+    _viewRect: function(r, dpr, margin) {
+        var pad = Math.round(this.LOOKAHEAD_PX * dpr);
+        var offX = Math.round((margin - (r.panX - r._layerPanX)) * dpr);
+        var offY = Math.round((margin - (r.panY - r._layerPanY)) * dpr);
+        return [offX - pad, offY - pad, r.canvas.width + 2 * pad, r.canvas.height + 2 * pad];
+    },
+
+    /**
+     * The layer's part of a frame, when this module can do it: a shift once the
+     * drag has used EARLY_SHARE of the margin, and waiting strips. Returns true
      * when it did something (the layer and its pan may have changed), false when
      * the caller should go on as before (paste as it is, or repaint whole).
      * @param {Object} r - CanvasRenderer
@@ -143,21 +179,24 @@ var LayerScroll = {
     step: function(r, dpr, margin, view) {
         if (!this.ENABLED || !r._layerLabels) return false;
         var dx = r.panX - r._layerPanX, dy = r.panY - r._layerPanY;
-        if (this._pending.length) {
-            // The view reached the bare edge: everything waiting, now, and shift on
-            var all = Math.abs(dx) > margin || Math.abs(dy) > margin;
-            this._drawSome(r, dpr, margin, view, all);
-            if (!all) return true;
-            if (this._shift(r, dpr, margin, view)) return true;
-            return !(Math.abs(dx) > margin || Math.abs(dy) > margin);
-        }
         var early = margin * this.EARLY_SHARE;
-        if (Math.abs(dx) <= early && Math.abs(dy) <= early) return false;
-        return this._shift(r, dpr, margin, view);
+        var did = false;
+        if (Math.abs(dx) > early || Math.abs(dy) > early) {
+            if (!this._shift(r, dpr, margin)) {
+                this._pending = [];
+                return false;                              // too far: the caller repaints whole
+            }
+            did = true;
+        }
+        if (this._pending.length) {
+            this._drawSome(r, dpr, margin, view);
+            did = true;
+        }
+        return did;
     },
 
-    /** Move the picture by the drag and queue the uncovered strips; draws the first. */
-    _shift: function(r, dpr, margin, view) {
+    /** Move the picture by the drag; the uncovered strips join the waiting ones. */
+    _shift: function(r, dpr, margin) {
         var layer = r._treeLayer;
         var sx = Math.round((r.panX - r._layerPanX) * dpr);
         var sy = Math.round((r.panY - r._layerPanY) * dpr);
@@ -165,14 +204,17 @@ var LayerScroll = {
         var spare = this._ensureSpare(layer);
         if (!spare) return false;
 
-        // The picture, moved ('copy' clears the rest in the same pass); then
-        // the two canvases trade places
+        // The picture, moved; then the two canvases trade places
         var g = this._spareCtx;
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.globalAlpha = 1;
         g.globalCompositeOperation = 'copy';
         g.drawImage(layer, sx, sy);
         g.globalCompositeOperation = 'source-over';
+        var uncovered = this.exposedRects(spare.width, spare.height, sx, sy);
+        // 'copy' should leave these clear; an engine that only copies inside the
+        // picture's own box would leave old pixels there
+        for (var i = 0; i < uncovered.length; i++) g.clearRect(uncovered[i][0], uncovered[i][1], uncovered[i][2], uncovered[i][3]);
         this._spare = layer;
         this._spareCtx = r._treeLayerCtx;
         r._treeLayer = spare;
@@ -183,24 +225,41 @@ var LayerScroll = {
         r._layerPanY += sy / dpr;
         this.shiftLabels(r._layerLabels, sx / dpr, sy / dpr,
             { l: -margin, r: spare.width / dpr - margin, t: -margin, b: spare.height / dpr - margin });
-        this._pending = this.pieces(this.exposedRects(spare.width, spare.height, sx, sy), this.CHUNK_PX,
-            spare.width / 2, spare.height / 2);
+        this._pending = this.moveRects(this._pending, sx, sy, spare.width, spare.height)
+            .concat(this.pieces(uncovered, this.CHUNK_PX, spare.width / 2, spare.height / 2));
+        r._treeLayerDraws = (r._treeLayerDraws || 0) + 1;
         r._layerScrolls = (r._layerScrolls || 0) + 1;
-        this._drawSome(r, dpr, margin, view, false);
         return true;
     },
 
-    /** Draw waiting pieces (at the layer's pan): all, or as many as fit in the frame budget (one at least). */
-    _drawSome: function(r, dpr, margin, view, all) {
+    /**
+     * Draw waiting pieces (at the layer's pan): every one the screen shows or is
+     * about to, whatever the time; then others while the frame has time left
+     * (TARGET_FRAME_MS from its start, the next piece at its usual cost, one at
+     * least if none was drawn). Pieces left over ask for the next frame.
+     */
+    _drawSome: function(r, dpr, margin, view) {
         var self = this, g = r._treeLayerCtx;
         var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
+        var vr = this._viewRect(r, dpr, margin);
+        // The screen in layer css px, for counting the names shown (_labels)
+        var viewCss = { l: vr[0] / dpr - margin, r: (vr[0] + vr[2]) / dpr - margin,
+                        t: vr[1] / dpr - margin, b: (vr[1] + vr[3]) / dpr - margin };
+        var must = [], rest = [];
+        for (var i = 0; i < this._pending.length; i++) {
+            (this.overlaps(this._pending[i], vr) ? must : rest).push(this._pending[i]);
+        }
+        var frameStart = r._frameStartAt || now();
         var draw = function() {
-            var start = now();
             self._found = undefined;               // the names that could go in, worked out once a frame
-            do {
-                self._drawStrip(r, g, self._pending.shift(), dpr, margin, view);
-            } while (self._pending.length && (all || now() - start < self.FRAME_BUDGET_MS));
+            while (must.length) self._drawTimed(r, g, must.shift(), dpr, margin, view, viewCss);
+            while (rest.length) {
+                var left = self.TARGET_FRAME_MS - (now() - frameStart);
+                if (left < self._pieceMs && (self._drewThisFrame || left <= 0)) break;
+                self._drawTimed(r, g, rest.shift(), dpr, margin, view, viewCss);
+            }
         };
+        this._drewThisFrame = false;
         var livePanX = r.panX, livePanY = r.panY;
         r.panX = r._layerPanX; r.panY = r._layerPanY;      // _renderTreeInto draws at the pan in r
         try {
@@ -209,7 +268,21 @@ var LayerScroll = {
         } finally {
             r.panX = livePanX; r.panY = livePanY;
         }
+        this._pending = rest;
         r._treeLayerDraws = (r._treeLayerDraws || 0) + 1;
+        if (rest.length) {
+            // The next frame, unthrottled - not the dirty-marking setter: the tree did not change
+            r.__needsRender = true;
+            r._animationOnlyRender = false;
+        }
+    },
+
+    _drawTimed: function(r, g, piece, dpr, margin, view, viewCss) {
+        var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        this._drawStrip(r, g, piece, dpr, margin, view, false, viewCss);
+        var ms = ((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0;
+        this._pieceMs = this._pieceMs * 0.7 + ms * 0.3;
+        this._drewThisFrame = true;
     },
 
     /** The world box (x0, y0, x1, y1) a layer rect (device px) shows, padded. */
@@ -227,12 +300,18 @@ var LayerScroll = {
                 if (wy < y0) y0 = wy; if (wy > y1) y1 = wy;
             }
         }
-        // The largest thing a spell draws past its centre: its halo
-        var pad = 2.6 * r._minSize(12) + this.CULL_PAD_PX / z;
+        // The largest thing a spell draws past its centre: the halo of a
+        // selected spell (a little bigger than the others)
+        var pad = this.HALO_SCALE * (r._minSize(12) + 1.5) + this.CULL_PAD_PX / z;
         return { l: x0 - pad, r: x1 + pad, t: y0 - pad, b: y1 + pad };
     },
 
-    _drawStrip: function(r, g, rect, dpr, margin, view) {
+    /**
+     * Draw the tree into one layer rect (device px) of g, clipped to it, the
+     * spells and lines culled to its world box. whole: a piece of a whole-layer
+     * build (LayerBuild) - no names or chapter titles, drawn once at the end.
+     */
+    _drawStrip: function(r, g, rect, dpr, margin, view, whole, viewCss) {
         var box = this._worldBox(r, rect, dpr, margin, view, r.panX, r.panY);
         g.save();
         g.setTransform(1, 0, 0, 1, 0, 0);
@@ -245,18 +324,22 @@ var LayerScroll = {
         r._renderTreeInto(g, {
             cx: view.cx, cy: view.cy, rotRad: view.rotRad, cos: view.cos, sin: view.sin,
             viewLeft: box.l, viewRight: box.r, viewTop: box.t, viewBottom: box.b,
-            labelMargin: margin, noLabels: true
+            labelMargin: margin, noLabels: true, noChapters: !!whole
         });
         g.restore();
-        this._labels(r, g, rect, dpr, margin, view);
+        if (!whole) this._labels(r, g, rect, dpr, margin, view, viewCss);
     },
 
-    /** The names in a strip: kept ones reaching into it drawn again, new ones placed in it. */
-    _labels: function(r, g, rect, dpr, margin, view) {
+    /**
+     * The names in a strip: kept ones reaching into it drawn again (clipped to
+     * it, their outline and descenders counted), new ones placed in it against
+     * the kept ones. The cap counts the names on screen, not the ones left in
+     * the margin behind the drag.
+     */
+    _labels: function(r, g, rect, dpr, margin, view, viewCss) {
         var kept = r._layerLabels;
-        var strips = [{ l: rect[0] / dpr - margin, r: (rect[0] + rect[2]) / dpr - margin,
-                        t: rect[1] / dpr - margin, b: (rect[1] + rect[3]) / dpr - margin }];
-        var s;
+        var st = { l: rect[0] / dpr - margin, r: (rect[0] + rect[2]) / dpr - margin,
+                   t: rect[1] / dpr - margin, b: (rect[1] + rect[3]) / dpr - margin };
         if (this._found === undefined) this._found = r._labelCandidates(view.cx, view.cy, view.cos, view.sin, margin);
         var found = this._found;
         if (!found) return;
@@ -267,47 +350,46 @@ var LayerScroll = {
         g.textAlign = 'center';
         g.textBaseline = 'top';
 
-        // Kept names reaching into a strip: drawn again, clipped to it
         var i, lab;
-        for (s = 0; s < strips.length; s++) {
-            var st = strips[s], clipped = false;
-            for (i = 0; i < kept.length; i++) {
-                lab = kept[i];
-                if (!this._meets(lab, st)) continue;
-                if (!clipped) {
-                    g.save();
-                    g.beginPath();
-                    g.rect(st.l, st.t, st.r - st.l, st.b - st.t);
-                    g.clip();
-                    clipped = true;
-                }
-                g.globalAlpha = lab.alpha;
-                TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
+        var reach = (TreeStyle.tokens.labelHaloWidth || 0) + found.fontSize * this.DESCENT_SHARE;
+        var clipped = false;
+        for (i = 0; i < kept.length; i++) {
+            lab = kept[i];
+            if (!(lab.l - reach < st.r && lab.r + reach > st.l && lab.t - reach < st.b && lab.b + reach > st.t)) continue;
+            if (!clipped) {
+                g.save();
+                g.beginPath();
+                g.rect(st.l, st.t, st.r - st.l, st.b - st.t);
+                g.clip();
+                clipped = true;
             }
-            if (clipped) g.restore();
+            g.globalAlpha = lab.alpha;
+            TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
         }
+        if (clipped) g.restore();
 
-        // New names: only where a strip uncovered them, never over a kept one
-        var have = {};
-        for (i = 0; i < kept.length; i++) have[kept[i].node.id] = true;
+        var shown = 0, have = {};
+        for (i = 0; i < kept.length; i++) {
+            have[kept[i].node.id] = true;
+            if (!viewCss || this._meets(kept[i], viewCss)) shown++;
+        }
         var cands = found.candidates;
-        for (var c = 0; c < cands.length && kept.length < found.maxLabels; c++) {
+        for (var c = 0; c < cands.length && shown < found.maxLabels; c++) {
             var cand = cands[c];
             if (have[cand.node.id]) continue;
-            var rect = r._labelRect(g, cand, found.fontSize);
-            var inStrip = false;
-            for (s = 0; s < strips.length && !inStrip; s++) inStrip = this._meets(rect, strips[s]);
-            if (!inStrip) continue;
+            var box = r._labelRect(g, cand, found.fontSize);
+            if (!this._meets(box, st)) continue;
             var collides = false;
             if (cand.priority < 5) {
                 for (i = 0; i < kept.length; i++) {
-                    if (this._meets(rect, kept[i])) { collides = true; break; }
+                    if (this._meets(box, kept[i])) { collides = true; break; }
                 }
             }
             if (collides) continue;
-            lab = r._keepLabel(cand, rect);
+            lab = r._keepLabel(cand, box);
             kept.push(lab);
             have[cand.node.id] = true;
+            if (!viewCss || this._meets(lab, viewCss)) shown++;
             g.globalAlpha = lab.alpha;
             TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
         }
