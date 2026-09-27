@@ -79,8 +79,14 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     const auto& earlySettings = effectivenessHook->GetSettings();
 
-    // Iterate through all learning targets and grant XP based on settings
-    for (auto& [targetSchool, targetId] : m_learningTargets) {
+    // Iterate through all learning targets and grant XP based on settings. A copy:
+    // AddXP clears targets when a spell is mastered (every school targeting it),
+    // which would erase from the map under the loop. A target cleared or changed
+    // meanwhile is skipped, so a mastered spell gets no more XP from this cast.
+    const std::vector<std::pair<std::string, RE::FormID>> targets(m_learningTargets.begin(), m_learningTargets.end());
+    for (const auto& [targetSchool, targetId] : targets) {
+        auto current = m_learningTargets.find(targetSchool);
+        if (current == m_learningTargets.end() || current->second != targetId) continue;
         if (targetId == 0) continue;
 
         // Check if target is already fully mastered
