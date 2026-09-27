@@ -1712,11 +1712,6 @@ body {
     color: #cc8;
 }
 
-.renderer-badge.webgl {
-    background: rgba(60, 80, 100, 0.8);
-    color: #8cf;
-}
-
 .tree-instructions {
     position: absolute;
     bottom: 14px;

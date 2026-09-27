@@ -1219,7 +1219,7 @@ window.onPlayerKnownSpells = function(dataStr) {
             
             // Re-render tree and update counts - on an opening, only if the
             // states differ from what the tree showed (OpenRefreshGate)
-            // Use SmartRenderer which delegates to active renderer (SVG, Canvas, or WebGL)
+            // Use SmartRenderer which delegates to active renderer (SVG or Canvas)
             if (typeof OpenRefreshGate === 'undefined' || OpenRefreshGate.reply()) {
                 if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) {
                     SmartRenderer.refresh();
