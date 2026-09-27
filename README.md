@@ -10,24 +10,13 @@ No manual configuration required. Compatible with every spell mod.
 
 The system analyzes spell names, effects, keywords, and descriptions to build prerequisite trees that make sense. Fire spells branch from fire. Healing chains lead to greater restoration. No hardcoded spell lists - it discovers what elements exist in your load order and builds around them.
 
-**Five native C++ builder modes, all fully automatic:**
-
-| Mode | Description |
-|---|---|
-| **Classic** | Tier-first builder. Novice at roots, Master at edges. NLP similarity guides parent selection. |
-| **Tree** | NLP-driven. TF-IDF similarity drives parent-child links with round-robin theme interleaving. |
-| **Graph** | Edmonds' minimum arborescence for optimal prerequisite chains. |
-| **Thematic** | Groups spells by discovered themes (TF-IDF + fuzzy matching), builds within-theme chains. |
-| **Oracle** | LLM-assisted builder (OpenRouter API) with native C++ fallback. |
+**One native C++ builder, fully automatic - Classic:** a tier-first builder. Novice at the roots, Master at the edges; NLP similarity guides parent selection. (The Tree, Graph, Thematic and Oracle builders were removed in 2026-09; Classic is the one builder.)
 
 No external dependencies. All NLP (TF-IDF, cosine similarity, fuzzy matching) runs natively in C++.
 
-### Two Growth Modes
+### Classic Growth
 
-- **Classic** - Concentric rings with natural symmetrical fan layouts. Configurable spell matching (Simple, Layered, or Smart).
-- **Tree** - Trunk corridor with configurable branch/trunk/root allocation. More structured visual design.
-
-Both modes show a live ghost-node preview as the tree builds.
+Concentric rings with natural symmetrical fan layouts. Configurable spell matching (Simple, Layered, or Smart). A live ghost-node preview shows as the tree builds.
 
 ### Spells Are Earned, Not Given
 
@@ -59,7 +48,7 @@ An advanced optional system that adds hidden "lock" prerequisites on top of your
 ### Scanner UI - Easy & Complex Modes
 
 - **Easy Mode** (Default) - Pick a preset, hit Build, done. Big preset chips, live tree preview, one screen.
-- **Complex Mode** - Full control over every parameter: output fields, fuzzy match thresholds, generation seed, plugin filtering, growth mode settings, and more.
+- **Complex Mode** - Full control over every parameter: output fields, fuzzy match thresholds, plugin filtering, growth settings, and more.
 
 ### Spell Tome Integration
 
@@ -127,7 +116,7 @@ Data/
 6. Switch to the **Spell Tree** tab to see your generated tree
 7. In gameplay: find spell tomes for root spells to begin learning. Cast prerequisite spells to earn XP toward new ones
 
-> The native C++ builders run near-instantly, even with 1500+ spells.
+> The native C++ builder runs near-instantly, even with 1500+ spells.
 
 ## Settings & Customization
 

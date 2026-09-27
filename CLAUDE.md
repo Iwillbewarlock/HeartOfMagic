@@ -191,7 +191,7 @@ node run-tests.js
 | File | Purpose |
 |------|---------|
 | `run-tests.js` | Node.js test runner with browser-global mocks |
-| `modules/unificationTest.js` | Module unification/integration tests |
+| `modules/unificationTest.js` | Shape profile, GrowthDSL and WheelRenderer checks (not loaded in game) |
 | `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/layerScrollTest.js` | Drag scroll of the tree layer (uncovered strips, their pieces, waiting strips moved, names moved with the picture) and the whole repaint spread over frames (LayerBuild states) |

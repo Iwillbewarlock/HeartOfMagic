@@ -57,8 +57,14 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `buttonHandlers.js` | 264 | Scan, learn, import/export button handlers |
 | `cppCallbacks.js` | 438 | C++ SKSE plugin callback handlers |
 | `llmIntegration.js` | 621 | LLM tree generation, color suggestions |
+| `proceduralTreeBuilder.js` | 209 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) |
 | **script.js** | 802 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~8245 | |
+
+Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
+builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,
+`growthBehaviors.js`, `edgeScoring.js`), `llmTreeFeatures.js`, `generationModeUI.js`, the `autoTest.js`
+harness and the unloaded WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js`).
 
 ## Load Order (index.html)
 

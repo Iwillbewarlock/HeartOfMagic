@@ -350,7 +350,8 @@ to read them found nothing. Fixed:
   the editor id now.
 - *sort order*: spells tied on tier and cost were ordered by name, so the same load order ordered them
   differently once translated. They go by form id now.
-- *JS*: `classicThemeEngine` discovered themes from name + effect names, and `edgeScoring` matched
+- *JS*: `classicThemeEngine` discovered themes from name + effect names, and `edgeScoring` (removed with
+  the JS tree builders, 2026-09-27) matched
   English element words against name + description. Both now also read editor id words
   (`spellIdWords` in `uiHelpers.js`). `editorIdWords` also splits an acronym from the word after it
   (`WTIceVolley` -> `wt ice volley`) and letters from digits (`DES100` -> `des 100`).
@@ -494,7 +495,8 @@ are kin, and the next attempt at an intermixed layout will want it.
   the problem - it rearranged the whole picture. The author asked for the familiar shape back, so the
   schools keep the order the scan finds them in, which is what HoM always did.
 
-**What `modules/schoolBridges.js` still does**, the same for all five build modes: right before
+**What `modules/schoolBridges.js` still does**, the same for every build (it was for all five build
+modes while they existed; Classic is the one builder since 2026-09-27): right before
 `SaveSpellTree`, `applyToOutput` adds `from` to the `softPrereqs` of `to` (both ways for `twoWay`), never
 to `prerequisites`, never to roots or spells that are open anyway, and copies the applied bridges to
 `output.bridges` for the viewer. Test load order: 180 bridges, 224 cross-school soft prerequisites, all
@@ -588,7 +590,10 @@ OnProceduralTreeGenerate(argument):
 | Command | Builder | Mode |
 |---------|---------|------|
 | `build_tree_classic` | `BuildClassic()` | Tier-first |
-| `prm_score` | `TreeNLP::ProcessPRMRequest()` | PRM scoring |
+
+PreReq Master scoring is not a build command: the panel sends it to its own listener,
+`PreReqMasterScore` (`UIManager::OnPreReqMasterScore` in `UIManagerTree.cpp`), which runs
+`TreeNLP::ProcessPRMRequest()` on a background thread and answers `onPreReqMasterComplete`.
 
 Any other build command (`build_tree`, `build_tree_graph`, `build_tree_thematic`, `build_tree_oracle`
 before 2026-09-27) returns `{success: false, error: "Unknown build command: ..."}`.
@@ -645,8 +650,9 @@ band (Flat). Nothing is added inside the center mask.
 
 Every added point keeps `_densifyMinSpacing()` from all others. That is the mod's existing node-spacing
 rule from `config.js`: `GRID_CONFIG` derives both the minimum node distance and the tier spacing from the
-node size (`minNodeSpacingMultiplier` and `tierSpacingMultiplier`, 0.7 each; the wheel layouts in
-`layoutEngine.js` / `layoutGenerator.js` use it), so nodes keep one tier spacing apart. It is applied as
+node size (`minNodeSpacingMultiplier` and `tierSpacingMultiplier`, 0.7 each; the JS wheel layouts
+`layoutEngine.js` / `layoutGenerator.js` used it until they were removed on 2026-09-27), so nodes keep one
+tier spacing apart. It is applied as
 tier spacing × (0.7 / 0.7) × `DENSIFY_TOLERANCE` (0.9), because a step along a ring is a chord slightly
 shorter than the tier spacing - 36 units at the default spacing of 40. There is no fixed floor: the Sun
 preview's tier density sets the spacing to `min(40, 250 / density)`, down to 25 at density 10 and lower
@@ -716,7 +722,8 @@ slice (between rounds). Applying again
 before it is done drops the first run. `apply(output)` does it all at once (tests) - same result either way. None of the layouts checked
 what the tree then looks like. (The old `layoutEngine.js` had a line-against-spell check; it was removed
 in v1.2.5 with a note that curved edges would handle it at render time, which they never did.
-`LayoutEngine.resolveOverlaps` is still there and still not called.) In the game's saved tree (1,428
+`LayoutEngine.resolveOverlaps` was never called either; `layoutEngine.js` went with the JS tree builders
+on 2026-09-27.) In the game's saved tree (1,428
 spells): 21 pairs of spells closer than two drawn spells (24 units), 2,550 cases of a parent-to-child line
 passing within 20 units of the centre of a spell it does not end at, 428 pairs of lines meeting at a spell
 less than 20 degrees apart (283 under 10), 1,384 pairs of lines not sharing a spell running closer than 11
@@ -1103,8 +1110,7 @@ The Classic builder outputs this JSON schema, which the downstream JS systems (l
           "children": ["0x0001C789", "0x0001C78A"],
           "prerequisites": [],
           "depth": 0,
-          "theme": "fire",
-          "section": "root"
+          "theme": "fire"
         }
       ],
       "config_used": {

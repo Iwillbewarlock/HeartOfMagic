@@ -307,8 +307,11 @@ Trigger tree construction. Sends spell data to the C++ native builder via `windo
             // ...your config
         };
 
+        // Mark the build as yours, so onProceduralTreeComplete hands you the result
+        state._myModeBuildPending = true;
+
         // Call C++ native builder
-        window.callCpp('RunProceduralTree', JSON.stringify({
+        window.callCpp('ProceduralTreeGenerate', JSON.stringify({
             command: 'build_tree_mymode',
             spells: spellData.spells,
             config: config
@@ -475,14 +478,22 @@ BuildResult BuildMyMode(const std::vector<json>& spells, const BuildConfig& conf
 }
 ```
 
-3. **JS sends command** from growth module:
+3. **JS sends command** from growth module, after setting its pending flag:
 ```javascript
-window.callCpp('RunProceduralTree', JSON.stringify({
+state._myModeBuildPending = true;
+window.callCpp('ProceduralTreeGenerate', JSON.stringify({
     command: 'build_tree_mymode',
     spells: spellData.spells,
     config: config
 }));
 ```
+
+4. **Route the result in `onProceduralTreeComplete`** (`modules/proceduralTreeBuilder.js`) via that
+   pending flag, as Classic does with `state._classicGrowthBuildPending`. Every build answers the same
+   callback, and it drops a result whose build nobody marked as pending, so add a branch: if
+   `state._myModeBuildPending`, clear it, hand `result.treeData` to your module's `loadTreeData()` on
+   success, or call `_handleBuildFailure()` with `'_myModeBuildPending'` (see Error Handling). Clear the
+   flag in the `catch` too, like Classic's, so a stale flag does not capture the next build's result.
 
 ### Builder Function Signature
 
@@ -536,8 +547,7 @@ struct BuildResult {
           "prerequisites": ["0x..."],
           "tier": 1,
           "skillLevel": "Novice",
-          "theme": "fire",
-          "section": "root|trunk|branch"
+          "theme": "fire"
         }
       ],
       "layoutStyle": "tier_first|organic"
@@ -577,7 +587,7 @@ Builders use shared NLP infrastructure from `TreeNLP.h`:
 | `TreeBuilder::GetSpellPrimaryTheme()` / `GetSpellThemes()` | A spell's best-matching theme / every theme it answers to |
 | `TreeBuilder::ComputeSimilarityMatrix()` | Pairwise spell similarity |
 | `TreeBuilder::LinkNodes()` | Parent-child linking |
-| `TreeBuilder::ValidateSchoolTree()` | Reachability + cycle detection |
+| `TreeBuilder::SimulateUnlocks()` / `FindUnreachableNodes()` | Reachability from the root |
 | `TreeBuilder::FixUnreachableNodes()` | Multi-pass orphan repair |
 
 ### Error Handling

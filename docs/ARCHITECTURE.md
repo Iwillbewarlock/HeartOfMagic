@@ -20,12 +20,9 @@
 - **Progressive Effectiveness:** Runtime spell magnitude scaling via C++ hooks
 - **Spell Tome Hook:** Intercepts tome reading to grant XP instead of instant learning
 - **FormID Persistence:** Spell trees survive load order changes via plugin-relative IDs
-- **Per-School Shapes:** Each magic school gets a distinct visual shape (explosion, tree, mountain, portals, organic)
-- **LLM Keyword Classification:** Batched LLM classification of spells with weak/missing keywords (optional)
 - **Plugin Whitelist:** Per-plugin opt-in/out filtering for spell tree generation
-- **BUILD TREE (Complex):** Native C++ NLP Classic builder (the one builder since 2026-09-27; Tree, Graph, Thematic and Oracle were removed) → JS SettingsAwareTreeBuilder
-- **BUILD TREE (Simple):** Pure JS procedural builder; keyword themes, tier-based links
-- **Visual-First / Edit Mode:** Manual drag-drop and in-tree editing (add/remove nodes, links)
+- **BUILD TREE:** Native C++ NLP Classic builder, laid out by the panel's Classic growth mode (the one builder since 2026-09-27; the Tree, Graph, Thematic and Oracle builders and the panel's old JS builds - Simple, Procedural+, Visual-First/SettingsAware - were removed)
+- **Edit Mode:** Manual drag-drop and in-tree editing (add/remove nodes, links)
 
 **Core Flow:**
 ```
@@ -572,7 +569,6 @@ C++ (UIManager)                    TreeBuilder
     │                                   │  ├─DiscoverThemesPerSchool()
     │                                   │  ├─ComputeSimilarityMatrix()
     │                                   │  ├─Per-school tree construction
-    │                                   │  ├─ValidateSchoolTree()
     │                                   │  └─FixUnreachableNodes()
     │                                   │
     │◄─callback(BuildResult)────────────┤
@@ -801,7 +797,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 **Core Files:**
 - `index.html` - UI structure, module load order
 - `styles-skyrim.css` - Styling (Skyrim Edge, the one UI theme); designs lay `themes/design-*.css` over it
-- `script.js` - Main initialization, tabs, button wiring (e.g. proceduralBtn → onProceduralClick), early learning helpers
+- `script.js` - Main initialization, tabs, button wiring, Growth Style Generator UI, early learning helpers
 
 **JavaScript Modules (`modules/`) – key ones:**
 
@@ -812,29 +808,22 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `state.js` | `settings`, `state`, `customProfiles`, `xpOverrides`, `pluginWhitelist` |
 | `config.js` | `TREE_CONFIG` layout and visual configuration |
 | **Tree building (user-facing)** | |
-| `edgeScoring.js` | Unified edge scoring (element, tier, keyword); used by SettingsAwareBuilder |
-| `shapeProfiles.js` | 12 shape profiles + masks (organic, explosion, tree, mountain, portals, spiky, radial, cloud, cascade, swords, grid, linear); per-school defaults |
-| `layoutEngine.js` | BFS growth layout, density stretch, shape mask conformity passes |
-| `settingsAwareTreeBuilder.js` | **Complex Build:** settings-driven tree (element isolation, convergence); consumes C++ builder fuzzy data |
-| `proceduralTreeBuilder.js` | **Simple Build:** `buildProceduralTrees()` (JS only). Also orchestrates **Complex:** `startVisualFirstGenerate()` → C++ → `doVisualFirstGenerate()` → `buildAllTreesSettingsAware()`. Plugin whitelist filtering |
-| `visualFirstBuilder.js` | Visual-first layout + spell assignment; calls SettingsAwareBuilder when available |
-| `layoutGenerator.js` | Node position (angles, radii) |
-| `growthBehaviors.js` | Branching energy, themed groups |
+| `classic/*.js`, `treeGrowth.js` | **Build Tree:** the Classic growth mode (sends `build_tree_classic`, lays out and saves the result) and its orchestrator |
+| `shapeProfiles.js` | 12 shape profiles (organic, explosion, tree, mountain, portals, spiky, radial, cloud, cascade, swords, grid, linear) read by WheelRenderer |
+| `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete` (hands the C++ result to Classic) |
 | **Parsers & rendering** | |
 | `treeParser.js` | Tree JSON → nodes/edges; validation, cycle detection, auto-fix |
 | `growthDSL.js` | Growth recipe/DSL for tree visuals |
 | `wheelRenderer.js` | Main 2D radial wheel rendering |
-| `canvasRenderer.js` | Canvas 2D rendering |
+| `canvasRendererV2.js` | Canvas 2D rendering |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
 | **UI & callbacks** | |
 | `settingsPanel.js` | Settings UI, config persistence, retry school UI, plugin whitelist modal |
 | `treeViewerUI.js` | Tree viewer, spell details, node selection |
 | `progressionUI.js` | How-to-Learn panel, learning status badges |
 | `difficultyProfiles.js` | Profile management, presets, custom profiles |
-| `generationModeUI.js` | Generation UI (seed, LLM options); dev-only rows |
 | `cppCallbacks.js` | C++ ↔ JS (e.g. ProceduralTreeGenerate, GetProgress); enables Complex/Simple buttons when spells loaded |
 | `llmIntegration.js` | LLM tree generation (AUTO AI), validation, retry |
-| `llmTreeFeatures.js` | LLM preprocessing: auto-config, keyword expansion, **keyword classification**; batched per-school classification |
 | `llmApiSettings.js` | LLM API configuration (model, endpoint, API key) |
 | `buttonHandlers.js` | Button click routing and UI state management |
 | **Utilities & effects** | |
@@ -844,15 +833,11 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `uiHelpers.js` | Shared UI helper functions |
 | `starfield.js` | Starfield background effect |
 | `globe3D.js` | 3D globe visualization (experimental) |
-| `webglRenderer.js` | WebGL rendering backend |
-| `webglShaders.js` | WebGL shader programs |
-| `webglShapes.js` | WebGL shape primitives |
 | **Testing & entry** | |
-| `autoTest.js` | Automated test harness |
-| `unificationTest.js` | Module unification tests |
+| `unificationTest.js` | Shape profile / GrowthDSL / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → edgeScoring/shapeProfiles/layoutEngine → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → cppCallbacks/llmIntegration/proceduralTreeBuilder → layoutGenerator/growthBehaviors/visualFirstBuilder/llmTreeFeatures/settingsAwareTreeBuilder → generationModeUI → script.js → autoTest/unificationTest → main.js.
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/llmIntegration/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, LLM API settings, output field toggles, Growth Style Generator
@@ -946,18 +931,12 @@ Sort descending → take top N → merge with vanilla hints
 
 Vanilla hints: Destruction → fire/frost/shock, Restoration → heal/cure/restore, etc.
 
-### Per-School Default Shapes
+### Per-School Default Shapes (removed)
 
-```cpp
-// Applied when LLM auto-config is disabled (default)
-Destruction → explosion   // Dense core bursting outward
-Restoration → tree        // Trunk with branches and canopy
-Alteration  → mountain    // Wide base tapering to peak
-Conjuration → portals     // Organic fill with doorway arch
-Illusion    → organic     // Natural flowing spread
-```
-
-Defined in both the C++ tree builder files (`plugins/spelllearning/src/treebuilder/`) and JS `shapeProfiles.js`.
+Destruction → explosion, Restoration → tree, Alteration → mountain, Conjuration → portals,
+Illusion → organic were the defaults of the removed builders (the C++ Tree/Graph/Thematic/Oracle
+builders and the JS `SCHOOL_DEFAULT_SHAPES` in `shapeProfiles.js`, gone 2026-09-27). Classic lays every
+school out tier-first (`config_used.shape` is `tier_first`).
 
 ---
 
@@ -973,18 +952,21 @@ User clicks "Scan" → SpellScanner::ScanAllSpells()
 
 ### Tree Generation Flow (user-facing modes, outside developer mode)
 
-**BUILD TREE (Complex)** — `visualFirstBtn` → `startVisualFirstGenerate()`:
-1. `startVisualFirstTreeConfig()`: build config (fuzzy + optional LLM), call C++ `ProceduralTreeGenerate`.
-2. C++ runs `TreeBuilder::Build(command, spells, config)` on SKSE TaskInterface thread. Executes native NLP algorithms (TF-IDF, fuzzy matching, tree construction).
+**BUILD TREE** — the Classic growth mode's build button → `TreeGrowthClassic.buildTree()` (`classic/classicMain.js`):
+1. Filters the scan (`filterBlacklistedSpells` / `filterWhitelistedSpells`), sets `state._classicGrowthBuildPending`
+   and calls C++ `ProceduralTreeGenerate` with `command: 'build_tree_classic'`.
+2. C++ runs `TreeBuilder::Build(command, spells, config)` on a background thread. Executes native NLP
+   algorithms (TF-IDF, fuzzy matching, tree construction).
 3. `TreeBuilder` returns `BuildResult` with full tree JSON.
-4. Callback fires on SKSE main thread → `onProceduralTreeComplete`.
-5. `doVisualFirstGenerate(schoolConfigs, fuzzyData)` → **`buildAllTreesSettingsAware()`** → LayoutEngine → TreeParser → render.
+4. Callback fires on the game thread → `onProceduralTreeComplete` (`proceduralTreeBuilder.js`), which hands
+   the tree to `TreeGrowthClassic.loadTreeData()` while the pending flag is set and drops any other result.
+5. `ClassicLayout` places the spells, `LayoutDeclutter` spaces them out, then `SaveSpellTree`.
 
-**BUILD TREE (Simple)** — `proceduralBtn` (click bound in script.js) → `onProceduralClick()` → `startProceduralGenerate()`:
-1. **`buildProceduralTrees(state.lastSpellData.spells)`** (proceduralTreeBuilder.js): JS-only; keyword theme discovery, tier-based links, convergence, orphans. No Python.
-2. Output → TreeParser → render.
+The panel's older builds - Simple (`buildProceduralTrees`, JS only), Procedural+ and Visual-First
+(`visualFirstBuilder` / `settingsAwareTreeBuilder`) - were removed on 2026-09-27; none had a button left
+in `index.html`.
 
-**Developer-only:** AUTO COMPLEX (`proceduralPlusBtn`) = C++ full tree build (TF-IDF, shapes). AUTO AI (`fullAutoBtn`) = LLM generates full tree (see Tree Validation System below for reachability/retry).
+**Developer-only:** AUTO AI (`fullAutoBtn`) = LLM generates full tree (see Tree Validation System below for reachability/retry).
 
 ### Tree Validation System
 
@@ -1345,7 +1327,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - PrismaUI panel with tabbed interface
 - Spell scanning (all spells from plugins)
 - LLM integration (OpenRouter API)
-- Tree visualization (radial layout, canvas, WebGL, 3D globe)
+- Tree visualization (radial layout, canvas, 3D globe)
 - Progression system (XP tracking, multipliers)
 - SKSE co-save persistence
 - DEST integration (bundled)
@@ -1366,7 +1348,6 @@ MO2/mods/HeartOfMagic_RELEASE/
 - Growth Style Generator (LLM-driven visuals)
 - Tree Generation Validation (reachability check, auto-fix, retry UI)
 - Spell Tome Hook (intercepts tomes, grants XP, keeps book)
-- Visual-First Builder (drag-drop tree creation)
 - Edit Mode (add/remove nodes, modify links)
 - Complex Build (native C++ tree generation — 5 builder modes; only Classic remains since 2026-09-27)
 - Native NLP engine (TF-IDF, cosine similarity, fuzzy matching)
@@ -1441,11 +1422,11 @@ MO2/mods/HeartOfMagic_RELEASE/
 ### ✅ Previously Completed (Feb 7, 2026)
 
 #### Per-School Default Shapes
-- **`SCHOOL_DEFAULT_SHAPES`** in both C++ (`plugins/spelllearning/src/treebuilder/`) and JS (`shapeProfiles.js`)
+- **`SCHOOL_DEFAULT_SHAPES`** in both C++ (`plugins/spelllearning/src/treebuilder/`) and JS (`shapeProfiles.js`) (both removed 2026-09-27 with the builders that read them)
 - Destruction=explosion, Restoration=tree, Alteration=mountain, Conjuration=portals, Illusion=organic
 - Applied automatically when LLM auto-config is disabled
 
-#### LLM Keyword Classification
+#### LLM Keyword Classification (removed 2026-09-27 with `llmTreeFeatures.js`; its button had already left `index.html`)
 - **LLM Keyword Classification** — Optional batched LLM classification for spells with weak/missing keywords
 - JS UI: toggle in LLM Features, `[K] Classify Keywords` button on Spell Scan tab
 - Default off — TF-IDF + fuzzy matching runs unchanged when disabled
@@ -1457,8 +1438,8 @@ MO2/mods/HeartOfMagic_RELEASE/
 - Base game plugins auto-detected and always included by default
 
 #### 12 Visual Shape Profiles
-- `shapeProfiles.js` expanded to 12 shapes with masks, conformity passes
-- `layoutEngine.js` BFS growth with density stretch
+- `shapeProfiles.js` expanded to 12 shapes with masks, conformity passes (masks removed 2026-09-27)
+- `layoutEngine.js` BFS growth with density stretch (removed 2026-09-27)
 - Shape-specific angular control and density multipliers
 
 ### ✅ Previous Updates (Feb 5, 2026)

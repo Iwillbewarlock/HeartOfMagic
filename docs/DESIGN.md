@@ -1031,14 +1031,14 @@ Tree applied
 ### Tree Building
 | Module | Purpose |
 |--------|---------|
-| `proceduralTreeBuilder.js` | JS/C++ procedural tree builder |
-| `visualFirstBuilder.js` | Visual-first builder (layout → assign → edges) |
-| `settingsAwareTreeBuilder.js` | Settings-aware wrapper |
-| `layoutGenerator.js` | Grid/shape layout generation |
-| `edgeScoring.js` | Edge scoring for spell relationships |
-| `shapeProfiles.js` | Shape definitions (explosion, tree, organic) |
+| `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to Classic |
+| `shapeProfiles.js` | Shape definitions (explosion, tree, organic) read by `wheelRenderer.js` |
 | `growthDSL.js` | Growth recipe DSL parser |
-| `growthBehaviors.js` | Growth behavior implementations |
+
+The trees themselves are built by the C++ Classic builder (see Growth Modes). The panel's JS builders -
+`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutGenerator.js`, `layoutEngine.js`,
+`edgeScoring.js`, `growthBehaviors.js` - were removed on 2026-09-27 with the Simple, Procedural+ and
+Visual-First builds that used them.
 
 ### Tree Preview
 | Module | Purpose |
@@ -1071,7 +1071,6 @@ Tree applied
 | `easyMode.js` | Easy mode scan page: preset chips and the build/apply relays (the Tree Style picker and the Complex page's build mode tabs were removed with the other builders, 2026-09-27) |
 | `schoolBridges.js` | Cross school bridges at build time: school order by kinship, bridge sources as soft prerequisites, traits and bridges baked into the saved tree |
 | `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, with a single pill (`#tree-trait-filter`) to clear it |
-| `generationModeUI.js` | Complex mode per-school controls |
 | `buttonHandlers.js` | Scan/build/apply button handlers |
 | `buildProgress.js` | Build progress modal |
 | `progressionUI.js` | Progression UI (learning targets, XP) |
@@ -1090,7 +1089,6 @@ Tree applied
 | Module | Purpose |
 |--------|---------|
 | `llmIntegration.js` | LLM API integration |
-| `llmTreeFeatures.js` | LLM tree features |
 | `llmApiSettings.js` | LLM API settings UI |
 
 ### Utilities
@@ -1099,17 +1097,14 @@ Tree applied
 | `spellCache.js` | Spell data caching |
 | `colorUtils.js` | Color management, school colors |
 
-### Unused / Archive
+### Test only
 | Module | Status |
 |--------|--------|
-| `_archive/canvasRenderer.js` | Replaced by canvasRendererV2 |
-| `_archive/spellTreeRenderer.js` | Old renderer |
-| `_archive/tierVisuals.js` | Old tier visuals |
-| `webglRenderer.js` | Not supported in CEF |
-| `webglShaders.js` | Not supported in CEF |
-| `webglShapes.js` | Not supported in CEF |
-| `unificationTest.js` | Test only |
-| `autoTest.js` | Test only |
+| `unificationTest.js` | Run by `run-tests.js` and `test-runner.html`; not loaded by `index.html` |
+
+The archived renderers (`_archive/canvasRenderer.js`, `spellTreeRenderer.js`, `tierVisuals.js`) are no
+longer in the panel, and the WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js` -
+PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ---
 
