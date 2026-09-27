@@ -1848,7 +1848,8 @@ var CanvasRenderer = {
         this.renderSchoolDividers(ctx);
         this.renderDebugGrid(ctx);          // behind edges and nodes
         if (pm) this._partAt = PerfMeter.part('dividers', this._partAt);
-        TreeStyle.beginInk(this._lodTier === 'full', this.zoom);
+        // No drawn lines in edit mode: a dragged spell would change its hand-drawn shape every frame
+        TreeStyle.beginInk(this._lodTier === 'full' && !(typeof EditMode !== 'undefined' && EditMode.isActive), this.zoom);
         this.renderEdges(ctx, viewLeft, viewRight, viewTop, viewBottom);
         if (pm) this._partAt = PerfMeter.part('edges', this._partAt);
         // The learning path animation and the detached particles move every

@@ -88,7 +88,7 @@ var TreeStyle = {
         // Ink (treeStyleInk.js) - how shapes and lines are drawn; only at the full level of detail
         handDrawn: 0,                               // 0..0.15 wobble of spell shapes (share of their size), lines bow a little
         lockedEdgeStipple: 0,                       // locked lines stippled: dot spacing in world units, 2..6 (0 = solid)
-        edgeBreaks: '',                             // breaks in known and frontier lines, same form ('' = none)
+        edgeBreaks: '',                             // breaks in known and frontier lines, "on off ..." in screen px ('' = none)
         edgeCut: 0,                                 // 0..1 engraved: a stripe of page this share of the known lines' width
         innerLine: 0,                               // 0..1 inset outline inside known spells, as a share of their size
         innerLineColor: '',                         // its colour ('' = the page)
@@ -155,7 +155,7 @@ var TreeStyle = {
 
     /**
      * Effects the player turned off, whatever the design sets: { page, sigil,
-     * glow, runes } (true = off). Re-applies the current design's tokens.
+     * glow, runes, ink } (true = off). Re-applies the current design's tokens.
      * @param {Object} off
      */
     setEffectsOff: function(off) {
@@ -252,6 +252,17 @@ var TreeStyle = {
     _fontValue: '',
 
     /**
+     * A stylesheet or a web font arrived after the tree was drawn: the label font
+     * is read again and the tree repainted (a canvas draws with a fallback font
+     * while a face is loading and is never told when it is in).
+     */
+    fontsChanged: function() {
+        this._fontKey = '';
+        this._fontValue = '';
+        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+    },
+
+    /**
      * The label font as a canvas font list. A design can name a CSS variable,
      * var(--name), so the tree's labels follow the font its stylesheet picks for
      * the page's language (:lang rules); read once per design and language, and
@@ -263,7 +274,9 @@ var TreeStyle = {
         if (!m) return f;
         var root = document.documentElement;
         var key = f + '|' + (root.getAttribute('lang') || '') + '|' + (typeof DesignPresets !== 'undefined' ? DesignPresets._appliedId : '');
-        if (key === this._fontKey && this._fontValue) return this._fontValue;
+        // Read once per design and language, empty too (fontsChanged reads it again
+        // when the design's stylesheet arrives)
+        if (key === this._fontKey) return this._fontValue || 'sans-serif';
         var v = '';
         try { v = (getComputedStyle(root).getPropertyValue(m[1]) || '').trim(); } catch (e) { v = ''; }
         this._fontKey = key;
@@ -444,5 +457,10 @@ var TreeStyle = {
 };
 
 TreeStyle.set(null);
+
+// Web fonts load when text first needs them; the tree's names follow once one is in
+if (typeof document !== 'undefined' && document.fonts && typeof document.fonts.addEventListener === 'function') {
+    document.fonts.addEventListener('loadingdone', function() { TreeStyle.fontsChanged(); });
+}
 
 window.TreeStyle = TreeStyle;

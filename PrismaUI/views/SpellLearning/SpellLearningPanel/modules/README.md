@@ -27,9 +27,9 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `settingsPanel.js` | 1001 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 618 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 213 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
-| `treeStyle.js` | 349 | `TreeStyle`: tree look as design-preset tokens; halos, labels, sigil, heart runes, school ink |
+| `treeStyle.js` | 466 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 313 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
-| `treeStyleInk.js` | 219 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
+| `treeStyleInk.js` | 243 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 336 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
 | `layoutDeclutter.js` | 500 | `LayoutDeclutter`: before a built tree is saved, spaces it out, moves spells off its lines (`LayoutLineClear`), off each other and off the heart; every growth mode calls `applyAsync` and saves when it is done. In game `applyAsync` has the plugin do it (`DeclutterTree`, the same pass in C++ on a worker thread, answered through `window.onDeclutterResult`, same positions); without the plugin, on an error or after 30 s without a reply it runs here a piece at a time between frames, progress on the status line. A C++ twin: changes go to `plugins/spelllearning/src/treebuilder/Layout*.cpp` too |
@@ -38,16 +38,17 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `layoutDeclutterTest.js` | 133 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
-| `nodeBatch.js` | 211 | `NodeBatch`: locked (lock look too), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
+| `nodeBatch.js` | 246 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
 | `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
+| `layerScroll.js` | 319 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips, a few a frame within a time budget, names kept across strips (instead of repainting the whole tree mid-drag) |
 | `progressUpdates.js` | 150 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |
-| `designEffectsSetting.js` | 119 | Render popup chips for a design's page, ink reveal, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
+| `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `progressionUI.js` | 547 | How-to-Learn panel, learning status badges |
 | `difficultyProfiles.js` | 429 | Profile management, presets, custom profiles |

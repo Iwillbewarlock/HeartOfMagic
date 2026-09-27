@@ -193,6 +193,7 @@ node run-tests.js
 | `modules/unificationTest.js` | Module unification/integration tests |
 | `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
+| `modules/layerScrollTest.js` | Drag scroll of the tree layer: uncovered strips, their pieces, names moved with the picture |
 | `modules/autoTest.js` | In-game automated test harness (reads `test_config.json`) |
 | `test-runner.html` | Browser-based test runner |
 

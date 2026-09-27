@@ -112,21 +112,31 @@
          * scaled by (c, s) = (cos, sin) of the turn times the size.
          */
         traceShape: function(path, shape, x, y, c, s) {
-            var p = shape.pts, n = p.length, i;
-            var px = function(q) { return x + q[0] * c - q[1] * s; };
-            var py = function(q) { return y + q[0] * s + q[1] * c; };
+            // Plain arithmetic, no helper closures: this runs for every spell of a
+            // repaint, and the game's engine has no JIT
+            var p = shape.pts, n = p.length, i, q, qx, qy;
             if (!shape.round) {
-                path.moveTo(px(p[0]), py(p[0]));
-                for (i = 1; i < n; i++) path.lineTo(px(p[i]), py(p[i]));
+                q = p[0];
+                path.moveTo(x + q[0] * c - q[1] * s, y + q[0] * s + q[1] * c);
+                for (i = 1; i < n; i++) {
+                    q = p[i];
+                    path.lineTo(x + q[0] * c - q[1] * s, y + q[0] * s + q[1] * c);
+                }
                 path.closePath();
                 return;
             }
             // A smooth loop: from the middle of each side to the next, bent through the corner
-            var last = p[n - 1];
-            path.moveTo((px(last) + px(p[0])) / 2, (py(last) + py(p[0])) / 2);
+            q = p[n - 1];
+            var prevX = x + q[0] * c - q[1] * s, prevY = y + q[0] * s + q[1] * c;
+            q = p[0];
+            var firstX = x + q[0] * c - q[1] * s, firstY = y + q[0] * s + q[1] * c;
+            path.moveTo((prevX + firstX) / 2, (prevY + firstY) / 2);
+            qx = firstX; qy = firstY;
             for (i = 0; i < n; i++) {
-                var q = p[i], nx = p[(i + 1) % n];
-                path.quadraticCurveTo(px(q), py(q), (px(q) + px(nx)) / 2, (py(q) + py(nx)) / 2);
+                var nq = p[(i + 1) % n];
+                var nx = x + nq[0] * c - nq[1] * s, ny = y + nq[0] * s + nq[1] * c;
+                path.quadraticCurveTo(qx, qy, (qx + nx) / 2, (qy + ny) / 2);
+                qx = nx; qy = ny;
             }
             path.closePath();
         },
@@ -153,17 +163,23 @@
         },
 
         /**
-         * The stroke style for stippled locked lines: a dot pattern in `color`
-         * (lockedEdgeStipple = dots this many world units apart), or null when off,
-         * not at full detail or when the engine makes no patterns (then solid).
-         * The dots belong to the tree, so they stay put while it is panned.
+         * The stroke style for stippled locked lines: a dot pattern in `color`,
+         * or null when off, not at full detail or when the engine makes no
+         * patterns (then solid). The dots belong to the tree, so they stay put
+         * while it is panned. lockedEdgeStipple picks the tile: up to 5 a 5 x 5
+         * tile, above that 7 x 7. A line is one tile pixel wide, so the dots sit
+         * like queens on a board - one in every row, column and diagonal
+         * (column k, row 2k mod n) - and a line in any direction meets one every
+         * n pixels; a tile with an empty row had lines lying in it vanish.
          */
         inkStipple: function(ctx, color) {
-            var n = Math.round(this.tokens.lockedEdgeStipple);
-            if (!(n > 0) || !this._inkFull || this._inkZoom < STIPPLE_MIN_ZOOM) return null;
-            n = Math.max(2, Math.min(6, n));
+            var want = Math.round(this.tokens.lockedEdgeStipple);
+            if (!(want > 0) || !this._inkFull || this._inkZoom < STIPPLE_MIN_ZOOM) return null;
+            var n = want <= 5 ? 5 : 7;
             var key = color + '|' + n;
-            if (this._stipple && this._stipple.key === key && this._stipple.ctx === ctx) return this._stipple.pattern;
+            // The layer and LayerScroll's spare take turns: a pattern kept for each
+            var cache = this._stipple && this._stipple.key === key ? this._stipple : (this._stipple = { key: key, ctxs: [], patterns: [] });
+            for (var i = 0; i < cache.ctxs.length; i++) if (cache.ctxs[i] === ctx) return cache.patterns[i];
             var pattern = null;
             try {
                 var tile = document.createElement('canvas');
@@ -171,15 +187,21 @@
                 tile.height = n;
                 var g = tile.getContext('2d');
                 g.fillStyle = color;
-                g.fillRect(0, 0, 1, 1);                 // a dot, softened on two sides
-                g.globalAlpha = 0.5;
-                g.fillRect(1, 0, 1, 1);
-                g.fillRect(0, 1, 1, 1);
+                for (var k = 0; k < n; k++) {
+                    var row = (2 * k) % n;
+                    g.globalAlpha = 1;
+                    g.fillRect(k, row, 1, 1);              // the dot, softened to the right and below
+                    g.globalAlpha = 0.45;
+                    g.fillRect((k + 1) % n, row, 1, 1);
+                    g.fillRect(k, (row + 1) % n, 1, 1);
+                }
                 pattern = ctx.createPattern(tile, 'repeat');
             } catch (e) {
                 pattern = null;
             }
-            this._stipple = { key: key, ctx: ctx, pattern: pattern };
+            if (cache.ctxs.length > 2) { cache.ctxs.shift(); cache.patterns.shift(); }
+            cache.ctxs.push(ctx);
+            cache.patterns.push(pattern);
             return pattern;
         },
 

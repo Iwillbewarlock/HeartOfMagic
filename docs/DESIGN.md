@@ -174,7 +174,8 @@ same. Without FxLayer, `composite` works as before.
 
 **Smaller things in the repaint** (2026-09-26):
 - The tree layer's margin is 128 css px, not 256 (`TREE_LAYER_MARGIN`): for the default panel the layer was
-  about 1.6 times the pixels, cleared and copied on every repaint. A drag repaints after 128 px instead.
+  about 1.6 times the pixels, cleared and copied on every repaint. (A drag past the margin now shifts the
+  layer instead of repainting it, see below.)
 - The simple level of detail (zoom 0.25-0.45) batches its spells too (`NodeBatch.begin(true)`: shapes not
   turned, as that level draws them): 3,916 → 116 paint calls per repaint in the bench; the selected and
   hovered spell are still drawn on their own.
@@ -193,6 +194,31 @@ same. Without FxLayer, `composite` works as before.
   (zoom settling, glide end). In the desktop bench the recording made a tree change 8.6 → 21 ms (every
   call through a wrapper) and a replay drew as much as the whole recorded area, never less than a culled
   repaint; in game a repaint is already 12-19 ms (`[Perf]` worst).
+
+**A drag shifts the tree layer** (`modules/layerScroll.js`, 2026-09-27). Once a drag had used up the
+layer's margin, the whole layer was repainted - every spell, line and name - in the middle of the drag,
+every ~150 px: on a CPU canvas in the desktop bench (1600x1000, every locked spell shown) 25-60 ms each,
+nine hitches per full circle of dragging. Now, once half the margin is used (`EARLY_SHARE`), the picture
+is copied onto a spare canvas moved by a whole number of device pixels (`'copy'` compositing, no clear
+pass; the two canvases swap) and `_layerPanX/Y` move by that much, so the paste's rounding keeps the
+remainder and nothing blurs. The strips the move uncovered are still in the margin, off screen: they are
+drawn nearest the view first, each clipped to itself with the spells and lines culled to its world box
+(padded by a halo's reach), as many a frame as fit in `FRAME_BUDGET_MS` (6 ms, at least one); if the view
+reaches a strip still waiting, all of them are drawn at once. Names are screen-aligned and must not
+overlap, so a name cut by a strip edge would show as half a name: the layer keeps the names it placed
+(`_layerLabels`, from `renderLabels`), moves them with the picture, draws the ones reaching into a strip
+again clipped to it, and places new names only inside strips, against the kept ones (`renderLabels` was
+split into `_labelCandidates`, `_labelRect` and `_keepLabel`, which both use). A full repaint as before
+when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on. Measured
+(circular drag, 120 frames, four designs, zoom 0.75 and 1.3, CPU canvases): frames over 16.7 ms 6-9 →
+0, worst frame 20-32 → 10-15 ms. A strip costs 2.5-5 ms; about 1.7 ms of that is its own (chapter
+titles, the name candidates, worked out once a frame), which is why strips are not cut smaller. The
+bench's full repaint (25-60 ms) is heavier than the game's, which logged 12-19 ms worst (`[Perf]`).
+
+Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
+ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
+as a plain circle (`NodeBatch.RING`, never hand-drawn). On a CPU canvas it saves little - half of a node
+repaint is the outlines' rasterising, not the calls - but it is the same picture for less work.
 
 **Animation frames at ~12 a second** (`ANIMATION_FRAME_MS` 83; 66 before 2026-09-26, 50 before that): each
 such frame is an upload of the whole panel in the game's browser. The moving parts keep their speed:
@@ -393,9 +419,13 @@ The wobble is geometry only: every school's shape (the circle too, as a smooth l
 jittered into four variants once per design, and a spell picks one by its position, so the batch
 (`NodeBatch`) and the spells drawn one by one (`renderNode`, the hover) give it the same shape. None of
 it is drawn below the full level of detail, and the cut and the inset line wait until they are wide
-enough on screen. Measured on a CPU canvas (full tree, every locked spell shown, 1600x1000): the drawn
-lines add 1-5 ms to a 60-75 ms repaint of the tree layer. Stippling the locked lines with a dash
-instead of a pattern had cost 25-40 ms, so it is a pattern. The Drawn lines chip turns all of it off.
+enough on screen. Edit mode draws none of it (a dragged spell would change its hand-drawn shape every
+frame). Measured on a CPU canvas (full tree, every locked spell shown, 1600x1000): the drawn lines add
+1-5 ms to a repaint of the tree layer. Stippling the locked lines with a dash instead of a pattern had
+cost 25-40 ms, so it is a pattern - about 6 ms still, so it starts at zoom 1, where the dots are far
+enough apart to read as dots (below, a plain faint line looks the same). The pattern's dots sit like
+queens on a 5x5 (or 7x7) board, one in every row, column and diagonal: an earlier 3x3 tile had an empty
+row, and a line lying along it vanished. The Drawn lines chip turns all of it off.
 
 ### Design fonts per language (2026-09-27)
 
@@ -407,7 +437,8 @@ overrides (the panel sets `<html lang>` when a language loads, see TRANSLATING.m
 the canvas labels resolve the same list (`TreeStyle.labelFamily`, read once per design and language).
 Each family list ends in the platform's own font for that script, so a missing glyph falls back instead
 of showing a box. A browser fetches a face only when some text uses it, so a player downloads just their
-language's file. Fonts are OFL, subset to the characters the UI and common spell names need
+language's file. Fonts are OFL (Hakgyoansim Bunpil by the KERIS download page's statement, see its
+licence file), subset to the characters the UI and common spell names need
 (KS X 1001 Hangul, Joyo kanji, GB2312 level 1, Big5 level 1, plus every character in the lang files);
 each folder has a README with sources and licences.
 

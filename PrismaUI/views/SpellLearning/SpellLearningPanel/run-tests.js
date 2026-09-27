@@ -61,6 +61,8 @@ loadModule('layoutDeclutter', './modules/layoutDeclutter.js');
 loadModule('layoutDeclutterTest', './modules/layoutDeclutterTest.js');
 loadModule('openRefreshGate', './modules/openRefreshGate.js');
 loadModule('openRefreshGateTest', './modules/openRefreshGateTest.js');
+loadModule('layerScroll', './modules/layerScroll.js');
+loadModule('layerScrollTest', './modules/layerScrollTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -119,6 +121,11 @@ if (typeof UnificationTest !== 'undefined') {
         var gate = OpenRefreshGateTest.run();
         results.failed += gate.failed;
         console.log('OpenRefreshGate: ' + gate.passed + ' passed, ' + gate.failed + ' failed');
+    }
+    if (typeof LayerScrollTest !== 'undefined') {
+        var scroll = LayerScrollTest.run();
+        results.failed += scroll.failed;
+        console.log('LayerScroll: ' + scroll.passed + ' passed, ' + scroll.failed + ' failed');
     }
 
     // Exit with appropriate code

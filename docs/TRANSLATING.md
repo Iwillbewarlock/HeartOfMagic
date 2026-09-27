@@ -198,7 +198,15 @@ When a language loads, the panel sets `<html lang="...">` to its code (`initI18n
 Chalkboard) pick a font per language with CSS `:lang()` rules, because no single such font covers
 Latin, Cyrillic, Hangul, kana and Han. A new language with a script those fonts lack (Arabic, Thai,
 Greek...) still shows: its letters fall back to a system font, glyph by glyph. To give it a matching
-face, add an `@font-face` and a `html:lang(xx) { --... }` rule to the design (see PRESETS.md, "Fonts").
+face, add an `@font-face` and a `html:lang(xx) { --... }` rule to the design (see DESIGN.md, "Design
+fonts per language").
+
+### Short school names
+
+The school tabs on the tree toolbar show `tree.schoolShort.*` (`Destr.`, `파괴`, `破壊`...): keep them
+to about five letters (two or three CJK characters), since the tabs are narrow. The tab's tooltip shows
+the full name from `chips.school.*`. A school with no short name (a modded school) is cut to five
+letters and a dot.
 
 ## Tips
 

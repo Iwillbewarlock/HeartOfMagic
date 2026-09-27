@@ -292,6 +292,9 @@ var DesignPresets = {
                 link = document.createElement('link');
                 link.id = 'design-preset-css';
                 link.rel = 'stylesheet';
+                // The design's label font may be a CSS variable of this sheet: the
+                // tree's names are drawn again once it is in
+                link.onload = function() { if (typeof TreeStyle !== 'undefined') TreeStyle.fontsChanged(); };
                 document.head.appendChild(link);
             }
             if (link.getAttribute('href') !== href) link.setAttribute('href', href);
