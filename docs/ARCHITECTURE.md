@@ -1222,7 +1222,7 @@ HeartOfMagic/
 │       ├── themes/                  ✅ Theme definitions (default, skyrim)
 │       └── modules/                 ✅ 39 JavaScript modules
 ├── SKSE/Plugins/SpellLearning/
-│   └── custom_prompts/              ✅ LLM prompt templates
+│   └── custom_prompts/              SkyrimNet prompt read only by SpellLearning_Bridge.psc (nothing writes its request file any more)
 └── docs/
     ├── ARCHITECTURE.md              ✅ This file
     ├── DESIGN.md                    ✅ Design patterns and UI documentation

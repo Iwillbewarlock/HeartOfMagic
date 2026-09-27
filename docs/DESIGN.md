@@ -1103,7 +1103,7 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ## C++ ↔ JS Communication
 
-### JS → C++ (34 listeners via `callCpp`)
+### JS → C++ (34 listeners via `callCpp`; the main ones)
 
 **Scanning:** `ScanSpells`, `SaveOutput`
 **Tree:** `LoadSpellTree`, `SaveSpellTree`, `GetSpellInfo`, `GetSpellInfoBatch`
@@ -1114,7 +1114,7 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 **Clipboard:** `GetClipboard`
 **Other:** `HidePanel`, `LogMessage`, `LoadPrompt`
 
-### C++ → JS (28 functions via `CallView`)
+### C++ → JS (28 functions via `CallView`; the main ones)
 
 **Lifecycle:** `onPrismaReady`, `onPanelShowing`, `onPanelHiding`
 **Data:** `updateSpellData`, `updateTreeData`, `updateSpellInfo`, `updateSpellInfoBatch`

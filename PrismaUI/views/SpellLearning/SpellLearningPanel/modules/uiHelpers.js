@@ -1,7 +1,8 @@
 /**
  * SpellLearning UI Helpers Module
  * 
- * Contains utility functions for status updates, presets, dragging, resizing.
+ * Utility functions: the scan status bar, the unlocked count, saving the tree,
+ * primed spells, preset naming, local form ids, tier XP and editor id words.
  * Depends on: state.js
  */
 
