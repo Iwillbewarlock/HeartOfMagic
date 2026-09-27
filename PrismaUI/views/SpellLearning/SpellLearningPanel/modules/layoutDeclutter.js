@@ -58,7 +58,8 @@ var LayoutDeclutter = {
     NATIVE_TIMEOUT_MS: 30000, // applyAsync: no reply from the plugin in this long, the pass runs here
                            // (a 1,428-spell tree takes it about 0.3 s)
     NATIVE_RETRY_MS: 300000, // after such a timeout the plugin is not asked for this long (a readable reply
-                           // that still comes in ends it sooner; the timed-out worker is stopped, DeclutterCancel)
+                           // ends it sooner: the timed-out worker is stopped, DeclutterCancel, and a plugin
+                           // that has it answers { cancelled } at once; so it holds for an old plugin only)
     MAX_COORD: 1e6,        // a spell further out, or not finite, is not moved (a real tree: a few thousand)
     MAX_ANGLE: 3600,       // a sector angle past this (degrees) is no sector (_angleDiff turns a turn at a time)
     MAX_CELL: 1073741824,  // grid cells clamped to +-2^30 (never reached from MAX_COORD); the C++ kMaxCell
@@ -84,9 +85,12 @@ var LayoutDeclutter = {
      * then told to stop), the pass runs here a SLICE_MS piece at a
      * time between frames (and after a timeout, here for NATIVE_RETRY_MS). A
      * second call before the first is done drops the first (its onDone is
-     * never called).
+     * never called; its plugin worker is told to stop).
      */
     applyAsync: function(output, onDone) {
+        var prev = this._asyncJob;
+        // Before the new request goes out, so the plugin stops the right worker
+        if (prev && prev.native && !prev.answered) this._cancelNative(prev);
         this._asyncSeq = (this._asyncSeq || 0) + 1;
         var token = { id: 'declutter-' + new Date().getTime() + '-' + this._asyncSeq, output: output, onDone: onDone };
         this._asyncJob = token;
@@ -163,21 +167,37 @@ var LayoutDeclutter = {
     },
 
     /**
-     * No reply in NATIVE_TIMEOUT_MS: the plugin's worker is told to stop
+     * Stop waiting for `token`'s reply and tell the plugin's worker to stop
      * (DeclutterCancel, so it does not keep a core busy for a reply nobody
-     * takes), the pass runs here, and the plugin (an old one without
-     * DeclutterTree, or a stuck worker) is not asked again for
-     * NATIVE_RETRY_MS, unless a reply from it comes in meanwhile.
+     * takes). A plugin that has it answers { id, cancelled: true }: nothing to
+     * apply, but a readable reply (it ends the NATIVE_RETRY_MS pause).
      */
-    _onNativeTimeout: function(token) {
-        if (this._asyncJob !== token || token.answered) return;
+    _cancelNative: function(token) {
         token.answered = true;
-        this._nativeRetryAt = Date.now() + this.NATIVE_RETRY_MS;
+        clearTimeout(token.timer);
         try {
             if (typeof window.callCpp === 'function') window.callCpp('DeclutterCancel', token.id);
         } catch (e) { /* an old plugin without it: nothing to stop */ }
-        console.warn('[LayoutDeclutter] no reply from the plugin in ' + this.NATIVE_TIMEOUT_MS + ' ms, arranged here');
+    },
+
+    /** _cancelNative, and `token`'s tree arranged here instead (`why` to the log). */
+    _giveUpNative: function(token, why) {
+        this._cancelNative(token);
+        console.warn('[LayoutDeclutter] ' + why + ', arranged here');
         this._applySliced(token);
+    },
+
+    /**
+     * No reply in NATIVE_TIMEOUT_MS: the worker is told to stop, the pass
+     * runs here, and the plugin is not asked again for NATIVE_RETRY_MS
+     * unless a reply from it comes in meanwhile - one that has
+     * DeclutterCancel answers it at once, so the pause holds only for an old
+     * plugin without DeclutterTree or DeclutterCancel.
+     */
+    _onNativeTimeout: function(token) {
+        if (this._asyncJob !== token || token.answered) return;
+        this._nativeRetryAt = Date.now() + this.NATIVE_RETRY_MS;
+        this._giveUpNative(token, 'no reply from the plugin in ' + this.NATIVE_TIMEOUT_MS + ' ms');
     },
 
     /** The plugin's reply (window.onDeclutterResult): positions onto the tree, or the JavaScript pass. */
@@ -188,23 +208,20 @@ var LayoutDeclutter = {
         if (!reply || typeof reply !== 'object') {
             // Unreadable, so whose it is cannot be told: a request still waiting
             // is arranged here at once rather than after NATIVE_TIMEOUT_MS
-            if (token && token.native && !token.answered) {
-                token.answered = true;
-                clearTimeout(token.timer);
-                console.warn('[LayoutDeclutter] unreadable reply from the plugin, arranged here');
-                this._applySliced(token);
-            }
+            if (token && token.native && !token.answered) this._giveUpNative(token, 'unreadable reply from the plugin');
             return;
         }
-        this._nativeRetryAt = 0;           // the plugin answers (if late): asked again next time
+        // The plugin answers (if late, or only { cancelled } to a DeclutterCancel): asked again next time
+        this._nativeRetryAt = 0;
         if (!token || !token.native || token.answered) return;
         // Only the reply to this request: not an earlier one's, not one without an id
         if (reply.id !== token.id) return;
         token.answered = true;
         clearTimeout(token.timer);
-        if (reply.error || !this._applyPositions(token.items, reply)) {
+        // { cancelled } has no positions: normally for a request already given up (ignored above)
+        if (reply.error || reply.cancelled || !this._applyPositions(token.items, reply)) {
             console.warn('[LayoutDeclutter] the plugin could not arrange the tree (' +
-                ((reply && reply.error) || 'bad reply') + '), arranged here');
+                (reply.error || (reply.cancelled ? 'cancelled' : 'bad reply')) + '), arranged here');
             this._applySliced(token);
             return;
         }

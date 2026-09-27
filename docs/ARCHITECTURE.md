@@ -628,8 +628,10 @@ JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, glob
             └─ AddTaskToGameThread ─► CallView("onDeclutterResult", {id, positions, moved, rounds, ...})
                  └─ JS writes x/y onto the nodes, onDone saves the tree
                     (error / unreadable reply / no reply in 30 s: the sliced JavaScript pass; another id: ignored)
-JS on that timeout ── callCpp("DeclutterCancel", id) ─► UIManager::OnDeclutterCancel ─► game thread:
-                      that request's worker cancelled
+JS giving a request up (timeout / unreadable reply / newer applyAsync)
+  ── callCpp("DeclutterCancel", id) ─► UIManager::OnDeclutterCancel ─► game thread:
+       that request's worker cancelled; if that stopped it ─► onDeclutterResult({id, cancelled: true})
+       (nothing applied; ends the panel's 5-minute pause after a timeout)
 ```
 
 Details, fallback and timings: [TREE_BUILDING_SYSTEM.md](TREE_BUILDING_SYSTEM.md#decluttering-before-save-layoutdeclutterjs-layoutlineclearjs-layoutlinegridjs-2026-09-26).

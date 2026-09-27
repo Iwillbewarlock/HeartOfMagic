@@ -30,7 +30,13 @@
 // The panel only takes the reply whose id is its latest request's, so a new
 // request cancels the worker still running (it stops at the next spell or
 // round and sends nothing), and so does DeclutterCancel(id), which the panel
-// sends when it stops waiting for that worker (NATIVE_TIMEOUT_MS). A worker
+// sends when it stops waiting for that worker (NATIVE_TIMEOUT_MS, an
+// unreadable reply, a newer request it arranges itself). A DeclutterCancel
+// that stops the latest worker is answered { id, cancelled: true }: the panel
+// takes nothing from it, but any readable reply ends its NATIVE_RETRY_MS pause
+// after a timeout (the plugin answers, so it is asked again). A worker that
+// finished just before is still flagged, so its request may get both replies;
+// the panel has taken the first by then and ignores the second. A worker
 // that fails answers { id, error } - the id read off the front of the request
 // when it cannot be parsed, or when no worker could be started - and the panel
 // then runs its own JavaScript pass. A reply can still be lost (no SKSE task
@@ -39,9 +45,9 @@
 //
 // Workers are detached, never joined. SKSE sends no message when the game
 // closes and never unloads a plugin; at process exit Windows ends every thread
-// before static destructors run, and joining there (under the loader lock)
-// could only hang. So a worker still running at exit is simply ended with the
-// process: it holds nothing but its own copy of the request.
+// before a DLL's static destructors run, and joining there (under the loader
+// lock) could only hang. So a worker still running at exit is simply ended
+// with the process: it holds nothing but its own copy of the request.
 
 namespace
 {
@@ -65,6 +71,15 @@ namespace
         nlohmann::json reply;
         reply["id"] = id;
         reply["error"] = error;
+        return Dump(reply);
+    }
+
+    // DeclutterCancel's answer: nothing to apply, but readable (see the top of the file)
+    std::string CancelledReply(const std::string& id)
+    {
+        nlohmann::json reply;
+        reply["id"] = id;
+        reply["cancelled"] = true;
         return Dump(reply);
     }
 
@@ -204,11 +219,13 @@ namespace
         }
 
         // DeclutterCancel: stop the latest worker if it is the one for `id`
-        // (any older one was cancelled when the next started)
-        void Cancel(const std::string& id)
+        // (any older one was cancelled when the next started); true when this
+        // call is what stopped it
+        bool Cancel(const std::string& id)
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_current && !id.empty() && id == m_currentId) m_current->store(true);
+            if (!m_current || id.empty() || id != m_currentId) return false;
+            return !m_current->exchange(true);
         }
 
     private:
@@ -247,6 +264,8 @@ void UIManager::OnDeclutterCancel(const char* argument)
     std::string id(argument ? argument : "");
 
     AddTaskToGameThread("DeclutterCancel", [id = std::move(id)]() {
-        DeclutterWorkers::Get().Cancel(id);
+        if (!DeclutterWorkers::Get().Cancel(id)) return;
+        logger::info("UIManager: DeclutterCancel {}: worker told to stop", id);
+        SendDeclutterReply(CancelledReply(id));
     });
 }

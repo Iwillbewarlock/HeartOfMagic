@@ -187,7 +187,11 @@ var LayoutDeclutterTest = {
             'a spell on a line longer than MAX_LINE is left on it, and not counted (' + result.linesLeft + ')');
     },
 
-    /** The plugin path: only the reply with this request's id is taken; a timeout pauses the plugin, a reply resumes it. */
+    /**
+     * The plugin path: only the reply with this request's id is taken; a timeout pauses the plugin, a
+     * reply resumes it (the plugin's { cancelled } answer to DeclutterCancel too); every request the
+     * panel stops waiting for is cancelled (timeout, unreadable reply, a newer request arranged here).
+     */
     _native: function(L) {
         var sent = [], oldCpp = window.callCpp, warn = console.warn, log = console.log;
         var cancels = [];
@@ -210,12 +214,40 @@ var LayoutDeclutterTest = {
         L._asyncJob = null;
         this.check(sent.length === 1 && !t2.native, 'after a timeout the plugin is not asked for NATIVE_RETRY_MS');
         L._onNativeResult(JSON.stringify({ id: token.id, positions: [] }));   // late, from the plugin
-        var t3 = L.applyAsync(this._tree(), function() {});
-        clearTimeout(t3.timer);
+        var t3 = L.applyAsync(this._tree(), function() { done++; });
         this.check(sent.length === 2 && t3.native, 'a late reply from the plugin has it asked again');
+
+        // Timed out again; the plugin answers the DeclutterCancel with { id, cancelled: true }
+        L._onNativeTimeout(t3);
+        var job3 = t3.job, before = JSON.stringify(t3.output), paused = L._nativeRetryAt > Date.now();
+        L._onNativeResult(JSON.stringify({ id: t3.id, cancelled: true }));
+        this.check(paused && L._nativeRetryAt === 0 && t3.job === job3 && L._asyncJob === t3 &&
+            JSON.stringify(t3.output) === before && done === 0 && cancels.length === 2,
+            'a { cancelled } reply ends the pause and applies nothing (no second fallback)');
+        L._asyncJob = null;
+        var t4 = L.applyAsync(this._tree(), function() {});
+        this.check(sent.length === 3 && t4.native, 'after a { cancelled } reply the plugin is asked again');
         L._onNativeResult('{"id": "declutter-');                            // cut off
-        this.check(t3.answered && !!t3.job && L._asyncJob === t3,
+        this.check(t4.answered && !!t4.job && L._asyncJob === t4,
             'an unreadable reply has the waiting request arranged here at once');
+        this.check(cancels.length === 3 && cancels[2] === t4.id, 'an unreadable reply tells the plugin to stop that request');
+
+        // A { cancelled } reply to a request still waiting: arranged here once, nothing applied
+        L._asyncJob = null;
+        var t5 = L.applyAsync(this._tree(), function() {});
+        before = JSON.stringify(t5.output);
+        L._onNativeResult(JSON.stringify({ id: t5.id, cancelled: true }));
+        var job5 = t5.job;
+        L._onNativeResult(JSON.stringify({ id: t5.id, cancelled: true }));
+        this.check(t5.answered && !!job5 && t5.job === job5 && JSON.stringify(t5.output) === before,
+            'a { cancelled } reply to a waiting request has it arranged here once, nothing applied');
+
+        // A newer request arranged here (too few spells) while the plugin still works on the last one
+        L._asyncJob = null;
+        var t6 = L.applyAsync(this._tree(), function() {});
+        var t7 = L.applyAsync({ schools: {} }, function() {});
+        this.check(sent.length === 5 && !t7.native && t6.answered && cancels.length === 4 && cancels[3] === t6.id,
+            'a newer request arranged here tells the plugin to stop the last one');
         L._asyncJob = null;
         L._nativeRetryAt = 0;
         window.callCpp = oldCpp;
