@@ -126,14 +126,14 @@ function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
     var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
     var retryFn = typeof retryBuild === 'function' ? function() {
-        if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), '#f59e0b');
+        if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), 'working');
         retryBuild();
     } : null;
     if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
         BuildProgress.fail(errorMsg, retryFn);
     }
     if (settingsModule) {
-        settingsModule.setStatusText('Build failed: ' + error, '#ef4444');
+        settingsModule.setStatusText('Build failed: ' + error, 'error');
     }
     if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildFailed', {error: error}), 'error');
     if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);

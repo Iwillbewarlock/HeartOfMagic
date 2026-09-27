@@ -1055,6 +1055,8 @@ Visual-First builds that used them.
 |--------|---------|
 | `treeGrowth.js` | Growth mode orchestrator (Classic is the one mode since 2026-09-27) |
 | `classic/classicMain.js` | Classic growth mode |
+| `classic/classicBuildRequest.js` | Classic build request to C++ and its failure path |
+| `classic/classicTreeOutput.js` | Classic result and layout → the saved tree JSON |
 | `classic/classicRenderer.js` | Classic mode renderer |
 | `classic/classicLayout.js` | Classic layout engine |
 | `classic/classicSettings.js` | Classic mode settings |

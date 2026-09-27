@@ -458,7 +458,7 @@ var TreeGrowth = {
             if (this._nodeCount > 0) {
                 label += ' \u2014 ' + t('treeGrowth.nodesPlaced', {placed: this._nodeCount, total: this._totalPool || this._nodeCount});
             }
-            this.setStatusText(label, '#22c55e');
+            this.setStatusText(label, 'done');
 
             // Force the main tree growth preview canvas to re-render
             this._markDirty();
@@ -508,10 +508,26 @@ var TreeGrowth = {
         }
     },
 
-    setStatusText: function(text, color) {
+    /**
+     * Colours of the build status line, by tone: theme colours, so every UI
+     * theme and design shows its own (the hex is the fallback when a theme
+     * leaves the variable out). easyMode.js mirrors the line's colour as is.
+     */
+    STATUS_COLORS: {
+        working: 'var(--accent-gold, #f59e0b)',
+        done: 'var(--accent-green, #22c55e)',
+        error: 'var(--accent-red, #ef4444)'
+    },
+
+    /**
+     * @param {string} text
+     * @param {string} [tone] - 'working', 'done' or 'error' (STATUS_COLORS)
+     */
+    setStatusText: function(text, tone) {
         var el = document.getElementById('tgStatus');
         if (!el) return;
         el.textContent = text;
+        var color = tone && this.STATUS_COLORS[tone];
         if (color) el.style.color = color;
     },
 

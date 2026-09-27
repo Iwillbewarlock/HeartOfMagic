@@ -344,7 +344,7 @@ Save the positioned tree to `spell_tree.json` via the C++ backend. This is what 
         if (!this._layoutData) return;
 
         window.callCpp('SaveSpellTree', JSON.stringify(this._layoutData));
-        TreeGrowth.setStatusText('Tree saved', '#22c55e');
+        TreeGrowth.setStatusText('Tree saved', 'done');
     },
 ```
 
@@ -444,7 +444,7 @@ if (typeof TreePreviewSun !== 'undefined') {
 | `switchMode(name)` | Switch to a mode |
 | `getSpellData()` | Returns current spell scan data |
 | `setTreeBuilt(built, nodeCount, totalPool)` | Update shared UI state |
-| `setStatusText(text, color)` | Update status label |
+| `setStatusText(text, tone)` | Update status label; `tone` is a `STATUS_COLORS` key (`working`, `done`, `error`), theme colours so every design shows its own |
 | `updateBuildButton()` | Refresh build button enabled state |
 | `_markDirty()` | Request a re-render |
 
@@ -634,6 +634,8 @@ now fail as unknown.
 | `modules/treePreviewUtils.js` | Shared UI helpers (drag inputs) |
 | `modules/treeGrowth.js` | Tree growth orchestrator |
 | `modules/classic/classicMain.js` | CLASSIC growth module |
+| `modules/classic/classicBuildRequest.js` | CLASSIC build request to C++ and its failure path |
+| `modules/classic/classicTreeOutput.js` | CLASSIC result + layout → saved tree JSON |
 | `modules/proceduralTreeBuilder.js` | Shared callback routing + error handler |
 | `modules/sunGrid*.js` | SUN grid sub-modules |
 

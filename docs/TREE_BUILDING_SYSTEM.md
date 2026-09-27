@@ -1142,7 +1142,7 @@ The Classic builder outputs this JSON schema, which the downstream JS systems (l
 
 ```
 1. User clicks "Build Tree" in Classic Growth tab
-2. classicMain.js sends:
+2. classicMain.js starts the build; classicBuildRequest.js sends:
    {
      command: "build_tree_classic",
      spells: [228 spells],
