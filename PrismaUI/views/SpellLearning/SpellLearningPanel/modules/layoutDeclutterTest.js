@@ -194,8 +194,9 @@ var LayoutDeclutterTest = {
      */
     _native: function(L) {
         var sent = [], oldCpp = window.callCpp, warn = console.warn, log = console.log;
-        var cancels = [];
+        var cancels = [], calls = [];
         window.callCpp = function(name, arg) {
+            calls.push(name);
             if (name === 'DeclutterTree') sent.push(JSON.parse(arg));
             if (name === 'DeclutterCancel') cancels.push(arg);
         };
@@ -221,12 +222,16 @@ var LayoutDeclutterTest = {
         L._onNativeTimeout(t3);
         var job3 = t3.job, before = JSON.stringify(t3.output), paused = L._nativeRetryAt > Date.now();
         L._onNativeResult(JSON.stringify({ id: t3.id, cancelled: true }));
-        this.check(paused && L._nativeRetryAt === 0 && t3.job === job3 && L._asyncJob === t3 &&
+        this.check(paused && L._nativeRetryAt > Date.now() && t3.job === job3 && L._asyncJob === t3 &&
             JSON.stringify(t3.output) === before && done === 0 && cancels.length === 2,
-            'a { cancelled } reply ends the pause and applies nothing (no second fallback)');
+            'a { cancelled } reply keeps the pause and applies nothing (no second fallback)');
         L._asyncJob = null;
+        var t3b = L.applyAsync(this._tree(), function() {});
+        this.check(sent.length === 2 && !t3b.native, 'still paused after a { cancelled } reply: arranged here');
+        L._asyncJob = null;
+        L._nativeRetryAt = 0;                                              // the pause is over
         var t4 = L.applyAsync(this._tree(), function() {});
-        this.check(sent.length === 3 && t4.native, 'after a { cancelled } reply the plugin is asked again');
+        this.check(sent.length === 3 && t4.native, 'after the pause the plugin is asked again');
         L._onNativeResult('{"id": "declutter-');                            // cut off
         this.check(t4.answered && !!t4.job && L._asyncJob === t4,
             'an unreadable reply has the waiting request arranged here at once');
@@ -248,6 +253,13 @@ var LayoutDeclutterTest = {
         var t7 = L.applyAsync({ schools: {} }, function() {});
         this.check(sent.length === 5 && !t7.native && t6.answered && cancels.length === 4 && cancels[3] === t6.id,
             'a newer request arranged here tells the plugin to stop the last one');
+        // The cancel reaches the plugin before the newer request does
+        L._asyncJob = null;
+        var t8 = L.applyAsync(this._tree(), function() {});
+        calls.length = 0;
+        var t9 = L.applyAsync(this._tree(), function() {});
+        this.check(t8.native && t9.native && calls.join() === 'DeclutterCancel,DeclutterTree',
+            'a newer request to the plugin sends the cancel of the old one first');
         L._asyncJob = null;
         L._nativeRetryAt = 0;
         window.callCpp = oldCpp;

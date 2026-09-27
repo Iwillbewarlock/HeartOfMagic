@@ -901,20 +901,21 @@ script, with `(native)`. The panel writes the positions onto the nodes (checking
 `onDone`. It falls back to the sliced JavaScript pass when the reply has an `error` or does not match the
 tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s). After such a timeout the plugin is not asked
 for `NATIVE_RETRY_MS` (5 minutes), so an older plugin without the listener is not waited for on every
-tree; any readable reply from the plugin in the meantime ends that pause. A plugin that has
-`DeclutterCancel` gives one at once: it answers the timeout's cancel (below) with `{ id, cancelled: true }`,
-so the pause holds only for an older plugin without it. Only a reply whose
+tree; a real reply from the plugin in the meantime (positions or an error, however late) ends that
+pause. The `{ id, cancelled: true }` answer to the timeout's cancel (below) does not: a tree too slow for
+the timeout would otherwise wait it out, and be arranged in the script, on every save. Only a reply whose
 `id` is the latest request's is taken - not an older request's, and not one without an id; an unreadable
 reply (not JSON) has a request still waiting arranged here at once instead of after the timeout. A newer
 `applyAsync` supersedes an older one; when the newer one is sent to the plugin (not during the
 `NATIVE_RETRY_MS` pause, nor when the tree has fewer than two positioned spells) the plugin cancels the
 older request's worker (a flag checked once per spell searched and once per push-apart round: it stops
-within a few milliseconds and sends nothing). Whenever the panel stops waiting for a request - a timeout,
+soon after - a spell with thousands of lines of its own can take a few hundred milliseconds or more
+to search - and sends nothing). Whenever the panel stops waiting for a request - a timeout,
 an unreadable reply, or a newer `applyAsync` (sent first, so it also covers a newer tree arranged in the
 script) - it sends `DeclutterCancel` with that request's id (in a `try`: an old plugin has no listener),
 and the plugin cancels that worker the same way, so it does not keep a core busy for a reply nobody takes.
-When that call is what stops the latest worker, the plugin replies `{ id, cancelled: true }`; the panel
-applies nothing from it (it has already given that request up; a `cancelled` reply to a request still
+When that call is what stops the latest worker, the plugin replies `{ id, cancelled: true }` (logged);
+the panel applies nothing from it and keeps any pause (it has already given that request up; a `cancelled` reply to a request still
 waiting counts as a failure, arranged in the script once). A worker that finished just before the cancel
 reached it still gets the `cancelled` reply after its own, which the panel ignores. A worker that fails replies with an error: when the request cannot be parsed, or no worker
 thread can be started, the error carries the id read off the front of the request (`{"id":"declutter-...`,

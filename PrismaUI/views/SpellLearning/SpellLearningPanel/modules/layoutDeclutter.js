@@ -190,9 +190,9 @@ var LayoutDeclutter = {
     /**
      * No reply in NATIVE_TIMEOUT_MS: the worker is told to stop, the pass
      * runs here, and the plugin is not asked again for NATIVE_RETRY_MS
-     * unless a reply from it comes in meanwhile - one that has
-     * DeclutterCancel answers it at once, so the pause holds only for an old
-     * plugin without DeclutterTree or DeclutterCancel.
+     * unless a real reply (positions or an error) comes in meanwhile. The
+     * plugin's { cancelled } answer to DeclutterCancel does not end the pause:
+     * a tree too slow for the timeout would otherwise wait it out on every save.
      */
     _onNativeTimeout: function(token) {
         if (this._asyncJob !== token || token.answered) return;
@@ -211,8 +211,9 @@ var LayoutDeclutter = {
             if (token && token.native && !token.answered) this._giveUpNative(token, 'unreadable reply from the plugin');
             return;
         }
-        // The plugin answers (if late, or only { cancelled } to a DeclutterCancel): asked again next time
-        this._nativeRetryAt = 0;
+        // A real answer (if late): asked again next time. Not a { cancelled } one:
+        // the tree that timed out would time out again on the next save
+        if (!reply.cancelled) this._nativeRetryAt = 0;
         if (!token || !token.native || token.answered) return;
         // Only the reply to this request: not an earlier one's, not one without an id
         if (reply.id !== token.id) return;
