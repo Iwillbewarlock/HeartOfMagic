@@ -132,10 +132,6 @@ bool UIManager::Initialize()
     // Register JS callbacks - Panel control
     m_prismaUI->RegisterJSListener(m_view, "HidePanel", OnHidePanel);
 
-    // Register JS callbacks - Auto-test
-    m_prismaUI->RegisterJSListener(m_view, "loadTestConfig", OnLoadTestConfig);
-    m_prismaUI->RegisterJSListener(m_view, "saveTestResults", OnSaveTestResults);
-
     // Register console message callback (API v2+)
     if ((m_prismaUIv2 = PRISMA_UI_API::RequestPluginAPI<PRISMA_UI_API::IVPrismaUI2>())) {
         m_prismaUIv2->RegisterConsoleCallback(m_view, OnConsoleMessage);

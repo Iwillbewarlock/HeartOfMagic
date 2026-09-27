@@ -93,16 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof initializeTextareaEnterKey === 'function') initializeTextareaEnterKey();
         
         console.log('[SpellLearning] Panel initialized successfully');
-
-        // AUTO-TEST: Check for test configuration and run automated tests if enabled
-        // This allows external test runners to configure preset tests via test_config.json
-        if (typeof checkAutoTestMode === 'function') {
-            setTimeout(function() {
-                console.log('[SpellLearning] Checking for auto-test mode...');
-                checkAutoTestMode();
-            }, 2000);  // Wait for DOM + C++ to be ready
-        }
-
     } catch (e) {
         console.error('[SpellLearning] Initialization error:', e);
     }

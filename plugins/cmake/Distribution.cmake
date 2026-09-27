@@ -83,7 +83,7 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 )
 
 # ============================================================================
-# 4. Copy SKSE runtime data (presets, custom_prompts, test_config)
+# 4. Copy SKSE runtime data (presets, custom_prompts, librarian, card icons)
 # ============================================================================
 
 add_custom_command(TARGET assemble_dist POST_BUILD

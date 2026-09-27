@@ -160,10 +160,6 @@ private:
     static void OnDeletePreset(const char* argument);
     static void OnLoadPresets(const char* argument);
 
-    // Auto-test callbacks
-    static void OnLoadTestConfig(const char* argument);
-    static void OnSaveTestResults(const char* argument);
-
     // Console message callback
     static void OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageLevel level, const char* message);
 

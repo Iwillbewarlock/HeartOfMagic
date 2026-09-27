@@ -195,17 +195,15 @@ node run-tests.js
 | `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/layerScrollTest.js` | Drag scroll of the tree layer (uncovered strips, their pieces, waiting strips moved, names moved with the picture) and the whole repaint spread over frames (LayerBuild states) |
-| `modules/autoTest.js` | In-game automated test harness (reads `test_config.json`) |
 | `test-runner.html` | Browser-based test runner |
-
-**Test config:** `SKSE/Plugins/SpellLearning/test_config.json`
 
 ### No C++ Test Framework
 
 This project does not have a C++ test framework. Validation is done through:
 - Compilation (build succeeds)
 - JavaScript unit tests (above)
-- In-game testing via autoTest.js and manual play
+- In-game testing by manual play (the old autoTest.js harness and its `test_config.json` went with the
+  JS tree builders it ran, 2026-09-27)
 - Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
   `treebuilder-test` (the Classic tree builder), `librarian-test` (spell tag librarian) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
