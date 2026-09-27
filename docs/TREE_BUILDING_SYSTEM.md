@@ -99,8 +99,8 @@ C++ builds the **tree structure** — which spell is parent/child of which. Five
 
 **The panel offers Classic only (2026-09-27).** The Tree, Graph, Thematic and Oracle growth modes and
 their JS modules (`treeGrowthTree.js`, `modules/tree/`, `graph/`, `oracle/`, `thematic/`) were removed;
-a config saved with one of them falls back to Classic, and the build-mode tabs and the Easy page's
-Tree Style picker are hidden while only one mode is registered. Their C++ builders below remain, used by
+a config saved with one of them falls back to Classic, and the build-mode tab row and the Easy
+page's Tree Style picker are gone. Their C++ builders below remain, used by
 `treebuilder-test`; the routing for their replies in `proceduralTreeBuilder.js` is guarded and now idle.
 
 ### Classic Builder (`TreeBuilder::BuildClassic`)

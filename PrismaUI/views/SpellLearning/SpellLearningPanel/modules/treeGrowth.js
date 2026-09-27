@@ -59,17 +59,6 @@ var TreeGrowth = {
     registerMode: function(name, module) {
         this.modes[name] = module;
         console.log('[TreeGrowth] Registered mode: ' + name);
-
-        // If already initialized, dynamically add the tab
-        if (this._initialized) {
-            this._addTab(name, module);
-        }
-    },
-
-    /** Placeholder for modes that are coming soon (shown as disabled tab). */
-    registerPlaceholder: function(name) {
-        this._placeholders = this._placeholders || [];
-        this._placeholders.push(name);
     },
 
     // =========================================================================
@@ -89,15 +78,6 @@ var TreeGrowth = {
         container.innerHTML = this._buildHTML();
         container.style.display = 'none';
 
-        // Set up tab click handlers (scoped to this section)
-        var self = this;
-        var tabs = container.querySelectorAll('.tree-growth-tab:not(.disabled)');
-        for (var i = 0; i < tabs.length; i++) {
-            tabs[i].addEventListener('click', function() {
-                var mode = this.getAttribute('data-mode');
-                if (mode) self.switchMode(mode);
-            });
-        }
 
         // Wire shared buttons
         this._bindSharedButtons();
@@ -113,32 +93,10 @@ var TreeGrowth = {
     },
 
     _buildHTML: function() {
-        // Build tabs dynamically from registered modes
-        var tabsHTML = '';
-        var modeNames = [];
-        for (var name in this.modes) {
-            if (this.modes.hasOwnProperty(name)) modeNames.push(name);
-        }
-        for (var i = 0; i < modeNames.length; i++) {
-            var m = modeNames[i];
-            var isActive = m === this.activeMode ? ' active' : '';
-            var label = this.modes[m].tabLabel || m.toUpperCase();
-            tabsHTML += '<button class="tree-growth-tab' + isActive + '" data-mode="' + m + '">' + label + '</button>';
-        }
-        // Placeholder tabs (coming soon)
-        var ph = this._placeholders || [];
-        for (var p = 0; p < ph.length; p++) {
-            tabsHTML += '<button class="tree-growth-tab disabled" data-mode="' + ph[p] + '" disabled>' + ph[p].toUpperCase() + '</button>';
-        }
-
+        // Classic is the only builder (2026-09-27): no tab row to pick one
         return '' +
             '<div class="tree-preview-header">' +
                 '<span class="tree-preview-title">' + t('treeViewer.treeGrowthPreview') + '</span>' +
-            '</div>' +
-            // One builder, nothing to choose between: the tab row stays hidden
-            '<div class="tree-preview-tabs" id="treeGrowthTabs"' +
-                (modeNames.length + ph.length > 1 ? '' : ' style="display:none"') + '>' +
-                tabsHTML +
             '</div>' +
             // Shared action buttons now live in index.html scan-actions-bottom
             '<div class="tree-preview-split" style="height:800px;">' +
@@ -149,31 +107,6 @@ var TreeGrowth = {
                     '<!-- Canvas created dynamically -->' +
                 '</div>' +
             '</div>';
-    },
-
-    /** Add a tab button for a mode registered after init. */
-    _addTab: function(name, module) {
-        var tabsEl = document.getElementById('treeGrowthTabs');
-        if (!tabsEl) return;
-
-        var label = module.tabLabel || name.toUpperCase();
-        var btn = document.createElement('button');
-        btn.className = 'tree-growth-tab';
-        btn.setAttribute('data-mode', name);
-        btn.textContent = label;
-
-        var self = this;
-        btn.addEventListener('click', function() {
-            self.switchMode(name);
-        });
-
-        // Insert before placeholder tabs
-        var placeholders = tabsEl.querySelectorAll('.tree-growth-tab.disabled');
-        if (placeholders.length > 0) {
-            tabsEl.insertBefore(btn, placeholders[0]);
-        } else {
-            tabsEl.appendChild(btn);
-        }
     },
 
     // =========================================================================
@@ -212,16 +145,6 @@ var TreeGrowth = {
         }
 
         this.activeMode = mode;
-
-        // Update tab active states (scoped to this section)
-        var container = document.getElementById('treeGrowthSection');
-        if (container) {
-            var tabs = container.querySelectorAll('.tree-growth-tab');
-            for (var i = 0; i < tabs.length; i++) {
-                var tabMode = tabs[i].getAttribute('data-mode');
-                tabs[i].classList.toggle('active', tabMode === mode);
-            }
-        }
 
         // Load the mode's settings panel
         this._loadModeSettings(mode);

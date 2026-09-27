@@ -6029,33 +6029,10 @@ body {
     background: rgba(184, 168, 120, 0.08);
 }
 
-.tree-preview-tab.disabled,
-.tree-growth-tab.disabled {
+.tree-preview-tab.disabled {
     opacity: 0.3;
     pointer-events: none;
     cursor: not-allowed;
-}
-
-.tree-growth-tab {
-    padding: 6px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: var(--text-muted);
-    font-size: 12px;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: 1px;
-}
-
-.tree-growth-tab:hover:not(.disabled) {
-    color: var(--text-primary);
-    border-color: var(--text-muted);
-}
-
-.tree-growth-tab.active {
-    color: var(--accent-gold);
-    border-bottom-color: var(--accent-gold);
 }
 
 .tree-preview-split {
