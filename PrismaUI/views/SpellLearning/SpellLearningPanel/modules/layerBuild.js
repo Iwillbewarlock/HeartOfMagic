@@ -25,7 +25,9 @@
  * look quick, and trying it at once again would be one long frame (a figure
  * lowered a little a build did that every ~11 builds). A tree that was slow once
  * (a hitch) and is middling since stays spread - its repaints show the old
- * picture a frame or two longer, with no long frame. So is the first repaint, one with
+ * picture a frame or two longer, with no long frame. The repaint right after a
+ * design or language change is not counted (noteRestyle): it makes the sprites,
+ * patterns and text widths and would pass for a slow tree. So is the first repaint, one with
  * no old picture to show (stale layer, resize) and one in edit mode; and a tree
  * that keeps changing faster than a build ends (MAX_RESTARTS builds started
  * again in a row, the count starting over when a build is dropped for another
@@ -70,6 +72,7 @@ var LayerBuild = {
     _pieceMs: 3,              // a piece's running cost, ms
     _finishMs: 4,             // the names and chapter titles' running cost, ms
     _restarts: 0,             // builds started again before one was done, in a row
+    _unmeasured: false,       // the next whole repaint follows a design or language change (noteRestyle)
 
     active: function() {
         return !!this._build;
@@ -92,9 +95,21 @@ var LayerBuild = {
         return this._restarts >= this.MAX_RESTARTS;
     },
 
+    /**
+     * A design or language was just applied: the next whole repaint makes its
+     * sprites, patterns and text widths the first time (18-26 ms in the bench
+     * where the tree takes 3-9), so what it costs says nothing about the tree -
+     * taken as _lastMs it would keep a quick tree spread for good (a middling
+     * build leaves the figure). It is not counted; the one after it is.
+     */
+    noteRestyle: function() {
+        this._unmeasured = true;
+    },
+
     /** A whole repaint was just done at once; it took `ms`. */
     noteSync: function(ms) {
-        this._lastMs = ms;
+        if (this._unmeasured) this._unmeasured = false;
+        else this._lastMs = ms;
         this._build = null;
         this._restarts = 0;
     },
@@ -282,7 +297,8 @@ var LayerBuild = {
         // build) it would switch a slow tree back to a long frame
         if (!b.tiles.length) {
             var est = this._estimate(b);
-            if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
+            if (this._unmeasured) this._unmeasured = false;      // after a design change (noteRestyle)
+            else if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
         }
         this._build = null;
         this._restarts = 0;

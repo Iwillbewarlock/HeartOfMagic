@@ -256,7 +256,9 @@ unthrottled - animation frames come only ~12 a second and none when idle). A fra
 layer stretched (a wheel zoom or a glide straight after the swap) draws them too
 (`LayerScroll.drawPendingAside`, 2026-09-28): into the layer on screen at the view it was drawn for (its
 zoom, turn and level of detail), the pieces the stretched paste shows first (the screen's corners mapped
-back through the paste, `_stretchedViewRect`), the others in the frame's time left. Not with a build under
+back through the paste, `_stretchedViewRect`), all within the frame's time left - a zoom out can show
+every leftover piece at once (4-6 on a 1080p screen, 2-4 ms each), too much for one frame, and the view
+is moving anyway. Not with a build under
 way - its pieces have the frame, and its swap replaces that layer and drops them - nor with the tree
 changed since, when they would show the new tree in the old picture, seams at the pieces' edges. Before,
 those frames showed the leftover pieces as empty rectangles in the margin (the names drawn over them)
@@ -278,7 +280,9 @@ calls - above `SYNC_MAX_MS`, so it stays spread). Lowering it a little each such
 (`LAST_MS_DECAY`, 0.9, for a day on 2026-09-28) was taken out again: a slow tree whose builds look quick
 then tried a repaint at once about every 11 builds - one long frame each time. A tree slow once (a hitch)
 and middling since stays spread; that costs its repaints a frame or two of the old picture, not a long
-frame. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+frame. The repaint right after a design or language is applied is not counted (`LayerBuild.noteRestyle`,
+called by `DesignPresets.apply` and `switchLocale`): it makes the sprites, patterns and text widths the
+first time (the 18-26 ms outlier below) and, counted, would keep a quick tree spread for good. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
@@ -772,11 +776,14 @@ each have a token of their own - `--status-idle`, `--status-working`, `--status-
 working gold was the idle text's own colour and the muted green and red hard to tell apart. Defaults in
 `styles-skyrim.css` (amber, green, red; idle the old faint khaki), set again by `design-modern.css`,
 `design-arcane.css` (on the leather) and `design-darkbook.css` (Night Grimoire; Chalkboard's preset sets
-chalk tones); the hex in `STATUS_COLORS` is the fallback for a design that sets none. The idle colour
+chalk tones for working, done and error; its idle follows its own `--book-text-faint`, which
+`design-darkbook.css`'s `--status-idle` reads); the hex in `STATUS_COLORS` is the fallback for a design that sets none. The idle colour
 comes from the stylesheet (`#tgStatus, #easyStatus` in `styles-skyrim.css`), not an inline style: the
-language strings (`scanner.complexStatusWrap`, `easyMode.statusWrap`) rebuild both elements at start-up,
-and until 2026-09-28 they carried the old khaki inline, so `--status-idle` never showed in game (the
-desktop harness, which has no language strings on that line, did not show it).
+language strings (`scanner.complexStatusWrap`, `easyMode.statusWrap`) rebuild both elements at start-up.
+Until 2026-09-28 `scanner.complexStatusWrap` carried the old khaki inline, and `easyMode.js`, which copies
+`#tgStatus`'s inline colour onto `#easyStatus`, passed it on, so `--status-idle` never showed in game (the
+desktop harness, which has no language strings on that line, did not show it). `#easyStatus` needs the
+rule too: the copied inline colour is empty while idle.
 
 **School tabs** sit in a row under the zoom tools (`patch-ui.css`, all designs). Centred on the top row
 they covered the right half of the tools - the renderer badge, heart settings and edit tree - at the

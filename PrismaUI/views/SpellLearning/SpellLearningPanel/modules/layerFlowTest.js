@@ -9,7 +9,8 @@
  *   first, one a frame when there is no time, the swap once they and the names
  *   are done, the rest handed to LayerScroll with the next frame asked for, and
  *   _lastMs left as it was by a build cut short; what finished builds do to
- *   _lastMs (a middling one leaves it, however many come).
+ *   _lastMs (a middling one leaves it, however many come; the first after a
+ *   design change is not counted).
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
  *   dropped (its change marked again, the restart count started over), a glide
@@ -162,6 +163,13 @@ var LayerFlowTest = {
             'builds that stay middling leave a slow figure: no repaint at once (a long frame) every so many builds');
         B._swapIn(rr, built(40));
         this.check(B._lastMs === 40, 'a slower build raises it');
+        // The repaint after a design or language change makes its sprites: not counted
+        B._lastMs = 3; B.noteRestyle(); B.noteSync(26);
+        this.check(B._lastMs === 3 && !B._unmeasured, 'after a design change the first repaint at once is not counted');
+        B.noteSync(5);
+        this.check(B._lastMs === 5, '...the one after it is');
+        B._lastMs = 30; B.noteRestyle(); B._swapIn(rr, built(60));
+        this.check(B._lastMs === 30 && !B._unmeasured, 'nor is a first build after it');
         B._lastMs = 0;
     },
 
@@ -270,6 +278,13 @@ var LayerFlowTest = {
         f = frame();
         this.check(f === 'piece' && S._pending.length === 0 && zoomAt === r._layerZoom && r.zoom === 0.9,
             "a stretched frame draws them, at the layer's zoom (the live one put back)");
+        S._pending = [[0, 0, 50, 50], [60, 0, 50, 50]];                    // both on screen, no time left
+        var target = S.TARGET_FRAME_MS;
+        S.TARGET_FRAME_MS = -1000;
+        f = frame();
+        S.TARGET_FRAME_MS = target;
+        this.check(f === 'piece' && S._pending.length === 1 && r.__needsRender === true,
+            'a stretched frame keeps to its time, on-screen pieces too: one, the next frame asked for');
         r._wheelAt = -1e9; r.zoom = r._layerZoom;
         S._pending = [];
         r.panX = 0;

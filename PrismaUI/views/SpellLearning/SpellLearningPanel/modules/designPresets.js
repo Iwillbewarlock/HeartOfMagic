@@ -264,6 +264,8 @@ var DesignPresets = {
 
         TreeStyle.set(preset.tree || {});
         this._applyCss(preset);
+        // The next repaint makes the design's sprites and patterns: not a measure of the tree
+        if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
 
         // The UI theme underneath. settings.uiTheme follows the design; before the
         // themes are loaded the stylesheet stays, and onThemesLoaded applies it.

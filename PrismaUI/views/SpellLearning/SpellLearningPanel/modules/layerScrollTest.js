@@ -99,6 +99,15 @@ var LayerScrollTest = {
             this.check(Math.abs(turned[2] - 600) <= 1 && Math.abs(turned[3] - 800) <= 1 &&
                        Math.abs(turned[0] + turned[2] / 2 - 528) <= 1 && Math.abs(turned[1] + turned[3] / 2 - 428) <= 1,
                 'turned a quarter: the screen on its side, round the layer middle');
+            sr.panX = 30;                          // turned, the view moved on: the sign of the turn shows
+            turned = S._stretchedViewRect(sr, 1, 128, sv);
+            this.check(Math.abs(turned[0] + turned[2] / 2 - 528) <= 1 && Math.abs(turned[1] + turned[3] / 2 - 458) <= 1,
+                'turned a quarter with the pan moved on: the screen centre mapped back the right way round');
+            // Pixel ratio 2, the view moved on since the layer was drawn, zoomed out
+            var hd = { canvas: { width: 1600, height: 1200 }, zoom: 0.5, _layerZoom: 1, rotation: 0, _layerRotation: 0,
+                       panX: 40, panY: 0, _layerPanX: 10, _layerPanY: 0 };
+            this.check(S._stretchedViewRect(hd, 2, 128, sv).join() === '-684,-344,3200,2400',
+                'pixel ratio 2 and a pan moved on: device px, the pan unscaled by the zoom');
         } finally {
             S.LOOKAHEAD_PX = look;
         }

@@ -217,6 +217,8 @@
             }
             initI18n(locale);
             applyI18nToDOM();
+            // The language's fonts and names: the next tree repaint is not a measure of it
+            if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
             done(true);
         };
         script.onerror = function() {

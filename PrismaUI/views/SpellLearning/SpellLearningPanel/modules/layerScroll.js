@@ -271,8 +271,9 @@ var LayerScroll = {
      * about to, whatever the time; then others while the frame has time left
      * (TARGET_FRAME_MS from its start, the next piece at its usual cost, one at
      * least if none was drawn). Pieces left over ask for the next frame.
+     * bounded: the ones on screen too only while there is time (still first).
      */
-    _drawSome: function(r, dpr, margin, view, viewRect) {
+    _drawSome: function(r, dpr, margin, view, viewRect, bounded) {
         var self = this, g = r._treeLayerCtx;
         var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
         var vr = viewRect || this._viewRect(r, dpr, margin);
@@ -283,6 +284,7 @@ var LayerScroll = {
         for (var i = 0; i < this._pending.length; i++) {
             (this.overlaps(this._pending[i], vr) ? must : rest).push(this._pending[i]);
         }
+        if (bounded) { rest = must.concat(rest); must = []; }
         var frameStart = r._frameStartAt || now();
         var draw = function() {
             self._found = undefined;               // the names that could go in, worked out once a frame
@@ -319,7 +321,9 @@ var LayerScroll = {
      * pieces wait here, and those frames would show them bare. Drawn into the
      * layer on screen as _drawSome does, at the view the layer was drawn for (its
      * zoom, rotation and level of detail, not the live ones), the pieces the
-     * stretched paste shows first (_stretchedViewRect); never a shift. The caller
+     * stretched paste shows first (_stretchedViewRect), all of them within the
+     * frame's time - a zoom out can show them all at once, and the view is on the
+     * move anyway; never a shift. The caller
      * (CanvasRenderer._drawTree) leaves them waiting while a build is under way
      * (its pieces have the frame, and its swap drops them) or the tree changed.
      * Returns true when it drew.
@@ -334,7 +338,7 @@ var LayerScroll = {
         r.zoom = r._layerZoom; r.rotation = r._layerRotation;
         if (typeof r._computeLODTier === 'function') r._lodTier = r._computeLODTier();
         try {
-            this._drawSome(r, dpr, margin, layerView, vr);
+            this._drawSome(r, dpr, margin, layerView, vr, true);
         } finally {
             r.zoom = live.zoom; r.rotation = live.rotation; r._lodTier = live.lod;
         }
