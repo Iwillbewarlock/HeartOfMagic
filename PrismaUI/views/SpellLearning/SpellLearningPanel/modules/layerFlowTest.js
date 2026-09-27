@@ -170,6 +170,15 @@ var LayerFlowTest = {
         this.check(B._lastMs === 5, '...the one after it is');
         B._lastMs = 30; B.noteRestyle(); B._swapIn(rr, built(60));
         this.check(B._lastMs === 30 && !B._unmeasured, 'nor is a first build after it');
+        var early = built(60); early.tiles = [[0, 0, 10, 10]];
+        B.noteRestyle(); B._swapIn(rr, early); S._pending = [];
+        this.check(B._lastMs === 30 && !B._unmeasured, '...nor one swapped in early, which still made the caches');
+        // The session's first repaint follows the design applied at start-up: kept as a first figure
+        B._lastMs = 0; B.noteRestyle(); B.noteSync(40);
+        this.check(B._lastMs === 40 && B._provisional && !B._unmeasured,
+            "the session's first repaint after the start-up design: its cost kept, so a slow tree's first click is spread");
+        B._swapIn(rr, built(6));
+        this.check(B._lastMs === 6 && !B._provisional, '...and the next whole repaint replaces it, a middling build included');
         B._lastMs = 0;
     },
 

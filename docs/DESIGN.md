@@ -280,9 +280,14 @@ calls - above `SYNC_MAX_MS`, so it stays spread). Lowering it a little each such
 (`LAST_MS_DECAY`, 0.9, for a day on 2026-09-28) was taken out again: a slow tree whose builds look quick
 then tried a repaint at once about every 11 builds - one long frame each time. A tree slow once (a hitch)
 and middling since stays spread; that costs its repaints a frame or two of the old picture, not a long
-frame. The repaint right after a design or language is applied is not counted (`LayerBuild.noteRestyle`,
-called by `DesignPresets.apply` and `switchLocale`): it makes the sprites, patterns and text widths the
-first time (the 18-26 ms outlier below) and, counted, would keep a quick tree spread for good. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+frame. The repaint right after the caches go is not counted (`LayerBuild.noteRestyle`, called by
+`TreeStyle.set` - a design applied, Design Effects toggled -, `TreeStyle.fontsChanged` - a design's
+stylesheet or a web font arriving late - and `switchLocale`): it makes the sprites, patterns and text
+widths the first time (the 18-26 ms outlier below) and, counted, would keep a quick tree spread for good.
+A build swapped in early still made them, so it clears the flag too. With nothing measured yet - the
+session's first repaint, as the saved design is applied at start-up - its cost is kept as a first figure
+(`_provisional`) so a slow tree's first click is spread, and the next whole repaint replaces it outright,
+a middling build included. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.

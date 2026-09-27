@@ -16,7 +16,8 @@
  * effects (page, chapters) are added to TreeStyle by treeStyleBook.js. (The ink
  * reveal on opening is gone: a design's reveal tokens are ignored.)
  *
- * Depends on: nothing (CanvasRenderer reads TreeStyle.tokens if it is there)
+ * Depends on: nothing (CanvasRenderer reads TreeStyle.tokens if it is there;
+ * LayerBuild.noteRestyle is told when the caches go, if it is loaded)
  */
 
 var TreeStyle = {
@@ -145,6 +146,8 @@ var TreeStyle = {
         this._spriteCache = {};
         this._inkCache = {};
         this._page = null;
+        // The next repaint makes the sprites and patterns again: not a measure of the tree
+        if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
         // Node buckets hold each spell's colour; they have to take the new ink
         if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.nodes && CanvasRenderer.nodes.length &&
             CanvasRenderer._buildNodeBuckets) {
@@ -266,6 +269,8 @@ var TreeStyle = {
             CanvasRenderer._labelWidths = null;
             CanvasRenderer._needsRender = true;
         }
+        // ...so the next repaint measures every name again: not a measure of the tree
+        if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
     },
 
     /**
