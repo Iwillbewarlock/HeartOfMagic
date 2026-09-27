@@ -159,7 +159,10 @@ var LayoutDeclutterTest = {
         console.log = log;
         var n = {};
         tree.schools.Far.nodes.forEach(function(node) { n[node.formId] = node; });
-        this.check(Date.now() - t0 < 2000, 'a tree with spells at Infinity and 1e308 is done at once (' + (Date.now() - t0) + ' ms)');
+        // By the work done, not the clock (a busy machine would fail a time check); the loose
+        // time check only catches a hang
+        this.check(isFinite(result.lineWork) && result.lineWork < 1e6 && Date.now() - t0 < 20000,
+            'a tree with spells at Infinity and 1e308 is done at once (work ' + result.lineWork + ')');
         this.check(n.inf.x === Infinity && n.huge.x === 1e308 && n.line.x === 1e7 && isNaN(n.nan.x),
             'spells not finite or past MAX_COORD are left where they are');
         this.check(isFinite(n.a.x) && isFinite(n.a.y) && result.moved === 2,
@@ -205,13 +208,12 @@ var LayoutDeclutterTest = {
             { formId: 'r', x: 80, y: 0, isRoot: true, children: ['hub'] },
             { formId: 'hub', x: 150, y: 0, children: kids }
         ].concat(nodes) } } };
-        var t0 = Date.now();
         console.log = function() {};
         var result = L.apply(tree);
         console.log = log;
         var on = tree.schools.Hub.nodes[tree.schools.Hub.nodes.length - 1];
         var stays = Math.abs(on.x - onX * L.SPREAD) < 0.01 && Math.abs(on.y - 3 * L.SPREAD) < 0.01;
-        this.check(stays && result.linesLeft === 0 && Date.now() - t0 < 2000,
+        this.check(stays && result.linesLeft === 0,
             'a hub over MAX_SPELL_LINES has its lines left out: a spell on one stays, not counted (' + result.linesLeft + ')');
     },
 

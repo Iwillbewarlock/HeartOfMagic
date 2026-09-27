@@ -878,8 +878,10 @@ Lines at a spell with more than `MAX_SPELL_LINES` of them (`LayoutLineClear.MAX_
 in `linesLeft` either (it counts the kept lines only). The cost makes such a spell dear by its nature: its
 angle cost pairs every two of its lines at every spot it tries (lines squared), and each of its neighbours
 weighs its line against every other line of it at every spot (lines times neighbours). A builder gives a
-spell a few children (the classic and graph builders cap them at 8 or so, and the test trees have at most
-11 lines at a spell); a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
+spell a few children (Graph and Oracle clamp them to 1-8; Classic, Tree and Thematic take
+`max_children_per_node` from the settings, 3 by default, with room for 2 more, unclamped - a setting of
+60 or more could make a hub past the cap, whose lines then go unsearched; the test trees have at most 11
+lines at a spell); a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
 209 s in node, now 2.8 s.
 
 The work still grows with how many long lines run through a dense part of the tree - not with how far out
@@ -904,10 +906,11 @@ are measured: on the test and made-up trees native time is 2.3-3.5 ns a unit (th
 cost-heavy trees alike), and up to 5.7 on a random tree of 3,000 spells. The heaviest test tree
 (`s_synth5`, random parents across a quadrant) takes 0.86e9 (2.5 s native), the game's 1,428-spell tree
 0.04e9; no test tree comes near the cap (the next heaviest test tree 0.65e9; of the made-up trees, the long lines
-fanning out 1.53e9 and the long lines across the middle 1.99e9 stay under it). Trees it has stopped:
+fanning out 1.53e9 and the long lines across the middle 1.99e9 stay under it - the latter only 0.6 % under,
+so a slightly longer or denser tree of that kind is stopped). Trees it has stopped:
 random trees of 2,354, 3,123 and 4,155 spells (the 3,123: 32.6 s → 11.7 s native, 25 s in node; the others
 8.7 s and 13.3 s native, the push-apart rounds included), and the long lines across the middle once they
-are 5,000 long or more (up to 19 s → 5.8 s). The reply and the script's result
+are longer than the 5,600 measured above (up to 19,000 long: 19 s → 5.8 s). The reply and the script's result
 carry `lineWork` and `lineCapped`, and the log line says "stopped at its work cap". The script's pass
 stops at the same work; node takes about twice the plugin's time, and the game's browser without a JIT
 many times that again (see `SLICE_MS`), so the cap bounds it too but does not make it quick.
@@ -1041,7 +1044,9 @@ agrees with node on each): they only skip work that cannot change a sum.
 - In the plugin: the line grid is one array over the lines' box of cells (by column past 2 million cells,
   by hash past a million columns), the once-each marks of a walk are an array by line, and the spells'
   positions are mirrored in two arrays for the cost's loops.
-On the game's tree: 0.15 s → 0.13 s native, the same in node within a few per cent (0.23-0.26 s); the
+On the game's tree: 0.15 s → 0.13 s native; in node normal trees are 3-10 % slower (the fan bookkeeping:
+game tree 0.32-0.35 s → 0.35-0.36 s, `v_quarter` 1.6 s → 1.7 s), and the game's browser without a JIT
+may feel it more, in a pass that is already spread over frames; the
 heaviest test tree 2.8 s → 2.4 s native, 3.8 s → 4.0 s in node. Tried and dropped: cutting every line's
 fan up front (in the script it cost more than it saved on normal trees); records in the script too (flat
 arrays: quicker on the long-line trees, slower on normal ones); a first pass over the kept lines' boxes

@@ -620,7 +620,9 @@ same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, ev
 `LayoutDeclutter::Run(request, cancel) -> reply` has no RE:: use and keeps all state per call; it throws
 `LayoutDeclutter::Cancelled` once its optional cancel flag is set. Its line search leaves out lines past
 `kMaxLine` and at spells with more than `kMaxSpellLines`, and stops at a work cap (`kMaxWork`, the same
-count in both passes; the reply's `lineWork`, `lineCapped`), which bounds any tree to seconds.
+count in both passes; the reply's `lineWork`, `lineCapped`): a few seconds native for any tree (the cap is checked once per
+spell, and the push-apart rounds are not under it); the script's pass is bounded by the same work but
+takes many times longer.
 
 ```
 JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})

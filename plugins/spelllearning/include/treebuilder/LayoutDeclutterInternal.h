@@ -97,7 +97,8 @@ namespace LayoutDeclutter::Internal
     // BuildEdgeGrid keeps its cells in one array over the lines' box of cells
     // up to this many cells (a real tree: some tens of thousands); past it, by
     // column (each column's cells sorted by row) up to this many columns, and
-    // by hash past that (never from a tree within kMaxCoord)
+    // by hash past that - unreachable from any accepted tree (it needs more than 2^20 columns,
+    // coordinates of ~5e7, past kMaxCoord x SPREAD): kept only as a guard, and not exercised
     inline constexpr std::int64_t kMaxDenseCells = std::int64_t{ 1 } << 21;
     inline constexpr std::int64_t kMaxGridColumns = std::int64_t{ 1 } << 20;
 
