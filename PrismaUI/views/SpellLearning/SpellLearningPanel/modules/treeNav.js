@@ -79,8 +79,9 @@ var TreeNav = {
             var tab = document.createElement('button');
             tab.className = 'school-tab';
             tab.setAttribute('data-school', name);
-            tab.textContent = name;
-            tab.title = (typeof t === 'function') ? t('tree.schoolTabsHint') : 'Jump to school';
+            var full = self._schoolLabel(name);
+            tab.textContent = self._schoolShort(name, full);
+            tab.title = full + ' - ' + ((typeof t === 'function') ? t('tree.schoolTabsHint') : 'Jump to school');
             tab.style.borderBottomColor = CanvasRenderer._getSchoolColor(name);
             tab.addEventListener('click', function() { self.focusSchool(name); });
             bar.appendChild(tab);
@@ -88,6 +89,25 @@ var TreeNav = {
 
         var current = (typeof state !== 'undefined' && state.selectedNode) ? state.selectedNode.school : null;
         this.setActiveSchool(current);
+    },
+
+    /** The school's name in the page's language (chips.school.*), else as the tree has it. */
+    _schoolLabel: function(name) {
+        var key = 'chips.school.' + String(name).toLowerCase();
+        var v = (typeof t === 'function') ? t(key) : key;
+        return (v && v !== key) ? v : name;
+    },
+
+    /**
+     * A short label for the tab, about half the width of the full name: the
+     * language's own short form (tree.schoolShort.*) when it has one, else the
+     * name cut to five letters. The full name stays in the tooltip.
+     */
+    _schoolShort: function(name, full) {
+        var key = 'tree.schoolShort.' + String(name).toLowerCase();
+        var v = (typeof t === 'function') ? t(key) : key;
+        if (v && v !== key) return v;
+        return full.length > 6 ? full.substring(0, 5) + '.' : full;
     },
 
     clearSchoolTabs: function() {

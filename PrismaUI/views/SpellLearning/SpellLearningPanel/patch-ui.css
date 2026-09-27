@@ -45,10 +45,10 @@
     border: none;
     border-bottom: 2px solid transparent;
     color: var(--text-secondary, #9A9A8A);
-    padding: 4px 10px;
+    padding: 4px 7px;                       /* short names (treeNav._schoolShort): about half the old width */
     font-family: inherit;
     font-size: 0.7em;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     cursor: pointer;
     transition: background 0.1s, color 0.1s;

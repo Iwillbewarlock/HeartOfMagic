@@ -590,7 +590,10 @@ variable, else the old near-black. They repaint every frame, so the value is rea
 
 **School tabs** sit in a row under the zoom tools (`patch-ui.css`, all designs). Centred on the top row
 they covered the right half of the tools - the renderer badge, heart settings and edit tree - at the
-default panel size. The trait filter pill moved down one row with them.
+default panel size. The trait filter pill moved down one row with them. Each tab shows a short label
+(`tree.schoolShort.*` in the language files: `Destr.`, `파괴`; a school without one, such as a
+modded school, is cut to five letters and a dot) with tight padding, about half the old width; the
+tooltip keeps the full school name (`chips.school.*`).
 
 **Fixed with the merge:** `themes/*.json` give `cssFile` relative to `themes/` (`../styles-skyrim.css`),
 but the link lives in `index.html`, so the path pointed outside the panel, never loaded, and switching to
