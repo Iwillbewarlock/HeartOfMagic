@@ -162,7 +162,7 @@
         renderHubEmblem: function(ctx, radius, zoom) {
             var img = this._image(this.tokens.hubEmblem);
             if (!img) return false;
-            var d = radius * 1.5;                             // the emblem's size in tree units
+            var d = radius * 1.75;                            // the emblem's size in tree units: just inside the inner ring
             // the sprite is drawn at the on-screen size in device pixels, rounded so zooming
             // does not rebuild it every frame
             var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;

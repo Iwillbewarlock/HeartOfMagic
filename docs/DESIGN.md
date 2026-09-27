@@ -371,8 +371,9 @@ panel closed and in use:
 ### Arcane illustrations (2026-09-27)
 
 The Arcane design carries three drawings made with anidoodle (code-drawn, pen-and-ink stipple in the
-page's sepia `#4a3012`, transparent PNGs in `themes/arcane/`): a faceted heart gem in the tree's hub
-seal in place of the "HEART" text (`hubEmblem`), a corner ornament - compass rose, ruled border, vines -
+page's sepia `#4a3012`, transparent PNGs in `themes/arcane/`): a magic circle in the tree's hub seal in
+place of the "HEART" text (`hubEmblem`) - rings, a band of runes, a pentagram joining the five schools
+with a small circle at each point, a ringed core and a still drift of motes inside, a corner ornament - compass rose, ruled border, vines -
 mirrored into the four corners of the parchment page (`pageOrnament`), and the "no tree yet" screen's
 open grimoire with a star rising out of it (`.empty-icon` in `design-arcane.css`, which also turns that
 screen into the page: flat parchment, sepia words, a leather button). Other designs leave both tokens

@@ -119,7 +119,7 @@ var DesignPresets = {
                 hubRunes: true,
                 chapterTitles: true,
                 // Drawings (anidoodle, pen-and-ink stipple in the page's sepia)
-                hubEmblem: 'themes/arcane/heart.png',
+                hubEmblem: 'themes/arcane/sigil.png',
                 pageOrnament: 'themes/arcane/corner.png',
                 dividerOrnament: true
             }
