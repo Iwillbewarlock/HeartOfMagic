@@ -4,7 +4,7 @@ Project instructions for Claude Code when working with Heart of Magic.
 
 ## What Is This Project?
 
-Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP-based progression system for Skyrim SE/AE. It scans all spells in the player's load order, generates prerequisite trees using native C++ NLP algorithms (TF-IDF, cosine similarity, fuzzy matching, Edmonds' arborescence), and tracks learning progress through casting, tome study, and other XP sources.
+Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP-based progression system for Skyrim SE/AE. It scans all spells in the player's load order, generates prerequisite trees with a native C++ Classic (tier-first) builder using NLP algorithms (TF-IDF, cosine similarity, fuzzy matching), and tracks learning progress through casting, tome study, and other XP sources.
 
 **Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
 
@@ -17,7 +17,7 @@ What are you doing?
 │
 ├─► Understanding the system?
 │   ├─► Overall architecture → docs/ARCHITECTURE.md
-│   ├─► Tree building algorithms → docs/TREE_BUILDING_SYSTEM.md
+│   ├─► Tree building (Classic builder) → docs/TREE_BUILDING_SYSTEM.md
 │   └─► Design patterns & UI → docs/DESIGN.md
 │
 ├─► Writing/modifying code?
@@ -207,7 +207,7 @@ This project does not have a C++ test framework. Validation is done through:
 - JavaScript unit tests (above)
 - In-game testing via autoTest.js and manual play
 - Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
-  `treebuilder-test` (tree builders), `librarian-test` (spell tag librarian) and `declutter-test`
+  `treebuilder-test` (the Classic tree builder), `librarian-test` (spell tag librarian) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")
@@ -374,7 +374,7 @@ Did I add a new system?                 → Create new doc AND update decision t
 | Document | Purpose |
 |----------|---------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, component responsibilities |
-| [docs/TREE_BUILDING_SYSTEM.md](docs/TREE_BUILDING_SYSTEM.md) | Tree builder algorithms (Classic, Tree, Graph, Thematic, Oracle) |
+| [docs/TREE_BUILDING_SYSTEM.md](docs/TREE_BUILDING_SYSTEM.md) | Tree builder algorithm (Classic, the one builder since 2026-09-27) and layout |
 | [docs/DESIGN.md](docs/DESIGN.md) | Design patterns and UI documentation |
 | [docs/MODULE_CONTRACTS.md](docs/MODULE_CONTRACTS.md) | How to create modules for Heart of Magic |
 | [docs/PRESETS.md](docs/PRESETS.md) | Preset system documentation |

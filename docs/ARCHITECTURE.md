@@ -23,7 +23,7 @@
 - **Per-School Shapes:** Each magic school gets a distinct visual shape (explosion, tree, mountain, portals, organic)
 - **LLM Keyword Classification:** Batched LLM classification of spells with weak/missing keywords (optional)
 - **Plugin Whitelist:** Per-plugin opt-in/out filtering for spell tree generation
-- **BUILD TREE (Complex):** Native C++ NLP builders (5 modes: Classic, Tree, Graph, Thematic, Oracle) → JS SettingsAwareTreeBuilder
+- **BUILD TREE (Complex):** Native C++ NLP Classic builder (the one builder since 2026-09-27; Tree, Graph, Thematic and Oracle were removed) → JS SettingsAwareTreeBuilder
 - **BUILD TREE (Simple):** Pure JS procedural builder; keyword themes, tier-based links
 - **Visual-First / Edit Mode:** Manual drag-drop and in-tree editing (add/remove nodes, links)
 
@@ -539,32 +539,27 @@ struct SparseVector {
 ```
 
 ### 10. **TreeBuilder** (`plugins/spelllearning/src/treebuilder/`, `plugins/spelllearning/include/treebuilder/TreeBuilder.h`)
-Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderGraph.cpp, TreeBuilderOracle.cpp, TreeBuilderThematic.cpp, TreeBuilderThemes.cpp, TreeBuilderBridges.cpp, TreeBuilderTree.cpp, SimdKernels.cpp
+Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderThemes.cpp, TreeBuilderBridges.cpp, SimdKernels.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
-- Spell tree construction engine with 5 builder modes
+- Spell tree construction engine: the Classic builder (Tree, Graph, Thematic and Oracle removed 2026-09-27, see TREE_BUILDING_SYSTEM.md)
 - Theme discovery via TF-IDF keyword extraction
-- Spell grouping by best-matching theme (fuzzy scoring)
+- Theme assignment by best-matching theme (trait themes first, then fuzzy scoring)
 - Tree validation (reachability simulation, cycle detection)
 - Unreachable node repair (multi-pass)
 - Pre-computed pairwise similarity matrices
 
-**Builder Modes:**
+**Builder:**
 | Mode | Function | Algorithm |
 |------|----------|-----------|
 | Classic | `BuildClassic()` | Tier-first: depth = tier index. NLP within-tier parent selection. |
-| Tree | `BuildTree()` | NLP thematic: TF-IDF similarity, round-robin theme interleaving, convergence gates. |
-| Graph | `BuildGraph()` | Edmonds' minimum spanning arborescence (directed MST). |
-| Thematic | `BuildThematic()` | 3D similarity BFS with per-theme branch construction. |
-| Oracle | `BuildOracle()` | LLM-guided semantic chain grouping (fallback: cluster lanes). |
 
 **High-Level API:**
 ```cpp
 // Called from UIManager::OnProceduralTreeGenerate
 BuildResult Build(command, spells, configJson);
-// Commands: "build_tree_classic", "build_tree", "build_tree_graph",
-//           "build_tree_thematic", "build_tree_oracle"
+// Command: "build_tree_classic" (any other returns success=false, "Unknown build command")
 ```
 
 **Architecture:**
@@ -575,7 +570,6 @@ C++ (UIManager)                    TreeBuilder
     │  (SKSE TaskInterface async)       │
     │                                   ├─Build(command, spells, config)
     │                                   │  ├─DiscoverThemesPerSchool()
-    │                                   │  ├─GroupSpellsBestFit()
     │                                   │  ├─ComputeSimilarityMatrix()
     │                                   │  ├─Per-school tree construction
     │                                   │  ├─ValidateSchoolTree()
@@ -596,10 +590,10 @@ struct TreeNode {
 
 struct BuildConfig {
     int seed, maxChildrenPerNode, topThemesPerSchool;
-    float density, symmetry, chaos, convergenceChance;
+    float density, symmetry, commonThemeShare;
     bool autoFixUnreachable, preferVanillaRoots;
     std::unordered_map<std::string, std::string> selectedRoots;
-    std::optional<LLMApiConfig> llmApi;  // Oracle mode
+    std::optional<GridHint> gridHint;
 };
 
 struct BuildResult {
@@ -756,7 +750,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 **Background threads:**
 - `PassiveLearningSource` — dedicated `std::thread` polling every 3s, dispatches XP grants back to game thread via `AddTaskToGameThread()`
 - `OpenRouterAPI` — detached `std::thread` for HTTP requests, dispatches callback to game thread via `AddTaskToGameThread()`
-- `TreeBuilder::Build()` — detached `std::thread` for NLP tree construction (TF-IDF, similarity matrices, Edmonds' arborescence). Uses OpenMP for inner-loop parallelism. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
+- `TreeBuilder::Build()` — detached `std::thread` for NLP tree construction (TF-IDF, similarity matrices, Classic tree building). Uses OpenMP for inner-loop parallelism. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - `TreeNLP::ProcessPRMRequest()` — detached `std::thread` for prerequisite-master scoring. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - Config save worker (`UIManagerConfigSave.cpp`) — one detached `std::thread`, started on the first save, that reads, merges and writes `config.json` for queued saves in order and posts the settings back to the game thread via `AddTaskToGameThread()` (2026-09-25)
 
@@ -900,7 +894,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 
 ## Native C++ Tree Builder System
 
-**Purpose:** Native C++ tree generation with 5 builder modes. All algorithms run directly in the SKSE plugin via `plugins/spelllearning/src/treebuilder/TreeBuilder*.cpp` and `TreeNLP.cpp`. No external subprocess, no IPC, no Python dependency.
+**Purpose:** Native C++ tree generation with the Classic builder (the Tree, Graph, Thematic and Oracle builders were removed on 2026-09-27). All algorithms run directly in the SKSE plugin via `plugins/spelllearning/src/treebuilder/TreeBuilder*.cpp` and `TreeNLP.cpp`. No external subprocess, no IPC, no Python dependency.
 
 ### Architecture
 
@@ -910,21 +904,20 @@ UIManagerTree.cpp
        └─ SKSE TaskInterface (async)
             └─ TreeBuilder::Build(command, spells, config)
                  ├─ TreeNLP (TF-IDF, cosine sim, fuzzy matching)
-                 ├─ Theme discovery + spell grouping
+                 ├─ Theme discovery + theme assignment
                  ├─ Per-school tree construction
                  └─ Validation + repair
                       └─ BuildResult → callback → InteropCall("onProceduralTreeComplete")
 ```
 
-### Builder Modes
+### Builder
 
 | Mode | Command | Algorithm |
 |------|---------|-----------|
 | Classic | `build_tree_classic` | Tier-first: depth = tier index. NLP within-tier parent selection. |
-| Tree | `build_tree` | NLP thematic: TF-IDF similarity drives parent→child links. Round-robin theme interleaving. |
-| Graph | `build_tree_graph` | Edmonds' minimum spanning arborescence (directed MST). |
-| Thematic | `build_tree_thematic` | 3D similarity BFS with per-theme branch construction. |
-| Oracle | `build_tree_oracle` | LLM-guided semantic chain grouping (fallback: cluster lanes). |
+
+A request without a command builds Classic; any other command (`build_tree`, `build_tree_graph`,
+`build_tree_thematic`, `build_tree_oracle` before 2026-09-27) fails as unknown.
 
 ### Core Algorithms (TreeNLP)
 
@@ -1266,14 +1259,10 @@ HeartOfMagic/
 │   │       │   ├── SpellEffectivenessHookDisplay.cpp (display name/description modification)
 │   │       │   ├── SpellEffectivenessHookLegacy.cpp (legacy compatibility)
 │   │       │   └── SpellEffectivenessHookGrant.cpp  (early spell granting/removal)
-│   │       └── treebuilder/                 ✅ Native NLP tree construction + tree declutter (14 files)
+│   │       └── treebuilder/                 ✅ Native NLP tree construction + tree declutter (11 files)
 │   │           ├── TreeBuilderCore.cpp          (build dispatch, validation, repair)
-│   │           ├── TreeBuilderClassic.cpp       (Classic mode: tier-first)
-│   │           ├── TreeBuilderTree.cpp          (Tree mode: NLP thematic)
-│   │           ├── TreeBuilderGraph.cpp         (Graph mode: Edmonds' arborescence)
-│   │           ├── TreeBuilderThematic.cpp      (Thematic mode: 3D similarity BFS)
-│   │           ├── TreeBuilderOracle.cpp        (Oracle mode: LLM-guided)
-│   │           ├── TreeBuilderThemes.cpp        (theme discovery + spell grouping)
+│   │           ├── TreeBuilderClassic.cpp       (Classic builder: tier-first, the one builder)
+│   │           ├── TreeBuilderThemes.cpp        (theme discovery + theme assignment, validation helpers)
 │   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
 │   │           ├── LayoutDeclutter.cpp          (declutter: collect, spread, push apart, reply; JS twin: modules/layoutDeclutter.js)
@@ -1379,7 +1368,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - Spell Tome Hook (intercepts tomes, grants XP, keeps book)
 - Visual-First Builder (drag-drop tree creation)
 - Edit Mode (add/remove nodes, modify links)
-- Complex Build (native C++ tree generation — 5 builder modes)
+- Complex Build (native C++ tree generation — 5 builder modes; only Classic remains since 2026-09-27)
 - Native NLP engine (TF-IDF, cosine similarity, fuzzy matching)
 - FormID persistence (survives load order changes)
 - Performance optimizations (shared_mutex, cached player pointer)
@@ -1398,9 +1387,9 @@ MO2/mods/HeartOfMagic_RELEASE/
 
 #### Native C++ Tree Builders (Python Eliminated)
 - **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, char n-gram similarity, Levenshtein distance, fuzzy matching (ratio, partial ratio, token set ratio), theme scoring, PRM candidate scoring
-- **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle), theme discovery, spell grouping, tree validation, unreachable node repair
+- **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle; all but Classic removed 2026-09-27), theme discovery, spell grouping, tree validation, unreachable node repair
 - **Python completely eliminated** — No PythonBridge, no PythonInstaller, no embedded Python, no server.py, no subprocess IPC
-- **All builder modes native** — TF-IDF, fuzzy matching, Edmonds' arborescence, LLM integration all in C++
+- **All builder modes native** — TF-IDF, fuzzy matching, arborescence, LLM integration all in C++ (only Classic remains since 2026-09-27)
 - **PRM scoring native** — `TreeNLP::ProcessPRMRequest()` replaces Python prereq_master_scorer.py
 - **Wine/Proton compatibility** — No subprocess = no pipe/TCP IPC issues on Linux
 
@@ -1443,10 +1432,10 @@ MO2/mods/HeartOfMagic_RELEASE/
 
 #### Modular Tree Builders (now native C++)
 - **Classic builder** — Tier-first builder. Novice=depth 0, Master=depth 4. NLP similarity guides within-tier parent selection.
-- **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving.
+- **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving. (Removed 2026-09-27.)
 - **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaces duplicate error handlers for Classic/Tree modes
 - **Classic `buildTree()` sends** `command: 'build_tree_classic'` + `tier_zones` config
-- **Tree `buildTree()` sends** `command: 'build_tree'` explicitly
+- **Tree `buildTree()` sends** `command: 'build_tree'` explicitly (Tree mode removed 2026-09-27)
 - **Fixes Classic tier zone controls** — Tier zone sliders now work because tree structure matches tier ordering (Novice near roots, Master at edges)
 
 ### ✅ Previously Completed (Feb 7, 2026)

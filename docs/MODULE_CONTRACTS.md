@@ -457,19 +457,21 @@ if (typeof TreePreviewSun !== 'undefined') {
 
 ## C++ Builder Contract
 
-Tree building is handled natively by `TreeBuilder.cpp` in the SKSE plugin. All 5 builder modes run as C++ code — no external processes or IPC required.
+Tree building is handled natively by `TreeBuilder*.cpp` in the SKSE plugin. The one builder, Classic, runs as C++ code — no external processes or IPC required. (Tree, Graph, Thematic and Oracle were removed on 2026-09-27; see TREE_BUILDING_SYSTEM.md.)
 
 ### Adding a New Builder Mode
 
-1. **Add builder function** in `TreeBuilder.cpp`:
+1. **Add builder function**, declared in `TreeBuilder.h` and implemented in its own `TreeBuilderMyMode.cpp`
+   (listed in `plugins/spelllearning/CMakeLists.txt` and `tools/CMakeLists.txt`, and given a type in
+   `tools/treebuilder-test.cpp` so it can be run offline):
 ```cpp
 BuildResult BuildMyMode(const std::vector<json>& spells, const BuildConfig& config);
 ```
 
-2. **Register command** in `TreeBuilder::Build()`:
+2. **Register command** in `TreeBuilder::Build()`, next to `build_tree_classic`:
 ```cpp
-if (command == "build_tree_mymode") {
-    return BuildMyMode(spells, config);
+} else if (command == "build_tree_mymode") {
+    result = BuildMyMode(spells, config);
 }
 ```
 
@@ -572,9 +574,9 @@ Builders use shared NLP infrastructure from `TreeNLP.h`:
 |----------|---------|
 | `TreeBuilder::DiscoverThemesPerSchool()` | TF-IDF keyword extraction per school |
 | `TreeBuilder::MergeWithHints()` | Merge discovered themes with vanilla hints |
-| `TreeBuilder::GroupSpellsBestFit()` | Assign spells to best-matching theme |
+| `TreeBuilder::GetSpellPrimaryTheme()` / `GetSpellThemes()` | A spell's best-matching theme / every theme it answers to |
 | `TreeBuilder::ComputeSimilarityMatrix()` | Pairwise spell similarity |
-| `TreeBuilder::LinkNodes()` / `UnlinkNodes()` | Parent-child linking |
+| `TreeBuilder::LinkNodes()` | Parent-child linking |
 | `TreeBuilder::ValidateSchoolTree()` | Reachability + cycle detection |
 | `TreeBuilder::FixUnreachableNodes()` | Multi-pass orphan repair |
 
@@ -598,10 +600,9 @@ _handleBuildFailure(
 | Builder | Command | Algorithm |
 |---------|---------|-----------|
 | Classic | `build_tree_classic` | Tier-first: depth = tier index. NLP within-tier parent selection. |
-| Tree | `build_tree` | NLP thematic: TF-IDF similarity drives parent→child links. Round-robin theme interleaving. |
-| Graph | `build_tree_graph` | Edmonds' minimum spanning arborescence (directed MST). |
-| Thematic | `build_tree_thematic` | 3D similarity BFS with per-theme branch construction. |
-| Oracle | `build_tree_oracle` | LLM-guided semantic chain grouping (fallback: cluster lanes). |
+
+The Tree (`build_tree`), Graph, Thematic and Oracle builders were removed on 2026-09-27; their commands
+now fail as unknown.
 
 ## File Reference
 
@@ -620,12 +621,10 @@ _handleBuildFailure(
 
 ### Range Validation
 
-`BuildConfig::FromJson()` clamps values to safe ranges:
-- density: 0.0–1.0
-- maxChildrenPerNode: 1–8
-- convergenceChance: 0.0–1.0
-
-Invalid values are silently clamped, not rejected.
+`BuildConfig::FromJson()` reads values as given, with defaults for missing keys; it does not clamp
+(checked 2026-09-27, when the builders that did - Graph and Oracle clamped `maxChildrenPerNode` to 1–8 -
+were removed). Keys it does not know are ignored. The panel sends fixed values (`max_children_per_node`
+3, `density` 0.6, `symmetry` 0.3).
 
 ## Selected Roots Contract
 
@@ -651,7 +650,7 @@ Optional config field that lets users override automatic root selection per scho
 
 ### C++ Side
 
-Builders check `selectedRoots` in `BuildConfig` before their normal root selection logic:
+The builder checks `selectedRoots` in `BuildConfig` (in `Internal::PickRoot`) before its normal root selection logic:
 
 ```cpp
 auto it = config.selectedRoots.find(school);
@@ -674,7 +673,3 @@ if (it != config.selectedRoots.end()) {
 | Builder | Function | Status |
 |---------|----------|--------|
 | Classic (`BuildClassic`) | Root selection | Integrated |
-| Tree (`BuildTree`) | Root selection | Integrated |
-| Graph (`BuildGraph`) | Root selection | Integrated |
-| Thematic (`BuildThematic`) | Root selection | Integrated |
-| Oracle (`BuildOracle`) | Root selection | Integrated |

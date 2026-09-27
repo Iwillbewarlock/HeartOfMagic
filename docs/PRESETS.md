@@ -77,8 +77,8 @@ Balanced progression. 100 XP for Novice spells up to 1500 XP for Master. Standar
 - Root base settings (Sun mode: ring tier, grid density, grid type; Flat mode: line points, direction)
 - Active root mode (Sun/Flat)
 - Classic growth settings (spread, radial bias, center mask, spell matching mode)
-- Tree growth settings (trunk thickness, branch/trunk/root allocation) - only read when that mode's module is loaded, which it no longer is (2026-09-27)
-- Active growth mode (Classic; an old preset naming another mode falls back to Classic)
+- Active growth mode (Classic; an old preset naming another mode falls back to Classic, and its
+  `treeGrowthTreeSettings` - the removed Tree mode's settings - are ignored and no longer saved)
 - PreReq Master settings (lock percentages, tier constraints, distribution mode)
 
 ## File Locations

@@ -1,6 +1,6 @@
 # Tree Building System — Architecture & Algorithms
 
-**Purpose:** In-depth reference for how spell trees are built, sorted, matched, and laid out across all layers of the system: C++ native builders (TreeBuilder/TreeNLP), JS layout engines, root preview modules, and PreReqMaster NLP scoring.
+**Purpose:** In-depth reference for how spell trees are built, sorted, matched, and laid out across all layers of the system: the C++ native Classic builder (TreeBuilder/TreeNLP), JS layout engines, root preview modules, and PreReqMaster NLP scoring.
 
 ---
 
@@ -19,19 +19,15 @@ The tree building pipeline has four layers, each with a distinct responsibility:
 │  └─────────────┘    └──────┬───────┘    └──────────┬──────────────┘    │
 │                             │ buildTree()            │ applyLocks()     │
 ├─────────────────────────────┼────────────────────────┼──────────────────┤
-│  C++ NATIVE BUILDERS (TreeBuilder + TreeNLP)         │                  │
+│  C++ NATIVE BUILDER (TreeBuilder + TreeNLP)          │                  │
 │  ┌──────────────────────────┴────────────────────────┘                  │
 │  │ OnProceduralTreeGenerate() → TreeBuilder::Build()                 │
-│  │ Reads "command" field → routes to correct builder mode              │
+│  │ Reads "command" field → "build_tree_classic" (others are errors)    │
 │  │ Build runs on background thread → result dispatched to game thread  │
 │  │ via SKSE AddTask → onProceduralTreeComplete() to JS                 │
 │  │                                                                      │
-│  │ Builder Modes:                                                       │
-│  │   ├─ "build_tree_classic"  → BuildClassic()  (Tier-first)           │
-│  │   ├─ "build_tree"          → BuildTree()     (NLP thematic)         │
-│  │   ├─ "build_tree_graph"    → BuildGraph()    (Edmonds' MSA)         │
-│  │   ├─ "build_tree_thematic" → BuildThematic() (3D similarity BFS)   │
-│  │   └─ "build_tree_oracle"   → BuildOracle()   (LLM-guided chains)   │
+│  │ Builder:                                                             │
+│  │   └─ "build_tree_classic"  → BuildClassic()  (Tier-first)           │
 │  │                                                                      │
 │  │ NLP Engine (TreeNLP):                                                │
 │  │   TF-IDF, cosine similarity, char n-grams, Levenshtein,            │
@@ -95,13 +91,24 @@ Linear layout. Schools arranged along a horizontal or vertical line with growth 
 
 ## Layer 2: C++ Native Tree Builders
 
-C++ builds the **tree structure** — which spell is parent/child of which. Five builder modes exist in `TreeBuilder.cpp`.
+C++ builds the **tree structure** — which spell is parent/child of which. One builder is left:
+Classic (`TreeBuilderClassic.cpp`), sharing `TreeBuilderCore.cpp` (similarity matrix, config,
+validation, `Build`), `TreeBuilderThemes.cpp` (themes, validation helpers) and
+`TreeBuilderBridges.cpp` (cross school bridges).
 
-**The panel offers Classic only (2026-09-27).** The Tree, Graph, Thematic and Oracle growth modes and
-their JS modules (`treeGrowthTree.js`, `modules/tree/`, `graph/`, `oracle/`, `thematic/`) were removed;
-a config saved with one of them falls back to Classic, and the build-mode tab row and the Easy
-page's Tree Style picker are gone. Their C++ builders below remain, used by
-`treebuilder-test`; the routing for their replies in `proceduralTreeBuilder.js` is guarded and now idle.
+**Classic only, since 2026-09-27.** There used to be five builders: Classic, Tree (NLP thematic with
+round-robin theme interleaving and convergence gates), Graph (greedy arborescence over similarity
+weights), Thematic (per-theme BFS) and Oracle (LLM-guided chains with an NLP fallback). On
+2026-09-27 the author decided that only Classic stays in game, so their growth modes and JS
+modules (`treeGrowthTree.js`, `modules/tree/`, `graph/`, `oracle/`, `thematic/`), the build-mode tab row and the Easy page's Tree Style picker went first, then their C++
+builders (`TreeBuilderTree.cpp`, `TreeBuilderGraph.cpp`, `TreeBuilderThematic.cpp`,
+`TreeBuilderOracle.cpp`), the helpers only they used, their config fields (`chaos`,
+`convergence_chance`, `force_balance`, `branch_style`, `chain_style`, `batch_size`, `llm_api`) and
+their `treebuilder-test` types. `TreeBuilder::Build` now takes `build_tree_classic` and returns an
+error for any other command; a request without a command builds Classic. A config saved with one of
+the removed growth modes falls back to Classic. They are in git history before that date. The
+measurements further down that compare builders were taken while all five existed; the Classic
+numbers still hold (Classic's output did not change with the removal).
 
 ### Classic Builder (`TreeBuilder::BuildClassic`)
 
@@ -154,104 +161,13 @@ similarity = |words_a ∩ words_b| / |words_a ∪ words_b|
 
 Uses `TreeNLP::Tokenize()` — no external libraries required.
 
-### Tree Builder (`TreeBuilder::BuildTree`)
-
-**Purpose:** NLP-driven thematic trees. Parent/child links based on spell content similarity. Tree structure emerges from themes, not tier ordering.
-
-**Algorithm:**
-
-1. **Group spells by school**
-2. **Discover themes** via TF-IDF keyword extraction (`DiscoverThemesPerSchool()`)
-3. **Merge hints** — vanilla Skyrim element names (fire, frost, shock, heal, etc.)
-4. **Per-school configuration** — apply shape/density/convergence per school (from LLM or defaults):
-   ```
-   Destruction → explosion, Restoration → tree, Alteration → mountain,
-   Conjuration → portals, Illusion → organic
-   ```
-5. **Compute similarity matrix** — pairwise TF-IDF cosine similarity between all spells in school
-6. **Per-school tree building:**
-   - Create TreeNodes, assign themes (fuzzy match → fallback)
-   - Select root (prefer vanilla roots like Flames, Healing, etc.)
-   - **Group spells by theme** via `GroupSpellsBestFit()` - a spell needs a score above 30, the same
-     test the nodes' `theme` and `themes` use (it used to be 30 or above, so a spell scoring exactly 30
-     sat in a branch whose theme it did not carry and `SharesTheme` treated it as a stranger there)
-   - **Round-robin connection:** Cycle through themes, placing one spell per theme per round. This ensures each theme gets fair access to shallow parent positions:
-     ```
-     Round 1: fire[0] → frost[0] → shock[0] → heal[0]
-     Round 2: fire[1] → frost[1] → shock[1] → heal[1]
-     ...
-     ```
-   - Per-theme parent coherence: each theme tracks its "current parent" so fire spells chain together
-   - **Shared element (2026-09-27):** a candidate parent with an `element.*` trait in common scores
-     +50 (theme match is +170, mismatch -50), an orphan's candidate +40 (as its theme match). Measured on
-     the 1,428-spell test load order (seeds 1-3): same-element clusters 247 -> 166, no fewer above 50,
-     theme-sharing edges unchanged. Graph, Thematic and Oracle got no element bonus: measured, it changed
-     nothing there (Thematic already branches by element themes; Graph moved within its seed noise;
-     Oracle only uses the score to reattach orphans)
-   - **Convergence insertion** for high-tier spells (Expert/Master get extra prerequisites)
-   - Connect orphans, enforce high-tier convergence, validate reachability
-   - Assign sections (root/trunk/branch) based on percentile depth
-
-### Graph Builder (`TreeBuilder::BuildGraph`)
-
-**Purpose:** Directed minimum spanning tree using Edmonds' algorithm. Creates arborescences from NLP similarity weights.
-
-**Algorithm:**
-1. Build complete weighted digraph from pairwise TF-IDF cosine similarity
-2. Apply tier ordering bias (lower→higher tier edges preferred)
-3. Run Edmonds' minimum spanning arborescence from root
-4. Validate reachability, fix orphans
-
-### Thematic Builder (`TreeBuilder::BuildThematic`)
-
-**Purpose:** 3D similarity BFS. Builds per-theme branches using multi-dimensional similarity scoring.
-
-**Algorithm:**
-1. Discover themes, group spells by best-fit theme
-2. Per theme: BFS expansion from theme seed spell
-3. Similarity scoring: weighted combination of TF-IDF text sim, name n-gram sim, and effect similarity
-4. Cross-theme convergence at higher tiers
-
-### Oracle Builder (`TreeBuilder::BuildOracle`)
-
-**Purpose:** LLM-guided semantic chain grouping. Uses OpenRouter API to create thematic spell chains.
-
-**Algorithm (with LLM):**
-1. Batch spells per school (configurable batch size)
-2. Send to LLM with prompt requesting thematic chain assignments
-3. Parse LLM response into chain groups
-4. Build tree from chains with inter-chain links
-
-**Fallback (no LLM / LLM failure):**
-1. Use NLP-based cluster-lane approach
-2. K-means style clustering on TF-IDF vectors
-3. Per-cluster linear chain with cross-cluster links
-
-**Parent Selection Scoring (`_score_parent`):**
-
-| Factor | Weight | Description |
-|--------|--------|-------------|
-| Theme match | +100 | Same element/keyword |
-| Theme coherence | +70 | Theme-chain bonus |
-| Element isolation | -50 / -9999 | Cross-element penalty (strict = reject) |
-| Tier progression | +50 / +30 / -20 | Adjacent tier / skip-one / big skip |
-| TF-IDF similarity | +0 to +60 | Cosine similarity × 60 |
-| Capacity penalty | -30 × ratio | children_count / max_children |
-| Same-tier link | +10 | If allowed by config |
-
-**Convergence Points:**
-- Extra prerequisite links (not parent/child) added to high-tier spells
-- Probability increases with tier: Novice 0.5×, Master 10× base chance
-- **Forced** for Expert with <2 prereqs and Master with <3 prereqs
-- Prefer prerequisites from a different theme (cross-branch convergence)
-
-**Reachability Validation (`_ensure_all_reachable`):**
+### Reachability Validation (`Internal::ValidateAndFix`, `FixUnreachableNodes`)
 - Simulates progressive unlock starting from root
 - A node unlocks when ALL its prerequisites are unlocked
 - If nodes remain unreachable after 20 repair passes, logs warning
 - Repair strategies: remove blocking prereqs → find new parent → spread across available
 
-### Theme Rule 1 — Trait Themes (`TreeBuilder::ThemeFromTraits`), tried first by every builder
+### Theme Rule 1 — Trait Themes (`TreeBuilder::ThemeFromTraits`), tried first
 
 A full scan gives each spell a `traits` column (see ARCHITECTURE.md): what the spell is, in a fixed
 vocabulary built from engine values and the base game's own keywords, never from text. A spell that
@@ -347,25 +263,25 @@ author's prefix and anything with a digit) - and two spells are alike by the key
 weighed by how few spells carry it (inverse document frequency, from the data): sharing
 `form.projectile` with eight hundred others says little, sharing `word.moon` with thirteen says a lot.
 A keyword only one spell has is dropped, it cannot be shared. The result goes into the effect
-affinity, which every builder already weighs highest, as the better of the two values - without a full
+affinity, which the builder already weighs highest, as the better of the two values - without a full
 scan there are no keywords and the effect names decide alone, as before.
 
 **A spell answers to every theme it qualifies for** (`TreeNode::themes`, `GetSpellThemes`, `SharesTheme`).
-One theme per spell was the root of the trouble. Every builder scored parents by "same theme: bonus,
+One theme per spell was the root of the trouble. Every builder of the time scored parents by "same theme: bonus,
 different theme: penalty" (classic +15/25 and -10, tree +170 and -50), judged by the single pick - so a
 moon touch spell filed under `touch` counted as a *mismatch* against every other moon spell and was
 pushed away from its own family, while the keyword affinity above pulled the other way. Now a node
 keeps the whole list: all its trait themes (a fire atronach is `summon_fire` and plain `fire`), and
-every word theme that is literally one of its words. All nine comparisons in the five builders ask
-`SharesTheme` - any theme in common - instead of comparing the pick. `theme` stays, as the first of the
-list: a branch still needs one name and the panel one colour. Nodes that never got a list (LLM chains
-in the oracle builder) fall back to comparing the single theme.
+every word theme that is literally one of its words. Every theme comparison in the builders (nine
+across the five builders of the time, Classic's among them) asks `SharesTheme` - any theme in common -
+instead of comparing the pick. `theme` stays, as the first of the list: a branch still needs one name
+and the panel one colour. Nodes that never got a list fall back to comparing the single theme.
 
 **Themes most of a school carries do not count as shared** (2026-09-23; `DropCommonThemes`,
 `TreeNode::matchThemes`, `BuildConfig::commonThemeShare`). With every theme counting, a word on nearly
 every spell of a school made nearly every pair "share a theme": in Conjuration `summon` is on 89% of
 the spells and `conjure` on 41%, and 41% of the classic builder's theme matches (49% in the tree
-builder) rested on words like these alone. Each builder now calls `DropCommonThemes` once per school
+builder) rested on words like these alone. The builder calls `DropCommonThemes` once per school
 after assigning themes; a theme carried by at least `commonThemeShare` (0.4) of a school with 10 or
 more spells is left out of `matchThemes`, which is what `SharesTheme` compares. `themes` and `theme` -
 the output, branch names, colours - are unchanged. On the dev load order 0.4 drops exactly `summon` and
@@ -379,12 +295,13 @@ Same scan, seed 42, links whose spell and parent share a theme other than the dr
 | tree | 59.7% | 76.2% | 36% -> 72% |
 | graph | 16.9% | 50.3% | 0% -> 54% (max chain depth 91 -> 27) |
 
-Thematic and oracle trees do not change (their theme comparisons only place leftover nodes).
+(Tree and graph were builders of the time; thematic and oracle trees did not change, their theme
+comparisons only placed leftover nodes.)
 
 *To turn it off*: `"common_theme_share": 0` in a build request's config (or a `-c` config file for
 `treebuilder-test`), or set the default `commonThemeShare` in `TreeBuilder.h` to `0` and rebuild. With 0
-every builder produces exactly the trees it did before - checked on all five, same seed, no parent
-changed.
+the builder produces exactly the trees it did before - checked on all five builders of the time, same
+seed, no parent changed.
 
 Same 1440 spells, links where spell and parent share an editor id word / an element or kind trait:
 
@@ -395,9 +312,8 @@ Same 1440 spells, links where spell and parent share an editor id word / an elem
 | + every theme counts (classic) | 49% | 61% |
 | + every theme counts (tree builder) | 46% | 54% |
 
-**All five builders, same scan, same seed.** The harness now runs the oracle builder too: only its call
-out to the API is stubbed, so it takes its own NLP fallback (cluster lanes) - the path a player without
-an API key gets. "id word" and "elem/kind" are the share of parent-child links whose two spells have an
+**All five builders of the time, same scan, same seed** (before 2026-09-27; the harness then ran the
+oracle builder with its call out to the API stubbed, so it took its NLP fallback, cluster lanes). "id word" and "elem/kind" are the share of parent-child links whose two spells have an
 editor id word, or an element or kind trait, in common.
 
 | builder | links | id word | elem/kind | themed | orphans |
@@ -408,14 +324,14 @@ editor id word, or an element or kind trait, in common.
 | thematic | 1435 | 30% | 66% | 100% | 0 |
 | oracle (fallback) | 1435 | 42% | 69% | 96% | 0 |
 
-No builder leaves an unreachable node. The tree builder's extra links are its convergence
+No builder left an unreachable node. The tree builder's extra links are its convergence
 prerequisites. Thematic groups by nature hardest and by spelling least - it walks out from one seed
 spell per theme - while classic and oracle sit in between.
 
 **Name similarity compares editor ids** (`ComputeSimilarityMatrix`), with the author's prefix taken
 off. It is a character trigram comparison - "Firebolt" and "Fireball" share most of their trigrams -
-which on a translated load order was run on Korean names that share none of it, and the graph builder
-weighs it heavily. That alone took graph from 24% to 37% on id words and 48% to 52% on traits; the
+which on a translated load order was run on Korean names that share none of it, and the (since removed)
+graph builder weighed it heavily. That alone took graph from 24% to 37% on id words and 48% to 52% on traits; the
 builders that lean on it less did not move.
 972 of the 1440 spells answer to two or more themes. The moon family under the classic builder, before
 and after: `LuminousMoonbeam` hung under `SLENDetectAroused` and `MoonFire` under `INQ_HolyDagger`; now
@@ -425,7 +341,7 @@ because on a translated load order those places are reading Korean. The tokenize
 Korean names and descriptions do not mislead anything - they simply vanish, and whatever was supposed
 to read them found nothing. Fixed:
 
-- *effect name similarity* (`ComputeSimilarityMatrix`), the score every builder weighs highest: it
+- *effect name similarity* (`ComputeSimilarityMatrix`), the score the builder weighs highest: it
   compared the names of **all** effects, hidden helpers included. One mod's script controller sits on
   hundreds of unrelated spells, and the score is the best matching pair, so a shared helper made any
   two of them a perfect match. Hide in UI effects are now left out.
@@ -504,7 +420,7 @@ spells have every effect flagged Hide in UI, where the rules read the hidden one
   plugin's id range would pass. It would also have to be named exactly `MagicSummonFire` or the like.
 ### Theme Rule 2 — TF-IDF Theme Discovery (`TreeBuilder::DiscoverThemesPerSchool`)
 
-**Shared by all builders.** Discovers keyword themes per school from spell text using `TreeNLP::ComputeTfIdf()`.
+Discovers keyword themes per school from spell text using `TreeNLP::ComputeTfIdf()`.
 
 **Algorithm:**
 ```
@@ -529,8 +445,8 @@ Illusion:    invisibility, charm, fury, calm, fear
 
 ### Cross School Bridges (`TreeBuilder::ComputeCrossSchoolBridges`, `TreeBuilderBridges.cpp`)
 
-Every builder splits the spells by school and grows five trees that never see each other. Bridges are the
-links between them: `TreeBuilder::Build` appends the same `bridges` array to the output of all five builders.
+The builder splits the spells by school and grows five trees that never see each other. Bridges are the
+links between them: `TreeBuilder::Build` appends a `bridges` array to the builder's output.
 
 ```json
 { "from": "0x..", "to": "0x..", "fromSchool": "Destruction", "toSchool": "Conjuration",
@@ -560,8 +476,8 @@ Rules, all mechanical:
 | Per school pair: most **evidence** (summed weight of what is shared) first, at most 12, at most 3 with the identical shared set, a source used at most twice | A one-keyword spell is a "perfect" match for anything; one mod's family of detect spells took every slot |
 | Two spells of one tier that pick each other become one record, `twoWay` | |
 
-Measured on the 1440-spell test load order: 180 bridges (44 two-way) touching 245 spells; identical for
-all five builders. Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
+Measured on the 1440-spell test load order: 180 bridges (44 two-way) touching 245 spells (identical for
+all five builders of the time: bridges read the spells, not the tree). Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
 Conjuration-Restoration are full (24), Illusion-Restoration has 6.
 
 **`schoolLinks`** (`[{a, b, kin}]`, next to `bridges`) counts, per pair of schools, every spell that found
@@ -658,7 +574,7 @@ struct TreeNode {
 ```cpp
 OnProceduralTreeGenerate(argument):
     1. Parse JSON from JS
-    2. Read "command" field (default: "build_tree")
+    2. Read "command" field (default: "build_tree_classic")
     3. Extract spells array and config
     4. Launch background std::thread for TreeBuilder::Build()
        → TreeBuilder has zero RE:: dependencies, safe to run off game thread
@@ -671,12 +587,11 @@ OnProceduralTreeGenerate(argument):
 **Commands:**
 | Command | Builder | Mode |
 |---------|---------|------|
-| `build_tree` | `BuildTree()` | NLP thematic |
 | `build_tree_classic` | `BuildClassic()` | Tier-first |
-| `build_tree_graph` | `BuildGraph()` | Edmonds' MSA |
-| `build_tree_thematic` | `BuildThematic()` | 3D similarity BFS |
-| `build_tree_oracle` | `BuildOracle()` | LLM-guided chains |
 | `prm_score` | `TreeNLP::ProcessPRMRequest()` | PRM scoring |
+
+Any other build command (`build_tree`, `build_tree_graph`, `build_tree_thematic`, `build_tree_oracle`
+before 2026-09-27) returns `{success: false, error: "Unknown build command: ..."}`.
 
 ---
 
@@ -786,27 +701,6 @@ else:
 
 These modes control **visual clustering** (spatial grouping of similar spells), not tree structure. The C++ builder determines parent/child links; the layout engine determines where each node sits on screen.
 
-### Tree Growth Layout (`treeGrowthTree.js`) - removed 2026-09-27, kept for reference
-
-Corridor-based trunk layout with section allocation.
-
-**Settings:**
-```
-pctBranches: 30%   — outer canopy
-pctTrunk: 50%      — central corridor
-pctRoot: 20%       — inner root zone
-trunkThickness: 70px
-```
-
-**Section assignment** (done in C++): Nodes sorted by depth, then allocated by percentile:
-- First 20% of nodes → `root` section
-- Next 50% → `trunk` section
-- Remaining 30% → `branch` section
-
-**Layout:** Trunk module computes a central corridor. Nodes in `trunk` section fill the corridor. `branch` nodes spread outward. `root` nodes cluster near the tree base.
-
-**Ghost preview:** Semi-transparent nodes show where the trunk will fill before building.
-
 ### Decluttering before save (`layoutDeclutter.js`, `layoutLineClear.js`, `layoutLineGrid.js`, 2026-09-26)
 
 The growth mode (classic; tree, graph, oracle and thematic did the same before they were removed) bakes x/y into the tree and calls
@@ -879,10 +773,10 @@ in `linesLeft` either (it counts the kept lines only). The cost makes such a spe
 angle cost pairs every two of its lines at every spot it tries (lines squared), and each of its neighbours
 weighs its line against every other line of it at every spot (lines times neighbours). A builder gives a
 spell a few children: in game only Classic builds (the panel asks it with `max_children_per_node` 3, which
-a player cannot change; the builder allows 2 more), so no game tree comes near the cap. The C++ builders
-kept for the offline `treebuilder-test` differ (Graph and Oracle clamp to 1-8; Tree and Thematic take the
+a player cannot change; the builder allows 2 more), so no game tree comes near the cap. (The other C++
+builders, removed 2026-09-27, differed: Graph and Oracle clamped to 1-8; Tree and Thematic took the
 setting unclamped, so a config of 60 or more there could make a hub past the cap, its lines then
-unsearched). The test trees have at most 11 lines at a spell; a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
+unsearched.) The test trees have at most 11 lines at a spell; a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
 209 s in node, now 2.8 s.
 
 The work still grows with how many long lines run through a dense part of the tree - not with how far out
@@ -1191,7 +1085,7 @@ Try C++ NLP (via "prm_score" command → TreeNLP::ProcessPRMRequest())
 
 ## Shared Output Format
 
-All C++ builders output the same JSON schema so all downstream JS systems (layout, apply, PRM) work identically:
+The Classic builder outputs this JSON schema, which the downstream JS systems (layout, apply, PRM) read:
 
 ```json
 {
@@ -1199,7 +1093,7 @@ All C++ builders output the same JSON schema so all downstream JS systems (layou
   "schools": {
     "Destruction": {
       "root": "0x00012FCD",
-      "layoutStyle": "tier_first" | "organic" | "radial",
+      "layoutStyle": "tier_first",
       "nodes": [
         {
           "formId": "0x00012FCD",
@@ -1214,15 +1108,15 @@ All C++ builders output the same JSON schema so all downstream JS systems (layou
         }
       ],
       "config_used": {
-        "shape": "tier_first" | "organic",
+        "shape": "tier_first",
         "density": 0.6,
         "symmetry": 0.3,
-        "source": "classic" | "default" | "llm"
+        "source": "classic"
       }
     }
   },
   "generatedAt": "2026-02-10T...",
-  "generator": "ClassicTreeBuilder (Tier-First)" | "SpellTreeBuilder",
+  "generator": "ClassicTreeBuilder (Tier-First, C++)",
   "seed": 123456,
   "validation": {
     "all_valid": true,
@@ -1289,13 +1183,11 @@ All C++ builders output the same JSON schema so all downstream JS systems (layou
 
 | Decision | Rationale |
 |----------|-----------|
-| Separate C++ builder modes | Classic needs tier-first ordering; Tree needs NLP thematic ordering; Graph uses directed MST. Different algorithms for different goals. |
+| One C++ builder, Classic (2026-09-27) | The author decided only Classic stays in game; its tier-first depth is what the tier zones read. The Tree, Graph, Thematic and Oracle builders were removed with their panel modes (see Layer 2). |
 | Native C++ NLP engine | Eliminates Python subprocess, pip dependencies, Wine/Proton IPC issues. All algorithms are deterministic math that runs faster in C++. |
-| All builders in single TreeBuilder.cpp | Shared NLP engine (TreeNLP), shared theme discovery, shared validation. No duplication. |
+| Builder split across TreeBuilder*.cpp | Shared NLP engine (TreeNLP), theme discovery (Themes), validation and similarity (Core), bridges (Bridges); the Classic algorithm on its own. |
 | Tier zones in JS layout, not C++ | Layout is visual concern. C++ builds structure; JS decides spatial placement. |
 | Three spell matching modes | Users want control over visual clustering without rebuilding the tree. |
 | PRM as post-processing | Locks are additive — they don't change the tree structure, only add prerequisite gates. |
 | Weighted random for PRM | Always picking #1 NLP match would feel mechanical. Top-5 selection adds variety. |
 | Kahn's cycle detection | Lock edges can create circular dependencies. Topological sort catches them efficiently. |
-| Round-robin theme interleaving (Tree mode) | Without it, the largest theme monopolizes root's children. Interleaving distributes growth fairly. |
-| Convergence enforcement (Tree mode) | Expert/Master spells should feel hard-won. Forced multi-prerequisite gates create meaningful progression. |

@@ -427,7 +427,8 @@ panel closed and in use:
 - **Settings sliders** (font size, reveal thresholds, learning colour) apply on release (`change`), not on
   every step of the drag (a page-wide relayout, a tree refresh and a card rebuild per step).
 - **Retry-school list** (every 2 s) is only rebuilt when the list changed, and only while the Settings tab is
-  in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone.
+  in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone (and
+  the Oracle mode itself since 2026-09-27).
 
 ### Chalkboard design (2026-09-27)
 
@@ -1054,15 +1055,12 @@ Tree applied
 ### Growth Modes
 | Module | Purpose |
 |--------|---------|
-| `treeGrowth.js` | Growth mode orchestrator |
+| `treeGrowth.js` | Growth mode orchestrator (Classic is the one mode since 2026-09-27) |
 | `classic/classicMain.js` | Classic growth mode |
 | `classic/classicRenderer.js` | Classic mode renderer |
 | `classic/classicLayout.js` | Classic layout engine |
 | `classic/classicSettings.js` | Classic mode settings |
 | `classic/classicThemeEngine.js` | Classic theme engine |
-| `tree/treeRenderer.js` | Tree mode renderer |
-| `tree/treeTrunk.js` | Tree trunk generation |
-| `tree/treeSettings.js` | Tree mode settings |
 
 ### UI Panels & Features
 | Module | Purpose |
