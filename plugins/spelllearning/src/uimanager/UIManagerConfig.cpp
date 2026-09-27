@@ -7,7 +7,6 @@
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
 #include "PassiveLearningSource.h"
-#include "OpenRouterAPI.h"
 #include "ISLIntegration.h"
 #include "ThreadUtils.h"
 
@@ -286,11 +285,6 @@ json GenerateDefaultConfig() {
             {"weakenedSpellNotifications", true},
             {"weakenedSpellInterval", 10.0f}
         }},
-        {"llm", {
-            {"apiKey", ""},
-            {"model", "anthropic/claude-sonnet-4"},
-            {"maxTokens", 64000}
-        }},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}
     };
@@ -326,7 +320,6 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // Also check legacy paths and merge if needed
     auto legacySettingsPath = GetSettingsFilePath();
-    auto legacyLLMPath = std::filesystem::path("Data/SKSE/Plugins/SpellLearning/openrouter_config.json");
 
     // Start with complete defaults - this ensures all fields exist
     json unifiedConfig = GenerateDefaultConfig();
@@ -354,21 +347,6 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
             json legacySettings = json::parse(file);
             MergeJsonNonNull(unifiedConfig, legacySettings);
             logger::info("UIManager: Migrated legacy settings.json");
-        } catch (...) {}
-    }
-
-    // Migrate legacy LLM config only if no unified config exists yet
-    if (!configFileExists && std::filesystem::exists(legacyLLMPath)) {
-        try {
-            std::ifstream file(legacyLLMPath);
-            json legacyLLM = json::parse(file);
-            json llmConfig = {
-                {"apiKey", SafeJsonValue<std::string>(legacyLLM, "apiKey", "")},
-                {"model", SafeJsonValue<std::string>(legacyLLM, "model", "anthropic/claude-sonnet-4")},
-                {"maxTokens", SafeJsonValue<int>(legacyLLM, "maxTokens", 64000)}
-            };
-            MergeJsonNonNull(unifiedConfig["llm"], llmConfig);
-            logger::info("UIManager: Migrated legacy openrouter_config.json");
         } catch (...) {}
     }
 
@@ -411,6 +389,12 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // The panel's language, for the page to read before it draws next time
     WritePanelLocale(unifiedConfig);
+
+    // The removed LLM (OpenRouter) feature kept its API key and model under "llm".
+    // An older config may still have that section: the file keeps it (saves merge
+    // and never delete keys), but the panel is not sent it, so the key stays out
+    // of the page.
+    unifiedConfig.erase("llm");
 
     // Strip internal sources from config before sending to UI (they have their own UI sections)
     if (unifiedConfig.contains("moddedXPSources") && unifiedConfig["moddedXPSources"].is_object()) {

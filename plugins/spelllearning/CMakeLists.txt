@@ -42,7 +42,6 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerConfig.cpp
     src/uimanager/UIManagerConfigSave.cpp
     src/uimanager/UIManagerLocale.cpp
-    src/uimanager/UIManagerLLM.cpp
     src/uimanager/UIManagerIO.cpp
     src/EncodingUtils.cpp
     src/spellscanner/SpellScannerHelpers.cpp
@@ -57,7 +56,6 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianClassify.cpp
     src/librarian/LibrarianCatalog.cpp
     src/librarian/LibrarianTraits.cpp
-    src/OpenRouterAPI.cpp
     src/SpellCastHandler.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
     src/progressionmanager/ProgressionManagerTargets.cpp
@@ -104,7 +102,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
     xbyak::xbyak
-    CURL::libcurl
     hwy::hwy
     hwy::hwy_contrib
 )

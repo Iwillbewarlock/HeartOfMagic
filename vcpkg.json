@@ -13,10 +13,6 @@
     {
       "name": "highway",
       "features": ["contrib"]
-    },
-    {
-      "name": "curl",
-      "features": ["ssl", "websockets", "brotli", "openssl"]
     }
   ]
 }

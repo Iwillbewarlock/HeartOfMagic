@@ -300,7 +300,7 @@ Copy-Item Build_Config_Template.ps1 Build_Config_Local.ps1
 
 ### vcpkg Dependencies
 
-Managed via `vcpkg.json` manifest. Key packages: `fmt`, `spdlog`, `nlohmann-json`, `rapidcsv`, `xbyak`, `directxmath`, `directxtk`, `rapidfuzz-cpp`, `highway`, `curl`.
+Managed via `vcpkg.json` manifest. Key packages: `fmt`, `spdlog`, `nlohmann-json`, `rapidcsv`, `xbyak`, `directxmath`, `directxtk`, `rapidfuzz-cpp`, `highway`.
 
 Triplet: `x64-windows-static` (statically linked MSVC runtime).
 

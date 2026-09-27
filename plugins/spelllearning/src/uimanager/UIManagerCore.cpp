@@ -106,12 +106,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "CopyToClipboard", OnCopyToClipboard);
     m_prismaUI->RegisterJSListener(m_view, "GetClipboard", OnGetClipboard);
 
-    // Register JS callbacks - LLM integration (OpenRouter)
-    m_prismaUI->RegisterJSListener(m_view, "CheckLLM", OnCheckLLM);
-    m_prismaUI->RegisterJSListener(m_view, "LLMGenerate", OnLLMGenerate);
-    m_prismaUI->RegisterJSListener(m_view, "PollLLMResponse", OnPollLLMResponse);
-    m_prismaUI->RegisterJSListener(m_view, "LoadLLMConfig", OnLoadLLMConfig);
-    m_prismaUI->RegisterJSListener(m_view, "SaveLLMConfig", OnSaveLLMConfig);
+    // Register JS callbacks - panel log lines
     m_prismaUI->RegisterJSListener(m_view, "LogMessage", OnLogMessage);
 
     // Register JS callbacks - Procedural tree generation (C++ native)

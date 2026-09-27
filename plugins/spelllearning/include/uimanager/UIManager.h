@@ -134,12 +134,7 @@ private:
     static void OnCopyToClipboard(const char* argument);
     static void OnGetClipboard(const char* argument);
 
-    // LLM integration callbacks (OpenRouter)
-    static void OnCheckLLM(const char* argument);
-    static void OnLLMGenerate(const char* argument);
-    static void OnPollLLMResponse(const char* argument);
-    static void OnLoadLLMConfig(const char* argument);
-    static void OnSaveLLMConfig(const char* argument);
+    // Panel log lines into the plugin log
     static void OnLogMessage(const char* argument);
     
     // Procedural tree generation (C++ native)

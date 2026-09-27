@@ -3,7 +3,6 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
-#include "OpenRouterAPI.h"
 #include "ThreadUtils.h"
 
 #include <condition_variable>
@@ -88,21 +87,6 @@ namespace
         ApplySettingsFromConfig(config);
     }
 
-    void UpdateOpenRouterConfig(const nlohmann::json& llm)
-    {
-        OpenRouterAPI::UpdateConfig([&](OpenRouterAPI::Config& config) {
-            std::string newKey = SafeJsonValue<std::string>(llm, "apiKey", "");
-            if (!newKey.empty() && newKey.find("...") == std::string::npos) {
-                config.apiKey = newKey;
-            }
-            config.model = SafeJsonValue<std::string>(llm, "model", config.model);
-            config.maxTokens = SafeJsonValue<int>(llm, "maxTokens", config.maxTokens);
-        });
-
-        // Save to OpenRouter's config file too for compatibility
-        OpenRouterAPI::SaveConfig();
-    }
-
     // Worker thread: read, merge, write, then hand the result to the game thread
     void WriteUnifiedConfig(const std::string& configData)
     {
@@ -146,11 +130,6 @@ namespace
 
             // The panel's language, for the page to read before it draws next time
             WritePanelLocale(merged);
-
-            // Also update OpenRouter if LLM settings changed
-            if (written && newConfig.contains("llm") && !newConfig["llm"].is_null()) {
-                UpdateOpenRouterConfig(newConfig["llm"]);
-            }
 
             std::optional<std::uint32_t> hotkeyCode;
             if (newConfig.contains("hotkeyCode") && newConfig["hotkeyCode"].is_number()) {

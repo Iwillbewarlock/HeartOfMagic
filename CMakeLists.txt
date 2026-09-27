@@ -50,7 +50,6 @@ include(commonlibsse)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(xbyak CONFIG REQUIRED)
-find_package(curl CONFIG REQUIRED)
 find_package(hwy CONFIG REQUIRED)
 
 # ============================================================================
