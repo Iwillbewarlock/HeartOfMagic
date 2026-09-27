@@ -844,9 +844,8 @@ Globe position and radius controls. Radius writes to `spell_tree.json` and is us
 - H Offset, V Offset, Radius sliders
 
 #### Alternate Pathways (`prmTabAltPaths`)
-Bidirectional soft prerequisite mirroring. Currently **disabled** (code commented out).
-- Bidirectional toggle
-- Stats display
+A "Not Yet Implemented" placeholder. Its greyed-out Bidirectional Soft Prerequisites toggle (nothing
+applied the flag) and the empty stats line were removed on 2026-09-28, with `settings.treeGeneration`.
 
 ---
 

@@ -2262,16 +2262,6 @@
             });
         }
 
-        // Bidirectional soft prereqs toggle (Alternate Pathways tab)
-        var biDirToggle = document.getElementById('altPathsBidirectional');
-        if (biDirToggle) {
-            biDirToggle.checked = settings.treeGeneration.bidirectionalSoftPrereqs !== false;
-            biDirToggle.addEventListener('change', function() {
-                settings.treeGeneration.bidirectionalSoftPrereqs = this.checked;
-                if (typeof autoSaveSettings === 'function') autoSaveSettings();
-            });
-        }
-
         _prmLog('Initialized');
     }
 

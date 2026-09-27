@@ -77,9 +77,6 @@
       "rootsPerSchool": 1,
       "tierDensity": 5
     },
-    "treeGeneration": {
-      "bidirectionalSoftPrereqs": true
-    },
     "treeGrowthActiveMode": "classic"
   }
 }

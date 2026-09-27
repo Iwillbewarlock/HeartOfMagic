@@ -73,9 +73,10 @@ Balanced progression. 100 XP for Novice spells up to 1500 XP for Master. Standar
 
 ## What Scanner Presets Save
 
-- `treeGeneration.bidirectionalSoftPrereqs` (the Alternate Pathways toggle). The other `treeGeneration`
-  fields (themes, routing, tier rules, scoring, convergence, LLM features) belonged to the removed
-  builders and their settings panel; an older preset's copies are ignored (2026-09-28)
+- No `treeGeneration` block since 2026-09-28: its fields (themes, routing, tier rules, scoring,
+  convergence, LLM features) belonged to the removed builders, and its last flag,
+  `bidirectionalSoftPrereqs`, was the inert Alternate Pathways toggle, removed the same day. An older
+  preset's or config's `treeGeneration` is ignored
 - Root base settings (Sun mode: ring tier, grid density, grid type; Flat mode: line points, direction)
 - Active root mode (Sun/Flat)
 - Classic growth settings (spread, radial bias, center mask, spell matching mode)
@@ -171,7 +172,6 @@ Scanner preset example:
   "name": "Wide Radial",
   "created": 1707521234567,
   "settings": {
-    "treeGeneration": { },
     "sunSettings": {
       "ringTier": 5,
       "nodeSize": 25,

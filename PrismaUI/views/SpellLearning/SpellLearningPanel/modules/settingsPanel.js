@@ -1222,9 +1222,6 @@ function saveUnifiedConfig() {
         // User-selected root spells per school
         selectedRoots: settings.selectedRoots || {},
 
-        // Dynamic tree building settings
-        treeGeneration: settings.treeGeneration,
-
         // Active scanner preset name (preset data now in individual files)
         activeScannerPreset: typeof _activeScannerPreset !== 'undefined' ? _activeScannerPreset : ''
     };
@@ -1982,13 +1979,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             settings.selectedRoots = {};
         }
 
-        // === Tree generation: only the Alternate Pathways toggle's flag is left ===
-        // (the other treeGeneration fields belonged to the removed builders; an
-        // old config's copies are ignored)
-        if (data.treeGeneration && typeof data.treeGeneration === 'object') {
-            var tg = data.treeGeneration;
-            settings.treeGeneration.bidirectionalSoftPrereqs = tg.bidirectionalSoftPrereqs !== undefined ? tg.bidirectionalSoftPrereqs : true;
-        }
+        // An old config's treeGeneration block is ignored (and left in the file):
+        // nothing reads it since the Alternate Pathways toggle went (2026-09-28)
 
         // Render popup: retire values it no longer offers, show the loaded ones
         if (typeof RenderSettings !== 'undefined') RenderSettings.afterLoad(data);

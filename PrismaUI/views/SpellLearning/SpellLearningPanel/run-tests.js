@@ -17,8 +17,7 @@ global.console = console;
 global.settings = {
     schoolColors: {},
     schoolVisibility: {},
-    schoolConfigs: {},
-    treeGeneration: { llm: { enabled: false } }
+    schoolConfigs: {}
 };
 
 // Mock callCpp

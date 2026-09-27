@@ -229,20 +229,10 @@ var settings = {
     // User-selected root spells per school (optional override for tree building)
     // { "Destruction": { formId: "0x...", name: "Flames", plugin: "Skyrim.esm", localFormId: "012FCD" }, ... }
     // Missing school = auto-pick (default behavior)
-    selectedRoots: {},
-
-    // ==========================================================================
-    // TREE GENERATION
-    // ==========================================================================
-    // Only the Alternate Pathways toggle (altPathsBidirectional, prereqMaster.js)
-    // still reads and writes this block. The theme, routing, tier, scoring,
-    // convergence and LLM fields belonged to the removed builders and their
-    // settings panel (not in index.html) and went on 2026-09-28.
-    treeGeneration: {
-        // When A is soft prereq of B, B also soft prereq of A (nothing applies it:
-        // mirrorBidirectionalSoftPrereqs was disabled and then removed)
-        bidirectionalSoftPrereqs: false
-    }
+    selectedRoots: {}
+    // settings.treeGeneration is gone (2026-09-28): its builder fields went with
+    // the removed builders and its last flag, bidirectionalSoftPrereqs, was the
+    // inert Alternate Pathways toggle. An old config's treeGeneration is ignored.
 };
 
 // Settings presets (user-saved progression/early spell/tome configurations)

@@ -1100,10 +1100,7 @@ All settings stored in single config file, managed through UI:
   "pluginWhitelist": [],
 
   "schoolColors": {...},
-  "customProfiles": {...},
-  "treeGeneration": {
-    "bidirectionalSoftPrereqs": false
-  }
+  "customProfiles": {...}
 }
 ```
 

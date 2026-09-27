@@ -2,7 +2,7 @@
  * Scanner Presets Module
  * Save/load/delete/rename user configurations for the spell scanner.
  *
- * Captures: settings.treeGeneration (its one flag), TreePreviewSun.settings,
+ * Captures: TreePreviewSun.settings,
  *           TreePreviewFlat.settings, TreePreview.activeMode,
  *           TreeCore globe position, TreeGrowthClassic.settings
  *
@@ -78,9 +78,6 @@ function saveScannerPreset(name) {
 
     var s = preset.settings;
 
-    // Tree Generation: the Alternate Pathways flag, the one field left
-    s.treeGeneration = { bidirectionalSoftPrereqs: settings.treeGeneration.bidirectionalSoftPrereqs };
-
     // Root Base — Sun mode
     if (typeof TreePreviewSun !== 'undefined') {
         s.sunSettings = JSON.parse(JSON.stringify(TreePreviewSun.settings));
@@ -154,10 +151,7 @@ function applyScannerPreset(name) {
     var s = preset.settings;
     console.log('[ScannerPresets] Applying preset:', name);
 
-    // --- Tree Generation --- (an older preset's other treeGeneration fields are ignored)
-    if (s.treeGeneration && typeof s.treeGeneration.bidirectionalSoftPrereqs === 'boolean') {
-        settings.treeGeneration.bidirectionalSoftPrereqs = s.treeGeneration.bidirectionalSoftPrereqs;
-    }
+    // An older preset's treeGeneration block is ignored (nothing reads it since 2026-09-28)
 
     // --- Root Base — Sun mode ---
     if (s.sunSettings && typeof TreePreviewSun !== 'undefined') {
