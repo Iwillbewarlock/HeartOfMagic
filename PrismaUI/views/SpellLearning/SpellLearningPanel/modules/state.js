@@ -237,122 +237,16 @@ var settings = {
     selectedRoots: {},
 
     // ==========================================================================
-    // DYNAMIC TREE GENERATION SETTINGS (Tier 3)
+    // TREE GENERATION
     // ==========================================================================
-    // These control the dynamic theme discovery and tree building system
+    // Only the Alternate Pathways toggle (altPathsBidirectional, prereqMaster.js)
+    // still reads and writes this block. The theme, routing, tier, scoring,
+    // convergence and LLM fields belonged to the removed builders and their
+    // settings panel (not in index.html) and went on 2026-09-28.
     treeGeneration: {
-        // === THEME DISCOVERY ===
-        themeDiscoveryMode: 'dynamic',  // 'dynamic' (TF-IDF clustering) or 'fixed' (predefined)
-        minThemeSize: 3,                // Minimum spells to form a theme
-        maxThemes: 15,                  // Maximum themes to discover
-        maxThemeSize: 80,               // Split themes larger than this
-
-        // === SMART ROUTING ===
-        // Priority: strong thematic > LLM branch > mod theme > clustering
-        enableSmartRouting: true,       // Use smart keyword-based routing
-        llmBranchRouting: false,        // Use LLM to decide branch vs mod (requires API key)
-        autoBranchFallback: true,       // Use NLP auto-branch when LLM disabled
-
-        // === ROOT CONFIGURATION ===
-        rootCount: 1,                   // 1 = single root with element branches, 3 = separate element roots
-        // rootCount=1: Root (Sparks) -> Flames -> fire spells, Frostbite -> frost spells
-        // rootCount=3: Three independent roots (Flames, Frostbite, Sparks) each start own tree
-
-        // === ELEMENT/THEME ISOLATION ===
-        elementIsolation: true,         // Prefer same-element links
-        elementIsolationStrict: false,  // ONLY allow same-element links
-        elementWeight: 100,             // Score bonus for same element
-
-        // === TIER RULES ===
-        strictTierOrdering: true,       // Enforce Novice -> Apprentice -> ... progression
-        allowSameTierLinks: true,       // Can Adept link to Adept?
-        maxTierSkip: 2,                 // Max tiers a link can skip (Novice->Adept = 2)
-        tierMixing: false,              // Allow spells to bleed into adjacent tier zones
-        tierMixingAmount: 20,           // How much mixing when enabled (0-100%)
-
-        // === LINK STRATEGY ===
-        linkStrategy: 'thematic',       // 'strict', 'thematic', 'organic', 'random'
-
-        // === SCORING FACTORS (toggleable) ===
-        scoring: {
-            elementMatching: true,      // +100 same element
-            spellTypeMatching: true,    // +40 same spell type (bolt, rune, etc.)
-            tierProgression: true,      // +50 adjacent tier
-            keywordMatching: true,      // +20 per shared keyword
-            themeCoherence: true,       // +70 same theme
-            effectNameMatching: true,   // +30 matching effect names
-            descriptionSimilarity: true,// +20 TF-IDF on descriptions
-            magickaCostProximity: false,// +15 if within 20% magicka cost
-            sameModSource: false        // +10 if from same plugin/mod
-        },
-
-        // === CONVERGENCE (multi-prerequisites) ===
-        convergenceEnabled: true,       // Expert/Master can have multiple prereqs
-        convergenceChance: 40,          // % of eligible spells
-        convergenceMinTier: 3,          // 0=Novice, 3=Expert, 4=Master
-
-        // === PARENT LIMITS ===
-        maxChildrenPerNode: 3,          // Max spells that can have same prereq
-
-        // === SHAPE SETTINGS ===
-        // Per-school shapes (the removed JS builders' SCHOOL_DEFAULT_SHAPES):
-        //   Destruction=explosion, Restoration=tree, Alteration=mountain,
-        //   Conjuration=portals, Illusion=organic
-        // This is only used as fallback when no per-school shape is defined:
-        shapeStyle: 'organic',          // Fallback: 'organic','explosion','tree','mountain','portals','spiky','cascade','cloud'
-
-        // === ADVANCED OPTIONS ===
-        allowSpellRepetition: false,    // Same spell at multiple positions
-        maxRepetitions: 2,              // Max if repetition enabled
-        repetitionMinTierGap: 2,        // Min tier gap between repetitions
-
-        // === MOD HANDLING ===
-        prioritizeVanilla: true,        // Vanilla spells preferred for early tree
-        modBranchMode: 'mixed',         // 'mixed', 'separate', 'own-tree'
-
-        // === VALIDATION ===
-        linkValidationPasses: 3,        // How many fix passes
-        warnOnDistanceViolation: true,  // Warn if links too long
-        warnOnElementMismatch: true,    // Warn on cross-element links
-
-        // === BIDIRECTIONAL SOFT PREREQS ===
-        bidirectionalSoftPrereqs: false,  // When A is soft prereq of B, B also soft prereq of A
-
-        // === LLM EDGE CASE RESOLUTION (Legacy - use llm.edgeCases instead) ===
-        llmEdgeCaseEnabled: false,      // Use LLM for low-confidence assignments
-        llmEdgeCaseThreshold: 10,       // Score difference to trigger LLM
-
-        // === LLM INTEGRATION SETTINGS ===
-        llm: {
-            // Master toggle - enables/disables all LLM features
-            enabled: false,
-
-            // 1. Theme Discovery - Use LLM instead of TF-IDF clustering
-            themeDiscovery: false,
-            themeDiscoveryModel: 'auto',    // 'auto', 'fast', 'quality'
-
-            // 2. Element Detection - Ask LLM to classify fire/frost/shock
-            elementDetection: false,
-
-            // 3. Edge Case Resolution - Break ties on close scores
-            edgeCases: false,
-            edgeCaseThreshold: 10,          // Score difference to trigger
-
-            // 4. Branch Assignment - LLM decides where mod spells belong
-            branchAssignment: false,
-
-            // 5. Parent Suggestion - LLM suggests best parent spell
-            parentSuggestion: false,
-
-            // 6. Tree Validation - LLM reviews tree for logical issues
-            treeValidation: false,
-
-            // 7. Keyword Expansion - LLM discovers new element keywords
-            keywordExpansion: false,
-
-            // 8. Keyword Classification - LLM classifies spells with weak/missing keywords
-            keywordClassification: false
-        }
+        // When A is soft prereq of B, B also soft prereq of A (nothing applies it:
+        // mirrorBidirectionalSoftPrereqs was disabled and then removed)
+        bidirectionalSoftPrereqs: false
     }
 };
 

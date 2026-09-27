@@ -2,7 +2,7 @@
  * Scanner Presets Module
  * Save/load/delete/rename user configurations for the spell scanner.
  *
- * Captures: settings.treeGeneration, TreePreviewSun.settings,
+ * Captures: settings.treeGeneration (its one flag), TreePreviewSun.settings,
  *           TreePreviewFlat.settings, TreePreview.activeMode,
  *           TreeCore globe position, TreeGrowthClassic.settings
  *
@@ -10,7 +10,7 @@
  *
  * Depends on:
  * - modules/state.js (settings, scannerPresets)
- * - modules/settingsPanel.js (autoSaveSettings, updateTreeSettingsUI)
+ * - modules/settingsPanel.js (autoSaveSettings)
  * - modules/treePreview.js (TreePreview)
  * - modules/treePreviewSun.js (TreePreviewSun)
  * - modules/treePreviewFlat.js (TreePreviewFlat)
@@ -78,8 +78,8 @@ function saveScannerPreset(name) {
 
     var s = preset.settings;
 
-    // Tree Generation (~40 settings)
-    s.treeGeneration = JSON.parse(JSON.stringify(settings.treeGeneration));
+    // Tree Generation: the Alternate Pathways flag, the one field left
+    s.treeGeneration = { bidirectionalSoftPrereqs: settings.treeGeneration.bidirectionalSoftPrereqs };
 
     // Root Base — Sun mode
     if (typeof TreePreviewSun !== 'undefined') {
@@ -154,12 +154,9 @@ function applyScannerPreset(name) {
     var s = preset.settings;
     console.log('[ScannerPresets] Applying preset:', name);
 
-    // --- Tree Generation ---
-    if (s.treeGeneration) {
-        _deepCopy(s.treeGeneration, settings.treeGeneration);
-        if (typeof updateTreeSettingsUI === 'function') {
-            updateTreeSettingsUI();
-        }
+    // --- Tree Generation --- (an older preset's other treeGeneration fields are ignored)
+    if (s.treeGeneration && typeof s.treeGeneration.bidirectionalSoftPrereqs === 'boolean') {
+        settings.treeGeneration.bidirectionalSoftPrereqs = s.treeGeneration.bidirectionalSoftPrereqs;
     }
 
     // --- Root Base — Sun mode ---

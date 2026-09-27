@@ -1146,13 +1146,7 @@ All settings stored in single config file, managed through UI:
   "schoolColors": {...},
   "customProfiles": {...},
   "treeGeneration": {
-    "llm": {
-      "enabled": false,
-      "autoConfig": false,
-      "keywordExpansion": false,
-      "groupNaming": false,
-      "keywordClassification": false
-    }
+    "bidirectionalSoftPrereqs": false
   },
   "llm": {...}
 }
@@ -1429,7 +1423,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 
 #### LLM Keyword Classification (removed 2026-09-27 with `llmTreeFeatures.js`; its button had already left `index.html`)
 - **LLM Keyword Classification** — Optional batched LLM classification for spells with weak/missing keywords
-- JS UI: toggle in LLM Features, `[K] Classify Keywords` button on Spell Scan tab
+- JS UI: toggle in LLM Features, `[K] Classify Keywords` button on Spell Scan tab (neither in `index.html`; the LLM Features settings code went on 2026-09-28)
 - Default off — TF-IDF + fuzzy matching runs unchanged when disabled
 
 #### Plugin Whitelist

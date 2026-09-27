@@ -73,7 +73,9 @@ Balanced progression. 100 XP for Novice spells up to 1500 XP for Master. Standar
 
 ## What Scanner Presets Save
 
-- Tree generation parameters (all procedural settings)
+- `treeGeneration.bidirectionalSoftPrereqs` (the Alternate Pathways toggle). The other `treeGeneration`
+  fields (themes, routing, tier rules, scoring, convergence, LLM features) belonged to the removed
+  builders and their settings panel; an older preset's copies are ignored (2026-09-28)
 - Root base settings (Sun mode: ring tier, grid density, grid type; Flat mode: line points, direction)
 - Active root mode (Sun/Flat)
 - Classic growth settings (spread, radial bias, center mask, spell matching mode)

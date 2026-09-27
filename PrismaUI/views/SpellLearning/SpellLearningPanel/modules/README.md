@@ -15,7 +15,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 |--------|------:|---------|
 | `constants.js` | 267 | Core constants, difficulty profiles, keycodes |
 | `tagVocabulary.js` | 97 | Closed tag list for the librarian; mirrors `include/librarian/TagVocabulary.h` |
-| `state.js` | 143 | Settings object, app state, XP overrides |
+| `state.js` | 334 | Settings object, app state, XP overrides |
 | `config.js` | 266 | Tree layout and visual configuration |
 | `spellCache.js` | 114 | Async spell data caching |
 | `colorUtils.js` | 258 | School colors, dynamic CSS generation |
@@ -24,7 +24,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `growthDSL.js` | 233 | Growth recipe vocabulary, default recipe per school, `parseRecipe` |
 | `treeParser.js` | 461 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 1296 | SVG radial tree rendering engine |
-| `settingsPanel.js` | 1001 | Settings UI initialization and persistence |
+| `settingsPanel.js` | 3752 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 618 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 213 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 466 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
@@ -58,7 +58,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `cppCallbacks.js` | 438 | C++ SKSE plugin callback handlers |
 | `llmIntegration.js` | 621 | LLM tree generation, color suggestions |
 | `proceduralTreeBuilder.js` | 217 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
-| **script.js** | 802 | Main init, tabs, dragging, early learning |
+| **script.js** | 1144 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~8245 | |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree

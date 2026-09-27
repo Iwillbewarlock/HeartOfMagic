@@ -70,16 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Tree building settings (scoring factors, LLM features) - independent fallback
-        // in case initializeSettings() crashed before reaching initializeDynamicTreeBuildingSettings()
-        if (typeof initializeDynamicTreeBuildingSettings === 'function') {
-            try {
-                initializeDynamicTreeBuildingSettings();
-            } catch (treeSettingsErr) {
-                console.error('[SpellLearning] Tree building settings fallback init error:', treeSettingsErr);
-            }
-        }
-        
         // Pre Req Master
         if (typeof PreReqMaster !== 'undefined' && PreReqMaster.init) PreReqMaster.init();
 
