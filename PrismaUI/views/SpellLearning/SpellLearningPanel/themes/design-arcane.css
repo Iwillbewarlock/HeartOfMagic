@@ -432,3 +432,34 @@
     box-shadow: none;
     outline: 3px solid rgba(20, 12, 6, 0.9);
 }
+
+/* ---------------------------------------------------------------- empty tree
+   The "no tree yet" screen: a stipple plate of a star rising out of an open
+   grimoire (themes/arcane/empty.png, sepia on transparent) in place of the
+   asterisk. A plain image on a still screen, drawn once. */
+.empty-icon {
+    width: 360px;
+    height: 240px;
+    max-width: 80%;
+    font-size: 0;
+    opacity: 1;
+    margin-bottom: 6px;
+    background: url("arcane/empty.png") center / contain no-repeat;
+}
+
+/* No tree yet: the canvas has no page to draw, so the screen itself becomes the
+   page (the tree's pageColor) and the words go sepia to sit on it. */
+.empty-state {
+    background: #e6d6b0;                      /* flat: a gradient this big costs frames in game */
+}
+.empty-state .empty-text {
+    color: #4a3012;
+}
+.empty-state .empty-hint {
+    color: rgba(74, 48, 18, 0.75);
+}
+.empty-state .btn {
+    background: #3a2610;                     /* the panel's leather, so the button reads on the page */
+    border-color: #6b4a1c;
+    color: #f0dca8;
+}

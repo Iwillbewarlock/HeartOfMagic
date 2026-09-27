@@ -2000,6 +2000,8 @@ var CanvasRenderer = {
         // Center content: particle core OR text
         if (this._particleCoreEnabled) {
             this._renderParticleCore(ctx, pulse);
+        } else if (TreeStyle.renderHubEmblem(ctx, baseRadius, this.zoom)) {
+            // the design's own drawing of the heart stands in for the text
         } else {
             // Globe text - use separate text color if set, supports \n for line breaks
             var textColor = this._designOrPlayer('hubText', 'magicTextColor', this._magicTextColor) || ringColor;

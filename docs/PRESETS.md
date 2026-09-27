@@ -288,7 +288,8 @@ newer version still loads.
 | Ink | `schoolInk` 0-1 and `schoolInkTone`: school colours mixed toward the tone, so the player's own school colours still read on the page. `learningColor` (`""` = the player's setting) |
 | Labels | `labelFont`, `labelMaxChars`, `labelHalo` (outline colour, `""` = none), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
 | Spells | `nodeFill`, `unlockedFill`, `unlockedRim`, `unlockedCore` (`""` = school colour or its dark shade), `lockedStroke`, `mysteryFill`, `focusStroke`, `ringTrack`, `availableAlpha`, `availableRing`, `nodeGlow`, `learningGlow` |
-| Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes` |
+| Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes`, `hubEmblem` (an image path drawn in the heart instead of its text; `""` = the text) |
+| Illustrations | `pageOrnament` (an image path for the page's top-left corner, mirrored into all four; needs `pageColor`; `""` = none). Paths are relative to the panel's `index.html`; an image that fails to load is simply not drawn |
 | Lines | `dimEdgeColor`, `unlockedEdgeColor`, `unlockedEdgeAlpha`, `unlockedEdgeWidth`, `edgeGlow`, `lockedEdgeColor`, `lockedEdgeAlpha`, `frontierEdgeAlpha` (edges into learnable spells; 0 = drawn as locked), `selectedPathColor`, `selectedPathAlpha`, `selectedPathWidth`, `hoverPathAlpha` |
 | Book | `accent` (sigil, runes, chapter titles, dividers), `selectionSigil`, `chapterTitles`, `chapterSize`, `dividerOrnament` (`reveal`, `revealMs` and `inkColor` - the ink reveal on opening - were removed and are ignored) |
 

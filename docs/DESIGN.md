@@ -368,6 +368,26 @@ panel closed and in use:
 - **Retry-school list** (every 2 s) is only rebuilt when the list changed, and only while the Settings tab is
   in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone.
 
+### Arcane illustrations (2026-09-27)
+
+The Arcane design carries three drawings made with anidoodle (code-drawn, pen-and-ink stipple in the
+page's sepia `#4a3012`, transparent PNGs in `themes/arcane/`): a faceted heart gem in the tree's hub
+seal in place of the "HEART" text (`hubEmblem`), a corner ornament - compass rose, ruled border, vines -
+mirrored into the four corners of the parchment page (`pageOrnament`), and the "no tree yet" screen's
+open grimoire with a star rising out of it (`.empty-icon` in `design-arcane.css`, which also turns that
+screen into the page: flat parchment, sepia words, a leather button). Other designs leave both tokens
+empty and are unchanged.
+
+What each costs in game, by design:
+- Corners: drawn once into the page texture (`TreeStyle._buildPage`), which is already pasted once per
+  frame; nothing per frame.
+- Heart: shrunk once to its on-screen size in device pixels (halving step by step, so the dots stay a
+  clean tone) into a sprite, rebuilt only when that size changes by 8 px; a frame pastes it 1:1.
+- Images load asynchronously; until one arrives the old drawing (text, bare page) shows, then the page
+  is rebuilt and the view drawn once.
+
+The drawings' sources (tone fields and plates) are in `lab/anidoodle-arcane/`, with how to re-render them.
+
 ### Settings page layout and control size (2026-09-27)
 
 The settings page used to pair blocks side by side whatever their height: Progression (about 1,800px)

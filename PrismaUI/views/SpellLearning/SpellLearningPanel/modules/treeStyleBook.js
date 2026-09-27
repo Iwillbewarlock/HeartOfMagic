@@ -90,6 +90,8 @@
                     g.fillRect(0, 0, w, h);
                 }
 
+                this._drawOrnaments(g, w, h);
+
                 if (t.pageEdgeAlpha > 0) {
                     var vg = g.createRadialGradient(w / 2, h / 2, big * 0.3, w / 2, h / 2, big * 0.75);
                     vg.addColorStop(0, this._rgba(t.pageEdge, 0));
@@ -101,6 +103,93 @@
             } catch (e) {
                 return null;
             }
+        },
+
+        // =========================================================================
+        // ILLUSTRATIONS - a design's drawings (themes/<design>/*.png)
+        // =========================================================================
+        //
+        // Loaded once; until an image arrives nothing is drawn in its place, and when it
+        // does the page is rebuilt and the view drawn once more. Both drawings are paid
+        // for once: the corners go into the page texture, the heart emblem into a sprite
+        // already at its on-screen size, so a frame costs one small blit at most.
+
+        _images: {},
+
+        /** The loaded image for a design token's path, or null (and start loading it). */
+        _image: function(src) {
+            if (!src) return null;
+            var entry = this._images[src];
+            if (!entry) {
+                var self = this, img = new Image();
+                entry = this._images[src] = { img: img, ok: false };
+                img.onload = function() {
+                    entry.ok = true;
+                    self._page = null;                    // rebuilt with the drawing on the next frame
+                    self._emblemSprite = null;
+                    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.forceRender) CanvasRenderer.forceRender();
+                };
+                img.src = src;
+            }
+            return entry.ok ? entry.img : null;
+        },
+
+        /** The page's corner drawing, mirrored into all four corners of the page texture. */
+        _drawOrnaments: function(g, w, h) {
+            var img = this._image(this.tokens.pageOrnament);
+            if (!img) return;
+            var size = Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24)));
+            var corners = [[1, 1, 0, 0], [-1, 1, w, 0], [1, -1, 0, h], [-1, -1, w, h]];
+            for (var i = 0; i < corners.length; i++) {
+                var c = corners[i];
+                g.save();
+                g.translate(c[2], c[3]);
+                g.scale(c[0], c[1]);
+                g.drawImage(img, 0, 0, size, size);
+                g.restore();
+            }
+        },
+
+        _emblemSprite: null,
+        _emblemKey: '',
+
+        /**
+         * The heart's emblem, in place of its text. Returns false when the design has
+         * none (or it is still loading), so the caller draws the text as before.
+         * @param {number} radius - the heart's radius in tree units
+         * @param {number} zoom - the view's zoom, to size the sprite in screen pixels
+         */
+        renderHubEmblem: function(ctx, radius, zoom) {
+            var img = this._image(this.tokens.hubEmblem);
+            if (!img) return false;
+            var d = radius * 1.5;                             // the emblem's size in tree units
+            // the sprite is drawn at the on-screen size in device pixels, rounded so zooming
+            // does not rebuild it every frame
+            var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+            var px = Math.max(16, Math.min(img.width || 512, Math.round(d * (zoom || 1) * dpr / 8) * 8));
+            var key = this.tokens.hubEmblem + '|' + px;
+            if (!this._emblemSprite || this._emblemKey !== key) {
+                try {
+                    // halve step by step down to the size: one big bilinear shrink turns the
+                    // stipple's dots to mush, halving keeps them as a clean tone
+                    var src = img, sw = img.width, sh = img.height;
+                    while (sw / 2 >= px) {
+                        var half = document.createElement('canvas');
+                        half.width = Math.round(sw / 2); half.height = Math.round(sh / 2);
+                        half.getContext('2d').drawImage(src, 0, 0, half.width, half.height);
+                        src = half; sw = half.width; sh = half.height;
+                    }
+                    var c = document.createElement('canvas');
+                    c.width = px; c.height = px;
+                    c.getContext('2d').drawImage(src, 0, 0, px, px);
+                    this._emblemSprite = c;
+                    this._emblemKey = key;
+                } catch (e) {
+                    return false;
+                }
+            }
+            ctx.drawImage(this._emblemSprite, -d / 2, -d / 2, d, d);
+            return true;
         },
 
         // =========================================================================

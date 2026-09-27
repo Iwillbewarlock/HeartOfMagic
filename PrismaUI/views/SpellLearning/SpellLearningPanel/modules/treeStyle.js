@@ -80,6 +80,10 @@ var TreeStyle = {
         accent: '#e8c874',                          // sigil, hub runes, chapter titles, ornamented dividers
         selectionSigil: false,
         hubRunes: false,
+        hubEmblem: '',                              // image drawn in the heart instead of its text ('' = the text)
+
+        // Illustrations (drawn once into the page or a cached sprite, never per frame at full size)
+        pageOrnament: '',                           // image for the page's top-left corner, mirrored into all four ('' = none)
 
         // Book
         chapterTitles: false,                       // school names round the outside, like chapter headings
