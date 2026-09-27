@@ -135,7 +135,9 @@ var TreeGrowth = {
             '<div class="tree-preview-header">' +
                 '<span class="tree-preview-title">' + t('treeViewer.treeGrowthPreview') + '</span>' +
             '</div>' +
-            '<div class="tree-preview-tabs" id="treeGrowthTabs">' +
+            // One builder, nothing to choose between: the tab row stays hidden
+            '<div class="tree-preview-tabs" id="treeGrowthTabs"' +
+                (modeNames.length + ph.length > 1 ? '' : ' style="display:none"') + '>' +
                 tabsHTML +
             '</div>' +
             // Shared action buttons now live in index.html scan-actions-bottom
@@ -614,19 +616,6 @@ var TreeGrowth = {
 if (typeof TreeGrowthClassic !== 'undefined') {
     TreeGrowth.registerMode('classic', TreeGrowthClassic);
 }
-if (typeof TreeGrowthTree !== 'undefined') {
-    TreeGrowth.registerMode('tree', TreeGrowthTree);
-}
-
-// Graph Growth mode
-if (typeof TreeGrowthGraph !== 'undefined') {
-    TreeGrowth.registerMode('graph', TreeGrowthGraph);
-}
-// Oracle Growth mode
-if (typeof TreeGrowthOracle !== 'undefined') {
-    TreeGrowth.registerMode('oracle', TreeGrowthOracle);
-}
-// Thematic Growth mode
-if (typeof TreeGrowthThematic !== 'undefined') {
-    TreeGrowth.registerMode('thematic', TreeGrowthThematic);
-}
+// Classic is the one builder the panel offers (2026-09-27): the Tree, Graph,
+// Oracle and Thematic modes were removed. A config saved with one of them
+// falls back to Classic (switchMode ignores an unknown mode).
