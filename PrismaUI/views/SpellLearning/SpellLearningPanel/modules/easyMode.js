@@ -119,10 +119,6 @@ function updateEasyMethodChips() {
     if (!container || typeof TreeGrowth === 'undefined' || !TreeGrowth.modes) return;
     container.innerHTML = '';
 
-    // With a single builder there is no tree style to pick: hide the section
-    var section = container.parentNode;
-    if (section) section.style.display = Object.keys(TreeGrowth.modes).length > 1 ? '' : 'none';
-
     var active = _easyChosenMethod || TreeGrowth.activeMode;
     Object.keys(TreeGrowth.modes).forEach(function(name) {
         var key = 'easyMode.method.' + name;
