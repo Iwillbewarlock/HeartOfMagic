@@ -790,9 +790,9 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | Module | Purpose |
 |--------|---------|
 | **Configuration** | |
-| `constants.js` | Default prompts, difficulty profiles, color palettes, power steps |
+| `constants.js` | Default tree rules (scan export) and colour palette |
 | `state.js` | `settings`, `state`, `customProfiles`, `xpOverrides`, `pluginWhitelist` |
-| `config.js` | `TREE_CONFIG` layout and visual configuration |
+| `config.js` | `TREE_CONFIG` layout and visual configuration, hotkey `KEY_CODES` |
 | **Tree building (user-facing)** | |
 | `classic/*.js`, `treeGrowth.js` | **Build Tree:** the Classic growth mode (sends `build_tree_classic`, lays out and saves the result) and its orchestrator |
 | `shapeProfiles.js` | 12 shape profiles (organic, explosion, tree, mountain, portals, spiky, radial, cloud, cascade, swords, grid, linear) read by WheelRenderer |
@@ -835,7 +835,6 @@ Copy and Paste buttons of the old scan output (`SaveOutputBySchool`, `CopyToClip
 
 **Key JavaScript Objects:**
 - `TREE_CONFIG` - Layout and visual configuration (in `config.js`)
-- `DIFFICULTY_PROFILES` - 6 preset difficulty profiles (in `constants.js`)
 - `settings` - All user settings, persisted (in `state.js`)
 - `state` - Runtime state: scan results, tree data, etc. (in `state.js`)
 - `WheelRenderer` - SVG tree rendering engine (in `wheelRenderer.js`)

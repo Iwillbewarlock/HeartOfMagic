@@ -1,7 +1,8 @@
 /**
  * SpellLearning Constants Module
  * 
- * Contains all constant values: default prompts, difficulty profiles, color palettes, key codes.
+ * Contains the default tree rules and the default colour palette. The hotkey
+ * key codes (KEY_CODES) are in config.js.
  * This module has no dependencies and should be loaded early.
  */
 
@@ -75,14 +76,6 @@ var DEFAULT_TREE_RULES = `You are a Skyrim spell tree architect. Create a logica
 `;
 
 // =============================================================================
-// (Difficulty profiles removed — now in settingsPresets.js as chip-based presets)
-// =============================================================================
-
-// Legacy placeholder to prevent reference errors in backup/config modules
-var DIFFICULTY_PROFILES = {};
-
-
-// =============================================================================
 // DEFAULT COLOR PALETTE
 // =============================================================================
 
@@ -108,18 +101,3 @@ var DEFAULT_COLOR_PALETTE = [
     '#fbbf24', // Amber
     '#a3e635'  // Lime Light
 ];
-
-// =============================================================================
-// KEY CODES (DirectInput Scancodes)
-// =============================================================================
-
-var KEY_CODES = {
-    'F1': 59, 'F2': 60, 'F3': 61, 'F4': 62, 'F5': 63, 'F6': 64,
-    'F7': 65, 'F8': 66, 'F9': 67, 'F10': 68, 'F11': 87, 'F12': 88,
-    'Escape': 1, 'Tab': 15, 'CapsLock': 58, 'Backspace': 14,
-    'Enter': 28, 'Space': 57,
-    '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7, '7': 8, '8': 9, '9': 10, '0': 11,
-    'Q': 16, 'W': 17, 'E': 18, 'R': 19, 'T': 20, 'Y': 21, 'U': 22, 'I': 23, 'O': 24, 'P': 25,
-    'A': 30, 'S': 31, 'D': 32, 'F': 33, 'G': 34, 'H': 35, 'J': 36, 'K': 37, 'L': 38,
-    'Z': 44, 'X': 45, 'C': 46, 'V': 47, 'B': 48, 'N': 49, 'M': 50
-};

@@ -105,122 +105,7 @@ var TREE_CONFIG = {
 };
 
 // =============================================================================
-// DIFFICULTY PROFILES
-// =============================================================================
-
-var DIFFICULTY_PROFILES = {
-    easy: {
-        name: 'Easy',
-        description: 'Relaxed progression for casual play',
-        settings: {
-            xpGlobalMultiplier: 2,
-            xpMultiplierDirect: 150,
-            xpMultiplierSchool: 75,
-            xpMultiplierAny: 25,
-            xpNovice: 50,
-            xpApprentice: 100,
-            xpAdept: 200,
-            xpExpert: 400,
-            xpMaster: 800,
-            revealName: 5,
-            revealEffects: 15,
-            revealDescription: 30
-        }
-    },
-    normal: {
-        name: 'Normal',
-        description: 'Balanced progression (default)',
-        settings: {
-            xpGlobalMultiplier: 1,
-            xpMultiplierDirect: 100,
-            xpMultiplierSchool: 50,
-            xpMultiplierAny: 10,
-            xpNovice: 100,
-            xpApprentice: 200,
-            xpAdept: 400,
-            xpExpert: 800,
-            xpMaster: 1500,
-            revealName: 10,
-            revealEffects: 25,
-            revealDescription: 50
-        }
-    },
-    hard: {
-        name: 'Hard',
-        description: 'Challenging progression for experienced players',
-        settings: {
-            xpGlobalMultiplier: 0.75,
-            xpMultiplierDirect: 75,
-            xpMultiplierSchool: 35,
-            xpMultiplierAny: 5,
-            xpNovice: 150,
-            xpApprentice: 350,
-            xpAdept: 700,
-            xpExpert: 1200,
-            xpMaster: 2500,
-            revealName: 15,
-            revealEffects: 35,
-            revealDescription: 60
-        }
-    },
-    brutal: {
-        name: 'Brutal',
-        description: 'Serious grind for dedicated mages',
-        settings: {
-            xpGlobalMultiplier: 0.5,
-            xpMultiplierDirect: 50,
-            xpMultiplierSchool: 25,
-            xpMultiplierAny: 3,
-            xpNovice: 250,
-            xpApprentice: 500,
-            xpAdept: 1000,
-            xpExpert: 2000,
-            xpMaster: 4000,
-            revealName: 20,
-            revealEffects: 40,
-            revealDescription: 70
-        }
-    },
-    trueMaster: {
-        name: 'True Master',
-        description: 'Only the most dedicated will master magic',
-        settings: {
-            xpGlobalMultiplier: 0.3,
-            xpMultiplierDirect: 40,
-            xpMultiplierSchool: 15,
-            xpMultiplierAny: 2,
-            xpNovice: 400,
-            xpApprentice: 800,
-            xpAdept: 1600,
-            xpExpert: 3200,
-            xpMaster: 6000,
-            revealName: 25,
-            revealEffects: 50,
-            revealDescription: 80
-        }
-    },
-    legendary: {
-        name: 'Legendary',
-        description: 'Nightmare difficulty - not for the faint of heart',
-        settings: {
-            xpGlobalMultiplier: 0.15,
-            xpMultiplierDirect: 25,
-            xpMultiplierSchool: 10,
-            xpMultiplierAny: 1,
-            xpNovice: 600,
-            xpApprentice: 1200,
-            xpAdept: 2500,
-            xpExpert: 5000,
-            xpMaster: 10000,
-            revealName: 30,
-            revealEffects: 60,
-            revealDescription: 90
-        }
-    }
-};
-
-// =============================================================================
-// KEY CODES FOR HOTKEY MAPPING
+// KEY CODES FOR HOTKEY MAPPING (DirectInput scancodes; the one copy - settingsPanel.js reads it)
 // =============================================================================
 
 var KEY_CODES = {
@@ -242,7 +127,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         GRID_CONFIG: GRID_CONFIG,
         TREE_CONFIG: TREE_CONFIG,
-        DIFFICULTY_PROFILES: DIFFICULTY_PROFILES,
         KEY_CODES: KEY_CODES
     };
 }

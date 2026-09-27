@@ -3,7 +3,7 @@
  * Handles all settings UI initialization and config management
  * 
  * Depends on:
- * - modules/constants.js (KEY_CODES)
+ * - modules/config.js (KEY_CODES)
  * - modules/state.js (settings, settingsPresets, xpOverrides)
  * - modules/colorUtils.js (applySchoolColorsToCSS)
  * - modules/uiHelpers.js (updateStatus, updateSliderFillGlobal)

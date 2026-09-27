@@ -8,7 +8,6 @@
  * Depends on:
  * - modules/state.js (settings, settingsPresets)
  * - modules/settingsPanel.js (autoSaveSettings/scheduleAutoSave, updateEarlyLearningUI, updateSpellTomeLearningUI)
- * - modules/constants.js (no longer needs DIFFICULTY_PROFILES)
  *
  * Exports (global):
  * - initializeSettingsPresets()

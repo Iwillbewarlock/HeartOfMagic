@@ -13,10 +13,10 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 
 | Module | Lines | Purpose |
 |--------|------:|---------|
-| `constants.js` | 267 | Core constants, difficulty profiles, keycodes |
+| `constants.js` | 267 | Default tree rules and colour palette |
 | `tagVocabulary.js` | 97 | Closed tag list for the librarian; mirrors `include/librarian/TagVocabulary.h` |
 | `state.js` | 334 | Settings object, app state, XP overrides |
-| `config.js` | 266 | Tree layout and visual configuration |
+| `config.js` | 266 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 114 | Async spell data caching |
 | `colorUtils.js` | 258 | School colors, dynamic CSS generation |
 | `uiHelpers.js` | 189 | Status updates, tooltips, tier helpers |
@@ -137,8 +137,7 @@ script.js             (uses: all modules)
 | Object | Module | Description |
 |--------|--------|-------------|
 | `DEFAULT_TREE_RULES` | constants.js | Default tree rules written into the scan export's `llmPrompt` |
-| `DIFFICULTY_PROFILES` | constants.js | 6 preset difficulty profiles |
-| `KEY_CODES` | constants.js | Keyboard code mapping |
+| `KEY_CODES` | config.js | Keyboard code mapping (DirectInput scancodes) |
 | `settings` | state.js | All user settings (persisted) |
 | `state` | state.js | Runtime state (tree, selection, etc.) |
 | `customProfiles` | state.js | User-created difficulty profiles |
@@ -151,7 +150,7 @@ script.js             (uses: all modules)
 ## Key Functions by Module
 
 ### constants.js
-- Exports `DEFAULT_TREE_RULES`, `DIFFICULTY_PROFILES`, `KEY_CODES`, `DEFAULT_COLOR_PALETTE`
+- Exports `DEFAULT_TREE_RULES`, `DEFAULT_COLOR_PALETTE`
 
 ### state.js
 - Exports `settings`, `state`, `customProfiles`, `xpOverrides`
