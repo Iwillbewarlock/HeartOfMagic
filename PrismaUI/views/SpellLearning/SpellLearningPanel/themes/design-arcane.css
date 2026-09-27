@@ -36,11 +36,38 @@
     --arcane-ink-faint: #7d6647;
     --arcane-rule: rgba(90, 58, 20, 0.25);
     --arcane-rubric: #8a2f1c;
-    --arcane-serif: Georgia, "Palatino Linotype", "Book Antiqua", serif;
 
     /* The scan screen's tree previews (uiHelpers getPreviewBackground) */
     --preview-bg: #1b130c;
 }
+
+/* ---------------------------------------------------------------- the type */
+
+/* A printed book's faces, per language (themes/fonts/book, OFL, see README.txt there): Literata for
+   the text, EB Garamond for titles. Scripts Literata lacks fall through to the language's own book
+   face. A browser only loads a face when text uses it, so each language pulls just its own file. */
+@font-face { font-family: "HoM Book Body"; src: url("fonts/book/book-body-latin.ttf"); }
+@font-face { font-family: "HoM Book Body"; font-weight: bold; src: url("fonts/book/book-body-latin-bold.ttf"); }
+@font-face { font-family: "HoM Book Title Arcane"; src: url("fonts/book/book-title-arcane-latin.ttf"); }
+@font-face { font-family: "HoM Book Body KO"; src: url("fonts/book/book-body-ko.ttf"); }
+@font-face { font-family: "HoM Book Body JA"; src: url("fonts/book/book-body-ja.ttf"); }
+@font-face { font-family: "HoM Book Body SC"; src: url("fonts/book/book-body-zh-cn.ttf"); }
+@font-face { font-family: "HoM Book Body TC"; src: url("fonts/book/book-body-zh-tw.ttf"); }
+
+:root {
+    --arcane-body: "HoM Book Body", Georgia, serif;
+    --arcane-serif: "HoM Book Title Arcane", "HoM Book Body", Georgia, "Palatino Linotype", serif;
+}
+html:lang(ko) { --arcane-body: "HoM Book Body", "HoM Book Body KO", "Batang", serif;
+    --arcane-serif: "HoM Book Title Arcane", "HoM Book Body", "HoM Book Body KO", "Batang", serif; }
+html:lang(ja) { --arcane-body: "HoM Book Body", "HoM Book Body JA", "Yu Mincho", serif;
+    --arcane-serif: "HoM Book Title Arcane", "HoM Book Body", "HoM Book Body JA", "Yu Mincho", serif; }
+html:lang(zh-cn) { --arcane-body: "HoM Book Body", "HoM Book Body SC", "SimSun", serif;
+    --arcane-serif: "HoM Book Title Arcane", "HoM Book Body", "HoM Book Body SC", "SimSun", serif; }
+html:lang(zh-tw) { --arcane-body: "HoM Book Body", "HoM Book Body TC", "MingLiU", serif;
+    --arcane-serif: "HoM Book Title Arcane", "HoM Book Body", "HoM Book Body TC", "MingLiU", serif; }
+
+body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 
 /* ---------------------------------------------------------------- the cover */
 

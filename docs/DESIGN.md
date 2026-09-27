@@ -392,6 +392,19 @@ language's file. Fonts are OFL, subset to the characters the UI and common spell
 (KS X 1001 Hangul, Joyo kanji, GB2312 level 1, Big5 level 1, plus every character in the lang files);
 each folder has a README with sources and licences.
 
+Who uses what (Classic and Modern Dark keep the theme's own sans):
+
+| Design | Variable | Latin/Cyrillic | ko | ja | zh-cn | zh-tw |
+|---|---|---|---|---|---|---|
+| Chalkboard | `--chalk-font` (`--chalk-title` for headings) | Pangolin | Gaegu (titles: Hakgyoansim Bunpil) | Klee One | Xiaolai | Iansui |
+| Arcane | `--arcane-body`, `--arcane-serif` (titles) | Literata; titles EB Garamond | Hahmlet | BIZ UDPMincho | Noto Serif SC | Noto Serif TC |
+| Night Grimoire | `--ng-body`, `--ng-title` (via `--book-serif`) | Literata; titles Cinzel (Cyrillic: Alegreya SC) | Hahmlet | BIZ UDPMincho | Noto Serif SC | Noto Serif TC |
+
+The two book designs share one folder, `themes/fonts/book/` (Arcane's stylesheet declares the faces with
+paths relative to `themes/`, Night Grimoire's inline css with paths relative to the page). Literata
+comes first in every language's list, so Latin letters, digits and punctuation inside CJK text stay in
+the book face; CJK titles use the language's body face.
+
 ### Arcane illustrations (2026-09-27)
 
 The Arcane design carries three drawings made with anidoodle (code-drawn, pen-and-ink stipple in the

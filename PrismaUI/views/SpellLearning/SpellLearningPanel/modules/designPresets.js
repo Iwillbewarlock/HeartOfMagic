@@ -73,7 +73,7 @@ var DesignPresets = {
                 learningColor: '#1d6f8a',
 
                 // Labels
-                labelFont: 'Georgia, "Palatino Linotype", "Book Antiqua", serif',
+                labelFont: 'var(--arcane-body)',
                 labelMaxChars: 18,
                 labelHalo: 'rgba(236, 224, 194, 0.9)',
                 labelHaloWidth: 3,
