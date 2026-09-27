@@ -93,6 +93,11 @@
     "chips.school.destruction": "Destrucción",
     "chips.school.illusion": "Ilusión",
     "chips.school.restoration": "Restauración",
+    "tree.schoolShort.alteration": "Alter.",
+    "tree.schoolShort.conjuration": "Conj.",
+    "tree.schoolShort.destruction": "Destr.",
+    "tree.schoolShort.illusion": "Ilus.",
+    "tree.schoolShort.restoration": "Rest.",
 
     "details.description": "Descripción",
     "details.effects": "Efectos",

@@ -93,6 +93,11 @@
     "chips.school.destruction": "破壊",
     "chips.school.illusion": "幻惑",
     "chips.school.restoration": "回復",
+    "tree.schoolShort.alteration": "変性",
+    "tree.schoolShort.conjuration": "召喚",
+    "tree.schoolShort.destruction": "破壊",
+    "tree.schoolShort.illusion": "幻惑",
+    "tree.schoolShort.restoration": "回復",
 
     "details.description": "説明",
     "details.effects": "効果",

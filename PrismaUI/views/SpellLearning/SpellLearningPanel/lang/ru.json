@@ -93,6 +93,11 @@
     "chips.school.destruction": "Разрушение",
     "chips.school.illusion": "Иллюзия",
     "chips.school.restoration": "Восстановление",
+    "tree.schoolShort.alteration": "Измен.",
+    "tree.schoolShort.conjuration": "Колд.",
+    "tree.schoolShort.destruction": "Разруш.",
+    "tree.schoolShort.illusion": "Иллюз.",
+    "tree.schoolShort.restoration": "Восст.",
 
     "details.description": "Описание",
     "details.effects": "Эффекты",

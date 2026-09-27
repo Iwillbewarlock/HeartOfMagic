@@ -93,6 +93,11 @@
     "chips.school.destruction": "毁灭系",
     "chips.school.illusion": "幻术系",
     "chips.school.restoration": "恢复系",
+    "tree.schoolShort.alteration": "变化",
+    "tree.schoolShort.conjuration": "召唤",
+    "tree.schoolShort.destruction": "毁灭",
+    "tree.schoolShort.illusion": "幻术",
+    "tree.schoolShort.restoration": "恢复",
 
     "details.description": "描述",
     "details.effects": "效果",
