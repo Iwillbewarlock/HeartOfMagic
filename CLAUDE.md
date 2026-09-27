@@ -197,6 +197,13 @@ node run-tests.js
 | `modules/layerScrollTest.js` | Drag scroll of the tree layer (uncovered strips, their pieces, waiting strips moved, names moved with the picture) and the whole repaint spread over frames (LayerBuild states) |
 | `test-runner.html` | Browser-based test runner |
 
+### Code review
+
+Reviews use two reviewers: an independent reviewer agent and OpenCodeReview (`ocr`, delegation mode:
+`ocr delegate preview --from <a> --to <b>`, `ocr delegate rule <paths>`). The project's OCR rules are in
+`.opencodereview/rule.json` (var-only Ultralight JS, frame-drop checks, the C++ rules above); they replace
+OCR's generic JS rules, which would ask for let/const.
+
 ### No C++ Test Framework
 
 This project does not have a C++ test framework. Validation is done through:
