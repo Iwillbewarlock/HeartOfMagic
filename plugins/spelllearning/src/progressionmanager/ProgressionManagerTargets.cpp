@@ -536,6 +536,20 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
 
 void ProgressionManager::RelockSpell(RE::FormID formId)
 {
+    // An early-learned spell: put its own name and descriptions back (the
+    // "(Learning - 40%)" ones), then drop the tracking the co-save keeps, in the
+    // order MarkMastered uses - the name restore can fall back to the display
+    // cache RemoveEarlySpellFromPlayer clears. The caller already took the spell
+    // from the player, so RemoveEarlySpellFromPlayer finds nothing to remove.
+    auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
+    if (effectivenessHook->IsEarlyLearnedSpell(formId)) {
+        effectivenessHook->RestoreOriginalSpellName(formId);
+        effectivenessHook->RestoreOriginalDescriptions(formId);
+        SpellEffectivenessHook::RemoveEarlySpellFromPlayer(formId);
+    }
+    // A relocked spell is no longer being learned either
+    ClearLearningTargetForSpell(formId);
+
     auto it = m_spellProgress.find(formId);
     if (it == m_spellProgress.end()) {
         return;  // Nothing recorded (a spell the player simply knew): nothing to undo
