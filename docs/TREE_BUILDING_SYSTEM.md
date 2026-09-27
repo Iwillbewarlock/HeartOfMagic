@@ -176,6 +176,12 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
      ...
      ```
    - Per-theme parent coherence: each theme tracks its "current parent" so fire spells chain together
+   - **Shared element (2026-09-27):** a candidate parent with an `element.*` trait in common scores
+     +50 (theme match is +170, mismatch -50), an orphan's candidate +40 (as its theme match). Measured on
+     the 1,428-spell test load order (seeds 1-3): same-element clusters 247 -> 166, no fewer above 50,
+     theme-sharing edges unchanged. Graph, Thematic and Oracle got no element bonus: measured, it changed
+     nothing there (Thematic already branches by element themes; Graph moved within its seed noise;
+     Oracle only uses the score to reattach orphans)
    - **Convergence insertion** for high-tier spells (Expert/Master get extra prerequisites)
    - Connect orphans, enforce high-tier convergence, validate reachability
    - Assign sections (root/trunk/branch) based on percentile depth

@@ -31,4 +31,23 @@ namespace TreeBuilder::Internal
     // Run validation + auto-fix + stats on tree data (shared by all builders)
     void ValidateAndFix(json& treeData, int maxChildren, bool autoFix);
 
+    // Both spells made of the same thing (both blood, both water): an element.*
+    // trait in common - the elements the tag librarian hands on. Classic and
+    // Tree give a parent like that a bonus on their own scale. Graph, Thematic
+    // and Oracle do not: measured, it changed nothing there (Thematic already
+    // branches by element themes; Oracle and Graph were within their noise).
+    inline bool SharesElement(const TreeNode& a, const TreeNode& b)
+    {
+        const auto at = a.spellData.find("traits");
+        const auto bt = b.spellData.find("traits");
+        if (at == a.spellData.end() || bt == b.spellData.end() || !at->is_array() || !bt->is_array()) return false;
+        for (const auto& x : *at) {
+            if (!x.is_string() || !x.get_ref<const std::string&>().starts_with("element.")) continue;
+            for (const auto& y : *bt) {
+                if (y == x) return true;
+            }
+        }
+        return false;
+    }
+
 }  // namespace TreeBuilder::Internal

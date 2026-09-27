@@ -16,20 +16,6 @@ namespace
     // element clusters 333 -> 247 at 30, barely fewer above it (241 at 60),
     // theme-sharing edges and tier gaps unchanged.
     constexpr float kSharedElementBonus = 30.0f;
-
-    bool SharesElement(const TreeBuilder::TreeNode& a, const TreeBuilder::TreeNode& b)
-    {
-        const auto at = a.spellData.find("traits");
-        const auto bt = b.spellData.find("traits");
-        if (at == a.spellData.end() || bt == b.spellData.end() || !at->is_array() || !bt->is_array()) return false;
-        for (const auto& x : *at) {
-            if (!x.is_string() || !x.get_ref<const std::string&>().starts_with("element.")) continue;
-            for (const auto& y : *bt) {
-                if (y == x) return true;
-            }
-        }
-        return false;
-    }
 }
 
 // =============================================================================
