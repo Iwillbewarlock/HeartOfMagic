@@ -1,11 +1,11 @@
 /**
  * SpellLearning Growth DSL Module
  * 
- * LLM-Driven Procedural Tree Generation system.
- * Defines volumes, modifiers, and constraints for tree layout.
- * The Growth Style Generator UI (initializeGrowthStyleGenerator,
- * generatedGrowthRecipes) lives in script.js; the recipe-to-settings helpers
- * for the JS tree builders went with those builders (2026-09-27).
+ * Growth recipe vocabulary: volumes, modifiers, constraints, the default
+ * recipe per school and parseRecipe. The recipe-to-settings helpers went with
+ * the JS tree builders (2026-09-27); the LLM Growth Style Generator that wrote
+ * recipes (its panel was not in index.html) with its prompt builder
+ * (generateLLMPrompt, getAPIDocumentation) on 2026-09-28.
  */
 
 // =============================================================================
@@ -195,44 +195,6 @@ var GROWTH_DSL = {
         };
     },
     
-    // Get API documentation for LLM prompt
-    getAPIDocumentation: function() {
-        var doc = '## Growth Recipe API\n\n';
-        
-        doc += '### Bounding Volumes\n';
-        for (var vKey in this.volumes) {
-            var v = this.volumes[vKey];
-            doc += '- **' + vKey + '**: ' + v.description + ' (params: ' + v.params.join(', ') + ')\n';
-        }
-        
-        doc += '\n### Modifiers (Position Effects)\n';
-        for (var mKey in this.modifiers) {
-            var m = this.modifiers[mKey];
-            doc += '- **' + mKey + '**: ' + m.description + ' (params: ' + m.params.join(', ') + ')\n';
-        }
-        
-        doc += '\n### Constraints\n';
-        for (var cKey in this.constraints) {
-            var c = this.constraints[cKey];
-            doc += '- **' + cKey + '**: ' + c.description + ' (params: ' + c.params.join(', ') + ')\n';
-        }
-        
-        doc += '\n### Branching Rules (IMPORTANT - Controls Tree Structure)\n';
-        doc += '- **maxChildrenPerNode**: How many spells can branch from one parent (1-5, affects tree width)\n';
-        doc += '- **allowCrossTierConnections**: If true, Adept spell can unlock Novice spell (non-linear trees)\n';
-        doc += '- **allowBackwardBranches**: Higher tier spells can be prerequisites for lower tier (loops)\n';
-        doc += '- **clusterSimilarSpells**: Group spell variants (Fire I, II, III) under common parent\n';
-        doc += '- **fillEmptySpaces**: Position nodes to minimize visual gaps (organic layout)\n';
-        doc += '- **preferWideOverDeep**: Favor broad trees (many tier-2 nodes) over deep chains\n';
-        
-        doc += '\n### Visual Options\n';
-        doc += '- Node shapes: ' + this.visualOptions.nodeShapes.join(', ') + '\n';
-        doc += '- Edge styles: ' + this.visualOptions.edgeStyles.join(', ') + '\n';
-        doc += '- Tier spacing: ' + this.visualOptions.tierSpacings.join(', ') + '\n';
-        
-        return doc;
-    },
-    
     // Parse and validate a growth recipe
     parseRecipe: function(recipeJson) {
         try {
@@ -259,74 +221,6 @@ var GROWTH_DSL = {
         } catch (e) {
             return { valid: false, error: 'JSON parse error: ' + e.message };
         }
-    },
-    
-    // Generate LLM prompt for tree visualization
-    generateLLMPrompt: function(schoolName, spellList) {
-        var prompt = '# Tree Visualization Request\n\n';
-        prompt += 'Create a Growth Recipe for the ' + schoolName + ' magic school tree.\n\n';
-        
-        prompt += '## School Context\n';
-        prompt += '- School: ' + schoolName + '\n';
-        prompt += '- Total Spells: ' + spellList.length + '\n';
-        
-        // Add tier breakdown
-        var tierCounts = {};
-        spellList.forEach(function(spell) {
-            var tier = spell.level || 'Unknown';
-            tierCounts[tier] = (tierCounts[tier] || 0) + 1;
-        });
-        prompt += '- Tier distribution: ' + JSON.stringify(tierCounts) + '\n\n';
-        
-        prompt += '## School Themes\n';
-        prompt += 'Consider the thematic nature of ' + schoolName + ' magic:\n';
-        var themes = {
-            'Destruction': 'Aggressive, explosive, chaotic. Fire/frost/shock elements. Think expanding flames, crackling lightning.',
-            'Restoration': 'Nurturing, protective, radiant. Healing and wards. Think gentle light, growing warmth.',
-            'Alteration': 'Transformative, structural, earth-bound. Armor and transmutation. Think solid foundations, layered protection.',
-            'Conjuration': 'Otherworldly, summoning, ethereal. Daedra and bound weapons. Think portals, swirling energies.',
-            'Illusion': 'Subtle, mind-affecting, shadowy. Invisibility and fear. Think wisps, fading shadows.'
-        };
-        prompt += themes[schoolName] || 'Unique magical nature.' + '\n\n';
-        
-        prompt += this.getAPIDocumentation() + '\n';
-        
-        prompt += '## Output Format\n';
-        prompt += 'Return ONLY a JSON object with this structure (no markdown, no explanation):\n';
-        prompt += '```json\n';
-        prompt += JSON.stringify({
-            schoolName: schoolName,
-            volume: { type: 'cone', height: 400, baseRadius: 200, topRadius: 50 },
-            growth: { style: 'radial', tightness: 0.6, branchingAngle: 30, randomness: 0.15 },
-            branching: {
-                maxChildrenPerNode: 3,
-                allowCrossTierConnections: false,
-                allowBackwardBranches: false,
-                clusterSimilarSpells: true,
-                fillEmptySpaces: true,
-                preferWideOverDeep: true
-            },
-            visual: { nodeShape: 'pill', edgeStyle: 'curved', tierSpacing: 'linear', colorGradient: true },
-            modifiers: [{ type: 'spiral', tightness: 0.3, direction: 1 }],
-            constraints: [{ type: 'minSpacing', distance: 25 }],
-            rationale: 'Brief explanation of design choices including WHY these branching rules fit the school'
-        }, null, 2);
-        prompt += '\n```\n\n';
-        
-        prompt += '## Guidelines\n';
-        prompt += '- **BRANCHING is key**: Choose branching rules that match the school\'s nature:\n';
-        prompt += '  - Destruction: High maxChildren (explosive branching), maybe allowCrossTier for chaotic feel\n';
-        prompt += '  - Restoration: Moderate branching, clustered healing variants, structured/symmetrical\n';
-        prompt += '  - Illusion: Allow backward branches (mind tricks), organic non-linear progression\n';
-        prompt += '  - Conjuration: Cross-tier (summon anything from anywhere), wide trees\n';
-        prompt += '  - Alteration: Deep linear chains (building mastery), low maxChildren\n';
-        prompt += '- Use fillEmptySpaces=true to avoid large gaps in the visual layout\n';
-        prompt += '- Choose volume/modifiers that reflect the school\'s personality\n';
-        prompt += '- Use 1-3 modifiers maximum for clarity\n';
-        prompt += '- Always include minSpacing constraint (20-35 range)\n';
-        prompt += '- Include a rationale explaining your branching and visual choices\n';
-        
-        return prompt;
     }
 };
 

@@ -21,7 +21,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `colorUtils.js` | 258 | School colors, dynamic CSS generation |
 | `uiHelpers.js` | 189 | Status updates, tooltips, tier helpers |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `growthDSL.js` | 301 | LLM-driven procedural tree visual DSL |
+| `growthDSL.js` | 233 | Growth recipe vocabulary, default recipe per school, `parseRecipe` |
 | `treeParser.js` | 461 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 1296 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 1001 | Settings UI initialization and persistence |

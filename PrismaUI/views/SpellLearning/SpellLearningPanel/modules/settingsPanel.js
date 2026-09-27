@@ -1304,9 +1304,6 @@ function saveUnifiedConfig() {
             maxTokens: state.llmConfig.maxTokens
         },
         
-        // LLM auto-config checkbox state (for Build Tree)
-        llmAutoConfigEnabled: document.getElementById('visualFirstLLMCheck')?.checked || false,
-        
         // Field output settings for spell scan
         fields: state.fields,
         
@@ -2134,15 +2131,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             if (apiStatus && state.llmConfig.apiKey) {
                 apiStatus.textContent = 'API key loaded (' + state.llmConfig.apiKey.length + ' chars)';
                 apiStatus.style.color = '#4ade80';
-            }
-        }
-        
-        // === LLM Auto-Config Checkbox (Build Tree) ===
-        if (data.llmAutoConfigEnabled !== undefined) {
-            var llmAutoConfigCheckbox = document.getElementById('visualFirstLLMCheck');
-            if (llmAutoConfigCheckbox) {
-                llmAutoConfigCheckbox.checked = data.llmAutoConfigEnabled;
-                console.log('[SpellLearning] LLM auto-config checkbox loaded:', data.llmAutoConfigEnabled);
             }
         }
         

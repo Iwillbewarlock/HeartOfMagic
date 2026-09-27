@@ -2539,20 +2539,7 @@ var WheelRenderer = {
         document.getElementById('zoom-level').textContent = Math.round(this.zoom * 100) + '%';
     },
     
-    // Growth DSL Recipe Interpreter
-    applyGrowthRecipe: function(schoolName, recipe) {
-        console.log('[WheelRenderer] Applying growth recipe to ' + schoolName);
-        
-        var parsed = GROWTH_DSL.parseRecipe(recipe);
-        if (!parsed.valid) {
-            console.warn('[WheelRenderer] Invalid recipe: ' + parsed.error);
-            return false;
-        }
-        
-        this.growthRecipes[schoolName] = parsed.recipe;
-        return true;
-    },
-    
+    // Growth DSL recipes (none are set since the LLM style generator went, 2026-09-28)
     getRecipeForSchool: function(schoolName) {
         return this.growthRecipes[schoolName] || GROWTH_DSL.getDefaultRecipe(schoolName);
     },

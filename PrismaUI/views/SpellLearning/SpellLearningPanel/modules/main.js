@@ -80,9 +80,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Growth style generator
-        if (typeof initializeGrowthStyleGenerator === 'function') initializeGrowthStyleGenerator();
-        
         // Pre Req Master
         if (typeof PreReqMaster !== 'undefined' && PreReqMaster.init) PreReqMaster.init();
 

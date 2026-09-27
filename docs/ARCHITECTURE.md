@@ -797,7 +797,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 **Core Files:**
 - `index.html` - UI structure, module load order
 - `styles-skyrim.css` - Styling (Skyrim Edge, the one UI theme); designs lay `themes/design-*.css` over it
-- `script.js` - Main initialization, tabs, button wiring, Growth Style Generator UI, early learning helpers
+- `script.js` - Main initialization, tabs, button wiring, early learning helpers
 
 **JavaScript Modules (`modules/`) – key ones:**
 
@@ -840,7 +840,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 **Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/llmIntegration/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27; unificationTest is no longer loaded in game.)
 
 **Tabs:**
-1. **Spell Scan** - Scan spells, LLM API settings, output field toggles, Growth Style Generator
+1. **Spell Scan** - Scan spells, output field toggles
 2. **Tree Rules** - Custom rules for tree generation
 3. **Spell Tree** - Interactive radial visualization with zoom/pan/rotate, How-to-Learn panel
 4. **Settings** - Difficulty profiles, progression settings, display options, early learning, mod integrations
@@ -852,7 +852,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 - `state` - Runtime state: scan results, tree data, etc. (in `state.js`)
 - `WheelRenderer` - SVG tree rendering engine (in `wheelRenderer.js`)
 - `TreeParser` - Parse and validate tree JSON (in `treeParser.js`)
-- `GROWTH_DSL` - LLM-driven procedural tree visuals schema (in `growthDSL.js`)
+- `GROWTH_DSL` - Growth recipe vocabulary and default recipe per school, read by WheelRenderer (in `growthDSL.js`)
 
 **Key Features:**
 - Radial spell tree with school-based sectors
@@ -862,8 +862,6 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 - Preview nodes appear when parent has ≥20% XP progress
 - Tier-based node sizing (novice → master = small → large)
 - Collision resolution for dense trees
-- LLM-suggested layout styles per school
-- **Growth Style Generator** - LLM-driven visual tree customization
 - Difficulty profiles: Easy, Normal, Hard, Brutal, True Master, Legendary
 - Custom profile creation and persistence
 - School color customization
@@ -1345,7 +1343,6 @@ MO2/mods/HeartOfMagic_RELEASE/
 - Learning status badges
 - Divider color customization
 - Multi-prerequisite preservation option
-- Growth Style Generator (LLM-driven visuals)
 - Tree Generation Validation (reachability check, auto-fix, retry UI)
 - Spell Tome Hook (intercepts tomes, grants XP, keeps book)
 - Edit Mode (add/remove nodes, modify links)
