@@ -28,7 +28,9 @@
  * picture a frame or two longer, with no long frame. The repaint right after a
  * design, effects, font or language change is not counted (noteRestyle): it
  * makes the sprites, patterns and text widths and would pass for a slow tree -
- * except as the session's first figure, which the next repaint replaces. So is the first repaint, one with
+ * unless nothing was measured yet: then it is the figure, as a slow tree's first
+ * click must be spread (a quick tree may stay spread, no long frame).
+ * So is the first repaint, one with
  * no old picture to show (stale layer, resize) and one in edit mode; and a tree
  * that keeps changing faster than a build ends (MAX_RESTARTS builds started
  * again in a row, the count starting over when a build is dropped for another
@@ -74,7 +76,6 @@ var LayerBuild = {
     _finishMs: 4,             // the names and chapter titles' running cost, ms
     _restarts: 0,             // builds started again before one was done, in a row
     _unmeasured: false,       // the next whole repaint follows a design or language change (noteRestyle)
-    _provisional: false,      // _lastMs is such a repaint's cost, taken as the session's first figure
 
     active: function() {
         return !!this._build;
@@ -106,8 +107,12 @@ var LayerBuild = {
      * where the caches go: TreeStyle.set (a design, Design Effects), a late
      * stylesheet or font (TreeStyle.fontsChanged), a language (switchLocale).
      * With nothing measured yet (the session's first repaint: the design is
-     * applied at start-up) its cost is kept as a first figure, so a slow tree's
-     * first click is spread too; the next whole repaint replaces it outright.
+     * applied at start-up) its cost is the figure all the same, so a slow tree's
+     * first click is spread; later builds change it by the usual rule (a middling
+     * one leaves it: replacing it outright gave a slow tree whose culled builds
+     * look quick one long frame, on the click after). A quick tree measured high
+     * this way stays spread unless a build is clearly quick - its repaints show
+     * the old picture a frame or two longer, no long frame.
      */
     noteRestyle: function() {
         this._unmeasured = true;
@@ -115,13 +120,8 @@ var LayerBuild = {
 
     /** A whole repaint was just done at once; it took `ms`. */
     noteSync: function(ms) {
-        if (this._unmeasured) {
-            this._unmeasured = false;
-            if (!(this._lastMs > 0)) { this._lastMs = ms; this._provisional = true; }
-        } else {
-            this._lastMs = ms;
-            this._provisional = false;
-        }
+        if (!this._unmeasured || !(this._lastMs > 0)) this._lastMs = ms;
+        this._unmeasured = false;
         this._build = null;
         this._restarts = 0;
     },
@@ -308,14 +308,12 @@ var LayerBuild = {
         // one repaint of the whole view, so taken as it is (or lowered a little a
         // build) it would switch a slow tree back to a long frame
         // A build after a design change (noteRestyle) is not counted, swapped in
-        // whole or early (its pieces on screen and the names made the caches); a
-        // first figure that was such a repaint is replaced by the next whole one
+        // whole or early (its pieces on screen and the names made the caches)
         if (this._unmeasured) {
             this._unmeasured = false;
         } else if (!b.tiles.length) {
             var est = this._estimate(b);
-            if (this._provisional || est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
-            this._provisional = false;
+            if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
         }
         this._build = null;
         this._restarts = 0;

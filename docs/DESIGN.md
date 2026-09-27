@@ -285,9 +285,13 @@ frame. The repaint right after the caches go is not counted (`LayerBuild.noteRes
 stylesheet or a web font arriving late - and `switchLocale`): it makes the sprites, patterns and text
 widths the first time (the 18-26 ms outlier below) and, counted, would keep a quick tree spread for good.
 A build swapped in early still made them, so it clears the flag too. With nothing measured yet - the
-session's first repaint, as the saved design is applied at start-up - its cost is kept as a first figure
-(`_provisional`) so a slow tree's first click is spread, and the next whole repaint replaces it outright,
-a middling build included. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+session's first repaint, as the saved design is applied at start-up - its cost is the figure all the same,
+so a slow tree's first click is spread; later builds change it by the usual rule. Replacing that first
+figure outright with the next build's (for a day) let a slow tree whose culled builds look middling drop
+below `SYNC_MAX_MS`, and the click after was one long frame. A quick tree measured high at start-up stays
+spread unless a build comes out clearly quick: a frame or two of the old picture per repaint, no long
+frame. (Repainting at once while the panel is hidden, to measure, was not taken: the page still runs in
+game while hidden, and a 12-19 ms task there can cost a game frame - not measured.) Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
