@@ -729,9 +729,6 @@
                         <button id="import-btn" class="btn btn-secondary btn-sm">
                             <span class="btn-icon">[v]</span> <span data-i18n="footer.import">Import</span>
                         </button>
-                        <button id="llm-toolbar-btn" class="btn btn-llm btn-sm hidden" data-i18n-title="footer.llmTitle" title="Auto-generate trees via LLM">
-                            <span class="btn-icon">[AI]</span> <span data-i18n="footer.llm">LLM</span>
-                        </button>
                         <span class="spell-count">
                             <span id="total-count">0</span> <span data-i18n="footer.spellsLabel">spells</span> |
                             <span id="unlocked-count">0</span> <span data-i18n="footer.unlockedLabel">unlocked</span>
@@ -1633,7 +1630,7 @@
                 </div>
 
 
-                <!-- Tree Generation Settings - Developer only (related to LLM auto features) -->
+                <!-- Tree Generation Settings - Developer only -->
                 <div class="settings-block dev-only">
                     <div class="settings-block-header">
                         <span class="settings-block-icon">[T]</span>
@@ -1641,50 +1638,11 @@
                     </div>
                     <div class="settings-block-content">
                         <div class="setting-hint" style="font-size: 0.8em; color: var(--text-muted); margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                            These settings control how spell prerequisites are generated and validated.
-                            <br><strong>LLM Prereqs</strong> = AI designs multi-prereq during generation
-                            <br><strong>Procedural Injection</strong> = adds extra prereqs AFTER generation
-                        </div>
-                        
-                        <!-- LLM Generation Settings -->
-                        <div class="settings-subsection" style="margin-left: 8px; padding-left: 8px; border-left: 2px solid var(--accent-blue);">
-                            <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-blue); margin-bottom: 8px;">
-                                DURING LLM GENERATION
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.treeGen.allowLlmMultiple">Allow LLM Multiple Prereqs</span>
-                                    <span class="setting-desc" data-i18n="settings.treeGen.allowLlmMultipleDesc">AI can design spells that require 2-3 prerequisites</span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="allowLLMMultiplePrereqsToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.treeGen.llmSelfCorrection">LLM Self-Correction</span>
-                                    <span class="setting-desc" data-i18n="settings.treeGen.llmSelfCorrectionDesc">AI fixes its own mistakes (uses more tokens but better results)</span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="llmSelfCorrectionToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row" id="llmCorrectionLoopsRow">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.treeGen.maxCorrectionLoops">Max Correction Loops</span>
-                                    <span class="setting-desc" data-i18n="settings.treeGen.maxCorrectionLoopsDesc">How many times AI can retry before auto-fix</span>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="range" id="llmCorrectionLoopsSlider" min="1" max="10" value="5" class="setting-slider">
-                                    <span id="llmCorrectionLoopsValue">5</span>
-                                </div>
-                            </div>
+                            These settings control how an imported tree is validated.
                         </div>
                         
                         <!-- Validation Settings -->
-                        <div class="settings-subsection" style="margin-left: 8px; padding-left: 8px; border-left: 2px solid var(--accent-orange); margin-top: 12px;">
+                        <div class="settings-subsection" style="margin-left: 8px; padding-left: 8px; border-left: 2px solid var(--accent-orange);">
                             <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-orange); margin-bottom: 8px;">
                                 VALIDATION & AUTO-FIX
                             </div>
@@ -1697,22 +1655,6 @@
                                     <input type="checkbox" id="aggressivePathValidationToggle" checked>
                                     <span class="toggle-slider"></span>
                                 </label>
-                            </div>
-                            
-                            <!-- Retry Specific School -->
-                            <div class="setting-row" id="retrySchoolRow" style="margin-top: 12px; display: none;">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.treeGen.retrySchool">Retry Problem School</span>
-                                    <span class="setting-desc" data-i18n="settings.treeGen.retrySchoolDesc">Regenerate tree for schools with unreachable nodes</span>
-                                </div>
-                                <div class="setting-control" style="display: flex; gap: 8px; align-items: center;">
-                                    <select id="retrySchoolSelect" class="setting-select" style="min-width: 120px;">
-                                        <option value="" data-i18n="settings.treeGen.selectSchool">Select school...</option>
-                                    </select>
-                                    <button id="retrySchoolBtn" class="action-btn" style="padding: 4px 12px; font-size: 0.85em;">
-                                        <span class="btn-icon">[R]</span> Retry
-                                    </button>
-                                </div>
                             </div>
                         </div>
                         
@@ -2020,7 +1962,6 @@
     <script src="modules/settingsPresets.js"></script>
     <script src="modules/scannerPresets.js"></script>
     <script src="modules/easyMode.js"></script>
-    <script src="modules/llmApiSettings.js"></script>
     <script src="modules/buttonHandlers.js"></script>
     
     <!-- 5b. Tree Preview -->
@@ -2053,7 +1994,6 @@
     <!-- 6. Integrations and Callbacks -->
     <script src="modules/cppCallbacks.js"></script>
     <script src="modules/buildProgress.js"></script>
-    <script src="modules/llmIntegration.js"></script>
     <script src="modules/proceduralTreeBuilder.js"></script>
 
     <!-- 6.6. Pre Req Master -->

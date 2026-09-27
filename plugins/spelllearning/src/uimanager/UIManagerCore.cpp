@@ -2,7 +2,6 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "PapyrusAPI.h"
-#include "ISLIntegration.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -358,22 +357,4 @@ void UIManager::OnConsoleMessage(PrismaView view, PRISMA_UI_API::ConsoleMessageL
             logger::info("[JS] View {}: {}", view, message);
             break;
     }
-}
-
-// =============================================================================
-// DEST DETECTION NOTIFICATION
-// =============================================================================
-
-void UIManager::NotifyDESTDetectionStatus()
-{
-    if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
-        logger::warn("UIManager: Cannot notify DEST status - PrismaUI not valid");
-        return;
-    }
-
-    bool detected = DESTIntegration::IsDESTInstalled();
-    std::string js = detected ? "true" : "false";
-
-    logger::info("UIManager: Notifying UI of DEST detection status: {}", detected ? "Detected" : "Not Detected");
-    CallView("onDESTDetectionUpdate", js.c_str());
 }

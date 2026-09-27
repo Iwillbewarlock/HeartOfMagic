@@ -106,9 +106,6 @@ var settings = {
     fontSizeMultiplier: 1.0,    // Global font size multiplier (0.5 - 2.0)
     // Tree generation settings
     aggressivePathValidation: true,   // Strict reachability check (safe but simple trees)
-    allowLLMMultiplePrereqs: true,    // Let LLM design multiple prerequisites per spell
-    llmSelfCorrection: true,          // Let LLM fix its own unreachable nodes
-    llmSelfCorrectionMaxLoops: 5,     // Max correction attempts before fallback
     proceduralPrereqInjection: false, // Add extra prereqs programmatically after generation
     // Procedural injection settings
     proceduralInjection: {
@@ -160,8 +157,6 @@ var settings = {
     schoolVisibility: {
         // All schools visible by default, dynamically grows
     },
-    // Auto-request LLM color suggestions for new schools
-    autoLLMColors: false,
     // ISL-DESTified mod integration
     islEnabled: true,
     islXpPerHour: 50,
@@ -292,28 +287,8 @@ var state = {
     treeData: null,
     treeInitialized: false,
     clearTreePending: false,
-    // LLM API config
-    llmConfig: {
-        apiKey: '',
-        model: 'anthropic/claude-sonnet-4',
-        maxTokens: 4096
-    },
     // Clipboard paste target
     pasteTarget: null,
-    // Full Auto mode flag
-    fullAutoMode: false,
-    // LLM integration
-    llmAvailable: false,
-    llmGenerating: false,
-    llmQueue: [],
-    llmCurrentSchool: null,
-    llmPollInterval: null,
-    llmStats: {
-        totalSpells: 0,
-        processedSpells: 0,
-        failedSchools: [],
-        needsAttentionSchools: []  // Schools that had unreachable nodes after auto-fix
-    },
     // Progression tracking
     learningTargets: {},  // school -> formId
     spellProgress: {},    // formId -> {xp, required, unlocked, ready}

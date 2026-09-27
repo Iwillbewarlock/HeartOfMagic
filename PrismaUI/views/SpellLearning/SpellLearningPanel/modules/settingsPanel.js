@@ -82,71 +82,6 @@ function setSegmentedToggleEnabled(containerId, enabled) {
 // =============================================================================
 
 /**
- * Update the Retry School UI based on schools that need attention
- * Called periodically to keep the dropdown current
- */
-function updateRetrySchoolUI() {
-    var retrySchoolRow = document.getElementById('retrySchoolRow');
-    var retrySchoolSelect = document.getElementById('retrySchoolSelect');
-    
-    if (!retrySchoolRow || !retrySchoolSelect) return;
-    
-    // Get schools needing attention
-    var needsAttention = window.getSchoolsNeedingAttention ? window.getSchoolsNeedingAttention() : [];
-    
-    // Also include failed schools if any
-    var failedSchools = state.lastFailedSchools || [];
-    
-    // Combine both lists
-    var allProblemSchools = [];
-    needsAttention.forEach(function(info) {
-        allProblemSchools.push({
-            school: info.school,
-            reason: t('settingsPanel.unreachableNodes', {count: info.unreachableCount})
-        });
-    });
-    failedSchools.forEach(function(school) {
-        // Don't duplicate
-        if (!allProblemSchools.some(function(p) { return p.school === school; })) {
-            allProblemSchools.push({
-                school: school,
-                reason: t('settingsPanel.generationFailed')
-            });
-        }
-    });
-    
-    // Nothing changed since the last look (it runs every 2 s): leave the DOM
-    // alone - rebuilding the list repainted the panel and closed an open dropdown
-    var shownKey = allProblemSchools.map(function(p) { return p.school + '|' + p.reason; }).join(';');
-    if (shownKey === updateRetrySchoolUI._shown) return;
-    updateRetrySchoolUI._shown = shownKey;
-
-    // Show/hide the row
-    if (allProblemSchools.length > 0) {
-        retrySchoolRow.style.display = 'flex';
-        
-        // Remember current selection
-        var currentSelection = retrySchoolSelect.value;
-        
-        // Rebuild dropdown options
-        retrySchoolSelect.innerHTML = '<option value="">' + t('settings.treeGen.selectSchool') + '</option>';
-        allProblemSchools.forEach(function(info) {
-            var option = document.createElement('option');
-            option.value = info.school;
-            option.textContent = info.school + ' (' + info.reason + ')';
-            retrySchoolSelect.appendChild(option);
-        });
-        
-        // Restore selection if still valid
-        if (currentSelection && allProblemSchools.some(function(p) { return p.school === currentSelection; })) {
-            retrySchoolSelect.value = currentSelection;
-        }
-    } else {
-        retrySchoolRow.style.display = 'none';
-    }
-}
-
-/**
  * Update visibility of developer-only elements based on developer mode setting.
  * @param {boolean} enabled - Whether developer mode is enabled
  */
@@ -315,8 +250,6 @@ function initializeSettings() {
         showDividersToggle.addEventListener('change', function() {
             settings.showSchoolDividers = this.checked;
             console.log('[SpellLearning] Show school dividers:', settings.showSchoolDividers);
-            // Show/hide related settings
-            updateDividerSettingsVisibility();
             // Re-render tree
             if (state.treeData) {
                 WheelRenderer.render();
@@ -658,70 +591,6 @@ function initializeSettings() {
         });
     }
     
-    var allowLLMMultiplePrereqsToggle = document.getElementById('allowLLMMultiplePrereqsToggle');
-    if (allowLLMMultiplePrereqsToggle) {
-        allowLLMMultiplePrereqsToggle.checked = settings.allowLLMMultiplePrereqs;
-        allowLLMMultiplePrereqsToggle.addEventListener('change', function() {
-            settings.allowLLMMultiplePrereqs = this.checked;
-            console.log('[SpellLearning] Allow LLM multiple prerequisites:', settings.allowLLMMultiplePrereqs);
-            scheduleAutoSave();
-        });
-    }
-    
-    var llmSelfCorrectionToggle = document.getElementById('llmSelfCorrectionToggle');
-    var llmCorrectionLoopsRow = document.getElementById('llmCorrectionLoopsRow');
-    if (llmSelfCorrectionToggle) {
-        llmSelfCorrectionToggle.checked = settings.llmSelfCorrection;
-        // Show/hide loops slider based on toggle
-        if (llmCorrectionLoopsRow) {
-            llmCorrectionLoopsRow.style.display = settings.llmSelfCorrection ? '' : 'none';
-        }
-        llmSelfCorrectionToggle.addEventListener('change', function() {
-            settings.llmSelfCorrection = this.checked;
-            console.log('[SpellLearning] LLM self-correction:', settings.llmSelfCorrection);
-            if (llmCorrectionLoopsRow) {
-                llmCorrectionLoopsRow.style.display = this.checked ? '' : 'none';
-            }
-            scheduleAutoSave();
-        });
-    }
-    
-    var llmCorrectionLoopsSlider = document.getElementById('llmCorrectionLoopsSlider');
-    var llmCorrectionLoopsValue = document.getElementById('llmCorrectionLoopsValue');
-    if (llmCorrectionLoopsSlider) {
-        llmCorrectionLoopsSlider.value = settings.llmSelfCorrectionMaxLoops;
-        if (llmCorrectionLoopsValue) llmCorrectionLoopsValue.textContent = settings.llmSelfCorrectionMaxLoops;
-        updateSliderFillGlobal(llmCorrectionLoopsSlider);
-        llmCorrectionLoopsSlider.addEventListener('input', function() {
-            settings.llmSelfCorrectionMaxLoops = parseInt(this.value);
-            if (llmCorrectionLoopsValue) llmCorrectionLoopsValue.textContent = this.value;
-            updateSliderFillGlobal(this);
-            scheduleAutoSave();
-        });
-    }
-    
-    // Retry School UI
-    var retrySchoolBtn = document.getElementById('retrySchoolBtn');
-    var retrySchoolSelect = document.getElementById('retrySchoolSelect');
-    if (retrySchoolBtn && retrySchoolSelect) {
-        retrySchoolBtn.addEventListener('click', function() {
-            var selectedSchool = retrySchoolSelect.value;
-            if (selectedSchool && window.retrySpecificSchool) {
-                window.retrySpecificSchool(selectedSchool);
-            } else if (!selectedSchool) {
-                console.warn('[SpellLearning] No school selected for retry');
-            }
-        });
-    }
-    
-    // Check for schools needing attention periodically and update UI
-    // Only runs when panel is visible to avoid wasting CPU
-    setInterval(function() {
-        if (window._panelVisible !== false && state.currentTab === 'settings') {
-            updateRetrySchoolUI();
-        }
-    }, 2000);
-    
     var proceduralPrereqInjectionToggle = document.getElementById('proceduralPrereqInjectionToggle');
     var proceduralInjectionSettings = document.getElementById('proceduralInjectionSettings');
     if (proceduralPrereqInjectionToggle) {
@@ -851,7 +720,6 @@ function initializeSettings() {
         dividerColorModeSelect.value = settings.dividerColorMode;
         dividerColorModeSelect.addEventListener('change', function() {
             settings.dividerColorMode = this.value;
-            updateDividerColorRowVisibility();
             // Re-render tree
             if (state.treeData) {
                 WheelRenderer.render();
@@ -871,13 +739,6 @@ function initializeSettings() {
             }
         });
     }
-    
-    // Initial visibility of divider settings
-    try { updateDividerSettingsVisibility(); } catch(e) { console.error('[SpellLearning] updateDividerSettingsVisibility error:', e); }
-    try { updateDividerColorRowVisibility(); } catch(e) { console.error('[SpellLearning] updateDividerColorRowVisibility error:', e); }
-    
-    // ISL-DESTified Integration Settings
-    try { initializeISLSettings(); } catch(e) { console.error('[SpellLearning] ISL settings init error:', e); }
     
     // Early Spell Learning Settings
     try { initializeEarlyLearningSettings(); } catch(e) { console.error('[SpellLearning] Early learning settings init error:', e); }
@@ -1100,24 +961,7 @@ function initializeSettings() {
         });
     }
     
-    // Auto LLM Colors toggle
-    var autoLLMToggle = document.getElementById('autoLLMColorsToggle');
-    if (autoLLMToggle) {
-        autoLLMToggle.checked = settings.autoLLMColors;
-        autoLLMToggle.addEventListener('change', function() {
-            settings.autoLLMColors = this.checked;
-            console.log('[SpellLearning] Auto LLM Colors:', settings.autoLLMColors);
-        });
-    }
-    
     // School color buttons
-    var suggestColorsBtn = document.getElementById('suggestColorsBtn');
-    if (suggestColorsBtn) {
-        suggestColorsBtn.addEventListener('click', function() {
-            suggestSchoolColorsWithLLM();
-        });
-    }
-    
     var resetColorsBtn = document.getElementById('resetColorsBtn');
     if (resetColorsBtn) {
         resetColorsBtn.addEventListener('click', function() {
@@ -1258,9 +1102,6 @@ function saveUnifiedConfig() {
         learningColor: settings.learningColor,
         fontSizeMultiplier: settings.fontSizeMultiplier,
         aggressivePathValidation: settings.aggressivePathValidation,
-        allowLLMMultiplePrereqs: settings.allowLLMMultiplePrereqs,
-        llmSelfCorrection: settings.llmSelfCorrection,
-        llmSelfCorrectionMaxLoops: settings.llmSelfCorrectionMaxLoops,
         proceduralPrereqInjection: settings.proceduralPrereqInjection,
         proceduralInjection: settings.proceduralInjection,
         
@@ -1289,14 +1130,6 @@ function saveUnifiedConfig() {
         revealEffects: settings.revealEffects,
         revealDescription: settings.revealDescription,
         
-        // LLM API settings
-        llm: {
-            apiKey: state.llmConfig.apiKey,
-            model: state.llmConfig.model,
-            customModel: state.llmConfig.customModel || '',
-            maxTokens: state.llmConfig.maxTokens
-        },
-        
         // Field output settings for spell scan
         fields: state.fields,
         
@@ -1317,7 +1150,6 @@ function saveUnifiedConfig() {
         // School colors
         schoolColors: settings.schoolColors,
         schoolVisibility: settings.schoolVisibility,
-        autoLLMColors: settings.autoLLMColors,
         
         // ISL-DESTified integration
         islEnabled: settings.islEnabled,
@@ -1590,9 +1422,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.learningColor = data.learningColor || '#7890A8';
         settings.fontSizeMultiplier = data.fontSizeMultiplier !== undefined ? data.fontSizeMultiplier : 1.0;
         settings.aggressivePathValidation = data.aggressivePathValidation !== false;  // default true
-        settings.allowLLMMultiplePrereqs = data.allowLLMMultiplePrereqs !== false;  // default true
-        settings.llmSelfCorrection = data.llmSelfCorrection !== false;  // default true
-        settings.llmSelfCorrectionMaxLoops = data.llmSelfCorrectionMaxLoops !== undefined ? data.llmSelfCorrectionMaxLoops : 5;
         settings.proceduralPrereqInjection = data.proceduralPrereqInjection || false;  // default false
         // Procedural injection settings
         if (data.proceduralInjection) {
@@ -1669,9 +1498,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             console.log('[SpellLearning] Loaded visibility for', Object.keys(settings.schoolVisibility).length, 'schools');
         }
         
-        // Auto LLM colors setting
-        settings.autoLLMColors = data.autoLLMColors !== undefined ? data.autoLLMColors : false;
-        
         // ISL-DESTified integration settings
         settings.islEnabled = data.islEnabled !== undefined ? data.islEnabled : true;
         settings.islXpPerHour = data.islXpPerHour !== undefined ? data.islXpPerHour : 50;
@@ -1707,25 +1533,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         // Tree generation settings
         var aggressivePathValidationToggle = document.getElementById('aggressivePathValidationToggle');
         if (aggressivePathValidationToggle) aggressivePathValidationToggle.checked = settings.aggressivePathValidation;
-        
-        var allowLLMMultiplePrereqsToggle = document.getElementById('allowLLMMultiplePrereqsToggle');
-        if (allowLLMMultiplePrereqsToggle) allowLLMMultiplePrereqsToggle.checked = settings.allowLLMMultiplePrereqs;
-        
-        var llmSelfCorrectionToggle = document.getElementById('llmSelfCorrectionToggle');
-        if (llmSelfCorrectionToggle) llmSelfCorrectionToggle.checked = settings.llmSelfCorrection;
-        
-        var llmCorrectionLoopsRow = document.getElementById('llmCorrectionLoopsRow');
-        if (llmCorrectionLoopsRow) {
-            llmCorrectionLoopsRow.style.display = settings.llmSelfCorrection ? '' : 'none';
-        }
-        
-        var llmCorrectionLoopsSlider = document.getElementById('llmCorrectionLoopsSlider');
-        var llmCorrectionLoopsValue = document.getElementById('llmCorrectionLoopsValue');
-        if (llmCorrectionLoopsSlider) {
-            llmCorrectionLoopsSlider.value = settings.llmSelfCorrectionMaxLoops;
-            if (llmCorrectionLoopsValue) llmCorrectionLoopsValue.textContent = settings.llmSelfCorrectionMaxLoops;
-            updateSliderFillGlobal(llmCorrectionLoopsSlider);
-        }
         
         var proceduralPrereqInjectionToggle = document.getElementById('proceduralPrereqInjectionToggle');
         if (proceduralPrereqInjectionToggle) proceduralPrereqInjectionToggle.checked = settings.proceduralPrereqInjection;
@@ -1766,10 +1573,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         // Apply school colors to CSS
         applySchoolColorsToCSS();
         updateSchoolColorPickerUI();
-        
-        // Update Auto LLM toggle
-        var autoLLMToggle = document.getElementById('autoLLMColorsToggle');
-        if (autoLLMToggle) autoLLMToggle.checked = settings.autoLLMColors;
         
         // Update UI toggles
         var cheatToggle = document.getElementById('cheatModeToggle');
@@ -1814,8 +1617,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (dividerCustomColorPicker) {
             dividerCustomColorPicker.value = settings.dividerCustomColor;
         }
-        
-        updateDividerSettingsVisibility();
         
         // Update popup divider settings (gear icon popup)
         var popupShowDividers = document.getElementById('popup-show-dividers');
@@ -2076,57 +1877,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             }
         });
         
-        // === LLM Settings ===
-        if (data.llm) {
-            state.llmConfig.apiKey = data.llm.apiKey || '';
-            state.llmConfig.model = data.llm.model || 'anthropic/claude-sonnet-4';
-            state.llmConfig.customModel = data.llm.customModel || '';
-            state.llmConfig.maxTokens = data.llm.maxTokens || 4096;
-            
-            // Update LLM UI
-            var apiKeyInput = document.getElementById('apiKeyInput');
-            var modelSelect = document.getElementById('modelSelect');
-            var customModelInput = document.getElementById('customModelInput');
-            
-            if (apiKeyInput && state.llmConfig.apiKey) {
-                // Mask the key for display
-                var key = state.llmConfig.apiKey;
-                apiKeyInput.value = key.length > 10 ? 
-                    key.substring(0, 6) + '...' + key.substring(key.length - 4) : 
-                    key;
-            }
-            
-            // Set model dropdown - try to match, but if custom model is set, it takes priority
-            if (modelSelect) {
-                // If custom model looks like a known dropdown value, select it
-                var knownModels = ['anthropic/claude-sonnet-4', 'anthropic/claude-opus-4', 
-                    'anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'openai/gpt-4o-mini', 
-                    'google/gemini-2.0-flash-001', 'meta-llama/llama-3.3-70b-instruct'];
-                if (knownModels.indexOf(state.llmConfig.model) !== -1) {
-                    modelSelect.value = state.llmConfig.model;
-                }
-            }
-            
-            // Set custom model input
-            if (customModelInput) {
-                customModelInput.value = state.llmConfig.customModel || '';
-                updateModelDisplayState();
-            }
-            
-            // Set max tokens input
-            var maxTokensInput = document.getElementById('maxTokensInput');
-            if (maxTokensInput) {
-                maxTokensInput.value = state.llmConfig.maxTokens || 4096;
-            }
-            
-            // Update API status
-            var apiStatus = document.getElementById('apiStatus');
-            if (apiStatus && state.llmConfig.apiKey) {
-                apiStatus.textContent = 'API key loaded (' + state.llmConfig.apiKey.length + ' chars)';
-                apiStatus.style.color = '#4ade80';
-            }
-        }
-        
         // === Field Settings ===
         if (data.fields) {
             // Merge over the defaults rather than replace them: a settings file
@@ -2249,8 +1999,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         
         console.log('[SpellLearning] Unified config loaded:', {
             settings: settings,
-            llmModel: state.llmConfig.model,
-            hasApiKey: !!state.llmConfig.apiKey,
             fields: state.fields
         });
         
@@ -2274,9 +2022,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
 
 // Export updateDeveloperModeVisibility for use by other modules (e.g., when school controls are created)
 window.updateDeveloperModeVisibility = updateDeveloperModeVisibility;
-// onLLMConfigLoaded lives in llmApiSettings.js, which loads after this file and
-// replaced the copy that used to sit here - so this one never ran. The live one
-// stores the same config and fills in the API-key and model fields as well.
 
 // =============================================================================
 // MODDED XP SOURCES - Dynamic UI for external mod XP sources

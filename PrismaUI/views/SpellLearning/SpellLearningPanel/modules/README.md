@@ -53,10 +53,8 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `progressionUI.js` | 547 | How-to-Learn panel, learning status badges |
 | `difficultyProfiles.js` | 429 | Profile management, presets, custom profiles |
-| `llmApiSettings.js` | 230 | OpenRouter API configuration UI |
 | `buttonHandlers.js` | 264 | Scan, learn, import/export button handlers |
 | `cppCallbacks.js` | 438 | C++ SKSE plugin callback handlers |
-| `llmIntegration.js` | 621 | LLM tree generation, color suggestions |
 | `proceduralTreeBuilder.js` | 217 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 1144 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~8245 | |
@@ -65,6 +63,8 @@ Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that us
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,
 `growthBehaviors.js`, `edgeScoring.js`), `llmTreeFeatures.js`, `generationModeUI.js`, the `autoTest.js`
 harness and the unloaded WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js`).
+Removed 2026-09-28 with the LLM (OpenRouter) feature: `llmIntegration.js` (its `saveTreeToFile` moved to
+`uiHelpers.js`) and `llmApiSettings.js`.
 
 ## Load Order (index.html)
 
@@ -94,12 +94,10 @@ Modules must load in dependency order before `script.js`:
 <script src="modules/treeViewerUI.js"></script>
 <script src="modules/progressionUI.js"></script>
 <script src="modules/difficultyProfiles.js"></script>
-<script src="modules/llmApiSettings.js"></script>
 <script src="modules/buttonHandlers.js"></script>
 
 <!-- 6. Integrations -->
 <script src="modules/cppCallbacks.js"></script>
-<script src="modules/llmIntegration.js"></script>
 
 <!-- 7. Main Application -->
 <script src="script.js"></script>
@@ -129,11 +127,9 @@ settingsPanel.js      (uses: state.js, constants.js, colorUtils.js, uiHelpers.js
 treeViewerUI.js       (uses: state.js, wheelRenderer.js, colorUtils.js)
 progressionUI.js      (uses: state.js, wheelRenderer.js, uiHelpers.js)
 difficultyProfiles.js (uses: state.js, constants.js, uiHelpers.js)
-llmApiSettings.js     (uses: state.js, uiHelpers.js)
 buttonHandlers.js     (uses: state.js, treeParser.js, wheelRenderer.js, spellCache.js)
     ↓
 cppCallbacks.js       (uses: state.js, treeParser.js, wheelRenderer.js, spellCache.js)
-llmIntegration.js (uses: state.js, growthDSL.js, wheelRenderer.js, colorUtils.js)
     ↓
 script.js             (uses: all modules)
 ```
@@ -142,7 +138,7 @@ script.js             (uses: all modules)
 
 | Object | Module | Description |
 |--------|--------|-------------|
-| `DEFAULT_TREE_RULES` | constants.js | Default LLM tree generation rules |
+| `DEFAULT_TREE_RULES` | constants.js | Default tree rules written into the scan export's `llmPrompt` |
 | `DIFFICULTY_PROFILES` | constants.js | 6 preset difficulty profiles |
 | `KEY_CODES` | constants.js | Keyboard code mapping |
 | `settings` | state.js | All user settings (persisted) |

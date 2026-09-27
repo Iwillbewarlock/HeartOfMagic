@@ -202,16 +202,11 @@ window.updateSpellData = function(jsonStr) {
         var outputArea = document.getElementById('outputArea');
         if (outputArea) outputArea.value = '';
         
-        if (state.fullAutoMode) {
-            updateStatus(t('status.step2Generating', {count: data.spellCount}));
-            updateScanStatus(t('status.step2Generating', {count: data.spellCount}), 'working');
-        } else {
-            var schoolSet = {};
-            if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
-            var schoolCount = Object.keys(schoolSet).length;
-            updateStatus(t('status.scannedSpells', {count: data.spellCount}));
-            updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success');
-        }
+        var schoolSet = {};
+        if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
+        var schoolCount = Object.keys(schoolSet).length;
+        updateStatus(t('status.scannedSpells', {count: data.spellCount}));
+        updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success');
         setStatusIcon('X');
         updateCharCount();
         scanSuccess = true;
@@ -273,7 +268,6 @@ window.updateSpellData = function(jsonStr) {
         if (outputAreaFallback) outputAreaFallback.value = jsonStr;
         updateStatus(t('status.receivedDataParseError'));
         setStatusIcon('!');
-        state.fullAutoMode = false;
     }
 
     // Show tree preview section (outside try-catch so errors don't kill scan flow)
@@ -347,21 +341,6 @@ window.updateSpellData = function(jsonStr) {
     if (scanBtn) {
         scanBtn.disabled = false;
         scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
-    }
-    
-    // Continue to auto-generation if in full auto mode
-    if (state.fullAutoMode && scanSuccess) {
-        console.log('[SpellLearning] Full Auto: Starting tree generation...');
-        setTimeout(function() {
-            startFullAutoGenerate();
-        }, 500);
-    } else {
-        // Reset all buttons if not continuing
-        var fullAutoBtn = document.getElementById('fullAutoBtn');
-        if (fullAutoBtn) {
-            fullAutoBtn.disabled = false;
-            fullAutoBtn.innerHTML = '<span class="btn-icon">>></span> Full Auto';
-        }
     }
 };
 
@@ -440,27 +419,6 @@ window.onClipboardContent = function(content) {
             // Clear any previous error
             var errorBox = document.getElementById('import-error');
             if (errorBox) errorBox.classList.add('hidden');
-        } else if (targetId === 'apiKeyInput') {
-            // API key pasted
-            targetEl.dataset.hasKey = 'false';
-            updateStatus(t('status.apiKeyPasted'));
-            setStatusIcon('X');
-            
-            // Temporarily show the key so user can see it was pasted
-            if (targetEl.type === 'password') {
-                targetEl.type = 'text';
-                setTimeout(function() {
-                    targetEl.type = 'password';
-                }, 2000);
-            }
-            targetEl.focus();
-        } else if (targetId === 'customModelInput') {
-            // Custom model ID pasted
-            updateStatus(t('status.customModelPasted', {model: content.trim()}));
-            setStatusIcon('X');
-            updateModelDisplayState();
-            onSaveApiSettings();
-            targetEl.focus();
         }
     }
     
@@ -1213,7 +1171,7 @@ window.onPrismaReady = function() {
 
     // C++ calls this once, and it is the only thing that asks for the saved
     // tree. It used to run unguarded, so one throw anywhere above that request
-    // - a missing element, an LLM check - left the player looking at an empty
+    // - a missing element, say - left the player looking at an empty
     // panel with no error and nothing to retry. Each step now stands alone,
     // and the tree is asked for first.
     var step = function(what, fn) {
@@ -1225,14 +1183,13 @@ window.onPrismaReady = function() {
     // The order is the one this has always used: the config is asked for
     // first so the player's settings have a head start on the tree that will
     // read them. Only the guards are new - before them, a throw in the status
-    // line or the LLM check meant LoadSpellTree was never reached at all.
+    // line meant LoadSpellTree was never reached at all.
     step('status', function() {
         updateStatus('Ready to scan spells...');
         setStatusIcon('*');
     });
     step('load config', function() { window.callCpp('LoadUnifiedConfig', ''); });
     step('load prompt', function() { window.callCpp('LoadPrompt', ''); });
-    step('check LLM', function() { checkLLMAvailability(); });
     // loadTreeData() calls GetProgress and GetPlayerKnownSpells once the tree
     // arrives; do not ask for them here or the two races collide.
     step('load tree', function() { window.callCpp('LoadSpellTree', ''); });
@@ -1334,12 +1291,6 @@ window.onPanelHiding = function() {
     // TreePreview canvas
     if (typeof TreePreview !== 'undefined' && TreePreview._stopRenderLoop) {
         TreePreview._stopRenderLoop();
-    }
-
-    // Stop ALL polling intervals
-    if (state.llmPollInterval) {
-        clearInterval(state.llmPollInterval);
-        state.llmPollInterval = null;
     }
 
     // Auto-save settings when panel closes

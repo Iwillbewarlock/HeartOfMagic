@@ -47,9 +47,30 @@ function setTreeStatus(msg) {
     if (el) el.textContent = msg;
 }
 
-// Field presets live in llmApiSettings.js (applyPreset), mirrored by
-// FieldsForPreset() in SpellScannerJson.cpp. A second copy used to sit here
-// and had quietly drifted from the live one.
+// =============================================================================
+// SAVED TREE
+// =============================================================================
+
+// Write the tree the panel holds to the plugin's tree file (Save Tree in edit
+// mode and the cheat toolbar). Returns false when there is nothing to save.
+function saveTreeToFile() {
+    if (!state.treeData || !state.treeData.rawData) {
+        console.warn('[SpellLearning] No tree data to save');
+        return false;
+    }
+
+    if (!window.callCpp) {
+        console.warn('[SpellLearning] Cannot save - callCpp not available');
+        return false;
+    }
+
+    var treeJson = JSON.stringify(state.treeData.rawData);
+    console.log('[SpellLearning] Saving tree to file, size:', treeJson.length, 'chars,',
+                Object.keys(state.treeData.rawData.schools || {}).length, 'schools');
+
+    window.callCpp('SaveSpellTree', treeJson);
+    return true;
+}
 
 // =============================================================================
 // DRAGGING

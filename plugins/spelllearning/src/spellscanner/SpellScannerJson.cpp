@@ -359,8 +359,9 @@ namespace SpellScanner
         }
     }
 
-    // Mirrors the presets in PrismaUI modules/llmApiSettings.js applyPreset().
-    // Keep the two in step: the UI and Papyrus must produce the same dump.
+    // Field presets for the Papyrus scan dump. The panel had the same three on
+    // buttons (applyPreset in the removed llmApiSettings.js); it now always scans
+    // with its state.fields defaults.
     static FieldConfig FieldsForPreset(const std::string& preset)
     {
         FieldConfig fields;

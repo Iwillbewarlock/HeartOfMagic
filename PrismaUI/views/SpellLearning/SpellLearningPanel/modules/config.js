@@ -101,16 +101,6 @@ var TREE_CONFIG = {
             description: 'Slightly randomized positions for a natural feel. Best for varied, unpredictable spell collections.',
             idealFor: 'Mixed spell types, modded spell packs'
         }
-    },
-    
-    // Get style info for LLM context
-    getStyleDescriptions: function() {
-        var desc = 'AVAILABLE LAYOUT STYLES (choose one that fits your tree structure):\n';
-        for (var key in this.layoutStyles) {
-            var style = this.layoutStyles[key];
-            desc += '- ' + key + ': ' + style.description + ' Ideal for: ' + style.idealFor + '\n';
-        }
-        return desc;
     }
 };
 
@@ -267,7 +257,6 @@ var DEFAULT_SETTINGS = {
         'Conjuration': '#a855f7',
         'Illusion': '#38bdf8'
     },
-    autoLLMColors: false,
     // ISL integration
     islEnabled: true,
     islXpPerHour: 50,

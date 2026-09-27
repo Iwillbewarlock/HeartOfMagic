@@ -1,160 +1,9 @@
 /**
  * Spell Learning Panel - PrismaUI Interface
- * Application Logic - Main entry point
- * 
- * This file contains application-specific initialization and UI setup.
- * All major functionality is split into 17 modules for LLM maintainability.
- * 
- * Required modules (load order in index.html):
- *  1. constants.js           -  267 lines (constants, profiles, keycodes)
- *  2. state.js               -  143 lines (settings, state objects)
- *  3. config.js              -  266 lines (tree configuration)
- *  4. spellCache.js          -  114 lines (spell data caching)
- *  5. colorUtils.js          -  258 lines (color management)
- *  6. uiHelpers.js           -  189 lines (UI utilities)
- *  7. growthDSL.js           -  301 lines (growth style DSL)
- *  8. treeParser.js          -  461 lines (tree parsing)
- *  9. wheelRenderer.js       - 1296 lines (SVG radial renderer)
- * 10. settingsPanel.js       - 1001 lines (settings UI)
- * 11. treeViewerUI.js        -  618 lines (tree viewer UI)
- * 12. progressionUI.js       -  547 lines (progression system)
- * 13. settingsPresets.js     -  settings presets (chip-based)
- * 14. cppCallbacks.js        -  438 lines (C++ SKSE callbacks)
- * 15. llmIntegration.js      -  621 lines (LLM integration)
- * 16. llmApiSettings.js      -  245 lines (API configuration)
- * 17. buttonHandlers.js      -  277 lines (button events)
+ * Application logic: panel wiring, tabs, fullscreen, window position,
+ * passive and early learning settings. Loads after the modules (see index.html);
+ * initialization itself runs from modules/main.js.
  */
-// =============================================================================
-// LLM COLOR SUGGESTION
-// =============================================================================
-
-/**
- * Suggest school colors using LLM via C++ bridge
- * @param {function} onComplete - Optional callback when done
- */
-function suggestSchoolColorsWithLLM(onComplete) {
-    var schools = Object.keys(settings.schoolColors);
-    
-    if (schools.length === 0) {
-        console.log('[SpellLearning] No schools to suggest colors for');
-        if (onComplete) onComplete();
-        return;
-    }
-    
-    if (!state.llmConfig.apiKey || state.llmConfig.apiKey.length < 10) {
-        updateStatus('Configure API key to use LLM color suggestions');
-        if (onComplete) onComplete();
-        return;
-    }
-    
-    if (!state.fullAutoMode) {
-        updateStatus('Asking LLM for color suggestions...');
-    }
-    
-    // Output to textarea for visibility
-    appendToOutput('>>> REQUESTING: Color suggestions for ' + schools.length + ' schools: ' + schools.join(', '));
-    
-    // Simple, fast prompt - just school names, no spell data
-    var prompt = 'Suggest distinct hex colors for these Skyrim magic schools on a dark UI (#0a0a0f). ' +
-        'Schools: ' + schools.join(', ') + '. ' +
-        'Return ONLY JSON: {"SchoolName": "#hexcolor", ...}. ' +
-        'Use thematic colors (fire=red, restoration=gold, etc). All ' + schools.length + ' schools.';
-
-    // Store callback for when response arrives
-    window._colorSuggestionCallback = onComplete;
-    
-    // Use C++ bridge to call OpenRouter (Ultralight doesn't support fetch well)
-    var request = {
-        school: '_ColorSuggestion',  // Special marker
-        spellData: '',
-        promptRules: prompt,  // Put the full prompt in promptRules
-        model: state.llmConfig.model || 'anthropic/claude-sonnet-4',
-        maxTokens: state.llmConfig.maxTokens || 2000,
-        apiKey: state.llmConfig.apiKey,
-        isColorSuggestion: true  // Flag for C++ to handle differently
-    };
-    
-    console.log('[SpellLearning] Sending color suggestion request via C++ bridge');
-    
-    // Set current school so poll handler knows this is a color suggestion
-    state.llmCurrentSchool = '_ColorSuggestion';
-
-    if (window.callCpp) {
-        window.callCpp('LLMGenerate', JSON.stringify(request));
-    } else {
-        console.error('[SpellLearning] C++ bridge not available');
-        updateStatus('Error: C++ bridge not available');
-        state.llmCurrentSchool = null;
-        if (onComplete) onComplete();
-    }
-}
-
-/**
- * Handle color suggestion response from C++
- */
-function handleColorSuggestionResponse(result) {
-    var onComplete = window._colorSuggestionCallback;
-    window._colorSuggestionCallback = null;
-    
-    if (result.success === 1 && result.response) {
-        try {
-            // Parse JSON from response
-            var jsonMatch = result.response.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No JSON found in response');
-            
-            var colors = JSON.parse(jsonMatch[0]);
-            
-            // Validate and apply
-            var applied = 0;
-            for (var school in colors) {
-                if (settings.schoolColors.hasOwnProperty(school)) {
-                    var color = colors[school];
-                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
-                        settings.schoolColors[school] = color;
-                        applied++;
-                    }
-                }
-            }
-            
-            if (applied > 0) {
-                applySchoolColorsToCSS();
-                updateSchoolColorPickerUI();
-                autoSaveSettings();
-                
-                if (WheelRenderer.nodes && WheelRenderer.nodes.length > 0) {
-                    WheelRenderer.render();
-                }
-                
-                appendToOutput('<<< RECEIVED: Color suggestions - ' + applied + ' schools colored');
-                
-                if (!state.fullAutoMode) {
-                    updateStatus('Applied LLM color suggestions for ' + applied + ' schools');
-                }
-                console.log('[SpellLearning] LLM suggested colors:', colors);
-            } else {
-                appendToOutput('<<< RECEIVED: Color suggestions - no valid colors');
-                if (!state.fullAutoMode) {
-                    updateStatus('LLM response did not contain valid colors');
-                }
-            }
-        } catch (e) {
-            console.error('[SpellLearning] Failed to parse LLM color suggestion:', e);
-            appendToOutput('<<< ERROR: Failed to parse color response - ' + e.message);
-            if (!state.fullAutoMode) {
-                updateStatus('Failed to parse LLM color suggestion');
-            }
-        }
-    } else {
-        appendToOutput('<<< ERROR: Color suggestion failed - ' + (result.response || 'unknown error'));
-        if (!state.fullAutoMode) {
-            updateStatus('Color suggestion failed: ' + (result.response || 'unknown error'));
-        }
-    }
-    
-    // Call completion callback if provided
-    if (onComplete) onComplete();
-}
-
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
@@ -198,7 +47,6 @@ function initializePanel() {
     safeAddListener('scanBtn', 'click', onScanClick);
     safeAddListener('blacklistBtn', 'click', showBlacklistModal);
     safeAddListener('whitelistBtn', 'click', showWhitelistModal);
-    safeAddListener('fullAutoBtn', 'click', onFullAutoClick);
     safeAddListener('saveBtn', 'click', onSaveClick);
 
     // Tome toggle - client-side filter, triggers tome scan for IDs
@@ -243,39 +91,6 @@ function initializePanel() {
             switchTab('spellTree');
         });
     }
-    
-    // API Settings handlers
-    safeAddListener('saveApiKeyBtn', 'click', onSaveApiSettings);
-    safeAddListener('toggleApiKeyBtn', 'click', toggleApiKeyVisibility);
-    safeAddListener('pasteApiKeyBtn', 'click', onPasteApiKey);
-    safeAddListener('modelSelect', 'change', onModelChange);
-    
-    // Custom model handlers
-    safeAddListener('pasteModelBtn', 'click', onPasteCustomModel);
-    safeAddListener('clearModelBtn', 'click', onClearCustomModel);
-    safeAddListener('customModelInput', 'input', onCustomModelInput);
-    
-    // Max tokens handler
-    var maxTokensInput = document.getElementById('maxTokensInput');
-    if (maxTokensInput) {
-        maxTokensInput.value = state.llmConfig.maxTokens || 4096;
-        maxTokensInput.addEventListener('change', function() {
-            var val = parseInt(this.value) || 4096;
-            val = Math.max(1000, Math.min(32000, val));
-            this.value = val;
-            state.llmConfig.maxTokens = val;
-            console.log('[SpellLearning] Max tokens set to:', val);
-            onSaveApiSettings();
-        });
-    }
-    
-    // Load API settings on init
-    loadApiSettings();
-    
-    // Preset buttons
-    safeAddListener('presetMinimal', 'click', function() { applyPreset('minimal'); });
-    safeAddListener('presetBalanced', 'click', function() { applyPreset('balanced'); });
-    safeAddListener('presetFull', 'click', function() { applyPreset('full'); });
     
     // Field checkbox listeners
     var fieldIds = ['editorId', 'magickaCost', 'minimumSkill', 'castingType', 'delivery', 

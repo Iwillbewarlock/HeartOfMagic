@@ -25,38 +25,11 @@
 
 function onScanClick() {
     console.log('[SpellLearning] Scan button clicked');
-    startScan(false);
-}
-
-function onFullAutoClick() {
-    console.log('[SpellLearning] Full Auto button clicked');
-    
-    // Check if API key is configured
-    if (!state.llmConfig.apiKey || state.llmConfig.apiKey.length < 10) {
-        updateStatus(t('status.configureApiKey'));
-        setStatusIcon('X');
-        // Flash the settings button
-        var settingsBtn = document.getElementById('settingsBtn');
-        if (settingsBtn) {
-            settingsBtn.style.animation = 'pulse 0.5s ease-in-out 3';
-            setTimeout(function() { settingsBtn.style.animation = ''; }, 1500);
-        }
-        return;
-    }
-    
-    // Disable both buttons during full auto
-    var scanBtn = document.getElementById('scanBtn');
-    var fullAutoBtn = document.getElementById('fullAutoBtn');
-    if (scanBtn) scanBtn.disabled = true;
-    if (fullAutoBtn) fullAutoBtn.disabled = true;
-    if (fullAutoBtn) fullAutoBtn.innerHTML = '<span class="btn-icon">â³</span> Working...';
-    
-    // Start scan with auto-generate flag
-    startScan(true);
+    startScan();
 }
 
 var _lastScanTime = 0;
-function startScan(autoGenerate) {
+function startScan() {
     // Debounce: prevent rapid-fire scans (min 2s between scans)
     var now = Date.now();
     if (now - _lastScanTime < 2000) {
@@ -65,13 +38,8 @@ function startScan(autoGenerate) {
     }
     _lastScanTime = now;
 
-    state.fullAutoMode = autoGenerate;
-
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
     var statusMsg = 'Scanning all spells...';
-    if (autoGenerate) {
-        statusMsg = 'Step 1/3: ' + statusMsg;
-    }
 
     updateStatus(statusMsg);
     setStatusIcon('...');

@@ -60,9 +60,10 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 
 **Field Config and the MGEF Structure Fields:**
 
-`FieldConfig` decides which optional fields a scan emits. The UI presets live in
-`PrismaUI/.../modules/llmApiSettings.js` (`applyPreset`) and are mirrored in C++ by
-`FieldsForPreset()` in SpellScannerJson.cpp - change one, change the other.
+`FieldConfig` decides which optional fields a scan emits. The panel scans with its
+`state.fields` defaults (its minimal/balanced/full preset buttons went with `llmApiSettings.js` on
+2026-09-28); `FieldsForPreset()` in SpellScannerJson.cpp keeps the three presets for the Papyrus
+scan dump.
 
 `effectDetails` (on in the `full` preset) adds the MGEF structure to every entry of
 `effects[]`. That structure is the language-independent evidence the tag librarian
@@ -191,7 +192,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerDeclutter.cpp, UIManagerLLM.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -200,15 +201,12 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 - C++ ↔ JavaScript bridge
 - Panel visibility management
 - Unified config load/save (includes early learning settings)
-- LLM API integration (OpenRouter)
-- ISL detection status notification
 
 **Key Functions:**
 - `Initialize()` - Connect to PrismaUI
 - `TogglePanel()` - Show/hide SpellLearningPanel
 - `InteropCall(view, function, data)` - Send data to UI
 - `OnLoadUnifiedConfig()` / `OnSaveUnifiedConfig()` - Settings persistence
-- `NotifyDESTDetectionStatus()` - Update UI with DEST mod status
 - Various `On*` callback functions for UI interop
 
 **Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file and the OpenRouter config are written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
@@ -486,23 +484,13 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 - `SpellLearning_ISL.psc` - Native function stubs
 - `SpellLearning_ISL_Handler.psc` - Event handler on player alias
 
-### 8. **OpenRouterAPI** (`plugins/spelllearning/src/OpenRouterAPI.cpp`, `plugins/spelllearning/include/OpenRouterAPI.h`)
-**Status:** ✅ Implemented
-
-**Responsibilities:**
-- HTTP client for OpenRouter API (Claude, GPT, etc.)
-- Async prompt sending with background threads
-- WinHTTP for HTTPS POST
-- UTF-8 sanitization for invalid sequences from LLM output
-- Config persistence at `Data/SKSE/Plugins/SpellLearning/openrouter_config.json`
-- Default model: `anthropic/claude-sonnet-4`, max tokens: 64000
-
-**Key Functions:**
-- `Initialize()` - Load config
-- `SendPromptAsync(systemPrompt, userPrompt, callback)` - Background thread
-- `SendPrompt(systemPrompt, userPrompt)` - Blocking call
-- `GetConfigCopy()` / `UpdateConfig(fn)` / `SaveConfig()` - Persistence. The config is read from the game thread and from the tree-build thread, so there is no reference-returning getter: readers take a copy, writers edit under `s_configMutex` through `UpdateConfig`. `SendPrompt(const Config&, ...)` lets a background thread send with the copy it took
-- HTTPS verifies the server certificate (`CURLOPT_SSL_VERIFYPEER`/`VERIFYHOST` on, native Windows CA store)
+### 8. **OpenRouterAPI** (removed 2026-09-28)
+The LLM (OpenRouter) tree generation, colour suggestions and API settings were removed with
+`UIManagerLLM.cpp`, their five listeners (`CheckLLM`, `LLMGenerate`, `PollLLMResponse`,
+`LoadLLMConfig`, `SaveLLMConfig`) and the curl dependency. Players could no longer start it from
+`index.html`. A saved config's `llm` section (it may hold an API key) is neither read nor written:
+merge-saves leave it in the file, and `OnLoadUnifiedConfig` drops it before the config reaches the
+panel. `openrouter_config.json` is no longer read or written.
 
 ### 9. **TreeNLP** (`plugins/spelllearning/src/treebuilder/TreeNLP.cpp`, `plugins/spelllearning/include/treebuilder/TreeNLP.h`)
 **Status:** ✅ Implemented
@@ -745,7 +733,6 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 **Background threads:**
 - `PassiveLearningSource` — dedicated `std::thread` polling every 3s, dispatches XP grants back to game thread via `AddTaskToGameThread()`
-- `OpenRouterAPI` — detached `std::thread` for HTTP requests, dispatches callback to game thread via `AddTaskToGameThread()`
 - `TreeBuilder::Build()` — detached `std::thread` for NLP tree construction (TF-IDF, similarity matrices, Classic tree building). Uses OpenMP for inner-loop parallelism. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - `TreeNLP::ProcessPRMRequest()` — detached `std::thread` for prerequisite-master scoring. No `RE::` dependencies. Result dispatched to game thread via `AddTaskToGameThread()`
 - Config save worker (`UIManagerConfigSave.cpp`) — one detached `std::thread`, started on the first save, that reads, merges and writes `config.json` for queued saves in order and posts the settings back to the game thread via `AddTaskToGameThread()` (2026-09-25)
@@ -755,7 +742,6 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 - `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink only touches the counter)
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
 - `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
-- `OpenRouterAPI` — `std::mutex` around the config; readers copy, writers go through `UpdateConfig`
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)
 
 ### Logging (2026-09-25)
@@ -818,26 +804,24 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `canvasRendererV2.js` | Canvas 2D rendering |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
 | **UI & callbacks** | |
-| `settingsPanel.js` | Settings UI, config persistence, retry school UI, plugin whitelist modal |
+| `settingsPanel.js` | Settings UI, config persistence, plugin whitelist modal |
 | `treeViewerUI.js` | Tree viewer, spell details, node selection |
 | `progressionUI.js` | How-to-Learn panel, learning status badges |
 | `difficultyProfiles.js` | Profile management, presets, custom profiles |
 | `cppCallbacks.js` | C++ ↔ JS (e.g. ProceduralTreeGenerate, GetProgress); enables Complex/Simple buttons when spells loaded |
-| `llmIntegration.js` | LLM tree generation (AUTO AI), validation, retry |
-| `llmApiSettings.js` | LLM API configuration (model, endpoint, API key) |
 | `buttonHandlers.js` | Button click routing and UI state management |
 | **Utilities & effects** | |
 | `spellCache.js` | Spell data caching |
 | `colorUtils.js` | Color manipulation utilities |
 | `colorPicker.js` | Color picker UI component |
-| `uiHelpers.js` | Shared UI helper functions |
+| `uiHelpers.js` | Shared UI helper functions, `saveTreeToFile` |
 | `starfield.js` | Starfield background effect |
 | `globe3D.js` | 3D globe visualization (experimental) |
 | **Testing & entry** | |
 | `unificationTest.js` | Shape profile / GrowthDSL / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/llmIntegration/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27; unificationTest is no longer loaded in game.)
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration and llmApiSettings on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, output field toggles
@@ -968,49 +952,21 @@ The panel's older builds - Simple (`buildProceduralTrees`, JS only), Procedural+
 (`visualFirstBuilder` / `settingsAwareTreeBuilder`) - were removed on 2026-09-27; none had a button left
 in `index.html`.
 
-**Developer-only:** AUTO AI (`fullAutoBtn`) = LLM generates full tree (see Tree Validation System below for reachability/retry).
+The developer-only AUTO AI flow (the LLM built each school over OpenRouter, with self-correction and
+a Retry School control) was removed on 2026-09-28; its buttons had already left `index.html`.
 
 ### Tree Validation System
 
-**Purpose:** Ensure all spells in generated trees are reachable (can be learned by the player).
+**Purpose:** Ensure all spells in an imported tree are reachable (can be learned by the player).
 
-**Validation Steps:**
-1. **Reachability Check** - Simulate unlocking from root node, verify all nodes become reachable
-2. **LLM Self-Correction** - If unreachable nodes, ask LLM to fix its own output (configurable max loops)
-3. **Gentle Auto-Fix** - If max correction loops reached, programmatically add missing prerequisite links
-4. **Post-Fix Validation** - Re-check reachability after auto-fix
-5. **Needs Attention Tracking** - Track schools with remaining unreachable nodes for manual retry
+A tree pasted into the Import dialog is checked school by school: `TreeParser.detectAndFixCycles(school, rootId)`
+simulates unlocking from the root and reports the spells that can never be unlocked. With
+**Aggressive Path Validation** on (Settings > Tree Generation, developer mode; `settings.aggressivePathValidation`)
+`treeViewerUI.js` repairs them before the tree is used. Built trees come from C++, which repairs
+unreachable nodes itself (`FixUnreachableNodes`).
 
-**Key State:**
-```javascript
-state.llmStats = {
-    totalSpells: 0,
-    processedSpells: 0,
-    failedSchools: [],           // Schools that failed to generate
-    successSchools: [],          // Successfully processed schools
-    needsAttentionSchools: []    // Schools with unreachable nodes after auto-fix
-};
-```
-
-**Retry Functionality:**
-- Schools with unreachable nodes tracked in `needsAttentionSchools`
-- UI dropdown in Settings > Validation allows selecting problem schools
-- `retrySpecificSchool(schoolName)` regenerates just that school
-- Avoids duplicate school names in success list
-
-**Key Functions (llmIntegration.js):**
-- `processLLMResponse()` - Main response handler with validation flow
-- `sendCorrectionRequest()` - Request LLM to fix unreachable nodes
-- `retrySpecificSchool(schoolName)` - Regenerate single school
-- `getSchoolsNeedingAttention()` - Get list of problem schools
-- `finishLLMGeneration()` - Summary with attention tracking
-
-**Key Functions (treeParser.js):**
-- `getUnreachableNodesInfo(school, rootId)` - Analyze reachability, return unreachable nodes
-- `detectAndFixCycles(school, rootId)` - Apply gentle auto-fix (add missing prereq links)
-
-**Key Functions (settingsPanel.js):**
-- `updateRetrySchoolUI()` - Populate retry dropdown with problem schools
+The LLM self-correction loop, the needs-attention tracking (`state.llmStats`) and the Retry School control
+went with the LLM feature on 2026-09-28.
 
 ### XP Progression Flow (with Early Learning)
 ```
@@ -1147,8 +1103,7 @@ All settings stored in single config file, managed through UI:
   "customProfiles": {...},
   "treeGeneration": {
     "bidirectionalSoftPrereqs": false
-  },
-  "llm": {...}
+  }
 }
 ```
 
@@ -1176,7 +1131,6 @@ HeartOfMagic/
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
 │   │   │   ├── ISLIntegration.h             ✅ DEST mod integration header
-│   │   │   ├── OpenRouterAPI.h              ✅ LLM API client header
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
@@ -1204,7 +1158,6 @@ HeartOfMagic/
 │   │       ├── SpellCastXPSource.cpp        ✅ XP source implementation
 │   │       ├── SpellTomeHook.cpp            ✅ Tome interception, XP grant, keep book
 │   │       ├── SpellTomeHookInventory.cpp   ✅ Tome inventory boost and its cache
-│   │       ├── OpenRouterAPI.cpp            ✅ LLM API client (OpenRouter/WinHTTP)
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
@@ -1214,7 +1167,7 @@ HeartOfMagic/
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (11 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (10 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
@@ -1224,7 +1177,6 @@ HeartOfMagic/
 │   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)
 │   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
 │   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
-│   │       │   ├── UIManagerLLM.cpp             (LLM/OpenRouter integration)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
 │   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (5 files)
 │   │       │   ├── ProgressionManagerCore.cpp       (singleton, core logic)
@@ -1322,7 +1274,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 ### ✅ Completed
 - PrismaUI panel with tabbed interface
 - Spell scanning (all spells from plugins)
-- LLM integration (OpenRouter API)
+- LLM integration (OpenRouter API; removed 2026-09-28)
 - Tree visualization (radial layout, canvas, 3D globe)
 - Progression system (XP tracking, multipliers)
 - SKSE co-save persistence
@@ -1513,7 +1465,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 
 ## Notes for LLMs
 
-- **LLM determines tree structure** - Prerequisites, XP requirements based on spell analysis
+- **The C++ Classic builder determines tree structure** - prerequisites from tier order and NLP similarity
 - **Progressive revelation** - Spell details hidden until XP thresholds reached
 - **Discovery Mode** - Enabled by default for Brutal+ difficulties
 
@@ -1553,7 +1505,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **FormID persistence** - Trees survive load order changes via `PluginName.esp|0x123456` format
 - **PrismaUI path critical** - CreateView path must exactly match deployment path
 - **Panel auto-refresh** - GetPlayerKnownSpells called when panel opens (catches external spell learning)
-- **LLM naming** - All AI integration uses "LLM" (not "SkyrimNet") in code and UI
+- **LLM naming** - The AI integration was called "LLM" (not "SkyrimNet"); removed 2026-09-28
 - **Per-school shapes** - Each school had a distinct visual shape in `SCHOOL_DEFAULT_SHAPES` (C++ + JS); removed 2026-09-27 with the builders that read them
 - **Plugin whitelist** - Users can filter which plugins contribute spells to tree generation
 - **LLM keyword classification** - Optional batched classification for spells with weak keywords, off by default; removed 2026-09-27 with `llmTreeFeatures.js`

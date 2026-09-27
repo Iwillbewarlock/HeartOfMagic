@@ -232,14 +232,6 @@ window.callCpp = function(method, data) {
             }
             break;
 
-        case 'CheckLLM':
-            if (typeof window.onLLMStatus === 'function') {
-                setTimeout(function() {
-                    window.onLLMStatus(JSON.stringify({ available: false, version: 'dev-harness' }));
-                }, 50);
-            }
-            break;
-
         case 'SetHotkey':
         case 'SetPauseGameOnFocus':
             console.log('[Bridge] Setting stored (dev mode)');
@@ -507,7 +499,6 @@ function mockLoadConfig() {
             requireSkillLevel: false
         },
         notifications: { weakenedSpellNotifications: true, weakenedSpellInterval: 10.0 },
-        llm: { apiKey: '', model: 'anthropic/claude-sonnet-4', maxTokens: 64000 },
         schoolColors: {}
     };
 

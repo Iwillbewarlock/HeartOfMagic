@@ -43,7 +43,7 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 │    │(on click)│             │  Panel     │   │
 │    └─────────┘              └────────────┘   │
 ├──────────────────────────────────────────────┤
-│ [Import] [LLM toolbar] Spells: 247  Legend   │
+│ [Import] Spells: 247  Legend                 │
 └──────────────────────────────────────────────┘
 ```
 
@@ -888,7 +888,7 @@ All mod configuration. Split-row layout for space efficiency.
 **Progression:** How XP is earned and what thresholds unlock spells.
 **Early Learning:** Grants nerfed spells before full mastery.
 **Spell Tomes:** How reading spell tomes interacts with progression.
-**Developer:** Tree generation tuning, procedural injection, LLM settings (hidden by default).
+**Developer:** Tree generation tuning, procedural injection (hidden by default).
 
 ---
 
@@ -1085,12 +1085,6 @@ Visual-First builds that used them.
 | `globe3D.js` | 3D globe at tree center |
 | `treeAnimation.js` | Build replay animation |
 
-### LLM Integration
-| Module | Purpose |
-|--------|---------|
-| `llmIntegration.js` | LLM API integration |
-| `llmApiSettings.js` | LLM API settings UI |
-
 ### Utilities
 | Module | Purpose |
 |--------|---------|
@@ -1111,14 +1105,13 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ## C++ ↔ JS Communication
 
-### JS → C++ (33 listeners via `callCpp`)
+### JS → C++ (28 listeners via `callCpp`)
 
 **Scanning:** `ScanSpells`, `SaveOutput`, `SaveOutputBySchool`
 **Tree:** `LoadSpellTree`, `SaveSpellTree`, `GetSpellInfo`, `GetSpellInfoBatch`
 **Progression:** `SetLearningTarget`, `ClearLearningTarget`, `UnlockSpell`, `GetProgress`, `CheatUnlockSpell`, `RelockSpell`, `GetPlayerKnownSpells`, `SetSpellXP`, `SetTreePrerequisites`
 **Config:** `LoadUnifiedConfig`, `SaveUnifiedConfig`, `SetHotkey`, `SetPauseGameOnFocus`
 **Presets:** `SavePreset`, `DeletePreset`, `LoadPresets`
-**LLM:** `CheckLLM`, `LLMGenerate`, `PollLLMResponse`, `LoadLLMConfig`, `SaveLLMConfig`
 **Tree Building:** `ProceduralTreeGenerate`, `PreReqMasterScore`
 **Clipboard:** `CopyToClipboard`, `GetClipboard`
 **Other:** `HidePanel`, `LogMessage`, `LoadPrompt`, `SavePrompt`
@@ -1131,7 +1124,6 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 **Progress:** `onProgressUpdate`, `onSpellReady`, `onSpellUnlocked`, `onSpellRelocked`, `onProgressData`
 **Config:** `onUnifiedConfigLoaded`, `onPresetsLoaded`
 **Tree Building:** `onProceduralTreeComplete`, `onPreReqMasterComplete`
-**LLM:** `onLLMStatus`, `onLLMQueued`, `onLLMPollResult`, `onLLMConfigLoaded`
 
 ---
 

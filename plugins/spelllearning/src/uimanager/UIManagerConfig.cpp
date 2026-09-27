@@ -426,8 +426,5 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     if (notifiedCount > 0) {
         logger::info("UIManager: Re-notified {} modded XP sources to UI", notifiedCount);
     }
-
-    // Notify UI of DEST detection status (fresh detection, not from saved config)
-    instance->NotifyDESTDetectionStatus();
     });
 }

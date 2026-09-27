@@ -219,15 +219,7 @@ function detectAllSchools(spells) {
     // Update TREE_CONFIG.schools
     TREE_CONFIG.schools = schoolList;
     
-    // If new schools were detected and auto-LLM is enabled, suggest colors
-    if (newSchools.length > 0 && settings.autoLLMColors && state.llmConfig.apiKey) {
-        console.log('[SpellLearning] New schools detected:', newSchools.join(', '), '- requesting LLM colors');
-        setTimeout(function() {
-            if (typeof suggestSchoolColorsWithLLM === 'function') {
-                suggestSchoolColorsWithLLM();
-            }
-        }, 500);
-    } else if (newSchools.length > 0) {
+    if (newSchools.length > 0) {
         console.log('[SpellLearning] New schools detected:', newSchools.join(', '), '- using palette colors');
     }
     

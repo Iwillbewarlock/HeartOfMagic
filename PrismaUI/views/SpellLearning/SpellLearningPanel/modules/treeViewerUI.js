@@ -251,16 +251,12 @@ function initializeTreeViewer() {
     var importTreeBtn = document.getElementById('import-tree-btn');
     var loadSavedBtn = document.getElementById('load-saved-btn');
     var importBtn = document.getElementById('import-btn');
-    var llmAutoBtn = document.getElementById('llm-auto-btn');
-    var llmToolbarBtn = document.getElementById('llm-toolbar-btn');
 
     if (importTreeBtn) importTreeBtn.addEventListener('click', showImportModal);
     if (loadSavedBtn) loadSavedBtn.addEventListener('click', loadSavedTree);
     var goToScannerBtn = document.getElementById('go-to-scanner-btn');
     if (goToScannerBtn) goToScannerBtn.addEventListener('click', function() { switchTab('spellScan'); });
     if (importBtn) importBtn.addEventListener('click', showImportModal);
-    if (llmAutoBtn) llmAutoBtn.addEventListener('click', startLLMAutoGenerate);
-    if (llmToolbarBtn) llmToolbarBtn.addEventListener('click', startLLMAutoGenerate);
     
     // Save/Reload/Clear tree buttons (cheat mode only)
     var clearTreeBtn = document.getElementById('clear-tree-btn');
@@ -303,9 +299,6 @@ function initializeTreeViewer() {
             loadSavedTree();
         });
     }
-    
-    // Check if LLM is available on init
-    checkLLMAvailability();
     
     // Modal controls
     var modalCloseBtn = document.getElementById('modal-close-btn');
