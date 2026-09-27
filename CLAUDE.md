@@ -256,7 +256,6 @@ This project does not have a C++ test framework. Validation is done through:
 | PrismaUI JS modules | `PrismaUI/views/SpellLearning/SpellLearningPanel/modules/` |
 | PrismaUI themes | `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/` |
 | PrismaUI languages | `PrismaUI/views/SpellLearning/SpellLearningPanel/lang/` |
-| Spell tree viewer | `PrismaUI/views/SpellTreeViewer/` |
 | Papyrus scripts | `Scripts/Source/` |
 | Runtime SKSE data | `SKSE/Plugins/SpellLearning/` |
 | Documentation | `docs/` |

@@ -1102,8 +1102,9 @@ Visual-First builds that used them.
 |--------|--------|
 | `unificationTest.js` | Run by `run-tests.js` and `test-runner.html`; not loaded by `index.html` |
 
-The archived renderers (`_archive/canvasRenderer.js`, `spellTreeRenderer.js`, `tierVisuals.js`) are no
-longer in the panel, and the WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js` -
+The old renderers (`_archive/canvasRenderer.js`, and `spellTreeRenderer.js` with its `tierVisuals.js`,
+which sat in `PrismaUI/views/SpellLearning/SpellTreeViewer/modules/` with no page loading them and were
+removed on 2026-09-28) are no longer in the panel, and the WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js` -
 PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ---
