@@ -342,6 +342,9 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             logger::warn("UIManager: Tree build already in progress, ignoring request");
             nlohmann::json response;
             response["success"] = false;
+            // busy: this request was turned away, the build in flight goes on - the
+            // panel must not take this answer as that build's result
+            response["busy"] = true;
             response["error"] = "Tree build already in progress. Please wait for the current build to finish.";
             instance->CallView("onProceduralTreeComplete", response.dump().c_str());
             return;

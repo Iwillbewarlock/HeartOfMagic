@@ -586,6 +586,10 @@ OnProceduralTreeGenerate(argument):
        → InteropCall("onProceduralTreeComplete", response)
 ```
 
+A request that arrives while a build is still running is turned away at once with
+`{success: false, busy: true, error: "Tree build already in progress..."}`; the panel ignores it and
+keeps waiting for the running build's result.
+
 **Commands:**
 | Command | Builder | Mode |
 |---------|---------|------|

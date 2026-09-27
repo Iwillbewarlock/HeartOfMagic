@@ -117,15 +117,15 @@ window.filterWhitelistedSpells = filterWhitelistedSpells;
  * @param {string} pendingKey - State key to set for retry (e.g. '_classicGrowthBuildPending')
  * @param {Object|null} settingsModule - ClassicSettings (has .setStatusText)
  * @param {Object} retryConfig - Config to pass on retry {command, config}
- * @param {string} buildBtnId - DOM id of the build button to re-enable
  * @param {string} logPrefix - Console log prefix e.g. '[ClassicGrowth]'
  */
-function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, buildBtnId, logPrefix) {
+function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
     var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
     var retryFn = function() {
         if (state.lastSpellData && state.lastSpellData.spells && window.callCpp) {
             state[pendingKey] = true;
+            if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
             var hasPRM = typeof PreReqMaster !== 'undefined' && PreReqMaster.isEnabled && PreReqMaster.isEnabled();
             if (typeof BuildProgress !== 'undefined') BuildProgress.start(hasPRM);
             if (settingsModule) settingsModule.setStatusText('Retrying with fallback...', '#f59e0b');
@@ -147,14 +147,16 @@ function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, bui
         settingsModule.setStatusText('Build failed: ' + error, '#ef4444');
     }
     if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildFailed', {error: error}), 'error');
-    var btn = document.getElementById(buildBtnId);
-    if (btn) btn.disabled = false;
+    if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
 }
 
 /**
  * Callback from C++ when a ProceduralTreeGenerate build completes.
  * Only the Classic growth mode sends that request, and it sets
  * state._classicGrowthBuildPending first; a result nobody waits for is dropped.
+ * A request C++ turned away because another build was still running comes back
+ * with busy set: that says nothing about the build in flight, so it leaves the
+ * pending flag, the progress modal and the Build button alone.
  */
 window.onProceduralTreeComplete = function(resultStr) {
     console.log('[Procedural] C++ result received');
@@ -162,11 +164,17 @@ window.onProceduralTreeComplete = function(resultStr) {
     try {
         var result = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
 
+        if (result && result.busy) {
+            console.warn('[Procedural] C++ is still building an earlier request - this one was turned away');
+            return;
+        }
+
         if (!state._classicGrowthBuildPending) {
             console.warn('[Procedural] C++ result with no build waiting for it - ignored');
             return;
         }
         state._classicGrowthBuildPending = false;
+        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
 
         if (result.success && result.treeData) {
             // Advance build progress: tree done → prereqs or finalize
@@ -189,7 +197,6 @@ window.onProceduralTreeComplete = function(resultStr) {
                 '_classicGrowthBuildPending',
                 typeof ClassicSettings !== 'undefined' ? ClassicSettings : null,
                 { command: 'build_tree_classic', config: { shape: 'organic', density: 0.6, symmetry: 0.3, max_children_per_node: 3, top_themes_per_school: 8, prefer_vanilla_roots: true } },
-                'tgClassicBuildBtn',
                 '[ClassicGrowth]'
             );
         }
@@ -199,6 +206,7 @@ window.onProceduralTreeComplete = function(resultStr) {
         // sends the NEXT build's result down the Classic branch, and a progress
         // modal with nothing left to close it sits over the panel for good.
         state._classicGrowthBuildPending = false;
+        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
         if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
             BuildProgress.fail('Result parse error');
         }

@@ -490,10 +490,16 @@ window.callCpp('ProceduralTreeGenerate', JSON.stringify({
 
 4. **Route the result in `onProceduralTreeComplete`** (`modules/proceduralTreeBuilder.js`) via that
    pending flag, as Classic does with `state._classicGrowthBuildPending`. Every build answers the same
-   callback, and it drops a result whose build nobody marked as pending, so add a branch: if
+   callback, and today it drops everything but Classic's with
+   `if (!state._classicGrowthBuildPending) return;` - that guard has to become "drop the result only
+   if no known pending flag is set", checking your flag alongside Classic's. Then add a branch: if
    `state._myModeBuildPending`, clear it, hand `result.treeData` to your module's `loadTreeData()` on
    success, or call `_handleBuildFailure()` with `'_myModeBuildPending'` (see Error Handling). Clear the
    flag in the `catch` too, like Classic's, so a stale flag does not capture the next build's result.
+   Leave the `result.busy` check above the guard as it is: C++ answers a request it turned away
+   because another build was running with `busy: true`, and that answer must not clear anyone's flag.
+   Call `TreeGrowth.setBuilding(true)` when you send the request and `setBuilding(false)` when its
+   result (or failure) is handled, so the Build button cannot start a second build meanwhile.
 
 ### Builder Function Signature
 

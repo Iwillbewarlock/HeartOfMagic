@@ -303,8 +303,7 @@ var TreeGrowthClassic = {
         }
 
         ClassicSettings.setStatusText('Building tree (C++)...', '#f59e0b');
-        var buildBtn = document.getElementById('tgClassicBuildBtn');
-        if (buildBtn) buildBtn.disabled = true;
+        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
 
         // Set pending flag so onProceduralTreeComplete routes result here
         if (typeof state !== 'undefined') {

@@ -951,13 +951,17 @@ User clicks "Scan" → SpellScanner::ScanAllSpells()
 ### Tree Generation Flow (user-facing modes, outside developer mode)
 
 **BUILD TREE** — the Classic growth mode's build button → `TreeGrowthClassic.buildTree()` (`classic/classicMain.js`):
-1. Filters the scan (`filterBlacklistedSpells` / `filterWhitelistedSpells`), sets `state._classicGrowthBuildPending`
-   and calls C++ `ProceduralTreeGenerate` with `command: 'build_tree_classic'`.
+1. Filters the scan (`filterBlacklistedSpells` / `filterWhitelistedSpells`), sets `state._classicGrowthBuildPending`,
+   disables the Build button (`TreeGrowth.setBuilding(true)`; the Easy page's button mirrors it) and calls
+   C++ `ProceduralTreeGenerate` with `command: 'build_tree_classic'`.
 2. C++ runs `TreeBuilder::Build(command, spells, config)` on a background thread. Executes native NLP
    algorithms (TF-IDF, fuzzy matching, tree construction).
 3. `TreeBuilder` returns `BuildResult` with full tree JSON.
 4. Callback fires on the game thread → `onProceduralTreeComplete` (`proceduralTreeBuilder.js`), which hands
-   the tree to `TreeGrowthClassic.loadTreeData()` while the pending flag is set and drops any other result.
+   the tree to `TreeGrowthClassic.loadTreeData()` while the pending flag is set and drops any other result;
+   the Build button is enabled again on success and failure. A request C++ turned away because a build was
+   already running answers `{success: false, busy: true}`, which the callback ignores (the build in flight
+   keeps its pending flag and delivers its own result).
 5. `ClassicLayout` places the spells, `LayoutDeclutter` spaces them out, then `SaveSpellTree`.
 
 The panel's older builds - Simple (`buildProceduralTrees`, JS only), Procedural+ and Visual-First

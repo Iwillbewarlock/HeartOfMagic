@@ -25,6 +25,7 @@ var TreeGrowth = {
     // Shared button state
     _hasSpells: false,
     _treeBuilt: false,
+    _building: false,      // a build request is out (setBuilding)
     _nodeCount: 0,
     _totalPool: 0,
 
@@ -514,10 +515,20 @@ var TreeGrowth = {
         if (color) el.style.color = color;
     },
 
+    /**
+     * A build request went out (true) or its result came back (false). The Build
+     * button stays disabled in between; the Easy page's button mirrors it.
+     */
+    setBuilding: function(building) {
+        this._building = !!building;
+        this.updateBuildButton();
+        if (typeof _syncEasyButtonStates === 'function') _syncEasyButtonStates();
+    },
+
     updateBuildButton: function() {
         var buildBtn = document.getElementById('tgBuildBtn');
         if (!buildBtn) return;
-        if (this._hasSpells && !this._treeBuilt) {
+        if (this._hasSpells && !this._treeBuilt && !this._building) {
             buildBtn.disabled = false;
         } else {
             buildBtn.disabled = true;

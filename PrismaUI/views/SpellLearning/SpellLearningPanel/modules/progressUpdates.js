@@ -1,6 +1,7 @@
 /**
  * Progress updates from C++ (onProgressUpdate) - one per XP gain while the panel
- * is open, so the cheap path matters.
+ * is open, so the cheap path matters. Also onSpellRelocked (a spell taken back
+ * from the player), at the end.
  *
  * It used to cost, per gain: a scan of all ~1,400 spells to find the one,
  * two JSON dumps to the log, a repaint of every spell in the tree layer, a
@@ -145,6 +146,56 @@ window.onProgressUpdate = function(dataStr) {
         ProgressUpdates.handle(dataStr);
     } catch (e) {
         console.error('[SpellLearning] Failed to parse progress update:', e);
+    }
+};
+
+/**
+ * C++ took a spell back from the player (RelockSpell, the cheat-mode Relock
+ * button). The button already showed the spell as available; this makes the
+ * rest agree: the player no longer knows it, spells that needed it lock again,
+ * and the card and the mastered count follow. C++ sends updateSpellState
+ * 'available' for the same spell right after.
+ */
+window.onSpellRelocked = function(dataStr) {
+    try {
+        var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+        if (!data || !data.success || !data.formId) return;
+        var canonId = (typeof resolveCanonicalId === 'function') ? resolveCanonicalId(data.formId) : data.formId;
+
+        if (state.playerKnownSpells) {
+            state.playerKnownSpells.delete(canonId);
+            state.playerKnownSpells.delete(data.formId);
+        }
+        var progress = state.spellProgress[canonId];
+        if (progress) {
+            progress.unlocked = false;
+            progress.ready = false;
+        }
+        ProgressUpdates.nodesFor(canonId).forEach(function(n) {
+            if (n.state === 'unlocked') n.state = 'available';
+            if (typeof syncDuplicateState === 'function') syncDuplicateState(n);
+        });
+        delete ProgressUpdates._painted[canonId];
+        if (typeof recalculateNodeAvailability === 'function') recalculateNodeAvailability();
+
+        if (window._panelVisible === false || !state.treeData) return;
+
+        if (typeof WheelRenderer !== 'undefined' && WheelRenderer.updateNodeStates) WheelRenderer.updateNodeStates();
+        if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) SmartRenderer.refresh();
+        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+
+        var sel = state.selectedNode;
+        if (sel && ProgressUpdates._canon(sel) === canonId && typeof showSpellDetails === 'function') showSpellDetails(sel);
+
+        var unlockedEl = document.getElementById('unlocked-count');
+        if (unlockedEl) {
+            unlockedEl.textContent = state.treeData.nodes.filter(function(n) {
+                return n.state === 'unlocked' &&
+                       (typeof isSpellMastered === 'function' ? isSpellMastered(n.formId) : true);
+            }).length;
+        }
+    } catch (e) {
+        console.error('[SpellLearning] Failed to parse relock result:', e);
     }
 };
 
