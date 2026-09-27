@@ -273,6 +273,11 @@ var LayoutLineClear = {
         var cy0 = Math.floor((y - min) / cell), cy1 = Math.floor((y + min) / cell);
         var span = this.KEY_SPAN, wide = 2 * span;
         var inRange = cx0 >= -span && cx1 < span && cy0 >= -span && cy1 < span;
+        // Out of KEY_SPAN (or NaN): clamped as _floorCell (in it, that changes nothing)
+        if (!inRange) {
+            cx0 = this._floorCell(x - min, cell); cx1 = this._floorCell(x + min, cell);
+            cy0 = this._floorCell(y - min, cell); cy1 = this._floorCell(y + min, cell);
+        }
         for (var cx = cx0; cx <= cx1; cx++) {
             for (var cy = cy0; cy <= cy1; cy++) {
                 var close = grid[inRange ? (cx + span) * wide + (cy + span) : this._cellKey(cx, cy)];
@@ -294,7 +299,8 @@ var LayoutLineClear = {
         // Lines passing the spot (_segDist2 written out, as below)
         var clear2 = this._clear2, lo = this.END_MARGIN, hi = 1 - this.END_MARGIN;
         var vx, vy, l2, t, px, py;
-        var lx = Math.floor(x / cell), ly = Math.floor(y / cell);          // _key written out
+        var lx = inRange ? Math.floor(x / cell) : this._floorCell(x, cell);  // _key written out
+        var ly = inRange ? Math.floor(y / cell) : this._floorCell(y, cell);
         var lines = this._edgeGrid[inRange ? (lx + span) * wide + (ly + span) : this._cellKey(lx, ly)];
         if (lines) {
             for (i = 0; i < lines.length; i++) {

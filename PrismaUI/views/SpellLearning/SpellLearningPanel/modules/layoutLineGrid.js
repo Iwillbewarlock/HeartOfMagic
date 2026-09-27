@@ -23,6 +23,14 @@
          * tree) get a string instead, so no two cells ever share a key.
          */
         KEY_SPAN: 8192,
+        MAX_CELL: 1073741824,  // cells clamped to +-2^30, as LayoutDeclutter.MAX_CELL and the C++ kMaxCell
+
+        /** Math.floor(v / cell) within +-MAX_CELL (NaN: -MAX_CELL), as the C++ FloorCell. */
+        _floorCell: function(v, cell) {
+            var c = Math.floor(v / cell), m = this.MAX_CELL;
+            return c > m ? m : (c >= -m ? c : -m);
+        },
+
         _cellKey: function(cx, cy) {
             var span = this.KEY_SPAN;
             if (cx >= -span && cx < span && cy >= -span && cy < span) return (cx + span) * 2 * span + (cy + span);
@@ -30,7 +38,7 @@
         },
 
         _key: function(x, y) {
-            return this._cellKey(Math.floor(x / this.CELL), Math.floor(y / this.CELL));
+            return this._cellKey(this._floorCell(x, this.CELL), this._floorCell(y, this.CELL));
         },
 
         _gridAdd: function(it) {
@@ -54,8 +62,8 @@
         /** Spells in the cells touching the box (x0, y0)-(x1, y1) grown by pad. */
         _near: function(x0, y0, x1, y1, pad) {
             var out = [];
-            var cx0 = Math.floor((x0 - pad) / this.CELL), cx1 = Math.floor((x1 + pad) / this.CELL);
-            var cy0 = Math.floor((y0 - pad) / this.CELL), cy1 = Math.floor((y1 + pad) / this.CELL);
+            var cx0 = this._floorCell(x0 - pad, this.CELL), cx1 = this._floorCell(x1 + pad, this.CELL);
+            var cy0 = this._floorCell(y0 - pad, this.CELL), cy1 = this._floorCell(y1 + pad, this.CELL);
             for (var cx = cx0; cx <= cx1; cx++) {
                 for (var cy = cy0; cy <= cy1; cy++) {
                     var bucket = this._nodeGrid[this._cellKey(cx, cy)];
@@ -78,8 +86,8 @@
             var cell = this.CELL, pad = Math.sqrt(this._clear2);
             var reach = pad + cell * 0.7072;          // clear plus half a cell's diagonal
             var reach2 = reach * reach;
-            var cx0 = Math.floor((Math.min(ax, bx) - pad) / cell), cx1 = Math.floor((Math.max(ax, bx) + pad) / cell);
-            var cy0 = Math.floor((Math.min(ay, by) - pad) / cell), cy1 = Math.floor((Math.max(ay, by) + pad) / cell);
+            var cx0 = this._floorCell(Math.min(ax, bx) - pad, cell), cx1 = this._floorCell(Math.max(ax, bx) + pad, cell);
+            var cy0 = this._floorCell(Math.min(ay, by) - pad, cell), cy1 = this._floorCell(Math.max(ay, by) + pad, cell);
             var vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
             // _cellKey written out, with its range checked once for the whole box
             var span = this.KEY_SPAN, wide = 2 * span;
@@ -101,7 +109,9 @@
                     if (t0 > t1) continue;
                 } else if (Math.abs(mx - ax) > band) continue;
                 var y0 = ay + vy * t0, y1 = ay + vy * t1;
-                var from = Math.floor((Math.min(y0, y1) - band) / cell), to = Math.floor((Math.max(y0, y1) + band) / cell);
+                // In KEY_SPAN these stay in it, where _floorCell changes nothing
+                var from = inRange ? Math.floor((Math.min(y0, y1) - band) / cell) : this._floorCell(Math.min(y0, y1) - band, cell);
+                var to = inRange ? Math.floor((Math.max(y0, y1) + band) / cell) : this._floorCell(Math.max(y0, y1) + band, cell);
                 if (from < cy0) from = cy0;
                 if (to > cy1) to = cy1;
                 for (var cy = from; cy <= to; cy++) {

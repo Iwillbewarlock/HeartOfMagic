@@ -57,6 +57,10 @@ var LayoutDeclutter = {
                            // 11 s of wall time for about 5 s of work
     NATIVE_TIMEOUT_MS: 30000, // applyAsync: no reply from the plugin in this long, the pass runs here
                            // (a 1,428-spell tree takes it about 0.3 s)
+    NATIVE_RETRY_MS: 300000, // after such a timeout the plugin is not asked for this long (a reply ends it sooner)
+    MAX_COORD: 1e6,        // a spell further out, or not finite, is not moved (a real tree: a few thousand)
+    MAX_ANGLE: 3600,       // a sector angle past this (degrees) is no sector (_angleDiff turns a turn at a time)
+    MAX_CELL: 1073741824,  // grid cells clamped to +-2^30 (never reached from MAX_COORD); the C++ kMaxCell
 
     /**
      * Move the spells of a tree about to be saved, all at once.
@@ -76,8 +80,9 @@ var LayoutDeclutter = {
      * it seconds of work and twice that in frames. Without the plugin (tests,
      * the browser harness), when it answers with an error, or when it has not
      * answered in NATIVE_TIMEOUT_MS, the pass runs here a SLICE_MS piece at a
-     * time between frames. A second call before the first is done drops the
-     * first (its onDone is never called).
+     * time between frames (and after a timeout, here for NATIVE_RETRY_MS). A
+     * second call before the first is done drops the first (its onDone is
+     * never called).
      */
     applyAsync: function(output, onDone) {
         this._asyncSeq = (this._asyncSeq || 0) + 1;
@@ -119,7 +124,8 @@ var LayoutDeclutter = {
      * the reply's positions come back in the same order.
      */
     _applyNative: function(token) {
-        if (typeof window === 'undefined' || typeof window.callCpp !== 'function' || this._nativeBroken) return false;
+        if (typeof window === 'undefined' || typeof window.callCpp !== 'function' ||
+            this._nativeRetryAt > Date.now()) return false;
         var output = token.output;
         if (!output || !output.schools) return false;
         var items = this._collect(output, false);
@@ -142,13 +148,7 @@ var LayoutDeclutter = {
         token.items = items;
         token.native = true;
         var self = this;
-        token.timer = setTimeout(function() {
-            if (self._asyncJob !== token || token.answered) return;
-            token.answered = true;
-            self._nativeBroken = true;     // an old plugin without DeclutterTree: not waited for again
-            console.warn('[LayoutDeclutter] no reply from the plugin in ' + self.NATIVE_TIMEOUT_MS + ' ms, arranged here');
-            self._applySliced(token);
-        }, this.NATIVE_TIMEOUT_MS);
+        token.timer = setTimeout(function() { self._onNativeTimeout(token); }, this.NATIVE_TIMEOUT_MS);
         // One write, not a running percentage: each write repaints the whole view
         if (window._panelVisible !== false && typeof TreeGrowth !== 'undefined' && TreeGrowth.setStatusText) {
             TreeGrowth.setStatusText('Arranging spells...', '#f59e0b');
@@ -160,17 +160,32 @@ var LayoutDeclutter = {
         return true;
     },
 
+    /**
+     * No reply in NATIVE_TIMEOUT_MS: the pass runs here, and the plugin (an old
+     * one without DeclutterTree, or a stuck worker) is not asked again for
+     * NATIVE_RETRY_MS, unless a reply from it comes in meanwhile.
+     */
+    _onNativeTimeout: function(token) {
+        if (this._asyncJob !== token || token.answered) return;
+        token.answered = true;
+        this._nativeRetryAt = Date.now() + this.NATIVE_RETRY_MS;
+        console.warn('[LayoutDeclutter] no reply from the plugin in ' + this.NATIVE_TIMEOUT_MS + ' ms, arranged here');
+        this._applySliced(token);
+    },
+
     /** The plugin's reply (window.onDeclutterResult): positions onto the tree, or the JavaScript pass. */
     _onNativeResult: function(resultStr) {
         var reply = null;
         try { reply = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr; } catch (e) { reply = null; }
+        if (!reply || typeof reply !== 'object') return;
+        this._nativeRetryAt = 0;           // the plugin answers (if late): asked again next time
         var token = this._asyncJob;
         if (!token || !token.native || token.answered) return;
-        // A reply to an earlier call (a newer one took over): not ours
-        if (reply && reply.id !== undefined && reply.id !== null && reply.id !== token.id) return;
+        // Only the reply to this request: not an earlier one's, not one without an id
+        if (reply.id !== token.id) return;
         token.answered = true;
         clearTimeout(token.timer);
-        if (!reply || reply.error || !this._applyPositions(token.items, reply)) {
+        if (reply.error || !this._applyPositions(token.items, reply)) {
             console.warn('[LayoutDeclutter] the plugin could not arrange the tree (' +
                 ((reply && reply.error) || 'bad reply') + '), arranged here');
             this._applySliced(token);
@@ -212,9 +227,9 @@ var LayoutDeclutter = {
         var globe = output.globe || {};
         job.items = items;
         job.heart = {
-            x: globe.x || 0,
-            y: globe.y || 0,
-            r: (globe.radius || 45) + this.HEART_CLEARANCE
+            x: this._globeValue(globe.x, 0),
+            y: this._globeValue(globe.y, 0),
+            r: this._globeValue(globe.radius, 45) + this.HEART_CLEARANCE
         };
 
         // Room first: every spell (roots too) out from the centre by SPREAD
@@ -295,7 +310,7 @@ var LayoutDeclutter = {
             var sector = useSectors === false ? null : this._sector(school);
             for (var i = 0; i < nodes.length; i++) {
                 var n = nodes[i];
-                if (typeof n.x !== 'number' || typeof n.y !== 'number' || isNaN(n.x) || isNaN(n.y)) continue;
+                if (!this._usable(n.x) || !this._usable(n.y)) continue;
                 var it = { node: n, x: n.x, y: n.y, fixed: !!n.isRoot, sector: null, index: list.length };
                 // Kept in its sector only if it started there
                 if (sector && this._inSector(sector, n.x, n.y)) it.sector = sector;
@@ -306,9 +321,20 @@ var LayoutDeclutter = {
         return { list: list, byId: byId };
     },
 
+    /** A coordinate the pass takes: a finite number within MAX_COORD (the C++ Usable). */
+    _usable: function(v) {
+        return typeof v === 'number' && isFinite(v) && Math.abs(v) <= this.MAX_COORD;
+    },
+
+    /** A globe value as `v || fallback`, the fallback too when it is not _usable. */
+    _globeValue: function(v, fallback) {
+        return (typeof v === 'number' && v && this._usable(v)) ? v : fallback;
+    },
+
     /** The school's sector as a centre angle and half width (radians), or null. */
     _sector: function(school) {
         if (!school || typeof school.startAngle !== 'number' || typeof school.endAngle !== 'number') return null;
+        if (!(Math.abs(school.startAngle) <= this.MAX_ANGLE) || !(Math.abs(school.endAngle) <= this.MAX_ANGLE)) return null;
         var a0 = school.startAngle * Math.PI / 180, a1 = school.endAngle * Math.PI / 180;
         var half = (a1 - a0) / 2;
         if (!(half > 0) || half >= Math.PI) return null;
@@ -446,6 +472,11 @@ var LayoutDeclutter = {
      * in a real tree, get a string so no two share a key.
      */
     KEY_SPAN: 8192,
+    /** Math.floor(v / cell) within +-MAX_CELL (NaN: -MAX_CELL), as the C++ FloorCell. */
+    _floorCell: function(v, cell) {
+        var c = Math.floor(v / cell), m = this.MAX_CELL;
+        return c > m ? m : (c >= -m ? c : -m);
+    },
     _cellKey: function(cx, cy) {
         var span = this.KEY_SPAN;
         if (cx >= -span && cx < span && cy >= -span && cy < span) return (cx + span) * 2 * span + (cy + span);
@@ -455,7 +486,7 @@ var LayoutDeclutter = {
     _grid: function(list, cell) {
         var g = {};
         for (var i = 0; i < list.length; i++) {
-            var key = this._cellKey(Math.floor(list[i].x / cell), Math.floor(list[i].y / cell));
+            var key = this._cellKey(this._floorCell(list[i].x, cell), this._floorCell(list[i].y, cell));
             (g[key] = g[key] || []).push(list[i]);
         }
         return g;
@@ -464,8 +495,8 @@ var LayoutDeclutter = {
     /** Spells whose cell touches the box (x0, y0)-(x1, y1). */
     _near: function(grid, cell, x0, y0, x1, y1) {
         var out = [];
-        var cx0 = Math.floor(x0 / cell), cx1 = Math.floor(x1 / cell);
-        var cy0 = Math.floor(y0 / cell), cy1 = Math.floor(y1 / cell);
+        var cx0 = this._floorCell(x0, cell), cx1 = this._floorCell(x1, cell);
+        var cy0 = this._floorCell(y0, cell), cy1 = this._floorCell(y1, cell);
         for (var cx = cx0; cx <= cx1; cx++) {
             for (var cy = cy0; cy <= cy1; cy++) {
                 var bucket = grid[this._cellKey(cx, cy)];

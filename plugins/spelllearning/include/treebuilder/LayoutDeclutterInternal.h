@@ -1,5 +1,8 @@
 #pragma once
 
+#include "treebuilder/LayoutDeclutter.h"
+
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -70,6 +73,18 @@ namespace LayoutDeclutter::Internal
 
     inline constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
+    // Input bounds (the JS MAX_COORD, MAX_ANGLE, MAX_CELL). A spell further out
+    // than kMaxCoord, or not finite, is not taken (left where it is): a real
+    // tree stays within a few thousand units, and one line 1e7 long took the
+    // JavaScript 8 s. A sector whose angle is past kMaxAngle
+    // (degrees) is no sector: AngleDiff turns an angle back a turn at a time.
+    inline constexpr double kMaxCoord = 1e6;
+    inline constexpr double kMaxAngle = 3600;
+    // Grid cells are clamped to +-kMaxCell (never reached from kMaxCoord): no
+    // out-of-range double is cast, and a cell fits 32 bits for MakeCellKey
+    inline constexpr double kMaxCell = 1073741824;  // 2^30
+    static_assert(kMaxCell < 2147483648.0, "a cell must fit a signed 32-bit half of a CellKey");
+
     // =========================================================================
     // TYPES
     // =========================================================================
@@ -126,15 +141,27 @@ namespace LayoutDeclutter::Internal
     using CellKey = std::int64_t;
     using Grid = std::unordered_map<CellKey, std::vector<int>>;
 
-    // A cell's key; any two cells get different keys (as the JS _cellKey)
+    // A cell's key: cx in the high 32 bits, cy in the low 32. Every cell comes
+    // from FloorCell, within +-kMaxCell < 2^31, so both halves fit and no two
+    // cells share a key (the JS _cellKey uses a string past its KEY_SPAN instead)
     inline CellKey MakeCellKey(std::int64_t cx, std::int64_t cy)
     {
         return static_cast<CellKey>((static_cast<std::uint64_t>(cx) << 32) ^ (static_cast<std::uint64_t>(cy) & 0xFFFFFFFFull));
     }
 
+    // floor(v / cell), clamped to +-kMaxCell before the cast (NaN: -kMaxCell), as the JS _floorCell
     inline std::int64_t FloorCell(double v, double cell)
     {
-        return static_cast<std::int64_t>(std::floor(v / cell));
+        const double f = std::floor(v / cell);
+        if (!(f >= -kMaxCell)) return -static_cast<std::int64_t>(kMaxCell);
+        if (f > kMaxCell) return static_cast<std::int64_t>(kMaxCell);
+        return static_cast<std::int64_t>(f);
+    }
+
+    // Run's and LineClear's cancel check (a null flag: never cancelled)
+    inline void ThrowIfCancelled(const std::atomic<bool>* cancel)
+    {
+        if (cancel && cancel->load(std::memory_order_relaxed)) throw Cancelled();
     }
 
     double AngleDiff(double a, double b);
@@ -147,7 +174,9 @@ namespace LayoutDeclutter::Internal
     class LineClear
     {
     public:
-        LineClear(std::vector<Item>& list, std::vector<Edge>& edges, const Heart& heart, double clear, double minDist);
+        // cancel (may be null): checked once per spell; set, Run throws Cancelled
+        LineClear(std::vector<Item>& list, std::vector<Edge>& edges, const Heart& heart, double clear, double minDist,
+            const std::atomic<bool>* cancel = nullptr);
 
         void Run();
         int Moved() const { return static_cast<int>(m_movedIds.size()); }
@@ -186,6 +215,7 @@ namespace LayoutDeclutter::Internal
         std::vector<Item>& m_list;
         std::vector<Edge>& m_edges;
         Heart m_heart;
+        const std::atomic<bool>* m_cancel = nullptr;
         double m_clear2 = 0;
         double m_minDist = 0;
 

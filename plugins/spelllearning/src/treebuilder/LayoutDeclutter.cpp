@@ -70,6 +70,12 @@ namespace
         return v.dump();
     }
 
+    // A coordinate the pass takes (_usable): finite and within kMaxCoord
+    bool Usable(double v)
+    {
+        return std::isfinite(v) && std::fabs(v) <= kMaxCoord;
+    }
+
     // _sector: the school's centre angle and half width, or none
     bool ReadSector(const json& school, Sector& out)
     {
@@ -77,7 +83,9 @@ namespace
         auto start = school.find("startAngle");
         auto end = school.find("endAngle");
         if (start == school.end() || end == school.end() || !start->is_number() || !end->is_number()) return false;
-        const double a0 = start->get<double>() * kPi / 180, a1 = end->get<double>() * kPi / 180;
+        const double d0 = start->get<double>(), d1 = end->get<double>();
+        if (!(std::fabs(d0) <= kMaxAngle) || !(std::fabs(d1) <= kMaxAngle)) return false;
+        const double a0 = d0 * kPi / 180, a1 = d1 * kPi / 180;
         const double half = (a1 - a0) / 2;
         if (!(half > 0) || half >= kPi) return false;
         out.mid = a0 + half;
@@ -106,7 +114,7 @@ namespace
             Item it;
             it.nodeX = it.x = x->get<double>();
             it.nodeY = it.y = y->get<double>();
-            if (std::isnan(it.x) || std::isnan(it.y)) continue;
+            if (!Usable(it.x) || !Usable(it.y)) continue;
             auto root = n.find("isRoot");
             it.fixed = root != n.end() && Truthy(*root);
             it.index = static_cast<int>(out.list.size());
@@ -305,7 +313,7 @@ namespace LayoutDeclutter
     // RUN
     // =========================================================================
 
-    json Run(const json& request)
+    json Run(const json& request, const std::atomic<bool>* cancel)
     {
         const auto t0 = std::chrono::steady_clock::now();
         json reply = json::object();
@@ -329,12 +337,13 @@ namespace LayoutDeclutter
             return reply;
         }
 
-        // The globe: `x || 0`, `radius || 45`
+        // The globe: `x || 0`, `radius || 45` (and the fallback past kMaxCoord, as _globeValue)
         Heart heart;
         const json& globe = request.contains("globe") && request["globe"].is_object() ? request["globe"] : empty;
         auto number = [&globe](const char* key, double fallback) {
             if (!globe.contains(key) || !Truthy(globe[key]) || !globe[key].is_number()) return fallback;
-            return globe[key].get<double>();
+            const double v = globe[key].get<double>();
+            return Usable(v) ? v : fallback;
         };
         heart.x = number("x", 0);
         heart.y = number("y", 0);
@@ -347,12 +356,13 @@ namespace LayoutDeclutter
         }
         // Then off the lines, then apart and off the heart
         std::vector<Edge> edges = MakeEdges(items);
-        LineClear lines(list, edges, heart, kLineClear, 2 * kNodeRadius + kGap);
+        LineClear lines(list, edges, heart, kLineClear, 2 * kNodeRadius + kGap, cancel);
         lines.Run();
 
         int rounds = 0;
         std::vector<int> nearby;
         while (rounds < kIterations) {
+            ThrowIfCancelled(cancel);
             if (Round(list, heart, nearby) < kDoneBelow) break;
             rounds++;
         }

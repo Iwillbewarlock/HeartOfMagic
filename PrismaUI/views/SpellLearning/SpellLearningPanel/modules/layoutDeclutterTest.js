@@ -125,7 +125,69 @@ var LayoutDeclutterTest = {
 
         var empty = { schools: {} };
         this.check(L.apply(empty).moved === 0, 'an empty tree is left alone');
+        this._hostile(L);
+        this._native(L);
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** Spells at Infinity, 1e308 or 1e7, a sector at 1e15 degrees, an infinite globe: done at once, left alone. */
+    _hostile: function(L) {
+        var log = console.log;
+        var tree = {
+            globe: { x: 0, y: 0, radius: Infinity },
+            schools: {
+                Far: {
+                    startAngle: 1e15, endAngle: 1e15 + 1,
+                    nodes: [
+                        { formId: 'r', x: 100, y: 100, isRoot: true, children: ['a', 'inf', 'huge', 'line'] },
+                        { formId: 'a', x: 101, y: 101, children: [] },
+                        { formId: 'inf', x: Infinity, y: 5, children: [] },
+                        { formId: 'huge', x: 1e308, y: 1e308, children: [] },
+                        { formId: 'line', x: 1e7, y: 100, children: [] },
+                        { formId: 'nan', x: NaN, y: -Infinity, children: [] }
+                    ]
+                }
+            }
+        };
+        var t0 = Date.now();
+        console.log = function() {};
+        var result = L.apply(tree);
+        console.log = log;
+        var n = {};
+        tree.schools.Far.nodes.forEach(function(node) { n[node.formId] = node; });
+        this.check(Date.now() - t0 < 2000, 'a tree with spells at Infinity and 1e308 is done at once (' + (Date.now() - t0) + ' ms)');
+        this.check(n.inf.x === Infinity && n.huge.x === 1e308 && n.line.x === 1e7 && isNaN(n.nan.x),
+            'spells not finite or past MAX_COORD are left where they are');
+        this.check(isFinite(n.a.x) && isFinite(n.a.y) && result.moved === 2,
+            'the others are still arranged (an infinite globe counts as the default)');
+    },
+
+    /** The plugin path: only the reply with this request's id is taken; a timeout pauses the plugin, a reply resumes it. */
+    _native: function(L) {
+        var sent = [], oldCpp = window.callCpp, warn = console.warn, log = console.log;
+        window.callCpp = function(name, arg) { if (name === 'DeclutterTree') sent.push(JSON.parse(arg)); };
+        console.warn = function() {};
+        L._nativeRetryAt = 0;
+        var done = 0, token = L.applyAsync(this._tree(), function() { done++; });
+        clearTimeout(token.timer);
+        L._onNativeResult(JSON.stringify({ id: null, error: 'a request that could not be read' }));
+        L._onNativeResult(JSON.stringify({ id: 'declutter-older', error: 'an older request' }));
+        this.check(sent.length === 1 && !token.answered && done === 0,
+            'replies with id null or another request\'s id are not taken as this one\'s');
+        L._onNativeTimeout(token);
+        L._asyncJob = null;                    // the JavaScript pass it started stops at its first slice
+        var t2 = L.applyAsync(this._tree(), function() {});
+        L._asyncJob = null;
+        this.check(sent.length === 1 && !t2.native, 'after a timeout the plugin is not asked for NATIVE_RETRY_MS');
+        L._onNativeResult(JSON.stringify({ id: token.id, positions: [] }));   // late, from the plugin
+        var t3 = L.applyAsync(this._tree(), function() {});
+        clearTimeout(t3.timer);
+        this.check(sent.length === 2 && t3.native, 'a late reply from the plugin has it asked again');
+        L._asyncJob = null;
+        L._nativeRetryAt = 0;
+        window.callCpp = oldCpp;
+        console.warn = warn;
+        console.log = log;
     }
 };
 

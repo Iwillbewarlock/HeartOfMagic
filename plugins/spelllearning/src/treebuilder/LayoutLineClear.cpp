@@ -21,10 +21,12 @@ namespace LayoutDeclutter::Internal
     // SETUP AND PASSES
     // =========================================================================
 
-    LineClear::LineClear(std::vector<Item>& list, std::vector<Edge>& edges, const Heart& heart, double clear, double minDist) :
+    LineClear::LineClear(std::vector<Item>& list, std::vector<Edge>& edges, const Heart& heart, double clear, double minDist,
+        const std::atomic<bool>* cancel) :
         m_list(list),
         m_edges(edges),
         m_heart(heart),
+        m_cancel(cancel),
         m_clear2(clear * clear),
         m_minDist(minDist)
     {
@@ -61,6 +63,7 @@ namespace LayoutDeclutter::Internal
             next.assign(m_list.size(), 0);
             int moved = 0;
             for (int at = 0; at < count; at++) {
+                ThrowIfCancelled(m_cancel);
                 if (!m_list[at].fixed && m_dirty[at] && SearchOne(at, next)) moved++;
             }
             if (!moved) break;

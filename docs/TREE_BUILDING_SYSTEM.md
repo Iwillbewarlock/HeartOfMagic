@@ -854,6 +854,15 @@ Three steps, the lines staying straight throughout - the spells move, not the li
    until no two are closer than `2 x NODE_RADIUS + GAP` (16 = a known spell with its XP ring, 6) and none
    sits within `HEART_CLEARANCE` (50) of the globe.
 
+**What it does not take.** A spell whose x or y is not a finite number, or is further out than `MAX_COORD`
+(1e6 tree units; a real tree stays within a few thousand), is left where it is and is not in the pass (its
+lines neither). A school angle past `MAX_ANGLE` (3600 degrees) means no sector, and a globe `x`, `y` or
+`radius` that is not finite or past `MAX_COORD` counts as missing (0, 0, 45). Before these checks a spell at
+`Infinity` or 1e308, or a sector at 1e15 degrees, hung the JavaScript pass. Grid cells are
+`floor(v / cell)` clamped to +-`MAX_CELL` (2^30) in both passes (`_floorCell`, `FloorCell`), which a tree
+within `MAX_COORD` never reaches: the C++ never casts an out-of-range double, and its 64-bit cell key (cx
+in the high half, cy in the low) can never give two cells one key.
+
 **Native pass (`LayoutDeclutter.cpp`, 2026-09-26).** The same pass in C++, in
 `plugins/spelllearning/src/treebuilder/`: `LayoutDeclutter.cpp` (collect, spread, the push-apart rounds,
 rounding, the log line), `LayoutLineClear.cpp` (passes, one spell's search, dirty marks),
@@ -878,10 +887,19 @@ thread to call `onDeclutterResult` with `{ id, positions: [[formId, x, y], ...],
 overlapsLeft, linesLeft, linesMoved, passes, ms }`; it logs the same `[LayoutDeclutter] ...` line as the
 script, with `(native)`. The panel writes the positions onto the nodes (checking each formId) and calls
 `onDone`. It falls back to the sliced JavaScript pass when the reply has an `error` or does not match the
-tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s; after that, an older plugin without the listener
-is not waited for again that session). A newer `applyAsync` supersedes an older one: a reply whose id is
-not the latest request's is dropped. The browser harness (`dev-harness-bridge.js`) answers `DeclutterTree`
-with an error at once, so it arranges the tree itself.
+tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s). After such a timeout the plugin is not asked
+for `NATIVE_RETRY_MS` (5 minutes), so an older plugin without the listener is not waited for on every
+tree; any reply from the plugin in the meantime (a late one included) ends that pause. Only a reply whose
+`id` is the latest request's is taken - not an older request's, and not one without an id. A newer
+`applyAsync` supersedes an older one; the plugin then cancels the older request's worker (a flag checked
+once per spell searched and once per push-apart round: it stops within a few milliseconds and sends
+nothing). Every other request gets a reply: when the request cannot be parsed, or no worker thread can be
+started, the error carries the id read off the front of the request (`{"id":"declutter-...`, which the
+panel always writes first). A Windows structured exception in a worker (the plugin builds with `/EHa`) is
+translated per thread (`_set_se_translator`) and logged with its code (`logger::critical`) before the
+error reply. The workers are kept (not detached) and joined when the plugin unloads, cancelled first. The
+browser harness (`dev-harness-bridge.js`) answers `DeclutterTree` with an error at once, so it arranges the
+tree itself.
 
 **Keep the two in step.** A change to the JavaScript pass (a constant, a step, the order of a sum) goes into
 the C++ files too. `tools/declutter-test` (`declutter-test -i tree.json -o reply.json [-r runs]`) runs the

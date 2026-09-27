@@ -18,9 +18,10 @@
 // ====================================================
 //
 // Every constant is written as its bits, so no decimal can be misread. The
-// argument reduction covers |x| up to 2^19 x pi/2 (the medium case); larger
-// arguments - a spell index times the golden angle would need hundreds of
-// thousands of spells - go to the C runtime.
+// argument reduction covers |x| up to 2^20 x pi/2, about 1.65e6 (the medium
+// case: high word 0x413921FB; fdlibm's own comment says 2^19, its test is
+// 2^20); larger arguments - a spell index times the golden angle would need
+// about 690,000 spells - go to the C runtime.
 
 namespace
 {
@@ -122,7 +123,7 @@ namespace
         0x404858EB, 0x404921FB,
     };
 
-    constexpr std::int32_t kMediumLimit = 0x413921FB;  // 2^19 x pi/2
+    constexpr std::int32_t kMediumLimit = 0x413921FB;  // high word of 2^20 x pi/2 (exponent 0x413 - 0x3FF = 20)
     constexpr int kLarge = 0x7FFFFFFF;                  // rem_pio2: too large, not reduced
 
     // =========================================================================
