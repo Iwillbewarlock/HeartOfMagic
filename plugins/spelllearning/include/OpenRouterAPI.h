@@ -24,7 +24,7 @@ namespace OpenRouterAPI {
     void Shutdown();
     
     // The config is written by the game thread (settings, requests) and read by
-    // background threads (the Oracle builder, async prompts) at the same time,
+    // background threads (async prompts) at the same time,
     // and two threads on one std::string is a crash. So: no reference to it
     // leaves this module. Readers take a copy, writers edit under the lock.
     Config GetConfigCopy();

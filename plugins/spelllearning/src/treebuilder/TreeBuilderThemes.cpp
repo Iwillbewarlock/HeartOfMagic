@@ -334,7 +334,7 @@ namespace
         "kind.absorb", "kind.slow", "kind.frenzy", "kind.fear", "kind.calm", "kind.rally",
     };
 
-    // Below this a word match is noise (same cut the builders apply).
+    // Below this a word match is noise (same cut the builder applies).
     constexpr int kWordThemeMinScore = 30;
 
     // How far ahead a smaller theme must score to take a spell from a bigger one.
@@ -512,7 +512,7 @@ void TreeBuilder::DropCommonThemes(std::unordered_map<std::string, TreeNode>& no
 }
 
 // =============================================================================
-// SPELL GROUPING
+// PRIMARY THEME
 // =============================================================================
 
 std::pair<std::string, int>
@@ -553,61 +553,6 @@ TreeBuilder::GetSpellPrimaryTheme(const json& spell, const std::vector<std::stri
     }
 
     return {bestTheme.empty() ? "_unassigned" : bestTheme, bestScore};
-}
-
-std::unordered_map<std::string, std::vector<json>>
-TreeBuilder::GroupSpellsBestFit(const std::vector<json>& spells,
-                                const std::vector<std::string>& themes,
-                                int minScore)
-{
-    std::unordered_map<std::string, std::vector<json>> groups;
-    for (const auto& theme : themes) {
-        groups[theme] = {};
-    }
-    groups["_unassigned"] = {};
-
-    for (const auto& spell : spells) {
-        auto [bestTheme, bestScore] = GetSpellPrimaryTheme(spell, themes);
-
-        // Strictly above, like every other place that reads this score: the nodes'
-        // `theme` (score > 30 in the builders) and their `themes` list
-        // (GetSpellThemes). With >= a spell scoring exactly the minimum was put in
-        // a branch whose theme it did not carry, so SharesTheme counted it a
-        // stranger among its own siblings.
-        if (bestScore > minScore && !bestTheme.empty() && bestTheme != "_unassigned") {
-            groups[bestTheme].push_back(spell);
-        } else {
-            groups["_unassigned"].push_back(spell);
-        }
-    }
-
-    // Reclassify unassigned spells with LLM keywords (if present)
-    auto& unassigned = groups["_unassigned"];
-    std::vector<json> reclassified;
-    for (const auto& spell : unassigned) {
-        auto llmKw = spell.value("llm_keyword", std::string(""));
-        if (llmKw.empty()) continue;
-
-        if (groups.contains(llmKw)) {
-            groups[llmKw].push_back(spell);
-            reclassified.push_back(spell);
-        } else {
-            auto parent = spell.value("llm_keyword_parent", std::string(""));
-            if (!parent.empty() && groups.contains(parent)) {
-                groups[parent].push_back(spell);
-                reclassified.push_back(spell);
-            }
-        }
-    }
-    for (const auto& r : reclassified) {
-        auto fid = r.value("formId", std::string(""));
-        unassigned.erase(
-            std::remove_if(unassigned.begin(), unassigned.end(),
-                [&fid](const json& s) { return s.value("formId", std::string("")) == fid; }),
-            unassigned.end());
-    }
-
-    return groups;
 }
 
 // =============================================================================

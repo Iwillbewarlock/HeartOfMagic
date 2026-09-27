@@ -9,11 +9,11 @@
 // =============================================================================
 // TreeBuilder — Spell tree construction engine
 //
-// Provides multiple builder modes:
-//   - Classic: Tier-first ordering (Novice→Master depth constraint)
-//   - Thematic: NLP-driven parent selection with round-robin theme interleaving
+// One builder: Classic, tier-first ordering (Novice→Master depth constraint)
+// with NLP-scored parent choice. The Tree, Graph, Thematic and Oracle builders
+// were removed on 2026-09-27 (the panel offers only Classic).
 //
-// All algorithms are deterministic given a seed.
+// Deterministic given a seed.
 // =============================================================================
 
 namespace TreeBuilder
@@ -68,9 +68,6 @@ namespace TreeBuilder
     // Create bidirectional parent-child link
     void LinkNodes(TreeNode& parent, TreeNode& child);
 
-    // Remove bidirectional link
-    void UnlinkNodes(TreeNode& parent, TreeNode& child);
-
     // =========================================================================
     // SIMILARITY MATRIX
     // =========================================================================
@@ -111,15 +108,8 @@ namespace TreeBuilder
                    int maxThemes = 10);
 
     // =========================================================================
-    // SPELL GROUPING (replaced former spell_grouper.py)
+    // SPELL KEYWORDS AND THEMES
     // =========================================================================
-
-    // Assign each spell to its best-matching theme; a spell must score above
-    // minScore, else it goes to "_unassigned"
-    std::unordered_map<std::string, std::vector<json>>
-    GroupSpellsBestFit(const std::vector<json>& spells,
-                      const std::vector<std::string>& themes,
-                      int minScore = 30);
 
     // The first word of an editor id, as FindModTags reads it.
     std::string LeadingIdWordOf(const std::string& editorId);
@@ -151,7 +141,7 @@ namespace TreeBuilder
     std::vector<std::string> GetSpellThemes(const json& spell, const std::vector<std::string>& themes);
 
     // True when the two nodes have a theme in common. Falls back to comparing the
-    // single theme for nodes that were never given a list (LLM chains).
+    // single theme for nodes that were never given a list.
     bool SharesTheme(const TreeNode& a, const TreeNode& b);
 
     // Set matchThemes on one school's nodes: their themes minus those carried by
@@ -215,27 +205,11 @@ namespace TreeBuilder
         bool preferVanillaRoots = true;
         float density = 0.6f;
         float symmetry = 0.3f;
-        float chaos = 0.0f;           // 0=strict metadata, 1=pure NLP discovery
-        float convergenceChance = 0.4f;
-        float forceBalance = 0.5f;    // Graph mode: jitter to prevent star topology
-        std::string branchStyle = "chain";  // "chain", "bfs", "balanced"
-        std::string chainStyle = "linear"; // Oracle: "linear" or "branching"
-        int batchSize = 20;                // Oracle: spells per LLM batch
         // A theme carried by at least this share of a school's spells tells
         // nothing apart inside that school (Conjuration: "summon" 89%, "conjure"
         // 41%), so SharesTheme ignores it there. 0 = off, the behaviour before
         // 2026-09-23. Request config key "common_theme_share".
         float commonThemeShare = 0.4f;
-
-        // LLM API config (Oracle builder)
-        struct LLMApiConfig {
-            bool enabled = false;
-            std::string provider = "openrouter";  // "openrouter" or "ollama"
-            std::string apiKey;
-            std::string model;
-            std::string url;
-        };
-        std::optional<LLMApiConfig> llmApi;
 
         // Per-school root overrides: school → formId
         std::unordered_map<std::string, std::string> selectedRoots;
@@ -270,39 +244,13 @@ namespace TreeBuilder
     // Classic builder: tier-first ordering (Novice=depth0, Master=depth4)
     BuildResult BuildClassic(const std::vector<json>& spells, const BuildConfig& config);
 
-    // Tree builder: NLP thematic with round-robin theme interleaving,
-    // branching energy, and convergence (multi-prerequisite gates)
-    BuildResult BuildTree(const std::vector<json>& spells, const BuildConfig& config);
-
-    // Graph builder: Edmonds' minimum spanning arborescence (directed MST)
-    BuildResult BuildGraph(const std::vector<json>& spells, const BuildConfig& config);
-
-    // Thematic builder: 3D similarity BFS with per-theme branch construction
-    BuildResult BuildThematic(const std::vector<json>& spells, const BuildConfig& config);
-
-    // Oracle builder: LLM-guided semantic chain grouping (fallback: cluster lanes)
-    BuildResult BuildOracle(const std::vector<json>& spells, const BuildConfig& config);
-
     // =========================================================================
     // HIGH-LEVEL API (called from UIManager)
     // =========================================================================
 
-    // Build a spell tree using the specified command/mode.
-    // Commands: "build_tree_classic", "build_tree", "build_tree_graph",
-    //           "build_tree_thematic", "build_tree_oracle"
+    // Build a spell tree. The one command is "build_tree_classic"; any other
+    // returns an unsuccessful result with an error.
     BuildResult Build(const std::string& command,
                       const std::vector<json>& spells,
                       const json& configJson);
-
-    // =========================================================================
-    // THEME COLORS (for Thematic builder)
-    // =========================================================================
-
-    // Derive per-theme colors from a school base color
-    std::unordered_map<std::string, std::string>
-    DeriveThemeColors(const std::string& schoolColorHex,
-                      const std::vector<std::string>& themes);
-
-    // School base colors
-    const std::unordered_map<std::string, std::string>& GetSchoolColors();
 }

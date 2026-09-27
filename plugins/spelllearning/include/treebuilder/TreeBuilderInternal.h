@@ -21,21 +21,16 @@ namespace TreeBuilder::Internal
         const std::string& school,
         std::mt19937& rng);
 
-    // Sort spells by tier then magicka cost then name
-    void SortByTierAndCost(std::vector<json>& spells);
-
     // Rebuild validation node map from serialized JSON
     std::unordered_map<std::string, TreeNode>
     RebuildValNodes(const json& schoolData);
 
-    // Run validation + auto-fix + stats on tree data (shared by all builders)
+    // Run validation + auto-fix + stats on tree data
     void ValidateAndFix(json& treeData, int maxChildren, bool autoFix);
 
     // Both spells made of the same thing (both blood, both water): an element.*
-    // trait in common - the elements the tag librarian hands on. Classic and
-    // Tree give a parent like that a bonus on their own scale. Graph, Thematic
-    // and Oracle do not: measured, it changed nothing there (Thematic already
-    // branches by element themes; Oracle and Graph were within their noise).
+    // trait in common - the elements the tag librarian hands on. Classic gives
+    // a parent like that a bonus on its own scale.
     inline bool SharesElement(const TreeNode& a, const TreeNode& b)
     {
         const auto at = a.spellData.find("traits");

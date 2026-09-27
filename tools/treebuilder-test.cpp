@@ -1,12 +1,13 @@
 // ============================================================================
 // treebuilder-test  —  Standalone TreeBuilder test harness
 // ============================================================================
-// Runs the TreeBuilder algorithms outside of Skyrim/SKSE.
+// Runs the Classic TreeBuilder outside of Skyrim/SKSE (the one builder left;
+// Tree, Graph, Thematic and Oracle were removed on 2026-09-27).
 //
 // Usage:
 //   treebuilder-test -i spells.json -o tree.json -t classic
-//   treebuilder-test --input spells.json --output tree.json --type thematic --seed 42
-//   treebuilder-test -i spells.json -o tree.json -t graph -c config.json
+//   treebuilder-test --input spells.json --output tree.json --type classic --seed 42
+//   treebuilder-test -i spells.json -o tree.json -t classic -c config.json
 //
 // Input JSON: either a raw array of spell objects, or an object with a
 // "spells" key (matches the in-game UIManager format).
@@ -22,45 +23,8 @@
 #include <nlohmann/json.hpp>
 
 #include "treebuilder/TreeBuilder.h"
-#include "OpenRouterAPI.h"
 
 using json = nlohmann::json;
-
-// ============================================================================
-// OpenRouter stub  —  the one thing in the oracle builder that needs the game
-//
-// The builder itself compiles here; only the call out to the API cannot. With
-// no key it takes its own NLP fallback path (cluster lanes), which is what
-// there is to test offline, so the stub answers as an unconfigured install would.
-// ============================================================================
-
-namespace OpenRouterAPI {
-    static Config g_config;
-
-    bool    Initialize() { return false; }
-    void    Shutdown() {}
-    Config  GetConfigCopy() { return g_config; }
-    void    UpdateConfig(const std::function<void(Config&)>& edit) { edit(g_config); }
-    void    SaveConfig() {}
-
-    Response SendPrompt(const std::string&, const std::string&)
-    {
-        Response response;
-        response.error = "no API key in the standalone test harness";
-        return response;
-    }
-
-    Response SendPrompt(const Config&, const std::string& systemPrompt, const std::string& userPrompt)
-    {
-        return SendPrompt(systemPrompt, userPrompt);
-    }
-
-    void SendPromptAsync(const std::string& systemPrompt, const std::string& userPrompt,
-                         std::function<void(const Response&)> callback)
-    {
-        if (callback) callback(SendPrompt(systemPrompt, userPrompt));
-    }
-}
 
 // ============================================================================
 // Helpers
@@ -74,7 +38,7 @@ static void PrintUsage(const char* argv0)
         << "Required:\n"
         << "  -i, --input  <file>   Input spell JSON file\n"
         << "  -o, --output <file>   Output tree JSON file\n"
-        << "  -t, --type   <type>   Builder type: classic, tree, graph, thematic, oracle\n"
+        << "  -t, --type   <type>   Builder type: classic\n"
         << "\n"
         << "Optional:\n"
         << "  -s, --seed   <n>      Random seed (default: 0)\n"
@@ -136,16 +100,12 @@ int main(int argc, char* argv[])
     // ----- Map type to command string ----------------------------------------
     static const std::unordered_map<std::string, std::string> kTypeToCommand = {
         {"classic",  "build_tree_classic"},
-        {"tree",     "build_tree"},
-        {"graph",    "build_tree_graph"},
-        {"thematic", "build_tree_thematic"},
-    {"oracle",   "build_tree_oracle"},   // no API key here, so the NLP fallback path
     };
 
     auto it = kTypeToCommand.find(type);
     if (it == kTypeToCommand.end()) {
         std::cerr << "Error: unknown type '" << type
-                  << "'. Must be one of: classic, tree, graph, thematic\n";
+                  << "'. The one builder is: classic\n";
         return 1;
     }
     auto command = it->second;

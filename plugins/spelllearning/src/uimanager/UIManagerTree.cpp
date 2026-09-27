@@ -350,7 +350,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
         try {
             nlohmann::json request = nlohmann::json::parse(argStr);
 
-            std::string command = "build_tree";
+            std::string command = "build_tree_classic";  // the one builder
             if (request.contains("command") && request["command"].is_string()) {
                 command = request["command"].get<std::string>();
             }

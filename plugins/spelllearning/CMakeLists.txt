@@ -78,10 +78,6 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/treebuilder/TreeBuilderThemes.cpp
     src/treebuilder/TreeBuilderBridges.cpp
     src/treebuilder/TreeBuilderClassic.cpp
-    src/treebuilder/TreeBuilderTree.cpp
-    src/treebuilder/TreeBuilderThematic.cpp
-    src/treebuilder/TreeBuilderGraph.cpp
-    src/treebuilder/TreeBuilderOracle.cpp
     src/treebuilder/LayoutDeclutter.cpp
     src/treebuilder/LayoutLineClear.cpp
     src/treebuilder/LayoutLineClearCost.cpp

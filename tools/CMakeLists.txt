@@ -15,10 +15,6 @@ add_executable(${PROJECT_NAME}
     ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderClassic.cpp
-    ${SL_SRC_DIR}/treebuilder/TreeBuilderTree.cpp
-    ${SL_SRC_DIR}/treebuilder/TreeBuilderGraph.cpp
-    ${SL_SRC_DIR}/treebuilder/TreeBuilderThematic.cpp
-    ${SL_SRC_DIR}/treebuilder/TreeBuilderOracle.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp
     ${SL_SRC_DIR}/treebuilder/SimdKernels.cpp

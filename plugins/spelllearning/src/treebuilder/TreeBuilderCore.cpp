@@ -73,15 +73,6 @@ void TreeBuilder::LinkNodes(TreeNode& parent, TreeNode& child)
     child.depth = (std::max)(child.depth, parent.depth + 1);
 }
 
-void TreeBuilder::UnlinkNodes(TreeNode& parent, TreeNode& child)
-{
-    auto& pc = parent.children;
-    pc.erase(std::remove(pc.begin(), pc.end(), child.formId), pc.end());
-
-    auto& cp = child.prerequisites;
-    cp.erase(std::remove(cp.begin(), cp.end(), parent.formId), cp.end());
-}
-
 // =============================================================================
 // SIMILARITY MATRIX — Dense flat-array storage
 // =============================================================================
@@ -167,9 +158,8 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         matrix.formIdToIndex[fid] = idx;
         // Name similarity compares spellings letter by letter, so it has to run
         // on the editor id where there is one: "Firebolt" and "Fireball" share
-        // most of their trigrams, the translated names share none of it. Only
-        // graph and thematic lean on this, but on a translated load order it was
-        // giving them noise. The author's prefix goes, or every spell of a mod
+        // most of their trigrams, the translated names share none of it. On a
+        // translated load order the names were giving it noise. The author's prefix goes, or every spell of a mod
         // would look like a near duplicate of every other.
         {
             auto spelling = s.value("editorId", std::string(""));
@@ -193,7 +183,7 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         // translated. The comparison is letter by letter, and effect ids are
         // built to a convention - "FireDamageFFAimed", "FrostDamageFFAimed" -
         // so most of the string is the delivery and the two elements agree on
-        // nearly all of it. Tried it: the graph builder fell from 37% to 29%.
+        // nearly all of it. Tried it: the (since removed) Graph builder fell from 37% to 29%.
         // What the ids are good for is their words, and the keyword affinity
         // further down already reads those. On a translated load order this
         // score simply comes out near zero and the keywords carry it.
@@ -201,7 +191,7 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         // Effects flagged Hide in UI are left out. One mod's script controller
         // sits on hundreds of unrelated spells, and this score is the best
         // matching pair of effects - one shared helper made any two of those
-        // spells score a perfect match, on the signal every builder weighs
+        // spells score a perfect match, on the signal the builder weighs
         // highest.
         std::vector<std::string> effs;
         if (s.contains("effects") && s["effects"].is_array()) {
@@ -460,7 +450,7 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
     // hundred others says little, sharing "word.moon" with thirteen says a lot.
     // The weights come from the data (inverse document frequency), not a list.
     //
-    // It goes into the effect affinity, the signal every builder already weighs
+    // It goes into the effect affinity, the signal the builder already weighs
     // highest, as the better of the two: without a full scan there are no
     // keywords and the effect names decide alone, as before.
     {
@@ -536,25 +526,7 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     bc.preferVanillaRoots = config.value("prefer_vanilla_roots", true);
     bc.density = config.value("density", 0.6f);
     bc.symmetry = config.value("symmetry", 0.3f);
-    bc.chaos = config.value("chaos", 0.0f);
-    bc.convergenceChance = config.value("convergence_chance", 0.4f);
-    bc.forceBalance = config.value("force_balance", 0.5f);
-    bc.branchStyle = config.value("branch_style", std::string("chain"));
-    bc.chainStyle = config.value("chain_style", std::string("linear"));
-    bc.batchSize = std::max(5, config.value("batch_size", 20));
     bc.commonThemeShare = config.value("common_theme_share", bc.commonThemeShare);
-
-    // LLM API config
-    if (config.contains("llm_api") && config["llm_api"].is_object()) {
-        auto& la = config["llm_api"];
-        BuildConfig::LLMApiConfig llm;
-        llm.enabled = la.value("enabled", false);
-        llm.provider = la.value("provider", std::string("openrouter"));
-        llm.apiKey = la.value("api_key", std::string(""));
-        llm.model = la.value("model", std::string(""));
-        llm.url = la.value("url", std::string(""));
-        bc.llmApi = llm;
-    }
 
     // Selected roots
     if (config.contains("selected_roots") && config["selected_roots"].is_object()) {
@@ -578,110 +550,6 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     }
 
     return bc;
-}
-
-// =============================================================================
-// SCHOOL COLORS
-// =============================================================================
-
-const std::unordered_map<std::string, std::string>& TreeBuilder::GetSchoolColors()
-{
-    static const std::unordered_map<std::string, std::string> colors = {
-        {"Destruction", "#ef4444"},
-        {"Conjuration", "#a855f7"},
-        {"Alteration",  "#22c55e"},
-        {"Illusion",    "#3b82f6"},
-        {"Restoration", "#eab308"},
-    };
-    return colors;
-}
-
-// =============================================================================
-// THEME COLOR DERIVATION
-// =============================================================================
-
-std::unordered_map<std::string, std::string>
-TreeBuilder::DeriveThemeColors(const std::string& schoolColorHex,
-                               const std::vector<std::string>& themes)
-{
-    std::unordered_map<std::string, std::string> colors;
-    if (themes.empty()) return colors;
-
-    // Parse base color
-    auto hex = schoolColorHex;
-    if (!hex.empty() && hex[0] == '#') hex = hex.substr(1);
-
-    float r = 0.6f, g = 0.6f, b = 0.6f;
-    if (hex.size() >= 6) {
-        try {
-            r = std::stoul(hex.substr(0, 2), nullptr, 16) / 255.0f;
-            g = std::stoul(hex.substr(2, 2), nullptr, 16) / 255.0f;
-            b = std::stoul(hex.substr(4, 2), nullptr, 16) / 255.0f;
-        } catch (...) {}
-    }
-
-    // RGB to HLS
-    float maxC = std::max({r, g, b});
-    float minC = std::min({r, g, b});
-    float L = (maxC + minC) / 2.0f;
-    float H = 0.0f, S = 0.0f;
-    if (maxC != minC) {
-        float d = maxC - minC;
-        S = (L > 0.5f) ? d / (2.0f - maxC - minC) : d / (maxC + minC);
-        if (maxC == r) H = (g - b) / d + (g < b ? 6.0f : 0.0f);
-        else if (maxC == g) H = (b - r) / d + 2.0f;
-        else H = (r - g) / d + 4.0f;
-        H /= 6.0f;
-    }
-
-    // HLS to RGB helper
-    auto hueToRgb = [](float p, float q, float t) -> float {
-        if (t < 0.0f) t += 1.0f;
-        if (t > 1.0f) t -= 1.0f;
-        if (t < 1.0f / 6.0f) return p + (q - p) * 6.0f * t;
-        if (t < 0.5f) return q;
-        if (t < 2.0f / 3.0f) return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
-        return p;
-    };
-    auto hlsToRgb = [&](float h, float l, float s, float& outR, float& outG, float& outB) {
-        if (s == 0.0f) { outR = outG = outB = l; }
-        else {
-            float q2 = (l < 0.5f) ? l * (1.0f + s) : l + s - l * s;
-            float p2 = 2.0f * l - q2;
-            outR = hueToRgb(p2, q2, h + 1.0f / 3.0f);
-            outG = hueToRgb(p2, q2, h);
-            outB = hueToRgb(p2, q2, h - 1.0f / 3.0f);
-        }
-    };
-
-    auto sortedThemes = themes;
-    std::sort(sortedThemes.begin(), sortedThemes.end());
-    int themeCount = static_cast<int>(sortedThemes.size());
-
-    for (int i = 0; i < themeCount; ++i) {
-        float hue = (themeCount == 1)
-            ? H
-            : std::fmod(H + static_cast<float>(i) / themeCount, 1.0f);
-
-        float sat = std::clamp(S * (0.85f + 0.3f * (static_cast<float>(i) / std::max(themeCount - 1, 1))),
-                               0.2f, 1.0f);
-        float lit = std::clamp(L, 0.25f, 0.75f);
-
-        float nr, ng, nb;
-        hlsToRgb(hue, lit, sat, nr, ng, nb);
-
-        char buf[8];
-        snprintf(buf, sizeof(buf), "#%02x%02x%02x",
-                 std::clamp(static_cast<int>(std::lround(nr * 255)), 0, 255),
-                 std::clamp(static_cast<int>(std::lround(ng * 255)), 0, 255),
-                 std::clamp(static_cast<int>(std::lround(nb * 255)), 0, 255));
-        colors[sortedThemes[i]] = buf;
-    }
-
-    if (!colors.contains("other"))
-        colors["other"] = "#6b7280";
-
-    return colors;
 }
 
 // =============================================================================
@@ -739,25 +607,6 @@ const json* TreeBuilder::Internal::PickRoot(
     }
 
     return nullptr;
-}
-
-void TreeBuilder::Internal::SortByTierAndCost(std::vector<json>& spells)
-{
-    std::sort(spells.begin(), spells.end(), [](const json& a, const json& b) {
-        int tierA = TierIndex(a.value("skillLevel", std::string("")));
-        int tierB = TierIndex(b.value("skillLevel", std::string("")));
-        if (tierA < 0) tierA = 99;
-        if (tierB < 0) tierB = 99;
-        if (tierA != tierB) return tierA < tierB;
-        float costA = a.value("magickaCost", 0.0f);
-        float costB = b.value("magickaCost", 0.0f);
-        if (costA == 0.0f) costA = a.value("baseCost", 0.0f);
-        if (costB == 0.0f) costB = b.value("baseCost", 0.0f);
-        if (costA != costB) return costA < costB;
-        // Last resort, and it has to be language independent or the same load
-        // order would order spells differently once translated.
-        return a.value("formId", std::string("")) < b.value("formId", std::string(""));
-    });
 }
 
 std::unordered_map<std::string, TreeBuilder::TreeNode>
@@ -840,23 +689,18 @@ TreeBuilder::BuildResult TreeBuilder::Build(
                  command, spells.size(), config.seed);
 
     BuildResult result;
+    // Classic is the one builder (2026-09-27): the Tree, Graph, Thematic and
+    // Oracle builders were removed, so their commands now fail like any other
+    // unknown command.
     if (command == "build_tree_classic") {
         result = BuildClassic(spells, config);
-    } else if (command == "build_tree") {
-        result = BuildTree(spells, config);
-    } else if (command == "build_tree_thematic") {
-        result = BuildThematic(spells, config);
-    } else if (command == "build_tree_graph") {
-        result = BuildGraph(spells, config);
-    } else if (command == "build_tree_oracle") {
-        result = BuildOracle(spells, config);
     } else {
         result.success = false;
         result.error = "Unknown build command: " + command;
         return result;
     }
 
-    // The same for every builder: links between the schools, handed to the
+    // After the build: links between the schools, handed to the
     // layout as data. See TreeBuilderBridges.cpp for why they stay out of the trees.
     if (result.success && result.treeData.is_object()) {
         auto links = ComputeCrossSchoolBridges(spells);
