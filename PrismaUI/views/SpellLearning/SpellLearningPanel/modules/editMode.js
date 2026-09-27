@@ -6,7 +6,7 @@
  * - Eraser Tool: Draw to erase edges/prerequisites
  *
  * Depends on:
- * - modules/canvasRenderer.js (CanvasRenderer)
+ * - modules/canvasRendererV2.js (CanvasRenderer)
  * - modules/config.js (GRID_CONFIG)
  * - modules/state.js (state)
  *

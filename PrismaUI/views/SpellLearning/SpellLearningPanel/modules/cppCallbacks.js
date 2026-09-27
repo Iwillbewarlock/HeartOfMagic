@@ -598,18 +598,6 @@ function _readPayload(json, where) {
     }
 }
 
-window.onClassicGrowthTreeData = function(json) {
-    var data = _readPayload(json, 'onClassicGrowthTreeData');
-    if (!data) return;
-    console.log('[SpellLearning] Classic Growth tree data received');
-    if (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic.loadTreeData) {
-        TreeGrowthClassic.loadTreeData(data);
-        if (typeof TreeGrowth !== 'undefined') {
-            TreeGrowth._markDirty();
-        }
-    }
-};
-
 window.updateSpellInfo = function(json) {
     var data = _readPayload(json, 'updateSpellInfo');
     if (data && data.formId) {

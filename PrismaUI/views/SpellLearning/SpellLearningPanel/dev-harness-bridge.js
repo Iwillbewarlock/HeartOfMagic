@@ -51,6 +51,74 @@ function logCppCall(direction, method, data) {
         data ? (typeof data === 'string' ? data.substring(0, 100) : data) : '');
 }
 
+/**
+ * A stand-in tree for the harness when no dev server answers ProceduralTreeGenerate:
+ * each school's spells sorted by tier and chained, at most three children a spell.
+ * Not the Classic builder - just enough tree to exercise the panel.
+ */
+function mockTreeFromSpells(spells) {
+    var schoolSpells = {};
+    (spells || []).forEach(function(s) {
+        var school = s.school || 'Unknown';
+        if (!schoolSpells[school]) schoolSpells[school] = [];
+        schoolSpells[school].push(s);
+    });
+
+    var mockTree = { version: '1.0', generator: 'DevHarness Mock', schools: {} };
+    var tierOrder = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+    for (var school in schoolSpells) {
+        var list = schoolSpells[school];
+        // Sort by tier
+        list.sort(function(a, b) {
+            return tierOrder.indexOf(a.skillLevel || 'Novice') - tierOrder.indexOf(b.skillLevel || 'Novice');
+        });
+        var rootId = list[0].formId;
+        var nodes = [];
+        var parentStack = [rootId];
+        var childCount = {};
+        childCount[rootId] = 0;
+
+        for (var i = 0; i < list.length; i++) {
+            var sp = list[i];
+            var node = {
+                formId: sp.formId,
+                name: sp.name,
+                children: [],
+                prerequisites: [],
+                tier: i === 0 ? 1 : Math.floor(i / 3) + 1,
+                skillLevel: sp.skillLevel || 'Novice'
+            };
+
+            if (i > 0) {
+                // Find a parent with < 3 children
+                var parentId = parentStack[0];
+                for (var pi = 0; pi < parentStack.length; pi++) {
+                    if ((childCount[parentStack[pi]] || 0) < 3) {
+                        parentId = parentStack[pi];
+                        break;
+                    }
+                }
+                node.prerequisites.push(parentId);
+                // Add as child to parent
+                for (var ni = 0; ni < nodes.length; ni++) {
+                    if (nodes[ni].formId === parentId) {
+                        nodes[ni].children.push(sp.formId);
+                        break;
+                    }
+                }
+                childCount[parentId] = (childCount[parentId] || 0) + 1;
+            }
+
+            nodes.push(node);
+            parentStack.push(sp.formId);
+            childCount[sp.formId] = 0;
+        }
+
+        mockTree.schools[school] = { root: rootId, layoutStyle: 'radial', nodes: nodes };
+    }
+    return mockTree;
+}
+
 // ============================================================================
 // MOCK callCpp
 // ============================================================================
@@ -200,7 +268,7 @@ window.callCpp = function(method, data) {
             break;
 
         case 'ProceduralTreeGenerate':
-            // Try dev server first (localhost:5556), fall back to JS builder
+            // Try dev server first (localhost:5556), fall back to a mock tree
             (function() {
                 var request;
                 try { request = JSON.parse(data); } catch(e) { request = { spells: [], config: {} }; }
@@ -226,13 +294,7 @@ window.callCpp = function(method, data) {
                     }
                 }).catch(function(err) {
                     console.log('[Bridge] Dev server not available (' + err.message + '), using JS fallback');
-                    // JS fallback: use buildProceduralTrees
-                    var treeData;
-                    if (typeof buildProceduralTrees === 'function' && spells.length > 0) {
-                        treeData = buildProceduralTrees(spells);
-                    } else {
-                        treeData = { version: '1.0', generator: 'DevHarness Fallback', schools: {} };
-                    }
+                    var treeData = mockTreeFromSpells(spells);
                     var result = {
                         success: true,
                         treeData: treeData,
@@ -244,88 +306,6 @@ window.callCpp = function(method, data) {
                     }
                 });
             })();
-            break;
-
-        case 'ClassicGrowthBuild':
-            // Mock: use JS ProceduralTreeBuilder if available, otherwise build minimal mock
-            setTimeout(function() {
-                var request;
-                try { request = JSON.parse(data); } catch(e) { request = { spells: [], config: {} }; }
-
-                var mockTree;
-                if (typeof buildProceduralTrees === 'function' && request.spells && request.spells.length > 0) {
-                    // Use real JS procedural builder
-                    console.log('[Bridge] ClassicGrowthBuild using ProceduralTreeBuilder');
-                    mockTree = buildProceduralTrees(request.spells);
-                } else {
-                    // Minimal mock: group spells by school, chain by tier
-                    console.log('[Bridge] ClassicGrowthBuild using minimal mock');
-                    var schoolSpells = {};
-                    (request.spells || []).forEach(function(s) {
-                        var school = s.school || 'Unknown';
-                        if (!schoolSpells[school]) schoolSpells[school] = [];
-                        schoolSpells[school].push(s);
-                    });
-
-                    mockTree = { version: '1.0', generator: 'DevHarness Mock', schools: {} };
-                    var tierOrder = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
-                    for (var school in schoolSpells) {
-                        var spells = schoolSpells[school];
-                        // Sort by tier
-                        spells.sort(function(a, b) {
-                            return tierOrder.indexOf(a.skillLevel || 'Novice') - tierOrder.indexOf(b.skillLevel || 'Novice');
-                        });
-                        var rootId = spells[0].formId;
-                        var nodes = [];
-                        var parentStack = [rootId];
-                        var childCount = {};
-                        childCount[rootId] = 0;
-
-                        for (var i = 0; i < spells.length; i++) {
-                            var sp = spells[i];
-                            var node = {
-                                formId: sp.formId,
-                                name: sp.name,
-                                children: [],
-                                prerequisites: [],
-                                tier: i === 0 ? 1 : Math.floor(i / 3) + 1,
-                                skillLevel: sp.skillLevel || 'Novice'
-                            };
-
-                            if (i > 0) {
-                                // Find a parent with < 3 children
-                                var parentId = parentStack[0];
-                                for (var pi = 0; pi < parentStack.length; pi++) {
-                                    if ((childCount[parentStack[pi]] || 0) < 3) {
-                                        parentId = parentStack[pi];
-                                        break;
-                                    }
-                                }
-                                node.prerequisites.push(parentId);
-                                // Add as child to parent
-                                for (var ni = 0; ni < nodes.length; ni++) {
-                                    if (nodes[ni].formId === parentId) {
-                                        nodes[ni].children.push(sp.formId);
-                                        break;
-                                    }
-                                }
-                                childCount[parentId] = (childCount[parentId] || 0) + 1;
-                            }
-
-                            nodes.push(node);
-                            parentStack.push(sp.formId);
-                            childCount[sp.formId] = 0;
-                        }
-
-                        mockTree.schools[school] = { root: rootId, layoutStyle: 'radial', nodes: nodes };
-                    }
-                }
-
-                logCppCall('in', 'onClassicGrowthTreeData', Object.keys(mockTree.schools || {}).length + ' schools');
-                if (typeof window.onClassicGrowthTreeData === 'function') {
-                    window.onClassicGrowthTreeData(JSON.stringify(mockTree));
-                }
-            }, 500);
             break;
 
         case 'SavePreset':
