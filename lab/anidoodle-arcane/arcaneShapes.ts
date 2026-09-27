@@ -49,9 +49,16 @@ export const ribbonAt = (R: Ribbon, x: number, y: number): { depth: number; lit:
   return { depth: 1 - best / w, lit: bnx * LX + bny * LY };
 };
 
-/** Shade inside a lit ribbon: pale on the lit flank, dark on the far flank, a crisp dark rim. */
-export const ribbonShade = (h: { depth: number; lit: number }) => {
+/**
+ * Shade inside a lit ribbon: pale on the lit flank, dark on the far flank, a crisp dark rim.
+ * `inkIsLight` (default false) is for a plate printed in light ink on a dark page (gold on
+ * indigo): there the ink IS the light, so the lit flank carries the most ink and the far flank
+ * the least; the rim stays, as the engraver's contour.
+ */
+export const ribbonShade = (h: { depth: number; lit: number }, inkIsLight = false) => {
   const rim = h.depth < 0.18 ? 0.25 : 0;                    // the engraver's contour: a hair of dark at the edge
-  const side = clamp(0.5 - 0.5 * h.lit * (1 - h.depth));    // across the round: lit flank 0 .. shaded flank 1
+  const side = inkIsLight
+    ? clamp(0.5 + 0.5 * h.lit * (1 - h.depth))              // light ink: lit flank 1 .. far flank 0
+    : clamp(0.5 - 0.5 * h.lit * (1 - h.depth));             // across the round: lit flank 0 .. shaded flank 1
   return clamp(0.24 + 0.58 * side + rim);
 };

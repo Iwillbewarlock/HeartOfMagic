@@ -7,9 +7,14 @@
 // each edge that swells, thins and ends in a curl, with small leaves on alternate sides. One light,
 // upper left, as every Arcane plate: each round form is pale on its upper-left flank and dark on
 // the far one, and throws a short soft shadow down and to the right onto the paper.
+//
+// `inkIsLight` (default false) prints the same ornament for LIGHT ink on a dark page (the Night
+// Grimoire's gold on indigo): the ink is then the light, so each form's lit flank and each rose
+// point's lit half carry the most ink, the far ones the least, and the cast shadow is dropped (a
+// shadow on a dark page is simply no gold). The default path is unchanged.
 import { bezier, clamp, curlPts, ribbon, ribbonAt, ribbonShade, type Pt, type Ribbon } from "./arcaneShapes";
 
-export const arcaneCornerTone = (W: number, H: number): Float32Array => {
+export const arcaneCornerTone = (W: number, H: number, inkIsLight = false): Float32Array => {
   const raster = new Float32Array(W * H), S = Math.min(W, H);
   const P = (x: number, y: number): Pt => [x * S, y * S];
   const rose: Pt = P(0.17, 0.17), R0 = 0.105 * S;
@@ -53,13 +58,14 @@ export const arcaneCornerTone = (W: number, H: number): Float32Array => {
       // the half facing the light (upper left) is pale, the other dark
       const nx = Math.cos(ak + (across > 0 ? Math.PI / 2 : -Math.PI / 2)), ny = Math.sin(ak + (across > 0 ? Math.PI / 2 : -Math.PI / 2));
       const lit = nx * -0.7071 + ny * -0.7071;
-      t = Math.max(t, lit > 0 ? 0.14 + (long ? 0 : 0.08) : 0.72 + (long ? 0.08 : 0));
+      t = Math.max(t, (lit > 0) !== inkIsLight ? 0.14 + (long ? 0 : 0.08) : 0.72 + (long ? 0.08 : 0));
     }
     if (d < 0.012 * S) t = Math.max(t, 0.85);                                     // the pivot
 
     // vines and leaves, with a soft shadow cast down-right onto the paper
     for (const R of forms) {
-      const h = ribbonAt(R, x, y); if (h) { t = Math.max(t, ribbonShade(h)); continue; }
+      const h = ribbonAt(R, x, y); if (h) { t = Math.max(t, ribbonShade(h, inkIsLight)); continue; }
+      if (inkIsLight) continue;
       const sh = ribbonAt(R, x - 0.012 * S, y - 0.012 * S); if (sh) t = Math.max(t, 0.18 * sh.depth + 0.06);
     }
     raster[y * W + x] = clamp(t);

@@ -15,7 +15,8 @@ their sources: tone fields (what the picture is) and plates (how the pen puts it
 | `homEngraveKit.ts` | single-line (Mellan) engraving from any tone field |
 | `homSigilStipple.ts`, `homCornerStipple.ts`, `homStarSepia.ts` | **shipped**: sigil.png, corner.png, empty.png |
 | `homHeartStipple.ts` | the heart gem plate (not shipped) |
-| `homStipple.ts`, `homEngrave*.ts`, `homCornerEngrave.ts`, `homHeartEngrave.ts` | alternatives (gold stipple; engraved versions) |
+| `ngSigilEngrave.ts`, `ngCornerEngrave.ts`, `ngEmptyEngrave.ts` | **shipped for Night Grimoire** (gold engraving): themes/nightgrimoire/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`) |
+| `homStipple.ts`, `homEngrave*.ts`, `homCornerEngrave.ts`, `homHeartEngrave.ts` | alternatives (gold stipple; sepia engraved versions) |
 
 ## Re-rendering
 

@@ -335,7 +335,7 @@ panel closed and in use:
   the cards, tools, tooltip, how-to panel and modals are one colour (the gradient's middle); rings are
   `outline`s (the gold tooling line inside the panel is an outline with a negative `outline-offset`; the
   frame round the tree an outline while the canvas shows). Modern keeps only its border (an outline would
-  not follow its rounded corners). Candlelit Tome and Night Grimoire set `--book-cover`, the leather's
+  not follow its rounded corners). Night Grimoire and Chalkboard set `--book-cover`, the leather's
   one colour; a design without it gets `--book-cover-top`. Small effects stay (a button's hover glow, the
   Spell Tree tab's text glow, slider fills).
 - **Glows where they barely show:** a known spell's halo is left out when its radius on screen is under
@@ -386,6 +386,12 @@ What each costs in game, by design:
   clean tone) into a sprite, rebuilt only when that size changes by 8 px; a frame pastes it 1:1.
 - Images load asynchronously; until one arrives the old drawing (text, bare page) shows, then the page
   is rebuilt and the view drawn once.
+
+Night Grimoire carries the same three drawings as single-line (Mellan) engravings in its gold `#d9b35e`
+on the indigo page (`themes/nightgrimoire/`, set in `presets/design/NightGrimoire.json`: the two tree
+tokens and, in the preset's inline `css`, the empty screen - kept there because `design-darkbook.css` is
+shared with Chalkboard). On a dark page the gold is light, so the corner's vines carry more ink on
+their lit flank.
 
 The drawings' sources (tone fields and plates) are in `lab/anidoodle-arcane/`, with how to re-render them.
 
@@ -582,8 +588,8 @@ Add-ons add presets by dropping a `.json` into `SKSE/Plugins/SpellLearning/prese
 plugin's `LoadPresets` already lists any preset folder, so no plugin change and no shared list two
 add-ons could overwrite. Format and the full token list: [PRESETS.md](PRESETS.md#design-presets).
 Two looks ship with the mod that way, always installed and picked in the list like the built-ins, and
-double as examples for modders: **Night Grimoire** (indigo vellum, gold-leaf ink) and **Candlelit Tome**
-(dark leather lit in the middle), `SKSE/Plugins/SpellLearning/presets/design/*.json`. They are a few KB
+double as examples for modders: **Night Grimoire** (indigo vellum, gold-leaf ink) and **Chalkboard**
+(slate in a wooden frame, the tree in pastel chalk; it replaced Candlelit Tome on 2026-09-27), `SKSE/Plugins/SpellLearning/presets/design/*.json`. They are a few KB
 each, so there is no installer choice for them. Their panel is one shared sheet,
 `themes/design-darkbook.css` (a tooled cover, serif gold lettering, dark pages where Arcane has
 parchment, gold switches and tools), coloured by the `--book-*` palette each preset sets in its inline
