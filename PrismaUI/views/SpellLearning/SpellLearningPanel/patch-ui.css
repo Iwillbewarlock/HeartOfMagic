@@ -488,3 +488,29 @@ body.panel-hidden *::after {
 .tree-container.canvas-shown {
     background-image: none !important;
 }
+
+/* ---- Bigger controls (2026-09-27) ----
+   Buttons, switches and chips about a fifth larger than the theme draws them,
+   so they read at a glance on a TV or a big monitor. Sizes only: every design
+   keeps its own colours, fonts and corners. */
+.header-btn { width: 34px; height: 34px; font-size: 16px; }
+.header-btn-wide { width: auto; padding: 0 14px; font-size: 0.85em; }
+.btn { padding: 10px 17px; font-size: 0.95em; }
+.btn-sm { padding: 7px 13px; font-size: 0.9em; }
+.segmented-toggle .seg-btn { padding: 5px 13px; font-size: 0.85em; }
+.scanner-preset-chip { padding: 5px 11px; font-size: 12px; }
+.easy-preset-chip { padding: 12px 24px; font-size: 15px; }
+.scanner-mode-btn,
+.prm-tab,
+.tree-preview-tab { padding: 9px 18px; font-size: 0.95em; }
+.zoom-btn { width: 29px; height: 29px; font-size: 16px; }
+.zoom-btn svg { width: 17px; height: 17px; }
+
+.toggle-switch { width: 52px; height: 26px; }
+.toggle-slider::before { width: 20px; height: 20px; left: 2px; bottom: 2px; }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(26px); }
+.toggle-switch.toggle-sm { width: 42px; height: 22px; }
+.toggle-switch.toggle-sm .toggle-slider:before,
+.toggle-switch.toggle-sm .toggle-slider::before { width: 16px; height: 16px; }
+.toggle-switch.toggle-sm input:checked + .toggle-slider:before,
+.toggle-switch.toggle-sm input:checked + .toggle-slider::before { transform: translateX(20px); }

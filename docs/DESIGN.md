@@ -368,6 +368,19 @@ panel closed and in use:
 - **Retry-school list** (every 2 s) is only rebuilt when the list changed, and only while the Settings tab is
   in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone.
 
+### Settings page layout and control size (2026-09-27)
+
+The settings page used to pair blocks side by side whatever their height: Progression (about 1,800px)
+next to Early Spell Learning (about 700px) left a column of empty space, Early Spell Learning's power table
+was cut off in its half-width column, and Spell Tome Learning sat next to Developer & Debug. Now the short
+blocks share the first row - Hotkey and Tree View on the left, UI Display and Developer & Debug on the
+right, near equal in height - and Progression, Early Spell Learning and Spell Tome Learning follow at full
+width under the presets row that governs them.
+
+Buttons, switches and chips are drawn about a fifth larger (`patch-ui.css`, "Bigger controls"): header
+buttons 34px, switches 52x26 (small ones 42x22), button and chip text a step up. Sizes only, so every
+design keeps its colours, fonts and corners; none of the designs sets these sizes itself.
+
 ### Scrolling (2026-09-26)
 
 The game's browser scrolls a short way per wheel notch, so the settings page and long lists took many

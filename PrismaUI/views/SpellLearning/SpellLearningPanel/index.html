@@ -870,68 +870,138 @@
                             </div>
                         </div>
                     </div>
-                    <!-- UI Display Settings -->
-                    <div class="settings-block">
+                    <div class="settings-split-column">
+                        <!-- UI Display Settings -->
+                        <div class="settings-block">
+                            <div class="settings-block-header">
+                                <span class="settings-block-icon">[~]</span>
+                                <span class="settings-block-title" data-i18n="settings.ui.title">UI Display</span>
+                            </div>
+                            <div class="settings-block-content">
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.language">Language</span>
+                                        <span class="setting-desc" id="uiLanguageHint" data-i18n="settings.ui.languageDesc">Translations live in the lang folder; see TRANSLATING.md there to add one.</span>
+                                    </div>
+                                    <select id="uiLanguageSelect" class="setting-select"></select>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.designPreset">Design</span>
+                                        <span class="setting-desc" id="designPresetDesc"></span>
+                                    </div>
+                                    <select id="designPresetSelect" class="setting-select">
+                                        <!-- Built-in presets plus presets/design/*.json (modules/designPresets.js) -->
+                                    </select>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.learningColor">Learning Color</span>
+                                    </div>
+                                    <div class="color-picker-wrapper">
+                                        <input type="color" id="learningColorPicker" class="color-picker" value="#7890A8">
+                                        <span class="color-value" id="learningColorValue">#7890A8</span>
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.fontSize">Font Size</span>
+                                    </div>
+                                    <div class="slider-with-value">
+                                        <input type="range" id="fontSizeSlider" class="setting-slider" min="0.7" max="1.5" step="0.1" value="1.0">
+                                        <span class="slider-value" id="fontSizeValue">1.0x</span>
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.sideDetails">Side Details Panel</span>
+                                        <span class="setting-desc" data-i18n="settings.ui.sideDetailsDesc">Show spell details in a right sidebar instead of the bar under the tree</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="sideDetailsToggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.ui.hoverDetails">Preview on Hover</span>
+                                        <span class="setting-desc" data-i18n="settings.ui.hoverDetailsDesc">Rest the cursor on a spell to see its card; click to select it. The panel stays open</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="hoverDetailsToggle" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    <!-- Developer & Debug Settings (under UI Display) -->
+                    <div class="settings-block dev-debug-block">
                         <div class="settings-block-header">
-                            <span class="settings-block-icon">[~]</span>
-                            <span class="settings-block-title" data-i18n="settings.ui.title">UI Display</span>
+                            <span class="settings-block-icon">[D]</span>
+                            <span class="settings-block-title" data-i18n="settings.devDebug.title">Developer & Debug</span>
+                            <span class="cheat-warning" data-i18n="settings.devDebug.advancedOptions">Advanced options</span>
                         </div>
                         <div class="settings-block-content">
+                            <!-- Developer Mode -->
                             <div class="setting-row">
                                 <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.language">Language</span>
-                                    <span class="setting-desc" id="uiLanguageHint" data-i18n="settings.ui.languageDesc">Translations live in the lang folder; see TRANSLATING.md there to add one.</span>
-                                </div>
-                                <select id="uiLanguageSelect" class="setting-select"></select>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.designPreset">Design</span>
-                                    <span class="setting-desc" id="designPresetDesc"></span>
-                                </div>
-                                <select id="designPresetSelect" class="setting-select">
-                                    <!-- Built-in presets plus presets/design/*.json (modules/designPresets.js) -->
-                                </select>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.learningColor">Learning Color</span>
-                                </div>
-                                <div class="color-picker-wrapper">
-                                    <input type="color" id="learningColorPicker" class="color-picker" value="#7890A8">
-                                    <span class="color-value" id="learningColorValue">#7890A8</span>
-                                </div>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.fontSize">Font Size</span>
-                                </div>
-                                <div class="slider-with-value">
-                                    <input type="range" id="fontSizeSlider" class="setting-slider" min="0.7" max="1.5" step="0.1" value="1.0">
-                                    <span class="slider-value" id="fontSizeValue">1.0x</span>
-                                </div>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.sideDetails">Side Details Panel</span>
-                                    <span class="setting-desc" data-i18n="settings.ui.sideDetailsDesc">Show spell details in a right sidebar instead of the bar under the tree</span>
+                                    <span class="setting-label" data-i18n="settings.devDebug.developerMode">Developer Mode</span>
+                                    <span class="setting-desc" data-i18n="settings.devDebug.developerModeDesc">Show advanced generation options</span>
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="sideDetailsToggle">
+                                    <input type="checkbox" id="developerModeToggle">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
+                        
+                            <!-- Cheat Mode -->
                             <div class="setting-row">
                                 <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.ui.hoverDetails">Preview on Hover</span>
-                                    <span class="setting-desc" data-i18n="settings.ui.hoverDetailsDesc">Rest the cursor on a spell to see its card; click to select it. The panel stays open</span>
+                                    <span class="setting-label" data-i18n="settings.devDebug.cheatMode">Cheat Mode</span>
+                                    <span class="setting-desc" data-i18n="settings.devDebug.cheatModeDesc">Full control over all spells and progression</span>
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="hoverDetailsToggle" checked>
+                                    <input type="checkbox" id="cheatModeToggle">
                                     <span class="toggle-slider"></span>
                                 </label>
+                            </div>
+                            <div id="cheatModeInfo" class="cheat-info hidden">
+                                <p data-i18n-html="settings.devDebug.cheatModeActive">(!) <strong>Cheat mode active!</strong></p>
+                                <ul>
+                                    <li data-i18n="settings.devDebug.cheatInfo.seeAll">See all spell names and details (even locked)</li>
+                                    <li data-i18n="settings.devDebug.cheatInfo.clickUnlock">Click any node to unlock instantly</li>
+                                    <li data-i18n="settings.devDebug.cheatInfo.editXp">Edit XP progress directly (current/required)</li>
+                                </ul>
+                            </div>
+                        
+                            <!-- Debug Options (shown when developer mode is on) -->
+                            <div id="debugOptionsSection" class="dev-only-settings hidden">
+                                <div class="settings-subsection">
+                                    <span class="subsection-title" data-i18n="settings.devDebug.debugOptions">Debug Options</span>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.devDebug.verboseLogging">Verbose Logging</span>
+                                        <span class="setting-desc" data-i18n="settings.devDebug.verboseLoggingDesc">Extra console logging for troubleshooting</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="verboseLogToggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.devDebug.showDebugGrid">Show Debug Grid</span>
+                                        <span class="setting-desc" data-i18n="settings.devDebug.showDebugGridDesc">Show grid candidate positions for debugging spacing</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="debugGridToggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -943,8 +1013,7 @@
                     <div id="settingsPresetChips" class="scanner-preset-chips"></div>
                 </div>
 
-                <!-- ===== ROW 2: Progression + Early Learning ===== -->
-                <div class="settings-split">
+                <!-- ===== Progression, Early Learning, Spell Tome: full width ===== -->
                 <!-- Progression Settings -->
                 <div class="settings-block">
                     <div class="settings-block-header">
@@ -1467,10 +1536,7 @@
                         </div>
                     </div>
                 </div>
-                </div><!-- /settings-split ROW 2 -->
 
-                <!-- ===== ROW 3: Spell Tome + Developer & Debug ===== -->
-                <div class="settings-split">
                 <div class="settings-block" id="spellTomeLearningBlock">
                     <div class="settings-block-header">
                         <span class="settings-block-icon">[i]</span>
@@ -1567,75 +1633,6 @@
                     </div>
                 </div>
 
-                <!-- Developer & Debug Settings (right column of split) -->
-                <div class="settings-block dev-debug-block">
-                    <div class="settings-block-header">
-                        <span class="settings-block-icon">[D]</span>
-                        <span class="settings-block-title" data-i18n="settings.devDebug.title">Developer & Debug</span>
-                        <span class="cheat-warning" data-i18n="settings.devDebug.advancedOptions">Advanced options</span>
-                    </div>
-                    <div class="settings-block-content">
-                        <!-- Developer Mode -->
-                        <div class="setting-row">
-                            <div class="setting-info">
-                                <span class="setting-label" data-i18n="settings.devDebug.developerMode">Developer Mode</span>
-                                <span class="setting-desc" data-i18n="settings.devDebug.developerModeDesc">Show advanced generation options</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="developerModeToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        
-                        <!-- Cheat Mode -->
-                        <div class="setting-row">
-                            <div class="setting-info">
-                                <span class="setting-label" data-i18n="settings.devDebug.cheatMode">Cheat Mode</span>
-                                <span class="setting-desc" data-i18n="settings.devDebug.cheatModeDesc">Full control over all spells and progression</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="cheatModeToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div id="cheatModeInfo" class="cheat-info hidden">
-                            <p data-i18n-html="settings.devDebug.cheatModeActive">(!) <strong>Cheat mode active!</strong></p>
-                            <ul>
-                                <li data-i18n="settings.devDebug.cheatInfo.seeAll">See all spell names and details (even locked)</li>
-                                <li data-i18n="settings.devDebug.cheatInfo.clickUnlock">Click any node to unlock instantly</li>
-                                <li data-i18n="settings.devDebug.cheatInfo.editXp">Edit XP progress directly (current/required)</li>
-                            </ul>
-                        </div>
-                        
-                        <!-- Debug Options (shown when developer mode is on) -->
-                        <div id="debugOptionsSection" class="dev-only-settings hidden">
-                            <div class="settings-subsection">
-                                <span class="subsection-title" data-i18n="settings.devDebug.debugOptions">Debug Options</span>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.devDebug.verboseLogging">Verbose Logging</span>
-                                    <span class="setting-desc" data-i18n="settings.devDebug.verboseLoggingDesc">Extra console logging for troubleshooting</span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="verboseLogToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <span class="setting-label" data-i18n="settings.devDebug.showDebugGrid">Show Debug Grid</span>
-                                    <span class="setting-desc" data-i18n="settings.devDebug.showDebugGridDesc">Show grid candidate positions for debugging spacing</span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="debugGridToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                </div><!-- /settings-split ROW 3: Spell Tome + Developer -->
 
                 <!-- Tree Generation Settings - Developer only (related to LLM auto features) -->
                 <div class="settings-block dev-only">
