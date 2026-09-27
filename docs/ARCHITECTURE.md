@@ -617,15 +617,17 @@ Split across: LayoutDeclutter.cpp, LayoutLineClear.cpp, LayoutLineClearCost.cpp,
 The native twin of the panel's tree declutter pass (`modules/layoutDeclutter.js`, `layoutLineClear.js`,
 `layoutLineGrid.js`): spreads a built tree, moves spells off its lines, apart and off the heart, with the
 same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, every sum in the same order).
-`LayoutDeclutter::Run(request) -> reply` has no RE:: use and keeps all state per call.
+`LayoutDeclutter::Run(request, cancel) -> reply` has no RE:: use and keeps all state per call; it throws
+`LayoutDeclutter::Cancelled` once its optional cancel flag is set.
 
 ```
 JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
   └─ UIManager::OnDeclutterTree (UIManagerDeclutter.cpp)
-       └─ AddTaskToGameThread ─► std::thread (worker): parse + LayoutDeclutter::Run
+       └─ AddTaskToGameThread ─► std::thread (worker, kept and joined at unload; a newer
+          request cancels the older ones): parse + LayoutDeclutter::Run
             └─ AddTaskToGameThread ─► CallView("onDeclutterResult", {id, positions, moved, rounds, ...})
                  └─ JS writes x/y onto the nodes, onDone saves the tree
-                    (error / no reply in 30 s / stale id: the sliced JavaScript pass or nothing)
+                    (error / no reply in 30 s: the sliced JavaScript pass; another id: ignored)
 ```
 
 Details, fallback and timings: [TREE_BUILDING_SYSTEM.md](TREE_BUILDING_SYSTEM.md#decluttering-before-save-layoutdeclutterjs-layoutlineclearjs-layoutlinegridjs-2026-09-26).
