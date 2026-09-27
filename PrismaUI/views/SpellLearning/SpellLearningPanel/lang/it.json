@@ -141,17 +141,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Scegli un Preset",
-    "easyMode.buildMethod": "Stile Albero",
-    "easyMode.method.classic": "Classico",
-    "easyMode.method.tree": "Rami",
-    "easyMode.method.graph": "Rete",
-    "easyMode.method.oracle": "Oracolo",
-    "easyMode.method.thematic": "Temi",
-    "easyMode.methodHint.classic": "Livello per livello, predefinito",
-    "easyMode.methodHint.tree": "Un tronco per tema con rami laterali",
-    "easyMode.methodHint.graph": "Collega gli incantesimi più simili",
-    "easyMode.methodHint.oracle": "Catene di incantesimi correlati",
-    "easyMode.methodHint.thematic": "Raggruppa prima per tema",
     "easyMode.noPresets": "Nessun preset disponibile. La costruzione userà le impostazioni attuali.",
     "easyMode.statusWrap": "Stato: <span id=\"easyStatus\">In attesa della scansione...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "Raggruppamento",
     "preview.dragHandles": "trascina le maniglie per regolare",
-    "preview.dragDividers": "trascina i divisori per regolare",
     "preview.equal": "Uguale",
     "preview.ghostOpacity": "Opacità Fantasma",
     "preview.growthDirection": "Direzione di Crescita",
@@ -287,15 +275,6 @@
     "preview.sun.square": "Quadrato",
     "preview.sun.tierDensity": "Densità Livello",
     "preview.sun.title": "Impostazioni Anello Radice",
-
-    "preview.tree.branchSpread": "Ampiezza Rami",
-    "preview.tree.branches": "Rami",
-    "preview.tree.root": "Radice",
-    "preview.tree.rootSpread": "Ampiezza Radice",
-    "preview.tree.sectionAllocation": "Allocazione Sezione",
-    "preview.tree.title": "Impostazioni Crescita Albero",
-    "preview.tree.trunk": "Tronco",
-    "preview.tree.trunkThickness": "Spessore Tronco",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Applica Blocchi",
     "prm.bidirectionalSoftPrereqs": "Prerequisiti Morbidi Bidirezionali",

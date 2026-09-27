@@ -484,7 +484,7 @@ var TreeGrowth = {
             }
 
             // Capture + play tree build animation on PRM preview
-            // Uses requestCapture() which retries if _builtPlacements isn't ready yet
+            // Uses requestCapture() which retries if the layout isn't ready yet
             if (typeof TreeAnimation !== 'undefined') {
                 TreeAnimation.requestCapture();
             }

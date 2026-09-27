@@ -141,17 +141,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Wybierz szablon",
-    "easyMode.buildMethod": "Styl drzewa",
-    "easyMode.method.classic": "Klasyczny",
-    "easyMode.method.tree": "Gałęzie",
-    "easyMode.method.graph": "Sieć",
-    "easyMode.method.oracle": "Wyrocznia",
-    "easyMode.method.thematic": "Tematyczny",
-    "easyMode.methodHint.classic": "Poziom po poziomie, domyślny",
-    "easyMode.methodHint.tree": "Jeden pień na temat z bocznymi gałęziami",
-    "easyMode.methodHint.graph": "Łączy najbardziej podobne zaklęcia",
-    "easyMode.methodHint.oracle": "Łańcuchy powiązanych zaklęć",
-    "easyMode.methodHint.thematic": "Najpierw grupuje według tematu",
     "easyMode.noPresets": "Brak szablonów. Budowanie użyje bieżących ustawień.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Oczekiwanie na skan...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "Grupowanie",
     "preview.dragHandles": "przeciągnij uchwyty, aby dostosować",
-    "preview.dragDividers": "przeciągnij separatory, aby dostosować",
     "preview.equal": "Równe",
     "preview.ghostOpacity": "Przezroczystość cieni",
     "preview.growthDirection": "Kierunek wzrostu",
@@ -287,15 +275,6 @@
     "preview.sun.square": "Kwadrat",
     "preview.sun.tierDensity": "Gęstość poziomów",
     "preview.sun.title": "Ustawienia pierścienia bazowego",
-
-    "preview.tree.branchSpread": "Rozrzut gałęzi",
-    "preview.tree.branches": "Gałęzie",
-    "preview.tree.root": "Korzeń",
-    "preview.tree.rootSpread": "Rozrzut korzeni",
-    "preview.tree.sectionAllocation": "Przydział sekcji",
-    "preview.tree.title": "Ustawienia wzrostu drzewa",
-    "preview.tree.trunk": "Pień",
-    "preview.tree.trunkThickness": "Grubość pnia",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Zastosuj blokady",
     "prm.bidirectionalSoftPrereqs": "Dwukierunkowe miękkie wymagania",

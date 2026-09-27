@@ -1348,12 +1348,12 @@ function onProceduralPlusClick() {
 }
 
 /**
- * Shared error handler for C++ tree build failures.
- * Used by both Classic and Tree growth mode routing.
+ * Error handler for C++ tree build failures of the Classic growth mode
+ * (the one builder since 2026-09-27).
  *
  * @param {string} error - Error string from C++
  * @param {string} pendingKey - State key to set for retry (e.g. '_classicGrowthBuildPending')
- * @param {Object|null} settingsModule - ClassicSettings or TreeSettings (has .setStatusText)
+ * @param {Object|null} settingsModule - ClassicSettings (has .setStatusText)
  * @param {Object} retryConfig - Config to pass on retry {command, config}
  * @param {string} buildBtnId - DOM id of the build button to re-enable
  * @param {string} logPrefix - Console log prefix e.g. '[ClassicGrowth]'
@@ -1370,7 +1370,7 @@ function _handleBuildFailure(error, pendingKey, settingsModule, retryConfig, bui
             // Defer to let UI render before blocking on JSON.stringify
             setTimeout(function() {
                 window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
-                    command: retryConfig.command || 'build_tree',
+                    command: retryConfig.command || 'build_tree_classic',
                     spells: state.lastSpellData.spells,
                     config: retryConfig.config || {},
                     fallback: true
@@ -1399,7 +1399,7 @@ window.onProceduralTreeComplete = function(resultStr) {
         var result = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
 
 
-        // Route to Classic Growth mode if it triggered this build
+        // Route to Classic Growth mode (the one builder) if it triggered this build
         if (state._classicGrowthBuildPending) {
             state._classicGrowthBuildPending = false;
             if (result.success && result.treeData) {
@@ -1422,131 +1422,9 @@ window.onProceduralTreeComplete = function(resultStr) {
                     result.error || 'unknown',
                     '_classicGrowthBuildPending',
                     typeof ClassicSettings !== 'undefined' ? ClassicSettings : null,
-                    { command: 'build_tree_classic', config: { shape: 'organic', density: 0.6, symmetry: 0.3, max_children_per_node: 3, top_themes_per_school: 8, convergence_chance: 0.4, prefer_vanilla_roots: true } },
+                    { command: 'build_tree_classic', config: { shape: 'organic', density: 0.6, symmetry: 0.3, max_children_per_node: 3, top_themes_per_school: 8, prefer_vanilla_roots: true } },
                     'tgClassicBuildBtn',
                     '[ClassicGrowth]'
-                );
-            }
-            resetProceduralPlusButton();
-            return;
-        }
-
-        // Route to Tree Growth mode if it triggered this build
-        if (state._treeGrowthBuildPending) {
-            state._treeGrowthBuildPending = false;
-            if (result.success && result.treeData) {
-                // Advance build progress: tree done → prereqs or finalize
-                if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                    BuildProgress.setStage('prereqs');
-                }
-                var tgTreeData = typeof result.treeData === 'string' ? JSON.parse(result.treeData) : result.treeData;
-                if (typeof TreeGrowthTree !== 'undefined' && TreeGrowthTree.loadTreeData) {
-                    TreeGrowthTree.loadTreeData(tgTreeData);
-                    if (typeof TreeGrowth !== 'undefined') TreeGrowth._markDirty();
-                }
-                // Update notification bar with build result
-                var tgSchools = tgTreeData && tgTreeData.schools ? Object.keys(tgTreeData.schools).length : 0;
-                var tgSpells = 0;
-                if (tgTreeData && tgTreeData.schools) { for (var s in tgTreeData.schools) { tgSpells += (tgTreeData.schools[s].nodes || []).length; } }
-                if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: tgSchools, spells: tgSpells}), 'success');
-            } else {
-                _handleBuildFailure(
-                    result.error || 'unknown',
-                    '_treeGrowthBuildPending',
-                    typeof TreeSettings !== 'undefined' ? TreeSettings : null,
-                    { command: 'build_tree', config: state._lastTreeGrowthConfig || {} },
-                    'tgTreeBuildBtn',
-                    '[TreeGrowthTree]'
-                );
-            }
-            resetProceduralPlusButton();
-            return;
-        }
-
-        // Route to Graph Growth mode if it triggered this build
-        if (state._graphGrowthBuildPending) {
-            state._graphGrowthBuildPending = false;
-            if (result.success && result.treeData) {
-                if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                    BuildProgress.setStage('prereqs');
-                }
-                var graphTreeData = typeof result.treeData === 'string' ? JSON.parse(result.treeData) : result.treeData;
-                if (typeof TreeGrowthGraph !== 'undefined' && TreeGrowthGraph.loadTreeData) {
-                    TreeGrowthGraph.loadTreeData(graphTreeData);
-                    if (typeof TreeGrowth !== 'undefined') TreeGrowth._markDirty();
-                }
-                var graphSchools = graphTreeData && graphTreeData.schools ? Object.keys(graphTreeData.schools).length : 0;
-                var graphSpells = 0;
-                if (graphTreeData && graphTreeData.schools) { for (var gs in graphTreeData.schools) { graphSpells += (graphTreeData.schools[gs].nodes || []).length; } }
-                if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: graphSchools, spells: graphSpells}), 'success');
-            } else {
-                _handleBuildFailure(
-                    result.error || 'unknown',
-                    '_graphGrowthBuildPending',
-                    typeof GraphSettings !== 'undefined' ? GraphSettings : null,
-                    { command: 'build_tree_graph', config: {} },
-                    'tgGraphBuildBtn',
-                    '[GraphGrowth]'
-                );
-            }
-            resetProceduralPlusButton();
-            return;
-        }
-
-        // Route to Oracle Growth mode if it triggered this build
-        if (state._oracleGrowthBuildPending) {
-            state._oracleGrowthBuildPending = false;
-            if (result.success && result.treeData) {
-                if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                    BuildProgress.setStage('prereqs');
-                }
-                var oracleTreeData = typeof result.treeData === 'string' ? JSON.parse(result.treeData) : result.treeData;
-                if (typeof TreeGrowthOracle !== 'undefined' && TreeGrowthOracle.loadTreeData) {
-                    TreeGrowthOracle.loadTreeData(oracleTreeData);
-                    if (typeof TreeGrowth !== 'undefined') TreeGrowth._markDirty();
-                }
-                var oracleSchools = oracleTreeData && oracleTreeData.schools ? Object.keys(oracleTreeData.schools).length : 0;
-                var oracleSpells = 0;
-                if (oracleTreeData && oracleTreeData.schools) { for (var os in oracleTreeData.schools) { oracleSpells += (oracleTreeData.schools[os].nodes || []).length; } }
-                if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: oracleSchools, spells: oracleSpells}), 'success');
-            } else {
-                _handleBuildFailure(
-                    result.error || 'unknown',
-                    '_oracleGrowthBuildPending',
-                    typeof OracleSettings !== 'undefined' ? OracleSettings : null,
-                    { command: 'build_tree_oracle', config: {} },
-                    'tgOracleBuildBtn',
-                    '[OracleGrowth]'
-                );
-            }
-            resetProceduralPlusButton();
-            return;
-        }
-
-        // Route to Thematic Growth mode if it triggered this build
-        if (state._thematicGrowthBuildPending) {
-            state._thematicGrowthBuildPending = false;
-            if (result.success && result.treeData) {
-                if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                    BuildProgress.setStage('prereqs');
-                }
-                var thematicTreeData = typeof result.treeData === 'string' ? JSON.parse(result.treeData) : result.treeData;
-                if (typeof TreeGrowthThematic !== 'undefined' && TreeGrowthThematic.loadTreeData) {
-                    TreeGrowthThematic.loadTreeData(thematicTreeData);
-                    if (typeof TreeGrowth !== 'undefined') TreeGrowth._markDirty();
-                }
-                var thematicSchools = thematicTreeData && thematicTreeData.schools ? Object.keys(thematicTreeData.schools).length : 0;
-                var thematicSpells = 0;
-                if (thematicTreeData && thematicTreeData.schools) { for (var ts in thematicTreeData.schools) { thematicSpells += (thematicTreeData.schools[ts].nodes || []).length; } }
-                if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: thematicSchools, spells: thematicSpells}), 'success');
-            } else {
-                _handleBuildFailure(
-                    result.error || 'unknown',
-                    '_thematicGrowthBuildPending',
-                    typeof ThematicSettings !== 'undefined' ? ThematicSettings : null,
-                    { command: 'build_tree_thematic', config: {} },
-                    'tgThematicBuildBtn',
-                    '[ThematicGrowth]'
                 );
             }
             resetProceduralPlusButton();
@@ -1642,13 +1520,9 @@ window.onProceduralTreeComplete = function(resultStr) {
     } catch (e) {
         console.error('[Procedural] Error parsing C++ result:', e);
         // Whatever went wrong, let go of the build. A pending flag left standing
-        // sends the NEXT build's result down this mode's branch, and a progress
+        // sends the NEXT build's result down the Classic branch, and a progress
         // modal with nothing left to close it sits over the panel for good.
         state._classicGrowthBuildPending = false;
-        state._treeGrowthBuildPending = false;
-        state._graphGrowthBuildPending = false;
-        state._oracleGrowthBuildPending = false;
-        state._thematicGrowthBuildPending = false;
         if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
             BuildProgress.fail('Result parse error');
         }

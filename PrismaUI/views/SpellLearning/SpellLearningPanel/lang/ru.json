@@ -141,17 +141,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Выбрать пресет",
-    "easyMode.buildMethod": "Стиль дерева",
-    "easyMode.method.classic": "Классический",
-    "easyMode.method.tree": "Ветви",
-    "easyMode.method.graph": "Сеть",
-    "easyMode.method.oracle": "Оракул",
-    "easyMode.method.thematic": "Темы",
-    "easyMode.methodHint.classic": "Уровень за уровнем, по умолчанию",
-    "easyMode.methodHint.tree": "Один ствол на тему с боковыми ветвями",
-    "easyMode.methodHint.graph": "Связывает самые похожие заклинания",
-    "easyMode.methodHint.oracle": "Цепочки связанных заклинаний",
-    "easyMode.methodHint.thematic": "Сначала группирует по темам",
     "easyMode.noPresets": "Пресетов пока нет. Построение будет использовать текущие настройки.",
     "easyMode.statusWrap": "Статус: <span id=\"easyStatus\">Ожидание сканирования...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "Скопление",
     "preview.dragHandles": "перетащите ручки для настройки",
-    "preview.dragDividers": "перетащите разделители для настройки",
     "preview.equal": "Равное",
     "preview.ghostOpacity": "Прозрачность призраков",
     "preview.growthDirection": "Направление роста",
@@ -287,15 +275,6 @@
     "preview.sun.square": "Квадрат",
     "preview.sun.tierDensity": "Плотность по уровню",
     "preview.sun.title": "Настройки кольца корней",
-
-    "preview.tree.branchSpread": "Раскидистость ветвей",
-    "preview.tree.branches": "Ветви",
-    "preview.tree.root": "Корень",
-    "preview.tree.rootSpread": "Раскидистость корней",
-    "preview.tree.sectionAllocation": "Распределение секций",
-    "preview.tree.title": "Настройки роста дерева",
-    "preview.tree.trunk": "Ствол",
-    "preview.tree.trunkThickness": "Толщина ствола",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Применить замки",
     "prm.bidirectionalSoftPrereqs": "Двусторонние мягкие требования",

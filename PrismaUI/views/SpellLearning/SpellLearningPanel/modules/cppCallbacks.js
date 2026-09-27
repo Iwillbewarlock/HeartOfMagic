@@ -610,22 +610,6 @@ window.onClassicGrowthTreeData = function(json) {
     }
 };
 
-/**
- * Called by C++ when Tree Growth tree build completes
- * Receives NLP-built tree data with trunk/branch/root structure
- */
-window.onTreeGrowthTreeData = function(json) {
-    var data = _readPayload(json, 'onTreeGrowthTreeData');
-    if (!data) return;
-    console.log('[SpellLearning] Tree Growth tree data received');
-    if (typeof TreeGrowthTree !== 'undefined' && TreeGrowthTree.loadTreeData) {
-        TreeGrowthTree.loadTreeData(data);
-        if (typeof TreeGrowth !== 'undefined') {
-            TreeGrowth._markDirty();
-        }
-    }
-};
-
 window.updateSpellInfo = function(json) {
     var data = _readPayload(json, 'updateSpellInfo');
     if (data && data.formId) {

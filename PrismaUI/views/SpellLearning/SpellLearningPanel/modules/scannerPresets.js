@@ -108,14 +108,9 @@ function saveScannerPreset(name) {
         s.classicSettings = JSON.parse(JSON.stringify(TreeGrowthClassic.settings));
     }
 
-    // Tree Growth active mode (Classic, Tree, etc.)
+    // Tree Growth active mode (Classic, the one builder)
     if (typeof TreeGrowth !== 'undefined') {
         s.treeGrowthActiveMode = TreeGrowth.activeMode;
-    }
-
-    // Tree Growth — Tree mode settings
-    if (typeof TreeGrowthTree !== 'undefined') {
-        s.treeGrowthTreeSettings = JSON.parse(JSON.stringify(TreeGrowthTree.settings));
     }
 
     // Pre Req Master (lock) settings
@@ -228,21 +223,6 @@ function applyScannerPreset(name) {
     // --- Tree Growth active mode ---
     if (s.treeGrowthActiveMode && typeof TreeGrowth !== 'undefined' && TreeGrowth.switchMode) {
         TreeGrowth.switchMode(s.treeGrowthActiveMode);
-    }
-
-    // --- Tree Growth — Tree mode settings ---
-    if (s.treeGrowthTreeSettings && typeof TreeGrowthTree !== 'undefined') {
-        _deepCopy(s.treeGrowthTreeSettings, TreeGrowthTree.settings);
-        _updateDragInputs({
-            'tgTreeOpacity': TreeGrowthTree.settings.ghostOpacity,
-            'tgTreeNodeSize': TreeGrowthTree.settings.nodeRadius,
-            'tgTreeTrunkThickness': TreeGrowthTree.settings.trunkThickness,
-            'tgTreeBranchSpread': TreeGrowthTree.settings.branchSpread,
-            'tgTreeRootSpread': TreeGrowthTree.settings.rootSpread,
-            'tgTreePctBranches': TreeGrowthTree.settings.pctBranches,
-            'tgTreePctTrunk': TreeGrowthTree.settings.pctTrunk,
-            'tgTreePctRoot': TreeGrowthTree.settings.pctRoot
-        });
     }
 
     // --- Pre Req Master (lock) settings ---

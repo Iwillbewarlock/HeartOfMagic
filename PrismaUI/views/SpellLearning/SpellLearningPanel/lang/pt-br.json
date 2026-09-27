@@ -141,17 +141,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Escolha um Preset",
-    "easyMode.buildMethod": "Estilo de Árvore",
-    "easyMode.method.classic": "Clássico",
-    "easyMode.method.tree": "Galhos",
-    "easyMode.method.graph": "Teia",
-    "easyMode.method.oracle": "Oráculo",
-    "easyMode.method.thematic": "Temas",
-    "easyMode.methodHint.classic": "Nível por nível, o padrão",
-    "easyMode.methodHint.tree": "Um tronco por tema com galhos laterais",
-    "easyMode.methodHint.graph": "Liga as magias mais semelhantes",
-    "easyMode.methodHint.oracle": "Cadeias de magias relacionadas",
-    "easyMode.methodHint.thematic": "Agrupa por tema primeiro",
     "easyMode.noPresets": "Sem presets ainda. A construção usará as configurações atuais.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Aguardando varredura...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "Agrupamento",
     "preview.dragHandles": "arraste as alças para ajustar",
-    "preview.dragDividers": "arraste os divisores para ajustar",
     "preview.equal": "Igual",
     "preview.ghostOpacity": "Opacidade Fantasma",
     "preview.growthDirection": "Direção de Crescimento",
@@ -287,15 +275,6 @@
     "preview.sun.square": "Quadrado",
     "preview.sun.tierDensity": "Densidade de Nível",
     "preview.sun.title": "Configurações do Anel Raiz",
-
-    "preview.tree.branchSpread": "Dispersão dos Galhos",
-    "preview.tree.branches": "Galhos",
-    "preview.tree.root": "Raiz",
-    "preview.tree.rootSpread": "Dispersão da Raiz",
-    "preview.tree.sectionAllocation": "Alocação de Seção",
-    "preview.tree.title": "Configurações de Crescimento da Árvore",
-    "preview.tree.trunk": "Tronco",
-    "preview.tree.trunkThickness": "Espessura do Tronco",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Aplicar Bloqueios",
     "prm.bidirectionalSoftPrereqs": "Pré-requisitos Suaves Bidirecionais",

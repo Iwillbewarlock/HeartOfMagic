@@ -1696,60 +1696,50 @@
 
         var cx = w / 2;
         var cy = h / 2;
-        var mode = frame.mode;
         var newestIdx = frame.newestIdx;
 
         // Render edges
         if (frame.edges && frame.edges.length > 0) {
-            if (mode === 'tree' && typeof TreeRenderer !== 'undefined') {
-                TreeRenderer.renderEdges(ctx, cx, cy, frame.edges, 0.35);
-            } else {
-                // Classic mode: simple parent-child lines
-                ctx.save();
-                ctx.lineWidth = 1.5;
-                for (var ei = 0; ei < frame.edges.length; ei++) {
-                    var edge = frame.edges[ei];
-                    ctx.strokeStyle = _animHexToRgba(edge.color || '#888888', 0.3);
-                    ctx.beginPath();
-                    ctx.moveTo(cx + edge.x1, cy + edge.y1);
-                    ctx.lineTo(cx + edge.x2, cy + edge.y2);
-                    ctx.stroke();
-                }
-                ctx.restore();
+            // Classic mode: simple parent-child lines
+            ctx.save();
+            ctx.lineWidth = 1.5;
+            for (var ei = 0; ei < frame.edges.length; ei++) {
+                var edge = frame.edges[ei];
+                ctx.strokeStyle = _animHexToRgba(edge.color || '#888888', 0.3);
+                ctx.beginPath();
+                ctx.moveTo(cx + edge.x1, cy + edge.y1);
+                ctx.lineTo(cx + edge.x2, cy + edge.y2);
+                ctx.stroke();
             }
+            ctx.restore();
         }
 
         // Render nodes
-        if (mode === 'tree' && typeof TreeRenderer !== 'undefined') {
-            // Tree mode: use TreeRenderer for tier-differentiated rendering
-            TreeRenderer.renderNodes(ctx, cx, cy, frame.nodes, 0.35, 5);
-        } else {
-            // Classic mode: simple ghost nodes
-            var opacity = 0.35;
-            var nodeR = 5;
-            for (var i = 0; i < frame.nodes.length; i++) {
-                var p = frame.nodes[i];
-                var gx = cx + p.x;
-                var gy = cy + p.y;
-                var color = p.color || '#888888';
+        // Classic mode: simple ghost nodes
+        var opacity = 0.35;
+        var nodeR = 5;
+        for (var i = 0; i < frame.nodes.length; i++) {
+            var p = frame.nodes[i];
+            var gx = cx + p.x;
+            var gy = cy + p.y;
+            var color = p.color || '#888888';
 
-                // Glow
-                ctx.beginPath();
-                ctx.arc(gx, gy, nodeR + 2, 0, Math.PI * 2);
-                ctx.fillStyle = _animHexToRgba(color, opacity * 0.3);
-                ctx.fill();
+            // Glow
+            ctx.beginPath();
+            ctx.arc(gx, gy, nodeR + 2, 0, Math.PI * 2);
+            ctx.fillStyle = _animHexToRgba(color, opacity * 0.3);
+            ctx.fill();
 
-                // Body
-                ctx.beginPath();
-                ctx.arc(gx, gy, nodeR, 0, Math.PI * 2);
-                ctx.fillStyle = _animHexToRgba(color, opacity);
-                ctx.fill();
+            // Body
+            ctx.beginPath();
+            ctx.arc(gx, gy, nodeR, 0, Math.PI * 2);
+            ctx.fillStyle = _animHexToRgba(color, opacity);
+            ctx.fill();
 
-                // Border
-                ctx.strokeStyle = 'rgba(255, 255, 255, ' + (opacity * 0.3) + ')';
-                ctx.lineWidth = 0.5;
-                ctx.stroke();
-            }
+            // Border
+            ctx.strokeStyle = 'rgba(255, 255, 255, ' + (opacity * 0.3) + ')';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
         }
 
         // Highlight newest node with a pop effect (only during Phase 1)
@@ -1924,7 +1914,7 @@
             }
 
             // Check for pending animation capture after render
-            // (render may have computed _builtPlacements as a side effect)
+            // (render may have computed the layout as a side effect)
             if (typeof TreeAnimation !== 'undefined' && !animPlaying) {
                 TreeAnimation.checkPendingCapture();
             }

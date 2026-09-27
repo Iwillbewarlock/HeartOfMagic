@@ -141,17 +141,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Choisir un préréglage",
-    "easyMode.buildMethod": "Style d'arbre",
-    "easyMode.method.classic": "Classique",
-    "easyMode.method.tree": "Branches",
-    "easyMode.method.graph": "Réseau",
-    "easyMode.method.oracle": "Oracle",
-    "easyMode.method.thematic": "Thèmes",
-    "easyMode.methodHint.classic": "Rang par rang, le défaut",
-    "easyMode.methodHint.tree": "Un tronc par thème avec branches latérales",
-    "easyMode.methodHint.graph": "Relie les sorts les plus similaires",
-    "easyMode.methodHint.oracle": "Chaînes de sorts apparentés",
-    "easyMode.methodHint.thematic": "Groupe d'abord par thème",
     "easyMode.noPresets": "Aucun préréglage pour l'instant. La génération utilisera les paramètres actuels.",
     "easyMode.statusWrap": "Statut : <span id=\"easyStatus\">En attente d'analyse...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "Amas",
     "preview.dragHandles": "faites glisser les poignées pour ajuster",
-    "preview.dragDividers": "faites glisser les séparateurs pour ajuster",
     "preview.equal": "Égal",
     "preview.ghostOpacity": "Opacité fantôme",
     "preview.growthDirection": "Direction de croissance",
@@ -287,15 +275,6 @@
     "preview.sun.square": "Carré",
     "preview.sun.tierDensity": "Densité par rang",
     "preview.sun.title": "Paramètres d'anneaux des racines",
-
-    "preview.tree.branchSpread": "Écartement des branches",
-    "preview.tree.branches": "Branches",
-    "preview.tree.root": "Racine",
-    "preview.tree.rootSpread": "Écartement des racines",
-    "preview.tree.sectionAllocation": "Répartition des sections",
-    "preview.tree.title": "Paramètres de croissance de l'arbre",
-    "preview.tree.trunk": "Tronc",
-    "preview.tree.trunkThickness": "Épaisseur du tronc",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Appliquer les verrous",
     "prm.bidirectionalSoftPrereqs": "Prérequis souples bidirectionnels",

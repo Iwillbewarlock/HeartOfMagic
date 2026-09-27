@@ -136,16 +136,6 @@
       "warnOnDistanceViolation": true,
       "warnOnElementMismatch": true
     },
-    "treeGrowthActiveMode": "classic",
-    "treeGrowthTreeSettings": {
-      "branchSpread": 2.5,
-      "ghostOpacity": 35,
-      "nodeRadius": 5,
-      "pctBranches": 30,
-      "pctRoot": 20,
-      "pctTrunk": 50,
-      "rootSpread": 2.5,
-      "trunkThickness": 70
-    }
+    "treeGrowthActiveMode": "classic"
   }
 }

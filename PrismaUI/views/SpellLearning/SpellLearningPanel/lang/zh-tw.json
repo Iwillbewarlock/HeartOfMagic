@@ -141,17 +141,6 @@
     "details.xpUnit": "經驗",
 
     "easyMode.choosePreset": "選擇預設",
-    "easyMode.buildMethod": "樹型樣式",
-    "easyMode.method.classic": "經典",
-    "easyMode.method.tree": "分支",
-    "easyMode.method.graph": "網狀",
-    "easyMode.method.oracle": "神諭",
-    "easyMode.method.thematic": "主題",
-    "easyMode.methodHint.classic": "逐層遞進，預設樣式",
-    "easyMode.methodHint.tree": "每個主題一條主幹，附帶側枝",
-    "easyMode.methodHint.graph": "連結最相似的法術",
-    "easyMode.methodHint.oracle": "相關法術鏈",
-    "easyMode.methodHint.thematic": "先按主題分組",
     "easyMode.noPresets": "尚無預設。建構將使用目前設定。",
     "easyMode.statusWrap": "狀態: <span id=\"easyStatus\">等待掃描...</span>",
 
@@ -239,7 +228,6 @@
 
     "preview.clumping": "聚集度",
     "preview.dragHandles": "拖曳控制點來調整",
-    "preview.dragDividers": "拖曳分隔線來調整",
     "preview.equal": "均等",
     "preview.ghostOpacity": "虛影不透明度",
     "preview.growthDirection": "生長方向",
@@ -287,15 +275,6 @@
     "preview.sun.square": "方形",
     "preview.sun.tierDensity": "等級密度",
     "preview.sun.title": "根環設定",
-
-    "preview.tree.branchSpread": "分支擴展",
-    "preview.tree.branches": "分支",
-    "preview.tree.root": "根",
-    "preview.tree.rootSpread": "根部擴展",
-    "preview.tree.sectionAllocation": "區段分配",
-    "preview.tree.title": "樹形生長設定",
-    "preview.tree.trunk": "主幹",
-    "preview.tree.trunkThickness": "主幹粗細",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> 套用鎖定",
     "prm.bidirectionalSoftPrereqs": "雙向軟前置條件",

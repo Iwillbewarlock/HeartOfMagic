@@ -21,7 +21,7 @@ var TreeAnimation = {
     // Snapshot of placement data
     _nodes: null,        // [{x, y, color, ...}]
     _edges: null,        // [{x1, y1, x2, y2, color}] or null
-    _mode: '',           // 'classic' or 'tree'
+    _mode: '',           // the growth mode captured from ('classic')
 
     // Phase tracking
     _phase: 'idle',      // 'idle' | 'nodes' | 'waiting_chains' | 'chains' | 'done'
@@ -64,24 +64,14 @@ var TreeAnimation = {
             return false;
         }
 
-        // Try the active mode first, then fall back to others
+        // Try the active mode first, then fall back to classic
         var activeMode = TreeGrowth.activeMode || 'classic';
         var captured = false;
         var activeMod = TreeGrowth.modes[activeMode];
 
-        if (activeMod) {
-            // _builtPlacements format (tree mode)
-            if (activeMod._builtPlacements) {
-                captured = this._captureTree(activeMode);
-            }
-            // _layoutData format (classic, graph, oracle, thematic)
-            if (!captured && activeMod._layoutData) {
-                captured = this._captureClassic(activeMode);
-            }
+        if (activeMod && activeMod._layoutData) {
+            captured = this._captureClassic(activeMode);
         }
-
-        // Fallback: try tree then classic
-        if (!captured) captured = this._captureTree('tree');
         if (!captured) captured = this._captureClassic('classic');
 
         if (captured) {
@@ -96,37 +86,10 @@ var TreeAnimation = {
         } else {
             console.log('[TreeAnimation] capture: no data found' +
                 ' (activeMode=' + activeMode +
-                ', activeMod has _builtPlacements=' + !!(activeMod && activeMod._builtPlacements) +
                 ', activeMod has _layoutData=' + !!(activeMod && activeMod._layoutData) + ')');
         }
 
         return captured;
-    },
-
-    _captureTree: function(modeName) {
-        var treeModule = TreeGrowth.modes[modeName || 'tree'];
-        if (!treeModule) return false;
-
-        var layout = treeModule._builtPlacements;
-        if (!layout || !layout.nodes || layout.nodes.length === 0) return false;
-
-        this._nodes = [];
-        for (var ni = 0; ni < layout.nodes.length; ni++) {
-            var n = layout.nodes[ni];
-            this._nodes.push({ x: n.x, y: n.y, color: n.color, skillLevel: n.skillLevel || '' });
-        }
-
-        if (layout.edges && layout.edges.length > 0) {
-            this._edges = [];
-            for (var ei = 0; ei < layout.edges.length; ei++) {
-                var e = layout.edges[ei];
-                this._edges.push({ x1: e.x1, y1: e.y1, x2: e.x2, y2: e.y2, color: e.color || '' });
-            }
-        } else {
-            this._edges = null;
-        }
-        this._mode = modeName || 'tree';
-        return true;
     },
 
     _captureClassic: function(modeName) {
@@ -296,39 +259,9 @@ var TreeAnimation = {
         }
         if (!baseData) return;
 
-        // Ensure the active mode's layout first
-        var activeMode = TreeGrowth.activeMode;
-        var activeMod = TreeGrowth.modes[activeMode];
-        if (activeMod && activeMod._treeData) {
-            // _builtPlacements format (tree mode)
-            if (!activeMod._builtPlacements && typeof activeMod._computeBuiltLayout === 'function') {
-                if (typeof activeMod._getOrCompute === 'function') {
-                    activeMod._getOrCompute(baseData, 800, 800);
-                }
-                activeMod._builtPlacements = activeMod._computeBuiltLayout(baseData);
-                if (activeMod._builtPlacements) {
-                    console.log('[TreeAnimation] Forced ' + activeMode + ' builtPlacements: ' +
-                        activeMod._builtPlacements.totalPlaced + ' nodes');
-                }
-            }
-        }
+        var activeMod = TreeGrowth.modes[TreeGrowth.activeMode];
 
-        // Fallback: also ensure tree mode
-        var treeModule = TreeGrowth.modes['tree'];
-        if (treeModule && treeModule !== activeMod && treeModule._treeData && !treeModule._builtPlacements) {
-            if (typeof treeModule._getOrCompute === 'function') {
-                treeModule._getOrCompute(baseData, 800, 800);
-            }
-            if (typeof treeModule._computeBuiltLayout === 'function') {
-                treeModule._builtPlacements = treeModule._computeBuiltLayout(baseData);
-                if (treeModule._builtPlacements) {
-                    console.log('[TreeAnimation] Forced tree layout: ' +
-                        treeModule._builtPlacements.totalPlaced + ' nodes');
-                }
-            }
-        }
-
-        // Fallback: also ensure classic mode
+        // Fallback: ensure classic mode when it is not the active one
         var classicModule = TreeGrowth.modes['classic'];
         if (classicModule && classicModule !== activeMod && classicModule._treeData &&
             (!classicModule._layoutData || !classicModule._layoutData.schools)) {

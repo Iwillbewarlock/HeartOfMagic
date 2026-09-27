@@ -352,7 +352,6 @@ var TreeGrowthClassic = {
             symmetry: 0.3,
             max_children_per_node: 3,
             top_themes_per_school: 8,
-            convergence_chance: 0.4,
             prefer_vanilla_roots: true,
             tier_zones: self.settings.tierZones,
             grid_hint: gridHint,

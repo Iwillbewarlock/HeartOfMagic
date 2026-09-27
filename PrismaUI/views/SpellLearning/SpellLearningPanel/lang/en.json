@@ -159,27 +159,6 @@
 
     "easyMode.choosePreset": "Choose a Preset",
 
-    "easyMode.buildMethod": "Tree Style",
-
-    "easyMode.method.classic": "Classic",
-
-    "easyMode.method.tree": "Branches",
-
-    "easyMode.method.graph": "Web",
-
-    "easyMode.method.oracle": "Oracle",
-
-    "easyMode.method.thematic": "Themes",
-
-    "easyMode.methodHint.classic": "Tier by tier, the default",
-
-    "easyMode.methodHint.tree": "One trunk per theme with side branches",
-
-    "easyMode.methodHint.graph": "Links the most similar spells",
-
-    "easyMode.methodHint.oracle": "Chains of related spells",
-
-    "easyMode.methodHint.thematic": "Groups by theme first",
     "easyMode.noPresets": "No presets yet. Build will use current settings.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Waiting for scan...</span>",
 
@@ -267,7 +246,6 @@
 
     "preview.clumping": "Clumping",
     "preview.dragHandles": "drag handles to adjust",
-    "preview.dragDividers": "drag dividers to adjust",
     "preview.equal": "Equal",
     "preview.ghostOpacity": "Ghost Opacity",
     "preview.growthDirection": "Growth Direction",
@@ -315,15 +293,6 @@
     "preview.sun.square": "Square",
     "preview.sun.tierDensity": "Tier Density",
     "preview.sun.title": "Root Ring Settings",
-
-    "preview.tree.branchSpread": "Branch Spread",
-    "preview.tree.branches": "Branches",
-    "preview.tree.root": "Root",
-    "preview.tree.rootSpread": "Root Spread",
-    "preview.tree.sectionAllocation": "Section Allocation",
-    "preview.tree.title": "Tree Growth Settings",
-    "preview.tree.trunk": "Trunk",
-    "preview.tree.trunkThickness": "Trunk Thickness",
 
     "prm.applyLocks": "<span class=\"btn-icon\">[L]</span> Apply Locks",
     "prm.bidirectionalSoftPrereqs": "Bidirectional Soft Prerequisites",
