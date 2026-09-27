@@ -18,22 +18,29 @@
  *
  * A repaint that is quick anyway (SYNC_MAX_MS or less, as the last one done at
  * once measured) is still done at once. A build tells too, counting its pieces'
- * own overhead once, not once a piece (the cheapest piece stands for it), but
- * only when clearly quick (QUICK_SHARE of SYNC_MAX_MS) may it switch back to
- * repaints at once - so a tree that became quick is not spread for ever, and a
- * slow one is not sent back to long frames by culled pieces that cost less than
- * one whole repaint. So is the first repaint, one with no old picture to
- * show (stale layer, resize) and one in edit mode; and a tree that keeps
- * changing faster than a build ends (MAX_RESTARTS builds started again in a
- * row) is repainted at once.
+ * own overhead once, not once a piece (the cheapest piece stands for it). A
+ * clearly quick one (QUICK_SHARE of SYNC_MAX_MS) switches back to repaints at
+ * once; a middling one only brings the figure down by LAST_MS_DECAY a build (not
+ * below its own cost), since culled pieces can cost less than one whole repaint.
+ * So a tree once slow (a hitch) is not spread for ever, and a slow tree whose
+ * builds look quick tries one repaint at once only every so many builds (~11
+ * from 25 ms), which measures it slow again. So is the first repaint, one with
+ * no old picture to show (stale layer, resize) and one in edit mode; and a tree
+ * that keeps changing faster than a build ends (MAX_RESTARTS builds started
+ * again in a row, the count starting over when a build is dropped for another
+ * reason, done or drawn at once) is repainted at once - one long frame, where
+ * letting builds finish with a change pending would show the tree a change late
+ * for as long as the changes keep coming.
  *
  * The view held still past the old picture's margin (a jump without a glide, a
  * drag during the build) would show its bare edge: the build goes on urgently -
  * a bigger share of the frame (URGENT_TARGET_FRAME_MS), the pieces the screen
  * shows first - and swaps in as soon as those and the names are done; the pieces
  * left over go to LayerScroll's queue, drawn in the next frames' time left like
- * a drag's strips. (It used to finish everything in that frame: one long frame.)
- * The bare edge shows for the frames that takes, as during a glide.
+ * a drag's strips (the next frame is asked for at once; a frame that stretches
+ * the layer or runs a new build draws them too, LayerScroll.drawPendingAside).
+ * (It used to finish everything in that frame: one long frame.) The bare edge
+ * shows for the frames that takes, as during a glide.
  *
  * A build is dropped when the view it was for is gone (zoom, rotation, glide
  * target, pixel ratio, layer size), and the tree is marked for a repaint again
@@ -54,9 +61,11 @@ var LayerBuild = {
     TILE_PX: 384,             // device px: the layer is drawn in pieces this big (each costs ~1 ms of its own)
     MAX_RESTARTS: 4,          // builds started again (the tree changed meanwhile) in a row: then at once
     QUICK_SHARE: 0.5,         // a build this share of SYNC_MAX_MS or less lets the next repaint try at once
+    LAST_MS_DECAY: 0.9,       // each finished build that is not slower lowers _lastMs to this share of
+                              // it (not below the build's own cost), so a slow hitch is not kept for ever
 
     _build: null,             // { panX, panY, zoom, rotation, dpr, margin, w, h, view, tiles, spent, glide,
-                              //   pieces, minPiece, urgent }
+                              //   pieces, minPiece }
     _lastMs: 0,               // what the last whole repaint cost (sync, or a build less its pieces' overhead), ms
     _pieceMs: 3,              // a piece's running cost, ms
     _finishMs: 4,             // the names and chapter titles' running cost, ms
@@ -90,10 +99,16 @@ var LayerBuild = {
         this._restarts = 0;
     },
 
-    /** Drop the build; the change it carried is marked again so it is not lost. */
-    abort: function(r) {
+    /**
+     * Drop the build; the change it carried is marked again so it is not lost.
+     * The restart count starts again too (the next build is not a restart of this
+     * one), except when the count itself is why it goes (keepRestarts): the
+     * repaint at once that follows resets it (noteSync).
+     */
+    abort: function(r, keepRestarts) {
         if (this._build && r) r._treeDirty = true;
         this._build = null;
+        if (!keepRestarts) this._restarts = 0;
     },
 
     /** Is the running build still for the view it would be shown in (and not in edit mode)? */
@@ -128,7 +143,7 @@ var LayerBuild = {
             dpr: dpr, margin: margin, w: layer.width, h: layer.height,
             view: { cx: view.cx, cy: view.cy, rotRad: rad, cos: Math.cos(rad), sin: Math.sin(rad) },
             tiles: LayerScroll.pieces([[0, 0, layer.width, layer.height]], this.TILE_PX, layer.width / 2, layer.height / 2),
-            spent: 0, pieces: 0, minPiece: Infinity, urgent: false
+            spent: 0, pieces: 0, minPiece: Infinity
         };
         return true;
     },
@@ -163,7 +178,6 @@ var LayerBuild = {
         var drew = false, done = false, onScreen = -1;
         if (urgent) {
             // The pieces the screen shows first (kept nearest the middle first among them)
-            b.urgent = true;
             var vr = this._screenRect(r, b), shown = [], rest = [];
             for (var i = 0; i < b.tiles.length; i++) (LayerScroll.overlaps(b.tiles[i], vr) ? shown : rest).push(b.tiles[i]);
             b.tiles = shown.concat(rest);
@@ -246,8 +260,14 @@ var LayerBuild = {
         LayerScroll._spareCtx = oldCtx;
         LayerScroll.reset();
         // An urgent build swapped in before its last pieces: LayerScroll draws them
-        // (clipped, the kept names drawn again into them) like a drag's strips
-        if (b.tiles.length) LayerScroll._pending = b.tiles;
+        // (clipped, the kept names drawn again into them) like a drag's strips, from
+        // the next frame on - asked for now, unthrottled (animation frames come only
+        // ~12 a second, none at all when idle), as step() does for a build's next piece
+        if (b.tiles.length) {
+            LayerScroll._pending = b.tiles;
+            r.__needsRender = true;
+            r._animationOnlyRender = false;
+        }
         r._layerPanX = b.panX;
         r._layerPanY = b.panY;
         r._layerZoom = b.zoom;
@@ -255,13 +275,16 @@ var LayerBuild = {
         r._treeLayerStale = false;
         r._treeLayerDraws = (r._treeLayerDraws || 0) + 1;
         r._layerBuilds = (r._layerBuilds || 0) + 1;
-        // Decides sync or spread next time (a build cut short says nothing). Only a
-        // clearly quick build lowers it: a build's pieces are culled to their own
-        // box and may cost less than one repaint of the whole view, so a middling
-        // one would switch a slow tree back to long frames; a slow one raises it
+        // Decides sync or spread next time (a build cut short says nothing). A
+        // clearly quick build sets it; a slow one raises it; a middling one only
+        // lowers it a little (LAST_MS_DECAY): a build's pieces are culled to their
+        // own box and may cost less than one repaint of the whole view, so taken as
+        // it is it would switch a slow tree back to long frames - but never lowering
+        // it kept a tree spread for good after one slow repaint (a hitch)
         if (!b.tiles.length) {
             var est = this._estimate(b);
             if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
+            else this._lastMs = Math.max(est, this._lastMs * this.LAST_MS_DECAY);
         }
         this._build = null;
         this._restarts = 0;

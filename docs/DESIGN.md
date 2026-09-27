@@ -251,19 +251,30 @@ layer, resize) and edit mode. When the view, held still, is past the old picture
 without a glide, a drag during the build) the build goes on urgently (2026-09-28; it used to finish in
 that one frame): `URGENT_TARGET_FRAME_MS` (11) of the frame, the pieces the screen shows first, and the
 swap as soon as those and the names are done; the pieces left go to LayerScroll's queue and are drawn
-like a drag's strips. The old picture's bare edge shows for the frames that takes, as during a glide. Bench (a click's build, then
+like a drag's strips, in the frames' time left from the next frame on (the swap asks for it at once,
+unthrottled - animation frames come only ~12 a second and none when idle). A frame that does not scroll
+draws them too (`LayerScroll.drawPendingAside`, 2026-09-28): the layer pasted stretched by a wheel zoom
+or a glide straight after the swap, or a new build under way - into the layer on screen at the view it
+was drawn for (its zoom, turn and level of detail), never onto the spare a build draws on, and not while
+an urgent build is about to replace that layer. Before, those frames showed the leftover pieces as empty
+rectangles in the margin (the names drawn over them) until the view came to rest. The old picture's bare edge shows for the frames that takes, as during a glide. Bench (a click's build, then
 the view 200 px past the margin and held, CPU canvases, five designs, a quiet run): the frame that
 finished the build went 65-76 ms → none; the urgent frames take 10-14 ms, the swap comes on the 4th to 6th
 of them (the bare edge shows that long, then one frame for LayerScroll's shift), and the layer is whole
 2-3 frames after. On a busy machine the same run gave 177-239 → 27-42 ms worst. A
-tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row) is
-repainted at once. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
+tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row; the
+count starts over when a build is done, drawn at once or dropped for another reason) is repainted at
+once: one long frame, kept over letting each build finish with the next change pending, which would show
+the tree a change late for as long as the changes keep coming. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
 work than one repaint at once; `_lastMs`, which decides sync or spread, is what the last repaint at once
-took, and a build leaves its pieces' overhead out but once (the cheapest piece stands for it) and may only
-lower it when clearly quick (`QUICK_SHARE`, half of `SYNC_MAX_MS`): so a tree that became quick is not
-spread for ever, and a slow one is not sent back to long frames because its culled pieces now cost less
-than one whole repaint (in the bench a build's pieces took 8-10 ms where a repaint at once took 12-27 ms
-of drawing calls). Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+took, and a build leaves its pieces' overhead out but once (the cheapest piece stands for it). A clearly
+quick build (`QUICK_SHARE`, half of `SYNC_MAX_MS`) sets it; a slower one raises it; one in between only
+lowers it by `LAST_MS_DECAY` (0.9) a build, never below its own cost (2026-09-28; before, it did not lower
+it at all, and one slow repaint - a hitch - kept a tree spread for good): a slow tree is not sent back
+to long frames because its culled pieces cost less than one whole repaint (in the bench a build's pieces
+took 8-10 ms where a repaint at once took 12-27 ms of drawing calls - above `SYNC_MAX_MS`, so it stays
+spread), and one whose builds look quick while its repaint at once is not tries one repaint at once
+about every 11 builds (from 25 ms), which measures it slow again. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
@@ -750,6 +761,14 @@ is leather in Arcane and the cover colour in the dark-book designs.
 **Scan screen previews:** the tree previews there (`treePreview.js`, `treeGrowth.js`, `prereqMaster.js`)
 fill their canvas with `getPreviewBackground()` (`uiHelpers.js`): the design's `--preview-bg` CSS
 variable, else the old near-black. They repaint every frame, so the value is read at most once a second.
+
+**Tree builder status line** (`#tgStatus`, mirrored to the Easy page): idle, working, done and error
+each have a token of their own - `--status-idle`, `--status-working`, `--status-done`, `--status-error`
+(`TreeGrowth.STATUS_COLORS`, 2026-09-28). They used to be `--accent-gold/green/red`, and in Classic the
+working gold was the idle text's own colour and the muted green and red hard to tell apart. Defaults in
+`styles-skyrim.css` (amber, green, red; idle the old faint khaki), set again by `design-modern.css`,
+`design-arcane.css` (on the leather) and `design-darkbook.css` (Night Grimoire; Chalkboard's preset sets
+chalk tones); the hex in `STATUS_COLORS` is the fallback for a design that sets none.
 
 **School tabs** sit in a row under the zoom tools (`patch-ui.css`, all designs). Centred on the top row
 they covered the right half of the tools - the renderer badge, heart settings and edit tree - at the

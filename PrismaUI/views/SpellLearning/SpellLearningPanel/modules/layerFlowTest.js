@@ -5,11 +5,18 @@
  *   device pixels, clears the spare before copying, queues the uncovered strips;
  *   _drawSome draws the pieces on screen first whatever the time, the others in
  *   the time left, and asks for the next frame while some wait.
+ * - LayerBuild.step for real (stand-in pieces): urgent, the pieces on screen
+ *   first, one a frame when there is no time, the swap once they and the names
+ *   are done, the rest handed to LayerScroll with the next frame asked for, and
+ *   _lastMs left as it was by a build cut short; what finished builds do to
+ *   _lastMs (a middling one lowers it a little, never below its own cost).
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
- *   dropped (its change marked again), a glide builds for its end and starts
- *   again on a change, too many restarts draw at once, and a build seen past the
- *   old picture's margin goes on urgently.
+ *   dropped (its change marked again, the restart count started over), a glide
+ *   builds for its end and starts again on a change, too many restarts draw at
+ *   once, a build seen past the old picture's margin goes on urgently, and
+ *   pieces left by an urgent swap are drawn on a stretched frame and beside a
+ *   new build, at the layer's own zoom.
  *
  * Depends on: LayerScroll, LayerBuild, CanvasRenderer (canvasRendererV2.js,
  * canvasRendererFrame.js)
@@ -53,6 +60,7 @@ var LayerFlowTest = {
                       bstep: B.step, perf: g.performance };
         try {
             this._scrollTests(g, S);
+            this._stepTests(g, S, B);
             this._drawTreeTests(g, S, B, CR);
         } finally {
             S._ensureSpare = saved.ensure; S._drawStrip = saved.strip; S.step = saved.step; S._spare = saved.spare;
@@ -108,6 +116,58 @@ var LayerFlowTest = {
         this.check(drawn.length === 2 && S._pending.length === 0 && r.__needsRender === false, 'time enough: all drawn, no frame asked for');
     },
 
+    /** LayerBuild.step itself (not stubbed): an urgent build and its early swap. */
+    _stepTests: function(g, S, B) {
+        var drawn = [];
+        var spare = { id: 'spare', width: 1056, height: 856 }, spareCtx = this._ctx();
+        S._spare = spare; S._spareCtx = spareCtx;
+        S._ensureSpare = function() { return S._spare; };
+        S._pending = [];
+        S._drawStrip = function(rr, gg, piece, dpr, margin, view, whole) {
+            drawn.push({ piece: piece, ctx: gg, whole: whole, zoom: rr.zoom });
+        };
+        g.TreeStyle = { renderChapters: function() {} };
+        var r = { panX: 0, panY: 0, zoom: 1, rotation: 0, _layerPanX: 0, _layerPanY: 0, _layerZoom: 1, _layerRotation: 0,
+                  canvas: { width: 300, height: 200 }, _treeLayer: { id: 'layer', width: 1056, height: 856 },
+                  _treeLayerCtx: this._ctx(), renderLabels: function() {}, __needsRender: false, _frameStartAt: -1e9 };
+        var view = { cx: 150, cy: 100, rotRad: 0, cos: 1, sin: 0 };
+        B._build = null; B._restarts = 0; B._lastMs = 50;
+        B.start(r, 1, 128, view);
+        var tiles = B._build.tiles.length;
+        r.panX = 200;                                // held past the margin: urgent
+        var vr = B._screenRect(r, B._build);
+        var shownCount = B._build.tiles.filter(function(t) { return S.overlaps(t, vr); }).length;
+        var steps = [], guard = 0, swapped = false;
+        while (!swapped && guard++ < 50) { r.__needsRender = false; swapped = B.step(r, -1e9, true); steps.push(swapped); }
+        var firstOnScreen = drawn.slice(0, shownCount).every(function(d) { return S.overlaps(d.piece, vr); });
+        this.check(shownCount > 0 && shownCount < tiles && firstOnScreen &&
+            drawn.every(function(d) { return d.ctx === spareCtx && d.whole; }),
+            'urgent build: the pieces on screen first, onto the spare, as whole-layer pieces');
+        this.check(steps.length === shownCount + 1 && drawn.length === shownCount,
+            'no time left: one piece a frame, the swap as soon as the on-screen ones and the names are done');
+        this.check(swapped && r._treeLayer === spare && S._spare.id === 'layer' && r._layerPanX === 0,
+            'the early swap: the built picture is the layer, for the view it was built for');
+        this.check(S._pending.length === tiles - shownCount, "the pieces left over go to LayerScroll's queue");
+        this.check(r.__needsRender === true && r._animationOnlyRender === false,
+            'after the early swap the next frame is asked for, unthrottled');
+        this.check(B._lastMs === 50 && !B.active() && B._restarts === 0, 'a build cut short leaves _lastMs as it was');
+        S._pending = [];
+
+        // What finished builds do to _lastMs
+        var built = function(spent) { return { tiles: [], spent: spent, pieces: 1, minPiece: 0, panX: 0, panY: 0, zoom: 1, rotation: 0 }; };
+        var rr = { _treeLayer: { id: 'a' }, _treeLayerCtx: this._ctx() };
+        B._lastMs = 30; B._swapIn(rr, built(6));
+        this.check(B._lastMs > B.SYNC_MAX_MS && B._lastMs < 30, 'a middling build lowers a slow figure a little: still spread');
+        var n = 1;
+        while (B._lastMs > B.SYNC_MAX_MS && n < 100) { B._swapIn(rr, built(6)); n++; }
+        this.check(B._lastMs <= B.SYNC_MAX_MS && n > 3 && n < 20,
+            'builds that stay middling bring it down to trying at once (after ' + n + ')');
+        B._lastMs = 30;
+        for (var i = 0; i < 50; i++) B._swapIn(rr, built(9));
+        this.check(B._lastMs === 9, "never below the builds' own cost: a tree whose builds are slow stays spread");
+        B._lastMs = 0;
+    },
+
     _drawTreeTests: function(g, S, B, CR) {
         var self = this, calls = [];
         var spare = { id: 'spare', width: 1056, height: 856 };
@@ -151,9 +211,11 @@ var LayerFlowTest = {
         this.check(frame() === 'step', 'the next frame goes on with it');
 
         r.zoom = 1.2; r._layerZoom = 1;              // the view it was for is gone (not in motion)
+        B._restarts = 2;
         f = frame();
         this.check(f.indexOf('abort') === 0 && f.indexOf('build') > 0 && B.active() && B._build.zoom === 1.2,
             'a stale build is dropped, its change built again for the new view');
+        this.check(B._restarts === 0, 'a build dropped for its view is not a restart: the count starts over');
         r._layerZoom = 1.2;
 
         B._build = null; B._restarts = 0;
@@ -178,7 +240,7 @@ var LayerFlowTest = {
             return { tiles: [], spent: spent, pieces: pieces, minPiece: minPiece, panX: 0, panY: 0, zoom: r.zoom, rotation: 0 };
         };
         B._lastMs = 30; B._swapIn(r, built(6, 1, 1));
-        this.check(B._lastMs === 30, 'a middling build leaves a slow tree spread');
+        this.check(B._lastMs > B.SYNC_MAX_MS, 'a middling build leaves a slow tree spread');
         B._swapIn(r, built(40, 20, 2));            // 40 - 19 * 2 = 2 ms: clearly quick
         this.check(B._lastMs === 2, "a clearly quick build (pieces' overhead counted once) lets the next repaint try at once");
         B._lastMs = 10; B._swapIn(r, built(60, 2, 1));
@@ -190,6 +252,24 @@ var LayerFlowTest = {
         r.panX = 200;                              // held still past the old picture's margin
         f = frame();
         this.check(f === 'step' && lastUrgent === true, 'past the margin while building: the build goes on urgently');
+
+        // Pieces an urgent swap left over: drawn on frames that do not scroll
+        S._pending = [[0, 0, 50, 50]];
+        f = frame();
+        this.check(f === 'step' && S._pending.length === 1, 'not while an urgent build is about to replace the layer');
+        r.panX = 0;
+        var zoomAt = null;
+        S._drawStrip = function(rr, gg) { calls.push(gg === r._treeLayerCtx ? 'piece' : 'piece-elsewhere'); zoomAt = rr.zoom; };
+        f = frame();
+        this.check(f === 'piece step' && S._pending.length === 0, 'beside a new build: drawn first, into the layer on screen');
+        B._build = null;
+        S._pending = [[0, 0, 50, 50]];
+        r._treeDirty = false; r._wheelAt = performance.now(); r.zoom = 0.9;   // a wheel zoom straight after the swap
+        f = frame();
+        this.check(f === 'piece' && S._pending.length === 0 && zoomAt === r._layerZoom && r.zoom === 0.9,
+            "a stretched frame draws them, at the layer's zoom (the live one put back)");
+        r._wheelAt = -1e9; r.zoom = r._layerZoom;
+        S._pending = [];
         r.panX = 0;
     }
 };

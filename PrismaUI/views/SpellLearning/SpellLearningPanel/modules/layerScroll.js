@@ -24,7 +24,9 @@
  *
  * Not used (a whole repaint instead) when the tree changed, the zoom or rotation
  * changed, the layer is stale, edit mode draws into it, or the move is at least
- * the layer's size.
+ * the layer's size. Pieces already waiting (the ones an urgent LayerBuild swapped
+ * in without) are still drawn on those frames, at the layer's own view
+ * (drawPendingAside), unless the layer is stale or edit mode is on.
  *
  * Depends on: CanvasRenderer (the layer, _renderTreeInto, _labelCandidates),
  * TreeStyle (labels), HoverOverlay (optional)
@@ -277,6 +279,30 @@ var LayerScroll = {
             r.__needsRender = true;
             r._animationOnlyRender = false;
         }
+    },
+
+    /**
+     * Waiting pieces on a frame that does not scroll: the layer pasted stretched
+     * (a wheel zoom or a glide) or a new build under way (LayerBuild) - after an
+     * urgent build's early swap its last pieces wait here, and those frames would
+     * show them bare. Drawn into the layer on screen as _drawSome does, at the view
+     * the layer was drawn for (its zoom, rotation and level of detail, not the live
+     * ones); never a shift, so the spare a build draws on is not touched.
+     * Returns true when it drew.
+     */
+    drawPendingAside: function(r, dpr, margin, view) {
+        if (!this.ENABLED || !this._pending.length || !r._layerLabels || !r._treeLayerCtx) return false;
+        var rad = r._layerRotation * Math.PI / 180;
+        var layerView = { cx: view.cx, cy: view.cy, rotRad: rad, cos: Math.cos(rad), sin: Math.sin(rad) };
+        var live = { zoom: r.zoom, rotation: r.rotation, lod: r._lodTier };
+        r.zoom = r._layerZoom; r.rotation = r._layerRotation;
+        if (typeof r._computeLODTier === 'function') r._lodTier = r._computeLODTier();
+        try {
+            this._drawSome(r, dpr, margin, layerView);
+        } finally {
+            r.zoom = live.zoom; r.rotation = live.rotation; r._lodTier = live.lod;
+        }
+        return true;
     },
 
     _drawTimed: function(r, g, piece, dpr, margin, view, viewCss) {

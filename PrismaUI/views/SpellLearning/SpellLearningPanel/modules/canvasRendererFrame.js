@@ -220,7 +220,7 @@
             // started again in a row): the build in hand goes and the tree is repainted
             // at once below
             if (building && this._treeDirty && !stretch && LayerBuild.overRestarts()) {
-                LayerBuild.abort(this);
+                LayerBuild.abort(this, true);        // the count stays: a repaint at once follows
                 building = false;
             }
             // A camera glide says where it ends: the tree is built for that view while
@@ -289,15 +289,24 @@
                 dx = 0;
                 dy = 0;
             }
+            // Held still past the old picture's margin (a jump without a glide, a
+            // drag meanwhile) its bare edge shows: the build goes on urgently (the
+            // pieces on screen first, a bigger share of the frame, swapped in as
+            // soon as they are done; LayerBuild.step). A smaller old picture after
+            // a zoom out keeps its bare border a few frames more, as it had during
+            // the zoom; so does a glide's build that is not quite done as the camera
+            // arrives (it showed so during the glide).
+            var urgent = building && slid && !this._viewInMotion() && !LayerBuild.forGlide();
+            // Pieces an urgent build swapped in without wait in LayerScroll's queue. A
+            // frame that scrolls draws them (LayerScroll.step above); a stretched one (a
+            // wheel zoom, a glide) or one with a new build under way draws them here,
+            // before the build's piece, into the layer on screen - not while an urgent
+            // build is about to replace that layer anyway
+            if (!scrolled && !urgent && !this._treeLayerStale && typeof LayerScroll !== 'undefined' &&
+                    LayerScroll._pending.length && !(typeof EditMode !== 'undefined' && EditMode.isActive)) {
+                LayerScroll.drawPendingAside(this, dpr, margin, view);
+            }
             if (building) {
-                // Held still past the old picture's margin (a jump without a glide, a
-                // drag meanwhile) its bare edge shows: the build goes on urgently (the
-                // pieces on screen first, a bigger share of the frame, swapped in as
-                // soon as they are done; LayerBuild.step). A smaller old picture after
-                // a zoom out keeps its bare border a few frames more, as it had during
-                // the zoom; so does a glide's build that is not quite done as the camera
-                // arrives (it showed so during the glide).
-                var urgent = slid && !this._viewInMotion() && !LayerBuild.forGlide();
                 if (LayerBuild.step(this, this._frameStartAt || performance.now(), urgent)) {
                     layer = this._treeLayer;
                     dx = this.panX - this._layerPanX;
