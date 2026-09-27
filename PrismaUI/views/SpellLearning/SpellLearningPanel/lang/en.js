@@ -534,6 +534,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Sigil",
     "settings.render.effectGlow": "Glow",
     "settings.render.effectRunes": "Runes",
+    "settings.render.effectInk": "Drawn lines",
     "settings.render.starfieldPageNote": "This design draws a page instead of the starfield. Turn Page off to see the stars.",
     "settings.render.tabAnimation": "Animation",
     "settings.render.tabPerformance": "Performance",

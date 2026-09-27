@@ -282,8 +282,10 @@ var CanvasRenderer = {
         }
         this._shapePaths['default'] = this._shapePaths['Restoration'];
     },
-    _getShapePath: function(school) {
-        return this._shapePaths[school] || this._shapePaths['default'];
+    /** node: its hand-drawn variant when the design draws by hand (NodeBatch.handPath). */
+    _getShapePath: function(school, node) {
+        var hand = node && NodeBatch.handPath(school, node.x, node.y);
+        return hand || this._shapePaths[school] || this._shapePaths['default'];
     },
 
     // =========================================================================
@@ -1833,6 +1835,7 @@ var CanvasRenderer = {
         this.renderSchoolDividers(ctx);
         this.renderDebugGrid(ctx);          // behind edges and nodes
         if (pm) this._partAt = PerfMeter.part('dividers', this._partAt);
+        TreeStyle.beginInk(this._lodTier === 'full', this.zoom);
         this.renderEdges(ctx, viewLeft, viewRight, viewTop, viewBottom);
         if (pm) this._partAt = PerfMeter.part('edges', this._partAt);
         // The learning path animation and the detached particles move every
@@ -2135,7 +2138,10 @@ var CanvasRenderer = {
             var cpy = (y1 + y2) / 2 - (x2 - x1) * 0.15;
             ctx.quadraticCurveTo(cpx, cpy, x2, y2);
         } else {
-            ctx.lineTo(x2, y2);
+            // A design that draws by hand bows its straight lines a little (TreeStyle.edgeBow)
+            var bow = TreeStyle.edgeBow(x1, y1, x2, y2);
+            if (bow) ctx.quadraticCurveTo((x1 + x2) / 2 - (y2 - y1) * bow, (y1 + y2) / 2 + (x2 - x1) * bow, x2, y2);
+            else ctx.lineTo(x2, y2);
         }
     },
 
@@ -2329,11 +2335,15 @@ var CanvasRenderer = {
             strokeBatch(batches.dim);
         }
         if (batches.locked.length) {
-            ctx.strokeStyle = S.lockedEdgeColor;
+            // Stippled in a design that asks for it (a dot pattern, TreeStyle.inkStipple)
+            ctx.strokeStyle = TreeStyle.inkStipple(ctx, S.lockedEdgeColor) || S.lockedEdgeColor;
             ctx.lineWidth = 1;
             ctx.globalAlpha = S.lockedEdgeAlpha;
             strokeBatch(batches.locked);
         }
+        // Breaks in the known and frontier lines (chalk skipping on the board)
+        var breaks = TreeStyle.inkDash(S.edgeBreaks);
+        if (breaks) ctx.setLineDash(breaks);
         for (var fk = 0; fk < frontierKeys.length; fk++) {
             ctx.strokeStyle = frontierKeys[fk].substring(2);
             ctx.lineWidth = 1.25;
@@ -2353,7 +2363,16 @@ var CanvasRenderer = {
             ctx.lineWidth = S.unlockedEdgeWidth;
             ctx.globalAlpha = S.unlockedEdgeAlpha;
             strokeBatch(uList);
+            // Engraved: a stripe of the page down the middle turns the line into two
+            var cut = TreeStyle.edgeCutWidth(S.unlockedEdgeWidth);
+            if (cut) {
+                ctx.strokeStyle = this._backdrop();
+                ctx.lineWidth = cut;
+                ctx.globalAlpha = 1;
+                strokeBatch(uList);
+            }
         }
+        if (breaks) ctx.setLineDash([]);
         } // end LOD skip for MINIMAL
 
         // === PASS 1.5: Hover preview path (hovered node's school color) ===
@@ -2647,7 +2666,7 @@ var CanvasRenderer = {
         var schoolColor = node._cachedSchoolColor || this._getSchoolColor(node.school);
         var isSelected = this.selectedNode && this.selectedNode.id === node.id;
         var isHovered = this.hoveredNode && this.hoveredNode.id === node.id;
-        var path = this._getShapePath(node.school);
+        var path = this._getShapePath(node.school, node);
         var isLearning = node.state === 'learning';
 
         var size, fillColor, strokeColor, strokeWidth, alpha;
@@ -2786,6 +2805,11 @@ var CanvasRenderer = {
             onPath ? this._heartRing() : (style.unlockedRim || schoolColor), cf, false, 1.5, 1, lock);
         NodeBatch.addShape(node.school, node.x, node.y, size * 0.5,
             style.unlockedCore || this.getInnerAccentColor(schoolColor), null, cf, false, 1, 2);
+        var inner = TreeStyle.innerLineAt(size);
+        if (inner) {
+            NodeBatch.addShape(node.school, node.x, node.y, inner.size, null,
+                inner.color || this._backdrop(), cf, false, inner.width, 2);
+        }
         return true;
     },
 
@@ -2820,7 +2844,7 @@ var CanvasRenderer = {
         var color = this._getSchoolColor(node.school);
         var dimmedColor = this.dimColor(color, 0.4);
         var size = this._minSize(this._mysterySize(node));
-        var path = this._getShapePath(node.school);
+        var path = this._getShapePath(node.school, node);
         var contextFactor = this._contextFactor(node);
         
         ctx.save();
@@ -2871,7 +2895,7 @@ var CanvasRenderer = {
         var schoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
         var isSelected = this.selectedNode && this.selectedNode.id === node.id;
         var isHovered = this.hoveredNode && this.hoveredNode.id === node.id;
-        var path = this._getShapePath(node.school);
+        var path = this._getShapePath(node.school, node);
         
         var size, fillColor, strokeColor, strokeWidth, alpha;
         var learningPathColor = this._learningColor();
@@ -3047,6 +3071,7 @@ var CanvasRenderer = {
             ctx.lineWidth = strokeWidth / size;
             ctx.fill(path);
             ctx.stroke(path);
+            TreeStyle.strokeInnerLine(ctx, path, size, this._backdrop());
 
             // Inner accent
             ctx.scale(0.5, 0.5);
@@ -3068,6 +3093,7 @@ var CanvasRenderer = {
 
             // Draw inner accent for unlocked nodes
             if (node.state === 'unlocked') {
+                TreeStyle.strokeInnerLine(ctx, path, size, this._backdrop());
                 ctx.scale(0.5, 0.5);
                 ctx.fillStyle = style.unlockedCore || this.getInnerAccentColor(schoolColor);
                 ctx.fill(path);

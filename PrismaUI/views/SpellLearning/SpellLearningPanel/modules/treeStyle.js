@@ -85,6 +85,14 @@ var TreeStyle = {
         // Illustrations (drawn once into the page or a cached sprite, never per frame at full size)
         pageOrnament: '',                           // image for the page's top-left corner, mirrored into all four ('' = none)
 
+        // Ink (treeStyleInk.js) - how shapes and lines are drawn; only at the full level of detail
+        handDrawn: 0,                               // 0..0.15 wobble of spell shapes (share of their size), lines bow a little
+        lockedEdgeStipple: 0,                       // locked lines stippled: dot spacing in world units, 2..6 (0 = solid)
+        edgeBreaks: '',                             // breaks in known and frontier lines, same form ('' = none)
+        edgeCut: 0,                                 // 0..1 engraved: a stripe of page this share of the known lines' width
+        innerLine: 0,                               // 0..1 inset outline inside known spells, as a share of their size
+        innerLineColor: '',                         // its colour ('' = the page)
+
         // Book
         chapterTitles: false,                       // school names round the outside, like chapter headings
         chapterSize: 15,                            // screen px, the same at every zoom
@@ -103,7 +111,10 @@ var TreeStyle = {
         { key: 'page',   token: 'pageColor',      off: '',    uses: function(o) { return !!o.pageColor; } },
         { key: 'sigil',  token: 'selectionSigil', off: false, uses: function(o) { return o.selectionSigil === true; } },
         { key: 'glow',   token: 'learningGlow',   off: 0,     uses: function(o) { return o.learningGlow > 0; } },
-        { key: 'runes',  token: 'hubRunes',       off: false, uses: function(o) { return o.hubRunes === true; } }
+        { key: 'runes',  token: 'hubRunes',       off: false, uses: function(o) { return o.hubRunes === true; } },
+        // One switch for all the ink: a list of [token, off] instead of token/off
+        { key: 'ink', tokens: [['handDrawn', 0], ['lockedEdgeStipple', 0], ['edgeBreaks', ''], ['edgeCut', 0], ['innerLine', 0]],
+          uses: function(o) { return o.handDrawn > 0 || o.lockedEdgeStipple > 0 || !!o.edgeBreaks || o.edgeCut > 0 || o.innerLine > 0; } }
     ],
     _spriteCache: {},
 
@@ -126,7 +137,9 @@ var TreeStyle = {
         var off = this.effectsOff || {};
         for (var i = 0; i < this.EFFECTS.length; i++) {
             var fx = this.EFFECTS[i];
-            if (off[fx.key]) t[fx.token] = fx.off;
+            if (!off[fx.key]) continue;
+            if (fx.tokens) for (var j = 0; j < fx.tokens.length; j++) t[fx.tokens[j][0]] = fx.tokens[j][1];
+            else t[fx.token] = fx.off;
         }
         this.tokens = t;
         this._spriteCache = {};

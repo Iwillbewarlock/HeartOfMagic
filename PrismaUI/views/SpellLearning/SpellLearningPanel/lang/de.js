@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Siegel",
     "settings.render.effectGlow": "Leuchten",
     "settings.render.effectRunes": "Runen",
+    "settings.render.effectInk": "Gezeichnete Linien",
     "settings.render.starfieldPageNote": "Dieses Design zeichnet statt des Sternenfelds eine Seite. Schalte die Seite aus, um die Sterne zu sehen.",
     "settings.render.tabAnimation": "Animation",
     "settings.render.tabPerformance": "Leistung",

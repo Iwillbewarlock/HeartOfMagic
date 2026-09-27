@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Печать",
     "settings.render.effectGlow": "Свечение",
     "settings.render.effectRunes": "Руны",
+    "settings.render.effectInk": "Рисованные линии",
     "settings.render.starfieldPageNote": "Это оформление рисует страницу вместо звёздного неба. Выключите «Страницу», чтобы увидеть звёзды.",
     "settings.render.tabAnimation": "Анимация",
     "settings.render.tabPerformance": "Производительность",

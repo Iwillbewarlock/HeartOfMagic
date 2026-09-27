@@ -540,6 +540,7 @@
     "settings.render.effectSigil": "Sigillo",
     "settings.render.effectGlow": "Bagliore",
     "settings.render.effectRunes": "Rune",
+    "settings.render.effectInk": "Tratti a mano",
     "settings.render.starfieldPageNote": "Questo design disegna una pagina al posto del campo stellare. Spegni Pagina per vedere le stelle.",
     "settings.render.tabAnimation": "Animazione",
     "settings.render.tabPerformance": "Prestazioni",

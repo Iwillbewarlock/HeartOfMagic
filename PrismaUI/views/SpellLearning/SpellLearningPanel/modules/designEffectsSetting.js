@@ -3,14 +3,15 @@
  *
  * A design preset can add effects to the tree: a still page instead of the
  * starfield, the selection sigil, the glow behind the
- * spell being learned, the runes round the heart. Each can be turned off here,
+ * spell being learned, the runes round the heart, the drawn lines (the hand-drawn
+ * wobble, dotted, broken or engraved lines, treeStyleInk.js). Each can be turned off here,
  * and stays off in every design (TreeStyle.setEffectsOff). A switch the current
  * design has no use for is greyed out.
  *
  * The starfield controls below are greyed out too while a page is drawn - the
  * page replaces the starfield - with a note saying so.
  *
- * Setting: designEffects { page, sigil, glow, runes } (true = on).
+ * Setting: designEffects { page, sigil, glow, runes, ink } (true = on).
  *
  * Depends on: settings, TreeStyle, autoSaveSettings (optional)
  */

@@ -28,7 +28,8 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `treeViewerUI.js` | 618 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 213 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 349 | `TreeStyle`: tree look as design-preset tokens; halos, labels, sigil, heart runes, school ink |
-| `treeStyleBook.js` | 277 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, ink reveal |
+| `treeStyleBook.js` | 313 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
+| `treeStyleInk.js` | 219 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 336 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
 | `layoutDeclutter.js` | 500 | `LayoutDeclutter`: before a built tree is saved, spaces it out, moves spells off its lines (`LayoutLineClear`), off each other and off the heart; every growth mode calls `applyAsync` and saves when it is done. In game `applyAsync` has the plugin do it (`DeclutterTree`, the same pass in C++ on a worker thread, answered through `window.onDeclutterResult`, same positions); without the plugin, on an error or after 30 s without a reply it runs here a piece at a time between frames, progress on the status line. A C++ twin: changes go to `plugins/spelllearning/src/treebuilder/Layout*.cpp` too |

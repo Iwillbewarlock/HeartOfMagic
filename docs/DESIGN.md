@@ -378,6 +378,25 @@ hand (`themes/chalkboard/`: a magic circle in the hub, a corner doodle, the empt
 star). Its whole UI - panel text, buttons, headings and the tree's labels - is set in chalk handwriting
 fonts chosen per language (below).
 
+### Drawn spells and lines (2026-09-27)
+
+The three book designs also draw the tree's spells and lines in their medium (`modules/treeStyleInk.js`,
+the Drawn lines tokens in PRESETS.md):
+
+| Design | Spells | Lines |
+|---|---|---|
+| Arcane (pen and ink) | hand-drawn: shapes wobble (`handDrawn` 0.07) | locked lines stippled (`lockedEdgeStipple` 3), straight lines bow a little |
+| Night Grimoire (engraving) | an engraved inset outline inside known spells (`innerLine` 0.7, page colour) | known lines engraved as a double line (`unlockedEdgeWidth` 2.4 with a 0.4 cut of page) |
+| Chalkboard (chalk) | hand-drawn, looser (`handDrawn` 0.1) | known lines skip like chalk (`edgeBreaks`), straight lines bow |
+
+The wobble is geometry only: every school's shape (the circle too, as a smooth loop of nine points) is
+jittered into four variants once per design, and a spell picks one by its position, so the batch
+(`NodeBatch`) and the spells drawn one by one (`renderNode`, the hover) give it the same shape. None of
+it is drawn below the full level of detail, and the cut and the inset line wait until they are wide
+enough on screen. Measured on a CPU canvas (full tree, every locked spell shown, 1600x1000): the drawn
+lines add 1-5 ms to a 60-75 ms repaint of the tree layer. Stippling the locked lines with a dash
+instead of a pattern had cost 25-40 ms, so it is a pattern. The Drawn lines chip turns all of it off.
+
 ### Design fonts per language (2026-09-27)
 
 Handwriting and old-book fonts cover one or two scripts each, so a design that wants its own lettering
@@ -566,12 +585,13 @@ became a layer of colours and shapes like Arcane, and every screen added to Skyr
 - *Moving parts* - heart pulse, particle trail, star twinkle (`starTwinkle`), and the design's moving
   effects (`modules/designEffectsSetting.js`): the selection sigil, the learning
   glow and the heart runes.
-- *On the tree* - the design's page, the starfield (greyed out with a note while a page is drawn, since
+- *On the tree* - the design's page, its drawn lines (`ink`: the hand-drawn wobble, stippled, broken
+  or engraved lines, one chip for all of them), the starfield (greyed out with a note while a page is drawn, since
   the page replaces it), base lines and spell names.
 
 A design effect turned off stays off in every design - `TreeStyle.setEffectsOff` blanks those tokens
 after any design's are set - and a chip the current design has no use for is greyed out. Saved as
-`designEffects` (`{ page, sigil, glow, runes }`, false = off; an old `reveal` key is ignored). A chip is a checkbox inside a
+`designEffects` (`{ page, sigil, glow, runes, ink }`, false = off; an old `reveal` key is ignored). A chip is a checkbox inside a
 `label.render-chip` (hidden box, lit text when checked, theme variables only, `patch-ui.css`), so the
 wiring is the same as for a switch. A note at the bottom says what costs frames since the tree layer and
 `StaticBase` (see *Performance* above): only what moves costs every frame - Still everything, or stars
@@ -637,7 +657,7 @@ parchment, gold switches and tools), coloured by the `--book-*` palette each pre
 the sheet's fallback values.
 
 Code: `modules/treeStyle.js` (`TreeStyle`: tokens, halos, labels, sigil, heart runes, school ink),
-`modules/treeStyleBook.js` (adds the page, chapters and ornament dividers to `TreeStyle`),
+`modules/treeStyleBook.js` (adds the page, chapters and ornament dividers to `TreeStyle`), `modules/treeStyleInk.js` (the drawn lines),
 `modules/designPresets.js` (`DesignPresets`: built-ins, disk presets, the selector, CSS). The renderer
 reads colours from `TreeStyle.tokens` where it used literals before.
 
@@ -932,6 +952,7 @@ Tree applied
 | `canvasRendererV2.js` | **Primary** Canvas 2D renderer (handles 200+ nodes) |
 | `treeStyle.js` | `TreeStyle`: the tree's look as tokens a design preset sets; halos, labels, sigil, heart runes, school ink |
 | `treeStyleBook.js` | Adds the spellbook effects to `TreeStyle`: page, chapter titles, ornament dividers |
+| `treeStyleInk.js` | Adds the drawn lines to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | `DesignPresets`: built-in and `presets/design/*.json` looks, the Design Preset selector, preset CSS |
 | `wheelRenderer.js` | Legacy SVG renderer (still loaded, not primary) |
 | `treeViewerUI.js` | Tree viewer page logic, node selection, detail panels |

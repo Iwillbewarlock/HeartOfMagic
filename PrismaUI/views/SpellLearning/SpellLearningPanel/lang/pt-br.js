@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Selo",
     "settings.render.effectGlow": "Brilho",
     "settings.render.effectRunes": "Runas",
+    "settings.render.effectInk": "Traços à mão",
     "settings.render.starfieldPageNote": "Este design desenha uma página no lugar do campo de estrelas. Desligue Página para ver as estrelas.",
     "settings.render.tabAnimation": "Animação",
     "settings.render.tabPerformance": "Desempenho",

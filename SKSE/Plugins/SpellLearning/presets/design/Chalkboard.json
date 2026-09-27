@@ -126,6 +126,8 @@
         "chapterTitles": true,
         "dividerOrnament": true,
         "hubEmblem": "themes/chalkboard/sigil.png",
-        "pageOrnament": "themes/chalkboard/corner.png"
+        "pageOrnament": "themes/chalkboard/corner.png",
+        "handDrawn": 0.1,
+        "edgeBreaks": "24 1.2 9 0.9 33 1.5 14 1"
     }
 }

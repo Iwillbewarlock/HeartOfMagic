@@ -535,6 +535,7 @@
     "settings.render.effectSigil": "선택 문양",
     "settings.render.effectGlow": "학습 빛",
     "settings.render.effectRunes": "하트 룬",
+    "settings.render.effectInk": "손그림 선",
     "settings.render.starfieldPageNote": "이 디자인은 별빛 대신 페이지를 그려요. 별을 보려면 페이지를 끄세요.",
     "settings.render.tabAnimation": "애니메이션",
     "settings.render.tabPerformance": "성능",

@@ -61,6 +61,9 @@ var NodeBatch = {
     _markOrder: null,
 
     _unturned: false,          // this batch: shapes not turned toward the centre (simple level of detail)
+    _hand: null,               // the design's hand-drawn shapes (TreeStyle.handShapes), or null; kept after
+                               // flush so the spells drawn one by one afterwards match the batch
+    _handPaths: null,          // unit Path2D per school and variant, for _hand
 
     /** The rotation a school's shape gets at (x, y): 0 for circles. */
     rotationAt: function(school, x, y) {
@@ -83,9 +86,31 @@ var NodeBatch = {
         return p;
     },
 
+    /**
+     * The unit Path2D a spell at (x, y) is drawn with one by one: its school's
+     * shape, or the hand-drawn variant the batch gives it. Null when the design
+     * draws no hand-drawn shapes (the caller keeps its own cached shape).
+     */
+    handPath: function(school, x, y) {
+        var hand = this._hand;
+        if (!hand) return null;
+        var key = this.SHAPES[school] ? school : '';
+        var v = TreeStyle.handVariant(x, y);
+        if (!this._handPaths || this._handPaths.hand !== hand) this._handPaths = { hand: hand };
+        var id = key + '|' + v;
+        var p = this._handPaths[id];
+        if (!p) {
+            p = this._handPaths[id] = new Path2D();
+            TreeStyle.traceShape(p, hand[key][v], 0, 0, 1, 0);
+        }
+        return p;
+    },
+
     /** unturned: the shapes stay as drawn (CanvasRenderer's simple level of detail does not turn them). */
     begin: function(unturned) {
         this._unturned = unturned === true;
+        this._hand = (!this._unturned && typeof TreeStyle !== 'undefined' && TreeStyle.handShapes) ?
+            TreeStyle.handShapes() : null;
         this._halos = [];
         this._shapes = {};
         this._shapeOrder = [];
@@ -102,6 +127,7 @@ var NodeBatch = {
     /**
      * Queue one spell's shape; spells with the same look share one path.
      * stroke null = fill only; width is the outline in world units (default 1);
+     * fill null = outline only;
      * layer 0-2 (default 1, see LAYERS), each drawn over all of the one below.
      * A see-through shape in layer 0 or 1 is first filled with the backdrop
      * (see flush) unless `bare` (the lock ring: the lines show through it).
@@ -121,6 +147,12 @@ var NodeBatch = {
         }
         var path = b.path;
         var pts = this.SHAPES[school];
+        if (this._hand) {
+            var hr = this.rotationAt(school, x, y);
+            TreeStyle.traceShape(path, this._hand[pts ? school : ''][TreeStyle.handVariant(x, y)], x, y,
+                Math.cos(hr) * size, Math.sin(hr) * size);
+            return;
+        }
         if (!pts) {
             path.moveTo(x + size, y);
             path.arc(x, y, size, 0, Math.PI * 2);
@@ -172,8 +204,10 @@ var NodeBatch = {
                     ctx.fill(b.path);
                 }
                 ctx.globalAlpha = b.alpha;
-                ctx.fillStyle = b.fill;
-                ctx.fill(b.path);
+                if (b.fill) {
+                    ctx.fillStyle = b.fill;
+                    ctx.fill(b.path);
+                }
                 if (!b.stroke) continue;
                 ctx.strokeStyle = b.stroke;
                 ctx.lineWidth = b.width;

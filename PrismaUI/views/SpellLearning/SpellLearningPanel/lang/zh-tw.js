@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "選擇印記",
     "settings.render.effectGlow": "學習光暈",
     "settings.render.effectRunes": "心之符文",
+    "settings.render.effectInk": "手繪線條",
     "settings.render.starfieldPageNote": "此設計以紙頁代替星空。要看到星星，請關閉紙頁。",
     "settings.render.tabAnimation": "動畫",
     "settings.render.tabPerformance": "效能",

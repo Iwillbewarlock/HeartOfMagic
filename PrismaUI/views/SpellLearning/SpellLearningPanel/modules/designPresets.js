@@ -108,6 +108,10 @@ var DesignPresets = {
                 lockedEdgeColor: '#8a7a5e',
                 lockedEdgeAlpha: 0.35,
                 frontierEdgeAlpha: 0.6,
+
+                // Pen and ink: shapes and lines drawn by hand, locked lines stippled
+                handDrawn: 0.07,
+                lockedEdgeStipple: 3,
                 selectedPathColor: '#8b1e1e',
                 selectedPathAlpha: 0.85,
                 selectedPathWidth: 2.5,

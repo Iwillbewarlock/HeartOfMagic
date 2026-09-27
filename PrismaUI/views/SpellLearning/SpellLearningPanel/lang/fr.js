@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Sceau",
     "settings.render.effectGlow": "Lueur",
     "settings.render.effectRunes": "Runes",
+    "settings.render.effectInk": "Traits dessinés",
     "settings.render.starfieldPageNote": "Ce design dessine une page au lieu du champ d'étoiles. Désactivez Page pour voir les étoiles.",
     "settings.render.tabAnimation": "Animation",
     "settings.render.tabPerformance": "Performance",

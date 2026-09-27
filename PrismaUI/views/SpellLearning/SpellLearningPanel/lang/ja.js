@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "選択の紋章",
     "settings.render.effectGlow": "学習の光",
     "settings.render.effectRunes": "ハートのルーン",
+    "settings.render.effectInk": "手描きの線",
     "settings.render.starfieldPageNote": "このデザインは星空の代わりにページを描きます。星を見るにはページをオフにしてください。",
     "settings.render.tabAnimation": "アニメーション",
     "settings.render.tabPerformance": "パフォーマンス",

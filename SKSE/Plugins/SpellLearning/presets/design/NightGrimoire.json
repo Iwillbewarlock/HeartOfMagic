@@ -118,7 +118,7 @@
         "dimEdgeColor": "#2a2640",
         "unlockedEdgeColor": "#d9b35e",
         "unlockedEdgeAlpha": 0.7,
-        "unlockedEdgeWidth": 1.6,
+        "unlockedEdgeWidth": 2.4,
         "lockedEdgeColor": "#6d6690",
         "lockedEdgeAlpha": 0.22,
         "frontierEdgeAlpha": 0.5,
@@ -132,6 +132,8 @@
         "chapterTitles": true,
         "dividerOrnament": true,
         "hubEmblem": "themes/nightgrimoire/sigil.png",
-        "pageOrnament": "themes/nightgrimoire/corner.png"
+        "pageOrnament": "themes/nightgrimoire/corner.png",
+        "edgeCut": 0.4,
+        "innerLine": 0.7
     }
 }

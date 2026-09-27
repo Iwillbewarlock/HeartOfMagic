@@ -210,8 +210,8 @@ Each file is its own design, so add-ons never have to share or overwrite a list.
 what the list shows; `id` (optional, else the name) is what the player's choice is saved as. A built-in
 id (`arcane`, `modern`, `classic`) cannot be replaced.
 
-A player can turn off a design's page, selection sigil, learning glow and heart runes in the
-render popup (its chips), or still everything at once; a design does not need
+A player can turn off a design's page, selection sigil, learning glow, heart runes and drawn lines
+(all the Drawn lines tokens at once) in the render popup (its chips), or still everything at once; a design does not need
 to offer its own switches for them.
 
 ### The `render` block
@@ -291,12 +291,15 @@ newer version still loads.
 | Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes`, `hubEmblem` (an image path drawn in the heart instead of its text; `""` = the text) |
 | Illustrations | `pageOrnament` (an image path for the page's top-left corner, mirrored into all four; needs `pageColor`; `""` = none). Paths are relative to the panel's `index.html`; an image that fails to load is simply not drawn |
 | Lines | `dimEdgeColor`, `unlockedEdgeColor`, `unlockedEdgeAlpha`, `unlockedEdgeWidth`, `edgeGlow`, `lockedEdgeColor`, `lockedEdgeAlpha`, `frontierEdgeAlpha` (edges into learnable spells; 0 = drawn as locked), `selectedPathColor`, `selectedPathAlpha`, `selectedPathWidth`, `hoverPathAlpha` |
+| Drawn lines | How shapes and lines are drawn (`modules/treeStyleInk.js`), all off by default and only at the full level of detail: `handDrawn` 0-0.15 (spell shapes wobble by this share of their size, straight lines bow a little; four pre-made variants per school, no extra paint calls), `lockedEdgeStipple` (locked lines as a dot pattern, dots 2-6 world units apart; 0 = solid), `edgeBreaks` (known and frontier lines broken by a dash, `"on off ..."` in screen px; `""` = none), `edgeCut` 0-1 (engraved: a stripe of page this share of `unlockedEdgeWidth` down known lines, drawn once the line is 2.2 px wide on screen), `innerLine` 0-1 (an inset outline inside known spells at this share of their size) and `innerLineColor` (`""` = the page) |
 | Book | `accent` (sigil, runes, chapter titles, dividers), `selectionSigil`, `chapterTitles`, `chapterSize`, `dividerOrnament` (`reveal`, `revealMs` and `inkColor` - the ink reveal on opening - were removed and are ignored) |
 
 `TreeStyle.DEFAULTS` in `modules/treeStyle.js` is the authoritative list with the Classic values, and
 the Arcane preset in `modules/designPresets.js` is a full worked example. `nodeGlow` and `edgeGlow` are
 the costly ones (a sprite per learned spell, a wide stroke per learned edge); the rest cost about the
-same as Classic. See [DESIGN.md](DESIGN.md) for measurements.
+same as Classic. Of the drawn lines, a dot or dash per few pixels of the ~1,400 locked lines would be
+the costly one, which is why locked lines are stippled with a pattern and not a dash (`edgeBreaks`
+applies only to the few known and frontier lines, with long dashes). See [DESIGN.md](DESIGN.md) for measurements.
 
 Restart the game after adding a file: presets are read once, when the panel first loads its settings.
 

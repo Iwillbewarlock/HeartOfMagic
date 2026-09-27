@@ -517,6 +517,7 @@ window._i18nPreload = {
     "settings.render.effectSigil": "Pieczęć",
     "settings.render.effectGlow": "Blask",
     "settings.render.effectRunes": "Runy",
+    "settings.render.effectInk": "Rysowane linie",
     "settings.render.starfieldPageNote": "Ten wygląd rysuje stronę zamiast gwiazd. Wyłącz Stronę, aby zobaczyć gwiazdy.",
     "settings.render.tabAnimation": "Animacja",
     "settings.render.tabPerformance": "Wydajność",

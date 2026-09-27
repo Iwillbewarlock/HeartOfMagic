@@ -540,6 +540,7 @@
     "settings.render.effectSigil": "Mühür",
     "settings.render.effectGlow": "Parıltı",
     "settings.render.effectRunes": "Rünler",
+    "settings.render.effectInk": "Çizim çizgileri",
     "settings.render.starfieldPageNote": "Bu tasarım yıldız alanı yerine bir sayfa çizer. Yıldızları görmek için Sayfa'yı kapatın.",
     "settings.render.tabAnimation": "Animasyon",
     "settings.render.tabPerformance": "Performans",
