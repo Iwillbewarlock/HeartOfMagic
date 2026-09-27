@@ -259,7 +259,13 @@ var TreeStyle = {
     fontsChanged: function() {
         this._fontKey = '';
         this._fontValue = '';
-        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+        if (typeof CanvasRenderer !== 'undefined') {
+            // The name widths kept were measured with the font the page had before:
+            // the font string is the same, so the cache would not notice by itself
+            CanvasRenderer._labelWidthFont = null;
+            CanvasRenderer._labelWidths = null;
+            CanvasRenderer._needsRender = true;
+        }
     },
 
     /**

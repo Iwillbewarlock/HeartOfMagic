@@ -216,6 +216,13 @@
                 LayerBuild.abort(this);
                 building = false;
             }
+            // The tree keeps changing faster than a build ends (LayerBuild.MAX_RESTARTS
+            // started again in a row): the build in hand goes and the tree is repainted
+            // at once below
+            if (building && this._treeDirty && !stretch && LayerBuild.overRestarts()) {
+                LayerBuild.abort(this);
+                building = false;
+            }
             // A camera glide says where it ends: the tree is built for that view while
             // it glides, so it is ready when the camera arrives (a click's highlight
             // included); a change during the glide starts it again
@@ -284,12 +291,14 @@
             }
             if (building) {
                 // Held still past the old picture's margin (a jump without a glide, a
-                // drag meanwhile) its bare edge would show: the rest is drawn now. A
-                // smaller old picture after a zoom out keeps its bare border a few
-                // frames more, as it had during the zoom; so does a glide's build that
-                // is not quite done as the camera arrives (it showed so during the glide).
-                var all = slid && !this._viewInMotion() && !LayerBuild.forGlide();
-                if (LayerBuild.step(this, this._frameStartAt || performance.now(), all)) {
+                // drag meanwhile) its bare edge shows: the build goes on urgently (the
+                // pieces on screen first, a bigger share of the frame, swapped in as
+                // soon as they are done; LayerBuild.step). A smaller old picture after
+                // a zoom out keeps its bare border a few frames more, as it had during
+                // the zoom; so does a glide's build that is not quite done as the camera
+                // arrives (it showed so during the glide).
+                var urgent = slid && !this._viewInMotion() && !LayerBuild.forGlide();
+                if (LayerBuild.step(this, this._frameStartAt || performance.now(), urgent)) {
                     layer = this._treeLayer;
                     dx = this.panX - this._layerPanX;
                     dy = this.panY - this._layerPanY;

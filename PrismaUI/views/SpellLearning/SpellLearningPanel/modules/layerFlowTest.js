@@ -1,0 +1,185 @@
+/**
+ * LayerFlowTest - node tests for how a frame gets its tree layer (run-tests.js),
+ * with stand-in canvases (no drawing):
+ * - LayerScroll: a shift swaps the canvases, moves the layer's pan by whole
+ *   device pixels, clears the spare before copying, queues the uncovered strips;
+ *   _drawSome draws the pieces on screen first whatever the time, the others in
+ *   the time left, and asks for the next frame while some wait.
+ * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
+ *   frames when that is wanted and drawn at once when not, a stale build is
+ *   dropped (its change marked again), a glide builds for its end and starts
+ *   again on a change, too many restarts draw at once, and a build seen past the
+ *   old picture's margin goes on urgently.
+ *
+ * Depends on: LayerScroll, LayerBuild, CanvasRenderer (canvasRendererV2.js,
+ * canvasRendererFrame.js)
+ */
+
+var LayerFlowTest = {
+
+    passed: 0,
+    failed: 0,
+
+    check: function(ok, name) {
+        if (ok) { this.passed++; console.log('  [PASS] ' + name); }
+        else { this.failed++; console.log('  [FAIL] ' + name); }
+    },
+
+    /** A 2d context that draws nothing and remembers the calls it got. */
+    _ctx: function(log) {
+        var c = { calls: log || [] };
+        ['setTransform', 'clearRect', 'save', 'restore', 'scale', 'translate', 'rotate', 'beginPath', 'rect', 'clip',
+         'getImageData'].forEach(function(n) {
+            c[n] = function() { c.calls.push(n + '(' + Array.prototype.slice.call(arguments).join(',') + ')'); };
+        });
+        c.drawImage = function(img, x, y) { c.calls.push('drawImage(' + (img && img.id) + ',' + x + ',' + y + ')'); };
+        var op = 'source-over';
+        Object.defineProperty(c, 'globalCompositeOperation', {
+            get: function() { return op; },
+            set: function(v) { op = v; c.calls.push('composite=' + v); }
+        });
+        return c;
+    },
+
+    run: function() {
+        var g = (typeof global !== 'undefined') ? global : window;
+        var S = g.LayerScroll, B = g.LayerBuild, CR = g.CanvasRenderer;
+        if (!S || !B || !CR || typeof CR._drawTree !== 'function') {
+            this.check(false, 'LayerScroll, LayerBuild and CanvasRenderer loaded');
+            return { passed: this.passed, failed: this.failed };
+        }
+        var saved = { ensure: S._ensureSpare, strip: S._drawStrip, step: S.step, spare: S._spare, sctx: S._spareCtx,
+                      pending: S._pending, target: S.TARGET_FRAME_MS, ts: g.TreeStyle, bstart: B.start, babort: B.abort,
+                      bstep: B.step, perf: g.performance };
+        try {
+            this._scrollTests(g, S);
+            this._drawTreeTests(g, S, B, CR);
+        } finally {
+            S._ensureSpare = saved.ensure; S._drawStrip = saved.strip; S.step = saved.step; S._spare = saved.spare;
+            S._spareCtx = saved.sctx; S._pending = saved.pending; S.TARGET_FRAME_MS = saved.target;
+            g.TreeStyle = saved.ts; B.start = saved.bstart; B.abort = saved.babort; B.step = saved.bstep;
+            B._build = null; B._lastMs = 0; B._restarts = 0;
+        }
+        return { passed: this.passed, failed: this.failed };
+    },
+
+    _scrollTests: function(g, S) {
+        var self = this, log = [];
+        var spare = { id: 'spare', width: 1000, height: 800 }, spareCtx = this._ctx(log);
+        S._spare = spare; S._spareCtx = spareCtx;
+        S._ensureSpare = function() { return S._spare; };
+        var r = { panX: 70.3, panY: 0, _layerPanX: 0, _layerPanY: 0, zoom: 1, rotation: 0,
+                  _treeLayer: { id: 'layer', width: 1000, height: 800 }, _treeLayerCtx: this._ctx(),
+                  _layerLabels: [], canvas: { width: 700, height: 500 } };
+        S._pending = [];
+        var ok = S._shift(r, 1.5, 128);
+        // 70.3 css px at 1.5 = 105.45 device px: 105 whole ones, 70 css px
+        this.check(ok && r._treeLayer === spare && S._spare.id === 'layer', 'a shift swaps the layer and the spare');
+        this.check(Math.abs(r._layerPanX - 70) < 1e-9 && r._layerPanY === 0, "the layer's pan moves by whole device pixels");
+        var clearAt = log.indexOf('clearRect(0,0,1000,800)'), drawAt = log.indexOf('drawImage(layer,105,0)');
+        this.check(clearAt >= 0 && drawAt > clearAt && log.join().indexOf('copy') < 0,
+            'the spare is cleared, then the picture drawn moved (no copy compositing)');
+        var area = 0;
+        S._pending.forEach(function(p) { area += p[2] * p[3]; });
+        this.check(S._pending.length > 0 && area === 105 * 800, 'the uncovered strip waits to be drawn, all of it');
+
+        // _drawSome: on screen first whatever the time, the rest in the time left
+        var drawn = [];
+        S._drawStrip = function(rr, gg, piece) { drawn.push(piece.join()); };
+        g.TreeStyle = { beginLabels: function() {}, drawLabel: function() {}, tokens: {}, renderChapters: function() {} };
+        r._layerPanX = 0; r.panX = 0;
+        var onScreen = [300, 300, 100, 100], off1 = [0, 0, 50, 50], off2 = [950, 750, 50, 50];
+        S._pending = [off1, onScreen, off2];
+        S.TARGET_FRAME_MS = -1000;                 // no time left in this frame
+        r.__needsRender = false; r._frameStartAt = 0;
+        S._drawSome(r, 1, 128, { cx: 350, cy: 250, cos: 1, sin: 0 });
+        this.check(drawn.length === 1 && drawn[0] === onScreen.join(), 'no time left: only the piece on screen is drawn');
+        this.check(S._pending.length === 2 && r.__needsRender === true, 'the others wait and the next frame is asked for');
+        this.check(r.panX === 0, "the live pan is put back after drawing at the layer's pan");
+        drawn = [];
+        S._pending = [off1, off2];
+        S._drawSome(r, 1, 128, { cx: 350, cy: 250, cos: 1, sin: 0 });
+        this.check(drawn.length === 1, 'none on screen and no time: one piece all the same (progress every frame)');
+        drawn = [];
+        S.TARGET_FRAME_MS = 1e9;
+        r.__needsRender = false;
+        S._pending = [off1, off2];
+        S._drawSome(r, 1, 128, { cx: 350, cy: 250, cos: 1, sin: 0 });
+        this.check(drawn.length === 2 && S._pending.length === 0 && r.__needsRender === false, 'time enough: all drawn, no frame asked for');
+    },
+
+    _drawTreeTests: function(g, S, B, CR) {
+        var self = this, calls = [];
+        var spare = { id: 'spare', width: 1056, height: 856 };
+        S._spare = spare; S._spareCtx = this._ctx();
+        S._ensureSpare = function() { return S._spare; };
+        S._drawStrip = function() { calls.push('piece'); };
+        S._pending = [];
+        g.TreeStyle = { renderChapters: function() {} };
+        var scrollResult = false;
+        S.step = function() { calls.push('scroll'); return scrollResult; };
+        var bstart = B.start, babort = B.abort, bstep = B.step, lastUrgent = null;
+        B.start = function(r, dpr, margin, view, target) { calls.push(target ? 'glideBuild' : 'build'); return bstart.apply(B, arguments); };
+        B.abort = function(r) { calls.push('abort'); return babort.apply(B, arguments); };
+        B.step = function(r, fs, urgent) { calls.push('step'); lastUrgent = !!urgent; return false; };   // never done here
+
+        var r = Object.create(CR);
+        r.canvas = { width: 800, height: 600 }; r.ctx = this._ctx(); r._width = 800; r._height = 600;
+        r.zoom = 1; r.rotation = 0; r.panX = 0; r.panY = 0;
+        r._layerZoom = 1; r._layerRotation = 0; r._layerPanX = 0; r._layerPanY = 0;
+        r._treeLayer = { id: 'layer', width: 1056, height: 856 }; r._treeLayerCtx = this._ctx(); r._treeLayerStale = false;
+        r._ensureTreeLayer = function() { return this._treeLayer; };
+        r._renderTreeInto = function() { calls.push('sync'); };
+        r._drawMoving = function() {};
+        r.renderLabels = function() {};
+        r.isAnimating = false; r._wheelAt = -1e9; r._glideTarget = null; r._fxThisFrame = false;
+        r.__needsRender = false; r._treeDirty = false; r._frameStartAt = 0; r._layerLabels = [];
+        var view = { cx: 400, cy: 300, rotRad: 0, cos: 1, sin: 0, viewLeft: -900, viewRight: 900, viewTop: -800, viewBottom: 800 };
+        var frame = function() { calls = []; r._drawTree(r.ctx, 1, view, false); return calls.join(' '); };
+
+        B._build = null; B._restarts = 0;
+        r.panX = 100; scrollResult = true;
+        this.check(frame() === 'scroll', 'a drag with nothing changed: the layer scrolls');
+        r.panX = 0; r._layerPanX = 0; scrollResult = false;
+
+        B._lastMs = 0; r._treeDirty = true;
+        this.check(frame() === 'sync' && r._treeDirty === false, 'a change, repaints quick: drawn at once');
+
+        B._lastMs = 50; r._treeDirty = true;
+        var f = frame();
+        this.check(f === 'build step' && B.active() && r._treeDirty === false, 'a change, repaints slow: built over frames');
+        this.check(frame() === 'step', 'the next frame goes on with it');
+
+        r.zoom = 1.2; r._layerZoom = 1;              // the view it was for is gone (not in motion)
+        f = frame();
+        this.check(f.indexOf('abort') === 0 && f.indexOf('build') > 0 && B.active() && B._build.zoom === 1.2,
+            'a stale build is dropped, its change built again for the new view');
+        r._layerZoom = 1.2;
+
+        B._build = null; B._restarts = 0;
+        r.isAnimating = true; r._treeDirty = true;
+        r._glideTarget = { zoom: 1.5, rotation: 0, panX: 40, panY: -20 };
+        f = frame();
+        this.check(f.indexOf('glideBuild') === 0 && B.forGlide(), 'a change during a glide: built for where the glide ends');
+        r._treeDirty = true;
+        f = frame();
+        this.check(f.indexOf('glideBuild') === 0 && B._restarts === 1, 'another change during the glide: built again (a restart)');
+        r.isAnimating = false; r._glideTarget = null;
+
+        B._build = null; B._restarts = B.MAX_RESTARTS; r._treeDirty = true; r.zoom = 1.2; r._layerZoom = 1.2;
+        this.check(!B.wanted(r, r._treeLayer), 'too many restarts: not spread any more');
+        bstart.call(B, r, 1, 128, view);          // a build in hand
+        r._treeDirty = true;
+        f = frame();
+        this.check(f === 'abort sync' && !B.active() && B._restarts === 0, 'too many restarts: the build goes, drawn at once, count reset');
+
+        B._lastMs = 50; B._restarts = 0; r._treeDirty = true;
+        frame();                                   // a build starts
+        r.panX = 200;                              // held still past the old picture's margin
+        f = frame();
+        this.check(f === 'step' && lastUrgent === true, 'past the margin while building: the build goes on urgently');
+        r.panX = 0;
+    }
+};
+
+if (typeof window !== 'undefined') window.LayerFlowTest = LayerFlowTest;

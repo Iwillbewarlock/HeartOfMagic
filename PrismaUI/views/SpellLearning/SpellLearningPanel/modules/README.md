@@ -27,7 +27,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `settingsPanel.js` | 1001 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 618 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 213 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
-| `treeStyle.js` | 466 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
+| `treeStyle.js` | 472 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 313 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 243 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 336 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
@@ -36,6 +36,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `layoutLineClear.js` | 542 | `LayoutLineClear`: a search that moves spells so the straight lines pass them by, meet at open angles, and keep apart from each other (bundles of long lines included); runs as a job (`start` / `step`) that can stop and resume |
 | `layoutLineGrid.js` | 307 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
 | `canvasCullTest.js` | 133 | Node tests for the culling index: the spells and lines a box gets from the grids are exactly those the full loop draws, in order; rebuilt when the lists change; not used in edit mode |
+| `layerFlowTest.js` | 185 | Node tests for how a frame gets its tree layer: LayerScroll's shift and piece queue, `_drawTree`'s order (scroll, spread build, at once, stale build dropped, glide build and restart, restart cap, urgent build) |
 | `layoutDeclutterTest.js` | 228 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
@@ -44,7 +45,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `canvasRendererInput.js` | 464 | Mouse and wheel events, screen to world, hit testing (`findNodeAt`), hover, tooltip |
 | `canvasRendererSelect.js` | 177 | Selecting a spell and focusing on it, the dependency path sets, turning the wheel |
 | `canvasRendererData.js` | 506 | `setData`: lookup maps, school angles, fallback spiral layout, discovery set, spatial index; level of detail and node buckets; the culling index (`_cullIndex`: spell and line grids, each line's spells and key) so a strip or piece looks only at what is near it |
-| `canvasRendererFrame.js` | 462 | `render()`, background, the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
+| `canvasRendererFrame.js` | 471 | `render()`, background, the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
 | `canvasRendererMoving.js` | 384 | What moves every frame over the layer: learning path animation, particles, sigil spots (FxLayer), the heart and its beat, particle core |
 | `canvasRendererDividers.js` | 130 | School dividers, debug grid |
 | `canvasRendererEdges.js` | 439 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |
@@ -58,8 +59,8 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
-| `layerScroll.js` | 409 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips (instead of repainting the whole tree mid-drag) |
-| `layerBuild.js` | 196 | `LayerBuild`: a whole repaint of the tree layer drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile; for a camera glide it is built for the glide's end while the camera moves |
+| `layerScroll.js` | 428 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips, then chapter titles over them (instead of repainting the whole tree mid-drag) |
+| `layerBuild.js` | 261 | `LayerBuild`: a whole repaint of the tree layer drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile; for a camera glide it is built for the glide's end while the camera moves; urgent (on-screen pieces first, early swap, the rest to LayerScroll) when the view is held past the old picture's margin; at once after `MAX_RESTARTS` restarts in a row |
 | `progressUpdates.js` | 150 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |

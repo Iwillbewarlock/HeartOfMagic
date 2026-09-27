@@ -204,17 +204,17 @@ var LayerScroll = {
         var spare = this._ensureSpare(layer);
         if (!spare) return false;
 
-        // The picture, moved; then the two canvases trade places
+        // The picture, moved, onto the cleared spare; then the two canvases trade
+        // places. (Not 'copy' compositing: an engine that composites drawImage
+        // under 'copy' as source-over would let the spare's old picture show
+        // through the see-through parts. The clear costs about the same.)
         var g = this._spareCtx;
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.globalAlpha = 1;
-        g.globalCompositeOperation = 'copy';
-        g.drawImage(layer, sx, sy);
         g.globalCompositeOperation = 'source-over';
+        g.clearRect(0, 0, spare.width, spare.height);
+        g.drawImage(layer, sx, sy);
         var uncovered = this.exposedRects(spare.width, spare.height, sx, sy);
-        // 'copy' should leave these clear; an engine that only copies inside the
-        // picture's own box would leave old pixels there
-        for (var i = 0; i < uncovered.length; i++) g.clearRect(uncovered[i][0], uncovered[i][1], uncovered[i][2], uncovered[i][3]);
         this._spare = layer;
         this._spareCtx = r._treeLayerCtx;
         r._treeLayer = spare;
@@ -326,10 +326,29 @@ var LayerScroll = {
         r._renderTreeInto(g, {
             cx: view.cx, cy: view.cy, rotRad: view.rotRad, cos: view.cos, sin: view.sin,
             viewLeft: box.l, viewRight: box.r, viewTop: box.t, viewBottom: box.b,
-            labelMargin: margin, noLabels: true, noChapters: !!whole
+            labelMargin: margin, noLabels: true, noChapters: true
         });
         g.restore();
-        if (!whole) this._labels(r, g, rect, dpr, margin, view, viewCss);
+        if (whole) return;
+        // Names, then chapter titles over them, as a whole repaint draws them
+        // (the titles used to go in with the tree, under the names: a seam at the
+        // strip's edge where a name crossed a title)
+        this._labels(r, g, rect, dpr, margin, view, viewCss);
+        this._chapters(r, g, rect, dpr, margin, view);
+    },
+
+    /** The chapter titles in a strip, clipped to it (after its names). */
+    _chapters: function(r, g, rect, dpr, margin, view) {
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.beginPath();
+        g.rect(rect[0], rect[1], rect[2], rect[3]);
+        g.clip();
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.translate(margin, margin);
+        TreeStyle.renderChapters(g, r, view.cx, view.cy, view.cos, view.sin, margin);
+        g.restore();
+        g.globalAlpha = 1;
     },
 
     /**

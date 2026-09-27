@@ -184,7 +184,9 @@ same. Without FxLayer, `composite` works as before.
   again on window resize, a panel resize and fullscreen). Otherwise the view resampled the canvas each
   time it painted it.
 - Labels: a spell off the canvas is dropped before the name-reveal lookups, the shortened name is kept on
-  the spell (`_labelText`), and the text widths per font (`_labelWidth`). The names in the layer's margin
+  the spell (`_labelText`), and the text widths per font (`_labelWidth`; since 2026-09-28 also dropped by
+  `TreeStyle.fontsChanged`, since a web face arriving leaves the font string as it was and the widths kept
+  were the fallback's - boxes too wide or narrow, and half names at strip edges). The names in the layer's margin
   are drawn too, after those in view (`renderLabels`' `margin`): a drag that slid the layer used to show
   spells there without names until the next repaint.
 - A reply with spell names (`updateSpellInfoBatch`) now marks the canvas tree for a repaint; it only
@@ -199,8 +201,9 @@ same. Without FxLayer, `composite` works as before.
 layer's margin, the whole layer was repainted - every spell, line and name - in the middle of the drag,
 every ~150 px: on a CPU canvas in the desktop bench (1600x1000, every locked spell shown) 25-60 ms each,
 nine hitches per full circle of dragging. Now, once half the margin is used (`EARLY_SHARE`), the picture
-is copied onto a spare canvas moved by a whole number of device pixels (`'copy'` compositing, then the
-uncovered rects cleared in case an engine copies only inside the picture's box; the two canvases swap)
+is copied onto a spare canvas moved by a whole number of device pixels (the spare cleared, then the
+picture drawn source-over; `'copy'` compositing until 2026-09-28, dropped because an engine that
+composited it as source-over would let the spare's old picture show through; the two canvases swap)
 and `_layerPanX/Y` move by that much, so the paste's rounding keeps the remainder and nothing blurs. The
 strips the move uncovered join a queue of pieces, each drawn clipped to itself with the spells and lines
 culled to its world box (padded by a selected spell's halo; curved and hand-bowed lines widen their own
@@ -216,7 +219,9 @@ only inside strips, against the kept ones; the 150-name cap counts the names on 
 in the margin behind the drag (with twice that kept on the layer at most) (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
 `_keepLabel`, which both use). Chapter titles are drawn through the layer's margin (`renderChapters`'
 `margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
-view. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
+view. In a strip they go on after its names (`LayerScroll._chapters`, clipped to the strip), as a whole
+repaint draws them; until 2026-09-28 they went in with the tree, under the names, which left a seam at a
+strip's edge where a name crossed a title. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
 as before when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on.
 Measured (circular drag, 120 frames, four designs, zoom 0.75-1.3, CPU canvases): frames over 16.7 ms 6-9
 → 0-2, worst frame 20-32 → 15-20 ms; a piece costs 2.5-8 ms, about 1.7 ms of it its own (chapter titles,
@@ -242,10 +247,17 @@ it went (bench: done by the fifth of 18 glide frames). A change during the glide
 dropped when the view it was for is gone (zoom, rotation, glide target, pixel ratio, layer size, edit
 mode) and the tree is then marked for a repaint again, so the change it carried is not lost. Still done
 at once: a quick one (undiscovered spells hidden: 7-9 ms), the first, one with no old picture (stale
-layer, resize) and edit mode; and when the view, held still, is past the old picture's margin (a jump
-without a glide, a drag during the build) the rest is drawn in that frame. The pieces' own costs (the
-culling loops, dividers) make a build a little more work than one repaint at once; `_lastMs` then only
-decides sync or spread. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+layer, resize) and edit mode. When the view, held still, is past the old picture's margin (a jump
+without a glide, a drag during the build) the build goes on urgently (2026-09-28; it used to finish in
+that one frame): `URGENT_TARGET_FRAME_MS` (11) of the frame, the pieces the screen shows first, and the
+swap as soon as those and the names are done; the pieces left go to LayerScroll's queue and are drawn
+like a drag's strips. The old picture's bare edge shows for the frames that takes, as during a glide. Bench (a click's build, then
+the view 200 px past the margin and held, CPU canvases, five designs): the worst frame 177-239 ms → 27-42 ms,
+the others 3-17 ms, the layer whole again 13-17 frames later. A
+tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row) is
+repainted at once. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
+work than one repaint at once; `_lastMs`, which decides sync or spread, leaves them out but once (the
+cheapest piece of the build stands for them), so a tree that repaints quickly is not spread for ever. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
