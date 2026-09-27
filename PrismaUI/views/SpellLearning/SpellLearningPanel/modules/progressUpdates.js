@@ -171,6 +171,20 @@ window.onSpellRelocked = function(dataStr) {
             progress.unlocked = false;
             progress.ready = false;
         }
+        // C++ cleared every school whose target it was (ClearLearningTargetForSpell);
+        // the next GetProgress reply would say so, the tree and the wheel mark it now
+        if (state.learningTargets) {
+            for (var school in state.learningTargets) {
+                if (!state.learningTargets.hasOwnProperty(school)) continue;
+                var target = state.learningTargets[school];
+                var targetCanon = (typeof resolveCanonicalId === 'function') ? resolveCanonicalId(target) : target;
+                if (targetCanon === canonId || target === data.formId) delete state.learningTargets[school];
+            }
+        }
+        if (state.weakenedSpells) {
+            state.weakenedSpells.delete(canonId);
+            state.weakenedSpells.delete(data.formId);
+        }
         ProgressUpdates.nodesFor(canonId).forEach(function(n) {
             if (n.state === 'unlocked') n.state = 'available';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(n);
