@@ -248,57 +248,11 @@ function initializeTreeViewer() {
     });
     
     // Import buttons
-    var importTreeBtn = document.getElementById('import-tree-btn');
-    var loadSavedBtn = document.getElementById('load-saved-btn');
     var importBtn = document.getElementById('import-btn');
 
-    if (importTreeBtn) importTreeBtn.addEventListener('click', showImportModal);
-    if (loadSavedBtn) loadSavedBtn.addEventListener('click', loadSavedTree);
     var goToScannerBtn = document.getElementById('go-to-scanner-btn');
     if (goToScannerBtn) goToScannerBtn.addEventListener('click', function() { switchTab('spellScan'); });
     if (importBtn) importBtn.addEventListener('click', showImportModal);
-    
-    // Save/Reload/Clear tree buttons (cheat mode only)
-    var clearTreeBtn = document.getElementById('clear-tree-btn');
-    var saveTreeBtn = document.getElementById('save-tree-btn');
-    var reloadTreeBtn = document.getElementById('reload-tree-btn');
-    
-    if (clearTreeBtn) {
-        clearTreeBtn.addEventListener('click', function() {
-            // Double-click protection: require two clicks within 2 seconds
-            if (!state.clearTreePending) {
-                state.clearTreePending = true;
-                clearTreeBtn.innerHTML = '<span class="btn-icon">âš ï¸</span> Click Again to Confirm';
-                clearTreeBtn.classList.add('btn-warning');
-                setTimeout(function() {
-                    state.clearTreePending = false;
-                    clearTreeBtn.innerHTML = '<span class="btn-icon">ðŸ—‘ï¸</span> Clear Tree';
-                    clearTreeBtn.classList.remove('btn-warning');
-                }, 2000);
-            } else {
-                state.clearTreePending = false;
-                clearTreeBtn.innerHTML = '<span class="btn-icon">ðŸ—‘ï¸</span> Clear Tree';
-                clearTreeBtn.classList.remove('btn-warning');
-                clearTree();
-            }
-        });
-    }
-    
-    if (saveTreeBtn) {
-        saveTreeBtn.addEventListener('click', function() {
-            if (saveTreeToFile()) {
-                setTreeStatus(t('status.treeSaved'));
-            } else {
-                setTreeStatus(t('status.noTreeData'));
-            }
-        });
-    }
-    
-    if (reloadTreeBtn) {
-        reloadTreeBtn.addEventListener('click', function() {
-            loadSavedTree();
-        });
-    }
     
     // Modal controls
     var modalCloseBtn = document.getElementById('modal-close-btn');

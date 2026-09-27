@@ -206,14 +206,6 @@ window.callCpp = function(method, data) {
             } catch(e) {}
             break;
 
-        case 'CopyToClipboard':
-            navigator.clipboard.writeText(data).then(function() {
-                console.log('[Bridge] Copied to clipboard');
-            }).catch(function() {
-                console.log('[Bridge] Clipboard copy failed');
-            });
-            break;
-
         case 'GetClipboard':
             navigator.clipboard.readText().then(function(text) {
                 if (typeof window.onClipboardContent === 'function') {

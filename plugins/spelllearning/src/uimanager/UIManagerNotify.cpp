@@ -38,16 +38,6 @@ void UIManager::SendPrompt(const std::string& promptContent)
     CallView("updatePrompt", promptContent.c_str());
 }
 
-void UIManager::NotifyPromptSaved(bool success)
-{
-    if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
-        return;
-    }
-
-    std::string result = success ? "true" : "false";
-    CallView("onPromptSaved", result.c_str());
-}
-
 // =============================================================================
 // SEND DATA TO TREE TAB
 // =============================================================================
@@ -120,16 +110,6 @@ void UIManager::SendClipboardContent(const std::string& content)
 
     logger::info("UIManager: Sending clipboard content to UI ({} bytes)", content.size());
     CallView("onClipboardContent", content.c_str());
-}
-
-void UIManager::NotifyCopyComplete(bool success)
-{
-    if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
-        return;
-    }
-
-    std::string result = success ? "true" : "false";
-    CallView("onCopyComplete", result.c_str());
 }
 
 // =============================================================================

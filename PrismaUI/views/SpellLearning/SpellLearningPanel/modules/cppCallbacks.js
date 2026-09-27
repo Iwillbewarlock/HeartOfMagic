@@ -185,7 +185,6 @@ window.updateSpellData = function(jsonStr) {
         console.error('[SpellLearning] Failed to parse JSON for tome scan check:', e);
         /* continue to normal processing */ }
 
-    var scanSuccess = false;
     try {
         // Already parsed above for the tome check; a 9-20 MB parse is not
         // done twice
@@ -208,8 +207,6 @@ window.updateSpellData = function(jsonStr) {
         updateStatus(t('status.scannedSpells', {count: data.spellCount}));
         updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success');
         setStatusIcon('X');
-        updateCharCount();
-        scanSuccess = true;
 
         // Populate scan stats panel early — before downstream code that might throw
         if (data.spells && data.spells.length > 0) {
@@ -322,19 +319,6 @@ window.updateSpellData = function(jsonStr) {
         } catch (statErr) {
             console.error('[SpellLearning] Stats update error:', statErr);
         }
-
-        // Update status bar if it wasn't set by the try block
-        var statusText = document.getElementById('statusText');
-        if (statusText && statusText.textContent === 'Ready to scan') {
-            var schoolSet2 = {};
-            spells.forEach(function(s) { if (s.school) schoolSet2[s.school] = true; });
-            if (typeof updateStatus === 'function') {
-                updateStatus(t('status.scannedSpells', {count: spells.length}));
-            }
-            if (typeof updateScanStatus === 'function') {
-                updateScanStatus(t('status.scannedSpellsSchools', {count: spells.length, schools: Object.keys(schoolSet2).length}), 'success');
-            }
-        }
     }
 
     var scanBtn = document.getElementById('scanBtn');
@@ -349,8 +333,6 @@ window.updateStatus = function(message) {
     if (msg.startsWith('"') && msg.endsWith('"')) {
         try { msg = JSON.parse(msg); } catch (e) {}
     }
-    var el = document.getElementById('statusText');
-    if (el) el.textContent = msg;
     // Forward to scan feedback bar with auto-detected type
     var type = '';
     if (msg.indexOf('Saved') !== -1 || msg.indexOf('saved') !== -1) type = 'success';
@@ -371,23 +353,6 @@ window.updatePrompt = function(promptContent) {
     
     if (promptContent && promptContent.length > 0) {
         state.originalPrompt = promptContent;
-        state.promptModified = false;
-        var promptArea = document.getElementById('promptArea');
-        if (promptArea) {
-            promptArea.value = promptContent;
-            setPromptStatus('Loaded', '');
-        }
-    }
-};
-
-window.onPromptSaved = function(success) {
-    if (success === 'true' || success === true) {
-        var promptArea = document.getElementById('promptArea');
-        if (promptArea) state.originalPrompt = promptArea.value;
-        state.promptModified = false;
-        setPromptStatus('Saved', '');
-    } else {
-        setPromptStatus('Save failed', 'error');
     }
 };
 
@@ -404,18 +369,14 @@ window.onClipboardContent = function(content) {
         return;
     }
     
-    // Paste to the target element
-    var targetId = state.pasteTarget || 'outputArea';
+    // Paste into the Import dialog (its Paste button is the only thing that asks)
+    var targetId = state.pasteTarget || 'import-textarea';
     var targetEl = document.getElementById(targetId);
-    
+
     if (targetEl) {
         targetEl.value = content.trim();
-        
-        if (targetId === 'outputArea') {
-            updateStatus(t('status.pastedClipboard', {length: content.length}));
-            setStatusIcon('X');
-            updateCharCount();
-        } else if (targetId === 'import-textarea') {
+
+        if (targetId === 'import-textarea') {
             // Clear any previous error
             var errorBox = document.getElementById('import-error');
             if (errorBox) errorBox.classList.add('hidden');
@@ -423,19 +384,6 @@ window.onClipboardContent = function(content) {
     }
     
     state.pasteTarget = null;
-};
-
-/**
- * Called by C++ when copy succeeds
- */
-window.onCopyComplete = function(success) {
-    if (success === 'true' || success === true) {
-        updateStatus(t('status.copiedClipboard'));
-        setStatusIcon('X');
-    } else {
-        updateStatus(t('status.copyFailed'));
-        setStatusIcon('X');
-    }
 };
 
 // Tree viewer callbacks

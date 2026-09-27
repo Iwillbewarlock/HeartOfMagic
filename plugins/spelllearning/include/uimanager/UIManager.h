@@ -39,20 +39,17 @@ public:
     void SendSpellData(const std::string& jsonData);
     void UpdateStatus(const std::string& message);
     void SendPrompt(const std::string& promptContent);
-    void NotifyPromptSaved(bool success);
 
     // Send data to Tree Tab (same panel)
     void SendTreeData(const std::string& jsonData);
     void SendSpellInfo(const std::string& jsonData);
     void SendSpellInfoBatch(const std::string& jsonData);
-    void SendValidationResult(const std::string& jsonData);
     void UpdateSpellState(const std::string& formId, const std::string& state);
     void UpdateTreeStatus(const std::string& message);
     void SendDeclutterResult(const std::string& jsonData);  // onDeclutterResult (UIManagerDeclutter.cpp)
 
     // Clipboard support
     void SendClipboardContent(const std::string& content);
-    void NotifyCopyComplete(bool success);
 
     // Progression system notifications
     void NotifyProgressUpdate(RE::FormID formId, float currentXP, float requiredXP);
@@ -94,9 +91,7 @@ private:
     // Scanner tab callbacks
     static void OnScanSpells(const char* argument);
     static void OnSaveOutput(const char* argument);
-    static void OnSaveOutputBySchool(const char* argument);
     static void OnLoadPrompt(const char* argument);
-    static void OnSavePrompt(const char* argument);
     
     // Tree tab callbacks
     static void OnLoadSpellTree(const char* argument);
@@ -128,7 +123,6 @@ private:
     static void OnSaveUnifiedConfig(const char* argument);  // UIManagerConfigSave.cpp
 
     // Clipboard callbacks
-    static void OnCopyToClipboard(const char* argument);
     static void OnGetClipboard(const char* argument);
 
     // Panel log lines into the plugin log

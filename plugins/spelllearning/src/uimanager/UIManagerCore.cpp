@@ -70,9 +70,7 @@ bool UIManager::Initialize()
     // Register JS callbacks - Scanner tab
     m_prismaUI->RegisterJSListener(m_view, "ScanSpells", OnScanSpells);
     m_prismaUI->RegisterJSListener(m_view, "SaveOutput", OnSaveOutput);
-    m_prismaUI->RegisterJSListener(m_view, "SaveOutputBySchool", OnSaveOutputBySchool);
     m_prismaUI->RegisterJSListener(m_view, "LoadPrompt", OnLoadPrompt);
-    m_prismaUI->RegisterJSListener(m_view, "SavePrompt", OnSavePrompt);
 
     // Register JS callbacks - Tree tab
     m_prismaUI->RegisterJSListener(m_view, "LoadSpellTree", OnLoadSpellTree);
@@ -102,7 +100,6 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "SetPauseGameOnFocus", OnSetPauseGameOnFocus);
 
     // Register JS callbacks - Clipboard
-    m_prismaUI->RegisterJSListener(m_view, "CopyToClipboard", OnCopyToClipboard);
     m_prismaUI->RegisterJSListener(m_view, "GetClipboard", OnGetClipboard);
 
     // Register JS callbacks - panel log lines

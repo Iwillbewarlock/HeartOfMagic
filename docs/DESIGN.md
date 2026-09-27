@@ -1104,18 +1104,18 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ## C++ ↔ JS Communication
 
-### JS → C++ (28 listeners via `callCpp`)
+### JS → C++ (34 listeners via `callCpp`)
 
-**Scanning:** `ScanSpells`, `SaveOutput`, `SaveOutputBySchool`
+**Scanning:** `ScanSpells`, `SaveOutput`
 **Tree:** `LoadSpellTree`, `SaveSpellTree`, `GetSpellInfo`, `GetSpellInfoBatch`
 **Progression:** `SetLearningTarget`, `ClearLearningTarget`, `UnlockSpell`, `GetProgress`, `CheatUnlockSpell`, `RelockSpell`, `GetPlayerKnownSpells`, `SetSpellXP`, `SetTreePrerequisites`
 **Config:** `LoadUnifiedConfig`, `SaveUnifiedConfig`, `SetHotkey`, `SetPauseGameOnFocus`
 **Presets:** `SavePreset`, `DeletePreset`, `LoadPresets`
 **Tree Building:** `ProceduralTreeGenerate`, `PreReqMasterScore`
-**Clipboard:** `CopyToClipboard`, `GetClipboard`
-**Other:** `HidePanel`, `LogMessage`, `LoadPrompt`, `SavePrompt`
+**Clipboard:** `GetClipboard`
+**Other:** `HidePanel`, `LogMessage`, `LoadPrompt`
 
-### C++ → JS (30+ calls via `InteropCall`)
+### C++ → JS (28 functions via `CallView`)
 
 **Lifecycle:** `onPrismaReady`, `onPanelShowing`, `onPanelHiding`
 **Data:** `updateSpellData`, `updateTreeData`, `updateSpellInfo`, `updateSpellInfoBatch`

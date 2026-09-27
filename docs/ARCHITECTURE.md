@@ -824,10 +824,15 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 **Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration and llmApiSettings on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
-1. **Spell Scan** - Scan spells, output field toggles
-2. **Tree Rules** - Custom rules for tree generation
-3. **Spell Tree** - Interactive radial visualization with zoom/pan/rotate, How-to-Learn panel
-4. **Settings** - Difficulty profiles, progression settings, display options, early learning, mod integrations
+1. **Spell Scan** - Scan spells, tree building, PreReq Master
+2. **Spell Tree** - Interactive radial visualization with zoom/pan/rotate, How-to-Learn panel
+3. **Settings** - Difficulty profiles, progression settings, display options, early learning, mod integrations
+
+The Tree Rules tab (a prompt editor) is not in `index.html`; its save path (`SavePrompt`,
+`onPromptSaved`) was removed on 2026-09-28. The saved rules (`tree_rules_prompt.txt`) are still sent
+with `LoadPrompt` when the panel is ready and go into the scan export's `llmPrompt`. The Save by School,
+Copy and Paste buttons of the old scan output (`SaveOutputBySchool`, `CopyToClipboard`,
+`onCopyComplete`) went the same day; `GetClipboard` stays for the Import dialog's Paste.
 
 **Key JavaScript Objects:**
 - `TREE_CONFIG` - Layout and visual configuration (in `config.js`)

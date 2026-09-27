@@ -796,44 +796,5 @@ function updateProgressionSettingsUI() {
     }
 }
 
-// =============================================================================
-// CLEAR TREE (moved from difficultyProfiles.js)
-// =============================================================================
-
-function clearTree() {
-    console.log('[SpellLearning] Clearing tree data');
-
-    state.treeData = null;
-    state.selectedNode = null;
-    state.spellInfoCache = {};
-    state.learningTargets = {};
-
-    if (typeof SmartRenderer !== 'undefined') {
-        SmartRenderer.clear();
-    } else if (typeof WheelRenderer !== 'undefined') {
-        WheelRenderer.clear();
-    }
-
-    var emptyState = document.getElementById('empty-state');
-    if (emptyState) emptyState.classList.remove('hidden');
-
-    var treeActions = document.getElementById('tree-actions');
-    if (treeActions) treeActions.classList.add('hidden');
-
-    var detailsPanel = document.getElementById('details-panel');
-    if (detailsPanel) detailsPanel.classList.add('hidden');
-
-    var totalCount = document.getElementById('total-count');
-    if (totalCount) totalCount.textContent = '0';
-    var unlockedCount = document.getElementById('unlocked-count');
-    if (unlockedCount) unlockedCount.textContent = '0';
-
-    if (typeof setTreeStatus === 'function') {
-        setTreeStatus('Tree cleared - ready for new generation');
-    }
-    if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeCleared'));
-}
-
-window.clearTree = clearTree;
 
 console.log('[SettingsPresets] Loaded');

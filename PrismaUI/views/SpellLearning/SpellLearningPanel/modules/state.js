@@ -235,14 +235,11 @@ var xpOverrides = {};
 // =============================================================================
 
 var state = {
-    isMinimized: false,
     isFullscreen: false,
     isDragging: false,
     isResizing: false,
-    isSettingsOpen: false,
     currentTab: 'spellTree',
     lastSpellData: null,
-    promptModified: false,
     originalPrompt: DEFAULT_TREE_RULES,
     // Field output settings
     fields: {
@@ -262,7 +259,6 @@ var state = {
     // Tree viewer state
     treeData: null,
     treeInitialized: false,
-    clearTreePending: false,
     // Clipboard paste target
     pasteTarget: null,
     // Progression tracking

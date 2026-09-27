@@ -7,65 +7,6 @@
 // CLIPBOARD CALLBACKS (Windows API)
 // =============================================================================
 
-void UIManager::OnCopyToClipboard(const char* argument)
-{
-    if (!argument || strlen(argument) == 0) {
-        logger::warn("UIManager: CopyToClipboard - no content provided");
-        return;
-    }
-
-    logger::info("UIManager: CopyToClipboard ({} bytes)", strlen(argument));
-
-    std::string argStr(argument);
-
-    AddTaskToGameThread("CopyToClipboard", [argStr]() {
-        auto* instance = GetSingleton();
-        if (!instance || !instance->m_prismaUI) return;
-
-        bool success = false;
-
-        // Convert UTF-8 to UTF-16 for Windows clipboard
-        int wideLen = MultiByteToWideChar(CP_UTF8, 0, argStr.c_str(), -1, nullptr, 0);
-        if (wideLen <= 0) {
-            logger::error("UIManager: MultiByteToWideChar failed to compute length");
-            instance->NotifyCopyComplete(false);
-            return;
-        }
-
-        if (OpenClipboard(nullptr)) {
-            EmptyClipboard();
-
-            HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, static_cast<size_t>(wideLen) * sizeof(WCHAR));
-            if (hMem) {
-                WCHAR* pMem = static_cast<WCHAR*>(GlobalLock(hMem));
-                if (pMem) {
-                    MultiByteToWideChar(CP_UTF8, 0, argStr.c_str(), -1, pMem, wideLen);
-                    GlobalUnlock(hMem);
-
-                    if (SetClipboardData(CF_UNICODETEXT, hMem)) {
-                        success = true;
-                        logger::info("UIManager: Successfully copied to clipboard");
-                    } else {
-                        logger::error("UIManager: SetClipboardData failed");
-                        GlobalFree(hMem);
-                    }
-                } else {
-                    logger::error("UIManager: GlobalLock failed");
-                    GlobalFree(hMem);
-                }
-            } else {
-                logger::error("UIManager: GlobalAlloc failed");
-            }
-
-            CloseClipboard();
-        } else {
-            logger::error("UIManager: OpenClipboard failed");
-        }
-
-        instance->NotifyCopyComplete(success);
-    });
-}
-
 void UIManager::OnGetClipboard([[maybe_unused]] const char* argument)
 {
     logger::info("UIManager: GetClipboard callback triggered");

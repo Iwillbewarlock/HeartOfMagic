@@ -32,7 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Core UI
         if (typeof initializePanel === 'function') initializePanel();
         if (typeof initializeTabs === 'function') initializeTabs();
-        if (typeof initializePromptEditor === 'function') initializePromptEditor();
         
         // Drag and resize
         if (typeof initializeDragging === 'function') initializeDragging();

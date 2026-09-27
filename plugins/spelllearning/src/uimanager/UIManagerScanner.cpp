@@ -91,71 +91,6 @@ void UIManager::OnSaveOutput(const char* argument)
     });
 }
 
-void UIManager::OnSaveOutputBySchool(const char* argument)
-{
-    logger::info("UIManager: SaveOutputBySchool callback triggered");
-
-    if (!argument || strlen(argument) == 0) {
-        logger::warn("UIManager: SaveOutputBySchool - no content to save");
-        return;
-    }
-
-    std::string argStr(argument);
-
-    AddTaskToGameThread("SaveOutputBySchool", [argStr]() {
-        auto* instance = GetSingleton();
-        if (!instance || !instance->m_prismaUI) return;
-
-        try {
-            // Parse the JSON object containing school outputs
-            json schoolOutputs = json::parse(argStr);
-
-            // Create output directory
-            std::filesystem::path outputDir = "Data/SKSE/Plugins/SpellLearning/schools";
-            std::filesystem::create_directories(outputDir);
-
-            int savedCount = 0;
-
-            // Save each school to its own file
-            for (auto& [school, content] : schoolOutputs.items()) {
-                // Sanitize school name to prevent path traversal
-                std::string safeSchool = school;
-                for (auto& c : safeSchool) {
-                    if (c == '/' || c == '\\' || c == ':' || c == '.' || c == '<' || c == '>' || c == '"' || c == '|' || c == '?' || c == '*') {
-                        c = '_';
-                    }
-                }
-                if (safeSchool.empty()) safeSchool = "unknown_school";
-                std::string filename = safeSchool + "_spells.json";
-                std::filesystem::path outputPath = outputDir / filename;
-
-                std::ofstream file(outputPath);
-                if (file.is_open()) {
-                    // Content is already a JSON string, write it directly
-                    if (content.is_string()) {
-                        file << content.get<std::string>();
-                    } else {
-                        file << content.dump(2);
-                    }
-                    file.close();
-                    logger::info("UIManager: Saved {} to {}", school, outputPath.string());
-                    savedCount++;
-                } else {
-                    logger::error("UIManager: Failed to save {}", school);
-                }
-            }
-
-            std::string statusMsg = "Saved " + std::to_string(savedCount) + " school files to /schools/";
-            logger::info("UIManager: {}", statusMsg);
-            instance->UpdateStatus(statusMsg);
-
-        } catch (const std::exception& e) {
-            logger::error("UIManager: Exception in SaveOutputBySchool: {}", e.what());
-            instance->UpdateStatus("Error saving school files");
-        }
-    });
-}
-
 void UIManager::OnLoadPrompt([[maybe_unused]] const char* argument)
 {
     logger::info("UIManager: LoadPrompt callback triggered");
@@ -188,45 +123,6 @@ void UIManager::OnLoadPrompt([[maybe_unused]] const char* argument)
             }
         } catch (const std::exception& e) {
             logger::error("UIManager: Exception while loading prompt: {}", e.what());
-        }
-    });
-}
-
-void UIManager::OnSavePrompt(const char* argument)
-{
-    logger::info("UIManager: SavePrompt callback triggered");
-
-    if (!argument || strlen(argument) == 0) {
-        logger::warn("UIManager: SavePrompt - no content to save");
-        return;
-    }
-
-    std::string argStr(argument);
-
-    AddTaskToGameThread("SavePrompt", [argStr]() {
-        auto* instance = GetSingleton();
-        if (!instance || !instance->m_prismaUI) return;
-
-        // Create output directory
-        std::filesystem::path outputDir = "Data/SKSE/Plugins/SpellLearning";
-        std::filesystem::create_directories(outputDir);
-
-        auto promptPath = GetPromptFilePath();
-
-        try {
-            std::ofstream file(promptPath);
-            if (file.is_open()) {
-                file << argStr;
-                file.close();
-                logger::info("UIManager: Saved prompt to {}", promptPath.string());
-                instance->NotifyPromptSaved(true);
-            } else {
-                logger::error("UIManager: Failed to open prompt file for writing");
-                instance->NotifyPromptSaved(false);
-            }
-        } catch (const std::exception& e) {
-            logger::error("UIManager: Exception while saving prompt: {}", e.what());
-            instance->NotifyPromptSaved(false);
         }
     });
 }

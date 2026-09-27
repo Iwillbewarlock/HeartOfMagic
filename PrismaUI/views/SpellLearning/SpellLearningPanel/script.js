@@ -65,61 +65,11 @@ function initializePanel() {
             }
         });
     }
-    safeAddListener('saveBySchoolBtn', 'click', onSaveBySchoolClick);
-    safeAddListener('copyBtn', 'click', onCopyClick);
-    safeAddListener('pasteBtn', 'click', onPasteClick);
     safeAddListener('fullscreenBtn', 'click', toggleFullscreen);
-    safeAddListener('minimizeBtn', 'click', toggleMinimize);
     safeAddListener('closeBtn', 'click', onCloseClick);
-    safeAddListener('settingsBtn', 'click', toggleSettings);
     
     // Keyboard shortcuts - Escape and Tab close the panel
     initializeKeyboardShortcuts();
-    
-    // Tree import buttons in Spell Scan tab
-    var importTreeScanBtn = document.getElementById('import-tree-scan-btn');
-    var loadSavedScanBtn = document.getElementById('load-saved-scan-btn');
-    if (importTreeScanBtn) {
-        importTreeScanBtn.addEventListener('click', function() {
-            showImportModal();
-        });
-    }
-    if (loadSavedScanBtn) {
-        loadSavedScanBtn.addEventListener('click', function() {
-            loadSavedTree();
-            // Switch to tree tab after loading
-            switchTab('spellTree');
-        });
-    }
-    
-    // Field checkbox listeners
-    var fieldIds = ['editorId', 'magickaCost', 'minimumSkill', 'castingType', 'delivery', 
-                    'chargeTime', 'plugin', 'effects', 'effectNames', 'keywords', 'effectDetails'];
-    fieldIds.forEach(function(fieldId) {
-        var checkbox = document.getElementById('field_' + fieldId);
-        if (checkbox) {
-            checkbox.checked = state.fields[fieldId];
-            checkbox.addEventListener('change', function(e) {
-                state.fields[fieldId] = e.target.checked;
-                if (fieldId === 'effects' && e.target.checked) {
-                    state.fields.effectNames = false;
-                    var effectNamesEl = document.getElementById('field_effectNames');
-                    if (effectNamesEl) effectNamesEl.checked = false;
-                }
-                if (fieldId === 'effectNames' && e.target.checked) {
-                    state.fields.effects = false;
-                    var effectsEl = document.getElementById('field_effects');
-                    if (effectsEl) effectsEl.checked = false;
-                }
-            });
-        }
-    });
-    
-    var outputArea = document.getElementById('outputArea');
-    if (outputArea) {
-        outputArea.addEventListener('input', updateCharCount);
-    }
-    updateCharCount();
 }
 
 // =============================================================================
@@ -296,98 +246,14 @@ function switchTab(tabId) {
 }
 
 // =============================================================================
-// PROMPT EDITOR
+// TREE RULES
 // =============================================================================
 
-function initializePromptEditor() {
-    var promptArea = document.getElementById('promptArea');
-    if (!promptArea) {
-        // Tree Rules tab removed - prompt editor not available
-        // Still load prompt from C++ for internal use
-        if (window.callCpp) {
-            window.callCpp('LoadPrompt', '');
-        }
-        return;
-    }
-    
-    var resetBtn = document.getElementById('resetPromptBtn');
-    var saveBtn = document.getElementById('savePromptBtn');
-    
-    promptArea.value = DEFAULT_TREE_RULES;
-    
-    if (window.callCpp) {
-        window.callCpp('LoadPrompt', '');
-    }
-    
-    promptArea.addEventListener('input', function() {
-        state.promptModified = (promptArea.value !== state.originalPrompt);
-        updatePromptStatus();
-    });
-    
-    if (resetBtn) {
-        resetBtn.addEventListener('click', function() {
-            if (confirm('Reset tree rules to default? Your changes will be lost.')) {
-                promptArea.value = DEFAULT_TREE_RULES;
-                state.promptModified = true;
-                updatePromptStatus();
-            }
-        });
-    }
-    
-    if (saveBtn) {
-        saveBtn.addEventListener('click', onSavePromptClick);
-    }
-}
-
-function onSavePromptClick() {
-    var promptArea = document.getElementById('promptArea');
-    if (!promptArea) return;
-    var content = promptArea.value;
-    
-    if (window.callCpp) {
-        window.callCpp('SavePrompt', content);
-    } else {
-        console.warn('[SpellLearning] C++ bridge not ready');
-        setPromptStatus('Cannot save', 'error');
-    }
-}
-
-function updatePromptStatus() {
-    if (state.promptModified) {
-        setPromptStatus('Modified', 'modified');
-    } else {
-        setPromptStatus('Saved', '');
-    }
-}
-
-function setPromptStatus(text, className) {
-    var statusEl = document.getElementById('promptStatus');
-    if (!statusEl) return;
-    statusEl.textContent = text;
-    statusEl.className = 'prompt-status';
-    if (className) {
-        statusEl.classList.add(className);
-    }
-}
-
+// The tree rules written into the scan export's llmPrompt: the player's saved
+// rules (C++ sends them with updatePrompt when the panel is ready) or the default.
+// The editor that changed them is not in index.html.
 function getTreeRulesPrompt() {
-    var promptArea = document.getElementById('promptArea');
-    if (promptArea) return promptArea.value;
-    // Fallback: use stored prompt or default
     return state.originalPrompt || (typeof DEFAULT_TREE_RULES !== 'undefined' ? DEFAULT_TREE_RULES : '');
-}
-
-// =============================================================================
-// SETTINGS
-// =============================================================================
-
-function toggleSettings() {
-    state.isSettingsOpen = !state.isSettingsOpen;
-    var panel = document.getElementById('settingsPanel');
-    if (panel) panel.classList.toggle('hidden', !state.isSettingsOpen);
-    
-    var btn = document.getElementById('settingsBtn');
-    if (btn) btn.classList.toggle('active', state.isSettingsOpen);
 }
 
 // =============================================================================
@@ -926,34 +792,6 @@ function updateEarlyLearningUI() {
     
     // Update visibility
     updateEarlyLearningSettingsVisibility();
-}
-
-// =============================================================================
-// UI HELPERS
-// =============================================================================
-
-function setStatusIcon(icon) {
-    var el = document.getElementById('statusIcon');
-    if (el) el.textContent = icon;
-}
-
-function updateCharCount() {
-    var outputArea = document.getElementById('outputArea');
-    var charCountEl = document.getElementById('charCount');
-    if (!outputArea || !charCountEl) return;
-    
-    var count = outputArea.value.length;
-    
-    var countText;
-    if (count >= 1000000) {
-        countText = (count / 1000000).toFixed(1) + 'M chars';
-    } else if (count >= 1000) {
-        countText = (count / 1000).toFixed(1) + 'K chars';
-    } else {
-        countText = count + ' chars';
-    }
-    
-    charCountEl.textContent = countText;
 }
 
 console.log('[SpellLearning] Script loaded');
