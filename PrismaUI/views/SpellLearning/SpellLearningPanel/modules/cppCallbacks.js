@@ -279,15 +279,6 @@ window.updateSpellData = function(jsonStr) {
             }
         }
 
-        // Show Classify Keywords button if LLM keyword classification is enabled
-        var classifyBtn = document.getElementById('classifyKeywordsBtn');
-        if (classifyBtn && data.spells && data.spells.length > 0) {
-            var llmEnabled = settings.treeGeneration && settings.treeGeneration.llm &&
-                             settings.treeGeneration.llm.enabled &&
-                             settings.treeGeneration.llm.keywordClassification;
-            classifyBtn.style.display = llmEnabled ? '' : 'none';
-        }
-
     } catch (e) {
         console.error('[SpellLearning] Failed to parse spell data:', e);
         var outputAreaFallback = document.getElementById('outputArea');
