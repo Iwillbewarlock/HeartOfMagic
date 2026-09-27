@@ -824,7 +824,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `treeParser.js` | Tree JSON → nodes/edges; validation, cycle detection, auto-fix |
 | `growthDSL.js` | Growth recipe/DSL for tree visuals |
 | `wheelRenderer.js` | Main 2D radial wheel rendering |
-| `canvasRenderer.js` | Canvas 2D rendering |
+| `canvasRendererV2.js` | Canvas 2D tree renderer (`CanvasRenderer`); its methods are split over `canvasRenderer*.js` (colours, input, selection, data, frame and tree layer, moving parts, dividers, edges, nodes, a single spell, labels, learning paths), see `modules/README.md` |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
 | **UI & callbacks** | |
 | `settingsPanel.js` | Settings UI, config persistence, retry school UI, plugin whitelist modal |
@@ -1402,7 +1402,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **C++ side:** Not yet implemented (UI settings ready for timer-based XP granting)
 
 #### Curved Edge Rendering
-- **`_drawEdgePath()`** helper in `canvasRendererV2.js` — quadratic Bezier curves with 15% perpendicular offset
+- **`_drawEdgePath()`** helper in `canvasRendererEdges.js` (was `canvasRendererV2.js`) — quadratic Bezier curves with 15% perpendicular offset
 - **Settings toggle:** `edgeStyle: 'straight'|'curved'` in state.js + checkbox in settings panel
 - Applied to all 3 edge passes (base connections, selected path, learning path)
 

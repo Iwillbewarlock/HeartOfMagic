@@ -24,7 +24,7 @@ Default landing page: **Spell Tree**
 
 The main gameplay page. Shows the interactive spell tree after it's been built.
 
-**Modules:** `treeViewerUI.js`, `canvasRendererV2.js`, `wheelRenderer.js`, `treeCore.js`, `progressionUI.js`
+**Modules:** `treeViewerUI.js`, `canvasRendererV2.js` (and its `canvasRenderer*.js` method files), `wheelRenderer.js`, `treeCore.js`, `progressionUI.js`
 
 ### Layout
 
@@ -1016,7 +1016,10 @@ Tree applied
 ### Tree Rendering
 | Module | Purpose |
 |--------|---------|
-| `canvasRendererV2.js` | **Primary** Canvas 2D renderer (handles 200+ nodes) |
+| `canvasRendererV2.js` | **Primary** Canvas 2D renderer (`CanvasRenderer`): state, constants, start-up, canvas size, render loop, public calls. Its methods are in the files below, each adding a table of functions to the one object, loaded right after it |
+| `canvasRendererColors.js`, `canvasRendererInput.js`, `canvasRendererSelect.js`, `canvasRendererData.js` | Colours; mouse, wheel, hit testing, hover; selection and wheel turns; `setData`, spatial index, level of detail |
+| `canvasRendererFrame.js`, `canvasRendererMoving.js` | A frame and the tree layer (`render`, `_drawTree`, `_renderTreeInto`); what moves over it (heart, particles, sigil spots) |
+| `canvasRendererDividers.js`, `canvasRendererEdges.js`, `canvasRendererNodes.js`, `canvasRendererSpell.js`, `canvasRendererLabels.js`, `canvasRendererLearning.js` | What the layer holds: dividers, lines, spells (batched), a spell by itself, names, learning paths |
 | `treeStyle.js` | `TreeStyle`: the tree's look as tokens a design preset sets; halos, labels, sigil, heart runes, school ink |
 | `treeStyleBook.js` | Adds the spellbook effects to `TreeStyle`: page, chapter titles, ornament dividers |
 | `treeStyleInk.js` | Adds the drawn lines to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |

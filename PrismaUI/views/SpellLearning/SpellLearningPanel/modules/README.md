@@ -38,6 +38,19 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `layoutDeclutterTest.js` | 228 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
+| `canvasRendererV2.js` | 538 | `CanvasRenderer`, the tree's canvas renderer: its state and constants, start-up, canvas size, render loop, public calls, the `_needsRender` accessor. The methods live in the `canvasRenderer*.js` files below, each an IIFE that copies a table of functions onto `CanvasRenderer` (loaded right after this file) |
+| `canvasRendererColors.js` | 132 | School colours, colours a design and the player both set (`_designOrPlayer`), colour helpers |
+| `canvasRendererInput.js` | 464 | Mouse and wheel events, screen to world, hit testing (`findNodeAt`), hover, tooltip |
+| `canvasRendererSelect.js` | 177 | Selecting a spell and focusing on it, the dependency path sets, turning the wheel |
+| `canvasRendererData.js` | 353 | `setData`: lookup maps, school angles, fallback spiral layout, discovery set, spatial index; level of detail and node buckets |
+| `canvasRendererFrame.js` | 462 | `render()`, background, the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
+| `canvasRendererMoving.js` | 384 | What moves every frame over the layer: learning path animation, particles, sigil spots (FxLayer), the heart and its beat, particle core |
+| `canvasRendererDividers.js` | 130 | School dividers, debug grid |
+| `canvasRendererEdges.js` | 436 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |
+| `canvasRendererNodes.js` | 407 | All spells: the pass per level of detail, NodeBatch batching (`_batchPlainNode`), shapes, sizes, dimming |
+| `canvasRendererSpell.js` | 294 | One spell drawn by itself: `renderNode`, `renderMysteryNode` |
+| `canvasRendererLabels.js` | 204 | Spell names: candidates, boxes, placement without overlaps (shared with LayerScroll) |
+| `canvasRendererLearning.js` | 529 | Learning paths: the growing-path animation, lasting paths, travelling pulses |
 | `nodeBatch.js` | 246 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
 | `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
