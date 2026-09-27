@@ -30,6 +30,12 @@ namespace LayoutDeclutter::Internal
         m_clear2(clear * clear),
         m_minDist(minDist)
     {
+        // Lines past kMaxLine left out, in place and in order (the JS _shortLines):
+        // CountLinesThrough then counts on the same lines
+        std::erase_if(m_edges, [this](const Edge& e) {
+            const double dx = m_list[e.b].x - m_list[e.a].x, dy = m_list[e.b].y - m_list[e.a].y;
+            return !(dx * dx + dy * dy <= kMaxLine * kMaxLine);
+        });
         m_incident.resize(list.size());
         for (auto& item : m_list) {
             item.ox = item.x;

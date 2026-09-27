@@ -64,6 +64,10 @@ namespace LayoutDeclutter::Internal
     inline constexpr double kGoodEnough = 0.5;
     inline constexpr double kCell = 50;
     inline constexpr double kEndMargin = 0.05;
+    // A line longer than this (after SPREAD) is left out of the search and the
+    // count (LineClear's constructor): every walk along a line is as long as
+    // the line, and a real tree's longest is under 2,000 (the JS MAX_LINE)
+    inline constexpr double kMaxLine = 20000;
     inline constexpr double kBetterBy = 0.01;          // a spot must beat the best by this
     inline constexpr double kOverlapHair = 1.000001;   // min squared, a hair over
     inline constexpr double kHalfCellDiagonal = 0.7072;
@@ -75,8 +79,8 @@ namespace LayoutDeclutter::Internal
 
     // Input bounds (the JS MAX_COORD, MAX_ANGLE, MAX_CELL). A spell further out
     // than kMaxCoord, or not finite, is not taken (left where it is): a real
-    // tree stays within a few thousand units, and one line 1e7 long took the
-    // JavaScript 8 s. A sector whose angle is past kMaxAngle
+    // tree stays within a few thousand units. What the line search walks is
+    // bounded by kMaxLine, not by this. A sector whose angle is past kMaxAngle
     // (degrees) is no sector: AngleDiff turns an angle back a turn at a time.
     inline constexpr double kMaxCoord = 1e6;
     inline constexpr double kMaxAngle = 3600;

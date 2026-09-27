@@ -623,11 +623,13 @@ same positions as the JavaScript (fdlibm `sin`/`cos`/`atan2` in `LayoutMath`, ev
 ```
 JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
   └─ UIManager::OnDeclutterTree (UIManagerDeclutter.cpp)
-       └─ AddTaskToGameThread ─► std::thread (worker, kept and joined at unload; a newer
-          request cancels the older ones): parse + LayoutDeclutter::Run
+       └─ AddTaskToGameThread ─► std::thread (worker, detached, never joined; a newer
+          request cancels the one before): parse + LayoutDeclutter::Run
             └─ AddTaskToGameThread ─► CallView("onDeclutterResult", {id, positions, moved, rounds, ...})
                  └─ JS writes x/y onto the nodes, onDone saves the tree
-                    (error / no reply in 30 s: the sliced JavaScript pass; another id: ignored)
+                    (error / unreadable reply / no reply in 30 s: the sliced JavaScript pass; another id: ignored)
+JS on that timeout ── callCpp("DeclutterCancel", id) ─► UIManager::OnDeclutterCancel ─► game thread:
+                      that request's worker cancelled
 ```
 
 Details, fallback and timings: [TREE_BUILDING_SYSTEM.md](TREE_BUILDING_SYSTEM.md#decluttering-before-save-layoutdeclutterjs-layoutlineclearjs-layoutlinegridjs-2026-09-26).

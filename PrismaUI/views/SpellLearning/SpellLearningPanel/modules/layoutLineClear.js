@@ -59,6 +59,9 @@ var LayoutLineClear = {
     GOOD_ENOUGH: 0.5,      // a spell costing less than this is left where it is
     CELL: 50,              // spatial grid cell, tree units
     END_MARGIN: 0.05,      // near a line's own ends (share of its length) other spells do not count
+    MAX_LINE: 20000,       // a line longer than this (after SPREAD) is left out of the search and the count:
+                           // every walk along a line is as long as the line, and a real tree's longest is
+                           // under 2,000 (the C++ kMaxLine)
 
     /**
      * All at once (tests, and anything that cannot wait).
@@ -82,6 +85,7 @@ var LayoutLineClear = {
      */
     start: function(list, edges, heart, opts) {
         var i;
+        edges = this._shortLines(edges);
         this._clear2 = opts.clear * opts.clear;
         this._opts = opts;
         this._heart = heart;
@@ -160,6 +164,19 @@ var LayoutLineClear = {
         return true;
     },
 
+    /**
+     * The lines no longer than MAX_LINE, in order (see MAX_LINE; the C++
+     * LineClear constructor). Where the spells are when the search starts.
+     */
+    _shortLines: function(edges) {
+        var out = [], max2 = this.MAX_LINE * this.MAX_LINE;
+        for (var i = 0; i < edges.length; i++) {
+            var dx = edges[i][1].x - edges[i][0].x, dy = edges[i][1].y - edges[i][0].y;
+            if (dx * dx + dy * dy <= max2) out.push(edges[i]);
+        }
+        return out;
+    },
+
     /** Try the spots round one spell and move it to the cheapest; true if it moved. */
     _searchOne: function(it, job) {
         this._fan = this._edgeFan = this._angleFan = null;
@@ -232,7 +249,7 @@ var LayoutLineClear = {
         for (k = 0; k < near.length; k++) marks[near[k].index] = true;
     },
 
-    /** Lines passing within `clear` of a spell they do not end at (pairs), for the log. */
+    /** Lines passing within `clear` of a spell they do not end at (pairs), for the log; `edges` as the search's (job.edges). */
     countLinesThrough: function(list, edges) {
         // Where the spells are now (LayoutDeclutter moves them after run)
         this._nodeGrid = {};

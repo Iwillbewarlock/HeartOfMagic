@@ -126,6 +126,7 @@ var LayoutDeclutterTest = {
         var empty = { schools: {} };
         this.check(L.apply(empty).moved === 0, 'an empty tree is left alone');
         this._hostile(L);
+        this._longLine(L);
         this._native(L);
         return { passed: this.passed, failed: this.failed };
     },
@@ -162,10 +163,38 @@ var LayoutDeclutterTest = {
             'the others are still arranged (an infinite globe counts as the default)');
     },
 
+    /** A line longer than MAX_LINE is left out: a spell on it stays (only spread out), and it is not counted. */
+    _longLine: function(L) {
+        var log = console.log, lc = LayoutLineClear;
+        var far = lc.MAX_LINE / L.SPREAD + 1000;
+        var tree = {
+            globe: { x: 0, y: 0, radius: 45 },
+            schools: {
+                Long: {
+                    nodes: [
+                        { formId: 'r', x: 100, y: 0, isRoot: true, children: ['far'] },
+                        { formId: 'far', x: far, y: 0, children: [] },
+                        { formId: 'onIt', x: far / 2, y: 3, children: [] }
+                    ]
+                }
+            }
+        };
+        console.log = function() {};
+        var result = L.apply(tree);
+        console.log = log;
+        var on = tree.schools.Long.nodes[2];
+        this.check(Math.abs(on.x - far / 2 * L.SPREAD) < 0.01 && Math.abs(on.y - 3 * L.SPREAD) < 0.01 && result.linesLeft === 0,
+            'a spell on a line longer than MAX_LINE is left on it, and not counted (' + result.linesLeft + ')');
+    },
+
     /** The plugin path: only the reply with this request's id is taken; a timeout pauses the plugin, a reply resumes it. */
     _native: function(L) {
         var sent = [], oldCpp = window.callCpp, warn = console.warn, log = console.log;
-        window.callCpp = function(name, arg) { if (name === 'DeclutterTree') sent.push(JSON.parse(arg)); };
+        var cancels = [];
+        window.callCpp = function(name, arg) {
+            if (name === 'DeclutterTree') sent.push(JSON.parse(arg));
+            if (name === 'DeclutterCancel') cancels.push(arg);
+        };
         console.warn = function() {};
         L._nativeRetryAt = 0;
         var done = 0, token = L.applyAsync(this._tree(), function() { done++; });
@@ -175,6 +204,7 @@ var LayoutDeclutterTest = {
         this.check(sent.length === 1 && !token.answered && done === 0,
             'replies with id null or another request\'s id are not taken as this one\'s');
         L._onNativeTimeout(token);
+        this.check(cancels.length === 1 && cancels[0] === token.id, 'a timeout tells the plugin to stop that request (DeclutterCancel)');
         L._asyncJob = null;                    // the JavaScript pass it started stops at its first slice
         var t2 = L.applyAsync(this._tree(), function() {});
         L._asyncJob = null;
@@ -183,6 +213,9 @@ var LayoutDeclutterTest = {
         var t3 = L.applyAsync(this._tree(), function() {});
         clearTimeout(t3.timer);
         this.check(sent.length === 2 && t3.native, 'a late reply from the plugin has it asked again');
+        L._onNativeResult('{"id": "declutter-');                            // cut off
+        this.check(t3.answered && !!t3.job && L._asyncJob === t3,
+            'an unreadable reply has the waiting request arranged here at once');
         L._asyncJob = null;
         L._nativeRetryAt = 0;
         window.callCpp = oldCpp;

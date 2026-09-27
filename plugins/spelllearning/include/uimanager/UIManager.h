@@ -150,6 +150,7 @@ private:
 
     // Tree declutter before save (C++ native, UIManagerDeclutter.cpp)
     static void OnDeclutterTree(const char* argument);
+    static void OnDeclutterCancel(const char* argument);
 
     // Panel control callbacks
     static void OnHidePanel(const char* argument);

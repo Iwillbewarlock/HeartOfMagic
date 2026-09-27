@@ -57,7 +57,8 @@ var LayoutDeclutter = {
                            // 11 s of wall time for about 5 s of work
     NATIVE_TIMEOUT_MS: 30000, // applyAsync: no reply from the plugin in this long, the pass runs here
                            // (a 1,428-spell tree takes it about 0.3 s)
-    NATIVE_RETRY_MS: 300000, // after such a timeout the plugin is not asked for this long (a reply ends it sooner)
+    NATIVE_RETRY_MS: 300000, // after such a timeout the plugin is not asked for this long (a readable reply
+                           // that still comes in ends it sooner; the timed-out worker is stopped, DeclutterCancel)
     MAX_COORD: 1e6,        // a spell further out, or not finite, is not moved (a real tree: a few thousand)
     MAX_ANGLE: 3600,       // a sector angle past this (degrees) is no sector (_angleDiff turns a turn at a time)
     MAX_CELL: 1073741824,  // grid cells clamped to +-2^30 (never reached from MAX_COORD); the C++ kMaxCell
@@ -78,8 +79,9 @@ var LayoutDeclutter = {
      * plugin does it (DeclutterTree, the same pass in C++ on a worker thread,
      * the same positions): the game's browser has no JIT, and a big tree took
      * it seconds of work and twice that in frames. Without the plugin (tests,
-     * the browser harness), when it answers with an error, or when it has not
-     * answered in NATIVE_TIMEOUT_MS, the pass runs here a SLICE_MS piece at a
+     * the browser harness), when it answers with an error or an unreadable
+     * reply, or when it has not answered in NATIVE_TIMEOUT_MS (its worker is
+     * then told to stop), the pass runs here a SLICE_MS piece at a
      * time between frames (and after a timeout, here for NATIVE_RETRY_MS). A
      * second call before the first is done drops the first (its onDone is
      * never called).
@@ -161,14 +163,19 @@ var LayoutDeclutter = {
     },
 
     /**
-     * No reply in NATIVE_TIMEOUT_MS: the pass runs here, and the plugin (an old
-     * one without DeclutterTree, or a stuck worker) is not asked again for
+     * No reply in NATIVE_TIMEOUT_MS: the plugin's worker is told to stop
+     * (DeclutterCancel, so it does not keep a core busy for a reply nobody
+     * takes), the pass runs here, and the plugin (an old one without
+     * DeclutterTree, or a stuck worker) is not asked again for
      * NATIVE_RETRY_MS, unless a reply from it comes in meanwhile.
      */
     _onNativeTimeout: function(token) {
         if (this._asyncJob !== token || token.answered) return;
         token.answered = true;
         this._nativeRetryAt = Date.now() + this.NATIVE_RETRY_MS;
+        try {
+            if (typeof window.callCpp === 'function') window.callCpp('DeclutterCancel', token.id);
+        } catch (e) { /* an old plugin without it: nothing to stop */ }
         console.warn('[LayoutDeclutter] no reply from the plugin in ' + this.NATIVE_TIMEOUT_MS + ' ms, arranged here');
         this._applySliced(token);
     },
@@ -177,9 +184,19 @@ var LayoutDeclutter = {
     _onNativeResult: function(resultStr) {
         var reply = null;
         try { reply = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr; } catch (e) { reply = null; }
-        if (!reply || typeof reply !== 'object') return;
-        this._nativeRetryAt = 0;           // the plugin answers (if late): asked again next time
         var token = this._asyncJob;
+        if (!reply || typeof reply !== 'object') {
+            // Unreadable, so whose it is cannot be told: a request still waiting
+            // is arranged here at once rather than after NATIVE_TIMEOUT_MS
+            if (token && token.native && !token.answered) {
+                token.answered = true;
+                clearTimeout(token.timer);
+                console.warn('[LayoutDeclutter] unreadable reply from the plugin, arranged here');
+                this._applySliced(token);
+            }
+            return;
+        }
+        this._nativeRetryAt = 0;           // the plugin answers (if late): asked again next time
         if (!token || !token.native || token.answered) return;
         // Only the reply to this request: not an earlier one's, not one without an id
         if (reply.id !== token.id) return;
@@ -286,7 +303,8 @@ var LayoutDeclutter = {
         });
         var lines = job.lines ? job.lines.result : null;
         var left = this._countOverlaps(list);
-        var linesLeft = lines ? LayoutLineClear.countLinesThrough(list, this._edges(job.items)) : -1;
+        // On the lines the search kept (not those past LayoutLineClear.MAX_LINE)
+        var linesLeft = lines ? LayoutLineClear.countLinesThrough(list, job.lines.edges) : -1;
         console.log('[LayoutDeclutter] spread x' + this.SPREAD + ', ' + moved + ' of ' + list.length +
             ' spells moved' + (lines ? ' (' + lines.moved + ' off lines in ' + lines.passes + ' passes)' : '') +
             ', ' + left + ' pairs still touching' + (lines ? ', ' + linesLeft + ' spells still on a line' : '') +

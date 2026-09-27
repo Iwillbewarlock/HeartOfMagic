@@ -8,9 +8,9 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 // =============================================================================
 // TREE DECLUTTER (C++ native)
@@ -28,12 +28,20 @@
 //   worker               -> game thread -> CallView("onDeclutterResult")
 //
 // The panel only takes the reply whose id is its latest request's, so a new
-// request cancels the workers still running (they stop at the next spell or
-// round and send nothing). Every other request is answered: a failure answers
-// { id, error } - the id read off the front of the request when it cannot be
-// parsed, or when no worker could be started - and the panel then runs its own
-// JavaScript pass. The workers are joined when the plugin unloads (cancelled
-// first, so that is quick).
+// request cancels the worker still running (it stops at the next spell or
+// round and sends nothing), and so does DeclutterCancel(id), which the panel
+// sends when it stops waiting for that worker (NATIVE_TIMEOUT_MS). A worker
+// that fails answers { id, error } - the id read off the front of the request
+// when it cannot be parsed, or when no worker could be started - and the panel
+// then runs its own JavaScript pass. A reply can still be lost (no SKSE task
+// interface, no UIManager, an allocation failing on the way): the panel's
+// timeout covers that.
+//
+// Workers are detached, never joined. SKSE sends no message when the game
+// closes and never unloads a plugin; at process exit Windows ends every thread
+// before static destructors run, and joining there (under the loader lock)
+// could only hang. So a worker still running at exit is simply ended with the
+// process: it holds nothing but its own copy of the request.
 
 namespace
 {
@@ -62,16 +70,23 @@ namespace
 
     // The request's id without parsing it: the panel writes {"id":"declutter-..."
     // first. For a request that cannot be parsed and a worker that cannot be
-    // started, so the error still reaches the request it is for; null if absent.
-    nlohmann::json PeekId(const std::string& argument)
+    // started, so the error still reaches the request it is for, and for
+    // DeclutterCancel to find the worker; empty if absent.
+    std::string PeekId(const std::string& argument)
     {
         static constexpr std::string_view kPrefix = R"({"id":")";
-        if (argument.compare(0, kPrefix.size(), kPrefix) != 0) return nullptr;
+        if (argument.compare(0, kPrefix.size(), kPrefix) != 0) return {};
         const auto end = argument.find('"', kPrefix.size());
-        if (end == std::string::npos) return nullptr;
+        if (end == std::string::npos) return {};
         std::string id = argument.substr(kPrefix.size(), end - kPrefix.size());
-        if (id.find('\\') != std::string::npos) return nullptr;  // escaped: not ours
+        if (id.find('\\') != std::string::npos) return {};  // escaped: not ours
         return id;
+    }
+
+    // PeekId's id as the reply's: null when there is none
+    nlohmann::json IdValue(const std::string& id)
+    {
+        return id.empty() ? nlohmann::json() : nlohmann::json(id);
     }
 
     // =========================================================================
@@ -113,40 +128,54 @@ namespace
     // ONE WORKER
     // =========================================================================
 
-    void RunWorker(std::string argument, std::shared_ptr<std::atomic<bool>> cancel, std::shared_ptr<std::atomic<bool>> finished)
+    // The reply to `argument`: the positions, or { id, error }; empty when cancelled
+    std::string Declutter(const std::string& argument, const std::atomic<bool>& cancel)
     {
-        SehTranslatorScope seh;
-        nlohmann::json id = PeekId(argument);
-        std::string reply;
+        nlohmann::json id = IdValue(PeekId(argument));
         try {
             const nlohmann::json request = nlohmann::json::parse(argument);
             if (request.is_object() && request.contains("id")) id = request["id"];
-            reply = Dump(LayoutDeclutter::Run(request, cancel.get()));
+            return Dump(LayoutDeclutter::Run(request, &cancel));
         } catch (const LayoutDeclutter::Cancelled&) {
-            logger::info("UIManager: DeclutterTree {} cancelled (a newer request, or the plugin unloading)", Dump(id));
+            logger::info("UIManager: DeclutterTree {} cancelled (a newer request, or the panel stopped waiting)", Dump(id));
+            return {};
         } catch (const SehException& e) {
             logger::critical("UIManager: DeclutterTree {} failed with structured exception 0x{:08X}", Dump(id), e.Code());
-            reply = ErrorReply(id, e.what());
+            return ErrorReply(id, e.what());
         } catch (const std::exception& e) {
             logger::error("UIManager: DeclutterTree failed: {}", e.what());
-            reply = ErrorReply(id, e.what());
+            return ErrorReply(id, e.what());
         } catch (...) {
             logger::error("UIManager: DeclutterTree failed with an unknown exception");
-            reply = ErrorReply(id, "unknown error in the native declutter");
+            return ErrorReply(id, "unknown error in the native declutter");
         }
-        // Cancelled: a newer request's reply is the one the panel waits for, or the plugin is going
+    }
+
+    // The thread's function: nothing may leave it (std::terminate), not even
+    // from the error handling above (logging and ErrorReply allocate)
+    void RunWorker(std::string argument, std::shared_ptr<std::atomic<bool>> cancel) noexcept
+    {
         try {
+            SehTranslatorScope seh;
+            std::string reply = Declutter(argument, *cancel);
+            // Cancelled meanwhile: the panel no longer waits for this reply
             if (!reply.empty() && !cancel->load()) SendDeclutterReply(std::move(reply));
         } catch (...) {
-            logger::error("UIManager: DeclutterTree could not queue its reply");
+            // The reply is lost; the panel runs its own pass after its timeout
+            try {
+                logger::error("UIManager: DeclutterTree could not finish or queue its reply");
+            } catch (...) {
+            }
         }
-        finished->store(true);
     }
 
     // =========================================================================
     // THE WORKERS
     // =========================================================================
 
+    // Every Start cancels the worker before it, so only the latest can still
+    // be wanted: its cancel flag and request id are all that is kept. Called
+    // on the game thread (Start and Cancel in the order the panel sent them).
     class DeclutterWorkers
     {
     public:
@@ -159,62 +188,35 @@ namespace
         DeclutterWorkers(const DeclutterWorkers&) = delete;
         DeclutterWorkers& operator=(const DeclutterWorkers&) = delete;
 
-        // The plugin unloading: cancel every worker, then wait for each
-        ~DeclutterWorkers()
+        // Cancel the worker still running and start a detached one for
+        // `argument` (see the top of the file). Throws (std::system_error,
+        // std::bad_alloc) when none can be started.
+        void Start(std::string argument, std::string id)
         {
-            std::vector<Worker> workers;
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_closed = true;
-                workers.swap(m_workers);
-            }
-            for (auto& worker : workers) worker.cancel->store(true);
-            for (auto& worker : workers) {
-                if (worker.thread.joinable()) worker.thread.join();
-            }
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_current) m_current->store(true);
+            auto cancel = std::make_shared<std::atomic<bool>>(false);
+            std::thread thread(RunWorker, std::move(argument), cancel);
+            thread.detach();
+            // Neither can throw: nothing after the thread is started can fail
+            m_current = std::move(cancel);
+            m_currentId = std::move(id);
         }
 
-        // Cancel the workers still running and start one for `argument`.
-        // Throws (std::system_error) when no thread can be started.
-        void Start(std::string argument)
+        // DeclutterCancel: stop the latest worker if it is the one for `id`
+        // (any older one was cancelled when the next started)
+        void Cancel(const std::string& id)
         {
-            std::vector<std::thread> done;
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                if (m_closed) return;
-                for (auto it = m_workers.begin(); it != m_workers.end();) {
-                    it->cancel->store(true);
-                    if (it->finished->load()) {
-                        done.push_back(std::move(it->thread));
-                        it = m_workers.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-                auto cancel = std::make_shared<std::atomic<bool>>(false);
-                auto finished = std::make_shared<std::atomic<bool>>(false);
-                std::thread thread(RunWorker, std::move(argument), cancel, finished);
-                m_workers.push_back(Worker{ std::move(thread), std::move(cancel), std::move(finished) });
-            }
-            // Finished already: each returns at once
-            for (auto& thread : done) {
-                if (thread.joinable()) thread.join();
-            }
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_current && !id.empty() && id == m_currentId) m_current->store(true);
         }
 
     private:
         DeclutterWorkers() = default;
 
-        struct Worker
-        {
-            std::thread thread;
-            std::shared_ptr<std::atomic<bool>> cancel;
-            std::shared_ptr<std::atomic<bool>> finished;
-        };
-
         std::mutex m_mutex;
-        std::vector<Worker> m_workers;
-        bool m_closed = false;
+        std::shared_ptr<std::atomic<bool>> m_current;
+        std::string m_currentId;
     };
 }
 
@@ -228,12 +230,23 @@ void UIManager::OnDeclutterTree(const char* argument)
     std::string argStr(argument ? argument : "");
 
     AddTaskToGameThread("DeclutterTree", [argStr = std::move(argStr)]() mutable {
-        const nlohmann::json id = PeekId(argStr);
+        std::string id = PeekId(argStr);
+        const nlohmann::json idValue = IdValue(id);
         try {
-            DeclutterWorkers::Get().Start(std::move(argStr));
+            DeclutterWorkers::Get().Start(std::move(argStr), std::move(id));
         } catch (const std::exception& e) {
             logger::error("UIManager: DeclutterTree could not start a worker: {}", e.what());
-            SendDeclutterReply(ErrorReply(id, std::string("could not start the native declutter: ") + e.what()));
+            SendDeclutterReply(ErrorReply(idValue, std::string("could not start the native declutter: ") + e.what()));
         }
+    });
+}
+
+// The panel stopped waiting for the request with this id (argument: the id as sent)
+void UIManager::OnDeclutterCancel(const char* argument)
+{
+    std::string id(argument ? argument : "");
+
+    AddTaskToGameThread("DeclutterCancel", [id = std::move(id)]() {
+        DeclutterWorkers::Get().Cancel(id);
     });
 }

@@ -122,6 +122,7 @@ bool UIManager::Initialize()
 
     // Register JS callbacks - Tree declutter before save (C++ native)
     m_prismaUI->RegisterJSListener(m_view, "DeclutterTree", OnDeclutterTree);
+    m_prismaUI->RegisterJSListener(m_view, "DeclutterCancel", OnDeclutterCancel);
 
     // Register JS callbacks - Preset file I/O
     m_prismaUI->RegisterJSListener(m_view, "SavePreset", OnSavePreset);

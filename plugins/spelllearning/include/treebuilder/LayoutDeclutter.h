@@ -25,7 +25,7 @@
 
 namespace LayoutDeclutter
 {
-    // Thrown by Run when its cancel flag is set (a newer request, the plugin unloading)
+    // Thrown by Run when its cancel flag is set (a newer request, or the panel stopped waiting)
     struct Cancelled : std::exception
     {
         const char* what() const noexcept override { return "declutter cancelled"; }
@@ -45,7 +45,9 @@ namespace LayoutDeclutter
      *   position skipped), moved, rounds, overlapsLeft, linesLeft, linesMoved,
      *   passes, ms }. Fewer than two positioned spells: positions is empty and
      *   nothing moves (skipped: true). A spell whose x or y is not a finite
-     *   number within +-1e6 (kMaxCoord) counts as one without a position.
+     *   number within +-1e6 (kMaxCoord) counts as one without a position. A
+     *   line longer than kMaxLine once spread out is not kept clear of spells
+     *   and not counted in linesLeft.
      *
      * cancel (may be null) is checked once per spell searched and once per
      * push-apart round; once it is set, Run throws Cancelled.

@@ -863,6 +863,18 @@ lines neither). A school angle past `MAX_ANGLE` (3600 degrees) means no sector, 
 within `MAX_COORD` never reaches: the C++ never casts an out-of-range double, and its 64-bit cell key (cx
 in the high half, cy in the low) can never give two cells one key.
 
+A line longer than `MAX_LINE` (`LayoutLineClear.MAX_LINE`, the C++ `kMaxLine`: 20,000 tree units, measured
+once the tree is spread out, before the search moves anything) is left out of the line search and of the
+`linesLeft` count: no spell is kept off it, and its two spells do not weigh it in their own search (their
+other lines still count, and the push-apart rounds still take them). A real tree's longest line is under
+2,000 (the game's 1,428-spell tree: 1,670), and a tree scaled up ten times (longest 15,700) still comes out
+unchanged. Every walk along a line (the line grid, a spell's fans, the dirty marks, the count) is as long
+as the line, so before this a few spells moved out to 4.6e5 - within `MAX_COORD` - took the 1,428-spell
+tree from 0.3 s to 4-10 s in either pass, and 476 of them ran over ten minutes; now either takes
+0.2-0.35 s in node and 0.06-0.16 s native. The work still grows with how many lines cross the dense middle of the
+tree: 473 lines of about 5,600 moved across the middle of the same tree (every coordinate within 2,322)
+take 21 s in node and 12 s native, and 473 lines of about 16,000 fanning out from it 17 s and 9 s.
+
 **Native pass (`LayoutDeclutter.cpp`, 2026-09-26).** The same pass in C++, in
 `plugins/spelllearning/src/treebuilder/`: `LayoutDeclutter.cpp` (collect, spread, the push-apart rounds,
 rounding, the log line), `LayoutLineClear.cpp` (passes, one spell's search, dirty marks),
@@ -889,17 +901,26 @@ script, with `(native)`. The panel writes the positions onto the nodes (checking
 `onDone`. It falls back to the sliced JavaScript pass when the reply has an `error` or does not match the
 tree, or when no reply comes in `NATIVE_TIMEOUT_MS` (30 s). After such a timeout the plugin is not asked
 for `NATIVE_RETRY_MS` (5 minutes), so an older plugin without the listener is not waited for on every
-tree; any reply from the plugin in the meantime (a late one included) ends that pause. Only a reply whose
-`id` is the latest request's is taken - not an older request's, and not one without an id. A newer
-`applyAsync` supersedes an older one; the plugin then cancels the older request's worker (a flag checked
-once per spell searched and once per push-apart round: it stops within a few milliseconds and sends
-nothing). Every other request gets a reply: when the request cannot be parsed, or no worker thread can be
-started, the error carries the id read off the front of the request (`{"id":"declutter-...`, which the
-panel always writes first). A Windows structured exception in a worker (the plugin builds with `/EHa`) is
-translated per thread (`_set_se_translator`) and logged with its code (`logger::critical`) before the
-error reply. The workers are kept (not detached) and joined when the plugin unloads, cancelled first. The
-browser harness (`dev-harness-bridge.js`) answers `DeclutterTree` with an error at once, so it arranges the
-tree itself.
+tree; any readable reply from the plugin in the meantime ends that pause (seldom the timed-out request's
+own: its worker is cancelled, see below). Only a reply whose
+`id` is the latest request's is taken - not an older request's, and not one without an id; an unreadable
+reply (not JSON) has a request still waiting arranged here at once instead of after the timeout. A newer
+`applyAsync` supersedes an older one; when the newer one is sent to the plugin (not during the
+`NATIVE_RETRY_MS` pause, nor when the tree has fewer than two positioned spells) the plugin cancels the
+older request's worker (a flag checked once per spell searched and once per push-apart round: it stops
+within a few milliseconds and sends nothing). On a timeout the panel sends `DeclutterCancel` with the
+request's id, and the plugin cancels that worker the same way, so it does not keep a core busy for a reply
+nobody takes. A worker that fails replies with an error: when the request cannot be parsed, or no worker
+thread can be started, the error carries the id read off the front of the request (`{"id":"declutter-...`,
+which the panel always writes first). A reply can still be lost - no SKSE task interface, no `UIManager`,
+an allocation failing on the way (nothing is let out of the worker's thread function, which would end the
+game) - and the panel's timeout covers that. A Windows structured exception in a worker (the plugin builds
+with `/EHa`) is translated per thread (`_set_se_translator`) and logged with its code (`logger::critical`)
+before the error reply. The workers are detached and never joined: SKSE sends no message when the game
+closes and never unloads a plugin, and at process exit Windows ends every thread before a DLL's static
+destructors run (joining there, under the loader lock, could only hang), so a worker still running then
+ends with the process. The browser harness (`dev-harness-bridge.js`) answers `DeclutterTree` with an
+error at once, so it arranges the tree itself.
 
 **Keep the two in step.** A change to the JavaScript pass (a constant, a step, the order of a sum) goes into
 the C++ files too. `tools/declutter-test` (`declutter-test -i tree.json -o reply.json [-r runs]`) runs the
