@@ -68,7 +68,9 @@ hom-chalk-zh-cn.ttf     Xiaolai Regular (formerly "Xiaolai SC", renamed upstream
 
 hom-chalk-zh-tw.ttf     Iansui Regular (芫荽)                  (family "Iansui")
   Source:  https://raw.githubusercontent.com/google/fonts/main/ofl/iansui/Iansui-Regular.ttf
-  Licence: Iansui-OFL.txt
+  Licence: Iansui-OFL.txt (copied unchanged; its copyright line says 2022, the font's own name
+           table says "Copyright 2025 The Iansui Project Authors" - the same OFL 1.1, the source
+           repository simply did not update the year in OFL.txt)
   Kept:    3,945 common traditional characters, all of them Big5 level-1 characters. A full
            Big5 level-1 subset (5,401 characters) was 4.0 MB, and Big5 order is stroke-count order
            (cutting it would drop common characters such as 臺 灣 學), so the list was derived from

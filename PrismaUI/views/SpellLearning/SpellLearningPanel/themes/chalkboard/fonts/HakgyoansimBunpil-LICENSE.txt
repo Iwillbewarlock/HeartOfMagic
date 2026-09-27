@@ -13,6 +13,20 @@ embedding; modifying and redistributing the font file; commercial use. Not allow
 font file by itself, or charging for modifying/editing/copying/distributing the font file.
 No attribution is required. No Reserved Font Name is declared.
 
+Record of the licence statement (checked 2026-09-27 on the official download page,
+https://copyright.keris.or.kr/wft/fntDwnldView?fntGrpId=GFT202301060000000000005, page title
+"학교 안심폰트 다운로드-교육저작권지원센터"):
+- The page says all "학교 안심폰트" (school safe fonts) were introduced under the Open Font
+  License (OFL), free for anyone to use with no limit on user or purpose.
+- The entry "학교안심 분필 R" carries the OFL mark with SIL's OFL described as the licence.
+- Licence summary table: copyright holder KERIS, maker Yoon Design (윤디자인); licence OFL.
+- Per-item table: documents, print, publishing, ads, video, CI/BI, websites, UI/UX, e-books and
+  embedding allowed; attribution not required; modifying and redistributing the font file allowed;
+  commercial use allowed; selling the font file by itself not allowed; charging for modifying,
+  editing, copying or distributing the font file not allowed.
+The font file's own name table says only "Copyright (c) KERIS. All rights reserved." and carries no
+licence text, so this page is the licence evidence; it is recorded here in case the page changes.
+
 The standard SIL Open Font License 1.1 text follows.
 
 -----------------------------------------------------------

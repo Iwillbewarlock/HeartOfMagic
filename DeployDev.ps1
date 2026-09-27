@@ -51,9 +51,13 @@ $designDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\presets\design'
 if (Test-Path $designSrc) {
     New-Item -ItemType Directory -Force -Path $designDst | Out-Null
     Copy-Item (Join-Path $designSrc '*.json') $designDst -Force
-    # a preset removed from the repository leaves the install too
-    $shipped = (Get-ChildItem $designSrc -Filter '*.json').Name
-    Get-ChildItem $designDst -Filter '*.json' | Where-Object { $shipped -notcontains $_.Name } | Remove-Item -Force
+    # Presets the mod shipped once and no longer does leave the install too. Only
+    # those, by name: any other file there (an add-on design being tried out) stays.
+    $retired = @('CandlelitTome.json')
+    foreach ($name in $retired) {
+        $old = Join-Path $designDst $name
+        if ((Test-Path $old) -and -not (Test-Path (Join-Path $designSrc $name))) { Remove-Item $old -Force }
+    }
     Write-Host ("designs {0}" -f ((Get-ChildItem $designSrc -Filter '*.json').Count))
 }
 

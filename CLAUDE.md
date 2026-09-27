@@ -140,7 +140,8 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
 open (PrismaUI holds the panel files, so a copy would leave the mod half written), it keeps the
 dev install's `lang/locale.js` instead of resetting the language to the shipped `en`, and it
-verifies the copy landed.
+verifies the copy landed. It copies the shipped design presets and removes only the ones the mod no
+longer ships (a list in the script); any other design JSON in the install (an add-on being tried) stays.
 
 ### Local Build Configuration
 
