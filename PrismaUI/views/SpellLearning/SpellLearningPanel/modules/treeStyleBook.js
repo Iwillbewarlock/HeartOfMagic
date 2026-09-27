@@ -229,7 +229,7 @@
             var gap = 40 / (r.zoom || 1);
 
             ctx.save();
-            ctx.font = t.chapterSize + 'px ' + t.labelFont;
+            ctx.font = t.chapterSize + 'px ' + this.labelFamily();
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             if (t.labelHalo) {

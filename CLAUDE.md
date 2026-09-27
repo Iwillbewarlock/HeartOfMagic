@@ -53,7 +53,7 @@ What are you doing?
 4. **Explore before coding**: ALWAYS search for existing utilities before writing new helpers
 5. **Build validation**: ALWAYS run `.\BuildRelease.ps1` before completing a task
 6. **Documentation maintenance**: ALWAYS update relevant docs/ after code changes that affect documented systems
-7. **PrismaUI theme compatibility**: UI changes must work with all designs (Classic, Modern Dark, Arcane, Night Grimoire, Candlelit Tome - `themes/skyrim.json` plus `themes/design-*.css`)
+7. **PrismaUI theme compatibility**: UI changes must work with all designs (Classic, Modern Dark, Arcane, Night Grimoire, Chalkboard - `themes/skyrim.json` plus `themes/design-*.css`)
 8. **JavaScript compatibility**: Use `var` declarations in PrismaUI code (Ultralight compatibility—no `let`/`const`)
 
 ## Do NOT (Anti-Patterns)

@@ -191,6 +191,15 @@ Use standard language codes:
 | `zh-cn` | Simplified Chinese |
 | `zh-tw` | Traditional Chinese |
 
+### Fonts per language
+
+When a language loads, the panel sets `<html lang="...">` to its code (`initI18n` in
+`modules/i18n.js`). Designs with their own handwriting or book fonts (Arcane, Night Grimoire,
+Chalkboard) pick a font per language with CSS `:lang()` rules, because no single such font covers
+Latin, Cyrillic, Hangul, kana and Han. A new language with a script those fonts lack (Arabic, Thai,
+Greek...) still shows: its letters fall back to a system font, glyph by glyph. To give it a matching
+face, add an `@font-face` and a `html:lang(xx) { --... }` rule to the design (see PRESETS.md, "Fonts").
+
 ## Tips
 
 - Keep translations concise - UI space is limited

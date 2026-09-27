@@ -23,7 +23,7 @@ var TreeStyle = {
 
     DEFAULTS: {
         // Labels
-        labelFont: 'sans-serif',
+        labelFont: 'sans-serif',                    // a font list, or var(--name) to use the design's CSS font for the page's language
         labelMaxChars: 12,
         labelHalo: '',                              // '' = no outline behind names
         labelHaloWidth: 3,
@@ -235,10 +235,33 @@ var TreeStyle = {
         return text.substring(0, max - 1) + '…';
     },
 
+    _fontKey: '',
+    _fontValue: '',
+
+    /**
+     * The label font as a canvas font list. A design can name a CSS variable,
+     * var(--name), so the tree's labels follow the font its stylesheet picks for
+     * the page's language (:lang rules); read once per design and language, and
+     * not kept while the stylesheet has not arrived yet.
+     */
+    labelFamily: function() {
+        var f = this.tokens.labelFont;
+        var m = /^var\((--[\w-]+)\)$/.exec(f);
+        if (!m) return f;
+        var root = document.documentElement;
+        var key = f + '|' + (root.getAttribute('lang') || '') + '|' + (typeof DesignPresets !== 'undefined' ? DesignPresets._appliedId : '');
+        if (key === this._fontKey && this._fontValue) return this._fontValue;
+        var v = '';
+        try { v = (getComputedStyle(root).getPropertyValue(m[1]) || '').trim(); } catch (e) { v = ''; }
+        this._fontKey = key;
+        this._fontValue = v;
+        return v || 'sans-serif';
+    },
+
     /** Prepare ctx for a run of labels (font, outline). */
     beginLabels: function(ctx, fontSize) {
         var t = this.tokens;
-        ctx.font = fontSize + 'px ' + t.labelFont;
+        ctx.font = fontSize + 'px ' + this.labelFamily();
         if (t.labelHalo) {
             ctx.strokeStyle = t.labelHalo;
             ctx.lineWidth = t.labelHaloWidth;

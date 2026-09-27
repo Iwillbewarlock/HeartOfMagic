@@ -44,13 +44,16 @@ if (-not $PanelOnly) {
     Write-Host ("plugin  {0}" -f (Split-Path $dllDst -Leaf))
 }
 
-# The design presets shipped with the mod (Night Grimoire, Candlelit Tome): data
+# The design presets shipped with the mod (Night Grimoire, Chalkboard): data
 # files the plugin lists at runtime, so the dev install needs them to show them
 $designSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\presets\design'
 $designDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\presets\design'
 if (Test-Path $designSrc) {
     New-Item -ItemType Directory -Force -Path $designDst | Out-Null
     Copy-Item (Join-Path $designSrc '*.json') $designDst -Force
+    # a preset removed from the repository leaves the install too
+    $shipped = (Get-ChildItem $designSrc -Filter '*.json').Name
+    Get-ChildItem $designDst -Filter '*.json' | Where-Object { $shipped -notcontains $_.Name } | Remove-Item -Force
     Write-Host ("designs {0}" -f ((Get-ChildItem $designSrc -Filter '*.json').Count))
 }
 

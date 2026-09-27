@@ -368,6 +368,30 @@ panel closed and in use:
 - **Retry-school list** (every 2 s) is only rebuilt when the list changed, and only while the Settings tab is
   in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone.
 
+### Chalkboard design (2026-09-27)
+
+Replaced Candlelit Tome. A lesson on the board: `presets/design/Chalkboard.json` reuses
+`design-darkbook.css` with a slate-and-wood `--book-*` palette (panels slate, frames wood, accents pale
+yellow chalk), the tree page slate `#26302c` with chalk-dust grain, school colours mixed 35% toward chalk
+white (`schoolInk`) so they read as pastel chalk, and three chalk drawings made with anidoodle's chalk
+hand (`themes/chalkboard/`: a magic circle in the hub, a corner doodle, the empty screen's book and
+star). Its whole UI - panel text, buttons, headings and the tree's labels - is set in chalk handwriting
+fonts chosen per language (below).
+
+### Design fonts per language (2026-09-27)
+
+Handwriting and old-book fonts cover one or two scripts each, so a design that wants its own lettering
+declares a CSS variable per language instead of one family: `@font-face` rules for each font file, then
+`:root { --x: ... }` for the Latin/Cyrillic default and `html:lang(ko|ja|zh-cn|zh-tw) { --x: ... }`
+overrides (the panel sets `<html lang>` when a language loads, see TRANSLATING.md). The design's
+`body, button, input, select, textarea` use `var(--x)`, and its tree token `labelFont: "var(--x)"` makes
+the canvas labels resolve the same list (`TreeStyle.labelFamily`, read once per design and language).
+Each family list ends in the platform's own font for that script, so a missing glyph falls back instead
+of showing a box. A browser fetches a face only when some text uses it, so a player downloads just their
+language's file. Fonts are OFL, subset to the characters the UI and common spell names need
+(KS X 1001 Hangul, Joyo kanji, GB2312 level 1, Big5 level 1, plus every character in the lang files);
+each folder has a README with sources and licences.
+
 ### Arcane illustrations (2026-09-27)
 
 The Arcane design carries three drawings made with anidoodle (code-drawn, pen-and-ink stipple in the

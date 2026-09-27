@@ -35,6 +35,9 @@
     function initI18n(locale) {
         locale = locale || 'en';
         _locale = locale;
+        // The page says which language it is in, so a design's stylesheet can pick a font
+        // per language with :lang() (a handwriting font rarely covers every script)
+        try { document.documentElement.setAttribute('lang', locale); } catch (e) { /* no DOM */ }
 
         // Prefer preloaded data from <script src="lang/en.js"> (avoids sync XHR issues in Ultralight/USVFS)
         // Only use preload if the locale matches (prevents loading English when another locale is requested)

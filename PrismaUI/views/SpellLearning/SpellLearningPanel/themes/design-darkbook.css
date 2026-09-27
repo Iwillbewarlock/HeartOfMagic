@@ -3,7 +3,7 @@
  * gold line round it, serif gold lettering, and dark pages (the spell card, the
  * hover card, the How to learn page, popups) where Arcane has parchment.
  *
- * Shared by the Night Grimoire and Candlelit Tome presets
+ * Shared by the Night Grimoire and Chalkboard presets
  * (SKSE/Plugins/SpellLearning/presets/design/*.json, "cssFile"): each sets only
  * the --book-* palette below in its inline "css". A new dark look can do the
  * same with its own colours. Laid over the Skyrim Edge theme (styles-skyrim.css)

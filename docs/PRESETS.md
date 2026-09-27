@@ -198,7 +198,7 @@ Scanner preset example:
 A design preset decides how the panel looks. Three are built in: **Arcane** (the default, an open
 spellbook on parchment), **Modern Dark** (slate-blue glass, amber accent, rounded) and **Classic** (the
 tree as it looked before presets). Two more ship with the mod as preset files, **Night Grimoire** and
-**Candlelit Tome** (`SKSE/Plugins/SpellLearning/presets/design/` in the repository) - copy one to start
+**Chalkboard** (`SKSE/Plugins/SpellLearning/presets/design/` in the repository; Candlelit Tome was removed on 2026-09-27 - a saved choice of it falls back to Arcane) - copy one to start
 your own. Add-ons and players add more with
 one `.json` file each in:
 
@@ -231,7 +231,7 @@ of the wrong type is converted when it can be ("60" -> 60) and skipped otherwise
 
 Several looks can share one stylesheet: `cssFile` points at the sheet and each preset's inline `css`
 sets the variables it reads - the inline CSS is always applied after the sheet. The shipped Night
-Grimoire and Candlelit Tome do this with `themes/design-darkbook.css` and a `:root { --book-... }`
+Grimoire and Chalkboard do this with `themes/design-darkbook.css` and a `:root { --book-... }`
 palette; a new dark look only needs its own palette.
 (`--book-cover` is the leather's one colour; without it the sheet uses `--book-cover-top`.)
 
@@ -286,7 +286,7 @@ newer version still loads.
 |-------|--------|
 | Page | `pageColor` (`""` keeps the starfield), `pageGrain` 0-1, `pageGrainColor`, `pageGlow`, `pageGlowAlpha`, `pageGlowRadius`, `pageEdge`, `pageEdgeAlpha` |
 | Ink | `schoolInk` 0-1 and `schoolInkTone`: school colours mixed toward the tone, so the player's own school colours still read on the page. `learningColor` (`""` = the player's setting) |
-| Labels | `labelFont`, `labelMaxChars`, `labelHalo` (outline colour, `""` = none), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
+| Labels | `labelFont` (a font list, or `var(--name)` to use a CSS variable the design sets per language - the canvas reads it once per design and language), `labelMaxChars`, `labelHalo` (outline colour, `""` = none), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
 | Spells | `nodeFill`, `unlockedFill`, `unlockedRim`, `unlockedCore` (`""` = school colour or its dark shade), `lockedStroke`, `mysteryFill`, `focusStroke`, `ringTrack`, `availableAlpha`, `availableRing`, `nodeGlow`, `learningGlow` |
 | Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes`, `hubEmblem` (an image path drawn in the heart instead of its text; `""` = the text) |
 | Illustrations | `pageOrnament` (an image path for the page's top-left corner, mirrored into all four; needs `pageColor`; `""` = none). Paths are relative to the panel's `index.html`; an image that fails to load is simply not drawn |

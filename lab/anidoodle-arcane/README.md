@@ -16,6 +16,7 @@ their sources: tone fields (what the picture is) and plates (how the pen puts it
 | `homSigilStipple.ts`, `homCornerStipple.ts`, `homStarSepia.ts` | **shipped**: sigil.png, corner.png, empty.png |
 | `homHeartStipple.ts` | the heart gem plate (not shipped) |
 | `ngSigilEngrave.ts`, `ngCornerEngrave.ts`, `ngEmptyEngrave.ts` | **shipped for Night Grimoire** (gold engraving): themes/nightgrimoire/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`) |
+| `chalkKit.ts`, `chalkSigil.ts`, `chalkCorner.ts`, `chalkEmpty.ts` | **shipped for Chalkboard** (anidoodle chalk hand): themes/chalkboard/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`); chalkKit adds two tiles to the engine's `core.ts` TILES at load |
 | `homStipple.ts`, `homEngrave*.ts`, `homCornerEngrave.ts`, `homHeartEngrave.ts` | alternatives (gold stipple; sepia engraved versions) |
 
 ## Re-rendering

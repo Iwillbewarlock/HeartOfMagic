@@ -208,7 +208,7 @@ var BridgeView = {
         // Drawn into the see-through tree layer (the page and stars are under it,
         // on the tree canvas): what the tree drew so far is faded out of the
         // layer instead of painted over, so the page shows as it is. A black
-        // veil turned a dark design's page (Candlelit Tome) all but black, and
+        // veil turned a dark design's page (Night Grimoire) all but black, and
         // one in the page's colour flattened its light and texture. Drawn
         // straight onto the tree canvas (no layer), the page is under the veil:
         // the colour behind the tree, so the rest fades into it.
