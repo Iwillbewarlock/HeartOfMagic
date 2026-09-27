@@ -2,7 +2,8 @@
  * LayerScrollTest - node tests for LayerScroll's arithmetic (run-tests.js):
  * the strips a shift uncovers (each axis, both, none), that the pieces cover
  * them exactly and come nearest first, and that kept names move with the
- * picture and are dropped once wholly outside the layer. And LayerBuild's
+ * picture and are dropped once wholly outside the layer, what the screen shows
+ * of a layer pasted stretched or turned (_stretchedViewRect). And LayerBuild's
  * states: when it is used, a frame's piece, the next frame asked for, the swap.
  *
  * Depends on: LayerScroll, LayerBuild
@@ -76,6 +77,31 @@ var LayerScrollTest = {
         S.shiftLabels(labels, -30, 5, { l: 0, r: 100, t: 0, b: 80 });
         this.check(labels.length === 1 && labels[0].x === 65 && labels[0].l === 55 && labels[0].t === 13,
             'kept names move with the picture; one wholly outside is dropped');
+
+        // What the screen shows of a layer pasted stretched (drawPendingAside):
+        // an 800 x 600 view, margin 128, the layer's middle at (528, 428)
+        var look = S.LOOKAHEAD_PX;
+        S.LOOKAHEAD_PX = 0;
+        try {
+            var sv = { cx: 400, cy: 300 };
+            var sr = { canvas: { width: 800, height: 600 }, zoom: 0.5, _layerZoom: 1, rotation: 0, _layerRotation: 0,
+                       panX: 0, panY: 0, _layerPanX: 0, _layerPanY: 0 };
+            this.check(S._stretchedViewRect(sr, 1, 128, sv).join() === '-272,-172,1600,1200',
+                'zoomed out to half: twice the screen, round the layer middle');
+            sr.zoom = 2;
+            this.check(S._stretchedViewRect(sr, 1, 128, sv).join() === '328,278,400,300',
+                'zoomed in twice: half the screen, round the layer middle');
+            sr.zoom = 1; sr.panX = 30;
+            this.check(S._stretchedViewRect(sr, 1, 128, sv).join() === S._viewRect(sr, 1, 128).join(),
+                'not stretched: the same as a plain paste');
+            sr.panX = 0; sr.rotation = 90;
+            var turned = S._stretchedViewRect(sr, 1, 128, sv);
+            this.check(Math.abs(turned[2] - 600) <= 1 && Math.abs(turned[3] - 800) <= 1 &&
+                       Math.abs(turned[0] + turned[2] / 2 - 528) <= 1 && Math.abs(turned[1] + turned[3] / 2 - 428) <= 1,
+                'turned a quarter: the screen on its side, round the layer middle');
+        } finally {
+            S.LOOKAHEAD_PX = look;
+        }
 
         this._buildTests(g, S);
         return { passed: this.passed, failed: this.failed };

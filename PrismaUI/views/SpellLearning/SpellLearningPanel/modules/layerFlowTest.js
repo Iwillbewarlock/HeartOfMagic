@@ -9,14 +9,14 @@
  *   first, one a frame when there is no time, the swap once they and the names
  *   are done, the rest handed to LayerScroll with the next frame asked for, and
  *   _lastMs left as it was by a build cut short; what finished builds do to
- *   _lastMs (a middling one lowers it a little, never below its own cost).
+ *   _lastMs (a middling one leaves it, however many come).
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
  *   dropped (its change marked again, the restart count started over), a glide
  *   builds for its end and starts again on a change, too many restarts draw at
  *   once, a build seen past the old picture's margin goes on urgently, and
- *   pieces left by an urgent swap are drawn on a stretched frame and beside a
- *   new build, at the layer's own zoom.
+ *   pieces left by an urgent swap are drawn on a stretched frame at the layer's
+ *   own zoom, but wait beside a new build or with the tree changed.
  *
  * Depends on: LayerScroll, LayerBuild, CanvasRenderer (canvasRendererV2.js,
  * canvasRendererFrame.js)
@@ -156,15 +156,12 @@ var LayerFlowTest = {
         // What finished builds do to _lastMs
         var built = function(spent) { return { tiles: [], spent: spent, pieces: 1, minPiece: 0, panX: 0, panY: 0, zoom: 1, rotation: 0 }; };
         var rr = { _treeLayer: { id: 'a' }, _treeLayerCtx: this._ctx() };
-        B._lastMs = 30; B._swapIn(rr, built(6));
-        this.check(B._lastMs > B.SYNC_MAX_MS && B._lastMs < 30, 'a middling build lowers a slow figure a little: still spread');
-        var n = 1;
-        while (B._lastMs > B.SYNC_MAX_MS && n < 100) { B._swapIn(rr, built(6)); n++; }
-        this.check(B._lastMs <= B.SYNC_MAX_MS && n > 3 && n < 20,
-            'builds that stay middling bring it down to trying at once (after ' + n + ')');
         B._lastMs = 30;
-        for (var i = 0; i < 50; i++) B._swapIn(rr, built(9));
-        this.check(B._lastMs === 9, "never below the builds' own cost: a tree whose builds are slow stays spread");
+        for (var i = 0; i < 50; i++) B._swapIn(rr, built(6));
+        this.check(B._lastMs === 30,
+            'builds that stay middling leave a slow figure: no repaint at once (a long frame) every so many builds');
+        B._swapIn(rr, built(40));
+        this.check(B._lastMs === 40, 'a slower build raises it');
         B._lastMs = 0;
     },
 
@@ -261,8 +258,13 @@ var LayerFlowTest = {
         var zoomAt = null;
         S._drawStrip = function(rr, gg) { calls.push(gg === r._treeLayerCtx ? 'piece' : 'piece-elsewhere'); zoomAt = rr.zoom; };
         f = frame();
-        this.check(f === 'piece step' && S._pending.length === 0, 'beside a new build: drawn first, into the layer on screen');
+        this.check(f === 'step' && S._pending.length === 1,
+            'beside a new build: they wait (its pieces have the frame, its swap replaces the layer)');
         B._build = null;
+        r._treeDirty = true; r._wheelAt = performance.now(); r.zoom = 0.9;   // a click, then a wheel zoom
+        f = frame();
+        this.check(f === '' && S._pending.length === 1 && r._treeDirty === true,
+            'the tree changed: they wait on a stretched frame (they would show it in the old picture)');
         S._pending = [[0, 0, 50, 50]];
         r._treeDirty = false; r._wheelAt = performance.now(); r.zoom = 0.9;   // a wheel zoom straight after the swap
         f = frame();

@@ -25,8 +25,10 @@
  * Not used (a whole repaint instead) when the tree changed, the zoom or rotation
  * changed, the layer is stale, edit mode draws into it, or the move is at least
  * the layer's size. Pieces already waiting (the ones an urgent LayerBuild swapped
- * in without) are still drawn on those frames, at the layer's own view
- * (drawPendingAside), unless the layer is stale or edit mode is on.
+ * in without) are still drawn on a frame that pastes the layer stretched (a wheel
+ * zoom, a glide), at the layer's own view (drawPendingAside) - not with a build
+ * under way or the tree changed since, nor when the layer is stale or edit mode
+ * is on.
  *
  * Depends on: CanvasRenderer (the layer, _renderTreeInto, _labelCandidates),
  * TreeStyle (labels), HoverOverlay (optional)
@@ -169,6 +171,36 @@ var LayerScroll = {
     },
 
     /**
+     * _viewRect for the layer pasted stretched and turned onto the view (a wheel
+     * zoom, a glide - CanvasRenderer's paste): the screen's corners mapped back
+     * into the layer, their bounding box. A zoom out shows more of the layer, a
+     * zoom in less. The same as _viewRect when zoom and rotation are the layer's.
+     */
+    _stretchedViewRect: function(r, dpr, margin, view) {
+        if (!(r._layerZoom > 0)) return this._viewRect(r, dpr, margin);
+        var pad = this.LOOKAHEAD_PX * dpr;
+        var k = r.zoom / r._layerZoom;
+        var th = (r._layerRotation - r.rotation) * Math.PI / 180;
+        var cos = Math.cos(th), sin = Math.sin(th);
+        var ox = dpr * (view.cx + r.panX), oy = dpr * (view.cy + r.panY);
+        var lx = dpr * (margin + view.cx + r._layerPanX), ly = dpr * (margin + view.cy + r._layerPanY);
+        var xs = [-pad, r.canvas.width + pad], ys = [-pad, r.canvas.height + pad];
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (var i = 0; i < 2; i++) {
+            for (var j = 0; j < 2; j++) {
+                var ux = (xs[i] - ox) / k, uy = (ys[j] - oy) / k;
+                var x = lx + ux * cos - uy * sin, y = ly + ux * sin + uy * cos;
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
+            }
+        }
+        x0 = Math.floor(x0); y0 = Math.floor(y0);
+        return [x0, y0, Math.ceil(x1) - x0, Math.ceil(y1) - y0];
+    },
+
+    /**
      * The layer's part of a frame, when this module can do it: a shift once the
      * drag has used EARLY_SHARE of the margin, and waiting strips. Returns true
      * when it did something (the layer and its pan may have changed), false when
@@ -240,10 +272,10 @@ var LayerScroll = {
      * (TARGET_FRAME_MS from its start, the next piece at its usual cost, one at
      * least if none was drawn). Pieces left over ask for the next frame.
      */
-    _drawSome: function(r, dpr, margin, view) {
+    _drawSome: function(r, dpr, margin, view, viewRect) {
         var self = this, g = r._treeLayerCtx;
         var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
-        var vr = this._viewRect(r, dpr, margin);
+        var vr = viewRect || this._viewRect(r, dpr, margin);
         // The screen in layer css px, for counting the names shown (_labels)
         var viewCss = { l: vr[0] / dpr - margin, r: (vr[0] + vr[2]) / dpr - margin,
                         t: vr[1] / dpr - margin, b: (vr[1] + vr[3]) / dpr - margin };
@@ -283,22 +315,26 @@ var LayerScroll = {
 
     /**
      * Waiting pieces on a frame that does not scroll: the layer pasted stretched
-     * (a wheel zoom or a glide) or a new build under way (LayerBuild) - after an
-     * urgent build's early swap its last pieces wait here, and those frames would
-     * show them bare. Drawn into the layer on screen as _drawSome does, at the view
-     * the layer was drawn for (its zoom, rotation and level of detail, not the live
-     * ones); never a shift, so the spare a build draws on is not touched.
+     * (a wheel zoom or a glide) - after an urgent build's early swap its last
+     * pieces wait here, and those frames would show them bare. Drawn into the
+     * layer on screen as _drawSome does, at the view the layer was drawn for (its
+     * zoom, rotation and level of detail, not the live ones), the pieces the
+     * stretched paste shows first (_stretchedViewRect); never a shift. The caller
+     * (CanvasRenderer._drawTree) leaves them waiting while a build is under way
+     * (its pieces have the frame, and its swap drops them) or the tree changed.
      * Returns true when it drew.
      */
     drawPendingAside: function(r, dpr, margin, view) {
         if (!this.ENABLED || !this._pending.length || !r._layerLabels || !r._treeLayerCtx) return false;
+        // What the screen shows of the layer, worked out before the view is set to the layer's
+        var vr = this._stretchedViewRect(r, dpr, margin, view);
         var rad = r._layerRotation * Math.PI / 180;
         var layerView = { cx: view.cx, cy: view.cy, rotRad: rad, cos: Math.cos(rad), sin: Math.sin(rad) };
         var live = { zoom: r.zoom, rotation: r.rotation, lod: r._lodTier };
         r.zoom = r._layerZoom; r.rotation = r._layerRotation;
         if (typeof r._computeLODTier === 'function') r._lodTier = r._computeLODTier();
         try {
-            this._drawSome(r, dpr, margin, layerView);
+            this._drawSome(r, dpr, margin, layerView, vr);
         } finally {
             r.zoom = live.zoom; r.rotation = live.rotation; r._lodTier = live.lod;
         }

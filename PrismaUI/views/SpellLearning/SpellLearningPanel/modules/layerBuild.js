@@ -20,11 +20,12 @@
  * once measured) is still done at once. A build tells too, counting its pieces'
  * own overhead once, not once a piece (the cheapest piece stands for it). A
  * clearly quick one (QUICK_SHARE of SYNC_MAX_MS) switches back to repaints at
- * once; a middling one only brings the figure down by LAST_MS_DECAY a build (not
- * below its own cost), since culled pieces can cost less than one whole repaint.
- * So a tree once slow (a hitch) is not spread for ever, and a slow tree whose
- * builds look quick tries one repaint at once only every so many builds (~11
- * from 25 ms), which measures it slow again. So is the first repaint, one with
+ * once; a slower one raises the figure; a middling one leaves it as it is:
+ * culled pieces can cost less than one whole repaint, so a slow tree's builds can
+ * look quick, and trying it at once again would be one long frame (a figure
+ * lowered a little a build did that every ~11 builds). A tree that was slow once
+ * (a hitch) and is middling since stays spread - its repaints show the old
+ * picture a frame or two longer, with no long frame. So is the first repaint, one with
  * no old picture to show (stale layer, resize) and one in edit mode; and a tree
  * that keeps changing faster than a build ends (MAX_RESTARTS builds started
  * again in a row, the count starting over when a build is dropped for another
@@ -38,7 +39,8 @@
  * shows first - and swaps in as soon as those and the names are done; the pieces
  * left over go to LayerScroll's queue, drawn in the next frames' time left like
  * a drag's strips (the next frame is asked for at once; a frame that stretches
- * the layer or runs a new build draws them too, LayerScroll.drawPendingAside).
+ * the layer draws them too, LayerScroll.drawPendingAside, unless a new build is
+ * under way or the tree changed).
  * (It used to finish everything in that frame: one long frame.) The bare edge
  * shows for the frames that takes, as during a glide.
  *
@@ -61,8 +63,6 @@ var LayerBuild = {
     TILE_PX: 384,             // device px: the layer is drawn in pieces this big (each costs ~1 ms of its own)
     MAX_RESTARTS: 4,          // builds started again (the tree changed meanwhile) in a row: then at once
     QUICK_SHARE: 0.5,         // a build this share of SYNC_MAX_MS or less lets the next repaint try at once
-    LAST_MS_DECAY: 0.9,       // each finished build that is not slower lowers _lastMs to this share of
-                              // it (not below the build's own cost), so a slow hitch is not kept for ever
 
     _build: null,             // { panX, panY, zoom, rotation, dpr, margin, w, h, view, tiles, spent, glide,
                               //   pieces, minPiece }
@@ -276,15 +276,13 @@ var LayerBuild = {
         r._treeLayerDraws = (r._treeLayerDraws || 0) + 1;
         r._layerBuilds = (r._layerBuilds || 0) + 1;
         // Decides sync or spread next time (a build cut short says nothing). A
-        // clearly quick build sets it; a slow one raises it; a middling one only
-        // lowers it a little (LAST_MS_DECAY): a build's pieces are culled to their
-        // own box and may cost less than one repaint of the whole view, so taken as
-        // it is it would switch a slow tree back to long frames - but never lowering
-        // it kept a tree spread for good after one slow repaint (a hitch)
+        // clearly quick build sets it; a slow one raises it; a middling one leaves
+        // it: a build's pieces are culled to their own box and may cost less than
+        // one repaint of the whole view, so taken as it is (or lowered a little a
+        // build) it would switch a slow tree back to a long frame
         if (!b.tiles.length) {
             var est = this._estimate(b);
             if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
-            else this._lastMs = Math.max(est, this._lastMs * this.LAST_MS_DECAY);
         }
         this._build = null;
         this._restarts = 0;

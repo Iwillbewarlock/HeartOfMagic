@@ -299,10 +299,11 @@
             var urgent = building && slid && !this._viewInMotion() && !LayerBuild.forGlide();
             // Pieces an urgent build swapped in without wait in LayerScroll's queue. A
             // frame that scrolls draws them (LayerScroll.step above); a stretched one (a
-            // wheel zoom, a glide) or one with a new build under way draws them here,
-            // before the build's piece, into the layer on screen - not while an urgent
-            // build is about to replace that layer anyway
-            if (!scrolled && !urgent && !this._treeLayerStale && typeof LayerScroll !== 'undefined' &&
+            // wheel zoom, a glide) draws them here, into the layer on screen. Not with a
+            // build under way (its pieces have the frame, and it replaces that layer)
+            // nor with the tree changed since (they would show the new tree in the old
+            // picture): they wait, and a build's swap drops them
+            if (!scrolled && !building && !this._treeDirty && !this._treeLayerStale && typeof LayerScroll !== 'undefined' &&
                     LayerScroll._pending.length && !(typeof EditMode !== 'undefined' && EditMode.isActive)) {
                 LayerScroll.drawPendingAside(this, dpr, margin, view);
             }
