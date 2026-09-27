@@ -252,8 +252,10 @@ without a glide, a drag during the build) the build goes on urgently (2026-09-28
 that one frame): `URGENT_TARGET_FRAME_MS` (11) of the frame, the pieces the screen shows first, and the
 swap as soon as those and the names are done; the pieces left go to LayerScroll's queue and are drawn
 like a drag's strips. The old picture's bare edge shows for the frames that takes, as during a glide. Bench (a click's build, then
-the view 200 px past the margin and held, CPU canvases, five designs): the worst frame 177-239 ms → 27-42 ms,
-the others 3-17 ms, the layer whole again 13-17 frames later. A
+the view 200 px past the margin and held, CPU canvases, five designs, a quiet run): the frame that
+finished the build went 65-76 ms → none; the urgent frames take 10-14 ms, the swap comes on the 4th to 6th
+of them (the bare edge shows that long, then one frame for LayerScroll's shift), and the layer is whole
+2-3 frames after. On a busy machine the same run gave 177-239 → 27-42 ms worst. A
 tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row) is
 repainted at once. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
 work than one repaint at once; `_lastMs`, which decides sync or spread, is what the last repaint at once
