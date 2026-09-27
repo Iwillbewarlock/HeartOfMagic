@@ -173,6 +173,18 @@ var LayerFlowTest = {
         f = frame();
         this.check(f === 'abort sync' && !B.active() && B._restarts === 0, 'too many restarts: the build goes, drawn at once, count reset');
 
+        // What a finished build says about repainting at once (_lastMs)
+        var built = function(spent, pieces, minPiece) {
+            return { tiles: [], spent: spent, pieces: pieces, minPiece: minPiece, panX: 0, panY: 0, zoom: r.zoom, rotation: 0 };
+        };
+        B._lastMs = 30; B._swapIn(r, built(6, 1, 1));
+        this.check(B._lastMs === 30, 'a middling build leaves a slow tree spread');
+        B._swapIn(r, built(40, 20, 2));            // 40 - 19 * 2 = 2 ms: clearly quick
+        this.check(B._lastMs === 2, "a clearly quick build (pieces' overhead counted once) lets the next repaint try at once");
+        B._lastMs = 10; B._swapIn(r, built(60, 2, 1));
+        this.check(B._lastMs === 59, 'a slow build raises it');
+        r._treeLayer = { id: 'layer', width: 1056, height: 856 }; r._layerZoom = r.zoom;
+
         B._lastMs = 50; B._restarts = 0; r._treeDirty = true;
         frame();                                   // a build starts
         r.panX = 200;                              // held still past the old picture's margin

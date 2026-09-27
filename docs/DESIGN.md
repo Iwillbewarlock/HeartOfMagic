@@ -256,8 +256,12 @@ the view 200 px past the margin and held, CPU canvases, five designs): the worst
 the others 3-17 ms, the layer whole again 13-17 frames later. A
 tree that keeps changing faster than a build ends (`MAX_RESTARTS`, 4, builds started again in a row) is
 repainted at once. The pieces' own costs (dividers, clipping, bridge markers) make a build a little more
-work than one repaint at once; `_lastMs`, which decides sync or spread, leaves them out but once (the
-cheapest piece of the build stands for them), so a tree that repaints quickly is not spread for ever. Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
+work than one repaint at once; `_lastMs`, which decides sync or spread, is what the last repaint at once
+took, and a build leaves its pieces' overhead out but once (the cheapest piece stands for it) and may only
+lower it when clearly quick (`QUICK_SHARE`, half of `SYNC_MAX_MS`): so a tree that became quick is not
+spread for ever, and a slow one is not sent back to long frames because its culled pieces now cost less
+than one whole repaint (in the bench a build's pieces took 8-10 ms where a repaint at once took 12-27 ms
+of drawing calls). Measured (8 clicks with glides and 6 wheel zooms per design, four designs, CPU
 canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9 ms, with a rare
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
@@ -297,9 +301,15 @@ sizes, the halo scale, the learnable ring and the name padding are named constan
 `LABEL_PAD`) shared by `renderNode`, `_renderNodeSimple`, `_batchPlainNode`, `LayerScroll._worldBox` and
 `TreeStyle`. The pictures are pixel-identical to before (all five designs, every locked spell shown or
 discovery mode, strips, pieces and whole repaints frame by frame). JavaScript cost with every canvas call
-a no-op (`node --jitless`, the repro tree, Arcane, zoom 0.9): a drag strip 4.4-6.0 → 0.9-1.7 ms, a
-384 px piece 5.0-6.2 → 0.6-0.9 ms (with a spell selected 4.3-6.5 → 0.6-1.0 ms), a whole repaint at once
-19-23 → 16-20 ms. `modules/canvasCullTest.js` checks the grid against the full loop on 300 boxes.
+a no-op (`node --jitless`, the repro tree, Arcane, zoom 0.9, a quiet machine): a drag strip 3.0-3.1 →
+0.7 ms, a 384 px piece 2.8 → 0.4 ms (the same with a spell selected), a whole repaint at once 12-14 →
+10 ms. In the desktop bench (Chrome with its JIT, CPU canvases, pieces rasterised as drawn, every locked
+spell shown, two rounds of five designs) a strip went 1.3-1.8 → 0.9-1.2 ms and a piece 1.0-1.6 →
+0.6-1.0 ms (the edge pass in a strip 0.7-1.0 → 0.2-0.3 ms); frames over 16.7 ms in the drags, clicks and
+wheel zooms stayed where they were (61 before, 64 after, of about 3,400 frames - most of them spikes of
+0.4-0.9 s in both, from the machine and Modern Dark's starfield, not from the tree). The shift itself
+(clear and draw instead of `'copy'`) is 2.6 → 2.4 ms. `modules/canvasCullTest.js` checks the grid
+against the full loop on 300 boxes.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring

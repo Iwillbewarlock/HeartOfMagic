@@ -16,10 +16,13 @@
  * the picture is built for that view while the camera glides, so after a click
  * the highlighted tree is ready when the camera arrives, however far it went.
  *
- * A repaint that is quick anyway (SYNC_MAX_MS or less) is still done at once.
- * What the last build cost counts its pieces' own overhead once, not once a
- * piece (the cheapest piece stands for it), so a tree that repaints quickly is
- * not spread for ever. So is the first repaint, one with no old picture to
+ * A repaint that is quick anyway (SYNC_MAX_MS or less, as the last one done at
+ * once measured) is still done at once. A build tells too, counting its pieces'
+ * own overhead once, not once a piece (the cheapest piece stands for it), but
+ * only when clearly quick (QUICK_SHARE of SYNC_MAX_MS) may it switch back to
+ * repaints at once - so a tree that became quick is not spread for ever, and a
+ * slow one is not sent back to long frames by culled pieces that cost less than
+ * one whole repaint. So is the first repaint, one with no old picture to
  * show (stale layer, resize) and one in edit mode; and a tree that keeps
  * changing faster than a build ends (MAX_RESTARTS builds started again in a
  * row) is repainted at once.
@@ -50,6 +53,7 @@ var LayerBuild = {
     URGENT_TARGET_FRAME_MS: 11, // ...and up to this while the old picture shows its bare edge
     TILE_PX: 384,             // device px: the layer is drawn in pieces this big (each costs ~1 ms of its own)
     MAX_RESTARTS: 4,          // builds started again (the tree changed meanwhile) in a row: then at once
+    QUICK_SHARE: 0.5,         // a build this share of SYNC_MAX_MS or less lets the next repaint try at once
 
     _build: null,             // { panX, panY, zoom, rotation, dpr, margin, w, h, view, tiles, spent, glide,
                               //   pieces, minPiece, urgent }
@@ -251,8 +255,14 @@ var LayerBuild = {
         r._treeLayerStale = false;
         r._treeLayerDraws = (r._treeLayerDraws || 0) + 1;
         r._layerBuilds = (r._layerBuilds || 0) + 1;
-        // Decides sync or spread next time; a build cut short leaves its pieces' cost out
-        if (!b.tiles.length) this._lastMs = this._estimate(b);
+        // Decides sync or spread next time (a build cut short says nothing). Only a
+        // clearly quick build lowers it: a build's pieces are culled to their own
+        // box and may cost less than one repaint of the whole view, so a middling
+        // one would switch a slow tree back to long frames; a slow one raises it
+        if (!b.tiles.length) {
+            var est = this._estimate(b);
+            if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
+        }
         this._build = null;
         this._restarts = 0;
     }
