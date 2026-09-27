@@ -12,7 +12,7 @@ using json = nlohmann::json;
 //
 // Implements TF-IDF vectorization, cosine similarity, character n-gram
 // similarity, and fuzzy string matching. These are the building blocks
-// used by all tree builder modes.
+// used by the tree builder (Classic) and PreReqMaster scoring.
 //
 // =============================================================================
 
