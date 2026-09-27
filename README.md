@@ -89,7 +89,7 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 ```
 Data/
 ├── Scripts/
-│   └── SpellLearning_Bridge.pex
+│   └── *.pex             (SpellLearning, DEST/ISL handlers, BookXP)
 ├── SKSE/
 │   └── Plugins/
 │       ├── SpellLearning.dll

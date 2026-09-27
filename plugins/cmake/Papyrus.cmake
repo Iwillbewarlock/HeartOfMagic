@@ -28,12 +28,10 @@ if(EXISTS "${PAPYRUS_COMPILER}")
     set(PAPYRUS_SPELLLEARNING_SOURCES
         "${PAPYRUS_SOURCES_DIR}/DEST_FormExt.psc"
         "${PAPYRUS_SOURCES_DIR}/SL_BookXP_QuestScript.psc"
-        "${PAPYRUS_SOURCES_DIR}/SpellLearning_Bridge.psc"
         "${PAPYRUS_SOURCES_DIR}/SpellLearning_DEST_Handler.psc"
         "${PAPYRUS_SOURCES_DIR}/SpellLearning_DEST.psc"
         "${PAPYRUS_SOURCES_DIR}/SpellLearning_ISL_Handler.psc"
         "${PAPYRUS_SOURCES_DIR}/SpellLearning_ISL.psc"
-        "${PAPYRUS_SOURCES_DIR}/SpellLearning_QuestScript.psc"
         "${PAPYRUS_SOURCES_DIR}/SpellLearning.psc"
     )
 

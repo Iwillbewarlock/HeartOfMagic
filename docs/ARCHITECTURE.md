@@ -1207,8 +1207,6 @@ HeartOfMagic/
 │       └── src/
 │           └── Main.cpp           ✅ BookMenu watcher + API integration
 ├── Scripts/Source/
-│   ├── SpellLearning_QuestScript.psc  ⚠️ Legacy SkyrimNet request poller (no plugin file ships, so no quest runs it)
-│   ├── SpellLearning_Bridge.psc       ⚠️ Legacy SkyrimNet bridge (unused)
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler
 │   ├── SpellLearning_ISL.psc          ✅ ISL native function stubs
@@ -1222,8 +1220,7 @@ HeartOfMagic/
 │       ├── script.js                ✅ Main app logic
 │       ├── themes/                  ✅ Theme definitions (default, skyrim)
 │       └── modules/                 ✅ 39 JavaScript modules
-├── SKSE/Plugins/SpellLearning/
-│   └── custom_prompts/              SkyrimNet prompt read only by SpellLearning_Bridge.psc (nothing writes its request file any more)
+├── SKSE/Plugins/SpellLearning/     Runtime data (presets, librarian, card icons)
 └── docs/
     ├── ARCHITECTURE.md              ✅ This file
     ├── DESIGN.md                    ✅ Design patterns and UI documentation
@@ -1260,7 +1257,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 │   └── Plugins/
 │       ├── SpellLearning.dll
 │       └── SpellLearning/
-│           └── custom_prompts/
+│           └── presets/
 └── (ESP if applicable)
 ```
 
@@ -1503,6 +1500,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **PrismaUI path critical** - CreateView path must exactly match deployment path
 - **Panel auto-refresh** - GetPlayerKnownSpells called when panel opens (catches external spell learning)
 - **LLM naming** - The AI integration was called "LLM" (not "SkyrimNet"); removed 2026-09-28
+- **SkyrimNet bridge** - `SpellLearning_Bridge.psc`, `SpellLearning_QuestScript.psc`, the `SkyrimNetApi.psc` header and `custom_prompts/spell_tree_generator.prompt` sent tree requests to SkyrimNet from Papyrus; nothing had written their request file since the LLM rework and no plugin file ran the quest; removed 2026-09-28
 - **Per-school shapes** - Each school had a distinct visual shape in `SCHOOL_DEFAULT_SHAPES` (C++ + JS); removed 2026-09-27 with the builders that read them
 - **Plugin whitelist** - Users can filter which plugins contribute spells to tree generation
 - **LLM keyword classification** - Optional batched classification for spells with weak keywords, off by default; removed 2026-09-27 with `llmTreeFeatures.js`
