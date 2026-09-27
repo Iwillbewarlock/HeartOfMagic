@@ -92,11 +92,8 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "SetTreePrerequisites", OnSetTreePrerequisites);
 
     // Register JS callbacks - Settings (unified config)
-    m_prismaUI->RegisterJSListener(m_view, "LoadSettings", OnLoadSettings);  // Legacy
-    m_prismaUI->RegisterJSListener(m_view, "SaveSettings", OnSaveSettings);  // Legacy
     m_prismaUI->RegisterJSListener(m_view, "LoadUnifiedConfig", OnLoadUnifiedConfig);
     m_prismaUI->RegisterJSListener(m_view, "SaveUnifiedConfig", OnSaveUnifiedConfig);
-    m_prismaUI->RegisterJSListener(m_view, "SetHotkey", OnSetHotkey);
     m_prismaUI->RegisterJSListener(m_view, "SetPauseGameOnFocus", OnSetPauseGameOnFocus);
 
     // Register JS callbacks - Clipboard
@@ -274,22 +271,6 @@ void UIManager::OnHidePanel([[maybe_unused]] const char* argument)
 // =============================================================================
 // HOTKEY / PAUSE CALLBACKS
 // =============================================================================
-
-void UIManager::OnSetHotkey(const char* argument)
-{
-    if (!argument || strlen(argument) == 0) {
-        logger::warn("UIManager: SetHotkey - no key code provided");
-        return;
-    }
-
-    try {
-        uint32_t keyCode = static_cast<uint32_t>(std::stoul(argument));
-        logger::info("UIManager: Setting hotkey to code {}", keyCode);
-        UpdateInputHandlerHotkey(keyCode);
-    } catch (const std::exception& e) {
-        logger::error("UIManager: SetHotkey exception: {}", e.what());
-    }
-}
 
 void UIManager::OnSetPauseGameOnFocus(const char* argument)
 {

@@ -224,7 +224,6 @@ window.callCpp = function(method, data) {
             }
             break;
 
-        case 'SetHotkey':
         case 'SetPauseGameOnFocus':
             console.log('[Bridge] Setting stored (dev mode)');
             break;

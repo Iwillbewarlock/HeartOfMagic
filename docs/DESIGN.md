@@ -1103,12 +1103,12 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 
 ## C++ ↔ JS Communication
 
-### JS → C++ (34 listeners via `callCpp`; the main ones)
+### JS → C++ (31 listeners via `callCpp`; the main ones)
 
 **Scanning:** `ScanSpells`, `SaveOutput`
 **Tree:** `LoadSpellTree`, `SaveSpellTree`, `GetSpellInfo`, `GetSpellInfoBatch`
 **Progression:** `SetLearningTarget`, `ClearLearningTarget`, `UnlockSpell`, `GetProgress`, `CheatUnlockSpell`, `RelockSpell`, `GetPlayerKnownSpells`, `SetSpellXP`, `SetTreePrerequisites`
-**Config:** `LoadUnifiedConfig`, `SaveUnifiedConfig`, `SetHotkey`, `SetPauseGameOnFocus`
+**Config:** `LoadUnifiedConfig`, `SaveUnifiedConfig`, `SetPauseGameOnFocus`
 **Presets:** `SavePreset`, `DeletePreset`, `LoadPresets`
 **Tree Building:** `ProceduralTreeGenerate`, `PreReqMasterScore`
 **Clipboard:** `GetClipboard`

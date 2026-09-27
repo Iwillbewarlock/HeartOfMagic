@@ -7,7 +7,6 @@
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
 #include "PassiveLearningSource.h"
-#include "ISLIntegration.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -172,18 +171,6 @@ std::filesystem::path GetSettingsFilePath()
 std::filesystem::path GetUnifiedConfigPath()
 {
     return "Data/SKSE/Plugins/SpellLearning/config.json";
-}
-
-void UIManager::OnLoadSettings(const char* argument)
-{
-    // Legacy - redirect to unified config
-    OnLoadUnifiedConfig(argument);
-}
-
-void UIManager::OnSaveSettings(const char* argument)
-{
-    // Legacy - redirect to unified config
-    OnSaveUnifiedConfig(argument);
 }
 
 // =============================================================================

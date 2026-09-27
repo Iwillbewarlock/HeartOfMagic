@@ -110,13 +110,8 @@ private:
     static void OnSetSpellXP(const char* argument);
     static void OnSetRequiredXP(const char* argument);
     static void OnGetPlayerKnownSpells(const char* argument);
-    static void OnSetHotkey(const char* argument);
     static void OnSetPauseGameOnFocus(const char* argument);
     static void OnSetTreePrerequisites(const char* argument);
-    
-    // Settings callbacks (legacy)
-    static void OnLoadSettings(const char* argument);
-    static void OnSaveSettings(const char* argument);
     
     // Unified config callbacks
     static void OnLoadUnifiedConfig(const char* argument);
