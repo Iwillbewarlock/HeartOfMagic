@@ -2,12 +2,13 @@
  * Tree Growth — Orchestrator
  *
  * Manages the tree growth section: tab switching, shared canvas with pan/zoom,
- * and delegates rendering to the active growth mode module (CLASSIC, TREE, LIFE).
+ * and delegates rendering to the active growth mode module (Classic, the one
+ * builder since 2026-09-27).
  *
  * Pulls base data (grid + root nodes) from TreePreview.getOutput() and passes
  * it to the active growth mode's render function.
  *
- * Loaded AFTER treeGrowthClassic.js and treeGrowthTree.js so they can self-register.
+ * Loaded AFTER modules/classic/classicMain.js so Classic can self-register.
  *
  * Depends on: treePreview.js (TreePreview.getOutput)
  * Mode modules register via: TreeGrowth.registerMode(name, module)

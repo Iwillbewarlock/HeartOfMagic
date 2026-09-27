@@ -229,8 +229,6 @@ var TreeAnimation = {
             self._retryTimerId = null;
             if (!self._pendingCapture) return;
 
-            self._ensureLayouts();
-
             if (self.capture()) {
                 self.play();
             } else {
@@ -243,35 +241,8 @@ var TreeAnimation = {
     checkPendingCapture: function() {
         if (!this._pendingCapture || this._playing) return;
 
-        this._ensureLayouts();
-
         if (this.capture()) {
             this.play();
-        }
-    },
-
-    _ensureLayouts: function() {
-        if (typeof TreeGrowth === 'undefined') return;
-
-        var baseData = null;
-        if (typeof TreePreview !== 'undefined' && TreePreview.getOutput) {
-            baseData = TreePreview.getOutput();
-        }
-        if (!baseData) return;
-
-        var activeMod = TreeGrowth.modes[TreeGrowth.activeMode];
-
-        // Fallback: ensure classic mode when it is not the active one
-        var classicModule = TreeGrowth.modes['classic'];
-        if (classicModule && classicModule !== activeMod && classicModule._treeData &&
-            (!classicModule._layoutData || !classicModule._layoutData.schools)) {
-            if (typeof ClassicLayout !== 'undefined' && ClassicLayout.layoutAllSchools) {
-                classicModule._layoutData = ClassicLayout.layoutAllSchools(
-                    classicModule._treeData, baseData, classicModule.settings);
-                if (classicModule._layoutData) {
-                    console.log('[TreeAnimation] Forced classic layout');
-                }
-            }
         }
     },
 
