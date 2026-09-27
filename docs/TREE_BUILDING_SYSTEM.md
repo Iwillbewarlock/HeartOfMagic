@@ -1146,7 +1146,7 @@ The Classic builder outputs this JSON schema, which the downstream JS systems (l
    {
      command: "build_tree_classic",
      spells: [228 spells],
-     config: { tier_zones: {Novice: {min:0, max:40}, ...}, ... }
+     config: { max_children_per_node: 3, grid_hint: {...}, selected_roots: {...}, ... }
    }
 
 3. UIManager.cpp reads command="build_tree_classic", runs TreeBuilder::BuildClassic()

@@ -1357,8 +1357,8 @@ MO2/mods/HeartOfMagic_RELEASE/
 #### Modular Tree Builders (now native C++)
 - **Classic builder** — Tier-first builder. Novice=depth 0, Master=depth 4. NLP similarity guides within-tier parent selection.
 - **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving. (Removed 2026-09-27.)
-- **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaces duplicate error handlers for Classic/Tree modes (its Retry reruns `TreeGrowthClassic.buildTree()` since 2026-09-28)
-- **Classic `buildTree()` sends** `command: 'build_tree_classic'` + `tier_zones` config
+- **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaced the duplicate error handlers of the Classic and Tree modes; only Classic uses it now (its Retry reruns `TreeGrowthClassic.buildTree()` since 2026-09-28)
+- **Classic `buildTree()` sends** `command: 'build_tree_classic'` and its config. It also named `tier_zones`, but read them from the wrong object, so the value was always undefined and dropped from the JSON, and C++ never read the key; the line went on 2026-09-28. Tier zones act in the panel: `ClassicLayout` places the returned tree by `TreeGrowthClassic.settings.tierZones`. A throw while the request is put together now releases the pending flag, the Build buttons and the progress modal (as a result parse error does), since no reply will come
 - **Tree `buildTree()` sends** `command: 'build_tree'` explicitly (Tree mode removed 2026-09-27)
 - **Fixes Classic tier zone controls** — Tier zone sliders now work because tree structure matches tier ordering (Novice near roots, Master at edges)
 

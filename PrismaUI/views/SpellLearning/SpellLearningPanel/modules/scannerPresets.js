@@ -516,7 +516,7 @@ function _getDefaultPresetKey() {
 
 /**
  * Deep copy source object properties into target (preserves target's structure).
- * Handles nested objects like scoring and tierZones.
+ * Handles nested objects such as the Classic settings' tierZones.
  */
 function _deepCopy(source, target) {
     if (!source || !target) return;

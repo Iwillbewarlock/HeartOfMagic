@@ -310,60 +310,84 @@ var TreeGrowthClassic = {
             state._classicGrowthBuildPending = true;
         }
 
-        // Apply all scan filters: blacklist, whitelist, tome
-        var spellsToProcess = spellData.spells;
-        if (typeof filterBlacklistedSpells === 'function') {
-            spellsToProcess = filterBlacklistedSpells(spellsToProcess);
-        }
-        if (typeof filterWhitelistedSpells === 'function') {
-            spellsToProcess = filterWhitelistedSpells(spellsToProcess);
-        }
-        var tomeToggle = document.getElementById('scanModeTomes');
-        if (tomeToggle && tomeToggle.checked && typeof state !== 'undefined' && state.tomedSpellIds) {
-            var tomedIds = state.tomedSpellIds;
-            spellsToProcess = spellsToProcess.filter(function(s) {
-                return tomedIds[s.formId || s.id];
-            });
-        }
-        console.log('[ClassicGrowth] Filtered spells: ' + spellsToProcess.length + '/' + spellData.spells.length);
-
-        // Gather grid layout info so C++ can adapt branching
-        var gridHint = null;
-        if (typeof TreePreview !== 'undefined' && TreePreview.getOutput) {
-            var previewOut = TreePreview.getOutput();
-            if (previewOut) {
-                var avgPts = 0;
-                var schoolCount = previewOut.schools ? previewOut.schools.length : 0;
-                if (previewOut.gridPoints && schoolCount > 0) {
-                    avgPts = Math.round(previewOut.gridPoints.length / schoolCount);
-                }
-                gridHint = {
-                    mode: previewOut.mode || 'sun',
-                    schoolCount: schoolCount,
-                    avgPointsPerSchool: avgPts
-                };
+        // From here the modal, the pending flag and both Build buttons wait for
+        // C++'s reply. A throw while the request is put together means no
+        // request and so no reply: let go of all three, as a parse error does.
+        var failRequest = function (e) {
+            console.error('[ClassicGrowth] Build request not sent: ' + (e && e.message ? e.message : e));
+            if (typeof state !== 'undefined') state._classicGrowthBuildPending = false;
+            if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
+            if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
+                BuildProgress.fail(t('buildProgress.requestFailed'));
             }
-        }
-
-        var config = {
-            shape: 'organic',
-            density: 0.6,
-            symmetry: 0.3,
-            max_children_per_node: 3,
-            top_themes_per_school: 8,
-            prefer_vanilla_roots: true,
-            tier_zones: self.settings.tierZones,
-            grid_hint: gridHint,
-            selected_roots: typeof TreePreview !== 'undefined' ? TreePreview._flattenSelectedRoots() : {}
+            ClassicSettings.setStatusText(t('buildProgress.requestFailed'), '#ef4444');
         };
+
+        var spellsToProcess, config;
+        try {
+            // Apply all scan filters: blacklist, whitelist, tome
+            spellsToProcess = spellData.spells;
+            if (typeof filterBlacklistedSpells === 'function') {
+                spellsToProcess = filterBlacklistedSpells(spellsToProcess);
+            }
+            if (typeof filterWhitelistedSpells === 'function') {
+                spellsToProcess = filterWhitelistedSpells(spellsToProcess);
+            }
+            var tomeToggle = document.getElementById('scanModeTomes');
+            if (tomeToggle && tomeToggle.checked && typeof state !== 'undefined' && state.tomedSpellIds) {
+                var tomedIds = state.tomedSpellIds;
+                spellsToProcess = spellsToProcess.filter(function(s) {
+                    return tomedIds[s.formId || s.id];
+                });
+            }
+            console.log('[ClassicGrowth] Filtered spells: ' + spellsToProcess.length + '/' + spellData.spells.length);
+
+            // Gather grid layout info so C++ can adapt branching
+            var gridHint = null;
+            if (typeof TreePreview !== 'undefined' && TreePreview.getOutput) {
+                var previewOut = TreePreview.getOutput();
+                if (previewOut) {
+                    var avgPts = 0;
+                    var schoolCount = previewOut.schools ? previewOut.schools.length : 0;
+                    if (previewOut.gridPoints && schoolCount > 0) {
+                        avgPts = Math.round(previewOut.gridPoints.length / schoolCount);
+                    }
+                    gridHint = {
+                        mode: previewOut.mode || 'sun',
+                        schoolCount: schoolCount,
+                        avgPointsPerSchool: avgPts
+                    };
+                }
+            }
+
+            // Tier zones are not sent: C++ does not read them (ClassicLayout applies
+            // this.settings.tierZones when it places the result)
+            config = {
+                shape: 'organic',
+                density: 0.6,
+                symmetry: 0.3,
+                max_children_per_node: 3,
+                top_themes_per_school: 8,
+                prefer_vanilla_roots: true,
+                grid_hint: gridHint,
+                selected_roots: typeof TreePreview !== 'undefined' ? TreePreview._flattenSelectedRoots() : {}
+            };
+        } catch (e) {
+            failRequest(e);
+            return;
+        }
 
         // Defer to let UI render progress modal before blocking on JSON.stringify
         setTimeout(function() {
-            window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
-                command: 'build_tree_classic',
-                spells: spellsToProcess,
-                config: config
-            })));
+            try {
+                window.callCpp('ProceduralTreeGenerate', JSON.stringify(ScanRef.compact({
+                    command: 'build_tree_classic',
+                    spells: spellsToProcess,
+                    config: config
+                })));
+            } catch (e) {
+                failRequest(e);
+            }
         }, 0);
     },
 

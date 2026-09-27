@@ -80,9 +80,15 @@ var BuildProgress = (function() {
             _setStageDetail('prereqs', t('buildProgress.prmDisabled'));
         }
 
-        // Hide done button, reset progress bar
+        // Hide the done button with its own label back (fail() makes it Close),
+        // drop a Retry button a failed build left, reset the progress bar
         var doneBtn = _getEl('build-progress-done-btn');
-        if (doneBtn) doneBtn.classList.add('hidden');
+        if (doneBtn) {
+            doneBtn.classList.add('hidden');
+            doneBtn.textContent = t('modals.buildProgress.done');
+        }
+        var oldRetryBtn = _getEl('build-progress-retry-btn');
+        if (oldRetryBtn) oldRetryBtn.remove();
 
         _setProgressBar(0);
         _setStatus(t('modals.buildProgress.preparing'));
@@ -222,7 +228,7 @@ var BuildProgress = (function() {
             retryBtn = document.createElement('button');
             retryBtn.id = 'build-progress-retry-btn';
             retryBtn.className = doneBtn.className;
-            retryBtn.textContent = 'Retry';
+            retryBtn.textContent = t('buildProgress.retry');
             retryBtn.style.marginLeft = '8px';
             retryBtn.onclick = function() {
                 retryBtn.remove();

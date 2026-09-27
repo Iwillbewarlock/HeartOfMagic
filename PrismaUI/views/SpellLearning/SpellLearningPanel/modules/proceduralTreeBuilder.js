@@ -126,7 +126,7 @@ function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
     var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
     var retryFn = typeof retryBuild === 'function' ? function() {
-        if (settingsModule) settingsModule.setStatusText('Retrying...', '#f59e0b');
+        if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), '#f59e0b');
         retryBuild();
     } : null;
     if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
