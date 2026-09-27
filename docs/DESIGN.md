@@ -250,6 +250,45 @@ canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
 
+**Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all
+under 600 lines: `canvasRendererV2.js` holds its state and constants, start-up, canvas size, the render
+loop, the public calls and the `_needsRender` accessor; each `canvasRenderer*.js` file after it is an IIFE
+that copies a table of functions onto the object (as `treeStyleBook.js` does for `TreeStyle`), and
+`index.html` loads them right after it. A frame and the tree layer (`render`, `_drawTree`,
+`_renderTreeInto`) are in `canvasRendererFrame.js`, what moves over it in `canvasRendererMoving.js`, the
+lines in `canvasRendererEdges.js`, the spell passes and batching in `canvasRendererNodes.js`, a spell drawn
+by itself in `canvasRendererSpell.js`, names in `canvasRendererLabels.js`, `setData` and the indexes in
+`canvasRendererData.js`; `modules/README.md` lists them all. The split changed no behaviour: the same 222
+members with the same function bodies, and the tree layer and canvas pixel-identical in all five designs.
+
+**Pieces look only at what is near them** (2026-09-28). Every strip of a drag (LayerScroll) and every
+piece of a spread repaint (LayerBuild) ran the edge passes over all ~1,400 lines - two map lookups, an
+object and a `'from->to'` string per line, three times over with a selection or learning path - and the
+spell pass over all ~1,400 spells, culling each by the box inside the loop. Now `_cullIndex`
+(`canvasRendererData.js`) keeps grids of spell and line indices (`CULL_CELL` 100 world units; a line in
+every cell its ends' box covers), each line's two spells and its key, and the roots, made when first
+needed after `setData` or `buildSpatialIndex` (which edit mode calls when it moves spells) or when the
+node or edge list is another or another length. A box asks the grid for the indices in the cells it
+covers (`_nodesInBox`, `_edgesInBox`, the box grown by the largest line's bow allowance), each once and
+sorted, so they are drawn in the same order as before - order matters where antialiased strokes overlap
+- and the loop keeps its own box test, so the set is the same too. A box over more cells than half the
+number of items (a whole repaint of the view and its margin) looks at every item, as before; spells off
+any finite place and lines too long for the grid (`CULL_EDGE_MAX_CELLS`) are looked at by every box. In
+edit mode, which changes lines in place without telling the renderer, the index is made fresh for each
+use without grids. `renderEdges` works out the lines drawn at all once (`_visibleEdges`) and every pass
+walks that list, with no lookups or strings. Names: the text widths are kept in a `Map` per font,
+`ctx.font` is read once per run of names (`_labelFontFrom`, not per name - reading it builds a string),
+and a strip skips the candidates above or below it before looking up their width. `NodeBatch.addShape`
+compares a shape's look with the last one of its layer before building the look's key string. Spell
+sizes, the halo scale, the learnable ring and the name padding are named constants (`KNOWN_SIZE`,
+`LEARNABLE_SIZE`, `LOCKED_SIZE`, `FOCUS_GROW`, `HALO_SCALE`, `RING_GAP`, `RING_ALPHA`, `RING_WIDTH`,
+`LABEL_PAD`) shared by `renderNode`, `_renderNodeSimple`, `_batchPlainNode`, `LayerScroll._worldBox` and
+`TreeStyle`. The pictures are pixel-identical to before (all five designs, every locked spell shown or
+discovery mode, strips, pieces and whole repaints frame by frame). JavaScript cost with every canvas call
+a no-op (`node --jitless`, the repro tree, Arcane, zoom 0.9): a drag strip 4.4-6.0 → 0.9-1.7 ms, a
+384 px piece 5.0-6.2 → 0.6-0.9 ms (with a spell selected 4.3-6.5 → 0.6-1.0 ms), a whole repaint at once
+19-23 → 16-20 ms. `modules/canvasCullTest.js` checks the grid against the full loop on 300 boxes.
+
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
 as a plain circle (`NodeBatch.RING`, never hand-drawn). On a CPU canvas it saves little - half of a node

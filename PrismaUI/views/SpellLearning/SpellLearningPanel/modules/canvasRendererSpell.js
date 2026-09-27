@@ -97,7 +97,7 @@
             var showLearningStyle = isLearning && !isBeingAnimated;
 
             if (node.state === 'unlocked') {
-                size = 12;
+                size = this.KNOWN_SIZE;
                 fillColor = style.unlockedFill || schoolColor;
                 // Use ring color only if on learning path, else school color
                 strokeColor = isOnLearningPath ? ringColor : (style.unlockedRim || schoolColor);
@@ -105,20 +105,20 @@
                 alpha = 1.0;
             } else if (showLearningStyle) {
                 // Learning state - cyan fill, ring color outline (only after animation completes)
-                size = 12;  // Same as unlocked
+                size = this.KNOWN_SIZE;  // Same as unlocked
                 fillColor = learningPathColor;  // Cyan fill
                 strokeColor = ringColor;  // Ring color outline for learning node
                 strokeWidth = 1.5;
                 alpha = 1.0;
             } else if (node.state === 'available' || (isLearning && isBeingAnimated)) {
                 // Available nodes OR learning nodes still being animated (show as available temporarily)
-                size = 9;
+                size = this.LEARNABLE_SIZE;
                 fillColor = style.nodeFill;
                 strokeColor = schoolColor;  // Use school/tree color for available nodes
                 strokeWidth = 1;
                 alpha = style.availableAlpha;
             } else {
-                size = 7;
+                size = this.LOCKED_SIZE;
                 fillColor = style.nodeFill;
                 strokeColor = style.lockedStroke || schoolColor;  // Use school/tree color for locked nodes (dimmed by alpha)
                 strokeWidth = 1;
@@ -135,7 +135,7 @@
             size = this._minSize(size);
 
             if (isSelected || isHovered) {
-                size += 1.5;  // Subtle hover expansion
+                size += this.FOCUS_GROW;  // Subtle hover expansion
                 strokeColor = style.focusStroke;
                 strokeWidth = 1.5;
                 alpha = 1.0;
@@ -160,9 +160,9 @@
             // Halo behind known spells and the one being learned (one sprite each)
             var glow = node.state === 'unlocked' ? style.nodeGlow : (showLearningStyle ? style.learningGlow : 0);
             // A known spell's halo is left out when small on screen (HALO_MIN_SCREEN_PX); the learning one stays
-            if (node.state === 'unlocked' && size * 2.6 * this.zoom < this.HALO_MIN_SCREEN_PX) glow = 0;
+            if (node.state === 'unlocked' && size * this.HALO_SCALE * this.zoom < this.HALO_MIN_SCREEN_PX) glow = 0;
             if (glow > 0) {
-                TreeStyle.drawHalo(ctx, size * 2.6, showLearningStyle ? learningPathColor : schoolColor, glow * alpha);
+                TreeStyle.drawHalo(ctx, size * this.HALO_SCALE, showLearningStyle ? learningPathColor : schoolColor, glow * alpha);
             }
 
             // XP progress ring: learning nodes and partially-studied available nodes.
@@ -172,15 +172,15 @@
             if (node.state === 'learning' || node.state === 'available') {
                 var ringPct = this._getNodeProgressPct(node);
                 if (ringPct <= 0 && style.availableRing && node.state === 'available') {
-                    ctx.lineWidth = 1.2;
-                    ctx.globalAlpha = 0.6 * this._contextFactor(node);
+                    ctx.lineWidth = this.RING_WIDTH;
+                    ctx.globalAlpha = this.RING_ALPHA * this._contextFactor(node);
                     ctx.strokeStyle = schoolColor;
                     ctx.beginPath();
-                    ctx.arc(0, 0, size + 4, 0, Math.PI * 2);
+                    ctx.arc(0, 0, size + this.RING_GAP, 0, Math.PI * 2);
                     ctx.stroke();
                 }
                 if (ringPct > 0) {
-                    var ringRadius = size + 4;
+                    var ringRadius = size + this.RING_GAP;
                     var ringStart = -Math.PI / 2 - (this.rotation * Math.PI / 180);
                     ctx.lineWidth = 2;
                     ctx.globalAlpha = 0.22;

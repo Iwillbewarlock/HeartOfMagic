@@ -334,7 +334,7 @@ var TreeStyle = {
                 if (settings.schoolVisibility && settings.schoolVisibility[n.school] === false) return;
                 ctx.save();
                 ctx.translate(n.x, n.y);
-                TreeStyle.drawHalo(ctx, r._minSize(12) * 3.2, color, t.learningGlow * breath);
+                TreeStyle.drawHalo(ctx, r._minSize(r.KNOWN_SIZE) * 3.2, color, t.learningGlow * breath);
                 ctx.restore();
             });
         }
@@ -366,8 +366,8 @@ var TreeStyle = {
     /** How far (world units) a spell's glow or sigil reaches from its centre. */
     overlayExtent: function(r) {
         var z = r.zoom || 1;
-        var glow = r._minSize(12) * 3.2;
-        var inner = Math.max(r._minSize(12) + 7, 14 / z);
+        var glow = r._minSize(r.KNOWN_SIZE) * 3.2;
+        var inner = Math.max(r._minSize(r.KNOWN_SIZE) + 7, 14 / z);
         var sigil = inner + Math.max(5, 7 / z) + 4 / z;
         return Math.max(glow, sigil) + 2 / z;
     },
@@ -375,7 +375,7 @@ var TreeStyle = {
     /** Two counter-turning rune rings round the selected spell. About six paint calls. */
     _drawSigil: function(ctx, r, node, now) {
         var z = r.zoom || 1;
-        var inner = Math.max(r._minSize(12) + 7, 14 / z);
+        var inner = Math.max(r._minSize(r.KNOWN_SIZE) + 7, 14 / z);
         var outer = inner + Math.max(5, 7 / z);
         var line = 1.2 / z;
 

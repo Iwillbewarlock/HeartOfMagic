@@ -85,6 +85,27 @@ var CanvasRenderer = {
     // Spatial index for hit detection
     _nodeGrid: null,
     _gridCellSize: 50,
+    // Culling index for drawing (_cullIndex): a strip or piece of the tree layer
+    // looks only at the spells and lines in the grid cells its box covers
+    _cull: null,
+    _cullDirty: true,
+    CULL_CELL: 100,               // world units a cell
+    CULL_MAX_CELL_SHARE: 0.5,     // a box over more cells than this share of the items looks at them all
+    CULL_EDGE_MAX_CELLS: 256,     // a line over more cells than this is looked at by every box
+    CULL_KEY_BIAS: 1048576,       // cells -BIAS..BIAS-1 each way get keys of their own
+    CULL_KEY_SPAN: 2097152,
+
+    // Spell sizes (world units, before _minSize) and the looks drawn round them,
+    // shared by renderNode, _renderNodeSimple, _batchPlainNode, LayerScroll and TreeStyle
+    KNOWN_SIZE: 12,               // a known spell, and the one being learned
+    LEARNABLE_SIZE: 9,
+    LOCKED_SIZE: 7,
+    FOCUS_GROW: 1.5,              // the selected and hovered spell are this much bigger
+    HALO_SCALE: 2.6,              // a known spell's halo radius per its size
+    RING_GAP: 4,                  // the XP ring and a learnable spell's thin ring: this far out
+    RING_ALPHA: 0.6,              // the thin ring's alpha (times the focus dimming) and width
+    RING_WIDTH: 1.2,
+    LABEL_PAD: 2,                 // css px round a name's box when names are kept apart
 
     // LOD (Level of Detail) - zoom-based rendering tiers
     _lodTier: 'full',        // 'full' | 'simple' | 'minimal'

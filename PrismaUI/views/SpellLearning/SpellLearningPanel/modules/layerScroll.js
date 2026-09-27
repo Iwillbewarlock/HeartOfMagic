@@ -39,7 +39,6 @@ var LayerScroll = {
                               // costs ~1.7 ms of its own - names, chapter titles - so pieces stay big)
     TARGET_FRAME_MS: 8,       // pieces the screen does not show yet fill a frame up to this, from its start
     LOOKAHEAD_PX: 48,         // css px round the screen that count as shown (the drag's next frames)
-    HALO_SCALE: 2.6,          // a spell's halo radius per its size (CanvasRenderer's glow)
     DESCENT_SHARE: 0.35,      // of the font size, how far letters and outline reach below a name's box
     KEPT_MAX_SHARE: 2,        // names kept on the layer at most, as a multiple of the on-screen cap
 
@@ -305,7 +304,7 @@ var LayerScroll = {
         }
         // The largest thing a spell draws past its centre: the halo of a
         // selected spell (a little bigger than the others)
-        var pad = this.HALO_SCALE * (r._minSize(12) + 1.5) + this.CULL_PAD_PX / z;
+        var pad = r.HALO_SCALE * (r._minSize(r.KNOWN_SIZE) + r.FOCUS_GROW) + this.CULL_PAD_PX / z;
         return { l: x0 - pad, r: x1 + pad, t: y0 - pad, b: y1 + pad };
     },
 
@@ -350,6 +349,7 @@ var LayerScroll = {
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.translate(margin, margin);
         TreeStyle.beginLabels(g, found.fontSize);
+        r._labelFontFrom(g);
         g.textAlign = 'center';
         g.textBaseline = 'top';
 
@@ -378,10 +378,14 @@ var LayerScroll = {
         }
         var cands = found.candidates;
         var keptMax = found.maxLabels * this.KEPT_MAX_SHARE;
+        var pad = r.LABEL_PAD, fontSize = found.fontSize;
         for (var c = 0; c < cands.length && shown < found.maxLabels && kept.length < keptMax; c++) {
             var cand = cands[c];
             if (have[cand.node.id]) continue;
-            var box = r._labelRect(g, cand, found.fontSize);
+            // Above or below the strip: its box cannot meet it (the box's top and
+            // bottom as _labelRect makes them), and its width need not be looked up
+            if (!(cand.y - pad < st.b && cand.y + fontSize + pad > st.t)) continue;
+            var box = r._labelRect(g, cand, fontSize);
             if (!this._meets(box, st)) continue;
             var collides = false;
             if (cand.priority < 5) {

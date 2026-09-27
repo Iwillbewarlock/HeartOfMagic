@@ -72,7 +72,7 @@
             } else if (typeof node.tier === 'number' && node.tier > 0) {
                 tierIndex = Math.min(node.tier - 1, 4);
             }
-            return 7 + tierIndex;
+            return this.LOCKED_SIZE + tierIndex;
         },
 
         /**
@@ -177,8 +177,12 @@
             // (a few paint calls for all of them instead of nine each); those two after
             var own = [];
             NodeBatch.begin(true);
-            for (var i = 0; i < this.nodes.length; i++) {
-                var node = this.nodes[i];
+            // The spells near the box only (_nodesInBox), in node order; the box test below stays
+            var nodes = this.nodes, count = this._nodesInBox(viewLeft, viewRight, viewTop, viewBottom);
+            var pick = count < 0 ? null : this._cull.nodePick;
+            if (count < 0) count = nodes.length;
+            for (var ni = 0; ni < count; ni++) {
+                var node = nodes[pick ? pick[ni] : ni];
 
                 // Viewport culling
                 if (node.x < viewLeft || node.x > viewRight || node.y < viewTop || node.y > viewBottom) continue;
@@ -226,16 +230,16 @@
 
             var style = TreeStyle.tokens;
             if (node.state === 'unlocked') {
-                size = 12; fillColor = style.unlockedFill || schoolColor; strokeColor = style.unlockedRim || schoolColor;
+                size = this.KNOWN_SIZE; fillColor = style.unlockedFill || schoolColor; strokeColor = style.unlockedRim || schoolColor;
                 strokeWidth = 1.5; alpha = 1.0;
             } else if (isLearning) {
-                size = 12; fillColor = learningPathColor; strokeColor = learningPathColor;
+                size = this.KNOWN_SIZE; fillColor = learningPathColor; strokeColor = learningPathColor;
                 strokeWidth = 1.5; alpha = 1.0;
             } else if (node.state === 'available') {
-                size = 9; fillColor = style.nodeFill; strokeColor = schoolColor;
+                size = this.LEARNABLE_SIZE; fillColor = style.nodeFill; strokeColor = schoolColor;
                 strokeWidth = 1; alpha = style.availableAlpha;
             } else {
-                size = 7; fillColor = style.nodeFill; strokeColor = style.lockedStroke || schoolColor;
+                size = this.LOCKED_SIZE; fillColor = style.nodeFill; strokeColor = style.lockedStroke || schoolColor;
                 strokeWidth = 1; alpha = 0.4;
             }
 
@@ -243,7 +247,7 @@
             size = this._minSize(size);
 
             if (isSelected || isHovered) {
-                size += 1.5; strokeColor = style.focusStroke; strokeWidth = 1.5; alpha = 1.0;
+                size += this.FOCUS_GROW; strokeColor = style.focusStroke; strokeWidth = 1.5; alpha = 1.0;
             }
 
             if (batch) {
@@ -281,8 +285,12 @@
             var discovery = this._discoveryVisibleIds && !(typeof EditMode !== 'undefined' && EditMode.isActive);
             var special = [];
             NodeBatch.begin();
-            for (var i = 0; i < this.nodes.length; i++) {
-                var node = this.nodes[i];
+            // The spells near the box only (_nodesInBox), in node order; the box test below stays
+            var nodes = this.nodes, count = this._nodesInBox(viewLeft, viewRight, viewTop, viewBottom);
+            var pick = count < 0 ? null : this._cull.nodePick;
+            if (count < 0) count = nodes.length;
+            for (var ni = 0; ni < count; ni++) {
+                var node = nodes[pick ? pick[ni] : ni];
 
                 // Viewport culling
                 if (node.x < viewLeft || node.x > viewRight || node.y < viewTop || node.y > viewBottom) {
@@ -334,10 +342,11 @@
             var cf = this._contextFactor(node);
             var lock = node.hardPrereqs && node.hardPrereqs.length > 0;
             if (locked || available) {
-                var lsize = this._minSize(locked ? 7 : 9), alpha = (locked ? 0.4 : style.availableAlpha) * cf;
+                var lsize = this._minSize(locked ? this.LOCKED_SIZE : this.LEARNABLE_SIZE), alpha = (locked ? 0.4 : style.availableAlpha) * cf;
                 // A learnable spell's own thin ring (renderNode draws it before the shape, unturned)
                 if (available && style.availableRing) {
-                    NodeBatch.addShape(NodeBatch.RING, node.x, node.y, lsize + 4, null, schoolColor, 0.6 * cf, false, 1.2, 0, true);
+                    NodeBatch.addShape(NodeBatch.RING, node.x, node.y, lsize + this.RING_GAP, null, schoolColor,
+                        this.RING_ALPHA * cf, false, this.RING_WIDTH, 0, true);
                 }
                 if (lock) {
                     NodeBatch.addShape(node.school, node.x, node.y, lsize + 2, this.LOCK_SHELL_FILL,
@@ -350,11 +359,11 @@
                     locked ? (style.lockedStroke || schoolColor) : schoolColor, alpha, locked);
                 return true;
             }
-            var size = this._minSize(12);
+            var size = this._minSize(this.KNOWN_SIZE);
             var onPath = (this._learningPathNodes instanceof Set) && this._learningPathNodes.has(node.id) &&
                          !(this._animatingPathNodes && this._animatingPathNodes.has(node.id));
-            if (style.nodeGlow > 0 && size * 2.6 * this.zoom >= this.HALO_MIN_SCREEN_PX) {
-                NodeBatch.addHalo(node.x, node.y, size * 2.6, schoolColor, style.nodeGlow * cf);
+            if (style.nodeGlow > 0 && size * this.HALO_SCALE * this.zoom >= this.HALO_MIN_SCREEN_PX) {
+                NodeBatch.addHalo(node.x, node.y, size * this.HALO_SCALE, schoolColor, style.nodeGlow * cf);
             }
             if (lock) {
                 NodeBatch.addShape(node.school, node.x, node.y, size + 3, this.LOCK_RING_FILL,

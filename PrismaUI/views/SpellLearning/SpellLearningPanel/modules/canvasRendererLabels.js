@@ -124,9 +124,14 @@
             return { candidates: candidates, fontSize: fontSize, maxLabels: this.MAX_LABELS };
         },
 
-        /** The box a candidate name takes (css px, the canvas's own coordinates); ctx has the label font. */
+        /**
+         * The box a candidate name takes (css px, the canvas's own coordinates); ctx
+         * has the label font and _labelFontFrom has seen it. Its top and bottom are
+         * cand.y - LABEL_PAD and cand.y + fontSize + LABEL_PAD (LayerScroll tests
+         * them before asking for the box).
+         */
         _labelRect: function(ctx, cand, fontSize) {
-            var pad = 2;
+            var pad = this.LABEL_PAD;
             var halfW = this._labelWidth(ctx, cand.text) / 2 + pad;
             return { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
         },
@@ -154,6 +159,7 @@
             if (!found) return;
             var candidates = found.candidates, fontSize = found.fontSize;
             TreeStyle.beginLabels(ctx, fontSize);
+            this._labelFontFrom(ctx);
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
@@ -185,15 +191,26 @@
             return b.priority - a.priority;
         },
 
-        /** measureText's width, kept per font and text (the names do not change between repaints). */
-        _labelWidth: function(ctx, text) {
-            if (this._labelWidthFont !== ctx.font) {
-                this._labelWidthFont = ctx.font;
-                this._labelWidths = {};
+        /**
+         * Before a run of names (renderLabels, LayerScroll._labels), once: the text
+         * widths kept are for ctx's font (read here, not per name - reading
+         * ctx.font builds a string each time); another font starts them afresh.
+         */
+        _labelFontFrom: function(ctx) {
+            var font = ctx.font;
+            if (this._labelWidthFont !== font || !this._labelWidths) {
+                this._labelWidthFont = font;
+                this._labelWidths = new Map();
             }
-            var key = '#' + text;          // never an Object.prototype name
-            var w = this._labelWidths[key];
-            if (w === undefined) w = this._labelWidths[key] = ctx.measureText(text).width;
+        },
+
+        /** measureText's width, kept per text for the font _labelFontFrom saw (names do not change between repaints). */
+        _labelWidth: function(ctx, text) {
+            var w = this._labelWidths.get(text);
+            if (w === undefined) {
+                w = ctx.measureText(text).width;
+                this._labelWidths.set(text, w);
+            }
             return w;
         }
     };

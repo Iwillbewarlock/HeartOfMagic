@@ -32,6 +32,43 @@
             }
         },
 
+        /**
+         * The lines renderEdges draws at all: both ends known, discovered (discovery
+         * mode, not in edit mode), and not culled - a curved or hand-bowed line
+         * bulges past its ends' box by `bend` of its size. Their indices go into
+         * ix.vis in edge order (every pass draws its lines in that order); returns
+         * their count. The grid (_edgesInBox) only narrows what is looked at.
+         */
+        _visibleEdges: function(ix, viewLeft, viewRight, viewTop, viewBottom, bend) {
+            var edges = this.edges, from = ix.from, to = ix.to, vis = ix.vis, pick = ix.edgePick, n = 0;
+            var disc = (this._discoveryVisibleIds && !(typeof EditMode !== 'undefined' && EditMode.isActive)) ?
+                this._discoveryVisibleIds : null;
+            var count = this._edgesInBox(ix, viewLeft, viewRight, viewTop, viewBottom, bend * ix.maxSpan);
+            var all = count < 0;
+            if (all) count = edges.length;
+            for (var k = 0; k < count; k++) {
+                var i = all ? k : pick[k];
+                var fromNode = from[i], toNode = to[i];
+                if (!fromNode || !toNode) continue;
+
+                // Discovery mode: skip if either node not visible
+                if (disc) {
+                    var edge = edges[i];
+                    if (!(disc.has(edge.from) || disc.has(fromNode.id)) || !(disc.has(edge.to) || disc.has(toNode.id))) continue;
+                }
+
+                // Viewport culling
+                var minX = Math.min(fromNode.x, toNode.x);
+                var maxX = Math.max(fromNode.x, toNode.x);
+                var minY = Math.min(fromNode.y, toNode.y);
+                var maxY = Math.max(fromNode.y, toNode.y);
+                var ext = bend ? bend * (maxX - minX + maxY - minY) : 0;
+                if (maxX + ext < viewLeft || minX - ext > viewRight || maxY + ext < viewTop || minY - ext > viewBottom) continue;
+                vis[n++] = i;
+            }
+            return n;
+        },
+
         renderEdges: function(ctx, viewLeft, viewRight, viewTop, viewBottom) {
             var learningPathColor = this._learningColor();
             var hasLearningPaths = this._learningPathNodes instanceof Set && this._learningPathNodes.size > 0;
@@ -54,14 +91,15 @@
                 isHeartbeating = cyclePos < beatDuration;
             }
 
-            // =====================================================================
-            // FIRST: Draw lines from CENTER to ROOT NODES
-            // =====================================================================
-            for (var i = 0; i < this.nodes.length; i++) {
-                var node = this.nodes[i];
+            // Each edge's nodes and key, the roots, the grids (_cullIndex)
+            var ix = this._cullIndex();
 
-                // Check if this is a root node ONLY (not tier 1)
-                if (!node.isRoot) continue;
+            // =====================================================================
+            // FIRST: Draw lines from CENTER to ROOT NODES (ix.roots: the root nodes,
+            // in node order - not tier 1)
+            // =====================================================================
+            for (var ri = 0; ri < ix.roots.length; ri++) {
+                var node = this.nodes[ix.roots[ri]];
 
                 // Skip if hidden school
                 if (settings.schoolVisibility && settings.schoolVisibility[node.school] === false) continue;
@@ -118,33 +156,12 @@
             var hasSelectedPath = this._selectedPathEdges && this._selectedPathEdges.size > 0;
             var self = this;
 
-            // Helper to check visibility and culling
+            // The lines drawn at all, once for every pass below: ix.vis[0..nVis), in
+            // edge order (each pass draws its lines in that order).
             // A curved or hand-bowed line bulges past its ends' box: culling allows for it
             var bend = (curved ? this.CURVE_BULGE : 0) + TreeStyle.bowBulge();
-            function shouldDrawEdge(edge) {
-                var fromNode = self._nodeMap.get(edge.from);
-                var toNode = self._nodeMap.get(edge.to);
-                if (!fromNode || !toNode) return null;
-
-                // Discovery mode: skip if either node not visible
-                if (self._discoveryVisibleIds && !(typeof EditMode !== 'undefined' && EditMode.isActive)) {
-                    var fromVisible = self._discoveryVisibleIds.has(edge.from) || self._discoveryVisibleIds.has(fromNode.id);
-                    var toVisible = self._discoveryVisibleIds.has(edge.to) || self._discoveryVisibleIds.has(toNode.id);
-                    if (!fromVisible || !toVisible) return null;
-                }
-
-                // Viewport culling
-                var minX = Math.min(fromNode.x, toNode.x);
-                var maxX = Math.max(fromNode.x, toNode.x);
-                var minY = Math.min(fromNode.y, toNode.y);
-                var maxY = Math.max(fromNode.y, toNode.y);
-                var ext = bend ? bend * (maxX - minX + maxY - minY) : 0;
-                if (maxX + ext < viewLeft || minX - ext > viewRight || maxY + ext < viewTop || minY - ext > viewBottom) {
-                    return null;
-                }
-
-                return { fromNode: fromNode, toNode: toNode };
-            }
+            var nVis = this._visibleEdges(ix, viewLeft, viewRight, viewTop, viewBottom, bend);
+            var vis = ix.vis, fromOf = ix.from, toOf = ix.to, keyOf = ix.keys;
 
             var S = TreeStyle.tokens;
 
@@ -164,15 +181,11 @@
             var batches = { dim: [], locked: [] };
             var frontierKeys = [], unlockedKeys = [];
 
-            for (var i = 0; i < this.edges.length; i++) {
-                var edge = this.edges[i];
-                var nodes = shouldDrawEdge(edge);
-                if (!nodes) continue;
-
-                var fromNode = nodes.fromNode;
-                var toNode = nodes.toNode;
-                var edgeKey = edge.from + '->' + edge.to;
-                var isOnSelectedPath = this._selectedPathEdges && this._selectedPathEdges.has(edgeKey);
+            for (var v = 0; v < nVis; v++) {
+                var ei = vis[v];
+                var fromNode = fromOf[ei];
+                var toNode = toOf[ei];
+                var isOnSelectedPath = this._selectedPathEdges && this._selectedPathEdges.has(keyOf[ei]);
                 var fromOnPath = hasLearningPaths && this._learningPathNodes.has(fromNode.id);
                 var toOnPath = hasLearningPaths && this._learningPathNodes.has(toNode.id);
                 var isLearningEdge = fromOnPath && toOnPath;
@@ -272,13 +285,11 @@
                 ctx.strokeStyle = this._getSchoolColor(this.hoveredNode.school);
                 ctx.lineWidth = 2;
                 ctx.globalAlpha = S.hoverPathAlpha;
-                for (var hi = 0; hi < this.edges.length; hi++) {
-                    var hEdge = this.edges[hi];
-                    if (!this._hoverPathEdges.has(hEdge.from + '->' + hEdge.to)) continue;
-                    var hNodes = shouldDrawEdge(hEdge);
-                    if (!hNodes) continue;
+                for (var hv = 0; hv < nVis; hv++) {
+                    var hi = vis[hv];
+                    if (!this._hoverPathEdges.has(keyOf[hi])) continue;
                     ctx.beginPath();
-                    this._drawEdgePath(ctx, hNodes.fromNode.x, hNodes.fromNode.y, hNodes.toNode.x, hNodes.toNode.y, curved);
+                    this._drawEdgePath(ctx, fromOf[hi].x, fromOf[hi].y, toOf[hi].x, toOf[hi].y, curved);
                     ctx.stroke();
                 }
             }
@@ -289,17 +300,13 @@
             var showSelectionPath = settings.showSelectionPath !== false;
 
             if (this._lodTier !== 'minimal' && hasSelectedPath && showSelectionPath) {
-                for (var i = 0; i < this.edges.length; i++) {
-                    var edge = this.edges[i];
-                    var nodes = shouldDrawEdge(edge);
-                    if (!nodes) continue;
-
-                    var edgeKey = edge.from + '->' + edge.to;
-                    if (!this._selectedPathEdges.has(edgeKey)) continue;
+                for (var sv = 0; sv < nVis; sv++) {
+                    var si = vis[sv];
+                    if (!this._selectedPathEdges.has(keyOf[si])) continue;
 
                     // Don't draw over learning edges - they get their own pass
-                    var fromOnPath = hasLearningPaths && this._learningPathNodes.has(nodes.fromNode.id);
-                    var toOnPath = hasLearningPaths && this._learningPathNodes.has(nodes.toNode.id);
+                    var fromOnPath = hasLearningPaths && this._learningPathNodes.has(fromOf[si].id);
+                    var toOnPath = hasLearningPaths && this._learningPathNodes.has(toOf[si].id);
                     if (fromOnPath && toOnPath) continue;
 
                     ctx.strokeStyle = S.selectedPathColor;
@@ -307,20 +314,16 @@
                     ctx.globalAlpha = S.selectedPathAlpha;
 
                     ctx.beginPath();
-                    this._drawEdgePath(ctx, nodes.fromNode.x, nodes.fromNode.y, nodes.toNode.x, nodes.toNode.y, curved);
+                    this._drawEdgePath(ctx, fromOf[si].x, fromOf[si].y, toOf[si].x, toOf[si].y, curved);
                     ctx.stroke();
                 }
             }
 
             // === PASS 3: Learning path edges (top layer) ===
             if (hasLearningPaths) {
-                for (var i = 0; i < this.edges.length; i++) {
-                    var edge = this.edges[i];
-                    var nodes = shouldDrawEdge(edge);
-                    if (!nodes) continue;
-
-                    var fromNode = nodes.fromNode;
-                    var toNode = nodes.toNode;
+                for (var lv = 0; lv < nVis; lv++) {
+                    var fromNode = fromOf[vis[lv]];
+                    var toNode = toOf[vis[lv]];
                     var fromOnPath = this._learningPathNodes.has(fromNode.id);
                     var toOnPath = this._learningPathNodes.has(toNode.id);
 

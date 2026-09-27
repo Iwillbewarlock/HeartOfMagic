@@ -344,6 +344,159 @@
                 }
                 this._nodeGrid[key].push(node);
             }
+            // The culling index (below) follows the spells' new places
+            this._cullDirty = true;
+        },
+
+        // =========================================================================
+        // CULLING INDEX - the spells and lines in a box, in the order they are drawn
+        // =========================================================================
+
+        /**
+         * Grids of node and edge indices (CULL_CELL world units a cell), so a strip
+         * or piece of the tree layer (LayerScroll, LayerBuild) looks at the spells
+         * and lines near it instead of all of them; and each edge's two nodes and
+         * its 'from->to' key, so the edge passes make no lookups or strings. Built
+         * when first needed after setData or buildSpatialIndex (_cullDirty), or when
+         * the node or edge list is another or another length. Edit mode moves spells
+         * and changes lines without telling the renderer: while it is on the index
+         * is made fresh for each use, without grids, and rebuilt after.
+         * @returns {Object} { from, to, keys, roots, nodeCells, edgeCells, ... }
+         */
+        _cullIndex: function() {
+            if (typeof EditMode !== 'undefined' && EditMode.isActive) {
+                this._cullDirty = true;
+                return this._buildCullIndex(false);
+            }
+            var ix = this._cull;
+            if (!ix || this._cullDirty || ix.nodes !== this.nodes || ix.nodeCount !== this.nodes.length ||
+                    ix.edges !== this.edges || ix.edgeCount !== this.edges.length) {
+                ix = this._cull = this._buildCullIndex(true);
+                this._cullDirty = false;
+            }
+            return ix;
+        },
+
+        /** A grid cell's key as a number (no string per cell looked up). */
+        _cellKey: function(cx, cy) {
+            return (cx + this.CULL_KEY_BIAS) * this.CULL_KEY_SPAN + (cy + this.CULL_KEY_BIAS);
+        },
+
+        /** Cells cx0..cx1, cy0..cy1 are finite and have keys of their own. */
+        _cellInRange: function(cx0, cy0, cx1, cy1) {
+            var m = this.CULL_KEY_BIAS;
+            return cx0 >= -m && cy0 >= -m && cx1 < m && cy1 < m;   // false for NaN too
+        },
+
+        _buildCullIndex: function(withGrids) {
+            var nodes = this.nodes, edges = this.edges, map = this._nodeMap, cell = this.CULL_CELL;
+            var ix = {
+                nodes: nodes, nodeCount: nodes.length, edges: edges, edgeCount: edges.length,
+                from: new Array(edges.length), to: new Array(edges.length), keys: new Array(edges.length),
+                roots: [], nodeCells: null, nodeOdd: [], edgeCells: null, edgeOdd: [], maxSpan: 0,
+                nodePick: null, edgePick: null, edgeSeen: null, seenMark: 0,
+                vis: new Int32Array(edges.length)
+            };
+            var i, list;
+            for (i = 0; i < nodes.length; i++) if (nodes[i].isRoot) ix.roots.push(i);
+            for (i = 0; i < edges.length; i++) {
+                var e = edges[i];
+                ix.from[i] = (map && map.get(e.from)) || null;
+                ix.to[i] = (map && map.get(e.to)) || null;
+                ix.keys[i] = e.from + '->' + e.to;
+            }
+            if (!withGrids) return ix;
+
+            ix.nodeCells = new Map();
+            ix.nodePick = new Int32Array(nodes.length);
+            for (i = 0; i < nodes.length; i++) {
+                var n = nodes[i];
+                // A spell off any cell (not a finite place) is looked at by every box
+                var ncx = Math.floor(n.x / cell), ncy = Math.floor(n.y / cell);
+                if (!this._cellInRange(ncx, ncy, ncx, ncy)) { ix.nodeOdd.push(i); continue; }
+                var k = this._cellKey(ncx, ncy);
+                list = ix.nodeCells.get(k);
+                if (list) list.push(i); else ix.nodeCells.set(k, [i]);
+            }
+
+            ix.edgeCells = new Map();
+            ix.edgePick = new Int32Array(edges.length);
+            ix.edgeSeen = new Int32Array(edges.length);
+            for (i = 0; i < edges.length; i++) {
+                var a = ix.from[i], b = ix.to[i];
+                if (!a || !b) continue;                    // never drawn (renderEdges skips it)
+                var x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+                var cx0 = Math.floor(x0 / cell), cx1 = Math.floor(x1 / cell);
+                var cy0 = Math.floor(y0 / cell), cy1 = Math.floor(y1 / cell);
+                // Not finite, or so long it would fill too many cells: looked at by every box
+                if (!this._cellInRange(cx0, cy0, cx1, cy1) || (cx1 - cx0 + 1) * (cy1 - cy0 + 1) > this.CULL_EDGE_MAX_CELLS) {
+                    ix.edgeOdd.push(i);
+                    continue;
+                }
+                if (x1 - x0 + y1 - y0 > ix.maxSpan) ix.maxSpan = x1 - x0 + y1 - y0;
+                for (var cx = cx0; cx <= cx1; cx++) {
+                    for (var cy = cy0; cy <= cy1; cy++) {
+                        var key = this._cellKey(cx, cy);
+                        list = ix.edgeCells.get(key);
+                        if (list) list.push(i); else ix.edgeCells.set(key, [i]);
+                    }
+                }
+            }
+            return ix;
+        },
+
+        /**
+         * The candidates for a box from a grid: every index in the cells the box
+         * covers plus the odd ones, each once, ascending (the drawing order), in
+         * `pick`. Returns their count, or -1 when there is no grid or the box
+         * covers so many cells that looking at every item is cheaper.
+         */
+        _gridPick: function(cells, odd, pick, seen, ix, count, l, r, t, b) {
+            if (!cells) return -1;
+            var cell = this.CULL_CELL;
+            var cx0 = Math.floor(l / cell), cx1 = Math.floor(r / cell);
+            var cy0 = Math.floor(t / cell), cy1 = Math.floor(b / cell);
+            if (!(cx1 >= cx0 && cy1 >= cy0) || !this._cellInRange(cx0, cy0, cx1, cy1) || (cx1 - cx0 + 1) * (cy1 - cy0 + 1) > count * this.CULL_MAX_CELL_SHARE) return -1;
+            var n = 0, k, mark = 0;
+            if (seen) mark = ++ix.seenMark;
+            for (var cx = cx0; cx <= cx1; cx++) {
+                for (var cy = cy0; cy <= cy1; cy++) {
+                    var list = cells.get(this._cellKey(cx, cy));
+                    if (!list) continue;
+                    for (k = 0; k < list.length; k++) {
+                        var i = list[k];
+                        if (seen) {
+                            if (seen[i] === mark) continue;
+                            seen[i] = mark;
+                        }
+                        pick[n++] = i;
+                    }
+                }
+            }
+            for (k = 0; k < odd.length; k++) pick[n++] = odd[k];
+            if (n > 1) pick.subarray(0, n).sort();
+            return n;
+        },
+
+        /**
+         * The spells whose centre may be in the box (world units): their indices
+         * in this._cull.nodePick, ascending; the count, or -1 for "look at every
+         * spell" (edit mode too). The caller still makes its own box test, so the
+         * set drawn - and its order - is the same either way.
+         */
+        _nodesInBox: function(l, r, t, b) {
+            if (typeof EditMode !== 'undefined' && EditMode.isActive) {
+                this._cullDirty = true;
+                return -1;
+            }
+            var ix = this._cullIndex();
+            return this._gridPick(ix.nodeCells, ix.nodeOdd, ix.nodePick, null, ix, ix.nodeCount, l, r, t, b);
+        },
+
+        /** The lines that may reach into the box grown by ext on each side, as _nodesInBox. */
+        _edgesInBox: function(ix, l, r, t, b, ext) {
+            return this._gridPick(ix.edgeCells, ix.edgeOdd, ix.edgePick, ix.edgeSeen, ix, ix.edgeCount,
+                l - ext, r + ext, t - ext, b + ext);
         }
     };
 
