@@ -1032,7 +1032,6 @@ Tree applied
 |--------|---------|
 | `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to Classic |
 | `shapeProfiles.js` | Shape definitions (explosion, tree, organic) read by `wheelRenderer.js` |
-| `growthDSL.js` | Growth recipe DSL parser |
 
 The trees themselves are built by the C++ Classic builder (see Growth Modes). The panel's JS builders -
 `visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutGenerator.js`, `layoutEngine.js`,

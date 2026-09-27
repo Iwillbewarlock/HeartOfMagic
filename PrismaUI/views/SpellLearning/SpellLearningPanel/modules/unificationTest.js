@@ -4,8 +4,8 @@
  * Tests the shared layout modules to verify they're working correctly:
  * - shapeProfiles.js
  * - wheelRenderer.js integration
- * - growthDSL.js integration
- * (The tests of the removed JS tree builder modules went with them, 2026-09-27.)
+ * (The tests of the removed JS tree builder modules went with them, 2026-09-27;
+ * the GrowthDSL tests with growthDSL.js, 2026-09-28.)
  */
 
 var UnificationTest = {
@@ -70,46 +70,6 @@ var UnificationTest = {
         // Test fallback for unknown shape
         var fallback = getShapeProfile('nonexistent');
         this.assert(fallback === SHAPE_PROFILES.organic, 'Unknown shape falls back to organic');
-    },
-
-    // =================================================================
-    // TEST: GrowthDSL Integration
-    // =================================================================
-    testGrowthDSL: function() {
-        this.log('=== Testing GrowthDSL Integration ===', 'info');
-
-        // Check module loaded
-        this.assert(
-            typeof GROWTH_DSL !== 'undefined',
-            'GROWTH_DSL loaded',
-            'GROWTH_DSL NOT loaded'
-        );
-
-        if (typeof GROWTH_DSL === 'undefined') return;
-
-        // Check volumes
-        this.assert(GROWTH_DSL.volumes !== undefined, 'GROWTH_DSL has volumes');
-        this.assert(GROWTH_DSL.volumes.cone !== undefined, 'Cone volume exists');
-        this.assert(GROWTH_DSL.volumes.wedge !== undefined, 'Wedge volume exists');
-
-        // Check modifiers
-        this.assert(GROWTH_DSL.modifiers !== undefined, 'GROWTH_DSL has modifiers');
-        this.assert(GROWTH_DSL.modifiers.spiral !== undefined, 'Spiral modifier exists');
-
-        // Check branching rules
-        this.assert(GROWTH_DSL.branchingRules !== undefined, 'GROWTH_DSL has branchingRules');
-        this.assert(GROWTH_DSL.branchingRules.maxChildrenPerNode !== undefined, 'maxChildrenPerNode rule exists');
-
-        // Test getDefaultRecipe
-        var recipe = GROWTH_DSL.getDefaultRecipe('Destruction');
-        this.assert(recipe !== null, 'getDefaultRecipe returns recipe');
-        this.assert(recipe.volume !== undefined, 'Recipe has volume');
-        this.assert(recipe.branching !== undefined, 'Recipe has branching');
-        this.log('Default recipe branching: maxChildren=' + recipe.branching.maxChildrenPerNode, 'info');
-
-        // Test parseRecipe
-        var parsed = GROWTH_DSL.parseRecipe(recipe);
-        this.assert(parsed.valid === true, 'Default recipe is valid');
     },
 
     // =================================================================
@@ -186,12 +146,6 @@ var UnificationTest = {
             this.testShapeProfiles();
         } catch (e) {
             this.log('ShapeProfiles tests threw error: ' + e.message, 'fail');
-        }
-
-        try {
-            this.testGrowthDSL();
-        } catch (e) {
-            this.log('GrowthDSL tests threw error: ' + e.message, 'fail');
         }
 
         try {

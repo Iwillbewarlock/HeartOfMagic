@@ -799,7 +799,6 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete` (hands the C++ result to Classic) |
 | **Parsers & rendering** | |
 | `treeParser.js` | Tree JSON → nodes/edges; validation, cycle detection, auto-fix |
-| `growthDSL.js` | Growth recipe/DSL for tree visuals |
 | `wheelRenderer.js` | Main 2D radial wheel rendering |
 | `canvasRendererV2.js` | Canvas 2D rendering |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
@@ -818,10 +817,10 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `starfield.js` | Starfield background effect |
 | `globe3D.js` | 3D globe visualization (experimental) |
 | **Testing & entry** | |
-| `unificationTest.js` | Shape profile / GrowthDSL / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
+| `unificationTest.js` | Shape profile / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → growthDSL/treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration and llmApiSettings on 2026-09-28; unificationTest is no longer loaded in game.)
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, tree building, PreReq Master
@@ -841,7 +840,6 @@ Copy and Paste buttons of the old scan output (`SaveOutputBySchool`, `CopyToClip
 - `state` - Runtime state: scan results, tree data, etc. (in `state.js`)
 - `WheelRenderer` - SVG tree rendering engine (in `wheelRenderer.js`)
 - `TreeParser` - Parse and validate tree JSON (in `treeParser.js`)
-- `GROWTH_DSL` - Growth recipe vocabulary and default recipe per school, read by WheelRenderer (in `growthDSL.js`)
 
 **Key Features:**
 - Radial spell tree with school-based sectors

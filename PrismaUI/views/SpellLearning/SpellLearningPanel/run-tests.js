@@ -49,7 +49,6 @@ loadModule('constants', './modules/constants.js');
 loadModule('state', './modules/state.js');
 loadModule('config', './modules/config.js');
 loadModule('shapeProfiles', './modules/shapeProfiles.js');
-loadModule('growthDSL', './modules/growthDSL.js');
 loadModule('layoutLineClear', './modules/layoutLineClear.js');
 loadModule('layoutLineGrid', './modules/layoutLineGrid.js');
 loadModule('layoutDeclutter', './modules/layoutDeclutter.js');

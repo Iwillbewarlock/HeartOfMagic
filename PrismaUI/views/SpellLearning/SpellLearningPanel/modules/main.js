@@ -11,7 +11,6 @@
  * 4. spellCache.js - SpellCache
  * 5. colorUtils.js - Color management
  * 6. uiHelpers.js - UI utilities
- * 7. growthDSL.js - Growth recipe system
  * 8. treeParser.js - TreeParser
  * 9. script.js - WheelRenderer and all app logic (temporary until fully modularized)
  * 10. main.js - This file (initialization)
@@ -98,8 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'settings',
         'state',
         'SpellCache',
-        'TreeParser',
-        'GROWTH_DSL'
+        'TreeParser'
     ];
     
     var missing = required.filter(function(name) {

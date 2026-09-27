@@ -21,7 +21,6 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `colorUtils.js` | 258 | School colors, dynamic CSS generation |
 | `uiHelpers.js` | 189 | Status updates, tooltips, tier helpers |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `growthDSL.js` | 233 | Growth recipe vocabulary, default recipe per school, `parseRecipe` |
 | `treeParser.js` | 461 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 1296 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 3752 | Settings UI initialization and persistence |
@@ -64,7 +63,8 @@ builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.
 `growthBehaviors.js`, `edgeScoring.js`), `llmTreeFeatures.js`, `generationModeUI.js`, the `autoTest.js`
 harness and the unloaded WebGL renderer (`webglRenderer.js`, `webglShaders.js`, `webglShapes.js`).
 Removed 2026-09-28 with the LLM (OpenRouter) feature: `llmIntegration.js` (its `saveTreeToFile` moved to
-`uiHelpers.js`) and `llmApiSettings.js`.
+`uiHelpers.js`) and `llmApiSettings.js`. Also on 2026-09-28: `growthDSL.js` - WheelRenderer's
+growth recipe modifiers ran on a recipe set nothing filled once the LLM style generator was gone.
 
 ## Load Order (index.html)
 
@@ -82,8 +82,7 @@ Modules must load in dependency order before `script.js`:
 <script src="modules/colorUtils.js"></script>
 <script src="modules/uiHelpers.js"></script>
 
-<!-- 3. DSL and Parsers -->
-<script src="modules/growthDSL.js"></script>
+<!-- 3. Parsers -->
 <script src="modules/treeParser.js"></script>
 
 <!-- 4. Renderer -->
@@ -118,7 +117,6 @@ spellCache.js         (uses: state.js)
 colorUtils.js         (uses: state.js, constants.js)
 uiHelpers.js          (uses: state.js)
     ↓
-growthDSL.js          (no deps)
 treeParser.js         (uses: state.js)
     ↓
 wheelRenderer.js      (uses: state.js, config.js, colorUtils.js, treeParser.js)
@@ -149,7 +147,6 @@ script.js             (uses: all modules)
 | `SpellCache` | spellCache.js | Spell data cache singleton |
 | `TreeParser` | treeParser.js | Tree parsing utilities |
 | `WheelRenderer` | wheelRenderer.js | SVG rendering engine |
-| `GROWTH_DSL` | growthDSL.js | Procedural tree visual DSL |
 
 ## Key Functions by Module
 
