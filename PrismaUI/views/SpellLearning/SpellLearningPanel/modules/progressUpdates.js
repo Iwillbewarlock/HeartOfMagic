@@ -187,13 +187,7 @@ window.onSpellRelocked = function(dataStr) {
         var sel = state.selectedNode;
         if (sel && ProgressUpdates._canon(sel) === canonId && typeof showSpellDetails === 'function') showSpellDetails(sel);
 
-        var unlockedEl = document.getElementById('unlocked-count');
-        if (unlockedEl) {
-            unlockedEl.textContent = state.treeData.nodes.filter(function(n) {
-                return n.state === 'unlocked' &&
-                       (typeof isSpellMastered === 'function' ? isSpellMastered(n.formId) : true);
-            }).length;
-        }
+        updateUnlockedCount();
     } catch (e) {
         console.error('[SpellLearning] Failed to parse relock result:', e);
     }

@@ -18,6 +18,23 @@ function updateScanStatus(message, type) {
     if (type) bar.classList.add(type);
 }
 
+/**
+ * The footer's unlocked count: every tree node in the unlocked state, spells
+ * mastered through XP and spells the player already knew alike. The one count
+ * every caller uses, so a relock or a known-spells reply cannot leave two
+ * different numbers behind.
+ */
+function updateUnlockedCount() {
+    var el = document.getElementById('unlocked-count');
+    if (!el) return;
+    var nodes = (state.treeData && state.treeData.nodes) || [];
+    var count = 0;
+    for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].state === 'unlocked') count++;
+    }
+    el.textContent = count;
+}
+
 function setStatusIcon(icon) {
     var statusIcon = document.getElementById('statusIcon');
     if (statusIcon) {

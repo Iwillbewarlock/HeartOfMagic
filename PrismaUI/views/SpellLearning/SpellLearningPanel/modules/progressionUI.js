@@ -493,10 +493,7 @@ function onUnlockClick() {
         }
         
         // Update unlocked count
-        if (state.treeData) {
-            document.getElementById('unlocked-count').textContent = 
-                state.treeData.nodes.filter(function(n) { return n.state === 'unlocked'; }).length;
-        }
+        updateUnlockedCount();
         return;
     }
     
@@ -773,12 +770,8 @@ window.onSpellUnlocked = function(dataStr) {
                 showSpellDetails(state.selectedNode);
             }
             
-            // Update unlocked count - only count truly mastered spells
-            var unlockedCount = state.treeData.nodes.filter(function(n) { 
-                return n.state === 'unlocked' && 
-                       (typeof isSpellMastered === 'function' ? isSpellMastered(n.formId) : true); 
-            }).length;
-            document.getElementById('unlocked-count').textContent = unlockedCount;
+            // Update unlocked count
+            updateUnlockedCount();
         } else {
             setTreeStatus(t('progression.failedUnlock'));
         }

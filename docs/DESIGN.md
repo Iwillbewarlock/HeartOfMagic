@@ -1120,6 +1120,12 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 **Data:** `updateSpellData`, `updateTreeData`, `updateSpellInfo`, `updateSpellInfoBatch`
 **State:** `updateSpellState`, `onResetTreeStates`, `onSaveGameLoaded`
 **Progress:** `onProgressUpdate`, `onSpellReady`, `onSpellUnlocked`, `onSpellRelocked`, `onProgressData`
+
+`RelockSpell` (cheat mode, the Relock button on an unlocked spell) takes the spell from the player and,
+since 2026-09-28, clears its progress in `ProgressionManager` (not unlocked, no XP, saved in the
+co-save), so reopening the panel or loading the save does not unlock it and its children again. The
+footer's unlocked count is `updateUnlockedCount()` (`uiHelpers.js`) everywhere: every node in the
+unlocked state, mastered or already known.
 **Config:** `onUnifiedConfigLoaded`, `onPresetsLoaded`
 **Tree Building:** `onProceduralTreeComplete`, `onPreReqMasterComplete`
 

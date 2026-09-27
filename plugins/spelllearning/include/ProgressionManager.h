@@ -109,6 +109,10 @@ public:
     // Spell unlocking
     bool CanUnlock(RE::FormID formId) const;
     bool UnlockSpell(RE::FormID formId);
+    // Cheat-mode Relock: the spell's progress goes back to nothing (not unlocked,
+    // no XP), so a reload or the next progress reply does not unlock it again.
+    // The caller takes the spell from the player.
+    void RelockSpell(RE::FormID formId);
     bool IsUnlocked(RE::FormID formId) const;
     
     // Check if a spell is available to learn (has progress entry, not yet unlocked)

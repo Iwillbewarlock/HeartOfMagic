@@ -647,8 +647,7 @@ window.updateSpellState = function(jsonOrFormId, newState) {
     
     WheelRenderer.render();
     
-    var unlockedEl = document.getElementById('unlocked-count'); if (unlockedEl) unlockedEl.textContent = 
-        state.treeData.nodes.filter(function(n) { return n.state === 'unlocked'; }).length;
+    updateUnlockedCount();
 };
 
 // Reset all tree nodes to their default state (locked/available based on prerequisites)
@@ -1097,10 +1096,7 @@ window.onPlayerKnownSpells = function(dataStr) {
             }
             
             // Count all unlocked spells (mastered via our system OR already known)
-            var unlockedCount = state.treeData.nodes.filter(function(n) { 
-                return n.state === 'unlocked'; 
-            }).length;
-            var unlockedEl = document.getElementById('unlocked-count'); if (unlockedEl) unlockedEl.textContent = unlockedCount;
+            updateUnlockedCount();
         }
     } catch (e) {
         console.error('[SpellLearning] Failed to parse player known spells:', e);

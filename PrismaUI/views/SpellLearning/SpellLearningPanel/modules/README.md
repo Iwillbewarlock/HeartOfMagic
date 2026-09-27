@@ -45,7 +45,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
 | `layerScroll.js` | 405 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips (instead of repainting the whole tree mid-drag) |
 | `layerBuild.js` | 196 | `LayerBuild`: a whole repaint of the tree layer drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile; for a camera glide it is built for the glide's end while the camera moves |
-| `progressUpdates.js` | 202 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must. Also `window.onSpellRelocked` (cheat-mode Relock: known spells, availability, card and mastered count follow) |
+| `progressUpdates.js` | 202 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must. Also `window.onSpellRelocked` (cheat-mode Relock: known spells, availability, card and unlocked count follow) |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |
 | `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
@@ -54,7 +54,7 @@ Modular JavaScript architecture for LLM maintainability. Original 8000+ line mon
 | `difficultyProfiles.js` | 429 | Profile management, presets, custom profiles |
 | `buttonHandlers.js` | 264 | Scan, learn, import/export button handlers |
 | `cppCallbacks.js` | 438 | C++ SKSE plugin callback handlers |
-| `proceduralTreeBuilder.js` | 217 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
+| `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 1144 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~8245 | |
 

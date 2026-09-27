@@ -534,6 +534,29 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
     return true;
 }
 
+void ProgressionManager::RelockSpell(RE::FormID formId)
+{
+    auto it = m_spellProgress.find(formId);
+    if (it == m_spellProgress.end()) {
+        return;  // Nothing recorded (a spell the player simply knew): nothing to undo
+    }
+
+    // Undo what learning it set: the unlocked flag and the XP behind it. The
+    // required XP stays (it comes from the tree). The co-save writes the entry
+    // as it now is.
+    SpellProgress& progress = it->second;
+    progress.unlocked = false;
+    progress.progressPercent = 0.0f;
+    progress.xpFromAny = 0.0f;
+    progress.xpFromSchool = 0.0f;
+    progress.xpFromDirect = 0.0f;
+    progress.xpFromSelf = 0.0f;
+    progress.xpFromModded.clear();
+    m_dirty = true;
+
+    logger::info("ProgressionManager: Relocked {:08X} - progress cleared", formId);
+}
+
 bool ProgressionManager::IsUnlocked(RE::FormID formId) const
 {
     auto it = m_spellProgress.find(formId);

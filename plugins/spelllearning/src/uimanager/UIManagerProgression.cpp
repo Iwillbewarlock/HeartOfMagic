@@ -357,8 +357,10 @@ void UIManager::OnRelockSpell(const char* argument)
                 return;
             }
 
-            // Remove spell from player
+            // Remove spell from player, and the progress that would unlock it
+            // again on the next progress reply or after a reload
             player->RemoveSpell(spell);
+            ProgressionManager::GetSingleton()->RelockSpell(formId);
 
             logger::info("UIManager: Relocked spell {} ({:08X})", spell->GetName(), formId);
 
