@@ -95,19 +95,6 @@ function updateHowToContent() {
         xpItems.push(t('progression.howto.sameSchool', {value: settings.xpMultiplierSchool}));
         xpItems.push(t('progression.howto.anySpell', {value: settings.xpMultiplierAny}));
         
-        if (settings.islEnabled && settings.islDetected) {
-            xpItems.push({
-                text: t('progression.howto.islStudy', {value: settings.islXpPerHour}),
-                className: 'isl-active'
-            });
-            if (settings.islTomeBonus > 0) {
-                xpItems.push({
-                    text: t('progression.howto.islTomeBonus', {value: settings.islTomeBonus}),
-                    className: 'isl-active'
-                });
-            }
-        }
-        
         xpList.innerHTML = '';
         xpItems.forEach(function(item) {
             var li = document.createElement('li');

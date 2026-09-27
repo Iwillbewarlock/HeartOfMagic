@@ -1084,10 +1084,6 @@ All settings stored in single config file, managed through UI:
     "binaryEffectThreshold": 50
   },
   
-  "islEnabled": true,
-  "islXpPerHour": 50,
-  "islTomeBonus": 25,
-
   "dividerColorMode": "school",
   "dividerCustomColor": "#ffffff",
 

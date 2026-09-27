@@ -5,7 +5,7 @@
  * Depends on:
  * - modules/constants.js (KEY_CODES)
  * - modules/state.js (settings, settingsPresets, xpOverrides)
- * - modules/colorUtils.js (applySchoolColorsToCSS, updateSchoolColorPickerUI)
+ * - modules/colorUtils.js (applySchoolColorsToCSS)
  * - modules/uiHelpers.js (updateStatus, updateSliderFillGlobal)
  * 
  * Exports (global):
@@ -111,23 +111,6 @@ function updateDeveloperModeVisibility(enabled) {
             debugOptionsSection.classList.add('hidden');
         }
     }
-    
-    // Handle Tree Rules tab visibility
-    var treeRulesTab = document.getElementById('tabTreeRules');
-    if (treeRulesTab) {
-        if (enabled) {
-            treeRulesTab.style.display = '';
-        } else {
-            treeRulesTab.style.display = 'none';
-            // If currently on Tree Rules tab, switch to Spell Scan
-            if (treeRulesTab.classList.contains('active')) {
-                var spellScanTab = document.getElementById('tabSpellScan');
-                if (spellScanTab) {
-                    spellScanTab.click();
-                }
-            }
-        }
-    }
 }
 
 function initializeSettings() {
@@ -211,63 +194,6 @@ function initializeSettings() {
             if (state.selectedNode) {
                 showSpellDetails(state.selectedNode);
                 updateDetailsProgression(state.selectedNode);
-            }
-        });
-    }
-    
-    // Node size scaling toggle
-    var nodeSizeToggle = document.getElementById('nodeSizeScalingToggle');
-    if (nodeSizeToggle) {
-        nodeSizeToggle.checked = settings.nodeSizeScaling;
-        nodeSizeToggle.addEventListener('change', function() {
-            settings.nodeSizeScaling = this.checked;
-            console.log('[SpellLearning] Node size scaling:', settings.nodeSizeScaling);
-            // Re-render tree with new sizing
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Show node names toggle
-    var showNamesToggle = document.getElementById('showNodeNamesToggle');
-    if (showNamesToggle) {
-        showNamesToggle.checked = settings.showNodeNames;
-        showNamesToggle.addEventListener('change', function() {
-            settings.showNodeNames = this.checked;
-            console.log('[SpellLearning] Show node names:', settings.showNodeNames);
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Show school dividers toggle
-    var showDividersToggle = document.getElementById('showSchoolDividersToggle');
-    if (showDividersToggle) {
-        showDividersToggle.checked = settings.showSchoolDividers;
-        showDividersToggle.addEventListener('change', function() {
-            settings.showSchoolDividers = this.checked;
-            console.log('[SpellLearning] Show school dividers:', settings.showSchoolDividers);
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Strict pie slices toggle
-    var strictPieSlicesToggle = document.getElementById('strictPieSlicesToggle');
-    if (strictPieSlicesToggle) {
-        strictPieSlicesToggle.checked = settings.strictPieSlices;
-        strictPieSlicesToggle.addEventListener('change', function() {
-            settings.strictPieSlices = this.checked;
-            console.log('[SpellLearning] Strict pie slices:', settings.strictPieSlices);
-            // Re-layout and render tree
-            if (state.treeData) {
-                WheelRenderer.layout();
-                WheelRenderer.render();
             }
         });
     }
@@ -569,17 +495,6 @@ function initializeSettings() {
         });
     }
 
-    // Preserve multi-prerequisites toggle
-    var preserveMultiPrereqsToggle = document.getElementById('preserveMultiPrereqsToggle');
-    if (preserveMultiPrereqsToggle) {
-        preserveMultiPrereqsToggle.checked = settings.preserveMultiPrereqs;
-        preserveMultiPrereqsToggle.addEventListener('change', function() {
-            settings.preserveMultiPrereqs = this.checked;
-            console.log('[SpellLearning] Preserve multi-prerequisites:', settings.preserveMultiPrereqs);
-            // Note: This affects tree parsing, so user would need to re-scan to see changes
-        });
-    }
-    
     // Tree Generation Settings
     var aggressivePathValidationToggle = document.getElementById('aggressivePathValidationToggle');
     if (aggressivePathValidationToggle) {
@@ -588,155 +503,6 @@ function initializeSettings() {
             settings.aggressivePathValidation = this.checked;
             console.log('[SpellLearning] Aggressive path validation:', settings.aggressivePathValidation);
             scheduleAutoSave();
-        });
-    }
-    
-    var proceduralPrereqInjectionToggle = document.getElementById('proceduralPrereqInjectionToggle');
-    var proceduralInjectionSettings = document.getElementById('proceduralInjectionSettings');
-    if (proceduralPrereqInjectionToggle) {
-        proceduralPrereqInjectionToggle.checked = settings.proceduralPrereqInjection;
-        // Show/hide sub-settings
-        if (proceduralInjectionSettings) {
-            proceduralInjectionSettings.style.display = settings.proceduralPrereqInjection ? 'block' : 'none';
-        }
-        proceduralPrereqInjectionToggle.addEventListener('change', function() {
-            settings.proceduralPrereqInjection = this.checked;
-            console.log('[SpellLearning] Procedural prereq injection:', settings.proceduralPrereqInjection);
-            // Show/hide sub-settings
-            if (proceduralInjectionSettings) {
-                proceduralInjectionSettings.style.display = this.checked ? 'block' : 'none';
-            }
-            scheduleAutoSave();
-            // If enabled and tree exists, inject prereqs now
-            if (this.checked && state.treeData && state.treeData.nodes) {
-                injectProceduralPrerequisites();
-            }
-        });
-    }
-    
-    // Procedural injection sub-settings
-    var injectionChanceSlider = document.getElementById('injectionChanceSlider');
-    var injectionChanceValue = document.getElementById('injectionChanceValue');
-    if (injectionChanceSlider) {
-        injectionChanceSlider.value = settings.proceduralInjection.chance;
-        if (injectionChanceValue) injectionChanceValue.textContent = settings.proceduralInjection.chance + '%';
-        updateSliderFillGlobal(injectionChanceSlider);
-        injectionChanceSlider.addEventListener('input', function() {
-            settings.proceduralInjection.chance = parseInt(this.value);
-            if (injectionChanceValue) injectionChanceValue.textContent = this.value + '%';
-            updateSliderFillGlobal(this);
-            scheduleAutoSave();
-        });
-    }
-    
-    var maxPrereqsSlider = document.getElementById('maxPrereqsSlider');
-    var maxPrereqsValue = document.getElementById('maxPrereqsValue');
-    if (maxPrereqsSlider) {
-        maxPrereqsSlider.value = settings.proceduralInjection.maxPrereqs;
-        if (maxPrereqsValue) maxPrereqsValue.textContent = settings.proceduralInjection.maxPrereqs;
-        updateSliderFillGlobal(maxPrereqsSlider);
-        maxPrereqsSlider.addEventListener('input', function() {
-            settings.proceduralInjection.maxPrereqs = parseInt(this.value);
-            if (maxPrereqsValue) maxPrereqsValue.textContent = this.value;
-            updateSliderFillGlobal(this);
-            scheduleAutoSave();
-        });
-    }
-    
-    var minTierSlider = document.getElementById('minTierSlider');
-    var minTierValue = document.getElementById('minTierValue');
-    if (minTierSlider) {
-        minTierSlider.value = settings.proceduralInjection.minTier;
-        if (minTierValue) minTierValue.textContent = settings.proceduralInjection.minTier;
-        updateSliderFillGlobal(minTierSlider);
-        minTierSlider.addEventListener('input', function() {
-            settings.proceduralInjection.minTier = parseInt(this.value);
-            if (minTierValue) minTierValue.textContent = this.value;
-            updateSliderFillGlobal(this);
-            scheduleAutoSave();
-        });
-    }
-    
-    var sameTierPreferenceToggle = document.getElementById('sameTierPreferenceToggle');
-    if (sameTierPreferenceToggle) {
-        sameTierPreferenceToggle.checked = settings.proceduralInjection.sameTierPreference;
-        sameTierPreferenceToggle.addEventListener('change', function() {
-            settings.proceduralInjection.sameTierPreference = this.checked;
-            console.log('[SpellLearning] Same-tier preference:', settings.proceduralInjection.sameTierPreference);
-            scheduleAutoSave();
-        });
-    }
-    
-    var rerollInjectionsBtn = document.getElementById('rerollInjectionsBtn');
-    if (rerollInjectionsBtn) {
-        rerollInjectionsBtn.addEventListener('click', function() {
-            if (typeof rerollProceduralPrerequisites === 'function') {
-                rerollProceduralPrerequisites();
-            } else {
-                console.warn('[SpellLearning] rerollProceduralPrerequisites not defined');
-            }
-        });
-    }
-    
-    // Divider fade slider
-    var dividerFadeSlider = document.getElementById('dividerFadeSlider');
-    var dividerFadeValue = document.getElementById('dividerFadeValue');
-    if (dividerFadeSlider) {
-        dividerFadeSlider.value = settings.dividerFade;
-        if (dividerFadeValue) dividerFadeValue.textContent = settings.dividerFade + '%';
-        updateSliderFillGlobal(dividerFadeSlider);
-        dividerFadeSlider.addEventListener('input', function() {
-            settings.dividerFade = parseInt(this.value);
-            if (dividerFadeValue) dividerFadeValue.textContent = settings.dividerFade + '%';
-            updateSliderFillGlobal(this);
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Divider spacing slider
-    var dividerSpacingSlider = document.getElementById('dividerSpacingSlider');
-    var dividerSpacingValue = document.getElementById('dividerSpacingValue');
-    if (dividerSpacingSlider) {
-        dividerSpacingSlider.value = settings.dividerSpacing;
-        if (dividerSpacingValue) dividerSpacingValue.textContent = settings.dividerSpacing + 'px';
-        updateSliderFillGlobal(dividerSpacingSlider);
-        dividerSpacingSlider.addEventListener('input', function() {
-            settings.dividerSpacing = parseInt(this.value);
-            if (dividerSpacingValue) dividerSpacingValue.textContent = settings.dividerSpacing + 'px';
-            updateSliderFillGlobal(this);
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Divider color mode select
-    var dividerColorModeSelect = document.getElementById('dividerColorModeSelect');
-    if (dividerColorModeSelect) {
-        dividerColorModeSelect.value = settings.dividerColorMode;
-        dividerColorModeSelect.addEventListener('change', function() {
-            settings.dividerColorMode = this.value;
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
-        });
-    }
-    
-    // Divider custom color picker
-    var dividerCustomColorPicker = document.getElementById('dividerCustomColorPicker');
-    if (dividerCustomColorPicker) {
-        dividerCustomColorPicker.value = settings.dividerCustomColor;
-        dividerCustomColorPicker.addEventListener('input', function() {
-            settings.dividerCustomColor = this.value;
-            // Re-render tree
-            if (state.treeData) {
-                WheelRenderer.render();
-            }
         });
     }
     
@@ -961,80 +727,6 @@ function initializeSettings() {
         });
     }
     
-    // School color buttons
-    var resetColorsBtn = document.getElementById('resetColorsBtn');
-    if (resetColorsBtn) {
-        resetColorsBtn.addEventListener('click', function() {
-            // Reset to default colors
-            settings.schoolColors = {
-                'Destruction': '#ef4444',
-                'Restoration': '#facc15',
-                'Alteration': '#22c55e',
-                'Conjuration': '#a855f7',
-                'Illusion': '#38bdf8'
-            };
-            applySchoolColorsToCSS();
-            updateSchoolColorPickerUI();
-            autoSaveSettings();
-            
-            // Re-render tree if visible
-            if (WheelRenderer.nodes && WheelRenderer.nodes.length > 0) {
-                WheelRenderer.render();
-            }
-            
-            updateStatus('School colors reset to defaults');
-        });
-    }
-    
-    // Show All Schools button
-    var showAllSchoolsBtn = document.getElementById('showAllSchoolsBtn');
-    if (showAllSchoolsBtn) {
-        showAllSchoolsBtn.addEventListener('click', function() {
-            console.log('[SpellLearning] Show All Schools clicked');
-            var schools = Object.keys(settings.schoolColors);
-            schools.forEach(function(school) {
-                settings.schoolVisibility[school] = true;
-            });
-            updateSchoolColorPickerUI();
-            
-            // Re-layout and render tree BEFORE saving
-            if (typeof WheelRenderer !== 'undefined' && WheelRenderer.nodes && WheelRenderer.nodes.length > 0) {
-                console.log('[SpellLearning] Re-laying out tree - showing all ' + schools.length + ' schools');
-                WheelRenderer.layout();
-                WheelRenderer.render();
-            }
-            
-            autoSaveSettings();
-            updateStatus('All schools visible');
-        });
-    }
-    
-    // Hide All Schools button
-    var hideAllSchoolsBtn = document.getElementById('hideAllSchoolsBtn');
-    if (hideAllSchoolsBtn) {
-        hideAllSchoolsBtn.addEventListener('click', function() {
-            console.log('[SpellLearning] Hide All Schools clicked');
-            var schools = Object.keys(settings.schoolColors);
-            schools.forEach(function(school) {
-                settings.schoolVisibility[school] = false;
-            });
-            updateSchoolColorPickerUI();
-            
-            // Re-layout and render tree BEFORE saving
-            if (typeof WheelRenderer !== 'undefined' && WheelRenderer.nodes && WheelRenderer.nodes.length > 0) {
-                console.log('[SpellLearning] Re-laying out tree - hiding all schools');
-                WheelRenderer.layout();
-                WheelRenderer.render();
-            }
-            
-            autoSaveSettings();
-            updateStatus('All schools hidden');
-        });
-    }
-    
-    // Initialize school color picker UI
-    updateSchoolColorPickerUI();
-    
     // Apply saved school colors to CSS
     applySchoolColorsToCSS();
 }
@@ -1094,7 +786,6 @@ function saveUnifiedConfig() {
         dividerLength: settings.dividerLength,
         dividerColorMode: settings.dividerColorMode,
         dividerCustomColor: settings.dividerCustomColor,
-        preserveMultiPrereqs: settings.preserveMultiPrereqs,
         verboseLogging: settings.verboseLogging,
         // UI Display settings
         uiTheme: settings.uiTheme,
@@ -1102,8 +793,6 @@ function saveUnifiedConfig() {
         learningColor: settings.learningColor,
         fontSizeMultiplier: settings.fontSizeMultiplier,
         aggressivePathValidation: settings.aggressivePathValidation,
-        proceduralPrereqInjection: settings.proceduralPrereqInjection,
-        proceduralInjection: settings.proceduralInjection,
         
         // Progression settings
         learningMode: settings.learningMode,
@@ -1150,11 +839,6 @@ function saveUnifiedConfig() {
         // School colors
         schoolColors: settings.schoolColors,
         schoolVisibility: settings.schoolVisibility,
-        
-        // ISL-DESTified integration
-        islEnabled: settings.islEnabled,
-        islXpPerHour: settings.islXpPerHour,
-        islTomeBonus: settings.islTomeBonus,
         
         // Active preset names (preset data now in individual files)
         activeSettingsPreset: typeof _activeSettingsPreset !== 'undefined' ? _activeSettingsPreset : 'Default',
@@ -1280,8 +964,6 @@ function resetSettings() {
     
     // Update UI
     var cheatToggle = document.getElementById('cheatModeToggle');
-    var nodeSizeToggle = document.getElementById('nodeSizeScalingToggle');
-    var showNamesToggle = document.getElementById('showNodeNamesToggle');
     var verboseToggle = document.getElementById('verboseLogToggle');
     var hotkeyInput = document.getElementById('hotkeyInput');
     var cheatInfo = document.getElementById('cheatModeInfo');
@@ -1289,10 +971,6 @@ function resetSettings() {
     var devModeToggle = document.getElementById('developerModeToggle');
     if (devModeToggle) devModeToggle.checked = false;
     if (cheatToggle) cheatToggle.checked = false;
-    if (nodeSizeToggle) nodeSizeToggle.checked = true;
-    if (showNamesToggle) showNamesToggle.checked = true;
-    var showDividersToggle = document.getElementById('showSchoolDividersToggle');
-    if (showDividersToggle) showDividersToggle.checked = true;
     if (verboseToggle) verboseToggle.checked = false;
     updateDeveloperModeVisibility(false);
     if (hotkeyInput) hotkeyInput.value = 'F8';
@@ -1406,7 +1084,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.dividerLength = data.dividerLength !== undefined ? data.dividerLength : 800;
         settings.dividerColorMode = data.dividerColorMode || 'school';
         settings.dividerCustomColor = data.dividerCustomColor || '#ffffff';
-        settings.preserveMultiPrereqs = data.preserveMultiPrereqs !== false;  // default true
         settings.verboseLogging = data.verboseLogging || false;
         // UI Display settings
         // Known higher spells (reverse unlock): what they open, XP share, own gain rates
@@ -1419,14 +1096,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.learningColor = data.learningColor || '#7890A8';
         settings.fontSizeMultiplier = data.fontSizeMultiplier !== undefined ? data.fontSizeMultiplier : 1.0;
         settings.aggressivePathValidation = data.aggressivePathValidation !== false;  // default true
-        settings.proceduralPrereqInjection = data.proceduralPrereqInjection || false;  // default false
-        // Procedural injection settings
-        if (data.proceduralInjection) {
-            settings.proceduralInjection.chance = data.proceduralInjection.chance !== undefined ? data.proceduralInjection.chance : 50;
-            settings.proceduralInjection.maxPrereqs = data.proceduralInjection.maxPrereqs !== undefined ? data.proceduralInjection.maxPrereqs : 3;
-            settings.proceduralInjection.minTier = data.proceduralInjection.minTier !== undefined ? data.proceduralInjection.minTier : 3;
-            settings.proceduralInjection.sameTierPreference = data.proceduralInjection.sameTierPreference !== false;
-        }
         
         // === Progression Settings ===
         settings.learningMode = data.learningMode || 'perSchool';
@@ -1495,11 +1164,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             console.log('[SpellLearning] Loaded visibility for', Object.keys(settings.schoolVisibility).length, 'schools');
         }
         
-        // ISL-DESTified integration settings
-        settings.islEnabled = data.islEnabled !== undefined ? data.islEnabled : true;
-        settings.islXpPerHour = data.islXpPerHour !== undefined ? data.islXpPerHour : 50;
-        settings.islTomeBonus = data.islTomeBonus !== undefined ? data.islTomeBonus : 25;
-        
         // Active preset names (preset data now loaded from individual files)
         if (data.activeSettingsPreset && typeof _activeSettingsPreset !== 'undefined') {
             _activeSettingsPreset = data.activeSettingsPreset;
@@ -1523,58 +1187,15 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         var showRootNamesToggle = document.getElementById('showRootSpellNamesToggle');
         if (showRootNamesToggle) showRootNamesToggle.checked = settings.showRootSpellNames;
         
-        // Preserve multi-prerequisites
-        var preserveMultiPrereqsToggle = document.getElementById('preserveMultiPrereqsToggle');
-        if (preserveMultiPrereqsToggle) preserveMultiPrereqsToggle.checked = settings.preserveMultiPrereqs;
-        
         // Tree generation settings
         var aggressivePathValidationToggle = document.getElementById('aggressivePathValidationToggle');
         if (aggressivePathValidationToggle) aggressivePathValidationToggle.checked = settings.aggressivePathValidation;
         
-        var proceduralPrereqInjectionToggle = document.getElementById('proceduralPrereqInjectionToggle');
-        if (proceduralPrereqInjectionToggle) proceduralPrereqInjectionToggle.checked = settings.proceduralPrereqInjection;
-        
-        // Procedural injection sub-settings
-        var proceduralInjectionSettings = document.getElementById('proceduralInjectionSettings');
-        if (proceduralInjectionSettings) {
-            proceduralInjectionSettings.style.display = settings.proceduralPrereqInjection ? 'block' : 'none';
-        }
-        
-        var injectionChanceSlider = document.getElementById('injectionChanceSlider');
-        var injectionChanceValue = document.getElementById('injectionChanceValue');
-        if (injectionChanceSlider) {
-            injectionChanceSlider.value = settings.proceduralInjection.chance;
-            if (injectionChanceValue) injectionChanceValue.textContent = settings.proceduralInjection.chance + '%';
-            updateSliderFillGlobal(injectionChanceSlider);
-        }
-        
-        var maxPrereqsSlider = document.getElementById('maxPrereqsSlider');
-        var maxPrereqsValue = document.getElementById('maxPrereqsValue');
-        if (maxPrereqsSlider) {
-            maxPrereqsSlider.value = settings.proceduralInjection.maxPrereqs;
-            if (maxPrereqsValue) maxPrereqsValue.textContent = settings.proceduralInjection.maxPrereqs;
-            updateSliderFillGlobal(maxPrereqsSlider);
-        }
-        
-        var minTierSlider = document.getElementById('minTierSlider');
-        var minTierValue = document.getElementById('minTierValue');
-        if (minTierSlider) {
-            minTierSlider.value = settings.proceduralInjection.minTier;
-            if (minTierValue) minTierValue.textContent = settings.proceduralInjection.minTier;
-            updateSliderFillGlobal(minTierSlider);
-        }
-        
-        var sameTierPreferenceToggle = document.getElementById('sameTierPreferenceToggle');
-        if (sameTierPreferenceToggle) sameTierPreferenceToggle.checked = settings.proceduralInjection.sameTierPreference;
-        
         // Apply school colors to CSS
         applySchoolColorsToCSS();
-        updateSchoolColorPickerUI();
         
         // Update UI toggles
         var cheatToggle = document.getElementById('cheatModeToggle');
-        var nodeSizeToggle = document.getElementById('nodeSizeScalingToggle');
-        var showNamesToggle = document.getElementById('showNodeNamesToggle');
         var verboseToggle = document.getElementById('verboseLogToggle');
         var hotkeyInput = document.getElementById('hotkeyInput');
         var cheatInfo = document.getElementById('cheatModeInfo');
@@ -1584,79 +1205,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         updateDeveloperModeVisibility(settings.developerMode);
         
         if (cheatToggle) cheatToggle.checked = settings.cheatMode;
-        if (nodeSizeToggle) nodeSizeToggle.checked = settings.nodeSizeScaling;
-        if (showNamesToggle) showNamesToggle.checked = settings.showNodeNames;
-        var showDividersToggle = document.getElementById('showSchoolDividersToggle');
-        if (showDividersToggle) showDividersToggle.checked = settings.showSchoolDividers;
-        
-        // Update divider settings
-        var dividerFadeSlider = document.getElementById('dividerFadeSlider');
-        var dividerFadeValue = document.getElementById('dividerFadeValue');
-        if (dividerFadeSlider) {
-            dividerFadeSlider.value = settings.dividerFade;
-            if (dividerFadeValue) dividerFadeValue.textContent = settings.dividerFade + '%';
-            updateSliderFillGlobal(dividerFadeSlider);
-        }
-        var dividerSpacingSlider = document.getElementById('dividerSpacingSlider');
-        var dividerSpacingValue = document.getElementById('dividerSpacingValue');
-        if (dividerSpacingSlider) {
-            dividerSpacingSlider.value = settings.dividerSpacing;
-            if (dividerSpacingValue) dividerSpacingValue.textContent = settings.dividerSpacing + 'px';
-            updateSliderFillGlobal(dividerSpacingSlider);
-        }
-        
-        // Update divider color settings
-        var dividerColorModeSelect = document.getElementById('dividerColorModeSelect');
-        if (dividerColorModeSelect) {
-            dividerColorModeSelect.value = settings.dividerColorMode;
-        }
-        var dividerCustomColorPicker = document.getElementById('dividerCustomColorPicker');
-        if (dividerCustomColorPicker) {
-            dividerCustomColorPicker.value = settings.dividerCustomColor;
-        }
-        
-        // Update popup divider settings (gear icon popup)
-        var popupShowDividers = document.getElementById('popup-show-dividers');
-        if (popupShowDividers) popupShowDividers.checked = settings.showSchoolDividers;
-        
-        var popupDividerLength = document.getElementById('popup-divider-length');
-        var popupDividerLengthVal = document.getElementById('popup-divider-length-val');
-        if (popupDividerLength) {
-            popupDividerLength.value = settings.dividerLength || 800;
-            if (popupDividerLengthVal) popupDividerLengthVal.textContent = settings.dividerLength || 800;
-        }
-        
-        var popupDividerWidth = document.getElementById('popup-divider-width');
-        var popupDividerWidthVal = document.getElementById('popup-divider-width-val');
-        if (popupDividerWidth) {
-            popupDividerWidth.value = settings.dividerSpacing || 3;
-            if (popupDividerWidthVal) popupDividerWidthVal.textContent = (settings.dividerSpacing || 3) + 'px';
-        }
-        
-        var popupDividerFade = document.getElementById('popup-divider-fade');
-        var popupDividerFadeVal = document.getElementById('popup-divider-fade-val');
-        if (popupDividerFade) {
-            popupDividerFade.value = settings.dividerFade !== undefined ? settings.dividerFade : 50;
-            if (popupDividerFadeVal) popupDividerFadeVal.textContent = (settings.dividerFade !== undefined ? settings.dividerFade : 50) + '%';
-        }
-        
-        var popupDividerColorMode = document.getElementById('popup-divider-color-mode');
-        var popupDividerCustomRow = document.getElementById('popup-divider-custom-row');
-        if (popupDividerColorMode) {
-            popupDividerColorMode.value = settings.dividerColorMode || 'school';
-            if (popupDividerCustomRow) {
-                popupDividerCustomRow.style.display = (settings.dividerColorMode === 'custom') ? '' : 'none';
-            }
-        }
-        
-        var dividerCustomSwatch = document.getElementById('divider-custom-color-swatch');
-        var popupDividerCustomColor = document.getElementById('popup-divider-custom-color');
-        if (dividerCustomSwatch && popupDividerCustomColor) {
-            var customColor = settings.dividerCustomColor || '#ffffff';
-            dividerCustomSwatch.style.background = customColor;
-            popupDividerCustomColor.value = customColor;
-        }
-        
+
         // Update learning color UI
         var learningColorPicker = document.getElementById('learningColorPicker');
         var learningColorValue = document.getElementById('learningColorValue');
@@ -1682,21 +1231,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         var hoverDetailsToggleEl = document.getElementById('hoverDetailsToggle');
         if (hoverDetailsToggleEl) hoverDetailsToggleEl.checked = settings.detailsOnHover !== false;
 
-        // Update ISL settings UI
-        var islEnabledToggle = document.getElementById('islEnabledToggle');
-        var islXpPerHourInput = document.getElementById('islXpPerHourInput');
-        var islTomeBonusSlider = document.getElementById('islTomeBonusSlider');
-        var islTomeBonusValue = document.getElementById('islTomeBonusValue');
-        
-        if (islEnabledToggle) islEnabledToggle.checked = settings.islEnabled;
-        if (islXpPerHourInput) islXpPerHourInput.value = settings.islXpPerHour;
-        if (islTomeBonusSlider) {
-            islTomeBonusSlider.value = settings.islTomeBonus;
-            if (islTomeBonusValue) islTomeBonusValue.textContent = settings.islTomeBonus + '%';
-            // Update slider fill AFTER setting value
-            updateSliderFillGlobal(islTomeBonusSlider);
-        }
-        
         // Early spell learning settings
         if (data.earlySpellLearning && typeof data.earlySpellLearning === 'object') {
             var el = data.earlySpellLearning;
@@ -2368,56 +1902,6 @@ function applyFontSizeMultiplier(multiplier) {
     document.body.style.fontSize = (baseFontSize * multiplier) + 'px';
     
     console.log('[SpellLearning] Applied font size multiplier:', multiplier);
-}
-
-// =============================================================================
-// EARLY LEARNING UI UPDATE
-// =============================================================================
-
-/**
- * Update early learning UI elements from settings
- */
-function updateEarlyLearningUI() {
-    var el = settings.earlySpellLearning;
-    
-    var enabledToggle = document.getElementById('earlyLearningEnabled');
-    if (enabledToggle) enabledToggle.checked = el.enabled;
-    
-    var displayToggle = document.getElementById('modifyGameDisplayToggle');
-    if (displayToggle) displayToggle.checked = el.modifyGameDisplay;
-    
-    // Sliders
-    var unlockSlider = document.getElementById('earlyUnlockThreshold');
-    if (unlockSlider) {
-        unlockSlider.value = el.unlockThreshold;
-        var unlockValue = document.getElementById('earlyUnlockValue');
-        if (unlockValue) unlockValue.textContent = el.unlockThreshold + '%';
-        updateSliderFillGlobal(unlockSlider);
-    }
-    
-    var selfCastSlider = document.getElementById('selfCastRequired');
-    if (selfCastSlider) {
-        selfCastSlider.value = el.selfCastRequiredAt;
-        var selfCastValue = document.getElementById('selfCastRequiredValue');
-        if (selfCastValue) selfCastValue.textContent = el.selfCastRequiredAt + '%';
-        updateSliderFillGlobal(selfCastSlider);
-    }
-    
-    var selfCastBonusSlider = document.getElementById('selfCastBonus');
-    if (selfCastBonusSlider) {
-        selfCastBonusSlider.value = el.selfCastXPMultiplier;
-        var selfCastBonusValue = document.getElementById('selfCastBonusValue');
-        if (selfCastBonusValue) selfCastBonusValue.textContent = el.selfCastXPMultiplier + '%';
-        updateSliderFillGlobal(selfCastBonusSlider);
-    }
-    
-    var binarySlider = document.getElementById('binaryEffectThreshold');
-    if (binarySlider) {
-        binarySlider.value = el.binaryEffectThreshold;
-        var binaryValue = document.getElementById('binaryEffectValue');
-        if (binaryValue) binaryValue.textContent = el.binaryEffectThreshold + '%';
-        updateSliderFillGlobal(binarySlider);
-    }
 }
 
 // =============================================================================

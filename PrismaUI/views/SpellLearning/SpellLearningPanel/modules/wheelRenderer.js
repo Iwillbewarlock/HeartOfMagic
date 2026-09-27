@@ -517,9 +517,6 @@ var WheelRenderer = {
         if (typeof detectAllSchools === 'function') {
             detectAllSchools(nodes);
         }
-        if (typeof updateSchoolColorPickerUI === 'function') {
-            updateSchoolColorPickerUI();
-        }
         
         this.layout();
         

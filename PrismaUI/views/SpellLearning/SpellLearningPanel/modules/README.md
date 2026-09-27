@@ -163,7 +163,6 @@ script.js             (uses: all modules)
 ### colorUtils.js
 - `getOrAssignSchoolColor(school)` - Get/create school color
 - `applySchoolColorsToCSS()` - Generate dynamic CSS
-- `updateSchoolColorPickerUI()` - Update color picker UI
 
 ### treeParser.js
 - `TreeParser.parse(data)` - Parse and validate tree JSON

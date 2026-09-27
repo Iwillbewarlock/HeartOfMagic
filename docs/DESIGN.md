@@ -887,7 +887,7 @@ All mod configuration. Split-row layout for space efficiency.
 **Progression:** How XP is earned and what thresholds unlock spells.
 **Early Learning:** Grants nerfed spells before full mastery.
 **Spell Tomes:** How reading spell tomes interacts with progression.
-**Developer:** Tree generation tuning, procedural injection (hidden by default).
+**Developer:** Import validation (Aggressive Path Validation), debug options (hidden by default).
 
 ---
 

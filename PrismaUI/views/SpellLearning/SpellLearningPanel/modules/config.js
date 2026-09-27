@@ -220,54 +220,6 @@ var DIFFICULTY_PROFILES = {
 };
 
 // =============================================================================
-// DEFAULT SETTINGS
-// =============================================================================
-
-var DEFAULT_SETTINGS = {
-    hotkey: 'F8',
-    hotkeyCode: 66,
-    cheatMode: false,
-    nodeSizeScaling: true,
-    showNodeNames: true,
-    showSchoolDividers: true,
-    dividerFade: 50,
-    dividerSpacing: 3,
-    verboseLogging: false,
-    // Progression settings
-    learningMode: 'perSchool',
-    xpGlobalMultiplier: 1,
-    xpMultiplierDirect: 100,
-    xpMultiplierSchool: 50,
-    xpMultiplierAny: 10,
-    // Tier XP requirements
-    xpNovice: 100,
-    xpApprentice: 200,
-    xpAdept: 400,
-    xpExpert: 800,
-    xpMaster: 1500,
-    // Progressive reveal thresholds (%)
-    revealName: 10,
-    revealEffects: 25,
-    revealDescription: 50,
-    // School colors
-    schoolColors: {
-        'Destruction': '#ef4444',
-        'Restoration': '#facc15',
-        'Alteration': '#22c55e',
-        'Conjuration': '#a855f7',
-        'Illusion': '#38bdf8'
-    },
-    // ISL integration
-    islEnabled: true,
-    islXpPerHour: 50,
-    islTomeBonus: 25,
-    islDetected: false,
-    // Difficulty profile
-    activeProfile: 'normal',
-    profileModified: false
-};
-
-// =============================================================================
 // KEY CODES FOR HOTKEY MAPPING
 // =============================================================================
 
@@ -291,7 +243,6 @@ if (typeof module !== 'undefined' && module.exports) {
         GRID_CONFIG: GRID_CONFIG,
         TREE_CONFIG: TREE_CONFIG,
         DIFFICULTY_PROFILES: DIFFICULTY_PROFILES,
-        DEFAULT_SETTINGS: DEFAULT_SETTINGS,
         KEY_CODES: KEY_CODES
     };
 }

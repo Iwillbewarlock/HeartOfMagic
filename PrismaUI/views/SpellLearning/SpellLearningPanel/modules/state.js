@@ -76,7 +76,6 @@ var settings = {
     dividerLength: 800,   // length of divider lines in pixels
     dividerColorMode: 'school',  // 'school' or 'custom'
     dividerCustomColor: '#ffffff',
-    preserveMultiPrereqs: true,  // DEPRECATED - gentle fix disabled, setting has no effect
     verboseLogging: false,
     // UI Display settings
     uiTheme: 'skyrim',          // Current UI theme key
@@ -106,14 +105,6 @@ var settings = {
     fontSizeMultiplier: 1.0,    // Global font size multiplier (0.5 - 2.0)
     // Tree generation settings
     aggressivePathValidation: true,   // Strict reachability check (safe but simple trees)
-    proceduralPrereqInjection: false, // Add extra prereqs programmatically after generation
-    // Procedural injection settings
-    proceduralInjection: {
-        chance: 50,              // % chance per eligible node (0-100)
-        maxPrereqs: 3,           // Maximum total prerequisites per node
-        minTier: 3,              // Minimum tier where injection applies (1-5)
-        sameTierPreference: true // Prefer same-tier prereqs for convergence feel
-    },
     // Progression settings
     learningMode: 'perSchool',  // 'perSchool' or 'single'
     autoAdvanceLearning: true,  // Auto-select next spell when one is mastered
@@ -157,11 +148,6 @@ var settings = {
     schoolVisibility: {
         // All schools visible by default, dynamically grows
     },
-    // ISL-DESTified mod integration
-    islEnabled: true,
-    islXpPerHour: 50,
-    islTomeBonus: 25,
-    islDetected: false,
     // Discovery mode
     discoveryMode: true,
     showRootSpellNames: true,  // Show root spell names even in discovery mode (helps players know what to look for)
