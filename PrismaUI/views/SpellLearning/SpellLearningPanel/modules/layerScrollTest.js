@@ -117,6 +117,22 @@ var LayerScrollTest = {
             this.check(done && !B.active(), 'all at once finishes it');
             this.check(r._treeLayer.id === 'spare' && S._spare.id === 'old', 'the new picture swaps in, the old one becomes the spare');
             this.check(r._layerZoom === 1.2 && r._layerPanX === 5 && r._layerPanY === 6, 'the layer takes the view it was built for');
+
+            // Dropped halfway: the change it carried is marked again
+            r._treeDirty = false;
+            B.start(r, 1, 128, view);
+            B.abort(r);
+            this.check(r._treeDirty === true && !B.active(), 'an aborted build marks the tree for a repaint again');
+
+            // Built for a glide's end: valid while the camera is on the way, and after it arrives
+            var end = { zoom: 2, rotation: 30, panX: 40, panY: -20 };
+            r._glideTarget = end;
+            B.start(r, 1, 128, view, end);
+            this.check(B.forGlide() && B.valid(r, 1, r._treeLayer), 'a glide build is valid while the camera glides');
+            r._glideTarget = null; r.zoom = 2; r.rotation = 30;
+            this.check(B.valid(r, 1, r._treeLayer), 'and once it has arrived');
+            r.zoom = 1.5;
+            this.check(!B.valid(r, 1, r._treeLayer), 'but not if the camera stopped elsewhere');
         } finally {
             S._ensureSpare = saved.ensure; S._drawStrip = saved.strip; S._spare = saved.spare; S._spareCtx = saved.ctx;
             g.TreeStyle = saved.ts;

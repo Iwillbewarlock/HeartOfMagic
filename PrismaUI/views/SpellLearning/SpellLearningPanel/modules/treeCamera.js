@@ -233,6 +233,9 @@ var TreeCamera = {
 
         this._anim = { start: start, end: end, startTime: startTime, duration: dur, onComplete: onComplete };
         renderer.isAnimating = true;
+        // Where the glide ends: the renderer draws the tree for that view while it
+        // glides (LayerBuild), so it is ready when the camera arrives
+        renderer._glideTarget = end;
 
         function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -258,6 +261,7 @@ var TreeCamera = {
                 self._rafId = null;
                 self._anim = null;
                 renderer.isAnimating = false;
+                renderer._glideTarget = null;
                 if (typeof anim.onComplete === 'function') anim.onComplete();
             }
         }
@@ -297,7 +301,7 @@ var TreeCamera = {
         if (this._anim) {
             this._anim = null;
             var renderer = this._getRenderer();
-            if (renderer) renderer.isAnimating = false;
+            if (renderer) { renderer.isAnimating = false; renderer._glideTarget = null; }
         }
     },
 

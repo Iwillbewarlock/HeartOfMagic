@@ -41,6 +41,7 @@ var LayerScroll = {
     LOOKAHEAD_PX: 48,         // css px round the screen that count as shown (the drag's next frames)
     HALO_SCALE: 2.6,          // a spell's halo radius per its size (CanvasRenderer's glow)
     DESCENT_SHARE: 0.35,      // of the font size, how far letters and outline reach below a name's box
+    KEPT_MAX_SHARE: 2,        // names kept on the layer at most, as a multiple of the on-screen cap
 
     _spare: null,
     _spareCtx: null,
@@ -254,8 +255,10 @@ var LayerScroll = {
             self._found = undefined;               // the names that could go in, worked out once a frame
             while (must.length) self._drawTimed(r, g, must.shift(), dpr, margin, view, viewCss);
             while (rest.length) {
+                // One piece at least when nothing was drawn yet, or a frame that is
+                // always late would ask for frames forever without progress
                 var left = self.TARGET_FRAME_MS - (now() - frameStart);
-                if (left < self._pieceMs && (self._drewThisFrame || left <= 0)) break;
+                if (self._drewThisFrame && left < self._pieceMs) break;
                 self._drawTimed(r, g, rest.shift(), dpr, margin, view, viewCss);
             }
         };
@@ -374,7 +377,8 @@ var LayerScroll = {
             if (!viewCss || this._meets(kept[i], viewCss)) shown++;
         }
         var cands = found.candidates;
-        for (var c = 0; c < cands.length && shown < found.maxLabels; c++) {
+        var keptMax = found.maxLabels * this.KEPT_MAX_SHARE;
+        for (var c = 0; c < cands.length && shown < found.maxLabels && kept.length < keptMax; c++) {
             var cand = cands[c];
             if (have[cand.node.id]) continue;
             var box = r._labelRect(g, cand, found.fontSize);

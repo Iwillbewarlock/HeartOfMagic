@@ -93,6 +93,7 @@ var CanvasRenderer = {
     // out, the whole tree is hundreds of halo sprites per repaint)...
     HALO_MIN_SCREEN_PX: 20,
     EDGE_GLOW_MIN_ZOOM: 0.8,      // ...and the wide stroke under known lines below this zoom
+    CURVE_BULGE: 0.08,            // a curved line (control point 0.15 of its length off) strays ~0.075 of it
     TREE_LAYER_MARGIN: 128,       // css px drawn beyond each edge, so a drag slides the layer; past it the
                                   // layer is shifted and the uncovered strips drawn (LayerScroll). (Was 256:
                                   // the layer was about 1.6 times the pixels, cleared and copied each repaint)
@@ -1559,16 +1560,30 @@ var CanvasRenderer = {
         var stretch = (viewTurned || this._treeDirty) && !this._treeLayerStale &&
             this._layerZoom > 0 && this._viewInMotion();
         // A whole repaint in progress over several frames (LayerBuild): dropped
-        // if the view it was for is gone (the camera moves again, a resize)
-        var building = typeof LayerBuild !== 'undefined' && LayerBuild.active();
-        if (building && (stretch || this._treeLayerStale || !LayerBuild.valid(this, dpr, layer))) {
-            LayerBuild.abort();
+        // if the view it was for is gone (the camera moves on without a known
+        // end, a resize); the change it carried is marked again
+        var hasBuild = typeof LayerBuild !== 'undefined';
+        var building = hasBuild && LayerBuild.active();
+        if (building && (this._treeLayerStale || !LayerBuild.valid(this, dpr, layer) || (stretch && !LayerBuild.forGlide()))) {
+            LayerBuild.abort(this);
             building = false;
         }
+        // A camera glide says where it ends: the tree is built for that view while
+        // it glides, so it is ready when the camera arrives (a click's highlight
+        // included); a change during the glide starts it again
+        var glide = this._glideTarget;
+        if (stretch && glide && hasBuild && (!building || this._treeDirty) && LayerBuild.wanted(this, layer) &&
+                (this._treeDirty || glide.zoom !== this._layerZoom || glide.rotation !== this._layerRotation ||
+                 Math.abs(glide.panX - this._layerPanX) > margin * LayerScroll.EARLY_SHARE ||
+                 Math.abs(glide.panY - this._layerPanY) > margin * LayerScroll.EARLY_SHARE) &&
+                LayerBuild.start(this, dpr, margin, view, glide)) {
+            this._treeDirty = false;
+            building = true;
+        }
         // A drag with nothing else changed: once it has used half the margin the
-        // layer is shifted and the uncovered strips drawn, one a frame
-        // (LayerScroll), 3-8 ms instead of a 25-60 ms repaint of the whole tree
-        // in the middle of the drag
+        // layer is shifted and the uncovered strips drawn - those on screen at
+        // once, the others in the frame's time left (LayerScroll) - a few ms
+        // instead of a 25-60 ms repaint of the whole tree in the middle of the drag
         var scrolled = !stretch && !building && !this._treeDirty && !this._treeLayerStale && !viewTurned &&
             !(typeof EditMode !== 'undefined' && EditMode.isActive) &&
             typeof LayerScroll !== 'undefined' && LayerScroll.step(this, dpr, margin, view);
@@ -1578,7 +1593,7 @@ var CanvasRenderer = {
             dy = this.panY - this._layerPanY;
         } else if (!stretch && (!building || this._treeDirty) &&
                 (this._treeDirty || this._treeLayerStale || slid || viewTurned) &&
-                !this._treeLayerStale && typeof LayerBuild !== 'undefined' && LayerBuild.wanted(this, layer) &&
+                !this._treeLayerStale && hasBuild && LayerBuild.wanted(this, layer) &&
                 LayerBuild.start(this, dpr, margin, view)) {
             // Spread over the next frames (the old picture stays up meanwhile);
             // a new change restarts it with the latest tree
@@ -1620,17 +1635,23 @@ var CanvasRenderer = {
             dy = 0;
         }
         if (building) {
-            var done = LayerBuild.step(this, this._frameStartAt || performance.now(), false);
-            if (done) {
+            // Held still past the old picture's margin (a jump without a glide, a
+            // drag meanwhile) its bare edge would show: the rest is drawn now. A
+            // smaller old picture after a zoom out keeps its bare border a few
+            // frames more, as it had during the zoom; so does a glide's build that
+            // is not quite done as the camera arrives (it showed so during the glide).
+            var all = slid && !this._viewInMotion() && !LayerBuild.forGlide();
+            if (LayerBuild.step(this, this._frameStartAt || performance.now(), all)) {
                 layer = this._treeLayer;
                 dx = this.panX - this._layerPanX;
                 dy = this.panY - this._layerPanY;
-                viewTurned = false;
-                slid = false;
+                slid = Math.abs(dx) > margin || Math.abs(dy) > margin;
+                viewTurned = this._layerZoom !== this.zoom || this._layerRotation !== this.rotation;
             }
-            // Until then the old picture, mapped onto the view as during a glide
-            // (moved, stretched, turned) - after a click's glide it may be far off
-            stretch = !done && (viewTurned || slid);
+            // The layer mapped onto the view as during a glide (moved, stretched,
+            // turned): the old picture while building, the new one if it was built
+            // for a glide's end or the drag has gone on past its margin
+            stretch = stretch || viewTurned || slid;
         }
 
         var w = this.canvas.width, h = this.canvas.height;
@@ -1638,7 +1659,8 @@ var CanvasRenderer = {
         // the layer with the preview on it, cached until the hover or the layer
         // changes (HoverOverlay.composite)
         var hoverSpot = this._fxThisFrame && typeof HoverOverlay !== 'undefined' && HoverOverlay.drawSpot;
-        var src = (!hoverSpot && typeof HoverOverlay !== 'undefined') ? HoverOverlay.composite(this, layer, dpr, margin, view) : layer;
+        // (not onto a stretched layer: its preview would be drawn for the wrong view)
+        var src = (!hoverSpot && !stretch && typeof HoverOverlay !== 'undefined') ? HoverOverlay.composite(this, layer, dpr, margin, view) : layer;
         var offX = Math.round((margin - dx) * dpr), offY = Math.round((margin - dy) * dpr);
         var paste = function(c) {
             c = c || ctx;
@@ -2280,7 +2302,7 @@ var CanvasRenderer = {
 
         // Helper to check visibility and culling
         // A curved or hand-bowed line bulges past its ends' box: culling allows for it
-        var bend = (curved ? 0.08 : 0) + TreeStyle.handAmount() * 0.25;
+        var bend = (curved ? this.CURVE_BULGE : 0) + TreeStyle.bowBulge();
         function shouldDrawEdge(edge) {
             var fromNode = self._nodeMap.get(edge.from);
             var toNode = self._nodeMap.get(edge.to);

@@ -141,6 +141,11 @@
             path.closePath();
         },
 
+        /** The most a bowed line strays from its straight course, as a share of its length (culling allows for it). */
+        bowBulge: function() {
+            return this.handAmount() * BOW_SHARE / 2;
+        },
+
         /** How far a straight line from (x1, y1) to (x2, y2) bows, as a share of its length (0 = straight). */
         edgeBow: function(x1, y1, x2, y2) {
             var a = this.handAmount();
