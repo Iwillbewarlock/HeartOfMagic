@@ -3,5 +3,5 @@
   <Author>DinkelZombie</Author>
   <Version>@PROJECT_VERSION@</Version>
   <Website/>
-  <Description>Spell learning progression system with procedural spell trees, PrismaUI panel, and SkyrimNet integration.</Description>
+  <Description>Spell learning progression system with procedural spell trees and a PrismaUI panel.</Description>
 </fomod>

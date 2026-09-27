@@ -1207,7 +1207,7 @@ HeartOfMagic/
 │       └── src/
 │           └── Main.cpp           ✅ BookMenu watcher + API integration
 ├── Scripts/Source/
-│   ├── SpellLearning_QuestScript.psc  ✅ Quest initialization
+│   ├── SpellLearning_QuestScript.psc  ⚠️ Legacy SkyrimNet request poller (no plugin file ships, so no quest runs it)
 │   ├── SpellLearning_Bridge.psc       ⚠️ Legacy SkyrimNet bridge (unused)
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler

@@ -98,8 +98,6 @@ Data/
 │           └── presets/
 │               ├── settings/     (DEFAULT.json, Easy.json, Hard.json)
 │               └── scanner/      (DEFAULT.json)
-├── SEQ/
-│   └── SpellLearning.seq
 └── PrismaUI/
     └── views/
         └── SpellLearning/
@@ -135,7 +133,6 @@ Data/
 | UI not opening | Ensure PrismaUI is installed and loading. Check SKSE logs. |
 | DLL not loading | Verify `SpellLearning.dll` exists in `SKSE/Plugins/`. Check SKSE logs for errors. |
 | Tree not generating | Make sure you scanned spells first. Check SKSE logs for errors. |
-| Quest not starting on existing save | Console: `stopquest SpellLearning` then `startquest SpellLearning` |
 | Spells not appearing | Some NPC-only or duplicate spells are filtered. Check plugin whitelist/blacklist. |
 
 ## Documentation
