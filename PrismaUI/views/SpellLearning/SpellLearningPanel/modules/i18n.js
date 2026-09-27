@@ -10,12 +10,12 @@
  * 
  * Usage in HTML:
  *   <span data-i18n="settings.devDebug.title">Developer & Debug</span>
- *   <input data-i18n-placeholder="search.placeholder" placeholder="Search spells...">
- *   <button data-i18n-title="buttons.scanTooltip" title="Scan your spell list">
+ *   <input data-i18n-placeholder="modals.presetName.placeholder" placeholder="Enter preset name...">
+ *   <button data-i18n-title="tabs.scanTitle" title="Spell Scanner">
  * 
  * Usage in JS:
- *   t('progression.stage', { number: 3 })  =>  "Stage 3"
- *   t('status.mastered')                   =>  "Mastered (fixed)"
+ *   t('progression.stageN', { n: 3 })      =>  "Stage 3"
+ *   t('progression.masteredFixed')         =>  "Mastered (fixed)"
  * 
  * Fallback: If a key is missing, t() returns the key itself so gaps are obvious.
  *           English text left in HTML acts as a visual fallback if JSON fails to load.

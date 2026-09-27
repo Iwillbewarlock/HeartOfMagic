@@ -160,7 +160,7 @@ var TreeGrowth = {
 
         var modeModule = this.modes[mode];
         if (!modeModule) {
-            settingsEl.innerHTML = '<div class="tree-preview-empty">No settings available</div>';
+            settingsEl.innerHTML = '<div class="tree-preview-empty">' + t('treeViewer.noSettingsAvailable') + '</div>';
             return;
         }
 

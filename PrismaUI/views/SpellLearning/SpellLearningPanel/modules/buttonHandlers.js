@@ -39,7 +39,7 @@ function startScan() {
     _lastScanTime = now;
 
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
-    var statusMsg = 'Scanning all spells...';
+    var statusMsg = t('status.scanningAllSpells');
 
     updateStatus(statusMsg);
     setStatusIcon('...');

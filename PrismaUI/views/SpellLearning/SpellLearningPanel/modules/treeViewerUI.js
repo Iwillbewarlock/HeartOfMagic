@@ -1705,7 +1705,7 @@ function updateDetailsProgression(node, opts) {
     // Update progress bar
     var percent = progress.required > 0 ? (progress.xp / progress.required) * 100 : 0;
     progressBar.style.width = Math.min(percent, 100) + '%';
-    progressText.textContent = Math.floor(progress.xp) + ' / ' + Math.floor(progress.required) + ' XP';
+    progressText.textContent = Math.floor(progress.xp) + ' / ' + Math.floor(progress.required) + ' ' + tOr('details.xpUnit', null, 'XP');
     
     if (progress.ready || progress.xp >= progress.required) {
         // Ready to unlock - show unlock button

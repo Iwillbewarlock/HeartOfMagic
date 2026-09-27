@@ -179,7 +179,7 @@
                             <div class="prm-tabs">
                                 <span class="prm-tab active" data-prm-tab="locks">
                                     <span data-i18n="prm.tabLocks">Pre Req Master</span>
-                                    <label class="toggle-switch toggle-sm prm-enable-toggle" title="Enable/Disable Lock Prerequisites">
+                                    <label class="toggle-switch toggle-sm prm-enable-toggle" title="Enable Lock Prerequisites" data-i18n-title="prm.enableLockPrereqs">
                                         <input type="checkbox" id="prmEnabled" checked>
                                         <span class="toggle-slider"></span>
                                     </label>
@@ -690,14 +690,14 @@
                         <div class="howto-section">
                             <h4 data-i18n="howto.currentSettings">[i] Current Settings</h4>
                             <ul id="howto-settings-list" class="howto-list">
-                                <li>Loading...</li>
+                                <li data-i18n="howto.loading">Loading...</li>
                             </ul>
                         </div>
                         
                         <div class="howto-section">
                             <h4 data-i18n="howto.gainingXp">[^] Gaining XP</h4>
                             <ul id="howto-xp-list" class="howto-list">
-                                <li>Loading...</li>
+                                <li data-i18n="howto.loading">Loading...</li>
                             </ul>
                         </div>
                         
@@ -1626,15 +1626,11 @@
                         <span class="settings-block-title" data-i18n="settings.treeGen.title">Tree Generation</span>
                     </div>
                     <div class="settings-block-content">
-                        <div class="setting-hint" style="font-size: 0.8em; color: var(--text-muted); margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                            These settings control how an imported tree is validated.
-                        </div>
+                        <div class="setting-hint" style="font-size: 0.8em; color: var(--text-muted); margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;" data-i18n="settings.treeGen.importHint">These settings control how an imported tree is checked.</div>
                         
                         <!-- Validation Settings -->
                         <div class="settings-subsection" style="margin-left: 8px; padding-left: 8px; border-left: 2px solid var(--accent-orange);">
-                            <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-orange); margin-bottom: 8px;">
-                                VALIDATION & AUTO-FIX
-                            </div>
+                            <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-orange); margin-bottom: 8px;" data-i18n="settings.treeGen.validationAutofix">VALIDATION &amp; AUTO-FIX</div>
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.treeGen.aggressivePath">Aggressive Path Validation</span>
