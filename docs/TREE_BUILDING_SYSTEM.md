@@ -878,10 +878,11 @@ Lines at a spell with more than `MAX_SPELL_LINES` of them (`LayoutLineClear.MAX_
 in `linesLeft` either (it counts the kept lines only). The cost makes such a spell dear by its nature: its
 angle cost pairs every two of its lines at every spot it tries (lines squared), and each of its neighbours
 weighs its line against every other line of it at every spot (lines times neighbours). A builder gives a
-spell a few children (Graph and Oracle clamp them to 1-8; Classic, Tree and Thematic take
-`max_children_per_node` from the settings, 3 by default, with room for 2 more, unclamped - a setting of
-60 or more could make a hub past the cap, whose lines then go unsearched; the test trees have at most 11
-lines at a spell); a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
+spell a few children: in game only Classic builds (the panel asks it with `max_children_per_node` 3, which
+a player cannot change; the builder allows 2 more), so no game tree comes near the cap. The C++ builders
+kept for the offline `treebuilder-test` differ (Graph and Oracle clamp to 1-8; Tree and Thematic take the
+setting unclamped, so a config of 60 or more there could make a hub past the cap, its lines then
+unsearched). The test trees have at most 11 lines at a spell; a spell with 4,000 children took 93 s native (2,000: 23 s), now 1.5 s (0.5 s), and
 209 s in node, now 2.8 s.
 
 The work still grows with how many long lines run through a dense part of the tree - not with how far out
