@@ -166,15 +166,6 @@
     "footer.statusReady": "Prêt",
     "footer.unlockedLabel": "débloqués",
 
-    "generationMode.cannotParseJson": "Impossible d'analyser le JSON de la réponse. Veuillez vérifier le format.",
-    "generationMode.clearTreeConfirm": "Effacer l'arbre de sorts actuel ? Cette action est irréversible.",
-    "generationMode.configApplied": "Configuration appliquée avec succès !",
-    "generationMode.configExtracted": "Configuration extraite et appliquée !",
-    "generationMode.copied": "Copié !",
-    "generationMode.copy": "Copier",
-    "generationMode.noLlmResponse": "Aucune réponse LLM à appliquer. Collez d'abord la réponse.",
-    "generationMode.noSpellDataError": "// ERREUR : aucune donnée de sort disponible. Veuillez d'abord analyser les sorts.",
-    "generationMode.noValidJson": "Impossible de trouver un JSON valide dans la réponse. Veuillez vérifier le format.",
 
     "header.panelTitle": "CŒUR DE MAGIE",
     "header.title": "Heart of Magic",

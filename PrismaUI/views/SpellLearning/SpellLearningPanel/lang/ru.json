@@ -166,15 +166,6 @@
     "footer.statusReady": "Готово",
     "footer.unlockedLabel": "разблокировано",
 
-    "generationMode.cannotParseJson": "Не удалось разобрать JSON из ответа. Проверьте формат.",
-    "generationMode.clearTreeConfirm": "Очистить текущее дерево заклинаний? Это действие нельзя отменить.",
-    "generationMode.configApplied": "Конфигурация успешно применена!",
-    "generationMode.configExtracted": "Конфигурация извлечена и применена!",
-    "generationMode.copied": "Скопировано!",
-    "generationMode.copy": "Копировать",
-    "generationMode.noLlmResponse": "Нет ответа LLM для применения. Сначала вставьте ответ.",
-    "generationMode.noSpellDataError": "// ОШИБКА: нет данных о заклинаниях. Сначала просканируйте заклинания.",
-    "generationMode.noValidJson": "Не удалось найти валидный JSON в ответе. Проверьте формат.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

@@ -166,15 +166,6 @@
     "footer.statusReady": "Bereit",
     "footer.unlockedLabel": "freigeschaltet",
 
-    "generationMode.cannotParseJson": "JSON konnte nicht analysiert werden. Bitte überprüfe das Format.",
-    "generationMode.clearTreeConfirm": "Aktuellen Zauberbaum löschen? Dies kann nicht rückgängig gemacht werden.",
-    "generationMode.configApplied": "Konfiguration erfolgreich angewendet!",
-    "generationMode.configExtracted": "Konfiguration extrahiert und angewendet!",
-    "generationMode.copied": "Kopiert!",
-    "generationMode.copy": "Kopieren",
-    "generationMode.noLlmResponse": "Keine LLM-Antwort zum Anwenden. Füge zuerst die Antwort ein.",
-    "generationMode.noSpellDataError": "// FEHLER: Keine Zauberdaten verfügbar. Bitte scanne zuerst die Zauber.",
-    "generationMode.noValidJson": "Kein gültiges JSON in der Antwort gefunden. Bitte überprüfe das Format.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

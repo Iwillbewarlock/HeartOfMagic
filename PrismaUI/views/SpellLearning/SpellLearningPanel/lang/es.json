@@ -166,15 +166,6 @@
     "footer.statusReady": "Listo",
     "footer.unlockedLabel": "desbloqueados",
 
-    "generationMode.cannotParseJson": "No se pudo analizar el JSON. Por favor verifica el formato.",
-    "generationMode.clearTreeConfirm": "¿Limpiar el árbol de hechizos actual? No se puede deshacer.",
-    "generationMode.configApplied": "¡Configuración aplicada con éxito!",
-    "generationMode.configExtracted": "¡Configuración extraída y aplicada!",
-    "generationMode.copied": "¡Copiado!",
-    "generationMode.copy": "Copiar",
-    "generationMode.noLlmResponse": "No hay respuesta LLM para aplicar. Pega la respuesta primero.",
-    "generationMode.noSpellDataError": "// ERROR: No hay datos de hechizos disponibles. Escanea los hechizos primero.",
-    "generationMode.noValidJson": "No se encontró JSON válido en la respuesta. Verifica el formato.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

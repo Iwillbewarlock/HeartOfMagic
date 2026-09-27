@@ -8,8 +8,6 @@
     <link rel="stylesheet" id="ui-theme-css" href="styles-skyrim.css">
     <!-- UI patch (navigation chrome, bottom details bar) - theme-agnostic, survives theme switches -->
     <link rel="stylesheet" href="patch-ui.css">
-    <!-- AUTO-TEST FLAG: Set to true to auto-trigger scan+build on panel load (for debugging) -->
-    <script>window.AUTO_TEST_BUILD = false;</script>
 </head>
 <body>
     <!-- Full-screen overlay to block clicks on SWF UI when panel has focus -->
@@ -2005,7 +2003,6 @@
     <script src="modules/trustedRenderer.js"></script>
     <script src="modules/editMode.js"></script>
     <!-- Note: WebGL is NOT supported in Ultralight/PrismaUI - Canvas 2D is used for large trees -->
-    <!-- Old renderer: canvasRenderer.js (depends on TREE_CONFIG/WheelRenderer/GRID_CONFIG) -->
     <!-- SpellTreeRenderer available at modules/tierVisuals.js + modules/spellTreeRenderer.js (not loaded) -->
     
     <!-- 5. UI Panels and Features -->
@@ -2070,7 +2067,6 @@
     <script src="modules/llmTreeFeatures.js"></script>
     <script src="modules/settingsAwareTreeBuilder.js"></script>
 
-    <script src="modules/generationModeUI.js"></script>
 
     <!-- 6.6. Pre Req Master -->
     <script src="modules/prereqMaster.js"></script>

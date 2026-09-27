@@ -184,15 +184,6 @@
     "footer.statusReady": "Ready",
     "footer.unlockedLabel": "unlocked",
 
-    "generationMode.cannotParseJson": "Could not parse JSON from response. Please check the format.",
-    "generationMode.clearTreeConfirm": "Clear the current spell tree? This cannot be undone.",
-    "generationMode.configApplied": "Config applied successfully!",
-    "generationMode.configExtracted": "Config extracted and applied!",
-    "generationMode.copied": "Copied!",
-    "generationMode.copy": "Copy",
-    "generationMode.noLlmResponse": "No LLM response to apply. Paste the response first.",
-    "generationMode.noSpellDataError": "// ERROR: No spell data available. Please scan spells first.",
-    "generationMode.noValidJson": "Could not find valid JSON in response. Please check the format.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

@@ -3853,22 +3853,6 @@ function initializeDynamicTreeBuildingSettings() {
         });
     }
 
-    var applyTreeSettingsBtn = document.getElementById('applyTreeSettingsBtn');
-    if (applyTreeSettingsBtn) {
-        applyTreeSettingsBtn.addEventListener('click', function() {
-            // Save settings
-            autoSaveSettings();
-
-            // Trigger tree regeneration if tree exists
-            if (state.treeData && typeof startVisualFirstGenerate === 'function') {
-                updateStatus('Regenerating tree with new settings...');
-                startVisualFirstGenerate();
-            } else {
-                updateStatus('Tree settings applied. Generate a tree to see changes.');
-            }
-        });
-    }
-
     console.log('[TreeSettings] Initialization complete');
 }
 

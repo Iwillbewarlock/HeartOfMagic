@@ -166,15 +166,6 @@
     "footer.statusReady": "Gotowe",
     "footer.unlockedLabel": "odblokowane",
 
-    "generationMode.cannotParseJson": "Nie udało się przetworzyć JSON z odpowiedzi. Sprawdź format.",
-    "generationMode.clearTreeConfirm": "Wyczyścić bieżące drzewo zaklęć? Tej operacji nie można cofnąć.",
-    "generationMode.configApplied": "Konfiguracja zastosowana pomyślnie!",
-    "generationMode.configExtracted": "Konfiguracja wyodrębniona i zastosowana!",
-    "generationMode.copied": "Skopiowano!",
-    "generationMode.copy": "Kopiuj",
-    "generationMode.noLlmResponse": "Brak odpowiedzi LLM do zastosowania. Najpierw wklej odpowiedź.",
-    "generationMode.noSpellDataError": "// BŁĄD: Brak danych zaklęć. Najpierw zeskanuj zaklęcia.",
-    "generationMode.noValidJson": "Nie znaleziono prawidłowego JSON w odpowiedzi. Sprawdź format.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

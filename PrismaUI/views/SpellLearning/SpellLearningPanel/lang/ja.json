@@ -166,15 +166,6 @@
     "footer.statusReady": "準備完了",
     "footer.unlockedLabel": "解放済み",
 
-    "generationMode.cannotParseJson": "JSONを解析できませんでした。形式を確認してください。",
-    "generationMode.clearTreeConfirm": "現在の呪文ツリーをクリアしますか？この操作は元に戻せません。",
-    "generationMode.configApplied": "設定が正常に適用されました！",
-    "generationMode.configExtracted": "設定が抽出・適用されました！",
-    "generationMode.copied": "コピーしました！",
-    "generationMode.copy": "コピー",
-    "generationMode.noLlmResponse": "適用するLLM応答がありません。先に応答を貼り付けてください。",
-    "generationMode.noSpellDataError": "// エラー: 呪文データがありません。先に呪文をスキャンしてください。",
-    "generationMode.noValidJson": "応答に有効なJSONが見つかりませんでした。形式を確認してください。",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

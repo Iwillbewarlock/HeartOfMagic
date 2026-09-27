@@ -239,18 +239,6 @@ window.updateSpellData = function(jsonStr) {
             if (modsEl) modsEl.textContent = Object.keys(modSet).length;
         }
 
-        // Show per-school control panels
-        if (data.spells && typeof showSchoolControlPanels === 'function') {
-            var schoolData = {};
-            data.spells.forEach(function(spell) {
-                var school = spell.school || 'Unknown';
-                if (!school || school === 'null' || school === 'None') school = 'Hedge Wizard';
-                if (!schoolData[school]) schoolData[school] = [];
-                schoolData[school].push(spell);
-            });
-            showSchoolControlPanels(schoolData);
-        }
-        
         // Build button managed by TreeGrowth.updateScanStatus / updateBuildButton
 
         // Enable scan-dependent buttons after successful scan
@@ -388,29 +376,6 @@ window.updateSpellData = function(jsonStr) {
         setTimeout(function() {
             startFullAutoGenerate();
         }, 500);
-    } else if (state.proceduralPending && scanSuccess) {
-        // Trigger JS procedural generation
-        console.log('[SpellLearning] Procedural (JS): Starting tree generation...');
-        state.proceduralPending = false;
-        setTimeout(function() {
-            startProceduralGenerate();
-        }, 100);
-    } else if (state.visualFirstPending && scanSuccess) {
-        // Trigger Visual-First generation
-        console.log('[SpellLearning] Visual-First: Starting tree generation...');
-        state.visualFirstPending = false;
-        setTimeout(function() {
-            if (typeof doVisualFirstGenerate === 'function') {
-                doVisualFirstGenerate();
-            }
-        }, 100);
-    } else if (state.proceduralPlusScanPending && scanSuccess) {
-        // Trigger procedural generation
-        console.log('[SpellLearning] Procedural+: Starting tree generation...');
-        state.proceduralPlusScanPending = false;
-        setTimeout(function() {
-            startProceduralTreeGenerate();
-        }, 100);
     } else {
         // Reset all buttons if not continuing
         var fullAutoBtn = document.getElementById('fullAutoBtn');
@@ -418,8 +383,6 @@ window.updateSpellData = function(jsonStr) {
             fullAutoBtn.disabled = false;
             fullAutoBtn.innerHTML = '<span class="btn-icon">>></span> Full Auto';
         }
-        if (typeof resetProceduralButton === 'function') resetProceduralButton();
-        if (typeof resetProceduralPlusButton === 'function') resetProceduralPlusButton();
     }
 };
 

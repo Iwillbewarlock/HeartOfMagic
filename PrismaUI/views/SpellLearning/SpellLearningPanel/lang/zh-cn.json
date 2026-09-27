@@ -166,15 +166,6 @@
     "footer.statusReady": "就绪",
     "footer.unlockedLabel": "已解锁",
 
-    "generationMode.cannotParseJson": "无法解析JSON。请检查格式。",
-    "generationMode.clearTreeConfirm": "清除当前法术树？此操作无法撤销。",
-    "generationMode.configApplied": "配置已成功应用！",
-    "generationMode.configExtracted": "配置已提取并应用！",
-    "generationMode.copied": "已复制！",
-    "generationMode.copy": "复制",
-    "generationMode.noLlmResponse": "没有可应用的LLM响应。请先粘贴响应。",
-    "generationMode.noSpellDataError": "// 错误：没有可用的法术数据。请先扫描法术。",
-    "generationMode.noValidJson": "在响应中未找到有效的JSON。请检查格式。",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

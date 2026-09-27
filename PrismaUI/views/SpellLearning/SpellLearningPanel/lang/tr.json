@@ -166,15 +166,6 @@
     "footer.statusReady": "Hazır",
     "footer.unlockedLabel": "açık",
 
-    "generationMode.cannotParseJson": "JSON ayrıştırılamadı. Lütfen formatı kontrol edin.",
-    "generationMode.clearTreeConfirm": "Mevcut büyü ağacı silinsin mi? Bu geri alınamaz.",
-    "generationMode.configApplied": "Yapılandırma başarıyla uygulandı!",
-    "generationMode.configExtracted": "Yapılandırma çıkarıldı ve uygulandı!",
-    "generationMode.copied": "Kopyalandı!",
-    "generationMode.copy": "Kopyala",
-    "generationMode.noLlmResponse": "Uygulanacak LLM yanıtı yok. Önce yanıtı yapıştırın.",
-    "generationMode.noSpellDataError": "// HATA: Büyü verisi mevcut değil. Lütfen önce büyüleri tarayın.",
-    "generationMode.noValidJson": "Yanıtta geçerli JSON bulunamadı. Lütfen formatı kontrol edin.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

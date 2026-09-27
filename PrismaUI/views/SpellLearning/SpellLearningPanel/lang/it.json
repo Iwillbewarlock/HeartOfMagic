@@ -166,15 +166,6 @@
     "footer.statusReady": "Pronto",
     "footer.unlockedLabel": "sbloccati",
 
-    "generationMode.cannotParseJson": "Impossibile analizzare il JSON dalla risposta. Controlla il formato.",
-    "generationMode.clearTreeConfirm": "Cancellare l'albero degli incantesimi attuale? Questa azione non può essere annullata.",
-    "generationMode.configApplied": "Configurazione applicata con successo!",
-    "generationMode.configExtracted": "Configurazione estratta e applicata!",
-    "generationMode.copied": "Copiato!",
-    "generationMode.copy": "Copia",
-    "generationMode.noLlmResponse": "Nessuna risposta LLM da applicare. Incolla prima la risposta.",
-    "generationMode.noSpellDataError": "// ERRORE: Nessun dato sugli incantesimi disponibile. Esegui prima la scansione.",
-    "generationMode.noValidJson": "Impossibile trovare JSON valido nella risposta. Controlla il formato.",
 
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",
