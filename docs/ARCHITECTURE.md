@@ -244,7 +244,7 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 - `OnSpellCast(school, castSpellId, baseXP)` - Handle cast event
 - `GetProgress(formId)` - Get SpellProgress struct
 - `IsSpellAvailableToLearn(formId)` - Check if spell can receive XP
-- `ClearLearningTargetForSpell(formId)` - Clear target after mastery
+- `ClearLearningTargetForSpell(formId)` - Clear every school whose target is this spell (found by id in the target map, not from the spell's effects: the panel keys a target by the tree node's school, which comes from the first effect and can differ from the costliest effect's) - on mastery, unlock and relock
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
 
 **Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the

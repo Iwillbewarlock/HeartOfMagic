@@ -110,23 +110,19 @@ void ProgressionManager::ClearLearningTarget(const std::string& school)
 
 void ProgressionManager::ClearLearningTargetForSpell(RE::FormID formId)
 {
-    // Find and clear the learning target that matches this formId
-    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
-    if (!spell) return;
-
-    auto* effect = spell->GetCostliestEffectItem();
-    if (!effect || !effect->baseEffect) return;
-
-    auto school = effect->baseEffect->GetMagickSkill();
-    std::string schoolName = SpellScanner::GetSchoolName(school);
-    if (schoolName == "Unknown") return;
-
-    // Only clear if this spell is the current target for this school
-    auto it = m_learningTargets.find(schoolName);
-    if (it != m_learningTargets.end() && it->second == formId) {
-        ClearLearningTarget(schoolName);
-        logger::info("ProgressionManager: Cleared learning target for {} (spell {:08X} mastered)",
-            schoolName, formId);
+    // Clear every school whose target is this spell. The key is the one the
+    // panel set (the tree node's school, from the spell's first effect), which
+    // can differ from the costliest effect's school or be one the game calls
+    // Unknown - so look the spell up by id instead of deriving its school.
+    std::vector<std::string> schools;
+    for (const auto& [school, targetId] : m_learningTargets) {
+        if (targetId == formId) {
+            schools.push_back(school);
+        }
+    }
+    for (const auto& school : schools) {
+        ClearLearningTarget(school);
+        logger::info("ProgressionManager: Cleared learning target for {} (spell {:08X})", school, formId);
     }
 }
 
@@ -508,28 +504,8 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
 
     logger::info("ProgressionManager: Unlocked spell {} ({:08X})", spell->GetName(), formId);
 
-    // Clear learning target for this school (spell is learned)
-    auto* effect = spell->GetCostliestEffectItem();
-    if (effect && effect->baseEffect) {
-        auto school = effect->baseEffect->GetMagickSkill();
-        std::string schoolName = SpellScanner::GetSchoolName(school);
-        if (schoolName != "Unknown") {
-            ClearLearningTarget(schoolName);
-        } else {
-            // Unknown school — find and clear by formId instead
-            logger::warn("ProgressionManager: Unknown school for unlocked spell {:08X}, searching by formId", formId);
-            std::string schoolToErase;
-            for (const auto& [s, targetId] : m_learningTargets) {
-                if (targetId == formId) {
-                    schoolToErase = s;
-                    break;
-                }
-            }
-            if (!schoolToErase.empty()) {
-                ClearLearningTarget(schoolToErase);
-            }
-        }
-    }
+    // The spell is learned: it is no longer any school's target
+    ClearLearningTargetForSpell(formId);
 
     return true;
 }

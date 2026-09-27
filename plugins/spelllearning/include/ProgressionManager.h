@@ -54,7 +54,7 @@ public:
     void SetLearningTarget(const std::string& school, RE::FormID formId, const std::vector<RE::FormID>& prereqs = {});
     RE::FormID GetLearningTarget(const std::string& school) const;
     void ClearLearningTarget(const std::string& school);
-    void ClearLearningTargetForSpell(RE::FormID formId);  // Clear target when spell is mastered
+    void ClearLearningTargetForSpell(RE::FormID formId);  // Clear every school targeting this spell (mastered, unlocked, relocked)
     
     // Direct prerequisite checking (for XP bonuses)
     bool IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const;
