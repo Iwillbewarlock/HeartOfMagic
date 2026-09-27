@@ -6,6 +6,32 @@
 
 using namespace TreeBuilder::Internal;
 
+namespace
+{
+    // A parent made of the same thing (both blood, both water) - the element
+    // traits the tag librarian hands on. A little more than a theme match: enough to
+    // pull a mod's blood spells onto one branch, not enough to outweigh an
+    // effect that is plainly the same spell a tier up.
+    // Measured on the 1,428-spell test load order (classic, seeds 1-3): same
+    // element clusters 333 -> 247 at 30, barely fewer above it (241 at 60),
+    // theme-sharing edges and tier gaps unchanged.
+    constexpr float kSharedElementBonus = 30.0f;
+
+    bool SharesElement(const TreeBuilder::TreeNode& a, const TreeBuilder::TreeNode& b)
+    {
+        const auto at = a.spellData.find("traits");
+        const auto bt = b.spellData.find("traits");
+        if (at == a.spellData.end() || bt == b.spellData.end() || !at->is_array() || !bt->is_array()) return false;
+        for (const auto& x : *at) {
+            if (!x.is_string() || !x.get_ref<const std::string&>().starts_with("element.")) continue;
+            for (const auto& y : *bt) {
+                if (y == x) return true;
+            }
+        }
+        return false;
+    }
+}
+
 // =============================================================================
 // CLASSIC BUILDER — Tier-First Tree Construction
 // =============================================================================
@@ -89,6 +115,8 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
                 score -= 10.0f;
             }
         }
+
+        if (SharesElement(node, *candidate)) score += kSharedElementBonus;
 
         // Combined NLP similarity
         float textSim = sims.GetTextSim(node.formId, candidate->formId);
@@ -294,6 +322,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 if (SharesTheme(orphanNode, cnode)) {
                     score += 15.0f;
                 }
+                if (SharesElement(orphanNode, cnode)) score += kSharedElementBonus;
 
                 score -= static_cast<float>(cnode.children.size()) * 8.0f;
 
