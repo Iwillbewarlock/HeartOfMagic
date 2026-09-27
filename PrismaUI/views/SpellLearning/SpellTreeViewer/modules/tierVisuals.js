@@ -6,7 +6,7 @@
  *   - Adept/Expert: diamond (larger, brighter; Expert gets double border)
  *   - Master: star (largest, brightest, glow ring)
  *
- * Used by SpellTreeRenderer (and optionally ClassicRenderer / TreeRenderer).
+ * Used by SpellTreeRenderer (and optionally ClassicRenderer).
  *
  * Depends on: nothing (self-contained utility)
  */
