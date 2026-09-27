@@ -284,6 +284,9 @@ frame. The repaint right after the caches go is not counted (`LayerBuild.noteRes
 `TreeStyle.set` - a design applied, Design Effects toggled -, `TreeStyle.fontsChanged` - a design's
 stylesheet or a web font arriving late - and `switchLocale`): it makes the sprites, patterns and text
 widths the first time (the 18-26 ms outlier below) and, counted, would keep a quick tree spread for good.
+When that uncounted repaint was slow (over `SYNC_MAX_MS`) the figure still goes just past `SYNC_MAX_MS`:
+the new design may be heavier (a light one to one with page, sigils and glow), and left low the next
+click was a repaint at once - one long frame; now it is spread, and its build sets the figure.
 A build swapped in early still made them, so it clears the flag too. With nothing measured yet - the
 session's first repaint, as the saved design is applied at start-up - its cost is the figure all the same,
 so a slow tree's first click is spread; later builds change it by the usual rule. Replacing that first

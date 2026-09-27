@@ -120,7 +120,16 @@ var LayerBuild = {
 
     /** A whole repaint was just done at once; it took `ms`. */
     noteSync: function(ms) {
-        if (!this._unmeasured || !(this._lastMs > 0)) this._lastMs = ms;
+        if (!this._unmeasured || !(this._lastMs > 0)) {
+            this._lastMs = ms;
+        } else if (ms > this.SYNC_MAX_MS) {
+            // Not counted, but slow: the design may be heavier than the last one
+            // (a light one to one with page, sigils and glow). The figure only goes
+            // just past SYNC_MAX_MS, so the next repaint is spread and its build
+            // says (a slower one raises it, a clearly quick one brings it down);
+            // left as it was, the next click was a repaint at once - a long frame
+            this._lastMs = Math.max(this._lastMs, this.SYNC_MAX_MS + 1);
+        }
         this._unmeasured = false;
         this._build = null;
         this._restarts = 0;

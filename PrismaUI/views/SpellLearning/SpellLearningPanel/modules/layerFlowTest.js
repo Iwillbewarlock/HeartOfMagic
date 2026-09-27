@@ -164,10 +164,16 @@ var LayerFlowTest = {
         B._swapIn(rr, built(40));
         this.check(B._lastMs === 40, 'a slower build raises it');
         // The repaint after a design or language change makes its sprites: not counted
-        B._lastMs = 3; B.noteRestyle(); B.noteSync(26);
+        B._lastMs = 3; B.noteRestyle(); B.noteSync(6);
         this.check(B._lastMs === 3 && !B._unmeasured, 'after a design change the first repaint at once is not counted');
         B.noteSync(5);
         this.check(B._lastMs === 5, '...the one after it is');
+        B._lastMs = 5; B.noteRestyle(); B.noteSync(26);
+        this.check(B._lastMs === B.SYNC_MAX_MS + 1 && !B._unmeasured,
+            'a slow one after a design change (maybe a heavier design): just past SYNC_MAX_MS, the next repaint spread');
+        B._swapIn(rr, built(20));
+        this.check(B._lastMs === 20, '...and that build says: slower raises it');
+        B._lastMs = 5;
         B._lastMs = 30; B.noteRestyle(); B._swapIn(rr, built(60));
         this.check(B._lastMs === 30 && !B._unmeasured, 'nor is a first build after it');
         var early = built(60); early.tiles = [[0, 0, 10, 10]];
