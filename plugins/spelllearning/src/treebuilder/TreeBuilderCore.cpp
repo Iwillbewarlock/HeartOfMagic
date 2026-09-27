@@ -59,7 +59,6 @@ json TreeBuilder::TreeNode::ToDict() const
 
     if (!name.empty()) result["name"] = name;
     if (!tier.empty() && tier != "Unknown") result["skillLevel"] = tier;
-    if (!section.empty()) result["section"] = section;
     if (!theme.empty()) result["theme"] = theme;
     if (!themes.empty()) result["themes"] = themes;
 

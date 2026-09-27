@@ -45,7 +45,6 @@ namespace TreeBuilder
         // (DropCommonThemes). Not written out. Unset = compare themes.
         std::vector<std::string> matchThemes;
         bool matchThemesSet = false;
-        std::string section;                     // "root", "trunk", "branch" (may be empty)
 
         std::vector<std::string> children;       // formIds of child nodes
         std::vector<std::string> prerequisites;  // formIds of prerequisite nodes
@@ -157,16 +156,6 @@ namespace TreeBuilder
     // TREE VALIDATION (replaced former validator.py)
     // =========================================================================
 
-    struct ValidationResult {
-        bool allValid = true;
-        int totalNodes = 0;
-        int reachableNodes = 0;
-        int unreachableCount = 0;
-        int cycleCount = 0;
-        std::vector<std::string> unreachableIds;
-        std::vector<std::string> warnings;
-    };
-
     // Simulate progressive unlock from root, return set of reachable formIds
     std::unordered_set<std::string> SimulateUnlocks(
         const std::unordered_map<std::string, TreeNode>& nodes,
@@ -176,16 +165,6 @@ namespace TreeBuilder
     std::vector<std::string> FindUnreachableNodes(
         const std::unordered_map<std::string, TreeNode>& nodes,
         const std::string& rootId);
-
-    // Detect cycles using DFS
-    std::vector<std::vector<std::string>> DetectCycles(
-        const std::unordered_map<std::string, TreeNode>& nodes);
-
-    // Validate a school tree (returns validation result)
-    ValidationResult ValidateSchoolTree(
-        const std::unordered_map<std::string, TreeNode>& nodes,
-        const std::string& rootId,
-        int maxChildren);
 
     // Fix unreachable nodes by removing blocking prereqs and reconnecting
     int FixUnreachableNodes(
