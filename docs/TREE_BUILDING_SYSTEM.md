@@ -903,7 +903,8 @@ anything `_gapFan` decides (that uses `asin`, which the two engines may round di
 are measured: on the test and made-up trees native time is 2.3-3.5 ns a unit (the gather-heavy and
 cost-heavy trees alike), and up to 5.7 on a random tree of 3,000 spells. The heaviest test tree
 (`s_synth5`, random parents across a quadrant) takes 0.86e9 (2.5 s native), the game's 1,428-spell tree
-0.04e9; no test tree comes near the cap (the next heaviest are 0.65e9 and below). Trees it has stopped:
+0.04e9; no test tree comes near the cap (the next heaviest test tree 0.65e9; of the made-up trees, the long lines
+fanning out 1.53e9 and the long lines across the middle 1.99e9 stay under it). Trees it has stopped:
 random trees of 2,354, 3,123 and 4,155 spells (the 3,123: 32.6 s → 11.7 s native, 25 s in node; the others
 8.7 s and 13.3 s native, the push-apart rounds included), and the long lines across the middle once they
 are 5,000 long or more (up to 19 s → 5.8 s). The reply and the script's result
