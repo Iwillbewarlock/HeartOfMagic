@@ -8,7 +8,8 @@
  * Every effect here is off unless a design preset turns it on (see the Book and
  * Page tokens in TreeStyle.DEFAULTS).
  *
- * Depends on: TreeStyle, state (globe position), settings, t() (optional)
+ * Depends on: TreeStyle, state (globe position), settings, t() (optional),
+ * CanvasRenderer (optional: its size and frames, for painting the page)
  */
 
 (function() {
@@ -16,93 +17,214 @@
         // =========================================================================
         // PAGE - drawn once into a texture, pasted every frame in place of the stars
         // =========================================================================
+        //
+        // The texture costs 25-30 ms to paint on a CPU canvas (the grain's 40 soft
+        // blotches, the light in the middle and the dark edges, each a gradient over
+        // much of the screen) - one long frame on a design switch, and again when the
+        // corner drawing arrived. It is painted over several frames instead
+        // (stepPage): the same calls in the same order, the blotches one by one and
+        // the two full-page gradients in bands, so the finished texture is the same
+        // to the pixel. Meanwhile the page shows the texture it had if it is of the
+        // same colour (a resize, the corner drawing arriving), else the plain colour.
+        // While the tree is not drawn (the design picked on the settings tab, the
+        // panel hidden) a timer paints it in small slices, so it is usually ready
+        // when the tree is shown again.
 
-        _page: null,
-        _pageKey: '',
+        PAGE_TARGET_FRAME_MS: 8,  // a frame's steps fill it up to this from its start, after the tree (one step at least)
+        PAGE_BAND_PX: 128,        // the full-page gradients are painted in bands this tall (css px)
+        PAGE_IDLE_STEP_MS: 4,     // the timer's slice while the tree is not drawn
+        PAGE_IDLE_TICK_MS: 16,    // ...one a tick
+        PAGE_IDLE_AFTER_MS: 100,  // ...counted as not drawn when no frame came for this long
+        PAGE_BLOTCHES: 40,
+        PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
+
+        _page: null,              // the finished texture
+        _pageKey: '',             // its size, "w x h"
+        _pageLook: '',            // the tokens it was painted with (_pageLookKey)
+        _pageColor: '',           // its colour (what may stand in while another is painted)
+        _pageJob: null,           // the texture being painted: { key, look, canvas, g, w, h, steps, next, rnd }
+        _pageTimer: 0,
+
+        /** What the texture depends on besides its size: the page tokens and whether the corner drawing is in. */
+        _pageLookKey: function() {
+            var t = this.tokens;
+            return [t.pageColor, t.pageGrain, t.pageGrainColor, t.pageGlow, t.pageGlowAlpha, t.pageGlowRadius,
+                    t.pageEdge, t.pageEdgeAlpha, t.pageOrnament, this._image(t.pageOrnament) ? 1 : 0].join('|');
+        },
+
+        /** Is the finished texture the one this size and these tokens want? */
+        _pageReady: function(w, h) {
+            return !!this._page && this._pageKey === w + 'x' + h && this._pageLook === this._pageLookKey();
+        },
 
         /**
          * Paint the page behind the tree. Returns false when the preset has no page,
          * so the caller draws the starfield as before. One drawImage a frame, and no
          * frames of its own: a still page needs none, where the starfield asks for 20.
+         * The texture is painted by stepPage; until it is done the old one of the
+         * same colour stands in (stretched to the size), or the plain colour.
          */
         renderPage: function(ctx, w, h) {
             var t = this.tokens;
             if (!t.pageColor) return false;
-            var key = w + 'x' + h;
-            if (!this._page || this._pageKey !== key) {
-                this._page = this._buildPage(w, h);
-                this._pageKey = key;
-                this._pageBuilds = (this._pageBuilds || 0) + 1;   // StaticBase notices a new page
-            }
-            if (!this._page) {
+            if (this._page && this._pageColor === t.pageColor) {
+                ctx.drawImage(this._page, 0, 0, w, h);
+            } else {
                 ctx.fillStyle = t.pageColor;
                 ctx.fillRect(0, 0, w, h);
-                return true;
             }
-            ctx.drawImage(this._page, 0, 0, w, h);
             return true;
         },
 
-        _buildPage: function(w, h) {
-            var t = this.tokens;
+        /**
+         * Paint the texture on for w x h: steps until `budget` ms past `since` (one
+         * at least). Returns 'none' (no page, or it is ready), 'pending' or 'done'
+         * (swapped in just now). Called by a frame after its tree (CanvasRenderer.render)
+         * and by the idle timer; either way the next frame is asked for.
+         */
+        stepPage: function(w, h, since, budget) {
+            if (!this.tokens.pageColor || !(w > 0 && h > 0)) { this._pageJob = null; return 'none'; }
+            if (this._pageReady(w, h)) { this._pageJob = null; return 'none'; }
+            var key = w + 'x' + h, look = this._pageLookKey();
+            var job = this._pageJob;
+            if (!job || job.key !== key || job.look !== look) {
+                job = this._pageJob = this._startPage(w, h, key, look);
+                if (!job) return 'none';            // no canvas: renderPage keeps the plain colour
+            }
+            var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
             try {
-                var c = document.createElement('canvas');
+                do {
+                    this._pageStep(job, job.steps[job.next++]);
+                } while (job.next < job.steps.length && now() - since < budget);
+            } catch (e) {
+                this._pageJob = null;
+                this._pageFailed = true;
+                return 'none';
+            }
+            // The next frame, to go on or to show the texture, without marking the
+            // tree changed (the tree layer does not show the page)
+            if (typeof CanvasRenderer !== 'undefined') {
+                CanvasRenderer.__needsRender = true;
+                CanvasRenderer._animationOnlyRender = false;
+            }
+            if (job.next < job.steps.length) return 'pending';
+            this._page = job.canvas;
+            this._pageKey = key;
+            this._pageLook = look;
+            this._pageColor = this.tokens.pageColor;
+            this._pageBuilds = (this._pageBuilds || 0) + 1;   // StaticBase notices a new page
+            this._pageJob = null;
+            return 'done';
+        },
+
+        /** A texture to paint: its canvas and its steps, in the order the page is drawn. Null if no canvas can be made. */
+        _startPage: function(w, h, key, look) {
+            if (this._pageFailed) return null;
+            var t = this.tokens, c, g;
+            try {
+                c = document.createElement('canvas');
                 c.width = Math.max(1, Math.round(w));
                 c.height = Math.max(1, Math.round(h));
-                var g = c.getContext('2d');
-                var big = Math.max(w, h);
-                g.fillStyle = t.pageColor;
-                g.fillRect(0, 0, w, h);
+                g = c.getContext('2d');
+                if (!g) throw new Error('no 2d context');
+            } catch (e) {
+                this._pageFailed = true;
+                return null;
+            }
+            var steps = [['fill']], i, y;
+            if (t.pageGrain > 0) {
+                for (i = 0; i < this.PAGE_BLOTCHES; i++) steps.push(['blotch']);
+                steps.push(['fibres']);
+            }
+            // Bands with whole-pixel edges inside the page and its own edges outside:
+            // a gradient is a function of the pixel, so the bands add up to the one rect
+            var band = this.PAGE_BAND_PX;
+            if (t.pageGlow) for (y = 0; y < h; y += band) steps.push(['glow', y, Math.min(y + band, h)]);
+            steps.push(['ornaments']);
+            if (t.pageEdgeAlpha > 0) for (y = 0; y < h; y += band) steps.push(['edge', y, Math.min(y + band, h)]);
+            var seed = this.PAGE_SEED;
+            return {
+                key: key, look: look, canvas: c, g: g, w: w, h: h, steps: steps, next: 0,
+                rnd: function() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+            };
+        },
 
-                if (t.pageGrain > 0) {
-                    // Seeded, so the page looks the same every time it is rebuilt
-                    var seed = 1234567;
-                    var rnd = function() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-                    var i;
-                    // Blotches: uneven ink absorption
-                    for (i = 0; i < 40; i++) {
-                        var bx = rnd() * w, by = rnd() * h, br = big * (0.04 + rnd() * 0.12);
-                        var bg = g.createRadialGradient(bx, by, 0, bx, by, br);
-                        bg.addColorStop(0, this._rgba(t.pageGrainColor, 0.07 * t.pageGrain));
-                        bg.addColorStop(1, this._rgba(t.pageGrainColor, 0));
-                        g.fillStyle = bg;
-                        g.fillRect(bx - br, by - br, br * 2, br * 2);
-                    }
-                    // Fibres, one path
+        /** One step of the texture: the page's drawing calls, as they were made in one go. */
+        _pageStep: function(job, step) {
+            var t = this.tokens, g = job.g, w = job.w, h = job.h, big = Math.max(w, h), rnd = job.rnd;
+            switch (step[0]) {
+                case 'fill':
+                    g.fillStyle = t.pageColor;
+                    g.fillRect(0, 0, w, h);
+                    break;
+                case 'blotch':
+                    // Uneven ink absorption (the seeded numbers are taken in the same order)
+                    var bx = rnd() * w, by = rnd() * h, br = big * (0.04 + rnd() * 0.12);
+                    var bg = g.createRadialGradient(bx, by, 0, bx, by, br);
+                    bg.addColorStop(0, this._rgba(t.pageGrainColor, 0.07 * t.pageGrain));
+                    bg.addColorStop(1, this._rgba(t.pageGrainColor, 0));
+                    g.fillStyle = bg;
+                    g.fillRect(bx - br, by - br, br * 2, br * 2);
+                    break;
+                case 'fibres':
+                    // One path
                     g.strokeStyle = this._rgba(t.pageGrainColor, 0.1 * t.pageGrain);
                     g.lineWidth = 0.6;
                     g.beginPath();
                     var fibres = Math.round(w * h / 600);
-                    for (i = 0; i < fibres; i++) {
+                    for (var i = 0; i < fibres; i++) {
                         var fx = rnd() * w, fy = rnd() * h, fa = rnd() * Math.PI, fl = 2 + rnd() * 7;
                         g.moveTo(fx, fy);
                         g.lineTo(fx + Math.cos(fa) * fl, fy + Math.sin(fa) * fl);
                     }
                     g.stroke();
-                }
-
-                if (t.pageGlow) {
-                    var cg = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, big * t.pageGlowRadius);
-                    cg.addColorStop(0, this._rgba(t.pageGlow, t.pageGlowAlpha));
-                    cg.addColorStop(0.55, this._rgba(t.pageGlow, t.pageGlowAlpha * 0.35));
-                    cg.addColorStop(1, this._rgba(t.pageGlow, 0));
-                    g.fillStyle = cg;
-                    g.fillRect(0, 0, w, h);
-                }
-
-                this._drawOrnaments(g, w, h);
-
-                if (t.pageEdgeAlpha > 0) {
-                    var vg = g.createRadialGradient(w / 2, h / 2, big * 0.3, w / 2, h / 2, big * 0.75);
-                    vg.addColorStop(0, this._rgba(t.pageEdge, 0));
-                    vg.addColorStop(1, this._rgba(t.pageEdge, t.pageEdgeAlpha));
-                    g.fillStyle = vg;
-                    g.fillRect(0, 0, w, h);
-                }
-                return c;
-            } catch (e) {
-                return null;
+                    break;
+                case 'glow':
+                    if (!job.glow) {
+                        job.glow = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, big * t.pageGlowRadius);
+                        job.glow.addColorStop(0, this._rgba(t.pageGlow, t.pageGlowAlpha));
+                        job.glow.addColorStop(0.55, this._rgba(t.pageGlow, t.pageGlowAlpha * 0.35));
+                        job.glow.addColorStop(1, this._rgba(t.pageGlow, 0));
+                    }
+                    g.fillStyle = job.glow;
+                    g.fillRect(0, step[1], w, step[2] - step[1]);
+                    break;
+                case 'ornaments':
+                    this._drawOrnaments(g, w, h);
+                    break;
+                case 'edge':
+                    if (!job.edge) {
+                        job.edge = g.createRadialGradient(w / 2, h / 2, big * 0.3, w / 2, h / 2, big * 0.75);
+                        job.edge.addColorStop(0, this._rgba(t.pageEdge, 0));
+                        job.edge.addColorStop(1, this._rgba(t.pageEdge, t.pageEdgeAlpha));
+                    }
+                    g.fillStyle = job.edge;
+                    g.fillRect(0, step[1], w, step[2] - step[1]);
+                    break;
             }
+        },
+
+        /**
+         * While the tree is not drawn (settings tab, hidden panel) the texture is
+         * painted by a timer, a slice a tick; while frames come, they paint it.
+         */
+        _pageIdleLater: function() {
+            if (this._pageTimer || typeof setTimeout !== 'function') return;
+            var self = this;
+            this._pageTimer = setTimeout(function() { self._pageTimer = 0; self._pageIdleTick(); }, this.PAGE_IDLE_TICK_MS);
+        },
+
+        _pageIdleTick: function() {
+            var r = typeof CanvasRenderer !== 'undefined' ? CanvasRenderer : null;
+            if (!r || !this.tokens.pageColor) return;
+            var w = r._width, h = r._height;
+            if (!(w > 0 && h > 0) || this._pageReady(w, h)) return;
+            var now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (r._frameStartAt && now - r._frameStartAt < this.PAGE_IDLE_AFTER_MS) {
+                this._pageIdleLater();              // frames are coming: they paint it
+                return;
+            }
+            if (this.stepPage(w, h, now, this.PAGE_IDLE_STEP_MS) === 'pending') this._pageIdleLater();
         },
 
         // =========================================================================
@@ -110,7 +232,8 @@
         // =========================================================================
         //
         // Loaded once; until an image arrives nothing is drawn in its place, and when it
-        // does the page is rebuilt and the view drawn once more. Both drawings are paid
+        // does the page is painted again over the next frames (stepPage) and a frame is
+        // asked for (the heart's emblem shows on it). Both drawings are paid
         // for once: the corners go into the page texture, the heart emblem into a sprite
         // already at its on-screen size, so a frame costs one small blit at most.
 
@@ -125,9 +248,18 @@
                 entry = this._images[src] = { img: img, ok: false };
                 img.onload = function() {
                     entry.ok = true;
-                    self._page = null;                    // rebuilt with the drawing on the next frame
+                    // The page is painted again with the drawing over the next frames (its
+                    // look changed; the old texture stays up meanwhile), the heart's emblem
+                    // is drawn with the hub. A frame is asked for without marking the tree
+                    // changed (the tree layer shows neither): drawing one here, at once, was
+                    // a whole repaint of the page in the middle of a glide - a long frame -
+                    // and marking the tree restarted the glide's build
                     self._emblemSprite = null;
-                    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.forceRender) CanvasRenderer.forceRender();
+                    if (typeof CanvasRenderer !== 'undefined') {
+                        CanvasRenderer.__needsRender = true;
+                        CanvasRenderer._animationOnlyRender = false;
+                    }
+                    self._pageIdleLater();
                 };
                 img.src = src;
             }

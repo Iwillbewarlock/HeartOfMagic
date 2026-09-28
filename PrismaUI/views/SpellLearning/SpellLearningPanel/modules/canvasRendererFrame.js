@@ -101,6 +101,13 @@
                 viewLeft: viewLeft, viewRight: viewRight, viewTop: viewTop, viewBottom: viewBottom
             }, bgPending);
 
+            // The design's page texture, when a new one is wanted, is painted in what
+            // the tree's pieces left of the frame (TreeStyle.stepPage, one step at
+            // least); it shows from the next frame, asked for then
+            if (typeof TreeStyle.stepPage === 'function') {
+                TreeStyle.stepPage(width, height, startTime, TreeStyle.PAGE_TARGET_FRAME_MS);
+            }
+
             // =====================================================================
             // RENDER CENTER HUB ON TOP (does NOT rotate with wheel) - with heartbeat
             // =====================================================================

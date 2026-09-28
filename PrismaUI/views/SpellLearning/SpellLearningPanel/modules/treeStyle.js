@@ -145,7 +145,15 @@ var TreeStyle = {
         this.tokens = t;
         this._spriteCache = {};
         this._inkCache = {};
-        this._page = null;
+        // The page texture is kept while its look stays (an effect other than the
+        // page toggled); a new one is painted over frames (treeStyleBook.js, stepPage),
+        // started now by a timer in case the tree is not being drawn (settings tab)
+        if (!t.pageColor) {
+            this._page = null;
+            this._pageJob = null;
+        } else if (this._pageIdleLater) {
+            this._pageIdleLater();
+        }
         // The next repaint makes the sprites and patterns again: not a measure of the tree
         if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
         // Node buckets hold each spell's colour; they have to take the new ink

@@ -26,8 +26,8 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 2059 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
-| `treeStyle.js` | 477 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 317 | Spellbook effects added to `TreeStyle`: page, chapter titles, ornament dividers, hub emblem, page ornaments |
+| `treeStyle.js` | 485 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
+| `treeStyleBook.js` | 449 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles, ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 248 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 392 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
@@ -36,6 +36,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `layoutLineGrid.js` | 450 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
 | `canvasCullTest.js` | 133 | Node tests for the culling index: the spells and lines a box gets from the grids are exactly those the full loop draws, in order; rebuilt when the lists change; not used in edit mode |
 | `layerFlowTest.js` | 311 | Node tests for how a frame gets its tree layer: LayerScroll's shift and piece queue, `_drawTree`'s order (scroll, spread build, at once, stale build dropped, glide build and restart, restart cap, urgent build, leftover pieces drawn on a stretched frame or left waiting) |
+| `pageBuildTest.js` | 172 | Node tests for the design page painted over frames (`TreeStyle.stepPage`): step order, bands adding up to the one rect, what stands in meanwhile, look changes, frames asked for without marking the tree, the idle timer |
 | `layoutDeclutterTest.js` | 362 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
@@ -44,7 +45,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `canvasRendererInput.js` | 464 | Mouse and wheel events, screen to world, hit testing (`findNodeAt`), hover, tooltip |
 | `canvasRendererSelect.js` | 177 | Selecting a spell and focusing on it, the dependency path sets, turning the wheel |
 | `canvasRendererData.js` | 506 | `setData`: lookup maps, school angles, fallback spiral layout, discovery set, spatial index; level of detail and node buckets; the culling index (`_cullIndex`: spell and line grids, each line's spells and key) so a strip or piece looks only at what is near it |
-| `canvasRendererFrame.js` | 481 | `render()`, background, the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
+| `canvasRendererFrame.js` | 488 | `render()`, background (the page's texture painted after the tree, `TreeStyle.stepPage`), the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
 | `canvasRendererMoving.js` | 384 | What moves every frame over the layer: learning path animation, particles, sigil spots (FxLayer), the heart and its beat, particle core |
 | `canvasRendererDividers.js` | 130 | School dividers, debug grid |
 | `canvasRendererEdges.js` | 439 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |

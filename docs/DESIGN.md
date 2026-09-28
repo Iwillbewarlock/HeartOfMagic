@@ -299,6 +299,34 @@ canvases): the 33-40 ms frame is gone; frames after a click or zoom stop are 3-9
 18-26 ms outlier right after a design switch (sprites, patterns and text widths made the first time).
 Unlike the dropped "recording the calls" attempt below, each piece is a culled repaint of its own box.
 
+**The design page painted over frames** (`TreeStyle.stepPage`, `modules/treeStyleBook.js`, 2026-09-28).
+A page design's texture (Arcane, Night Grimoire, Chalkboard) costs 25-30 ms to paint on a CPU canvas at
+1640x1160 - the grain's 40 soft blotches 13 ms, the light in the middle and the dark edges about 6 ms
+each (gradients over most of the screen), the colour, fibres and corners 1-2 ms. It used to be painted
+whole in the first frame after a design switch - with the build's first piece, a 35-50 ms frame, often
+the frame of the next click - and again when the page's corner drawing finished loading, which in game
+can land mid-glide: the image's `onload` drew a whole frame there and then (`forceRender`), page
+included, and marked the tree changed, which restarted the glide's build. Now the texture is painted in
+steps, the same calls in the same order - the colour, each blotch, the fibres (one stroke), the light in
+`PAGE_BAND_PX` (128) bands, the corners, the dark edges in bands - into a canvas of its own, and swapped
+in (`_pageBuilds` + 1, so `StaticBase` notices) when the last step is done. A gradient is a function of
+the pixel, so the bands, with whole-pixel edges inside the page and the page's own edges outside, add up
+to the one rect: the finished texture is pixel-identical to the one painted in one go (compared in the
+bench for the three page designs at 1640x1160, 1641x1159, 1280x720 and 1000.5x700.25, corners loaded:
+no byte differs). A frame paints steps after its tree (LayerBuild's pieces), up to
+`PAGE_TARGET_FRAME_MS` (8) from the frame's start, one step at least (the largest, a big blotch, is about
+1 ms), and asks for the next frame without marking the tree changed; it takes 9-12 frames at that size.
+Meanwhile the page shows the texture it had if that is of the same colour (a resize, the corner drawing
+arriving: the page without corners stays until the one with them is done), else the design's plain
+colour. The texture is kept while its look stays (the page tokens and whether the corner drawing is in,
+`_pageLookKey`): toggling a Design Effect other than the page no longer repaints it, and a design
+without a page drops it. The design is picked on the settings tab, where the tree's render loop is
+stopped, so `TreeStyle.set` also starts a timer that paints it in `PAGE_IDLE_STEP_MS` (4) slices, one
+every 16 ms, while no frame has come for `PAGE_IDLE_AFTER_MS` (100): by the time the player is back on
+the tree the texture is usually ready and the switch looks as it did. The corner drawing's `onload`
+now asks for a frame through the backing field (`__needsRender`) and starts that timer - no frame drawn
+inside the image callback, the tree not marked changed.
+
 **Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all
 under 600 lines: `canvasRendererV2.js` holds its state and constants, start-up, canvas size, the render
 loop, the public calls and the `_needsRender` accessor; each `canvasRenderer*.js` file after it is an IIFE
@@ -597,12 +625,13 @@ screen into the page: flat parchment, sepia words, a leather button). Other desi
 empty and are unchanged.
 
 What each costs in game, by design:
-- Corners: drawn once into the page texture (`TreeStyle._buildPage`), which is already pasted once per
-  frame; nothing per frame.
+- Corners: drawn into the page texture (`TreeStyle.stepPage`, painted over a few frames - see
+  *The design page painted over frames* above), which is already pasted once per frame; nothing per frame.
 - Heart: shrunk once to its on-screen size in device pixels (halving step by step, so the dots stay a
   clean tone) into a sprite, rebuilt only when that size changes by 8 px; a frame pastes it 1:1.
-- Images load asynchronously; until one arrives the old drawing (text, bare page) shows, then the page
-  is rebuilt and the view drawn once.
+- Images load asynchronously; until one arrives the old drawing (text, bare page) shows, then a frame is
+  asked for (the emblem shows on it) and the page is painted again with the corners over the next frames,
+  the page without them up meanwhile.
 
 Night Grimoire carries the same three drawings as single-line (Mellan) engravings in its gold `#d9b35e`
 on the indigo page (`themes/nightgrimoire/`, set in `presets/design/NightGrimoire.json`: the two tree
@@ -842,8 +871,9 @@ What it costs, with the tree layer in mind (see *Performance* above):
 - **Edges are batched.** Pass 1 of `renderEdges` groups edges by look and strokes each group as one
   path - a dozen strokes instead of one per edge. It paid for the rest: on the 1,315-spell desktop test
   tree a full redraw is 3.4 ms under both presets (Classic 1,122 paint calls, Arcane 1,037).
-- **The page replaces the starfield.** It is drawn once into a texture per canvas size and pasted, and
-  it asks for no frames; the starfield asked for 20 a second. Idle frames went from 409 paint calls to
+- **The page replaces the starfield.** It is painted once into a texture per canvas size and look (over
+  a few frames, `TreeStyle.stepPage`) and pasted, and a finished page asks for no frames; the starfield
+  asked for 20 a second. Idle frames went from 409 paint calls to
   213 (what is left is the globe).
 - **Moving parts sit on top of the layer.** The selection sigil and the learning glow
   (`TreeStyle.renderOverlay`) are painted after the layer is pasted, a handful of calls, and only move

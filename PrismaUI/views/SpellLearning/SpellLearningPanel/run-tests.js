@@ -64,6 +64,7 @@ loadModule('canvasRendererEdges', './modules/canvasRendererEdges.js');
 loadModule('canvasRendererFrame', './modules/canvasRendererFrame.js');
 loadModule('canvasCullTest', './modules/canvasCullTest.js');
 loadModule('layerFlowTest', './modules/layerFlowTest.js');
+loadModule('pageBuildTest', './modules/pageBuildTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -137,6 +138,11 @@ if (typeof UnificationTest !== 'undefined') {
         var flow = LayerFlowTest.run();
         results.failed += flow.failed;
         console.log('LayerFlow: ' + flow.passed + ' passed, ' + flow.failed + ' failed');
+    }
+    if (typeof PageBuildTest !== 'undefined') {
+        var pageBuild = PageBuildTest.run();
+        results.failed += pageBuild.failed;
+        console.log('PageBuild: ' + pageBuild.passed + ' passed, ' + pageBuild.failed + ' failed');
     }
 
     // Exit with appropriate code
