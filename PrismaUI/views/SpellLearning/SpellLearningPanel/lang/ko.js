@@ -3,7 +3,7 @@ window._i18nPreload = {
     "_meta.language": "한국어",
     "_meta.locale": "ko",
     "_meta.author": "Claude (기계 번역)",
-    "_meta.version": "2.4.0",
+    "_meta.version": "1.0.0",
     "buildProgress.analyzingSpellRelationships": "주문 관계 분석 중...",
     "buildProgress.buildFailed": "구축 실패",
     "buildProgress.close": "닫기",

@@ -1,4 +1,7 @@
-# Heart of Magic - Spell Learning & Progression
+# Heart of Magic Librarian
+
+A rebuild of Heart of Magic by DinkelZombie.
+
 
 Heart of Magic transforms spell learning into an active journey of practice and growth. The mod scans every spell in your load order, generates a personalized skill tree with intelligent prerequisites, and tracks your progress as you cast and practice magic.
 

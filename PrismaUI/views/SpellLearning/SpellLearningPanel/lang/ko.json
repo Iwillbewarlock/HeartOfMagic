@@ -3,7 +3,7 @@
         "language": "한국어",
         "locale": "ko",
         "author": "Claude (기계 번역)",
-        "version": "2.4.0"
+        "version": "1.0.0"
     },
     "buildProgress.analyzingSpellRelationships": "주문 관계 분석 중...",
     "buildProgress.buildFailed": "구축 실패",

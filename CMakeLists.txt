@@ -57,7 +57,9 @@ find_package(hwy CONFIG REQUIRED)
 # ============================================================================
 
 set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
-set(DIST_VERSION_DIR "${DIST_DIR}/${PROJECT_NAME}_${PROJECT_VERSION}")
+# The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
+set(DIST_NAME "HeartOfMagic-Librarian")
+set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
