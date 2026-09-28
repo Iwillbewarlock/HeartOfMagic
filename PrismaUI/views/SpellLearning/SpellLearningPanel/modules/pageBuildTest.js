@@ -81,6 +81,7 @@ var PageBuildTest = {
         var w = 1000.5, h = 700.25, calls = 0, state;
         log.length = 0;
         cr._treeDirty = false;                    // (set() marks the tree: new colours)
+        timers.length = 0; T._pageTimer = 0;
         do { cr.__needsRender = false; state = T.stepPage(w, h, 0, -1); calls++; }
         while (state === 'pending' && calls < 500);
         var steps = T._pageBuilds === 1 && T._page ? calls : -1;
@@ -89,6 +90,7 @@ var PageBuildTest = {
             'no time left: one step a frame (colour, 40 blotches, fibres, light and dark edges in bands, corners), then swapped in');
         this.check(cr.__needsRender === true && cr._treeDirty === false && cr._animationOnlyRender === false,
             'the next frame is asked for, unthrottled, without marking the tree changed');
+        this.check(timers.length === 1 && T._pageTimer === 1, '...and the idle timer, should the frames stop before it is done');
         var order = log.filter(function(c) { return /^(fillRect|stroke|drawImage)/.test(c); }).map(function(c) { return c.split('(')[0]; });
         var strokeAt = order.indexOf('stroke');
         this.check(order[0] === 'fillRect' && strokeAt === 1 + T.PAGE_BLOTCHES && order.length === strokeAt + 1 + 2 * bands &&

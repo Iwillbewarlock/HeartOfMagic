@@ -107,7 +107,12 @@
                 CanvasRenderer.__needsRender = true;
                 CanvasRenderer._animationOnlyRender = false;
             }
-            if (job.next < job.steps.length) return 'pending';
+            if (job.next < job.steps.length) {
+                // ...and the idle timer, should the frames stop (the panel hidden right after
+                // the tree was loaded and drawn once, another tab): it leaves it to them while they come
+                this._pageIdleLater();
+                return 'pending';
+            }
             this._page = job.canvas;
             this._pageKey = key;
             this._pageLook = look;

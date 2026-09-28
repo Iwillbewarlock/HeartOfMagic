@@ -324,7 +324,10 @@ colour. The texture is kept while its look stays (the page tokens and whether th
 without a page drops it. The design is picked on the settings tab, where the tree's render loop is
 stopped, so `TreeStyle.set` also starts a timer that paints it in `PAGE_IDLE_STEP_MS` (4) slices, one
 every 16 ms, while no frame has come for `PAGE_IDLE_AFTER_MS` (100): by the time the player is back on
-the tree the texture is usually ready and the switch looks as it did. The corner drawing's `onload`
+the tree the texture is usually ready and the switch looks as it did. A texture left pending by frames
+that stopped (the tree loaded and drawn once while the panel is still hidden, another tab) keeps that
+timer going, and a canvas that gets its size (`updateCanvasSize`) starts it, so the first open of a
+session finds the texture painted too. The corner drawing's `onload`
 now asks for a frame through the backing field (`__needsRender`) and starts that timer - no frame drawn
 inside the image callback, the tree not marked changed.
 

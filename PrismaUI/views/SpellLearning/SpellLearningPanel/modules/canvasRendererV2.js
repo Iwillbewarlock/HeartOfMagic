@@ -316,6 +316,10 @@ var CanvasRenderer = {
         this._width = width;
         this._height = height;
         this._needsRender = true;
+        // A design page for this size can be painted now, frames or not (TreeStyle.stepPage)
+        if (typeof TreeStyle !== 'undefined' && TreeStyle._pageIdleLater && TreeStyle.tokens && TreeStyle.tokens.pageColor) {
+            TreeStyle._pageIdleLater();
+        }
     },
 
     // =========================================================================
