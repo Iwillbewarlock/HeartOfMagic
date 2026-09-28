@@ -12,7 +12,7 @@ project(
     LANGUAGES CXX
 )
 
-set(PLUGIN_AUTHOR "DinkelZombie")
+set(PLUGIN_AUTHOR "Iwillbewarlock (original by Dinkel Zombie)")
 
 # ============================================================================
 # Build Configuration

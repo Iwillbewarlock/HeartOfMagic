@@ -1,6 +1,6 @@
 # Heart of Magic Librarian
 
-A rebuild of [Heart of Magic - Spell Learning System](https://www.nexusmods.com/skyrimspecialedition/mods/171146) by DinkelZombie.
+A rebuild of [Heart of Magic - Spell Learning System](https://www.nexusmods.com/skyrimspecialedition/mods/171146) by Dinkel Zombie.
 
 
 Heart of Magic transforms spell learning into an active journey of practice and growth. The mod scans every spell in your load order, generates a personalized skill tree with intelligent prerequisites, and tracks your progress as you cast and practice magic.
@@ -206,7 +206,7 @@ HeartOfMagic/
 
 ## Credits
 
-- **DinkelZombie** - [Heart of Magic](https://www.nexusmods.com/skyrimspecialedition/mods/171146), the mod this is rebuilt from
+- **Dinkel Zombie** - [Heart of Magic](https://www.nexusmods.com/skyrimspecialedition/mods/171146), the mod this is rebuilt from
 - **langfod** - the move from Python to native C++ and the thread-safety work in Heart of Magic
 - Fonts in the designs: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS); licence texts ship beside them in `themes/`
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64

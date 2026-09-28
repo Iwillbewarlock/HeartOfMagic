@@ -2,7 +2,7 @@
 
 ## Heart of Magic Librarian 1.0.0
 
-A rebuild of Heart of Magic by DinkelZombie. Compared with Heart of Magic v2.5 ("depythoned", Nexus,
+A rebuild of Heart of Magic by Dinkel Zombie. Compared with Heart of Magic v2.5 ("depythoned", Nexus,
 March 2026). Requirements are unchanged: SKSE64, Address Library, PrismaUI, Skyrim SE 1.5.97 or AE.
 Still no ESP, no Python, no API key.
 
