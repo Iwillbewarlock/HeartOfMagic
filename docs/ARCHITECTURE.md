@@ -795,7 +795,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `state.js` | `settings`, `state`, `customProfiles`, `xpOverrides`, `pluginWhitelist` |
 | `config.js` | `TREE_CONFIG` layout and visual configuration, hotkey `KEY_CODES` |
 | **Tree building (user-facing)** | |
-| `classic/*.js`, `treeGrowth.js` | **Build Tree:** the Classic growth mode (sends `build_tree_classic`, lays out and saves the result) and its orchestrator |
+| `classic/*.js`, `treeGrowth.js`, `treeGrowthStatus.js` | **Build Tree:** the Classic growth mode (sends `build_tree_classic`, lays out and saves the result), its orchestrator and the orchestrator's status line |
 | `shapeProfiles.js` | 12 shape profiles (organic, explosion, tree, mountain, portals, spiky, radial, cloud, cascade, swords, grid, linear) read by WheelRenderer |
 | `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete` (hands the C++ result to Classic) |
 | **Parsers & rendering** | |
@@ -820,7 +820,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `unificationTest.js` | Shape profile / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth/treeGrowthStatus → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, tree building, PreReq Master
