@@ -166,8 +166,24 @@ var PageBuildTest = {
         T._pageIdleTick();
         this.check(T._pageJob.next === next && timers.length === 1, 'frames coming: the timer leaves the painting to them');
 
+        // The timer stops: the texture done, no size, no page; a failed canvas is tried again for a new look
+        T.PAGE_IDLE_STEP_MS = 1e9; cr._frameStartAt = 0;
+        timers.length = 0; T._pageTimer = 0;
+        T._pageIdleTick();
+        this.check(T._pageReady(900, 650) && timers.length === 0, 'the texture done: the timer does not come back');
+        cr._width = 0; T._pageFailed = false;
+        T._pageIdleTick();
+        this.check(timers.length === 0, 'no canvas size: the timer does not come back (a size starts it)');
+        T._pageFailed = true; cr._width = 900; cr._height = 400;
+        T._pageIdleTick();
+        this.check(timers.length === 0 && !T._pageJob, 'a canvas that failed: no timer, no painting');
+        T.set(page);
+        this.check(T._pageFailed === false, '...until a design is applied again');
         T.set({});
-        this.check(!T._page && !T._pageJob && T.renderPage(screen, w, h) === false, 'a design without a page drops the texture');
+        timers.length = 0; T._pageTimer = 0;
+        T._pageIdleTick();
+        this.check(!T._page && !T._pageJob && T.renderPage(screen, w, h) === false && timers.length === 0,
+            'a design without a page drops the texture, and the timer stops');
     }
 };
 

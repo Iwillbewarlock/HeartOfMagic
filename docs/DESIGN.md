@@ -314,12 +314,16 @@ in (`_pageBuilds` + 1, so `StaticBase` notices) when the last step is done. A gr
 the pixel, so the bands, with whole-pixel edges inside the page and the page's own edges outside, add up
 to the one rect: the finished texture is pixel-identical to the one painted in one go (compared in the
 bench for the three page designs at 1640x1160, 1641x1159, 1280x720 and 1000.5x700.25, corners loaded:
-no byte differs). A frame paints steps after its tree (LayerBuild's pieces), up to
-`PAGE_TARGET_FRAME_MS` (8) from the frame's start, one step at least (the largest, a big blotch, is about
-1 ms), and asks for the next frame without marking the tree changed; it takes 9-12 frames at that size.
+no byte differs; in Chrome - the game's engine was not compared, though the calls are the same). A frame paints steps after its tree (LayerBuild's pieces), up to
+`PAGE_TARGET_FRAME_MS` (8) from the frame's start, one step at least (the largest - the fibres, one
+stroke, or a big blotch - are 1-1.5 ms at 1640x1160 and grow with the screen's area), and asks for the next
+frame without marking the tree changed; it takes 9-12 frames at that size. (That request, and a build's,
+used to be turned into a throttled animation frame - ~12 a second, none while a button is held - by the
+heart beating later in the same frame; `_requestAnimationOnlyFrame` now leaves a frame already asked for in
+full as it is.)
 Meanwhile the page shows the texture it had if that is of the same colour (a resize, the corner drawing
-arriving: the page without corners stays until the one with them is done), else the design's plain
-colour. The texture is kept while its look stays (the page tokens and whether the corner drawing is in,
+arriving: the page without corners stays until the one with them is done; an add-on design sharing another
+design's page colour would show that one's texture for those frames), else the design's plain colour. The texture is kept while its look stays (the page tokens and whether the corner drawing is in,
 `_pageLookKey`): toggling a Design Effect other than the page no longer repaints it, and a design
 without a page drops it. The design is picked on the settings tab, where the tree's render loop is
 stopped, so `TreeStyle.set` also starts a timer that paints it in `PAGE_IDLE_STEP_MS` (4) slices, one
@@ -346,8 +350,12 @@ glyphs are the engine's cache, which Chrome shares across canvases (the bench sh
 the game's engine. Even a quick tree's repaint after a design switch is now spread while the font is cold
 (it was one repaint at once of 40-54 ms with a page design, 8-16 of it the names); a repaint at once or a
 finished build clears the flag. An uncounted build that was slow puts `_lastMs` just past `SYNC_MAX_MS`,
-as `noteSync` does for an uncounted repaint at once (the new design may be heavier). Bench: the finishing
-frame after a page-to-page switch 17-21 → 10-11 ms; a quick tree's repaint after a switch 40-54 → 10-12 ms
+as `noteSync` does for an uncounted repaint at once (the new design may be heavier); the time spent on the
+letters is left out of that estimate (it is the font's, not the tree's). The small canvas is sized to two
+letters at the build's scale, so no letter falls off it (one off a canvas may not be drawn, and so not
+made). With many distinct letters (a CJK language) the warming spans more frames, the old picture up
+meanwhile. Bench: the finishing
+frame after a page-to-page switch 17-21 → 10-11 ms; a quick tree's repaint after a switch 40-54 → 10-13 ms
 (its frames).
 
 **Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all

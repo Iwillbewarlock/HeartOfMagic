@@ -85,6 +85,7 @@ var LayerBuild = {
     _textCold: false,         // ...and the names' font is new since names were last drawn: their widths
                               // and glyphs are made first (_warmText), spread, before the finish
     _warmCanvas: null,        // a small canvas the glyphs are drawn on to make them (_warmText)
+    WARM_PAD_PX: 4,           // css px round a letter drawn there; the canvas is two letters tall and wide
 
     active: function() {
         return !!this._build;
@@ -247,8 +248,11 @@ var LayerBuild = {
                     if (onScreen > 0) onScreen--;
                 } else if (self._textCold && !b.warmed) {
                     // A new font: its widths and glyphs made in the time left, then the names
+                    // (their time is the font's, not the tree's: left out of _estimate)
                     if (drew && left() <= 0) break;
-                    if (!self._warmText(r, b, left)) break;
+                    var w0 = now(), warmed = self._warmText(r, b, left);
+                    b.warmMs = (b.warmMs || 0) + now() - w0;
+                    if (!warmed) break;
                 } else {
                     // The names and titles: in this frame only if they fit (or nothing was drawn yet)
                     if (drew && left() < self._finishMs) break;
@@ -312,21 +316,27 @@ var LayerBuild = {
             }
             w = b.warm = { texts: texts, chars: chars, titles: titles, fontSize: found ? found.fontSize : 0, i: 0, j: 0, k: 0 };
             if (!this._warmCanvas && typeof document !== 'undefined' && document.createElement) {
-                try {
-                    this._warmCanvas = document.createElement('canvas');
-                    this._warmCanvas.width = 64;
-                    this._warmCanvas.height = 48;
-                } catch (e) { this._warmCanvas = null; }
+                try { this._warmCanvas = document.createElement('canvas'); } catch (e) { this._warmCanvas = null; }
+            }
+            // Big enough for the largest letter at the build's scale (a letter off the
+            // canvas may not be drawn at all, and so not made)
+            var tk = TreeStyle.tokens || {};
+            var side = Math.ceil((2 * Math.max(w.fontSize, tk.chapterTitles ? tk.chapterSize || 0 : 0) + 2 * this.WARM_PAD_PX) * b.dpr);
+            if (this._warmCanvas && (this._warmCanvas.width !== side || this._warmCanvas.height !== side)) {
+                this._warmCanvas.width = side;
+                this._warmCanvas.height = side;
             }
         }
         var ctx = this._warmCanvas && this._warmCanvas.getContext ? this._warmCanvas.getContext('2d') : null;
         if (!ctx) { b.warmed = true; return true; }
-        var t = TreeStyle.tokens || {}, phase = -1;
+        var t = TreeStyle.tokens || {}, phase = -1, pad = this.WARM_PAD_PX;
         // The canvas is set up afresh each call (a late font may have emptied the width cache meanwhile)
         var setUp = function(to) {
             if (phase === to) return;
             phase = to;
             ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
             TreeStyle.beginLabels(ctx, w.fontSize);
             if (to === 0) r._labelFontFrom(ctx);
             if (to === 2) {
@@ -335,8 +345,8 @@ var LayerBuild = {
             }
         };
         var letter = function(c) {
-            if (t.labelHalo) ctx.strokeText(c, 4, 24);
-            ctx.fillText(c, 4, 24);
+            if (t.labelHalo) ctx.strokeText(c, pad, pad);
+            ctx.fillText(c, pad, pad);
         };
         do {
             if (w.i < w.texts.length) {
@@ -376,8 +386,9 @@ var LayerBuild = {
      * with nothing in it, an empty corner of the margin, costs about that).
      */
     _estimate: function(b) {
-        if (!b.pieces || !isFinite(b.minPiece)) return b.spent;
-        return Math.max(0, b.spent - (b.pieces - 1) * b.minPiece);
+        var spent = b.spent - (b.warmMs || 0);
+        if (!b.pieces || !isFinite(b.minPiece)) return Math.max(0, spent);
+        return Math.max(0, spent - (b.pieces - 1) * b.minPiece);
     },
 
     _swapIn: function(r, b) {

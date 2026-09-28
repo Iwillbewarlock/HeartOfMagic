@@ -67,6 +67,8 @@
         renderPage: function(ctx, w, h) {
             var t = this.tokens;
             if (!t.pageColor) return false;
+            // (the same colour only: an add-on design sharing another's colour shows
+            // that one's texture for the few frames its own is painted)
             if (this._page && this._pageColor === t.pageColor) {
                 ctx.drawImage(this._page, 0, 0, w, h);
             } else {
@@ -221,7 +223,7 @@
 
         _pageIdleTick: function() {
             var r = typeof CanvasRenderer !== 'undefined' ? CanvasRenderer : null;
-            if (!r || !this.tokens.pageColor) return;
+            if (!r || !this.tokens.pageColor || this._pageFailed) return;
             var w = r._width, h = r._height;
             if (!(w > 0 && h > 0) || this._pageReady(w, h)) return;
             var now = (typeof performance !== 'undefined') ? performance.now() : Date.now();

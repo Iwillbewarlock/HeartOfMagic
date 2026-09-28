@@ -396,6 +396,12 @@ var CanvasRenderer = {
     
     /** A frame for the heart, the globe or the stars: the tree layer is pasted, not redrawn. */
     _requestAnimationOnlyFrame: function() {
+        // A frame already asked for in full this frame (a build's next piece, the
+        // page's next steps: __needsRender with the throttle off - the loop clears
+        // both before a frame) stays unthrottled: the heart beating later in the same
+        // frame used to turn it into an animation frame, ~12 a second and none while
+        // a button is held
+        if (this.__needsRender && !this._animationOnlyRender) return;
         this.__needsRender = true;
         this._animationOnlyRender = true;
     },

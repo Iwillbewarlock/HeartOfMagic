@@ -148,6 +148,7 @@ var TreeStyle = {
         // The page texture is kept while its look stays (an effect other than the
         // page toggled); a new one is painted over frames (treeStyleBook.js, stepPage),
         // started now by a timer in case the tree is not being drawn (settings tab)
+        this._pageFailed = false;               // (a canvas that failed is tried again for a new look)
         if (!t.pageColor) {
             this._page = null;
             this._pageJob = null;

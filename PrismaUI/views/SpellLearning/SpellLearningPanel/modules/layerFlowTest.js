@@ -268,6 +268,19 @@ var LayerFlowTest = {
         this.check(B._lastMs === B.SYNC_MAX_MS + 1 && !B._textCold, 'a slow uncounted build after a design change: the next repaint spread');
         B._lastMs = 3; B.noteRestyle(); B._swapIn(rr, built(4));
         this.check(B._lastMs === 3, '...a quick one leaves the figure');
+        var warmBuild = built(30); warmBuild.warmMs = 26;
+        B._lastMs = 3; B.noteRestyle(); B._swapIn(rr, warmBuild);
+        this.check(B._lastMs === 3, "...the time spent making the font's letters is not the tree's (left out of the estimate)");
+
+        // A frame asked for in full is not turned into an animation frame by the heart later in the frame
+        var CR = g.CanvasRenderer, fr = Object.create(CR);
+        fr.__needsRender = true; fr._animationOnlyRender = false;
+        fr._requestAnimationOnlyFrame();
+        this.check(fr.__needsRender === true && fr._animationOnlyRender === false,
+            'a full frame asked for (a build, the page) stays unthrottled when the heart asks for its frame after');
+        fr.__needsRender = false; fr._animationOnlyRender = false;
+        fr._requestAnimationOnlyFrame();
+        this.check(fr.__needsRender === true && fr._animationOnlyRender === true, '...and the heart alone gets a throttled frame');
         B._lastMs = 0; B._warmCanvas = null; B._build = null;
     },
 
