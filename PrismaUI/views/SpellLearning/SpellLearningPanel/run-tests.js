@@ -25,15 +25,27 @@ global.callCpp = function(method, data) {
     return null;
 };
 
-// Track loaded modules
+// Track loaded modules; a module that fails to load fails the run
 var loadedModules = [];
+var failedModules = [];
 
-function loadModule(name, path) {
+/**
+ * @param {string} name
+ * @param {string} path
+ * @param {boolean} [asScript] run in the global scope, as a browser <script> does, so its
+ *   top-level vars are globals (constants.js: state.js reads DEFAULT_TREE_RULES)
+ */
+function loadModule(name, path, asScript) {
     try {
-        require(path);
+        if (asScript) {
+            require('vm').runInThisContext(require('fs').readFileSync(require('path').join(__dirname, path), 'utf8'), { filename: path });
+        } else {
+            require(path);
+        }
         loadedModules.push(name);
         console.log('✓ Loaded: ' + name);
     } catch (e) {
+        failedModules.push(name);
         console.log('✗ Failed to load ' + name + ': ' + e.message);
     }
 }
@@ -45,7 +57,7 @@ console.log('╚═════════════════════�
 console.log('');
 
 // Load modules in order
-loadModule('constants', './modules/constants.js');
+loadModule('constants', './modules/constants.js', true);
 loadModule('state', './modules/state.js');
 loadModule('config', './modules/config.js');
 loadModule('shapeProfiles', './modules/shapeProfiles.js');
@@ -115,52 +127,39 @@ console.log('');
 console.log('Running tests...');
 console.log('');
 
-if (typeof UnificationTest !== 'undefined') {
-    var results = UnificationTest.runAll();
-    if (typeof LayoutDeclutterTest !== 'undefined') {
-        var declutter = LayoutDeclutterTest.run();
-        results.failed += declutter.failed;
-        console.log('LayoutDeclutter: ' + declutter.passed + ' passed, ' + declutter.failed + ' failed');
-    }
-    if (typeof OpenRefreshGateTest !== 'undefined') {
-        var gate = OpenRefreshGateTest.run();
-        results.failed += gate.failed;
-        console.log('OpenRefreshGate: ' + gate.passed + ' passed, ' + gate.failed + ' failed');
-    }
-    if (typeof LayerScrollTest !== 'undefined') {
-        var scroll = LayerScrollTest.run();
-        results.failed += scroll.failed;
-        console.log('LayerScroll: ' + scroll.passed + ' passed, ' + scroll.failed + ' failed');
-    }
-    if (typeof CanvasCullTest !== 'undefined') {
-        var cull = CanvasCullTest.run();
-        results.failed += cull.failed;
-        console.log('CanvasCull: ' + cull.passed + ' passed, ' + cull.failed + ' failed');
-    }
-    if (typeof LayerFlowTest !== 'undefined') {
-        var flow = LayerFlowTest.run();
-        results.failed += flow.failed;
-        console.log('LayerFlow: ' + flow.passed + ' passed, ' + flow.failed + ' failed');
-    }
-    if (typeof PageBuildTest !== 'undefined') {
-        var pageBuild = PageBuildTest.run();
-        results.failed += pageBuild.failed;
-        console.log('PageBuild: ' + pageBuild.passed + ' passed, ' + pageBuild.failed + ' failed');
-    }
-    if (typeof StatusLineTest !== 'undefined') {
-        var statusLine = StatusLineTest.run();
-        results.failed += statusLine.failed;
-        console.log('StatusLine: ' + statusLine.passed + ' passed, ' + statusLine.failed + ' failed');
-    }
-    if (typeof SpellNamesTest !== 'undefined') {
-        var spellNames = SpellNamesTest.run();
-        results.failed += spellNames.failed;
-        console.log('SpellNames: ' + spellNames.passed + ' passed, ' + spellNames.failed + ' failed');
-    }
+// Every suite must be there: one that did not load counts as a failure instead of being skipped
+var SUITES = [
+    ['LayoutDeclutter', 'LayoutDeclutterTest'],
+    ['OpenRefreshGate', 'OpenRefreshGateTest'],
+    ['LayerScroll', 'LayerScrollTest'],
+    ['CanvasCull', 'CanvasCullTest'],
+    ['LayerFlow', 'LayerFlowTest'],
+    ['PageBuild', 'PageBuildTest'],
+    ['StatusLine', 'StatusLineTest'],
+    ['SpellNames', 'SpellNamesTest']
+];
 
-    // Exit with appropriate code
-    process.exit(results.failed > 0 ? 1 : 0);
+var failed = 0;
+if (typeof UnificationTest !== 'undefined') {
+    failed += UnificationTest.runAll().failed;
 } else {
     console.log('ERROR: UnificationTest not loaded');
-    process.exit(1);
+    failed++;
 }
+for (var s = 0; s < SUITES.length; s++) {
+    var suite = global[SUITES[s][1]];
+    if (!suite || typeof suite.run !== 'function') {
+        console.log(SUITES[s][0] + ': NOT RUN (' + SUITES[s][1] + ' not loaded)');
+        failed++;
+        continue;
+    }
+    var r = suite.run();
+    failed += r.failed;
+    console.log(SUITES[s][0] + ': ' + r.passed + ' passed, ' + r.failed + ' failed');
+}
+if (failedModules.length > 0) {
+    console.log('');
+    console.log('FAILED TO LOAD: ' + failedModules.join(', '));
+}
+
+process.exit(failed > 0 || failedModules.length > 0 ? 1 : 0);
