@@ -78,6 +78,11 @@ add_custom_command(TARGET assemble_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${CMAKE_SOURCE_DIR}/fomod/ModuleConfig.xml"
     "${DIST_VERSION_DIR}/fomod/"
+    # The MIT licence goes with every copy (at the archive's root: the installer
+    # does not put it into Data)
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/LICENSE"
+    "${DIST_VERSION_DIR}/"
     COMMAND "${CMAKE_COMMAND}" -E echo "Copying fomod files..."
     VERBATIM
 )
