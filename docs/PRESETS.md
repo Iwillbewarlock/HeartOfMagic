@@ -256,7 +256,6 @@ a player's old value from before is put back to the shipped default once, so a d
   "name": "Frost Codex",
   "author": "SomeModder",
   "description": "Pale blue vellum, silver ink.",
-  "names": { "ko": "서리 사본", "de": "Frost-Kodex" },
   "descriptions": { "ko": "옅은 푸른 양피지, 은빛 잉크." },
   "uiTheme": "skyrim",
   "cssFile": "themes/frost-codex.css",
@@ -274,7 +273,7 @@ a player's old value from before is put back to the shipped default once, so a d
 | Field | Meaning |
 |-------|---------|
 | `tree` | Tokens for the spell tree (below). Anything left out keeps the Classic value. |
-| `names`, `descriptions` | Optional. The name and description per language code (`ko`, `de`, `zh-cn`, ...), since an add-on cannot add lines to the mod's `lang/` files. Languages not listed show `name` / `description`. |
+| `descriptions` | Optional. The description per language code (`ko`, `de`, `zh-cn`, ...), since an add-on cannot add lines to the mod's `lang/` files. Languages not listed show `description`. Names are not translated: the selector shows `name` in every language (the shipped designs' names are English; a `names` map, which older add-ons may carry, is ignored). |
 | `uiTheme` | The UI theme the design is built on: an id from `themes/manifest.json` (`skyrim` = Skyrim Edge, the only one shipped; Modern Dark is Skyrim Edge with `themes/design-modern.css` over it). Left out, `skyrim`. The UI theme has no selector of its own any more - the design sets it. A design's CSS can also set `--preview-bg`, the background of the scan screen's tree previews, and `--status-idle`, `--status-working`, `--status-done`, `--status-error`, the tree builder's status line (kept apart from each other). |
 | `cssFile` | Optional. A stylesheet laid over the theme, path relative to the panel folder (`PrismaUI/views/SpellLearning/SpellLearningPanel/`). Ship it under your own name in `themes/`. |
 | `css` | Optional. The same, written inline: a string or an array of lines. |

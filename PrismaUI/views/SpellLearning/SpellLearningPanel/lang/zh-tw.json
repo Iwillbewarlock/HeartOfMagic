@@ -541,11 +541,8 @@
     "settings.ui.languageRestart": "部分文字會在下次啟動遊戲時變更。",
     "settings.ui.languageMissing": "無法載入該翻譯。",
     "settings.ui.designPreset": "設計",
-    "design.arcane.name": "奧術",
     "design.arcane.desc": "展開的魔法書：羊皮紙頁面、墨線、章節標題，打開時法術樹如墨水般暈染開來。",
-    "design.classic.name": "經典",
     "design.classic.desc": "原始外觀：樸素，繪製負擔最低。",
-    "design.modern.name": "現代暗色",
     "design.modern.desc": "原始法術樹，搭配帶漸層與光效的現代暗色介面。",
     "settings.ui.title": "UI顯示",
 

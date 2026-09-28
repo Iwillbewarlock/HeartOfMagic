@@ -27,7 +27,6 @@ var DesignPresets = {
     BUILT_IN: {
         classic: {
             name: 'Classic',
-            nameKey: 'design.classic.name',
             description: 'The original look: plain, and the lightest to draw.',
             descriptionKey: 'design.classic.desc',
             author: 'Heart of Magic',
@@ -36,7 +35,6 @@ var DesignPresets = {
         },
         modern: {
             name: 'Modern Dark',
-            nameKey: 'design.modern.name',
             description: 'The original tree on the modern dark UI, with gradients and glow.',
             descriptionKey: 'design.modern.desc',
             author: 'Heart of Magic',
@@ -48,7 +46,6 @@ var DesignPresets = {
         },
         arcane: {
             name: 'Arcane',
-            nameKey: 'design.arcane.name',
             description: 'An open spellbook: a parchment page, ink lines, chapter titles, and the tree soaking out like ink when it opens.',
             descriptionKey: 'design.arcane.desc',
             author: 'Heart of Magic',
@@ -238,8 +235,9 @@ var DesignPresets = {
     },
 
     /**
-     * An add-on cannot ship lines for lang/*.json, so its file may carry its own:
-     * "names": { "ko": "...", "de": "..." } and "descriptions" the same way.
+     * An add-on cannot ship lines for lang/*.json, so its file may carry its own
+     * descriptions: "descriptions": { "ko": "...", "de": "..." }. Design names are
+     * not translated (nameOf: the preset's own "name", English for the shipped ones).
      */
     _localized: function(map) {
         if (!map || typeof map !== 'object' || typeof getLocale !== 'function') return '';
@@ -247,7 +245,7 @@ var DesignPresets = {
         return (typeof map[loc] === 'string' && map[loc]) ? map[loc] : '';
     },
 
-    nameOf: function(p) { return this._localized(p.names) || this._text(p.nameKey, p.name || '?'); },
+    nameOf: function(p) { return p.name || '?'; },
     descriptionOf: function(p) { return this._localized(p.descriptions) || this._text(p.descriptionKey, p.description || ''); },
 
     /**

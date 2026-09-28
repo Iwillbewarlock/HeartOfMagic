@@ -541,11 +541,8 @@
     "settings.ui.languageRestart": "一部のテキストは次回ゲーム起動時に反映されます。",
     "settings.ui.languageMissing": "その翻訳を読み込めませんでした。",
     "settings.ui.designPreset": "デザイン",
-    "design.arcane.name": "アルケイン",
     "design.arcane.desc": "開いた魔法書：羊皮紙のページ、インクの線、章題、そして開くとインクのように広がるツリー。",
-    "design.classic.name": "クラシック",
     "design.classic.desc": "元の見た目：シンプルで描画が最も軽い。",
-    "design.modern.name": "モダンダーク",
     "design.modern.desc": "元のツリーに、グラデーションと光彩のあるモダンなダークUI。",
     "settings.ui.title": "UI表示",
 

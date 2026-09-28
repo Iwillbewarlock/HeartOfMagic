@@ -4,20 +4,6 @@
     "author": "Heart of Magic",
     "uiTheme": "skyrim",
     "description": "A lesson on the board: slate framed in wood, the tree chalked in pastel, a magic circle at the heart and old lessons half erased at the corners.",
-    "names": {
-        "ko": "칠판",
-        "de": "Schultafel",
-        "es": "Pizarra",
-        "fr": "Tableau noir",
-        "it": "Lavagna",
-        "ja": "黒板",
-        "pl": "Tablica",
-        "pt-br": "Quadro-negro",
-        "ru": "Школьная доска",
-        "tr": "Kara tahta",
-        "zh-cn": "黑板",
-        "zh-tw": "黑板"
-    },
     "descriptions": {
         "ko": "칠판 위의 수업: 나무 틀에 끼운 슬레이트, 파스텔 분필로 그린 트리, 가운데의 마법진, 귀퉁이에 반쯤 지워진 지난 수업.",
         "de": "Eine Lektion an der Tafel: Schiefer im Holzrahmen, der Baum in Pastellkreide, ein Zauberkreis im Herzen und halb weggewischte alte Lektionen in den Ecken.",
