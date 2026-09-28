@@ -124,41 +124,68 @@ var SpellNamesTest = {
         byId['0xFEBD3800'].name = '불씨조각';
         g.SpellNames.invalidate();
 
+        // An edit-mode duplicate of Frostbite is the same spell: no plugin for either
+        var dup = { id: '0xDUP00001', formId: '0xDUP00001', originalFormId: '0x0002B96B', name: '냉기조각', state: 'unlocked' };
+        tree.nodes.push(dup); byId[dup.id] = dup;
+        g.SpellNames.invalidate();
+        this.check(name('0x0002B96B') === '냉기조각' && name(dup.id) === '냉기조각',
+            'an edit-mode duplicate is counted as its original');
+        dup.originalFormId = null; dup.persistentId = 'Other.esp|0x000900';
+        g.SpellNames.invalidate();
+        this.check(name(dup.id) === '냉기조각 (Other.esp)', '...a different spell of that name is not');
+        dup.originalFormId = '0x0002B96B'; dup.persistentId = null; dup.name = '불씨조각';
+        g.SpellNames.invalidate();
+        this.check(name(dup.id) === '불씨조각 (Skyrim.esm)', 'a duplicate is named by its original\'s plugin');
+        tree.nodes.pop(); delete byId[dup.id];
+        g.SpellNames.invalidate();
+
         byId['0x0002B96B'].name = null;
         this.check(name('0x0002B96B') === '0x0002B96B', 'an unnamed spell shows its formId');
         byId['0x0002B96B'].name = '냉기조각';
     },
 
-    /** TreeParser: a spell is never its own child or prerequisite */
+    /** TreeParser: a spell is never its own child or prerequisite, in any of the four lists */
     _checkParser: function(g) {
         var P = g.TreeParser;
         if (!P || typeof P.parse !== 'function') { this.check(false, 'TreeParser loaded'); return; }
         var oldConfig = g.TREE_CONFIG;
         if (!g.TREE_CONFIG) g.TREE_CONFIG = { layoutStyles: { radial: {} } };
-        var oldLog = console.log;
+        var oldLog = console.log, oldWarn = console.warn;
+        var lines = [];
+        var keep = function() { lines.push(Array.prototype.join.call(arguments, ' ')); };
         try {
             var data = function(trust) {
                 return { trustPrereqs: trust, schools: { Destruction: { root: 'A', nodes: [
                     { formId: 'A', isRoot: true, children: ['A', 'B'], prerequisites: [] },
-                    { formId: 'B', children: ['B'], prerequisites: ['A', 'B'], persistentId: 'Mod.esp|0x000800' }
+                    { formId: 'B', children: ['B'], prerequisites: ['A', 'B'],
+                      hardPrereqs: ['A', 'B'], softPrereqs: ['B'], softNeeded: 1,
+                      persistentId: 'Mod.esp|0x000800' }
                 ] } } };
             };
             for (var t = 0; t < 2; t++) {
                 var trust = t === 1;
-                console.log = function() {};
+                var tag = 'TreeParser (' + (trust ? 'trusted' : 'untrusted') + '): ';
+                lines = [];
+                console.log = keep; console.warn = keep;
                 var r = P.parse(data(trust));
-                console.log = oldLog;
+                console.log = oldLog; console.warn = oldWarn;
                 var a = P.nodes.get('A'), b = P.nodes.get('B');
                 var selfEdge = r.edges.some(function(e) { return e.from === e.to; });
                 this.check(r.success && a.children.join() === 'B' && b.children.length === 0 && !selfEdge,
-                    'TreeParser (' + (trust ? 'trusted' : 'untrusted') + '): self children dropped, no self edge');
-                if (!trust) {
-                    this.check(b.prerequisites.join() === 'A', 'TreeParser (untrusted): self prerequisite dropped');
-                }
-                this.check(b.persistentId === 'Mod.esp|0x000800', 'TreeParser keeps persistentId on the node');
+                    tag + 'self children dropped, no self edge');
+                this.check(b.prerequisites.join() === 'A' && b.hardPrereqs.join() === 'A' && b.softPrereqs.length === 0,
+                    tag + 'self id dropped from prerequisites, hardPrereqs and softPrereqs');
+                this.check(b.softNeeded === 0, tag + 'softNeeded no larger than the soft list left');
+                this.check(!lines.some(function(l) { return /unobtainable/i.test(l); }),
+                    tag + 'no "unobtainable spells" warning');
+                this.check(b.persistentId === 'Mod.esp|0x000800', tag + 'persistentId kept on the node');
             }
+            this.check(P.withoutId(null, 'A').length === 0 && P.withoutId(['B'], 'A').join() === 'B' &&
+                P.clampSoftNeeded(3, ['x']) === 1 && P.clampSoftNeeded(undefined, []) === 0,
+                'withoutId / clampSoftNeeded edge cases');
         } finally {
             console.log = oldLog;
+            console.warn = oldWarn;
             g.TREE_CONFIG = oldConfig;
         }
     }

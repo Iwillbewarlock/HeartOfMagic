@@ -17,6 +17,8 @@ namespace
 {
     constexpr std::array<const char*, 2> kLinkKeys = { "children", "prerequisites" };
 
+    // Reads the list without touching it; only a list that loses an entry is
+    // replaced, by a copy of the entries it keeps
     int CleanLinkList(json& list, const std::string& ownId)
     {
         if (!list.is_array()) return 0;
@@ -24,7 +26,7 @@ namespace
         std::unordered_set<std::string> seen;
         json kept = json::array();
         int removed = 0;
-        for (auto& id : list) {
+        for (const auto& id : list) {
             if (id.is_string()) {
                 const auto& s = id.get_ref<const std::string&>();
                 if (s == ownId || !seen.insert(s).second) {
@@ -32,7 +34,7 @@ namespace
                     continue;
                 }
             }
-            kept.push_back(std::move(id));
+            kept.push_back(id);
         }
         if (removed > 0) list = std::move(kept);
         return removed;

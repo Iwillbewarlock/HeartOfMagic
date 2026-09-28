@@ -8,6 +8,11 @@
  * one spell in the loaded tree, the lists show the plugin after it:
  * "불씨조각 (NoviceBoltSpells.esp)". A name no other spell has stays as it is.
  *
+ * What is counted: the different spells carrying a name, locked ones too, so a
+ * label does not change as the player unlocks spells. An edit-mode duplicate
+ * (originalFormId) is the same spell as its original: counted once with it, and
+ * named by the original's plugin.
+ *
  * Used by the card's Unlocks and prerequisite lists (treeViewerUI.js) and the
  * "Paths to other schools" list (bridgeView.js).
  *
@@ -20,7 +25,7 @@
 
 var SpellNames = {
 
-    /** How many spells in the tree carry each name, keyed 'n:' + name */
+    /** How many different spells in the tree carry each name, keyed 'n:' + name */
     _counts: {},
     /** The tree the counts were made for; a new tree makes them again */
     _treeRef: null,
@@ -30,7 +35,12 @@ var SpellNames = {
         return String(node.name || node.formId || node.id || '');
     },
 
-    /** Count again at the next call: names came in after the tree (SpellCache) */
+    /** The spell a node stands for: an edit-mode duplicate stands for its original */
+    spellIdOf: function(node) {
+        return String(node.originalFormId || node.formId || node.id || '');
+    },
+
+    /** Count again at the next call: names came in (SpellCache), or edit mode added or removed a node */
     invalidate: function() {
         this._treeRef = null;
     },
@@ -43,10 +53,14 @@ var SpellNames = {
         if (!treeData || !treeData.nodes) return {};
         if (treeData !== this._treeRef) {
             var counts = {};
+            var seen = {};
             var nodes = treeData.nodes;
             for (var i = 0; i < nodes.length; i++) {
                 if (!nodes[i]) continue;
                 var key = 'n:' + this.baseName(nodes[i]);
+                var spellKey = key + '|' + this.spellIdOf(nodes[i]);
+                if (seen[spellKey]) continue;
+                seen[spellKey] = true;
                 counts[key] = (counts[key] || 0) + 1;
             }
             this._counts = counts;
@@ -64,16 +78,21 @@ var SpellNames = {
     /**
      * The plugin a node's spell comes from: SpellCache's `plugin` once the spell
      * info is in, before that the plugin half of its persistentId
-     * ("Plugin.esp|0x000800"). Empty when neither is known.
+     * ("Plugin.esp|0x000800"). A duplicate asks for its original's. Empty when
+     * neither is known.
      */
     pluginOf: function(node) {
         if (!node) return '';
-        var id = node.formId || node.id;
+        var id = this.spellIdOf(node);
         if (typeof SpellCache !== 'undefined' && SpellCache && typeof SpellCache.get === 'function') {
             var data = SpellCache.get(id);
             if (data && data.plugin) return String(data.plugin);
         }
         var pid = node.persistentId;
+        if (!pid && node.originalFormId && typeof _findNodeById === 'function') {
+            var original = _findNodeById(node.originalFormId);
+            pid = original ? original.persistentId : null;
+        }
         if (typeof pid === 'string' && pid.indexOf('|') > 0) return pid.split('|')[0];
         return '';
     },

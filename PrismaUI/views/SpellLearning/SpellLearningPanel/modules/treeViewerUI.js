@@ -497,12 +497,6 @@ function _logToSKSE(msg) {
     }
 }
 
-/** The list without `id`; the same array when it does not hold it */
-function _withoutId(list, id) {
-    if (list.indexOf(id) === -1) return list;
-    return list.filter(function(x) { return x !== id; });
-}
-
 /**
  * Fast path for trustPrereqs data — builds nodes/edges/schools directly
  * from JSON and sends to TrustedRenderer. No TreeParser, no WheelRenderer,
@@ -573,12 +567,13 @@ function _loadTrustedTree(data, switchToTreeTab) {
                            ', name=' + (nd.name || '?') + ', tier=' + nd.tier);
             }
 
-            // Compute hard/soft prereqs using same fallback as loadTreeData
-            var _hardPrereqs = nd.hardPrereqs || [];
-            var _softPrereqs = nd.softPrereqs || [];
-            var _softNeeded = nd.softNeeded || 0;
+            // Compute hard/soft prereqs using same fallback as loadTreeData.
+            // A spell is never its own prerequisite: self ids out of all three lists first.
+            var _prereqs = TreeParser.withoutId(nd.prerequisites, id);
+            var _hardPrereqs = TreeParser.withoutId(nd.hardPrereqs, id);
+            var _softPrereqs = TreeParser.withoutId(nd.softPrereqs, id);
+            var _softNeeded = TreeParser.clampSoftNeeded(nd.softNeeded, _softPrereqs);
             if (_hardPrereqs.length === 0 && _softPrereqs.length === 0) {
-                var _prereqs = nd.prerequisites || [];
                 if (_prereqs.length === 1) {
                     _hardPrereqs = _prereqs.slice();
                 } else if (_prereqs.length > 1) {
@@ -606,8 +601,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 persistentId: nd.persistentId || null,
                 school: schoolName,
                 // A spell is never its own child or prerequisite
-                children: _withoutId(nd.children || [], id),
-                prerequisites: isRootNode ? [] : _withoutId(nd.prerequisites || [], id),
+                children: TreeParser.withoutId(nd.children, id),
+                prerequisites: isRootNode ? [] : _prereqs,
                 hardPrereqs: _hardPrereqs,
                 softPrereqs: _softPrereqs,
                 softNeeded: _softNeeded,
@@ -956,6 +951,12 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
         var hardPrereqs = node.hardPrereqs || [];
         var softPrereqs = node.softPrereqs || [];
         var softNeeded = node.softNeeded || 0;
+
+        // A spell is never its own prerequisite (TreeParser already dropped it; a
+        // node edited since may not have been through it)
+        hardPrereqs = TreeParser.withoutId(hardPrereqs, node.id);
+        softPrereqs = TreeParser.withoutId(softPrereqs, node.id);
+        softNeeded = TreeParser.clampSoftNeeded(softNeeded, softPrereqs);
 
         // Fallback to old system: treat all prereqs as hard if no hard/soft data
         if (hardPrereqs.length === 0 && softPrereqs.length === 0) {
@@ -1500,10 +1501,19 @@ function renderSpellCard(node, opts) {
             locks.forEach(function(lock) {
                 var li = document.createElement('li');
                 li.className = 'lock-prereq-item';
-                var showName = lock.revealed && lock.name;
-                li.innerHTML = '<span class="lock-icon">\u{1F517}</span> ' +
-                    (showName ? lock.name : '???') +
-                    ' <span class="lock-label">LOCK</span>';
+                var showName = !!(lock.revealed && lock.name);
+                // Built as nodes, the name as text: a spell name is never read as HTML
+                var lockNode = _findNodeById(lock.nodeId);
+                var icon = document.createElement('span');
+                icon.className = 'lock-icon';
+                icon.textContent = '\u{1F517}';
+                var label = document.createElement('span');
+                label.className = 'lock-label';
+                label.textContent = 'LOCK';
+                li.appendChild(icon);
+                li.appendChild(document.createTextNode(' ' +
+                    (lockNode ? spellDisplayName(lock.nodeId, lockNode, showName) : (showName ? lock.name : '???')) + ' '));
+                li.appendChild(label);
                 li.dataset.id = lock.nodeId;
                 if (lock.revealed && lock.name) {
                     li.addEventListener('click', function() { selectNodeById(lock.nodeId); });

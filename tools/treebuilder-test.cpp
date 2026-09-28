@@ -16,9 +16,12 @@
 #include "Common.h"
 #include "JsonFile.h"
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <queue>
+#include <unordered_map>
 
 #include <nlohmann/json.hpp>
 
@@ -53,6 +56,83 @@ static void WriteJsonFile(const std::string& path, const json& data)
         throw std::runtime_error("Cannot open file for writing: " + path);
     }
     file << data.dump(2);
+}
+
+// ============================================================================
+// Structure check
+// ============================================================================
+// A tree the builder hands back must link by formId strings only, and must
+// branch: a school of kChainCheckMinNodes or more spells where no spell has two
+// children is a chain, which is what a broken link pass leaves behind after the
+// reachability repair rebuilds it (all_valid still says true then). Prints per
+// school: nodes, links, spells with 2+ children, most children, deepest depth.
+
+static constexpr int kChainCheckMinNodes = 10;
+
+static bool CheckStructure(const json& treeData)
+{
+    if (!treeData.contains("schools") || !treeData["schools"].is_object()) {
+        std::cerr << "Structure: no schools\n";
+        return false;
+    }
+    bool ok = true;
+    for (const auto& [school, sd] : treeData["schools"].items()) {
+        if (!sd.contains("nodes") || !sd["nodes"].is_array()) continue;
+        const auto& nodes = sd["nodes"];
+        std::unordered_map<std::string, const json*> byId;
+        for (const auto& n : nodes) {
+            if (n.is_object()) byId[n.value("formId", std::string(""))] = &n;
+        }
+
+        int links = 0, badLinks = 0, branching = 0;
+        size_t mostChildren = 0;
+        for (const auto& n : nodes) {
+            if (!n.is_object()) continue;
+            for (const char* key : { "children", "prerequisites" }) {
+                if (!n.contains(key) || !n[key].is_array()) continue;
+                for (const auto& id : n[key]) {
+                    if (!id.is_string()) ++badLinks;
+                }
+            }
+            if (n.contains("children") && n["children"].is_array()) {
+                const auto count = n["children"].size();
+                links += static_cast<int>(count);
+                if (count >= 2) ++branching;
+                mostChildren = (std::max)(mostChildren, count);
+            }
+        }
+
+        // Deepest depth: breadth first from the root along children
+        int deepest = 0;
+        const auto root = sd.value("root", std::string(""));
+        if (byId.count(root)) {
+            std::unordered_map<std::string, int> depth{ { root, 0 } };
+            std::queue<std::string> todo;
+            todo.push(root);
+            while (!todo.empty()) {
+                const auto id = todo.front();
+                todo.pop();
+                const json* n = byId[id];
+                if (!n->contains("children") || !(*n)["children"].is_array()) continue;
+                for (const auto& c : (*n)["children"]) {
+                    if (!c.is_string()) continue;
+                    const auto cid = c.get<std::string>();
+                    if (!byId.count(cid) || depth.count(cid)) continue;
+                    depth[cid] = depth[id] + 1;
+                    deepest = (std::max)(deepest, depth[cid]);
+                    todo.push(cid);
+                }
+            }
+        }
+
+        const bool chain = static_cast<int>(nodes.size()) >= kChainCheckMinNodes && mostChildren <= 1;
+        std::cout << "Structure " << school << ": nodes=" << nodes.size() << " links=" << links
+                  << " branching=" << branching << " maxChildren=" << mostChildren
+                  << " maxDepth=" << deepest << " nonStringLinks=" << badLinks
+                  << (chain ? "  CHAIN" : "") << "\n";
+        if (badLinks > 0 || chain) ok = false;
+    }
+    return ok;
 }
 
 // ============================================================================
@@ -178,5 +258,10 @@ int main(int argc, char* argv[])
 
     std::cout << "Done. " << spells.size() << " spells -> " << outputPath
               << " (" << result.elapsedMs << " ms)\n";
+
+    if (!CheckStructure(result.treeData)) {
+        std::cerr << "Structure check FAILED: a link that is not a formId, or a school that does not branch\n";
+        return 2;
+    }
     return 0;
 }

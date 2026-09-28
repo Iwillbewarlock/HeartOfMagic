@@ -501,54 +501,36 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 // Parse hard/soft prerequisites (new unified system)
                 ProgressionManager::PrereqRequirements reqs;
 
-                // Parse hard prerequisites (must have ALL)
-                if (entry.contains("hardPrereqs") && entry["hardPrereqs"].is_array()) {
-                    for (const auto& prereqStr : entry["hardPrereqs"]) {
-                        if (prereqStr.is_string()) {
-                            try {
-                                RE::FormID prereqId = std::stoul(prereqStr.get<std::string>(), nullptr, 0);
-                                reqs.hardPrereqs.push_back(prereqId);
-                            } catch (...) {
-                                logger::warn("UIManager: Could not parse hardPrereq '{}' for spell {:08X}",
-                                    prereqStr.get<std::string>(), formId);
+                // One list of formId strings. A spell is never its own prerequisite:
+                // a self id would make it wait for itself and never open, so it is skipped.
+                auto parsePrereqs = [&](const char* key, std::vector<RE::FormID>& out) {
+                    if (!entry.contains(key) || !entry[key].is_array()) return;
+                    for (const auto& prereqStr : entry[key]) {
+                        if (!prereqStr.is_string()) continue;
+                        try {
+                            RE::FormID prereqId = std::stoul(prereqStr.get<std::string>(), nullptr, 0);
+                            if (prereqId == formId) {
+                                logger::warn("UIManager: spell {:08X} listed as its own prerequisite ({}) - skipped",
+                                    formId, key);
+                                continue;
                             }
+                            out.push_back(prereqId);
+                        } catch (...) {
+                            logger::warn("UIManager: Could not parse {} '{}' for spell {:08X}",
+                                key, prereqStr.get<std::string>(), formId);
                         }
                     }
-                }
+                };
 
-                // Parse soft prerequisites (need X of these)
-                if (entry.contains("softPrereqs") && entry["softPrereqs"].is_array()) {
-                    for (const auto& prereqStr : entry["softPrereqs"]) {
-                        if (prereqStr.is_string()) {
-                            try {
-                                RE::FormID prereqId = std::stoul(prereqStr.get<std::string>(), nullptr, 0);
-                                reqs.softPrereqs.push_back(prereqId);
-                            } catch (...) {
-                                logger::warn("UIManager: Could not parse softPrereq '{}' for spell {:08X}",
-                                    prereqStr.get<std::string>(), formId);
-                            }
-                        }
-                    }
-                }
+                parsePrereqs("hardPrereqs", reqs.hardPrereqs);  // must have ALL
+                parsePrereqs("softPrereqs", reqs.softPrereqs);  // need softNeeded of these
 
-                // Parse softNeeded count
-                reqs.softNeeded = entry.value("softNeeded", 0);
+                // Never more than the soft list holds, or the spell could never open
+                reqs.softNeeded = (std::min)(entry.value("softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
 
                 // Legacy fallback: parse old "prereqs" field as all hard
-                if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty() &&
-                    entry.contains("prereqs") && entry["prereqs"].is_array()) {
-                    for (const auto& prereqStr : entry["prereqs"]) {
-                        if (prereqStr.is_string()) {
-                            try {
-                                RE::FormID prereqId = std::stoul(prereqStr.get<std::string>(), nullptr, 0);
-                                reqs.hardPrereqs.push_back(prereqId);
-                            } catch (const std::exception& e) {
-                                logger::warn("UIManager: Failed to parse prereq formId: {}", e.what());
-                            } catch (...) {
-                                logger::warn("UIManager: Failed to parse prereq formId (unknown error)");
-                            }
-                        }
-                    }
+                if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {
+                    parsePrereqs("prereqs", reqs.hardPrereqs);
                 }
 
                 // No line per spell here. This runs on the game thread for every

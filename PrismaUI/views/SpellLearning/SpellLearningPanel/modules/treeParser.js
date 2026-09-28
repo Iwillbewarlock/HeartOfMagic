@@ -37,6 +37,24 @@ var TreeParser = {
     edges: [],
     schools: {},
 
+    /**
+     * A spell is never its own child or prerequisite: the list without `id`
+     * (the same array when it does not hold it; [] for a missing list).
+     * Also used by the trusted fast path in treeViewerUI.js.
+     */
+    withoutId: function(list, id) {
+        if (!list || !list.length) return list || [];
+        if (list.indexOf(id) === -1) return list;
+        return list.filter(function(x) { return x !== id; });
+    },
+
+    /** softNeeded no larger than the soft list, so dropping a self id cannot lock a spell */
+    clampSoftNeeded: function(softNeeded, softPrereqs) {
+        var n = softNeeded || 0;
+        var len = softPrereqs ? softPrereqs.length : 0;
+        return n > len ? len : n;
+    },
+
     parse: function(data) {
         this.nodes.clear();
         this.edges = [];
@@ -113,8 +131,9 @@ var TreeParser = {
                     type: null,
                     effects: [],
                     desc: null,
-                    children: nd.children || [],
-                    prerequisites: nd.prerequisites || [],
+                    // A spell is never its own child or prerequisite (all four lists)
+                    children: self.withoutId(nd.children, id),
+                    prerequisites: self.withoutId(nd.prerequisites, id),
                     tier: nd.tier || 0,
                     state: 'locked',
                     depth: nd.tier || nd.depth || 0,  // Use tier as initial depth, BFS will recalculate if tree structure is valid
@@ -128,9 +147,9 @@ var TreeParser = {
                     _fromLayoutEngine: fromEngine,
                     isRoot: nd.isRoot || false,  // CRITICAL: Preserve root flag for origin lines
                     // Preserve hard/soft prerequisite data
-                    hardPrereqs: nd.hardPrereqs || [],
-                    softPrereqs: nd.softPrereqs || [],
-                    softNeeded: nd.softNeeded || 0,
+                    hardPrereqs: self.withoutId(nd.hardPrereqs, id),
+                    softPrereqs: self.withoutId(nd.softPrereqs, id),
+                    softNeeded: self.clampSoftNeeded(nd.softNeeded, self.withoutId(nd.softPrereqs, id)),
                     // Lock prerequisites (Pre Req Master)
                     locks: nd.locks || [],
                     // Theme data baked from tree generator
@@ -151,8 +170,6 @@ var TreeParser = {
                     node.prerequisites = [];
                     node.hardPrereqs = [];
                 }
-                // A spell is never its own child
-                node.children = node.children.filter(function(cid) { return cid !== node.id; });
                 node.children.forEach(function(childId) {
                     var child = self.nodes.get(childId);
                     if (child) {
@@ -173,10 +190,8 @@ var TreeParser = {
                 }
             });
 
-            // Build edges from children (a spell is never its own child or prerequisite)
+            // Build edges from children (self ids were dropped when the nodes were made)
             this.nodes.forEach(function(node) {
-                node.children = node.children.filter(function(cid) { return cid !== node.id; });
-                node.prerequisites = node.prerequisites.filter(function(pid) { return pid !== node.id; });
                 node.children.forEach(function(childId) {
                     var child = self.nodes.get(childId);
                     if (child) {

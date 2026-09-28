@@ -164,11 +164,17 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
 
 ### Reachability Validation (`Internal::ValidateAndFix`, `FixUnreachableNodes`)
 - First removes every node's link to itself and repeated ids from its `children` and `prerequisites`
-  (`Internal::RemoveBadLinks`, `TreeBuilderLinks.cpp`), on the JSON in place so no other node field is
-  touched. The count goes to the log as a warning (`TreeBuilder: removed N self or duplicate links`)
-  and to `validation.bad_links_removed`. `LinkNodes` already refuses both, so a Classic build has 0
-  (the dev load order's 3546 scanned spells, seeds 1, 42 and 1234: 0); the pass is the net for any
-  later step that writes the arrays directly.
+  (`Internal::RemoveBadLinks`, `TreeBuilderLinks.cpp`). It only reads a list, and replaces it with a
+  copy of the kept entries only when something went; every other list and node field stays as it
+  was. (Its first version moved the ids out of every list and put them back only when one was
+  removed, so a clean tree lost all its links and the reachability repair rebuilt each school as one
+  long chain while `all_valid` still said true; `treebuilder-test` now checks for that, below.) The
+  count goes to the log as a warning (`TreeBuilder: removed N self or duplicate links`) and to
+  `validation.bad_links_removed`. `LinkNodes` already refuses both, so a Classic build has 0; the pass
+  is the net for any later step that writes the arrays directly.
+- `treebuilder-test` prints each school's shape after the build - `Structure <school>: nodes= links=
+  branching= maxChildren= maxDepth= nonStringLinks=` (branching: spells with 2+ children) - and exits
+  with 2 when a link is not a formId string or a school of 10 or more spells never branches (`CHAIN`).
 - Simulates progressive unlock starting from root
 - A node unlocks when ALL its prerequisites are unlocked
 - If nodes remain unreachable after 20 repair passes, logs warning
@@ -574,8 +580,13 @@ struct TreeNode {
 - Adds parent.formId to child.prerequisites
 - Sets child.depth = parent.depth + 1
 
-The panel drops a self link as well when it reads a tree (`treeParser.js`, and the trusted fast path
-in `treeViewerUI.js`), so an old or hand-edited `spell_tree.json` cannot show one. A spell that
+The panel drops a self id as well when it reads a tree, from all four lists - `children`,
+`prerequisites`, `hardPrereqs`, `softPrereqs` - with `softNeeded` held to the soft list's length
+(`TreeParser.withoutId` / `clampSoftNeeded`, used by `treeParser.js` for both `trustPrereqs` values,
+by the trusted fast path and by the hard/soft pass in `treeViewerUI.js`). C++ skips one too when the
+panel sends the prerequisites (`SetTreePrerequisites`, `UIManagerProgression.cpp`, with a warning in
+the log). So an old or hand-edited `spell_tree.json` can neither show a self link nor leave a spell
+waiting for itself. A spell that
 *looks* like its own child is a different spell with the same name - see "Names in the card's lists"
 in DESIGN.md.
 

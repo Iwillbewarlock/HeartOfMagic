@@ -1562,6 +1562,8 @@ var EditMode = {
                 var n = state.treeData.nodes[i];
                 if ((n.formId || n.id) === nodeId) {
                     state.treeData.nodes.splice(i, 1);
+                    // The card's lists count shared names again
+                    if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
                     break;
                 }
             }
@@ -1940,6 +1942,8 @@ var EditMode = {
         // Add to state.treeData.nodes
         if (state.treeData && state.treeData.nodes) {
             state.treeData.nodes.push(newNode);
+            // The card's lists count shared names again
+            if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
         }
 
         // Save and refresh
