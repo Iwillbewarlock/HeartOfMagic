@@ -344,9 +344,14 @@ Save the positioned tree to `spell_tree.json` via the C++ backend. This is what 
         if (!this._layoutData) return;
 
         window.callCpp('SaveSpellTree', JSON.stringify(this._layoutData));
-        TreeGrowth.setStatusText('Tree saved', 'done');
+        // Text, tone, then the text's language key (and its {{variable}} values, if any),
+        // so a language switch writes the line again in the new language
+        TreeGrowth.setStatusText(t('mymode.treeSaved'), 'done', 'mymode.treeSaved');
     },
 ```
+
+An add-on without keys in the language files can pass plain text, `TreeGrowth.setStatusText('Tree saved',
+'done')`: the line works the same, and after a language switch it comes back as written.
 
 #### `clearTree()`
 

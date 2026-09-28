@@ -408,7 +408,7 @@ var ClassicSettings = {
      * @param {Object} [params] - the key's {{variables}}
      */
     setStatusText: function (text, tone, key, params) {
-        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setStatusText(text, tone, key, params);
+        if (typeof TreeGrowth !== 'undefined' && TreeGrowth.setStatusText) TreeGrowth.setStatusText(text, tone, key, params);
     },
 
     // =========================================================================

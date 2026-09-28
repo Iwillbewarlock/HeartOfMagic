@@ -726,9 +726,10 @@ it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, th
 and scan pages: the Design row's description, the Easy page's preset box ("No presets yet"), the tree
 builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
 lists. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
-tone, key, params)`, `updateScanStatus(message, type, key, params)`) and come back in the new language
-(`TreeGrowth.relabelStatus`, `relabelScanStatus`); a line written without a key - a C++ message, an add-on
-module's - comes back as written, and the scan bar's own `data-i18n` goes once a script writes it, so a
+tone, key, params)`, `updateScanStatus(message, type, key, params)`, and `window.updateStatus(message, key,
+params)`, which C++ also calls with a message alone) and come back in the new language
+(`TreeGrowth.relabelStatus`, `relabelScanStatus`); every message the panel builds with `t()` passes its key.
+A line written without a key - a C++ message, an add-on module's - comes back as written, and the scan bar's own `data-i18n` goes once a script writes it, so a
 switch does not put "Ready to scan" back over "Tree built". The rest - the build progress window, the spell
 card until the next pick, the hotkey field's "press a key" - stays until the next start, and the picker
 says so. **Known now

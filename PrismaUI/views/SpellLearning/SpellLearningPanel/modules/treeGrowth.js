@@ -454,7 +454,7 @@ var TreeGrowth = {
             if (applyBtn) applyBtn.disabled = false;
             if (clearBtn) clearBtn.disabled = false;
 
-            this.showBuilt();
+            if (this.showBuilt) this.showBuilt();   // treeGrowthStatus.js
 
             // Force the main tree growth preview canvas to re-render
             this._markDirty();
@@ -494,7 +494,7 @@ var TreeGrowth = {
             if (applyBtn) applyBtn.disabled = true;
             if (clearBtn) clearBtn.disabled = true;
             this.updateBuildButton();
-            this.resetStatus();
+            if (this.resetStatus) this.resetStatus();
 
             // Stop animation and hide Replay button
             if (typeof TreeAnimation !== 'undefined') {

@@ -202,7 +202,7 @@ window.updateSpellData = function(jsonStr) {
         var schoolSet = {};
         if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
         var schoolCount = Object.keys(schoolSet).length;
-        updateStatus(t('status.scannedSpells', {count: data.spellCount}));
+        updateStatus(t('status.scannedSpells', {count: data.spellCount}), 'status.scannedSpells', {count: data.spellCount});
         updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success', 'status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount});
         setStatusIcon('X');
 
@@ -261,7 +261,7 @@ window.updateSpellData = function(jsonStr) {
         console.error('[SpellLearning] Failed to parse spell data:', e);
         var outputAreaFallback = document.getElementById('outputArea');
         if (outputAreaFallback) outputAreaFallback.value = jsonStr;
-        updateStatus(t('status.receivedDataParseError'));
+        updateStatus(t('status.receivedDataParseError'), 'status.receivedDataParseError');
         setStatusIcon('!');
     }
 
@@ -326,7 +326,15 @@ window.updateSpellData = function(jsonStr) {
     }
 };
 
-window.updateStatus = function(message) {
+/**
+ * The scan status bar, from C++ (a message only, left as written over a
+ * language switch) or from the panel with the message's language key and
+ * values, so a switch writes it again in the new language (relabelScanStatus).
+ * @param {string} message
+ * @param {string} [key]
+ * @param {Object} [params]
+ */
+window.updateStatus = function(message, key, params) {
     var msg = message;
     if (msg.startsWith('"') && msg.endsWith('"')) {
         try { msg = JSON.parse(msg); } catch (e) {}
@@ -335,7 +343,7 @@ window.updateStatus = function(message) {
     var type = '';
     if (msg.indexOf('Saved') !== -1 || msg.indexOf('saved') !== -1) type = 'success';
     else if (msg.indexOf('Error') !== -1 || msg.indexOf('Failed') !== -1 || msg.indexOf('failed') !== -1) type = 'error';
-    if (typeof updateScanStatus === 'function') updateScanStatus(msg, type);
+    if (typeof updateScanStatus === 'function') updateScanStatus(msg, type, key, params);
 };
 
 window.updateTreeStatus = function(message) {
@@ -361,7 +369,7 @@ window.onClipboardContent = function(content) {
     console.log('[SpellLearning] Received clipboard content, length:', content ? content.length : 0);
     
     if (!content || content.length === 0) {
-        updateStatus(t('status.clipboardEmpty'));
+        updateStatus(t('status.clipboardEmpty'), 'status.clipboardEmpty');
         setStatusIcon('!');
         state.pasteTarget = null;
         return;

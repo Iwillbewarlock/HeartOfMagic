@@ -41,7 +41,7 @@ function startScan() {
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
     var statusMsg = t('status.scanningAllSpells');
 
-    updateStatus(statusMsg);
+    updateStatus(statusMsg, 'status.scanningAllSpells');
     setStatusIcon('...');
     if (typeof updateScanStatus === 'function') updateScanStatus(statusMsg, 'working', 'status.scanningAllSpells');
 
@@ -105,7 +105,7 @@ function onSaveClick() {
     var content = _scanResultText();
     
     if (!content || content.trim().length === 0) {
-        updateStatus(t('status.nothingToExport'));
+        updateStatus(t('status.nothingToExport'), 'status.nothingToExport');
         setStatusIcon('!');
         if (typeof updateScanStatus === 'function') updateScanStatus(t('status.nothingToExport'), 'error', 'status.nothingToExport');
         return;
@@ -115,7 +115,7 @@ function onSaveClick() {
         if (typeof updateScanStatus === 'function') updateScanStatus(t('status.exportingScanData'), 'working', 'status.exportingScanData');
         window.callCpp('SaveOutput', content);
             } else {
-        updateStatus(t('status.cannotSaveNoBridge'));
+        updateStatus(t('status.cannotSaveNoBridge'), 'status.cannotSaveNoBridge');
         setStatusIcon('X');
     }
 }
@@ -138,7 +138,7 @@ function onCloseClick() {
     if (window.callCpp) {
         window.callCpp('HidePanel', '');
     } else {
-        updateStatus(t('status.pressHotkeyToClose'));
+        updateStatus(t('status.pressHotkeyToClose'), 'status.pressHotkeyToClose');
     }
 }
 

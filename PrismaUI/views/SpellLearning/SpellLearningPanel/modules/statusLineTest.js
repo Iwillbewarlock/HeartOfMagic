@@ -7,13 +7,14 @@
  * the Easy page copy follows TreeGrowth.setStatusText, that a line written
  * with its key comes back in the new language after a switch (and one without
  * a key as written), that a cleared tree goes back to the idle line, and that
- * updateScanStatus keeps or rewrites its text by whether it had a key.
+ * updateScanStatus keeps or rewrites its text by whether it had a key. Also
+ * the spell card's Magicka as the node takes it (TreeParser.updateNodeFromCache).
  *
  * Depends on: treeGrowthStatus.js (TreeGrowthStatus), easyMode.js
- * (_syncEasyStatus) and uiHelpers.js (updateScanStatus, relabelScanStatus) -
- * the last two are function declarations, so under node this file runs them
- * into the global scope the way the page's script tags do. Swaps the globals
- * `document` and `t` for its own while it runs.
+ * (_syncEasyStatus), uiHelpers.js (updateScanStatus, relabelScanStatus) and
+ * treeParser.js (TreeParser) - under node this file runs those three into the
+ * global scope the way the page's script tags do. Swaps the globals
+ * `document`, `t` and `SpellCache` for its own while it runs.
  */
 
 var StatusLineTest = {
@@ -84,11 +85,10 @@ var StatusLineTest = {
     _load: function(g) {
         if (typeof require !== 'function') return;
         var vm = require('vm'), fs = require('fs'), path = require('path');
-        var files = ['easyMode.js', 'uiHelpers.js'];
+        var files = [['easyMode.js', '_syncEasyStatus'], ['uiHelpers.js', 'relabelScanStatus'], ['treeParser.js', 'TreeParser']];
         for (var i = 0; i < files.length; i++) {
-            var name = files[i] === 'easyMode.js' ? '_syncEasyStatus' : 'relabelScanStatus';
-            if (typeof g[name] === 'function') continue;
-            var file = path.join(__dirname, files[i]);
+            if (typeof g[files[i][1]] !== 'undefined') continue;
+            var file = path.join(__dirname, files[i][0]);
             vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
         }
     },
@@ -124,6 +124,11 @@ var StatusLineTest = {
         var grow = S.mixInto({ _nodeCount: 10, _totalPool: 20 });
         try {
             switchTo('en');
+            page.byId.tgStatus.textContent = 'untouched';
+            grow.relabelStatus();
+            this.check(tg() === 'untouched' && easy() === 'untouched',
+                'relabelStatus with nothing written yet: the line stays, the Easy page copies it');
+
             grow.setStatusText('probe', 'done');
             this.check(easy() === 'probe' && page.byId.easyStatus.style.color === S.STATUS_COLORS.done,
                 'setStatusText: the Easy page copies the text and the colour');
@@ -160,12 +165,32 @@ var StatusLineTest = {
             g.updateScanStatus('Saved from C++', '');
             lang = 'en'; g.relabelScanStatus();
             this.check(bar().textContent === 'Saved from C++', 'a scan message with no key is left as written');
+            this._checkCost(g);
         } finally {
             g.document = oldDocument;
             g.t = oldT;
             if (typeof g.updateScanStatus === 'function') g._scanStatus = null;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** The card's Magicka: whole points, at least 1 for any cost, 0 for none */
+    _checkCost: function(g) {
+        var P = g.TreeParser;
+        if (!P) { this.check(false, 'TreeParser loaded'); return; }
+        var oldCache = g.SpellCache;
+        var data = {};
+        g.SpellCache = { get: function() { return data; } };
+        var cost = function(d) { data = d; var n = { formId: '0x1' }; P.updateNodeFromCache(n); return n.cost; };
+        try {
+            this.check(cost({ cost: 307.7013549804 }) === 308 && cost({ magickaCost: '312.3168334960' }) === 312,
+                'Magicka: a float cost shows whole points (the cost field or its magickaCost alias)');
+            this.check(cost({ cost: 0.3 }) === 1 && cost({ cost: 0.5 }) === 1, 'Magicka: a cost under a point shows 1, not "?"');
+            this.check(cost({ cost: -4 }) === 0 && cost({ cost: 'abc' }) === 0 && cost({}) === 0,
+                'Magicka: a negative, unreadable or missing cost is 0');
+        } finally {
+            g.SpellCache = oldCache;
+        }
     }
 };
 

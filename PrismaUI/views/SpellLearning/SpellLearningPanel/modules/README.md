@@ -19,9 +19,9 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 449 | Scan status bar (and its message again after a language switch), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
+| `uiHelpers.js` | 450 | Scan status bar (and its message again after a language switch), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `treeParser.js` | 961 | Tree JSON parsing, validation, cycle detection |
+| `treeParser.js` | 964 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 2059 | Tree viewer, spell details, node selection |
@@ -56,7 +56,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `nodeBatch.js` | 262 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
 | `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
-| `statusLineTest.js` | 173 | Node tests for the status lines over a language switch (`TreeGrowth.setStatusText`/`relabelStatus`/`resetStatus`, the Easy copy, `updateScanStatus`), run by `run-tests.js` |
+| `statusLineTest.js` | 198 | Node tests for the status lines over a language switch (`TreeGrowth.setStatusText`/`relabelStatus`/`resetStatus`, the Easy copy, `updateScanStatus`) and the card's Magicka rounding, run by `run-tests.js` |
 | `treeGrowthStatus.js` | 118 | The builder status line (`#tgStatus`) and its Easy page copy, added to `TreeGrowth`: `setStatusText(text, tone, key, params)`, `relabelStatus`, `resetStatus`, `STATUS_COLORS` |
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
@@ -70,7 +70,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `progressionUI.js` | 918 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
-| `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
+| `cppCallbacks.js` | 1255 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~25,797 | the 58 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
