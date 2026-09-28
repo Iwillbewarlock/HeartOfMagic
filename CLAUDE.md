@@ -192,7 +192,7 @@ node run-tests.js
 **Test files:**
 | File | Purpose |
 |------|---------|
-| `run-tests.js` | Node.js test runner with browser-global mocks; a module that fails to load or a suite in its `SUITES` list that did not load fails the run (exit 1) - add a new `*Test.js` to both its `loadModule` calls and `SUITES` |
+| `run-tests.js` | Node.js test runner with browser-global mocks; every `loadModule`'d `*Test.js` (except `unificationTest`, run through `runAll`) is a suite - a new test file needs only its `loadModule` call; a module that fails to load, a suite that did not load (NOT RUN) or a suite that throws (THREW) fails the run (exit 1) |
 | `modules/unificationTest.js` | Shape profile and WheelRenderer checks (not loaded in game) |
 | `modules/layoutDeclutterTest.js` | Tree declutter pass (tree spaced out, spells off lines, off each other, off the heart) |
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
