@@ -290,7 +290,7 @@ var TreeGrowthClassic = {
             : null;
 
         if (!spellData || !spellData.spells || spellData.spells.length === 0) {
-            ClassicSettings.setStatusText('No spells scanned \u2014 scan first', 'error');
+            ClassicSettings.setStatusText(t('buildProgress.statusNoSpells'), 'error');
             return;
         }
 
@@ -305,7 +305,7 @@ var TreeGrowthClassic = {
             BuildProgress.start(hasPRM);
         }
 
-        ClassicSettings.setStatusText('Building tree (C++)...', 'working');
+        ClassicSettings.setStatusText(t('buildProgress.statusBuilding'), 'working');
         if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
 
         // Set pending flag so onProceduralTreeComplete routes result here
@@ -403,7 +403,7 @@ var TreeGrowthClassic = {
             }
 
             var appliedSchoolCount = Object.keys(output.schools).length;
-            ClassicSettings.setStatusText('Tree applied (' + posCount + ' positioned)', 'done');
+            ClassicSettings.setStatusText(t('buildProgress.statusApplied', {count: posCount}), 'done');
             if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: appliedSchoolCount}), 'success');
 
             // Switch to the Spell Tree tab after a brief delay

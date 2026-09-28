@@ -133,7 +133,7 @@ function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
         BuildProgress.fail(errorMsg, retryFn);
     }
     if (settingsModule) {
-        settingsModule.setStatusText('Build failed: ' + error, 'error');
+        settingsModule.setStatusText(t('buildProgress.statusFailed', {error: error}), 'error');
     }
     if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildFailed', {error: error}), 'error');
     if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);

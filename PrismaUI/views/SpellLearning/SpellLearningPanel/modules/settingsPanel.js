@@ -1958,9 +1958,9 @@ function updateSpellTomeLearningUI() {
     var modeDesc = document.getElementById('tomeLearningModeDesc');
     if (modeDesc) {
         if (stl.useProgressionSystem) {
-            modeDesc.textContent = 'Reading tomes grants XP and gives early access to weakened spells. Keep tomes to practice!';
+            modeDesc.textContent = t('settings.tomeLearning.progressionModeDesc');
         } else {
-            modeDesc.textContent = 'Vanilla behavior: Reading tomes instantly teaches spells and consumes the book.';
+            modeDesc.textContent = t('settings.tomeLearning.vanillaModeDesc');
         }
     }
 }
