@@ -19,7 +19,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 431 | Scan status bar, unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
+| `uiHelpers.js` | 430 | Scan status bar, unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
 | `treeParser.js` | 961 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
@@ -71,7 +71,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~24,912 | the 57 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
+| **TOTAL** | ~25,708 | the 58 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,
