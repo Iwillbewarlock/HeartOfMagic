@@ -106,6 +106,23 @@ add_custom_command(TARGET assemble_dist POST_BUILD
     VERBATIM
 )
 
+# The panel's development files, which the game never loads, stay out of the
+# release: the desktop harness, the node test runner and its data, the test
+# modules (modules/*Test.js, globbed at configure time: reconfigure for a new one)
+set(_panel_src "${CMAKE_SOURCE_DIR}/PrismaUI/views/SpellLearning/SpellLearningPanel")
+set(_panel_dist "${DIST_VERSION_DIR}/PrismaUI/views/SpellLearning/SpellLearningPanel")
+file(GLOB _panel_tests RELATIVE "${_panel_src}" "${_panel_src}/modules/*Test.js")
+set(_panel_dev_files
+    dev-harness.html dev-harness-bridge.js dev-harness-toolbar.js launch-dev-harness.bat
+    run-tests.js test-runner.html ${_panel_tests})
+list(TRANSFORM _panel_dev_files PREPEND "${_panel_dist}/")
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -f ${_panel_dev_files}
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_panel_dist}/test-data"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Leaving out the panel's development files..."
+    VERBATIM
+)
+
 # ============================================================================
 # 6. Copy Papyrus scripts to distribution
 #    SpellLearning scripts -> Scripts/ and Scripts/Source/
