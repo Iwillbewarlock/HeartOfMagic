@@ -454,8 +454,7 @@ var TreeGrowth = {
             if (applyBtn) applyBtn.disabled = false;
             if (clearBtn) clearBtn.disabled = false;
 
-            this.setStatusText(this._builtLabel(), 'done');
-            this._statusIsBuilt = true;
+            this.showBuilt();
 
             // Force the main tree growth preview canvas to re-render
             this._markDirty();
@@ -495,6 +494,7 @@ var TreeGrowth = {
             if (applyBtn) applyBtn.disabled = true;
             if (clearBtn) clearBtn.disabled = true;
             this.updateBuildButton();
+            this.resetStatus();
 
             // Stop animation and hide Replay button
             if (typeof TreeAnimation !== 'undefined') {
@@ -505,60 +505,8 @@ var TreeGrowth = {
         }
     },
 
-    /**
-     * Colours of the build status line, by tone: the status tokens every UI
-     * theme and design sets (styles-skyrim.css :root, the design stylesheets
-     * and presets), kept apart from each other and from the idle line's text;
-     * the hex is the fallback when a theme leaves the variable out. The line
-     * starts idle from the stylesheet (#tgStatus in styles-skyrim.css), as the
-     * language strings rebuild it.
-     * easyMode.js mirrors the line's colour as is.
-     */
-    STATUS_COLORS: {
-        idle: 'var(--status-idle, rgba(184, 168, 120, 0.5))',
-        working: 'var(--status-working, #f59e0b)',
-        done: 'var(--status-done, #22c55e)',
-        error: 'var(--status-error, #ef4444)'
-    },
-
-    /**
-     * @param {string} text
-     * @param {string} [tone] - 'idle', 'working', 'done' or 'error' (STATUS_COLORS). A
-     *   growth module written before the tones passes a CSS colour here instead
-     *   (MODULE_CONTRACTS documented one); that is used as it is.
-     */
-    setStatusText: function(text, tone) {
-        this._statusIsBuilt = false;
-        this._statusText = text;
-        this._statusTone = tone;
-        var el = document.getElementById('tgStatus');
-        if (!el) return;
-        el.textContent = text;
-        var color = tone && (this.STATUS_COLORS.hasOwnProperty(tone) ? this.STATUS_COLORS[tone] : tone);
-        if (color && typeof color === 'string') el.style.color = color;
-        // Looked up afresh each time: a language switch rebuilds both spans
-        if (typeof _syncEasyStatus === 'function') _syncEasyStatus();
-    },
-
-    _builtLabel: function() {
-        var label = t('treeGrowth.treeBuilt');
-        if (this._nodeCount > 0) {
-            label += ' — ' + t('treeGrowth.nodesPlaced', {placed: this._nodeCount, total: this._totalPool || this._nodeCount});
-        }
-        return label;
-    },
-
-    /** After a language switch reset the line to "Waiting for scan...": what it
-     *  said goes back, "Tree built" in the new language, any other line as written. */
-    relabelStatus: function() {
-        if (typeof this._statusText === 'string') {
-            var built = this._statusIsBuilt;
-            this.setStatusText(built ? this._builtLabel() : this._statusText, this._statusTone);
-            this._statusIsBuilt = built;
-        } else if (typeof _syncEasyStatus === 'function') {
-            _syncEasyStatus();
-        }
-    },
+    // The status line (setStatusText, STATUS_COLORS, relabelStatus, resetStatus):
+    // treeGrowthStatus.js, loaded after this file, adds those methods here.
 
     /**
      * A build request went out (true) or its result came back (false). The Build

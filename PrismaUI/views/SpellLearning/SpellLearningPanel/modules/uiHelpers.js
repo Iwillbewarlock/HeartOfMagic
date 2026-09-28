@@ -10,22 +10,32 @@
 // STATUS UPDATES
 // =============================================================================
 
+var _scanStatus = null;   // {key, params, type} of the last keyed message
+
 /**
  * @param {string} message
  * @param {string} [type] - 'working', 'success', 'error' (the bar's class)
  * @param {string} [i18nKey] - the message's language key, so a language switch
- *   says it again in the new language; without one the switch leaves the text
- *   alone (before, it put "Ready to scan" back over "Tree built")
+ *   says it again in the new language (relabelScanStatus); without one the
+ *   switch leaves the text alone (it used to put "Ready to scan" back over
+ *   "Tree built": the bar's own data-i18n goes once a script writes it)
+ * @param {Object} [params] - the key's {{variables}}
  */
-function updateScanStatus(message, type, i18nKey) {
+function updateScanStatus(message, type, i18nKey, params) {
+    _scanStatus = i18nKey ? { key: i18nKey, params: params || null, type: type || '' } : null;
     var bar = document.getElementById('scanStatusBar');
     var text = document.getElementById('scanStatusText');
     if (!bar || !text) return;
     text.textContent = message;
-    if (i18nKey) text.setAttribute('data-i18n', i18nKey);
-    else text.removeAttribute('data-i18n');
+    text.removeAttribute('data-i18n');
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
+}
+
+/** After a language switch (languageSetting.js): a keyed message in the new language. */
+function relabelScanStatus() {
+    var s = _scanStatus;
+    if (s && typeof t === 'function') updateScanStatus(t(s.key, s.params), s.type, s.key, s.params);
 }
 
 /**

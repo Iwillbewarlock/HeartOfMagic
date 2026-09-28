@@ -65,6 +65,8 @@ loadModule('canvasRendererFrame', './modules/canvasRendererFrame.js');
 loadModule('canvasCullTest', './modules/canvasCullTest.js');
 loadModule('layerFlowTest', './modules/layerFlowTest.js');
 loadModule('pageBuildTest', './modules/pageBuildTest.js');
+loadModule('treeGrowthStatus', './modules/treeGrowthStatus.js');
+loadModule('statusLineTest', './modules/statusLineTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -143,6 +145,11 @@ if (typeof UnificationTest !== 'undefined') {
         var pageBuild = PageBuildTest.run();
         results.failed += pageBuild.failed;
         console.log('PageBuild: ' + pageBuild.passed + ' passed, ' + pageBuild.failed + ' failed');
+    }
+    if (typeof StatusLineTest !== 'undefined') {
+        var statusLine = StatusLineTest.run();
+        results.failed += statusLine.failed;
+        console.log('StatusLine: ' + statusLine.passed + ' passed, ' + statusLine.failed + ' failed');
     }
 
     // Exit with appropriate code

@@ -290,7 +290,7 @@ var TreeGrowthClassic = {
             : null;
 
         if (!spellData || !spellData.spells || spellData.spells.length === 0) {
-            ClassicSettings.setStatusText(t('buildProgress.statusNoSpells'), 'error');
+            ClassicSettings.setStatusText(t('buildProgress.statusNoSpells'), 'error', 'buildProgress.statusNoSpells');
             return;
         }
 
@@ -305,7 +305,7 @@ var TreeGrowthClassic = {
             BuildProgress.start(hasPRM);
         }
 
-        ClassicSettings.setStatusText(t('buildProgress.statusBuilding'), 'working');
+        ClassicSettings.setStatusText(t('buildProgress.statusBuilding'), 'working', 'buildProgress.statusBuilding');
         if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
 
         // Set pending flag so onProceduralTreeComplete routes result here
@@ -403,8 +403,8 @@ var TreeGrowthClassic = {
             }
 
             var appliedSchoolCount = Object.keys(output.schools).length;
-            ClassicSettings.setStatusText(t('buildProgress.statusApplied', {count: posCount}), 'done');
-            if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: appliedSchoolCount}), 'success');
+            ClassicSettings.setStatusText(t('buildProgress.statusApplied', {count: posCount}), 'done', 'buildProgress.statusApplied', {count: posCount});
+            if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: appliedSchoolCount}), 'success', 'status.treeApplied', {schools: appliedSchoolCount});
 
             // Switch to the Spell Tree tab after a brief delay
             if (typeof switchTab === 'function') {
@@ -442,7 +442,7 @@ var TreeGrowthClassic = {
         this._layoutData = null;
 
         ClassicSettings.setTreeBuilt(false);
-        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeCleared'));
+        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeCleared'), '', 'status.treeCleared');
 
         TreeGrowth._markDirty();
     },

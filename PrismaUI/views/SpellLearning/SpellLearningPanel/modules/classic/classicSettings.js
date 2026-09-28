@@ -10,7 +10,7 @@
  *   ClassicSettings.bindEvents({ onBuild, onApply, onClear, onSettingChanged });
  *   ClassicSettings.updateScanStatus(hasSpells);
  *   ClassicSettings.setTreeBuilt(built);
- *   ClassicSettings.setStatusText(text, tone);   // tone: TreeGrowth.STATUS_COLORS key
+ *   ClassicSettings.setStatusText(text, tone, key, params);   // tone: TreeGrowth.STATUS_COLORS key
  *
  * Depends on: treePreviewUtils.js (settingHTML, bindInput)
  */
@@ -404,9 +404,11 @@ var ClassicSettings = {
      *
      * @param {string} text - Status message
      * @param {string} tone - TreeGrowth.STATUS_COLORS key: working, done or error
+     * @param {string} [key] - the text's language key, so a language switch writes it again
+     * @param {Object} [params] - the key's {{variables}}
      */
-    setStatusText: function (text, tone) {
-        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setStatusText(text, tone);
+    setStatusText: function (text, tone, key, params) {
+        if (typeof TreeGrowth !== 'undefined') TreeGrowth.setStatusText(text, tone, key, params);
     },
 
     // =========================================================================

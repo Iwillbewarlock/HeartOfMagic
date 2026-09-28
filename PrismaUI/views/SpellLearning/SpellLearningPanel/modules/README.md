@@ -19,7 +19,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 430 | Scan status bar, unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
+| `uiHelpers.js` | 449 | Scan status bar (and its message again after a language switch), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
 | `treeParser.js` | 961 | Tree JSON parsing, validation, cycle detection |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
@@ -56,6 +56,8 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `nodeBatch.js` | 262 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
 | `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
+| `statusLineTest.js` | 173 | Node tests for the status lines over a language switch (`TreeGrowth.setStatusText`/`relabelStatus`/`resetStatus`, the Easy copy, `updateScanStatus`), run by `run-tests.js` |
+| `treeGrowthStatus.js` | 118 | The builder status line (`#tgStatus`) and its Easy page copy, added to `TreeGrowth`: `setStatusText(text, tone, key, params)`, `relabelStatus`, `resetStatus`, `STATUS_COLORS` |
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |

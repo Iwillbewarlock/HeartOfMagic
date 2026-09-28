@@ -126,16 +126,16 @@ function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
     var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
     var retryFn = typeof retryBuild === 'function' ? function() {
-        if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), 'working');
+        if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), 'working', 'buildProgress.retrying');
         retryBuild();
     } : null;
     if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
         BuildProgress.fail(errorMsg, retryFn);
     }
     if (settingsModule) {
-        settingsModule.setStatusText(t('buildProgress.statusFailed', {error: error}), 'error');
+        settingsModule.setStatusText(t('buildProgress.statusFailed', {error: error}), 'error', 'buildProgress.statusFailed', {error: error});
     }
-    if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildFailed', {error: error}), 'error');
+    if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildFailed', {error: error}), 'error', 'status.treeBuildFailed', {error: error});
     if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
 }
 
@@ -179,7 +179,7 @@ window.onProceduralTreeComplete = function(resultStr) {
             var cgSchools = cgTreeData && cgTreeData.schools ? Object.keys(cgTreeData.schools).length : 0;
             var cgSpells = 0;
             if (cgTreeData && cgTreeData.schools) { for (var s in cgTreeData.schools) { cgSpells += (cgTreeData.schools[s].nodes || []).length; } }
-            if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: cgSchools, spells: cgSpells}), 'success');
+            if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeBuildComplete', {schools: cgSchools, spells: cgSpells}), 'success', 'status.treeBuildComplete', {schools: cgSchools, spells: cgSpells});
         } else {
             _handleBuildFailure(
                 result.error || 'unknown',

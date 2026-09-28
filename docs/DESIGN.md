@@ -724,11 +724,14 @@ script just fails to load), under Mod Organizer it lands in overwrite so a mod u
 it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, then
 `refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
 and scan pages: the Design row's description, the Easy page's preset box ("No presets yet"), the tree
-builder status line, the tome learning description, the power step rows and the how-to lists. The rest -
-the build progress window, the spell card until the next pick, a passing status line - stays until the
-next start, and the picker says so. The scan status bar (`updateScanStatus`) drops its `data-i18n` when a
-script writes it, so a switch does not put "Ready to scan" back over "Tree built"; a message given with its
-key (the start-up "Ready to scan", which used to be written in English) keeps it and follows the switch. **Known now
+builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
+lists. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
+tone, key, params)`, `updateScanStatus(message, type, key, params)`) and come back in the new language
+(`TreeGrowth.relabelStatus`, `relabelScanStatus`); a line written without a key - a C++ message, an add-on
+module's - comes back as written, and the scan bar's own `data-i18n` goes once a script writes it, so a
+switch does not put "Ready to scan" back over "Tree built". The rest - the build progress window, the spell
+card until the next pick, the hotkey field's "press a key" - stays until the next start, and the picker
+says so. **Known now
 (2026-09-23): PrismaUI does not keep `localStorage` between game sessions.** Seen in game with
 `settings.language = 'en'` saved and `locale.js` saying `ko`: every start drew in Korean from `locale.js`,
 then the late switch turned everything marked `data-i18n` English while text scripts had built (power
@@ -879,7 +882,11 @@ rule too: the copied inline colour is empty while idle. Because those strings re
 copy is made by `TreeGrowth.setStatusText` calling `_syncEasyStatus` (2026-09-29), not by an observer on
 `#tgStatus`: after a language switch the observer watched the old, detached span and the Easy page kept
 "Waiting for scan" under a built tree. The switch itself resets both lines; `TreeGrowth.relabelStatus`
-puts back what they said ("Tree built" in the new language).
+writes the last line again from its key ("Tree built", "Tree applied (N positioned)", "Build failed: ..."
+in the new language), and a cleared tree (`setTreeBuilt(false)`) sets both lines back to the idle
+"Waiting for scan..." from the language strings (`TreeGrowth.resetStatus`). The status-line code is
+`modules/treeGrowthStatus.js`, loaded after `treeGrowth.js`, whose methods it adds to `TreeGrowth`;
+`modules/statusLineTest.js` (run by `run-tests.js`) covers it.
 
 **School tabs** sit in a row under the zoom tools (`patch-ui.css`, all designs). Centred on the top row
 they covered the right half of the tools - the renderer badge, heart settings and edit tree - at the
@@ -954,7 +961,7 @@ time on the desktop, which is why the book look uses ink and outlines instead of
 
 Where players scan spells and build their tree. Has two modes: **Easy** and **Complex**.
 
-**Modules:** `easyMode.js`, `treeGrowth.js`, `buttonHandlers.js`, `scannerPresets.js`, `buildProgress.js`, `prereqMaster.js`
+**Modules:** `easyMode.js`, `treeGrowth.js`, `treeGrowthStatus.js`, `buttonHandlers.js`, `scannerPresets.js`, `buildProgress.js`, `prereqMaster.js`
 
 ### Shared Components (both modes)
 
@@ -1251,6 +1258,7 @@ Visual-First builds that used them.
 | Module | Purpose |
 |--------|---------|
 | `treeGrowth.js` | Growth mode orchestrator (Classic is the one mode since 2026-09-27) |
+| `treeGrowthStatus.js` | The builder status line and its Easy page copy (`TreeGrowth.setStatusText`, `relabelStatus`, `resetStatus`) |
 | `classic/classicMain.js` | Classic growth mode |
 | `classic/classicBuildRequest.js` | Classic build request to C++ and its failure path |
 | `classic/classicTreeOutput.js` | Classic result and layout → the saved tree JSON |

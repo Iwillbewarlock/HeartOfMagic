@@ -74,6 +74,14 @@ Update this with your translation info:
 
 If a key is missing from your file, the English text from the HTML is shown as fallback. You don't need to translate every key to get started.
 
+Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
+
+To see which keys your file lacks, compare it with `en.json`:
+
+```
+node -e "var en=require('./lang/en.json'),x=require('./lang/fr.json');console.log(Object.keys(en).filter(k=>!(k in x)).join('\n'))"
+```
+
 ## Generating the Preload File
 
 You need **both** files: the `.json` (source of truth you edit) and the `.js` (what the game loads at runtime).
@@ -88,9 +96,9 @@ node lang/build-preloads.js
 
 Output:
 ```
-  en.js  (573 keys from en.json)
-  fr.js  (573 keys from fr.json)
-  de.js  (573 keys from de.json)
+  en.js  (589 keys from en.json)
+  fr.js  (589 keys from fr.json)
+  de.js  (589 keys from de.json)
 Done - 3 preload file(s) generated.
 ```
 
@@ -149,9 +157,12 @@ overlays them), then choosing the language in Settings.
    **Settings > UI Display > Language**. Labels and the Settings and scan pages change at once; some
    text the panel had already built (the spell card, the build progress window) changes the next time
    the game starts.
+   The pick is saved with the player's settings and written to `lang/user_locale.js` by the plugin
+   (under MO2 you find it in overwrite), and it wins over `locale.js`: if your language does not show
+   at start, that file - or the picker - may still name another one.
 3. Restart the game once and check the whole panel
 4. If testing in a browser (dev harness), check console (F12) for `[i18n]` messages:
-   - `[i18n] Loaded locale "de" from preload (573 keys)` = working
+   - `[i18n] Loaded locale "de" from preload (589 keys)` = working
    - `[i18n] Preload is "en" but requested "de"` = missing `de.js` preload
 
 **Note:** You do NOT need to edit `index.html`. The loading system automatically picks up any locale that has a matching `.js` preload file.
@@ -186,15 +197,32 @@ Use standard language codes:
 | `fr` | French |
 | `de` | German |
 | `es` | Spanish |
-| `pt-br` | Brazilian Portuguese |
-| `ru` | Russian |
-| `zh-cn` | Simplified Chinese |
-| `zh-tw` | Traditional Chinese |
+| `it` | Italian |
 | `ja` | Japanese |
 | `ko` | Korean |
-| `it` | Italian |
 | `pl` | Polish |
+| `pt-br` | Brazilian Portuguese |
+| `ru` | Russian |
 | `tr` | Turkish |
+| `zh-cn` | Simplified Chinese |
+| `zh-tw` | Traditional Chinese |
+
+### Fonts per language
+
+When a language loads, the panel sets `<html lang="...">` to its code (`initI18n` in
+`modules/i18n.js`). Designs with their own handwriting or book fonts (Arcane, Night Grimoire,
+Chalkboard) pick a font per language with CSS `:lang()` rules, because no single such font covers
+Latin, Cyrillic, Hangul, kana and Han. A new language with a script those fonts lack (Arabic, Thai,
+Greek...) still shows: its letters fall back to a system font, glyph by glyph. To give it a matching
+face, add an `@font-face` and a `html:lang(xx) { --... }` rule to the design (see DESIGN.md, "Design
+fonts per language").
+
+### Short school names
+
+The school tabs on the tree toolbar show `tree.schoolShort.*` (`Destr.`, `파괴`, `破壊`...): keep them
+to about five letters (two or three CJK characters), since the tabs are narrow. The tab's tooltip shows
+the full name from `chips.school.*`. A school with no short name (a modded school) is cut to five
+letters and a dot.
 
 ## Tips
 

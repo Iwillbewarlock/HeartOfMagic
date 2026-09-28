@@ -500,8 +500,10 @@ var TreeParser = {
         if (spellData) {
             node.name = spellData.name || spellData.editorId || node.formId;
             node.level = spellData.level || spellData.skillLevel || 'Unknown';
-            // The game works the cost out as a float (307.70135...); the card shows whole points
-            node.cost = Math.round(Number(spellData.cost || spellData.magickaCost)) || 0;
+            // The game works the cost out as a float (307.70135...); the card shows whole
+            // points, and a cost under half a point shows 1, not "?" (the card's "no cost")
+            var cost = Number(spellData.cost || spellData.magickaCost) || 0;
+            node.cost = cost > 0 ? Math.max(1, Math.round(cost)) : 0;
             node.type = spellData.type || spellData.castingType || 'Spell';
             node.effects = spellData.effects || spellData.effectNames || [];
             node.desc = spellData.description || '';

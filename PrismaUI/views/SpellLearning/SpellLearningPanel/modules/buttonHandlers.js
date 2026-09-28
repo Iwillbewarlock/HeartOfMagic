@@ -43,7 +43,7 @@ function startScan() {
 
     updateStatus(statusMsg);
     setStatusIcon('...');
-    if (typeof updateScanStatus === 'function') updateScanStatus(statusMsg, 'working');
+    if (typeof updateScanStatus === 'function') updateScanStatus(statusMsg, 'working', 'status.scanningAllSpells');
 
     var scanBtn = document.getElementById('scanBtn');
     if (scanBtn) {
@@ -107,12 +107,12 @@ function onSaveClick() {
     if (!content || content.trim().length === 0) {
         updateStatus(t('status.nothingToExport'));
         setStatusIcon('!');
-        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.nothingToExport'), 'error');
+        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.nothingToExport'), 'error', 'status.nothingToExport');
         return;
     }
 
     if (window.callCpp) {
-        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.exportingScanData'), 'working');
+        if (typeof updateScanStatus === 'function') updateScanStatus(t('status.exportingScanData'), 'working', 'status.exportingScanData');
         window.callCpp('SaveOutput', content);
             } else {
         updateStatus(t('status.cannotSaveNoBridge'));

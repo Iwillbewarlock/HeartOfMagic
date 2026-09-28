@@ -38,20 +38,27 @@ function showLanguageHint(key, fallback) {
  * A live switch re-labels what is marked data-i18n; text a script built with
  * t() is built again here. Each on its own, so one that throws does not keep
  * the rest in the old language. Still left until the next start: the build
- * progress window, the spell card (redrawn on the next pick), passing status
- * lines, the hotkey field's "press a key".
+ * progress window, the spell card (redrawn on the next pick), status lines
+ * written without a language key (C++ messages, add-on modules), the hotkey
+ * field's "press a key".
  */
+var LANGUAGE_REFRESH_STEPS = [
+    ['design description', function() { if (typeof DesignPresets !== 'undefined') DesignPresets._syncSelector(); }],
+    ['easy preset box', function() { if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips(); }],
+    ['builder status line', function() { if (typeof TreeGrowth !== 'undefined' && TreeGrowth.relabelStatus) TreeGrowth.relabelStatus(); }],
+    ['scan status bar', function() { if (typeof relabelScanStatus === 'function') relabelScanStatus(); }],
+    ['tome learning description', function() { if (typeof updateSpellTomeLearningUI === 'function') updateSpellTomeLearningUI(); }],
+    ['power steps', function() { if (typeof renderPowerSteps === 'function') renderPowerSteps(); }],
+    ['how-to lists', function() { if (typeof updateHowToContent === 'function') updateHowToContent(); }]
+];
+
 function refreshScriptTexts() {
-    var steps = [
-        function() { if (typeof DesignPresets !== 'undefined') DesignPresets._syncSelector(); },
-        function() { if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips(); },
-        function() { if (typeof TreeGrowth !== 'undefined' && TreeGrowth.relabelStatus) TreeGrowth.relabelStatus(); },
-        function() { if (typeof updateSpellTomeLearningUI === 'function') updateSpellTomeLearningUI(); },
-        function() { if (typeof renderPowerSteps === 'function') renderPowerSteps(); },
-        function() { if (typeof updateHowToContent === 'function') updateHowToContent(); }
-    ];
-    for (var i = 0; i < steps.length; i++) {
-        try { steps[i](); } catch (e) { console.warn('[Language] Refresh after the switch failed:', e); }
+    for (var i = 0; i < LANGUAGE_REFRESH_STEPS.length; i++) {
+        try {
+            LANGUAGE_REFRESH_STEPS[i][1]();
+        } catch (e) {
+            console.warn('[Language] Refreshing the ' + LANGUAGE_REFRESH_STEPS[i][0] + ' after the switch failed:', e);
+        }
     }
 }
 

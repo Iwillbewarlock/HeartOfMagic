@@ -49,7 +49,7 @@ var ClassicBuildRequest = {
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
                 BuildProgress.fail(t('buildProgress.requestFailed'));
             }
-            ClassicSettings.setStatusText(t('buildProgress.requestFailed'), 'error');
+            ClassicSettings.setStatusText(t('buildProgress.requestFailed'), 'error', 'buildProgress.requestFailed');
         };
 
         var spellsToProcess, config;

@@ -110,7 +110,7 @@ var LayoutDeclutter = {
             if (!done && pct !== shown && window._panelVisible !== false &&
                 typeof TreeGrowth !== 'undefined' && TreeGrowth.setStatusText) {
                 shown = pct;
-                TreeGrowth.setStatusText(t('buildProgress.statusArrangingPct', {pct: pct}), 'working');
+                TreeGrowth.setStatusText(t('buildProgress.statusArrangingPct', {pct: pct}), 'working', 'buildProgress.statusArrangingPct', {pct: pct});
             }
             if (!done) { setTimeout(tick, 0); return; }
             self._asyncJob = null;
@@ -157,7 +157,7 @@ var LayoutDeclutter = {
         token.timer = setTimeout(function() { self._onNativeTimeout(token); }, this.NATIVE_TIMEOUT_MS);
         // One write, not a running percentage: each write repaints the whole view
         if (window._panelVisible !== false && typeof TreeGrowth !== 'undefined' && TreeGrowth.setStatusText) {
-            TreeGrowth.setStatusText(t('buildProgress.statusArranging'), 'working');
+            TreeGrowth.setStatusText(t('buildProgress.statusArranging'), 'working', 'buildProgress.statusArranging');
         }
         window.callCpp('DeclutterTree', JSON.stringify({
             id: token.id, schools: schools, globe: output.globe || {},

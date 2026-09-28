@@ -173,7 +173,8 @@ window.updateSpellData = function(jsonStr) {
                 var schoolSet = {};
                 if (state.lastSpellData.spells) state.lastSpellData.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
                 if (typeof updateScanStatus === 'function') {
-                    updateScanStatus(t('status.scannedSpellsSchools', {count: state.lastSpellData.spellCount, schools: Object.keys(schoolSet).length}), 'success');
+                    var ssParams = {count: state.lastSpellData.spellCount, schools: Object.keys(schoolSet).length};
+                    updateScanStatus(t('status.scannedSpellsSchools', ssParams), 'success', 'status.scannedSpellsSchools', ssParams);
                 }
             }
             return;
@@ -202,7 +203,7 @@ window.updateSpellData = function(jsonStr) {
         if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
         var schoolCount = Object.keys(schoolSet).length;
         updateStatus(t('status.scannedSpells', {count: data.spellCount}));
-        updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success');
+        updateScanStatus(t('status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount}), 'success', 'status.scannedSpellsSchools', {count: data.spellCount, schools: schoolCount});
         setStatusIcon('X');
 
         // Populate scan stats panel early — before downstream code that might throw

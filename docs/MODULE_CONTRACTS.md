@@ -444,7 +444,7 @@ if (typeof TreePreviewSun !== 'undefined') {
 | `switchMode(name)` | Switch to a mode |
 | `getSpellData()` | Returns current spell scan data |
 | `setTreeBuilt(built, nodeCount, totalPool)` | Update shared UI state |
-| `setStatusText(text, tone)` | Update status label; `tone` is a `STATUS_COLORS` key (`idle`, `working`, `done`, `error`) - the `--status-idle/working/done/error` tokens, so every design shows its own. Any other string is taken as a CSS colour, as modules written before the tones pass one; prefer a tone |
+| `setStatusText(text, tone, key, params)` | Update status label; `tone` is a `STATUS_COLORS` key (`idle`, `working`, `done`, `error`) - the `--status-idle/working/done/error` tokens, so every design shows its own. Any other string is taken as a CSS colour, as modules written before the tones pass one; prefer a tone. Pass the text's language `key` (and its `{{variable}}` `params`) so a language switch writes the line again in the new language; a line without one comes back as written (`modules/treeGrowthStatus.js`) |
 | `updateBuildButton()` | Refresh build button enabled state |
 | `_markDirty()` | Request a re-render |
 
@@ -633,6 +633,7 @@ now fail as unknown.
 | `modules/treePreviewFlat.js` | FLAT root module (linear) |
 | `modules/treePreviewUtils.js` | Shared UI helpers (drag inputs) |
 | `modules/treeGrowth.js` | Tree growth orchestrator |
+| `modules/treeGrowthStatus.js` | The status line (`setStatusText`, `STATUS_COLORS`, `relabelStatus`, `resetStatus`), added to `TreeGrowth`; loads after `treeGrowth.js` |
 | `modules/classic/classicMain.js` | CLASSIC growth module |
 | `modules/classic/classicBuildRequest.js` | CLASSIC build request to C++ and its failure path |
 | `modules/classic/classicTreeOutput.js` | CLASSIC result + layout → saved tree JSON |
