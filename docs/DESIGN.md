@@ -315,9 +315,11 @@ the pixel, so the bands, with whole-pixel edges inside the page and the page's o
 to the one rect: the finished texture is pixel-identical to the one painted in one go (compared in the
 bench for the three page designs at 1640x1160, 1641x1159, 1280x720 and 1000.5x700.25, corners loaded:
 no byte differs; in Chrome - the game's engine was not compared, though the calls are the same). A frame paints steps after its tree (LayerBuild's pieces), up to
-`PAGE_TARGET_FRAME_MS` (8) from the frame's start, one step at least (the largest - the fibres, one
-stroke, or a big blotch - are 1-1.5 ms at 1640x1160 and grow with the screen's area), and asks for the next
-frame without marking the tree changed; it takes 9-12 frames at that size. (That request, and a build's,
+`PAGE_TARGET_FRAME_MS` (8) from the frame's start (the largest steps - the fibres, one stroke, or a big
+blotch - are 1-1.5 ms at 1640x1160 and grow with the screen's area), and asks for the next frame without
+marking the tree changed; it takes 9-12 frames at that size. A frame with no time left paints no step (at
+4K a step after an urgent build's 11 ms would pass 16.7 ms), unless `PAGE_MAX_SKIPS` (8) frames in a row
+had none: then one, so a page still comes while every frame is busy. (That request, and a build's,
 used to be turned into a throttled animation frame - ~12 a second, none while a button is held - by the
 heart beating later in the same frame; `_requestAnimationOnlyFrame` now leaves a frame already asked for in
 full as it is.)
@@ -329,9 +331,11 @@ without a page drops it. The design is picked on the settings tab, where the tre
 stopped, so `TreeStyle.set` also starts a timer that paints it in `PAGE_IDLE_STEP_MS` (4) slices, one
 every 16 ms, while no frame has come for `PAGE_IDLE_AFTER_MS` (100): by the time the player is back on
 the tree the texture is usually ready and the switch looks as it did. A texture left pending by frames
-that stopped (the tree loaded and drawn once while the panel is still hidden, another tab) keeps that
-timer going, and a canvas that gets its size (`updateCanvasSize`) starts it, so the first open of a
-session finds the texture painted too. The corner drawing's `onload`
+that stopped (another tab) keeps that timer going, and a canvas that gets its size (`updateCanvasSize`)
+starts it. Not while the panel is hidden (`window._panelVisible === false`): the timer neither paints nor
+comes back then - it would paint behind the game, 4 ms slices, twice when the corner drawing arrives -
+and `onPanelShowing` starts it again. So the first open of a session can show the plain colour for the
+~150-200 ms the page takes (the tree loads and is drawn once while hidden). The corner drawing's `onload`
 now asks for a frame through the backing field (`__needsRender`) and starts that timer - no frame drawn
 inside the image callback, the tree not marked changed.
 

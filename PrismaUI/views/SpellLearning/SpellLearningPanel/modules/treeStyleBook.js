@@ -35,6 +35,7 @@
         PAGE_IDLE_STEP_MS: 4,     // the timer's slice while the tree is not drawn
         PAGE_IDLE_TICK_MS: 16,    // ...one a tick
         PAGE_IDLE_AFTER_MS: 100,  // ...counted as not drawn when no frame came for this long
+        PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
 
@@ -83,8 +84,12 @@
          * at least). Returns 'none' (no page, or it is ready), 'pending' or 'done'
          * (swapped in just now). Called by a frame after its tree (CanvasRenderer.render)
          * and by the idle timer; either way the next frame is asked for.
+         * inFrame: a frame's call - no step at all when the frame has no time left
+         * (a step is 1-1.5 ms at 1640x1160 and grows with the screen: after an urgent
+         * build's 11 ms it could push the frame past 16.7), except after
+         * PAGE_MAX_SKIPS such frames in a row, so the page still comes.
          */
-        stepPage: function(w, h, since, budget) {
+        stepPage: function(w, h, since, budget, inFrame) {
             if (!this.tokens.pageColor || !(w > 0 && h > 0)) { this._pageJob = null; return 'none'; }
             if (this._pageReady(w, h)) { this._pageJob = null; return 'none'; }
             var key = w + 'x' + h, look = this._pageLookKey();
@@ -94,10 +99,14 @@
                 if (!job) return 'none';            // no canvas: renderPage keeps the plain colour
             }
             var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
+            var skip = inFrame && now() - since >= budget && (job.skips || 0) < this.PAGE_MAX_SKIPS;
+            job.skips = skip ? (job.skips || 0) + 1 : 0;
             try {
-                do {
-                    this._pageStep(job, job.steps[job.next++]);
-                } while (job.next < job.steps.length && now() - since < budget);
+                if (!skip) {
+                    do {
+                        this._pageStep(job, job.steps[job.next++]);
+                    } while (job.next < job.steps.length && now() - since < budget);
+                }
             } catch (e) {
                 this._pageJob = null;
                 this._pageFailed = true;
@@ -217,11 +226,15 @@
          */
         _pageIdleLater: function() {
             if (this._pageTimer || typeof setTimeout !== 'function') return;
+            // Not while the panel is hidden: the timer would paint behind the game
+            // (cppCallbacks.js onPanelShowing starts it again)
+            if (typeof window !== 'undefined' && window._panelVisible === false) return;
             var self = this;
             this._pageTimer = setTimeout(function() { self._pageTimer = 0; self._pageIdleTick(); }, this.PAGE_IDLE_TICK_MS);
         },
 
         _pageIdleTick: function() {
+            if (typeof window !== 'undefined' && window._panelVisible === false) return;   // hidden: stops
             var r = typeof CanvasRenderer !== 'undefined' ? CanvasRenderer : null;
             if (!r || !this.tokens.pageColor || this._pageFailed) return;
             var w = r._width, h = r._height;

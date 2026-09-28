@@ -102,10 +102,11 @@
             }, bgPending);
 
             // The design's page texture, when a new one is wanted, is painted in what
-            // the tree's pieces left of the frame (TreeStyle.stepPage, one step at
-            // least); it shows from the next frame, asked for then
+            // the tree's pieces left of the frame (TreeStyle.stepPage; nothing when no
+            // time is left, but not many frames in a row); it shows from the next
+            // frame, asked for then
             if (typeof TreeStyle.stepPage === 'function') {
-                TreeStyle.stepPage(width, height, startTime, TreeStyle.PAGE_TARGET_FRAME_MS);
+                TreeStyle.stepPage(width, height, startTime, TreeStyle.PAGE_TARGET_FRAME_MS, true);
             }
 
             // =====================================================================

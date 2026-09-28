@@ -42,7 +42,7 @@ var PageBuildTest = {
     run: function() {
         var g = (typeof global !== 'undefined') ? global : window;
         var saved = { ts: g.TreeStyle, cr: g.CanvasRenderer, doc: g.document, lb: g.LayerBuild,
-                      unm: g.LayerBuild ? g.LayerBuild._unmeasured : false, st: g.setTimeout, img: g.Image };
+                      unm: g.LayerBuild ? g.LayerBuild._unmeasured : false, cold: g.LayerBuild ? g.LayerBuild._textCold : false, st: g.setTimeout, img: g.Image };
         var self = this, log = [];
         var timers = [];
         g.setTimeout = function(fn) { timers.push(fn); return timers.length; };
@@ -66,7 +66,7 @@ var PageBuildTest = {
             this.check(false, 'page tests ran: ' + (e && e.stack || e));
         } finally {
             g.TreeStyle = saved.ts; g.CanvasRenderer = saved.cr; g.document = saved.doc; g.setTimeout = saved.st; g.Image = saved.img;
-            if (g.LayerBuild) g.LayerBuild._unmeasured = saved.unm;
+            if (g.LayerBuild) { g.LayerBuild._unmeasured = saved.unm; g.LayerBuild._textCold = saved.cold; }
         }
         return { passed: this.passed, failed: this.failed };
     },
@@ -165,6 +165,21 @@ var PageBuildTest = {
         next = T._pageJob.next;
         T._pageIdleTick();
         this.check(T._pageJob.next === next && timers.length === 1, 'frames coming: the timer leaves the painting to them');
+
+        // The panel hidden: the timer neither paints nor comes back (it would paint behind the game)
+        var wasVisible = window._panelVisible;
+        window._panelVisible = false; cr._frameStartAt = 0;
+        timers.length = 0; T._pageTimer = 0; next = T._pageJob.next;
+        T._pageIdleTick(); T._pageIdleLater();
+        this.check(T._pageJob.next === next && timers.length === 0, 'panel hidden: the timer neither paints nor comes back');
+        window._panelVisible = wasVisible;
+
+        // A frame with no time left paints no step - but not PAGE_MAX_SKIPS frames in a row
+        var frameAt = (typeof performance !== 'undefined' ? performance.now() : Date.now()), frames = 0;
+        next = T._pageJob.next;
+        while (T._pageJob && T._pageJob.next === next && frames < 50) { T.stepPage(900, 650, frameAt, -1, true); frames++; }
+        this.check(frames === T.PAGE_MAX_SKIPS + 1 && cr.__needsRender === true,
+            'frames with no time left: no step (the next frame asked for), then one after ' + T.PAGE_MAX_SKIPS + ' in a row');
 
         // The timer stops: the texture done, no size, no page; a failed canvas is tried again for a new look
         T.PAGE_IDLE_STEP_MS = 1e9; cr._frameStartAt = 0;

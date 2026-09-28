@@ -1147,6 +1147,10 @@ window.onPanelShowing = function() {
     if (document.body) document.body.classList.remove('panel-hidden');   // CSS animations run again (patch-ui.css)
 
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.resumePreview) PreReqMaster.resumePreview();
+    // A design page left unpainted while hidden: its idle timer goes on (frames paint it on the tree tab)
+    if (typeof TreeStyle !== 'undefined' && TreeStyle._pageIdleLater && TreeStyle.tokens && TreeStyle.tokens.pageColor) {
+        TreeStyle._pageIdleLater();
+    }
 
     // Progress and known spells are asked for below, to catch XP gained while
     // the panel was hidden; their replies repaint the tree if anything changed
