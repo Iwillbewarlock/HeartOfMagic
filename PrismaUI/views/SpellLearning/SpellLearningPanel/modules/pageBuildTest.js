@@ -174,8 +174,13 @@ var PageBuildTest = {
         this.check(T._pageJob.next === next && timers.length === 0, 'panel hidden: the timer neither paints nor comes back');
         window._panelVisible = wasVisible;
 
+        // A frame past its fill target but with time for a step still paints one
+        var nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        next = T._pageJob.next; T._pageJob.stepMs = 0;
+        T.stepPage(900, 650, nowMs - (T.PAGE_FRAME_DEADLINE_MS - 3), 1, true);
+        this.check(T._pageJob && T._pageJob.next === next + 1, 'a frame past the 8 ms fill target, before the deadline: one step still');
         // A frame with no time left paints no step - but not PAGE_MAX_SKIPS frames in a row
-        var frameAt = (typeof performance !== 'undefined' ? performance.now() : Date.now()), frames = 0;
+        var frameAt = nowMs - T.PAGE_FRAME_DEADLINE_MS - 1, frames = 0;
         next = T._pageJob.next;
         while (T._pageJob && T._pageJob.next === next && frames < 50) { T.stepPage(900, 650, frameAt, -1, true); frames++; }
         this.check(frames === T.PAGE_MAX_SKIPS + 1 && cr.__needsRender === true,

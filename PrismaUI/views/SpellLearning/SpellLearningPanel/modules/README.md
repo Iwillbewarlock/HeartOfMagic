@@ -27,7 +27,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeViewerUI.js` | 2059 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 469 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles, ornament dividers, hub emblem, page ornaments |
+| `treeStyleBook.js` | 476 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles, ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 248 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 392 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
@@ -36,7 +36,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `layoutLineGrid.js` | 450 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
 | `canvasCullTest.js` | 133 | Node tests for the culling index: the spells and lines a box gets from the grids are exactly those the full loop draws, in order; rebuilt when the lists change; not used in edit mode |
 | `layerFlowTest.js` | 405 | Node tests for how a frame gets its tree layer: LayerScroll's shift and piece queue, `_drawTree`'s order (scroll, spread build, at once, stale build dropped, glide build and restart, restart cap, urgent build, leftover pieces drawn on a stretched frame or left waiting), a new font's widths and letters made before the names |
-| `pageBuildTest.js` | 205 | Node tests for the design page painted over frames (`TreeStyle.stepPage`): step order, bands adding up to the one rect, what stands in meanwhile, look changes, frames asked for without marking the tree, the idle timer |
+| `pageBuildTest.js` | 210 | Node tests for the design page painted over frames (`TreeStyle.stepPage`): step order, bands adding up to the one rect, what stands in meanwhile, look changes, frames asked for without marking the tree, the idle timer |
 | `layoutDeclutterTest.js` | 362 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
@@ -71,7 +71,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~24,900 | the 57 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
+| **TOTAL** | ~24,912 | the 57 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,

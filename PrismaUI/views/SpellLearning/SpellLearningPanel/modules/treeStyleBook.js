@@ -35,6 +35,8 @@
         PAGE_IDLE_STEP_MS: 4,     // the timer's slice while the tree is not drawn
         PAGE_IDLE_TICK_MS: 16,    // ...one a tick
         PAGE_IDLE_AFTER_MS: 100,  // ...counted as not drawn when no frame came for this long
+        PAGE_FRAME_DEADLINE_MS: 14, // a frame's step is skipped when it would end past this (the frame's
+                                    // later work - hub, paste - still has to fit under 16.7)
         PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
@@ -84,10 +86,12 @@
          * at least). Returns 'none' (no page, or it is ready), 'pending' or 'done'
          * (swapped in just now). Called by a frame after its tree (CanvasRenderer.render)
          * and by the idle timer; either way the next frame is asked for.
-         * inFrame: a frame's call - no step at all when the frame has no time left
-         * (a step is 1-1.5 ms at 1640x1160 and grows with the screen: after an urgent
-         * build's 11 ms it could push the frame past 16.7), except after
-         * PAGE_MAX_SKIPS such frames in a row, so the page still comes.
+         * inFrame: a frame's call - no step at all when the next one, at the last
+         * step's cost, would end past PAGE_FRAME_DEADLINE_MS (a step is 1-1.5 ms at
+         * 1640x1160 and grows with the screen: after an urgent build's 11 ms it could
+         * push the frame past 16.7), except after PAGE_MAX_SKIPS such frames in a
+         * row, so the page still comes. (Not the 8 ms fill target: frames that take
+         * 8-12 ms anyway, a big screen, would then paint a step one frame in nine.)
          */
         stepPage: function(w, h, since, budget, inFrame) {
             if (!this.tokens.pageColor || !(w > 0 && h > 0)) { this._pageJob = null; return 'none'; }
@@ -99,12 +103,15 @@
                 if (!job) return 'none';            // no canvas: renderPage keeps the plain colour
             }
             var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
-            var skip = inFrame && now() - since >= budget && (job.skips || 0) < this.PAGE_MAX_SKIPS;
+            var skip = inFrame && now() - since + (job.stepMs || 0) > this.PAGE_FRAME_DEADLINE_MS &&
+                (job.skips || 0) < this.PAGE_MAX_SKIPS;
             job.skips = skip ? (job.skips || 0) + 1 : 0;
             try {
                 if (!skip) {
                     do {
+                        var s0 = now();
                         this._pageStep(job, job.steps[job.next++]);
+                        job.stepMs = now() - s0;
                     } while (job.next < job.steps.length && now() - since < budget);
                 }
             } catch (e) {

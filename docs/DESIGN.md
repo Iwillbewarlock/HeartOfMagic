@@ -317,9 +317,11 @@ bench for the three page designs at 1640x1160, 1641x1159, 1280x720 and 1000.5x70
 no byte differs; in Chrome - the game's engine was not compared, though the calls are the same). A frame paints steps after its tree (LayerBuild's pieces), up to
 `PAGE_TARGET_FRAME_MS` (8) from the frame's start (the largest steps - the fibres, one stroke, or a big
 blotch - are 1-1.5 ms at 1640x1160 and grow with the screen's area), and asks for the next frame without
-marking the tree changed; it takes 9-12 frames at that size. A frame with no time left paints no step (at
-4K a step after an urgent build's 11 ms would pass 16.7 ms), unless `PAGE_MAX_SKIPS` (8) frames in a row
-had none: then one, so a page still comes while every frame is busy. (That request, and a build's,
+marking the tree changed; it takes 9-12 frames at that size. A frame paints no step when the next one, at
+the last step's cost, would end past `PAGE_FRAME_DEADLINE_MS` (14; at 4K a step after an urgent build's
+11 ms would pass 16.7 ms), unless `PAGE_MAX_SKIPS` (8) frames in a row had none: then one, so a page still
+comes while every frame is busy. (Skipping once past the 8 ms fill target instead made a big screen whose
+frames take 8-12 ms anyway paint a step one frame in nine - ~10 s of the plain colour.) (That request, and a build's,
 used to be turned into a throttled animation frame - ~12 a second, none while a button is held - by the
 heart beating later in the same frame; `_requestAnimationOnlyFrame` now leaves a frame already asked for in
 full as it is.)
