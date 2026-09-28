@@ -11,6 +11,10 @@
  *   _lastMs left as it was by a build cut short; what finished builds do to
  *   _lastMs (a middling one leaves it, however many come; the first after a
  *   design change is not counted).
+ * - After a design change (the names' font new): even a quick tree's repaint is
+ *   spread, its build measures the names' widths into the renderer's cache and
+ *   draws each letter once before the names, and a slow uncounted build puts the
+ *   figure just past SYNC_MAX_MS.
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
  *   dropped (its change marked again, the restart count started over), a glide
@@ -62,12 +66,13 @@ var LayerFlowTest = {
         try {
             this._scrollTests(g, S);
             this._stepTests(g, S, B);
+            this._warmTests(g, S, B);
             this._drawTreeTests(g, S, B, CR);
         } finally {
             S._ensureSpare = saved.ensure; S._drawStrip = saved.strip; S.step = saved.step; S._spare = saved.spare;
             S._spareCtx = saved.sctx; S._pending = saved.pending; S.TARGET_FRAME_MS = saved.target;
             g.TreeStyle = saved.ts; B.start = saved.bstart; B.abort = saved.babort; B.step = saved.bstep;
-            B._build = null; B._lastMs = 0; B._restarts = 0;
+            B._build = null; B._lastMs = 0; B._restarts = 0; B._textCold = false; B._unmeasured = false; B._warmCanvas = null;
         }
         return { passed: this.passed, failed: this.failed };
     },
@@ -188,6 +193,82 @@ var LayerFlowTest = {
         B._swapIn(rr, built(2));
         this.check(B._lastMs === 2, '...a clearly quick one brings a quick tree back to repaints at once');
         B._lastMs = 0;
+    },
+
+    /** After a design change: the names' font is new, its widths and letters made before the names. */
+    _warmTests: function(g, S, B) {
+        var log = [];
+        var spare = { id: 'spare', width: 1056, height: 856 };
+        S._spare = spare; S._spareCtx = this._ctx(); S._pending = [];
+        S._ensureSpare = function() { return S._spare; };
+        S._drawStrip = function() { log.push('piece'); };
+        var wctx = { font: '', setTransform: function() {}, measureText: function(t) { return { width: t.length }; },
+                     strokeText: function(c) { log.push('stroke ' + c); }, fillText: function(c) { log.push('fill ' + c); } };
+        B._warmCanvas = { getContext: function() { return wctx; } };
+        g.TreeStyle = { tokens: { labelHalo: 'x', chapterTitles: true, chapterSize: 15, labelHaloWidth: 3 },
+                        beginLabels: function(ctx, size) { ctx.font = size + 'px serif'; }, labelFamily: function() { return 'serif'; },
+                        _schoolName: function(n) { return n; }, renderChapters: function() { log.push('titles'); } };
+        var r = { panX: 0, panY: 0, zoom: 1, rotation: 0, _layerPanX: 0, _layerPanY: 0, _layerZoom: 1, _layerRotation: 0,
+                  canvas: { width: 300, height: 200 }, _treeLayer: { id: 'layer', width: 1056, height: 856 },
+                  _treeLayerCtx: this._ctx(), __needsRender: false, _frameStartAt: -1e9, schools: { Fire: {} },
+                  _labelWidths: null, _labelWidthFont: null,
+                  renderLabels: function() { log.push('names'); },
+                  _labelCandidates: function() { return { candidates: [{ text: 'ab' }, { text: 'ba' }], fontSize: 10 }; } };
+        var CRL = { _labelFontFrom: g.CanvasRenderer._labelFontFrom, _labelWidth: g.CanvasRenderer._labelWidth };
+        r._labelFontFrom = CRL._labelFontFrom || function(ctx) {
+            if (this._labelWidthFont !== ctx.font || !this._labelWidths) { this._labelWidthFont = ctx.font; this._labelWidths = new Map(); }
+        };
+        r._labelWidth = CRL._labelWidth || function(ctx, text) {
+            var w = this._labelWidths.get(text);
+            if (w === undefined) { w = ctx.measureText(text).width; this._labelWidths.set(text, w); }
+            return w;
+        };
+        var view = { cx: 150, cy: 100, rotRad: 0, cos: 1, sin: 0 };
+
+        B._build = null; B._restarts = 0; B._lastMs = 3; B._unmeasured = false; B._textCold = false;
+        this.check(!B.wanted(r, r._treeLayer), 'a quick tree: its repaint is done at once');
+        B.noteRestyle();
+        this.check(B.wanted(r, r._treeLayer), "after a design change (the names' font new) even a quick tree's repaint is spread");
+        B.noteSync(4);
+        this.check(!B._textCold && !B.wanted(r, r._treeLayer), '...but not after a repaint at once drew the names');
+
+        B.noteRestyle();
+        B.start(r, 1, 128, view);
+        var tiles = B._build.tiles.length, frames = [], guard = 0, swapped = false;
+        while (!swapped && guard++ < 80) { log.length = 0; swapped = B.step(r, -1e9); frames.push(log.join()); }
+        // No time: a piece a frame, then a width or a letter a frame, then the names on their own
+        var warm = frames.slice(tiles, frames.length - 1);
+        this.check(frames.slice(0, tiles).every(function(f) { return f === 'piece'; }), 'the pieces first');
+        var letters = ['a', 'b', '—', ' ', 'F', 'i', 'r', 'e'].map(function(c) { return 'stroke ' + c + ',fill ' + c; });
+        this.check(warm.length === 2 + letters.length && warm[0] === '' && warm[1] === '' && warm.slice(2).join('|') === letters.join('|'),
+            'then the two widths and each letter once (names, then titles), one a frame with no time left');
+        this.check(r._labelWidths && r._labelWidths.get('ab') === 2 && r._labelWidths.get('ba') === 2 && r._labelWidthFont === '10px serif',
+            "the widths are in the renderer's cache, for the font the names are drawn in");
+        this.check(frames[frames.length - 1] === 'names,titles' && swapped && !B._textCold && !B._unmeasured,
+            'the names last, in a frame of their own; the font is warm after');
+        this.check(B._lastMs === 3, 'an uncounted quick build leaves the figure');
+
+        B.noteRestyle();
+        B.start(r, 1, 128, view);
+        B._build.spent = 0;
+        log.length = 0;
+        var now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        var saved = B.TARGET_FRAME_MS;
+        B.TARGET_FRAME_MS = 1e9;
+        swapped = B.step(r, now);
+        B.TARGET_FRAME_MS = saved;
+        var at = function(x) { return log.indexOf(x); };
+        this.check(swapped && at('fill b') > at('piece') && at('names') > at('fill b') && log.filter(function(x) { return x === 'fill a'; }).length === 1,
+            'time enough: pieces, letters and names in one frame, each letter once');
+
+        // An uncounted build that was slow: the figure just past SYNC_MAX_MS (the design may be heavier)
+        var built = function(spent) { return { tiles: [], spent: spent, pieces: 1, minPiece: 0, panX: 0, panY: 0, zoom: 1, rotation: 0 }; };
+        var rr = { _treeLayer: { id: 'a' }, _treeLayerCtx: this._ctx() };
+        B._lastMs = 3; B.noteRestyle(); B._swapIn(rr, built(20));
+        this.check(B._lastMs === B.SYNC_MAX_MS + 1 && !B._textCold, 'a slow uncounted build after a design change: the next repaint spread');
+        B._lastMs = 3; B.noteRestyle(); B._swapIn(rr, built(4));
+        this.check(B._lastMs === 3, '...a quick one leaves the figure');
+        B._lastMs = 0; B._warmCanvas = null; B._build = null;
     },
 
     _drawTreeTests: function(g, S, B, CR) {

@@ -196,7 +196,7 @@ node run-tests.js
 | `modules/openRefreshGateTest.js` | Opening the panel repaints the tree only when the replies changed what it shows |
 | `modules/layerScrollTest.js` | Drag scroll of the tree layer (uncovered strips, their pieces, waiting strips moved, names moved with the picture) and the whole repaint spread over frames (LayerBuild states) |
 | `modules/canvasCullTest.js` | The tree renderer's culling index (the spells and lines a strip or piece of the tree layer looks at are exactly those the full loop draws, in the same order) |
-| `modules/layerFlowTest.js` | How a frame gets its tree layer: LayerScroll's shift and piece queue, and `_drawTree`'s order (scroll, build over frames, draw at once, stale builds dropped, glide builds, the restart cap, the urgent build) |
+| `modules/layerFlowTest.js` | How a frame gets its tree layer: LayerScroll's shift and piece queue, and `_drawTree`'s order (scroll, build over frames, draw at once, stale builds dropped, glide builds, the restart cap, the urgent build), a new font's widths and letters made before the names |
 | `modules/pageBuildTest.js` | The design page painted over frames (`TreeStyle.stepPage`): step order, bands, what stands in meanwhile, look changes, the idle timer |
 | `test-runner.html` | Browser-based test runner |
 

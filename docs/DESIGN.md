@@ -246,7 +246,8 @@ the glide, so after a click the highlighted tree is usually ready before the cam
 it went (bench: done by the fifth of 18 glide frames). A change during the glide restarts it. A build is
 dropped when the view it was for is gone (zoom, rotation, glide target, pixel ratio, layer size, edit
 mode) and the tree is then marked for a repaint again, so the change it carried is not lost. Still done
-at once: a quick one (undiscovered spells hidden: 7-9 ms), the first, one with no old picture (stale
+at once: a quick one (undiscovered spells hidden: 7-9 ms; not right after a design switch, see *A new face's
+names* below), the first, one with no old picture (stale
 layer, resize) and edit mode. When the view, held still, is past the old picture's margin (a jump
 without a glide, a drag during the build) the build goes on urgently (2026-09-28; it used to finish in
 that one frame): `URGENT_TARGET_FRAME_MS` (11) of the frame, the pieces the screen shows first, and the
@@ -326,6 +327,25 @@ every 16 ms, while no frame has come for `PAGE_IDLE_AFTER_MS` (100): by the time
 the tree the texture is usually ready and the switch looks as it did. The corner drawing's `onload`
 now asks for a frame through the backing field (`__needsRender`) and starts that timer - no frame drawn
 inside the image callback, the tree not marked changed.
+
+**A new face's names made before they are drawn** (`LayerBuild._warmText`, 2026-09-28). After a design
+switch the build's last frame, the names and chapter titles, took 15-22 ms on Chalkboard: not the drawing
+but the first use of the new face - measuring the names (`measureText`, 4-5 ms, into
+`CanvasRenderer._labelWidths`), shaping them, and above all the glyph outlines the halo's `strokeText`
+needs (8 ms for Chalkboard's chalk face, 3 ms for Arcane's book face); drawn again at once the same names
+cost 2-3 ms. `LayerBuild.noteRestyle` (a design, Design Effects, a late stylesheet or web font, a
+language) now also marks the names' font cold (`_textCold`). A build then, after its pieces and before
+the names, measures the names it will draw into the renderer's width cache (the font set on a small
+canvas as `renderLabels` sets it, so the cache is kept) and draws each distinct letter once, outlined and
+filled, at the names' and the titles' size and scale on that canvas - as many as fit in the frame's time
+left, one at least; the names follow when they fit. The widths are ours and always carried over; the
+glyphs are the engine's cache, which Chrome shares across canvases (the bench shows it) - not measured in
+the game's engine. Even a quick tree's repaint after a design switch is now spread while the font is cold
+(it was one repaint at once of 40-54 ms with a page design, 8-16 of it the names); a repaint at once or a
+finished build clears the flag. An uncounted build that was slow puts `_lastMs` just past `SYNC_MAX_MS`,
+as `noteSync` does for an uncounted repaint at once (the new design may be heavier). Bench: the finishing
+frame after a page-to-page switch 17-21 → 10-11 ms; a quick tree's repaint after a switch 40-54 → 10-12 ms
+(its frames).
 
 **Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all
 under 600 lines: `canvasRendererV2.js` holds its state and constants, start-up, canvas size, the render

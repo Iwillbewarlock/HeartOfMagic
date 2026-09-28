@@ -30,7 +30,13 @@
  * makes the sprites, patterns and text widths and would pass for a slow tree -
  * unless nothing was measured yet: then it is the figure, as a slow tree's first
  * click must be spread (a quick tree may stay spread, no long frame).
- * So is the first repaint, one with
+ * After such a change the names' font is new too (_textCold): the first names in
+ * a new face cost 5-15 ms more (widths, shaping, glyph outlines), so the repaint
+ * is spread even for a quick tree, and before the names its build measures their
+ * widths and draws each letter once on a small canvas, in the frames' time left
+ * (_warmText); an uncounted build that was slow puts the figure just past
+ * SYNC_MAX_MS, as noteSync does.
+ * Done at once whatever the figure: the first repaint, one with
  * no old picture to show (stale layer, resize) and one in edit mode; and a tree
  * that keeps changing faster than a build ends (MAX_RESTARTS builds started
  * again in a row, the count starting over when a build is dropped for another
@@ -76,6 +82,9 @@ var LayerBuild = {
     _finishMs: 4,             // the names and chapter titles' running cost, ms
     _restarts: 0,             // builds started again before one was done, in a row
     _unmeasured: false,       // the next whole repaint follows a design or language change (noteRestyle)
+    _textCold: false,         // ...and the names' font is new since names were last drawn: their widths
+                              // and glyphs are made first (_warmText), spread, before the finish
+    _warmCanvas: null,        // a small canvas the glyphs are drawn on to make them (_warmText)
 
     active: function() {
         return !!this._build;
@@ -88,7 +97,9 @@ var LayerBuild = {
 
     /** Should a whole repaint now be spread over frames? */
     wanted: function(r, layer) {
-        return this.ENABLED && this._lastMs > this.SYNC_MAX_MS && !!layer && layer.width > 0 &&
+        // With the names' font new (a design switch) even a quick tree's repaint is
+        // spread: making the widths and glyphs of a new face costs 5-15 ms by itself
+        return this.ENABLED && (this._lastMs > this.SYNC_MAX_MS || this._textCold) && !!layer && layer.width > 0 &&
             !this.overRestarts() &&
             typeof LayerScroll !== 'undefined' && !(typeof EditMode !== 'undefined' && EditMode.isActive);
     },
@@ -116,6 +127,7 @@ var LayerBuild = {
      */
     noteRestyle: function() {
         this._unmeasured = true;
+        this._textCold = true;
     },
 
     /** A whole repaint was just done at once; it took `ms`. */
@@ -131,6 +143,7 @@ var LayerBuild = {
             this._lastMs = Math.max(this._lastMs, this.SYNC_MAX_MS + 1);
         }
         this._unmeasured = false;
+        this._textCold = false;                 // the names were drawn with it
         this._build = null;
         this._restarts = 0;
     },
@@ -232,12 +245,17 @@ var LayerBuild = {
                     b.pieces++;
                     if (ms < b.minPiece) b.minPiece = ms;
                     if (onScreen > 0) onScreen--;
+                } else if (self._textCold && !b.warmed) {
+                    // A new font: its widths and glyphs made in the time left, then the names
+                    if (drew && left() <= 0) break;
+                    if (!self._warmText(r, b, left)) break;
                 } else {
                     // The names and titles: in this frame only if they fit (or nothing was drawn yet)
                     if (drew && left() < self._finishMs) break;
                     var f0 = now();
                     self._finish(r, g, b);
                     self._finishMs = self._finishMs * 0.7 + (now() - f0) * 0.3;
+                    self._textCold = false;
                     done = true;
                 }
                 drew = true;
@@ -263,6 +281,80 @@ var LayerBuild = {
         }
         this._swapIn(r, b);
         return true;
+    },
+
+    /**
+     * Before the names of a new font (a design, a late web font, a language):
+     * their widths measured into the renderer's cache (_labelWidth) and each
+     * letter drawn once, outlined and filled, at the names' and the chapter
+     * titles' size and scale on a small canvas of its own - the first names in
+     * a new face cost 5-15 ms more than the next (widths, shaping, glyph outlines
+     * for the halo; 13 ms on Chalkboard in the bench), all in the finish's frame
+     * before. As many as fit in the time left, one at least; returns true when
+     * all are done (b.warmed). The glyph part holds where the engine keeps its
+     * glyphs across canvases (Chrome does); the widths are ours.
+     */
+    _warmText: function(r, b, left) {
+        var w = b.warm;
+        if (!w) {
+            var v = b.view, found = r._labelCandidates ? r._labelCandidates(v.cx, v.cy, v.cos, v.sin, b.margin) : null;
+            var texts = [], chars = '', titles = '', seen = {}, i, k, s;
+            if (found) for (i = 0; i < found.candidates.length; i++) texts.push(found.candidates[i].text);
+            var addChars = function(text, into) {
+                for (k = 0; k < text.length; k++) {
+                    var c = text.charAt(k), key = into + c;
+                    if (!seen[key]) { seen[key] = true; if (into === 'n') chars += c; else titles += c; }
+                }
+            };
+            for (i = 0; i < texts.length; i++) if (texts[i]) addChars(texts[i], 'n');
+            if (TreeStyle.tokens && TreeStyle.tokens.chapterTitles && r.schools) {
+                for (s in r.schools) if (r.schools.hasOwnProperty(s)) addChars('— ' + TreeStyle._schoolName(s), 't');
+            }
+            w = b.warm = { texts: texts, chars: chars, titles: titles, fontSize: found ? found.fontSize : 0, i: 0, j: 0, k: 0 };
+            if (!this._warmCanvas && typeof document !== 'undefined' && document.createElement) {
+                try {
+                    this._warmCanvas = document.createElement('canvas');
+                    this._warmCanvas.width = 64;
+                    this._warmCanvas.height = 48;
+                } catch (e) { this._warmCanvas = null; }
+            }
+        }
+        var ctx = this._warmCanvas && this._warmCanvas.getContext ? this._warmCanvas.getContext('2d') : null;
+        if (!ctx) { b.warmed = true; return true; }
+        var t = TreeStyle.tokens || {}, phase = -1;
+        // The canvas is set up afresh each call (a late font may have emptied the width cache meanwhile)
+        var setUp = function(to) {
+            if (phase === to) return;
+            phase = to;
+            ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
+            TreeStyle.beginLabels(ctx, w.fontSize);
+            if (to === 0) r._labelFontFrom(ctx);
+            if (to === 2) {
+                ctx.font = t.chapterSize + 'px ' + TreeStyle.labelFamily();
+                ctx.lineWidth = t.labelHaloWidth + 1;
+            }
+        };
+        var letter = function(c) {
+            if (t.labelHalo) ctx.strokeText(c, 4, 24);
+            ctx.fillText(c, 4, 24);
+        };
+        do {
+            if (w.i < w.texts.length) {
+                // The widths, with the font set as renderLabels sets it, so the cache is kept
+                setUp(0);
+                r._labelWidth(ctx, w.texts[w.i++]);
+            } else if (w.j < w.chars.length) {
+                setUp(1);
+                letter(w.chars.charAt(w.j++));
+            } else if (w.k < w.titles.length) {
+                setUp(2);
+                letter(w.titles.charAt(w.k++));
+            } else {
+                break;
+            }
+        } while (left() > 0);
+        if (w.i >= w.texts.length && w.j >= w.chars.length && w.k >= w.titles.length) b.warmed = true;
+        return !!b.warmed;
     },
 
     /** The names and chapter titles, whole, over the finished pieces. */
@@ -318,8 +410,15 @@ var LayerBuild = {
         // build) it would switch a slow tree back to a long frame
         // A build after a design change (noteRestyle) is not counted, swapped in
         // whole or early (its pieces on screen and the names made the caches)
+        this._textCold = false;                 // its names were drawn (the finish comes before any swap)
         if (this._unmeasured) {
             this._unmeasured = false;
+            // Not counted, but slow: as noteSync, the figure goes just past SYNC_MAX_MS
+            // (the new design may be heavier; the repaint after a design switch is
+            // spread since its names' font is new, so this is where a quick tree hears it)
+            if (!b.tiles.length && this._lastMs > 0 && this._estimate(b) > this.SYNC_MAX_MS) {
+                this._lastMs = Math.max(this._lastMs, this.SYNC_MAX_MS + 1);
+            }
         } else if (!b.tiles.length) {
             var est = this._estimate(b);
             if (est < this.SYNC_MAX_MS * this.QUICK_SHARE || est > this._lastMs) this._lastMs = est;
