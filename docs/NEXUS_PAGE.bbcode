@@ -1,0 +1,77 @@
+[center][size=6][b]Heart of Magic Librarian[/b][/size]
+[size=3]Spell learning as practice, on a tree grown from your own load order[/size]
+
+A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic - Spell Learning System[/url] by DinkelZombie.[/center]
+
+[line]
+
+[size=5][b]What it does[/b][/size]
+
+Spells are no longer learned the moment you read a tome. Heart of Magic Librarian scans every spell in your load order - vanilla and mods alike - and grows a skill tree for each school, where each spell leads to related, stronger ones. You learn a spell by working toward it: casting its prerequisites, studying its tome, practising the school. Early on you can cast it weakened; at mastery it reaches full power.
+
+No spell lists to maintain and no patches per spell mod: the tree is built from what is installed.
+
+[size=5][b]Features[/b][/size]
+
+[list]
+[*][b]A tree from your load order.[/b] Every spell is scanned and tagged with its element (fire, frost, shock, blood, water, holy, shadow...) and technique (summoning, siphon, curse...). Spells of the same element grow on the same branch, in any game language.
+[*][b]Learning by practice.[/b] XP from casting spells that lead to your target, from casting in the same school, and from studying tomes. Weakened early casting, full power at mastery. Every rate is a setting, with presets.
+[*][b]Known Higher Spells.[/b] Already know a higher spell (bought, given, from another mod)? The spells below it open for a share of their XP - optionally the whole chain down to the root.
+[*][b]Paths between schools.[/b] Related spells in different schools (a fire spell and a fire summon) are linked, as an extra way in - never an extra requirement.
+[*][b]The spell card.[/b] Icon (from an installed icon set), keyword chips, a description with the real numbers, the figures, and the paths to other schools. Click a chip to light every spell with that keyword.
+[*][b]Five designs.[/b] Classic, Modern Dark, Arcane (a parchment spellbook), Night Grimoire (indigo vellum and gold engraving) and Chalkboard (slate and pastel chalk), each with its own drawn lines and fonts for Latin, Cyrillic, Korean, Japanese and Chinese. Add-on designs are one JSON file.
+[*][b]A smooth panel.[/b] The tree is drawn once and reused; drags, clicks and zooms are built to stay within the frame.
+[*][b]13 languages[/b], chosen in the panel.
+[/list]
+
+[size=5][b]Requirements[/b][/size]
+
+[list]
+[*]Skyrim Special Edition 1.5.97 or Anniversary Edition (not VR)
+[*][url=https://skse.silverlock.org/]SKSE64[/url]
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url]
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/148718]Prisma UI[/url]
+[/list]
+
+No ESP, no Python, no API key.
+
+[b]Optional[/b]
+[list]
+[*][b]ISL-DESTified / Don't Eat Spell Tomes, Sit Down and Read, GTS Trait Rebalanced[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
+[*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) for spell card icons.
+[*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - extra tagging rules switch on by themselves.
+[*][b]powerofthree's Tweaks[/b] with "Load EditorIDs" - lets the tree group spells by their editor IDs as well as their names.
+[/list]
+
+[size=5][b]Installation[/b][/size]
+
+Install with your mod manager (MO2 or Vortex) and run the installer. Then in game: open the panel (F8 by default), scan your spells, and build the tree.
+
+[b]Coming from Heart of Magic v2.5:[/b]
+[list=1]
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod at version 1.0.0.
+[*]Your saves, settings and saved tree carry over.
+[*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
+[*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
+[/list]
+See the Changelog for the full list of changes from v2.5.
+
+[size=5][b]Compatibility and notes[/b][/size]
+
+[list]
+[*]Works with any spell mod; nothing is hard-coded per mod.
+[*]The spell tome hook is verified on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On other versions, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
+[*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
+[/list]
+
+[size=5][b]Credits[/b][/size]
+
+[list]
+[*][b]DinkelZombie[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url], the mod this is rebuilt from
+[*][b]langfod[/b] - the move from Python to native C++ and the thread-safety work in Heart of Magic
+[*][b]Prisma UI[/b] developers, [b]SKSE[/b] team, [b]CommonLibSSE-NG[/b]
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/43095]Don't Eat Spell Tomes[/url] - spell tome hook reference
+[*]Fonts: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS)
+[/list]
+
+MIT License.
