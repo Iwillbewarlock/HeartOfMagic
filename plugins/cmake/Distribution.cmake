@@ -37,31 +37,36 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 )
 
 # ============================================================================
-# 2. Copy DLLs
+# 2. Copy DLLs; their debug symbols go to a separate archive
+#    (<name>_DebugSymbols: SKSE/Plugins/*.pdb, for crash logs to name functions -
+#    three quarters of the main archive's size if they went in it)
 # ============================================================================
 
+set(DIST_PDB_DIR "${DIST_VERSION_DIR}_DebugSymbols")
+
 add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${DIST_PDB_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DIST_PDB_DIR}/SKSE/Plugins"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SpellLearning>"
     "${DIST_VERSION_DIR}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SpellLearning>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SpellLearning>>:$<TARGET_PDB_FILE:SpellLearning>>"
-    "${DIST_VERSION_DIR}/SKSE/Plugins/"
-
+    "${DIST_PDB_DIR}/SKSE/Plugins/"
 
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SL_BookXP>"
     "${DIST_VERSION_DIR}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_BookXP>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SL_BookXP>>:$<TARGET_PDB_FILE:SL_BookXP>>"
-    "${DIST_VERSION_DIR}/SKSE/Plugins/"
+    "${DIST_PDB_DIR}/SKSE/Plugins/"
 
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:DontEatSpellTomes>"
     "${DIST_VERSION_DIR}/optional/ISLPatch/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:DontEatSpellTomes>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:DontEatSpellTomes>>:$<TARGET_PDB_FILE:DontEatSpellTomes>>"
-    "${DIST_VERSION_DIR}/optional/ISLPatch/SKSE/Plugins/"
+    "${DIST_PDB_DIR}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E echo "Copying DLLs..."
     VERBATIM
 )
@@ -172,16 +177,22 @@ endif()
 
 get_filename_component(_dist_folder_name "${DIST_VERSION_DIR}" NAME)
 
+get_filename_component(_pdb_folder_name "${DIST_PDB_DIR}" NAME)
+
 add_custom_command(TARGET assemble_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E tar cf
     "${DIST_DIR}/${_dist_folder_name}.zip"
     --format=zip
     -- "${_dist_folder_name}"
+    COMMAND "${CMAKE_COMMAND}" -E tar cf
+    "${DIST_DIR}/${_pdb_folder_name}.zip"
+    --format=zip
+    -- "${_pdb_folder_name}"
     WORKING_DIRECTORY "${DIST_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${_dist_folder_name}.zip..."
+    COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${_dist_folder_name}.zip and ${_pdb_folder_name}.zip..."
     VERBATIM
 )
 
 message(STATUS "Distribution assembly configured:")
 message(STATUS "  Output:   ${DIST_VERSION_DIR}")
-message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip")
+message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folder_name}.zip)")

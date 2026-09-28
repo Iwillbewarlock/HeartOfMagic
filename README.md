@@ -1,6 +1,6 @@
 # Heart of Magic Librarian
 
-A rebuild of Heart of Magic by DinkelZombie.
+A rebuild of [Heart of Magic - Spell Learning System](https://www.nexusmods.com/skyrimspecialedition/mods/171146) by DinkelZombie.
 
 
 Heart of Magic transforms spell learning into an active journey of practice and growth. The mod scans every spell in your load order, generates a personalized skill tree with intelligent prerequisites, and tracks your progress as you cast and practice magic.
@@ -78,7 +78,7 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 - **Skyrim SE/AE** (1.5.97+ or AE)
 - **[SKSE64](https://skse.silverlock.org/)**
 - **[Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)**
-- **[PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/)** - UI framework (must load before Heart of Magic)
+- **[PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718)** - UI framework (must load before Heart of Magic)
 
 ## Installation
 
@@ -206,8 +206,11 @@ HeartOfMagic/
 
 ## Credits
 
+- **DinkelZombie** - [Heart of Magic](https://www.nexusmods.com/skyrimspecialedition/mods/171146), the mod this is rebuilt from
+- **langfod** - the move from Python to native C++ and the thread-safety work in Heart of Magic
+- Fonts in the designs: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS); licence texts ship beside them in `themes/`
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64
-- [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/) developers
+- [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718) developers
 - [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) - Spell tome hook reference
 - [CommonLibSSE-NG](https://github.com/alandtse/CommonLibVR) by alandtse
 
