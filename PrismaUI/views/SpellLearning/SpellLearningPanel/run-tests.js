@@ -28,6 +28,8 @@ global.callCpp = function(method, data) {
 // Track loaded modules; a module that fails to load fails the run
 var loadedModules = [];
 var failedModules = [];
+// Every module asked for, loaded or not: the test suites are read from it (SUITES below)
+var requestedModules = [];
 
 /**
  * @param {string} name
@@ -36,6 +38,7 @@ var failedModules = [];
  *   top-level vars are globals (constants.js: state.js reads DEFAULT_TREE_RULES)
  */
 function loadModule(name, path, asScript) {
+    requestedModules.push(name);
     try {
         if (asScript) {
             require('vm').runInThisContext(require('fs').readFileSync(require('path').join(__dirname, path), 'utf8'), { filename: path });
@@ -127,21 +130,25 @@ console.log('');
 console.log('Running tests...');
 console.log('');
 
-// Every suite must be there: one that did not load counts as a failure instead of being skipped
-var SUITES = [
-    ['LayoutDeclutter', 'LayoutDeclutterTest'],
-    ['OpenRefreshGate', 'OpenRefreshGateTest'],
-    ['LayerScroll', 'LayerScrollTest'],
-    ['CanvasCull', 'CanvasCullTest'],
-    ['LayerFlow', 'LayerFlowTest'],
-    ['PageBuild', 'PageBuildTest'],
-    ['StatusLine', 'StatusLineTest'],
-    ['SpellNames', 'SpellNamesTest']
-];
+// The suites: every module loaded above whose name ends in "Test" (unificationTest
+// runs through runAll instead), as [label, global] - spellNamesTest gives
+// ['SpellNames', 'SpellNamesTest']. A new *Test.js needs only its loadModule call.
+// Every suite must be there: one that did not load counts as a failure instead of being skipped.
+var SUITES = requestedModules.filter(function(name) {
+    return /Test$/.test(name) && name !== 'unificationTest';
+}).map(function(name) {
+    var global_ = name.charAt(0).toUpperCase() + name.slice(1);
+    return [global_.slice(0, -'Test'.length), global_];
+});
 
 var failed = 0;
 if (typeof UnificationTest !== 'undefined') {
-    failed += UnificationTest.runAll().failed;
+    try {
+        failed += UnificationTest.runAll().failed;
+    } catch (e) {
+        console.log('Unification: THREW ' + (e && e.message ? e.message : e));
+        failed++;
+    }
 } else {
     console.log('ERROR: UnificationTest not loaded');
     failed++;
@@ -153,9 +160,15 @@ for (var s = 0; s < SUITES.length; s++) {
         failed++;
         continue;
     }
-    var r = suite.run();
-    failed += r.failed;
-    console.log(SUITES[s][0] + ': ' + r.passed + ' passed, ' + r.failed + ' failed');
+    // A suite that throws fails and the rest still run
+    try {
+        var r = suite.run();
+        failed += r.failed;
+        console.log(SUITES[s][0] + ': ' + r.passed + ' passed, ' + r.failed + ' failed');
+    } catch (e) {
+        console.log(SUITES[s][0] + ': THREW ' + (e && e.message ? e.message : e));
+        failed++;
+    }
 }
 if (failedModules.length > 0) {
     console.log('');

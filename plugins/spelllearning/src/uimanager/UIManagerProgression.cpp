@@ -488,8 +488,8 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 RE::FormID formId = 0;
                 try {
                     formId = std::stoul(formIdStr, nullptr, 0);
-                } catch (...) {
-                    logger::warn("UIManager: Could not parse formId '{}' - skipping", formIdStr);
+                } catch (const std::exception& e) {
+                    logger::warn("UIManager: Could not parse formId '{}' ({}) - skipping", formIdStr, e.what());
                     continue;
                 }
 
@@ -515,9 +515,9 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                                 continue;
                             }
                             out.push_back(prereqId);
-                        } catch (...) {
-                            logger::warn("UIManager: Could not parse {} '{}' for spell {:08X}",
-                                key, prereqStr.get<std::string>(), formId);
+                        } catch (const std::exception& e) {
+                            logger::warn("UIManager: Could not parse {} '{}' for spell {:08X}: {}",
+                                key, prereqStr.get<std::string>(), formId, e.what());
                         }
                     }
                 };

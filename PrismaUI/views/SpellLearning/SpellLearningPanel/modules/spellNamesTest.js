@@ -180,7 +180,22 @@ var SpellNamesTest = {
                     tag + 'no "unobtainable spells" warning');
                 this.check(b.persistentId === 'Mod.esp|0x000800', tag + 'persistentId kept on the node');
             }
+            // A tree saved by the 6316b47 build: every link null
+            lines = [];
+            console.log = keep; console.warn = keep;
+            var nulls = P.parse({ trustPrereqs: true, schools: { Destruction: { root: 'A', nodes: [
+                { formId: 'A', isRoot: true, children: [null, 'B', 7], prerequisites: [] },
+                { formId: 'B', children: [null], prerequisites: [null, 'A'], hardPrereqs: [null], softPrereqs: [null, 'A'] }
+            ] } } });
+            console.log = oldLog; console.warn = oldWarn;
+            var nb = P.nodes.get('B');
+            this.check(nulls.success && !nulls.edges.some(function(e) { return typeof e.to !== 'string' || typeof e.from !== 'string'; }) &&
+                P.nodes.get('A').children.join() === 'B' && nb.children.length === 0 &&
+                nb.prerequisites.join() === 'A' && nb.hardPrereqs.length === 0 && nb.softPrereqs.join() === 'A',
+                'TreeParser: null and other non-string links dropped, no {to: null} edge');
+            var same = ['B', 'C'];
             this.check(P.withoutId(null, 'A').length === 0 && P.withoutId(['B'], 'A').join() === 'B' &&
+                P.withoutId(same, 'A') === same && P.withoutId([null, 'B'], 'A').join() === 'B' &&
                 P.clampSoftNeeded(3, ['x']) === 1 && P.clampSoftNeeded(undefined, []) === 0,
                 'withoutId / clampSoftNeeded edge cases');
         } finally {

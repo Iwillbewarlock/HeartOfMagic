@@ -174,7 +174,8 @@ Uses `TreeNLP::Tokenize()` — no external libraries required.
   is the net for any later step that writes the arrays directly.
 - `treebuilder-test` prints each school's shape after the build - `Structure <school>: nodes= links=
   branching= maxChildren= maxDepth= nonStringLinks=` (branching: spells with 2+ children) - and exits
-  with 2 when a link is not a formId string or a school of 10 or more spells never branches (`CHAIN`).
+  with 2 when a link is not a formId string or a school of 10 or more spells never branches (`CHAIN`;
+  not flagged when the config's `max_children_per_node` is 1, which asks for a chain).
 - Simulates progressive unlock starting from root
 - A node unlocks when ALL its prerequisites are unlocked
 - If nodes remain unreachable after 20 repair passes, logs warning
@@ -585,7 +586,9 @@ The panel drops a self id as well when it reads a tree, from all four lists - `c
 (`TreeParser.withoutId` / `clampSoftNeeded`, used by `treeParser.js` for both `trustPrereqs` values,
 by the trusted fast path and by the hard/soft pass in `treeViewerUI.js`). C++ skips one too when the
 panel sends the prerequisites (`SetTreePrerequisites`, `UIManagerProgression.cpp`, with a warning in
-the log). So an old or hand-edited `spell_tree.json` can neither show a self link nor leave a spell
+the log), and holds `softNeeded` to the number of soft prerequisites it kept. `withoutId` also drops
+any entry that is not a formId string, so a tree saved with null links (the 6316b47 build) makes no
+`{to: null}` edge. So an old or hand-edited `spell_tree.json` can neither show a self link nor leave a spell
 waiting for itself. A spell that
 *looks* like its own child is a different spell with the same name - see "Names in the card's lists"
 in DESIGN.md.

@@ -21,11 +21,11 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
 | `uiHelpers.js` | 450 | Scan status bar (and its message again after a language switch), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `treeParser.js` | 987 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId` |
+| `treeParser.js` | 992 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId` |
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
-| `treeViewerUI.js` | 2077 | Tree viewer, spell details, node selection |
+| `treeViewerUI.js` | 2087 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
@@ -58,7 +58,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
 | `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
 | `statusLineTest.js` | 198 | Node tests for the status lines over a language switch (`TreeGrowth.setStatusText`/`relabelStatus`/`resetStatus`, the Easy copy, `updateScanStatus`) and the card's Magicka rounding, run by `run-tests.js` |
-| `spellNamesTest.js` | 195 | Node tests for `SpellNames`: a shared name gets its plugin and a unique one does not, hidden names show `???` with no plugin, SpellCache's `plugin` before the `persistentId`, counts after a new tree or `invalidate()`, edit-mode duplicates; TreeParser dropping self ids from all four lists for both `trustPrereqs` values, `softNeeded` clamped, no "unobtainable" warning; run by `run-tests.js` |
+| `spellNamesTest.js` | 210 | Node tests for `SpellNames`: a shared name gets its plugin and a unique one does not, hidden names show `???` with no plugin, SpellCache's `plugin` before the `persistentId`, counts after a new tree or `invalidate()`, edit-mode duplicates; TreeParser dropping self ids and null links from all four lists for both `trustPrereqs` values, `softNeeded` clamped, no "unobtainable" warning; run by `run-tests.js` |
 | `treeGrowthStatus.js` | 118 | The builder status line (`#tgStatus`) and its Easy page copy, added to `TreeGrowth`: `setStatusText(text, tone, key, params)`, `relabelStatus`, `resetStatus`, `STATUS_COLORS` |
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |

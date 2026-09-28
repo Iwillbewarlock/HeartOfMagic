@@ -114,7 +114,8 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   same as the player unlocks spells, instead of growing a plugin the moment the other copy opens. An
   edit-mode duplicate (`originalFormId`) is the same spell as its original - counted once with it
   and named by the original's plugin. The counts are made once per loaded tree and again after spell
-  info renames a node or edit mode adds or removes one (`SpellNames.invalidate`). A hidden name
+  info renames a node or edit mode adds or removes one (`SpellNames.invalidate`, and
+  `invalidateNodeLookup` so the id lookup the lists use finds the new node). A hidden name
   (locked, cheat mode off; a Lock not yet revealed) is `???` with no plugin either. Plain text
   (the Locks row too, no longer built as HTML), so every design shows it alike.
 - **How-to-Learn panel** — shows what the player needs to do to unlock a spell

@@ -29,8 +29,18 @@ var _nodeLookupMap = {};
 var _nodeLookupTreeRef = null;
 
 /**
+ * Make the node lookup map again at its next use: edit mode added or removed a
+ * node in the same tree object, which the reference check below cannot see.
+ * Costs nothing until the next lookup.
+ */
+function invalidateNodeLookup() {
+    _nodeLookupTreeRef = null;
+}
+
+/**
  * Returns a node lookup map { id: node } for the current tree data.
- * Rebuilds the cache only when the tree data reference changes.
+ * Rebuilds the cache only when the tree data reference changes
+ * (or after invalidateNodeLookup).
  */
 function _getNodeLookupMap() {
     var treeData = state.treeData;

@@ -64,13 +64,16 @@ static void WriteJsonFile(const std::string& path, const json& data)
 // A tree the builder hands back must link by formId strings only, and must
 // branch: a school of kChainCheckMinNodes or more spells where no spell has two
 // children is a chain, which is what a broken link pass leaves behind after the
-// reachability repair rebuilds it (all_valid still says true then). Prints per
-// school: nodes, links, spells with 2+ children, most children, deepest depth.
+// reachability repair rebuilds it (all_valid still says true then). A config
+// that allows one child per spell (max_children_per_node 1) asks for a chain, so
+// it is not flagged then. Prints per school: nodes, links, spells with 2+
+// children, most children, deepest depth.
 
 static constexpr int kChainCheckMinNodes = 10;
 
-static bool CheckStructure(const json& treeData)
+static bool CheckStructure(const json& treeData, int maxChildrenPerNode)
 {
+    const bool chainAllowed = maxChildrenPerNode <= 1;
     if (!treeData.contains("schools") || !treeData["schools"].is_object()) {
         std::cerr << "Structure: no schools\n";
         return false;
@@ -125,7 +128,7 @@ static bool CheckStructure(const json& treeData)
             }
         }
 
-        const bool chain = static_cast<int>(nodes.size()) >= kChainCheckMinNodes && mostChildren <= 1;
+        const bool chain = !chainAllowed && static_cast<int>(nodes.size()) >= kChainCheckMinNodes && mostChildren <= 1;
         std::cout << "Structure " << school << ": nodes=" << nodes.size() << " links=" << links
                   << " branching=" << branching << " maxChildren=" << mostChildren
                   << " maxDepth=" << deepest << " nonStringLinks=" << badLinks
@@ -259,7 +262,9 @@ int main(int argc, char* argv[])
     std::cout << "Done. " << spells.size() << " spells -> " << outputPath
               << " (" << result.elapsedMs << " ms)\n";
 
-    if (!CheckStructure(result.treeData)) {
+    // The same default the builder reads the config with
+    const int maxChildrenPerNode = TreeBuilder::BuildConfig::FromJson(configJson).maxChildrenPerNode;
+    if (!CheckStructure(result.treeData, maxChildrenPerNode)) {
         std::cerr << "Structure check FAILED: a link that is not a formId, or a school that does not branch\n";
         return 2;
     }
