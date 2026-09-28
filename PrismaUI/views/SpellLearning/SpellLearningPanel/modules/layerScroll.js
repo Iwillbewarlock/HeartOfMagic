@@ -53,6 +53,7 @@ var LayerScroll = {
     _pieceMs: 3,              // what a piece has cost lately, ms (a running average)
     _drewThisFrame: false,
     _found: undefined,        // the name candidates of this frame (_labels)
+    _titles: undefined,       // the chapter title boxes of this frame (_underTitles)
 
     /**
      * The layer rects (device px) a move of (sx, sy) device px uncovers in a
@@ -288,6 +289,7 @@ var LayerScroll = {
         var frameStart = r._frameStartAt || now();
         var draw = function() {
             self._found = undefined;               // the names that could go in, worked out once a frame
+            self._titles = undefined;              // and the chapter title boxes
             while (must.length) self._drawTimed(r, g, must.shift(), dpr, margin, view, viewCss);
             while (rest.length) {
                 // One piece at least when nothing was drawn yet, or a frame that is
@@ -378,8 +380,9 @@ var LayerScroll = {
      * Draw the tree into one layer rect (device px) of g, clipped to it, the
      * spells and lines culled to its world box. whole: a piece of a whole-layer
      * build (LayerBuild) - no names or chapter titles, drawn once at the end.
+     * keptOnly: only the names already on the layer, no new ones placed.
      */
-    _drawStrip: function(r, g, rect, dpr, margin, view, whole, viewCss) {
+    _drawStrip: function(r, g, rect, dpr, margin, view, whole, viewCss, keptOnly) {
         var box = this._worldBox(r, rect, dpr, margin, view, r.panX, r.panY);
         g.save();
         g.setTransform(1, 0, 0, 1, 0, 0);
@@ -399,8 +402,46 @@ var LayerScroll = {
         // Names, then chapter titles over them, as a whole repaint draws them
         // (the titles used to go in with the tree, under the names: a seam at the
         // strip's edge where a name crossed a title)
-        this._labels(r, g, rect, dpr, margin, view, viewCss);
+        var spilled = this._labels(r, g, rect, dpr, margin, view, viewCss, keptOnly);
         this._chapters(r, g, rect, dpr, margin, view);
+        if (spilled.length) this._underTitles(r, g, rect, dpr, margin, view, viewCss, spilled);
+    },
+
+    /**
+     * A new name is drawn whole, past its strip onto the old picture, where a
+     * chapter title may already be - the name ended up over the title there,
+     * while a whole repaint puts titles over names. Where a spilled name meets a
+     * title outside the strip, that spot is drawn again like a strip (tree, the
+     * names already on the layer, then titles) with no new names placed.
+     */
+    _underTitles: function(r, g, rect, dpr, margin, view, viewCss, spilled) {
+        if (this._titles === undefined) this._titles = TreeStyle.chapterBoxes(g, r, view.cx, view.cy, view.cos, view.sin, margin);
+        var titles = this._titles;
+        if (!titles.length) return;
+        var reach = this._labelReach(this._found.fontSize);
+        for (var j = 0; j < titles.length; j++) {
+            // The spilled names' overlaps with this title, as one spot (drawn once)
+            var tb = titles[j], l = Infinity, rr = -Infinity, t = Infinity, b = -Infinity;
+            for (var i = 0; i < spilled.length; i++) {
+                var s = spilled[i];
+                var il = Math.max(s.l - reach, tb.l), ir = Math.min(s.r + reach, tb.r);
+                var it = Math.max(s.t - reach, tb.t), ib = Math.min(s.b + reach, tb.b);
+                if (il >= ir || it >= ib) continue;
+                if (il < l) l = il; if (ir > rr) rr = ir;
+                if (it < t) t = it; if (ib > b) b = ib;
+            }
+            if (l >= rr) continue;
+            var x0 = Math.floor((l + margin) * dpr), y0 = Math.floor((t + margin) * dpr);
+            var spot = [x0, y0, Math.ceil((rr + margin) * dpr) - x0, Math.ceil((b + margin) * dpr) - y0];
+            if (spot[0] >= rect[0] && spot[1] >= rect[1] && spot[0] + spot[2] <= rect[0] + rect[2] &&
+                spot[1] + spot[3] <= rect[1] + rect[3]) continue;    // inside the strip: already right
+            this._drawStrip(r, g, spot, dpr, margin, view, false, viewCss, true);
+        }
+    },
+
+    /** How far a name's paint reaches past its box: the halo and descenders. */
+    _labelReach: function(fontSize) {
+        return (TreeStyle.tokens.labelHaloWidth || 0) + fontSize * this.DESCENT_SHARE;
     },
 
     /** The chapter titles in a strip, clipped to it (after its names). */
@@ -421,15 +462,17 @@ var LayerScroll = {
      * The names in a strip: kept ones reaching into it drawn again (clipped to
      * it, their outline and descenders counted), new ones placed in it against
      * the kept ones. The cap counts the names on screen, not the ones left in
-     * the margin behind the drag.
+     * the margin behind the drag. Returns the new names that reach past the
+     * strip (none with keptOnly, which places no new ones).
      */
-    _labels: function(r, g, rect, dpr, margin, view, viewCss) {
+    _labels: function(r, g, rect, dpr, margin, view, viewCss, keptOnly) {
         var kept = r._layerLabels;
         var st = { l: rect[0] / dpr - margin, r: (rect[0] + rect[2]) / dpr - margin,
                    t: rect[1] / dpr - margin, b: (rect[1] + rect[3]) / dpr - margin };
         if (this._found === undefined) this._found = r._labelCandidates(view.cx, view.cy, view.cos, view.sin, margin);
         var found = this._found;
-        if (!found) return;
+        var spilled = [];
+        if (!found) return spilled;
         g.save();
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.translate(margin, margin);
@@ -439,7 +482,7 @@ var LayerScroll = {
         g.textBaseline = 'top';
 
         var i, lab;
-        var reach = (TreeStyle.tokens.labelHaloWidth || 0) + found.fontSize * this.DESCENT_SHARE;
+        var reach = this._labelReach(found.fontSize);
         var clipped = false;
         for (i = 0; i < kept.length; i++) {
             lab = kept[i];
@@ -455,6 +498,11 @@ var LayerScroll = {
             TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
         }
         if (clipped) g.restore();
+        if (keptOnly) {
+            g.restore();
+            g.globalAlpha = 1;
+            return spilled;
+        }
 
         var shown = 0, have = {};
         for (i = 0; i < kept.length; i++) {
@@ -485,9 +533,11 @@ var LayerScroll = {
             if (!viewCss || this._meets(lab, viewCss)) shown++;
             g.globalAlpha = lab.alpha;
             TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
+            if (lab.l - reach < st.l || lab.r + reach > st.r || lab.t - reach < st.t || lab.b + reach > st.b) spilled.push(lab);
         }
         g.restore();
         g.globalAlpha = 1;
+        return spilled;
     }
 };
 

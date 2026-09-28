@@ -50,10 +50,10 @@ var RenderSettings = {
 
     /**
      * Values the popup used to offer and no longer does: a design's render block
-     * decides them now. A config from before (no renderSettingsVersion) has
-     * whatever the player once set; with no control left to change it, it would
-     * stick for good and beat every design, so it goes back to the shipped value
-     * once (afterLoad), and on Reset to Defaults.
+     * decides them now. A config from before (no renderSettingsVersion, or one
+     * older than VERSION) has whatever the player once set; with no control left
+     * to change it, it would stick for good and beat every design, so it goes
+     * back to the shipped value once (afterLoad), and on Reset to Defaults.
      */
     DESIGN_OWNED: {
         heartPulseSpeed: 0.5, heartPulseDelay: 2.75,
@@ -62,9 +62,9 @@ var RenderSettings = {
         globeColor: '#b8a878', magicTextColor: '#ffecb3', globeText: 'HEART', globeTextSize: 16,
         globeBgFill: true, particleCoreEnabled: false,
         starfieldColor: '#ffffff', starfieldDensity: 250, starfieldMaxSize: 3, starfieldSeed: 42,
-        starfieldBgColor: '#000000'
+        starfieldBgColor: '#000000', starfieldFixed: false
     },
-    VERSION: 2,
+    VERSION: 3,         // 3: starfieldFixed joined DESIGN_OWNED (it had lost its control and stuck)
 
     init: function() {
         var self = this;

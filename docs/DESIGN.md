@@ -221,7 +221,13 @@ in the margin behind the drag (with twice that kept on the layer at most) (`rend
 `margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
 view. In a strip they go on after its names (`LayerScroll._chapters`, clipped to the strip), as a whole
 repaint draws them; until 2026-09-28 they went in with the tree, under the names, which left a seam at a
-strip's edge where a name crossed a title. A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
+strip's edge where a name crossed a title. A new name is drawn whole, so it can reach past its strip onto
+the old picture and over a title there (seen in Night Grimoire after a sideways drag); where such a name
+meets a title outside the strip (`TreeStyle.chapterBoxes`), that spot is drawn again like a strip - tree,
+the kept names, titles - with no new names placed (`LayerScroll._underTitles`, 2026-09-28): one spot per
+title round every spilled name on it, the title boxes worked out once a frame. Bench (Night Grimoire, 8-frame
+sideways drags): one spot a drag, 0.3-1.0 ms in all; against a whole repaint with the same names the title
+boxes differ only where the strips' lines already did (11 px, 20 with no names drawn; 31 without the fix). A drag also lets go of the hover (the preview would be redrawn every frame of it). A full repaint
 as before when the tree changed, the zoom or rotation changed, the layer is stale or edit mode is on.
 Measured (circular drag, 120 frames, four designs, zoom 0.75-1.3, CPU canvases): frames over 16.7 ms 6-9
 → 0-2, worst frame 20-32 → 15-20 ms; a piece costs 2.5-8 ms, about 1.7 ms of it its own (chapter titles,
@@ -838,8 +844,10 @@ is gone from it. A design decides those in its `render` block (see [PRESETS.md](
 `DesignPresets.renderValue(key)` gives the design's value where it sets one, else the player's saved
 setting, and `applyHeartSettingsToRenderer` / `applyGlobeSettings` read through it. A saved value from
 the old popup counted once: with no control left to change it, a colour picked years ago would beat
-every design for good, so a config from before (no `renderSettingsVersion`) has those values put back to
-the shipped ones on its first load (`RenderSettings.afterLoad`), and Reset to Defaults does the same. A
+every design for good, so a config from before (no `renderSettingsVersion`, or an older one) has those
+values put back to the shipped ones on its first load (`RenderSettings.afterLoad`), and Reset to Defaults
+does the same. Version 3 (2026-09-28) added `starfieldFixed` (stars fixed to the screen): its control went
+with the old popup, so a saved `true` could not be turned off. A
 wrongly typed value in a `render` block ("60" for 60) is converted or skipped (`DesignPresets._typed`).
 The controls are put back from the config once it has loaded (`RenderSettings.syncControls`). The popup
 is leather in Arcane and the cover colour in the dark-book designs.

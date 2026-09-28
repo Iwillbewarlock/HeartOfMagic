@@ -223,7 +223,8 @@ of the panel's renderer settings by their config names, and the value counts ove
 one. Keys: `globeSize`, `globeParticleRadius`, `globeDensity`, `globeDotMin`, `globeDotMax`,
 `globeBgFill`, `particleCoreEnabled`, `heartPulseSpeed`, `heartPulseDelay`, `heartBgColor`,
 `heartRingColor`, `learningPathColor`, `globeColor`, `magicTextColor`, `globeText`, `globeTextSize`,
-`starfieldColor`, `starfieldDensity`, `starfieldMaxSize`, `starfieldSeed`, `starfieldBgColor`. A key
+`starfieldColor`, `starfieldDensity`, `starfieldMaxSize`, `starfieldSeed`, `starfieldBgColor`,
+`starfieldFixed` (true: the stars stay put on the screen instead of moving with the tree). A key
 the design leaves out keeps the shipped value. `globeSize` alone sizes the particle globe too. A value
 of the wrong type is converted when it can be ("60" -> 60) and skipped otherwise.
 

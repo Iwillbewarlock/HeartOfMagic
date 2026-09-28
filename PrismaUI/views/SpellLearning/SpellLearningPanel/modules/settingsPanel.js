@@ -2330,7 +2330,7 @@ function applyHeartSettingsToRenderer() {
 
         // Starfield settings
         CanvasRenderer._starfieldEnabled = settings.starfieldEnabled !== false;
-        CanvasRenderer._starfieldFixed = settings.starfieldFixed === true;
+        CanvasRenderer._starfieldFixed = rv('starfieldFixed', false) === true;
         // Stars and globe held still: the twinkle switch, or "still everything"
         CanvasRenderer._starsStill = stilled('starTwinkle', settings.starTwinkle !== false) === false;
         CanvasRenderer._globeStill = stilled('globeSpin', true) === false;

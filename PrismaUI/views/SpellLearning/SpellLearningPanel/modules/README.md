@@ -27,7 +27,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeViewerUI.js` | 2059 | Tree viewer, spell details, node selection |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 476 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles, ornament dividers, hub emblem, page ornaments |
+| `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 248 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 392 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `reverseUnlockSetting.js` | 242 | Settings > Progression > Known Higher Spells: reverse unlock switch, down-to-root switch, XP share per tier, own XP gain rates for spells learned downward; saves/loads/resets its keys and adds them to settings presets |
@@ -59,7 +59,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `openRefreshGate.js` | 91 | `OpenRefreshGate`: opening the panel repaints the tree only if the progress or known-spells replies changed what it shows since it closed |
 | `fxLayer.js` | 213 | `FxLayer`: small canvases over the tree for what moves every frame (heart, sigil, learning glow, particles) and the hover preview (kept while unchanged, under the rest), so neither touches the tree canvas |
 | `staticBase.js` | 111 | `StaticBase`: background and tree layer kept as one picture while both are still, so an animation frame pastes it in one pass |
-| `layerScroll.js` | 494 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips, then chapter titles over them (instead of repainting the whole tree mid-drag); `drawPendingAside` draws pieces an urgent build left on stretched frames (not beside a build or after a tree change; `_stretchedViewRect` says which the screen shows) |
+| `layerScroll.js` | 544 | `LayerScroll`: a drag shifts the tree layer and draws only the uncovered strips (the ones on screen at once, the rest within the frame's time left), names kept across strips, then chapter titles over them, also where a new name reaches past its strip onto a title (`_underTitles`) (instead of repainting the whole tree mid-drag); `drawPendingAside` draws pieces an urgent build left on stretched frames (not beside a build or after a tree change; `_stretchedViewRect` says which the screen shows) |
 | `layerBuild.js` | 442 | `LayerBuild`: a whole repaint of the tree layer drawn onto the spare canvas in pieces over several frames, the old picture shown meanwhile; for a camera glide it is built for the glide's end while the camera moves; urgent (on-screen pieces first, early swap, the rest to LayerScroll, next frame asked for) when the view is held past the old picture's margin; at once after `MAX_RESTARTS` restarts in a row; a middling build leaves `_lastMs` as it is; after a design change (the names' font new) spread even for a quick tree, the names' widths and letters made first (`_warmText`) |
 | `progressUpdates.js` | 210 | `ProgressUpdates` / `window.onProgressUpdate`: an XP gain from C++ repaints the tree only for a state change, a reveal threshold or 1% of ring; the spell card is rebuilt only when it must. Also `window.onSpellRelocked` (cheat-mode Relock: known spells, availability, learning targets, card and unlocked count follow) |
 | `hoverOverlay.js` | 255 | `HoverOverlay`: the hover preview (path, nodes, focus ring, bridges) painted over the tree layer and cached, so hovering never repaints the tree |
@@ -71,7 +71,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~25,708 | the 58 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
+| **TOTAL** | ~25,797 | the 58 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,

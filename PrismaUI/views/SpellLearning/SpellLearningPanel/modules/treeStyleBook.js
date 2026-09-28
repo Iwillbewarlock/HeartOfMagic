@@ -357,6 +357,8 @@
 
         _chapterRadii: null,
         _chapterNodes: null,
+        CHAPTER_HALF_HEIGHT: 0.75,  // of chapterSize, above and below the middle baseline (accents, descenders)
+        CHAPTER_BOX_PAD: 1,         // css px round a title's box for antialiasing
 
         /** How far out each school reaches from the heart, worked out once per tree. */
         _schoolReach: function(r, gx, gy) {
@@ -381,19 +383,11 @@
          * title that a drag later brings into view is already on the layer.
          */
         renderChapters: function(ctx, r, cx, cy, cos, sin, margin) {
-            margin = margin || 0;
+            var places = this._chapterPlaces(r, cx, cy, cos, sin, margin);
+            if (!places.length) return;
             var t = this.tokens;
-            if (!t.chapterTitles) return;
-            var names = Object.keys(r.schools || {});
-            if (names.length < 2) return;
-            var gd = (typeof state !== 'undefined' && state.treeData && state.treeData.globe) || { x: 0, y: 0 };
-            var reach = this._schoolReach(r, gd.x, gd.y);
-            var gap = 40 / (r.zoom || 1);
-
             ctx.save();
-            ctx.font = t.chapterSize + 'px ' + this.labelFamily();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            this._chapterFont(ctx);
             if (t.labelHalo) {
                 ctx.strokeStyle = t.labelHalo;
                 ctx.lineWidth = t.labelHaloWidth + 1;
@@ -401,6 +395,53 @@
             }
             ctx.fillStyle = t.accent;
             ctx.globalAlpha = 0.9;
+            for (var i = 0; i < places.length; i++) {
+                var p = places[i];
+                if (t.labelHalo) ctx.strokeText(p.text, p.x, p.y);
+                ctx.fillText(p.text, p.x, p.y);
+            }
+            ctx.restore();
+        },
+
+        /**
+         * The boxes renderChapters paints its titles in (screen css px, the halo
+         * included), for LayerScroll: a name it draws past its strip must not end
+         * up over a title. [] when the design has none.
+         */
+        chapterBoxes: function(ctx, r, cx, cy, cos, sin, margin) {
+            var places = this._chapterPlaces(r, cx, cy, cos, sin, margin);
+            if (!places.length) return places;
+            var t = this.tokens;
+            var pad = (t.labelHalo ? (t.labelHaloWidth + 1) / 2 : 0) + this.CHAPTER_BOX_PAD;
+            var half = t.chapterSize * this.CHAPTER_HALF_HEIGHT + pad;
+            var boxes = [];
+            ctx.save();
+            this._chapterFont(ctx);
+            for (var i = 0; i < places.length; i++) {
+                var p = places[i];
+                var w = ctx.measureText(p.text).width / 2 + pad;
+                boxes.push({ l: p.x - w, r: p.x + w, t: p.y - half, b: p.y + half });
+            }
+            ctx.restore();
+            return boxes;
+        },
+
+        _chapterFont: function(ctx) {
+            ctx.font = this.tokens.chapterSize + 'px ' + this.labelFamily();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+        },
+
+        /** Each shown school's title and where it goes: [{ text, x, y }] in screen css px. */
+        _chapterPlaces: function(r, cx, cy, cos, sin, margin) {
+            margin = margin || 0;
+            var places = [];
+            if (!this.tokens.chapterTitles) return places;
+            var names = Object.keys(r.schools || {});
+            if (names.length < 2) return places;
+            var gd = (typeof state !== 'undefined' && state.treeData && state.treeData.globe) || { x: 0, y: 0 };
+            var reach = this._schoolReach(r, gd.x, gd.y);
+            var gap = 40 / (r.zoom || 1);
             for (var i = 0; i < names.length; i++) {
                 var name = names[i];
                 var school = r.schools[name];
@@ -413,11 +454,9 @@
                 var sy = (wx * sin + wy * cos) * r.zoom + r.panY + cy;
                 if (sx < -200 - margin || sx > r._width + 200 + margin ||
                     sy < -50 - margin || sy > r._height + 50 + margin) continue;
-                var text = '—  ' + this._schoolName(name) + '  —';
-                if (t.labelHalo) ctx.strokeText(text, sx, sy);
-                ctx.fillText(text, sx, sy);
+                places.push({ text: '—  ' + this._schoolName(name) + '  —', x: sx, y: sy });
             }
-            ctx.restore();
+            return places;
         },
 
         _schoolName: function(name) {

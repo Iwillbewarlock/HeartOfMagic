@@ -112,8 +112,71 @@ var LayerScrollTest = {
             S.LOOKAHEAD_PX = look;
         }
 
+        this._titleTests(g, S);
         this._buildTests(g, S);
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * A strip's new names drawn past it, and the spots where one meets a chapter
+     * title outside the strip drawn again (tree, kept names, titles over them).
+     */
+    _titleTests: function(g, S) {
+        var noop = function() {};
+        var ctx = { save: noop, restore: noop, setTransform: noop, translate: noop, beginPath: noop, rect: noop, clip: noop };
+        var saved = { ts: g.TreeStyle, strip: S._drawStrip, found: S._found, titles: S._titles };
+        var drawn = [];
+        g.TreeStyle = {
+            tokens: { labelHaloWidth: 0 },
+            beginLabels: noop, drawLabel: function(gg, text) { drawn.push(text); },
+            chapterBoxes: function() { return [{ l: 100, r: 140, t: 0, b: 12 }]; }
+        };
+        try {
+            // One strip, css x 0-50 (margin 0, pixel ratio 1); a name placed in it runs to x 60
+            var cand = function(id, x) { return { node: { id: id }, x: x, y: 2, priority: 5 }; };
+            var r = {
+                _layerLabels: [], LABEL_PAD: 0,
+                _labelCandidates: function() { return { fontSize: 10, maxLabels: 10, candidates: [cand('a', 30), cand('b', 20)] }; },
+                _labelFontFrom: noop,
+                _labelRect: function(gg, c) { return c.node.id === 'a' ? { l: 20, r: 60, t: 2, b: 12 } : { l: 5, r: 15, t: 20, b: 30 }; },
+                _keepLabel: function(c, box) { return { node: c.node, text: c.node.id, x: c.x, y: c.y, l: box.l, r: box.r, t: box.t, b: box.b, alpha: 1 }; }
+            };
+            S._found = undefined;
+            var spilled = S._labels(r, ctx, [0, 0, 50, 50], 1, 0, { cx: 0, cy: 0, cos: 1, sin: 0 });
+            this.check(drawn.join() === 'a,b' && spilled.length === 1 && spilled[0].text === 'a',
+                "new names drawn; the one reaching past the strip is returned");
+            drawn = [];
+            var again = S._labels(r, ctx, [0, 0, 50, 50], 1, 0, { cx: 0, cy: 0, cos: 1, sin: 0 }, null, true);
+            this.check(again.length === 0 && drawn.join() === 'a,b' && r._layerLabels.length === 2,
+                'keptOnly: the kept names drawn again, none placed, nothing returned');
+
+            var spots = [];
+            S._drawStrip = function(rr, gg, rect, dpr, margin, view, whole, viewCss, keptOnly) {
+                spots.push({ rect: rect.join(), whole: whole, keptOnly: keptOnly });
+            };
+            S._found = { fontSize: 10 };
+            var view = { cx: 0, cy: 0, cos: 1, sin: 0 };
+            // reach = 10 x DESCENT_SHARE = 3.5 past the name's box
+            S._titles = undefined;
+            S._underTitles(r, ctx, [0, 0, 100, 50], 1, 0, view, null, [{ l: 60, r: 110, t: 2, b: 12 }]);
+            this.check(spots.length === 1 && spots[0].rect === '100,0,14,12' && spots[0].whole === false && spots[0].keptOnly === true,
+                'a name over a title past the strip: that spot drawn again, kept names only');
+            spots = [];
+            S._underTitles(r, ctx, [0, 0, 100, 50], 1, 0, view, null, [{ l: 60, r: 110, t: 2, b: 12 }, { l: 80, r: 125, t: 6, b: 16 }]);
+            this.check(spots.length === 1 && spots[0].rect === '100,0,29,12',
+                'two names over one title: one spot round both (drawn once)');
+            spots = [];
+            S._underTitles(r, ctx, [0, 0, 200, 50], 1, 0, view, null, [{ l: 60, r: 110, t: 2, b: 12 }]);
+            this.check(spots.length === 0, 'the title inside the strip: already drawn over the name, nothing more');
+            S._underTitles(r, ctx, [0, 0, 50, 50], 1, 0, view, null, [{ l: 20, r: 60, t: 30, b: 40 }]);
+            this.check(spots.length === 0, 'a spilled name away from every title: nothing more');
+            g.TreeStyle.chapterBoxes = function() { return []; };
+            S._titles = undefined;
+            S._underTitles(r, ctx, [0, 0, 100, 50], 1, 0, view, null, [{ l: 60, r: 110, t: 2, b: 12 }]);
+            this.check(spots.length === 0, 'no chapter titles (the design has none): nothing more');
+        } finally {
+            g.TreeStyle = saved.ts; S._drawStrip = saved.strip; S._found = saved.found; S._titles = saved.titles;
+        }
     },
 
     /** LayerBuild's states with a stand-in renderer and canvases (no drawing). */
