@@ -28,6 +28,10 @@ namespace TreeBuilder::Internal
     // Run validation + auto-fix + stats on tree data
     void ValidateAndFix(json& treeData, int maxChildren, bool autoFix);
 
+    // Drop every node's links to itself and repeated ids from its children and
+    // prerequisites, in place (other node fields untouched). Returns how many went.
+    int RemoveBadLinks(json& treeData);
+
     // Both spells made of the same thing (both blood, both water): an element.*
     // trait in common - the elements the tag librarian hands on. Classic gives
     // a parent like that a bonus on its own scale.

@@ -497,6 +497,12 @@ function _logToSKSE(msg) {
     }
 }
 
+/** The list without `id`; the same array when it does not hold it */
+function _withoutId(list, id) {
+    if (list.indexOf(id) === -1) return list;
+    return list.filter(function(x) { return x !== id; });
+}
+
 /**
  * Fast path for trustPrereqs data — builds nodes/edges/schools directly
  * from JSON and sends to TrustedRenderer. No TreeParser, no WheelRenderer,
@@ -596,9 +602,12 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 id: id,
                 formId: id,
                 name: nd.name || null,
+                // "Plugin.esp|0x000800": names the plugin when two spells share a name
+                persistentId: nd.persistentId || null,
                 school: schoolName,
-                children: nd.children || [],
-                prerequisites: isRootNode ? [] : (nd.prerequisites || []),
+                // A spell is never its own child or prerequisite
+                children: _withoutId(nd.children || [], id),
+                prerequisites: isRootNode ? [] : _withoutId(nd.prerequisites || [], id),
                 hardPrereqs: _hardPrereqs,
                 softPrereqs: _softPrereqs,
                 softNeeded: _softNeeded,
@@ -624,7 +633,7 @@ function _loadTrustedTree(data, switchToTreeTab) {
             nodes.push(node);
 
             // Build edges from children
-            var ch = nd.children || [];
+            var ch = node.children;
             for (var c = 0; c < ch.length; c++) {
                 edges.push({ from: id, to: ch[c] });
             }
@@ -1312,7 +1321,7 @@ function renderSpellCard(node, opts) {
     function createPrereqItem(id, isHard, isMet) {
         var n = state.treeData ? _findNodeById(id) : null;
         var li = document.createElement('li');
-        var showPrereqName = settings.cheatMode || (n && n.state !== 'locked');
+        var showPrereqName = SpellNames.isShown(n);
 
         // Check if edit mode is active
         var isEditMode = typeof EditMode !== 'undefined' && EditMode.isActive;
@@ -1323,7 +1332,7 @@ function renderSpellCard(node, opts) {
             // Name span
             var nameSpan = document.createElement('span');
             nameSpan.className = 'prereq-name';
-            nameSpan.textContent = showPrereqName ? (n ? (n.name || n.formId) : id) : '???';
+            nameSpan.textContent = spellDisplayName(id, n, showPrereqName);
             nameSpan.dataset.id = id;
             li.appendChild(nameSpan);
 
@@ -1359,7 +1368,7 @@ function renderSpellCard(node, opts) {
 
             li.appendChild(controls);
         } else {
-            li.textContent = showPrereqName ? (n ? (n.name || n.formId) : id) : '???';
+            li.textContent = spellDisplayName(id, n, showPrereqName);
         }
 
         li.dataset.id = id;
@@ -1467,9 +1476,8 @@ function renderSpellCard(node, opts) {
     node.children.forEach(function(id) {
         var n = state.treeData ? _findNodeById(id) : null;
         var li = document.createElement('li');
-        // Cheat mode shows all names
-        var showChildName = settings.cheatMode || (n && n.state !== 'locked');
-        li.textContent = showChildName ? (n ? (n.name || n.formId) : id) : '???';
+        // Cheat mode shows all names; a name another spell shares gets its plugin
+        li.textContent = spellDisplayName(id, n);
         li.dataset.id = id;
         unlocksList.appendChild(li);
     });

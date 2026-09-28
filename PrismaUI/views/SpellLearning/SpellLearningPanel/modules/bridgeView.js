@@ -275,9 +275,8 @@ var BridgeView = {
         var self = this;
         list.forEach(function (entry) {
             var other = (typeof _findNodeById === 'function' && state.treeData) ? _findNodeById(entry.other) : null;
-            var showName = settings.cheatMode || (other && other.state !== 'locked');
             var arrow = entry.opensOut && entry.opensIn ? '↔ ' : (entry.opensOut ? '→ ' : '← ');
-            var name = showName ? (other ? (other.name || other.formId) : entry.other) : '???';
+            var name = spellDisplayName(entry.other, other);
             var what = entry.shared.map(function (k) { return self._labelOf(k); }).join(', ');
 
             var li = document.createElement('li');

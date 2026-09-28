@@ -14,6 +14,7 @@ add_executable(${PROJECT_NAME}
     treebuilder-test.cpp
     ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderLinks.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderClassic.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp

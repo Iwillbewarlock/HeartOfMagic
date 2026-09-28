@@ -102,6 +102,16 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   duplicates, internal names), which the description and chips already say in player terms.
   **Description**: `<mag>`/`<dur>`/`<area>` are filled in from the effect and `<25>` style emphasis
   marks are stripped, since the web view does not do what the game menus do with them.
+  **Names in the card's lists** (Unlocks, hard/soft prerequisites, *Paths to other schools*) come
+  from one helper, `spellDisplayName(id, node, shown)` in `modules/spellNames.js`. Two plugins can
+  name two spells alike - NoviceBoltSpells.esp adds its own Flames, and in the Korean game both read
+  불씨조각 - and the Classic builder, which scores name and effect alike, links such spells to each
+  other, so Flames looked like it unlocked itself. A name that more than one spell in the loaded tree
+  carries is shown with its plugin, `불씨조각 (NoviceBoltSpells.esp)` next to
+  `불씨조각 (Skyrim.esm)`; a name no other spell has stays as it is. The plugin is the spell info's
+  `plugin` (SpellCache), or the plugin half of the node's `persistentId` until that is in. The
+  counts are made once per loaded tree and again after spell info renames a node. A hidden name
+  (locked, cheat mode off) is `???` with no plugin either. Plain text, so every design shows it alike.
 - **How-to-Learn panel** — shows what the player needs to do to unlock a spell
 - **Discovery mode** — hides spell names/effects until XP thresholds are met
 - **Zoom/pan** — mouse wheel + drag; one wheel notch zooms by `CanvasRenderer.WHEEL_ZOOM_STEP` (15%, was 10%; out is the exact inverse of in, so a notch in and out returns to the same zoom)
@@ -1229,6 +1239,7 @@ Tree applied
 | `treeViewerUI.js` | Tree viewer page logic, node selection, detail panels |
 | `detailsPeek.js` | Hover preview: the card follows the cursor without selecting; the panel keeps its place when nothing is selected |
 | `treeParser.js` | Parses spell_tree.json, cycle detection, orphan fixing |
+| `spellNames.js` | `spellDisplayName`: names in the spell card's lists, with the plugin when two spells share a name |
 | `treeCore.js` | Core tree settings (globe position, size) |
 | `trustedRenderer.js` | Renderer wrapper with validation |
 

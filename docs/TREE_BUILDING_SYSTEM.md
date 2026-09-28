@@ -93,7 +93,8 @@ Linear layout. Schools arranged along a horizontal or vertical line with growth 
 
 C++ builds the **tree structure** — which spell is parent/child of which. One builder is left:
 Classic (`TreeBuilderClassic.cpp`), sharing `TreeBuilderCore.cpp` (similarity matrix, config,
-validation, `Build`), `TreeBuilderThemes.cpp` (themes, validation helpers) and
+validation, `Build`), `TreeBuilderThemes.cpp` (themes, validation helpers),
+`TreeBuilderLinks.cpp` (the self and duplicate link cleanup) and
 `TreeBuilderBridges.cpp` (cross school bridges).
 
 **Classic only, since 2026-09-27.** There used to be five builders: Classic, Tree (NLP thematic with
@@ -162,6 +163,12 @@ similarity = |words_a ∩ words_b| / |words_a ∪ words_b|
 Uses `TreeNLP::Tokenize()` — no external libraries required.
 
 ### Reachability Validation (`Internal::ValidateAndFix`, `FixUnreachableNodes`)
+- First removes every node's link to itself and repeated ids from its `children` and `prerequisites`
+  (`Internal::RemoveBadLinks`, `TreeBuilderLinks.cpp`), on the JSON in place so no other node field is
+  touched. The count goes to the log as a warning (`TreeBuilder: removed N self or duplicate links`)
+  and to `validation.bad_links_removed`. `LinkNodes` already refuses both, so a Classic build has 0
+  (the dev load order's 3546 scanned spells, seeds 1, 42 and 1234: 0); the pass is the net for any
+  later step that writes the arrays directly.
 - Simulates progressive unlock starting from root
 - A node unlocks when ALL its prerequisites are unlocked
 - If nodes remain unreachable after 20 repair passes, logs warning
@@ -561,9 +568,16 @@ struct TreeNode {
 ```
 
 **`LinkNodes(parent, child)`:**
+- Does nothing when parent and child are the same node (same object or same formId): a spell is
+  never its own child or prerequisite. `AddChild` and `AddPrerequisite` refuse their own formId too.
 - Adds child.formId to parent.children
 - Adds parent.formId to child.prerequisites
 - Sets child.depth = parent.depth + 1
+
+The panel drops a self link as well when it reads a tree (`treeParser.js`, and the trusted fast path
+in `treeViewerUI.js`), so an old or hand-edited `spell_tree.json` cannot show one. A spell that
+*looks* like its own child is a different spell with the same name - see "Names in the card's lists"
+in DESIGN.md.
 
 **Note:** Classic builder overrides depth after linking to enforce `depth = tier_index`.
 
@@ -1131,7 +1145,8 @@ The Classic builder outputs this JSON schema, which the downstream JS systems (l
   "validation": {
     "all_valid": true,
     "total_nodes": 47,
-    "reachable_nodes": 47
+    "reachable_nodes": 47,
+    "bad_links_removed": 0
   }
 }
 ```

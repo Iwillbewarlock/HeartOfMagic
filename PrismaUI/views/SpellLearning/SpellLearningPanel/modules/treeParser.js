@@ -136,7 +136,9 @@ var TreeParser = {
                     // Theme data baked from tree generator
                     theme: nd.theme || null,
                     themeColor: nd.themeColor || null,
-                    skillLevel: nd.skillLevel || null
+                    skillLevel: nd.skillLevel || null,
+                    // "Plugin.esp|0x000800": names the plugin when two spells share a name
+                    persistentId: nd.persistentId || null
                 });
                 self.schools[schoolName].nodeIds.push(id);
             });
@@ -149,6 +151,8 @@ var TreeParser = {
                     node.prerequisites = [];
                     node.hardPrereqs = [];
                 }
+                // A spell is never its own child
+                node.children = node.children.filter(function(cid) { return cid !== node.id; });
                 node.children.forEach(function(childId) {
                     var child = self.nodes.get(childId);
                     if (child) {
@@ -169,8 +173,10 @@ var TreeParser = {
                 }
             });
 
-            // Build edges from children
+            // Build edges from children (a spell is never its own child or prerequisite)
             this.nodes.forEach(function(node) {
+                node.children = node.children.filter(function(cid) { return cid !== node.id; });
+                node.prerequisites = node.prerequisites.filter(function(pid) { return pid !== node.id; });
                 node.children.forEach(function(childId) {
                     var child = self.nodes.get(childId);
                     if (child) {
@@ -511,6 +517,8 @@ var TreeParser = {
             node.iconKey = spellData.iconKey || '';
             node.schoolIconKey = spellData.schoolIconKey || '';
             if (spellData.school) node.school = spellData.school;
+            // The name may have changed: the card's lists count shared names again
+            if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
         }
     }
 };

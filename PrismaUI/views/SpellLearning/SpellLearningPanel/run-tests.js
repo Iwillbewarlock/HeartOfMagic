@@ -67,6 +67,7 @@ loadModule('layerFlowTest', './modules/layerFlowTest.js');
 loadModule('pageBuildTest', './modules/pageBuildTest.js');
 loadModule('treeGrowthStatus', './modules/treeGrowthStatus.js');
 loadModule('statusLineTest', './modules/statusLineTest.js');
+loadModule('spellNamesTest', './modules/spellNamesTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {
@@ -150,6 +151,11 @@ if (typeof UnificationTest !== 'undefined') {
         var statusLine = StatusLineTest.run();
         results.failed += statusLine.failed;
         console.log('StatusLine: ' + statusLine.passed + ' passed, ' + statusLine.failed + ' failed');
+    }
+    if (typeof SpellNamesTest !== 'undefined') {
+        var spellNames = SpellNamesTest.run();
+        results.failed += spellNames.failed;
+        console.log('SpellNames: ' + spellNames.passed + ' passed, ' + spellNames.failed + ' failed');
     }
 
     // Exit with appropriate code

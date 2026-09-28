@@ -800,6 +800,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `proceduralTreeBuilder.js` | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete` (hands the C++ result to Classic) |
 | **Parsers & rendering** | |
 | `treeParser.js` | Tree JSON → nodes/edges; validation, cycle detection, auto-fix |
+| `spellNames.js` | Names in the spell card's lists (`spellDisplayName`): the plugin after a name two spells share |
 | `wheelRenderer.js` | Main 2D radial wheel rendering |
 | `canvasRendererV2.js` | Canvas 2D tree renderer (`CanvasRenderer`); its methods are split over `canvasRenderer*.js` (colours, input, selection, data, frame and tree layer, moving parts, dividers, edges, nodes, a single spell, labels, learning paths), see `modules/README.md` |
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
@@ -820,7 +821,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `unificationTest.js` | Shape profile / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth/treeGrowthStatus → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser/spellNames → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth/treeGrowthStatus → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, tree building, PreReq Master

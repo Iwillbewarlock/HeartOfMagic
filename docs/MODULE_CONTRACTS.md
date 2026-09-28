@@ -572,7 +572,8 @@ struct BuildResult {
   "validation": {
     "all_valid": true,
     "total_nodes": 50,
-    "reachable_nodes": 50
+    "reachable_nodes": 50,
+    "bad_links_removed": 0
   }
 }
 ```
@@ -599,9 +600,10 @@ Builders use shared NLP infrastructure from `TreeNLP.h`:
 | `TreeBuilder::MergeWithHints()` | Merge discovered themes with vanilla hints |
 | `TreeBuilder::GetSpellPrimaryTheme()` / `GetSpellThemes()` | A spell's best-matching theme / every theme it answers to |
 | `TreeBuilder::ComputeSimilarityMatrix()` | Pairwise spell similarity |
-| `TreeBuilder::LinkNodes()` | Parent-child linking |
+| `TreeBuilder::LinkNodes()` | Parent-child linking; a node is never linked to itself |
 | `TreeBuilder::SimulateUnlocks()` / `FindUnreachableNodes()` | Reachability from the root |
 | `TreeBuilder::FixUnreachableNodes()` | Multi-pass orphan repair |
+| `TreeBuilder::Internal::RemoveBadLinks()` | Drops self links and repeated ids from every node's `children`/`prerequisites` (run by `ValidateAndFix`, counted in `validation.bad_links_removed`) |
 
 ### Error Handling
 

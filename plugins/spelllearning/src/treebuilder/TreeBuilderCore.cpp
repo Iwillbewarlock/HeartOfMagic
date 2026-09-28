@@ -35,8 +35,10 @@ TreeBuilder::TreeNode TreeBuilder::TreeNode::FromSpell(const json& spell)
     return node;
 }
 
+// A spell is never its own child or prerequisite (see RemoveBadLinks)
 void TreeBuilder::TreeNode::AddChild(const std::string& childId)
 {
+    if (childId == formId) return;
     if (std::find(children.begin(), children.end(), childId) == children.end()) {
         children.push_back(childId);
     }
@@ -44,6 +46,7 @@ void TreeBuilder::TreeNode::AddChild(const std::string& childId)
 
 void TreeBuilder::TreeNode::AddPrerequisite(const std::string& prereqId)
 {
+    if (prereqId == formId) return;
     if (std::find(prerequisites.begin(), prerequisites.end(), prereqId) == prerequisites.end()) {
         prerequisites.push_back(prereqId);
     }
@@ -67,6 +70,7 @@ json TreeBuilder::TreeNode::ToDict() const
 
 void TreeBuilder::LinkNodes(TreeNode& parent, TreeNode& child)
 {
+    if (&parent == &child || parent.formId == child.formId) return;
     parent.AddChild(child.formId);
     child.AddPrerequisite(parent.formId);
     child.depth = (std::max)(child.depth, parent.depth + 1);
@@ -636,6 +640,12 @@ TreeBuilder::Internal::RebuildValNodes(const json& schoolData)
 
 void TreeBuilder::Internal::ValidateAndFix(json& treeData, int maxChildren, bool autoFix)
 {
+    // Self-links and repeated ids first, so the reachability check sees the real links
+    const int badLinks = RemoveBadLinks(treeData);
+    if (badLinks > 0) {
+        logger::warn("TreeBuilder: removed {} self or duplicate links", badLinks);
+    }
+
     if (autoFix) {
         for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
             auto rootId = schoolData.value("root", std::string(""));
@@ -669,7 +679,8 @@ void TreeBuilder::Internal::ValidateAndFix(json& treeData, int maxChildren, bool
     treeData["validation"] = {
         {"all_valid", allValid},
         {"total_nodes", totalNodes},
-        {"reachable_nodes", reachableNodes}
+        {"reachable_nodes", reachableNodes},
+        {"bad_links_removed", badLinks}
     };
 }
 

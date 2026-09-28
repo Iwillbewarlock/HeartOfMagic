@@ -73,6 +73,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp
     src/treebuilder/TreeBuilderCore.cpp
+    src/treebuilder/TreeBuilderLinks.cpp
     src/treebuilder/TreeBuilderThemes.cpp
     src/treebuilder/TreeBuilderBridges.cpp
     src/treebuilder/TreeBuilderClassic.cpp
