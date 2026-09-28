@@ -500,7 +500,8 @@ var TreeParser = {
         if (spellData) {
             node.name = spellData.name || spellData.editorId || node.formId;
             node.level = spellData.level || spellData.skillLevel || 'Unknown';
-            node.cost = spellData.cost || spellData.magickaCost || 0;
+            // The game works the cost out as a float (307.70135...); the card shows whole points
+            node.cost = Math.round(Number(spellData.cost || spellData.magickaCost)) || 0;
             node.type = spellData.type || spellData.castingType || 'Spell';
             node.effects = spellData.effects || spellData.effectNames || [];
             node.desc = spellData.description || '';

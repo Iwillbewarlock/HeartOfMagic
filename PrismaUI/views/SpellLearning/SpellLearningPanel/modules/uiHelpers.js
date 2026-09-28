@@ -15,6 +15,7 @@ function updateScanStatus(message, type) {
     var text = document.getElementById('scanStatusText');
     if (!bar || !text) return;
     text.textContent = message;
+    text.removeAttribute('data-i18n');   // or a language switch puts "Ready to scan" back
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
 }

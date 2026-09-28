@@ -1,6 +1,6 @@
 // Auto-generated from fr.json - do not edit directly
 window._i18nPreload = {
-    "_meta.language": "French",
+    "_meta.language": "Français",
     "_meta.locale": "fr",
     "_meta.author": "Titouling",
     "_meta.version": "2.0.0",

@@ -4,7 +4,7 @@ window._i18nLanguages = [
     {"code":"en","name":"English"},
     {"code":"de","name":"Deutsch"},
     {"code":"es","name":"Español"},
-    {"code":"fr","name":"French"},
+    {"code":"fr","name":"Français"},
     {"code":"it","name":"Italiano"},
     {"code":"ja","name":"日本語"},
     {"code":"ko","name":"한국어"},

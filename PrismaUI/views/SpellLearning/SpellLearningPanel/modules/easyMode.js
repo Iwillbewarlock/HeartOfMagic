@@ -3,7 +3,8 @@
  *
  * Simplified scanner UI: big preset chips + relay buttons to Complex page.
  * Build/Apply/Clear buttons trigger the same Complex page functions.
- * Status is mirrored from the Complex page's tgStatus.
+ * Status is mirrored from the Complex page's tgStatus (TreeGrowth.setStatusText
+ * calls _syncEasyStatus).
  *
  * Depends on:
  * - state.js (scannerPresets)
@@ -207,7 +208,7 @@ function _selectEasyPreset(name) {
 
 /**
  * Watch the Complex page's tgBuildBtn, tgApplyBtn, tgClearBtn disabled states
- * and tgStatus text, mirror them to Easy mode equivalents.
+ * and mirror them to the Easy mode buttons; copy the status line once.
  */
 function _startEasyMirror() {
     // Pairs: [complexId, easyId]
@@ -234,20 +235,11 @@ function _startEasyMirror() {
         })(buttonPairs[i][0], buttonPairs[i][1]);
     }
 
-    // Mirror tgStatus text → easyStatus
-    var tgStatus = document.getElementById('tgStatus');
-    var easyStatus = document.getElementById('easyStatus');
-    if (tgStatus && easyStatus) {
-        // Initial sync
-        easyStatus.textContent = tgStatus.textContent;
-        easyStatus.style.color = tgStatus.style.color;
-
-        var statusObserver = new MutationObserver(function() {
-            easyStatus.textContent = tgStatus.textContent;
-            easyStatus.style.color = tgStatus.style.color;
-        });
-        statusObserver.observe(tgStatus, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style'] });
-    }
+    // The status line: TreeGrowth.setStatusText calls _syncEasyStatus on every
+    // change. Not an observer on #tgStatus: a language switch rebuilds both
+    // spans from the language strings, and an observer on the old one went on
+    // copying into a detached #easyStatus ("Waiting for scan" under a built tree).
+    _syncEasyStatus();
 }
 
 /** Manual sync for when switching to Easy mode */

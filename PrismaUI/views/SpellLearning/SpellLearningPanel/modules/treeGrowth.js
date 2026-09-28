@@ -454,11 +454,8 @@ var TreeGrowth = {
             if (applyBtn) applyBtn.disabled = false;
             if (clearBtn) clearBtn.disabled = false;
 
-            var label = t('treeGrowth.treeBuilt');
-            if (this._nodeCount > 0) {
-                label += ' \u2014 ' + t('treeGrowth.nodesPlaced', {placed: this._nodeCount, total: this._totalPool || this._nodeCount});
-            }
-            this.setStatusText(label, 'done');
+            this.setStatusText(this._builtLabel(), 'done');
+            this._statusIsBuilt = true;
 
             // Force the main tree growth preview canvas to re-render
             this._markDirty();
@@ -531,11 +528,40 @@ var TreeGrowth = {
      *   (MODULE_CONTRACTS documented one); that is used as it is.
      */
     setStatusText: function(text, tone) {
+        this._statusIsBuilt = false;
+        this._statusText = text;
+        this._statusTone = tone;
         var el = document.getElementById('tgStatus');
         if (!el) return;
         el.textContent = text;
         var color = tone && (this.STATUS_COLORS.hasOwnProperty(tone) ? this.STATUS_COLORS[tone] : tone);
         if (color && typeof color === 'string') el.style.color = color;
+        // Looked up afresh each time: a language switch rebuilds both spans
+        if (typeof _syncEasyStatus === 'function') _syncEasyStatus();
+    },
+
+    _builtLabel: function() {
+        var label = t('treeGrowth.treeBuilt');
+        if (this._nodeCount > 0) {
+            label += ' — ' + t('treeGrowth.nodesPlaced', {placed: this._nodeCount, total: this._totalPool || this._nodeCount});
+        }
+        return label;
+    },
+
+    /**
+     * After a language switch (languageSetting.js), which rebuilt the line as
+     * "Waiting for scan..." from the language strings: the line goes back to
+     * what it said - "Tree built" in the new language, any other line as it was
+     * written until the next one replaces it.
+     */
+    relabelStatus: function() {
+        if (typeof this._statusText === 'string') {
+            var built = this._statusIsBuilt;
+            this.setStatusText(built ? this._builtLabel() : this._statusText, this._statusTone);
+            this._statusIsBuilt = built;
+        } else if (typeof _syncEasyStatus === 'function') {
+            _syncEasyStatus();
+        }
     },
 
     /**

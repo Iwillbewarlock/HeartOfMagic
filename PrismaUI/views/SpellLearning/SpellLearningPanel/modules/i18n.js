@@ -191,8 +191,9 @@
      * Change language while the panel is open. Loads lang/<locale>.js the same
      * way the page does at start - a script tag, the one way the game's browser
      * reads these files reliably - then re-labels everything marked data-i18n.
-     * Text that a script already built with t() stays as it was until the next
-     * start; the caller says so to the player.
+     * Text that a script already built with t() stays as it was; the caller
+     * (languageSetting.js, refreshScriptTexts) builds the Settings and scan page
+     * texts again and tells the player the rest changes at the next start.
      * @param {string} locale
      * @param {function(boolean)} [onDone] - true when the language is now active
      */

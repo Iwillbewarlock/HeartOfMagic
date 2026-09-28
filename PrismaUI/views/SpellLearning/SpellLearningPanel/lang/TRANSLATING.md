@@ -6,7 +6,7 @@ Thank you for helping translate Heart of Magic! This guide explains how to creat
 
 1. Copy `en.json` and rename it to your language code (e.g. `fr.json`, `de.json`, `es.json`)
 2. Translate the values (right side of each line) - **do NOT change the keys** (left side)
-3. Update the `_meta` section with your language name and your name as author
+3. Update the `_meta` section with your language's own name (the language picker shows it: `Deutsch`, `Français`) and your name as author
 4. **Generate the `.js` preload file** (see [Generating the Preload File](#generating-the-preload-file)) - **required for in-game use**
 5. Pick your language in the game: **Settings > UI Display > Language**
 6. Test in-game
@@ -146,8 +146,9 @@ overlays them), then choosing the language in Settings.
 
 1. Place your files in the `lang/` folder
 2. Launch the game, open the Heart of Magic panel, and choose your language in
-   **Settings > UI Display > Language**. Labels change at once; text the panel had already built
-   changes the next time the game starts.
+   **Settings > UI Display > Language**. Labels and the Settings and scan pages change at once; some
+   text the panel had already built (the spell card, the build progress window) changes the next time
+   the game starts.
 3. Restart the game once and check the whole panel
 4. If testing in a browser (dev harness), check console (F12) for `[i18n]` messages:
    - `[i18n] Loaded locale "de" from preload (573 keys)` = working

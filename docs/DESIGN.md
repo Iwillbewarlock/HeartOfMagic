@@ -721,8 +721,13 @@ plugin (`WritePanelLocale`, `uimanager/UIManagerLocale.cpp`) every time the conf
 the language changed: one line, `window._i18nUserLocale = '<code>';`, the code checked to be lower-case
 letters, digits and `-`. It does not exist until a language other than the default is picked (a missing
 script just fails to load), under Mod Organizer it lands in overwrite so a mod update does not reset it, and
-it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`; text a
-script already built with `t()` stays until the next start, and the picker says so. **Known now
+it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, then
+`refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
+and scan pages: the Design row's description, the Easy page's preset box ("No presets yet"), the tree
+builder status line, the tome learning description, the power step rows and the how-to lists. The rest -
+the build progress window, the spell card until the next pick, a passing status line - stays until the
+next start, and the picker says so. The scan status bar (`updateScanStatus`) drops its `data-i18n` when a
+script writes it, so a switch does not put "Ready to scan" back over "Tree built". **Known now
 (2026-09-23): PrismaUI does not keep `localStorage` between game sessions.** Seen in game with
 `settings.language = 'en'` saved and `locale.js` saying `ko`: every start drew in Korean from `locale.js`,
 then the late switch turned everything marked `data-i18n` English while text scripts had built (power
@@ -869,7 +874,11 @@ language strings (`scanner.complexStatusWrap`, `easyMode.statusWrap`) rebuild bo
 Until 2026-09-28 `scanner.complexStatusWrap` carried the old khaki inline, and `easyMode.js`, which copies
 `#tgStatus`'s inline colour onto `#easyStatus`, passed it on, so `--status-idle` never showed in game (the
 desktop harness, which has no language strings on that line, did not show it). `#easyStatus` needs the
-rule too: the copied inline colour is empty while idle.
+rule too: the copied inline colour is empty while idle. Because those strings rebuild both spans, the Easy
+copy is made by `TreeGrowth.setStatusText` calling `_syncEasyStatus` (2026-09-29), not by an observer on
+`#tgStatus`: after a language switch the observer watched the old, detached span and the Easy page kept
+"Waiting for scan" under a built tree. The switch itself resets both lines; `TreeGrowth.relabelStatus`
+puts back what they said ("Tree built" in the new language).
 
 **School tabs** sit in a row under the zoom tools (`patch-ui.css`, all designs). Centred on the top row
 they covered the right half of the tools - the renderer badge, heart settings and edit tree - at the

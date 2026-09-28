@@ -34,6 +34,27 @@ function showLanguageHint(key, fallback) {
     hint.removeAttribute('data-i18n'); // or the next re-label would put the description back
 }
 
+/**
+ * A live switch re-labels what is marked data-i18n; text a script built with
+ * t() is built again here. Each on its own, so one that throws does not keep
+ * the rest in the old language. Still left until the next start: the build
+ * progress window, the spell card (redrawn on the next pick), passing status
+ * lines, the hotkey field's "press a key".
+ */
+function refreshScriptTexts() {
+    var steps = [
+        function() { if (typeof DesignPresets !== 'undefined') DesignPresets._syncSelector(); },
+        function() { if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips(); },
+        function() { if (typeof TreeGrowth !== 'undefined' && TreeGrowth.relabelStatus) TreeGrowth.relabelStatus(); },
+        function() { if (typeof updateSpellTomeLearningUI === 'function') updateSpellTomeLearningUI(); },
+        function() { if (typeof renderPowerSteps === 'function') renderPowerSteps(); },
+        function() { if (typeof updateHowToContent === 'function') updateHowToContent(); }
+    ];
+    for (var i = 0; i < steps.length; i++) {
+        try { steps[i](); } catch (e) { console.warn('[Language] Refresh after the switch failed:', e); }
+    }
+}
+
 /** Called when the saved settings arrive. */
 function applySavedLanguage() {
     var select = document.getElementById('uiLanguageSelect');
@@ -45,7 +66,10 @@ function applySavedLanguage() {
     rememberLanguage(wanted);
     switchLocale(wanted, function(ok) {
         if (select) select.value = getLocale();
-        if (ok) showLanguageHint('settings.ui.languageRestart', 'Some text changes the next time the game starts.');
+        if (ok) {
+            refreshScriptTexts();
+            showLanguageHint('settings.ui.languageRestart', 'Some text changes the next time the game starts.');
+        }
     });
 }
 
@@ -70,6 +94,7 @@ function initializeLanguageSelect() {
         autoSaveSettings();
         switchLocale(code, function(ok) {
             if (ok) {
+                refreshScriptTexts();
                 showLanguageHint('settings.ui.languageRestart', 'Some text changes the next time the game starts.');
             } else {
                 // Do not keep asking for a file that is not there

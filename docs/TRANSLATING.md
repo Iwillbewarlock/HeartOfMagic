@@ -6,7 +6,7 @@ Thank you for helping translate Heart of Magic! This guide explains how to creat
 
 1. Copy `en.json` and rename it to your language code (e.g. `fr.json`, `de.json`, `es.json`)
 2. Translate the values (right side of each line) - **do NOT change the keys** (left side)
-3. Update the `_meta` section with your language name and your name as author
+3. Update the `_meta` section with your language's own name (the language picker shows it: `Deutsch`, `Français`) and your name as author
 4. **Generate the `.js` preload file** (see [Generating the Preload File](#generating-the-preload-file)) - **required for in-game use**
 5. Edit `locale.js` and change `'en'` to your locale code
 6. Test in-game
