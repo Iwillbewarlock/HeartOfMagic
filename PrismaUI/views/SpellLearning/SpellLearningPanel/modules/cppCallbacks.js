@@ -1126,7 +1126,8 @@ window.onPrismaReady = function() {
     // read them. Only the guards are new - before them, a throw in the status
     // line meant LoadSpellTree was never reached at all.
     step('status', function() {
-        updateStatus('Ready to scan spells...');
+        // Keyed, so the late switch to the saved language re-labels it
+        if (typeof updateScanStatus === 'function') updateScanStatus(t('scanner.readyToScan'), '', 'scanner.readyToScan');
         setStatusIcon('*');
     });
     step('load config', function() { window.callCpp('LoadUnifiedConfig', ''); });

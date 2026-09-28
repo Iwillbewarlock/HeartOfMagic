@@ -727,7 +727,8 @@ and scan pages: the Design row's description, the Easy page's preset box ("No pr
 builder status line, the tome learning description, the power step rows and the how-to lists. The rest -
 the build progress window, the spell card until the next pick, a passing status line - stays until the
 next start, and the picker says so. The scan status bar (`updateScanStatus`) drops its `data-i18n` when a
-script writes it, so a switch does not put "Ready to scan" back over "Tree built". **Known now
+script writes it, so a switch does not put "Ready to scan" back over "Tree built"; a message given with its
+key (the start-up "Ready to scan", which used to be written in English) keeps it and follows the switch. **Known now
 (2026-09-23): PrismaUI does not keep `localStorage` between game sessions.** Seen in game with
 `settings.language = 'en'` saved and `locale.js` saying `ko`: every start drew in Korean from `locale.js`,
 then the late switch turned everything marked `data-i18n` English while text scripts had built (power

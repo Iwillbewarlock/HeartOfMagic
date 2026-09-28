@@ -10,12 +10,20 @@
 // STATUS UPDATES
 // =============================================================================
 
-function updateScanStatus(message, type) {
+/**
+ * @param {string} message
+ * @param {string} [type] - 'working', 'success', 'error' (the bar's class)
+ * @param {string} [i18nKey] - the message's language key, so a language switch
+ *   says it again in the new language; without one the switch leaves the text
+ *   alone (before, it put "Ready to scan" back over "Tree built")
+ */
+function updateScanStatus(message, type, i18nKey) {
     var bar = document.getElementById('scanStatusBar');
     var text = document.getElementById('scanStatusText');
     if (!bar || !text) return;
     text.textContent = message;
-    text.removeAttribute('data-i18n');   // or a language switch puts "Ready to scan" back
+    if (i18nKey) text.setAttribute('data-i18n', i18nKey);
+    else text.removeAttribute('data-i18n');
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
 }

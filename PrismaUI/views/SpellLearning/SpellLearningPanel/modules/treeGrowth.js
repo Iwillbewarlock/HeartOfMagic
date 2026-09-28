@@ -548,12 +548,8 @@ var TreeGrowth = {
         return label;
     },
 
-    /**
-     * After a language switch (languageSetting.js), which rebuilt the line as
-     * "Waiting for scan..." from the language strings: the line goes back to
-     * what it said - "Tree built" in the new language, any other line as it was
-     * written until the next one replaces it.
-     */
+    /** After a language switch reset the line to "Waiting for scan...": what it
+     *  said goes back, "Tree built" in the new language, any other line as written. */
     relabelStatus: function() {
         if (typeof this._statusText === 'string') {
             var built = this._statusIsBuilt;
