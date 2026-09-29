@@ -2,38 +2,57 @@
 [size=3]Spell learning as practice, on a tree grown from your own load order[/size]
 
 A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic - Spell Learning System[/url] by Dinkel Zombie,
-shared with the original author's permission to modify and redistribute it.[/center]
+released with the original author's permission to improve and re-release it.
+
+[img]{{IMG_02}}[/img][/center]
 
 [line]
 
-[size=5][b]What it does[/b][/size]
+[size=5][b]What this mod is[/b][/size]
 
-Spells are no longer learned the moment you read a tome. Heart of Magic Librarian scans every spell in your load order - vanilla and mods alike - and grows a skill tree for each school, where each spell leads to related, stronger ones. You learn a spell by working toward it: casting its prerequisites, studying its tome, practising the school. Early on you can cast it weakened; at mastery it reaches full power.
+Spells are no longer learned the moment you read a tome. Heart of Magic Librarian scans every spell in your load order - vanilla and mods alike - and grows a skill tree for each school, where each spell leads to related, stronger ones. You learn a spell by working toward it: pick it as your goal, cast the spells on the road to it, study its tome, practise the school. Early on you can cast it weakened; at mastery it reaches full power.
 
-No spell lists to maintain and no patches per spell mod: the tree is built from what is installed.
+No spell lists to maintain and no patches per spell mod: the tree is built from what is installed. Open the panel (F8), scan, build - and the College is in session.
+
+[center][img]{{GIF_SCAN}}[/img][/center]
 
 [line]
 
-[size=5][b]What is different from Heart of Magic 2.5[/b][/size]
+[size=5][b]The original: Heart of Magic[/b][/size]
 
-The idea is Dinkel Zombie's. Librarian keeps it and rebuilds everything around it, so that the tree is easier to read, quicker to use and smoother to handle - and so that it keeps your progress honest.
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url] by Dinkel Zombie turned spell learning into practice: it scanned every spell in the load order, generated prerequisite trees with text analysis (TF-IDF and fuzzy matching over names, effects and descriptions), and tracked XP from casting and tome study. It brought early, weakened casting that grows to full power, Discovery Mode, progression presets, a plugin whitelist and spell blacklist, and a spell tome hook based on Don't Eat Spell Tomes. Later versions ran without Python ("depythoned") and offered several layout and build modes, including an optional LLM builder.
+
+Dinkel Zombie opened the source and gave everyone permission to improve and re-release it. Librarian is that: the same idea, rebuilt around how it feels to use.
+
+[line]
+
+[size=5][b]What changed from Heart of Magic 2.5[/b][/size]
+
+The tree is easier to read, quicker to use and smoother to handle - and it keeps your progress honest.
 
 [size=4][b]Less grinding, more sense[/b][/size]
 [list]
 [*][b]Known Higher Spells.[/b] Already know a higher spell (bought, given, learned from another mod)? The spells below it open for a share of their XP (30% at Novice up to 80% at Master) instead of making you grind spells you have outgrown. Optionally the whole chain down to the root. On by default, tunable in Settings > Progression.
 [*][b]Your cast always counts.[/b] Casting a spell that leads to your current target is always direct XP, whoever set the target - a tome, Papyrus or another mod.
-[*][b]Trees that make sense in any language.[/b] Every spell is tagged with its element (fire, frost, shock, blood, water, holy, shadow...) and technique (summoning, siphon, curse...). Spells of one element grow on one branch, and a Korean, Chinese or Russian game gets the same tree as an English one.
+[*][b]Trees that make sense in any language.[/b] Spells of one element grow on one branch, and a Korean, Chinese or Russian game gets the same tree as an English one.
 [*][b]Paths between schools.[/b] A fire spell and a fire summon are linked across schools - an extra way in, never an extra requirement.
 [/list]
 
+[center][img]{{IMG_04}}[/img][/center]
+
 [size=4][b]Everything you need, at a glance[/b][/size]
 [list]
-[*][b]A new spell card:[/b] icon, keyword chips, a description with the real numbers filled in, what it needs and what it opens. Click a chip and every spell with that keyword lights up.
+[*][b]A new spell card:[/b] icon, keyword chips, a description with the real numbers filled in, what it needs and what it opens, and how close you are to mastery.
+[*][b]Keyword chips:[/b] click a chip and every spell with that keyword lights up, across schools.
 [*][b]Preview on Hover:[/b] rest the cursor on a spell to read its card without clicking.
 [*][b]Two spells with the same name[/b] (a mod's copy of a vanilla spell) show their plugin in the card's lists, so you always know which one is meant.
 [*][b]Find Spell, school tabs and a Home button[/b] take you anywhere in the tree in one step.
 [*][b]A language picker[/b] in Settings (13 languages, every text translated) - no more editing files, and the panel's text switches right away.
 [/list]
+
+[center][img]{{IMG_03}}[/img]
+
+[img]{{GIF_CHIPS}}[/img][/center]
 
 [size=4][b]A panel that feels good to handle[/b][/size]
 [list]
@@ -41,8 +60,15 @@ The idea is Dinkel Zombie's. Librarian keeps it and rebuilds everything around i
 [*][b]A camera that follows you.[/b] Clicking a spell glides to it (Center on Click, Zoom on Click, Focus Zoom, Rotate Wheel, Dim Others - each a setting).
 [*][b]Clicks do what you meant.[/b] A click no longer nudges the tree. Esc first drops the selection, then closes the panel; Esc in Find Spell closes only the search.
 [*][b]Tidy trees.[/b] Spells are moved off each other, off the lines and off the heart when a tree is built.
-[*][b]Five designs[/b] - Classic (the old look), Modern Dark, Arcane (a parchment spellbook), Night Grimoire and Chalkboard - each with its own lines and fonts for every script. The Render popup turns off any moving part with one chip, or everything with "Still everything".
+[*][b]Five designs[/b] - Classic (the old look), Modern Dark, Arcane (a parchment spellbook), Night Grimoire and Chalkboard - each with its own lines and fonts for every script. Add-on designs are one JSON file.
+[*][b]The Render popup[/b] turns off any moving part with one chip, or everything with "Still everything".
 [/list]
+
+[center][img]{{GIF_DESIGNS}}[/img]
+
+[img]{{IMG_06}}[/img]
+
+[img]{{GIF_LANG}}[/img][/center]
 
 [size=4][b]Progress you can trust[/b][/size]
 [list]
@@ -69,28 +95,39 @@ The catalog is there for more than this tree: a perk mod, a patch or a spell bro
 
 [b]Want a spell mod supported?[/b] Post its name in the comments or the Posts tab (a link and the spells that look wrong help), and I will add rules for it in an update.
 
-The full list is in the Changelog.
+The full list of changes is in the Changelog.
 
 [line]
 
-[size=5][b]Requirements[/b][/size]
+[size=5][b]Compatibility[/b][/size]
 
+[b]Requirements[/b]
 [list]
 [*]Skyrim Special Edition 1.5.97 or Anniversary Edition (not VR)
 [*][url=https://skse.silverlock.org/]SKSE64[/url]
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url]
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/148718]Prisma UI[/url]
 [/list]
+No ESP, no Python, no API key. Safe to add to an existing save.
 
-No ESP, no Python, no API key.
-
-[b]Optional[/b]
+[b]Works with[/b]
 [list]
+[*][b]Any spell mod.[/b] Nothing is hard-coded per mod; the tree and the tags come from what is installed. Vanilla, Creation Club and mod spells all go in one tree.
+[*][b]Any game language.[/b] Grouping reads scan data and editor IDs before names, and the panel has fonts for Latin, Cyrillic, Korean, Japanese and Chinese.
 [*][b]ISL-DESTified / Don't Eat Spell Tomes, Sit Down and Read, GTS Trait Rebalanced[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
-[*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) for spell card icons.
-[*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - extra tagging rules switch on by themselves.
+[*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - their tagging rules switch on by themselves.
 [*][b]powerofthree's Tweaks[/b] with "Load EditorIDs" - lets the tree group spells by their editor IDs as well as their names.
+[*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) gives the spell card its icons.
 [/list]
+
+[b]Notes[/b]
+[list]
+[*]The spell tome hook is verified on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On other versions, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
+[*]Heart of Magic Librarian replaces Heart of Magic - do not run both.
+[*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
+[/list]
+
+[line]
 
 [size=5][b]Installation[/b][/size]
 
@@ -104,20 +141,20 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
 [/list]
 
-[size=5][b]Compatibility and notes[/b][/size]
+[line]
 
-[list]
-[*]Works with any spell mod; nothing is hard-coded per mod.
-[*]The spell tome hook is verified on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On other versions, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
-[*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
-[/list]
+[size=5][b]What comes next[/b][/size]
+
+The next goal is to connect magic mods to each other. Today every spell mod is its own island: its spells, its perks, its tomes and its ideas of fire, blood or the void live apart. The Librarian's catalog is a common language for all of them - one set of tags that any mod can read. Building on it, I want spells from different mods to grow into one another, perk and progression mods to understand spells they were never patched for, and themed magic (blood, water, wind, the void...) to find its place without hand-made lists. Requests and ideas are welcome in the Posts tab.
+
+[line]
 
 [size=5][b]Credits[/b][/size]
 
 [list]
-[*][b]Dinkel Zombie[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url], the mod this is rebuilt from. Dinkel Zombie gave permission to modify Heart of Magic and redistribute it - thank you.
+[*][b]Dinkel Zombie[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url], the mod this is rebuilt from. Dinkel Zombie opened the source and gave permission to improve and re-release it - thank you.
+[*][b]langfod (Likster)[/b] - the move from Python to native C++ and the thread-safety work in Heart of Magic
 [*][b]Iwillbewarlock[/b] - Librarian: the rebuild, the spell tag librarian, the designs and this release
-[*][b]langfod[/b] - the move from Python to native C++ and the thread-safety work in Heart of Magic
 [*][b]Prisma UI[/b] developers, [b]SKSE[/b] team, [b]CommonLibSSE-NG[/b]
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/43095]Don't Eat Spell Tomes[/url] - spell tome hook reference
 [*]Fonts: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS)
