@@ -20,7 +20,8 @@ namespace
 {
     // Function ID for TESObjectBOOK::Read (aka ProcessBook)
     // SE (1.5.97):    ID 17439
-    // AE (1.6.317+):  ID 17842
+    // AE (1.6.317+):  ID 17842, still the same function on 1.7.x (RVA 0x280290
+    //                 in the 1.7.99 address library and in the 1.7.104 exe)
     // Source: CommonLibSSE-NG src/RE/T/TESObjectBOOK.cpp — RELOCATION_ID(17439, 17842)
     constexpr REL::RelocationID ProcessBookID(17439, 17842);
 
@@ -32,6 +33,11 @@ namespace
     //   (mov rcx, [rip+disp32]; call rel32 - the player loaded for AddSpell)
     //   SE 1.5.97:                 +0xE8
     //   AE 1.6.318 and 1.6.1170:   +0x11D
+    //   AE 1.7.104:                +0x11D (measured offline on the exe: the
+    //     call there goes to Actor::AddSpell, the book is in r15, the spell
+    //     in rdx, the result in esi; the replaced block ends on an
+    //     instruction at +0x173). 1.7.99 was not measured; like 1.6.640
+    //     it gets the hook only if the pattern is at +0x11D.
     //
     // It used to be found by scanning 0x80-0x200 and taking the last match.
     // That is the dangerous way round: when another mod has already rewritten
@@ -62,7 +68,8 @@ namespace
     // patch site.
     inline std::ptrdiff_t FindJumpOffset()
     {
-        // Measured on the builds listed above. It used to be hunted for by
+        // Measured on the builds listed above (AE 1.7.104: +0x72 lands on
+        // the instruction at +0x18F of the function). It used to be hunted for by
         // looking for a byte that often starts an instruction; a byte like
         // that also turns up inside instructions, and jumping into the middle
         // of one is a crash.

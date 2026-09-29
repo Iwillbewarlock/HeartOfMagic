@@ -24,6 +24,19 @@
 - **BUILD TREE:** Native C++ NLP Classic builder, laid out by the panel's Classic growth mode (the one builder since 2026-09-27; the Tree, Graph, Thematic and Oracle builders and the panel's old JS builds - Simple, Procedural+, Visual-First/SettingsAware - were removed)
 - **Edit Mode:** Manual drag-drop and in-tree editing (add/remove nodes, links)
 
+**Game Versions:** one set of DLLs for SE 1.5.97, AE 1.6.x and AE 1.7.x (1.7.99, 1.7.104), built on
+CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All three DLLs
+(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`) use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
+with the default struct compatibility, so their `SKSEPlugin_Version` declares Address Library
+independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndependenceEx` = NoStructUse |
+AddressLibraryV5 (0x3). NoStructUse is right because CommonLib reads the layouts that moved (1.6.629,
+1.7.99) at run time. `STRUCT_DEPENDENT` would be wrong: the macro sets no StructsPost629 flag, so SKSE on
+1.6.629+ would refuse the DLL. AddressLibraryV5 is the flag SKSE asks of an address-library plugin on 1.7,
+whose address library is the new format 5 (`versionlib-1-7-*.bin`). Game addresses come only from address
+library IDs (TESObjectBOOK::Read 17439/17842, the 41 ActiveEffect subclass vtables; all resolve in the
+1.7.99 library); the one hand-measured spot is the tome hook's patch site (see SpellTomeHook below and
+docs/DEST-IMPROVEMENTS.md).
+
 **Core Flow:**
 ```
 Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Display Tree → Track XP → Grant Early (nerfed) → Reveal Details → Master Spells
@@ -471,6 +484,11 @@ struct EarlyLearningSettings {
 - **Tome inventory cache** (2026-09-25) - the boost is checked once per learning target on every cast, and answering it meant walking the player's whole inventory each time. `SpellTomeHookInventory.cpp` keeps the answer per spell until the inventory changes: a `TESContainerChangedEvent` sink (registered at kDataLoaded) invalidates it when the player is the old or new container and the moved item is a spell tome (or cannot be looked up), and revert and post-load invalidate it too. The event can come from any thread, so the sink only bumps an atomic counter; the cache compares that number on its next lookup and starts over when it moved, and an answer computed while the counter moved is not kept
 - Prerequisite checking before allowing tome XP
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
+- **Game versions** - patch site `+0xE8` (SE) / `+0x11D` (AE), measured on SE 1.5.97 and AE 1.6.318,
+  1.6.1170 and 1.7.104; the hook goes in only when `mov rcx,[rip+..]; call` is exactly there, otherwise
+  tomes work the vanilla way (another mod such as Don't Eat Spell Tomes got there first, or a new layout).
+  1.7.99 and other AE builds are not measured and get the same check. Offsets and how 1.7.104 was
+  measured: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"
 
 **Settings:**
 ```cpp
@@ -1159,7 +1177,7 @@ HeartOfMagic/
 │   │   ├── Papyrus.cmake          # Papyrus script compilation
 │   │   └── Spriggit.cmake         # Spriggit ESP serialization
 │   ├── external/
-│   │   └── commonlibsse-ng/       # Git submodule (built once, shared by all targets)
+│   │   └── commonlibsse-ng/       # Git submodule at tag v10.0.0 (built once, shared by all targets)
 │   ├── SpellLearningAPI.h         ✅ Public C++ API header (shared across plugins)
 │   ├── PrismaUI_API.h             ✅ PrismaUI modder interface (shared across plugins)
 │   ├── spelllearning/             # Main SpellLearning plugin

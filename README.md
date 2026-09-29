@@ -75,7 +75,7 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 ## Requirements
 
 ### Required
-- **Skyrim SE/AE** (1.5.97+ or AE)
+- **Skyrim SE/AE** (1.5.97, AE 1.6.x or AE 1.7.x - one set of DLLs for all)
 - **[SKSE64](https://skse.silverlock.org/)**
 - **[Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)**
 - **[PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718)** - UI framework (must load before Heart of Magic)
@@ -149,7 +149,7 @@ Data/
 ## Technical Details
 
 - Pure DLL + UI mod. No ESP required. Save-safe to add and remove.
-- SKSE plugin with Address Library support (SE 1.5.97+ and AE)
+- SKSE plugin with Address Library support (SE 1.5.97, AE 1.6.x and AE 1.7.x; CommonLibSSE-NG v10.0.0)
 - PrismaUI-powered web interface (CEF/Ultralight)
 - FormID persistence survives load order changes (`plugin:localFormId` format)
 - Performance-optimized for large load orders (tested with 1500+ spells)

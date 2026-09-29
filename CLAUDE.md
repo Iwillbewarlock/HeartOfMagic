@@ -288,7 +288,11 @@ This project does not have a C++ test framework. Validation is done through:
 - Visual Studio 2022 (or 2026) with C++ desktop workload
 - CMake 3.25+
 - vcpkg (set `$env:VCPKG_ROOT` or configure in vcpkg-configuration.json)
-- Git (for submodules)
+- Git (for submodules; CommonLibSSE-NG is pinned at tag `v10.0.0`, the release that knows 1.7.99 / 1.7.104 -
+  after pulling a submodule change run `git submodule update --init --recursive`)
+- Network access on a fresh configure: CommonLibSSE-NG 10 (`SKSE_SUPPORT_PATCH_SAFETY`, on by default) fetches
+  MinHook's `hde64` instruction-length decoder from GitHub with CMake `FetchContent`; it only adds a log check to the
+  `SKSE::Trampoline` branch/call writes, which this project does not use
 
 ### First-Time Setup
 
