@@ -73,8 +73,9 @@ function restoreScanButton() {
  * scan runs on its own behind a good "Scanned N spells" (after a scan, when
  * the tome toggle is switched). C++ has put "Scanning spell tomes..." in the
  * bar, so a failure logs, puts the scanned message back (restoreScannedStatus)
- * and drops the tomed-spell list: with none, the tome filter is off for the
- * primed count and the next build instead of using a stale list. It disables
+ * and keeps the tomed-spell list it has (the load order does not change during
+ * a session, and a rescan filters by the previous list too); with no list the
+ * tome filter stays off for the primed count and the next build. It disables
  * nothing, so there is no button to give back.
  * @param {string|Object} message
  */
@@ -91,9 +92,9 @@ window.onScanFailed = function(message) {
     }
     reason = String(reason === undefined || reason === null ? '' : reason);
     if (mode === 'tomes') {
-        console.warn('[SpellLearning] The tome scan failed, the tome filter is off: ' + reason);
-        state.tomedSpellIds = null;
-        if (typeof updatePrimedCount === 'function') updatePrimedCount();
+        console.warn('[SpellLearning] The tome scan failed (' + reason + '); ' + (state.tomedSpellIds
+            ? 'the tome list from the earlier scan is kept'
+            : 'there is no tome list, so the tome filter stays off'));
         restoreScannedStatus();
         return;
     }

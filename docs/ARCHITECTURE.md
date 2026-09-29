@@ -127,10 +127,11 @@ button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan sta
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. A tome scan (`tomes`: the
 automatic one after a full scan, the tome toggle) runs behind a good "Scanned N spells" message and disables
 nothing, but C++ has written "Scanning spell tomes..." over the bar, so its failure logs a console warning,
-puts the keyed scanned message back (`restoreScannedStatus`, also used when the tome reply arrives) and sets
-`state.tomedSpellIds` to null: with no list, the tome filter is off for the primed count and the next build
-(`getPrimedSpells`, `classic/classicBuildRequest.js`) rather than filtering by a stale list. The failure is not
-shown to the player, only logged. An older plain
+puts the keyed scanned message back (`restoreScannedStatus`, also used when the tome reply arrives) and leaves
+`state.tomedSpellIds` as it is: an earlier good list stays in use (the load order does not change during a
+session, and a rescan filters by the previous list too), and with no list the tome filter stays off for the
+primed count and the next build (`getPrimedSpells`, `classic/classicBuildRequest.js`). The failure is not
+shown to the player, only logged (which of the two cases it was). An older plain
 JSON-string payload is read as a full scan's reason.
 
 `archetype` and the actor value fields are always names, never raw numbers -

@@ -95,6 +95,7 @@ var StatusLineTest = {
     _load: function(g) {
         if (typeof require !== 'function') return;
         var vm = require('vm'), fs = require('fs'), path = require('path');
+        // cppCallbacks.js (updateStatus, updateSpellData) stays loaded into the global scope for the suites after this one
         var files = [['easyMode.js', '_syncEasyStatus'], ['uiHelpers.js', 'relabelScanStatus'], ['treeParser.js', 'TreeParser'], ['cppCallbacks.js', 'updateStatus']];
         for (var i = 0; i < files.length; i++) {
             if (typeof g[files[i][1]] !== 'undefined') continue;
@@ -107,7 +108,8 @@ var StatusLineTest = {
         var g = (typeof global !== 'undefined') ? global : window;
         var S = g.TreeGrowthStatus;
         try { this._load(g); } catch (e) { console.log('  load failed: ' + e.message); }
-        if (!S || typeof g._syncEasyStatus !== 'function' || typeof g.relabelScanStatus !== 'function') {
+        if (!S || typeof g._syncEasyStatus !== 'function' || typeof g.relabelScanStatus !== 'function' ||
+            typeof g.updateStatus !== 'function') {
             this.check(false, 'TreeGrowthStatus, easyMode.js and uiHelpers.js loaded');
             return { passed: this.passed, failed: this.failed };
         }
@@ -240,10 +242,19 @@ var StatusLineTest = {
                 'onScanFailed (tomes): the scanned message and its colour are back');
             this.check(warned === 1 && wait.textContent === 'Scanning game spells...' && btn.disabled === true,
                 'onScanFailed (tomes): a console warning; the wait line and the button (a tome scan disables nothing) stay');
-            this.check(g.state.tomedSpellIds === null, 'onScanFailed (tomes): the stale tomed-spell list is dropped (the tome filter is off)');
+            this.check(g.state.tomedSpellIds && g.state.tomedSpellIds['0x1'] === true, 'onScanFailed (tomes): an existing tomed-spell list is kept');
             setLang('ko'); cur = 'ko'; g.relabelScanStatus();
             this.check(bar.textContent === scanned(), 'onScanFailed (tomes): the restored message follows a language switch');
             setLang('en'); cur = 'en';
+            g.state.tomedSpellIds = null;
+            try { console.warn = function() {}; g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
+            this.check(g.state.tomedSpellIds === null, 'onScanFailed (tomes): with no list it stays null (the tome filter stays off)');
+            // The success path: the tome reply makes the list and puts the scanned message back the same way
+            g.updateStatus('"Scanning spell tomes..."');
+            g.updateSpellData(JSON.stringify({ scanMode: 'spell_tomes', spells: [{ formId: '0x1' }] }));
+            this.check(bar.textContent === scanned() && page.byId.scanStatusBar.className.indexOf('success') !== -1 &&
+                g.state.tomedSpellIds && g.state.tomedSpellIds['0x1'] === true,
+                'updateSpellData (tome reply): the tomed-spell list is set and the scanned message is back');
             g.state.lastSpellData = null;
             g.updateStatus('"Scanning spell tomes..."');
             console.warn = function() {};
