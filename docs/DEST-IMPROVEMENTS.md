@@ -79,14 +79,16 @@ const std::uintptr_t funcBase = ProcessBookID.address();
 // SE +0xE8, AE +0x11D. The bytes there must be
 //   48 8B 0D xx xx xx xx E8 xx xx xx xx
 //   mov rcx, [rip+disp32]; call rel32
-// (the PlayerCharacter singleton load + AddSpell call), and on AE also
+// (the PlayerCharacter singleton load + AddSpell call), the call must stay
+// inside SkyrimSE.exe's image (base .. base + SizeOfImage), and on AE also
 //   - the call goes to Actor::AddSpell (RelocationID(37771, 38716).address())
 //   - the replaced block ends on test byte [r15+..] (41 F6 87) at site + 0x56
 //   - the return site, site + 0x72, is xor al, al (32 C0)
 // or the hook stays out (SpellTomeSites::Decide, SpellTomeHookSites.h) -
 // except on the AE builds tested in game (kInGameTestedAE: 1.6.318, 1.6.1170),
-// where the site pattern alone decides and a failed newer check is a warning.
-if (!SiteIsKnownLayout(funcBase, isAE)) return false;
+// where the site pattern and the in-image call decide and the last three
+// checks only warn.
+if (!SpellTomeGate::SiteIsKnownLayout(funcBase, isAE)) return false;  // SpellTomeHookGate.cpp
 ```
 
 An earlier version scanned `0x80`–`0x200` and took the last match. That was
@@ -100,14 +102,23 @@ keeps the pattern check it was tested with in game (no 1.5.97 exe was at hand
 to measure its block end and return site). The log names the check that
 failed.
 
+On every build, SE included, the call at site + 7 must also land inside
+SkyrimSE.exe's own image (`base` to `base + SizeOfImage`, read from the PE
+header in `SpellTomeHookGate.cpp`). A vanilla `call rel32` never leaves the
+image, so a target outside it is another SKSE mod that redirected the AddSpell
+call to its own trampoline (`write_call<5>`); NOPing the block would silently
+remove that mod's hook. The hook then stays out, tested build or not, and the
+log says another mod appears to have hooked the AddSpell call in
+`TESObjectBOOK::Read`, naming the target and the image range.
+
 The AE builds the hook was tested on in game (`kInGameTestedAE`: 1.6.318 and
 1.6.1170, where most players are) could not be read offline, so the newer
-checks must not switch the hook off there: the site pattern decides as before,
-and if the call target, block end or return site differs the hook still goes
-in with a `WARNING` naming the check and what was read (the call target, or
-the bytes). That line tells us the real layout the first time someone reads a
-tome on that build. Every other AE build (1.6.640, 1.7.x, later) needs all four
-checks.
+checks must not switch the hook off there: the site pattern and the in-image
+call decide, and if the call goes elsewhere in the image than AddSpell, or the
+block end or return site differs, the hook still goes in with a `WARNING`
+naming the check and what was read (the call target, or the bytes) - which may
+be another mod or a layout that differs from the one measured. Every other AE
+build (1.6.640, 1.7.x, later) needs all five checks.
 
 **Result:** One DLL works on SE 1.5.97, AE 1.6.x and AE 1.7.x. The hook was
 tested in game on SE 1.5.97, AE 1.6.318 and AE 1.6.1170; on AE 1.7.104 it was
@@ -187,9 +198,15 @@ It used to be hunted for by looking for a byte that often starts an
 instruction (`0x48`, `0x40`, ...); such a byte also turns up inside
 instructions, and jumping into the middle of one is a crash. On AE the site
 check now also requires the measured instruction at the return site
-(`xor al, al`, `32 C0`) and at the end of the replaced block, so a build where
-the jump would land elsewhere keeps the hook out; SE keeps the pattern check it
-was tested with.
+(`xor al, al`, `32 C0`), so on an untested AE build where the jump would land
+elsewhere the hook stays out. On the AE builds tested in game (1.6.318,
+1.6.1170) a different return site is only a logged warning and the hook goes in,
+as it did when those builds were tested. The block-end check (`41 F6 87` at
+site + `0x56`) is a check that this is the measured layout, not something the
+patched code relies on: after the patch the jump goes straight from the
+trampoline to the return site, so site + `0x56` .. + `0x72` (`+0x173` ..
+`+0x18F`) never runs. SE keeps the pattern check it was tested with, plus the
+in-image call.
 
 ---
 
@@ -205,9 +222,9 @@ util::report_and_fail("Binary did not match expected, failed to install"sv);
 ### Our Approach — Graceful Degradation
 
 ```cpp
-if (!SiteIsKnownLayout(funcBase, isAE)) {
-    // it logged which check failed (site pattern, AddSpell call target,
-    // block end, return site) and what it found there
+if (!SpellTomeGate::SiteIsKnownLayout(funcBase, isAE)) {
+    // it logged which check failed (site pattern, call outside the image,
+    // AddSpell call target, block end, return site) and what it found there
     return false;  // Hook not installed — game continues normally
 }
 ```
@@ -222,7 +239,7 @@ vanilla spell tome behavior. The log file explains exactly what happened.
 | Aspect | DEST v1.2.2 | Heart of Magic |
 |--------|-------------|----------------|
 | **SE + AE from one DLL** | No (separate builds) | Yes (`REL::RelocationID` + `IsAE()`) |
-| **Patch site discovery** | Hardcoded offset | Measured offset per runtime, exact-position pattern check; on AE also the AddSpell call target and both block ends |
+| **Patch site discovery** | Hardcoded offset | Measured offset per runtime, exact-position pattern check, the call kept inside the game's image (another mod's hook keeps ours out); on AE also the AddSpell call target and both block ends |
 | **Jump offset** | Hardcoded | Measured offset per runtime, return site checked on AE |
 | **AE sub-version support** | 1.6.318 only | 1.6.x and 1.7.x where the checks pass (tested in game: 1.6.318, 1.6.1170; measured offline: 1.7.104) |
 | **Failure on unknown version** | CTD (`report_and_fail`) | Graceful fallback to vanilla |
@@ -262,8 +279,8 @@ For future debugging — known working offsets across game versions:
 | Game Version | Address Library ID | Patch Offset | Jump Offset | Book Register | Known from |
 |--------------|--------------------|-------------|-------------|---------------|------------|
 | SE 1.5.97 | 17439 | `+0xE8` | `+0x70` | `rdi` | tested in game |
-| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game (DEST's reference build); site pattern decides, newer checks warn |
-| AE 1.6.1170 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game earlier; not re-read offline (its `.text` is encrypted on disk); site pattern decides, newer checks warn |
+| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game (DEST's reference build); site pattern and in-image call decide, newer checks warn |
+| AE 1.6.1170 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game earlier; not re-read offline (its `.text` is encrypted on disk); site pattern and in-image call decide, newer checks warn |
 | AE 1.7.104 | 17842 | `+0x11D` | `+0x72` | `r15` | measured offline, not yet tested in game |
 | other AE (1.6.640, 1.7.99, ...) | 17842 | `+0x11D` | `+0x72` | `r15` | not measured: hooked only if every AE check passes |
 
@@ -300,7 +317,9 @@ the book is not removed.
 |------|---------|
 | `plugins/spelllearning/include/SpellTomeHook.h` | Hook class, settings struct, API |
 | `plugins/spelllearning/include/SpellTomeHookSites.h` | Offsets per runtime and the site checks (`CheckSite`), the in-game-tested list (`kInGameTestedAE`) and the decision (`Decide`), with the 1.7.104 measurement; no game types, so an offline check compiles it |
-| `plugins/spelllearning/src/SpellTomeHook.cpp` | Site check and its log, Xbyak patch, callback logic |
+| `plugins/spelllearning/include/SpellTomeHookGate.h` | `SpellTomeGate::SiteIsKnownLayout`, the in-game side of the site check |
+| `plugins/spelllearning/src/SpellTomeHookGate.cpp` | Site check and its log: resolves AddSpell and the image range (PE header), asks `SpellTomeSites::Decide`, logs a failed check |
+| `plugins/spelllearning/src/SpellTomeHook.cpp` | Xbyak patch, callback logic |
 | `plugins/spelllearning/src/SpellTomeHookInventory.cpp` | Tome inventory cache for the carried-tome XP boost |
 
 ## Credits

@@ -103,7 +103,7 @@ The full list of changes is in the Changelog.
 
 [b]Requirements[/b]
 [list]
-[*]Skyrim Special Edition 1.5.97, Anniversary Edition 1.6.x or 1.7.x (1.7.99, 1.7.104) - one download for all of them (not VR)
+[*]Skyrim Special Edition 1.5.97, Anniversary Edition 1.6.x, or Anniversary Edition 1.7.99 / 1.7.104 - one download for all of them (not VR). 1.7 support is built and checked offline only; it has not been run in game yet.
 [*][url=https://skse.silverlock.org/]SKSE64[/url] (the build for your game version)
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] (on 1.7.x, a version that includes your game version)
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/148718]Prisma UI[/url]
@@ -114,7 +114,7 @@ No ESP, no Python, no API key. Safe to add to an existing save.
 [list]
 [*][b]Any spell mod.[/b] Nothing is hard-coded per mod; the tree and the tags come from what is installed. Vanilla, Creation Club and mod spells all go in one tree.
 [*][b]Any game language.[/b] Grouping reads scan data and editor IDs before names, and the panel has fonts for Latin, Cyrillic, Korean, Japanese and Chinese.
-[*][b]ISL-DESTified / Don't Eat Spell Tomes, Sit Down and Read, GTS Trait Rebalanced[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
+[*][b]ISL-DESTified / Don't Eat Spell Tomes, I Just Want to Sit Down and Read, Gate to Sovngarde CE (Bookworm trait)[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
 [*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - their tagging rules switch on by themselves.
 [*][b]powerofthree's Tweaks[/b] with "Load EditorIDs" - lets the tree group spells by their editor IDs as well as their names.
 [*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) gives the spell card its icons.
@@ -122,7 +122,14 @@ No ESP, no Python, no API key. Safe to add to an existing save.
 
 [b]Notes[/b]
 [list]
-[*]The spell tome hook is verified in game on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On AE 1.7.104 it was measured offline, not yet tested in game. On other versions, and wherever its checks fail, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
+[*]The spell tome hook checks the game code before it goes in:
+[list]
+[*]SE 1.5.97 and AE 1.6.318 / 1.6.1170: tested in game. A check that does not match only writes a warning to the log - unless another mod has already hooked the same spot, then the hook stays out.
+[*]AE 1.7.104: measured offline, not yet tested in game.
+[*]AE 1.7.99: not measured. The hook goes in only if all its checks pass.
+[*]Other AE 1.6.x versions: the checks are stricter than in 1.0.1, so the hook may stay out where 1.0.1 put it in.
+[/list]
+Wherever the hook stays out ([i]SpellLearning.log[/i] says "SpellTomeHook failed to install"), tomes work the vanilla way and the rest of the mod still runs.
 [*]Heart of Magic Librarian replaces Heart of Magic - do not run both.
 [*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
 [/list]
@@ -135,7 +142,7 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 
 [b]Coming from Heart of Magic v2.5:[/b]
 [list=1]
-[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod at version 1.0.0.
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.1.0 at the time of writing).
 [*]Your saves, settings and saved tree carry over.
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
@@ -151,7 +158,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is open under the MIT License: [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url] (the tag of each release is its complete source), and as the [i]Source[/i] file on the Files tab. Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.1.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 
@@ -162,9 +169,10 @@ The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files
 [*][b]langfod (Likster)[/b] - the move from Python to native C++ and the thread-safety work in Heart of Magic
 [*][b]Iwillbewarlock[/b] - Librarian: the rebuild, the spell tag librarian, the designs and this release
 [*][b]Prisma UI[/b] developers, [b]SKSE[/b] team, [b]CommonLibSSE-NG[/b] (alandtse and contributors, GPL-3.0-or-later with the Modding and Linking Exceptions; built on CommonLibSSE by Ryan-rsm-McKenzie)
-[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/43095]Don't Eat Spell Tomes[/url] - spell tome hook reference
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/43095]Don't Eat Spell Tomes[/url] by Exit-9B - the spell tome hook is based on it (MIT)
+[*]Optional ISL patch script: [b]Hackfield[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/45514]Immersive Spell Learning - DESTified[/url], its base script; [b]Ameisenfutter[/b] - the original Immersive Spell Learning; [b]Parapets[/b] - Don't Eat Spell Tomes; [b]GiraPomba[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/121282]I Just Want to Sit Down and Read[/url], the sit-down study animations. Its Gate to Sovngarde CE Bookworm trait support is compatibility code only; no GTS CE files are included.
 [*]Fonts: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS)
 [*]Showcase video: music - Paul Dukas, [i]L'apprenti sorcier[/i] (1897), Minneapolis Symphony Orchestra conducted by Dimitri Mitropoulos (Columbia, 1941; transfer by Bob Varney, [url=https://archive.org/details/SorcerersApprentice]Internet Archive[/url], CC0), restored and edited; voices - Skyrim's own NPC lines; fonts - Cinzel, EB Garamond, Hahmlet (SIL OFL)
 [/list]
 
-[b]License[/b]: Heart of Magic Librarian's own source files are MIT. The plugin DLLs statically link CommonLibSSE-NG (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLLs are a GPL-3.0-or-later combined work; [i]THIRD-PARTY-NOTICES.md[/i] and the [i]licenses[/i] folder in the download have the details, the other libraries' licenses and where the complete source is. As the GPL requires, the permissions on this page allow modifying and redistributing the DLLs under those terms.
+[b]License[/b]: Heart of Magic Librarian's own source files are MIT. The plugin DLLs statically link CommonLibSSE-NG (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLLs are a GPL-3.0-or-later combined work; [i]THIRD-PARTY-NOTICES.md[/i] and the [i]licenses[/i] folder in the download have the details, the other libraries' licenses and where the complete source is. Some parts come from others and keep their own licenses (listed in [i]THIRD-PARTY-NOTICES.md[/i]): the tome hook based on Don't Eat Spell Tomes (MIT), math code from fdlibm / V8, the fonts (SIL OFL), and the optional ISL patch script, which belongs to its original authors (Hackfield, with Sit Down and Read code by GiraPomba), is not under this project's MIT license and is released as a modified patch as their Nexus permissions allow, with credit. As the GPL requires, the permissions on this page allow modifying and redistributing the DLLs under those terms.

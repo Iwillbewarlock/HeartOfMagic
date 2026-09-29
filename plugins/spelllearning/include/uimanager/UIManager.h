@@ -8,6 +8,7 @@
 
 #include "PrismaUI_API.h"
 #include "treebuilder/TreeBuilder.h"
+#include "uimanager/ConfigFile.h"
 
 class UIManager
 {
@@ -34,6 +35,12 @@ public:
     static void SetPanelInfoLogging(bool enabled) { s_panelInfoLogging.store(enabled, std::memory_order_relaxed); }
     static bool PanelInfoLogging() { return s_panelInfoLogging.load(std::memory_order_relaxed); }
     bool GetPauseGameOnFocus() const { return m_pauseGameOnFocus; }
+
+    // How the panel's saves treat config.json, from the last load
+    // (ConfigFile::SaveModeFor). Set and read under the config file lock:
+    // the load on the game thread, the saves on their worker.
+    static void SetConfigSaveMode(ConfigFile::SaveMode mode) { s_configSaveMode.store(mode, std::memory_order_relaxed); }
+    static ConfigFile::SaveMode ConfigSaveMode() { return s_configSaveMode.load(std::memory_order_relaxed); }
 
     // Send data to Scanner Tab
     void SendSpellData(const std::string& jsonData);
@@ -161,6 +168,7 @@ private:
     PrismaView m_view = 0;
     std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
     static inline std::atomic<bool> s_panelInfoLogging{false};
+    static inline std::atomic<ConfigFile::SaveMode> s_configSaveMode{ConfigFile::SaveMode::Normal};
     bool m_isInitialized = false;
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists

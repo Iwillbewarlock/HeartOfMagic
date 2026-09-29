@@ -1,12 +1,18 @@
 Scriptname DEST_ISL_PlayerSpellLearningScript extends ReferenceAlias
 ; =============================================================================
-; MERGED COMPATIBILITY PATCH — Heart of Magic + Sit Down and Read + GTS Traits
-; Base: ISL - DESTified v1.4.5 by IAmNotSimon
+; MERGED COMPATIBILITY PATCH — Heart of Magic + Sit Down and Read + GTS CE Bookworm trait support
+; Base: "Immersive Spell Learning - DESTified" v1.4.5 by Hackfield
+;   (nexusmods.com/skyrimspecialedition/mods/45514), which credits Ameisenfutter
+;   (the original Immersive Spell Learning) and Parapets (Don't Eat Spell Tomes).
+; Sit Down and Read part: "I Just Want to Sit Down and Read" by GiraPomba
+;   (nexusmods.com/skyrimspecialedition/mods/121282).
+; Not under Heart of Magic's MIT license; belongs to its original authors.
 ;
 ; Merged features:
 ;   [HoM]   SpellLearning_ISL study progress + completion callbacks
 ;   [SDR]   GPMA/OAR animation system, ImprovedCameraSE + TDM compat
-;   [GTS]   Bookworm Trait study speed bonus
+;   [GTS]   Gate to Sovngarde CE Bookworm trait support: compatibility code only,
+;           checks for the trait's effect and shortens study time (no GTS CE files included)
 ;   [FIX]   OnPlayerLoadGame save-load re-registration
 ;
 ; All features degrade gracefully if the respective mod is not installed.

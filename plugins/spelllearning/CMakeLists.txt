@@ -69,6 +69,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spelleffectiveness/SpellEffectivenessHookDisplay.cpp
     src/spelleffectiveness/SpellEffectivenessHookGrant.cpp
     src/SpellTomeHook.cpp
+    src/SpellTomeHookGate.cpp
     src/SpellTomeHookInventory.cpp
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp

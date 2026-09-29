@@ -23,12 +23,18 @@
 //       - the call goes to Actor::AddSpell (RELOCATION_ID(37771, 38716)), so
 //         the site really is the spell-teach call on this build;
 //       - the replaced block ends where an instruction starts: test byte
-//         [r15+0x110], 8 (41 F6 87 ..) at site + 0x56;
+//         [r15+0x110], 8 (41 F6 87 ..) at site + 0x56 - a check that this is
+//         the measured layout; once patched, the jump goes straight to the
+//         return site, so site + 0x56 .. + 0x72 never runs;
 //       - the return lands where an instruction starts: xor al, al (32 C0) at
 //         site + 0x72.
+// On SE and AE alike the call at site+7 must stay inside the game's own image:
+// a vanilla rel32 call cannot leave it, so a target outside is another mod's
+// hook (write_call to its trampoline), and NOPing the block would remove it.
 // Anything else leaves the hook out, and tomes work the vanilla way - except
-// on the AE builds tested in game (kInGameTestedAE below), where only the site
-// pattern decides and a failed newer check is a logged warning.
+// on the AE builds tested in game (kInGameTestedAE below), where the site
+// pattern and the in-image call decide and a failed newer check (AddSpell,
+// block end, return site) is a logged warning.
 //
 // Measured offline on AE 1.7.104 (SkyrimSE.exe file version 1.7.104.0; its
 // .text is not encrypted on disk), disassembled with Capstone. ID 17842 is
@@ -85,10 +91,24 @@ namespace SpellTomeSites
     enum class Check
     {
         Ok,
-        SitePattern,  // no mov rcx, [rip+..]; call at the site (another mod was there first?)
-        CallTarget,   // the call does not go to Actor::AddSpell (a different layout)
-        BlockEnd,     // no instruction starts where the replaced block ends
-        ReturnSite    // the return site is not the measured instruction
+        SitePattern,      // no mov rcx, [rip+..]; call at the site (another mod was there first?)
+        CallOutsideImage, // the call leaves the game's image: another mod hooked it
+        CallTarget,       // the call stays in the image but not at Actor::AddSpell
+        BlockEnd,         // no instruction starts where the replaced block ends (layout identity)
+        ReturnSite        // the return site is not the measured instruction
+    };
+
+    // The game module's image, [begin, end): SkyrimSE.exe's base and base +
+    // SizeOfImage in the running game, or 0 and SizeOfImage offline (RVAs).
+    struct ImageRange
+    {
+        std::uintptr_t begin;
+        std::uintptr_t end;
+
+        [[nodiscard]] constexpr bool Contains(std::uintptr_t a_address) const noexcept
+        {
+            return a_address >= begin && a_address < end;
+        }
     };
 
     // Where the call at the site goes. a_siteAddress is the site's address in
@@ -106,19 +126,24 @@ namespace SpellTomeSites
     }
 
     // a_func: the bytes of TESObjectBOOK::Read; a_funcAddress: its address (or
-    // RVA); a_addSpellAddress: Actor::AddSpell's address (or RVA) on this build.
+    // RVA); a_addSpellAddress: Actor::AddSpell's address (or RVA) on this build;
+    // a_image: the game's image in the same terms as the two addresses.
     [[nodiscard]] inline Check CheckSite(const std::uint8_t* a_func, std::uintptr_t a_funcAddress,
-        bool a_isAE, std::uintptr_t a_addSpellAddress) noexcept
+        bool a_isAE, std::uintptr_t a_addSpellAddress, ImageRange a_image) noexcept
     {
         const auto& layout = a_isAE ? kAELayout : kSELayout;
         const auto* site = a_func + layout.siteOffset;
         if (!(site[0] == 0x48 && site[1] == 0x8B && site[2] == 0x0D && site[kCallOffset] == 0xE8)) {
             return Check::SitePattern;
         }
-        if (!a_isAE) {
-            return Check::Ok;  // SE keeps the check it was tested with
+        const auto target = CallTarget(site, a_funcAddress + layout.siteOffset);
+        if (!a_image.Contains(target)) {
+            return Check::CallOutsideImage;  // SE too: vanilla code never calls out of the image
         }
-        if (CallTarget(site, a_funcAddress + layout.siteOffset) != a_addSpellAddress) {
+        if (!a_isAE) {
+            return Check::Ok;  // otherwise SE keeps the check it was tested with
+        }
+        if (target != a_addSpellAddress) {
             return Check::CallTarget;
         }
         if (!StartsWith(site + kPatchSize, kAEBlockEnd, sizeof(kAEBlockEnd))) {
@@ -139,9 +164,10 @@ namespace SpellTomeSites
 
     // AE builds the hook was tested on in game with the site pattern check
     // alone. Most players are on these, and their code could not be read
-    // offline, so the three newer AE checks must not switch the hook off
-    // there: a failure is logged as a warning (which tells us the real layout
-    // the first time someone reads a tome) and the hook still goes in.
+    // offline, so the three newer AE checks (AddSpell, block end, return site)
+    // must not switch the hook off there: a failure is logged as a warning
+    // (another mod, or a layout that differs from 1.7.104) and the hook still
+    // goes in. A call out of the image still keeps it out (IsHardFailure).
     inline constexpr std::array<RuntimeVersion, 2> kInGameTestedAE{ {
         { 1, 6, 318 },
         { 1, 6, 1170 },
@@ -157,10 +183,18 @@ namespace SpellTomeSites
         return false;
     }
 
+    // Failures that keep the hook out on every build, tested ones included:
+    // the site is not a mov/call at all, or its call already leads to another
+    // mod's code, which the 0x56 NOPs would wipe out.
+    [[nodiscard]] constexpr bool IsHardFailure(Check a_check) noexcept
+    {
+        return a_check == Check::SitePattern || a_check == Check::CallOutsideImage;
+    }
+
     enum class Gate
     {
         Install,             // every check passed
-        InstallWithWarning,  // an in-game-tested AE build: site pattern passed, a newer check did not
+        InstallWithWarning,  // an in-game-tested AE build: a soft check (AddSpell, block end, return site) failed
         StayOut              // the hook must not go in
     };
 
@@ -170,17 +204,17 @@ namespace SpellTomeSites
         Check check;  // the check that failed (Ok when all passed)
     };
 
-    // The decision for this runtime. SE: the site pattern (as tested). AE
-    // builds in kInGameTestedAE: the site pattern decides, the other checks
-    // only warn. Any other AE build: every check must pass.
+    // The decision for this runtime. SE: the site pattern (as tested) and the
+    // in-image call. AE builds in kInGameTestedAE: those two decide, the other
+    // checks only warn. Any other AE build: every check must pass.
     [[nodiscard]] inline GateResult Decide(const std::uint8_t* a_func, std::uintptr_t a_funcAddress,
-        bool a_isAE, std::uintptr_t a_addSpellAddress, RuntimeVersion a_version) noexcept
+        bool a_isAE, std::uintptr_t a_addSpellAddress, ImageRange a_image, RuntimeVersion a_version) noexcept
     {
-        const auto check = CheckSite(a_func, a_funcAddress, a_isAE, a_addSpellAddress);
+        const auto check = CheckSite(a_func, a_funcAddress, a_isAE, a_addSpellAddress, a_image);
         if (check == Check::Ok) {
             return { Gate::Install, check };
         }
-        if (check != Check::SitePattern && a_isAE && IsInGameTestedAE(a_version)) {
+        if (!IsHardFailure(check) && a_isAE && IsInGameTestedAE(a_version)) {
             return { Gate::InstallWithWarning, check };
         }
         return { Gate::StayOut, check };

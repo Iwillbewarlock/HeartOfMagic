@@ -197,12 +197,28 @@ switches the Windows system locale gets other keys for plugins whose names are n
 
 Reading `config.json` is `ConfigFile::Load` (`include/uimanager/ConfigFile.h`, no game types). A file that was
 read but does not parse, or parses to something other than an object, is moved to `config.json.broken`
-(`.broken-2`, ... up to 20; `FileUtils::MoveAside`) and a new one with only the defaults is written with
-`FileUtils::WriteAtomically` - the legacy `settings.json` is merged only into a first `config.json`
-(`MergesLegacy`), never over a broken one. An existing `config.json.bak` from the last good save is left alone.
-A file that cannot be checked, opened or read (held by an antivirus or sync tool, blocked by its ACL), or a
-broken one that cannot be moved, is left untouched and the defaults hold for the session only
-(`WritesDefaults` is false).
+(`.broken-2`, ... up to 20; `FileUtils::MoveAside`). `config.json.bak` from the last good save is then read the
+same way: when it is a JSON object (`LoadResult::fromBackup`) its settings are merged over the defaults and
+written as the new `config.json` with `FileUtils::WriteAtomically`; the `.bak` itself stays, because nothing is
+at the path for the write to move over it. When the `.bak` is missing or broken too, the new file holds only
+the defaults. The legacy `settings.json` is merged only into a first `config.json` (`MergesLegacy`), never over
+a broken one. A file that cannot be checked, opened or read (held by an antivirus or sync tool, blocked by its
+ACL), or a broken one that cannot be moved, is left untouched and the defaults hold for the session only
+(`WritesDefaults` is false); `user_locale.js` is not rewritten from those defaults either (they have no
+`language`, and `''` would drop the player's panel language).
+
+Every load also decides how the panel's saves treat the file until the next load (`ConfigFile::SaveModeFor`,
+kept in `UIManager::ConfigSaveMode`, set and read under the config file lock). `Blocked` after `Unreadable` or
+`BrokenKept`: the save worker writes nothing - the panel sends its whole config, the defaults plus the session's
+changes, and merged over the file it would replace every setting in it - logs it and puts "settings were NOT
+saved" in the scan status bar (`UIManager::UpdateStatus`, from the game thread); the load already put a
+message there. The save's own check stays behind it: a file that no longer parses at save time is not written
+either, with the same message. `NoBackup` after a `MovedAside` with only the defaults: saves write
+`config.json` with `keepBackup` false, so the last good `.bak` is not pushed out by a defaults-only file.
+`Normal` otherwise. Every load replaces the mode, so a block lasts until a load ends `Loaded`, `Missing` or
+`MovedAside`, and `NoBackup` until one ends `Loaded` (from then on the defaults-based file is the one kept as
+`.bak`). A blocked save applies nothing to the game either (`ApplySavedConfig` is skipped); only what the
+panel sends on its own call, such as `SetPauseGameOnFocus`, still takes effect.
 `hotkeyCode` and `pauseGameOnFocus` are read with `SafeJsonValue` (a wrong type falls back to the default
 from `GenerateDefaultConfig`) - a throw there used to skip every setting after it.
 
@@ -528,7 +544,7 @@ struct EarlyLearningSettings {
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
 
-### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
+### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookGate.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookGate.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -542,15 +558,21 @@ struct EarlyLearningSettings {
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
 - **Game versions** - patch site `+0xE8` (SE) / `+0x11D` (AE); tested in game on SE 1.5.97 and AE 1.6.318 /
   1.6.1170, measured offline (not yet tested in game) on AE 1.7.104. `SpellTomeSites::Decide`
-  (`include/SpellTomeHookSites.h`, no game types) lets the hook in only when `mov rcx,[rip+..]; call` is exactly
-  at the site and, on AE, the call goes to Actor::AddSpell (`RelocationID(37771, 38716)`), `41 F6 87` (test
-  byte [r15+..]) starts at site + 0x56 and `32 C0` (xor al, al) at the return site + 0x72; SE keeps the pattern
-  check it was tested with. On the AE builds tested in game (`kInGameTestedAE`: 1.6.318, 1.6.1170) the site
-  pattern alone decides; a failed newer check there logs a WARNING with the check and what was read, and the hook
-  still goes in. Everywhere else a failed check leaves tomes the vanilla way and the log names the check that failed
-  (another mod such as Don't Eat Spell Tomes got there first, or a different layout - 1.7.99's AddSpell sits
-  elsewhere relative to 1.7.104, so it is unknown until its real call target is seen). Offsets, the 1.7.104
-  measurement and why clearing esi keeps the book: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"
+  (`include/SpellTomeHookSites.h`, no game types; the image range is passed in) lets the hook in only when
+  `mov rcx,[rip+..]; call` is exactly at the site, the call stays inside SkyrimSE.exe's image (base .. base +
+  SizeOfImage, read from the PE header by `src/SpellTomeHookGate.cpp`, which resolves the addresses and logs the
+  result) and, on AE, the call goes to Actor::AddSpell (`RelocationID(37771, 38716)`), `41 F6 87` (test byte
+  [r15+..]) starts at site + 0x56 (a layout-identity check: once patched, +0x173..+0x18F never runs) and `32 C0`
+  (xor al, al) at the return site + 0x72; SE keeps the pattern check it was tested with, plus the in-image call.
+  A call target outside the image is another SKSE mod's hook on the AddSpell call (`write_call` to its
+  trampoline): the hook stays out on every build, tested ones included, rather than NOP over it, and the log says
+  so. On the AE builds tested in game (`kInGameTestedAE`: 1.6.318, 1.6.1170) the site pattern and the in-image call
+  decide; a failed AddSpell, block-end or return-site check there logs a WARNING with the check and what was read
+  (another mod, or a layout that differs from the measured one), and the hook still goes in. Everywhere else a
+  failed check leaves tomes the vanilla way and the log names the check that failed (another mod such as Don't Eat
+  Spell Tomes got there first, or a different layout - 1.7.99's AddSpell sits elsewhere relative to 1.7.104, so it
+  is unknown until its real call target is seen). Versions are logged as 1.6.1170.0, not 1-6-1170-0. Offsets, the
+  1.7.104 measurement and why clearing esi keeps the book: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"
 
 **Settings:**
 ```cpp
@@ -1260,6 +1282,7 @@ HeartOfMagic/
 │   │   │   ├── SpellEffectivenessHook.h     ✅ Runtime magnitude scaling header
 │   │   │   ├── SpellScanner.h               ✅ Spell enumeration header
 │   │   │   ├── SpellTomeHook.h              ✅ Tome interception header
+│   │   │   ├── SpellTomeHookGate.h          ✅ Tome hook gate (SiteIsKnownLayout)
 │   │   │   ├── SpellTomeHookSites.h         ✅ Tome hook offsets and site checks (no game types)
 │   │   │   ├── ThreadUtils.h                ✅ Game-thread dispatch utilities
 │   │   │   ├── XPSource.h                   ✅ XP source interface
@@ -1280,6 +1303,7 @@ HeartOfMagic/
 │   │       ├── SpellCastHandler.cpp         ✅ Spell cast events, notification throttling
 │   │       ├── SpellCastXPSource.cpp        ✅ XP source implementation
 │   │       ├── SpellTomeHook.cpp            ✅ Tome interception, XP grant, keep book
+│   │       ├── SpellTomeHookGate.cpp        ✅ Tome hook site check and its log (image range, AddSpell)
 │   │       ├── SpellTomeHookInventory.cpp   ✅ Tome inventory boost and its cache
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)

@@ -75,9 +75,16 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 ## Requirements
 
 ### Required
-- **Skyrim SE/AE** (1.5.97, AE 1.6.x or AE 1.7.x - one set of DLLs for all). The spell tome hook was tested in
-  game on SE 1.5.97 and AE 1.6.318 / 1.6.1170; on AE 1.7.104 it was measured offline, not yet tested in game.
-  Where the hook's checks fail, tomes work the vanilla way
+- **Skyrim SE/AE** (SE 1.5.97, AE 1.6.x, or AE 1.7.99 / 1.7.104 - one set of DLLs for all). AE 1.7 support is
+  built and checked offline only; it has not been run in game yet. The spell tome hook:
+  - tested in game on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On these builds a check that does not match only
+    logs a warning - unless another mod has already hooked the same call, then the hook stays out;
+  - on AE 1.7.104 measured offline, not yet tested in game;
+  - on AE 1.7.99 not measured: the hook goes in only if all its checks pass;
+  - on other AE 1.6.x builds the checks are stricter than in 1.0.1, so they may keep the hook out where 1.0.1
+    installed it.
+
+  Wherever the hook stays out, tomes work the vanilla way and the rest of the mod still runs
 - **[SKSE64](https://skse.silverlock.org/)**
 - **[Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)**
 - **[PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718)** - UI framework (must load before Heart of Magic)
@@ -151,7 +158,7 @@ Data/
 ## Technical Details
 
 - Pure DLL + UI mod. No ESP required. Save-safe to add and remove.
-- SKSE plugin with Address Library support (SE 1.5.97, AE 1.6.x and AE 1.7.x; CommonLibSSE-NG v10.0.0)
+- SKSE plugin with Address Library support (SE 1.5.97, AE 1.6.x and AE 1.7.99 / 1.7.104; CommonLibSSE-NG v10.0.0)
 - PrismaUI-powered web interface (CEF/Ultralight)
 - FormID persistence survives load order changes (`plugin:localFormId` format)
 - Performance-optimized for large load orders (tested with 1500+ spells)
@@ -213,7 +220,11 @@ HeartOfMagic/
 - Fonts in the designs: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS); licence texts ship beside them in `themes/`
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64
 - [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718) developers
-- [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) - Spell tome hook reference
+- [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) by Exit-9B - the spell tome hook is based on it (MIT)
+- Optional ISL patch script: **Hackfield** - [Immersive Spell Learning - DESTified](https://www.nexusmods.com/skyrimspecialedition/mods/45514), its base script;
+  **Ameisenfutter** - the original Immersive Spell Learning; **Parapets** - Don't Eat Spell Tomes;
+  **GiraPomba** - [I Just Want to Sit Down and Read](https://www.nexusmods.com/skyrimspecialedition/mods/121282), the sit-down study animations.
+  Gate to Sovngarde CE Bookworm trait support is compatibility code only (no GTS CE files are included)
 - [CommonLibSSE-NG](https://github.com/alandtse/CommonLibVR) by alandtse
 
 ## License
@@ -224,3 +235,11 @@ HeartOfMagic/
   GPL-3.0-or-later combined work. The release zip carries `THIRD-PARTY-NOTICES.md` (what is under which
   license, the other statically linked libraries, and where the Corresponding Source is: this repository at the
   release's tag, with the CommonLibSSE-NG submodule at `v10.0.0`) and the license texts in `licenses/`.
+- Some parts come from others and keep their own licenses: the spell tome hook is based on Don't Eat Spell
+  Tomes (MIT), the layout's sine/cosine/arctangent are fdlibm's as V8 carries them (fdlibm notice, BSD-3-Clause),
+  the fonts are SIL OFL 1.1, `plugins/PrismaUI_API.h` is PrismaUI's API header, and the optional ISL patch
+  script is based on Immersive Spell Learning - DESTified by Hackfield (with Sit Down and Read code by GiraPomba)
+  and is not under this project's MIT license: it belongs to its original authors and is released as a modified
+  patch as their Nexus permissions allow, with credit. Its Gate to Sovngarde CE support is compatibility code
+  only; no GTS CE files are included.
+  `THIRD-PARTY-NOTICES.md` in the release zip (`THIRD-PARTY-NOTICES.md.in` here) lists them with their notices.

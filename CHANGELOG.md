@@ -7,10 +7,17 @@ Skyrim AE 1.7 support, and the fixes that were ready as 1.0.2 (never released on
 ### New
 
 - Support for Skyrim AE 1.7.99 and 1.7.104. One set of DLLs now runs on SE 1.5.97, AE 1.6.x and AE 1.7.x;
-  on 1.7 use the Address Library version that includes it. The spell tome hook (reading a tome gives XP
-  and keeps the book) was checked against the 1.7.104 game files but not yet tested in game. On a game
-  build whose code does not match what was measured, the hook stays out and tomes work the vanilla way (reading teaches the
-  spell and uses up the book); the log says so.
+  on 1.7 use the Address Library version that includes it. 1.7 support is built and checked offline only,
+  not yet run in game.
+- The spell tome hook (reading a tome gives XP and keeps the book) checks more of the game code before it
+  patches. When a check fails, the hook stays out and tomes work the vanilla way (reading teaches the spell
+  and uses up the book); the log says which check failed.
+  - SE 1.5.97, AE 1.6.318 and 1.6.1170 (tested in game): as before. A mismatch in the new checks only logs a
+    warning - unless another mod has already hooked the same call, in which case the hook stays out instead
+    of removing that mod's hook.
+  - AE 1.7.104: measured against the game files offline. AE 1.7.99: not measured; the hook goes in only if
+    every check passes.
+  - Other AE 1.6.x builds: the stricter checks may keep the hook out where 1.0.1 put it in.
 
 ### Fixed
 
@@ -27,10 +34,13 @@ without a word.
 - Any other odd text that still reaches the panel shows as `�` instead of stopping what was being sent.
 - A `config.json` that is not valid JSON (a typo from hand-editing, a cut-off write) is no longer replaced
   with the defaults and lost. It is kept as `config.json.broken` (then `.broken-2`, ...) in
-  `SKSE/Plugins/SpellLearning/`, and a fresh one with only the defaults is made; `config.json.bak` from the
-  last good save stays. A `config.json` that cannot be opened at all (held by an antivirus or a sync tool) is
-  left alone: the defaults apply for that session and the file is read again next time. A setting of the
-  wrong type (a hotkey written as text) now falls back to its default instead of skipping every setting
+  `SKSE/Plugins/SpellLearning/`, and your settings come back from `config.json.bak`, the last good save,
+  which stays as it is. Only when that backup is missing or broken too is a fresh `config.json` made with the
+  defaults, and saves in that session no longer replace `config.json.bak`. A `config.json` that cannot be
+  opened at all (held by an antivirus or a sync tool) is left alone: the defaults apply for that session,
+  settings changed in the panel are not saved until the file can be read again (the panel's status bar says
+  so), your panel language is kept, and the file is read again the next time the settings load. A setting of
+  the wrong type (a hotkey written as text) now falls back to its default instead of skipping every setting
   after it.
 - The game no longer fails at startup because of Heart of Magic, SL_BookXP or the DEST shim when the
   Documents folder path has characters the Windows code page cannot hold (a user name in Korean on an
@@ -51,6 +61,10 @@ without a word.
 - The license texts and `THIRD-PARTY-NOTICES.md` (every library in the DLLs and its license) are in the
   download.
 - The complete source is on GitHub: github.com/Iwillbewarlock/HeartOfMagic, tag `v1.1.0`.
+- The optional ISL patch credits its authors correctly: its script is based on Immersive Spell Learning -
+  DESTified by Hackfield (who credits Ameisenfutter's original Immersive Spell Learning and Parapets' Don't Eat
+  Spell Tomes), with the sit-down study animations from I Just Want to Sit Down and Read by GiraPomba. Its Gate
+  to Sovngarde CE Bookworm trait support is compatibility code only; no GTS CE files are included.
 
 ## Heart of Magic Librarian 1.0.1
 

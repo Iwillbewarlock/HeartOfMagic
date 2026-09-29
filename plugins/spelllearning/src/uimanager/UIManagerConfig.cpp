@@ -326,18 +326,29 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
             break;
         case ConfigFile::State::Unreadable:
             // Held by another program or blocked: not moved, not written over
-            logger::error("UIManager: config.json could not be read ({}) - left as it is, settings are the defaults this session",
-                loaded.detail);
+            logger::error("UIManager: config.json could not be read ({}) - left as it is, settings are the defaults "
+                          "this session and are not saved", loaded.detail);
             break;
         case ConfigFile::State::MovedAside:
-            logger::warn("UIManager: config.json is {} - kept as {}, a new one with only the defaults is written",
-                loaded.detail, PathText::Utf8(loaded.movedTo.filename()));
+            if (loaded.fromBackup) {
+                // The last good save stands in; the .bak stays as it is
+                MergeJsonNonNull(unifiedConfig, loaded.config);
+                logger::warn("UIManager: config.json is {} - kept as {}, config.json.bak (the last good save) is written as the new one",
+                    loaded.detail, PathText::Utf8(loaded.movedTo.filename()));
+            } else {
+                logger::warn("UIManager: config.json is {} - kept as {}, config.json.bak not used ({}), a new one with only the "
+                             "defaults is written; saves this session leave any .bak as it is",
+                    loaded.detail, PathText::Utf8(loaded.movedTo.filename()), loaded.backupDetail);
+            }
             break;
         case ConfigFile::State::BrokenKept:
-            logger::error("UIManager: config.json is {} and could not be moved aside - left as it is, settings are the defaults this session",
-                loaded.detail);
+            logger::error("UIManager: config.json is {} and could not be moved aside - left as it is, settings are the defaults "
+                          "this session and are not saved", loaded.detail);
             break;
     }
+    // Every load decides again: one that reads the file lifts an earlier block
+    const auto saveMode = ConfigFile::SaveModeFor(loaded);
+    UIManager::SetConfigSaveMode(saveMode);
 
     // Migrate legacy settings only into a first config.json (never over a broken one)
     std::error_code legacyError;
@@ -386,8 +397,12 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Apply early learning, tome, passive, and notification settings
     ApplySettingsFromConfig(unifiedConfig);
 
-    // The panel's language, for the page to read before it draws next time
-    WritePanelLocale(unifiedConfig);
+    // The panel's language, for the page to read before it draws next time. Not
+    // from a file that was never read: the defaults have no language, and ''
+    // would reset the player's choice in user_locale.js.
+    if (saveMode != ConfigFile::SaveMode::Blocked) {
+        WritePanelLocale(unifiedConfig);
+    }
 
     // The removed LLM (OpenRouter) feature kept its API key and model under "llm".
     // An older config may still have that section: the file keeps it (saves merge
@@ -411,6 +426,11 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     std::string configStr = JsonText::Dump(unifiedConfig);
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());
     instance->CallView("onUnifiedConfigLoaded", configStr.c_str());
+    if (saveMode == ConfigFile::SaveMode::Blocked) {
+        // The scan status bar; "Error" gives it the error look (cppCallbacks.js updateStatus)
+        instance->UpdateStatus("Error: config.json could not be read - settings are the defaults and changes will NOT be "
+                               "saved this session (see SpellLearning.log)");
+    }
 
     // Re-notify all registered external modded XP sources to the UI.
     // Sources registered before PrismaUI was ready had their notifications dropped,

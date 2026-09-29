@@ -18,17 +18,17 @@
     <installSteps order="Explicit">
         <installStep name="Compatibility Patches">
             <optionalFileGroups order="Explicit">
-                <group name="ISL / DEST / Sit Down and Read / GTS Traits" type="SelectAny">
+                <group name="ISL / DEST / Sit Down and Read / GTS CE Bookworm" type="SelectAny">
                     <plugins order="Explicit">
                         <plugin name="Merged ISL Compatibility Patch">
                             <description>
-Merged compatibility patch for ISL-DESTified, Sit Down and Read, and GTS Trait Rebalanced.
+Merged compatibility patch for Immersive Spell Learning - DESTified (by Hackfield), I Just Want to Sit Down and Read (by GiraPomba), and Gate to Sovngarde CE Bookworm trait support.
 
 Replaces DontEatSpellTomes.dll with an inert shim and installs a merged study script that preserves ALL features from every mod:
 
 - Heart of Magic: Spell XP from studying, progression integration
 - Sit Down and Read: GPMA/OAR animations, ImprovedCameraSE and TrueDirectionalMovement support, 1st-person study
-- GTS Trait Rebalanced: Bookworm trait study speed bonus
+- Gate to Sovngarde CE Bookworm trait support: shorter study time when the trait is active (compatibility code only; no GTS CE files included)
 - Bug fix: Save-load re-registration (prevents spell tome hook from silently breaking)
 
 All features degrade gracefully — if a mod is not installed, its features are simply inactive.

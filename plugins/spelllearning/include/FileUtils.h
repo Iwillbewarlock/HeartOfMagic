@@ -21,10 +21,19 @@
  */
 namespace FileUtils
 {
+    /// Where WriteAtomically keeps the previous file: <name>.bak
+    inline std::filesystem::path BackupPath(const std::filesystem::path& path)
+    {
+        auto backup = path;
+        backup += ".bak";
+        return backup;
+    }
+
     /**
      * @param path      the file to end up with
      * @param content   what it should contain
-     * @param keepBackup  move the existing file to <name>.bak first
+     * @param keepBackup  move the existing file to <name>.bak first (the old
+     *                    .bak is removed); false leaves any .bak as it is
      * @return true when `path` now holds `content`
      */
     inline bool WriteAtomically(const std::filesystem::path& path,
@@ -51,8 +60,7 @@ namespace FileUtils
             }
         }  // closed here: the move below must not race the stream
 
-        auto backup = path;
-        backup += ".bak";
+        const auto backup = BackupPath(path);
         bool movedToBackup = false;
 
         if (keepBackup && std::filesystem::exists(path, ec)) {

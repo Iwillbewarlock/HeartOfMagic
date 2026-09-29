@@ -3,6 +3,7 @@
 #include "SpellEffectivenessHook.h"
 #include "uimanager/UIManager.h"
 #include "ISLIntegration.h"
+#include "SpellTomeHookGate.h"
 #include "SpellTomeHookSites.h"
 
 // Xbyak for assembly code generation
@@ -28,70 +29,7 @@ namespace
     // Source: CommonLibSSE-NG src/RE/T/TESObjectBOOK.cpp — RELOCATION_ID(17439, 17842)
     constexpr REL::RelocationID ProcessBookID(17439, 17842);
 
-    // Actor::AddSpell - the call the AE patch site must make.
-    // Source: CommonLibSSE-NG src/RE/A/Actor.cpp — RELOCATION_ID(37771, 38716)
-    constexpr REL::RelocationID AddSpellID(37771, 38716);
-
-    // What a failed check found, for the log.
-    std::string DescribeFailedCheck(SpellTomeSites::Check check, const std::uint8_t* site,
-        std::uintptr_t siteAddress, const SpellTomeSites::Layout& layout, std::uintptr_t addSpell)
-    {
-        using SpellTomeSites::Check;
-        using SpellTomeSites::kPatchSize;
-        switch (check) {
-        case Check::SitePattern:
-            return std::format("site pattern: the code at +{:X} is not mov rcx/call (found {:02X} {:02X} {:02X} .. {:02X})",
-                layout.siteOffset, site[0], site[1], site[2], site[SpellTomeSites::kCallOffset]);
-        case Check::CallTarget:
-            return std::format("call target: the call at +{:X} goes to {:X}, not to Actor::AddSpell ({:X})",
-                layout.siteOffset + SpellTomeSites::kCallOffset, SpellTomeSites::CallTarget(site, siteAddress), addSpell);
-        case Check::BlockEnd:
-            return std::format("block end: no test byte [r15+..] at +{:X} (found {:02X} {:02X} {:02X})",
-                layout.siteOffset + kPatchSize, site[kPatchSize], site[kPatchSize + 1], site[kPatchSize + 2]);
-        case Check::ReturnSite:
-            return std::format("return site: no xor al, al at +{:X} (found {:02X} {:02X})",
-                layout.siteOffset + layout.returnOffset, site[layout.returnOffset], site[layout.returnOffset + 1]);
-        default:
-            return "none";
-        }
-    }
-
-    // Whether the patch may go in is decided by SpellTomeSites::Decide
-    // (SpellTomeHookSites.h: SE +0xE8 / AE +0x11D, 0x56 bytes, back at
-    // +0x70 / +0x72; on AE the call must go to AddSpell and both ends of the
-    // block must be the measured instructions, except that on the AE builds
-    // tested in game only the site pattern decides and the rest warn). It used
-    // to be found by scanning 0x80-0x200 and taking the last match; when
-    // another mod had already rewritten the spot (Don't Eat Spell Tomes
-    // patches the very same place) that scan settled on an unrelated mov/call
-    // and overwrote engine code, and the game crashed on the first book read.
-    // Anything else now leaves the hook out: tomes then work the vanilla way.
-    bool SiteIsKnownLayout(std::uintptr_t funcBase, bool isAE)
-    {
-        using SpellTomeSites::Gate;
-        const auto& layout = isAE ? SpellTomeSites::kAELayout : SpellTomeSites::kSELayout;
-        const auto* func = reinterpret_cast<const std::uint8_t*>(funcBase);
-        const std::uintptr_t addSpell = isAE ? AddSpellID.address() : 0;
-        const auto version = REL::Module::get().version();
-        const SpellTomeSites::RuntimeVersion runtime{ version.major(), version.minor(), version.patch() };
-        const auto result = SpellTomeSites::Decide(func, funcBase, isAE, addSpell, runtime);
-        if (result.gate == Gate::Install) {
-            return true;
-        }
-        const auto what = DescribeFailedCheck(result.check, func + layout.siteOffset,
-            funcBase + layout.siteOffset, layout, addSpell);
-        if (result.gate == Gate::InstallWithWarning) {
-            logger::warn("SpellTomeHook: {} is a build tested in game, so the hook goes in, but a newer check "
-                         "failed - {}. Please report this line: it shows this build's real layout",
-                version.string(), what);
-            return true;
-        }
-        logger::error("SpellTomeHook: check failed - {}", what);
-        logger::error("SpellTomeHook: another mod has probably changed tome reading already (Don't Eat Spell "
-                      "Tomes does), or this game version lays it out differently; the hook stays out and "
-                      "spell tomes work the vanilla way");
-        return false;
-    }
+    constexpr std::string_view kVersionSeparator = ".";
 }
 
 // =============================================================================
@@ -485,7 +423,7 @@ bool SpellTomeHook::Install()
 {
     logger::info("SpellTomeHook: Installing spell tome read hook...");
     logger::info("SpellTomeHook: Runtime = {} ({})",
-        REL::Module::get().version().string(),
+        REL::Module::get().version().string(kVersionSeparator),
         REL::Module::IsAE() ? "AE" : "SE");
 
     // Get the base address of TESObjectBOOK::Read
@@ -493,7 +431,8 @@ bool SpellTomeHook::Install()
     logger::info("SpellTomeHook: Function base at {:X}", funcBase);
 
     const bool isAE = REL::Module::IsAE();
-    if (!SiteIsKnownLayout(funcBase, isAE)) {
+    // The gate (SpellTomeHookGate.cpp) logs why when the hook stays out
+    if (!SpellTomeGate::SiteIsKnownLayout(funcBase, isAE)) {
         return false;
     }
     const auto& layout = isAE ? SpellTomeSites::kAELayout : SpellTomeSites::kSELayout;
