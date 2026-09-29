@@ -32,8 +32,8 @@ independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndepend
 AddressLibraryV5 (0x3). NoStructUse is right because CommonLib reads the layouts that moved (1.6.629,
 1.7.99) at run time. `STRUCT_DEPENDENT` would be wrong: the macro sets no StructsPost629 flag, so SKSE on
 1.6.629+ would refuse the DLL. AddressLibraryV5 is the flag SKSE asks of an address-library plugin on 1.7,
-whose address library is the new format 5 (`versionlib-1-7-*.bin`). Game addresses come only from address
-library IDs (TESObjectBOOK::Read 17439/17842, the 41 ActiveEffect subclass vtables; all resolve in the
+whose address library is the new format 5 (`versionlib-1-7-*.bin`). The plugin's own game addresses come only
+from address library IDs (TESObjectBOOK::Read 17439/17842, the 41 ActiveEffect subclass vtables; all resolve in the
 1.7.99 library); the one hand-measured spot is the tome hook's patch site (see SpellTomeHook below and
 docs/DEST-IMPROVEMENTS.md).
 
