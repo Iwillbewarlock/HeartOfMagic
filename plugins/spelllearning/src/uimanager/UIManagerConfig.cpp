@@ -2,6 +2,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "FileUtils.h"
+#include "uimanager/ConfigFile.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
@@ -312,51 +313,35 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // Start with complete defaults - this ensures all fields exist
     json unifiedConfig = GenerateDefaultConfig();
-    bool configFileExists = false;
 
-    // Try to load existing unified config and merge (non-null values only)
-    std::error_code existsError;
-    if (std::filesystem::exists(path, existsError)) {
-        bool readable = false;
-        try {
-            std::ifstream file(path);
-            json loadedConfig = json::parse(file);
-            // A file that parses to an array or a number holds no settings either
-            readable = loadedConfig.is_object();
-            if (readable) {
-                MergeJsonNonNull(unifiedConfig, loadedConfig);
-                logger::info("UIManager: Loaded and merged unified config");
-            } else {
-                logger::warn("UIManager: config.json is not a JSON object - using defaults");
-            }
-        } catch (const std::exception& e) {
-            logger::warn("UIManager: Failed to parse unified config: {} - using defaults", e.what());
-        }
-        configFileExists = true;
-        if (!readable) {
-            // Keep the player's file for them to fix instead of writing the
-            // defaults over it; if it cannot be moved, it is left untouched
-            // (the defaults are used for this session only).
-            const auto aside = FileUtils::MoveAside(path, ".broken");
-            if (!aside.empty()) {
-                logger::warn("UIManager: unreadable config.json kept as {} - a new one with the defaults is written",
-                    PathText::Utf8(aside.filename()));
-                configFileExists = false;
-            } else {
-                logger::error("UIManager: unreadable config.json left in place - settings are the defaults this session");
-            }
-        }
-    } else if (existsError) {
-        // Not known to be missing: nothing is written over it
-        logger::error("UIManager: cannot check config.json ({}) - using defaults", existsError.message());
-        configFileExists = true;
-    } else {
-        logger::info("UIManager: No config file found, using defaults");
+    // What the file held decides what is merged and written (ConfigFile.h)
+    const auto loaded = ConfigFile::Load(path);
+    switch (loaded.state) {
+        case ConfigFile::State::Loaded:
+            MergeJsonNonNull(unifiedConfig, loaded.config);
+            logger::info("UIManager: Loaded and merged unified config");
+            break;
+        case ConfigFile::State::Missing:
+            logger::info("UIManager: No config file found, using defaults");
+            break;
+        case ConfigFile::State::Unreadable:
+            // Held by another program or blocked: not moved, not written over
+            logger::error("UIManager: config.json could not be read ({}) - left as it is, settings are the defaults this session",
+                loaded.detail);
+            break;
+        case ConfigFile::State::MovedAside:
+            logger::warn("UIManager: config.json is {} - kept as {}, a new one with only the defaults is written",
+                loaded.detail, PathText::Utf8(loaded.movedTo.filename()));
+            break;
+        case ConfigFile::State::BrokenKept:
+            logger::error("UIManager: config.json is {} and could not be moved aside - left as it is, settings are the defaults this session",
+                loaded.detail);
+            break;
     }
 
-    // Migrate legacy settings only if no unified config exists yet
+    // Migrate legacy settings only into a first config.json (never over a broken one)
     std::error_code legacyError;
-    if (!configFileExists && std::filesystem::exists(legacySettingsPath, legacyError)) {
+    if (ConfigFile::MergesLegacy(loaded.state) && std::filesystem::exists(legacySettingsPath, legacyError)) {
         try {
             std::ifstream file(legacySettingsPath);
             json legacySettings = json::parse(file);
@@ -365,8 +350,8 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
         } catch (...) {}
     }
 
-    // Save defaults if no config file existed (creates the file for user)
-    if (!configFileExists) {
+    // Create the file when there was none or the old one was moved aside
+    if (ConfigFile::WritesDefaults(loaded.state)) {
         std::error_code dirError;
         std::filesystem::create_directories(path.parent_path(), dirError);
         if (FileUtils::WriteAtomically(path, JsonText::Dump(unifiedConfig, 2))) {

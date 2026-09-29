@@ -139,6 +139,11 @@ namespace EncodingUtils
      */
     std::string SanitizeToUTF8(const std::string& input)
     {
+        return SanitizeToUTF8(input, CP_ACP);
+    }
+
+    std::string SanitizeToUTF8(const std::string& input, unsigned int codePage)
+    {
         if (input.empty()) return input;
 
         // Check if input is already valid UTF-8 via Windows API
@@ -149,8 +154,8 @@ namespace EncodingUtils
             return input;
         }
 
-        // Not valid UTF-8, try converting from system codepage (GBK/Shift-JIS/etc.)
-        return ConvertToUTF8(input);
+        // Not valid UTF-8, try converting from the code page (the system's: GBK/Shift-JIS/etc.)
+        return ConvertFromCodePage(input, codePage);
     }
 
     // =============================================================================

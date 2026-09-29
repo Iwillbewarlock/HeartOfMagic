@@ -138,7 +138,10 @@ private:
     SpellLearningAPIImpl() = default;
 };
 
-// Handle incoming SKSE messages from other plugins
+// Handle incoming SKSE messages from other plugins. The calls into
+// ProgressionManager go through GuardApiCall like the API's. Not registered
+// as a listener at present (the API is handed out by the kPostPostLoad
+// broadcast), so nothing reaches it yet.
 void OnExternalPluginMessage(SKSE::MessagingInterface::Message* a_msg)
 {
     if (!a_msg) return;
@@ -163,8 +166,10 @@ void OnExternalPluginMessage(SKSE::MessagingInterface::Message* a_msg)
                     case SpellLearning::XPSourceType::Direct: sourceName = "direct"; break;
                     case SpellLearning::XPSourceType::Self:   sourceName = "self"; break;
                     case SpellLearning::XPSourceType::Raw:
-                        ProgressionManager::GetSingleton()->AddRawXP(
-                            static_cast<RE::FormID>(msg->spellFormID), msg->amount);
+                        GuardApiCall("AddXP message (raw)", [&] {
+                            return ProgressionManager::GetSingleton()->AddRawXP(
+                                static_cast<RE::FormID>(msg->spellFormID), msg->amount);
+                        });
                         return;
                     case SpellLearning::XPSourceType::Custom:
                         sourceName = msg->sourceName;
@@ -175,8 +180,10 @@ void OnExternalPluginMessage(SKSE::MessagingInterface::Message* a_msg)
                         return;
                 }
 
-                ProgressionManager::GetSingleton()->AddSourcedXP(
-                    static_cast<RE::FormID>(msg->spellFormID), msg->amount, sourceName);
+                GuardApiCall("AddXP message", [&] {
+                    return ProgressionManager::GetSingleton()->AddSourcedXP(
+                        static_cast<RE::FormID>(msg->spellFormID), msg->amount, sourceName);
+                });
                 logger::info("SpellLearning: External AddXP({:08X}, {:.1f}, '{}')",
                     msg->spellFormID, msg->amount, sourceName);
             }
@@ -185,8 +192,10 @@ void OnExternalPluginMessage(SKSE::MessagingInterface::Message* a_msg)
         case SpellLearning::kMessageType_RegisterSource: {
             if (a_msg->dataLen >= sizeof(SpellLearning::RegisterSourceMessage)) {
                 auto* msg = static_cast<SpellLearning::RegisterSourceMessage*>(a_msg->data);
-                ProgressionManager::GetSingleton()->RegisterModdedXPSource(
-                    msg->sourceId, msg->displayName);
+                GuardApiCall("RegisterSource message", [&] {
+                    return ProgressionManager::GetSingleton()->RegisterModdedXPSource(
+                        msg->sourceId, msg->displayName);
+                });
                 logger::info("SpellLearning: External RegisterSource('{}', '{}')",
                     msg->sourceId, msg->displayName);
             }

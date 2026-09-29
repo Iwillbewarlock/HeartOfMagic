@@ -1,9 +1,7 @@
 #include "Common.h"
 #include "JsonText.h"
-#include "EncodingUtils.h"
+#include "PluginNames.h"
 #include "SpellScanner.h"
-
-#include <algorithm>
 
 namespace SpellScanner
 {
@@ -35,7 +33,7 @@ namespace SpellScanner
             // The file name is in the ANSI code page (a Korean or Japanese plugin
             // name): the key is its UTF-8 form, so it can go into JSON. A name that
             // is already UTF-8 (every ASCII one) is the same key as before.
-            return std::format("{}|0x{:06X}", EncodingUtils::SanitizeToUTF8(plugin->fileName), localFormId);
+            return PluginNames::MakePersistentId(plugin->fileName, localFormId);
         }
 
         return "";  // Unknown plugin
@@ -43,76 +41,75 @@ namespace SpellScanner
 
     namespace
     {
-        bool HasNonAscii(std::string_view text)
+        using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
+
+        // The loaded plugin a persistentId names (PluginNames.h): the game's own
+        // lookup by raw bytes, then, for a non-ASCII name, the converted names
+        const RE::TESFile* FindPlugin(RE::TESDataHandler* dataHandler, PluginLookup& lookup,
+                                      const std::string& pluginName)
         {
-            return std::ranges::any_of(text, [](char c) { return static_cast<unsigned char>(c) >= 0x80; });
+            return lookup.Find(
+                pluginName,
+                [dataHandler](const std::string& name) { return dataHandler->LookupModByName(name); },
+                [dataHandler](auto&& visit) {
+                    for (const auto* file : dataHandler->files) {
+                        if (file) visit(file->fileName, file);
+                    }
+                });
         }
 
-        // The loaded plugin a persistentId names. LookupModByName compares the
-        // game's own bytes, which is every ASCII name; a name that was converted
-        // to UTF-8 (GetPersistentFormId) is found by converting each file's name
-        // the same way. Case folding as LookupModByName's: ASCII letters only.
-        const RE::TESFile* FindPlugin(RE::TESDataHandler* dataHandler, const std::string& pluginName)
+        // ResolvePersistentFormId with the caller's lookup (one per tree pass)
+        RE::FormID ResolveWith(const std::string& persistentId, PluginLookup& lookup)
         {
-            if (const auto* plugin = dataHandler->LookupModByName(pluginName)) {
-                return plugin;
+            // Parse "PluginName.esp|0x123456" format
+            auto pipePos = persistentId.find('|');
+            if (pipePos == std::string::npos || pipePos == 0) {
+                logger::trace("SpellScanner: Invalid persistent ID format (no pipe): {}", persistentId);
+                return 0;
             }
-            if (!HasNonAscii(pluginName)) {
-                return nullptr;
-            }
-            for (const auto* file : dataHandler->files) {
-                if (file && _stricmp(EncodingUtils::SanitizeToUTF8(file->fileName).c_str(), pluginName.c_str()) == 0) {
-                    return file;
+
+            std::string pluginName = persistentId.substr(0, pipePos);
+            std::string localIdStr = persistentId.substr(pipePos + 1);
+
+            // Parse local FormID
+            uint32_t localFormId = 0;
+            try {
+                if (localIdStr.length() >= 2 && (localIdStr.substr(0, 2) == "0x" || localIdStr.substr(0, 2) == "0X")) {
+                    localIdStr = localIdStr.substr(2);
                 }
+                localFormId = std::stoul(localIdStr, nullptr, 16);
+            } catch (const std::exception& e) {
+                logger::warn("SpellScanner: Invalid local FormID in persistent ID: {} ({})", persistentId, e.what());
+                return 0;
             }
-            return nullptr;
+
+            // Look up plugin by name
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            if (!dataHandler) return 0;
+
+            const RE::TESFile* plugin = FindPlugin(dataHandler, lookup, pluginName);
+            if (!plugin) {
+                logger::trace("SpellScanner: Plugin not loaded: {}", pluginName);
+                return 0;
+            }
+
+            // Reconstruct full FormID with current mod index
+            if (plugin->IsLight()) {
+                // Light plugin: 0xFEXXX + 12-bit local ID
+                std::uint32_t lightIndex = plugin->GetPartialIndex();
+                return (0xFE000000 | ((lightIndex) << 12) | (localFormId & 0xFFF));
+            } else {
+                // Regular plugin: mod index + 24-bit local ID
+                uint8_t modIndex = plugin->GetCompileIndex();
+                return (static_cast<uint32_t>(modIndex) << 24) | (localFormId & 0x00FFFFFF);
+            }
         }
     }
 
     RE::FormID ResolvePersistentFormId(const std::string& persistentId)
     {
-        // Parse "PluginName.esp|0x123456" format
-        auto pipePos = persistentId.find('|');
-        if (pipePos == std::string::npos || pipePos == 0) {
-            logger::trace("SpellScanner: Invalid persistent ID format (no pipe): {}", persistentId);
-            return 0;
-        }
-
-        std::string pluginName = persistentId.substr(0, pipePos);
-        std::string localIdStr = persistentId.substr(pipePos + 1);
-
-        // Parse local FormID
-        uint32_t localFormId = 0;
-        try {
-            if (localIdStr.length() >= 2 && (localIdStr.substr(0, 2) == "0x" || localIdStr.substr(0, 2) == "0X")) {
-                localIdStr = localIdStr.substr(2);
-            }
-            localFormId = std::stoul(localIdStr, nullptr, 16);
-        } catch (const std::exception& e) {
-            logger::warn("SpellScanner: Invalid local FormID in persistent ID: {} ({})", persistentId, e.what());
-            return 0;
-        }
-
-        // Look up plugin by name
-        auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) return 0;
-
-        const RE::TESFile* plugin = FindPlugin(dataHandler, pluginName);
-        if (!plugin) {
-            logger::trace("SpellScanner: Plugin not loaded: {}", pluginName);
-            return 0;
-        }
-
-        // Reconstruct full FormID with current mod index
-        if (plugin->IsLight()) {
-            // Light plugin: 0xFEXXX + 12-bit local ID
-            std::uint32_t lightIndex = plugin->GetPartialIndex();
-            return (0xFE000000 | ((lightIndex) << 12) | (localFormId & 0xFFF));
-        } else {
-            // Regular plugin: mod index + 24-bit local ID
-            uint8_t modIndex = plugin->GetCompileIndex();
-            return (static_cast<uint32_t>(modIndex) << 24) | (localFormId & 0x00FFFFFF);
-        }
+        PluginLookup lookup;
+        return ResolveWith(persistentId, lookup);
     }
 
     bool IsFormIdValid(RE::FormID formId)
@@ -146,6 +143,8 @@ namespace SpellScanner
         std::set<std::string> missingPluginsSet;
         std::set<std::string> invalidFormIdsSet;
         std::unordered_map<std::string, std::string> formIdRemapping;
+        // One per pass: the file list is converted once, not once per node
+        PluginLookup pluginLookup;
 
         if (!treeData.contains("schools")) {
             logger::warn("SpellScanner: Tree has no schools key");
@@ -177,7 +176,7 @@ namespace SpellScanner
                 if (!isValid && node.contains("persistentId") && node["persistentId"].is_string()) {
                     // Try to resolve from persistent ID
                     std::string persistentId = node["persistentId"].get<std::string>();
-                    RE::FormID resolvedId = ResolvePersistentFormId(persistentId);
+                    RE::FormID resolvedId = ResolveWith(persistentId, pluginLookup);
 
                     if (resolvedId != 0 && IsFormIdValid(resolvedId)) {
                         // Update formId with resolved value, track old->new mapping

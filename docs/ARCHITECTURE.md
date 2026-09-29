@@ -164,21 +164,31 @@ system's ANSI code page (Windows-1252 on a German or French game, 1251 on a Russ
 A persistentId's plugin half is the UTF-8 form of the file name. For an ASCII or already-UTF-8 name that is
 the same key as before; only a name that was not valid UTF-8 changed, and such a plugin never produced a scan
 or a tree (the dump threw), so nothing saved holds the old form. The co-save does not use persistentIds (it
-stores FormIDs and resolves them with SKSE's `ResolveFormID`). `ResolvePersistentFormId` tries
-`TESDataHandler::LookupModByName` with the text first (the game's own bytes, every ASCII name) and, for a
-name with a non-ASCII byte that it misses, walks `TESDataHandler::files` comparing each file's converted name
-(ASCII-only case folding, like `LookupModByName`). The key depends on the ANSI code page: a player who switches
-the Windows system locale gets other keys for plugins whose names are not UTF-8.
+stores FormIDs and resolves them with SKSE's `ResolveFormID`). The key is made and found by
+`include/PluginNames.h` (no game types): `MakePersistentId` converts the name, and `PluginNames::Lookup` tries
+`TESDataHandler::LookupModByName` with the text first (the game's own bytes, every ASCII name) and, for a name
+with a non-ASCII byte that it misses, the converted names of the loaded files that have a non-ASCII byte
+(`AsciiText::EqualsIgnoreCase`, A-Z folding only; `include/AsciiText.h` also holds the shared `HasNonAscii`).
+A `Lookup` remembers every answer, misses included, and converts the file list at most once;
+`ValidateAndFixTree` keeps one for its whole pass over the tree, so a tree full of one Korean-named plugin's
+spells costs one walk of the file list, not one per node. The key depends on the ANSI code page: a player who
+switches the Windows system locale gets other keys for plugins whose names are not UTF-8.
 
-`config.json` that does not parse, or parses to something other than an object, is moved to
-`config.json.broken` (`.broken-2`, ... up to 20; `FileUtils::MoveAside`) and a new one with the defaults is
-written with `FileUtils::WriteAtomically`; an existing `config.json.bak` from the last good save is left
-alone. If the file cannot be moved it is left untouched and the defaults hold for the session only.
+Reading `config.json` is `ConfigFile::Load` (`include/uimanager/ConfigFile.h`, no game types). A file that was
+read but does not parse, or parses to something other than an object, is moved to `config.json.broken`
+(`.broken-2`, ... up to 20; `FileUtils::MoveAside`) and a new one with only the defaults is written with
+`FileUtils::WriteAtomically` - the legacy `settings.json` is merged only into a first `config.json`
+(`MergesLegacy`), never over a broken one. An existing `config.json.bak` from the last good save is left alone.
+A file that cannot be checked, opened or read (held by an antivirus or sync tool, blocked by its ACL), or a
+broken one that cannot be moved, is left untouched and the defaults hold for the session only
+(`WritesDefaults` is false).
 `hotkeyCode` and `pauseGameOnFocus` are read with `SafeJsonValue` (a wrong type falls back to the default
 from `GenerateDefaultConfig`) - a throw there used to skip every setting after it.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
-an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL.
+an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL. The
+calls in `OnExternalPluginMessage` (the AddXP and RegisterSource messages) are guarded the same way; that
+handler is not registered as a listener at present.
 
 `SetupLog` (`plugins/Common.h`, all three DLLs) never throws. CommonLib's `logger::init()` builds its file sink
 from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
@@ -1205,10 +1215,12 @@ HeartOfMagic/
 │   ├── spelllearning/             # Main SpellLearning plugin
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
+│   │   │   ├── AsciiText.h                  ✅ HasNonAscii, A-Z-only case-insensitive compare (no game types)
 │   │   │   ├── ISLIntegration.h             ✅ DEST mod integration header
 │   │   │   ├── JsonText.h                   ✅ JsonText::Dump - dump that replaces bytes that are not UTF-8 (no game types)
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
+│   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── SimdKernels.h                ✅ SIMD kernel header
 │   │   │   ├── SpellCastHandler.h           ✅ Spell cast events header
@@ -1226,6 +1238,7 @@ HeartOfMagic/
 │   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
 │   │   │   │   └── TreeNLP.h                ✅ Core NLP header
 │   │   │   └── uimanager/
+│   │   │       ├── ConfigFile.h             ✅ config.json load: loaded / missing / unreadable / moved aside (no game types)
 │   │   │       ├── PresetFiles.h            ✅ Preset file write/delete (no game types; closes a file before removing it)
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers

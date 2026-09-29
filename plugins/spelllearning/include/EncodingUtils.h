@@ -26,6 +26,10 @@ namespace EncodingUtils
     // Otherwise converts from the system's ANSI codepage.
     std::string SanitizeToUTF8(const std::string& input);
 
+    // The same with an explicit code page for the fallback (SanitizeToUTF8 above
+    // is this with CP_ACP): lets a check run the German or Korean case anywhere.
+    std::string SanitizeToUTF8(const std::string& input, unsigned int codePage);
+
     // Sanitize a string for use as a Windows filename.
     // Replaces forbidden characters (/ \ : * ? " < > |) and control characters
     // (0x00-0x1F) with underscores, trims trailing dots/spaces, prefixes Windows

@@ -452,6 +452,9 @@ namespace SpellLearning {
 `ClearLearningTarget` and `RegisterXPSource` catch anything thrown inside Heart of Magic, log it
 (`SpellLearning API: <call> threw: ...` in `SpellLearning.log`) and return `0` / `false` / nothing. Before, a
 throw (such as a spell name that is not UTF-8 reaching the panel) unwound into the calling plugin's DLL.
+The read-only calls are not wrapped. The SKSE message paths (`kMessageType_AddXP`, `kMessageType_RegisterSource`,
+`OnExternalPluginMessage` in Main.cpp) are guarded the same way, but that handler is not registered as a
+listener at present, so those messages are not received.
 
 ---
 

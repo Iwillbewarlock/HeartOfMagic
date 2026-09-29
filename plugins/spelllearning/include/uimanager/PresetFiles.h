@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AsciiText.h"
 #include "PathText.h"
 
 #include <filesystem>
@@ -19,13 +20,7 @@
 // name going to the file system as UTF-8 (PathText::FromUtf8).
 namespace PresetFiles
 {
-    [[nodiscard]] inline bool HasNonAscii(const std::string& text)
-    {
-        for (const unsigned char c : text) {
-            if (c >= 0x80) return true;
-        }
-        return false;
-    }
+    using AsciiText::HasNonAscii;
 
     [[nodiscard]] inline bool IsJsonFile(const std::filesystem::path& path)
     {
