@@ -11,18 +11,51 @@ Spells are no longer learned the moment you read a tome. Heart of Magic Libraria
 
 No spell lists to maintain and no patches per spell mod: the tree is built from what is installed.
 
-[size=5][b]Features[/b][/size]
+[line]
 
+[size=5][b]What is different from Heart of Magic 2.5[/b][/size]
+
+The idea is Dinkel Zombie's. Librarian keeps it and rebuilds everything around it, so that the tree is easier to read, quicker to use and smoother to handle - and so that it keeps your progress honest.
+
+[size=4][b]Less grinding, more sense[/b][/size]
 [list]
-[*][b]A tree from your load order.[/b] Every spell is scanned and tagged with its element (fire, frost, shock, blood, water, holy, shadow...) and technique (summoning, siphon, curse...). Spells of the same element grow on the same branch, in any game language.
-[*][b]Learning by practice.[/b] XP from casting spells that lead to your target, from casting in the same school, and from studying tomes. Weakened early casting, full power at mastery. Every rate is a setting, with presets.
-[*][b]Known Higher Spells.[/b] Already know a higher spell (bought, given, from another mod)? The spells below it open for a share of their XP - optionally the whole chain down to the root.
-[*][b]Paths between schools.[/b] Related spells in different schools (a fire spell and a fire summon) are linked, as an extra way in - never an extra requirement.
-[*][b]The spell card.[/b] Icon (from an installed icon set), keyword chips, a description with the real numbers, the figures, and the paths to other schools. Click a chip to light every spell with that keyword.
-[*][b]Five designs.[/b] Classic, Modern Dark, Arcane (a parchment spellbook), Night Grimoire (indigo vellum and gold engraving) and Chalkboard (slate and pastel chalk), each with its own drawn lines and fonts for Latin, Cyrillic, Korean, Japanese and Chinese. Add-on designs are one JSON file.
-[*][b]A smooth panel.[/b] The tree is drawn once and reused; drags, clicks and zooms are built to stay within the frame.
-[*][b]13 languages[/b], chosen in the panel.
+[*][b]Known Higher Spells.[/b] Already know a higher spell (bought, given, learned from another mod)? The spells below it open for a share of their XP (30% at Novice up to 80% at Master) instead of making you grind spells you have outgrown. Optionally the whole chain down to the root. On by default, tunable in Settings > Progression.
+[*][b]Your cast always counts.[/b] Casting a spell that leads to your current target is always direct XP, whoever set the target - a tome, Papyrus or another mod.
+[*][b]Trees that make sense in any language.[/b] Every spell is tagged with its element (fire, frost, shock, blood, water, holy, shadow...) and technique (summoning, siphon, curse...). Spells of one element grow on one branch, and a Korean, Chinese or Russian game gets the same tree as an English one.
+[*][b]Paths between schools.[/b] A fire spell and a fire summon are linked across schools - an extra way in, never an extra requirement.
 [/list]
+
+[size=4][b]Everything you need, at a glance[/b][/size]
+[list]
+[*][b]A new spell card:[/b] icon, keyword chips, a description with the real numbers filled in, what it needs and what it opens. Click a chip and every spell with that keyword lights up.
+[*][b]Preview on Hover:[/b] rest the cursor on a spell to read its card without clicking.
+[*][b]Two spells with the same name[/b] (a mod's copy of a vanilla spell) show their plugin in the card's lists, so you always know which one is meant.
+[*][b]Find Spell, school tabs and a Home button[/b] take you anywhere in the tree in one step.
+[*][b]A language picker[/b] in Settings (13 languages, every text translated) - no more editing files, and the panel's text switches right away.
+[/list]
+
+[size=4][b]A panel that feels good to handle[/b][/size]
+[list]
+[*][b]Smooth.[/b] The tree is drawn once and reused: dragging draws only the newly uncovered edge, big repaints are spread over frames, hovering and XP gains no longer redraw the tree, and animations rest when you do. The goal is no visible frame drop in game.
+[*][b]A camera that follows you.[/b] Clicking a spell glides to it (Center on Click, Zoom on Click, Focus Zoom, Rotate Wheel, Dim Others - each a setting).
+[*][b]Clicks do what you meant.[/b] A click no longer nudges the tree. Esc first drops the selection, then closes the panel; Esc in Find Spell closes only the search.
+[*][b]Tidy trees.[/b] Spells are moved off each other, off the lines and off the heart when a tree is built.
+[*][b]Five designs[/b] - Classic (the old look), Modern Dark, Arcane (a parchment spellbook), Night Grimoire and Chalkboard - each with its own lines and fonts for every script. The Render popup turns off any moving part with one chip, or everything with "Still everything".
+[/list]
+
+[size=4][b]Progress you can trust[/b][/size]
+[list]
+[*]Tree prerequisites were forgotten after every save load in 2.5, so any spell could be learned from a tome for the rest of that session. Fixed.
+[*]Early-learned (weakened) spells went back to full power on every load. Fixed.
+[*]Spells no longer drop out of the tree after a load-order change.
+[*]A possible crash when a cast finished learning a spell, fixed; progress is only changed on the game thread.
+[*]The tree and settings are written safely with a backup copy, and saving settings no longer stalls the game.
+[*]Simpler: one tree builder (Classic), no LLM or API key, no dead SkyrimNet scripts.
+[/list]
+
+The full list is in the Changelog.
+
+[line]
 
 [size=5][b]Requirements[/b][/size]
 
@@ -54,7 +87,6 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
 [/list]
-See the Changelog for the full list of changes from v2.5.
 
 [size=5][b]Compatibility and notes[/b][/size]
 

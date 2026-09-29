@@ -32,7 +32,10 @@ Still no ESP, no Python, no API key.
 - **Camera and navigation**: clicking a spell glides to it (Center on Click, Zoom on Click, Focus Zoom,
   Rotate Wheel, Dim Others), school tabs, Home and search buttons.
 - **Preview on Hover**: resting the cursor on a spell shows its full card.
-- **Language picker** in Settings > UI Display (no more editing `lang/locale.js`).
+- **Language picker** in Settings > UI Display (no more editing `lang/locale.js`); switching rewrites the
+  panel's texts and status lines in the new language right away.
+- **Same-name spells**: when two spells in the tree share a name (a mod's copy of a vanilla spell), the
+  card's lists (Unlocks, prerequisites, locks, paths to other schools) show each one's plugin.
 - **Render popup** rebuilt: a "Still everything" switch and one chip per moving part (heart pulse,
   particles, stars, sigil, glow, runes, page, drawn lines...).
 - For modders: Papyrus `SpellLearning.RunScan()` writes a tagged scan to `spell_scan_output.json`.
@@ -78,6 +81,8 @@ Still no ESP, no Python, no API key.
 - A click no longer nudges the tree; Esc in Find Spell no longer closes the whole panel; Retry after a
   failed build keeps your blacklist and filters; the Build button is disabled while building.
 - Untranslated buttons and status text.
+- The spell card's Magicka cost is a whole number (it showed the game's raw decimal).
+- A spell listed as its own prerequisite in a saved or hand-edited tree no longer locks it for good.
 
 ### Upgrading from v2.5
 
