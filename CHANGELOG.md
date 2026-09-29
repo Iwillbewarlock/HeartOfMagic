@@ -1,5 +1,19 @@
 # Changelog
 
+## Heart of Magic Librarian 1.0.1
+
+### Fixed
+
+- A scan no longer stops on a file name the Windows code page cannot hold. The scan read every file in Data
+  for SPID ini files and threw "No mapping for the Unicode character exists in the target multi-byte code page"
+  on a name like that, and the Scan button stayed on "Scanning..." with nothing to say why. Names are read as
+  UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>" (a failed background tome scan only puts the scan message back and is logged; the tome list from an earlier scan stays in use).
+- Presets (settings and scanner) with a non-English name (Korean, for example) are saved, listed and deleted
+  under their own name. An English Windows usually garbled the file name, and a DBCS code page could make the
+  save fail without a word. Deleting a preset with a non-English name also finds the file an older build saved
+  under a garbled name (if that preset was saved again with this build first, delete it twice).
+- A reason text with `$&` or `$1` in it is shown as written (the panel's language strings expanded them).
+
 ## Heart of Magic Librarian 1.0.0
 
 A rebuild of Heart of Magic by Dinkel Zombie. Compared with Heart of Magic v2.5 ("depythoned", Nexus,
@@ -81,14 +95,6 @@ Still no ESP, no Python, no API key.
 - A click no longer nudges the tree; Esc in Find Spell no longer closes the whole panel; Retry after a
   failed build keeps your blacklist and filters; the Build button is disabled while building.
 - Untranslated buttons and status text.
-- A scan no longer stops on a file name the Windows code page cannot hold. The scan read every file in Data
-  for SPID ini files and threw "No mapping for the Unicode character exists in the target multi-byte code page"
-  on a name like that, and the Scan button stayed on "Scanning..." with nothing to say why. Names are read as
-  UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>" (a failed background tome scan only puts the scan message back and is logged; the tome list from an earlier scan stays in use).
-- Presets (settings and scanner) with a non-English name (Korean, for example) are saved, listed and deleted
-  under their own name. An English Windows usually garbled the file name, and a DBCS code page could make the
-  save fail without a word. Deleting a preset with a non-English name also finds the file an older build saved
-  under a garbled name (if that preset was saved again with this build first, delete it twice).
 - The spell card's Magicka cost is a whole number (it showed the game's raw decimal).
 - A spell listed as its own prerequisite in a saved or hand-edited tree no longer locks it for good.
 
