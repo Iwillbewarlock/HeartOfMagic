@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "PathText.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/PresetFiles.h"
 #include "EncodingUtils.h"
 #include "ThreadUtils.h"
 
@@ -60,72 +61,6 @@ static std::filesystem::path GetPresetsBasePath()
     return "Data/SKSE/Plugins/SpellLearning/presets";
 }
 
-namespace
-{
-    bool IsJsonFile(const std::filesystem::path& path)
-    {
-        const auto ext = PathText::Utf8(path.extension());
-        return ext == ".json" || ext == ".JSON";
-    }
-
-    std::string AsciiLower(std::string text)
-    {
-        std::transform(text.begin(), text.end(), text.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return text;
-    }
-
-    // Removes the other files of one preset from dir. Builds before PathText::FromUtf8 wrote a
-    // non-ASCII name through the ANSI code page, so its file name is garbled and only the "name"
-    // inside finds it. keep (the file just written; empty for a delete) is never removed, compared
-    // with equivalent(): NTFS keeps an existing file's case, so "Default.json" written over
-    // DEFAULT.json stays DEFAULT.json on disk. After a save (matchStem false) only the "name" inside
-    // counts and a file whose stem is safeName in any case is that same slot, never removed; a
-    // delete (matchStem true) also takes a file whose stem is safeName.
-    // Each file has its own try: one odd file must not stop the rest.
-    std::size_t RemovePresetsNamed(const std::filesystem::path& dir, const std::string& name,
-        const std::string& safeName, const std::filesystem::path& keep, bool matchStem)
-    {
-        std::size_t removed = 0;
-        std::error_code error;
-        if (!std::filesystem::is_directory(dir, error)) return removed;
-        std::filesystem::directory_iterator it(dir, error);
-        const std::filesystem::directory_iterator end;
-        const std::string slot = AsciiLower(safeName);
-        for (; !error && it != end; it.increment(error)) {
-            try {
-                const auto& path = it->path();
-                if (!it->is_regular_file() || !IsJsonFile(path)) continue;
-                std::error_code same;
-                if (!keep.empty() && std::filesystem::equivalent(path, keep, same)) continue;
-                const std::string stem = PathText::Utf8(path.stem());
-                bool match = false;
-                if (matchStem) {
-                    match = stem == safeName;
-                } else if (AsciiLower(stem) == slot) {
-                    continue;
-                }
-                if (!match) {
-                    std::ifstream file(path);
-                    const json data = json::parse(file, nullptr, false);
-                    match = data.is_object() && data.contains("name") && data["name"].is_string() &&
-                            data["name"].get<std::string>() == name;
-                }
-                if (match && std::filesystem::remove(path)) {
-                    ++removed;
-                    logger::info("UIManager: removed preset file '{}' (preset '{}')", PathText::Utf8(path), name);
-                }
-            } catch (const std::exception& e) {
-                logger::warn("UIManager: skipped a preset file while looking for '{}': {}", name, e.what());
-            }
-        }
-        if (error) {
-            logger::warn("UIManager: the preset folder walk stopped early: {}", error.message());
-        }
-        return removed;
-    }
-}
-
 void UIManager::OnSavePreset(const char* argument)
 {
     if (!argument || strlen(argument) == 0) {
@@ -160,23 +95,11 @@ void UIManager::OnSavePreset(const char* argument)
             auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
             std::filesystem::create_directories(dir);
 
-            auto filePath = dir / PathText::FromUtf8(safeName + ".json");
-            std::ofstream file(filePath);
-            if (!file.is_open()) {
-                logger::error("UIManager: SavePreset - failed to open {}", PathText::Utf8(filePath));
-                return;
-            }
-            file << data.dump(2);
-            file.close();
-            if (!file) {
-                // Nothing else is removed when this copy may not be complete
+            const auto filePath = PresetFiles::FilePath(dir, safeName);
+            if (!PresetFiles::Write(filePath, data.dump(2))) {
                 logger::error("UIManager: SavePreset - failed to write {}", PathText::Utf8(filePath));
                 return;
             }
-
-            // A copy of this preset under another file name (an older build's garbled name) would
-            // list twice and come back after a delete
-            RemovePresetsNamed(dir, name, safeName, filePath, false);
 
             logger::info("UIManager: SavePreset - saved {}/{}.json", type, safeName);
         } catch (const std::exception& e) {
@@ -216,14 +139,22 @@ void UIManager::OnDeletePreset(const char* argument)
             }
 
             const auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
-            auto filePath = dir / PathText::FromUtf8(safeName + ".json");
-
-            if (std::filesystem::exists(filePath)) {
-                std::filesystem::remove(filePath);
+            const auto result = PresetFiles::Delete(dir, name, safeName);
+            for (const auto& problem : result.problems) {
+                logger::warn("UIManager: DeletePreset - {}", problem);
+            }
+            if (result.walkError) {
+                logger::warn("UIManager: DeletePreset - the folder walk stopped early: {}", result.walkError.message());
+            }
+            if (result.direct) {
                 logger::info("UIManager: DeletePreset - deleted {}/{}.json", type, safeName);
-            } else if (RemovePresetsNamed(dir, name, safeName, {}, true) == 0) {
-                // Not under its own name: an older build may have saved it under a garbled one
-                logger::warn("UIManager: DeletePreset - file not found: {}", PathText::Utf8(filePath));
+            } else if (!result.legacy.empty()) {
+                for (const auto& path : result.legacy) {
+                    logger::info("UIManager: DeletePreset - deleted '{}' (an older build's file for '{}')",
+                        PathText::Utf8(path), name);
+                }
+            } else {
+                logger::warn("UIManager: DeletePreset - no file for {}/{}", type, name);
             }
         } catch (const std::exception& e) {
             logger::error("UIManager: DeletePreset exception: {}", e.what());
@@ -275,7 +206,7 @@ void UIManager::OnLoadPresets(const char* argument)
                     // Every read of the file's name is in here: an oddly named add-on file is skipped,
                     // it does not empty the whole list
                     try {
-                        if (!entry.is_regular_file() || !IsJsonFile(entry.path())) continue;
+                        if (!entry.is_regular_file() || !PresetFiles::IsJsonFile(entry.path())) continue;
                         std::ifstream file(entry.path());
                         json presetData = json::parse(file);
 

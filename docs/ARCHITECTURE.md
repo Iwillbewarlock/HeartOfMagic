@@ -142,7 +142,11 @@ The way back from text to a path is `PathText::FromUtf8` (`std::u8string`): UTF-
 a preset name in Korean, became a garbled file name or a throw through `path(std::string)`, which reads the
 ANSI code page. `UIManagerIO.cpp` (save, delete, list presets) builds its paths with it, and reads names back
 with `PathText::Utf8`, so the round trip matches. `SanitizeFilename` only replaces ASCII characters Windows
-forbids, so non-ASCII letters stay in the name.
+forbids, so non-ASCII letters stay in the name. The file work itself is `include/uimanager/PresetFiles.h`
+(no logging, no game types, so an offline check compiles it as it is): a save writes the preset's own file and
+removes nothing; a delete removes that file, or, only when it is missing and the name has a non-ASCII letter,
+every file whose `name` inside matches (an older build's garbled file name). It reads each file into memory and
+closes it before `remove()`: MSVC opens a stream without `FILE_SHARE_DELETE`, so removing a file still open throws.
 
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.

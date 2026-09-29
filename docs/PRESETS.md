@@ -109,12 +109,12 @@ MO2/overwrite/SKSE/Plugins/SpellLearning/presets/...
 A file is named after its preset. Only characters Windows forbids in file names (`/ \ : * ? " < > |`) become
 `_`; other letters stay, Korean or Chinese included (the name goes to the file system as UTF-8,
 `PathText::FromUtf8`). Builds before that wrote a non-ASCII name through the Windows code page, so such a preset
-may sit under a garbled file name. It still lists by the `name` inside it, and deleting or renaming it finds it
-the same way: when no file carries the name, the folder is searched for the preset's `name`. Saving a preset
-also removes another file whose `name` inside is the same, once the new file is written; the file it wrote (in
-whatever case the disk keeps it, `DEFAULT.json` for "Default") and any file named after the preset in another
-case are never removed. A folder listing skips a file it cannot read or
-name, it does not stop there.
+may sit under a garbled file name. It still lists by the `name` inside it. Deleting or renaming it (delete, then
+save) finds it the same way, a fallback for non-ASCII names from older builds only: when no file carries the
+name and the name has a non-ASCII letter, every file in the folder whose `name` inside is that name is removed.
+An ASCII name was never garbled, so a file that only carries it inside (an add-on's `AddonFire.json` named
+"Fire") is never touched. Saving writes the preset's own file and removes nothing. A folder listing skips a file
+it cannot read or name, it does not stop there.
 
 ## Sharing Presets
 
