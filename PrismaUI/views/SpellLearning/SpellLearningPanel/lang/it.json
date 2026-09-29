@@ -590,6 +590,7 @@
     "status.treeBuildComplete": "Albero costruito ({{schools}} scuole, {{spells}} incantesimi)",
     "status.treeBuildFailed": "Costruzione albero fallita: {{error}}",
     "status.scanFailed": "Scansione non riuscita: {{error}}",
+    "status.scanFailedUnknown": "Scansione non riuscita (errore sconosciuto)",
     "status.treeCleared": "Albero cancellato - pronto per una nuova costruzione",
     "status.treeSavedCount": "Albero salvato ({{count}} incantesimi)",
     "status.treeValidationFailed": "Validazione albero fallita: {{error}}",

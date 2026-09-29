@@ -132,7 +132,17 @@ puts the keyed scanned message back (`restoreScannedStatus`, also used when the 
 session, and a rescan filters by the previous list too), and with no list the tome filter stays off for the
 primed count and the next build (`getPrimedSpells`, `classic/classicBuildRequest.js`). The failure is not
 shown to the player, only logged (which of the two cases it was). An older plain
-JSON-string payload is read as a full scan's reason.
+JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
+which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch
+relabels it). `RunScan` does everything that can throw (the scan, the classification, the copy it keeps as
+`m_scanText`) before `updateSpellData`; the `onScanStored` call after it catches and logs its own failure, so no
+"Scan failed" can follow a scan the panel already has.
+
+The way back from text to a path is `PathText::FromUtf8` (`std::u8string`): UTF-8 text from the panel, such as
+a preset name in Korean, became a garbled file name or a throw through `path(std::string)`, which reads the
+ANSI code page. `UIManagerIO.cpp` (save, delete, list presets) builds its paths with it, and reads names back
+with `PathText::Utf8`, so the round trip matches. `SanitizeFilename` only replaces ASCII characters Windows
+forbids, so non-ASCII letters stay in the name.
 
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.

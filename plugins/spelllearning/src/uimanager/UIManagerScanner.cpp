@@ -46,7 +46,7 @@ void UIManager::OnScanSpells(const char* argument)
         } catch (const std::exception& e) {
             instance->ReportScanFailure(e.what(), IsTomeScan(argStr));
         } catch (...) {
-            instance->ReportScanFailure("unknown error", IsTomeScan(argStr));
+            instance->ReportScanFailure("", IsTomeScan(argStr));
         }
     });
 }
@@ -55,9 +55,11 @@ void UIManager::ReportScanFailure(const char* what, bool tomeScan)
 {
     // what() comes from the system (in its own code page), so make it valid UTF-8 before it is JSON
     const std::string reason = EncodingUtils::SanitizeToUTF8(what ? what : "");
-    logger::error("UIManager: the {} scan failed: {}", tomeScan ? "tome" : "full", reason);
+    logger::error("UIManager: the {} scan failed: {}", tomeScan ? "tome" : "full",
+        reason.empty() ? std::string("unknown error") : reason);
     // The mode tells the panel whether this is the scan the player is waiting on ("all") or a
     // background tome scan that must not touch the status bar ("tomes").
+    // An empty reason (a throw that is not a std::exception) is "unknown error" in the panel's language
     const json message = {{"mode", tomeScan ? "tomes" : "all"}, {"reason", reason}};
     CallView("onScanFailed",
         message.dump(-1, ' ', false, json::error_handler_t::replace).c_str());
@@ -93,16 +95,29 @@ void UIManager::RunScan(const std::string& argStr)
     // the result as it was rather than interrupting the scan.
     Librarian::ClassifyScan(result);
 
-    // Send result back to UI
-    SendSpellData(result);
+    // A tome scan is a filter list, not the spells a tree is built from, so
+    // it is sent and not kept.
+    if (useTomeMode) {
+        SendSpellData(result);
+        return;
+    }
 
-    // Keep the full scan for tree builds (see m_scanText). A tome scan is
-    // a filter list, not the spells a tree is built from, so it does not
-    // replace it.
-    if (!useTomeMode) {
-        m_scanText = std::make_shared<const std::string>(std::move(result));
-        ++m_scanId;
-        CallView("onScanStored", std::to_string(m_scanId).c_str());
+    // Keep the full scan for tree builds (see m_scanText). Everything that can
+    // throw happens before the panel has the data (the allocation here), and
+    // what follows the send cannot report a failure: a throw that reached
+    // OnScanSpells' catch then would put "Scan failed" over a good scan.
+    auto stored = std::make_shared<const std::string>(std::move(result));
+    const std::string storedId = std::to_string(m_scanId + 1);
+    SendSpellData(*stored);
+    m_scanText = std::move(stored);
+    ++m_scanId;
+    try {
+        CallView("onScanStored", storedId.c_str());
+    } catch (const std::exception& e) {
+        // The panel then sends the spells with its next build instead of the scan id
+        logger::error("UIManager: could not tell the panel the scan id: {}", e.what());
+    } catch (...) {
+        logger::error("UIManager: could not tell the panel the scan id");
     }
 }
 

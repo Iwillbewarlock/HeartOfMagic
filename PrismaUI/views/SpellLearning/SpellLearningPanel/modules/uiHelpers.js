@@ -99,9 +99,11 @@ window.onScanFailed = function(message) {
         return;
     }
     restoreScanButton();
-    var params = { error: reason };
-    var text = t('status.scanFailed', params);
-    updateScanStatus(text, 'error', 'status.scanFailed', params);
+    // No reason (C++ caught something that is not a std::exception): "unknown error", in the panel's language
+    var key = reason ? 'status.scanFailed' : 'status.scanFailedUnknown';
+    var params = reason ? { error: reason } : null;
+    var text = t(key, params);
+    updateScanStatus(text, 'error', key, params);
     setStatusIcon('X');
     // Edit mode asked for this scan and shows a wait line until spells arrive
     var spawnList = document.getElementById('spawn-spell-list');

@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "Arbre généré ({{schools}} écoles, {{spells}} sorts)",
     "status.treeBuildFailed": "Échec de génération de l'arbre : {{error}}",
     "status.scanFailed": "Échec de l'analyse : {{error}}",
+    "status.scanFailedUnknown": "Échec de l'analyse (erreur inconnue)",
     "status.treeCleared": "Arbre effacé : prêt pour une nouvelle génération",
     "status.treeSavedCount": "Arbre enregistré ({{count}} sorts)",
     "status.treeValidationFailed": "Échec de validation de l'arbre : {{error}}",

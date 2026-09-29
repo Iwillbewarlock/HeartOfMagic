@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "Tree built ({{schools}} schools, {{spells}} spells)",
     "status.treeBuildFailed": "Tree build failed: {{error}}",
     "status.scanFailed": "Scan failed: {{error}}",
+    "status.scanFailedUnknown": "Scan failed (unknown error)",
     "status.treeCleared": "Tree cleared - ready for new build",
     "status.treeSavedCount": "Tree saved ({{count}} spells)",
     "status.treeValidationFailed": "Tree validation failed: {{error}}",

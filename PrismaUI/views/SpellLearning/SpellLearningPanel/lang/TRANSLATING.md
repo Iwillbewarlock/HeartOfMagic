@@ -96,9 +96,9 @@ node lang/build-preloads.js
 
 Output:
 ```
-  en.js  (590 keys from en.json)
-  fr.js  (590 keys from fr.json)
-  de.js  (590 keys from de.json)
+  en.js  (591 keys from en.json)
+  fr.js  (591 keys from fr.json)
+  de.js  (591 keys from de.json)
 Done - 3 preload file(s) generated.
 ```
 
@@ -162,7 +162,7 @@ overlays them), then choosing the language in Settings.
    at start, that file - or the picker - may still name another one.
 3. Restart the game once and check the whole panel
 4. If testing in a browser (dev harness), check console (F12) for `[i18n]` messages:
-   - `[i18n] Loaded locale "de" from preload (590 keys)` = working
+   - `[i18n] Loaded locale "de" from preload (591 keys)` = working
    - `[i18n] Preload is "en" but requested "de"` = missing `de.js` preload
 
 **Note:** You do NOT need to edit `index.html`. The loading system automatically picks up any locale that has a matching `.js` preload file.

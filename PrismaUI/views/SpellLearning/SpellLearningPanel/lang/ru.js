@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "Дерево построено ({{schools}} школ, {{spells}} заклинаний)",
     "status.treeBuildFailed": "Построение дерева не удалось: {{error}}",
     "status.scanFailed": "Сбой сканирования: {{error}}",
+    "status.scanFailedUnknown": "Сбой сканирования (неизвестная ошибка)",
     "status.treeCleared": "Дерево очищено — готово к новому построению",
     "status.treeSavedCount": "Дерево сохранено ({{count}} заклинаний)",
     "status.treeValidationFailed": "Проверка дерева не удалась: {{error}}",

@@ -91,10 +91,10 @@ void UIManager::OnSavePreset(const char* argument)
                 return;
             }
 
-            auto dir = GetPresetsBasePath() / safeType;
+            auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
             std::filesystem::create_directories(dir);
 
-            auto filePath = dir / (safeName + ".json");
+            auto filePath = dir / PathText::FromUtf8(safeName + ".json");
             std::ofstream file(filePath);
             if (!file.is_open()) {
                 logger::error("UIManager: SavePreset - failed to open {}", PathText::Utf8(filePath));
@@ -140,7 +140,7 @@ void UIManager::OnDeletePreset(const char* argument)
                 return;
             }
 
-            auto filePath = GetPresetsBasePath() / safeType / (safeName + ".json");
+            auto filePath = GetPresetsBasePath() / PathText::FromUtf8(safeType) / PathText::FromUtf8(safeName + ".json");
 
             if (std::filesystem::exists(filePath)) {
                 std::filesystem::remove(filePath);
@@ -188,7 +188,7 @@ void UIManager::OnLoadPresets(const char* argument)
                 return;
             }
 
-            auto dir = GetPresetsBasePath() / safeType;
+            auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
             json result;
             result["type"] = type;
             result["presets"] = json::array();

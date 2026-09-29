@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "Árvore construída ({{schools}} escolas, {{spells}} magias)",
     "status.treeBuildFailed": "Falha na construção da árvore: {{error}}",
     "status.scanFailed": "Falha na varredura: {{error}}",
+    "status.scanFailedUnknown": "Falha na varredura (erro desconhecido)",
     "status.treeCleared": "Árvore limpa - pronta para nova construção",
     "status.treeSavedCount": "Árvore salva ({{count}} magias)",
     "status.treeValidationFailed": "Validação da árvore falhou: {{error}}",

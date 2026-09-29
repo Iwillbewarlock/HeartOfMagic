@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "Baum erstellt ({{schools}} Schulen, {{spells}} Zauber)",
     "status.treeBuildFailed": "Baumerstellung fehlgeschlagen: {{error}}",
     "status.scanFailed": "Scan fehlgeschlagen: {{error}}",
+    "status.scanFailedUnknown": "Scan fehlgeschlagen (unbekannter Fehler)",
     "status.treeCleared": "Baum gelöscht - bereit für neue Erstellung",
     "status.treeSavedCount": "Baum gespeichert ({{count}} Zauber)",
     "status.treeValidationFailed": "Baumvalidierung fehlgeschlagen: {{error}}",

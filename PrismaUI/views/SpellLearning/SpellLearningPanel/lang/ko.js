@@ -565,6 +565,7 @@ window._i18nPreload = {
     "status.treeBuildComplete": "트리 구축 완료 ({{schools}}개 학파, {{spells}}개 주문)",
     "status.treeBuildFailed": "트리 구축 실패: {{error}}",
     "status.scanFailed": "스캔 실패: {{error}}",
+    "status.scanFailedUnknown": "스캔 실패 (알 수 없는 오류)",
     "status.treeCleared": "트리 초기화됨 - 새로운 구축 준비",
     "status.treeSavedCount": "트리 저장됨 ({{count}}개 주문)",
     "status.treeValidationFailed": "트리 검증 실패: {{error}}",

@@ -36,6 +36,7 @@ var StatusLineTest = {
             'buildProgress.statusApplied': 'Tree applied ({{count}} positioned)',
             'status.treeBuildComplete': 'Tree built ({{schools}} schools, {{spells}} spells)',
             'status.scanFailed': 'Scan failed: {{error}}',
+            'status.scanFailedUnknown': 'Scan failed (unknown error)',
             'status.scannedSpellsSchools': '{{count}} spells scanned across {{schools}} schools',
             'buttons.scanSpells': 'Scan Spells'
         },
@@ -47,6 +48,7 @@ var StatusLineTest = {
             'buildProgress.statusApplied': '트리 적용됨 ({{count}}개 배치)',
             'status.treeBuildComplete': '트리 구축 완료 ({{schools}}개 학파, {{spells}}개 주문)',
             'status.scanFailed': '스캔 실패: {{error}}',
+            'status.scanFailedUnknown': '스캔 실패 (알 수 없는 오류)',
             'status.scannedSpellsSchools': '{{schools}}개 학파에서 {{count}}개 주문 스캔됨',
             'buttons.scanSpells': '주문 스캔'
         }
@@ -217,6 +219,12 @@ var StatusLineTest = {
         var text = '스캔 폴더 화염.ini <b>x</b>';
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: text }));
         this.check(bar.textContent === 'Scan failed: ' + text, 'onScanFailed: Korean text and "<b>x</b>" held literally in textContent');
+        // No reason (a throw that is not a std::exception): its own keyed line, relabelled on a switch
+        g.onScanFailed(JSON.stringify({ mode: 'all', reason: '' }));
+        this.check(bar.textContent === 'Scan failed (unknown error)', 'onScanFailed: an empty reason is the keyed unknown-error line');
+        setLang('ko'); g.relabelScanStatus();
+        this.check(bar.textContent === '스캔 실패 (알 수 없는 오류)', '...and it comes back in the new language');
+        setLang('en');
         // $ patterns in a reason reach the bar as written (the fake t() uses a replacer function too)
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'cost $& of $1 and $$' }));
         this.check(bar.textContent === 'Scan failed: cost $& of $1 and $$', 'onScanFailed: a reason with $ patterns, end to end');
