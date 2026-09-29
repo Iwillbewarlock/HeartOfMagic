@@ -111,6 +111,17 @@ are the merged text. The card icon rules still read the scanner's own traits.
 spells SPID hands to `Vampire` in any `Data/*_DISTR.ini` (SpellScannerCasters.cpp, read once). The tag
 librarian's blood rules use it; it is absent, not false, for every other spell.
 
+The walk over `Data` sees every file of every mod, so no file name may throw there: `path.string()` converts
+to the system's ANSI code page on Windows and throws for a name that page cannot hold (a Korean or emoji name
+on an English Windows: "No mapping for the Unicode character exists in the target multi-byte code page").
+Names go through `PathText::Utf8` (`include/PathText.h`, `u8string`), a file that fails is skipped with a
+log line, and the whole vampire read is optional - if it fails the scan goes on without the tag.
+
+A scan that throws still ends for the player: `UIManager::OnScanSpells` runs `RunScan` inside a try block and
+answers a failure with `onScanFailed(reason)` (uiHelpers.js), which enables the Scan button again and puts
+"Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all 13 languages). The panel disables the
+button while a scan runs, so before this a failed scan left it on "Scanning..." for good.
+
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.
 `associatedForm` only appears when the effect has one (summons, bound weapons).

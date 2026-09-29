@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "PathText.h"
 
 #include <algorithm>
 #include <cctype>
@@ -64,7 +65,7 @@ namespace Librarian::Detail
         try {
             file >> document;
         } catch (const std::exception& e) {
-            logger::error("Librarian: '{}' is not valid JSON - {}", path.string(), e.what());
+            logger::error("Librarian: '{}' is not valid JSON - {}", PathText::Utf8(path), e.what());
             return false;
         }
         return true;

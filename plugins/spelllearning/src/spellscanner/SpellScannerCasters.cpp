@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "PathText.h"
 
 #include <algorithm>
 #include <cctype>
@@ -112,10 +113,20 @@ namespace SpellScanner
         {
             std::size_t added = 0;
             std::error_code error;
-            for (const auto& entry : std::filesystem::directory_iterator(kDataDir, error)) {
-                if (!entry.is_regular_file()) continue;
-                if (!Lower(entry.path().filename().string()).ends_with(kDistrSuffix)) continue;
-                added += ReadDistrFile(entry.path());
+            std::filesystem::directory_iterator it(kDataDir, error);
+            const std::filesystem::directory_iterator end;
+            // Every file in Data goes through here, so a name the ANSI code page cannot hold (see PathText.h)
+            // must not throw, and neither may a file that vanishes or is locked partway through the walk.
+            while (!error && it != end) {
+                try {
+                    if (it->is_regular_file() &&
+                        Lower(PathText::Utf8(it->path().filename())).ends_with(kDistrSuffix)) {
+                        added += ReadDistrFile(it->path());
+                    }
+                } catch (const std::exception& e) {
+                    logger::warn("SpellScanner: skipped a file in Data ({})", e.what());
+                }
+                it.increment(error);
             }
             return added;
         }
@@ -144,7 +155,7 @@ namespace SpellScanner
             }
         }
 
-        void CollectVampireSpells()
+        void CollectVampireSpellsImpl()
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
             if (!dataHandler) return;
@@ -168,6 +179,22 @@ namespace SpellScanner
             const std::size_t distributed = ReadDistrFiles();
             logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files)",
                 vampires, g_vampireSpells.size(), distributed);
+        }
+    }
+
+    namespace
+    {
+        // What the vampire check adds is a bonus tag: when reading it fails the scan goes on without it
+        // (and the next scan does not try again, so a broken file is not hit on every scan).
+        void CollectVampireSpells()
+        {
+            try {
+                CollectVampireSpellsImpl();
+            } catch (const std::exception& e) {
+                logger::error("SpellScanner: could not collect the spells vampires cast: {}", e.what());
+            } catch (...) {
+                logger::error("SpellScanner: could not collect the spells vampires cast");
+            }
         }
     }
 

@@ -19,7 +19,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 450 | Scan status bar (and its message again after a language switch), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
+| `uiHelpers.js` | 471 | Scan status bar (and its message again after a language switch), `onScanFailed` (a scan that threw: the button back, the reason in the bar), unlocked count, saving the tree, primed spells, preset naming, local form ids, editor id words |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
 | `treeParser.js` | 992 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId` |
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |

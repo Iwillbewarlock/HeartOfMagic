@@ -564,6 +564,7 @@ window._i18nPreload = {
     "status.treeApplied": "树已应用（{{schools}} 个学派）",
     "status.treeBuildComplete": "树构建完成（{{schools}} 个学派，{{spells}} 个法术）",
     "status.treeBuildFailed": "树构建失败: {{error}}",
+    "status.scanFailed": "扫描失败：{{error}}",
     "status.treeCleared": "树已清除 - 准备新建",
     "status.treeSavedCount": "树已保存（{{count}} 个法术）",
     "status.treeValidationFailed": "树验证失败: {{error}}",

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
@@ -343,7 +344,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
             std::filesystem::create_directories(path.parent_path());
             std::ofstream outFile(path);
             outFile << unifiedConfig.dump(2);
-            logger::info("UIManager: Created default config file at {}", path.string());
+            logger::info("UIManager: Created default config file at {}", PathText::Utf8(path));
         } catch (const std::exception& e) {
             logger::warn("UIManager: Failed to save default config: {}", e.what());
         }

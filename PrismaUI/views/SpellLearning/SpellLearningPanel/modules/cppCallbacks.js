@@ -13,6 +13,7 @@
  * - window.updateTreeData (saved tree), updateSpellInfo, updateSpellInfoBatch, updateSpellIcon
  * - window.updateSpellState, onResetTreeStates, onSaveGameLoaded, onPlayerKnownSpells
  * - window.updateStatus, updateTreeStatus, updatePrompt, onClipboardContent, debugOutput
+ * - window.onScanFailed (uiHelpers.js: a scan that threw)
  * - window.onPrismaReady, onPanelShowing, onPanelHiding (panel lifecycle)
  */
 

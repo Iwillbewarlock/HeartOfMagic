@@ -589,6 +589,7 @@
     "status.treeApplied": "Дерево применено ({{schools}} школ)",
     "status.treeBuildComplete": "Дерево построено ({{schools}} школ, {{spells}} заклинаний)",
     "status.treeBuildFailed": "Построение дерева не удалось: {{error}}",
+    "status.scanFailed": "Сбой сканирования: {{error}}",
     "status.treeCleared": "Дерево очищено — готово к новому построению",
     "status.treeSavedCount": "Дерево сохранено ({{count}} заклинаний)",
     "status.treeValidationFailed": "Проверка дерева не удалась: {{error}}",

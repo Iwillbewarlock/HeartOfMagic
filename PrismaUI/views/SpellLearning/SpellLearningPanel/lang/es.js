@@ -564,6 +564,7 @@ window._i18nPreload = {
     "status.treeApplied": "Árbol aplicado ({{schools}} escuelas)",
     "status.treeBuildComplete": "Árbol construido ({{schools}} escuelas, {{spells}} hechizos)",
     "status.treeBuildFailed": "Fallo en construcción del árbol: {{error}}",
+    "status.scanFailed": "Error al escanear: {{error}}",
     "status.treeCleared": "Árbol limpiado - listo para nueva construcción",
     "status.treeSavedCount": "Árbol guardado ({{count}} hechizos)",
     "status.treeValidationFailed": "Validación del árbol fallida: {{error}}",

@@ -1,6 +1,7 @@
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
 #include "librarian/TagVocabulary.h"
+#include "PathText.h"
 
 #include <vector>
 
@@ -276,7 +277,7 @@ namespace Librarian
         std::sort(paths.begin(), paths.end());
 
         for (const auto& path : paths) {
-            const std::string name = path.filename().string();
+            const std::string name = PathText::Utf8(path.filename());
 
             json document;
             if (!Detail::ReadJsonFile(path, document)) {

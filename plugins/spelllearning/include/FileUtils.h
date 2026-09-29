@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PathText.h"
+
 #include <filesystem>
 #include <fstream>
 #include <string_view>
@@ -35,13 +37,13 @@ namespace FileUtils
         {
             std::ofstream file(temp, std::ios::binary | std::ios::trunc);
             if (!file.is_open()) {
-                logger::error("FileUtils: cannot open {} for writing", temp.string());
+                logger::error("FileUtils: cannot open {} for writing", PathText::Utf8(temp));
                 return false;
             }
             file.write(content.data(), static_cast<std::streamsize>(content.size()));
             file.flush();
             if (file.fail()) {
-                logger::error("FileUtils: failed while writing {}", temp.string());
+                logger::error("FileUtils: failed while writing {}", PathText::Utf8(temp));
                 file.close();
                 std::filesystem::remove(temp, ec);
                 return false;
@@ -59,7 +61,7 @@ namespace FileUtils
             movedToBackup = !ec;
             if (ec) {
                 // Not fatal: the new file is still worth having
-                logger::warn("FileUtils: could not keep a backup of {}: {}", path.string(), ec.message());
+                logger::warn("FileUtils: could not keep a backup of {}: {}", PathText::Utf8(path), ec.message());
                 ec.clear();
             }
         }
@@ -73,7 +75,7 @@ namespace FileUtils
             std::filesystem::rename(temp, path, ec);
         }
         if (ec) {
-            logger::error("FileUtils: could not move {} into place: {}", temp.string(), ec.message());
+            logger::error("FileUtils: could not move {} into place: {}", PathText::Utf8(temp), ec.message());
             std::filesystem::remove(temp, ec);
             ec.clear();
             // Put the old file back under its own name. Without this the caller
@@ -82,9 +84,9 @@ namespace FileUtils
             if (movedToBackup) {
                 std::filesystem::rename(backup, path, ec);
                 if (ec) {
-                    logger::error("FileUtils: and the previous file is left at {}", backup.string());
+                    logger::error("FileUtils: and the previous file is left at {}", PathText::Utf8(backup));
                 } else {
-                    logger::info("FileUtils: the previous {} is back in place", path.filename().string());
+                    logger::info("FileUtils: the previous {} is back in place", PathText::Utf8(path.filename()));
                 }
             }
             return false;

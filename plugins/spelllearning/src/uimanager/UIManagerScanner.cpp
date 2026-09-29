@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
@@ -20,52 +21,74 @@ void UIManager::OnScanSpells(const char* argument)
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;
 
-        // Parse the scan configuration
-        SpellScanner::ScanConfig scanConfig;
-        bool useTomeMode = false;
-
-        if (!argStr.empty()) {
-            try {
-                json j = json::parse(argStr);
-                scanConfig = SpellScanner::ParseScanConfig(argStr.c_str());
-
-                // Check for scan mode
-                if (j.contains("scanMode") && j["scanMode"].get<std::string>() == "tomes") {
-                    useTomeMode = true;
-                }
-            } catch (...) {
-                // If parsing fails, use defaults
-            }
-        }
-
-        std::string result;
-        if (useTomeMode) {
-            instance->UpdateStatus("Scanning spell tomes...");
-            result = SpellScanner::ScanSpellTomes(scanConfig);
-        } else {
-            instance->UpdateStatus("Scanning all spells...");
-            result = SpellScanner::ScanAllSpells(scanConfig);
-        }
-
-        // Classify what was just scanned and hand the catalog's elements on to
-        // the traits the tree builder groups by and the chips the card shows.
-        // Same call the Papyrus path makes, so the Scan button and RunScan
-        // leave the same catalog behind. It logs its own failures and leaves
-        // the result as it was rather than interrupting the scan.
-        Librarian::ClassifyScan(result);
-
-        // Send result back to UI
-        instance->SendSpellData(result);
-
-        // Keep the full scan for tree builds (see m_scanText). A tome scan is
-        // a filter list, not the spells a tree is built from, so it does not
-        // replace it.
-        if (!useTomeMode) {
-            instance->m_scanText = std::make_shared<const std::string>(std::move(result));
-            ++instance->m_scanId;
-            instance->CallView("onScanStored", std::to_string(instance->m_scanId).c_str());
+        // A scan that throws must still end for the player: the panel disables the Scan
+        // button until the spells come back, so without this report it stayed on
+        // "Scanning..." for good and the only trace was one line in the log.
+        try {
+            instance->RunScan(argStr);
+        } catch (const std::exception& e) {
+            instance->ReportScanFailure(e.what());
+        } catch (...) {
+            instance->ReportScanFailure("unknown error");
         }
     });
+}
+
+void UIManager::ReportScanFailure(const char* what)
+{
+    logger::error("UIManager: the scan failed: {}", what);
+    // what() comes from the system (in its own code page), so make it valid UTF-8 before it is JSON
+    const json message = EncodingUtils::SanitizeToUTF8(what ? what : "");
+    CallView("onScanFailed", message.dump().c_str());
+}
+
+void UIManager::RunScan(const std::string& argStr)
+{
+    // Parse the scan configuration
+    SpellScanner::ScanConfig scanConfig;
+    bool useTomeMode = false;
+
+    if (!argStr.empty()) {
+        try {
+            json j = json::parse(argStr);
+            scanConfig = SpellScanner::ParseScanConfig(argStr.c_str());
+
+            // Check for scan mode
+            if (j.contains("scanMode") && j["scanMode"].get<std::string>() == "tomes") {
+                useTomeMode = true;
+            }
+        } catch (...) {
+            // If parsing fails, use defaults
+        }
+    }
+
+    std::string result;
+    if (useTomeMode) {
+        UpdateStatus("Scanning spell tomes...");
+        result = SpellScanner::ScanSpellTomes(scanConfig);
+    } else {
+        UpdateStatus("Scanning all spells...");
+        result = SpellScanner::ScanAllSpells(scanConfig);
+    }
+
+    // Classify what was just scanned and hand the catalog's elements on to
+    // the traits the tree builder groups by and the chips the card shows.
+    // Same call the Papyrus path makes, so the Scan button and RunScan
+    // leave the same catalog behind. It logs its own failures and leaves
+    // the result as it was rather than interrupting the scan.
+    Librarian::ClassifyScan(result);
+
+    // Send result back to UI
+    SendSpellData(result);
+
+    // Keep the full scan for tree builds (see m_scanText). A tome scan is
+    // a filter list, not the spells a tree is built from, so it does not
+    // replace it.
+    if (!useTomeMode) {
+        m_scanText = std::make_shared<const std::string>(std::move(result));
+        ++m_scanId;
+        CallView("onScanStored", std::to_string(m_scanId).c_str());
+    }
 }
 
 void UIManager::OnSaveOutput(const char* argument)

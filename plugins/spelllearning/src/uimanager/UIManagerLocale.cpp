@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PathText.h"
 #include "FileUtils.h"
 
 #include <fstream>
@@ -94,7 +95,7 @@ void WritePanelLocale(const nlohmann::json& config)
         std::lock_guard<std::mutex> lock(g_failedLocaleMutex);
         g_failedLocaleContent = content;
         logger::warn("UIManager: could not write {} (the panel holds it) - written before the panel opens next time",
-                     path.string());
+                     PathText::Utf8(path));
     }
 }
 
@@ -105,7 +106,7 @@ void WritePanelLocaleFromSavedConfig()
     if (!std::filesystem::exists(path, ec)) return;
     auto config = nlohmann::json::parse(ReadWholeFile(path), nullptr, false);
     if (config.is_discarded() || !config.is_object()) {
-        logger::warn("UIManager: {} could not be read - panel language file left as it is", path.string());
+        logger::warn("UIManager: {} could not be read - panel language file left as it is", PathText::Utf8(path));
         return;
     }
     WritePanelLocale(config);

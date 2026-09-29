@@ -564,6 +564,7 @@ window._i18nPreload = {
     "status.treeApplied": "Ağaç uygulandı ({{schools}} okul)",
     "status.treeBuildComplete": "Ağaç oluşturuldu ({{schools}} okul, {{spells}} büyü)",
     "status.treeBuildFailed": "Ağaç oluşturma başarısız: {{error}}",
+    "status.scanFailed": "Tarama başarısız: {{error}}",
     "status.treeCleared": "Ağaç temizlendi - yeni oluşturmaya hazır",
     "status.treeSavedCount": "Ağaç kaydedildi ({{count}} büyü)",
     "status.treeValidationFailed": "Ağaç doğrulaması başarısız: {{error}}",

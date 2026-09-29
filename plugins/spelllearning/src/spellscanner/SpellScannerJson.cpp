@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
 
@@ -344,15 +345,15 @@ namespace SpellScanner
             std::filesystem::path outputPath = outputDir / SCAN_OUTPUT_FILE;
             std::ofstream file(outputPath);
             if (!file.is_open()) {
-                logger::error("SpellScanner: Failed to open {} for writing", outputPath.string());
+                logger::error("SpellScanner: Failed to open {} for writing", PathText::Utf8(outputPath));
                 return "";
             }
 
             file << content;
             file.close();
 
-            logger::info("SpellScanner: Wrote scan output to {} ({} bytes)", outputPath.string(), content.size());
-            return outputPath.string();
+            logger::info("SpellScanner: Wrote scan output to {} ({} bytes)", PathText::Utf8(outputPath), content.size());
+            return PathText::Utf8(outputPath);
         } catch (const std::exception& e) {
             logger::error("SpellScanner: Exception while writing scan output: {}", e.what());
             return "";

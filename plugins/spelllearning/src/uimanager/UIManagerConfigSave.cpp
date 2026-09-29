@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
@@ -110,7 +111,7 @@ namespace
                         // then replace every setting the player had with defaults.
                         // Better to save nothing and say why.
                         logger::error("UIManager: {} could not be read ({}) - settings were NOT saved, "
-                                      "so the file can be recovered by hand", path.string(), e.what());
+                                      "so the file can be recovered by hand", PathText::Utf8(path), e.what());
                         return;
                     }
                 }
@@ -123,9 +124,9 @@ namespace
             }
 
             if (written) {
-                logger::info("UIManager: Unified config saved to {}", path.string());
+                logger::info("UIManager: Unified config saved to {}", PathText::Utf8(path));
             } else {
-                logger::error("UIManager: Failed to write unified config to {}", path.string());
+                logger::error("UIManager: Failed to write unified config to {}", PathText::Utf8(path));
             }
 
             // The panel's language, for the page to read before it draws next time

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
@@ -104,7 +105,7 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                     // and leave the file alone so it can be recovered by hand.
                     logger::error("UIManager: spell_tree.json could not be read: {}", e.what());
                     logger::error("UIManager: the file is at {} - it has not been touched",
-                        treePath.string());
+                        PathText::Utf8(treePath));
                     instance->UpdateTreeStatus("Saved tree is damaged - see SpellLearning.log");
                 }
 
@@ -276,7 +277,7 @@ void UIManager::OnSaveSpellTree(const char* argument)
             // a crash partway through lost it with nothing to fall back on.
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
-                logger::info("UIManager: Saved spell tree to {}", treePath.string());
+                logger::info("UIManager: Saved spell tree to {}", PathText::Utf8(treePath));
                 instance->UpdateTreeStatus("Tree saved");
             } else {
                 instance->UpdateTreeStatus("Save failed");

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PathText.h"
 #include "uimanager/UIManager.h"
 #include "EncodingUtils.h"
 #include "ThreadUtils.h"
@@ -96,7 +97,7 @@ void UIManager::OnSavePreset(const char* argument)
             auto filePath = dir / (safeName + ".json");
             std::ofstream file(filePath);
             if (!file.is_open()) {
-                logger::error("UIManager: SavePreset - failed to open {}", filePath.string());
+                logger::error("UIManager: SavePreset - failed to open {}", PathText::Utf8(filePath));
                 return;
             }
             file << data.dump(2);
@@ -145,7 +146,7 @@ void UIManager::OnDeletePreset(const char* argument)
                 std::filesystem::remove(filePath);
                 logger::info("UIManager: DeletePreset - deleted {}/{}.json", type, safeName);
             } else {
-                logger::warn("UIManager: DeletePreset - file not found: {}", filePath.string());
+                logger::warn("UIManager: DeletePreset - file not found: {}", PathText::Utf8(filePath));
             }
         } catch (const std::exception& e) {
             logger::error("UIManager: DeletePreset exception: {}", e.what());
@@ -195,7 +196,7 @@ void UIManager::OnLoadPresets(const char* argument)
             if (std::filesystem::exists(dir) && std::filesystem::is_directory(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
                     if (!entry.is_regular_file()) continue;
-                    auto ext = entry.path().extension().string();
+                    auto ext = PathText::Utf8(entry.path().extension());
                     // Case-insensitive .json check
                     if (ext != ".json" && ext != ".JSON") continue;
 
@@ -204,7 +205,7 @@ void UIManager::OnLoadPresets(const char* argument)
                         json presetData = json::parse(file);
 
                         // Use the filename (without extension) as key, but prefer "name" inside the JSON
-                        std::string key = entry.path().stem().string();
+                        std::string key = PathText::Utf8(entry.path().stem());
                         if (presetData.contains("name") && presetData["name"].is_string()) {
                             key = presetData["name"].get<std::string>();
                         }
@@ -217,7 +218,7 @@ void UIManager::OnLoadPresets(const char* argument)
                         logger::info("UIManager: LoadPresets - loaded {}/{}", type, key);
                     } catch (const std::exception& e) {
                         logger::warn("UIManager: LoadPresets - failed to parse {}: {}",
-                                     entry.path().string(), e.what());
+                                     PathText::Utf8(entry.path()), e.what());
                     }
                 }
             } else {

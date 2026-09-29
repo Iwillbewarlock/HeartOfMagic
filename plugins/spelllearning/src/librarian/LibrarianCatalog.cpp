@@ -1,5 +1,6 @@
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
+#include "PathText.h"
 
 #include <chrono>
 #include <sstream>
@@ -21,7 +22,7 @@ namespace Librarian
 
         std::string CatalogPath()
         {
-            return DataPath(CATALOG_FILE).string();
+            return PathText::Utf8(DataPath(CATALOG_FILE));
         }
 
         std::string UtcTimestamp()
@@ -241,7 +242,7 @@ namespace Librarian
     {
         const auto path = DataPath(CATALOG_FILE);
         if (!ReadJsonFile(path, catalog)) {
-            logger::info("Librarian: no readable catalog at '{}'", path.string());
+            logger::info("Librarian: no readable catalog at '{}'", PathText::Utf8(path));
             return false;
         }
         return true;
@@ -253,7 +254,7 @@ namespace Librarian
         // has already succeeded by the time this runs, and losing the dump
         // because the librarian tripped would be the worse outcome.
         try {
-            const RuleSet rules = LoadRules(RulesPath().string());
+            const RuleSet rules = LoadRules(PathText::Utf8(RulesPath()));
             if (rules.rules.empty()) {
                 logger::warn("Librarian: no rules loaded - skipping catalog");
                 return false;

@@ -564,6 +564,7 @@ window._i18nPreload = {
     "status.treeApplied": "樹已套用（{{schools}} 個學派）",
     "status.treeBuildComplete": "樹建構完成（{{schools}} 個學派，{{spells}} 個法術）",
     "status.treeBuildFailed": "樹建構失敗: {{error}}",
+    "status.scanFailed": "掃描失敗：{{error}}",
     "status.treeCleared": "樹已清除 - 準備新建",
     "status.treeSavedCount": "樹已儲存（{{count}} 個法術）",
     "status.treeValidationFailed": "樹驗證失敗: {{error}}",

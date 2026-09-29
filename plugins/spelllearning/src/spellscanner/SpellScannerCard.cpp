@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "PathText.h"
 
 #include <filesystem>
 #include <fstream>
@@ -249,7 +250,7 @@ namespace SpellScanner
         try {
             const auto path = IconPath(key);
             if (std::filesystem::file_size(path) > kMaxIconBytes) {
-                logger::warn("SpellScanner: icon '{}' is too large, skipped", path.string());
+                logger::warn("SpellScanner: icon '{}' is too large, skipped", PathText::Utf8(path));
                 return "";
             }
 

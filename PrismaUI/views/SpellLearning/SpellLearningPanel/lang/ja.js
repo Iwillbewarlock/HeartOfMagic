@@ -564,6 +564,7 @@ window._i18nPreload = {
     "status.treeApplied": "ツリー適用（{{schools}}学派）",
     "status.treeBuildComplete": "ツリー構築完了（{{schools}}学派、{{spells}}呪文）",
     "status.treeBuildFailed": "ツリー構築失敗: {{error}}",
+    "status.scanFailed": "スキャンに失敗しました: {{error}}",
     "status.treeCleared": "ツリーをクリア - 新規構築準備完了",
     "status.treeSavedCount": "ツリーを保存（{{count}}呪文）",
     "status.treeValidationFailed": "ツリー検証失敗: {{error}}",

@@ -34,7 +34,9 @@ var StatusLineTest = {
             'treeGrowth.treeBuilt': 'Tree built',
             'treeGrowth.nodesPlaced': '{{placed}}/{{total}} nodes placed',
             'buildProgress.statusApplied': 'Tree applied ({{count}} positioned)',
-            'status.treeBuildComplete': 'Tree built ({{schools}} schools, {{spells}} spells)'
+            'status.treeBuildComplete': 'Tree built ({{schools}} schools, {{spells}} spells)',
+            'status.scanFailed': 'Scan failed: {{error}}',
+            'buttons.scanSpells': 'Scan Spells'
         },
         ko: {
             'scanner.complexStatusWrap': '상태: <span id="tgStatus">스캔 대기 중...</span>',
@@ -42,7 +44,9 @@ var StatusLineTest = {
             'treeGrowth.treeBuilt': '트리 구축 완료',
             'treeGrowth.nodesPlaced': '{{placed}}/{{total}} 노드 배치됨',
             'buildProgress.statusApplied': '트리 적용됨 ({{count}}개 배치)',
-            'status.treeBuildComplete': '트리 구축 완료 ({{schools}}개 학파, {{spells}}개 주문)'
+            'status.treeBuildComplete': '트리 구축 완료 ({{schools}}개 학파, {{spells}}개 주문)',
+            'status.scanFailed': '스캔 실패: {{error}}',
+            'buttons.scanSpells': '주문 스캔'
         }
     },
 
@@ -78,6 +82,7 @@ var StatusLineTest = {
             document: { getElementById: function(id) { return byId[id] || null; } }
         };
         make('scanStatusBar');
+        make('scanBtn');
         make('scanStatusText').setAttribute('data-i18n', 'scanner.readyToScan');
         return page;
     },
@@ -165,6 +170,7 @@ var StatusLineTest = {
             g.updateScanStatus('Saved from C++', '');
             lang = 'en'; g.relabelScanStatus();
             this.check(bar().textContent === 'Saved from C++', 'a scan message with no key is left as written');
+            this._checkScanFailed(g, page, function(code) { lang = code; });
             this._checkCost(g);
         } finally {
             g.document = oldDocument;
@@ -175,6 +181,25 @@ var StatusLineTest = {
     },
 
     /** The card's Magicka: whole points, at least 1 for any cost, 0 for none */
+    /** A scan that threw: the Scan button comes back and the bar says why, in the current language. */
+    _checkScanFailed: function(g, page, setLang) {
+        var btn = page.byId.scanBtn, bar = page.byId.scanStatusText;
+        setLang('en');
+        btn.disabled = true; btn.innerHTML = 'Scanning...';
+        // C++ sends the reason as a JSON string, and system messages can carry non-Latin text
+        g.onScanFailed('"No mapping for the Unicode character exists in the target multi-byte code page"');
+        this.check(btn.disabled === false && btn.innerHTML.indexOf('Scan Spells') !== -1,
+            'onScanFailed: the Scan button is enabled again');
+        this.check(bar.textContent === 'Scan failed: No mapping for the Unicode character exists in the target multi-byte code page' &&
+            page.byId.scanStatusBar.className.indexOf('error') !== -1,
+            'onScanFailed: the bar names the reason, as an error');
+        setLang('ko'); g.relabelScanStatus();
+        this.check(bar.textContent.indexOf('스캔 실패: ') === 0, 'onScanFailed: the message comes back in the new language');
+        g.onScanFailed('unquoted reason');
+        this.check(bar.textContent === '스캔 실패: unquoted reason', 'onScanFailed: a reason that is not JSON-quoted is used as it is');
+        setLang('en');
+    },
+
     _checkCost: function(g) {
         var P = g.TreeParser;
         if (!P) { this.check(false, 'TreeParser loaded'); return; }

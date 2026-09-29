@@ -90,6 +90,9 @@ private:
     
     // Scanner tab callbacks
     static void OnScanSpells(const char* argument);
+    // The scan itself, and what the panel is told when it throws (onScanFailed)
+    void RunScan(const std::string& argStr);
+    void ReportScanFailure(const char* what);
     static void OnSaveOutput(const char* argument);
     static void OnLoadPrompt(const char* argument);
     

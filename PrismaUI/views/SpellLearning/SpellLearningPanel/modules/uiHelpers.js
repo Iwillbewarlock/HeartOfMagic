@@ -39,6 +39,28 @@ function relabelScanStatus() {
 }
 
 /**
+ * C++ says the scan threw (the reason as text, JSON-quoted). The Scan button is
+ * disabled while a scan runs and only spell data enables it again, so a scan
+ * that dies has to hand the button back here, or the panel sits on
+ * "Scanning..." with no word of what happened (the log has the full reason).
+ * @param {string} message
+ */
+window.onScanFailed = function(message) {
+    var reason = message;
+    if (typeof reason === 'string' && reason.charAt(0) === '"') {
+        try { reason = JSON.parse(reason); } catch (e) {}
+    }
+    var scanBtn = document.getElementById('scanBtn');
+    if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
+    }
+    var params = { error: String(reason) };
+    updateScanStatus(t('status.scanFailed', params), 'error', 'status.scanFailed', params);
+    setStatusIcon('X');
+};
+
+/**
  * The footer's unlocked count: every tree node in the unlocked state, spells
  * mastered through XP and spells the player already knew alike. The one count
  * every caller uses, so a relock or a known-spells reply cannot leave two
