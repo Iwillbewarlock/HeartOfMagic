@@ -62,34 +62,57 @@ if (!pattern.match(hookAddr)) {
 Running the AE build on AE 1.6.1170 (or any version other than 1.6.318) triggers
 the mismatch and crashes. There is no single DLL that works across SE and AE.
 
-### Our Approach — Runtime Pattern Scanning
+### Our Approach — Runtime ID, Fixed Offset, Exact-Position Check
 
 We use `REL::RelocationID` to resolve the function base across SE and AE at
-runtime (no compile-time split), then **scan the function body** for the patch
-site dynamically:
+runtime (no compile-time split), then check that the pattern sits **exactly**
+at the known offset for that runtime:
 
 ```cpp
-// Single binary — resolves to the correct function on ANY version
+// Single binary — resolves to the correct function on SE, AE 1.6 and AE 1.7
 constexpr REL::RelocationID ProcessBookID(17439, 17842);
 //                                        ^^^^^  ^^^^^
-//                                        SE ID  AE ID
+//                                        SE ID  AE ID (same ID on 1.7.x)
 
 const std::uintptr_t funcBase = ProcessBookID.address();
 
-// Scan forward from +0x80 to +0x200 for the instruction pattern:
+// SE +0xE8, AE +0x11D. The bytes there must be
 //   48 8B 0D xx xx xx xx E8 xx xx xx xx
 //   mov rcx, [rip+disp32]; call rel32
-// This is the PlayerCharacter singleton load + AddSpell call.
-const auto patchOffset = ScanForPatchSite(funcBase);
+// (the PlayerCharacter singleton load + AddSpell call), and on AE also
+//   - the call goes to Actor::AddSpell (RelocationID(37771, 38716).address())
+//   - the replaced block ends on test byte [r15+..] (41 F6 87) at site + 0x56
+//   - the return site, site + 0x72, is xor al, al (32 C0)
+// or the hook stays out (SpellTomeSites::Decide, SpellTomeHookSites.h) -
+// except on the AE builds tested in game (kInGameTestedAE: 1.6.318, 1.6.1170),
+// where the site pattern alone decides and a failed newer check is a warning.
+if (!SiteIsKnownLayout(funcBase, isAE)) return false;
 ```
 
-The scanner skips the first `0x80` bytes (function prologue where similar
-patterns appear in branch checks) and collects **all** matches in the
-`0x80`–`0x200` range, returning the **last** match — which is the one deepest
-into the function body, closest to the actual spell-teach site.
+An earlier version scanned `0x80`–`0x200` and took the last match. That was
+dropped: when another mod (Don't Eat Spell Tomes itself) has already rewritten
+the site, the scan settled on an earlier, unrelated mov/call and overwrote
+`0x56` bytes of engine code. An exact-position check cannot do that. The AE
+checks beyond the pattern make an unmeasured build prove it has the measured
+layout: the call target ties the site to AddSpell on that very build, and the
+two instruction starts tie the block's size and the return offset to it. SE
+keeps the pattern check it was tested with in game (no 1.5.97 exe was at hand
+to measure its block end and return site). The log names the check that
+failed.
 
-**Result:** One DLL works on SE 1.5.97, AE 1.6.318, AE 1.6.640, AE 1.6.1170,
-and future versions — as long as the function's general structure is preserved.
+The AE builds the hook was tested on in game (`kInGameTestedAE`: 1.6.318 and
+1.6.1170, where most players are) could not be read offline, so the newer
+checks must not switch the hook off there: the site pattern decides as before,
+and if the call target, block end or return site differs the hook still goes
+in with a `WARNING` naming the check and what was read (the call target, or
+the bytes). That line tells us the real layout the first time someone reads a
+tome on that build. Every other AE build (1.6.640, 1.7.x, later) needs all four
+checks.
+
+**Result:** One DLL works on SE 1.5.97, AE 1.6.x and AE 1.7.x. The hook was
+tested in game on SE 1.5.97, AE 1.6.318 and AE 1.6.1170; on AE 1.7.104 it was
+measured offline, not yet tested in game. Any build gets the hook only when the
+checks above pass (see [Key Offsets Reference](#key-offsets-reference)).
 
 ---
 
@@ -150,32 +173,23 @@ The jump offset (where execution resumes after the NOP region) is hardcoded:
 If the compiler rearranges instructions (which happens between AE sub-versions),
 the jump lands on the wrong instruction boundary and the game crashes.
 
-### Our Approach — Bounded Instruction Scan
+### Our Approach — Measured Offsets
 
-We scan forward from the patch site for a valid instruction boundary in the
-expected range:
+The jump offset is the measured one for the runtime (`+0x72` AE, `+0x70` SE):
 
 ```cpp
-inline std::ptrdiff_t FindJumpOffset(std::uintptr_t patchAddr)
-{
-    if (REL::Module::IsAE()) {
-        const auto* bytes = reinterpret_cast<const std::uint8_t*>(patchAddr);
-        // Scan 0x6E..0x7A for valid instruction start bytes
-        for (std::ptrdiff_t off = 0x6E; off <= 0x7A; ++off) {
-            std::uint8_t b = bytes[off];
-            if (b == 0x48 || b == 0x40 || b == 0x0F || b == 0x33 || b == 0x45) {
-                return off;
-            }
-        }
-        return 0x72;  // fallback to known AE offset
-    } else {
-        return 0x70;  // SE known offset
-    }
-}
+// SpellTomeHookSites.h
+inline constexpr Layout kSELayout{ 0xE8, 0x70, BookRegister::Rdi };
+inline constexpr Layout kAELayout{ 0x11D, 0x72, BookRegister::R15 };
 ```
 
-**Result:** Tolerates ±6 bytes of instruction shift between AE sub-versions
-without breaking.
+It used to be hunted for by looking for a byte that often starts an
+instruction (`0x48`, `0x40`, ...); such a byte also turns up inside
+instructions, and jumping into the middle of one is a crash. On AE the site
+check now also requires the measured instruction at the return site
+(`xor al, al`, `32 C0`) and at the end of the replaced block, so a build where
+the jump would land elsewhere keeps the hook out; SE keeps the pattern check it
+was tested with.
 
 ---
 
@@ -191,15 +205,14 @@ util::report_and_fail("Binary did not match expected, failed to install"sv);
 ### Our Approach — Graceful Degradation
 
 ```cpp
-const auto patchOffset = ScanForPatchSite(funcBase);
-if (patchOffset < 0) {
-    logger::error("SpellTomeHook: Could not find patch site pattern");
-    logger::error("SpellTomeHook: This game version may have a different layout.");
+if (!SiteIsKnownLayout(funcBase, isAE)) {
+    // it logged which check failed (site pattern, AddSpell call target,
+    // block end, return site) and what it found there
     return false;  // Hook not installed — game continues normally
 }
 ```
 
-If the scan fails, the hook simply doesn't install. The game runs normally with
+If the check fails, the hook simply doesn't install. The game runs normally with
 vanilla spell tome behavior. The log file explains exactly what happened.
 
 ---
@@ -209,9 +222,9 @@ vanilla spell tome behavior. The log file explains exactly what happened.
 | Aspect | DEST v1.2.2 | Heart of Magic |
 |--------|-------------|----------------|
 | **SE + AE from one DLL** | No (separate builds) | Yes (`REL::RelocationID` + `IsAE()`) |
-| **Patch site discovery** | Hardcoded offset | Runtime pattern scan |
-| **Jump offset** | Hardcoded | Bounded instruction scan |
-| **AE sub-version support** | 1.6.318 only | 1.6.318, 1.6.640, 1.6.1170+ |
+| **Patch site discovery** | Hardcoded offset | Measured offset per runtime, exact-position pattern check; on AE also the AddSpell call target and both block ends |
+| **Jump offset** | Hardcoded | Measured offset per runtime, return site checked on AE |
+| **AE sub-version support** | 1.6.318 only | 1.6.x and 1.7.x where the checks pass (tested in game: 1.6.318, 1.6.1170; measured offline: 1.7.104) |
 | **Failure on unknown version** | CTD (`report_and_fail`) | Graceful fallback to vanilla |
 | **Diagnostic logging** | Minimal | Full (func base, offset, jump, patch size) |
 | **Book consumption** | Prevented (sets `rsi = 0`) | Same technique |
@@ -246,15 +259,38 @@ system:
 
 For future debugging — known working offsets across game versions:
 
-| Game Version | Address Library ID | Patch Offset | Jump Offset | Book Register |
-|--------------|--------------------|-------------|-------------|---------------|
-| SE 1.5.97 | 17439 | `+0xE8` | `+0x70` | `rdi` |
-| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` |
-| AE 1.6.640 | 17842 | (scanned) | (scanned) | `r15` |
-| AE 1.6.1170 | 17842 | (scanned) | (scanned) | `r15` |
+| Game Version | Address Library ID | Patch Offset | Jump Offset | Book Register | Known from |
+|--------------|--------------------|-------------|-------------|---------------|------------|
+| SE 1.5.97 | 17439 | `+0xE8` | `+0x70` | `rdi` | tested in game |
+| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game (DEST's reference build); site pattern decides, newer checks warn |
+| AE 1.6.1170 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game earlier; not re-read offline (its `.text` is encrypted on disk); site pattern decides, newer checks warn |
+| AE 1.7.104 | 17842 | `+0x11D` | `+0x72` | `r15` | measured offline, not yet tested in game |
+| other AE (1.6.640, 1.7.99, ...) | 17842 | `+0x11D` | `+0x72` | `r15` | not measured: hooked only if every AE check passes |
 
-The pattern scan finds the correct offset regardless — these are listed for
-reference only.
+(The last column is how each row is known.) The code uses exactly these offsets
+(`IsAE()` picks the row); nothing is scanned. How 1.7.104 was measured
+(offline, on the read-only exe, file version 1.7.104.0): the 1.7.99 address
+library in CommonLibSSE-NG (`tests/REL/versionlib-1-7-99-0.bin`) puts ID 17842
+at RVA `0x280290`; aligning the IDs around it with the 1.7.104 `.pdata`
+function table gives a shift of 0 there (1603 of 2764 nearby IDs land on
+1.7.104 function starts), and `0x280290` is a function start of size `0x249`.
+Disassembled, `+0x1F` is `mov r15, rcx` (the book), `+0x11A` `mov rdx, rbp`
+with `rbp = [book+0x118]` (the spell), `+0x11D` `mov rcx, [rip+..]` and
+`+0x124` `call 0x6D3D60`. That is Actor::AddSpell (ID 38716): the 1.7.99
+library gives `0x6D3B00`, and the same alignment shifts that stretch by
+`+0x260` in 1.7.104, to `0x6D3D60` - so 1.7.99's layout differs around AddSpell,
+and 1.7.99 stays unknown until the call-target check sees its real code.
+`+0x129` is `movzx esi, al`. The replaced block ends on `41 F6 87 10 01 00 00 08`
+(`test byte [r15+0x110], 8`) at `+0x173`, and the return site
+`+0x11D + 0x72 = +0x18F` is `32 C0` (`xor al, al`).
+
+Why clearing `rsi` keeps the book: after `+0x18F` the function only reads
+`sil` (`test sil, sil` at `+0x1D4`, which message to show; `movzx eax, sil` at
+`+0x22C`, the return value). Read's callers test that result: the one at
+`0x945D97` does `test al, al` and, when set, calls the player's vfunc `0x56`
+(`TESObjectREFR::RemoveItem`) with count 1 on the same PlayerCharacter
+singleton that `+0x11D` loads (`0x3230778` in both). Read returning false means
+the book is not removed.
 
 ---
 
@@ -262,8 +298,10 @@ reference only.
 
 | File | Purpose |
 |------|---------|
-| `plugin/src/SpellTomeHook.h` | Hook class, settings struct, API |
-| `plugin/src/SpellTomeHook.cpp` | Pattern scan, Xbyak patch, callback logic |
+| `plugins/spelllearning/include/SpellTomeHook.h` | Hook class, settings struct, API |
+| `plugins/spelllearning/include/SpellTomeHookSites.h` | Offsets per runtime and the site checks (`CheckSite`), the in-game-tested list (`kInGameTestedAE`) and the decision (`Decide`), with the 1.7.104 measurement; no game types, so an offline check compiles it |
+| `plugins/spelllearning/src/SpellTomeHook.cpp` | Site check and its log, Xbyak patch, callback logic |
+| `plugins/spelllearning/src/SpellTomeHookInventory.cpp` | Tome inventory cache for the carried-tome XP boost |
 
 ## Credits
 

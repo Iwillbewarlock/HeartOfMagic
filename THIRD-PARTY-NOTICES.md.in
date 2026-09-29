@@ -1,0 +1,43 @@
+# Third-party notices - Heart of Magic Librarian @PROJECT_VERSION@
+
+## Licenses
+
+- **The plugin DLLs are a GPL-3.0-or-later combined work.** `SKSE/Plugins/SpellLearning.dll`,
+  `SKSE/Plugins/SL_BookXP.dll` and `optional/ISLPatch/SKSE/Plugins/DontEatSpellTomes.dll` statically link
+  **CommonLibSSE-NG 10.0.0**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
+  **GPL-3.0 Linking Exception**. The DLLs are distributed under those terms:
+  `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md`
+  (the two exceptions).
+- **Heart of Magic Librarian's own source files are MIT** (`LICENSE` next to this file): the C++ in the
+  repository's `plugins/` (except the `external/` submodule), the Papyrus scripts, the PrismaUI panel and
+  the runtime data. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
+
+## Corresponding Source
+
+The complete Corresponding Source for the DLLs is public at
+<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `v@PROJECT_VERSION@` (the tag of this release).
+CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
+(<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
+fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
+`BuildRelease.ps1` (see the repository's README and CLAUDE.md).
+
+## Libraries in the DLLs
+
+Linked statically or compiled in from headers (vcpkg triplet `x64-windows-static`). Their license
+texts are in `licenses/`.
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | 10.0.0 | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code by Ryan-rsm-McKenzie that CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+| {fmt} | 12.1.0 | MIT | `licenses/fmt.txt` |
+| spdlog | 1.17.0 | MIT | `licenses/spdlog.txt` |
+| JSON for Modern C++ (nlohmann-json) | 3.12.0 | MIT | `licenses/nlohmann-json.txt` |
+| rapidcsv | 8.90 | BSD-3-Clause | `licenses/rapidcsv.txt` |
+| Xbyak | 7.28 | BSD-3-Clause | `licenses/xbyak.txt` |
+| DirectXMath | 2025-04-03 | MIT | `licenses/directxmath.txt` |
+| DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
+| RapidFuzz (rapidfuzz-cpp) | 3.3.3 | MIT | `licenses/rapidfuzz-cpp.txt` |
+| Highway | 1.3.0 | Apache-2.0 | `licenses/highway.txt` |
+
+The Microsoft C/C++ runtime is linked statically under the Visual Studio redistribution terms.
