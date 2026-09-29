@@ -1,11 +1,21 @@
 # Changelog
 
-## Heart of Magic Librarian 1.0.2
+## Heart of Magic Librarian 1.1.0
+
+Skyrim AE 1.7 support, and the fixes that were ready as 1.0.2 (never released on its own).
+
+### New
+
+- Support for Skyrim AE 1.7.99 and 1.7.104. One set of DLLs now runs on SE 1.5.97, AE 1.6.x and AE 1.7.x;
+  on 1.7 use the Address Library version that includes it. The spell tome hook (reading a tome gives XP
+  and keeps the book) was checked against the 1.7.104 game files but not yet tested in game. On a game
+  build whose code does not match what was measured, the hook stays out and tomes work the vanilla way (reading teaches the
+  spell and uses up the book); the log says so.
+
+### Fixed
 
 The same kind of bug as the 1.0.1 scan fix: text Windows keeps in the old code page stopped a feature
 without a word.
-
-### Fixed
 
 - Reading a spell tome now starts learning for spells whose name has letters outside plain English:
   "Heilende Hände", "Éclair", any Russian name. The tome set the learning target, then the rest was
@@ -32,6 +42,15 @@ without a word.
   `SetLearningTarget`, `ClearLearningTarget`, `RegisterXPSource`) catch an error inside Heart of Magic, log
   it and answer 0, false or nothing, instead of letting it into the calling plugin. The read-only calls are
   unchanged.
+
+### License
+
+- The DLLs now statically link CommonLibSSE-NG, which is GPL-3.0-or-later (with its Modding and Linking
+  exceptions), so they are distributed as a GPL-3.0-or-later combined work.
+- Heart of Magic's own source stays MIT.
+- The license texts and `THIRD-PARTY-NOTICES.md` (every library in the DLLs and its license) are in the
+  download.
+- The complete source is on GitHub: github.com/Iwillbewarlock/HeartOfMagic, tag `v1.1.0`.
 
 ## Heart of Magic Librarian 1.0.1
 

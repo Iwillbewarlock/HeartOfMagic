@@ -169,7 +169,7 @@ removes nothing; a delete removes that file, or, only when it is missing and the
 every file whose `name` inside matches (an older build's garbled file name). It reads each file into memory and
 closes it before `remove()`: MSVC opens a stream without `FILE_SHARE_DELETE`, so removing a file still open throws.
 
-**Game text that is not UTF-8 (1.0.2).** The game hands out names, editor ids and plugin file names in the
+**Game text that is not UTF-8 (1.1.0).** The game hands out names, editor ids and plugin file names in the
 system's ANSI code page (Windows-1252 on a German or French game, 1251 on a Russian one, CP949 on a Korean one).
 `nlohmann::json::dump()` throws `type_error.316` on such bytes, and whatever was being sent stopped. Two layers:
 
