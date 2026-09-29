@@ -111,7 +111,9 @@ A file is named after its preset. Only characters Windows forbids in file names 
 `PathText::FromUtf8`). Builds before that wrote a non-ASCII name through the Windows code page, so such a preset
 may sit under a garbled file name. It still lists by the `name` inside it, and deleting or renaming it finds it
 the same way: when no file carries the name, the folder is searched for the preset's `name`. Saving a preset
-also removes another copy of it under a different file name. A folder listing skips a file it cannot read or
+also removes another file whose `name` inside is the same, once the new file is written; the file it wrote (in
+whatever case the disk keeps it, `DEFAULT.json` for "Default") and any file named after the preset in another
+case are never removed. A folder listing skips a file it cannot read or
 name, it does not stop there.
 
 ## Sharing Presets
