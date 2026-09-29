@@ -2,6 +2,10 @@
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 
+#include <algorithm>
+#include <string_view>
+#include <utility>
+
 namespace SpellScanner
 {
     // =============================================================================
@@ -193,35 +197,97 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
         return "Master";
     }
 
+    // =============================================================================
+    // HALF-COST PERK TIERS
+    // =============================================================================
+    //
+    // A spell's half-cost perk says its tier outright, but the engine keeps no
+    // editor id for perks: GetFormEditorID() is empty for every BGSPerk, so the
+    // name patterns below never saw one and every spell fell back to its first
+    // effect's minimum skill (a Master spell whose effect says 0 became Novice).
+    // The 25 vanilla perks are known by FormID instead. Skyrim.esm is always load
+    // index 0x00, so their runtime FormIDs are these values. Perk overhauls edit
+    // these records in place, so the FormIDs hold with Adamant, Ordinator and the
+    // rest; a spell with a mod's own half-cost perk falls through to the name.
+
+    namespace
+    {
+        struct HalfCostPerkTier
+        {
+            RE::FormID formId;
+            const char* tier;
+        };
+
+        // AlterationNovice00, AlterationApprentice25 ... RestorationMaster100
+        constexpr HalfCostPerkTier kVanillaHalfCostPerks[] = {
+            { 0x000F2CA6, "Novice" }, { 0x000C44B7, "Apprentice" }, { 0x000C44B8, "Adept" },
+            { 0x000C44B9, "Expert" }, { 0x000C44BA, "Master" },                                 // Alteration
+            { 0x000F2CA7, "Novice" }, { 0x000C44BB, "Apprentice" }, { 0x000C44BC, "Adept" },
+            { 0x000C44BD, "Expert" }, { 0x000C44BE, "Master" },                                 // Conjuration
+            { 0x000F2CA8, "Novice" }, { 0x000C44BF, "Apprentice" }, { 0x000C44C0, "Adept" },
+            { 0x000C44C1, "Expert" }, { 0x000C44C2, "Master" },                                 // Destruction
+            { 0x000F2CA9, "Novice" }, { 0x000C44C3, "Apprentice" }, { 0x000C44C4, "Adept" },
+            { 0x000C44C5, "Expert" }, { 0x000C44C6, "Master" },                                 // Illusion
+            { 0x000F2CAA, "Novice" }, { 0x000C44C7, "Apprentice" }, { 0x000C44C8, "Adept" },
+            { 0x000C44C9, "Expert" }, { 0x000C44CA, "Master" },                                 // Restoration
+        };
+
+        const char* VanillaHalfCostPerkTier(RE::FormID formId)
+        {
+            for (const auto& entry : kVanillaHalfCostPerks) {
+                if (entry.formId == formId) return entry.tier;
+            }
+            return nullptr;
+        }
+    }
+
     std::string GetSkillLevelFromPerk(RE::BGSPerk* perk)
     {
         if (!perk) return "";
 
-        const char* editorId = perk->GetFormEditorID();
-        if (!editorId || strlen(editorId) == 0) return "";
+        if (const char* vanillaTier = VanillaHalfCostPerkTier(perk->GetFormID())) {
+            return vanillaTier;
+        }
 
-        std::string id(editorId);
+        // A mod's own perk: its name, when po3 Tweaks keeps editor ids
+        const std::string id = GetEditorId(perk);
+        if (id.empty()) return "";
+
         std::string lower = id;
         std::transform(lower.begin(), lower.end(), lower.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-        // Check for tier keywords in perk editor ID
-        // Vanilla pattern: {School}{Tier}{Number} e.g., DestructionMaster100
-        // Check Master first (most important to not misclassify)
-        if (lower.find("master") != std::string::npos) return "Master";
-        if (lower.find("expert") != std::string::npos) return "Expert";
-        if (lower.find("adept") != std::string::npos) return "Adept";
-        if (lower.find("apprentice") != std::string::npos) return "Apprentice";
-        if (lower.find("novice") != std::string::npos) return "Novice";
+        // The vanilla pattern is {School}{Tier}{Number}, e.g. DestructionMaster100,
+        // so only the END of the name counts: a tier word followed by nothing but
+        // digits. A word elsewhere in the name ("SpellmasterAdeptness") says
+        // nothing about the tier.
+        const std::size_t digitsStart = lower.find_last_not_of("0123456789") + 1;
+        const std::string_view stem = std::string_view(lower).substr(0, digitsStart);
+        const std::string_view digits = std::string_view(lower).substr(digitsStart);
 
-        // Fallback: check numeric suffix (00, 25, 50, 75, 100)
-        if (id.length() >= 3 && id.substr(id.length() - 3) == "100") return "Master";
-        if (id.length() >= 2) {
-            std::string suffix = id.substr(id.length() - 2);
-            if (suffix == "75") return "Expert";
-            if (suffix == "50") return "Adept";
-            if (suffix == "25") return "Apprentice";
-            if (suffix == "00") return "Novice";
+        static constexpr std::pair<std::string_view, const char*> kTierWords[] = {
+            { "master", "Master" }, { "expert", "Expert" }, { "adept", "Adept" },
+            { "apprentice", "Apprentice" }, { "novice", "Novice" },
+        };
+        for (const auto& [word, tier] : kTierWords) {
+            if (stem.ends_with(word)) return tier;
+        }
+
+        // No tier word: the vanilla skill numbers, but only straight after a
+        // school name ("Destruction75"), not any id ending in 00
+        static constexpr std::string_view kSchoolWords[] = {
+            "alteration", "conjuration", "destruction", "illusion", "restoration",
+        };
+        static constexpr std::pair<std::string_view, const char*> kTierNumbers[] = {
+            { "00", "Novice" }, { "25", "Apprentice" }, { "50", "Adept" },
+            { "75", "Expert" }, { "100", "Master" },
+        };
+        const bool afterSchool = std::ranges::any_of(kSchoolWords,
+            [&](std::string_view school) { return stem.ends_with(school); });
+        if (afterSchool) {
+            for (const auto& [number, tier] : kTierNumbers) {
+                if (digits == number) return tier;
+            }
         }
 
         return "";  // Unknown perk, caller should fall back to minimumSkill
@@ -231,7 +297,7 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
     {
         if (!spell) return "Novice";
 
-        // First: try the half-cost perk (most reliable for modded spells)
+        // First: the half-cost perk (vanilla perks by FormID, a mod's own by name)
         // CommonLib calls this castingPerk, but it's the HalfCostPerk field in the SPEL record
         if (spell->data.castingPerk) {
             std::string perkTier = GetSkillLevelFromPerk(spell->data.castingPerk);

@@ -79,6 +79,22 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
 
+**Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
+the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
+read the perk's name with `GetFormEditorID()`, which the engine leaves empty for perks, so every spell was
+tiered by minimum skill, and a Master spell whose effect says 0 was Novice (Bane of the Undead, Summon
+Ancient One; on the author's load order 276 of the 2290 spells with a vanilla half-cost perk got a tier
+other than the perk's, most of them lower). The 25 vanilla half-cost perks (`AlterationNovice00` ...
+`RestorationMaster100`) are now known by FormID - Skyrim.esm is always load index 0, and perk overhauls
+edit these records in place - and a mod's own perk is read by name through `GetEditorId` (po3 Tweaks):
+only the end of the name counts, a tier word followed by digits or nothing (`...Master100`) or a school followed by
+00/25/50/75/100, so a word elsewhere in a name ("SpellmasterAdeptness") or an id merely ending in 00 is not
+taken for a tier. Then minimum skill as before. The tier feeds the scan's `skillLevel`, the tree's depth,
+the tier XP (`ProgressionManagerXP`) and passive learning's caps, so all of them follow the perk after a
+rescan and rebuild; until the tree is rebuilt the panel's `node.level` (and the XP `RequiredXPSync` sends
+for a learning target) keeps the old tier. A spell without a half-cost perk still falls back to minimum
+skill.
+
 **Field Config and the MGEF Structure Fields:**
 
 `FieldConfig` decides which optional fields a scan emits. The panel scans with its

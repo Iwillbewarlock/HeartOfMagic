@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
+  it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
+  tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the
+  author's load order 276 spells change tier (30 Master spells were Novice). The tier sets the spell's
+  place in the tree and the XP it needs, so scan and rebuild the tree after updating: until then the panel
+  still shows the old tier and sends that tier's XP for a learning target. After the rebuild, a spell
+  already being learned keeps its percentage (a save stores progress as a percentage) and the XP left
+  follows its new tier, unless you set that spell's XP yourself. Passive learning's per-tier caps follow
+  the new tier at once. A mod's own tier perk is now read only from the end of its name (a tier word,
+  or a school followed by 00/25/50/75/100) and needs po3 Tweaks.
+
 ## Heart of Magic Librarian 1.1.0
 
 Skyrim AE 1.7 support, and the fixes that were ready as 1.0.2 (never released on its own).

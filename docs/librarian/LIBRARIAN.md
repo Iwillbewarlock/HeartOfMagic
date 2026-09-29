@@ -191,7 +191,7 @@ Firebolt · Flames · Fear · Ice Spike 로 실측했고 초기 추측이 틀렸
 |---|---:|---|
 | school | 97.1% | |
 | casting | 95.2% | |
-| tier | 78.8% | HoM 의 티어 판정(하프코스트 퍽·minimumSkill)과 SR 라벨은 **정의가 다르다.** 불일치 22건이 양방향으로 흩어져 있어 도출 버그가 아니다 |
+| tier | 78.8% | HoM 의 티어 판정(하프코스트 퍽·minimumSkill)과 SR 라벨은 **정의가 다르다.** 불일치 22건이 양방향으로 흩어져 있다. **2026-09-30 이전 빌드에서 잰 값이다:** 그때는 하프코스트 퍽 단계가 한 번도 돌지 않고 전부 minimumSkill 로 정해졌다(`docs/ARCHITECTURE.md` 의 "Spell tier from the half-cost perk"). 수정 후 다시 재야 한다 |
 | targeting | 66.3% | 다중 라벨이라 완전일치 기준이 엄격하다 |
 
 **targeting 을 올리려다 실패한 기록**: 클록에 `actor`(주변을 태우니까), 클록·해저드에 `aoe`
