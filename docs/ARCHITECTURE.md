@@ -1185,6 +1185,7 @@ HeartOfMagic/
 │   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
 │   │   │   │   └── TreeNLP.h                ✅ Core NLP header
 │   │   │   └── uimanager/
+│   │   │       ├── PresetFiles.h            ✅ Preset file write/delete (no game types; closes a file before removing it)
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers
 │   │   └── src/

@@ -106,15 +106,23 @@ Under MO2, these may be in the **Overwrite** folder:
 MO2/overwrite/SKSE/Plugins/SpellLearning/presets/...
 ```
 
-A file is named after its preset. Only characters Windows forbids in file names (`/ \ : * ? " < > |`) become
-`_`; other letters stay, Korean or Chinese included (the name goes to the file system as UTF-8,
-`PathText::FromUtf8`). Builds before that wrote a non-ASCII name through the Windows code page, so such a preset
-may sit under a garbled file name. It still lists by the `name` inside it. Deleting or renaming it (delete, then
-save) finds it the same way, a fallback for non-ASCII names from older builds only: when no file carries the
-name and the name has a non-ASCII letter, every file in the folder whose `name` inside is that name is removed.
-An ASCII name was never garbled, so a file that only carries it inside (an add-on's `AddonFire.json` named
-"Fire") is never touched. Saving writes the preset's own file and removes nothing. A folder listing skips a file
-it cannot read or name, it does not stop there.
+A file is named after its preset (`SanitizeFilename`: characters Windows forbids in file names and control
+characters become `_`, trailing dots and spaces are cut, reserved device names such as `CON` get a `_` in front).
+Other letters stay, Korean or Chinese included (the name goes to the file system as UTF-8, `PathText::FromUtf8`).
+Builds before that wrote a non-ASCII name through the Windows code page, so such a preset may sit under a garbled
+file name. It still lists by the `name` inside it.
+
+Deleting a preset removes the file named after it. Only when no file is named after it and the name has a
+non-ASCII letter does a fallback look for the old garbled file: every `.json` file in that type's folder whose
+`name` inside is exactly that name is removed. That fallback also removes an add-on's file with that non-ASCII
+name (the player asked to delete that preset), while an add-on file with an ASCII `name` under a different file
+name (`AddonFire.json` named "Fire") is never touched, since ASCII names were never garbled. Saving writes the
+preset's own file and removes nothing.
+
+Known limits: if a garbled old file and a new file of the same non-ASCII name both exist (the preset was saved
+again with this build before being deleted), one delete removes only the new file and the preset shows again;
+deleting it a second time removes the old one. A folder listing skips a file it cannot read or name, but if the
+folder walk itself fails the whole list for that type comes back empty.
 
 ## Sharing Presets
 

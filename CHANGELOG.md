@@ -87,8 +87,8 @@ Still no ESP, no Python, no API key.
   UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>" (a failed background tome scan only puts the scan message back and is logged; the tome list from an earlier scan stays in use).
 - Presets (settings and scanner) with a non-English name (Korean, for example) are saved, listed and deleted
   under their own name. An English Windows usually garbled the file name, and a DBCS code page could make the
-  save fail without a word. Presets with a non-English name saved by older builds under a garbled name are still found when you delete
-  or rename them.
+  save fail without a word. Deleting a preset with a non-English name also finds the file an older build saved
+  under a garbled name (if that preset was saved again with this build first, delete it twice).
 - The spell card's Magicka cost is a whole number (it showed the game's raw decimal).
 - A spell listed as its own prerequisite in a saved or hand-edited tree no longer locks it for good.
 
