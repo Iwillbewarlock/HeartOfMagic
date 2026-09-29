@@ -54,7 +54,7 @@ The idea is Dinkel Zombie's. Librarian keeps it and rebuilds everything around i
 [/list]
 
 [size=4][b]Scanning and tagging, built for patches[/b][/size]
-In 2.5 the scan only gathered spells and the tree grouped them by name. In Librarian every scan also runs the [b]Librarian[/b], which gives each spell a set of tags and writes them to [i]spell_catalog.json[/i]:
+In 2.5 the scan only gathered spells and the tree grouped them by name. In Librarian every scan also runs the [b]Librarian[/b], which gives each spell a set of tags and writes them to [i]spell_catalog.json[/i]. The tags are chosen from the game's own data - what the spell and its magic effects actually are in your game - not from spell names or a fixed list:
 [list]
 [*][b]Four axes read from the records:[/b] school, tier, casting type and targeting.
 [*][b]Elements and techniques from rules:[/b] fire, frost, shock, poison, arcane, blood, water, air, earth, holy, shadow... and summoning, siphon, curse, cloak, dispel... A rule reads what every load order has - magic effect keywords, archetypes, actor values, resistances - so no spell mod needs its own patch.
