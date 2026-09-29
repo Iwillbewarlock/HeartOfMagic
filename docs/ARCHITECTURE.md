@@ -126,7 +126,11 @@ button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan sta
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. A tome scan (`tomes`: the
 automatic one after a full scan, the tome toggle) runs behind a good "Scanned N spells" message and disables
-nothing, so its failure is only a console warning and the status bar stays as it was. An older plain
+nothing, but C++ has written "Scanning spell tomes..." over the bar, so its failure logs a console warning,
+puts the keyed scanned message back (`restoreScannedStatus`, also used when the tome reply arrives) and sets
+`state.tomedSpellIds` to null: with no list, the tome filter is off for the primed count and the next build
+(`getPrimedSpells`, `classic/classicBuildRequest.js`) rather than filtering by a stale list. The failure is not
+shown to the player, only logged. An older plain
 JSON-string payload is read as a full scan's reason.
 
 `archetype` and the actor value fields are always names, never raw numbers -

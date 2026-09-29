@@ -38,6 +38,22 @@ function relabelScanStatus() {
     if (s && typeof t === 'function') updateScanStatus(t(s.key, s.params), s.type, s.key, s.params);
 }
 
+/**
+ * The bar's "N spells scanned across M schools" for the spells the panel holds.
+ * C++ writes "Scanning spell tomes..." over it for the background tome scan (a
+ * keyless message, which also drops the key), so the tome scan's end - its
+ * reply or its failure - puts this back. Keyed, so a language switch says it
+ * again in the new language. Nothing to say without scan data: the bar stays.
+ */
+function restoreScannedStatus() {
+    var data = state.lastSpellData;
+    if (!data || !data.spellCount) return;
+    var schoolSet = {};
+    if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
+    var params = { count: data.spellCount, schools: Object.keys(schoolSet).length };
+    updateScanStatus(t('status.scannedSpellsSchools', params), 'success', 'status.scannedSpellsSchools', params);
+}
+
 /** The Scan button after a scan: enabled, with its own label. */
 function restoreScanButton() {
     var scanBtn = document.getElementById('scanBtn');
@@ -55,8 +71,11 @@ function restoreScanButton() {
  * "Scanning..." with no word of what happened (the log has the full reason).
  * A full scan also ends edit mode's "Scanning game spells..." wait. A tome
  * scan runs on its own behind a good "Scanned N spells" (after a scan, when
- * the tome toggle is switched): it only logs, so the status bar and that
- * message stay; it disables nothing, so there is nothing to give back.
+ * the tome toggle is switched). C++ has put "Scanning spell tomes..." in the
+ * bar, so a failure logs, puts the scanned message back (restoreScannedStatus)
+ * and drops the tomed-spell list: with none, the tome filter is off for the
+ * primed count and the next build instead of using a stale list. It disables
+ * nothing, so there is no button to give back.
  * @param {string|Object} message
  */
 window.onScanFailed = function(message) {
@@ -72,7 +91,10 @@ window.onScanFailed = function(message) {
     }
     reason = String(reason === undefined || reason === null ? '' : reason);
     if (mode === 'tomes') {
-        console.warn('[SpellLearning] The tome scan failed: ' + reason);
+        console.warn('[SpellLearning] The tome scan failed, the tome filter is off: ' + reason);
+        state.tomedSpellIds = null;
+        if (typeof updatePrimedCount === 'function') updatePrimedCount();
+        restoreScannedStatus();
         return;
     }
     restoreScanButton();

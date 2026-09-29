@@ -11,8 +11,8 @@
  * the spell card's Magicka as the node takes it (TreeParser.updateNodeFromCache).
  *
  * Depends on: treeGrowthStatus.js (TreeGrowthStatus), easyMode.js
- * (_syncEasyStatus), uiHelpers.js (updateScanStatus, relabelScanStatus) and
- * treeParser.js (TreeParser) - under node this file runs those three into the
+ * (_syncEasyStatus), uiHelpers.js (updateScanStatus, relabelScanStatus), cppCallbacks.js
+ * (updateStatus) and treeParser.js (TreeParser) - under node this file runs those into the
  * global scope the way the page's script tags do. Swaps the globals
  * `document`, `t` and `SpellCache` for its own while it runs.
  */
@@ -36,6 +36,7 @@ var StatusLineTest = {
             'buildProgress.statusApplied': 'Tree applied ({{count}} positioned)',
             'status.treeBuildComplete': 'Tree built ({{schools}} schools, {{spells}} spells)',
             'status.scanFailed': 'Scan failed: {{error}}',
+            'status.scannedSpellsSchools': '{{count}} spells scanned across {{schools}} schools',
             'buttons.scanSpells': 'Scan Spells'
         },
         ko: {
@@ -46,6 +47,7 @@ var StatusLineTest = {
             'buildProgress.statusApplied': '트리 적용됨 ({{count}}개 배치)',
             'status.treeBuildComplete': '트리 구축 완료 ({{schools}}개 학파, {{spells}}개 주문)',
             'status.scanFailed': '스캔 실패: {{error}}',
+            'status.scannedSpellsSchools': '{{schools}}개 학파에서 {{count}}개 주문 스캔됨',
             'buttons.scanSpells': '주문 스캔'
         }
     },
@@ -93,7 +95,7 @@ var StatusLineTest = {
     _load: function(g) {
         if (typeof require !== 'function') return;
         var vm = require('vm'), fs = require('fs'), path = require('path');
-        var files = [['easyMode.js', '_syncEasyStatus'], ['uiHelpers.js', 'relabelScanStatus'], ['treeParser.js', 'TreeParser']];
+        var files = [['easyMode.js', '_syncEasyStatus'], ['uiHelpers.js', 'relabelScanStatus'], ['treeParser.js', 'TreeParser'], ['cppCallbacks.js', 'updateStatus']];
         for (var i = 0; i < files.length; i++) {
             if (typeof g[files[i][1]] !== 'undefined') continue;
             var file = path.join(__dirname, files[i][0]);
@@ -117,7 +119,7 @@ var StatusLineTest = {
         g.t = function(key, params) {
             var s = self.STRINGS[lang][key];
             if (s === undefined) return key;
-            for (var p in (params || {})) s = s.replace(new RegExp('\\{\\{' + p + '\\}\\}', 'g'), params[p]);
+            for (var p in (params || {})) s = s.replace(new RegExp('\\{\\{' + p + '\\}\\}', 'g'), function() { return String(params[p]); });
             return s;
         };
         // What a switch does to the two wraps: applyI18nToDOM sets their innerHTML
@@ -213,18 +215,43 @@ var StatusLineTest = {
         var text = '스캔 폴더 화염.ini <b>x</b>';
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: text }));
         this.check(bar.textContent === 'Scan failed: ' + text, 'onScanFailed: Korean text and "<b>x</b>" held literally in textContent');
-        // A tome scan leaves the good message, the bar and the button alone
-        g.updateScanStatus('Scanned 1428 spells', 'success', 'status.treeBuildComplete', { schools: 1, spells: 1428 });
-        var before = bar.textContent, beforeClass = page.byId.scanStatusBar.className;
-        btn.disabled = true; btn.innerHTML = 'Scanning...';
-        wait.textContent = 'Scanning game spells...';
-        var warn = console.warn, warned = 0;
-        console.warn = function() { warned++; };
-        try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
-        this.check(bar.textContent === before && page.byId.scanStatusBar.className === beforeClass &&
-            wait.textContent === 'Scanning game spells...' && warned === 1,
-            'onScanFailed (tomes): only a console warning, the status bar and the wait line stay');
-        this.check(btn.disabled === true, 'onScanFailed (tomes): nothing is re-enabled (a tome scan disables nothing)');
+        // $ patterns in a reason reach the bar as written (the fake t() uses a replacer function too)
+        g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'cost $& of $1 and $$' }));
+        this.check(bar.textContent === 'Scan failed: cost $& of $1 and $$', 'onScanFailed: a reason with $ patterns, end to end');
+        // A tome scan, in the real order: the good message, C++'s keyless "Scanning spell tomes...",
+        // then the failure. The good message and its colour come back, keyed; the stale tome list is dropped
+        var oldState = g.state;
+        g.state = { lastSpellData: { spellCount: 1428, spells: [{ school: 'Destruction' }, { school: 'Illusion' }, { school: 'Destruction' }] },
+            tomedSpellIds: { '0x1': true } };
+        var cur = 'en';
+        var scanned = function() { return cur === 'ko' ? '2개 학파에서 1428개 주문 스캔됨' : '1428 spells scanned across 2 schools'; };
+        try {
+            g.updateScanStatus(g.t('status.scannedSpellsSchools', { count: 1428, schools: 2 }), 'success',
+                'status.scannedSpellsSchools', { count: 1428, schools: 2 });
+            var goodClass = page.byId.scanStatusBar.className;
+            g.updateStatus('"Scanning spell tomes..."');
+            this.check(bar.textContent === 'Scanning spell tomes...', 'the tome scan starts: C++ writes its keyless line over the bar');
+            btn.disabled = true; btn.innerHTML = 'Scanning...';
+            wait.textContent = 'Scanning game spells...';
+            var warn = console.warn, warned = 0;
+            console.warn = function() { warned++; };
+            try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
+            this.check(bar.textContent === scanned() && page.byId.scanStatusBar.className === goodClass,
+                'onScanFailed (tomes): the scanned message and its colour are back');
+            this.check(warned === 1 && wait.textContent === 'Scanning game spells...' && btn.disabled === true,
+                'onScanFailed (tomes): a console warning; the wait line and the button (a tome scan disables nothing) stay');
+            this.check(g.state.tomedSpellIds === null, 'onScanFailed (tomes): the stale tomed-spell list is dropped (the tome filter is off)');
+            setLang('ko'); cur = 'ko'; g.relabelScanStatus();
+            this.check(bar.textContent === scanned(), 'onScanFailed (tomes): the restored message follows a language switch');
+            setLang('en'); cur = 'en';
+            g.state.lastSpellData = null;
+            g.updateStatus('"Scanning spell tomes..."');
+            console.warn = function() {};
+            try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
+            this.check(bar.textContent === 'Scanning spell tomes...', 'onScanFailed (tomes): with no scan data the bar is left as it is');
+        } finally {
+            g.state = oldState;
+        }
         btn.disabled = false;
         this._checkParamDollar();
         setLang('en');

@@ -200,7 +200,7 @@ node run-tests.js
 | `modules/canvasCullTest.js` | The tree renderer's culling index (the spells and lines a strip or piece of the tree layer looks at are exactly those the full loop draws, in the same order) |
 | `modules/layerFlowTest.js` | How a frame gets its tree layer: LayerScroll's shift and piece queue, and `_drawTree`'s order (scroll, build over frames, draw at once, stale builds dropped, glide builds, the restart cap, the urgent build), a new font's widths and letters made before the names |
 | `modules/pageBuildTest.js` | The design page painted over frames (`TreeStyle.stepPage`): step order, bands, what stands in meanwhile, look changes, the idle timer |
-| `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar; tome scan: log only), and the spell card's rounded Magicka cost |
+| `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar; tome scan: scanned message back, tome list dropped, logged), and the spell card's rounded Magicka cost |
 | `modules/spellNamesTest.js` | Names in the spell card's lists (a shared name gets its plugin, a unique one does not, hidden names `???` with no plugin, SpellCache plugin before persistentId, counts after a new tree or invalidate) and TreeParser dropping self links |
 | `test-runner.html` | Browser-based test runner |
 

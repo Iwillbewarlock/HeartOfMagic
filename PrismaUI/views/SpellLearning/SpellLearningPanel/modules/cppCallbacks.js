@@ -170,14 +170,7 @@ window.updateSpellData = function(jsonStr) {
             }
             if (typeof updatePrimedCount === 'function') updatePrimedCount();
             // Restore scan status after background tome scan (C++ overwrites with "Scanning spell tomes...")
-            if (state.lastSpellData && state.lastSpellData.spellCount) {
-                var schoolSet = {};
-                if (state.lastSpellData.spells) state.lastSpellData.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
-                if (typeof updateScanStatus === 'function') {
-                    var ssParams = {count: state.lastSpellData.spellCount, schools: Object.keys(schoolSet).length};
-                    updateScanStatus(t('status.scannedSpellsSchools', ssParams), 'success', 'status.scannedSpellsSchools', ssParams);
-                }
-            }
+            restoreScannedStatus();
             return;
         }
     } catch (e) {
