@@ -12,9 +12,9 @@ Skyrim AE 1.7 support, and the fixes that were ready as 1.0.2 (never released on
 - The spell tome hook (reading a tome gives XP and keeps the book) checks more of the game code before it
   patches. When a check fails, the hook stays out and tomes work the vanilla way (reading teaches the spell
   and uses up the book); the log says which check failed.
-  - SE 1.5.97, AE 1.6.318 and 1.6.1170 (tested in game): as before. A mismatch in the new checks only logs a
-    warning - unless another mod has already hooked the same call, in which case the hook stays out instead
-    of removing that mod's hook.
+  - SE 1.5.97, AE 1.6.318 and 1.6.1170 (tested in game): as before (on AE a mismatch in the new checks only
+    logs a warning) - unless another mod has already hooked the same call, in which case the hook stays out
+    instead of removing that mod's hook.
   - AE 1.7.104: measured against the game files offline. AE 1.7.99: not measured; the hook goes in only if
     every check passes.
   - Other AE 1.6.x builds: the stricter checks may keep the hook out where 1.0.1 put it in.
@@ -38,8 +38,8 @@ without a word.
   which stays as it is. Only when that backup is missing or broken too is a fresh `config.json` made with the
   defaults, and saves in that session no longer replace `config.json.bak`. A `config.json` that cannot be
   opened at all (held by an antivirus or a sync tool) is left alone: the defaults apply for that session,
-  settings changed in the panel are not saved until the file can be read again (the panel's status bar says
-  so), your panel language is kept, and the file is read again the next time the settings load. A setting of
+  settings changed in the panel apply but are not written to the file (the panel's status bar says so), your
+  panel language is kept, and the file is read again at the next game start. A setting of
   the wrong type (a hotkey written as text) now falls back to its default instead of skipping every setting
   after it.
 - The game no longer fails at startup because of Heart of Magic, SL_BookXP or the DEST shim when the

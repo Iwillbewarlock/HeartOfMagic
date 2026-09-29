@@ -89,12 +89,13 @@ namespace
         ApplySettingsFromConfig(config);
     }
 
-    // Worker thread: the panel is told on the game thread (CallView) that nothing was written
+    // Worker thread: the panel is told on the game thread (CallView) that nothing was written.
+    // No "saved" in the text: cppCallbacks.js updateStatus would show it as a success
     void ReportConfigNotSaved()
     {
         AddTaskToGameThread("ReportConfigNotSaved", []() {
             UIManager::GetSingleton()->UpdateStatus(
-                "Error: config.json could not be read - settings were NOT saved (see SpellLearning.log)");
+                "Error: config.json could not be read - changes are NOT written to it (see SpellLearning.log)");
         });
     }
 
@@ -107,56 +108,63 @@ namespace
             nlohmann::json newConfig = nlohmann::json::parse(configData);
             nlohmann::json merged;
             bool written = false;
+            bool blocked = false;
             {
                 std::lock_guard<std::mutex> fileLock(SaveQueue().fileMutex);
 
                 // The last load could not read the file (ConfigFile::SaveModeFor):
                 // what the panel sends is the defaults plus this session's changes,
-                // and merged over the file it would replace every setting in it
+                // and merged over the file it would replace every setting in it.
+                // Nothing is written, but the game still follows the panel below
                 const auto saveMode = UIManager::ConfigSaveMode();
-                if (saveMode == ConfigFile::SaveMode::Blocked) {
-                    logger::error("UIManager: {} was not read when the settings were loaded - settings were NOT "
-                                  "saved, the file is left as it is until a later load reads it", PathText::Utf8(path));
-                    ReportConfigNotSaved();
-                    return;
-                }
+                blocked = saveMode == ConfigFile::SaveMode::Blocked;
+                if (blocked) {
+                    merged = newConfig;
+                } else {
+                    std::filesystem::create_directories(path.parent_path());
 
-                std::filesystem::create_directories(path.parent_path());
-
-                // Load existing config to preserve any fields not in the update
-                if (std::filesystem::exists(path)) {
-                    try {
-                        std::ifstream existingFile(path);
-                        merged = nlohmann::json::parse(existingFile);
-                    } catch (const std::exception& e) {
-                        // The merge below would start from nothing and the write would
-                        // then replace every setting the player had with defaults.
-                        // Better to save nothing and say why.
-                        logger::error("UIManager: {} could not be read ({}) - settings were NOT saved, "
-                                      "so the file can be recovered by hand", PathText::Utf8(path), e.what());
-                        ReportConfigNotSaved();
-                        return;
+                    // Load existing config to preserve any fields not in the update
+                    if (std::filesystem::exists(path)) {
+                        try {
+                            std::ifstream existingFile(path);
+                            merged = nlohmann::json::parse(existingFile);
+                        } catch (const std::exception& e) {
+                            // The merge below would start from nothing and the write would
+                            // then replace every setting the player had with defaults.
+                            // Better to save nothing and say why.
+                            logger::error("UIManager: {} could not be read ({}) - settings were NOT written, "
+                                          "so the file can be recovered by hand", PathText::Utf8(path), e.what());
+                            ReportConfigNotSaved();
+                            return;
+                        }
                     }
+
+                    // Deep merge new config into existing (preserves nested keys)
+                    MergeJsonNonNull(merged, newConfig);
+
+                    // Write merged config through a temp file and a move, keeping one .bak -
+                    // except after defaults replaced a broken file with no good .bak to
+                    // restore: then the .bak there is older and better than this file
+                    const bool keepBackup = saveMode != ConfigFile::SaveMode::NoBackup;
+                    written = FileUtils::WriteAtomically(path, JsonText::Dump(merged, 2), keepBackup);
+                }
+            }
+
+            if (blocked) {
+                logger::error("UIManager: {} was not read when the settings were loaded - settings were NOT "
+                              "written (the file is left as it is until the next game start reads it) but "
+                              "apply for this session", PathText::Utf8(path));
+                ReportConfigNotSaved();
+            } else {
+                if (written) {
+                    logger::info("UIManager: Unified config saved to {}", PathText::Utf8(path));
+                } else {
+                    logger::error("UIManager: Failed to write unified config to {}", PathText::Utf8(path));
                 }
 
-                // Deep merge new config into existing (preserves nested keys)
-                MergeJsonNonNull(merged, newConfig);
-
-                // Write merged config through a temp file and a move, keeping one .bak -
-                // except after defaults replaced a broken file with no good .bak to
-                // restore: then the .bak there is older and better than this file
-                const bool keepBackup = saveMode != ConfigFile::SaveMode::NoBackup;
-                written = FileUtils::WriteAtomically(path, JsonText::Dump(merged, 2), keepBackup);
+                // The panel's language, for the page to read before it draws next time
+                WritePanelLocale(merged);
             }
-
-            if (written) {
-                logger::info("UIManager: Unified config saved to {}", PathText::Utf8(path));
-            } else {
-                logger::error("UIManager: Failed to write unified config to {}", PathText::Utf8(path));
-            }
-
-            // The panel's language, for the page to read before it draws next time
-            WritePanelLocale(merged);
 
             std::optional<std::uint32_t> hotkeyCode;
             if (newConfig.contains("hotkeyCode") && newConfig["hotkeyCode"].is_number()) {

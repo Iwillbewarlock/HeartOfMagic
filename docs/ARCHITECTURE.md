@@ -210,15 +210,17 @@ ACL), or a broken one that cannot be moved, is left untouched and the defaults h
 Every load also decides how the panel's saves treat the file until the next load (`ConfigFile::SaveModeFor`,
 kept in `UIManager::ConfigSaveMode`, set and read under the config file lock). `Blocked` after `Unreadable` or
 `BrokenKept`: the save worker writes nothing - the panel sends its whole config, the defaults plus the session's
-changes, and merged over the file it would replace every setting in it - logs it and puts "settings were NOT
-saved" in the scan status bar (`UIManager::UpdateStatus`, from the game thread); the load already put a
-message there. The save's own check stays behind it: a file that no longer parses at save time is not written
+changes, and merged over the file it would replace every setting in it - logs it and puts "changes are NOT
+written" in the scan status bar (`UIManager::UpdateStatus`, from the game thread); the load already put a
+message there. Neither text says "saved": `updateStatus` in cppCallbacks.js tests for "saved" before "Error"
+and would show them as a success. The save's own check stays behind it: a file that no longer parses at save time is not written
 either, with the same message. `NoBackup` after a `MovedAside` with only the defaults: saves write
 `config.json` with `keepBackup` false, so the last good `.bak` is not pushed out by a defaults-only file.
 `Normal` otherwise. Every load replaces the mode, so a block lasts until a load ends `Loaded`, `Missing` or
 `MovedAside`, and `NoBackup` until one ends `Loaded` (from then on the defaults-based file is the one kept as
-`.bak`). A blocked save applies nothing to the game either (`ApplySavedConfig` is skipped); only what the
-panel sends on its own call, such as `SetPauseGameOnFocus`, still takes effect.
+`.bak`). The panel only asks for its config when it starts, so in practice a block lasts until the next game
+start. A blocked save still applies the panel's config to the game (`ApplySavedConfig` with what the panel
+sent) - the player's changes work for the session, they are just not written - and skips `WritePanelLocale`.
 `hotkeyCode` and `pauseGameOnFocus` are read with `SafeJsonValue` (a wrong type falls back to the default
 from `GenerateDefaultConfig`) - a throw there used to skip every setting after it.
 

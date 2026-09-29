@@ -427,9 +427,10 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());
     instance->CallView("onUnifiedConfigLoaded", configStr.c_str());
     if (saveMode == ConfigFile::SaveMode::Blocked) {
-        // The scan status bar; "Error" gives it the error look (cppCallbacks.js updateStatus)
-        instance->UpdateStatus("Error: config.json could not be read - settings are the defaults and changes will NOT be "
-                               "saved this session (see SpellLearning.log)");
+        // The scan status bar; "Error" gives it the error look, but only with no
+        // "saved" in the text (cppCallbacks.js updateStatus tests that first)
+        instance->UpdateStatus("Error: config.json could not be read - settings are the defaults and changes are NOT "
+                               "written to it until the next game start (see SpellLearning.log)");
     }
 
     // Re-notify all registered external modded XP sources to the UI.
