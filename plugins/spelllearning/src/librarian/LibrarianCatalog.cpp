@@ -20,9 +20,9 @@ namespace Librarian
     {
         constexpr const char* CATALOG_FILE = "spell_catalog.json";
 
-        std::string CatalogPath()
+        std::filesystem::path CatalogPath()
         {
-            return PathText::Utf8(DataPath(CATALOG_FILE));
+            return DataPath(CATALOG_FILE);
         }
 
         std::string UtcTimestamp()
@@ -254,7 +254,7 @@ namespace Librarian
         // has already succeeded by the time this runs, and losing the dump
         // because the librarian tripped would be the worse outcome.
         try {
-            const RuleSet rules = LoadRules(PathText::Utf8(RulesPath()));
+            const RuleSet rules = LoadRules(RulesPath());
             if (rules.rules.empty()) {
                 logger::warn("Librarian: no rules loaded - skipping catalog");
                 return false;
@@ -284,18 +284,18 @@ namespace Librarian
             catalog = BuildCatalog(scanDump, rules, stats);
 
             std::filesystem::create_directories(DATA_DIR);
-            const std::string path = CatalogPath();
+            const std::filesystem::path path = CatalogPath();
 
             std::ofstream file(path);
             if (!file.is_open()) {
-                logger::error("Librarian: cannot open '{}' for writing", path);
+                logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(path));
                 return false;
             }
             file << catalog.dump(2);
             file.close();
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
-                path, stats.spells, stats.tagged, stats.skipped);
+                PathText::Utf8(path), stats.spells, stats.tagged, stats.skipped);
             return true;
         } catch (const std::exception& e) {
             logger::error("Librarian: catalog build failed - {}", e.what());

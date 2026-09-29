@@ -2,6 +2,7 @@
 
 #include "Common.h"
 
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <set>
@@ -168,7 +169,7 @@ namespace Librarian
     // Loads every *.json in a directory, merged in file name order so that
     // 00_mgef.json lands before 10_kit.json and 90_user.json comes last.
     // Missing directory is not an error - it yields an empty rule set.
-    RuleSet LoadRules(const std::string& directory);
+    RuleSet LoadRules(const std::filesystem::path& directory);
 
     // Parses one "match" object into conditions. Shared with the keyword patch,
     // whose adapter entries carry the same conditions.

@@ -255,13 +255,13 @@ namespace Librarian
         }
     }
 
-    RuleSet LoadRules(const std::string& directory)
+    RuleSet LoadRules(const std::filesystem::path& directory)
     {
         RuleSet ruleSet;
 
         std::error_code error;
         if (!std::filesystem::is_directory(directory, error)) {
-            logger::info("Librarian: no rule directory at '{}' - no rules loaded", directory);
+            logger::info("Librarian: no rule directory at '{}' - no rules loaded", PathText::Utf8(directory));
             return ruleSet;
         }
 

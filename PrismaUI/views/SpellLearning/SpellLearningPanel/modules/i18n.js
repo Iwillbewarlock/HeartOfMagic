@@ -108,6 +108,15 @@
     }
 
     /**
+     * {{name}} replaced by a value. The value goes in as written: a replacer function, so an
+     * error text with $&, $1 or $$ in it is not read as a replacement pattern.
+     */
+    function replaceParam(str, name, value) {
+        var text = String(value);
+        return str.replace(new RegExp('\\{\\{' + name + '\\}\\}', 'g'), function() { return text; });
+    }
+
+    /**
      * Look up a translation key with optional interpolation.
      * @param {string} key - Dot-notation key (e.g. "settings.devDebug.title")
      * @param {Object} [params] - Key-value pairs for {{variable}} replacement
@@ -125,7 +134,7 @@
         if (params) {
             for (var name in params) {
                 if (params.hasOwnProperty(name)) {
-                    str = str.replace(new RegExp('\\{\\{' + name + '\\}\\}', 'g'), params[name]);
+                    str = replaceParam(str, name, params[name]);
                 }
             }
         }
@@ -279,7 +288,7 @@
         if (params) {
             for (var name in params) {
                 if (params.hasOwnProperty(name)) {
-                    str = str.replace(new RegExp('\\{\\{' + name + '\\}\\}', 'g'), params[name]);
+                    str = replaceParam(str, name, params[name]);
                 }
             }
         }

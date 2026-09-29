@@ -15,6 +15,9 @@
  * u8string() has no such page to fail on: it is UTF-8, which holds every name.
  *
  * Use this for any path text whose file the plugin did not name itself.
+ * It only goes from a path to text: going from narrow text back to a path
+ * (std::filesystem::path(std::string) reads it in the ANSI code page) is not
+ * covered, so keep a path a path and convert it for the log line only.
  */
 namespace PathText
 {

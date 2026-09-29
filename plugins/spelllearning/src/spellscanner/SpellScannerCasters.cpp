@@ -115,6 +115,10 @@ namespace SpellScanner
             std::error_code error;
             std::filesystem::directory_iterator it(kDataDir, error);
             const std::filesystem::directory_iterator end;
+            if (error) {
+                logger::warn("SpellScanner: could not open the Data directory: {}", error.message());
+                return added;
+            }
             // Every file in Data goes through here, so a name the ANSI code page cannot hold (see PathText.h)
             // must not throw, and neither may a file that vanishes or is locked partway through the walk.
             while (!error && it != end) {
@@ -127,6 +131,9 @@ namespace SpellScanner
                     logger::warn("SpellScanner: skipped a file in Data ({})", e.what());
                 }
                 it.increment(error);
+            }
+            if (error) {
+                logger::warn("SpellScanner: the Data walk stopped early: {}", error.message());
             }
             return added;
         }

@@ -83,6 +83,9 @@ var StatusLineTest = {
         };
         make('scanStatusBar');
         make('scanBtn');
+        var spawn = make('spawn-spell-list');
+        spawn.waiting = make(null);
+        spawn.querySelector = function(sel) { return sel === '.spawn-loading' ? this.waiting : null; };
         make('scanStatusText').setAttribute('data-i18n', 'scanner.readyToScan');
         return page;
     },
@@ -180,26 +183,73 @@ var StatusLineTest = {
         return { passed: this.passed, failed: this.failed };
     },
 
-    /** The card's Magicka: whole points, at least 1 for any cost, 0 for none */
     /** A scan that threw: the Scan button comes back and the bar says why, in the current language. */
     _checkScanFailed: function(g, page, setLang) {
         var btn = page.byId.scanBtn, bar = page.byId.scanStatusText;
         setLang('en');
         btn.disabled = true; btn.innerHTML = 'Scanning...';
-        // C++ sends the reason as a JSON string, and system messages can carry non-Latin text
-        g.onScanFailed('"No mapping for the Unicode character exists in the target multi-byte code page"');
+        // C++ sends {mode, reason}; a system message can carry non-Latin text
+        var reason = 'No mapping for the Unicode character exists in the target multi-byte code page';
+        g.onScanFailed(JSON.stringify({ mode: 'all', reason: reason }));
         this.check(btn.disabled === false && btn.innerHTML.indexOf('Scan Spells') !== -1,
-            'onScanFailed: the Scan button is enabled again');
-        this.check(bar.textContent === 'Scan failed: No mapping for the Unicode character exists in the target multi-byte code page' &&
+            'onScanFailed (all): the Scan button is enabled again');
+        this.check(bar.textContent === 'Scan failed: ' + reason &&
             page.byId.scanStatusBar.className.indexOf('error') !== -1,
-            'onScanFailed: the bar names the reason, as an error');
+            'onScanFailed (all): the bar names the reason, as an error');
         setLang('ko'); g.relabelScanStatus();
         this.check(bar.textContent.indexOf('스캔 실패: ') === 0, 'onScanFailed: the message comes back in the new language');
+        setLang('en');
+        // The old payload shapes: a JSON-quoted string and bare text are a full scan's reason
+        g.onScanFailed('"' + reason + '"');
+        this.check(bar.textContent === 'Scan failed: ' + reason, 'onScanFailed: an old JSON-quoted string still works');
         g.onScanFailed('unquoted reason');
-        this.check(bar.textContent === '스캔 실패: unquoted reason', 'onScanFailed: a reason that is not JSON-quoted is used as it is');
+        this.check(bar.textContent === 'Scan failed: unquoted reason', 'onScanFailed: a reason that is not JSON is used as it is');
+        // Edit mode's wait line ends with the failure of a full scan
+        var wait = page.byId['spawn-spell-list'].waiting;
+        wait.textContent = 'Scanning game spells...';
+        g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'boom' }));
+        this.check(wait.textContent === 'Scan failed: boom', "onScanFailed (all): edit mode's wait line says the scan failed");
+        // Korean text and markup: kept literally (textContent, never parsed as HTML)
+        var text = '스캔 폴더 화염.ini <b>x</b>';
+        g.onScanFailed(JSON.stringify({ mode: 'all', reason: text }));
+        this.check(bar.textContent === 'Scan failed: ' + text, 'onScanFailed: Korean text and "<b>x</b>" held literally in textContent');
+        // A tome scan leaves the good message, the bar and the button alone
+        g.updateScanStatus('Scanned 1428 spells', 'success', 'status.treeBuildComplete', { schools: 1, spells: 1428 });
+        var before = bar.textContent, beforeClass = page.byId.scanStatusBar.className;
+        btn.disabled = true; btn.innerHTML = 'Scanning...';
+        wait.textContent = 'Scanning game spells...';
+        var warn = console.warn, warned = 0;
+        console.warn = function() { warned++; };
+        try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
+        this.check(bar.textContent === before && page.byId.scanStatusBar.className === beforeClass &&
+            wait.textContent === 'Scanning game spells...' && warned === 1,
+            'onScanFailed (tomes): only a console warning, the status bar and the wait line stay');
+        this.check(btn.disabled === true, 'onScanFailed (tomes): nothing is re-enabled (a tome scan disables nothing)');
+        btn.disabled = false;
+        this._checkParamDollar();
         setLang('en');
     },
 
+    /** i18n.js's t(): a value with $ patterns (an error text) goes into {{error}} as it is. */
+    _checkParamDollar: function() {
+        if (typeof require !== 'function') return;
+        var vm = require('vm'), fs = require('fs'), path = require('path');
+        var win = { _i18nPreload: { '_meta.locale': 'en', 'status.scanFailed': 'Scan failed: {{error}}' } };
+        var sandbox = { window: win, document: { documentElement: { setAttribute: function() {} } },
+            console: { log: function() {}, warn: function() {}, error: function() {} } };
+        try {
+            var file = path.join(__dirname, 'i18n.js');
+            vm.runInNewContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
+            win.initI18n('en');
+            var reason = 'cost $& of $1 and $$ and $` here';
+            this.check(win.t('status.scanFailed', { error: reason }) === 'Scan failed: ' + reason,
+                'i18n t(): a value with $&, $1, $$ is inserted as written');
+        } catch (e) {
+            this.check(false, 'i18n t() checked: ' + e.message);
+        }
+    },
+
+    /** The card's Magicka: whole points, at least 1 for any cost, 0 for none */
     _checkCost: function(g) {
         var P = g.TreeParser;
         if (!P) { this.check(false, 'TreeParser loaded'); return; }

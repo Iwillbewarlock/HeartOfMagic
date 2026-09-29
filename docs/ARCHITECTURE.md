@@ -115,12 +115,19 @@ The walk over `Data` sees every file of every mod, so no file name may throw the
 to the system's ANSI code page on Windows and throws for a name that page cannot hold (a Korean or emoji name
 on an English Windows: "No mapping for the Unicode character exists in the target multi-byte code page").
 Names go through `PathText::Utf8` (`include/PathText.h`, `u8string`), a file that fails is skipped with a
-log line, and the whole vampire read is optional - if it fails the scan goes on without the tag.
+log line, and the whole vampire read is optional - if it fails the scan goes on without the tag. The read is
+retried only at the next game start (it runs once per session); a Data walk that stops early or cannot open
+the directory is logged, not fatal.
 
 A scan that throws still ends for the player: `UIManager::OnScanSpells` runs `RunScan` inside a try block and
-answers a failure with `onScanFailed(reason)` (uiHelpers.js), which enables the Scan button again and puts
-"Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all 13 languages). The panel disables the
-button while a scan runs, so before this a failed scan left it on "Scanning..." for good.
+answers a failure with `onScanFailed({"mode":"all"|"tomes","reason":...})` (uiHelpers.js; `ReportScanFailure`
+takes the mode from the request's `scanMode`, the same check `RunScan` uses). A full scan (`all`) enables the Scan
+button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all
+13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
+while a scan runs, so before this a failed scan left it on "Scanning..." for good. A tome scan (`tomes`: the
+automatic one after a full scan, the tome toggle) runs behind a good "Scanned N spells" message and disables
+nothing, so its failure is only a console warning and the status bar stays as it was. An older plain
+JSON-string payload is read as a full scan's reason.
 
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.

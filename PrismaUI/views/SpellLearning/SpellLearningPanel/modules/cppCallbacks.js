@@ -320,11 +320,7 @@ window.updateSpellData = function(jsonStr) {
         }
     }
 
-    var scanBtn = document.getElementById('scanBtn');
-    if (scanBtn) {
-        scanBtn.disabled = false;
-        scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
-    }
+    restoreScanButton();
 };
 
 /**

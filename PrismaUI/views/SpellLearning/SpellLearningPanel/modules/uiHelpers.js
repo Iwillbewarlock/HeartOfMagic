@@ -38,26 +38,52 @@ function relabelScanStatus() {
     if (s && typeof t === 'function') updateScanStatus(t(s.key, s.params), s.type, s.key, s.params);
 }
 
-/**
- * C++ says the scan threw (the reason as text, JSON-quoted). The Scan button is
- * disabled while a scan runs and only spell data enables it again, so a scan
- * that dies has to hand the button back here, or the panel sits on
- * "Scanning..." with no word of what happened (the log has the full reason).
- * @param {string} message
- */
-window.onScanFailed = function(message) {
-    var reason = message;
-    if (typeof reason === 'string' && reason.charAt(0) === '"') {
-        try { reason = JSON.parse(reason); } catch (e) {}
-    }
+/** The Scan button after a scan: enabled, with its own label. */
+function restoreScanButton() {
     var scanBtn = document.getElementById('scanBtn');
     if (scanBtn) {
         scanBtn.disabled = false;
         scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
     }
-    var params = { error: String(reason) };
-    updateScanStatus(t('status.scanFailed', params), 'error', 'status.scanFailed', params);
+}
+
+/**
+ * C++ says a scan threw: {"mode":"all"|"tomes","reason":"..."} (an older plain
+ * JSON-quoted string or bare text is a full scan's reason). The Scan button is
+ * disabled while a scan runs and only spell data enables it again, so a scan
+ * that dies has to hand the button back here, or the panel sits on
+ * "Scanning..." with no word of what happened (the log has the full reason).
+ * A full scan also ends edit mode's "Scanning game spells..." wait. A tome
+ * scan runs on its own behind a good "Scanned N spells" (after a scan, when
+ * the tome toggle is switched): it only logs, so the status bar and that
+ * message stay; it disables nothing, so there is nothing to give back.
+ * @param {string|Object} message
+ */
+window.onScanFailed = function(message) {
+    var data = message;
+    if (typeof data === 'string' && (data.charAt(0) === '"' || data.charAt(0) === '{')) {
+        try { data = JSON.parse(data); } catch (e) {}
+    }
+    var mode = 'all';
+    var reason = data;
+    if (data && typeof data === 'object') {
+        mode = data.mode === 'tomes' ? 'tomes' : 'all';
+        reason = data.reason;
+    }
+    reason = String(reason === undefined || reason === null ? '' : reason);
+    if (mode === 'tomes') {
+        console.warn('[SpellLearning] The tome scan failed: ' + reason);
+        return;
+    }
+    restoreScanButton();
+    var params = { error: reason };
+    var text = t('status.scanFailed', params);
+    updateScanStatus(text, 'error', 'status.scanFailed', params);
     setStatusIcon('X');
+    // Edit mode asked for this scan and shows a wait line until spells arrive
+    var spawnList = document.getElementById('spawn-spell-list');
+    var waiting = spawnList && spawnList.querySelector ? spawnList.querySelector('.spawn-loading') : null;
+    if (waiting) waiting.textContent = text;
 };
 
 /**

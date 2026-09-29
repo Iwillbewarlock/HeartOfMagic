@@ -11,6 +11,23 @@ using json = nlohmann::json;
 // SCANNER TAB CALLBACKS
 // =============================================================================
 
+namespace
+{
+    // The scan mode the panel asked for ({"scanMode":"tomes"}); anything else, or text
+    // that is not JSON, is the full scan.
+    bool IsTomeScan(const std::string& argStr)
+    {
+        if (argStr.empty()) return false;
+        try {
+            const json j = json::parse(argStr);
+            return j.contains("scanMode") && j["scanMode"].is_string() &&
+                   j["scanMode"].get<std::string>() == "tomes";
+        } catch (...) {
+            return false;
+        }
+    }
+}
+
 void UIManager::OnScanSpells(const char* argument)
 {
     logger::info("UIManager: ScanSpells callback triggered");
@@ -27,36 +44,34 @@ void UIManager::OnScanSpells(const char* argument)
         try {
             instance->RunScan(argStr);
         } catch (const std::exception& e) {
-            instance->ReportScanFailure(e.what());
+            instance->ReportScanFailure(e.what(), IsTomeScan(argStr));
         } catch (...) {
-            instance->ReportScanFailure("unknown error");
+            instance->ReportScanFailure("unknown error", IsTomeScan(argStr));
         }
     });
 }
 
-void UIManager::ReportScanFailure(const char* what)
+void UIManager::ReportScanFailure(const char* what, bool tomeScan)
 {
-    logger::error("UIManager: the scan failed: {}", what);
     // what() comes from the system (in its own code page), so make it valid UTF-8 before it is JSON
-    const json message = EncodingUtils::SanitizeToUTF8(what ? what : "");
-    CallView("onScanFailed", message.dump().c_str());
+    const std::string reason = EncodingUtils::SanitizeToUTF8(what ? what : "");
+    logger::error("UIManager: the {} scan failed: {}", tomeScan ? "tome" : "full", reason);
+    // The mode tells the panel whether this is the scan the player is waiting on ("all") or a
+    // background tome scan that must not touch the status bar ("tomes").
+    const json message = {{"mode", tomeScan ? "tomes" : "all"}, {"reason", reason}};
+    CallView("onScanFailed",
+        message.dump(-1, ' ', false, json::error_handler_t::replace).c_str());
 }
 
 void UIManager::RunScan(const std::string& argStr)
 {
     // Parse the scan configuration
     SpellScanner::ScanConfig scanConfig;
-    bool useTomeMode = false;
+    const bool useTomeMode = IsTomeScan(argStr);
 
     if (!argStr.empty()) {
         try {
-            json j = json::parse(argStr);
             scanConfig = SpellScanner::ParseScanConfig(argStr.c_str());
-
-            // Check for scan mode
-            if (j.contains("scanMode") && j["scanMode"].get<std::string>() == "tomes") {
-                useTomeMode = true;
-            }
         } catch (...) {
             // If parsing fails, use defaults
         }
@@ -73,8 +88,8 @@ void UIManager::RunScan(const std::string& argStr)
 
     // Classify what was just scanned and hand the catalog's elements on to
     // the traits the tree builder groups by and the chips the card shows.
-    // Same call the Papyrus path makes, so the Scan button and RunScan
-    // leave the same catalog behind. It logs its own failures and leaves
+    // Same call the Papyrus path makes, so the Scan button and the Papyrus
+    // RunScan leave the same catalog behind. It logs its own failures and leaves
     // the result as it was rather than interrupting the scan.
     Librarian::ClassifyScan(result);
 

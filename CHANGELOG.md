@@ -84,7 +84,7 @@ Still no ESP, no Python, no API key.
 - A scan no longer stops on a file name the Windows code page cannot hold. The scan read every file in Data
   for SPID ini files and threw "No mapping for the Unicode character exists in the target multi-byte code page"
   on a name like that, and the Scan button stayed on "Scanning..." with nothing to say why. Names are read as
-  UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>".
+  UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>" (a failed background tome scan is only logged).
 - The spell card's Magicka cost is a whole number (it showed the game's raw decimal).
 - A spell listed as its own prerequisite in a saved or hand-edited tree no longer locks it for good.
 
