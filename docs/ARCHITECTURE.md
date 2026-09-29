@@ -493,11 +493,13 @@ struct EarlyLearningSettings {
 - Prerequisite checking before allowing tome XP
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
 - **Game versions** - patch site `+0xE8` (SE) / `+0x11D` (AE); tested in game on SE 1.5.97 and AE 1.6.318 /
-  1.6.1170, measured offline (not yet tested in game) on AE 1.7.104. `SpellTomeSites::CheckSite`
+  1.6.1170, measured offline (not yet tested in game) on AE 1.7.104. `SpellTomeSites::Decide`
   (`include/SpellTomeHookSites.h`, no game types) lets the hook in only when `mov rcx,[rip+..]; call` is exactly
   at the site and, on AE, the call goes to Actor::AddSpell (`RelocationID(37771, 38716)`), `41 F6 87` (test
   byte [r15+..]) starts at site + 0x56 and `32 C0` (xor al, al) at the return site + 0x72; SE keeps the pattern
-  check it was tested with. Otherwise tomes work the vanilla way and the log names the check that failed
+  check it was tested with. On the AE builds tested in game (`kInGameTestedAE`: 1.6.318, 1.6.1170) the site
+  pattern alone decides; a failed newer check there logs a WARNING with the check and what was read, and the hook
+  still goes in. Everywhere else a failed check leaves tomes the vanilla way and the log names the check that failed
   (another mod such as Don't Eat Spell Tomes got there first, or a different layout - 1.7.99's AddSpell sits
   elsewhere relative to 1.7.104, so it is unknown until its real call target is seen). Offsets, the 1.7.104
   measurement and why clearing esi keeps the book: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"

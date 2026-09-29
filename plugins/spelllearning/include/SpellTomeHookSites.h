@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -25,7 +26,9 @@
 //         [r15+0x110], 8 (41 F6 87 ..) at site + 0x56;
 //       - the return lands where an instruction starts: xor al, al (32 C0) at
 //         site + 0x72.
-// Anything else leaves the hook out, and tomes work the vanilla way.
+// Anything else leaves the hook out, and tomes work the vanilla way - except
+// on the AE builds tested in game (kInGameTestedAE below), where only the site
+// pattern decides and a failed newer check is a logged warning.
 //
 // Measured offline on AE 1.7.104 (SkyrimSE.exe file version 1.7.104.0; its
 // .text is not encrypted on disk), disassembled with Capstone. ID 17842 is
@@ -125,5 +128,61 @@ namespace SpellTomeSites
             return Check::ReturnSite;
         }
         return Check::Ok;
+    }
+
+    struct RuntimeVersion
+    {
+        std::uint16_t major;
+        std::uint16_t minor;
+        std::uint16_t patch;
+    };
+
+    // AE builds the hook was tested on in game with the site pattern check
+    // alone. Most players are on these, and their code could not be read
+    // offline, so the three newer AE checks must not switch the hook off
+    // there: a failure is logged as a warning (which tells us the real layout
+    // the first time someone reads a tome) and the hook still goes in.
+    inline constexpr std::array<RuntimeVersion, 2> kInGameTestedAE{ {
+        { 1, 6, 318 },
+        { 1, 6, 1170 },
+    } };
+
+    [[nodiscard]] inline bool IsInGameTestedAE(RuntimeVersion a_version) noexcept
+    {
+        for (const auto& tested : kInGameTestedAE) {
+            if (tested.major == a_version.major && tested.minor == a_version.minor && tested.patch == a_version.patch) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    enum class Gate
+    {
+        Install,             // every check passed
+        InstallWithWarning,  // an in-game-tested AE build: site pattern passed, a newer check did not
+        StayOut              // the hook must not go in
+    };
+
+    struct GateResult
+    {
+        Gate  gate;
+        Check check;  // the check that failed (Ok when all passed)
+    };
+
+    // The decision for this runtime. SE: the site pattern (as tested). AE
+    // builds in kInGameTestedAE: the site pattern decides, the other checks
+    // only warn. Any other AE build: every check must pass.
+    [[nodiscard]] inline GateResult Decide(const std::uint8_t* a_func, std::uintptr_t a_funcAddress,
+        bool a_isAE, std::uintptr_t a_addSpellAddress, RuntimeVersion a_version) noexcept
+    {
+        const auto check = CheckSite(a_func, a_funcAddress, a_isAE, a_addSpellAddress);
+        if (check == Check::Ok) {
+            return { Gate::Install, check };
+        }
+        if (check != Check::SitePattern && a_isAE && IsInGameTestedAE(a_version)) {
+            return { Gate::InstallWithWarning, check };
+        }
+        return { Gate::StayOut, check };
     }
 }

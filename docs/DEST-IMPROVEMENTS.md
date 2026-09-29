@@ -83,7 +83,9 @@ const std::uintptr_t funcBase = ProcessBookID.address();
 //   - the call goes to Actor::AddSpell (RelocationID(37771, 38716).address())
 //   - the replaced block ends on test byte [r15+..] (41 F6 87) at site + 0x56
 //   - the return site, site + 0x72, is xor al, al (32 C0)
-// or the hook stays out (SpellTomeSites::CheckSite, SpellTomeHookSites.h).
+// or the hook stays out (SpellTomeSites::Decide, SpellTomeHookSites.h) -
+// except on the AE builds tested in game (kInGameTestedAE: 1.6.318, 1.6.1170),
+// where the site pattern alone decides and a failed newer check is a warning.
 if (!SiteIsKnownLayout(funcBase, isAE)) return false;
 ```
 
@@ -97,6 +99,15 @@ two instruction starts tie the block's size and the return offset to it. SE
 keeps the pattern check it was tested with in game (no 1.5.97 exe was at hand
 to measure its block end and return site). The log names the check that
 failed.
+
+The AE builds the hook was tested on in game (`kInGameTestedAE`: 1.6.318 and
+1.6.1170, where most players are) could not be read offline, so the newer
+checks must not switch the hook off there: the site pattern decides as before,
+and if the call target, block end or return site differs the hook still goes
+in with a `WARNING` naming the check and what was read (the call target, or
+the bytes). That line tells us the real layout the first time someone reads a
+tome on that build. Every other AE build (1.6.640, 1.7.x, later) needs all four
+checks.
 
 **Result:** One DLL works on SE 1.5.97, AE 1.6.x and AE 1.7.x. The hook was
 tested in game on SE 1.5.97, AE 1.6.318 and AE 1.6.1170; on AE 1.7.104 it was
@@ -251,8 +262,8 @@ For future debugging — known working offsets across game versions:
 | Game Version | Address Library ID | Patch Offset | Jump Offset | Book Register | Known from |
 |--------------|--------------------|-------------|-------------|---------------|------------|
 | SE 1.5.97 | 17439 | `+0xE8` | `+0x70` | `rdi` | tested in game |
-| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game (DEST's reference build) |
-| AE 1.6.1170 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game earlier; not re-read offline (its `.text` is encrypted on disk) |
+| AE 1.6.318 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game (DEST's reference build); site pattern decides, newer checks warn |
+| AE 1.6.1170 | 17842 | `+0x11D` | `+0x72` | `r15` | tested in game earlier; not re-read offline (its `.text` is encrypted on disk); site pattern decides, newer checks warn |
 | AE 1.7.104 | 17842 | `+0x11D` | `+0x72` | `r15` | measured offline, not yet tested in game |
 | other AE (1.6.640, 1.7.99, ...) | 17842 | `+0x11D` | `+0x72` | `r15` | not measured: hooked only if every AE check passes |
 
@@ -288,7 +299,7 @@ the book is not removed.
 | File | Purpose |
 |------|---------|
 | `plugins/spelllearning/include/SpellTomeHook.h` | Hook class, settings struct, API |
-| `plugins/spelllearning/include/SpellTomeHookSites.h` | Offsets per runtime and the site checks (`CheckSite`), with the 1.7.104 measurement; no game types, so an offline check compiles it |
+| `plugins/spelllearning/include/SpellTomeHookSites.h` | Offsets per runtime and the site checks (`CheckSite`), the in-game-tested list (`kInGameTestedAE`) and the decision (`Decide`), with the 1.7.104 measurement; no game types, so an offline check compiles it |
 | `plugins/spelllearning/src/SpellTomeHook.cpp` | Site check and its log, Xbyak patch, callback logic |
 | `plugins/spelllearning/src/SpellTomeHookInventory.cpp` | Tome inventory cache for the carried-tome XP boost |
 
