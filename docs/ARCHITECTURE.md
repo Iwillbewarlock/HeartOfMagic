@@ -29,8 +29,16 @@ CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All
 (`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`) use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
 with the default struct compatibility, so their `SKSEPlugin_Version` declares Address Library
 independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndependenceEx` = NoStructUse |
-AddressLibraryV5 (0x3). NoStructUse is right because CommonLib reads the layouts that moved (1.6.629,
-1.7.99) at run time. `STRUCT_DEPENDENT` would be wrong: the macro sets no StructsPost629 flag, so SKSE on
+AddressLibraryV5 (0x3). NoStructUse is right because the plugin reads no struct whose layout moved without
+going through CommonLib's run-time accessors. The one member that moved at 1.6.629, `Actor::addedSpells`, is read
+through `GetActorRuntimeData()`, which splits at 1.6.629 (runtime data at 0xE0 before, 0xE8 from 1.6.629 on; so
+`addedSpells` is at 0x188 / 0x190) - and 1.7.104's own `Actor::AddSpell` uses `[actor+0x190]` for it. The other
+reads are fixed offsets: `ActiveEffect` (`spell` 0x40, `effect` 0x48, `magnitude` 0x78, `caster` 0x34; in the
+effectiveness hooks), `ButtonEvent`/`IDEvent` (`eventType`, `device`, `idCode` 0x20; the hotkey sink) and
+`IMenu::uiMovie` 0x10 (the container menu, whose target handle comes from an address library ID, not a member).
+They are safe on 1.7 because CommonLibSSE-NG 10, which models the 1.7.99 layout changes (the types it versions at
+`RUNTIME_SSE_1_7_99`: PlayerCharacter, SkyrimVM, BookMenu, the input handlers, `BSInputEventQueue`, `State` and a few
+more), leaves these types fixed-size (`static_assert` 0x90 / 0x30 / 0x30) with no 1.7 variant. `STRUCT_DEPENDENT` would be wrong: the macro sets no StructsPost629 flag, so SKSE on
 1.6.629+ would refuse the DLL. AddressLibraryV5 is the flag SKSE asks of an address-library plugin on 1.7,
 whose address library is the new format 5 (`versionlib-1-7-*.bin`). The plugin's own game addresses come only
 from address library IDs (TESObjectBOOK::Read 17439/17842, the 41 ActiveEffect subclass vtables; all resolve in the
@@ -472,7 +480,7 @@ struct EarlyLearningSettings {
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
 
-### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`)
+### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -484,11 +492,15 @@ struct EarlyLearningSettings {
 - **Tome inventory cache** (2026-09-25) - the boost is checked once per learning target on every cast, and answering it meant walking the player's whole inventory each time. `SpellTomeHookInventory.cpp` keeps the answer per spell until the inventory changes: a `TESContainerChangedEvent` sink (registered at kDataLoaded) invalidates it when the player is the old or new container and the moved item is a spell tome (or cannot be looked up), and revert and post-load invalidate it too. The event can come from any thread, so the sink only bumps an atomic counter; the cache compares that number on its next lookup and starts over when it moved, and an answer computed while the counter moved is not kept
 - Prerequisite checking before allowing tome XP
 - Based on "Don't Eat Spell Tomes" pattern by Exit-9B
-- **Game versions** - patch site `+0xE8` (SE) / `+0x11D` (AE), measured on SE 1.5.97 and AE 1.6.318,
-  1.6.1170 and 1.7.104; the hook goes in only when `mov rcx,[rip+..]; call` is exactly there, otherwise
-  tomes work the vanilla way (another mod such as Don't Eat Spell Tomes got there first, or a new layout).
-  1.7.99 and other AE builds are not measured and get the same check. Offsets and how 1.7.104 was
-  measured: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"
+- **Game versions** - patch site `+0xE8` (SE) / `+0x11D` (AE); tested in game on SE 1.5.97 and AE 1.6.318 /
+  1.6.1170, measured offline (not yet tested in game) on AE 1.7.104. `SpellTomeSites::CheckSite`
+  (`include/SpellTomeHookSites.h`, no game types) lets the hook in only when `mov rcx,[rip+..]; call` is exactly
+  at the site and, on AE, the call goes to Actor::AddSpell (`RelocationID(37771, 38716)`), `41 F6 87` (test
+  byte [r15+..]) starts at site + 0x56 and `32 C0` (xor al, al) at the return site + 0x72; SE keeps the pattern
+  check it was tested with. Otherwise tomes work the vanilla way and the log names the check that failed
+  (another mod such as Don't Eat Spell Tomes got there first, or a different layout - 1.7.99's AddSpell sits
+  elsewhere relative to 1.7.104, so it is unknown until its real call target is seen). Offsets, the 1.7.104
+  measurement and why clearing esi keeps the book: docs/DEST-IMPROVEMENTS.md, "Key Offsets Reference"
 
 **Settings:**
 ```cpp
@@ -1193,6 +1205,7 @@ HeartOfMagic/
 │   │   │   ├── SpellEffectivenessHook.h     ✅ Runtime magnitude scaling header
 │   │   │   ├── SpellScanner.h               ✅ Spell enumeration header
 │   │   │   ├── SpellTomeHook.h              ✅ Tome interception header
+│   │   │   ├── SpellTomeHookSites.h         ✅ Tome hook offsets and site checks (no game types)
 │   │   │   ├── ThreadUtils.h                ✅ Game-thread dispatch utilities
 │   │   │   ├── XPSource.h                   ✅ XP source interface
 │   │   │   ├── treebuilder/
