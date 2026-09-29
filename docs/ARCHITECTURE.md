@@ -55,7 +55,7 @@ Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Displa
 ## Component Architecture
 
 ### 1. **SpellScanner** (`plugins/spelllearning/src/spellscanner/`, `plugins/spelllearning/include/SpellScanner.h`)
-Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp
+Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp, SpellScannerCopies.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -78,6 +78,19 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
+- `FindNonPlayerCopies(spells)` - The NPC, trap and script copies among the kept spells (SpellScannerCopies.cpp, below)
+
+**Non-player copies (2026-09-30):** the game keeps copies of many spells for NPCs, traps and scripts
+(TrapFireball01, HazardGuardianCircleSpell, Miraak's Lightning Storm, cloak damage spells). They share the
+real spell's name and school but have no half-cost perk, so `DetermineSpellTier` falls back to the effect's
+minimum skill - often 0 - and a Master spell's copy was built into the tree as Novice (a player report:
+Bane of the Undead and Harmony at the roots with the tome filter off). After its other filters,
+`ScanSpellsToJson` drops a spell when another kept spell with the same name (ASCII case ignored) and school
+has a half-cost perk, it has none, and no tome teaches it. The log names the first five
+(`SpellScanner: dropped N non-player copies ...`); they count as filtered. On the author's load order
+(3546 spells) it drops 391, all NPC, trap, hand or cloak-damage copies. The editor id filter
+(`isNonPlayerSpell` in the same loop) cannot do this: it reads `GetFormEditorID()`, which the engine leaves
+empty for spells, so it never matches (turning it on would also drop Soul Trap on "trap").
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
@@ -142,6 +155,20 @@ catalog (docs/librarian/LIBRARIAN.md) and rewrites every spell's `element.*` ent
 the rule files tag them, and a tag a rule removes is gone there too. A tome scan (no effects) takes
 the catalog the last full scan left. The held scan (`m_scanText`) and the result sent to the panel
 are the merged text. The card icon rules still read the scanner's own traits.
+
+**Perk adapters (2026-09-30).** The catalog's second consumer: `Librarian::PerkAdapters::Apply`
+(`LibrarianPerkAdapterPatch.cpp`) adds the keywords perk overhauls look for (`MagicDamageFire`,
+`MAG_MagicDamagePoison`, `IMP_K_MagicSummonDaedra` ...) to the effects of catalog spells, per adapter file in
+`SKSE/Plugins/SpellLearning/librarian/adapters/`, at `kDataLoaded` and after a full scan (the panel's tree
+scan and Papyrus `RunScan`; not the background tome scan). The planner (`LibrarianAdapters.cpp`) is pure and
+shared with `librarian-test --adapters`; it builds each spell's JSON with `BuildSpellJson` so it reads the
+scan's own fields, writes an effect only when every item using it passes (enchantments, scrolls, potions and
+ingredients block), and skips conditioned effect items. In memory only; each run reconciles with its plan
+(what an earlier run added and the plan no longer wants comes off, only new pairs go on; a pair a plugin
+wrote is never touched). The scan leaves the added keywords out (`PerkAdapters::IsInjected` in `BuildBaseEffectJson`,
+the chips and the card icon lookup), so a scan still records the plugins as written. Report:
+`perk_adapters_report.json` next to the catalog; switch: `config.json` `perkAdapters.enabled` (default on).
+Rules, measurements and what is left out: docs/librarian/PERK_ADAPTERS.md.
 
 `castByVampires: true` marks a spell a vampire NPC carries - an NPC whose race or record has the
 `Vampire` keyword, through its own or its race's spell list and the leveled spell lists in them, plus
@@ -276,6 +303,7 @@ same on every load order and in every language.
 | spell | `castDuration`, `range` | `SpellItem::Data` |
 | spell | `flags{}` | `SpellItem::SpellFlag`: costOverride, pcStartSpell, instantCast, ignoreLOSCheck, ignoreResistance, noAbsorb, noDualCastMods |
 | spell (tome scan) | `tomePersistentId`, `tomeValue` | the teaching book and its gold value |
+| effect | `form` | the effect record's persistent id - the identity; editor ids repeat and need po3 Tweaks |
 | effect | `flags{}` | every `EffectSettingData::Flag` except hostile/detrimental, which stay top level |
 | effect | `baseCost`, `minimumSkill` | `EffectSettingData` |
 | effect | `projectile{form,type,speed,range,gravity,explodes}` | `projectileBase`. `type` is one of Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow. Only when set |
@@ -283,6 +311,7 @@ same on every load order and in every language.
 | effect | `hazard`, `hazardSource` | true/false, and where it was found. See below |
 | effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
 | effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
+| effect | `conditions` | how many conditions this spell puts on the effect item (`Effect::conditions`) - a perk bonus rides as a conditioned item |
 
 `hazard` is presence only - no radius, no lifetime. When it is true, `hazardSource`
 says where the hazard hangs, strongest link first:

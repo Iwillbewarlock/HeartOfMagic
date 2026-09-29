@@ -51,11 +51,14 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spellscanner/SpellScannerChips.cpp
     src/spellscanner/SpellScannerCard.cpp
     src/spellscanner/SpellScannerCasters.cpp
+    src/spellscanner/SpellScannerCopies.cpp
     src/spellscanner/SpellScannerScan.cpp
     src/librarian/LibrarianRules.cpp
     src/librarian/LibrarianClassify.cpp
     src/librarian/LibrarianCatalog.cpp
     src/librarian/LibrarianTraits.cpp
+    src/librarian/LibrarianAdapters.cpp
+    src/librarian/LibrarianPerkAdapterPatch.cpp
     src/SpellCastHandler.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
     src/progressionmanager/ProgressionManagerTargets.cpp

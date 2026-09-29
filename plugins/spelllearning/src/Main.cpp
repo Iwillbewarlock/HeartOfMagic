@@ -12,6 +12,7 @@
 #include "PapyrusAPI.h"
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
+#include "librarian/PerkAdapterPatch.h"
 
 // =============================================================================
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
@@ -386,6 +387,10 @@ void OnDataLoaded()
     registry.InitializeAll();
     logger::info("XP sources registered: {} total, {} active",
                  registry.GetAll().size(), registry.GetActive().size());
+
+    // Perk overhauls see the modded spells the catalog knows (keywords added
+    // in memory, from the catalog the last scan left)
+    Librarian::PerkAdapters::Apply("data loaded");
 }
 
 void OnNewGame()

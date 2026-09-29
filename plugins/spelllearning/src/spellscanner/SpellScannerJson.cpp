@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "librarian/PerkAdapterPatch.h"
 #include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
@@ -198,6 +199,9 @@ namespace SpellScanner
         json keywordsArray = json::array();
         for (auto* keyword : baseEffect->GetKeywords()) {
             if (!keyword) continue;
+            // A perk adapter's addition, not the plugin's: the scan records the
+            // load order as written, or the librarian would tag from it
+            if (Librarian::PerkAdapters::IsInjected(baseEffect->GetFormID(), keyword->GetFormID())) continue;
             const char* keywordEditorId = keyword->GetFormEditorID();
             if (keywordEditorId && strlen(keywordEditorId) > 0) {
                 keywordsArray.push_back(EncodingUtils::SanitizeToUTF8(keywordEditorId));
@@ -414,6 +418,12 @@ namespace SpellScanner
         // carries them. It reports its own failures; the scan's own result
         // stands either way.
         Librarian::ClassifyScan(result);
+
+        // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A
+        // preset without effects leaves the catalog as it was.
+        if (config.fields.effectDetails) {
+            Librarian::PerkAdapters::Apply("RunScan");
+        }
 
         return WriteScanOutput(result);
     }

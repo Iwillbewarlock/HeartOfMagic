@@ -4,6 +4,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <unordered_set>
+#include <vector>
+
 namespace SpellScanner
 {
     using json = nlohmann::json;
@@ -128,6 +131,11 @@ namespace SpellScanner
     // True when a vampire NPC carries the spell (SpellScannerCasters.cpp) -
     // the tag librarian reads it as evidence of blood magic.
     bool IsCastByVampires(RE::FormID spellFormId);
+
+    // Of the spells the scan kept, those that are another spell's NPC, trap or
+    // script copy (SpellScannerCopies.cpp): same name and school as a spell with
+    // a half-cost perk, no perk of their own, and no tome teaching them.
+    std::unordered_set<RE::FormID> FindNonPlayerCopies(const std::vector<RE::SpellItem*>& spells);
 
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard

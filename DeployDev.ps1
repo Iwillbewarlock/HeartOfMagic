@@ -69,6 +69,18 @@ if (Test-Path $rulesSrc) {
     New-Item -ItemType Directory -Force -Path $rulesDst | Out-Null
     Copy-Item (Join-Path $rulesSrc '*.json') $rulesDst -Force
     Write-Host ("rules   {0}" -f ((Get-ChildItem $rulesSrc -Filter '*.json').Count))
+
+    # The perk adapter files: read at load and after every full scan
+    $adaptersSrc = Join-Path $rulesSrc 'adapters'
+    if (Test-Path $adaptersSrc) {
+        $adaptersDst = Join-Path $rulesDst 'adapters'
+        New-Item -ItemType Directory -Force -Path $adaptersDst | Out-Null
+        # An adapter file the repo no longer has would keep running in the install
+        $shipped = (Get-ChildItem $adaptersSrc -Filter '*.json').Name
+        Get-ChildItem $adaptersDst -Filter '*.json' | Where-Object { $shipped -notcontains $_.Name } | Remove-Item -Force
+        Copy-Item (Join-Path $adaptersSrc '*.json') $adaptersDst -Force
+        Write-Host ("adapters {0}" -f ((Get-ChildItem $adaptersSrc -Filter '*.json').Count))
+    }
 }
 
 # Keep the language line the dev install is set to

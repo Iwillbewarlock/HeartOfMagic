@@ -23,6 +23,7 @@ namespace SpellScanner
         logger::info("SpellScanner: Found {} total spell forms", allSpells.size());
 
         json spellArray = json::array();
+        std::vector<RE::SpellItem*> kept;  // passed every filter; copies are sorted out after the loop
         int scannedCount = 0;
         int skippedCount = 0;
         int filteredCount = 0;
@@ -146,7 +147,6 @@ namespace SpellScanner
 
             const char* rawEditorId = spell->GetFormEditorID();
             std::string name = spell->GetFullName();
-            RE::FormID formId = spell->GetFormID();
 
             // EditorID may be empty on SE 1.5.97 without po3's Tweaks — that's OK
             bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
@@ -221,7 +221,17 @@ namespace SpellScanner
                 continue;
             }
 
-            spellArray.push_back(BuildSpellJson(spell, formId, fields));
+            kept.push_back(spell);
+        }
+
+        // NPC, trap and script copies of a spell only show once every spell is in
+        const auto copies = FindNonPlayerCopies(kept);
+        for (auto* spell : kept) {
+            if (copies.contains(spell->GetFormID())) {
+                filteredCount++;
+                continue;
+            }
+            spellArray.push_back(BuildSpellJson(spell, spell->GetFormID(), fields));
             scannedCount++;
         }
 

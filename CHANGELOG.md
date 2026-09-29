@@ -2,8 +2,26 @@
 
 ## Unreleased
 
+### New
+
+- Perk overhauls recognise modded spells. Perk mods find spells by keywords on their effects (Augmented
+  Flames asks for MagicDamageFire), and a spell mod that left them out got no perk bonuses without a patch
+  for each pair of mods. Heart of Magic now adds those keywords itself, in memory, to the spells the
+  librarian has tagged, following one adapter file per perk mod: vanilla keywords (read by every perk
+  overhaul), Adamant/Mysticism, Path of Sorcery; Vokrii and Ordinator need nothing beyond the vanilla ones.
+  A keyword goes on only when the librarian's tag and the effect's own record agree, never on an effect
+  another item shares unless that item qualifies too, never on a perk-bonus effect, and never into a scan.
+  It runs at game start and after each full scan; `perk_adapters_report.json` lists what it added, and
+  `"perkAdapters": { "enabled": false }` in config.json turns it off from the next game start or scan.
+  Nothing is written to plugins or saves.
+
 ### Fixed
 
+- NPC, trap and script copies of spells no longer end up in the tree. The game keeps copies like the trap
+  Fireball, the hazard Guardian Circle or Miraak's Lightning Storm; they share the real spell's name but not
+  its tier perk, so a Master spell's copy was placed at the root as Novice (seen with Bane of the Undead and
+  Harmony when the tome filter is off). The scan now leaves out a spell with no tier perk when a spell of the
+  same name and school has one, unless a tome teaches it.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the

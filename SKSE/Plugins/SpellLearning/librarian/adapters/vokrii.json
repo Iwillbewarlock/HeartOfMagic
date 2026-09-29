@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Perk adapter: Vokrii 3.8.2 and Vokriinator Black 6.15.3. Ritualist and Eye of the Storm read",
+    "the vanilla ritual keywords, and their descriptions say what those mean: two-handed spells.",
+    "Both lines are OFF: in a load order that makes the vanilla master spells either-hand (the",
+    "TAKEALOOK scan does) the two-handed spells left are mostly quest and NPC spells, and their",
+    "effects are shared with one-handed player spells (Invisibility, Raise Zombie, Fire Storm).",
+    "Vanilla and Path of Sorcery already put the keywords on the vanilla master spells.",
+    "Not added: VKR_ keywords (Vokrii's own effects: Sun's Judgment, duration scaling)."
+  ],
+  "perkMod": "Vokrii - Minimalistic Perks of Skyrim 3.8.2",
+  "measured": "2026-09-30",
+  "requires": { "any": ["Vokrii - Minimalistic Perks of Skyrim.esp", "Vokriinator Black.esp"] },
+  "adapters": [
+    { "keyword": "RitualSpellEffect", "enabled": false,
+      "why": "two-handed spells outside Illusion. OFF, see the comment",
+      "spell": { "twoHanded": true, "notSchool": "Illusion" } },
+    { "keyword": "RitualSpellIllusion", "enabled": false,
+      "why": "two-handed Illusion spells. OFF, see the comment",
+      "spell": { "twoHanded": true, "school": "Illusion" } }
+  ]
+}

@@ -36,6 +36,7 @@ What are you doing?
 │   ├─► How it works, rule format → docs/librarian/LIBRARIAN.md
 │   ├─► Tag definitions → docs/librarian/TAGS.md
 │   ├─► Measured coverage and accuracy → docs/librarian/MEASURED.md
+│   ├─► Perk overhaul keywords (adapters/*.json) → docs/librarian/PERK_ADAPTERS.md
 │   └─► Why it exists, what is left → docs/librarian/Concept.md, docs/librarian/ToDo.md
 │
 ├─► Working with DEST/ISL compatibility?
@@ -229,7 +230,8 @@ This project does not have a C++ test framework. Validation is done through:
 - Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
   `treebuilder-test` (the Classic tree builder; it prints each school's shape - `Structure <school>: nodes, links,
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
-  spells that never branches), `librarian-test` (spell tag librarian) and `declutter-test`
+  spells that never branches), `librarian-test` (spell tag librarian; `--adapters <dir> --catalog <file>` plans the perk adapter
+  keyword writes with the plugin's own planner) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")

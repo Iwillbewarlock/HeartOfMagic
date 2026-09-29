@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "librarian/PerkAdapterPatch.h"
 #include "PathText.h"
 
 #include <filesystem>
@@ -119,12 +120,15 @@ namespace SpellScanner
             return exists;
         }
 
-        std::string FirstKeywordWithIcon(const RE::BGSKeywordForm* keywordForm)
+        // `owner` is the form the keywords belong to: a perk adapter's
+        // additions to an effect do not pick its icon
+        std::string FirstKeywordWithIcon(const RE::BGSKeywordForm* keywordForm, RE::FormID owner)
         {
             if (!keywordForm || !keywordForm->keywords) return "";
             for (std::uint32_t i = 0; i < keywordForm->numKeywords; i++) {
                 const auto* keyword = keywordForm->keywords[i];
                 if (!keyword) continue;
+                if (Librarian::PerkAdapters::IsInjected(owner, keyword->GetFormID())) continue;
                 const char* editorId = keyword->GetFormEditorID();
                 if (!editorId) continue;
                 const std::string key = KeywordIconKey(editorId);
@@ -150,12 +154,12 @@ namespace SpellScanner
         if (!spell) return "";
 
         // The spell's own keywords first - that is where icon packs put theirs.
-        std::string key = FirstKeywordWithIcon(spell);
+        std::string key = FirstKeywordWithIcon(spell, spell->GetFormID());
         if (!key.empty()) return key;
 
         for (const auto* effect : spell->effects) {
             if (!effect || !effect->baseEffect) continue;
-            key = FirstKeywordWithIcon(effect->baseEffect);
+            key = FirstKeywordWithIcon(effect->baseEffect, effect->baseEffect->GetFormID());
             if (!key.empty()) return key;
         }
         return "";

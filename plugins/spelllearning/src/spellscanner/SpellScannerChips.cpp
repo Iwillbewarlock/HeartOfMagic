@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "librarian/PerkAdapterPatch.h"
 #include "librarian/Librarian.h"
 
 // =============================================================================
@@ -299,6 +300,7 @@ namespace SpellScanner
         for (const auto* effect : effects) {
             for (const auto* keyword : effect->baseEffect->GetKeywords()) {
                 if (!keyword || !IsVanillaKeyword(keyword)) continue;
+                if (Librarian::PerkAdapters::IsInjected(effect->baseEffect->GetFormID(), keyword->GetFormID())) continue;
                 const char* editorId = keyword->GetFormEditorID();
                 if (!editorId) continue;
 

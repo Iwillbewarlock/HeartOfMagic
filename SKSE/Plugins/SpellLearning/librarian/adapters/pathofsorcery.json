@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Perk adapter: Path of Sorcery 3.2. Its own keywords, defined in PathOfSorcery.esp, which puts",
+    "them on the vanilla effects vanilla gave no keyword: the Dragonborn poison rune (poison),",
+    "Dawnguard sun fire and Stendarr's aura (holy), Dremora Lord, Seeker and Ash Guardian (daedra).",
+    "Conditions as in vanilla.json."
+  ],
+  "perkMod": "Path of Sorcery - Magic Perk Overhaul 3.2",
+  "measured": "2026-09-30",
+  "requires": { "any": ["PathOfSorcery.esp"] },
+  "adapters": [
+    { "keyword": "IMP_K_MagicDamagePoison", "why": "poison damage",
+      "tags": { "all": ["poison"] },
+      "effect": { "detrimental": true, "resistance": "PoisonResist", "primaryAV": "Health" } },
+    { "keyword": "IMP_K_MagicDamageHoly", "why": "holy and sun damage",
+      "tags": { "any": ["holy", "sun"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } },
+    { "keyword": "IMP_K_MagicDamageDisease", "why": "disease damage",
+      "tags": { "all": ["disease"] },
+      "effect": { "detrimental": true, "resistance": "DiseaseResist" } },
+    { "keyword": "IMP_K_MagicSummonDaedra", "why": "summoned daedra not already marked as a fire, frost or storm summon - Path of Sorcery itself puts it on Dremora Lord, Seeker and Ash Guardian; fire, frost and storm atronachs pass its perks through MagicSummonFire/Frost/Shock instead. Atronachs of other elements (necrotic, shadow) do get it",
+      "tags": { "all": ["daedra"] },
+      "effect": { "archetype": "SummonCreature" },
+      "keywordsNone": ["MagicSummonFire", "MagicSummonFrost", "MagicSummonShock"] }
+  ]
+}

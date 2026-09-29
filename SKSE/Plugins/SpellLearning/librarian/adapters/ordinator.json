@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "Perk adapter: Ordinator 9.35.0. Ordinator's spell perks read vanilla keywords (vanilla.json",
+    "covers them). The ORD_ keywords its perks ask about mark Ordinator's own effects, checked in",
+    "Ordinator's plugin: ORD_Des_AnyFireDamageHazard_Keyword sits on its one marker effect, which",
+    "World in Flames also looks for directly; ORD_Con_BoneCollector_Keyword_Summon on its six",
+    "created-skeleton effects (Reap and Sow). None describes a spell, so nothing is added here.",
+    "The file stays so the measurement is on record for the next Ordinator version."
+  ],
+  "perkMod": "Ordinator - Perks of Skyrim 9.35.0",
+  "measured": "2026-09-30",
+  "requires": { "any": ["Ordinator - Perks of Skyrim.esp"] },
+  "adapters": []
+}

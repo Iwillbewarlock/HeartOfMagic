@@ -139,6 +139,9 @@ namespace SpellScanner
     {
         const auto& data = baseEffect->data;
 
+        // Which effect record this is. Editor ids repeat across plugins and are
+        // empty without po3 Tweaks; the persistent id is the identity.
+        effectJson["form"] = FormRef(baseEffect);
         effectJson["flags"] = BuildEffectFlagsJson(baseEffect);
         effectJson["baseCost"] = data.baseCost;
         effectJson["minimumSkill"] = data.minimumSkill;
@@ -177,6 +180,14 @@ namespace SpellScanner
     {
         effectJson["index"] = index;
         effectJson["cost"] = effect->cost;
+
+        // Conditions on this spell's use of the effect: a perk bonus ("only
+        // with Bastion") rides in the spell as a conditioned effect item.
+        std::size_t conditions = 0;
+        for (const auto* item = effect->conditions.head; item; item = item->next) {
+            ++conditions;
+        }
+        effectJson["conditions"] = conditions;
     }
 
     // =============================================================================

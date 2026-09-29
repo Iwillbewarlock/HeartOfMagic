@@ -5,6 +5,7 @@
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
+#include "librarian/PerkAdapterPatch.h"
 
 using json = nlohmann::json;
 
@@ -95,6 +96,13 @@ void UIManager::RunScan(const std::string& argStr)
     // RunScan leave the same catalog behind. It logs its own failures and leaves
     // the result as it was rather than interrupting the scan.
     Librarian::ClassifyScan(result);
+
+    // The perk adapters read the catalog the full scan just rebuilt. Not after
+    // the tome scan the panel runs in the background: that leaves the catalog
+    // as it was, and the work would land on the frames the panel opens in.
+    if (!useTomeMode) {
+        Librarian::PerkAdapters::Apply("scan");
+    }
 
     // A tome scan is a filter list, not the spells a tree is built from, so
     // it is sent and not kept.

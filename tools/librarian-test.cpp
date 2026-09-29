@@ -19,6 +19,7 @@
 
 #include "Common.h"
 #include "JsonFile.h"
+#include "LibrarianAdapterRun.h"
 #include "LibrarianScore.h"
 #include "LibrarianVocabCheck.h"
 
@@ -67,6 +68,11 @@ namespace
             << "      Scores tags and the four axes straight out of a catalog,\n"
             << "      which is how a catalog the game wrote gets checked against\n"
             << "      the numbers the offline run produces.\n"
+            << "\n"
+            << "Perk adapters (no rules needed):\n"
+            << "  -i <dump> --catalog <spell_catalog.json> --adapters <dir> [-o <report.json>]\n"
+            << "      Plans the perk adapter keyword writes with the plugin's own\n"
+            << "      planner and prints agree / writes / gain / leaks per line.\n"
             << "\n"
             << "Vocabulary check (no dump needed):\n"
             << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
@@ -119,6 +125,7 @@ int main(int argc, char* argv[])
     std::string scriptPath;
     std::string tier;
     std::string catalogPath;
+    std::string adaptersPath;
     bool verbose = false;
     bool checkVocabulary = false;
 
@@ -142,6 +149,8 @@ int main(int argc, char* argv[])
             tier = argv[++i];
         } else if (arg == "--catalog" && hasNext) {
             catalogPath = argv[++i];
+        } else if (arg == "--adapters" && hasNext) {
+            adaptersPath = argv[++i];
         } else if (arg == "--check-vocab") {
             checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
@@ -167,6 +176,15 @@ int main(int argc, char* argv[])
             std::cerr << "Error: " << e.what() << "\n";
             return 1;
         }
+    }
+
+    if (!adaptersPath.empty()) {
+        if (inputPath.empty() || catalogPath.empty()) {
+            std::cerr << "--adapters needs -i <dump> and --catalog <catalog>\n\n";
+            PrintUsage(argv[0]);
+            return 1;
+        }
+        return RunAdapters(inputPath, catalogPath, adaptersPath, outputPath);
     }
 
     if (!catalogPath.empty()) {
