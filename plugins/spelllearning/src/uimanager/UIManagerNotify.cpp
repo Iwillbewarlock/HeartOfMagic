@@ -1,4 +1,6 @@
 #include "Common.h"
+#include "JsonText.h"
+#include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
 #include "ProgressionManager.h"
 
@@ -24,7 +26,7 @@ void UIManager::UpdateStatus(const std::string& message)
     }
 
     json statusJson = message;
-    CallView("updateStatus", statusJson.dump().c_str());
+    CallView("updateStatus", JsonText::Dump(statusJson).c_str());
 }
 
 void UIManager::SendPrompt(const std::string& promptContent)
@@ -84,7 +86,7 @@ void UIManager::UpdateSpellState(const std::string& formId, const std::string& s
     json stateData;
     stateData["formId"] = formId;
     stateData["state"] = state;
-    CallView("updateSpellState", stateData.dump().c_str());
+    CallView("updateSpellState", JsonText::Dump(stateData).c_str());
 }
 
 void UIManager::UpdateTreeStatus(const std::string& message)
@@ -94,7 +96,7 @@ void UIManager::UpdateTreeStatus(const std::string& message)
     }
 
     json statusJson = message;
-    CallView("updateTreeStatus", statusJson.dump().c_str());
+    CallView("updateTreeStatus", JsonText::Dump(statusJson).c_str());
 }
 
 // =============================================================================
@@ -150,7 +152,7 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     // PERFORMANCE: Use trace for frequent progress updates
     logger::trace("UIManager: Sending progress update to UI - formId: {}, XP: {:.1f}/{:.1f}, unlocked: {}",
         ss.str(), currentXP, requiredXP, progress.unlocked);
-    CallView("onProgressUpdate", update.dump().c_str());
+    CallView("onProgressUpdate", JsonText::Dump(update).c_str());
 }
 
 void UIManager::NotifyProgressUpdate(const std::string& formIdStr)
@@ -185,7 +187,7 @@ void UIManager::NotifySpellReady(RE::FormID formId)
     notify["formId"] = ss.str();
     notify["ready"] = true;
 
-    CallView("onSpellReady", notify.dump().c_str());
+    CallView("onSpellReady", JsonText::Dump(notify).c_str());
 }
 
 void UIManager::NotifySpellUnlocked(RE::FormID formId, bool success)
@@ -200,7 +202,7 @@ void UIManager::NotifySpellUnlocked(RE::FormID formId, bool success)
     notify["formId"] = ss.str();
     notify["success"] = success;
 
-    CallView("onSpellUnlocked", notify.dump().c_str());
+    CallView("onSpellUnlocked", JsonText::Dump(notify).c_str());
 }
 
 void UIManager::NotifyLearningTargetSet(const std::string& school, RE::FormID formId, const std::string& spellName)
@@ -216,10 +218,13 @@ void UIManager::NotifyLearningTargetSet(const std::string& school, RE::FormID fo
 
     notify["school"] = school;
     notify["formId"] = formIdStr;
-    notify["spellName"] = spellName;
+    // The game's name is in the ANSI code page ("Heilende H\xE4nde" in
+    // Windows-1252 on a German game): raw, it made the dump below throw and
+    // the rest of the tome's learning flow was skipped
+    notify["spellName"] = EncodingUtils::SanitizeToUTF8(spellName);
 
     logger::info("UIManager: Notifying UI of learning target set: {} -> {} ({})", school, spellName, formIdStr);
-    CallView("onLearningTargetSet", notify.dump().c_str());
+    CallView("onLearningTargetSet", JsonText::Dump(notify).c_str());
 
     // Also update the spell state to "learning" so canvas renderer shows learning visuals
     UpdateSpellState(formIdStr, "learning");
@@ -262,7 +267,7 @@ void UIManager::NotifyModdedSourceRegistered(const std::string& sourceId,
     j["enabled"] = true;
 
     logger::info("UIManager: Notifying UI - modded XP source registered: '{}' ('{}')", sourceId, displayName);
-    CallView("onModdedXPSourceRegistered", j.dump().c_str());
+    CallView("onModdedXPSourceRegistered", JsonText::Dump(j).c_str());
 }
 
 void UIManager::NotifyMainMenuLoaded()

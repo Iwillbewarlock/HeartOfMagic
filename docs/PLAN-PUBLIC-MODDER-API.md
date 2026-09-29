@@ -448,6 +448,11 @@ namespace SpellLearning {
 }
 ```
 
+**No exceptions cross the boundary** (1.0.2): `AddSourcedXP`, `AddRawXP`, `SetSpellXP`, `SetLearningTarget`,
+`ClearLearningTarget` and `RegisterXPSource` catch anything thrown inside Heart of Magic, log it
+(`SpellLearning API: <call> threw: ...` in `SpellLearning.log`) and return `0` / `false` / nothing. Before, a
+throw (such as a spell name that is not UTF-8 reaching the panel) unwound into the calling plugin's DLL.
+
 ---
 
 ## 6. Usage Examples

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "JsonText.h"
 #include "SKSE/SKSE.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -299,5 +300,5 @@ std::string ProgressionManager::GetProgressJSON() const
     }
     j["spellProgress"] = progress;
 
-    return j.dump();
+    return JsonText::Dump(j);
 }

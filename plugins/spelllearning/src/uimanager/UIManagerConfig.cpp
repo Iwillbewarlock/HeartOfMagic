@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
@@ -314,22 +315,48 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     bool configFileExists = false;
 
     // Try to load existing unified config and merge (non-null values only)
-    if (std::filesystem::exists(path)) {
+    std::error_code existsError;
+    if (std::filesystem::exists(path, existsError)) {
+        bool readable = false;
         try {
             std::ifstream file(path);
             json loadedConfig = json::parse(file);
-            MergeJsonNonNull(unifiedConfig, loadedConfig);
-            configFileExists = true;
-            logger::info("UIManager: Loaded and merged unified config");
+            // A file that parses to an array or a number holds no settings either
+            readable = loadedConfig.is_object();
+            if (readable) {
+                MergeJsonNonNull(unifiedConfig, loadedConfig);
+                logger::info("UIManager: Loaded and merged unified config");
+            } else {
+                logger::warn("UIManager: config.json is not a JSON object - using defaults");
+            }
         } catch (const std::exception& e) {
             logger::warn("UIManager: Failed to parse unified config: {} - using defaults", e.what());
         }
+        configFileExists = true;
+        if (!readable) {
+            // Keep the player's file for them to fix instead of writing the
+            // defaults over it; if it cannot be moved, it is left untouched
+            // (the defaults are used for this session only).
+            const auto aside = FileUtils::MoveAside(path, ".broken");
+            if (!aside.empty()) {
+                logger::warn("UIManager: unreadable config.json kept as {} - a new one with the defaults is written",
+                    PathText::Utf8(aside.filename()));
+                configFileExists = false;
+            } else {
+                logger::error("UIManager: unreadable config.json left in place - settings are the defaults this session");
+            }
+        }
+    } else if (existsError) {
+        // Not known to be missing: nothing is written over it
+        logger::error("UIManager: cannot check config.json ({}) - using defaults", existsError.message());
+        configFileExists = true;
     } else {
         logger::info("UIManager: No config file found, using defaults");
     }
 
     // Migrate legacy settings only if no unified config exists yet
-    if (!configFileExists && std::filesystem::exists(legacySettingsPath)) {
+    std::error_code legacyError;
+    if (!configFileExists && std::filesystem::exists(legacySettingsPath, legacyError)) {
         try {
             std::ifstream file(legacySettingsPath);
             json legacySettings = json::parse(file);
@@ -340,30 +367,29 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // Save defaults if no config file existed (creates the file for user)
     if (!configFileExists) {
-        try {
-            std::filesystem::create_directories(path.parent_path());
-            std::ofstream outFile(path);
-            outFile << unifiedConfig.dump(2);
+        std::error_code dirError;
+        std::filesystem::create_directories(path.parent_path(), dirError);
+        if (FileUtils::WriteAtomically(path, JsonText::Dump(unifiedConfig, 2))) {
             logger::info("UIManager: Created default config file at {}", PathText::Utf8(path));
-        } catch (const std::exception& e) {
-            logger::warn("UIManager: Failed to save default config: {}", e.what());
+        } else {
+            logger::warn("UIManager: Failed to save default config at {}", PathText::Utf8(path));
         }
     }
     configFileLock.unlock();
 
+    // One value of the wrong type (a hand-edited "hotkeyCode": "F5") used to
+    // throw here and skip every setting below it; it now falls back to the default
+    const json defaults = GenerateDefaultConfig();
+
     // Update InputHandler with loaded hotkey
-    if (unifiedConfig.contains("hotkeyCode") && !unifiedConfig["hotkeyCode"].is_null()) {
-        uint32_t keyCode = unifiedConfig["hotkeyCode"].get<uint32_t>();
-        UpdateInputHandlerHotkey(keyCode);
-        logger::info("UIManager: Updated hotkey from config: {}", keyCode);
-    }
+    const auto keyCode = SafeJsonValue<uint32_t>(unifiedConfig, "hotkeyCode", defaults["hotkeyCode"].get<uint32_t>());
+    UpdateInputHandlerHotkey(keyCode);
+    logger::info("UIManager: Updated hotkey from config: {}", keyCode);
 
     // Update pause game on focus setting
-    if (unifiedConfig.contains("pauseGameOnFocus") && !unifiedConfig["pauseGameOnFocus"].is_null()) {
-        bool pauseGame = unifiedConfig["pauseGameOnFocus"].get<bool>();
-        GetSingleton()->SetPauseGameOnFocus(pauseGame);
-        logger::info("UIManager: Updated pauseGameOnFocus from config: {}", pauseGame);
-    }
+    const bool pauseGame = SafeJsonValue<bool>(unifiedConfig, "pauseGameOnFocus", defaults["pauseGameOnFocus"].get<bool>());
+    GetSingleton()->SetPauseGameOnFocus(pauseGame);
+    logger::info("UIManager: Updated pauseGameOnFocus from config: {}", pauseGame);
 
     // Update ProgressionManager with loaded XP settings
     // All fields are guaranteed to exist from defaults, but use SafeJsonValue for extra safety
@@ -397,7 +423,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     }
 
     // Send to UI
-    std::string configStr = unifiedConfig.dump();
+    std::string configStr = JsonText::Dump(unifiedConfig);
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());
     instance->CallView("onUnifiedConfigLoaded", configStr.c_str());
 

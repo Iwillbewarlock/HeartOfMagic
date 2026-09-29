@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
@@ -51,7 +52,7 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                         logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)",
                             validationResult.resolvedFromPersistent);
                         // Update tree content with resolved form IDs
-                        treeContent = treeData.dump();
+                        treeContent = JsonText::Dump(treeData);
                     }
                     if (validationResult.invalidNodes > 0) {
                         logger::warn("UIManager: {} spells could not be resolved (plugins may be missing)",
@@ -161,7 +162,7 @@ void UIManager::OnGetSpellIcon(const char* argument)
         nlohmann::json reply;
         reply["key"] = key;
         reply["svg"] = EncodingUtils::SanitizeToUTF8(SpellScanner::ReadSpellIconSvg(key));
-        instance->CallView("updateSpellIcon", reply.dump().c_str());
+        instance->CallView("updateSpellIcon", JsonText::Dump(reply).c_str());
     });
 }
 
@@ -229,7 +230,7 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
             logger::info("UIManager: Batch result - {} found, {} not found", foundCount, notFoundCount);
 
             // Send batch result
-            instance->SendSpellInfoBatch(resultArray.dump());
+            instance->SendSpellInfoBatch(JsonText::Dump(resultArray));
 
         } catch (const std::exception& e) {
             logger::error("UIManager: GetSpellInfoBatch exception: {}", e.what());
@@ -347,7 +348,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             // panel must not take this answer as that build's result
             response["busy"] = true;
             response["error"] = "Tree build already in progress. Please wait for the current build to finish.";
-            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
             return;
         }
 
@@ -377,7 +378,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                     nlohmann::json response;
                     response["success"] = false;
                     response["error"] = "The spell scan changed while this build was being set up. Build again.";
-                    instance->CallView("onProceduralTreeComplete", response.dump().c_str());
+                    instance->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
                     return;
                 }
                 scanText = instance->m_scanText;
@@ -427,7 +428,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                             logger::error("UIManager: {} failed: {}", command, result.error);
                         }
 
-                        const std::string payload = response.dump();
+                        const std::string payload = JsonText::Dump(response);
                         if (result.success) {
                             logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)",
                                 command, result.elapsedMs / 1000.0, payload.size());
@@ -444,7 +445,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = error;
-                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: TreeBuilder::Build unknown exception");
@@ -456,7 +457,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         nlohmann::json response;
                         response["success"] = false;
                         response["error"] = "Unknown internal error during tree build";
-                        inst->CallView("onProceduralTreeComplete", response.dump().c_str());
+                        inst->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
                     });
                 }
             }).detach();
@@ -468,7 +469,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->CallView("onProceduralTreeComplete", response.dump().c_str());
+            instance->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
         }
     });
 }
@@ -494,7 +495,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "PRM scoring already in progress. Please wait.";
-            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
             return;
         }
 
@@ -519,7 +520,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         inst->m_prmScoreInProgress = false;
 
                         if (!inst->m_prismaUI) return;
-                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: ProcessPRMRequest exception: {}", e.what());
@@ -531,7 +532,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = error;
-                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
                     });
                 } catch (...) {
                     logger::error("UIManager: ProcessPRMRequest unknown exception");
@@ -543,7 +544,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                         nlohmann::json result;
                         result["success"] = false;
                         result["error"] = "Unknown internal error during PRM scoring";
-                        inst->CallView("onPreReqMasterComplete", result.dump().c_str());
+                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
                     });
                 }
             }).detach();
@@ -555,7 +556,7 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = e.what();
-            instance->CallView("onPreReqMasterComplete", response.dump().c_str());
+            instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
         }
     });
 }

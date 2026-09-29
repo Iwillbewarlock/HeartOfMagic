@@ -1,5 +1,9 @@
 #include "Common.h"
+#include "JsonText.h"
+#include "EncodingUtils.h"
 #include "SpellScanner.h"
+
+#include <algorithm>
 
 namespace SpellScanner
 {
@@ -28,10 +32,41 @@ namespace SpellScanner
         }
 
         if (plugin && plugin->fileName && strlen(plugin->fileName) > 0) {
-            return std::format("{}|0x{:06X}", plugin->fileName, localFormId);
+            // The file name is in the ANSI code page (a Korean or Japanese plugin
+            // name): the key is its UTF-8 form, so it can go into JSON. A name that
+            // is already UTF-8 (every ASCII one) is the same key as before.
+            return std::format("{}|0x{:06X}", EncodingUtils::SanitizeToUTF8(plugin->fileName), localFormId);
         }
 
         return "";  // Unknown plugin
+    }
+
+    namespace
+    {
+        bool HasNonAscii(std::string_view text)
+        {
+            return std::ranges::any_of(text, [](char c) { return static_cast<unsigned char>(c) >= 0x80; });
+        }
+
+        // The loaded plugin a persistentId names. LookupModByName compares the
+        // game's own bytes, which is every ASCII name; a name that was converted
+        // to UTF-8 (GetPersistentFormId) is found by converting each file's name
+        // the same way. Case folding as LookupModByName's: ASCII letters only.
+        const RE::TESFile* FindPlugin(RE::TESDataHandler* dataHandler, const std::string& pluginName)
+        {
+            if (const auto* plugin = dataHandler->LookupModByName(pluginName)) {
+                return plugin;
+            }
+            if (!HasNonAscii(pluginName)) {
+                return nullptr;
+            }
+            for (const auto* file : dataHandler->files) {
+                if (file && _stricmp(EncodingUtils::SanitizeToUTF8(file->fileName).c_str(), pluginName.c_str()) == 0) {
+                    return file;
+                }
+            }
+            return nullptr;
+        }
     }
 
     RE::FormID ResolvePersistentFormId(const std::string& persistentId)
@@ -62,7 +97,7 @@ namespace SpellScanner
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) return 0;
 
-        const RE::TESFile* plugin = dataHandler->LookupModByName(pluginName);
+        const RE::TESFile* plugin = FindPlugin(dataHandler, pluginName);
         if (!plugin) {
             logger::trace("SpellScanner: Plugin not loaded: {}", pluginName);
             return 0;
@@ -232,7 +267,7 @@ namespace SpellScanner
                     // Find first remaining node as new root
                     if (!nodes.empty() && nodes[0].contains("formId")) {
                         schoolData["root"] = nodes[0]["formId"];
-                        logger::info("SpellScanner: Updated {} root to {}", schoolName, nodes[0]["formId"].dump());
+                        logger::info("SpellScanner: Updated {} root to {}", schoolName, JsonText::Dump(nodes[0]["formId"]));
                     }
                 }
 

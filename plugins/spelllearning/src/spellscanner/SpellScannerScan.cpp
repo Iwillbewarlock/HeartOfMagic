@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
@@ -281,7 +282,7 @@ namespace SpellScanner
 
         output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
 
-        return output.dump(2);
+        return JsonText::Dump(output, 2);
     }
 
     std::string ScanAllSpells(const FieldConfig& config)
@@ -385,7 +386,7 @@ namespace SpellScanner
         combinedPrompt += GetSystemInstructions();
         output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
 
-        return output.dump(2);
+        return JsonText::Dump(output, 2);
     }
 
     // =============================================================================
@@ -441,7 +442,7 @@ namespace SpellScanner
         spellInfo["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
 
         const char* editorId = spell->GetFormEditorID();
-        spellInfo["editorId"] = editorId ? editorId : "";
+        spellInfo["editorId"] = editorId ? EncodingUtils::SanitizeToUTF8(editorId) : std::string();
 
         // Get school and level
         std::string school = "Unknown";
@@ -563,6 +564,6 @@ namespace SpellScanner
     std::string GetSpellInfoByFormId(const std::string& formIdStr)
     {
         json spellInfo = GetSpellInfoJsonByFormId(formIdStr);
-        return spellInfo.is_null() ? std::string() : spellInfo.dump();
+        return spellInfo.is_null() ? std::string() : JsonText::Dump(spellInfo);
     }
 }

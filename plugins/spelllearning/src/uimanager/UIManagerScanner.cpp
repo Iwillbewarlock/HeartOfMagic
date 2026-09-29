@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
@@ -62,7 +63,7 @@ void UIManager::ReportScanFailure(const char* what, bool tomeScan)
     // An empty reason (a throw that is not a std::exception) is "unknown error" in the panel's language
     const json message = {{"mode", tomeScan ? "tomes" : "all"}, {"reason", reason}};
     CallView("onScanFailed",
-        message.dump(-1, ' ', false, json::error_handler_t::replace).c_str());
+        JsonText::Dump(message).c_str());
 }
 
 void UIManager::RunScan(const std::string& argStr)

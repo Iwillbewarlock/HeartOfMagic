@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "uimanager/UIManager.h"
 #include "treebuilder/LayoutDeclutter.h"
 #include "ThreadUtils.h"
@@ -63,7 +64,7 @@ namespace
     // A parse error's message can quote bytes that are not UTF-8: replaced, not thrown
     std::string Dump(const nlohmann::json& value)
     {
-        return value.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+        return JsonText::Dump(value);
     }
 
     std::string ErrorReply(const nlohmann::json& id, const std::string& error)

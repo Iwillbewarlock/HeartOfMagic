@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <string>
 #include <string_view>
 #include <system_error>
 
@@ -92,5 +93,46 @@ namespace FileUtils
             return false;
         }
         return true;
+    }
+
+    /// How many unreadable copies of one file MoveAside keeps (.broken, .broken-2 ...)
+    inline constexpr int kMaxAsideCopies = 20;
+
+    /**
+     * Move a file that cannot be read out of the way before it is replaced.
+     *
+     * A config.json that did not parse used to be written over with the
+     * defaults, and whatever the player had set was gone. It is kept as
+     * <name><suffix> - or <name><suffix>-2, -3 ... when an earlier one is
+     * there - for the player (or a bug report) to look at.
+     *
+     * @return the path it was moved to; empty when it could not be moved,
+     *         in which case the caller must leave the file where it is
+     */
+    inline std::filesystem::path MoveAside(const std::filesystem::path& path,
+                                           std::string_view suffix = ".broken")
+    {
+        std::error_code ec;
+        for (int copy = 1; copy <= kMaxAsideCopies; ++copy) {
+            auto target = path;
+            target += std::string(suffix);
+            if (copy > 1) {
+                target += "-" + std::to_string(copy);
+            }
+            ec.clear();
+            if (std::filesystem::exists(target, ec) || ec) {
+                continue;
+            }
+            std::filesystem::rename(path, target, ec);
+            if (!ec) {
+                return target;
+            }
+            logger::error("FileUtils: could not move {} aside to {}: {}",
+                PathText::Utf8(path), PathText::Utf8(target.filename()), ec.message());
+            return {};
+        }
+        logger::error("FileUtils: {} not moved aside - {} earlier copies are already there",
+            PathText::Utf8(path), kMaxAsideCopies);
+        return {};
     }
 }

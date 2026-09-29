@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "uimanager/UIManager.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
@@ -66,7 +67,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             response["success"] = true;
             response["school"] = school;
             response["formId"] = formIdStr;
-            instance->CallView("onLearningTargetSet", response.dump().c_str());
+            instance->CallView("onLearningTargetSet", JsonText::Dump(response).c_str());
 
             // Update spell state to "learning" so canvas renderer shows learning visuals
             instance->UpdateSpellState(formIdStr, "learning");
@@ -269,7 +270,7 @@ void UIManager::OnGetPlayerKnownSpells([[maybe_unused]] const char* argument)
         result["count"] = knownSpells.size();
 
         logger::info("UIManager: Found {} valid combat spells", knownSpells.size());
-        instance->CallView("onPlayerKnownSpells", result.dump().c_str());
+        instance->CallView("onPlayerKnownSpells", JsonText::Dump(result).c_str());
     });
 }
 
@@ -372,7 +373,7 @@ void UIManager::OnRelockSpell(const char* argument)
             notify["success"] = true;
             notify["relocked"] = true;
 
-            instance->CallView("onSpellRelocked", notify.dump().c_str());
+            instance->CallView("onSpellRelocked", JsonText::Dump(notify).c_str());
             instance->UpdateSpellState(formIdStr, "available");
 
         } catch (const std::exception& e) {

@@ -53,7 +53,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `WriteScanOutput(content)` - Write `spell_scan_output.json`, return its path
 - `GetSpellInfoByFormId(formId)` - Lookup spell details
 - `GetSystemInstructions()` - LLM output format spec
-- `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format
+- `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format (plugin name in UTF-8, see below)
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
@@ -147,6 +147,44 @@ forbids, so non-ASCII letters stay in the name. The file work itself is `include
 removes nothing; a delete removes that file, or, only when it is missing and the name has a non-ASCII letter,
 every file whose `name` inside matches (an older build's garbled file name). It reads each file into memory and
 closes it before `remove()`: MSVC opens a stream without `FILE_SHARE_DELETE`, so removing a file still open throws.
+
+**Game text that is not UTF-8 (1.0.2).** The game hands out names, editor ids and plugin file names in the
+system's ANSI code page (Windows-1252 on a German or French game, 1251 on a Russian one, CP949 on a Korean one).
+`nlohmann::json::dump()` throws `type_error.316` on such bytes, and whatever was being sent stopped. Two layers:
+
+- Text that should read correctly goes through `EncodingUtils::SanitizeToUTF8` (already UTF-8 is kept as it is,
+  anything else is converted from `CP_ACP`): spell and effect names, the spell name of `onLearningTargetSet`
+  (the tome flow), editor ids (`GetEditorId`, keyword ids, the spell card's `editorId`) and plugin file names
+  (`GetPluginName`, the plugin half of `GetPersistentFormId`). `ConvertFromCodePage(text, codePage)` is the
+  conversion with an explicit code page (`ConvertToUTF8` is it with `CP_ACP`).
+- Every `dump()` whose text leaves the plugin (the panel, a file) is `JsonText::Dump(value, indent)`
+  (`include/JsonText.h`), `dump` with `error_handler_t::replace`: a byte that is still not UTF-8 becomes U+FFFD
+  instead of a throw. There is no plain `.dump(` left in `plugins/`; keep it that way.
+
+A persistentId's plugin half is the UTF-8 form of the file name. For an ASCII or already-UTF-8 name that is
+the same key as before; only a name that was not valid UTF-8 changed, and such a plugin never produced a scan
+or a tree (the dump threw), so nothing saved holds the old form. The co-save does not use persistentIds (it
+stores FormIDs and resolves them with SKSE's `ResolveFormID`). `ResolvePersistentFormId` tries
+`TESDataHandler::LookupModByName` with the text first (the game's own bytes, every ASCII name) and, for a
+name with a non-ASCII byte that it misses, walks `TESDataHandler::files` comparing each file's converted name
+(ASCII-only case folding, like `LookupModByName`). The key depends on the ANSI code page: a player who switches
+the Windows system locale gets other keys for plugins whose names are not UTF-8.
+
+`config.json` that does not parse, or parses to something other than an object, is moved to
+`config.json.broken` (`.broken-2`, ... up to 20; `FileUtils::MoveAside`) and a new one with the defaults is
+written with `FileUtils::WriteAtomically`; an existing `config.json.bak` from the last good save is left
+alone. If the file cannot be moved it is left untouched and the defaults hold for the session only.
+`hotkeyCode` and `pauseGameOnFocus` are read with `SafeJsonValue` (a wrong type falls back to the default
+from `GenerateDefaultConfig`) - a throw there used to skip every setting after it.
+
+The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
+an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL.
+
+`SetupLog` (`plugins/Common.h`, all three DLLs) never throws. CommonLib's `logger::init()` builds its file sink
+from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
+not load at all. On that throw the same log file is opened by its wide path (`WideFileSink`,
+`plugins/WideFileSink.h`, `_wfsopen`; spdlog here has no `SPDLOG_WCHAR_FILENAMES`), and if that fails too the
+plugin runs with the debugger-output sink only.
 
 `archetype` and the actor value fields are always names, never raw numbers -
 classification rules match on those strings, so they have to stay stable.
@@ -1162,10 +1200,13 @@ HeartOfMagic/
 │   │   └── commonlibsse-ng/       # Git submodule (built once, shared by all targets)
 │   ├── SpellLearningAPI.h         ✅ Public C++ API header (shared across plugins)
 │   ├── PrismaUI_API.h             ✅ PrismaUI modder interface (shared across plugins)
+│   ├── Common.h                   ✅ PCH, logger alias, SetupLog (never throws; wide-path fallback)
+│   ├── WideFileSink.h             ✅ spdlog file sink opened by a wide path (no game types)
 │   ├── spelllearning/             # Main SpellLearning plugin
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
 │   │   │   ├── ISLIntegration.h             ✅ DEST mod integration header
+│   │   │   ├── JsonText.h                   ✅ JsonText::Dump - dump that replaces bytes that are not UTF-8 (no game types)
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header

@@ -17,6 +17,10 @@ namespace EncodingUtils
     // The codepage used is determined by the user's Windows locale (CP_ACP).
     std::string ConvertToUTF8(const std::string& input);
 
+    // The same from a given code page (1252, 1251, 949 ...): ConvertToUTF8 is
+    // this with CP_ACP. Lets a check test a code page other than the machine's.
+    std::string ConvertFromCodePage(const std::string& input, unsigned int codePage);
+
     // Sanitize a string to valid UTF-8 for safe JSON serialization.
     // If already valid UTF-8, returns the input unchanged (fast path).
     // Otherwise converts from the system's ANSI codepage.

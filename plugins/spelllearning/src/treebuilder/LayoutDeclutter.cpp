@@ -1,4 +1,5 @@
 #include "treebuilder/LayoutDeclutter.h"
+#include "JsonText.h"
 #include "treebuilder/LayoutDeclutterInternal.h"
 #include "treebuilder/LayoutMath.h"
 
@@ -67,7 +68,7 @@ namespace
         if (v.is_number_unsigned()) return std::to_string(v.get<std::uint64_t>());
         if (v.is_null()) return "null";
         if (v.is_boolean()) return v.get<bool>() ? "true" : "false";
-        return v.dump();
+        return JsonText::Dump(v);
     }
 
     // A coordinate the pass takes (_usable): finite and within kMaxCoord

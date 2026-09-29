@@ -17,6 +17,25 @@
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
 // =============================================================================
 
+// Another plugin calls these, from its own DLL: an exception must not cross
+// into it (its runtime cannot catch ours, and the game would go down). The
+// call is logged and answered with R{} (0 XP, false) instead.
+template <class F>
+static auto GuardApiCall(const char* name, F&& call) noexcept -> std::invoke_result_t<F>
+{
+    using R = std::invoke_result_t<F>;
+    try {
+        return call();
+    } catch (const std::exception& e) {
+        logger::error("SpellLearning API: {} threw: {}", name, e.what());
+    } catch (...) {
+        logger::error("SpellLearning API: {} threw an unknown exception", name);
+    }
+    if constexpr (!std::is_void_v<R>) {
+        return R{};
+    }
+}
+
 class SpellLearningAPIImpl : public SpellLearning::ISpellLearningAPI
 {
 public:
@@ -30,20 +49,26 @@ public:
 
     float AddSourcedXP(uint32_t spellFormID, float amount, const std::string& sourceName) override
     {
-        return ProgressionManager::GetSingleton()->AddSourcedXP(
-            static_cast<RE::FormID>(spellFormID), amount, sourceName);
+        return GuardApiCall("AddSourcedXP", [&] {
+            return ProgressionManager::GetSingleton()->AddSourcedXP(
+                static_cast<RE::FormID>(spellFormID), amount, sourceName);
+        });
     }
 
     float AddRawXP(uint32_t spellFormID, float amount) override
     {
-        return ProgressionManager::GetSingleton()->AddRawXP(
-            static_cast<RE::FormID>(spellFormID), amount);
+        return GuardApiCall("AddRawXP", [&] {
+            return ProgressionManager::GetSingleton()->AddRawXP(
+                static_cast<RE::FormID>(spellFormID), amount);
+        });
     }
 
     void SetSpellXP(uint32_t spellFormID, float xp) override
     {
-        ProgressionManager::GetSingleton()->SetSpellXP(
-            static_cast<RE::FormID>(spellFormID), xp);
+        GuardApiCall("SetSpellXP", [&] {
+            ProgressionManager::GetSingleton()->SetSpellXP(
+                static_cast<RE::FormID>(spellFormID), xp);
+        });
     }
 
     bool IsSpellMastered(uint32_t spellFormID) const override
@@ -79,18 +104,22 @@ public:
 
     void SetLearningTarget(uint32_t spellFormID) override
     {
-        auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(
-            static_cast<RE::FormID>(spellFormID));
-        if (spell) {
-            std::stringstream ss;
-            ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spellFormID;
-            ProgressionManager::GetSingleton()->SetLearningTargetFromTome(ss.str(), spell);
-        }
+        GuardApiCall("SetLearningTarget", [&] {
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(
+                static_cast<RE::FormID>(spellFormID));
+            if (spell) {
+                std::stringstream ss;
+                ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spellFormID;
+                ProgressionManager::GetSingleton()->SetLearningTargetFromTome(ss.str(), spell);
+            }
+        });
     }
 
     void ClearLearningTarget(const std::string& school) override
     {
-        ProgressionManager::GetSingleton()->ClearLearningTarget(school);
+        GuardApiCall("ClearLearningTarget", [&] {
+            ProgressionManager::GetSingleton()->ClearLearningTarget(school);
+        });
     }
 
     float GetGlobalMultiplier() const override
@@ -100,7 +129,9 @@ public:
 
     bool RegisterXPSource(const std::string& sourceId, const std::string& displayName) override
     {
-        return ProgressionManager::GetSingleton()->RegisterModdedXPSource(sourceId, displayName);
+        return GuardApiCall("RegisterXPSource", [&] {
+            return ProgressionManager::GetSingleton()->RegisterModdedXPSource(sourceId, displayName);
+        });
     }
 
 private:

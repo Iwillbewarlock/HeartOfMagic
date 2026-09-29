@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "PathText.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/PresetFiles.h"
@@ -96,7 +97,7 @@ void UIManager::OnSavePreset(const char* argument)
             std::filesystem::create_directories(dir);
 
             const auto filePath = PresetFiles::FilePath(dir, safeName);
-            if (!PresetFiles::Write(filePath, data.dump(2))) {
+            if (!PresetFiles::Write(filePath, JsonText::Dump(data, 2))) {
                 logger::error("UIManager: SavePreset - failed to write {}", PathText::Utf8(filePath));
                 return;
             }
@@ -237,7 +238,7 @@ void UIManager::OnLoadPresets(const char* argument)
                 logger::info("UIManager: LoadPresets - no presets directory for type '{}'", type);
             }
 
-            std::string resultStr = result.dump();
+            std::string resultStr = JsonText::Dump(result);
             logger::info("UIManager: LoadPresets - sending {} {} presets to UI",
                          result["presets"].size(), type);
             instance->CallView("onPresetsLoaded", resultStr.c_str());

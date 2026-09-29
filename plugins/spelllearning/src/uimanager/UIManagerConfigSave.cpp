@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "JsonText.h"
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
@@ -120,7 +121,7 @@ namespace
                 MergeJsonNonNull(merged, newConfig);
 
                 // Write merged config through a temp file and a move, keeping one .bak
-                written = FileUtils::WriteAtomically(path, merged.dump(2));
+                written = FileUtils::WriteAtomically(path, JsonText::Dump(merged, 2));
             }
 
             if (written) {

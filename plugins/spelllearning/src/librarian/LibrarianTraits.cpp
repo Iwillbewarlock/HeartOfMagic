@@ -1,4 +1,5 @@
 #include "librarian/Librarian.h"
+#include "JsonText.h"
 #include "librarian/LibrarianInternal.h"
 
 #include <algorithm>
@@ -225,7 +226,7 @@ namespace Librarian
             }
 
             RememberCatalog(catalog);
-            scanJson = scanDump.dump();
+            scanJson = JsonText::Dump(scanDump);
             logger::info("Librarian: catalog elements merged into the traits of {} spells", changed);
         } catch (const std::exception& e) {
             logger::error("Librarian: merging catalog elements failed - {}", e.what());

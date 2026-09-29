@@ -1,5 +1,31 @@
 # Changelog
 
+## Heart of Magic Librarian 1.0.2
+
+The same kind of bug as the 1.0.1 scan fix: text Windows keeps in the old code page stopped a feature
+without a word.
+
+### Fixed
+
+- Reading a spell tome now starts learning for spells whose name has letters outside plain English:
+  "Heilende Hände", "Éclair", any Russian name. The tome set the learning target, then the rest was
+  skipped - no XP, no "You begin to study..." message, no update in the panel, and with ISL/DEST the
+  study never began.
+- A load order with a plugin whose file name is in Korean, Chinese or Japanese can be scanned again, and
+  spell cards fill in. Before, the whole scan failed and cards stayed empty. Unusual editor IDs no longer
+  stop the scan either. Trees and tags of plugins with plain English file names are unaffected.
+- Any other odd text that still reaches the panel shows as `�` instead of stopping what was being sent.
+- A `config.json` that cannot be read (a typo from hand-editing, a cut-off write) is no longer replaced
+  with the defaults and lost. It is kept as `config.json.broken` (then `.broken-2`, ...) in
+  `SKSE/Plugins/SpellLearning/`, and a fresh one with the defaults is made; `config.json.bak` from the last
+  good save stays. A setting of the wrong type (a hotkey written as text) now falls back to its default
+  instead of skipping every setting after it.
+- Heart of Magic, SL_BookXP and the DEST shim now load when the Documents folder path has characters
+  the Windows code page cannot hold (a user name in Korean on an English Windows, an emoji). The log file
+  is still written in `Documents/My Games/Skyrim Special Edition/SKSE/`.
+- Other SKSE plugins calling Heart of Magic's C++ API can no longer be taken down by an error inside
+  Heart of Magic; the call is logged and answered with 0 or false.
+
 ## Heart of Magic Librarian 1.0.1
 
 ### Fixed

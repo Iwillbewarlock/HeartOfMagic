@@ -20,17 +20,22 @@ namespace EncodingUtils
      */
     std::string ConvertToUTF8(const std::string& input)
     {
+        return ConvertFromCodePage(input, CP_ACP);
+    }
+
+    std::string ConvertFromCodePage(const std::string& input, unsigned int codePage)
+    {
         if (input.empty()) return input;
 
-        // First, convert from ANSI (system codepage) to wide string (UTF-16)
-        int wideLen = MultiByteToWideChar(CP_ACP, 0, input.c_str(), -1, nullptr, 0);
+        // First, convert from the code page to wide string (UTF-16)
+        int wideLen = MultiByteToWideChar(codePage, 0, input.c_str(), -1, nullptr, 0);
         if (wideLen <= 0) {
             // Conversion failed, return sanitized version as fallback
             return SanitizeToUTF8Strict(input);
         }
 
         std::wstring wideStr(wideLen, L'\0');
-        MultiByteToWideChar(CP_ACP, 0, input.c_str(), -1, &wideStr[0], wideLen);
+        MultiByteToWideChar(codePage, 0, input.c_str(), -1, &wideStr[0], wideLen);
 
         // Then convert from UTF-16 to UTF-8
         int utf8Len = WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, nullptr, 0, nullptr, nullptr);

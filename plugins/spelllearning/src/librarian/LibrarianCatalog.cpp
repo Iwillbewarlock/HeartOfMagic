@@ -1,4 +1,5 @@
 #include "librarian/Librarian.h"
+#include "JsonText.h"
 #include "librarian/LibrarianInternal.h"
 #include "PathText.h"
 
@@ -291,7 +292,7 @@ namespace Librarian
                 logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(path));
                 return false;
             }
-            file << catalog.dump(2);
+            file << JsonText::Dump(catalog, 2);
             file.close();
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",

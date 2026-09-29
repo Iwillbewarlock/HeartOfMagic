@@ -114,8 +114,10 @@ namespace SpellScanner
     {
         if (!form) return "";
 
+        // Editor ids are ASCII in nearly every mod; one that is not would make
+        // the scan's JSON unwritable, so it is converted like a name
         const char* native = form->GetFormEditorID();
-        if (native && native[0] != '\0') return native;
+        if (native && native[0] != '\0') return EncodingUtils::SanitizeToUTF8(native);
 
         using GetFormEditorID_t = const char* (*)(std::uint32_t);
         static const GetFormEditorID_t tweaksLookup = []() -> GetFormEditorID_t {
@@ -126,7 +128,7 @@ namespace SpellScanner
 
         if (!tweaksLookup) return "";
         const char* cached = tweaksLookup(form->GetFormID());
-        return cached ? cached : "";
+        return cached ? EncodingUtils::SanitizeToUTF8(cached) : "";
     }
 
     // =============================================================================
@@ -198,7 +200,7 @@ namespace SpellScanner
             if (!keyword) continue;
             const char* keywordEditorId = keyword->GetFormEditorID();
             if (keywordEditorId && strlen(keywordEditorId) > 0) {
-                keywordsArray.push_back(keywordEditorId);
+                keywordsArray.push_back(EncodingUtils::SanitizeToUTF8(keywordEditorId));
             }
         }
         effectJson["keywords"] = keywordsArray;
@@ -310,7 +312,7 @@ namespace SpellScanner
                 if (spell->keywords[i]) {
                     const char* kwEditorId = spell->keywords[i]->GetFormEditorID();
                     if (kwEditorId && strlen(kwEditorId) > 0) {
-                        keywordsArray.push_back(kwEditorId);
+                        keywordsArray.push_back(EncodingUtils::SanitizeToUTF8(kwEditorId));
                     }
                 }
             }

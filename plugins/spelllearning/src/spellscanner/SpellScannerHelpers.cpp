@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "EncodingUtils.h"
 
 namespace SpellScanner
 {
@@ -251,6 +252,7 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
         return GetSkillLevelName(minimumSkill);
     }
 
+    // In UTF-8, like the plugin part of GetPersistentFormId: the two are compared
     std::string GetPluginName(RE::FormID formId)
     {
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -262,12 +264,12 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
             uint16_t lightIndex = (formId >> 12) & 0xFFF;
             const auto* file = dataHandler->LookupLoadedLightModByIndex(lightIndex);
             if (file) {
-                return file->fileName;
+                return EncodingUtils::SanitizeToUTF8(file->fileName);
             }
         } else {
             const auto* file = dataHandler->LookupLoadedModByIndex(modIndex);
             if (file) {
-                return file->fileName;
+                return EncodingUtils::SanitizeToUTF8(file->fileName);
             }
         }
 
