@@ -134,8 +134,8 @@ primed count and the next build (`getPrimedSpells`, `classic/classicBuildRequest
 shown to the player, only logged (which of the two cases it was). An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch
-relabels it). `RunScan` does everything that can throw (the scan, the classification, the copy it keeps as
-`m_scanText`) before `updateSpellData`; the `onScanStored` call after it catches and logs its own failure, so no
+relabels it). `RunScan` does everything that can throw (the scan, the classification, allocating the
+shared string for `m_scanText`) before `updateSpellData`, and moves that string into `m_scanText` after it (no copy); the `onScanStored` call after it catches and logs its own failure, so no
 "Scan failed" can follow a scan the panel already has.
 
 The way back from text to a path is `PathText::FromUtf8` (`std::u8string`): UTF-8 text from the panel, such as

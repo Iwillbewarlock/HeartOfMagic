@@ -60,6 +60,49 @@ static std::filesystem::path GetPresetsBasePath()
     return "Data/SKSE/Plugins/SpellLearning/presets";
 }
 
+namespace
+{
+    bool IsJsonFile(const std::filesystem::path& path)
+    {
+        const auto ext = PathText::Utf8(path.extension());
+        return ext == ".json" || ext == ".JSON";
+    }
+
+    // Removes every preset file in dir for this name except keep: one whose "name" inside is the
+    // name, or whose file name is safeName. Builds before PathText::FromUtf8 wrote a non-ASCII name
+    // through the ANSI code page, so its file name is garbled and only the name inside finds it.
+    // Each file has its own try: one odd file must not stop the rest.
+    std::size_t RemovePresetsNamed(const std::filesystem::path& dir, const std::string& name,
+        const std::string& safeName, const std::filesystem::path& keep)
+    {
+        std::size_t removed = 0;
+        std::error_code error;
+        if (!std::filesystem::is_directory(dir, error)) return removed;
+        std::filesystem::directory_iterator it(dir, error);
+        const std::filesystem::directory_iterator end;
+        for (; !error && it != end; it.increment(error)) {
+            try {
+                const auto& path = it->path();
+                if (!it->is_regular_file() || !IsJsonFile(path) || path == keep) continue;
+                bool match = PathText::Utf8(path.stem()) == safeName;
+                if (!match) {
+                    std::ifstream file(path);
+                    const json data = json::parse(file, nullptr, false);
+                    match = data.is_object() && data.contains("name") && data["name"].is_string() &&
+                            data["name"].get<std::string>() == name;
+                }
+                if (match && std::filesystem::remove(path)) {
+                    ++removed;
+                    logger::info("UIManager: removed preset file '{}' (preset '{}')", PathText::Utf8(path), name);
+                }
+            } catch (const std::exception& e) {
+                logger::warn("UIManager: skipped a preset file while looking for '{}': {}", name, e.what());
+            }
+        }
+        return removed;
+    }
+}
+
 void UIManager::OnSavePreset(const char* argument)
 {
     if (!argument || strlen(argument) == 0) {
@@ -103,6 +146,10 @@ void UIManager::OnSavePreset(const char* argument)
             file << data.dump(2);
             file.close();
 
+            // A copy of this preset under another file name (an older build's garbled name) would
+            // list twice and come back after a delete
+            RemovePresetsNamed(dir, name, safeName, filePath);
+
             logger::info("UIManager: SavePreset - saved {}/{}.json", type, safeName);
         } catch (const std::exception& e) {
             logger::error("UIManager: SavePreset exception: {}", e.what());
@@ -140,12 +187,14 @@ void UIManager::OnDeletePreset(const char* argument)
                 return;
             }
 
-            auto filePath = GetPresetsBasePath() / PathText::FromUtf8(safeType) / PathText::FromUtf8(safeName + ".json");
+            const auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
+            auto filePath = dir / PathText::FromUtf8(safeName + ".json");
 
             if (std::filesystem::exists(filePath)) {
                 std::filesystem::remove(filePath);
                 logger::info("UIManager: DeletePreset - deleted {}/{}.json", type, safeName);
-            } else {
+            } else if (RemovePresetsNamed(dir, name, safeName, {}) == 0) {
+                // Not under its own name: an older build may have saved it under a garbled one
                 logger::warn("UIManager: DeletePreset - file not found: {}", PathText::Utf8(filePath));
             }
         } catch (const std::exception& e) {
@@ -195,12 +244,10 @@ void UIManager::OnLoadPresets(const char* argument)
 
             if (std::filesystem::exists(dir) && std::filesystem::is_directory(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-                    if (!entry.is_regular_file()) continue;
-                    auto ext = PathText::Utf8(entry.path().extension());
-                    // Case-insensitive .json check
-                    if (ext != ".json" && ext != ".JSON") continue;
-
+                    // Every read of the file's name is in here: an oddly named add-on file is skipped,
+                    // it does not empty the whole list
                     try {
+                        if (!entry.is_regular_file() || !IsJsonFile(entry.path())) continue;
                         std::ifstream file(entry.path());
                         json presetData = json::parse(file);
 
@@ -217,8 +264,7 @@ void UIManager::OnLoadPresets(const char* argument)
 
                         logger::info("UIManager: LoadPresets - loaded {}/{}", type, key);
                     } catch (const std::exception& e) {
-                        logger::warn("UIManager: LoadPresets - failed to parse {}: {}",
-                                     PathText::Utf8(entry.path()), e.what());
+                        logger::warn("UIManager: LoadPresets - skipped a file: {}", e.what());
                     }
                 }
             } else {

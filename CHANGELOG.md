@@ -85,8 +85,9 @@ Still no ESP, no Python, no API key.
   for SPID ini files and threw "No mapping for the Unicode character exists in the target multi-byte code page"
   on a name like that, and the Scan button stayed on "Scanning..." with nothing to say why. Names are read as
   UTF-8 now, and a scan that fails for any reason gives the button back and shows "Scan failed: <reason>" (a failed background tome scan only puts the scan message back and is logged; the tome list from an earlier scan stays in use).
-- Settings presets with a non-English name (Korean, for example) are saved, listed and deleted under their
-  own name; on an English Windows the name came out garbled or the save failed without a word.
+- Presets (settings and scanner) with a non-English name (Korean, for example) are saved, listed and deleted
+  under their own name. An English Windows usually garbled the file name, and a DBCS code page could make the
+  save fail without a word. Presets saved under a garbled name are still found when you delete or rename them.
 - The spell card's Magicka cost is a whole number (it showed the game's raw decimal).
 - A spell listed as its own prerequisite in a saved or hand-edited tree no longer locks it for good.
 

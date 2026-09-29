@@ -32,10 +32,21 @@ function updateScanStatus(message, type, i18nKey, params) {
     if (type) bar.classList.add(type);
 }
 
+// English for keys newer than some community translations, so a missing key shows this, not the key
+var _scanStatusFallback = { 'status.scanFailedUnknown': 'Scan failed (unknown error)' };
+
+/** A scan bar message in the current language (tOr with the English fallback when there is one). */
+function scanStatusText(key, params) {
+    var fallback = _scanStatusFallback[key];
+    if (fallback !== undefined && typeof tOr === 'function') return tOr(key, params, fallback);
+    var text = t(key, params);
+    return (text === key && fallback !== undefined) ? fallback : text;
+}
+
 /** After a language switch (languageSetting.js): a keyed message in the new language. */
 function relabelScanStatus() {
     var s = _scanStatus;
-    if (s && typeof t === 'function') updateScanStatus(t(s.key, s.params), s.type, s.key, s.params);
+    if (s && typeof t === 'function') updateScanStatus(scanStatusText(s.key, s.params), s.type, s.key, s.params);
 }
 
 /**
@@ -92,7 +103,7 @@ window.onScanFailed = function(message) {
     }
     reason = String(reason === undefined || reason === null ? '' : reason);
     if (mode === 'tomes') {
-        console.warn('[SpellLearning] The tome scan failed (' + reason + '); ' + (state.tomedSpellIds
+        console.warn('[SpellLearning] The tome scan failed' + (reason ? ' (' + reason + ')' : '') + '; ' + (state.tomedSpellIds
             ? 'the tome list from the earlier scan is kept'
             : 'there is no tome list, so the tome filter stays off'));
         restoreScannedStatus();
@@ -102,7 +113,7 @@ window.onScanFailed = function(message) {
     // No reason (C++ caught something that is not a std::exception): "unknown error", in the panel's language
     var key = reason ? 'status.scanFailed' : 'status.scanFailedUnknown';
     var params = reason ? { error: reason } : null;
-    var text = t(key, params);
+    var text = scanStatusText(key, params);
     updateScanStatus(text, 'error', key, params);
     setStatusIcon('X');
     // Edit mode asked for this scan and shows a wait line until spells arrive

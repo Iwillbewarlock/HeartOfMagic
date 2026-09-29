@@ -224,6 +224,15 @@ var StatusLineTest = {
         this.check(bar.textContent === 'Scan failed (unknown error)', 'onScanFailed: an empty reason is the keyed unknown-error line');
         setLang('ko'); g.relabelScanStatus();
         this.check(bar.textContent === '스캔 실패 (알 수 없는 오류)', '...and it comes back in the new language');
+        // A translation without the key shows the English line, not the key
+        var koUnknown = this.STRINGS.ko['status.scanFailedUnknown'];
+        delete this.STRINGS.ko['status.scanFailedUnknown'];
+        try {
+            g.relabelScanStatus();
+            this.check(bar.textContent === 'Scan failed (unknown error)', '...and a translation without the key shows English');
+        } finally {
+            this.STRINGS.ko['status.scanFailedUnknown'] = koUnknown;
+        }
         setLang('en');
         // $ patterns in a reason reach the bar as written (the fake t() uses a replacer function too)
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'cost $& of $1 and $$' }));
