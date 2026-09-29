@@ -39,6 +39,10 @@ set(ENABLE_SKYRIM_SE ON CACHE BOOL "Enable Skyrim SE support" FORCE)
 set(ENABLE_SKYRIM_AE ON CACHE BOOL "Enable Skyrim AE support" FORCE)
 set(ENABLE_SKYRIM_VR OFF CACHE BOOL "Enable Skyrim VR support" FORCE)
 set(SKSE_SUPPORT_XBYAK ON CACHE BOOL "Enable Xbyak support" FORCE)
+# CommonLib 10's patch-site check for SKSE::Trampoline branch/call writes; the
+# plugins make none, and leaving it on makes every fresh configure fetch
+# MinHook's hde64 from GitHub (FetchContent)
+set(SKSE_SUPPORT_PATCH_SAFETY OFF CACHE BOOL "Validate Trampoline patch sites (unused here)" FORCE)
 
 # Add CommonLibSSE-NG as a subdirectory with EXCLUDE_FROM_ALL
 add_subdirectory("${CommonLibPath}" "${CMAKE_BINARY_DIR}/CommonLibSSE" EXCLUDE_FROM_ALL)

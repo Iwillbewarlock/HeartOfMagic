@@ -122,7 +122,7 @@ No ESP, no Python, no API key. Safe to add to an existing save.
 
 [b]Notes[/b]
 [list]
-[*]The spell tome hook is verified on SE 1.5.97 and AE 1.6.318 / 1.6.1170 / 1.7.104. On other versions, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
+[*]The spell tome hook is verified in game on SE 1.5.97 and AE 1.6.318 / 1.6.1170. On AE 1.7.104 it was measured offline, not yet tested in game. On other versions, and wherever its checks fail, if [i]SpellLearning.log[/i] says "SpellTomeHook failed to install", tomes work the vanilla way and the rest of the mod still runs.
 [*]Heart of Magic Librarian replaces Heart of Magic - do not run both.
 [*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
 [/list]
@@ -151,7 +151,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is open under the MIT License: [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url], and as the [i]Source[/i] file on the Files tab. Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule.
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is open under the MIT License: [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url] (the tag of each release is its complete source), and as the [i]Source[/i] file on the Files tab. Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 
@@ -161,10 +161,10 @@ The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files
 [*][b]Dinkel Zombie[/b] - [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url], the mod this is rebuilt from. Dinkel Zombie opened the source and gave permission to improve and re-release it - thank you.
 [*][b]langfod (Likster)[/b] - the move from Python to native C++ and the thread-safety work in Heart of Magic
 [*][b]Iwillbewarlock[/b] - Librarian: the rebuild, the spell tag librarian, the designs and this release
-[*][b]Prisma UI[/b] developers, [b]SKSE[/b] team, [b]CommonLibSSE-NG[/b]
+[*][b]Prisma UI[/b] developers, [b]SKSE[/b] team, [b]CommonLibSSE-NG[/b] (alandtse and contributors, GPL-3.0-or-later with the Modding and Linking Exceptions; built on CommonLibSSE by Ryan-rsm-McKenzie)
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/43095]Don't Eat Spell Tomes[/url] - spell tome hook reference
 [*]Fonts: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS)
 [*]Showcase video: music - Paul Dukas, [i]L'apprenti sorcier[/i] (1897), Minneapolis Symphony Orchestra conducted by Dimitri Mitropoulos (Columbia, 1941; transfer by Bob Varney, [url=https://archive.org/details/SorcerersApprentice]Internet Archive[/url], CC0), restored and edited; voices - Skyrim's own NPC lines; fonts - Cinzel, EB Garamond, Hahmlet (SIL OFL)
 [/list]
 
-MIT License.
+[b]License[/b]: Heart of Magic Librarian's own source files are MIT. The plugin DLLs statically link CommonLibSSE-NG (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLLs are a GPL-3.0-or-later combined work; [i]THIRD-PARTY-NOTICES.md[/i] and the [i]licenses[/i] folder in the download have the details, the other libraries' licenses and where the complete source is. As the GPL requires, the permissions on this page allow modifying and redistributing the DLLs under those terms.

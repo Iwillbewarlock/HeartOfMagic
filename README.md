@@ -75,7 +75,9 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 ## Requirements
 
 ### Required
-- **Skyrim SE/AE** (1.5.97, AE 1.6.x or AE 1.7.x - one set of DLLs for all)
+- **Skyrim SE/AE** (1.5.97, AE 1.6.x or AE 1.7.x - one set of DLLs for all). The spell tome hook was tested in
+  game on SE 1.5.97 and AE 1.6.318 / 1.6.1170; on AE 1.7.104 it was measured offline, not yet tested in game.
+  Where the hook's checks fail, tomes work the vanilla way
 - **[SKSE64](https://skse.silverlock.org/)**
 - **[Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)**
 - **[PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718)** - UI framework (must load before Heart of Magic)
@@ -216,4 +218,9 @@ HeartOfMagic/
 
 ## License
 
-[MIT License](LICENSE)
+- Heart of Magic Librarian's own source files: [MIT License](LICENSE).
+- The built plugin DLLs statically link [CommonLibSSE-NG](https://github.com/alandtse/CommonLibVR) 10.0.0
+  (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLLs are a
+  GPL-3.0-or-later combined work. The release zip carries `THIRD-PARTY-NOTICES.md` (what is under which
+  license, the other statically linked libraries, and where the Corresponding Source is: this repository at the
+  release's tag, with the CommonLibSSE-NG submodule at `v10.0.0`) and the license texts in `licenses/`.

@@ -93,6 +93,54 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 )
 
 # ============================================================================
+# 3b. Third-party licenses. The DLLs statically link CommonLibSSE-NG
+#     (GPL-3.0-or-later with the Modding and Linking Exceptions), so they go
+#     out as a GPL combined work: THIRD-PARTY-NOTICES.md at the archive's root
+#     says so and where the Corresponding Source is; licenses/ holds the texts
+#     (CommonLibSSE-NG's under licenses/CommonLibSSE-NG/, each vcpkg library's
+#     copyright file as licenses/<port>.txt). The project's own code stays MIT.
+# ============================================================================
+
+set(_commonlib_dir "${CMAKE_SOURCE_DIR}/plugins/external/commonlibsse-ng")
+set(_licenses_dist "${DIST_VERSION_DIR}/licenses")
+set(_vcpkg_share "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share")
+# The vcpkg ports whose code ends up in the DLLs (vcpkg.json, and CommonLib's DirectXTK)
+set(_vcpkg_license_ports
+    fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway)
+
+configure_file(
+    "${CMAKE_SOURCE_DIR}/THIRD-PARTY-NOTICES.md.in"
+    "${CMAKE_BINARY_DIR}/THIRD-PARTY-NOTICES.md"
+    @ONLY
+)
+
+set(_vcpkg_license_commands)
+foreach(_port IN LISTS _vcpkg_license_ports)
+    if(NOT EXISTS "${_vcpkg_share}/${_port}/copyright")
+        message(FATAL_ERROR "Distribution: no license file for vcpkg port ${_port} at ${_vcpkg_share}/${_port}/copyright")
+    endif()
+    list(APPEND _vcpkg_license_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy
+        "${_vcpkg_share}/${_port}/copyright"
+        "${_licenses_dist}/${_port}.txt")
+endforeach()
+
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_licenses_dist}/CommonLibSSE-NG"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_BINARY_DIR}/THIRD-PARTY-NOTICES.md"
+    "${DIST_VERSION_DIR}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_commonlib_dir}/COPYING.txt"
+    "${_commonlib_dir}/EXCEPTIONS.md"
+    "${_commonlib_dir}/licenses/LICENSE-MIT.txt"
+    "${_licenses_dist}/CommonLibSSE-NG/"
+    ${_vcpkg_license_commands}
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying third-party licenses..."
+    VERBATIM
+)
+
+# ============================================================================
 # 4. Copy SKSE runtime data (presets, librarian, card icons)
 # ============================================================================
 

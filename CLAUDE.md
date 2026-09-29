@@ -132,6 +132,14 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
 
+License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
+link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
+work. `THIRD-PARTY-NOTICES.md` at the zip root (from `THIRD-PARTY-NOTICES.md.in`, version filled in at configure)
+says so, lists every statically linked library with its license and points to the Corresponding Source (the
+GitHub tag of the release). `licenses/CommonLibSSE-NG/` holds CommonLib's `COPYING.txt`, `EXCEPTIONS.md` and the
+original CommonLibSSE `LICENSE-MIT.txt`; `licenses/<port>.txt` is each vcpkg library's copyright file. A new
+statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices.
+
 ### Deploying to the development mod folder
 
 ```powershell
@@ -290,9 +298,9 @@ This project does not have a C++ test framework. Validation is done through:
 - vcpkg (set `$env:VCPKG_ROOT` or configure in vcpkg-configuration.json)
 - Git (for submodules; CommonLibSSE-NG is pinned at tag `v10.0.0`, the release that knows 1.7.99 / 1.7.104 -
   after pulling a submodule change run `git submodule update --init --recursive`)
-- Network access on a fresh configure: CommonLibSSE-NG 10 (`SKSE_SUPPORT_PATCH_SAFETY`, on by default) fetches
-  MinHook's `hde64` instruction-length decoder from GitHub with CMake `FetchContent`; it only adds a log check to the
-  `SKSE::Trampoline` branch/call writes, which this project does not use
+- `plugins/cmake/commonlibsse.cmake` turns CommonLibSSE-NG 10's `SKSE_SUPPORT_PATCH_SAFETY` off: it only checks
+  `SKSE::Trampoline` branch/call writes, which this project does not make, and when on, every fresh configure
+  fetches MinHook's `hde64` from GitHub with `FetchContent`. With it off a configure needs no network (vcpkg aside)
 
 ### First-Time Setup
 
