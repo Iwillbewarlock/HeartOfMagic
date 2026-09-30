@@ -11,11 +11,14 @@
     "shadow, blood, necrotic and nature damage (Arcane, Abyss, Bloodmoon, Desecration, Natura) but not on",
     "shock, sun or poison (Arclight, Lunaris, Necrom). So: Destruction damage to health that none of the",
     "other five keywords claims, with a librarian element outside them.",
-    "Magic Mantle and Destructive Barrier read MagicCloak, which vanilla.json gives."
+    "Magic Mantle and Destructive Barrier read MagicCloak, which vanilla.json gives.",
+    "Paragon (1.0.0) reads the same keyword as APO_MagicDamageUnspecified (Corrupted Catalyst and its",
+    "element perks), so ParagonPerks.esp turns this file on too. Paragon's own KID ini adds its generic",
+    "APO_VALOR_MagicDamageGeneric itself; that one needs nothing here."
   ],
   "perkMod": "Ascension 1.0.1 / Ascension 2 1.0.4 / Ascension - Adamant 6 Patch 2",
   "measured": "2026-09-30",
-  "requires": { "any": ["Ascension.esp", "Adamant - Ascension 1 Patch.esp"] },
+  "requires": { "any": ["Ascension.esp", "Adamant - Ascension 1 Patch.esp", "ParagonPerks.esp"] },
   "adapters": [
     { "keyword": "DAR_UnspecificMagicDamage", "keywordForm": "Update.esm|0x1EA6002",
       "why": "unaspected Destruction damage: not fire, frost, shock, poison, sun or a vampire drain",

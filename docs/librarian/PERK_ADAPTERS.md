@@ -35,6 +35,13 @@ Path of Sorcery 3.2, Vokrii 3.8.2, Ordinator 9.35.0, Vokriinator Black 6.15.3).
 - **Vokrii**: 바닐라 + `RitualSpellEffect/Illusion`(양손 주문)
 - **Ascension**(Darenii, 1.0.1 · 2 1.0.4 · Adamant 6 Patch 2): 무속성 파괴 피해 키워드 하나
   (`Update.esm|0x1EA6002`) + `MagicCloak`. 2026-09-30 추가, 아래 6-1절
+- **Paragon 1.0.0**(+ Magic Addon, TAKEALOOK 에 켜져 있음): 바닐라 원소·`MagicVampireDrain`·`MagicCloak`·
+  `MagicRune`·`MagicSummonFamiliar`, Mysticism 계열 `MAG_MagicDamagePoison/Sun`·`MAG_MagicSummonReanimate`, 그리고
+  무속성 `APO_MagicDamageUnspecified`(= Ascension 의 그 FormID). 새 키워드는 없다 — 그래서 새 파일 대신
+  `adamant.json`·`ascension.json` 이 `ParagonPerks.esp` 로도 켜진다. Paragon 자신의 KID ini 가 일반 마법 피해
+  키워드(`APO_VALOR_MagicDamageGeneric`)를 규칙으로 직접 나눠 주므로 그것은 필요 없다
+- **Bloodmoon · Desecration**(Darenii 주문 팩의 퍽): 원소·흡혈·태양·독·무속성 키워드만 읽는다(이미 붙인다).
+  `BloodmoonDestruction`·`DesecrationDestruction` 은 그 모드 자신의 이펙트에만 있고 어느 퍽도 읽지 않는다 — 새 파일 없음
 
 키워드가 아닌 방법도 있다 — 주문 목록(FormList: Adamant 의 집중 화염·전기 목록, PoS 의 Advanced
 Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직 다루지 않는다(7절).

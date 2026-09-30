@@ -21,6 +21,8 @@
   arcane, shadow, blood, necrotic or nature damage that is not fire, frost, shock, poison, sun or a
   vampire drain. The adapter names Ascension's keyword by FormID, as Apostasy Framework gives the same
   keyword another name.
+  Paragon (with its Magic Addon) is covered by the same files: it reads no keyword of its own for spells, so
+  the Adamant/Mysticism and Ascension files now also turn on when ParagonPerks.esp is loaded.
 
 - Spells from the same mod now sit together in the tree: the builder gives a parent from the child's own
   mod a bonus (below the one for a shared element, so a mod's fire spell still goes to fire first). On a

@@ -3,6 +3,8 @@
     "Perk adapter: Adamant 6.0.4 with Mysticism 2.5.0, which defines these keywords - most in the",
     "Update.esm FormID range, so they only exist when Mysticism is installed. Mysticism's own perks",
     "and Vokriinator Black 6.15.3 read the same keywords, so any of the three turns the file on.",
+    "Paragon 1.0.0 reads MAG_MagicDamagePoison, MAG_MagicDamageSun and MAG_MagicSummonReanimate too",
+    "(the keywords come with Apostasy Framework, which Paragon needs), so ParagonPerks.esp turns the file on.",
     "Conditions as in vanilla.json. \"formList\" lines put spells into Adamant's own spell lists",
     "(persistent ids, the same in 5.9.2 and 6.0.4); the lists were read from Adamant.esp and each rule",
     "is what the spells already in the list have in common.",
@@ -22,7 +24,7 @@
   ],
   "perkMod": "Adamant - A Perk Overhaul 6.0.4",
   "measured": "2026-09-30",
-  "requires": { "any": ["Adamant.esp", "MysticismMagic.esp", "Vokriinator Black.esp"] },
+  "requires": { "any": ["Adamant.esp", "MysticismMagic.esp", "Vokriinator Black.esp", "ParagonPerks.esp"] },
   "adapters": [
     { "keyword": "MAG_MagicDamagePoison", "why": "poison damage",
       "tags": { "all": ["poison"] },
