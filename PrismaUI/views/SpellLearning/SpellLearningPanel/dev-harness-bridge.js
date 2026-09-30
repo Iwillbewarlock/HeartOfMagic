@@ -120,6 +120,24 @@ function mockTreeFromSpells(spells) {
 }
 
 // ============================================================================
+// SPELL INFO - what C++'s GetSpellInfo / GetSpellInfoBatch send, from the test spells
+// ============================================================================
+
+function mockSpellInfo(formId) {
+    var spell = (window._mockSpellData || []).find(function(s) { return s.formId === formId; });
+    if (!spell) return { formId: formId, notFound: true };
+    var level = spell.skillLevel || 'Novice';
+    return {
+        formId: spell.formId, name: spell.name, school: spell.school,
+        level: level, skillLevel: level,
+        cost: spell.magickaCost || 0, magickaCost: spell.magickaCost || 0,
+        type: 'Fire and Forget', castingType: 'Fire and Forget',
+        persistentId: spell.persistentId, plugin: (spell.persistentId || '').split('|')[0],
+        editorId: spell.editorId || '', description: '', effects: []
+    };
+}
+
+// ============================================================================
 // MOCK callCpp
 // ============================================================================
 
@@ -129,6 +147,22 @@ window.callCpp = function(method, data) {
     switch (method) {
         case 'LogMessage':
             try { var d = JSON.parse(data); console.log('[SKSE]', d.message || data); } catch(e) {}
+            break;
+
+        case 'GetSpellInfo':
+            setTimeout(function() {
+                if (typeof window.updateSpellInfo === 'function') window.updateSpellInfo(JSON.stringify(mockSpellInfo(data)));
+            }, 20);
+            break;
+
+        case 'GetSpellInfoBatch':
+            setTimeout(function() {
+                var ids = [];
+                try { ids = JSON.parse(data); } catch (e) {}
+                if (typeof window.updateSpellInfoBatch === 'function') {
+                    window.updateSpellInfoBatch(JSON.stringify(ids.map(mockSpellInfo)));
+                }
+            }, 20);
             break;
 
         case 'ScanSpells':

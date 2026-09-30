@@ -1299,7 +1299,7 @@ Visual-First builds that used them.
 | `scannerPresets.js` | Scanner preset save/load |
 | `easyMode.js` | Easy mode scan page: preset chips and the build/apply relays (the Tree Style picker and the Complex page's build mode tabs were removed with the other builders, 2026-09-27) |
 | `schoolBridges.js` | Cross school bridges at build time: school order by kinship, bridge sources as soft prerequisites, traits and bridges baked into the saved tree |
-| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, and so is the card's level (`bindLevel`, key `level.<Level>`: every spell of that level, 2026-09-30), with a single pill (`#tree-trait-filter`) to clear it |
+| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, and so is the card's level (`bindLevel`, key `level.<Level>`: every spell of that level, 2026-09-30; levels come with the spell info after the tree was counted, so `TreeParser.updateNodeFromCache` drops the counts when a level changes and `countOf` counts again once, at the next ask), with a single pill (`#tree-trait-filter`) to clear it |
 | `buttonHandlers.js` | Scan/build/apply button handlers |
 | `buildProgress.js` | Build progress modal |
 | `progressionUI.js` | Progression UI (learning targets, XP) |

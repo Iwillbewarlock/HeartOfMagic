@@ -1,0 +1,96 @@
+<!-- dev-harness-parts.html: what the desktop harness adds to index.html.
+     tools/make-dev-harness.js builds dev-harness.html from index.html and these three parts;
+     never edit dev-harness.html by hand. -->
+<!--HEAD-->
+    <style>
+        /* Harness chrome - toolbar at top */
+
+        #harness-toolbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10000;
+            background: #0d1117; border-bottom: 1px solid #30363d;
+            display: flex; align-items: center; gap: 8px;
+            padding: 4px 12px; height: 36px; font-size: 13px; color: #c9d1d9;
+        }
+        #harness-toolbar .toolbar-title { font-weight: 600; color: #58a6ff; margin-right: 12px; }
+        #harness-toolbar button {
+            background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+            padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        #harness-toolbar button:hover { background: #30363d; border-color: #58a6ff; }
+        #harness-toolbar button.active { background: #388bfd33; border-color: #58a6ff; color: #58a6ff; }
+        #harness-toolbar .separator { width: 1px; height: 20px; background: #30363d; }
+        #harness-toolbar .status { color: #8b949e; font-size: 11px; margin-left: auto; }
+        #harness-toolbar .status .ok { color: #3fb950; }
+        #harness-toolbar .status .warn { color: #d29922; }
+
+        /* Game viewport simulation */
+        #game-viewport {
+            position: fixed; top: 36px; left: 0; right: 0; bottom: 28px;
+            background: #0a0a14;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #game-viewport .game-bg-text {
+            color: rgba(255,255,255,0.05); font-size: 48px; font-weight: bold;
+            user-select: none; pointer-events: none;
+        }
+
+        /* C++ call log panel */
+        #cpp-log {
+            position: fixed; top: 36px; right: 0; width: 360px; bottom: 28px;
+            background: rgba(13,17,23,0.95); border-left: 1px solid #30363d;
+            z-index: 9999; display: none; overflow-y: auto; font-size: 11px;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+        }
+        #cpp-log.visible { display: block; }
+        #cpp-log .log-header {
+            position: sticky; top: 0; background: #161b22;
+            padding: 8px; border-bottom: 1px solid #30363d;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #cpp-log .log-header span { color: #c9d1d9; font-weight: 600; }
+        #cpp-log .log-body { padding: 4px; }
+        #cpp-log .log-item {
+            padding: 3px 6px; border-bottom: 1px solid #21262d;
+            display: flex; gap: 6px; word-break: break-all;
+        }
+        #cpp-log .log-item .dir { width: 16px; text-align: center; flex-shrink: 0; }
+        #cpp-log .log-item .dir.out { color: #58a6ff; }
+        #cpp-log .log-item .dir.in { color: #3fb950; }
+        #cpp-log .log-item .method { color: #d2a8ff; flex-shrink: 0; }
+        #cpp-log .log-item .payload { color: #8b949e; }
+    </style>
+    <!-- Mock C++ bridge: before every module script -->
+    <script src="dev-harness-bridge.js"></script>
+<!--BODY-TOP-->
+    <!-- Harness Toolbar -->
+    <div id="harness-toolbar">
+        <span class="toolbar-title">HoM Dev Harness</span>
+        <button id="btn-toggle-panel" class="active">Panel</button>
+        <button id="btn-scan-mock">Mock Scan</button>
+        <button id="btn-load-test-data">Load Test Data</button>
+        <button id="btn-build-tree">Build Tree</button>
+        <span class="separator"></span>
+        <button id="btn-toggle-log">C++ Log</button>
+        <button id="btn-clear-log">Clear</button>
+        <span class="status">
+            Bridge: <span class="ok">MOCK</span> |
+            Spells: <span id="status-spell-count">0</span> |
+            Schools: <span id="status-school-count">0</span>
+        </span>
+    </div>
+    <!-- Simulated game background -->
+    <div id="game-viewport">
+        <span class="game-bg-text">SKYRIM GAME VIEWPORT</span>
+    </div>
+<!--BODY-END-->
+    <!-- C++ Call Log Panel -->
+    <div id="cpp-log">
+        <div class="log-header">
+            <span>C++ Bridge Log</span>
+            <button id="btn-clear-log-inner" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:11px;">Clear</button>
+        </div>
+        <div class="log-body" id="cpp-log-body"></div>
+    </div>
+    <!-- Harness toolbar wiring -->
+    <script src="dev-harness-toolbar.js"></script>
+<!--END-->

@@ -118,41 +118,11 @@
                         schoolNames.forEach(function(s) { totalNodes += treeData.schools[s].nodes.length; });
                         console.log('[Harness] Built tree: ' + schoolNames.length + ' schools, ' + totalNodes + ' nodes');
 
-                        // Parse and render
-                        var parsed = TreeParser.parse(treeData);
-                        if (parsed.success) {
-                            // Switch to tree tab
-                            if (typeof switchTab === 'function') {
-                                switchTab('spellTree');
-                            }
-
-                            // Init wheel renderer if needed
-                            var svgEl = document.getElementById('tree-svg');
-                            if (svgEl && !WheelRenderer.svg) {
-                                WheelRenderer.init(svgEl);
-                            }
-
-                            WheelRenderer.setData(parsed.nodes, parsed.edges, parsed.schools);
-                            if (typeof WheelRenderer.layout === 'function') WheelRenderer.layout();
-                            WheelRenderer.render();
-
-                            // Hide empty state
-                            var emptyState = document.getElementById('empty-state');
-                            if (emptyState) emptyState.style.display = 'none';
-
-                            // Notify TreeGrowth that tree was built
-                            if (typeof TreeGrowth !== 'undefined') {
-                                TreeGrowth.setTreeBuilt(true, totalNodes, totalNodes);
-                            }
-
-                            // Enable PRM buttons and trigger preview
-                            if (typeof PreReqMaster !== 'undefined') {
-                                if (PreReqMaster.setButtonsEnabled) PreReqMaster.setButtonsEnabled(true);
-                                if (PreReqMaster.updateStatus) PreReqMaster.updateStatus('Tree built - ready');
-                                if (PreReqMaster.renderPreview) PreReqMaster.renderPreview();
-                            }
-                        } else {
-                            console.error('[Harness] TreeParser failed:', parsed);
+                        // The panel's own path, as a tree the game sends: loadTreeData
+                        // (treeLoad.js) parses it and draws it with the canvas renderer
+                        loadTreeData(treeData, true, false);
+                        if (typeof TreeGrowth !== 'undefined' && TreeGrowth.setTreeBuilt) {
+                            TreeGrowth.setTreeBuilt(true, totalNodes, totalNodes);
                         }
                     } else {
                         console.error('[Harness] Build returned no data');

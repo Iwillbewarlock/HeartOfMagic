@@ -158,7 +158,22 @@ var BridgeView = {
     },
 
     countOf: function (trait) {
+        if (!this._counts) this.countTraits();
         return this._counts[trait] || 0;
+    },
+
+    /**
+     * A spell's level changed (spell info comes after setTree counted): count
+     * again at the next countOf, once for the whole batch of updates
+     */
+    invalidateCounts: function () {
+        var wasCounted = !!this._counts;
+        this._counts = null;
+        // An active filter's pill shows a count: redraw it once, after the batch
+        if (wasCounted && this._filterTrait && typeof setTimeout === 'function') {
+            var self = this;
+            setTimeout(function () { self._renderActiveChip(); }, 0);
+        }
     },
 
     /**

@@ -94,6 +94,9 @@ growth recipe modifiers ran on a recipe set nothing filled once the LLM style ge
 
 Modules must load in dependency order before `script.js` (abridged - `index.html` has the full list):
 
+`dev-harness.html` is generated from `index.html` (`node tools/make-dev-harness.js`), so a module added to
+`index.html` reaches the desktop harness by regenerating it; `run-tests.js` fails until then.
+
 ```html
 <!-- 1. Constants and Configuration -->
 <script src="modules/constants.js"></script>

@@ -525,7 +525,10 @@ var TreeParser = {
         var spellData = SpellCache.get(node.formId);
         if (spellData) {
             node.name = spellData.name || spellData.editorId || node.formId;
-            node.level = spellData.level || spellData.skillLevel || 'Unknown';
+            var level = spellData.level || spellData.skillLevel || 'Unknown';
+            // The level filter counts levels: a new one is counted again when next asked
+            if (level !== node.level && typeof BridgeView !== 'undefined') BridgeView.invalidateCounts();
+            node.level = level;
             // The game works the cost out as a float (307.70135...); the card shows whole
             // points, and a cost under half a point shows 1, not "?" (the card's "no cost")
             var cost = Number(spellData.cost || spellData.magickaCost) || 0;

@@ -24,10 +24,14 @@ var LevelFilterTest = {
     },
 
     _load: function(g) {
-        if (typeof require !== 'function' || typeof g.BridgeView !== 'undefined') return;
+        if (typeof require !== 'function') return;
         var vm = require('vm'), fs = require('fs'), path = require('path');
-        var file = path.join(__dirname, 'bridgeView.js');
-        vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
+        var files = [['bridgeView.js', 'BridgeView'], ['treeParser.js', 'TreeParser']];
+        for (var i = 0; i < files.length; i++) {
+            if (typeof g[files[i][1]] !== 'undefined') continue;
+            var file = path.join(__dirname, files[i][0]);
+            vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
+        }
     },
 
     /** A stand-in element: the class list, attributes and listeners the card uses */
@@ -106,6 +110,25 @@ var LevelFilterTest = {
 
             B.bindLevel(el, nodes[3], true);
             this.check(!el.classList.contains('spell-chip-filter'), 'a level no spell counts is not pressable');
+
+            // Levels that arrive after the tree was counted: the spell info comes
+            // later, through TreeParser.updateNodeFromCache
+            nodes.push({ id: 'e', formId: 'e', level: null, traits: [] });
+            nodes.push({ id: 'f', formId: 'f', level: null, traits: [] });
+            B.setTree(g.state.treeData);
+            var oldCache = g.SpellCache, oldNames = g.SpellNames;
+            g.SpellCache = { get: function(id) { return { name: id, skillLevel: 'Adept' }; } };
+            g.SpellNames = undefined;
+            try {
+                g.TreeParser.updateNodeFromCache(nodes[4]);
+                g.TreeParser.updateNodeFromCache(nodes[5]);
+            } finally {
+                g.SpellCache = oldCache;
+                g.SpellNames = oldNames;
+            }
+            B.bindLevel(el, nodes[4], true);
+            this.check(el.getAttribute('data-trait') === 'level.Adept' && B.countOf('level.Adept') === 4,
+                'levels that came after the count are counted (Adept 2 -> 4)');
 
             B.toggleFilter('element.fire');
             this.check(B.matchesFilter(nodes[0]) && !B.matchesFilter(nodes[1]), 'trait filter unchanged');

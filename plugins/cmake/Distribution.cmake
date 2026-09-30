@@ -176,7 +176,7 @@ set(_panel_src "${CMAKE_SOURCE_DIR}/PrismaUI/views/SpellLearning/SpellLearningPa
 set(_panel_dist "${DIST_VERSION_DIR}/PrismaUI/views/SpellLearning/SpellLearningPanel")
 file(GLOB _panel_tests RELATIVE "${_panel_src}" "${_panel_src}/modules/*Test.js")
 set(_panel_dev_files
-    dev-harness.html dev-harness-bridge.js dev-harness-toolbar.js launch-dev-harness.bat
+    dev-harness.html dev-harness-parts.html dev-harness-bridge.js dev-harness-toolbar.js launch-dev-harness.bat
     run-tests.js test-runner.html ${_panel_tests})
 list(TRANSFORM _panel_dev_files PREPEND "${_panel_dist}/")
 add_custom_command(TARGET assemble_dist POST_BUILD
