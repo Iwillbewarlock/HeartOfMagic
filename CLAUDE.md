@@ -221,6 +221,22 @@ Reviews use two reviewers: an independent reviewer agent and OpenCodeReview (`oc
 `.opencodereview/rule.json` (var-only Ultralight JS, frame-drop checks, the C++ rules above); they replace
 OCR's generic JS rules, which would ask for let/const.
 
+### Librarian check (accuracy and speed)
+
+```powershell
+node tools/librarian-check.js                 # compare with tools/librarian-baseline.json
+node tools/librarian-check.js --update        # after an intended change: new baseline
+node tools/librarian-check.js --log <SpellLearning.log>   # also the game's adapter timings
+```
+
+Run it after any change to the librarian rules, the scanner fields they read, the perk adapters or the
+tree builder. It scores the pinned dump (`lab/librarian-judge/dumps/`, not in git) against the Spell
+Research answer set (all rules and the vanilla-structure tier), every AI-judged round
+(`lab/librarian-judge/<round>/verdicts.json`) and the share of untagged spells, and fails (exit 1) when
+any of them gets worse; timings over the baseline's budgets only warn. Local paths (the answer set, another
+dump) go in `tools/librarian-check.local.json` (not in git). Needs `BuildRelease.ps1`'s tools. See
+docs/librarian/LIBRARIAN.md, "검증".
+
 ### No C++ Test Framework
 
 This project does not have a C++ test framework. Validation is done through:
@@ -364,6 +380,7 @@ Triplet: `x64-windows-static` (statically linked MSVC runtime).
 1. Run .\BuildRelease.ps1 to verify compilation
 2. Fix any compilation errors
 3. Run JS tests if UI code was changed (node run-tests.js)
+3b. Run node tools/librarian-check.js if the librarian, scanner, perk adapters or tree builder changed
 4. Review the Post-Change Documentation Checklist
 5. Update affected docs before considering the task complete
 ```

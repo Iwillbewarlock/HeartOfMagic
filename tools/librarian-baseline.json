@@ -1,0 +1,29 @@
+{
+  "_comment": "Written by tools/librarian-check.js --update. Accuracy may not drop; budgets only warn.",
+  "dump": "takealook-2026-09-30.json",
+  "updated": "2026-09-30",
+  "accuracy": {
+    "noTagsPct": 9.1,
+    "all": {
+      "p": 81.9,
+      "r": 81.7,
+      "f1": 81.8
+    },
+    "mgef": {
+      "p": 84.8,
+      "r": 74,
+      "f1": 79
+    },
+    "mgefNoTagsPct": 20.2
+  },
+  "judge": {
+    "2026-09-30": 87.1,
+    "2026-09-30b": 90.6
+  },
+  "budgets": {
+    "classifyMs": 15000,
+    "treeBuildMs": 5000,
+    "adaptersAtStartMs": 2000,
+    "adaptersAfterScanMs": 1500
+  }
+}

@@ -272,6 +272,11 @@ librarian-test --catalog <카탈로그> -a <정답셋>          # 게임이 쓴 
 `judge.js score <verdicts.json> <카탈로그>` 가 어떤 카탈로그든 그 판정으로 채점하고, 판정에 없던 새 태그는 따로 세어
 (`--rejudge`) 다음 회차에 그것만 다시 판정한다. 회차마다 `lab/librarian-judge/<날짜>/` 에 표본·판정·메모를 둔다.
 
+**회귀 검사 (2026-09-30).** `node tools/librarian-check.js` 가 고정 덤프(`lab/librarian-judge/dumps/`)로 정답셋
+(전체·구조 등급), 모든 AI 채점 회차, 태그 0개 비율을 재서 `tools/librarian-baseline.json` 보다 나빠지면 실패한다.
+분류·트리 빌드·(로그를 주면) 게임의 퍽 어댑터 시간은 예산을 넘으면 경고만 한다. 의도한 변경 뒤에는
+`--update` 로 기준선을 새로 쓴다.
+
 ## 6. 퍽 모드 호환 — 퍽 어댑터 (2026-09-30)
 
 카탈로그의 두 번째 손님. 퍽 모드마다 어댑터 파일(`librarian/adapters/*.json`)이 "어떤 태그와 어떤

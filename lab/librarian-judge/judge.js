@@ -81,9 +81,11 @@ function sample(dumpPath, catalogPath, outPath, count, seed) {
     console.log('pool ' + pool.length + ', sampled ' + out.length + ' -> ' + outPath);
 }
 
-function score(verdictPath, catalogPath, rejudgePath) {
-    var verdicts = readJson(verdictPath);
-    var catalog = readJson(catalogPath).spells || {};
+/**
+ * A round's verdicts against a catalog's spells (the parsed "spells" object).
+ * @returns {{right:number, wrong:number, unjudged:number, precision:number|null, wrongTags:Object, rejudge:Array}}
+ */
+function scoreRound(verdicts, catalog) {
     var right = 0, wrong = 0, unjudged = 0;
     var wrongTags = {}, rejudge = [];
     verdicts.forEach(function (v) {
@@ -101,7 +103,18 @@ function score(verdictPath, catalogPath, rejudgePath) {
         });
         if (fresh.length) rejudge.push({ id: v.id, name: v.name, unjudged: fresh, tags: tags });
     });
-    var precision = right + wrong ? (100 * right / (right + wrong)).toFixed(1) : '-';
+    return {
+        right: right, wrong: wrong, unjudged: unjudged,
+        precision: right + wrong ? 100 * right / (right + wrong) : null,
+        wrongTags: wrongTags, rejudge: rejudge
+    };
+}
+
+function score(verdictPath, catalogPath, rejudgePath) {
+    var result = scoreRound(readJson(verdictPath), readJson(catalogPath).spells || {});
+    var right = result.right, wrong = result.wrong, unjudged = result.unjudged;
+    var wrongTags = result.wrongTags, rejudge = result.rejudge;
+    var precision = result.precision === null ? '-' : result.precision.toFixed(1);
     console.log('right ' + right + '  wrong ' + wrong + '  unjudged ' + unjudged + '  precision ' + precision + '%');
     var ranked = Object.keys(wrongTags).sort(function (a, b) { return wrongTags[b] - wrongTags[a]; });
     console.log('still wrong: ' + ranked.map(function (t) { return t + ' ' + wrongTags[t]; }).join(', '));
@@ -111,8 +124,12 @@ function score(verdictPath, catalogPath, rejudgePath) {
     }
 }
 
-var args = process.argv.slice(2);
-if (args[0] === 'sample' && args.length >= 4) {
+module.exports = { scoreRound: scoreRound };
+
+var args = require.main === module ? process.argv.slice(2) : ['--as-module'];
+if (args[0] === '--as-module') {
+    // required by tools/librarian-check.js
+} else if (args[0] === 'sample' && args.length >= 4) {
     sample(args[1], args[2], args[3], parseInt(args[4] || '120', 10), parseInt(args[5] || '20260930', 10));
 } else if (args[0] === 'score' && args.length >= 3) {
     var at = args.indexOf('--rejudge');
