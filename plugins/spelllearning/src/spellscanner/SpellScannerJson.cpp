@@ -6,6 +6,7 @@
 #include "librarian/Librarian.h"
 
 #include <filesystem>
+#include <fstream>
 #include <unordered_set>
 
 namespace SpellScanner
@@ -15,6 +16,7 @@ namespace SpellScanner
         // Scan dumps live next to the rest of the SpellLearning runtime data.
         constexpr const char* SCAN_OUTPUT_DIR = "Data/SKSE/Plugins/SpellLearning";
         constexpr const char* SCAN_OUTPUT_FILE = "spell_scan_output.json";
+        constexpr const char* DEBUG_FILE = "debug.json";
     }
 
     // =============================================================================
@@ -341,6 +343,21 @@ namespace SpellScanner
     // =============================================================================
     // SCAN OUTPUT FILE
     // =============================================================================
+
+    bool DebugScanDumpEnabled()
+    {
+        try {
+            std::ifstream file(std::filesystem::path(SCAN_OUTPUT_DIR) / DEBUG_FILE);
+            if (!file.is_open()) return false;
+            const json debug = json::parse(file, nullptr, false);
+            if (!debug.is_object()) return false;
+            const auto flag = debug.find("writeScanDump");
+            return flag != debug.end() && flag->is_boolean() && flag->get<bool>();
+        } catch (const std::exception& e) {
+            logger::warn("SpellScanner: {} could not be read: {}", DEBUG_FILE, e.what());
+            return false;
+        }
+    }
 
     std::string WriteScanOutput(const std::string& content)
     {

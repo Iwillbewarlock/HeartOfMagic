@@ -83,6 +83,16 @@ if (Test-Path $rulesSrc) {
     }
 }
 
+# The dev install is a debug install: its panel scans also write the analysis
+# dump (debug/debug.json, shipped the same way in the debug symbols archive)
+$debugSrc = Join-Path $repo 'debug\debug.json'
+if (Test-Path $debugSrc) {
+    $debugDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning'
+    New-Item -ItemType Directory -Force -Path $debugDst | Out-Null
+    Copy-Item $debugSrc $debugDst -Force
+    Write-Host "debug   debug.json (panel scans write spell_scan_output.json)"
+}
+
 # Keep the language line the dev install is set to
 $localeDst = Join-Path $panelDst 'lang\locale.js'
 $keptLocale = if (Test-Path $localeDst) { Get-Content $localeDst -Raw -Encoding UTF8 } else { $null }

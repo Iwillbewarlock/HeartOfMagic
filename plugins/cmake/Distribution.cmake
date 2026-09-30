@@ -39,14 +39,19 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 # ============================================================================
 # 2. Copy DLLs; their debug symbols go to a separate archive
 #    (<name>_DebugSymbols: SKSE/Plugins/*.pdb, for crash logs to name functions -
-#    three quarters of the main archive's size if they went in it)
+#    three quarters of the main archive's size if they went in it - and
+#    SKSE/Plugins/SpellLearning/debug.json, which makes the panel's full scan
+#    write the analysis dump too)
 # ============================================================================
 
 set(DIST_PDB_DIR "${DIST_VERSION_DIR}_DebugSymbols")
 
 add_custom_command(TARGET assemble_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${DIST_PDB_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DIST_PDB_DIR}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DIST_PDB_DIR}/SKSE/Plugins/SpellLearning"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/debug/debug.json"
+    "${DIST_PDB_DIR}/SKSE/Plugins/SpellLearning/"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SpellLearning>"
     "${DIST_VERSION_DIR}/SKSE/Plugins/"

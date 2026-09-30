@@ -72,6 +72,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `BuildSpellJson(spell, formId, fields)` - The single source of the scan JSON shape (SpellScannerJson.cpp)
 - `BuildEffectJson(effect, fields)` - One effect, including MGEF structure when `effectDetails` is on
 - `WriteScanOutput(content)` - Write `spell_scan_output.json`, return its path
+- `DebugScanDumpEnabled()` - `debug.json` next to it says `writeScanDump: true` (debug installs: the debug symbols archive and `DeployDev.ps1` ship `debug/debug.json`); then the panel's full scan (`UIManager::RunScan`) writes the dump too, after the perk adapters
 - `GetSpellInfoByFormId(formId)` - Lookup spell details
 - `GetSystemInstructions()` - LLM output format spec
 - `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format (plugin name in UTF-8, see below)

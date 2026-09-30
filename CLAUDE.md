@@ -131,7 +131,7 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
-The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
+The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
 
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined

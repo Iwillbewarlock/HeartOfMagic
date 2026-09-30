@@ -30,6 +30,10 @@
 - The spell card's level can be pressed like a keyword: it lights every spell of that level in the tree,
   in every school. Press it again, or the pill above the tree, to clear it.
 
+- The debug symbols download also switches on a scan dump: with it installed, the panel's Scan writes
+  `spell_scan_output.json` next to the catalog (the file bug reports and the offline tools use), as the
+  Papyrus `RunScan` already did. The main download does not write it.
+
 ### Fixed
 
 - The scan tab's Easy page no longer shows "No presets yet" when there are no tree builder presets; the

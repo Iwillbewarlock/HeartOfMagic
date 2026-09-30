@@ -1,0 +1,4 @@
+{
+  "_comment": "Debug install only (the debug symbols archive and the dev install). writeScanDump: the panel's full scan also writes spell_scan_output.json next to the catalog, the dump the offline tools (librarian-test, treebuilder-test) read.",
+  "writeScanDump": true
+}

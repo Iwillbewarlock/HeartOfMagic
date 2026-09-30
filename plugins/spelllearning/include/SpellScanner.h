@@ -171,6 +171,12 @@ namespace SpellScanner
     // Returns the written path, or an empty string on failure.
     std::string WriteScanOutput(const std::string& content);
 
+    // Whether the panel's full scan also writes that dump: on only when
+    // Data/SKSE/Plugins/SpellLearning/debug.json says {"writeScanDump": true}.
+    // The file ships with the debug symbols archive and the dev install, not
+    // with the mod itself: the dump is 10-20 MB of analysis data.
+    [[nodiscard]] bool DebugScanDumpEnabled();
+
     // Run a scan and write it to disk in one call, for callers outside the UI
     // (Papyrus, tests). mode is "tomes" or "all"; preset is "minimal",
     // "balanced" or "full". Returns the written path, or an empty string.

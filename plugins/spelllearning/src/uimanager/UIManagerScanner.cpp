@@ -102,6 +102,8 @@ void UIManager::RunScan(const std::string& argStr)
     // as it was, and the work would land on the frames the panel opens in.
     if (!useTomeMode) {
         Librarian::PerkAdapters::Apply("scan");
+        // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
+        if (SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
     }
 
     // A tome scan is a filter list, not the spells a tree is built from, so
