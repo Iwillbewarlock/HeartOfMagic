@@ -108,6 +108,13 @@
       "match": { "spell": "Lightpower.esl|0x000829" },
       "add": { "elements": ["sun"] } },
 
+    { "_": "Mysticism's Dispel and Dismiss carry every damage and summon keyword as the list of what they end, not as what they are",
+      "match": { "spell": "MysticismMagic.esp|0x2ABBDC" },
+      "remove": { "elements": ["apparition", "armor", "blood", "fire", "flesh", "frost", "health", "poison", "shock", "trap", "undead"],
+                  "techniques": ["cloak", "infuse", "sense", "siphon", "transform"] } },
+    { "match": { "spell": "MysticismMagic.esp|0x4E3127" },
+      "remove": { "elements": ["fire", "frost", "shock", "undead", "daedra", "soul"] } },
+
     { "_": "Blood magic takes in vampiric magic (2026-09-30): the vampire drain mark on any hostile effect, whoever casts it, and the absorbs and drains vampires cast (castByVampires: a vampire NPC carries it, in its records or through an SPID ini). A mage's absorb health is not blood magic; a vampire's ice spike is not either. The rule that tagged every spell of a mod named for blood or vampires (2026-09-27) is gone: it made their lightning bolts blood",
       "match": { "mgefKeyword": "MagicVampireDrain", "hostile": true },
       "add": { "elements": ["blood"] } },

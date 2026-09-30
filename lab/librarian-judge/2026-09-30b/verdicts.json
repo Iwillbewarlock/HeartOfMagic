@@ -1,0 +1,1599 @@
+[
+ {
+  "id": "Lunaris.esp|0x000810",
+  "name": "달빛 섬광",
+  "correct": [
+   "holy",
+   "sun"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Bloodmoon.esp|0x00084A",
+  "name": "피의 투창",
+  "correct": [
+   "blood"
+  ],
+  "wrong": [
+   {
+    "tag": "siphon",
+    "why": "plain Health ValueModifier: magic damage plus extra damage, nothing is drained to the caster"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "mihailskeletalrevenants.esp|0x0008DA",
+  "name": "완전한 섐블즈 소환",
+  "correct": [
+   "daedra",
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x056A34",
+  "name": "베인킨 화염",
+  "correct": [
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Abyss.esp|0x000ACC",
+  "name": "그림자 파멸",
+  "correct": [
+   "magicka",
+   "shadow",
+   "stamina",
+   "curse"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "health",
+    "kind": "structural",
+    "why": "the same PeakValueModifier lowers health, magicka and stamina; magicka and stamina were tagged from it, health was not"
+   }
+  ]
+ },
+ {
+  "id": "Flames of Coldharbour.esp|0x00082F",
+  "name": "냉기 화염의 손길",
+  "correct": [
+   "fire",
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Arcane.esp|0x000829",
+  "name": "비전 안개",
+  "correct": [
+   "arcane"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x4F3AD9",
+  "name": "진흙 아귀 소환",
+  "correct": [
+   "daedra",
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "a mud creature; nothing fiery in name or description, likely the atronach-perk MagicSummonFire keyword carried on a daedra/undead summon"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "DAc0da.esm|0x005032",
+  "name": "잉골 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x000986",
+  "name": "지빌라이 유린자 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x40933C",
+  "name": "해골 전사 소환",
+  "correct": [
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Necrotic.esp|0x000A00",
+  "name": "괴저 둔기",
+  "correct": [
+   "daedra",
+   "necrotic",
+   "soul",
+   "weapon",
+   "summoning",
+   "transform"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Sacrilege - Minimalistic Vampires of Skyrim.esp|0x02F9AB",
+  "name": "흡혈귀의 손아귀",
+  "correct": [
+   "blood",
+   "health",
+   "stamina",
+   "siphon"
+  ],
+  "wrong": [
+   {
+    "tag": "curse",
+    "why": "an absorb drain, not a lasting weakening; drains are siphon"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x06ADFA",
+  "name": "화염 데이드랫 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "fire",
+    "kind": "narrative",
+    "why": "flame daedrat: a fire daedra; summon element follows what it summons, groups with flame atronachs"
+   }
+  ]
+ },
+ {
+  "id": "ccvsvsse003-necroarts.esl|0x000963",
+  "name": "언데드 추방",
+  "correct": [
+   "control"
+  ],
+  "wrong": [
+   {
+    "tag": "daedra",
+    "why": "banishes undead (summoned or raised), not daedra; Banish archetype read as daedra"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "undead",
+    "kind": "structural",
+    "why": "the effect only works on undead (target keyword ActorTypeUndead / description); TAGS: undead covers turning away undead"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x1AE7FA",
+  "name": "불타는 손길",
+  "correct": [
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Madmen - Simonrim.esp|0x000898",
+  "name": "미아즈마",
+  "correct": [
+   "poison"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x3C8173",
+  "name": "냉기 망토",
+  "correct": [
+   "frost",
+   "resistance",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x536B6B",
+  "name": "토르베사드 레플리카눔 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Flames of Coldharbour.esp|0x000833",
+  "name": "냉기 작열",
+  "correct": [
+   "fire",
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Wyrmstooth.esp|0x303DF3",
+  "name": "불롬의 상급 방어막",
+  "correct": [
+   "armor",
+   "shield",
+   "infuse"
+  ],
+  "wrong": [
+   {
+    "tag": "strengthen",
+    "why": "a ward plus armor buff; TAGS: magic armor is infuse, not strengthen"
+   },
+   {
+    "tag": "flesh",
+    "why": "a ward barrier, not a flesh spell (no skin/body transformation)"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "force",
+    "kind": "structural",
+    "why": "WardPower actor value; vanilla wards are {force, shield}"
+   }
+  ]
+ },
+ {
+  "id": "KittySpellPack02.esl|0x000829",
+  "name": "플래어 스톰",
+  "correct": [
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Natura.esp|0x000B0F",
+  "name": "바위 망토",
+  "correct": [
+   "earth",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x015396",
+  "name": "정원사의 손길",
+  "correct": [
+   "stamina",
+   "curse"
+  ],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "visible effect is stamina damage plus a placeholder script; no fire in name or description (gardener)"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x05C6A1",
+  "name": "매머드 사역마 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "SU04SachilFollower.esp|0xD0D900",
+  "name": "돌 던지기",
+  "correct": [],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "throws a stone; nothing fiery in name or description"
+   },
+   {
+    "tag": "shock",
+    "why": "throws a stone; nothing electric in name or description"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "earth",
+    "kind": "narrative",
+    "why": "stone throw is earth magic (like Natura stone throw)"
+   }
+  ]
+ },
+ {
+  "id": "SU04SachilFollower.esp|0xEA85B9",
+  "name": "사'칠 배치",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "teleport",
+    "kind": "narrative",
+    "why": "scripted: moves the follower Sa'chil to a fixed spot"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x43BD66",
+  "name": "유령 검치호랑이 소환",
+  "correct": [
+   "apparition",
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x0D2684",
+  "name": "촉수의 벽",
+  "correct": [
+   "eldritch"
+  ],
+  "wrong": [
+   {
+    "tag": "disease",
+    "why": "tentacle damage; nothing in name or description about disease"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x23FB27",
+  "name": "한기 강타",
+  "correct": [
+   "flesh",
+   "frost",
+   "telekinesis"
+  ],
+  "wrong": [
+   {
+    "tag": "resistance",
+    "why": "nothing raises or lowers a resistance; FrostResist is only the resist value of the frost damage"
+   },
+   {
+    "tag": "curse",
+    "why": "instant damage plus paralysis; paralysis is telekinesis/flesh, not a lasting weakening"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x01A149",
+  "name": "조증 그루밋 늪지 약탈자 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Natura.esp|0x000B2C",
+  "name": "물 튀김",
+  "correct": [
+   "water"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "AncientBloodII.esl|0x00084C",
+  "name": "피의 불꽃 소용돌이",
+  "correct": [
+   "blood",
+   "fire",
+   "health",
+   "siphon"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "DAc0da.esm|0x005235",
+  "name": "바닷빛 살점 아트로나크 소환",
+  "correct": [
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "undead",
+    "why": "a flesh atronach is a daedra, not undead"
+   },
+   {
+    "tag": "soul",
+    "why": "soul does not go on daedra summons"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "daedra",
+    "kind": "structural",
+    "why": "summoned race is an atronach (ActorTypeDaedra)"
+   },
+   {
+    "tag": "flesh",
+    "kind": "narrative",
+    "why": "flesh atronach"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x29265E",
+  "name": "화염 껍질",
+  "correct": [
+   "fire",
+   "resistance"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x43BD62",
+  "name": "잔혹한 유령 늑대 소환",
+  "correct": [
+   "apparition",
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Abyss.esp|0x000ABC",
+  "name": "그림자 망토",
+  "correct": [
+   "shadow"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "DAc0da.esm|0x00CC00",
+  "name": "드웨머 유령 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "construct",
+    "why": "the name says Dwemer ghost (spectre), not a dwarven machine; if the summoned race is a machine this is right"
+   },
+   {
+    "tag": "metal",
+    "why": "same: a ghost, not a machine"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "apparition",
+    "kind": "narrative",
+    "why": "ghost (유령) of a Dwemer"
+   }
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x1D5515",
+  "name": "신성한 수호자",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "holy",
+    "kind": "narrative",
+    "why": "grants a divine guardian spirit, blocked for murderers"
+   },
+   {
+    "tag": "apparition",
+    "kind": "narrative",
+    "why": "the guardian is a spirit"
+   }
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x45E08C",
+  "name": "모르-갈그의 무녀 소환",
+  "correct": [
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "AX ValSerano.esp|0xB73F92",
+  "name": "원격 충전",
+  "correct": [
+   "shock",
+   "stamina",
+   "strengthen"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x108B3F",
+  "name": "마법 장벽",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "shield",
+    "kind": "narrative",
+    "why": "scripted energy dome nothing can pass: a barrier"
+   }
+  ]
+ },
+ {
+  "id": "Arcane.esp|0x000860",
+  "name": "비전의 눈",
+  "correct": [
+   "arcane"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x1B6E75",
+  "name": "독소 구름 피해",
+  "correct": [
+   "poison"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x377F4E",
+  "name": "별의 흐름",
+  "correct": [
+   "arcane"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x3497EE",
+  "name": "빙하 폭풍",
+  "correct": [
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "ccbgssse014-spellpack01.esl|0x00080D",
+  "name": "속박 풀린 빙결",
+  "correct": [
+   "air",
+   "flesh",
+   "frost",
+   "cloak",
+   "telekinesis"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x4F3AFD",
+  "name": "사령 소환",
+  "correct": [
+   "apparition",
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x2559DE",
+  "name": "재조직",
+  "correct": [
+   "health",
+   "curing"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x501109",
+  "name": "서리 사냥개 소환",
+  "correct": [
+   "daedra",
+   "frost",
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "soul",
+    "why": "soul does not go on daedra summons"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "Skyrim Extended Cut - Saints and Seducers.esp|0x5A9590",
+  "name": "와바잭의 얼굴 중 하나는 화난 얼굴이다",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "force",
+    "kind": "structural",
+    "why": "Stagger archetype: a physical knockback"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x1D702B",
+  "name": "상급 동상",
+  "correct": [
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Arcane.esp|0x000831",
+  "name": "비전 작렬",
+  "correct": [
+   "arcane"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Abyss.esp|0x000AC1",
+  "name": "그림자 재생",
+  "correct": [
+   "shadow"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0xF3B48D",
+  "name": "생명의 근원",
+  "correct": [
+   "health",
+   "curing"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Natura.esp|0x000E30",
+  "name": "물의 창",
+  "correct": [
+   "water"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "AX ValSerano.esp|0x0545C9",
+  "name": "세라노의 결속 방패",
+  "correct": [
+   "daedra",
+   "soul",
+   "weapon",
+   "summoning",
+   "transform"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "shield",
+    "kind": "narrative",
+    "why": "bound shield creating a magic protective barrier; groups with shields/wards"
+   }
+  ]
+ },
+ {
+  "id": "ksws07_quest.esm|0x00248F",
+  "name": "문 개방",
+  "correct": [],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "AX ValSerano.esp|0x7E0AF5",
+  "name": "번개 망토 흡수",
+  "correct": [
+   "shock"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x10F6B4",
+  "name": "베르나쿠스 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Natura.esp|0x0008F3",
+  "name": "벌레 미사일",
+  "correct": [
+   "poison"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x38E113",
+  "name": "검은 무리",
+  "correct": [
+   "disease"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x41864C",
+  "name": "해골 투사 소환",
+  "correct": [
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x13DC8F",
+  "name": "카인의 바람",
+  "correct": [
+   "arcane"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "air",
+    "kind": "narrative",
+    "why": "Kyne's Wind: named for the sky goddess's wind; description gives no element, so it lands with arcane instead of air spells (low confidence)"
+   }
+  ]
+ },
+ {
+  "id": "Stellaris.esp|0x000835",
+  "name": "천체 유성 폭발",
+  "correct": [
+   "holy",
+   "sun"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "KhajiitWillFollow.esp|0x8A665B",
+  "name": "서리 물기",
+  "correct": [
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "ECSS_SummonableCreatures.esp|0x00084F",
+  "name": "호박 군주 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "frost",
+    "why": "Nothing in name or description says frost; likely the atronach-perk MagicSummonFrost keyword riding on a non-frost creature"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "ccbgssse004-ruinsedge.esl|0x000808",
+  "name": "사기 저하",
+  "correct": [
+   "creature",
+   "human",
+   "fear"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "NightmarePlane.esp|0x0495AC",
+  "name": "악몽의 계략",
+  "correct": [
+   "soul",
+   "siphon"
+  ],
+  "wrong": [
+   {
+    "tag": "shock",
+    "why": "No electric damage anywhere: a soul trap on a sleeping target plus plain health damage"
+   },
+   {
+    "tag": "infuse",
+    "why": "Nothing is infused into the target; it is soul trap + damage"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "CJ03Elroy.esp|0x994653",
+  "name": "소울 마울러",
+  "correct": [],
+  "wrong": [
+   {
+    "tag": "arcane",
+    "why": "Description says a soul-rending blast; it has an element (soul), so not element-less"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "soul",
+    "kind": "narrative",
+    "why": "Soul-rending explosion; groups with soul-damage spells (compare the manual Touch of Death -> soul)"
+   }
+  ]
+ },
+ {
+  "id": "mihailskeletalrevenants.esp|0x0009BE",
+  "name": "푸른 화염 폭풍",
+  "correct": [
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Desecration.esp|0x0009A0",
+  "name": "괴저 화염의 군주 소환",
+  "correct": [
+   "daedra",
+   "necrotic",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "fire",
+    "kind": "narrative",
+    "why": "A necrotic FLAME lord (flame-atronach variant); the MagicSummonFire keyword is deliberately dropped under a KIT daedra summon, but the creature is literally fire, and the sibling Necrotic Flame Touch keeps fire"
+   }
+  ]
+ },
+ {
+  "id": "NecromancersMagic.esl|0x000881",
+  "name": "역병 가시",
+  "correct": [
+   "disease"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x2ABBDC",
+  "name": "정화",
+  "correct": [
+   "curing",
+   "dispel"
+  ],
+  "wrong": [
+   {
+    "tag": "apparition",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "armor",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "fire",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "flesh",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "frost",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "health",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "poison",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "shock",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "trap",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "undead",
+    "why": "Dispel-all spell (CurePoison archetype used as a generic dispel); the element comes from the effect keywords it dispels, not what the spell is"
+   },
+   {
+    "tag": "cloak",
+    "why": "Self dispel of all magic effects; this technique belongs to the effects it removes, not to the spell"
+   },
+   {
+    "tag": "infuse",
+    "why": "Self dispel of all magic effects; this technique belongs to the effects it removes, not to the spell"
+   },
+   {
+    "tag": "sense",
+    "why": "Self dispel of all magic effects; this technique belongs to the effects it removes, not to the spell"
+   },
+   {
+    "tag": "siphon",
+    "why": "Self dispel of all magic effects; this technique belongs to the effects it removes, not to the spell"
+   },
+   {
+    "tag": "transform",
+    "why": "Self dispel of all magic effects; this technique belongs to the effects it removes, not to the spell"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x084F76",
+  "name": "변신: 멧돼지",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "transform",
+    "kind": "narrative",
+    "why": "Shapeshift into a boar; Script archetype hides it, only name/description show it"
+   }
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x00E1ED",
+  "name": "화염 공격",
+  "correct": [
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x2A6AC9",
+  "name": "성역",
+  "correct": [
+   "apparition",
+   "transform"
+  ],
+  "wrong": [
+   {
+    "tag": "shadow",
+    "why": "Etherealize veil making weapon attacks miss; evasion, not shadow or stealth"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x314798",
+  "name": "결속",
+  "correct": [
+   "creature",
+   "human"
+  ],
+  "wrong": [
+   {
+    "tag": "pacify",
+    "why": "Calm archetype, but targets follow the caster and fight alongside: that is command, not making them stop fighting"
+   }
+  ],
+  "missing": [
+   {
+    "tag": "control",
+    "kind": "narrative",
+    "why": "Targets follow and fight for the caster (command)"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x00FFF4",
+  "name": "드레모라 사냥꾼 소환",
+  "correct": [
+   "daedra",
+   "control",
+   "summoning"
+  ],
+  "wrong": [
+   {
+    "tag": "soul",
+    "why": "Settled: soul is not on daedra summons (Dremora hunter)"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "DAc0da.esm|0x00CC93",
+  "name": "지연식 냉기 룬",
+  "correct": [
+   "construct",
+   "frost",
+   "trap"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Stellaris.esp|0x000825",
+  "name": "천체의 오라",
+  "correct": [
+   "holy",
+   "sun",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Inquisition.esp|0x000876",
+  "name": "신성한 전투망치",
+  "correct": [
+   "holy",
+   "sun",
+   "weapon",
+   "summoning",
+   "transform"
+  ],
+  "wrong": [
+   {
+    "tag": "daedra",
+    "why": "A bound weapon forged from the sun, explicitly holy; the default bound-weapon daedra reading contradicts the description"
+   },
+   {
+    "tag": "soul",
+    "why": "Sun-forged holy weapon, not a bound soul"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "Desecration.esp|0x00082F",
+  "name": "괴저 불꽃 손길",
+  "correct": [
+   "fire",
+   "necrotic"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x44CD20",
+  "name": "악몽의 창백한 야수 소환",
+  "correct": [
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x13E6B6",
+  "name": "철의 신체",
+  "correct": [
+   "armor",
+   "flesh",
+   "infuse"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "metal",
+    "kind": "narrative",
+    "why": "Iron Body = Ironflesh; armor spells differ only by name (TAGS s.4)"
+   }
+  ]
+ },
+ {
+  "id": "ccbgssse014-spellpack01.esl|0x000853",
+  "name": "허스탕의 자부심",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x332DEF",
+  "name": "서리결정 파열",
+  "correct": [
+   "frost"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "construct",
+    "kind": "structural",
+    "why": "Spawns an ice crystal that stays in the world (SpawnScriptedRef archetype, Target Location)"
+   },
+   {
+    "tag": "trap",
+    "kind": "narrative",
+    "why": "Crystal shatters later when struck: a set-and-trigger trap"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0xE7FECB",
+  "name": "볼키하 사냥개 소환",
+  "correct": [
+   "blood",
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Natura.esp|0x000D7B",
+  "name": "바위 폭발",
+  "correct": [
+   "earth"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0xA0782A",
+  "name": "감전사",
+  "correct": [
+   "shock"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x10D265",
+  "name": "바람 순찰자",
+  "correct": [
+   "air",
+   "strengthen"
+  ],
+  "wrong": [
+   {
+    "tag": "stamina",
+    "why": "SpeedMult buff; movement speed is not the stamina resource"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "KittySpellPack02.esl|0x00082C",
+  "name": "다이아몬드 스플래쉬",
+  "correct": [
+   "frost"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x890D64",
+  "name": "햇빛의 룬",
+  "correct": [
+   "construct",
+   "sun",
+   "trap"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "mihailhighfantasypack.esp|0x01EE6F",
+  "name": "흑요석 닉사드 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Lunaris.esp|0x0008CD",
+  "name": "달빛의 벽",
+  "correct": [
+   "holy"
+  ],
+  "wrong": [
+   {
+    "tag": "sun",
+    "why": "Moonlight (Lunaris), not sunlight; holy already carries the anti-undead light"
+   },
+   {
+    "tag": "trap",
+    "why": "A lingering wall hazard, not a set-and-later-explodes trap"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x27E242",
+  "name": "신속회복",
+  "correct": [
+   "health",
+   "curing"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "SexLab Eager NPCs.esp|0x01FDCB",
+  "name": "정신 산만 상태 (Distracted) 감지",
+  "correct": [
+   "human",
+   "sense"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x50E713",
+  "name": "손곰 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x3C7547",
+  "name": "부담",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "curse",
+    "kind": "structural",
+    "why": "Hostile PeakValueModifier on SpeedMult (slow + stagger) on an aimed target: a lasting debuff"
+   }
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x44CD31",
+  "name": "탐식의 늑대인간 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "WishMagic.esl|0x000821",
+  "name": "소원 - 마법 부여 원반 현현",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "construct",
+    "kind": "narrative",
+    "why": "Conjures an enchanting table into the world (Script archetype, only the description shows it)"
+   }
+  ]
+ },
+ {
+  "id": "DAc0da.esm|0x00B3C2",
+  "name": "폭풍 오른손 소환",
+  "correct": [
+   "daedra",
+   "shock",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x34C3AE",
+  "name": "현혹",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "shadow",
+    "kind": "narrative",
+    "why": "Disguise as the target's ally: deception/stealth; with no tag it groups with nothing"
+   }
+  ]
+ },
+ {
+  "id": "Witcher Horses 2.0.esp|0x0009D3",
+  "name": "절망 소환",
+  "correct": [
+   "soul",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "apparition",
+    "kind": "narrative",
+    "why": "Summons a ghost horse; summon element follows what it summons"
+   }
+  ]
+ },
+ {
+  "id": "Vulcano.esp|0x00082B",
+  "name": "용암 접촉",
+  "correct": [
+   "earth",
+   "fire"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Necrom.esp|0x000842",
+  "name": "섬뜩한 눈",
+  "correct": [
+   "eldritch",
+   "poison"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vigilant.esm|0x094744",
+  "name": "음유시인의 옷",
+  "correct": [
+   "fire",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "holy",
+    "kind": "narrative",
+    "why": "Cloak described as a holy aura"
+   }
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x2CF331",
+  "name": "밤눈",
+  "correct": [
+   "sense"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x3D4FFC",
+  "name": "작업 선반 생성",
+  "correct": [],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "construct",
+    "kind": "structural",
+    "why": "Spawns a crafting-station copy in the world (SpawnScriptedRef archetype)"
+   }
+  ]
+ },
+ {
+  "id": "mihailhighfantasypack.esp|0x09A0F8",
+  "name": "회오리 망토",
+  "correct": [
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": [
+   {
+    "tag": "air",
+    "kind": "narrative",
+    "why": "Whirlwind cloak doing wind damage and knockback (the TAGS example for air); only name/description show it, no arcane either"
+   }
+  ]
+ },
+ {
+  "id": "Arclight.esp|0x000831",
+  "name": "뇌광의 룬",
+  "correct": [
+   "construct",
+   "shock",
+   "trap"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Inquisition.esp|0x000872",
+  "name": "신성한 대검",
+  "correct": [
+   "daedra",
+   "holy",
+   "soul",
+   "sun",
+   "weapon",
+   "summoning",
+   "transform"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "AncientBloodII.esl|0x000815",
+  "name": "수확의 폭풍",
+  "correct": [
+   "blood",
+   "construct",
+   "health",
+   "siphon"
+  ],
+  "wrong": [
+   {
+    "tag": "trap",
+    "why": "A self-centred harvesting storm hazard (SpawnHazard), not a set-and-trigger trap"
+   }
+  ],
+  "missing": []
+ },
+ {
+  "id": "Necrotic.esp|0x000A04",
+  "name": "괴저 전투망치",
+  "correct": [
+   "daedra",
+   "necrotic",
+   "soul",
+   "weapon",
+   "summoning",
+   "transform"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Vulcano.esp|0x000825",
+  "name": "화산의 오라",
+  "correct": [
+   "earth",
+   "fire",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Werewolf_New_Anim.esp|0x00081D",
+  "name": "블러드스칼 일격",
+  "correct": [
+   "blood"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Glenmoril.esm|0x3C326B",
+  "name": "선풍 망토",
+  "correct": [
+   "air",
+   "cloak"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "Necrotic.esp|0x00093B",
+  "name": "괴저 해골 광전사 소환",
+  "correct": [
+   "necrotic",
+   "soul",
+   "undead",
+   "control",
+   "summoning"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x705EAF",
+  "name": "소실",
+  "correct": [
+   "shadow"
+  ],
+  "wrong": [],
+  "missing": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x10D264",
+  "name": "바람 보행자",
+  "correct": [
+   "air",
+   "strengthen"
+  ],
+  "wrong": [
+   {
+    "tag": "stamina",
+    "why": "SpeedMult buff; movement speed is not the stamina resource"
+   }
+  ],
+  "missing": []
+ }
+]
