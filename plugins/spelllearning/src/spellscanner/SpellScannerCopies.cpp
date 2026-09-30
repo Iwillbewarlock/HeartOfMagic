@@ -18,8 +18,12 @@ namespace SpellScanner
 
     namespace
     {
-        // How many dropped copies the log names; the count covers the rest.
+        // How many dropped spells each log line names; the count covers the rest.
         constexpr std::size_t kLoggedCopies = 5;
+
+        // Below this a spell costs nothing to cast: a player spell always costs
+        // something, a creature's attack, a follower's call or a test spell not.
+        constexpr float kFreeSpellCost = 0.5f;
 
         // Same spell to a player: same name (ASCII case ignored) in the same school.
         std::string CopyKey(RE::SpellItem* spell)
@@ -55,26 +59,40 @@ namespace SpellScanner
         }
 
         const auto taught = SpellsTaughtByTomes();
-        std::unordered_set<RE::FormID> copies;
-        std::string logged;
+        std::unordered_set<RE::FormID> dropped;
+        std::size_t copies = 0, free = 0;
+        std::string loggedCopies, loggedFree;
+        const auto note = [](std::string& logged, std::size_t count, RE::SpellItem* spell) {
+            if (count > kLoggedCopies) return;
+            if (!logged.empty()) logged += ", ";
+            logged += std::format("'{}' (0x{:08X})",
+                EncodingUtils::SanitizeToUTF8(spell->GetFullName()), spell->GetFormID());
+        };
         for (auto* spell : spells) {
-            if (spell->data.castingPerk) continue;
-            if (!keysWithPerk.contains(CopyKey(spell))) continue;
+            // A spell a tome teaches stays, whatever else its record says
             if (taught.contains(spell->GetFormID())) continue;
 
-            copies.insert(spell->GetFormID());
-            if (copies.size() <= kLoggedCopies) {
-                if (!logged.empty()) logged += ", ";
-                logged += std::format("'{}' (0x{:08X})",
-                    EncodingUtils::SanitizeToUTF8(spell->GetFullName()), spell->GetFormID());
+            if (!spell->data.castingPerk && keysWithPerk.contains(CopyKey(spell))) {
+                dropped.insert(spell->GetFormID());
+                note(loggedCopies, ++copies, spell);
+            } else if (spell->CalculateMagickaCost(nullptr) < kFreeSpellCost) {
+                // Free and no tome: a creature's attack, a follower's call (Inigo,
+                // Val Serano), a pet's whistle, a test or utility spell of a mod
+                dropped.insert(spell->GetFormID());
+                note(loggedFree, ++free, spell);
             }
         }
 
-        if (!copies.empty()) {
+        if (copies) {
             logger::info("SpellScanner: dropped {} non-player copies (same name and school as a spell with a "
                          "half-cost perk, no perk of their own, no tome): {}{}",
-                copies.size(), logged, copies.size() > kLoggedCopies ? ", ..." : "");
+                copies, loggedCopies, copies > kLoggedCopies ? ", ..." : "");
         }
-        return copies;
+        if (free) {
+            logger::info("SpellScanner: dropped {} free spells no tome teaches (NPC attacks, follower calls, "
+                         "test and utility spells): {}{}",
+                free, loggedFree, free > kLoggedCopies ? ", ..." : "");
+        }
+        return dropped;
     }
 }

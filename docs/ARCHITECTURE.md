@@ -79,7 +79,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
-- `FindNonPlayerCopies(spells)` - The NPC, trap and script copies among the kept spells (SpellScannerCopies.cpp, below)
+- `FindNonPlayerCopies(spells)` - The spells a player does not learn among the kept ones, none taught by a tome: NPC, trap and script copies, and free spells (SpellScannerCopies.cpp, below)
 
 **Non-player copies (2026-09-30):** the game keeps copies of many spells for NPCs, traps and scripts
 (TrapFireball01, HazardGuardianCircleSpell, Miraak's Lightning Storm, cloak damage spells). They share the
@@ -92,6 +92,12 @@ has a half-cost perk, it has none, and no tome teaches it. The log names the fir
 (3546 spells) it drops 391, all NPC, trap, hand or cloak-damage copies. The editor id filter
 (`isNonPlayerSpell` in the same loop) cannot do this: it reads `GetFormEditorID()`, which the engine leaves
 empty for spells, so it never matches (turning it on would also drop Soul Trap on "trap").
+
+**Free spells (2026-09-30):** the same pass also drops a spell no tome teaches whose magicka cost
+(`CalculateMagickaCost`) is below 0.5: a player spell always costs something, while creatures' attacks,
+followers' calls (Inigo, Val Serano), pets' whistles and mods' test or utility spells (SexLab, Smooth
+Animation, BowRapidCombo, PhotoMode) cost nothing. Logged as `SpellScanner: dropped N free spells no tome
+teaches ...`. On the author's load order about 640 of 3155 scanned spells cost nothing before the tome check.
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
