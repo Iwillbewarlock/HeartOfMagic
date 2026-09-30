@@ -11,10 +11,25 @@ namespace TomeReach
     {
         PassResult result;
         std::vector<BookRecord> read;
+        Evidence evidence;
+        std::unordered_set<std::uint32_t> damagedScope;
         for (const auto& plugin : loadOrder) {
-            if (!ScanPlugin(plugin, names, tomes, result.reached, &read)) result.unreadable.push_back(plugin.name);
+            const auto scan = ScanPlugin(plugin, names, tomes, evidence, &read);
+            if (scan.status == ScanStatus::kUnreadable) {
+                result.unreadable.push_back(plugin.name);
+            } else if (scan.status == ScanStatus::kDamaged) {
+                result.damaged.push_back(plugin.name);
+                damagedScope.insert(scan.scope.begin(), scan.scope.end());
+            }
         }
+        result.reached = evidence.found;
         result.byRecord = result.reached.size();
+        for (const Key tome : evidence.foundLoose) {
+            if (result.reached.insert(tome).second) {
+                ++result.byLooseOnly;
+                result.looseFrom.emplace(tome, evidence.looseFrom[tome]);
+            }
+        }
 
         // The rest: named by a distribution config, by editor id or by plugin and id
         std::unordered_map<Key, std::string> editorIds;
@@ -31,6 +46,10 @@ namespace TomeReach
                 result.reached.insert(tome);
                 ++result.byConfig;
             }
+        }
+        // Last: a damaged plugin could have named any tome of itself or its masters
+        for (const Key tome : tomes) {
+            if (damagedScope.contains(PluginOf(tome)) && result.reached.insert(tome).second) ++result.byDamaged;
         }
         if (books) *books = std::move(read);
         return result;

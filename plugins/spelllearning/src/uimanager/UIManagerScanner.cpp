@@ -6,6 +6,9 @@
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "librarian/PerkAdapterPatch.h"
+#include "tomereach/TomeReach.h"
+
+#include <thread>
 
 using json = nlohmann::json;
 
@@ -15,6 +18,9 @@ using json = nlohmann::json;
 
 namespace
 {
+    // How long a full scan waits for the tome reach pass (a few seconds on a large load order)
+    constexpr std::chrono::milliseconds kTomeReachWait{ 30000 };
+
     // The scan mode the panel asked for ({"scanMode":"tomes"}); anything else, or text
     // that is not JSON, is the full scan.
     bool IsTomeScan(const std::string& argStr)
@@ -36,6 +42,29 @@ void UIManager::OnScanSpells(const char* argument)
 
     std::string argStr(argument ? argument : "");
 
+    // The tome reach pass runs for a few seconds after the game starts; a full scan
+    // asked for in that time waits for it on its own thread (the game goes on), so
+    // the spells whose tomes nothing hands out are marked (TomeReach.h). A tome scan
+    // does not use the pass and goes at once, as before.
+    if (IsTomeScan(argStr)) {
+        RunScanOnGameThread(argStr);
+        return;
+    }
+    try {
+        std::thread([argStr]() {
+            if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
+                logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
+            }
+            RunScanOnGameThread(argStr);
+        }).detach();
+    } catch (const std::system_error& e) {
+        logger::warn("UIManager: no thread to wait for the tome reach pass ({}) - scanning now", e.what());
+        RunScanOnGameThread(argStr);
+    }
+}
+
+void UIManager::RunScanOnGameThread(const std::string& argStr)
+{
     AddTaskToGameThread("ScanSpells", [argStr]() {
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;

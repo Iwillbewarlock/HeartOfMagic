@@ -103,8 +103,9 @@ namespace TomeReach
             std::size_t size;
         };
 
+        // Calls fn for each subrecord; false when the last one runs past `size`
         template <class Fn>
-        void ForEachSubrecord(const unsigned char* data, std::size_t size, Fn&& fn)
+        bool ForEachSubrecord(const unsigned char* data, std::size_t size, Fn&& fn)
         {
             std::size_t i = 0;
             std::size_t bigSize = 0;
@@ -121,10 +122,11 @@ namespace TomeReach
                     length = bigSize;
                     bigSize = 0;
                 }
-                if (i + length > size) break;
+                if (i + length > size) return false;
                 fn(Subrecord{ type, data + i, length });
                 i += length;
             }
+            return i == size;
         }
 
         // A plugin's view of form ids: the high byte picks a master, or the plugin itself
@@ -147,30 +149,36 @@ namespace TomeReach
         {
             const Resolver& resolve;
             const std::unordered_set<Key>& wanted;
-            std::unordered_set<Key>& found;
+            Evidence& evidence;
 
-            void Add(std::uint32_t formId) const
+            void Add(std::uint32_t formId, bool loose = false) const
             {
                 if (!formId) return;
                 const Key key = resolve(formId);
-                if (wanted.contains(key)) found.insert(key);
+                if (!wanted.contains(key)) return;
+                if (!loose) {
+                    evidence.found.insert(key);
+                } else if (evidence.foundLoose.insert(key).second) {
+                    evidence.looseFrom.emplace(key, resolve.self);
+                }
             }
 
             // A script property or quest alias: any four bytes may be a form id (a
             // false hit can only keep a tome, never drop one)
             void AddLoose(const unsigned char* data, std::size_t size) const
             {
-                for (std::size_t i = 0; i + kFormIdSize <= size; ++i) Add(U32(data + i));
+                for (std::size_t i = 0; i + kFormIdSize <= size; ++i) Add(U32(data + i), true);
             }
         };
 
-        void ReadRecord(const unsigned char* type, const unsigned char* body, std::size_t size,
+        // False when a subrecord runs past the record: the rest of it was not read
+        bool ReadRecord(const unsigned char* type, const unsigned char* body, std::size_t size,
             std::uint32_t formId, const Collector& collect, std::vector<BookRecord>* books)
         {
             const bool quest = Is(type, T("QUST"));
             BookRecord book;
             const bool isBook = books && Is(type, T("BOOK"));
-            ForEachSubrecord(body, size, [&](const Subrecord& sub) {
+            const bool whole = ForEachSubrecord(body, size, [&](const Subrecord& sub) {
                 if (Is(type, T("REFR")) && Is(sub.type, T("NAME")) && sub.size >= 4) {
                     collect.Add(U32(sub.data));
                 } else if (Is(type, T("LVLI")) && Is(sub.type, T("LVLO")) && sub.size >= kLevelEntryFormOffset + 4) {
@@ -199,6 +207,7 @@ namespace TomeReach
                 book.book = collect.resolve(formId);
                 books->push_back(std::move(book));
             }
+            return whole;
         }
 
         bool ReadFile(const std::filesystem::path& path, std::vector<unsigned char>& out)
@@ -213,26 +222,35 @@ namespace TomeReach
         }
     }
 
-    bool ScanPlugin(const PluginFile& file, NameTable& names, const std::unordered_set<Key>& wanted,
-        std::unordered_set<Key>& found, std::vector<BookRecord>* books)
+    PluginScan ScanPlugin(const PluginFile& file, NameTable& names, const std::unordered_set<Key>& wanted,
+        Evidence& evidence, std::vector<BookRecord>* books)
     {
+        PluginScan result;
         std::vector<unsigned char> data;
-        if (!ReadFile(file.path, data) && (file.fallback.empty() || !ReadFile(file.fallback, data))) return false;
-        if (data.size() < kRecordHeader || !Is(data.data(), T("TES4"))) return false;
+        if (!ReadFile(file.path, data) && (file.fallback.empty() || !ReadFile(file.fallback, data))) return result;
+        if (data.size() < kRecordHeader || !Is(data.data(), T("TES4"))) return result;
 
         Resolver resolve{ names, {}, names.Id(file.name) };
         const std::uint32_t headerSize = U32(data.data() + 4);
         const std::uint32_t headerFlags = U32(data.data() + 8);
-        if (kRecordHeader + headerSize > data.size()) return false;
+        if (kRecordHeader + headerSize > data.size()) return result;
         names.SetLight(resolve.self, (headerFlags & kLightFile) != 0);
-        ForEachSubrecord(data.data() + kRecordHeader, headerSize, [&](const Subrecord& sub) {
+        // A header read in part leaves the master list, and so every form id, in doubt
+        const bool headerWhole = ForEachSubrecord(data.data() + kRecordHeader, headerSize, [&](const Subrecord& sub) {
             if (Is(sub.type, T("MAST"))) {
                 resolve.masters.push_back(names.Id(std::string_view(
                     reinterpret_cast<const char*>(sub.data), strnlen(reinterpret_cast<const char*>(sub.data), sub.size))));
             }
         });
+        if (!headerWhole) return result;
 
-        const Collector collect{ resolve, wanted, found };
+        const auto damaged = [&] {
+            result.status = ScanStatus::kDamaged;
+            result.scope = resolve.masters;
+            result.scope.push_back(resolve.self);
+            return result;
+        };
+        const Collector collect{ resolve, wanted, evidence };
         std::vector<unsigned char> inflated;
         std::size_t pos = kRecordHeader + headerSize;
         while (pos + kRecordHeader <= data.size()) {
@@ -246,23 +264,25 @@ namespace TomeReach
             const std::uint32_t formId = U32(header + 12);
             const unsigned char* body = header + kRecordHeader;
             pos += kRecordHeader + size;
-            if (pos > data.size()) return false;  // a record runs past the end
+            if (pos > data.size()) return damaged();  // a record runs past the end
             if (!Scanned(header)) continue;
 
             std::size_t bodySize = size;
             if (flags & kCompressed) {
-                if (size < kInflatedSizeField) return false;
+                if (size < kInflatedSizeField) return damaged();
                 uLongf length = U32(body);
-                if (length > kMaxInflatedRecord) return false;
+                if (length > kMaxInflatedRecord) return damaged();
                 inflated.resize(length);
                 if (uncompress(inflated.data(), &length, body + kInflatedSizeField, size - kInflatedSizeField) != Z_OK) {
-                    return false;
+                    return damaged();
                 }
                 body = inflated.data();
                 bodySize = length;
             }
-            ReadRecord(header, body, bodySize, formId, collect, books);
+            if (!ReadRecord(header, body, bodySize, formId, collect, books)) return damaged();
         }
-        return pos == data.size();  // anything else: the file ends inside a record
+        if (pos != data.size()) return damaged();  // the file ends inside a record header
+        result.status = ScanStatus::kRead;
+        return result;
     }
 }

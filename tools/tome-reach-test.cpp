@@ -2,7 +2,8 @@
 // tome-reach-test - which tree spells have tomes nothing hands out
 // =============================================================================
 //
-//   tome-reach-test -i inputs.json -s spell_scan_output.json
+//   tome-reach-test -i inputs.json -s spell_scan_output.json [-v: the tomes only a script property reaches]
+//   tome-reach-test --self-test      the reader on made-up plugins (tome-reach-selftest.cpp)
 //
 // inputs.json: { "plugins": [ { "name": "...", "path": "..." } ... ] in load order,
 //                "dataDirs": [ "..." ] }  (lab/tome-reach/make_inputs.py writes it
@@ -24,6 +25,8 @@
 
 using json = nlohmann::json;
 
+int RunSelfTest();
+
 namespace
 {
     json ReadJson(const std::string& path)
@@ -41,11 +44,15 @@ namespace
 
 int main(int argc, char** argv)
 {
+    if (argc == 2 && std::string(argv[1]) == "--self-test") return RunSelfTest();
+
     std::string inputs, scan;
-    for (int i = 1; i + 1 < argc; i += 2) {
+    bool verbose = false;
+    for (int i = 1; i < argc; ++i) {
         const std::string flag = argv[i];
-        if (flag == "-i") inputs = argv[i + 1];
-        else if (flag == "-s") scan = argv[i + 1];
+        if (flag == "-v") verbose = true;
+        else if (flag == "-i" && i + 1 < argc) inputs = argv[++i];
+        else if (flag == "-s" && i + 1 < argc) scan = argv[++i];
     }
     if (inputs.empty() || scan.empty()) {
         std::fprintf(stderr, "usage: tome-reach-test -i inputs.json -s spell_scan_output.json\n");
@@ -69,7 +76,7 @@ int main(int argc, char** argv)
         // The tomes: every BOOK that teaches a spell, its winning override
         std::vector<TomeReach::BookRecord> books;
         const std::unordered_set<TomeReach::Key> none;
-        std::unordered_set<TomeReach::Key> unused;
+        TomeReach::Evidence unused;
         for (const auto& plugin : loadOrder) TomeReach::ScanPlugin(plugin, names, none, unused, &books);
         std::unordered_map<TomeReach::Key, TomeReach::BookRecord> winning;
         for (auto& b : books) winning[b.book] = b;
@@ -84,10 +91,21 @@ int main(int argc, char** argv)
         const auto pass = TomeReach::FindReachedTomes(loadOrder, names, tomes, configs);
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - started).count();
-        std::printf("plugins %zu, unreadable %zu, tomes %zu, reached by record %zu, by config %zu (%zu configs), %lld ms\n",
-            loadOrder.size(), pass.unreadable.size(), tomes.size(), pass.byRecord, pass.byConfig, pass.configFiles,
-            static_cast<long long>(ms));
+        std::printf("plugins %zu, unreadable %zu, damaged %zu, tomes %zu, reached by record %zu, only by a script "
+                    "property or alias %zu, only by config %zu (%zu configs), kept for a damaged plugin %zu, %lld ms\n",
+            loadOrder.size(), pass.unreadable.size(), pass.damaged.size(), tomes.size(), pass.byRecord,
+            pass.byLooseOnly, pass.byConfig, pass.configFiles, pass.byDamaged, static_cast<long long>(ms));
         for (const auto& u : pass.unreadable) std::printf("  unreadable: %s\n", u.c_str());
+        for (const auto& d : pass.damaged) std::printf("  damaged: %s\n", d.c_str());
+        if (verbose) {
+            // The tomes only a script property or quest alias reaches, and the plugin that named them
+            std::printf("reached only by a script property or alias:\n");
+            for (const auto& [key, from] : pass.looseFrom) {
+                const auto b = winning.find(key);
+                std::printf("  %s (%s) <- %s\n", b != winning.end() ? b->second.editorId.c_str() : "?",
+                    names.Name(TomeReach::PluginOf(key)).c_str(), names.Name(from).c_str());
+            }
+        }
 
         // The tree's spells (taught by a tome, not in the voice slot) whose every tome is unreached
         std::map<std::string, std::vector<std::string>> lost;

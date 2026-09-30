@@ -82,11 +82,34 @@ namespace TomeReach
         std::filesystem::path fallback;  // tried when `path` cannot be opened (may be empty)
     };
 
-    // Reads one plugin: every key of `wanted` the plugin refers to goes into
-    // `found`, and when `books` is given every BOOK record is appended to it.
-    // Returns false when the file cannot be read, is not a plugin, or is damaged
-    // (a record past the end, one that does not inflate): the caller must not
-    // take a damaged plugin's silence as "nothing refers to this tome".
-    bool ScanPlugin(const PluginFile& file, NameTable& names, const std::unordered_set<Key>& wanted,
-        std::unordered_set<Key>& found, std::vector<BookRecord>* books);
+    // What a plugin refers to among the wanted keys: by a record field that holds
+    // a form (placed, listed, held, crafted), or only loosely (four bytes of a
+    // script property or quest alias that happen to read as the key)
+    struct Evidence
+    {
+        std::unordered_set<Key> found;
+        std::unordered_set<Key> foundLoose;
+        std::unordered_map<Key, std::uint32_t> looseFrom;  // the first plugin a loose hit came from
+    };
+
+    enum class ScanStatus
+    {
+        kRead,
+        kDamaged,     // header read, then a record past the end or one that does not inflate
+        kUnreadable,  // cannot be opened, or not a plugin
+    };
+
+    struct PluginScan
+    {
+        ScanStatus status = ScanStatus::kUnreadable;
+        // kDamaged: the plugin and its masters, the only plugins whose forms it
+        // could have referred to in the part that was not read
+        std::vector<std::uint32_t> scope;
+    };
+
+    // Reads one plugin: every key of `wanted` it refers to goes into `evidence`,
+    // and when `books` is given every BOOK record is appended to it. A damaged
+    // plugin's silence is not "nothing refers to this tome": see PluginScan.
+    PluginScan ScanPlugin(const PluginFile& file, NameTable& names, const std::unordered_set<Key>& wanted,
+        Evidence& evidence, std::vector<BookRecord>* books);
 }

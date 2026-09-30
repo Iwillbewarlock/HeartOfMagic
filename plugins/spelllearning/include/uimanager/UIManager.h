@@ -102,6 +102,7 @@ private:
     
     // Scanner tab callbacks
     static void OnScanSpells(const char* argument);
+    static void RunScanOnGameThread(const std::string& argStr);
     // The scan itself, and what the panel is told when it throws (onScanFailed)
     void RunScan(const std::string& argStr);
     void ReportScanFailure(const char* what, bool tomeScan);

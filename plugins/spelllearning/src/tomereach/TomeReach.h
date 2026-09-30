@@ -11,6 +11,7 @@
 // The scan marks them tomeUnreachable and the tree leaves them out.
 // See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
+#include <chrono>
 #include <unordered_set>
 
 namespace TomeReach
@@ -21,4 +22,8 @@ namespace TomeReach
     // The spells whose every tome nothing hands out. False while the pass runs,
     // and when it failed (a plugin it could not read): then no spell is marked.
     bool UnreachableSpells(std::unordered_set<RE::FormID>& out);
+
+    // Any thread but the game thread: waits until the pass is done (or failed),
+    // at most `limit`. Returns at once when no pass was started. True when done.
+    bool WaitUntilDone(std::chrono::milliseconds limit);
 }

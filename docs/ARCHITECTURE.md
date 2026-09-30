@@ -137,7 +137,10 @@ game the placed references of cells that are not loaded are not in memory:
   form list (`FLST` `LNAM`), a recipe (`COBJ` `CNAM`), a quest alias's created, forced or unique item
   (`ALCO`, `ALFR`, `ALUA`) or a script property (`VMAD`). Aliases and script properties are read loosely,
   every four bytes as a possible form id: a false hit only keeps a tome. Form ids resolve through each
-  plugin's own master list, 12 bits for a light plugin.
+  plugin's own master list, 12 bits for a light plugin. On the author's load order 55 tomes are reached only
+  this way; every one of them is named by its own mod (a Creation Club pet quest's summon tome, Inigo's,
+  spell packs whose scripts put their tomes on vendors), so the loose reading is kept (`tome-reach-test -v`
+  lists them).
 - A tome no record names can still come from an SKSE distribution framework: the worker reads the configs
   under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
@@ -145,9 +148,17 @@ game the placed references of cells that are not loaded are not in memory:
   inventory layout lists (GridInventory) and icon lists name every book.
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
-  the perk adapters. When any plugin cannot be read or is damaged (a record past the end of the file, a
-  compressed record that does not inflate), or the pass has not finished when the scan runs (the
-  first seconds after the game starts), no spell is marked and the log says so.
+  the perk adapters.
+- A damaged plugin (a record or subrecord past its end, a compressed record that does not inflate, a file
+  that ends inside a record header) was read only in part, and it could have named any form of itself or its
+  masters in the rest: the tomes of those plugins count as handed out, the others keep their answer, and the
+  log names the plugin. A plugin that cannot be opened, is not a plugin, or whose header (its master list) is
+  cut leaves no spell marked: its form ids cannot be resolved.
+- The pass takes a few seconds after the game starts. A full scan from the panel asked for in that time
+  waits for it on its own thread, up to 30 seconds (`WaitUntilDone`, UIManagerScanner.cpp; the game goes
+  on), then runs on the game thread as always; if the pass is still not done, no spell is marked and the log
+  says so. A tome scan does not wait (it does not use the pass), and neither does Papyrus `RunScanToFile`:
+  a Papyrus full scan in those seconds carries no `tomeUnreachable` marks.
 - On the author's load order (3,939 plugins, 0.94 GB) it leaves out 46 spells from 11 mods, among them 24
   summons of a daedra creature pack, Wish Magic's eight wishes and Novice Bolt Spells' three shards; the
   Python measurement it was checked against is `lab/tome-reach/` (`tome_reach.py`, `make_inputs.py`, the
