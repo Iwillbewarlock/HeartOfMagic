@@ -174,11 +174,8 @@ for (var s = 0; s < SUITES.length; s++) {
 // dev-harness.html is made from index.html (tools/make-dev-harness.js): a panel
 // change that was not carried over fails here instead of leaving the harness stale
 try {
-    var fs = require('fs'), path = require('path');
-    var harness = require(path.join(__dirname, '..', '..', '..', '..', 'tools', 'make-dev-harness.js'));
-    var harnessFile = path.join(__dirname, 'dev-harness.html');
-    var harnessNow = fs.existsSync(harnessFile) ? fs.readFileSync(harnessFile, 'utf8') : '';
-    if (harnessNow.replace(/\r\n/g, '\n') !== harness.make().replace(/\r\n/g, '\n')) {
+    var harness = require(require('path').join(__dirname, '..', '..', '..', '..', 'tools', 'make-dev-harness.js'));
+    if (!harness.isCurrent()) {
         console.log('DevHarness: dev-harness.html is out of date - run node tools/make-dev-harness.js');
         failed++;
     } else {

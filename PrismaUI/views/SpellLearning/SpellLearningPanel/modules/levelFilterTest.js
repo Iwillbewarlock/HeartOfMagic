@@ -130,6 +130,23 @@ var LevelFilterTest = {
             this.check(el.getAttribute('data-trait') === 'level.Adept' && B.countOf('level.Adept') === 4,
                 'levels that came after the count are counted (Adept 2 -> 4)');
 
+            // An active filter's pill shows a count: one redraw per batch of level changes
+            var scheduled = 0, oldTimeout = g.setTimeout;
+            g.setTimeout = function() { scheduled++; };
+            try {
+                B.countOf('level.Adept');
+                B.invalidateCounts();
+                this.check(scheduled === 0, 'no pill redraw with no filter on');
+                B.toggleFilter('level.Adept');
+                B.countOf('level.Adept'); // the pill counts when drawn (no pill element here)
+                B.invalidateCounts();
+                B.invalidateCounts();
+                this.check(scheduled === 1, 'one pill redraw for a batch while a filter is on');
+                B.toggleFilter('level.Adept');
+            } finally {
+                g.setTimeout = oldTimeout;
+            }
+
             B.toggleFilter('element.fire');
             this.check(B.matchesFilter(nodes[0]) && !B.matchesFilter(nodes[1]), 'trait filter unchanged');
             B.toggleFilter('element.fire');
