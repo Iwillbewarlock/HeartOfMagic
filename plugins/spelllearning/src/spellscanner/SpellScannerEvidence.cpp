@@ -237,7 +237,8 @@ namespace SpellScanner
                 const auto& data = item->data;
                 const bool inOrGroup = previousOr || data.flags.isOR;
                 previousOr = data.flags.isOR;
-                if (inOrGroup || data.flags.global) continue;
+                // Swapped subject and target, or package data: not plainly "the actor hit"
+                if (inOrGroup || data.flags.global || data.flags.swapTarget || data.flags.usePackData) continue;
                 if (data.functionData.function.get() != FunctionID::kHasKeyword) continue;
                 if (data.object.get() != RE::CONDITIONITEMOBJECT::kSelf) continue;
 

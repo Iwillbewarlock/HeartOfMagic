@@ -49,6 +49,13 @@ function run(exe, args) {
     return { out: (result.stdout || '') + (result.stderr || ''), ms: Date.now() - started, status: result.status };
 }
 
+// A tool run that failed, or printed no figure where one was expected, stops the
+// check: a missing figure must not read as "nothing got worse"
+function need(value, what, out) {
+    if (value === null || value === undefined) throw new Error(what + ' not found in the tool output:\n' + out);
+    return value;
+}
+
 function number(text, pattern) {
     var match = text.match(pattern);
     return match ? parseFloat(match[1]) : null;
@@ -63,12 +70,20 @@ function localPaths() {
     var local = fs.existsSync(LOCAL) ? readJson(LOCAL) : {};
     return {
         dump: local.dump ? path.resolve(ROOT, local.dump) : path.join(JUDGE_DIR, 'dumps', 'takealook-2026-09-30.json'),
-        answers: local.answers || null
+        answers: local.answers ? path.resolve(ROOT, local.answers) : null
     };
 }
 
 function measure(paths, logPath) {
     var tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-check-'));
+    try {
+        return measureIn(tmp, paths, logPath);
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+}
+
+function measureIn(tmp, paths, logPath) {
     var catalog = path.join(tmp, 'catalog.json');
     var merged = path.join(tmp, 'merged.json');
     var figures = { accuracy: {}, judge: {}, speed: {}, info: {} };
@@ -77,12 +92,13 @@ function measure(paths, logPath) {
         .concat(paths.answers ? ['-a', paths.answers] : []));
     if (full.status !== 0 || !fs.existsSync(catalog)) throw new Error('librarian-test failed:\n' + full.out);
     figures.speed.classifyMs = full.ms;
-    figures.accuracy.noTagsPct = number(full.out, /no tags at all\s+\d+\s+([\d.]+)%/);
+    figures.accuracy.noTagsPct = need(number(full.out, /no tags at all\s+\d+\s+([\d.]+)%/), 'untagged share', full.out);
     if (paths.answers) {
-        figures.accuracy.all = scoreLine(full.out, 'both');
+        figures.accuracy.all = need(scoreLine(full.out, 'both'), 'answer set score', full.out);
         var mgef = run('librarian-test.exe', ['-i', paths.dump, '-r', RULES, '-a', paths.answers, '-t', 'mgef']);
-        figures.accuracy.mgef = scoreLine(mgef.out, 'both');
-        figures.accuracy.mgefNoTagsPct = number(mgef.out, /no tags at all\s+\d+\s+([\d.]+)%/);
+        if (mgef.status !== 0) throw new Error('librarian-test -t mgef failed:\n' + mgef.out);
+        figures.accuracy.mgef = need(scoreLine(mgef.out, 'both'), 'mgef answer set score', mgef.out);
+        figures.accuracy.mgefNoTagsPct = need(number(mgef.out, /no tags at all\s+\d+\s+([\d.]+)%/), 'mgef untagged share', mgef.out);
     }
 
     var spells = readJson(catalog).spells || {};
@@ -96,10 +112,13 @@ function measure(paths, logPath) {
 
     var adapters = run('librarian-test.exe', ['-i', paths.dump, '--catalog', catalog,
         '--adapters', path.join(RULES, 'adapters')]);
-    figures.info.adapterWrites = number(adapters.out, /planned writes:\s*(\d+)/);
+    if (adapters.status !== 0) throw new Error('librarian-test --adapters failed:\n' + adapters.out);
+    figures.info.adapterWrites = need(number(adapters.out, /planned writes:\s*(\d+)/), 'planned adapter writes', adapters.out);
 
+    // treebuilder-test exits 2 on a bad link or a school that never branches: that is a failure too
     var tree = run('treebuilder-test.exe', ['-i', merged, '-o', path.join(tmp, 'tree.json'), '-t', 'classic', '-s', '1']);
-    figures.speed.treeBuildMs = number(tree.out, /\(([\d.]+) ms\)/);
+    if (tree.status !== 0) throw new Error('treebuilder-test failed (exit ' + tree.status + '):\n' + tree.out);
+    figures.speed.treeBuildMs = need(number(tree.out, /\(([\d.]+) ms\)/), 'tree build time', tree.out);
 
     if (logPath) {
         var log = fs.readFileSync(logPath, 'utf8');
@@ -111,7 +130,6 @@ function measure(paths, logPath) {
         figures.speed.adaptersAfterScanMs = last('PerkAdapters: scan .*? in (\\d+) ms');
     }
 
-    fs.rmSync(tmp, { recursive: true, force: true });
     return figures;
 }
 
@@ -152,6 +170,10 @@ function main() {
     var args = process.argv.slice(2);
     var update = args.indexOf('--update') >= 0;
     var logAt = args.indexOf('--log');
+    if (logAt >= 0 && !args[logAt + 1]) {
+        console.error('--log needs the path of SpellLearning.log');
+        process.exit(2);
+    }
     var paths = localPaths();
     if (!fs.existsSync(paths.dump)) {
         console.error('No pinned dump at ' + paths.dump + ' - copy a spell_scan_output.json there or set "dump" in ' + LOCAL);
@@ -159,7 +181,14 @@ function main() {
     }
     if (!paths.answers) console.warn('No answer set configured ("answers" in ' + LOCAL + '): answer set figures skipped');
 
-    var now = measure(paths, logAt >= 0 ? args[logAt + 1] : null);
+    var now;
+    try {
+        now = measure(paths, logAt >= 0 ? args[logAt + 1] : null);
+    } catch (e) {
+        console.error(e.message);
+        console.log('librarian-check: FAILED (a tool run failed)');
+        process.exit(1);
+    }
     console.log(JSON.stringify(now, null, 2));
 
     if (update) {

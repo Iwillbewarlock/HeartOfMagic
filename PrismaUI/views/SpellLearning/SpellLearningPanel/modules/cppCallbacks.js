@@ -157,9 +157,7 @@ window.updateSpellData = function(jsonStr) {
     console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
 
     try {
-        // Already parsed above for the tome check; a 9-20 MB parse is not
-        // done twice
-        var data = parsed || JSON.parse(jsonStr);
+        var data = JSON.parse(jsonStr);
         state.lastSpellData = data;
         ScanRef.reset(data);
         

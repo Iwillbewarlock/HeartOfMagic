@@ -237,6 +237,22 @@ var StatusLineTest = {
         // $ patterns in a reason reach the bar as written (the fake t() uses a replacer function too)
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'cost $& of $1 and $$' }));
         this.check(bar.textContent === 'Scan failed: cost $& of $1 and $$', 'onScanFailed: a reason with $ patterns, end to end');
+        // A scan's spell data is taken in: kept as lastSpellData, no parse error in the bar
+        var keptState = g.state, errors = [], logError = console.error;
+        g.state = { lastSpellData: null };
+        console.error = function() { errors.push(Array.prototype.join.call(arguments, ' ')); };
+        try {
+            g.updateSpellData(JSON.stringify({ spellCount: 2,
+                spells: [{ formId: '0x1', name: 'A', school: 'Destruction' }, { formId: '0x2', name: 'B', school: 'Illusion' }] }));
+        } catch (e) {
+            errors.push(String(e));
+        } finally {
+            console.error = logError;
+        }
+        this.check(g.state.lastSpellData && g.state.lastSpellData.spellCount === 2 &&
+            !errors.some(function(e) { return e.indexOf('Failed to parse') >= 0 || e.indexOf('ReferenceError') >= 0; }),
+            'updateSpellData: a scan reply is kept, no parse error');
+        g.state = keptState;
         btn.disabled = false;
         this._checkParamDollar();
         setLang('en');

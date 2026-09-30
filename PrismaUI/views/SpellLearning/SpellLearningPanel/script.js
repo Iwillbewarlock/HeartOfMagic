@@ -97,20 +97,28 @@ function toggleFullscreen() {
 // plugin, which watches the game's input because the view does not always get
 // the key (onNativeEscape). The second arrival within this window is the same press.
 var ESCAPE_REPEAT_MS = 250;
+// The plugin's copy waits this long for the view's own keydown, which wins:
+// only the view knows which field or dialog the press was for
+var NATIVE_ESCAPE_WAIT_MS = 80;
 var _lastEscapeAt = 0;
 
 /**
- * Escape: with a spell selected on the tree, the first press only drops the
- * selection; the next one closes the panel.
+ * Escape: an open dialog takes the press (Find Spell closes; other dialogs
+ * close through their own keys), so the panel never closes behind one -
+ * whichever of the two arrivals comes first. On the tree with a spell
+ * selected the first press only drops the selection; the next one closes.
  * @returns {boolean} false when it was the same press again
  */
 function handleEscapePress() {
     var now = Date.now();
     if (now - _lastEscapeAt < ESCAPE_REPEAT_MS) return false;
     _lastEscapeAt = now;
-    var onTree = state.currentTab === 'spellTree' &&
-        document.querySelectorAll('.modal:not(.hidden)').length === 0;
-    if (onTree && state.selectedNode && typeof clearSpellSelection === 'function') {
+    if (document.querySelectorAll('.modal:not(.hidden)').length > 0) {
+        var find = document.getElementById('find-spell-modal');
+        if (find && !find.classList.contains('hidden') && typeof closeFindSpell === 'function') closeFindSpell();
+        return true;
+    }
+    if (state.currentTab === 'spellTree' && state.selectedNode && typeof clearSpellSelection === 'function') {
         clearSpellSelection();
         return true;
     }
@@ -118,9 +126,14 @@ function handleEscapePress() {
     return true;
 }
 
-// Called by the plugin when Escape is pressed with the panel open
+// Called by the plugin when Escape is pressed with the panel open. Acts only
+// when the view did not get the key itself within the wait
 window.onNativeEscape = function() {
-    handleEscapePress();
+    var at = Date.now();
+    setTimeout(function() {
+        if (_lastEscapeAt >= at) return;
+        handleEscapePress();
+    }, NATIVE_ESCAPE_WAIT_MS);
 };
 
 function initializeKeyboardShortcuts() {

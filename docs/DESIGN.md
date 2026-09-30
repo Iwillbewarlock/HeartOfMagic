@@ -778,11 +778,11 @@ element that stops the event cannot keep it), and the drag is let go when the pa
 first press of a session logs `buttons`/`which` and whether the lost-release check is on, so the game
 log tells which case it is.
 
-#**Escape (2026-09-30).** With a spell selected on the tree the first press drops the selection, the next
+**Escape (2026-09-30).** With a spell selected on the tree the first press drops the selection, the next
 closes the panel (`handleEscapePress`, script.js). In game the view does not always get the key, so the plugin
 watches the game's input too: Escape with the panel open calls `onNativeEscape` (Main.cpp `InputHandler`,
-`UIManager::OnEscapePressed`). One press can arrive both ways; the second arrival within 250 ms is ignored.
-A dialog field that uses the press itself (Find Spell) marks it so the plugin's copy does nothing.
+`UIManager::OnEscapePressed`). One press can arrive both ways: the plugin's copy waits 80 ms and does nothing when the view's own keydown came meanwhile (only the view knows which field or dialog the press was for); the second arrival within 250 ms is ignored.
+An open dialog takes the press whichever arrival comes first (Find Spell closes; other dialogs close through their own keys), so the panel never closes behind one; a dialog field that uses the press itself marks it too.
 
 ## Hover preview (2026-09-23)
 
