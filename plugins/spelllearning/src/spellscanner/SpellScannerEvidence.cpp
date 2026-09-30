@@ -217,6 +217,45 @@ namespace SpellScanner
 
         constexpr int kMaxLeveledDepth = 4;
 
+        // ---------------------------------------------------------------------
+        // Whom an effect takes hold on
+        // ---------------------------------------------------------------------
+        //
+        // The magic effect record's own conditions, the ones on the subject
+        // (the actor the effect lands on) that ask HasKeyword: Turn Undead
+        // holds only on ActorTypeUndead, an animal calm only on ActorTypeAnimal.
+        // {keyword, has} - has is whether the actor must carry it. A condition
+        // in an OR group, against a global, or with a comparison other than
+        // "== 0/1" / "!= 0/1" is left out: it does not say plainly who is hit.
+
+        void CollectTargetKeywords(const RE::EffectSetting* baseEffect, json& out)
+        {
+            using OpCode = RE::CONDITION_ITEM_DATA::OpCode;
+            using FunctionID = RE::FUNCTION_DATA::FunctionID;
+            bool previousOr = false;
+            for (const auto* item = baseEffect->conditions.head; item; item = item->next) {
+                const auto& data = item->data;
+                const bool inOrGroup = previousOr || data.flags.isOR;
+                previousOr = data.flags.isOR;
+                if (inOrGroup || data.flags.global) continue;
+                if (data.functionData.function.get() != FunctionID::kHasKeyword) continue;
+                if (data.object.get() != RE::CONDITIONITEMOBJECT::kSelf) continue;
+
+                const float value = data.comparisonValue.f;
+                if (value != 0.0f && value != 1.0f) continue;
+                bool has;
+                if (data.flags.opCode == OpCode::kEqualTo) has = (value == 1.0f);
+                else if (data.flags.opCode == OpCode::kNotEqualTo) has = (value == 0.0f);
+                else continue;
+
+                const auto* form = static_cast<const RE::TESForm*>(data.functionData.params[0]);
+                const auto* keyword = form && form->Is(RE::FormType::Keyword) ? form->As<RE::BGSKeyword>() : nullptr;
+                const char* editorId = keyword ? keyword->GetFormEditorID() : nullptr;
+                if (!editorId || editorId[0] == '\0') continue;
+                out.push_back({ { "keyword", editorId }, { "has", has } });
+            }
+        }
+
         void CollectSummonedKeywords(RE::TESForm* form, std::set<std::string>& keywords, int depth)
         {
             if (!form || depth > kMaxLeveledDepth) return;
@@ -280,6 +319,12 @@ namespace SpellScanner
         json applies = BuildAppliesJson(baseEffect);
         if (!applies.empty()) {
             effectJson["applies"] = applies;
+        }
+
+        json targetKeywords = json::array();
+        CollectTargetKeywords(baseEffect, targetKeywords);
+        if (!targetKeywords.empty()) {
+            effectJson["targetKeywords"] = targetKeywords;
         }
 
         if (data.archetype == RE::EffectArchetype::kSummonCreature && data.associatedForm) {

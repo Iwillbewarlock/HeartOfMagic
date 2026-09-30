@@ -73,7 +73,7 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 추가할 수 있다. 이게 호환성 전략의 핵심이다.
 
 **룰은 집합이다 (2026-09-30).** 룰 하나는 스캔이 기록한 필드(archetype, 키워드, actor value, `applies`)로
-정의되는 주문의 집합이다. 소환수 종족(`summonedKeywords`)은 스캔에 있지만 아직 퍽 어댑터 조건만 읽는다. `match` 안의 조건들은 교집합, 같은 태그를 붙이는 여러
+정의되는 주문의 집합이다. 소환수 종족(`summonedAny`/`summonedNone`)과 거는 대상(`targetRequires`)도 조건이다. `match` 안의 조건들은 교집합, 같은 태그를 붙이는 여러
 룰은 합집합, `remove` 는 차집합이다(모든 룰이 붙인 뒤에 뗀다). "참나무 피부는 자연이다" 같은 판단은
 주문의 뜻을 읽는 명제라 기계적 룰로는 만들 수 없다. 퍽도 방어 주문을 재료별로 가르지 않는다. 이런
 태그는 수동 목록이나 대체 경로의 몫이고, 정답셋이 기대해도 룰의 실패로 세지 않는다.
@@ -112,6 +112,8 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 | `primaryAV` `secondaryAV` `resistance` | 이펙트 액터값 | **`FireResist` 꼴** (`ResistFire` 아님) |
 | `magicSkill` | 이펙트 유파 | |
 | `hostile` `detrimental` | 이펙트 플래그 | 없으면 조건 없음, `false` 와 다르다 |
+| `summonedAny` `summonedNone` | 이펙트의 `summonedKeywords` | 소환되는 것의 종족 키워드가 하나라도 있어야 / 하나도 없어야. 퍽 어댑터와 같은 판정(`Detail::SummonedMatches`) (2026-09-30) |
+| `targetRequires` | 이펙트의 `targetKeywords` | 이펙트가 이 키워드 중 하나를 가진 대상에게만 걸린다(`has: true`). 언데드 퇴치의 `ActorTypeUndead` (2026-09-30) |
 
 한 룰의 조건은 모두 성립해야 한다(AND). **이펙트 레벨 조건은 하나의 같은 이펙트에서** 성립해야
 하고, 접두사와 접미사도 **같은 키워드 하나**에서 성립해야 한다. 서로 다른 이펙트에서 긁어모은
@@ -259,6 +261,12 @@ librarian-test --catalog <카탈로그> -a <정답셋>          # 게임이 쓴 
 
 **2026-09-10 확인**: 게임이 쓴 카탈로그와 하네스가 만든 카탈로그가 1440건 전부 항목 단위로
 동일했다(`generated` 만 다름). 게임 안 경로와 게임 밖 경로가 같은 결과를 낸다.
+
+**AI 채점 루프 (2026-09-30).** 정답셋은 바닐라 위주라 모드 주문은 AI 가 효과 설명을 읽고 채점한다.
+`lab/librarian-judge/judge.js sample <덤프> <카탈로그> <sample.json>` 이 모드 주문을 시드로 뽑고, AI 가 TAGS.md 와
+이 문서 3절을 기준으로 태그마다 맞다·틀리다·빠졌다(구조적/서사적)를 `verdicts.json` 에 적는다.
+`judge.js score <verdicts.json> <카탈로그>` 가 어떤 카탈로그든 그 판정으로 채점하고, 판정에 없던 새 태그는 따로 세어
+(`--rejudge`) 다음 회차에 그것만 다시 판정한다. 회차마다 `lab/librarian-judge/<날짜>/` 에 표본·판정·메모를 둔다.
 
 ## 6. 퍽 모드 호환 — 퍽 어댑터 (2026-09-30)
 

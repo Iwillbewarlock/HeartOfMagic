@@ -128,6 +128,17 @@ namespace Librarian
         std::optional<bool> hostile;
         std::optional<bool> detrimental;
 
+        // Race keywords of what the effect summons (the scan's
+        // summonedKeywords): "summonedAny" - at least one, "summonedNone" -
+        // none of them. What a summon IS, as its race record says.
+        std::vector<std::string> summonedAny;
+        std::vector<std::string> summonedNone;
+
+        // "targetRequires": the effect only takes hold on an actor with one of
+        // these keywords (the scan's targetKeywords) - Turn Undead on
+        // ActorTypeUndead. Who the spell is cast on, as its record says.
+        std::vector<std::string> targetRequires;
+
         [[nodiscard]] bool HasEffectCondition() const;
         [[nodiscard]] bool Empty() const;
     };

@@ -231,7 +231,8 @@ namespace Librarian
         if (!BoolFieldMatches(effect, "detrimental", match.detrimental)) {
             return false;
         }
-        return true;
+        return Detail::SummonedMatches(effect, match.summonedAny, match.summonedNone)
+            && Detail::TargetRequires(effect, match.targetRequires);
     }
 
     TagSet Classify(const json& spell, const RuleSet& rules)

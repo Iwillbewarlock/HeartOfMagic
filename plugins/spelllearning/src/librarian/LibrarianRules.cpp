@@ -34,6 +34,20 @@ namespace Librarian
             }
         }
 
+        // Reads one string or a list of them, appending to the target.
+        void ReadStringList(const json& object, const char* key, std::vector<std::string>& target)
+        {
+            const auto found = object.find(key);
+            if (found == object.end()) return;
+            if (found->is_string()) {
+                target.push_back(found->get<std::string>());
+            } else if (found->is_array()) {
+                for (const auto& entry : *found) {
+                    if (entry.is_string()) target.push_back(entry.get<std::string>());
+                }
+            }
+        }
+
         using TagPredicate = bool (*)(std::string_view);
 
         // Reads a "tags" list, accepting a bare string as a list of one so a
@@ -85,16 +99,7 @@ namespace Librarian
             }
 
             // "spell": one persistentId or a list of them
-            const auto spellField = matchObject.find("spell");
-            if (spellField != matchObject.end()) {
-                if (spellField->is_string()) {
-                    match.spells.push_back(spellField->get<std::string>());
-                } else if (spellField->is_array()) {
-                    for (const auto& entry : *spellField) {
-                        if (entry.is_string()) match.spells.push_back(entry.get<std::string>());
-                    }
-                }
-            }
+            ReadStringList(matchObject, "spell", match.spells);
             // "pluginContains": one text or a list of them, any of which will do
             const auto pluginField = matchObject.find("pluginContains");
             if (pluginField != matchObject.end()) {
@@ -122,6 +127,9 @@ namespace Librarian
             ReadString(matchObject, "resistance", match.resistance);
             ReadString(matchObject, "magicSkill", match.magicSkill);
             ReadBool(matchObject, "hostile", match.hostile);
+            ReadStringList(matchObject, "summonedAny", match.summonedAny);
+            ReadStringList(matchObject, "summonedNone", match.summonedNone);
+            ReadStringList(matchObject, "targetRequires", match.targetRequires);
             ReadBool(matchObject, "detrimental", match.detrimental);
 
             return match;
@@ -206,7 +214,10 @@ namespace Librarian
             || !resistance.empty()
             || !magicSkill.empty()
             || hostile.has_value()
-            || detrimental.has_value();
+            || detrimental.has_value()
+            || !summonedAny.empty()
+            || !summonedNone.empty()
+            || !targetRequires.empty();
     }
 
     bool RuleMatch::Empty() const

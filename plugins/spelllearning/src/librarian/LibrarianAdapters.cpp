@@ -1,4 +1,5 @@
 #include "librarian/PerkAdapters.h"
+#include "librarian/LibrarianInternal.h"
 
 #include <algorithm>
 #include <cctype>
@@ -256,17 +257,7 @@ namespace Librarian::Adapters
                 if (value != *c.explodes) return false;
             }
             if (c.visible && IsVisible(effect) != *c.visible) return false;
-            if (!c.summonedAny.empty() || !c.summonedNone.empty()) {
-                const auto summoned = effect.find("summonedKeywords");
-                const auto has = [&](const std::string& keyword) {
-                    if (summoned == effect.end() || !summoned->is_array()) return false;
-                    return std::ranges::any_of(*summoned,
-                        [&](const json& value) { return value.is_string() && value.get<std::string>() == keyword; });
-                };
-                if (!c.summonedAny.empty() && std::ranges::none_of(c.summonedAny, has)) return false;
-                if (std::ranges::any_of(c.summonedNone, has)) return false;
-            }
-            return true;
+            return Detail::SummonedMatches(effect, c.summonedAny, c.summonedNone);
         }
 
         bool HasTag(const json& catalogEntry, const std::string& tag)

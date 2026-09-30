@@ -1,0 +1,2716 @@
+[
+ {
+  "id": "Bloodmoon.esp|0x000842",
+  "name": "피눈물",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "피해 - 피",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag>의 마법 피해를 줍니다. 대상은 추가 피해를 받습니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "resistance",
+   "undead"
+  ],
+  "techniques": [
+   "siphon"
+  ]
+ },
+ {
+  "id": "mihailhighfantasypack.esp|0x074FA7",
+  "name": "미노타우로스 불꽃 방패",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "불길",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "NoviceBoltSpells.esp|0x000802",
+  "name": "불씨조각",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "불씨조각",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag>의 화염 피해를 줍니다. 불타는 대상은 추가 피해를 입습니다"
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "AX ValSerano.esp|0x7ADDA7",
+  "name": "소용돌이 소환",
+  "school": "Conjuration",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "마력의 소용돌이",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<15>초 간, 초당 최대 <180>의 전격 피해를 체력과 매지카에 입히는 거대한 번개 구름을 소환합니다."
+   }
+  ],
+  "elements": [
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x7BC311",
+  "name": "여명",
+  "school": "Restoration",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "태양 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "태양빛으로 언데드에게 매 초마다 <mag>의 피해를 줍니다."
+   }
+  ],
+  "elements": [
+   "sun",
+   "undead"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x000B2B",
+  "name": "물의 구체",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "물 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "범위 안에 <mag>의 수성 피해를 주고 잠시나마 매지카와 지구력 재생을 막습니다."
+   }
+  ],
+  "elements": [
+   "water"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Necrotic.esp|0x000A02",
+  "name": "괴저 검",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "괴저 검",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 괴저 검을 소환합니다."
+   },
+   {
+    "name": "괴저 검",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "괴저 검",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "daedra",
+   "necrotic",
+   "soul",
+   "undead",
+   "weapon"
+  ],
+  "techniques": [
+   "summoning",
+   "transform"
+  ]
+ },
+ {
+  "id": "AncientBloodII.esl|0x000816",
+  "name": "돌 가고일 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "가고일 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "마법적 위협에 강한 돌 가고일을 소환하여 <dur>초 동안 유지합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Wyrmstooth.esp|0x584017",
+  "name": "무게 완화",
+  "school": "Alteration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "무게 완화",
+    "archetype": "PeakValueModifier",
+    "av": "CarryWeight",
+    "hidden": false,
+    "description": "시전자의 무게 한도를 <dur>초 동안 <mag> 만큼 증가시킵니다."
+   }
+  ],
+  "elements": [
+   "force"
+  ],
+  "techniques": [
+   "strengthen"
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x2C875E",
+  "name": "얼음 결정 씨앗",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "얼음 결정 씨앗",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "얼음 결정 씨앗이 <mag> 냉기 피해를 주고, 대상 아래에 치명적인 얼음송곳을 생성한다."
+   },
+   {
+    "name": "대상이 <dur>초 동안 <mag>% 느려진다.",
+    "archetype": "PeakValueModifier",
+    "av": "SpeedMult",
+    "hidden": false,
+    "description": "서리 저항 감소"
+   }
+  ],
+  "elements": [
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x209A73",
+  "name": "맹독 망토",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "맹독 망토",
+    "archetype": "Cloak",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 근접한 적에게 매 초마다 <mag>의 독 피해를 줍니다."
+   }
+  ],
+  "elements": [
+   "poison"
+  ],
+  "techniques": [
+   "cloak"
+  ]
+ },
+ {
+  "id": "Bloodmoon.esp|0x000944",
+  "name": "혈류의 변이체 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "혈류의 변이체 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 혈류의 변이체를 소환합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "creature",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "hokoronenemies.esp|0x019D3F",
+  "name": "시커 흡수",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "체력 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "<dur>초 동안 체력, 매지카, 지구력을 <mag> 흡수합니다."
+   },
+   {
+    "name": "매지카 흡수",
+    "archetype": "Absorb",
+    "av": "Magicka",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "지구력 흡수",
+    "archetype": "Absorb",
+    "av": "Stamina",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "arcane",
+   "eldritch",
+   "health",
+   "magicka",
+   "stamina"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "Desecration.esp|0x000819",
+  "name": "괴저 화염구",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "괴저 화염 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "범위 안에 <mag>의 마법 피해를 주고 <3>초 동안 무기 공격력을 <10>% 낮춥니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "necrotic",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "AncientBloodII.esl|0x00089F",
+  "name": "강력한 정수 흡수",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "정수 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "체력, 매지카, 스태미너를 <mag> 포인트 흡수합니다."
+   }
+  ],
+  "elements": [
+   "arcane",
+   "blood",
+   "health",
+   "magicka",
+   "stamina"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "KittySpellPack02.esl|0x00082D",
+  "name": "플래어 스톰",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "플래어 스톰",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "화염의 격류가 대상을 추적하여 초당 <mag>의 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x00097E",
+  "name": "계곡 검치호 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "계곡 검치호 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 계곡 검치호를 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "nature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x37DB7E",
+  "name": "리그의 해삼 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "리그의 해삼 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 리그의 해삼을 소환한다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Vigilant.esm|0x0EFC34",
+  "name": "경계병 알타노 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "경계병 알타노 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 경계병 알타노를 소환한다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "VanillaPlusBosses my patch.esp|0x00080A",
+  "name": "태양 불꽃",
+  "school": "Restoration",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "태양 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag> 피해를 줍니다. 불이 붙은 대상은 시간이 지남에 따라 추가 피해를 받습니다."
+   }
+  ],
+  "elements": [
+   "sun"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Arcane.esp|0x000B0E",
+  "name": "비전의 군주 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "비전의 군주 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 비전의 군주를 소환합니다."
+   }
+  ],
+  "elements": [
+   "apparition",
+   "arcane",
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Oblivion.esp|0x089418",
+  "name": "해골 드래곤 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "해골 드래곤 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 해골 드래곤을 소환합니다."
+   },
+   {
+    "name": "해골 드래곤 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x4F3B02",
+  "name": "사령 군주 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "사령 군주 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 사령 군주를 소환한다."
+   }
+  ],
+  "elements": [
+   "apparition",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x00092B",
+  "name": "베인킨 화염",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "베인킨 화염",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "화염으로 공격하여 <mag>의 화염 피해와 절반의 매지카 피해를 입힙니다. 이 화염은 주변에 튕겨 나가며 같은 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0xF3635D",
+  "name": "힘의 샘",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "지구력 재생 강화",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 지속되는 원을 생성합니다. 원 안에서 지구력가 두 배 빠르게 재생됩니다."
+   }
+  ],
+  "elements": [
+   "health",
+   "stamina"
+  ],
+  "techniques": [
+   "curing",
+   "strengthen"
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x4584CF",
+  "name": "불타는 소 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "불타는 소 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 불타는 소를 소환한다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "mihailhighfantasypack.esp|0x033358",
+  "name": "멍한 정신",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "멍한 정신",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "도깨비불에 접근했을 때 초당 체력과 매지카를 10만큼 흡수하는 광역 효과입니다."
+   },
+   {
+    "name": "멍한 정신",
+    "archetype": "ValueModifier",
+    "av": "Magicka",
+    "hidden": false,
+    "description": "도깨비불에 접근했을 때 초당 체력과 매지카를 10만큼 흡수하는 광역 효과입니다."
+   }
+  ],
+  "elements": [
+   "magicka",
+   "resistance"
+  ],
+  "techniques": [
+   "curse"
+  ]
+ },
+ {
+  "id": "Wyrmstooth.esp|0x445DA5",
+  "name": "질병 치료",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "질병 치료",
+    "archetype": "CureDisease",
+    "av": "None",
+    "hidden": false,
+    "description": "모든 질병을 치료합니다."
+   }
+  ],
+  "elements": [
+   "disease"
+  ],
+  "techniques": [
+   "curing"
+  ]
+ },
+ {
+  "id": "KhajiitWillFollow.esp|0x8A665B",
+  "name": "서리 물기",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "서리 물기",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "초당 체력과 지구력에 <mag>의 냉기 피해를 주는 냉기를 방출한다."
+   }
+  ],
+  "elements": [
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "ccbgssse014-spellpack01.esl|0x00080E",
+  "name": "속박 풀린 불길",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "속박 풀린 불길",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "장거리 화염구를 호를 그리며 연속으로 발사합니다. 충격 지점에 초당 <mag>의 화염 피해를 주는 불의 벽을 생성합니다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x000BD8",
+  "name": "와일드 헌트",
+  "school": "Illusion",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "와일드 헌트",
+    "archetype": "PeakValueModifier",
+    "av": "SpeedMult",
+    "hidden": false,
+    "description": "<dur>초 동안 근처 아군의 이동 속도가 50% 빨라집니다."
+   }
+  ],
+  "elements": [
+   "air"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x2559DE",
+  "name": "재조직",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "체력 재생",
+    "archetype": "PeakValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<dur>초 동안 매 초마다 <mag>의 생명력을 회복합니다."
+   }
+  ],
+  "elements": [
+   "health"
+  ],
+  "techniques": [
+   "curing"
+  ]
+ },
+ {
+  "id": "Vulcano.esp|0x0009AD",
+  "name": "화산암재",
+  "school": "Destruction",
+  "delivery": "Target Actor",
+  "effects": [
+   {
+    "name": "용암 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "범위 안에 <mag>의 화염 피해를 주고 <3>초 동안 공격 속도를 <25>% 낮춥니다."
+   }
+  ],
+  "elements": [
+   "earth",
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x000C62",
+  "name": "벌레의 룬",
+  "school": "Restoration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "독 피해",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "적이 닿으면 폭발하여 체력과 지구력에 초당 <mag>의 독성 피해를 <dur>초 동안 주는 함정을 설치합니다."
+   }
+  ],
+  "elements": [
+   "construct",
+   "poison",
+   "trap"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x07AD04",
+  "name": "깃털걸음",
+  "school": "Alteration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "깃털걸음",
+    "archetype": "PeakValueModifier",
+    "av": "WaterWalking",
+    "hidden": false,
+    "description": "<dur>초 동안 몸이 깃털처럼 가벼워져 물 위를 걷거나 높은 곳에서 천천히 내려올 수 있다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x3CE9A8",
+  "name": "신성한 검 소환",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "신성한 검",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 '신성한 검'을 소환한다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "holy",
+   "soul",
+   "weapon"
+  ],
+  "techniques": [
+   "summoning",
+   "transform"
+  ]
+ },
+ {
+  "id": "DAc0da.esm|0x005F78",
+  "name": "골드본 거상 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "골드본 거상 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "벌레의 골드본 콜로서스를 <dur>초간 소환합니다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Witcher Horses 2.0.esp|0x0009DB",
+  "name": "역병 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "역병 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 병든 말 역병을 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "poison",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Arcane.esp|0x000ACD",
+  "name": "비전 왜곡",
+  "school": "Alteration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "비전 왜곡",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "시전자 주변의 범위 안에 있는 적들을 끌어당긴 후 <5>초 뒤에 되돌려 놓습니다. 당겨진 대상은 <10>초 동안 다시 당길 수 없습니다."
+   }
+  ],
+  "elements": [
+   "arcane"
+  ],
+  "techniques": [
+   "telekinesis",
+   "teleport"
+  ]
+ },
+ {
+  "id": "Vigilant.esm|0x058240",
+  "name": "혈주의 해주",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "언데드 퇴치",
+    "archetype": "TurnUndead",
+    "av": "Confidence",
+    "hidden": false,
+    "description": "넓은 범위에 있는 <mag> 레벨의 언데드는 <dur>초 동안 추방됩니다."
+   }
+  ],
+  "elements": [
+   "undead"
+  ],
+  "techniques": [
+   "fear"
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x00FFF5",
+  "name": "드레모라 마법사 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "드레모라 마법사 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 드레모라 마법사를 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "daedra",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Masterwork - Gallows Hall.esp|0x000810",
+  "name": "웜 로드 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "웜 로드 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 웜 로드를 소환합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x15EDAA",
+  "name": "태양 파편",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "태양 파편",
+    "archetype": "SpawnHazard",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 불타는 작은 태양을 소환하여 밤을 낮으로 바꾸고, 주변 언데드에게 초당 <mag> 피해를 준다."
+   }
+  ],
+  "elements": [
+   "construct",
+   "sun",
+   "trap"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Necrotic.esp|0x0009DC",
+  "name": "부정한 파편 주입",
+  "school": "Conjuration",
+  "delivery": "Target Actor",
+  "effects": [],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Arcane.esp|0x000810",
+  "name": "비전 화살",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "비전 피해",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag>의 마법 피해를 주고 매지카에는 두 배의 피해를 줍니다. 매지카가 없는 적에게는 공격력이 세 배로 증가합니다."
+   }
+  ],
+  "elements": [
+   "arcane",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x209A74",
+  "name": "독의 손길",
+  "school": "Restoration",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "독 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "근접 범위의 적에게 <10>초 동안 초당 <mag>의 독 피해를 줍니다."
+   },
+   {
+    "name": "독 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "근접 범위의 적에게 <10>초 동안 초당 <mag>의 독 피해를 줍니다."
+   }
+  ],
+  "elements": [
+   "poison"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x2B275A",
+  "name": "메리디아의 절단",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "메리디아의 절단",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "holy",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x55859D",
+  "name": "붉은 섬광",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "붉은 섬광",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "생명력과 매지카에 초당 <mag> 전격 피해를 주는 번개."
+   }
+  ],
+  "elements": [
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "WildwakerMagic.esl|0x000862",
+  "name": "가시덩굴 생성",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "가시덩굴 생성",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "지면에 가시덩굴의 장벽을 만들어 매 초마다 <8> 의 독 피해를 입히고 목표를 느려지게 합니다."
+   }
+  ],
+  "elements": [
+   "poison",
+   "trap"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x06ADFE",
+  "name": "더스크랫 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "더스크랫 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "시전자가 가리킨 곳에 <dur>초 동안 더스크랫을 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "daedra",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "KittySpellPack02.esl|0x00082F",
+  "name": "혼돈의 용광로",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "혼돈의 용광로",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<16>초 동안 초당 <120>의 화염, 냉기, 충격 피해를 주는 불안정한 원소 구역을 생성합니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "frost",
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x000945",
+  "name": "스프리건 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "스프리건 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 스프리건을 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "nature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x337F22",
+  "name": "격노의 기운",
+  "school": "Illusion",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "격노의 기운",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "근처 아군의 전투 능력이 <20> 증가한다. 30피트 내 대상에게 광기 주문이 <30>% 더 강하게 적용된다. <dur>초 동안 지속."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "mihaildwarvenautomatonspack.esp|0x00080B",
+  "name": "폭풍의 벽",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "파수꾼의 번개 방출",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "지면에 번개의 장벽을 만들어 매 초마다 <50> 의 전격 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "construct",
+   "metal",
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "mihaildwarvenautomatonspack.esp|0x000817",
+  "name": "드워프 탈곡기 칼날",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "드워프제 탈곡기 칼날",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "construct",
+   "metal"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "ccbgssse067-daedinv.esm|0x16B7C8",
+  "name": "드레모라 군주 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "드레모라 군주 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur> 초 동안 드레모라 군주를 소환합니다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "frost",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Arcane.esp|0x000838",
+  "name": "비전 오라",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "비전 오라",
+    "archetype": "Cloak",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 가까운 적에게 <4>의 마법 피해를 주고 매지카에는 두 배의 피해를 줍니다. 매지카가 없는 적에게는 공격력이 세 배로 증가합니다."
+   }
+  ],
+  "elements": [
+   "arcane"
+  ],
+  "techniques": [
+   "cloak"
+  ]
+ },
+ {
+  "id": "Remiel_Enhancement.esp|0x00086B",
+  "name": "근접 공격력 스크랩",
+  "school": "Destruction",
+  "delivery": "Touch",
+  "effects": [
+   {
+    "name": "충격 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag> 의 전격 피해와 2배의 매지카 피해를 입힙니다."
+   },
+   {
+    "name": "마법 흡수",
+    "archetype": "Absorb",
+    "av": "Magicka",
+    "hidden": false,
+    "description": "<mag> 의 전격 피해와 2배의 매지카 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "arcane",
+   "magicka",
+   "shock"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "DAc0da.esm|0x0048BD",
+  "name": "첩보원, 야그라 키메라 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "첩보원, 야그라 키메라 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "에이전트, 야그라 키메라를 <dur>초간 소환합니다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "HouseOfHorrorsQuestExpansion.esp|0x00080E",
+  "name": "수호의 원",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "수호자의 원",
+    "archetype": "SpawnHazard",
+    "av": "None",
+    "hidden": false,
+    "description": "원 안에 들어온 <mag>레벨 이하의 언데드는 도망치게 됩니다. 원 안의 사용자는 초당 <20>의 체력이 회복됩니다."
+   }
+  ],
+  "elements": [
+   "construct",
+   "holy",
+   "trap",
+   "undead"
+  ],
+  "techniques": [
+   "fear"
+  ]
+ },
+ {
+  "id": "mihailskeletalrevenants.esp|0x000ABF",
+  "name": "드래곤파이어 뼈 거상 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "드래곤파이어 뼈 거상 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 드래곤파이어 뼈 거상을 소환합니다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "shock",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Aetherium Forge Destroys Items.esp|0x000E18",
+  "name": "천둥 볼트",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "번개의 흐름",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "흐르는 번개를 날려 <mag> 의 전격 피해와 절반의 매지카 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x1090A3",
+  "name": "라자의 검",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "라자의 검",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "라자의 검이 <mag>의 피해를 입힌다."
+   }
+  ],
+  "elements": [
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x3497E6",
+  "name": "힘",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "거침없는 힘 - 강화",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x12BB6F",
+  "name": "데이드로스 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "데이드로스 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 데이드로스를 소환한다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Sacrilege - Minimalistic Vampires of Skyrim.esp|0x00F60C",
+  "name": "피의 보주",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "체력 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "목표 지점의 생명체들을 꿰뚫어 체력을 <mag> 흡수하고 <mag> 마법 피해를 <dur>초간 입힙니다."
+   },
+   {
+    "name": "매지카 감소",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "blood",
+   "health",
+   "resistance",
+   "stamina",
+   "undead"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "Witcher Horses 2.0.esp|0x0009D5",
+  "name": "엠버하트 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "엠버 하트 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 불타는 말 엠버하트를 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "SexLab Eager NPCs.esp|0x02496E",
+  "name": "아프로디지아 (Aphrodisia) 묘약 - 인간",
+  "school": "Illusion",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "최음제 (Aphrodisiac) 영향 - 인간",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "인간의 SLA 노출도가 <dur>초마다 <mag>/<100>씩 증가합니다."
+   }
+  ],
+  "elements": [
+   "poison"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Desecration.esp|0x0009A1",
+  "name": "괴저 연소",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "괴저 화염 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag>의 마법 피해를 줍니다. <3>초 동안 적의 무기 공격력이 10% 감소합니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "necrotic",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Flames of Coldharbour.esp|0x000961",
+  "name": "냉기 연소",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "냉기 화염 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "<mag>의 냉기 피해를 줍니다. 냉기 화염에 타는 대상은 추가 피해를 받습니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x1D702A",
+  "name": "강력한 번갯불",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "상급 번갯불",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "생명력과 매지카에 초당 <mag>의 전격 피해를 줍니다. "
+   }
+  ],
+  "elements": [
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0xDED0F7",
+  "name": "마법 전투망치",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "마법 전투망치",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 마법 전투망치를 소환합니다."
+   },
+   {
+    "name": "마법 전투망치",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "마법 전투망치",
+    "archetype": "BoundWeapon",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "daedra",
+   "soul",
+   "weapon"
+  ],
+  "techniques": [
+   "summoning",
+   "transform"
+  ]
+ },
+ {
+  "id": "Abyss.esp|0x000BB6",
+  "name": "그림자 폭발",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "그림자 폭발",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 후에 폭발하여 좁은 범위 안에 <5>초에 걸쳐 초당 <mag>의 마법 피해를 주고 마법 저항을 <10>% 낮춥니다. 적 하나당 피해량이 <50>% 증가합니다."
+   }
+  ],
+  "elements": [
+   "shadow"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "LostGrimoire.esp|0x1313B3",
+  "name": "야간 시야",
+  "school": "Alteration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "야간 시야",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 어둠 속을 볼 수 있다."
+   }
+  ],
+  "elements": [],
+  "techniques": [
+   "sense"
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x445F9F",
+  "name": "생명력 흡수 망토",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "체력 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "체력 흡수",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "health"
+  ],
+  "techniques": [
+   "siphon"
+  ]
+ },
+ {
+  "id": "mihailskeletalrevenants.esp|0x0009D2",
+  "name": "푸른 화염구",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "푸른 화염구",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "푸른 화염의 폭발로 적에게 <mag>의 화염 피해를 입힙니다. "
+   }
+  ],
+  "elements": [
+   "fire",
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x389482",
+  "name": "화염구",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "화염구",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "화염 폭발을 일으켜 15피트 이내에 <mag>의 화염 피해를 가한다. 불타는 상대에게는 추가 피해를 가한다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "KittySpellPack02.esl|0x00082C",
+  "name": "다이아몬드 스플래쉬",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "다이아몬드 스플래쉬",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "얼음 기둥이 땅에서 솟아올라 체력과 지구력에<mag>의 피해를 입힙니다. 기둥에 부딪힌 수에 따라 최대 4배의 피해를 입힙니다. 목표는 비틀거립니다."
+   }
+  ],
+  "elements": [
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x2CA222",
+  "name": "카멜레온",
+  "school": "Illusion",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "카멜레온",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 <20>% 만큼 발각되기 어려워집니다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x094746",
+  "name": "음유시인의 불꽃",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "성스러운 불꽃",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "성스러운 불꽃이 대상에게 초당 <mag> 포인트의 피해를 입힌다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "frost",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x1B8A10",
+  "name": "엔트로피의 손길",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "체력 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "근접한 거리의 적을 만져 <mag>의 생명력을 흡수합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "health"
+  ],
+  "techniques": [
+   "siphon"
+  ]
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x052D64",
+  "name": "그림자 데이드라 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "그림자 데이드라 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 그림자 데이드라를 소환합니다. "
+   }
+  ],
+  "elements": [
+   "daedra",
+   "fire",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Necrotic.esp|0x000975",
+  "name": "괴저 파편 수집",
+  "school": "Conjuration",
+  "delivery": "Target Actor",
+  "effects": [
+   {
+    "name": "괴저 파편 수집",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 안에 대상이 죽으면 <괴저 파편>을 얻습니다."
+   }
+  ],
+  "elements": [
+   "necrotic",
+   "undead"
+  ],
+  "techniques": [
+   "curse"
+  ]
+ },
+ {
+  "id": "WildwakerMagic.esl|0x000864",
+  "name": "주파자의 장막",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "주파자의 장막",
+    "archetype": "Cloak",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur> 초 동안 주변 적에게 매 초마다 <4> 의 독 피해를 입힙니다."
+   },
+   {
+    "name": "주파자의 장막",
+    "archetype": "PeakValueModifier",
+    "av": "SpeedMult",
+    "hidden": false,
+    "description": "시전자가 <dur> 초 동안 더 빠르게 움직입니다."
+   }
+  ],
+  "elements": [
+   "poison"
+  ],
+  "techniques": [
+   "cloak"
+  ]
+ },
+ {
+  "id": "SexLab.esm|0x0B3306",
+  "name": "매치메이커 (Self)",
+  "school": "Illusion",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "매치메이커 (S)",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "플레이어만 있는 씬을 시작합니다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "MysticismMagic.esp|0x1D702D",
+  "name": "불타는 손아귀",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "화염 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "가까운 적에게 <mag>의 화염 피해를 줍니다. 불에 타는 대상은 추가 피해를 받습니다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x35AF1D",
+  "name": "좀비 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "좀비 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 좀비를 소환한다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Madmen Simonrim - Abyss Natura Combo.esp|0x000859",
+  "name": "바람 망토",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "바람 망토",
+    "archetype": "Cloak",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 가까이에 있는 적에게 초당 <mag>의 바람 피해를 주고 특정 확률로 비틀거리게 합니다."
+   }
+  ],
+  "elements": [
+   "air"
+  ],
+  "techniques": [
+   "cloak"
+  ]
+ },
+ {
+  "id": "SU04SachilFollower.esp|0xD0D900",
+  "name": "돌 던지기",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "돌 던지기",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "꿈속에서 돌을 던집니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "shock"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Sacrilege - Minimalistic Vampires of Skyrim.esp|0x032166",
+  "name": "마력의 소용돌이",
+  "school": "Alteration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "마력의 소용돌이",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "적들을 중심부로 빨아들이는 소용돌이를 일으켜, 영향을 받은 대상이 <3>초간 마법에 <mag>% 취약해지게 합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "undead"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "ccvsvsse003-necroarts.esl|0x000854",
+  "name": "안식 없는 유령 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "안식 없는 유령 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "안식 없는 유령을 <dur>초 동안 소환합니다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Giant_New_Anim.esl|0x00080D",
+  "name": "火球术",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "火球术",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "释放一团火焰爆炸，对15码范围内造成<mag>点伤害。着火目标将承受额外伤害。"
+   },
+   {
+    "name": "거침없는 힘",
+    "archetype": "Stagger",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Skyrim Extended Cut - Saints and Seducers.esp|0x58AC11",
+  "name": "진정한 소름",
+  "school": "Destruction",
+  "delivery": "Target Actor",
+  "effects": [
+   {
+    "name": "소름끼침",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "목표가 <소름끼침>을 느낍니다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Natura.esp|0x000C8E",
+  "name": "바람의 룬",
+  "school": "Destruction",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "바람 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "적이 닿으면 폭발하여 <mag>의 바람 피해를 주고 특정 확률로 비틀거리게 하는 함정을 설치합니다."
+   }
+  ],
+  "elements": [
+   "air",
+   "construct",
+   "trap"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "NecromancersMagic.esl|0x00081F",
+  "name": "양들의 침묵",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "양들의 침묵",
+    "archetype": "ValueModifier",
+    "av": "Magicka",
+    "hidden": false,
+    "description": "산 자에게 <dur>초간 <mag>의 매지카 피해를 입히는 부정한 저주입니다. 대상이 비틀거립니다."
+   },
+   {
+    "name": "일반 공격력",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "magicka",
+   "necrotic"
+  ],
+  "techniques": [
+   "curse"
+  ]
+ },
+ {
+  "id": "Glenmoril.esm|0x50E713",
+  "name": "손곰 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "손곰 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 손곰을 소환한다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x02E15B",
+  "name": "스피터 가스구",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [],
+  "elements": [
+   "arcane",
+   "magicka"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x01A141",
+  "name": "조증 그루밋 늪지 몰이꾼 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "조증 그루밋 늪지 몰이꾼 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 조증 그루밋 늪지 몰이꾼을 소환합니다."
+   }
+  ],
+  "elements": [
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "mihaildeadrapack.esp|0x000986",
+  "name": "지빌라이 유린자 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "지빌라이 유린자 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 지빌라이 유린자를 소환합니다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "shock",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x38E115",
+  "name": "정화",
+  "school": "Restoration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "질병 치료",
+    "archetype": "CureDisease",
+    "av": "None",
+    "hidden": false,
+    "description": "모든 질병을 치료하고, 중독 효과를 제거한다."
+   },
+   {
+    "name": "독 치료",
+    "archetype": "CurePoison",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "질병 & 독 저항",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 독과 질병 저항이 <mag>% 증가한다."
+   }
+  ],
+  "elements": [
+   "disease",
+   "health",
+   "poison"
+  ],
+  "techniques": [
+   "curing"
+  ]
+ },
+ {
+  "id": "Necrotic.esp|0x0008C6",
+  "name": "괴저 영혼 마검사 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "괴저 영혼 마검사 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 괴저 영혼 마검사를 소환합니다."
+   }
+  ],
+  "elements": [
+   "necrotic",
+   "soul",
+   "undead",
+   "weapon"
+  ],
+  "techniques": [
+   "control",
+   "summoning",
+   "transform"
+  ]
+ },
+ {
+  "id": "Vigilant.esm|0x116720",
+  "name": "질서의 기사 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "질서의 기사 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 질서의 기사를 소환한다."
+   }
+  ],
+  "elements": [
+   "daedra",
+   "shock",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "MysticismMagic.esp|0x43BD87",
+  "name": "선조 암살자 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "선조 암살자 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 선조 암살자를 소환합니다."
+   }
+  ],
+  "elements": [
+   "apparition",
+   "earth",
+   "fire",
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Myrwatch - Tweaks and Enhancements.esp|0x00024C",
+  "name": "미어워치의 수호자 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "미어워치의 수호자 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur> 초 동안 늑대를 소환합니다."
+   }
+  ],
+  "elements": [
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "LostGrimoire.esp|0x38E148",
+  "name": "충격파",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "충격파",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": " 적중하면 폭발하는 발사체를 날려 <mag>의 물리 피해를 주고, 반경 15피트 내의 모든 대상을 휘청이게 만든다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x4415DE",
+  "name": "구울 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "구울 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "지정한 장소에 <dur>초 동안 구울을 소환한다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Madmen.esp|0x03F17A",
+  "name": "거대 곰 사역마 소환",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "거대 곰 사역마 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 유령 거대곰을 소환합니다."
+   },
+   {
+    "name": "늑대 우선권",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "사역마 재사용 대기시간",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "apparition",
+   "creature",
+   "soul"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "feris.esp|0x19B058",
+  "name": "페리스 소환",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "페리스 소환",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": "그림자에서 페리스를 소환합니다."
+   }
+  ],
+  "elements": [],
+  "techniques": []
+ },
+ {
+  "id": "mihailwraithsandspectres.esp|0x00091A",
+  "name": "흡수 관통자",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "흡수 관통자",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "\r\n"
+   },
+   {
+    "name": "체력 흡수",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "매 초마다 체력을 <mag> 흡수합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "health"
+  ],
+  "techniques": [
+   "siphon"
+  ]
+ },
+ {
+  "id": "mihailashgolemexpansion.esp|0x005916",
+  "name": "재 분사",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "이글거리는 숯더미",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "화산재와 잿불이 매 초마다 <mag> 의 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Pactbinder - An Adamant Addon.esp|0x00087A",
+  "name": "냉기 망토",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "서리 망토",
+    "archetype": "Cloak",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 근접한 대상이 매 초마다 <mag>의 냉기 피해와 지구력 피해를 받습니다."
+   }
+  ],
+  "elements": [
+   "frost"
+  ],
+  "techniques": [
+   "cloak"
+  ]
+ },
+ {
+  "id": "AncientBloodII.esl|0x000887",
+  "name": "채찍의 처벌",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "채찍의 처벌",
+    "archetype": "Absorb",
+    "av": "Health",
+    "hidden": false,
+    "description": "매지카에 <mag> 포인트의 피해를 입히는 번개. 입힌 피해의 양에 해당하는 만큼 체력을 흡수합니다."
+   }
+  ],
+  "elements": [
+   "blood",
+   "health",
+   "magicka",
+   "shock"
+  ],
+  "techniques": [
+   "curse",
+   "siphon"
+  ]
+ },
+ {
+  "id": "Unslaad.esm|0x409CD9",
+  "name": "유령 소환",
+  "school": "Conjuration",
+  "delivery": "Target Location",
+  "effects": [
+   {
+    "name": "유령 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 지정한 장소에 유령을 소환한다."
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "mihailskeletalrevenants.esp|0x000975",
+  "name": "푸른 화염구",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "푸른 화염구",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "15 피트 반경에 <mag>의 범위 피해를 입힙니다."
+   }
+  ],
+  "elements": [
+   "fire",
+   "frost"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Glenmoril.esm|0x0153AA",
+  "name": "뇌수 흡입",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "뇌수 흡입",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Abyss.esp|0x000860",
+  "name": "그림자의 눈",
+  "school": "Destruction",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "그림자 피해",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "넓은 범위 안에 <5>초에 걸쳐 초당 <mag>의 마법 피해를 주고 마법 저항을 <10>% 낮춥니다."
+   }
+  ],
+  "elements": [
+   "resistance",
+   "shadow"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Madmen.esp|0x076D85",
+  "name": "해골 챔피언 소환",
+  "school": "Conjuration",
+  "delivery": "Self",
+  "effects": [
+   {
+    "name": "해골 챔피언 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 해골 투사를 소환합니다."
+   },
+   {
+    "name": "해골 챔피언 소환",
+    "archetype": "SummonCreature",
+    "av": "None",
+    "hidden": false,
+    "description": "<dur>초 동안 해골 투사를 소환합니다."
+   },
+   {
+    "name": "늑대 우선권",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   },
+   {
+    "name": "사역마 재사용 대기시간",
+    "archetype": "Script",
+    "av": "None",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "soul",
+   "undead"
+  ],
+  "techniques": [
+   "control",
+   "summoning"
+  ]
+ },
+ {
+  "id": "Arcane.esp|0x000BF3",
+  "name": "비전 황폐",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "비전 피해",
+    "archetype": "DualValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "범위 안에 <mag>의 마법 피해를 주고 매지카에는 두 배의 피해를 줍니다. 매지카가 없는 적에게는 공격력이 세 배로 증가합니다."
+   }
+  ],
+  "elements": [
+   "arcane",
+   "resistance"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "Vigilant.esm|0x0CF3B3",
+  "name": "마라의 불꽃",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "마라의 불화살",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": ""
+   }
+  ],
+  "elements": [
+   "fire"
+  ],
+  "techniques": []
+ },
+ {
+  "id": "mihailwraithsandspectres.esp|0x000827",
+  "name": "불길",
+  "school": "Destruction",
+  "delivery": "Aimed",
+  "effects": [
+   {
+    "name": "불길",
+    "archetype": "ValueModifier",
+    "av": "Health",
+    "hidden": false,
+    "description": "불길을 뿜어내어 매 초마다 <mag>의 화염 피해를 입힙니다. 불이 붙은 적은 추가 피해를 입습니다."
+   }
+  ],
+  "elements": [
+   "apparition",
+   "fire"
+  ],
+  "techniques": []
+ }
+]

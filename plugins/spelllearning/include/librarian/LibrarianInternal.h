@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -41,6 +42,40 @@ namespace Librarian::Detail
             return found->get<std::string>();
         }
         return {};
+    }
+
+    // The race keywords of what a summon effect calls up (the scan's
+    // summonedKeywords): at least one of "any" (when given) and none of
+    // "none". An effect with no summoned keywords has none of them. Shared by
+    // the librarian's rules and the perk adapters.
+    [[nodiscard]] inline bool SummonedMatches(const json& effect,
+        const std::vector<std::string>& any, const std::vector<std::string>& none)
+    {
+        if (any.empty() && none.empty()) return true;
+        const auto summoned = effect.find("summonedKeywords");
+        const auto has = [&](const std::string& keyword) {
+            if (summoned == effect.end() || !summoned->is_array()) return false;
+            return std::any_of(summoned->begin(), summoned->end(),
+                [&](const json& value) { return value.is_string() && value.get<std::string>() == keyword; });
+        };
+        if (!any.empty() && std::none_of(any.begin(), any.end(), has)) return false;
+        return std::none_of(none.begin(), none.end(), has);
+    }
+
+    // Whether the effect only takes hold on an actor carrying one of these
+    // keywords (the scan's targetKeywords with has: true). Empty asks nothing.
+    [[nodiscard]] inline bool TargetRequires(const json& effect, const std::vector<std::string>& any)
+    {
+        if (any.empty()) return true;
+        const auto target = effect.find("targetKeywords");
+        if (target == effect.end() || !target->is_array()) return false;
+        return std::any_of(target->begin(), target->end(), [&](const json& entry) {
+            if (!entry.is_object()) return false;
+            const auto has = entry.find("has");
+            if (has == entry.end() || !has->is_boolean() || !has->get<bool>()) return false;
+            const std::string keyword = ReadField(entry, "keyword");
+            return std::find(any.begin(), any.end(), keyword) != any.end();
+        });
     }
 
     [[nodiscard]] inline std::filesystem::path DataPath(const char* leaf)
