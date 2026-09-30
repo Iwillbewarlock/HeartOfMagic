@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "Perk adapter: Ascension by Darenii - 1.0.1 (an Adamant 5 Destruction addon), Ascension 2 1.0.4 (its",
+    "own Custom Skills tree) and Ascension - Adamant 6 Patch v2 (Adamant 6's Elementalist). All three ask",
+    "one keyword on Destruction spells: Raw Power and Execution for unaspected damage, Deflection and",
+    "Elementalist beside fire, frost and shock. The keyword is injected into Update.esm's FormID range,",
+    "and Apostasy Framework injects the same FormID as APO_MagicDamageUnspecified, so the line names it",
+    "by FormID (keywordForm); in game it takes whatever name the loaded form carries.",
+    "What unaspected means is Darenii's: Deflection lists fire, frost, shock, poison, vampire drain and",
+    "this one as the six kinds of Destruction damage, and Darenii's own spell packs carry it on arcane,",
+    "shadow, blood, necrotic and nature damage (Arcane, Abyss, Bloodmoon, Desecration, Natura) but not on",
+    "shock, sun or poison (Arclight, Lunaris, Necrom). So: Destruction damage to health that none of the",
+    "other five keywords claims, with a librarian element outside them.",
+    "Magic Mantle and Destructive Barrier read MagicCloak, which vanilla.json gives."
+  ],
+  "perkMod": "Ascension 1.0.1 / Ascension 2 1.0.4 / Ascension - Adamant 6 Patch 2",
+  "measured": "2026-09-30",
+  "requires": { "any": ["Ascension.esp", "Adamant - Ascension 1 Patch.esp"] },
+  "adapters": [
+    { "keyword": "DAR_UnspecificMagicDamage", "keywordForm": "Update.esm|0x1EA6002",
+      "why": "unaspected Destruction damage: not fire, frost, shock, poison, sun or a vampire drain",
+      "tags": { "any": ["arcane", "shadow", "blood", "necrotic", "eldritch", "air", "water", "earth",
+                        "acid", "force", "nature", "metal", "soul", "light"],
+                "none": ["fire", "frost", "shock", "poison", "sun", "holy"] },
+      "spell": { "school": "Destruction" },
+      "effect": { "detrimental": true, "primaryAV": "Health",
+                  "archetypeAny": ["ValueModifier", "DualValueModifier", "Absorb"] },
+      "keywordsNone": ["MagicDamageFire", "MagicDamageFrost", "MagicDamageShock",
+                       "MAG_MagicDamagePoison", "MAG_MagicDamageSun", "MagicVampireDrain"] }
+  ]
+}

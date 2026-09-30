@@ -95,9 +95,11 @@ namespace Librarian::Adapters
             read.List("hazardSource", effect.hazardSource);
             read.Optional("explodes", effect.explodes, &json::is_boolean);
             read.Optional("visible", effect.visible, &json::is_boolean);
+            read.List("summonedAny", effect.summonedAny);
+            read.List("summonedNone", effect.summonedNone);
             read.RejectUnknown({ "archetype", "archetypeAny", "archetypeNone", "primaryAV", "primaryAVAny",
                 "resistance", "detrimental", "delivery", "minDuration", "noDuration", "hazardSource",
-                "explodes", "visible" });
+                "explodes", "visible", "summonedAny", "summonedNone" });
             return read.ok;
         }
 
@@ -128,12 +130,22 @@ namespace Librarian::Adapters
             }
             Reader read{ object, problems, where };
             std::optional<std::string> keyword;
+            std::optional<std::string> formList;
             read.Optional("keyword", keyword, &json::is_string);
-            if (!keyword || keyword->empty()) {
-                problems.push_back(where + ": no keyword");
+            read.Optional("formList", formList, &json::is_string);
+            line.keyword = keyword.value_or("");
+            line.formList = formList.value_or("");
+            if (line.keyword.empty() == line.formList.empty()) {
+                problems.push_back(where + ": needs exactly one of \"keyword\" and \"formList\"");
                 return false;
             }
-            line.keyword = *keyword;
+            std::optional<std::string> keywordForm;
+            read.Optional("keywordForm", keywordForm, &json::is_string);
+            line.keywordForm = keywordForm.value_or("");
+            if (!line.keywordForm.empty() && line.keyword.empty()) {
+                problems.push_back(where + ": \"keywordForm\" goes with \"keyword\"");
+                return false;
+            }
 
             std::optional<bool> enabled;
             read.Optional("enabled", enabled, &json::is_boolean);
@@ -177,7 +189,7 @@ namespace Librarian::Adapters
             ok = ParseEffectList(object, "spellHas", where, line.spellHas, problems) && ok;
             ok = ParseEffectList(object, "spellLacks", where, line.spellLacks, problems) && ok;
 
-            read.RejectUnknown({ "keyword", "why", "enabled", "tags", "spell", "effect", "spellHas",
+            read.RejectUnknown({ "keyword", "keywordForm", "formList", "why", "enabled", "tags", "spell", "effect", "spellHas",
                 "spellLacks", "keywordsNone" });
             return read.ok && ok;
         }
@@ -244,6 +256,16 @@ namespace Librarian::Adapters
                 if (value != *c.explodes) return false;
             }
             if (c.visible && IsVisible(effect) != *c.visible) return false;
+            if (!c.summonedAny.empty() || !c.summonedNone.empty()) {
+                const auto summoned = effect.find("summonedKeywords");
+                const auto has = [&](const std::string& keyword) {
+                    if (summoned == effect.end() || !summoned->is_array()) return false;
+                    return std::ranges::any_of(*summoned,
+                        [&](const json& value) { return value.is_string() && value.get<std::string>() == keyword; });
+                };
+                if (!c.summonedAny.empty() && std::ranges::none_of(c.summonedAny, has)) return false;
+                if (std::ranges::any_of(c.summonedNone, has)) return false;
+            }
             return true;
         }
 
@@ -332,7 +354,7 @@ namespace Librarian::Adapters
             if (!ParseLine(entry, where, line, problems)) {
                 line.enabled = false;
             }
-            if (!line.keyword.empty()) file.lines.push_back(std::move(line));
+            if (!line.keyword.empty() || !line.formList.empty()) file.lines.push_back(std::move(line));
             ++index;
         }
         return true;
@@ -427,10 +449,27 @@ namespace Librarian::Adapters
             for (std::size_t l = 0; l < file.lines.size(); ++l) {
                 const Line& line = file.lines[l];
                 LineStats& stats = plan.stats[f][l];
-                const bool defined = !source.keywordDefined || source.keywordDefined(line.keyword);
+                const bool isList = !line.formList.empty();
+                const bool defined = isList
+                    ? (!source.formListDefined || source.formListDefined(line.formList))
+                    : (!source.keywordDefined || source.keywordDefined(line.keyword));
                 const bool live = line.enabled && defined;
                 stats.ran = live;
                 if (!live && !(source.measureDisabled && defined)) continue;
+
+                if (isList) {
+                    source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
+                        if (!PickTarget(spell, &entry, line, carriedBy(id, spell))) return;
+                        if (source.inFormList && source.inFormList(line.formList, id)) {
+                            ++stats.agree;
+                            return;
+                        }
+                        ++stats.gain;
+                        AddExample(stats.gainExamples, SpellLabel(spell, id));
+                        if (live) plan.listWrites.push_back({ f, l, line.formList, id });
+                    });
+                    continue;
+                }
 
                 // Which spells want the keyword, grouped by the effect it would go on.
                 std::unordered_map<std::string, std::vector<std::string>> wanting;
@@ -505,7 +544,7 @@ namespace Librarian::Adapters
                 const Line& line = files[f].lines[l];
                 const LineStats& s = plan.stats[f][l];
                 lines.push_back({
-                    { "keyword", line.keyword }, { "enabled", line.enabled }, { "ran", s.ran },
+                    { "keyword", line.keyword }, { "keywordForm", line.keywordForm }, { "formList", line.formList }, { "enabled", line.enabled }, { "ran", s.ran },
                     { "agree", s.agree }, { "writes", s.writes }, { "gain", s.gain }, { "leaks", s.leaks },
                     { "conditioned", s.conditioned }, { "blockedByItem", s.blockedByItem },
                     { "gainExamples", s.gainExamples }, { "leakExamples", s.leakExamples },

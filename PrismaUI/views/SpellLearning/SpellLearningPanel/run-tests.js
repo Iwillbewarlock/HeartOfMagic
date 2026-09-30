@@ -83,6 +83,7 @@ loadModule('pageBuildTest', './modules/pageBuildTest.js');
 loadModule('treeGrowthStatus', './modules/treeGrowthStatus.js');
 loadModule('statusLineTest', './modules/statusLineTest.js');
 loadModule('spellNamesTest', './modules/spellNamesTest.js');
+loadModule('levelFilterTest', './modules/levelFilterTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

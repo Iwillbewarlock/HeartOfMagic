@@ -47,6 +47,11 @@
 //     uses the effect as a conditioned item (a perk bonus) blocks as well
 //   - a written effect gives the keyword to every spell using it; later lines
 //     see that
+//   - "keywordForm" names a "keyword" line's keyword by FormID: in game the
+//     loaded form's own editor id is used, whatever the last plugin called it
+//   - a "formList" line puts each spell it picks into that FormList instead:
+//     the same conditions, no leak check (the list names the spell itself), a
+//     spell already in the list as its plugin wrote it is left alone
 // =============================================================================
 
 namespace Librarian::Adapters
@@ -73,6 +78,9 @@ namespace Librarian::Adapters
         std::vector<std::string> hazardSource;   // any of: impact | effect | explosion
         std::optional<bool> explodes;
         std::optional<bool> visible;
+        // Race keywords of what a summon calls up (the scan's summonedKeywords)
+        std::vector<std::string> summonedAny;
+        std::vector<std::string> summonedNone;
     };
 
     struct SpellCondition
@@ -93,7 +101,16 @@ namespace Librarian::Adapters
 
     struct Line
     {
+        // What the line gives a spell: a keyword on its effect, or a place in a
+        // perk mod's FormList ("formList": the list's persistent id). One of the two.
         std::string keyword;
+        // The keyword by its persistent id ("Update.esm|0x1EA6002"), for a
+        // keyword that mods inject into one FormID under different editor ids
+        // (Ascension's DAR_UnspecificMagicDamage is Apostasy's
+        // APO_MagicDamageUnspecified). In game the name the loaded form carries
+        // replaces keyword before planning; offline the line keeps keyword.
+        std::string keywordForm;
+        std::string formList;
         bool enabled = true;
         TagCondition tags;
         SpellCondition spell;
@@ -167,6 +184,11 @@ namespace Librarian::Adapters
         // Whether the load order defines the keyword. Unset: always.
         std::function<bool(const std::string& keyword)> keywordDefined;
 
+        // Whether the FormList exists in the load order, and whether a spell is
+        // already in it as its plugin wrote it. Unset: always / never.
+        std::function<bool(const std::string& formList)> formListDefined;
+        std::function<bool(const std::string& formList, const std::string& spellId)> inFormList;
+
         // Measure disabled lines too, without letting them change anything.
         bool measureDisabled = false;
     };
@@ -177,6 +199,15 @@ namespace Librarian::Adapters
         std::size_t line = 0;
         std::string keyword;
         std::string effectKey;
+    };
+
+    // A spell to add to a FormList.
+    struct ListWrite
+    {
+        std::size_t file = 0;
+        std::size_t line = 0;
+        std::string formList;
+        std::string spellId;
     };
 
     struct LineStats
@@ -195,6 +226,7 @@ namespace Librarian::Adapters
     struct Plan
     {
         std::vector<Write> writes;
+        std::vector<ListWrite> listWrites;
         std::vector<std::vector<LineStats>> stats;   // [file][line]
     };
 

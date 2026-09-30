@@ -33,9 +33,9 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | `apparition` | 유령·혼령 형태의 존재 | Summon Arniel's Shade |
 | `arcane` | 속성 없는 순수 마력 피해 | Freeze / Ignite / Arniel's Convection |
 | `armor` | 방어도 자체를 올리고 내리는 것 | Oakflesh / Stoneflesh / Ironflesh |
-| **`blood`** | 피를 대가로 쓰거나 피로 해치는 마법. **SR 에 없음** — KIT `SpellDamageType_Blood`, `SpellSacrificeType_Blood`, OCF `MgefClassBlood` 가 구분한다 | (모드 전용) |
+| **`blood`** | 피를 대가로 쓰거나 피로 해치거나 피(생명)를 빨아들이는 마법. 흡혈 포함(2026-09-30). **SR 에 없음** — KIT `SpellDamageType_Blood`, `SpellSacrificeType_Blood`, `MagicElement_Vampiric`, OCF `MgefClassBlood`, 바닐라 `MagicVampireDrain` | Vampiric Drain |
 | `construct` | 세상에 남는 물체를 만든다. 룬·수호진·촛불 | Ash Rune / Conjure Ash Guardian / Candlelight |
-| `creature` | 살아있는 생물. 소환수, 그리고 생물을 대상으로 하는 것 | Conjure Familiar / Summon Arvak / Frenzy Rune |
+| `creature` | 생물을 대상으로 거는 것(되살리는 시체 포함). 소환에는 붙지 않는다(2026-09-30) | Frenzy Rune / Raise Zombie / Detect Life |
 | `daedra` | 데이드라 존재와 그 권능. 아트로나크·바운드 무기 | Bound Sword / Conjure Seeker / Bound Dagger |
 | `disease` | 질병과 그 치료 | Vampiric Drain |
 | `earth` | 흙·돌·재 | Stoneflesh / Ash Rune / Ash Shell |
@@ -109,8 +109,9 @@ M2 에서 실제로 틀렸던 지점들이다. 룰을 쓸 때 여기를 먼저 �
 **소환은 `soul` 을 동반한다.** 영혼을 묶어 형체를 준다는 관점. Bound Sword 조차
 `{daedra, soul, weapon}` 이다.
 
-**`creature` 와 `human` 은 대상을 말한다.** 살아있는 것에게 거는 주문이면 붙는다.
-소환수뿐 아니라 Calm, Fury, Detect Life, Heal Other 전부.
+**`creature` 와 `human` 은 대상을 말한다.** 살아있는 것에게 거는 주문이면 붙는다. Calm, Fury,
+Detect Life, Heal Other, 그리고 시체에 거는 되살리기. 거는 대상이 없는 소환에는 붙지 않는다
+(2026-09-30, 이전에는 소환수에도 붙였다). 불러낸 것이 무엇인지는 소환 키워드와 소환수 종족이 말한다.
 
 **`undead` 와 `necrotic` 은 다르다.** 전자는 존재, 후자는 죽음의 힘 그 자체다.
 

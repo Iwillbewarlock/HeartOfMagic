@@ -167,7 +167,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Scegli un Preset",
-    "easyMode.noPresets": "Nessun preset disponibile. La costruzione userà le impostazioni attuali.",
     "easyMode.statusWrap": "Stato: <span id=\"easyStatus\">In attesa della scansione...</span>",
 
     "editMode.editTree": "Modifica Albero",

@@ -1226,7 +1226,9 @@ function renderSpellCard(node, opts) {
         isLocked ? '???' : '??? (' + settings.revealEffects + '%)');
 
     // Level is what the node's size already gives away; cost and type are figures
-    document.getElementById('spell-level').textContent = showLevel ? (node.level || '?') : '???';
+    var levelEl = document.getElementById('spell-level');
+    levelEl.textContent = showLevel ? (node.level || '?') : '???';
+    if (typeof BridgeView !== 'undefined') BridgeView.bindLevel(levelEl, node, showLevel);
     document.getElementById('spell-cost').textContent = showFigures ? (node.cost || '?') : '???';
     document.getElementById('spell-type').textContent = showFigures ? (node.type || '?') : '???';
     

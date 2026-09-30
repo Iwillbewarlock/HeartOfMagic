@@ -107,6 +107,9 @@ namespace Librarian
                 }
             }
             ReadBool(matchObject, "castByVampires", match.castByVampires);
+            std::optional<bool> noElement;
+            ReadBool(matchObject, "noElement", noElement);
+            match.noElement = noElement.value_or(false);
             ReadString(matchObject, "spellKeyword", match.spellKeyword);
             ReadString(matchObject, "spellKeywordPrefix", match.spellKeywordPrefix);
             ReadString(matchObject, "spellKeywordSuffix", match.spellKeywordSuffix);
@@ -162,6 +165,13 @@ namespace Librarian
 
             if (target.addElements.empty() && target.addTechniques.empty() &&
                 target.removeElements.empty() && target.removeTechniques.empty()) {
+                return false;
+            }
+            // A noElement rule runs after every removal, so a "remove" there
+            // would never take effect; better refused than silently ignored
+            if (target.match.noElement &&
+                (!target.removeElements.empty() || !target.removeTechniques.empty())) {
+                logger::warn("Librarian: '{}' rule {} has noElement with remove - skipped", originFile, index);
                 return false;
             }
 

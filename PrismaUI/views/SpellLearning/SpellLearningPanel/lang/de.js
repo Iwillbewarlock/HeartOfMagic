@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Zauber freischalten",
     "details.xpUnit": "EP",
     "easyMode.choosePreset": "Voreinstellung wählen",
-    "easyMode.noPresets": "Noch keine Voreinstellungen. Erstellung nutzt aktuelle Einstellungen.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Warte auf Scan...</span>",
     "editMode.editTree": "Baum bearbeiten",
     "editMode.exitEditMode": "Bearbeitungsmodus verlassen",

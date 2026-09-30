@@ -142,13 +142,14 @@ numbers still hold (Classic's output did not change with the removal).
 | Theme match | +15 (+25 when effect similarity > 0.5) | `SharesTheme` |
 | Theme mismatch | -10 | Both have themes, none shared |
 | Shared element | +30 | Both carry the same `element.*` trait (the tag librarian's elements; since 2026-09-27) |
+| Same mod | +20 | Both come from the same plugin, not the game or a DLC (`SharesModPlugin`, since 2026-09-30). On the 3,546-spell load order (seeds 1-3) links whose parent is from the child's own mod went from 46% to 65%; same-element links and tier gaps unchanged |
 | Text + name similarity | +0 to +30 | (text × 0.4 + name × 0.6) × 30 |
 | Load balancing | -8 per child | Prefer parents with fewer children |
 | Tier distance | -5 per tier beyond one | |
 | Tier proximity | +10 / +5 | Immediate predecessor / two tiers back |
 | Random jitter | ±2 | Variety |
 
-Orphans reattached at the end use +15 for a shared theme and the same +30 for a shared element.
+Orphans reattached at the end use +15 for a shared theme, the same +30 for a shared element and +20 for the same mod.
 The element bonus was measured on the 1,428-spell test load order (seeds 1-3): separate same-element
 clusters 333 -> 247 at 30 and barely fewer above it (241 at 60); edges whose ends share a theme and
 the tier gaps stayed the same.

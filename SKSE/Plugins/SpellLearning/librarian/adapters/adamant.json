@@ -3,7 +3,9 @@
     "Perk adapter: Adamant 6.0.4 with Mysticism 2.5.0, which defines these keywords - most in the",
     "Update.esm FormID range, so they only exist when Mysticism is installed. Mysticism's own perks",
     "and Vokriinator Black 6.15.3 read the same keywords, so any of the three turns the file on.",
-    "Conditions as in vanilla.json.",
+    "Conditions as in vanilla.json. \"formList\" lines put spells into Adamant's own spell lists",
+    "(persistent ids, the same in 5.9.2 and 6.0.4); the lists were read from Adamant.esp and each rule",
+    "is what the spells already in the list have in common.",
     "Not added, with the reason:",
     "  MAG_MagicDamageMagicka/Stamina/Bleed/Critical, MAG_StaggerSpellKeyword - Adamant's weapon and",
     "    enchantment effect categories (Twin Fury, Bastion, stances); no spell carries them",
@@ -79,6 +81,20 @@
       "why": "attunement: Mysticism's fortify-a-vital-stat self buffs. OFF: only two spells carry it and no scan field sets them apart",
       "tags": { "all": ["strengthen"], "any": ["health", "stamina", "magicka"] },
       "spell": { "school": "Restoration" },
-      "effect": { "detrimental": false, "delivery": "Self", "minDuration": 30 } }
+      "effect": { "detrimental": false, "delivery": "Self", "minDuration": 30 } },
+    { "formList": "Adamant.esp|0x9DEF54", "why": "MAG_ConcentrationFireSpells, which Firebrand leaves out: fire damage dealt on and on. Concentration casts. The list's own members: Flames, Greater Flames, Flame Tempest, cloak and wall damage",
+      "spell": { "school": "Destruction", "casting": "Concentration" },
+      "effect": { "detrimental": true, "resistance": "FireResist", "primaryAV": "Health" } },
+    { "formList": "Adamant.esp|0x9DEF54", "why": "MAG_ConcentrationFireSpells: fire damage from a cloak",
+      "spell": { "school": "Destruction" },
+      "effect": { "detrimental": true, "resistance": "FireResist", "primaryAV": "Health" },
+      "spellHas": [ { "archetype": "Cloak" } ] },
+    { "formList": "Adamant.esp|0x3B34FE", "why": "MAG_ConcentrationShockSpells, which Unstable Current leaves out: shock damage dealt on and on. Concentration casts",
+      "spell": { "school": "Destruction", "casting": "Concentration" },
+      "effect": { "detrimental": true, "resistance": "ElectricResist", "primaryAV": "Health" } },
+    { "formList": "Adamant.esp|0x3B34FE", "why": "MAG_ConcentrationShockSpells: shock damage from a cloak",
+      "spell": { "school": "Destruction" },
+      "effect": { "detrimental": true, "resistance": "ElectricResist", "primaryAV": "Health" },
+      "spellHas": [ { "archetype": "Cloak" } ] }
   ]
 }

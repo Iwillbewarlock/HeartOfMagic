@@ -32,6 +32,15 @@ namespace TreeBuilder::Internal
     // prerequisites, in place (other node fields untouched). Returns how many went.
     int RemoveBadLinks(json& treeData);
 
+    // The spell's plugin in lower case ("plugin", else the persistentId's
+    // plugin part), and whether it is the game or one of its DLC
+    std::string SpellPlugin(const json& spell);
+    bool IsBaseGamePlugin(const std::string& lowerPlugin);
+
+    // Both spells come from the same mod (not the game or its DLC, whose
+    // spells are the tree's frame rather than one author's set)
+    bool SharesModPlugin(const TreeNode& a, const TreeNode& b);
+
     // Both spells made of the same thing (both blood, both water): an element.*
     // trait in common - the elements the tag librarian hands on. Classic gives
     // a parent like that a bonus on its own scale.

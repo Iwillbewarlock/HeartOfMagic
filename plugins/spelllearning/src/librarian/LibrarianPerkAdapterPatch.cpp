@@ -41,6 +41,18 @@ namespace Librarian::PerkAdapters
         // next run and to keep out of scans. Game thread only, like everything here.
         std::set<KeywordPair> g_injected;
 
+        // Spells put into perk mods' FormLists, the same way: (list, spell).
+        // Added to the list record's own array in memory, not through the
+        // script path, so nothing reaches a save.
+        using ListPair = std::pair<RE::FormID, RE::FormID>;
+        std::set<ListPair> g_listed;
+
+        RE::BGSListForm* ResolveList(const std::string& persistentId)
+        {
+            const RE::FormID formId = SpellScanner::ResolvePersistentFormId(persistentId);
+            return formId ? RE::TESForm::LookupByID<RE::BGSListForm>(formId) : nullptr;
+        }
+
         // Absent or unreadable config means on: the point is perks that work
         // for a player who never opens the settings.
         bool Enabled()
@@ -105,6 +117,27 @@ namespace Librarian::PerkAdapters
                 if (editorId && editorId[0] != '\0') keywords.emplace(editorId, keyword);
             }
             return keywords;
+        }
+
+        // A line naming its keyword by FormID takes the name the loaded form
+        // carries: the plan and the scan's keyword lists both go by that name
+        void ResolveKeywordForms(std::vector<Plan::File>& files,
+            std::unordered_map<std::string, RE::BGSKeyword*>& keywords)
+        {
+            for (auto& file : files) {
+                for (auto& line : file.lines) {
+                    if (line.keywordForm.empty()) continue;
+                    const RE::FormID formId = SpellScanner::ResolvePersistentFormId(line.keywordForm);
+                    auto* keyword = formId ? RE::TESForm::LookupByID<RE::BGSKeyword>(formId) : nullptr;
+                    if (!keyword) {
+                        logger::info("PerkAdapters: {} not loaded, {} keeps its name", line.keywordForm, line.keyword);
+                        continue;
+                    }
+                    const char* editorId = keyword->GetFormEditorID();
+                    if (editorId && editorId[0] != '\0') line.keyword = editorId;
+                    keywords.emplace(line.keyword, keyword);
+                }
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -293,6 +326,41 @@ namespace Librarian::PerkAdapters
             return result;
         }
 
+        // The FormList side of Reconcile: the same rules, on list entries.
+        Reconciled ReconcileLists(const std::set<ListPair>& wanted)
+        {
+            Reconciled result;
+            const std::vector<ListPair> previous(g_listed.begin(), g_listed.end());
+            for (const auto& pair : previous) {
+                if (wanted.contains(pair)) continue;
+                auto* list = RE::TESForm::LookupByID<RE::BGSListForm>(pair.first);
+                auto* spell = RE::TESForm::LookupByID(pair.second);
+                if (list && spell) {
+                    const auto found = std::find(list->forms.begin(), list->forms.end(), spell);
+                    if (found != list->forms.end()) {
+                        list->forms.erase(found);
+                        ++result.removed;
+                    }
+                }
+                g_listed.erase(pair);
+            }
+            for (const auto& pair : wanted) {
+                auto* list = RE::TESForm::LookupByID<RE::BGSListForm>(pair.first);
+                auto* spell = RE::TESForm::LookupByID(pair.second);
+                if (!list || !spell) continue;
+                const bool ours = g_listed.contains(pair);
+                if (list->HasForm(spell)) {
+                    if (ours) ++result.kept;
+                    continue;
+                }
+                if (ours) g_listed.erase(pair);
+                list->forms.push_back(spell);
+                g_listed.insert(pair);
+                ++result.added;
+            }
+            return result;
+        }
+
         void WriteReport(const json& report)
         {
             const auto path = DataPath(REPORT_FILE);
@@ -305,13 +373,17 @@ namespace Librarian::PerkAdapters
         }
 
         // Nothing is wanted: take back everything, say why, write the report.
-        void Stop(json& report, std::string_view why)
+        // Perk FormLists only on the kDataLoaded run, as in ApplyImpl.
+        void Stop(json& report, std::string_view why, bool listsNow)
         {
             const Reconciled result = Reconcile({});
+            const Reconciled lists = listsNow ? ReconcileLists({}) : Reconciled{};
             report["stopped"] = std::string(why);
+            report["listsDeferred"] = !listsNow;
             report["removed"] = result.removed;
+            report["listRemoved"] = lists.removed;
             WriteReport(report);
-            logger::info("PerkAdapters: {} ({} keywords taken back)", why, result.removed);
+            logger::info("PerkAdapters: {} ({} keywords and {} list entries taken back)", why, result.removed, lists.removed);
         }
 
         void ApplyImpl(std::string_view reason)
@@ -326,30 +398,46 @@ namespace Librarian::PerkAdapters
 
             if (!Enabled()) {
                 report["enabled"] = false;
-                Stop(report, "switched off in config.json");
+                Stop(report, "switched off in config.json", reason == kDataLoadedReason);
                 return;
             }
             report["enabled"] = true;
 
             json catalog;
             if (!LoadCatalog(catalog) || !catalog.is_object() || !catalog.contains("spells") || !catalog["spells"].is_object()) {
-                Stop(report, "no catalog yet - a full scan makes one");
+                Stop(report, "no catalog yet - a full scan makes one", reason == kDataLoadedReason);
                 return;
             }
 
             std::vector<Plan::File> files = LoadFiles(dataHandler, report);
             if (files.empty()) {
-                Stop(report, "no adapter file applies to this load order");
+                Stop(report, "no adapter file applies to this load order", reason == kDataLoadedReason);
                 return;
             }
 
-            const auto keywords = KeywordsByEditorId(dataHandler);
+            auto keywords = KeywordsByEditorId(dataHandler);
+            ResolveKeywordForms(files, keywords);
             LoadOrderSource loadOrder(catalog["spells"]);
 
             Plan::PlanSource source;
             source.forEachCatalogSpell = [&](const auto& visit) { loadOrder.ForEachCatalogSpell(visit); };
             source.usersOf = [&](const std::string& key) { return loadOrder.UsersOf(key); };
             source.keywordDefined = [&](const std::string& keyword) { return keywords.contains(keyword); };
+            // A formList line asks about every catalog spell: resolve each list once
+            std::unordered_map<std::string, RE::BGSListForm*> resolvedLists;
+            const auto listOf = [&](const std::string& formList) {
+                const auto found = resolvedLists.find(formList);
+                if (found != resolvedLists.end()) return found->second;
+                return resolvedLists.emplace(formList, ResolveList(formList)).first->second;
+            };
+            source.formListDefined = [&](const std::string& formList) { return listOf(formList) != nullptr; };
+            // As the plugins (and scripts) left it: an entry this file put there does not count
+            source.inFormList = [&](const std::string& formList, const std::string& spellId) {
+                auto* list = listOf(formList);
+                auto* spell = RE::TESForm::LookupByID(SpellScanner::ResolvePersistentFormId(spellId));
+                if (!list || !spell) return false;
+                return list->HasForm(spell) && !g_listed.contains({ list->GetFormID(), spell->GetFormID() });
+            };
 
             const Plan::Plan plan = Plan::BuildPlan(files, source);
 
@@ -366,6 +454,20 @@ namespace Librarian::PerkAdapters
             }
             const Reconciled result = Reconcile(wanted);
 
+            std::set<ListPair> wantedLists;
+            for (const auto& write : plan.listWrites) {
+                auto* list = listOf(write.formList);
+                auto* spell = RE::TESForm::LookupByID(SpellScanner::ResolvePersistentFormId(write.spellId));
+                if (!list || !spell) {
+                    ++unresolved;
+                    continue;
+                }
+                wantedLists.insert({ list->GetFormID(), spell->GetFormID() });
+            }
+            const bool listsNow = reason == kDataLoadedReason;
+            const Reconciled lists = listsNow ? ReconcileLists(wantedLists) : Reconciled{};
+            report["listsDeferred"] = !listsNow;
+
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - started).count();
             report["added"] = result.added;
@@ -373,14 +475,18 @@ namespace Librarian::PerkAdapters
             report["removed"] = result.removed;
             report["failed"] = result.failed;
             report["unresolved"] = unresolved;
+            report["listAdded"] = lists.added;
+            report["listKept"] = lists.kept;
+            report["listRemoved"] = lists.removed;
             report["elapsedMs"] = elapsed;
             report["files"] = Plan::PlanReport(files, plan);
             WriteReport(report);
 
             logger::info("PerkAdapters: {} - {} keywords on effects ({} new, {} kept, {} taken back, {} did not take, "
-                         "{} unresolved) from {} adapter files in {} ms",
+                         "{} unresolved), {} spells in perk FormLists ({} new, {} taken back) from {} adapter files in {} ms",
                 reason, g_injected.size(), result.added, result.kept, result.removed, result.failed, unresolved,
-                files.size(), elapsed);
+                g_listed.size(), lists.added, lists.removed, files.size(), elapsed);
+            if (!listsNow) logger::info("PerkAdapters: FormLists follow this plan at the next game start");
         }
     }
 

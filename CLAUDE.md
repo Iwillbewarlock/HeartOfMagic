@@ -211,6 +211,7 @@ node run-tests.js
 | `modules/pageBuildTest.js` | The design page painted over frames (`TreeStyle.stepPage`): step order, bands, what stands in meanwhile, look changes, the idle timer |
 | `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar; tome scan: scanned message back, earlier tome list kept, logged), and the spell card's rounded Magicka cost |
 | `modules/spellNamesTest.js` | Names in the spell card's lists (a shared name gets its plugin, a unique one does not, hidden names `???` with no plugin, SpellCache plugin before persistentId, counts after a new tree or invalidate) and TreeParser dropping self links |
+| `modules/levelFilterTest.js` | The spell card's level as a tree filter (`level.<Level>` lights every spell of that level; pressable only when shown and counted) |
 | `test-runner.html` | Browser-based test runner |
 
 ### Code review

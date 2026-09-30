@@ -390,7 +390,7 @@ void OnDataLoaded()
 
     // Perk overhauls see the modded spells the catalog knows (keywords added
     // in memory, from the catalog the last scan left)
-    Librarian::PerkAdapters::Apply("data loaded");
+    Librarian::PerkAdapters::Apply(Librarian::PerkAdapters::kDataLoadedReason);
 }
 
 void OnNewGame()

@@ -150,13 +150,13 @@ function updateEasyPresetChips() {
         }
     }
 
-    if (presetKeys.length === 0) {
-        var msg = document.createElement('div');
-        msg.className = 'easy-no-presets';
-        msg.textContent = t('easyMode.noPresets');
-        container.appendChild(msg);
-        return;
+    // No presets: the section (label and chips) stays out of sight and the
+    // build runs on the current settings
+    var section = container.parentNode;
+    if (section && section.classList && section.classList.contains('easy-presets-section')) {
+        section.style.display = presetKeys.length === 0 ? 'none' : '';
     }
+    if (presetKeys.length === 0) return;
 
     // Sort: builtIn first (by creation date), then user presets
     presetKeys.sort(function(a, b) {

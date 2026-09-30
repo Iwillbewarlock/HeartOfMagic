@@ -50,21 +50,6 @@ namespace
     constexpr int kWordThemeRoom = 3;
     constexpr float kTagLeadShareInPlugin = 0.8f;      // leads this share of the plugin's ids
 
-    // The game and its DLC: their ids carry no author prefix, so their words are words
-    const std::unordered_set<std::string> kBaseGamePlugins = {
-        "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"
-    };
-
-    std::string SpellPlugin(const json& spell)
-    {
-        auto plugin = spell.value("plugin", std::string(""));
-        if (plugin.empty()) {
-            const auto persistentId = spell.value("persistentId", std::string(""));
-            plugin = persistentId.substr(0, persistentId.find('|'));
-        }
-        return TreeNLP::ToLower(plugin);
-    }
-
     std::string LeadingIdWord(const json& spell)
     {
         return TreeBuilder::LeadingIdWordOf(spell.value("editorId", std::string("")));
@@ -102,8 +87,8 @@ std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>
     std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
     std::unordered_set<std::string> baseGameWords;
     for (const auto& spell : spells) {
-        const std::string plugin = SpellPlugin(spell);
-        if (kBaseGamePlugins.contains(plugin)) {
+        const std::string plugin = Internal::SpellPlugin(spell);
+        if (Internal::IsBaseGamePlugin(plugin)) {
             // The spell's own id only: effect ids use shorthand ("Mag...") that
             // would pass a real mod prefix (GTS Spells' "MAG_") off as a word
             const json idOnly = {{"editorId", spell.value("editorId", std::string(""))}};

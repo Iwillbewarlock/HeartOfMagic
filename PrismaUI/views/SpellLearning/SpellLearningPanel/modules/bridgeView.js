@@ -10,7 +10,8 @@
  *    the two spells share
  *  - the spell card lists them, and a click travels there
  *  - the trait filter veils the tree and lights every spell of one trait,
- *    whatever its school
+ *    whatever its school; the card's level works the same way ("level.Adept"
+ *    lights every Adept spell)
  *
  * Depends on: state, settings, CanvasRenderer, SpellCard (labels), t()
  */
@@ -34,9 +35,11 @@ var BridgeView = {
     FILTER_DOT: 5,
     FILTER_DOT_SCREEN_PX: 4,   // a lit spell never shrinks below this on screen
     TOO_BROAD: 'kind.damage',  // says only "this hurts"; too many spells share it
+    LEVEL_PREFIX: 'level.',    // a filter key for the spell's level, not a trait
 
     _byNode: {},
     _filterTrait: null,
+    _filterLevel: null,        // the level part of a "level." filter, cut once
     _counts: {},
 
     // =========================================================================
@@ -54,6 +57,7 @@ var BridgeView = {
             this._add(b.to, b.from, b, false);
         }
         this._filterTrait = null;
+        this._filterLevel = null;
         this.countTraits();
         this._renderActiveChip();
     },
@@ -84,6 +88,7 @@ var BridgeView = {
 
     _labelOf: function (keyword) {
         if (keyword.indexOf('word.') === 0) return keyword.substring(5);
+        if (keyword.indexOf(this.LEVEL_PREFIX) === 0) return keyword.substring(this.LEVEL_PREFIX.length);
         return (typeof SpellCard !== 'undefined') ? SpellCard.label(keyword) : keyword;
     },
 
@@ -127,7 +132,21 @@ var BridgeView = {
     /** Does this spell carry the trait the filter is on? */
     matchesFilter: function (node) {
         if (!this._filterTrait) return true;
-        return !!node && !!node.traits && node.traits.indexOf(this._filterTrait) >= 0;
+        return this._nodeHas(node, this._filterTrait);
+    },
+
+    /**
+     * A trait the spell carries, or its level for a "level." key. Runs for
+     * every spell each time the tree is drawn, so it makes no strings: the
+     * filter's level was cut out when the filter was set.
+     */
+    _nodeHas: function (node, key) {
+        if (!node) return false;
+        if (key === this._filterTrait && this._filterLevel !== null) return node.level === this._filterLevel;
+        if (key.indexOf(this.LEVEL_PREFIX) === 0) {
+            return node.level === key.substring(this.LEVEL_PREFIX.length);
+        }
+        return !!node.traits && node.traits.indexOf(key) >= 0;
     },
 
     hasFilter: function () {
@@ -240,7 +259,7 @@ var BridgeView = {
         var nodes = renderer.nodes || [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-            if (!node.traits || node.traits.indexOf(trait) < 0) continue;
+            if (!this._nodeHas(node, trait)) continue;
             if (this.isHidden(renderer, node) || this._outsideView(node, bounds)) continue;
             ctx.fillStyle = renderer._getSchoolColor(node.school);
             ctx.beginPath();
@@ -315,8 +334,55 @@ var BridgeView = {
             for (var k = 0; k < traits.length; k++) {
                 counts[traits[k]] = (counts[traits[k]] || 0) + 1;
             }
+            var level = nodes[i].level;
+            if (level && level !== 'Unknown') {
+                counts[this.LEVEL_PREFIX + level] = (counts[this.LEVEL_PREFIX + level] || 0) + 1;
+            }
         }
         this._counts = counts;
+    },
+
+    /**
+     * The card's level, pressable like a chip: lights every spell of that level.
+     * Called each time the card is filled; the element is reused, so its click
+     * handler is bound once and reads the level the card shows now.
+     * @param {HTMLElement} el - #spell-level
+     * @param {Object} node
+     * @param {boolean} shown - false while the level still reads ???
+     */
+    bindLevel: function (el, node, shown) {
+        if (!el) return;
+        var key = (shown && node && node.level) ? this.LEVEL_PREFIX + node.level : '';
+        if (!key || this.countOf(key) === 0) {
+            el.classList.remove('spell-chip-filter');
+            el.classList.remove('active');
+            el.removeAttribute('data-trait');
+            el.removeAttribute('role');
+            el.removeAttribute('tabindex');
+            el.removeAttribute('aria-pressed');
+            el.title = '';
+            return;
+        }
+        var on = this.isFilter(key);
+        el.classList.add('spell-chip-filter');
+        if (on) el.classList.add('active'); else el.classList.remove('active');
+        el.setAttribute('data-trait', key);
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el.title = node.level + ' (' + this.countOf(key) + ')';
+        if (el._levelFilterBound) return;
+        el._levelFilterBound = true;
+        el.addEventListener('click', function () {
+            var trait = el.getAttribute('data-trait');
+            if (trait) BridgeView.toggleFilter(trait);
+        });
+        el.addEventListener('keydown', function (e) {
+            if ((e.key === 'Enter' || e.key === ' ') && el.getAttribute('data-trait')) {
+                e.preventDefault();
+                el.click();
+            }
+        });
     },
 
     /**
@@ -343,6 +409,8 @@ var BridgeView = {
     toggleFilter: function (trait) {
         if (!this.isFilterable(trait)) return;
         this._filterTrait = (this._filterTrait === trait) ? null : trait;
+        this._filterLevel = (this._filterTrait && this._filterTrait.indexOf(this.LEVEL_PREFIX) === 0)
+            ? this._filterTrait.substring(this.LEVEL_PREFIX.length) : null;
         this._markPressed(document.querySelectorAll('.spell-chip-filter'));
         this._renderActiveChip();
         this._redraw();

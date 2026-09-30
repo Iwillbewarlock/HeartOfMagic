@@ -6,7 +6,8 @@
     "TAKEALOOK scan does) the two-handed spells left are mostly quest and NPC spells, and their",
     "effects are shared with one-handed player spells (Invisibility, Raise Zombie, Fire Storm).",
     "Vanilla and Path of Sorcery already put the keywords on the vanilla master spells.",
-    "Not added: VKR_ keywords (Vokrii's own effects: Sun's Judgment, duration scaling)."
+    "Not added: VKR_ keywords (Vokrii's own effects: Sun's Judgment, duration scaling).",
+    "The formList line fills the Grand Conjurer list from what its members share."
   ],
   "perkMod": "Vokrii - Minimalistic Perks of Skyrim 3.8.2",
   "measured": "2026-09-30",
@@ -17,6 +18,10 @@
       "spell": { "twoHanded": true, "notSchool": "Illusion" } },
     { "keyword": "RitualSpellIllusion", "enabled": false,
       "why": "two-handed Illusion spells. OFF, see the comment",
-      "spell": { "twoHanded": true, "school": "Illusion" } }
+      "spell": { "twoHanded": true, "school": "Illusion" } },
+    { "formList": "Vokrii - Minimalistic Perks of Skyrim.esp|0x3DCAB9",
+      "why": "VKR_Compatibility_NonReanimateConjurationSpellsWithMagnitudeList - Grand Conjurer: Conjuration spells with a magnitude that raise nothing. Its members are Banish/Expel Daedra and Command Daedra",
+      "spell": { "school": "Conjuration" },
+      "effect": { "archetypeAny": ["Banish", "CommandSummoned"] } }
   ]
 }

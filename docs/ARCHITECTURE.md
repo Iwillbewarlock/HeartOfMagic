@@ -163,7 +163,9 @@ are the merged text. The card icon rules still read the scanner's own traits.
 scan and Papyrus `RunScan`; not the background tome scan). The planner (`LibrarianAdapters.cpp`) is pure and
 shared with `librarian-test --adapters`; it builds each spell's JSON with `BuildSpellJson` so it reads the
 scan's own fields, writes an effect only when every item using it passes (enchantments, scrolls, potions and
-ingredients block), and skips conditioned effect items. In memory only; each run reconciles with its plan
+ingredients block), and skips conditioned effect items. A line with `keywordForm` names its keyword by persistent id; before planning, `ResolveKeywordForms` swaps in the editor id the loaded form carries (mods inject one FormID under different names). A `formList` line puts the spells it picks into a
+perk mod's own FormList instead (appended to the list's `forms` array in memory, not through `AddForm`,
+which is the script path a save keeps). In memory only; each run reconciles with its plan
 (what an earlier run added and the plan no longer wants comes off, only new pairs go on; a pair a plugin
 wrote is never touched). The scan leaves the added keywords out (`PerkAdapters::IsInjected` in `BuildBaseEffectJson`,
 the chips and the card icon lookup), so a scan still records the plugins as written. Report:
@@ -310,6 +312,8 @@ same on every load order and in every language.
 | effect | `explosion{form,source,radius}` | the effect's own explosion, otherwise its projectile's. `source` says which. Only when set |
 | effect | `hazard`, `hazardSource` | true/false, and where it was found. See below |
 | effect | `perk`, `equipAbility` | `EffectSettingData`. Only when set |
+| effect | `applies[]` | what the effect puts on others, one level: `{via, form, effects[]}` for a Cloak's spell (`associatedForm`, `via: cloak`), a hazard's spell (`BGSHazard::data.spell`: the effect's own hazard `hazard`, an explosion's placed hazard `explosionHazard`) and an explosion's enchantment (`explosion`, the effect's and its projectile's, both when both exist). Each applied effect: archetype, primaryAV, resistance, detrimental, hostile, magnitude, duration, flags.hideInUI, keywords. The librarian takes these as evidence, when the effect that sets them off counts itself (a hidden helper's explosion does not). Only when there are any |
+| effect | `summonedKeywords` | a SummonCreature effect: the race keywords of the actor it calls up (`associatedForm` NPC, or every NPC of a leveled list, 4 levels deep) - `ActorTypeUndead`, `ActorTypeDaedra`, `ActorTypeAnimal` ... Only when there are any |
 | effect | `index`, `cost` | slot in the spell record, `Effect::cost` |
 | effect | `conditions` | how many conditions this spell puts on the effect item (`Effect::conditions`) - a perk bonus rides as a conditioned item |
 

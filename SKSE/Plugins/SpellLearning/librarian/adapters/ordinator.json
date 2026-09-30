@@ -5,7 +5,10 @@
     "Ordinator's plugin: ORD_Des_AnyFireDamageHazard_Keyword sits on its one marker effect, which",
     "World in Flames also looks for directly; ORD_Con_BoneCollector_Keyword_Summon on its six",
     "created-skeleton effects (Reap and Sow). None describes a spell, so nothing is added here.",
-    "The file stays so the measurement is on record for the next Ordinator version."
+    "The file stays so the measurement is on record for the next Ordinator version.",
+    "FormLists: the ones its perks test are filled by its scripts in play (Arcane Thesis: the spell",
+    "the player masters) or hold no spells; ORD_Alt_NaturalMagic_FormList_Exclusion (bound weapons)",
+    "is read by a script, not a perk condition. None is filled from here."
   ],
   "perkMod": "Ordinator - Perks of Skyrim 9.35.0",
   "measured": "2026-09-30",

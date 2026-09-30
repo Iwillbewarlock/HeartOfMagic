@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Büyüyü Aç",
     "details.xpUnit": "TP",
     "easyMode.choosePreset": "Hazır Ayar Seçin",
-    "easyMode.noPresets": "Henüz hazır ayar yok. Oluşturma mevcut ayarları kullanacak.",
     "easyMode.statusWrap": "Durum: <span id=\"easyStatus\">Tarama bekleniyor...</span>",
     "editMode.editTree": "Ağacı Düzenle",
     "editMode.exitEditMode": "Düzenleme Modundan Çık",

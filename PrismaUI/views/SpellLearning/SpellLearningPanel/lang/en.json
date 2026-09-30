@@ -168,7 +168,6 @@
 
     "easyMode.choosePreset": "Choose a Preset",
 
-    "easyMode.noPresets": "No presets yet. Build will use current settings.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Waiting for scan...</span>",
 
     "editMode.editTree": "Edit Tree",

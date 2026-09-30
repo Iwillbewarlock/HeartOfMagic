@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Odblokuj zaklęcie",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Wybierz szablon",
-    "easyMode.noPresets": "Brak szablonów. Budowanie użyje bieżących ustawień.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Oczekiwanie na skan...</span>",
     "editMode.editTree": "Edytuj drzewo",
     "editMode.exitEditMode": "Wyjdź z trybu edycji",

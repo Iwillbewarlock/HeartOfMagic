@@ -33,6 +33,8 @@ Path of Sorcery 3.2, Vokrii 3.8.2, Ordinator 9.35.0, Vokriinator Black 6.15.3).
 - **Path of Sorcery**: `IMP_K_MagicDamagePoison/Holy/Disease`, `IMP_K_MagicSummonDaedra`
 - **Ordinator**: 바닐라만. `ORD_` 키워드는 전부 Ordinator 자신의 이펙트 표식이다
 - **Vokrii**: 바닐라 + `RitualSpellEffect/Illusion`(양손 주문)
+- **Ascension**(Darenii, 1.0.1 · 2 1.0.4 · Adamant 6 Patch 2): 무속성 파괴 피해 키워드 하나
+  (`Update.esm|0x1EA6002`) + `MagicCloak`. 2026-09-30 추가, 아래 6-1절
 
 키워드가 아닌 방법도 있다 — 주문 목록(FormList: Adamant 의 집중 화염·전기 목록, PoS 의 Advanced
 Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직 다루지 않는다(7절).
@@ -56,6 +58,8 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 |---|---|
 | `requires` | `{"always": true}` 또는 `{"any": [플러그인...]}` — 하나라도 로드되면 파일이 켜진다(대소문자 무시, ESL 포함) |
 | `keyword` | 붙일 키워드의 EditorID. 로드오더에 없으면 그 줄은 쉰다 |
+| `keywordForm` | `keyword` 와 함께: 그 키워드의 영구 id(예 `Update.esm\|0x1EA6002`). 여러 모드가 한 FormID 를 서로 다른 EditorID 로 주입할 때 쓴다 — 게임에서는 로드된 폼이 가진 이름이 `keyword` 를 대신한다(마지막에 로드된 플러그인의 이름). 오프라인 평가는 `keyword` 를 그대로 쓴다 |
+| `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
 | `enabled` | `false` 면 끈다. 이유는 `why` 에 |
 | `tags` | 카탈로그 태그. `all` / `any` / `none` |
 | `spell` | 스캔 주문 필드: `school`, `notSchool`, `tier`, `casting`, `twoHanded` |
@@ -65,7 +69,8 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 
 이펙트 조건 키: `archetype`, `archetypeAny`, `archetypeNone`, `primaryAV`, `primaryAVAny`,
 `resistance`, `detrimental`, `delivery`, `minDuration`, `noDuration`,
-`hazardSource`(impact | effect | explosion), `explodes`, `visible`.
+`hazardSource`(impact | effect | explosion), `explodes`, `visible`,
+`summonedAny` / `summonedNone`(소환되는 생물의 종족 키워드 — 스캔의 `summonedKeywords`).
 모르는 키가 있는 줄은 **꺼진다**(로그 경고). 오타가 조용히 모든 주문에 맞는 것보다 낫다.
 
 ## 4. 규칙을 정하는 방법
@@ -132,9 +137,34 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 - `MagicArmorSpell`: 결계도 방어도를 올리므로 결계 키워드·결계력 이펙트가 있으면 제외
 - `MAG_MagicWallSpell`: 벽의 피해 이펙트는 archetype 이 Script(32 중 28), 착탄 장판을 남기는
   일반 분사는 114 중 1
-- 소환 줄: 원작자가 이미 준 다른 소환 분류가 있으면 더하지 않는다(태그 노이즈)
+- 소환 줄: **종족 먼저, 태그는 그다음.** 종족 줄(소환되는 생물의 종족이 `ActorTypeUndead` 면
+  `MagicSummonUndead`, 언데드·데이드라가 아닌 `ActorTypeAnimal` 이면 `MagicSummonFamiliar`, PoS 는
+  `ActorTypeDaedra` 면 데이드라)이 앞에 있고, 기존 태그 줄은 뒤에서 종족으로 못 가르는 것(원소, 종족
+  키워드가 없는 생물)을 맡는다. 어느 줄이든 원작자나 앞 줄이 이미 준 다른 소환 분류가 있으면 더하지
+  않는다. 종족 줄은 2026-09-30 추가, 새 스캔으로 측정할 것
 - `IMP_K_MagicSummonDaedra`: PoS 자신이 드레모라·시커·화산재 수호자에만 붙인다 — 원소 아트로나크는
   `MagicSummonFire/Frost/Shock` 로 이미 퍽을 받는다
+
+## 6-1. Ascension (2026-09-30)
+
+넥서스 89223(1.0.1, Adamant 5 애드온 — TAKEALOOK 설치본은 퍽 이름만 한국어로 옮긴 같은 파일),
+92000(Ascension 2 1.0.4, Custom Skills 트리), 188452(Adamant 6 Patch v2, 원소술사 퍽)를 받아 퍽을 덤프했다.
+셋 다 파괴 주문에 **한 키워드**를 묻는다: 원시의 힘(무속성 피해), 처형(체력 50% 미만 적), 굴절과 원소술사
+(화염·냉기·전격 옆). 마법 망토·파괴적 장벽은 `MagicCloak` 이라 바닐라 파일이 맡는다.
+
+그 키워드는 Update.esm 대역에 주입된 `0x1EA6002` 이고, Ascension 은 `DAR_UnspecificMagicDamage`,
+Apostasy Framework 는 같은 FormID 를 `APO_MagicDamageUnspecified` 로 부른다. TAKEALOOK 에서는 뒤의 이름이
+이겨 스캔에는 APO 만 보인다. 그래서 줄이 키워드를 FormID 로 지정한다(`keywordForm`).
+
+무속성의 뜻은 제작자 것을 따랐다. 굴절 퍽이 파괴 피해를 화염·냉기·전격·독·흡혈·무속성 여섯으로 나누고,
+Darenii 의 주문 팩은 비전·그림자·피·괴저·자연 피해(Arcane, Abyss, Bloodmoon, Desecration, Natura)에 이
+키워드를 달고 전격·태양·독(Arclight, Lunaris, Necrom)에는 달지 않는다. 그래서 줄은 "다섯 키워드 중 어느 것도
+없는 파괴 체력 피해, 사서 원소가 그 밖의 것". TAKEALOOK 의 KID ini 는 흡혈도 무속성으로 넣지만 제작자는
+흡혈을 따로 두므로 따르지 않았다.
+
+측정(키워드 이름을 로드된 이름으로 바꿔 오프라인 평가): 이미 단 주문과 일치 158, 새로 붙는 주문 141
+(이펙트 83개), 누출로 막힌 이펙트 2(Necromancer's Magic 과 Midnight Sun 이 함께 쓰는 이펙트). 새로 받는
+것은 Vigilant·Glenmoril·Unslaad·Dragonborn 의 비전·지식 흡수 계열 등이고, 상당수는 NPC·보스 주문이다.
 
 ## 7. 붙이지 않는 것과 이유
 
@@ -148,8 +178,28 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `MAG_MagicDamageMagicka/Stamina/Bleed/Critical`, `MAG_StaggerSpellKeyword` | Adamant 의 무기·마법부여 분류 |
 | `MagicBlessing`, 지팡이 마법부여 키워드, 퍽 자체 이펙트 키워드 | 주문이 아니다 |
 
-아직 없는 것: FormList 어댑터(주문을 퍽 모드의 목록에 넣기), 보조 이펙트 어댑터(Impact 등),
-소환수 종족 키워드를 스캔에 기록해 소환 줄을 태그 대신 구조로 판정하기.
+아직 없는 것: 보조 이펙트 어댑터(Impact 등).
+
+## 7-1. FormList (2026-09-30)
+
+퍽이 `IsInList` 로 주문을 묻는 목록 중, **원작자가 레코드에 미리 주문을 적어 둔 분류 목록**만 채운다.
+규칙은 목록에 이미 든 주문들의 공통점이다.
+
+| 목록 | 쓰는 퍽 | 원래 든 것 | 규칙 | 새로 (TAKEALOOK) |
+|---|---|---|---|---|
+| Adamant `MAG_ConcentrationFireSpells` | Firebrand 가 **제외** | 불씨조각, 대 화염, 망토·벽 피해 | 파괴, 화염 피해, 집중 시전 또는 망토 | 30 |
+| Adamant `MAG_ConcentrationShockSpells` | Unstable Current 가 **제외** | 번개조각, 번개 망토, 번개 폭풍 | 같은 규칙, 전기 | 36 |
+| Vokrii `…NonReanimateConjurationSpellsWithMagnitudeList` | Grand Conjurer | 데이드라 추방·지배 | 소환계, Banish 또는 CommandSummoned | 10 |
+
+채우지 않는 것: 게임 중에 **플레이어 상태**로 채워지는 목록(Ordinator Arcane Thesis — 플레이어가 고른
+주문, PoS Witch's Familiar — 가장 자주 부른 소환, Spell Charging, Advanced Study 75개), 주문이 아닌 목록
+(재료, 성소, 함성, 지팡이 마법부여, 무기), 퍽이 아니라 스크립트가 읽는 목록(Ordinator Natural Magic 제외).
+
+목록에는 엔진의 `AddForm`(Papyrus 와 같은 경로라 세이브에 남을 수 있다) 대신 목록 레코드의 배열(`forms`)에
+메모리에서만 넣는다. 목록은 **게임 시작(kDataLoaded) 때만** 고친다 — 배열이 커지면 옮겨질 수 있고, 게임 중에는
+퍽 조건이 다른 스레드에서 목록을 읽는다. 게임 중 스캔은 목록 계획만 보고서에 남기고(`listsDeferred`), 목록은
+다음 게임 시작에 따른다. 같은 목록을 가리키는 줄이 둘이면 한 주문이 두 줄의 `gain` 에 모두 셀 수 있다(실제 쓰기는
+한 번). 위 표의 30·36 은 그렇게 센 값이다.
 
 ## 8. 게임에서 확인한 것 (2026-09-30)
 

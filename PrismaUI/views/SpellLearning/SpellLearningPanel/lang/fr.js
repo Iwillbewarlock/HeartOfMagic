@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Débloquer le sort",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Choisir un préréglage",
-    "easyMode.noPresets": "Aucun préréglage pour l'instant. La génération utilisera les paramètres actuels.",
     "easyMode.statusWrap": "Statut : <span id=\"easyStatus\">En attente d'analyse...</span>",
     "editMode.editTree": "Modifier l'arbre",
     "editMode.exitEditMode": "Quitter le mode édition",

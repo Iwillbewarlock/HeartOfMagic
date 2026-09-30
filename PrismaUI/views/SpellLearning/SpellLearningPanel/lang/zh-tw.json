@@ -167,7 +167,6 @@
     "details.xpUnit": "經驗",
 
     "easyMode.choosePreset": "選擇預設",
-    "easyMode.noPresets": "尚無預設。建構將使用目前設定。",
     "easyMode.statusWrap": "狀態: <span id=\"easyStatus\">等待掃描...</span>",
 
     "editMode.editTree": "編輯樹",

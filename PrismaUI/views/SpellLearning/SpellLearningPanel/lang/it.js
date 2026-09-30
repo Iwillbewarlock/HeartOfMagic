@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Sblocca Incantesimo",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Scegli un Preset",
-    "easyMode.noPresets": "Nessun preset disponibile. La costruzione userà le impostazioni attuali.",
     "easyMode.statusWrap": "Stato: <span id=\"easyStatus\">In attesa della scansione...</span>",
     "editMode.editTree": "Modifica Albero",
     "editMode.exitEditMode": "Esci dalla Modalità Modifica",

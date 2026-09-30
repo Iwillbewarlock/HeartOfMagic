@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Desbloquear Magia",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Escolha um Preset",
-    "easyMode.noPresets": "Sem presets ainda. A construção usará as configurações atuais.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Aguardando varredura...</span>",
     "editMode.editTree": "Editar Árvore",
     "editMode.exitEditMode": "Sair do Modo de Edição",

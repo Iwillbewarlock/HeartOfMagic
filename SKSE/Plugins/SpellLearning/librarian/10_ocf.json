@@ -56,7 +56,7 @@
       "match": { "mgefKeyword": "OCF_MgefSpellSummon_Construct" },
       "add": { "elements": ["construct"], "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "OCF_MgefSpellSummon_Creature" },
-      "add": { "elements": ["creature"], "techniques": ["summoning"] } },
+      "add": { "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "OCF_MgefSpellSummon_Daedra" },
       "add": { "elements": ["daedra"], "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "OCF_MgefSpellSummon_Spirit" },

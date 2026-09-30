@@ -17,6 +17,12 @@
 
 namespace Librarian::PerkAdapters
 {
+    // The kDataLoaded run. Perk FormLists are only edited then: a list's array
+    // can move when it grows, and in play perk conditions read lists from other
+    // threads. A scan in play still plans the lists and reports what it would
+    // change; the lists follow at the next game start.
+    inline constexpr std::string_view kDataLoadedReason = "data loaded";
+
     // Plans and applies. A run brings the effects to its plan: what an earlier
     // run added and the plan no longer wants is taken off, so a changed catalog
     // or adapter file can also withdraw a keyword. Writes

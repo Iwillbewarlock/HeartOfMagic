@@ -167,7 +167,6 @@
     "details.xpUnit": "XP",
 
     "easyMode.choosePreset": "Choisir un préréglage",
-    "easyMode.noPresets": "Aucun préréglage pour l'instant. La génération utilisera les paramètres actuels.",
     "easyMode.statusWrap": "Statut : <span id=\"easyStatus\">En attente d'analyse...</span>",
 
     "editMode.editTree": "Modifier l'arbre",

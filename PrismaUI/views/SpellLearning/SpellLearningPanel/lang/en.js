@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Unlock Spell",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Choose a Preset",
-    "easyMode.noPresets": "No presets yet. Build will use current settings.",
     "easyMode.statusWrap": "Status: <span id=\"easyStatus\">Waiting for scan...</span>",
     "editMode.editTree": "Edit Tree",
     "editMode.exitEditMode": "Exit Edit Mode",

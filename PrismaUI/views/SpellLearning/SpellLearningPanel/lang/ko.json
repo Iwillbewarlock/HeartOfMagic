@@ -163,7 +163,6 @@
     "details.unlockSpell": "주문 해제",
     "details.xpUnit": "경험치",
     "easyMode.choosePreset": "프리셋 선택",
-    "easyMode.noPresets": "프리셋이 없습니다. 현재 설정으로 구축됩니다.",
     "easyMode.statusWrap": "상태: <span id=\"easyStatus\">스캔 대기 중...</span>",
     "editMode.editTree": "트리 편집",
     "editMode.exitEditMode": "편집 모드 종료",

@@ -16,6 +16,11 @@ namespace
     // element clusters 333 -> 247 at 30, barely fewer above it (241 at 60),
     // theme-sharing edges and tier gaps unchanged.
     constexpr float kSharedElementBonus = 30.0f;
+
+    // A parent from the same mod: one author's spells were made as a set and
+    // read best side by side, so they are drawn together on a branch. Below
+    // the element bonus, so a mod's fire spell still goes to fire first.
+    constexpr float kSameModBonus = 20.0f;
 }
 
 // =============================================================================
@@ -103,6 +108,7 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
         }
 
         if (SharesElement(node, *candidate)) score += kSharedElementBonus;
+        if (SharesModPlugin(node, *candidate)) score += kSameModBonus;
 
         // Combined NLP similarity
         float textSim = sims.GetTextSim(node.formId, candidate->formId);
@@ -309,6 +315,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                     score += 15.0f;
                 }
                 if (SharesElement(orphanNode, cnode)) score += kSharedElementBonus;
+                if (SharesModPlugin(orphanNode, cnode)) score += kSameModBonus;
 
                 score -= static_cast<float>(cnode.children.size()) * 8.0f;
 

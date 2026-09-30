@@ -72,13 +72,40 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 **룰은 코드가 아니라 데이터다.** 사용자나 다른 모더가 패치 없이 `90_user.json` 을 얹어 분류를
 추가할 수 있다. 이게 호환성 전략의 핵심이다.
 
+**룰은 집합이다 (2026-09-30).** 룰 하나는 스캔이 기록한 필드(archetype, 키워드, actor value, `applies`)로
+정의되는 주문의 집합이다. 소환수 종족(`summonedKeywords`)은 스캔에 있지만 아직 퍽 어댑터 조건만 읽는다. `match` 안의 조건들은 교집합, 같은 태그를 붙이는 여러
+룰은 합집합, `remove` 는 차집합이다(모든 룰이 붙인 뒤에 뗀다). "참나무 피부는 자연이다" 같은 판단은
+주문의 뜻을 읽는 명제라 기계적 룰로는 만들 수 없다. 퍽도 방어 주문을 재료별로 가르지 않는다. 이런
+태그는 수동 목록이나 대체 경로의 몫이고, 정답셋이 기대해도 룰의 실패로 세지 않는다.
+
+`creature`·`human` 은 **주문을 거는 대상**이다. 정신계와 되살리기(시체에 건다)는 대상이 산 것이나
+시체라 둘을 받는다. 언데드 퇴치는 대상이 언데드라 둘을 떼고, 광분·마비에 부품으로 든 고무·진정
+이펙트는 그 주문이 하는 일이 아니라 `courage`·`pacify` 를 뗀다(`00_mgef.json`). 대상 없는 소환은
+둘을 받지 않는다.
+
+**키워드는 붙인 제작자의 의도로 읽는다.** 키워드 하나를 태그로 옮기기 전에, 그 키워드가 실제로 어느
+주문들에 붙어 있는지 보고 제작자가 무엇을 표시하려 했는지부터 정한다. `MagicSummonFamiliar` 는 이름과
+달리 아트로나크가 아닌 모든 소환(드레모라 군주, 아바크, 시커)에 붙어 "어떤 소환인가" 를 말할 뿐 불러낸
+것을 말하지 않으므로 원소를 주지 않는다. `MagicDamageResist` 는 "마법 저항이 막는, 원소 없는 피해" 라는
+게임 규칙의 표시라 `resistance`(저항 수치를 다루는 것)가 아니다. 그래서 다른 원소가 없는 적대 주문에만
+`arcane` 을 준다(`noElement`).
+
+같은 기준으로 프레임워크 키워드를 다시 읽었다(2026-09-30, 에이전트 전수 점검): NSV 의 `Tag_Undead`·
+`Tag_Vampiric`·`Magic_Teleport` 는 NPC AI 에게 "누구에게 쓰라, 누가 쓴다" 를 알리는 표시라 원소를 주지
+않는다. KIT 의 `MagicElement_Undead` 는 참나무 피부에까지 붙어 있어 지웠고, `ColdFire` 는 파란 불꽃이라는
+겉모습이라 화염만 준다. 흡혈(`MagicElement_Vampiric`)은 언데드가 아니라 혈이다. ADAR `Necromancy_` 는
+괴저만(언데드는 되살리는 쪽 키워드가 준다). `MagicSummonFire/Frost/Shock` 는 아트로나크 퍽의 고리라 모드가
+따라 붙이므로, 같은 이펙트에 KIT 가 데이드라·언데드·엘드리치·흡혈 소환이라 하면 그 원소를 뗀다. 소울 트랩은
+함정(`trap`)이 아니다.
+
 ### 매칭 조건
 
 | 키 | 대상 | 비고 |
 |---|---|---|
 | `spell` | 주문 자체 | `persistentId` 하나 또는 목록(`"Natura.esp|0x000B2C"`). 수동 룰용 |
-| `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로 |
+| `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로. 출하 룰은 더 쓰지 않는다(2026-09-30, 이름이 아니라 레코드로 가른다) — 사용자 룰용 |
 | `castByVampires` | 스캐너의 `castByVampires` | 뱀파이어 NPC 가 가진 주문(NPC·종족 주문 목록과 그 안의 레벨드 리스트, Data 의 SPID `*_DISTR.ini` 에서 `Vampire` 필터로 배포되는 주문) |
+| `noElement` | 다른 룰이 원소를 하나도 주지 않은 주문 (`true` 만 뜻이 있다) | 원소 태그를 받은 집합의 여집합. 모든 룰이 붙이고 뗀 뒤 마지막에 본다. "원소 없음" 을 뜻하는 표식(Bethesda 의 `MagicDamageResist`)이 더 구체적인 증거가 없을 때만 근거가 되게 한다. 처음 맞은 룰이 정하고 다음 룰은 얹지 않으며, `remove` 와 함께 쓴 룰은 로드하지 않는다 (2026-09-30) |
 | `spellKeyword` `spellKeywordPrefix` `spellKeywordSuffix` | SPEL 키워드 | |
 | `mgefKeyword` `mgefKeywordPrefix` `mgefKeywordSuffix` | MGEF 키워드 | |
 | `archetype` | 이펙트 archetype | `SummonCreature` 등 |
@@ -89,6 +116,21 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 한 룰의 조건은 모두 성립해야 한다(AND). **이펙트 레벨 조건은 하나의 같은 이펙트에서** 성립해야
 하고, 접두사와 접미사도 **같은 키워드 하나**에서 성립해야 한다. 서로 다른 이펙트에서 긁어모은
 archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때문이다.
+
+**어떤 이펙트가 근거가 되나 (2026-09-30).** 이펙트 조건은 아래 이펙트에만 대 본다.
+- **보이는 이펙트**(`hideInUI` 아님)는 전부
+- **숨김 이펙트**는 실제로 해칠 때만 — 해로움, 수치 > 0, 수치를 바꾸는 archetype(ValueModifier,
+  DualValueModifier, PeakValueModifier, Absorb). 숨김 이펙트는 대부분 퍽이나 모드가 끼워 넣은 보조다.
+  Mysticism 의 화면 흔들림(`MAG_ScreenShakeEffect`)이 `FrostResist`·`MagicDamageFrost` 를 달고 있어
+  언데드의 파멸·대규모 공포 등에 서리가 붙었고, Impact 비틀거림이 얼음 가시에 화염을 붙였다. 피해를
+  숨겨서 주는 주문(독 분사, 서리 분출)은 그대로 근거가 된다
+- **이펙트가 남에게 거는 주문**(그 이펙트 자신이 근거가 될 때만)(스캔의 `applies`): 망토가 가까이 온 대상에게 거는 주문, 장판이 안에 든
+  대상에게 거는 주문, 폭발의 마법부여. 망토의 실제 피해는 망토 이펙트가 아니라 여기에 있다. 그 안의 숨김 이펙트도 위와 같은 기준으로 거른다
+
+- 주문의 이펙트가 **전부** 숨김이라 위 기준을 통과하는 게 하나도 없으면(Mysticism 의 원·샘, 설명만 보이는
+  소환) 모든 이펙트가 근거가 된다. 그 주문에는 달리 볼 것이 없다
+
+같은 덤프·정답셋으로 잰 효과는 `MEASURED.md` 2-1절.
 
 ### 증거 등급 (`tier`)
 
@@ -123,11 +165,13 @@ UTF-8이 아닌 플러그인(시스템 코드 페이지의 한글·일본어 이
 - 원소 없던 파괴 마법: 혼돈의 용광로(화염·냉기·전격), Lost Grimoire 의 극지 요새·서리 장막(냉기),
   폭풍 균열·전기장(전격), 살라맨더 비늘(화염), 죽음의 손길(영혼)
 - 괴저: Necromancer's Magic 의 해골 무덤과 부정한 저주 둘(양들의 침묵, 어둠의 무게)
-- 혈 기준(구조 룰, 2026-09-27 결정): **(1)** 플러그인 이름에 blood·vampir·sanguin 이 들어간 모드의
-  주문 전부, **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수·흡혈류(체력·지구력 Absorb, 적대 효과의
-  `MagicVampireDrain` - Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다 - 와
-  `KIT_MagicAbsorbType_Health*`/`Stamina*`). 뱀파이어가 쓰는 얼음 가시 같은 일반 마법은 혈이 아니고,
-  마법사의 체력 흡수도 혈이 아니다. 매지카 흡수는 비전(키워드·망토 변형 포함)
+- 혈 기준(구조 룰, 2026-09-30 개정): 흡혈은 혈에 든다. **(1)** 흡혈 표시 — 적대 효과의
+  `MagicVampireDrain`(시전자와 무관. Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다)와
+  `KIT_MagicElement_Vampiric`, **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수(체력·지구력 Absorb,
+  `KIT_MagicAbsorbType_Health*`/`Stamina*`), 그리고 피 속성 키워드(10_kit, 10_ocf). 뱀파이어가 쓰는 얼음
+  가시 같은 일반 마법은 혈이 아니고, 마법사의 체력 흡수도 혈이 아니다. 매지카 흡수는 비전(키워드·망토 변형
+  포함). 2026-09-27 의 "이름에 blood·vampir·sanguin 이 든 모드의 주문 전부" 룰은 지웠다 — 흡혈 모드의 번개
+  주문까지 혈로 만들었고, 흡혈 주문은 (1)(2) 가 이미 잡는다
 - 저항 강화(구조 룰): 적대가 아닌 `PeakValueModifier`/`ValueModifier` 가 FireResist·FrostResist·
   ElectricResist·PoisonResist·DiseaseResist 를 올리면 그 원소 + 저항(약점 저주가 이미 그렇듯)
 - KIT 망토 변형(`10_kit.json`, 구조 룰): `KIT_MagicDamageType_Dispel<X>Cloak`,

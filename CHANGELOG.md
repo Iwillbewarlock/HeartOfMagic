@@ -13,10 +13,40 @@
   another item shares unless that item qualifies too, never on a perk-bonus effect, and never into a scan.
   It runs at game start and after each full scan; `perk_adapters_report.json` lists what it added, and
   `"perkAdapters": { "enabled": false }` in config.json turns it off from the next game start or scan.
-  Nothing is written to plugins or saves.
+  Nothing is written to plugins or saves. Where a perk asks a spell list rather than a keyword, the
+  modded spells that fit go into that list too (Adamant's concentration fire/shock lists, Vokrii's Grand
+  Conjurer list; lists are filled at game start, a scan in play updates them at the next start). Summons are sorted by what they summon: an undead creature counts as an undead summon,
+  an animal as a familiar, before the librarian's tags are asked.
+  Ascension (1, 2 and the Adamant 6 patch) now recognises unaspected Destruction damage from any spell mod:
+  arcane, shadow, blood, necrotic or nature damage that is not fire, frost, shock, poison, sun or a
+  vampire drain. The adapter names Ascension's keyword by FormID, as Apostasy Framework gives the same
+  keyword another name.
+
+- Spells from the same mod now sit together in the tree: the builder gives a parent from the child's own
+  mod a bonus (below the one for a shared element, so a mod's fire spell still goes to fire first). On a
+  3,500-spell load order two in three mod spells now hang off a spell of their own mod, up from under half.
+  Rebuild the tree to see it.
+
+- The spell card's level can be pressed like a keyword: it lights every spell of that level in the tree,
+  in every school. Press it again, or the pill above the tree, to clear it.
 
 ### Fixed
 
+- The scan tab's Easy page no longer shows "No presets yet" when there are no tree builder presets; the
+  preset section is simply left out and the build uses the current settings.
+- Hidden helper effects no longer give spells wrong element tags. A mod's screen shake or stagger push that
+  rides inside a spell (Mysticism's screen shake carries frost resistance, so Bane of the Undead and Mass
+  Fear were tagged frost) now counts only when it deals real harm. What a cloak, a hazard or an explosion
+  puts on others counts instead: the scan records it (`applies` on the effect), and a cloak's element comes
+  from the spell it casts. Rescan to see the new tags.
+- Tags follow what the game's and the mods' own keywords were made to say. Summons are no longer tagged
+  creature (Bethesda's familiar keyword is on every summon that is not an atronach, the Dremora Lord
+  included), and magic damage with no element is tagged arcane instead of resistance. Vampiric magic is
+  blood magic (not undead) whoever casts it, while a blood or vampire mod's plain lightning bolt is no
+  longer blood just because of the mod's name. Blue flames are fire, not frost; Soul Trap is not a trap;
+  keywords that tell NPCs whom to cast at no longer tag spells undead.
+- Turn Undead spells are no longer tagged as aimed at creatures and people, Fury and Paralysis no longer
+  carry courage and calm tags from the helper effects inside them, and raised corpses count people too.
 - NPC, trap and script copies of spells no longer end up in the tree. The game keeps copies like the trap
   Fireball, the hazard Guardian Circle or Miraak's Lightning Storm; they share the real spell's name but not
   its tier perk, so a Master spell's copy was placed at the root as Novice (seen with Bane of the Undead and

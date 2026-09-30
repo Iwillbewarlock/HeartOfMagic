@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "呪文を解放",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "プリセットを選択",
-    "easyMode.noPresets": "プリセットがありません。現在の設定で構築します。",
     "easyMode.statusWrap": "ステータス: <span id=\"easyStatus\">スキャン待機中...</span>",
     "editMode.editTree": "ツリー編集",
     "editMode.exitEditMode": "編集モード終了",

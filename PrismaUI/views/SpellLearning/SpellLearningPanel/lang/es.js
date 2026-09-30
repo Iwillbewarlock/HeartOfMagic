@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Desbloquear Hechizo",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Elegir un Preset",
-    "easyMode.noPresets": "Sin presets aún. La construcción usará los ajustes actuales.",
     "easyMode.statusWrap": "Estado: <span id=\"easyStatus\">Esperando escaneo...</span>",
     "editMode.editTree": "Editar Árbol",
     "editMode.exitEditMode": "Salir del Modo de Edición",

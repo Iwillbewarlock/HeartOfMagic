@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "Разблокировать заклинание",
     "details.xpUnit": "XP",
     "easyMode.choosePreset": "Выбрать пресет",
-    "easyMode.noPresets": "Пресетов пока нет. Построение будет использовать текущие настройки.",
     "easyMode.statusWrap": "Статус: <span id=\"easyStatus\">Ожидание сканирования...</span>",
     "editMode.editTree": "Редактировать дерево",
     "editMode.exitEditMode": "Выйти из режима редактирования",

@@ -100,6 +100,11 @@ namespace Librarian
         // The scanner's castByVampires: a vampire NPC carries the spell, in its
         // own spell list, its race's, or a leveled list in either.
         std::optional<bool> castByVampires;
+        // "noElement": true - only for a spell no other rule gave an element,
+        // after every removal: the complement of the element-tagged set. For a
+        // mark that means "no element" (Bethesda's MagicDamageResist), which
+        // is only evidence when nothing more specific is there.
+        bool noElement = false;
         std::string spellKeyword;
         std::string spellKeywordPrefix;
         std::string spellKeywordSuffix;

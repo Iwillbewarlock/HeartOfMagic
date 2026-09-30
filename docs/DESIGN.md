@@ -739,7 +739,7 @@ letters, digits and `-`. It does not exist until a language other than the defau
 script just fails to load), under Mod Organizer it lands in overwrite so a mod update does not reset it, and
 it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, then
 `refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
-and scan pages: the Design row's description, the Easy page's preset box ("No presets yet"), the tree
+and scan pages: the Design row's description, the Easy page's preset chips (the whole preset section is hidden when there are no presets, 2026-09-30), the tree
 builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
 lists. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
 tone, key, params)`, `updateScanStatus(message, type, key, params)`, and `window.updateStatus(message, key,
@@ -1293,7 +1293,7 @@ Visual-First builds that used them.
 | `scannerPresets.js` | Scanner preset save/load |
 | `easyMode.js` | Easy mode scan page: preset chips and the build/apply relays (the Tree Style picker and the Complex page's build mode tabs were removed with the other builders, 2026-09-27) |
 | `schoolBridges.js` | Cross school bridges at build time: school order by kinship, bridge sources as soft prerequisites, traits and bridges baked into the saved tree |
-| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, with a single pill (`#tree-trait-filter`) to clear it |
+| `bridgeView.js` | Cross school bridges in the viewer: ring on bridged spells the player has reached, dashed lines for the selected/hovered spell only, "Paths to other schools" list on the spell card, trait filter: the spell card's own keyword chips are pressable and veil the tree to light one trait across all schools, and so is the card's level (`bindLevel`, key `level.<Level>`: every spell of that level, 2026-09-30), with a single pill (`#tree-trait-filter`) to clear it |
 | `buttonHandlers.js` | Scan/build/apply button handlers |
 | `buildProgress.js` | Build progress modal |
 | `progressionUI.js` | Progression UI (learning targets, XP) |

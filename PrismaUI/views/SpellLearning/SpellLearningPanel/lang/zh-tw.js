@@ -162,7 +162,6 @@ window._i18nPreload = {
     "details.unlockSpell": "解鎖法術",
     "details.xpUnit": "經驗",
     "easyMode.choosePreset": "選擇預設",
-    "easyMode.noPresets": "尚無預設。建構將使用目前設定。",
     "easyMode.statusWrap": "狀態: <span id=\"easyStatus\">等待掃描...</span>",
     "editMode.editTree": "編輯樹",
     "editMode.exitEditMode": "退出編輯模式",

@@ -1,5 +1,9 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "librarian/PerkAdapterPatch.h"
+
+#include <set>
+#include <string>
 
 // =============================================================================
 // STRUCTURE EVIDENCE
@@ -129,6 +133,109 @@ namespace SpellScanner
             explosionJson["radius"] = explosion->data.radius;
             return explosionJson;
         }
+
+        // ---------------------------------------------------------------------
+        // What a summon calls up
+        // ---------------------------------------------------------------------
+        //
+        // The race keywords of the actor a summon effect spawns (ActorTypeUndead,
+        // ActorTypeDaedra, ActorTypeAnimal ...): what the thing IS, as its race
+        // record says. A leveled list contributes every actor it can give, down
+        // to a few levels of nesting.
+
+        // ---------------------------------------------------------------------
+        // What an effect puts on others
+        // ---------------------------------------------------------------------
+        //
+        // A cloak, a hazard and an explosion do their work through another magic
+        // item: the spell a cloak casts on whoever comes near, the spell a hazard
+        // puts on whoever stands in it, the enchantment an explosion carries. The
+        // effect itself often says nothing of what that work is (a frost cloak's
+        // own record can have no frost in it at all). One level only.
+
+        json SummarizeAppliedItem(const RE::MagicItem* item, const char* via)
+        {
+            json applied;
+            applied["via"] = via;
+            applied["form"] = FormRef(item);
+            json effects = json::array();
+            for (const auto* effect : item->effects) {
+                if (!effect || !effect->baseEffect) continue;
+                const auto* base = effect->baseEffect;
+                json summary;
+                summary["archetype"] = GetArchetypeName(base->data.archetype);
+                summary["primaryAV"] = GetActorValueName(base->data.primaryAV);
+                summary["resistance"] = GetActorValueName(base->data.resistVariable);
+                summary["detrimental"] = base->IsDetrimental();
+                summary["hostile"] = base->IsHostile();
+                summary["magnitude"] = effect->effectItem.magnitude;
+                summary["duration"] = effect->effectItem.duration;
+                // The librarian weighs hidden helpers here as on the spell's own effects
+                summary["flags"] = { { "hideInUI",
+                    base->data.flags.any(RE::EffectSetting::EffectSettingData::Flag::kHideInUI) } };
+                json keywords = json::array();
+                for (const auto* keyword : base->GetKeywords()) {
+                    const char* editorId = keyword ? keyword->GetFormEditorID() : nullptr;
+                    if (!editorId || editorId[0] == '\0') continue;
+                    // As the plugins wrote it, like every keyword the scan records
+                    if (Librarian::PerkAdapters::IsInjected(base->GetFormID(), keyword->GetFormID())) continue;
+                    keywords.push_back(editorId);
+                }
+                summary["keywords"] = keywords;
+                effects.push_back(summary);
+            }
+            applied["effects"] = effects;
+            return applied;
+        }
+
+        json BuildAppliesJson(const RE::EffectSetting* baseEffect)
+        {
+            const auto& data = baseEffect->data;
+            json applies = json::array();
+            const auto add = [&](const RE::MagicItem* item, const char* via) {
+                if (item && !item->effects.empty()) applies.push_back(SummarizeAppliedItem(item, via));
+            };
+            const auto addHazard = [&](const RE::TESForm* form, const char* via) {
+                const auto* hazard = form ? form->As<RE::BGSHazard>() : nullptr;
+                if (hazard) add(hazard->data.spell, via);
+            };
+            const auto addExplosion = [&](const RE::BGSExplosion* explosion) {
+                if (!explosion) return;
+                add(explosion->formEnchanting, "explosion");
+                // Typed as a reference in the header, a base object in the record (see PlacedObjectIsHazard)
+                addHazard(explosion->data.impactPlacedObject, "explosionHazard");
+            };
+
+            if (data.archetype == RE::EffectArchetype::kCloak && data.associatedForm) {
+                add(data.associatedForm->As<RE::MagicItem>(), "cloak");
+            }
+            addHazard(data.associatedForm, "hazard");
+            addExplosion(data.explosion);
+            if (data.projectileBase) addExplosion(data.projectileBase->data.explosionType);
+            return applies;
+        }
+
+        constexpr int kMaxLeveledDepth = 4;
+
+        void CollectSummonedKeywords(RE::TESForm* form, std::set<std::string>& keywords, int depth)
+        {
+            if (!form || depth > kMaxLeveledDepth) return;
+
+            if (auto* npc = form->As<RE::TESNPC>()) {
+                const auto* race = npc->GetRace();
+                if (!race) return;
+                for (const auto* keyword : race->GetKeywords()) {
+                    const char* editorId = keyword ? keyword->GetFormEditorID() : nullptr;
+                    if (editorId && editorId[0] != '\0') keywords.insert(editorId);
+                }
+                return;
+            }
+            if (auto* leveled = form->As<RE::TESLevCharacter>()) {
+                for (const auto& entry : leveled->entries) {
+                    CollectSummonedKeywords(entry.form, keywords, depth + 1);
+                }
+            }
+        }
     }
 
     // =============================================================================
@@ -168,6 +275,19 @@ namespace SpellScanner
         }
         if (data.equipAbility) {
             effectJson["equipAbility"] = FormRef(data.equipAbility);
+        }
+
+        json applies = BuildAppliesJson(baseEffect);
+        if (!applies.empty()) {
+            effectJson["applies"] = applies;
+        }
+
+        if (data.archetype == RE::EffectArchetype::kSummonCreature && data.associatedForm) {
+            std::set<std::string> keywords;
+            CollectSummonedKeywords(data.associatedForm, keywords, 0);
+            if (!keywords.empty()) {
+                effectJson["summonedKeywords"] = keywords;
+            }
         }
 
     }

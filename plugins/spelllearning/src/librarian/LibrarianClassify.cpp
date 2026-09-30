@@ -86,6 +86,34 @@ namespace Librarian
         }
 
 
+        // Archetypes that change a value: the ones a hidden effect can deal real
+        // harm through.
+        constexpr std::string_view kHarmArchetypes[] = {
+            "ValueModifier", "DualValueModifier", "PeakValueModifier", "Absorb",
+        };
+
+        // A visible effect always counts. A hidden one (hideInUI) counts only
+        // when it deals real harm - detrimental, a magnitude, a value it changes.
+        // Hidden effects are mostly a perk's or a mod's helpers riding in the
+        // spell: a screen shake that carries FrostResist, a stagger push, a perk
+        // dummy; tagging from those put frost on Bane of the Undead. A spell that
+        // hides its real damage (a venom, a frost stream) still counts.
+        bool CountsAsEvidence(const json& effect)
+        {
+            const auto flags = effect.find("flags");
+            const bool hidden = flags != effect.end() && flags->is_object()
+                && flags->contains("hideInUI") && (*flags)["hideInUI"].is_boolean()
+                && (*flags)["hideInUI"].get<bool>();
+            if (!hidden) return true;
+
+            const auto detrimental = effect.find("detrimental");
+            if (detrimental == effect.end() || !detrimental->is_boolean() || !detrimental->get<bool>()) return false;
+            const auto magnitude = effect.find("magnitude");
+            if (magnitude == effect.end() || !magnitude->is_number() || magnitude->get<double>() <= 0) return false;
+            const std::string archetype = ReadField(effect, "archetype");
+            return std::find(std::begin(kHarmArchetypes), std::end(kHarmArchetypes), archetype) != std::end(kHarmArchetypes);
+        }
+
         bool SpellMatches(const json& spell, const RuleMatch& match)
         {
             if (!match.spells.empty()) {
@@ -127,12 +155,36 @@ namespace Librarian
                 return false;
             }
 
+            // A spell whose effects are all hidden (Mysticism's circles, a summon
+            // that shows only its description) has nothing else to go on: then
+            // every effect counts
+            const bool sifted = std::any_of(effects->begin(), effects->end(),
+                [](const json& effect) { return effect.is_object() && CountsAsEvidence(effect); });
+
             // The effect conditions describe one effect, not a spell wide
             // union: an archetype from one effect and a resistance from another
             // are not evidence that either of them is what the rule describes.
             for (const auto& effect : *effects) {
-                if (effect.is_object() && EffectMatches(effect, match)) {
+                if (!effect.is_object()) continue;
+                // A helper hidden in the spell is no evidence, and neither is
+                // what it sets off (a stagger's explosion)
+                if (sifted && !CountsAsEvidence(effect)) continue;
+                if (EffectMatches(effect, match)) {
                     return true;
+                }
+                // What a cloak, hazard or explosion puts on others is the
+                // spell's real work, whatever its own record says
+                const auto applies = effect.find("applies");
+                if (applies == effect.end() || !applies->is_array()) continue;
+                for (const auto& applied : *applies) {
+                    const auto appliedEffects = applied.find("effects");
+                    if (appliedEffects == applied.end() || !appliedEffects->is_array()) continue;
+                    for (const auto& appliedEffect : *appliedEffects) {
+                        if (appliedEffect.is_object() && CountsAsEvidence(appliedEffect)
+                            && EffectMatches(appliedEffect, match)) {
+                            return true;
+                        }
+                    }
                 }
             }
             return false;
@@ -196,6 +248,9 @@ namespace Librarian
         std::set<std::string> removeTechniques;
 
         for (const auto& rule : rules.rules) {
+            if (rule.match.noElement) {
+                continue;  // waits for the last pass
+            }
             if (!SpellMatches(spell, rule.match)) {
                 continue;
             }
@@ -215,6 +270,21 @@ namespace Librarian
 
         for (const auto& tag : removeElements) tags.elements.erase(tag);
         for (const auto& tag : removeTechniques) tags.techniques.erase(tag);
+
+        // Rules for spells left without an element, once all else is settled.
+        // The first that matches settles it: a second must not stack onto it.
+        if (tags.elements.empty()) {
+            for (const auto& rule : rules.rules) {
+                if (!tags.elements.empty()) break;
+                if (!rule.match.noElement || !SpellMatches(spell, rule.match)) continue;
+                tags.elements.insert(rule.addElements.begin(), rule.addElements.end());
+                if (!rule.addElements.empty()) RecordSource(rule.source, tags.elementSource);
+                if (!rule.addTechniques.empty()) {
+                    tags.techniques.insert(rule.addTechniques.begin(), rule.addTechniques.end());
+                    RecordSource(rule.source, tags.techniqueSource);
+                }
+            }
+        }
         if (tags.elements.empty()) tags.elementSource.clear();
         if (tags.techniques.empty()) tags.techniqueSource.clear();
 
