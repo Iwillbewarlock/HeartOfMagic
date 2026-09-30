@@ -18,6 +18,36 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
+[size=5][b]New in 1.2.0[/b][/size]
+
+[size=4][b]Perk overhauls understand your spell mods[/b][/size]
+Perk mods find spells by the keywords on their effects - a fire perk looks for the fire keyword - and a spell mod that left those out got no perk bonuses unless someone made a patch for that exact pair of mods. Librarian now adds the keywords itself, to the spells it has tagged: in memory at game start and after each scan, with no plugin, no patch and nothing written to your save.
+[list]
+[*][b]Covered:[/b] the vanilla keywords every perk overhaul reads, Adamant and Mysticism, Path of Sorcery, Ascension (1, 2 and the Adamant 6 patch) and Paragon. Vokrii and Ordinator need nothing beyond the vanilla keywords.
+[*][b]Careful by design:[/b] a keyword goes on only when the librarian's tag and the effect's own record agree, never on an effect that another spell shares unless that spell qualifies too.
+[*][b]Spell lists too:[/b] where a perk asks a list of spells rather than a keyword (Adamant, Vokrii), fitting modded spells are added to that list at the next game start.
+[*][b]Your call:[/b] [i]perk_adapters_report.json[/i] lists everything added, and [i]"perkAdapters": { "enabled": false }[/i] in [i]config.json[/i] turns it off.
+[/list]
+
+[size=4][b]A tree of spells you can actually find[/b][/size]
+[list]
+[*]The tree is built from spells a tome teaches - as the old "Tomes only" switch did, which is now simply how it works. Quest, perk and script spells stay out of the tree but still get the perk keywords.
+[*]Spells whose tome [b]nothing in your load order hands out[/b] - never placed, sold, dropped, crafted, or given by a quest, a script or a distribution mod (SPID, KID, FLM, SkyPatcher...) - stay out too: you could never find the tome. Librarian reads your plugin files once in the background after the game starts (a few seconds; a scan in that time waits for it). On a 3,900-plugin load order this took out 46 spells from 11 mods.
+[*]Mods' script and animation spells that sit in the voice slot stay out of the tree, and their tome teaches them the vanilla way, so none of them takes your shout's place.
+[*]Spells from the same mod now grow together in the tree.
+[*]A spell's tier now follows its half-cost perk (Novice to Master), as intended - before, a Master spell could land at the root as Novice.
+[/list]
+
+[size=4][b]And[/b][/size]
+[list]
+[*]Press the level on a spell card to light every spell of that level, in every school.
+[*]Better tags: summons by what they summon, spells by the targets they only work on, vampiric magic as blood, walls and storms as constructs, and many smaller fixes - similar spells group better.
+[*]Esc closes the panel again in game.
+[/list]
+[b]After updating:[/b] open the panel, [b]Scan[/b], and [b]build the tree again[/b] - tags, tiers and the spells in the tree have all changed.
+
+[line]
+
 [size=5][b]The original: Heart of Magic[/b][/size]
 
 [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Heart of Magic[/url] by Dinkel Zombie turned spell learning into practice: it scanned every spell in the load order, generated prerequisite trees with text analysis (TF-IDF and fuzzy matching over names, effects and descriptions), and tracked XP from casting and tome study. It brought early, weakened casting that grows to full power, Discovery Mode, progression presets, a plugin whitelist and spell blacklist, and a spell tome hook based on Don't Eat Spell Tomes. Later versions ran without Python ("depythoned") and offered several layout and build modes, including an optional LLM builder.
@@ -116,6 +146,8 @@ No ESP, no Python, no API key. Safe to add to an existing save.
 [*][b]Any game language.[/b] Grouping reads scan data and editor IDs before names, and the panel has fonts for Latin, Cyrillic, Korean, Japanese and Chinese.
 [*][b]ISL-DESTified / Don't Eat Spell Tomes, I Just Want to Sit Down and Read, Gate to Sovngarde CE (Bookworm trait)[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
 [*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - their tagging rules switch on by themselves.
+[*][b]Perk overhauls[/b] - vanilla perks, Adamant, Mysticism, Path of Sorcery, Ascension, Paragon, Vokrii, Ordinator: modded spells get the keywords they read, with no patch.
+[*][b]Distribution mods[/b] (SPID, KID, FormList Manipulator, Base Object Swapper, SkyPatcher, CDF) - a tome they hand out counts as one you can find.
 [*][b]powerofthree's Tweaks[/b] with "Load EditorIDs" - lets the tree group spells by their editor IDs as well as their names.
 [*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) gives the spell card its icons.
 [/list]
@@ -130,6 +162,7 @@ No ESP, no Python, no API key. Safe to add to an existing save.
 [*]Other AE 1.6.x versions: the checks are stricter than in 1.0.1, so the hook may stay out where 1.0.1 put it in.
 [/list]
 Wherever the hook stays out ([i]SpellLearning.log[/i] says "SpellTomeHook failed to install"), tomes work the vanilla way and the rest of the mod still runs.
+[*]A tome handed out only by an SKSE plugin, or by a script that looks it up by number with no property, cannot be seen; its spell would be left out of the tree. Tell me the mod and I will look at it.
 [*]Heart of Magic Librarian replaces Heart of Magic - do not run both.
 [*]Crash logs: the optional [b]Debug Symbols[/b] file puts function names into Crash Logger reports. Install it only if you want to send one.
 [/list]
@@ -142,7 +175,7 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 
 [b]Coming from Heart of Magic v2.5:[/b]
 [list=1]
-[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.1.0 at the time of writing).
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.2.0 at the time of writing).
 [*]Your saves, settings and saved tree carry over.
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
@@ -158,7 +191,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.1.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.2.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 
