@@ -92,8 +92,9 @@ Linear layout. Schools arranged along a horizontal or vertical line with growth 
 ## Layer 2: C++ Native Tree Builders
 
 C++ builds the **tree structure** — which spell is parent/child of which. One builder is left:
-Classic (`TreeBuilderClassic.cpp`), sharing `TreeBuilderCore.cpp` (similarity matrix, config,
-validation, `Build`), `TreeBuilderThemes.cpp` (themes, validation helpers),
+Classic (`TreeBuilderClassic.cpp`), sharing `TreeBuilderCore.cpp` (config, root choice, `Build`),
+`TreeBuilderSimilarity.cpp` (similarity matrix), `TreeBuilderThemes.cpp` (themes),
+`TreeBuilderReachability.cpp` (unlock simulation and repair), `TreeBuilderPlugins.cpp` (a spell's mod),
 `TreeBuilderLinks.cpp` (the self and duplicate link cleanup) and
 `TreeBuilderBridges.cpp` (cross school bridges).
 

@@ -719,7 +719,7 @@ struct SparseVector {
 ```
 
 ### 10. **TreeBuilder** (`plugins/spelllearning/src/treebuilder/`, `plugins/spelllearning/include/treebuilder/TreeBuilder.h`)
-Split across: TreeBuilderCore.cpp, TreeBuilderClassic.cpp, TreeBuilderThemes.cpp, TreeBuilderBridges.cpp, SimdKernels.cpp
+Split across: TreeBuilderCore.cpp, TreeBuilderSimilarity.cpp (similarity matrix), TreeBuilderClassic.cpp, TreeBuilderThemes.cpp, TreeBuilderReachability.cpp (unlock simulation and repair), TreeBuilderPlugins.cpp, TreeBuilderBridges.cpp, SimdKernels.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -1000,7 +1000,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `editMode.js` | Tree editing (add/remove nodes, modify links) |
 | **UI & callbacks** | |
 | `settingsPanel.js` | Settings UI, config persistence, plugin whitelist modal |
-| `treeViewerUI.js` | Tree viewer, spell details, node selection |
+| `treeViewerUI.js` | Tree viewer setup, node lookup, Import dialog (split 2026-09-30: `treeLoad.js` loading, `spellCardView.js` the card, `spellProgressView.js` its progress part, `findSpell.js` Find Spell) |
 | `progressionUI.js` | How-to-Learn panel, learning status badges |
 | `cppCallbacks.js` | C++ ↔ JS (e.g. ProceduralTreeGenerate, GetProgress); enables Complex/Simple buttons when spells loaded |
 | `buttonHandlers.js` | Button click routing and UI state management |
@@ -1394,7 +1394,10 @@ HeartOfMagic/
 │   │       └── treebuilder/                 ✅ Native NLP tree construction + tree declutter (11 files)
 │   │           ├── TreeBuilderCore.cpp          (build dispatch, validation, repair)
 │   │           ├── TreeBuilderClassic.cpp       (Classic builder: tier-first, the one builder)
-│   │           ├── TreeBuilderThemes.cpp        (theme discovery + theme assignment, validation helpers)
+│   │           ├── TreeBuilderThemes.cpp        (theme discovery + theme assignment)
+│   │           ├── TreeBuilderReachability.cpp  (unlock simulation, unreachable repair)
+│   │           ├── TreeBuilderSimilarity.cpp    (similarity matrix, spell keyword bag)
+│   │           ├── TreeBuilderPlugins.cpp       (a spell's mod, same-mod parents)
 │   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
 │   │           ├── LayoutDeclutter.cpp          (declutter: collect, spread, push apart, reply; JS twin: modules/layoutDeclutter.js)

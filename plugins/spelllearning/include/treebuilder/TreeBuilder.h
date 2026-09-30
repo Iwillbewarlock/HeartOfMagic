@@ -53,6 +53,10 @@ namespace TreeBuilder
 
         json spellData;  // original spell JSON (kept for NLP scoring)
 
+        // The spell's mod in lower case, empty for the game and its DLC: read
+        // once here, as Classic compares it for every parent candidate
+        std::string modPlugin;
+
         // Create from spell JSON dict
         static TreeNode FromSpell(const json& spell);
 

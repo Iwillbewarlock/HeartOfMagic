@@ -114,7 +114,18 @@ namespace Librarian
             return std::find(std::begin(kHarmArchetypes), std::end(kHarmArchetypes), archetype) != std::end(kHarmArchetypes);
         }
 
-        bool SpellMatches(const json& spell, const RuleMatch& match)
+        // A spell whose effects are all hidden (Mysticism's circles, a summon
+        // that shows only its description) has nothing else to go on: then
+        // every effect counts. Worked out once per spell, not per rule.
+        bool EvidenceIsSifted(const json& spell)
+        {
+            const auto effects = spell.find("effects");
+            if (effects == spell.end() || !effects->is_array()) return false;
+            return std::any_of(effects->begin(), effects->end(),
+                [](const json& effect) { return effect.is_object() && CountsAsEvidence(effect); });
+        }
+
+        bool SpellMatches(const json& spell, const RuleMatch& match, bool sifted)
         {
             if (!match.spells.empty()) {
                 const std::string id = ReadField(spell, "persistentId");
@@ -154,12 +165,6 @@ namespace Librarian
             if (effects == spell.end() || !effects->is_array()) {
                 return false;
             }
-
-            // A spell whose effects are all hidden (Mysticism's circles, a summon
-            // that shows only its description) has nothing else to go on: then
-            // every effect counts
-            const bool sifted = std::any_of(effects->begin(), effects->end(),
-                [](const json& effect) { return effect.is_object() && CountsAsEvidence(effect); });
 
             // The effect conditions describe one effect, not a spell wide
             // union: an archetype from one effect and a resistance from another
@@ -245,6 +250,7 @@ namespace Librarian
 
         // Removals wait until every rule has added: a rule taking a tag off
         // must win whatever file order put the rule that added it
+        const bool sifted = EvidenceIsSifted(spell);
         std::set<std::string> removeElements;
         std::set<std::string> removeTechniques;
 
@@ -252,7 +258,7 @@ namespace Librarian
             if (rule.match.noElement) {
                 continue;  // waits for the last pass
             }
-            if (!SpellMatches(spell, rule.match)) {
+            if (!SpellMatches(spell, rule.match, sifted)) {
                 continue;
             }
 
@@ -277,7 +283,7 @@ namespace Librarian
         if (tags.elements.empty()) {
             for (const auto& rule : rules.rules) {
                 if (!tags.elements.empty()) break;
-                if (!rule.match.noElement || !SpellMatches(spell, rule.match)) continue;
+                if (!rule.match.noElement || !SpellMatches(spell, rule.match, sifted)) continue;
                 tags.elements.insert(rule.addElements.begin(), rule.addElements.end());
                 if (!rule.addElements.empty()) RecordSource(rule.source, tags.elementSource);
                 if (!rule.addTechniques.empty()) {

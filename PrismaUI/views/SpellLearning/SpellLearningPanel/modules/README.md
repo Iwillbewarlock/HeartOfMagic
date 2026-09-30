@@ -25,7 +25,11 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
-| `treeViewerUI.js` | 2089 | Tree viewer, spell details, node selection |
+| `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
+| `treeLoad.js` | 537 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData` |
+| `spellCardView.js` | 535 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
+| `spellProgressView.js` | 218 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
+| `findSpell.js` | 318 | Find Spell (F): search window, list, keyboard navigation, pan to the spell |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
@@ -112,6 +116,10 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <!-- 5. UI Panels -->
 <script src="modules/settingsPanel.js"></script>
 <script src="modules/treeViewerUI.js"></script>
+<script src="modules/treeLoad.js"></script>
+<script src="modules/spellCardView.js"></script>
+<script src="modules/spellProgressView.js"></script>
+<script src="modules/findSpell.js"></script>
 <script src="modules/progressionUI.js"></script>
 <script src="modules/buttonHandlers.js"></script>
 

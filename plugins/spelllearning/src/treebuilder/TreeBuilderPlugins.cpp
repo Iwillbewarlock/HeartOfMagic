@@ -33,6 +33,5 @@ bool TreeBuilder::Internal::IsBaseGamePlugin(const std::string& lowerPlugin)
 
 bool TreeBuilder::Internal::SharesModPlugin(const TreeNode& a, const TreeNode& b)
 {
-    const auto plugin = SpellPlugin(a.spellData);
-    return !plugin.empty() && !IsBaseGamePlugin(plugin) && plugin == SpellPlugin(b.spellData);
+    return !a.modPlugin.empty() && a.modPlugin == b.modPlugin;
 }

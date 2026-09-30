@@ -1248,7 +1248,7 @@ Tree applied
 | `treeStyleInk.js` | Adds the drawn lines to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | `DesignPresets`: built-in and `presets/design/*.json` looks, the Design Preset selector, preset CSS |
 | `wheelRenderer.js` | Legacy SVG renderer (still loaded, not primary) |
-| `treeViewerUI.js` | Tree viewer page logic, node selection, detail panels |
+| `treeViewerUI.js` | Tree viewer page setup and Import (with `treeLoad.js`, `spellCardView.js`, `spellProgressView.js`, `findSpell.js`, split out 2026-09-30) |
 | `detailsPeek.js` | Hover preview: the card follows the cursor without selecting; the panel keeps its place when nothing is selected |
 | `treeParser.js` | Parses spell_tree.json, cycle detection, orphan fixing |
 | `spellNames.js` | `spellDisplayName`: names in the spell card's lists, with the plugin when two spells share a name |
