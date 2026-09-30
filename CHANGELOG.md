@@ -49,6 +49,9 @@
   blood magic (not undead) whoever casts it, while a blood or vampire mod's plain lightning bolt is no
   longer blood just because of the mod's name. Blue flames are fire, not frost; Soul Trap is not a trap;
   keywords that tell NPCs whom to cast at no longer tag spells undead.
+- Summons are tagged by what they call up (the summoned actor's race: daedra, undead, ghost, dwarven
+  machine), and spells that only take hold on the undead, daedra, people, animals or machines are tagged
+  by that target. Rescan to see the new tags.
 - Turn Undead spells are no longer tagged as aimed at creatures and people, Fury and Paralysis no longer
   carry courage and calm tags from the helper effects inside them, and raised corpses count people too.
 - NPC, trap and script copies of spells no longer end up in the tree. The game keeps copies like the trap

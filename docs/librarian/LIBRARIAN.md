@@ -81,7 +81,11 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 `creature`·`human` 은 **주문을 거는 대상**이다. 정신계와 되살리기(시체에 건다)는 대상이 산 것이나
 시체라 둘을 받는다. 언데드 퇴치는 대상이 언데드라 둘을 떼고, 광분·마비에 부품으로 든 고무·진정
 이펙트는 그 주문이 하는 일이 아니라 `courage`·`pacify` 를 뗀다(`00_mgef.json`). 대상 없는 소환은
-둘을 받지 않는다.
+둘을 받지 않는다. 이펙트 조건이 대상을 좁히면 그대로 따른다(`targetRequires`): 언데드만(`undead`, 둘 없음),
+데이드라만(`daedra`), 사람만(`human` 만), 동물만(`creature` 만), 드워프 기계만(`construct`·`metal`).
+
+소환은 **불러낸 것의 종족**을 따른다(`summonedAny`): 데이드라면 `daedra`, 언데드면 `undead`, 유령이면
+`apparition`, 드워프 기계면 `construct`·`metal`. 데이드라와 기계는 묶인 영혼이 아니라 `soul` 을 뗀다.
 
 **키워드는 붙인 제작자의 의도로 읽는다.** 키워드 하나를 태그로 옮기기 전에, 그 키워드가 실제로 어느
 주문들에 붙어 있는지 보고 제작자가 무엇을 표시하려 했는지부터 정한다. `MagicSummonFamiliar` 는 이름과
