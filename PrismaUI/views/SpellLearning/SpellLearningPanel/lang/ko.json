@@ -170,7 +170,6 @@
     "editMode.undoAction": "되돌리기: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> 블랙리스트",
     "filter.title": "필터",
-    "filter.tomesOnly": "마법서만",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> 화이트리스트",
     "footer.import": "가져오기",
     "footer.legendAvailable": "사용 가능",

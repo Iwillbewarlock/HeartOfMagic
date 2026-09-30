@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Deshacer: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Lista Negra",
     "filter.title": "Filtros",
-    "filter.tomesOnly": "Solo tomos",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Lista Blanca",
     "footer.import": "Importar",
     "footer.legendAvailable": "Disponible",

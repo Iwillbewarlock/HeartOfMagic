@@ -61,7 +61,8 @@
   same name and school has one, unless a tome teaches it.
 - Spells a player does not learn are left out of the scan: any spell that costs no magicka and that no
   tome teaches - creatures' attacks, follower calls (Summon Inigo, Summon Val Serano), pet whistles, and
-  the test and utility spells of other mods (SexLab, Smooth Animation, PhotoMode). Rescan and rebuild.
+  the test and utility spells of other mods (SexLab, Smooth Animation, PhotoMode). Rescan and rebuild. The scan
+  page's "Tomes only" switch is gone: the scan now keeps only what can be learned by itself.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the

@@ -54,20 +54,13 @@ var ClassicBuildRequest = {
 
         var spellsToProcess, config;
         try {
-            // Apply all scan filters: blacklist, whitelist, tome
+            // Apply the scan filters: blacklist, whitelist
             spellsToProcess = spellData.spells;
             if (typeof filterBlacklistedSpells === 'function') {
                 spellsToProcess = filterBlacklistedSpells(spellsToProcess);
             }
             if (typeof filterWhitelistedSpells === 'function') {
                 spellsToProcess = filterWhitelistedSpells(spellsToProcess);
-            }
-            var tomeToggle = document.getElementById('scanModeTomes');
-            if (tomeToggle && tomeToggle.checked && typeof state !== 'undefined' && state.tomedSpellIds) {
-                var tomedIds = state.tomedSpellIds;
-                spellsToProcess = spellsToProcess.filter(function(s) {
-                    return tomedIds[s.formId || s.id];
-                });
             }
             console.log('[ClassicGrowth] Filtered spells: ' + spellsToProcess.length + '/' + spellData.spells.length);
 

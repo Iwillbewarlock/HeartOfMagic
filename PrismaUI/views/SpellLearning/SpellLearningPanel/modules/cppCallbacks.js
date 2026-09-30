@@ -156,27 +156,6 @@ window.onScanStored = function(id) {
 window.updateSpellData = function(jsonStr) {
     console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
 
-    // Check if this is a tome-only scan response (used for filtering, not main data)
-    var parsed = null;
-    try {
-        parsed = JSON.parse(jsonStr);
-        if (parsed.scanMode === 'spell_tomes') {
-            console.log('[SpellLearning] Tome scan received: ' + (parsed.spells ? parsed.spells.length : 0) + ' tomed spells');
-            state.tomedSpellIds = {};
-            if (parsed.spells) {
-                parsed.spells.forEach(function(s) {
-                    if (s.formId) state.tomedSpellIds[s.formId] = true;
-                });
-            }
-            if (typeof updatePrimedCount === 'function') updatePrimedCount();
-            // Restore scan status after background tome scan (C++ overwrites with "Scanning spell tomes...")
-            restoreScannedStatus();
-            return;
-        }
-    } catch (e) {
-        console.error('[SpellLearning] Failed to parse JSON for tome scan check:', e);
-        /* continue to normal processing */ }
-
     try {
         // Already parsed above for the tome check; a 9-20 MB parse is not
         // done twice
@@ -243,13 +222,6 @@ window.updateSpellData = function(jsonStr) {
             if (typeof updatePrimedCount === 'function') updatePrimedCount();
         }
 
-        // If tomes toggle is ON, auto-trigger a tome scan to get tomed IDs for filtering
-        if (data.spells && data.spells.length > 0) {
-            var scanModeTomesEl = document.getElementById('scanModeTomes');
-            if (scanModeTomesEl && scanModeTomesEl.checked && window.callCpp) {
-                window.callCpp('ScanSpells', JSON.stringify({ scanMode: 'tomes', fields: { plugin: true } }));
-            }
-        }
 
     } catch (e) {
         console.error('[SpellLearning] Failed to parse spell data:', e);

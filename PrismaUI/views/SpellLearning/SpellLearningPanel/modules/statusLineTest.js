@@ -237,49 +237,6 @@ var StatusLineTest = {
         // $ patterns in a reason reach the bar as written (the fake t() uses a replacer function too)
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: 'cost $& of $1 and $$' }));
         this.check(bar.textContent === 'Scan failed: cost $& of $1 and $$', 'onScanFailed: a reason with $ patterns, end to end');
-        // A tome scan, in the real order: the good message, C++'s keyless "Scanning spell tomes...",
-        // then the failure. The good message and its colour come back, keyed; the stale tome list is dropped
-        var oldState = g.state;
-        g.state = { lastSpellData: { spellCount: 1428, spells: [{ school: 'Destruction' }, { school: 'Illusion' }, { school: 'Destruction' }] },
-            tomedSpellIds: { '0x1': true } };
-        var cur = 'en';
-        var scanned = function() { return cur === 'ko' ? '2개 학파에서 1428개 주문 스캔됨' : '1428 spells scanned across 2 schools'; };
-        try {
-            g.updateScanStatus(g.t('status.scannedSpellsSchools', { count: 1428, schools: 2 }), 'success',
-                'status.scannedSpellsSchools', { count: 1428, schools: 2 });
-            var goodClass = page.byId.scanStatusBar.className;
-            g.updateStatus('"Scanning spell tomes..."');
-            this.check(bar.textContent === 'Scanning spell tomes...', 'the tome scan starts: C++ writes its keyless line over the bar');
-            btn.disabled = true; btn.innerHTML = 'Scanning...';
-            wait.textContent = 'Scanning game spells...';
-            var warn = console.warn, warned = 0;
-            console.warn = function() { warned++; };
-            try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
-            this.check(bar.textContent === scanned() && page.byId.scanStatusBar.className === goodClass,
-                'onScanFailed (tomes): the scanned message and its colour are back');
-            this.check(warned === 1 && wait.textContent === 'Scanning game spells...' && btn.disabled === true,
-                'onScanFailed (tomes): a console warning; the wait line and the button (a tome scan disables nothing) stay');
-            this.check(g.state.tomedSpellIds && g.state.tomedSpellIds['0x1'] === true, 'onScanFailed (tomes): an existing tomed-spell list is kept');
-            setLang('ko'); cur = 'ko'; g.relabelScanStatus();
-            this.check(bar.textContent === scanned(), 'onScanFailed (tomes): the restored message follows a language switch');
-            setLang('en'); cur = 'en';
-            g.state.tomedSpellIds = null;
-            try { console.warn = function() {}; g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
-            this.check(g.state.tomedSpellIds === null, 'onScanFailed (tomes): with no list it stays null (the tome filter stays off)');
-            // The success path: the tome reply makes the list and puts the scanned message back the same way
-            g.updateStatus('"Scanning spell tomes..."');
-            g.updateSpellData(JSON.stringify({ scanMode: 'spell_tomes', spells: [{ formId: '0x1' }] }));
-            this.check(bar.textContent === scanned() && page.byId.scanStatusBar.className.indexOf('success') !== -1 &&
-                g.state.tomedSpellIds && g.state.tomedSpellIds['0x1'] === true,
-                'updateSpellData (tome reply): the tomed-spell list is set and the scanned message is back');
-            g.state.lastSpellData = null;
-            g.updateStatus('"Scanning spell tomes..."');
-            console.warn = function() {};
-            try { g.onScanFailed(JSON.stringify({ mode: 'tomes', reason: 'boom' })); } finally { console.warn = warn; }
-            this.check(bar.textContent === 'Scanning spell tomes...', 'onScanFailed (tomes): with no scan data the bar is left as it is');
-        } finally {
-            g.state = oldState;
-        }
         btn.disabled = false;
         this._checkParamDollar();
         setLang('en');

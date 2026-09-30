@@ -49,22 +49,6 @@ function relabelScanStatus() {
     if (s && typeof t === 'function') updateScanStatus(scanStatusText(s.key, s.params), s.type, s.key, s.params);
 }
 
-/**
- * The bar's "N spells scanned across M schools" for the spells the panel holds.
- * C++ writes "Scanning spell tomes..." over it for the background tome scan (a
- * keyless message, which also drops the key), so the tome scan's end - its
- * reply or its failure - puts this back. Keyed, so a language switch says it
- * again in the new language. Nothing to say without scan data: the bar stays.
- */
-function restoreScannedStatus() {
-    var data = state.lastSpellData;
-    if (!data || !data.spellCount) return;
-    var schoolSet = {};
-    if (data.spells) data.spells.forEach(function(s) { if (s.school) schoolSet[s.school] = true; });
-    var params = { count: data.spellCount, schools: Object.keys(schoolSet).length };
-    updateScanStatus(t('status.scannedSpellsSchools', params), 'success', 'status.scannedSpellsSchools', params);
-}
-
 /** The Scan button after a scan: enabled, with its own label. */
 function restoreScanButton() {
     var scanBtn = document.getElementById('scanBtn');
@@ -80,14 +64,9 @@ function restoreScanButton() {
  * disabled while a scan runs and only spell data enables it again, so a scan
  * that dies has to hand the button back here, or the panel sits on
  * "Scanning..." with no word of what happened (the log has the full reason).
- * A full scan also ends edit mode's "Scanning game spells..." wait. A tome
- * scan runs on its own behind a good "Scanned N spells" (after a scan, when
- * the tome toggle is switched). C++ has put "Scanning spell tomes..." in the
- * bar, so a failure logs, puts the scanned message back (restoreScannedStatus)
- * and keeps the tomed-spell list it has (the load order does not change during
- * a session, and a rescan filters by the previous list too); with no list the
- * tome filter stays off for the primed count and the next build. It disables
- * nothing, so there is no button to give back.
+ * A full scan also ends edit mode's "Scanning game spells..." wait. The panel
+ * no longer asks for tome scans (the tome filter went, 2026-09-30: the scan
+ * leaves out what a player does not learn); a "tomes" failure is only logged.
  * @param {string|Object} message
  */
 window.onScanFailed = function(message) {
@@ -103,10 +82,8 @@ window.onScanFailed = function(message) {
     }
     reason = String(reason === undefined || reason === null ? '' : reason);
     if (mode === 'tomes') {
-        console.warn('[SpellLearning] The tome scan failed' + (reason ? ' (' + reason + ')' : '') + '; ' + (state.tomedSpellIds
-            ? 'the tome list from the earlier scan is kept'
-            : 'there is no tome list, so the tome filter stays off'));
-        restoreScannedStatus();
+        // No panel control asks for a tome scan since the tome filter went (2026-09-30)
+        console.warn('[SpellLearning] A tome scan failed' + (reason ? ' (' + reason + ')' : ''));
         return;
     }
     restoreScanButton();
@@ -239,17 +216,12 @@ function getPrimedSpells() {
         });
     }
 
-    // Check tome filter
-    var tomeToggle = document.getElementById('scanModeTomes');
-    var tomesOn = tomeToggle && tomeToggle.checked;
-    var tomedIds = state.tomedSpellIds || null;
 
     return data.spells.filter(function(spell) {
         var stableKey = spell.plugin ? spell.plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) : '';
         if (stableKey && blacklistKeys[stableKey]) return false;
         if (blacklistFormIds[spell.formId]) return false;
         if (whitelistActive && spell.plugin && !whitelistPlugins[spell.plugin.toLowerCase()]) return false;
-        if (tomesOn && tomedIds && !tomedIds[spell.formId]) return false;
         return true;
     });
 }

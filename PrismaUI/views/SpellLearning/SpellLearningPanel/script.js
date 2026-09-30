@@ -49,22 +49,6 @@ function initializePanel() {
     safeAddListener('whitelistBtn', 'click', showWhitelistModal);
     safeAddListener('saveBtn', 'click', onSaveClick);
 
-    // Tome toggle - client-side filter, triggers tome scan for IDs
-    var tomeToggle = document.getElementById('scanModeTomes');
-    if (tomeToggle) {
-        tomeToggle.addEventListener('change', function() {
-            if (this.checked) {
-                // Tomes ON: request tome scan to get tomed spell IDs
-                if (window.callCpp && state.lastSpellData) {
-                    window.callCpp('ScanSpells', JSON.stringify({ scanMode: 'tomes', fields: { plugin: true } }));
-                }
-            } else {
-                // Tomes OFF: clear tome filter, update primed with all spells
-                state.tomedSpellIds = null;
-                if (typeof updatePrimedCount === 'function') updatePrimedCount();
-            }
-        });
-    }
     safeAddListener('fullscreenBtn', 'click', toggleFullscreen);
     safeAddListener('closeBtn', 'click', onCloseClick);
     

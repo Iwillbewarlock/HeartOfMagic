@@ -4087,18 +4087,6 @@ body {
     text-align: left;
 }
 
-.scan-filter-toggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-}
-
-.scan-filter-label {
-    font-size: 0.8em;
-    color: var(--text-secondary);
-}
-
 
 /* =============================================================================
    UTILITY CLASSES

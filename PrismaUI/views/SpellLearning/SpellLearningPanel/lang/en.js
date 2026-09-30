@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Undo: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Blacklist",
     "filter.title": "Filters",
-    "filter.tomesOnly": "Tomes only",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Whitelist",
     "footer.import": "Import",
     "footer.legendAvailable": "Available",

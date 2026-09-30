@@ -990,7 +990,7 @@ Where players scan spells and build their tree. Has two modes: **Easy** and **Co
 │ [Scan Spells] [Export Scan]                  │
 ├──────────────────────────────────────────────┤
 │ Total: 247 │ Mods: 12 │ Primed: 0           │
-│ [Blacklist] [Whitelist] [☑ Tomes Only]       │
+│ [Blacklist] [Whitelist]                      │
 ├──────────────────────────────────────────────┤
 │                                              │
 │         Mode-specific content below          │

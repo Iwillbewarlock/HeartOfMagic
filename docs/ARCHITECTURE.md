@@ -197,14 +197,10 @@ answers a failure with `onScanFailed({"mode":"all"|"tomes","reason":...})` (uiHe
 takes the mode from the request's `scanMode`, the same check `RunScan` uses). A full scan (`all`) enables the Scan
 button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
-while a scan runs, so before this a failed scan left it on "Scanning..." for good. A tome scan (`tomes`: the
-automatic one after a full scan, the tome toggle) runs behind a good "Scanned N spells" message and disables
-nothing, but C++ has written "Scanning spell tomes..." over the bar, so its failure logs a console warning,
-puts the keyed scanned message back (`restoreScannedStatus`, also used when the tome reply arrives) and leaves
-`state.tomedSpellIds` as it is: an earlier good list stays in use (the load order does not change during a
-session, and a rescan filters by the previous list too), and with no list the tome filter stays off for the
-primed count and the next build (`getPrimedSpells`, `classic/classicBuildRequest.js`). The failure is not
-shown to the player, only logged (which of the two cases it was). An older plain
+while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
+toggle and the background tome scan behind it are gone (2026-09-30): the full scan itself leaves out what a
+player does not learn (non-player copies and free spells no tome teaches, `FindNonPlayerCopies`), so a
+`tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch
 relabels it). `RunScan` does everything that can throw (the scan, the classification, allocating the

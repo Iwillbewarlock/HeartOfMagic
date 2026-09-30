@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "元に戻す: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> ブラックリスト",
     "filter.title": "フィルター",
-    "filter.tomesOnly": "魔導書のみ",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> ホワイトリスト",
     "footer.import": "インポート",
     "footer.legendAvailable": "習得可能",

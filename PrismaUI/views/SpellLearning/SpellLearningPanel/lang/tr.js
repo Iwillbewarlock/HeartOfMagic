@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Geri al: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Kara Liste",
     "filter.title": "Filtreler",
-    "filter.tomesOnly": "Sadece kitaplar",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Beyaz Liste",
     "footer.import": "İçe Aktar",
     "footer.legendAvailable": "Mevcut",

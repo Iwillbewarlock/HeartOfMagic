@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Отменить: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Чёрный список",
     "filter.title": "Фильтры",
-    "filter.tomesOnly": "Только фолианты",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Белый список",
     "footer.import": "Импорт",
     "footer.legendAvailable": "Доступно",

@@ -823,8 +823,6 @@ function saveUnifiedConfig() {
         fields: state.fields,
         
         // Scan mode
-        scanModeTomes: document.getElementById('scanModeTomes') ? 
-            document.getElementById('scanModeTomes').checked : true,
         
         // Per-node XP overrides
         xpOverrides: xpOverrides,
@@ -875,7 +873,6 @@ function saveUnifiedConfig() {
         detailsLayout: settings.detailsLayout,
         detailsOnHover: settings.detailsOnHover,
         focusDimOthers: settings.focusDimOthers,
-        uiPatchDefaults: settings.uiPatchDefaults || 1,   // Marker: patch defaults (tomes-only scan) already applied once
 
         // Starfield settings
         starfieldEnabled: settings.starfieldEnabled,
@@ -1426,19 +1423,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             }
         }
         
-        // === Scan Mode ===
-        // UI patch default: "Tomes only" is ON. Configs saved before the patch
-        // carry an unchecked value from the old default, so honor a saved value
-        // only once the patch marker has been written.
-        var scanModeCheckbox = document.getElementById('scanModeTomes');
-        if (scanModeCheckbox) {
-            if (data.uiPatchDefaults && data.scanModeTomes !== undefined) {
-                scanModeCheckbox.checked = data.scanModeTomes;
-            } else {
-                scanModeCheckbox.checked = true;
-            }
-        }
-        settings.uiPatchDefaults = data.uiPatchDefaults || 1;
         
         // === Heart Animation Settings ===
         settings.heartAnimationEnabled = data.heartAnimationEnabled !== false;

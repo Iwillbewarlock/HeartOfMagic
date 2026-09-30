@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Annuler : {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Liste noire",
     "filter.title": "Filtres",
-    "filter.tomesOnly": "Grimoires uniquement",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Liste blanche",
     "footer.import": "Importer",
     "footer.legendAvailable": "Disponible",

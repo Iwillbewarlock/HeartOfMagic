@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "Rückgängig: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Sperrliste",
     "filter.title": "Filter",
-    "filter.tomesOnly": "Nur Zauberbücher",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Erlaubnisliste",
     "footer.import": "Importieren",
     "footer.legendAvailable": "Verfügbar",

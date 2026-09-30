@@ -176,7 +176,6 @@
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Sperrliste",
     "filter.title": "Filter",
-    "filter.tomesOnly": "Nur Zauberbücher",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Erlaubnisliste",
 
     "footer.import": "Importieren",

@@ -169,7 +169,6 @@ window._i18nPreload = {
     "editMode.undoAction": "復原: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> 黑名單",
     "filter.title": "篩選",
-    "filter.tomesOnly": "僅魔法書",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> 白名單",
     "footer.import": "匯入",
     "footer.legendAvailable": "可用",
