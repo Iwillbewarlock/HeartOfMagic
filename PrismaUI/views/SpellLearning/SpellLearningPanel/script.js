@@ -93,6 +93,36 @@ function toggleFullscreen() {
 // KEYBOARD SHORTCUTS
 // =============================================================================
 
+// One Escape press can arrive twice: as the view's keydown and from the
+// plugin, which watches the game's input because the view does not always get
+// the key (onNativeEscape). The second arrival within this window is the same press.
+var ESCAPE_REPEAT_MS = 250;
+var _lastEscapeAt = 0;
+
+/**
+ * Escape: with a spell selected on the tree, the first press only drops the
+ * selection; the next one closes the panel.
+ * @returns {boolean} false when it was the same press again
+ */
+function handleEscapePress() {
+    var now = Date.now();
+    if (now - _lastEscapeAt < ESCAPE_REPEAT_MS) return false;
+    _lastEscapeAt = now;
+    var onTree = state.currentTab === 'spellTree' &&
+        document.querySelectorAll('.modal:not(.hidden)').length === 0;
+    if (onTree && state.selectedNode && typeof clearSpellSelection === 'function') {
+        clearSpellSelection();
+        return true;
+    }
+    onCloseClick();
+    return true;
+}
+
+// Called by the plugin when Escape is pressed with the panel open
+window.onNativeEscape = function() {
+    handleEscapePress();
+};
+
 function initializeKeyboardShortcuts() {
     document.addEventListener('keydown', function(e) {
         // Don't close if user is typing in an input/textarea
@@ -106,17 +136,15 @@ function initializeKeyboardShortcuts() {
         // Escape: with a spell selected on the tree, the first press only drops
         // the selection; the next one closes (even when typing)
         if (e.key === 'Escape') {
-            // A dialog's own field already used this press (Find Spell closes itself)
-            if (e.defaultPrevented) return;
-            e.preventDefault();
-            e.stopPropagation();
-            var onTree = state.currentTab === 'spellTree' &&
-                document.querySelectorAll('.modal:not(.hidden)').length === 0;
-            if (onTree && state.selectedNode && typeof clearSpellSelection === 'function') {
-                clearSpellSelection();
+            // A dialog's own field already used this press (Find Spell closes
+            // itself): note the press so the plugin's copy of it does nothing
+            if (e.defaultPrevented) {
+                _lastEscapeAt = Date.now();
                 return;
             }
-            onCloseClick();
+            e.preventDefault();
+            e.stopPropagation();
+            handleEscapePress();
             return;
         }
         

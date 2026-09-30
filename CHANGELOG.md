@@ -35,6 +35,8 @@
   Papyrus `RunScan` already did. The main download does not write it.
 
 ### Fixed
+- Escape closes the panel again in game (with a spell selected, the first press drops the selection).
+  The panel's page did not always receive the key; the plugin now passes Escape on from the game's input.
 
 - The scan tab's Easy page no longer shows "No presets yet" when there are no tree builder presets; the
   preset section is simply left out and the build uses the current settings.

@@ -257,6 +257,14 @@ public:
                 continue;
             }
             
+            // Escape with the panel open: the panel may not get the key itself
+            if (buttonEvent->idCode == kEscapeKeyCode && m_hotkeyCode != kEscapeKeyCode) {
+                if (buttonEvent->IsDown() && UIManager::GetSingleton()->IsPanelVisible()) {
+                    UIManager::GetSingleton()->OnEscapePressed();
+                }
+                continue;
+            }
+
             // PERFORMANCE: Check key code before IsDown (idCode is a simple member access)
             if (buttonEvent->idCode != m_hotkeyCode) {
                 continue;
@@ -277,6 +285,8 @@ public:
     }
 
 private:
+    static constexpr std::uint32_t kEscapeKeyCode = 1;  // DirectInput scan code of Escape
+
     InputHandler() : m_hotkeyCode(66) {}  // Default F8 = 66
     ~InputHandler() = default;
     InputHandler(const InputHandler&) = delete;

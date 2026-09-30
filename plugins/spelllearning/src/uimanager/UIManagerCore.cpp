@@ -142,6 +142,12 @@ bool UIManager::Initialize()
 // PANEL VISIBILITY
 // =============================================================================
 
+void UIManager::OnEscapePressed()
+{
+    if (!m_isPanelVisible) return;
+    CallView("onNativeEscape", "");
+}
+
 void UIManager::TogglePanel()
 {
     if (m_isPanelVisible) {

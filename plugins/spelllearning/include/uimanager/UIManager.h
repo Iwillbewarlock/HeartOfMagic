@@ -23,6 +23,11 @@ public:
     void ShowPanel();
     void HidePanel();
     bool IsPanelVisible() const { return m_isPanelVisible; }
+
+    // Escape pressed while the panel is open: the panel decides (drop the
+    // selected spell, else close). The game's input reaches this whether or
+    // not the key also gets through to the view, which it does not always.
+    void OnEscapePressed();
     bool IsInitialized() const { return m_isInitialized; }
     
     // Settings

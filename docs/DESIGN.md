@@ -778,7 +778,13 @@ element that stops the event cannot keep it), and the drag is let go when the pa
 first press of a session logs `buttons`/`which` and whether the lost-release check is on, so the game
 log tells which case it is.
 
-### Hover preview (2026-09-23)
+#**Escape (2026-09-30).** With a spell selected on the tree the first press drops the selection, the next
+closes the panel (`handleEscapePress`, script.js). In game the view does not always get the key, so the plugin
+watches the game's input too: Escape with the panel open calls `onNativeEscape` (Main.cpp `InputHandler`,
+`UIManager::OnEscapePressed`). One press can arrive both ways; the second arrival within 250 ms is ignored.
+A dialog field that uses the press itself (Find Spell) marks it so the plugin's copy does nothing.
+
+## Hover preview (2026-09-23)
 
 The details panel used to open only on a click. Now resting the cursor on a spell for `DWELL_MS`
 (150 ms) shows its card, and the card goes back to the selected spell `GRACE_MS` (250 ms) after the
