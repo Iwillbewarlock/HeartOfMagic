@@ -91,6 +91,28 @@ namespace Librarian
             }
         }
 
+        // Every key a "match" object may carry. A rule with any other key is
+        // skipped: a misspelt or unsupported condition read as no condition
+        // would match every spell the others allow.
+        constexpr std::string_view kMatchKeys[] = {
+            "spell", "pluginContains", "castByVampires", "noElement",
+            "spellKeyword", "spellKeywordPrefix", "spellKeywordSuffix",
+            "mgefKeyword", "mgefKeywordPrefix", "mgefKeywordSuffix",
+            "archetype", "primaryAV", "secondaryAV", "resistance", "magicSkill",
+            "hostile", "detrimental", "summonedAny", "summonedNone", "targetRequires",
+        };
+
+        // The first key of a match object the grammar does not know, or empty
+        std::string UnknownMatchKey(const json& matchObject)
+        {
+            if (!matchObject.is_object()) return {};
+            for (const auto& [key, value] : matchObject.items()) {
+                if (key.starts_with('_')) continue;
+                if (std::find(std::begin(kMatchKeys), std::end(kMatchKeys), key) == std::end(kMatchKeys)) return key;
+            }
+            return {};
+        }
+
         RuleMatch ParseMatch(const json& matchObject)
         {
             RuleMatch match;
@@ -150,6 +172,12 @@ namespace Librarian
                 return false;
             }
 
+            const std::string unknown = UnknownMatchKey(*matchField);
+            if (!unknown.empty()) {
+                logger::warn("Librarian: '{}' rule {} matches on '{}', which rules cannot read - skipped",
+                    originFile, index, unknown);
+                return false;
+            }
             target.match = ParseMatch(*matchField);
             if (target.match.Empty()) {
                 return false;

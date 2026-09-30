@@ -149,9 +149,13 @@
     { "match": { "archetype": "Paralysis" },
       "add": { "elements": ["flesh"], "techniques": ["telekinesis"] } },
 
-    { "_": "things left standing in the world",
+    { "_": "things left standing in the world. A hazard stands where it is put (a wall, a storm): construct.",
+      "__": "trap is for what is set to go off later - runes, their keywords and exploding placed projectiles",
       "match": { "archetype": "SpawnHazard" },
-      "add": { "elements": ["trap", "construct"] } },
+      "add": { "elements": ["construct"] } },
+    { "_": "ward strength: the push of a barrier",
+      "match": { "primaryAV": "WardPower" },
+      "add": { "elements": ["force"] } },
     { "match": { "archetype": "Light" },
       "add": { "elements": ["light", "construct"] } },
 

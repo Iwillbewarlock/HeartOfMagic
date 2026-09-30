@@ -116,6 +116,7 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 | `primaryAV` `secondaryAV` `resistance` | 이펙트 액터값 | **`FireResist` 꼴** (`ResistFire` 아님) |
 | `magicSkill` | 이펙트 유파 | |
 | `hostile` `detrimental` | 이펙트 플래그 | 없으면 조건 없음, `false` 와 다르다 |
+| (모르는 키) | — | `match` 에 문법에 없는 키(`_` 로 시작하는 주석 제외)가 있으면 그 룰은 로드하지 않고 경고한다. 오타가 조건 없음으로 읽혀 모든 주문에 맞는 것보다 낫다 (2026-09-30) |
 | `summonedAny` `summonedNone` | 이펙트의 `summonedKeywords` | 소환되는 것의 종족 키워드가 하나라도 있어야 / 하나도 없어야. 퍽 어댑터와 같은 판정(`Detail::SummonedMatches`) (2026-09-30) |
 | `targetRequires` | 이펙트의 `targetKeywords` | 이펙트가 이 키워드 중 하나를 가진 대상에게만 걸린다(`has: true`). 언데드 퇴치의 `ActorTypeUndead` (2026-09-30) |
 

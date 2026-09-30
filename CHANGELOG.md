@@ -51,6 +51,9 @@
   blood magic (not undead) whoever casts it, while a blood or vampire mod's plain lightning bolt is no
   longer blood just because of the mod's name. Blue flames are fire, not frost; Soul Trap is not a trap;
   keywords that tell NPCs whom to cast at no longer tag spells undead.
+- Walls, storms and other hazards a spell leaves standing are tagged construct, not trap (a trap is set to
+  go off later, like a rune); speed buffs no longer count as stamina; wards carry force. A librarian rule
+  with a condition the rules cannot read is now skipped with a warning instead of matching every spell.
 - Summons are tagged by what they call up (the summoned actor's race: daedra, undead, ghost, dwarven
   machine), and spells that only take hold on the undead, daedra, people, animals or machines are tagged
   by that target. Rescan to see the new tags.
