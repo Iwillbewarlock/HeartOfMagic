@@ -20,7 +20,9 @@ Papyrus 로 돌리든 패널의 Scan 버튼을 누르든 같은 카탈로그가 
 
 카탈로그에는 스캔한 주문이 전부 들어간다. 톰이 가르치지 않는 주문(NPC·함정·스크립트용 사본, 무료
 주문, 퀘스트·퍽·스크립트 주문)과 음성 슬롯 주문도 카탈로그와 퍽 어댑터에는 들어가고 트리에서만
-빠진다(`taughtByTome`, `voiceSlot`, 2026-09-30, `docs/ARCHITECTURE.md` "The scan keeps every spell").
+빠진다. 로드오더의 무엇도 나눠 주지 않는 톰만 가르치는 주문(`tomeUnreachable`)도 마찬가지다(`taughtByTome`,
+`voiceSlot`, `tomeUnreachable`, 2026-09-30, `docs/ARCHITECTURE.md` "The scan keeps every spell", "Tomes
+nothing hands out").
 
 **카탈로그는 트리가 읽는다(2026-09-27).** `ClassifyScan` 은 카탈로그를 만든 뒤(효과 없는 스펠북
 스캔이면 마지막 전체 스캔이 남긴 카탈로그를 읽어) 각 주문의 `traits`·`chips` 의 `element.*` 를 카탈로그

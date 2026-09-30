@@ -81,7 +81,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
 - `SpellsTaughtByTomes()` - The spells some tome teaches; the scan marks each spell `taughtByTome` from it
 - `IsEquippedInVoiceSlot(spell)` - The spell is equipped in the voice slot (the default object `kVoiceEquip`); the scan marks `voiceSlot` from it and the tome hook hands such a spell to the vanilla path
-- `LogSpellsOutOfTree(spells, taught)` - Logs, by kind, the scanned spells the tree leaves out (SpellScannerCopies.cpp, below)
+- `LogSpellsOutOfTree(spells, taught, unreachable)` - Logs, by kind, the scanned spells the tree leaves out (SpellScannerCopies.cpp, below)
 
 **The scan keeps every spell; the tree takes what a tome teaches (2026-09-30):** the panel's "Tomes only"
 switch was on by default and filtered at tree build time only: Classic's build request kept the scanned
@@ -89,9 +89,10 @@ spells a tome teaches, while the scan, the librarian's catalog and the perk adap
 the switch went, that filter went with it, and about 1,100 spells no tome teaches came into the tree (2,542
 spells against 1,428). Now the scan keeps every spell that passes its other filters, so the catalog and the
 perk adapters see them all (a perk overhaul's keyword reaches a quest or perk spell too, and an effect shared
-with a spell outside the tree is still checked against that spell's tags), and marks two facts from the
-record on each: `taughtByTome` (from `SpellsTaughtByTomes`) and `voiceSlot` (`IsEquippedInVoiceSlot`). The
-tree takes a spell a tome teaches that is not in the voice slot: `isTaughtByTome` / `filterTomeSpells`
+with a spell outside the tree is still checked against that spell's tags), and marks facts from the
+record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`) and
+`tomeUnreachable` (below, "Tomes nothing hands out"). The tree takes a spell a tome teaches, whose tome
+something hands out, that is not in the voice slot: `isTaughtByTome` / `filterTomeSpells`
 (proceduralTreeBuilder.js) in Classic's build request, the primed count (`getPrimedSpells`) and the tree
 preview's school sizes. A scan from before the marks has no fields and keeps every spell. The scan status's
 spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged
@@ -118,7 +119,45 @@ and has neither mark.
   player spell always costs something, while creatures' attacks, followers' calls (Inigo, Val Serano), pets'
   whistles and mods' test or utility spells (SexLab, BowRapidCombo, PhotoMode) cost nothing. About 610 on the
   author's load order.
+- **Spells whose tomes nothing hands out** (`tomeUnreachable`, below).
 - **The other spells no tome teaches:** quest, perk and script spells.
+
+**Tomes nothing hands out (2026-09-30):** a tome record can exist that no player ever finds: no copy is placed,
+sold, dropped, crafted or given (a mod's cut or unfinished content, a patch that is not installed). The spell
+it teaches would be a tree node nobody can learn. `src/tomereach/` finds them from the plugin files, since in
+game the placed references of cells that are not loaded are not in memory:
+
+- `TomeReach::StartAfterDataLoaded` (Main.cpp, kDataLoaded, game thread) takes the loaded plugins in load
+  order (`TESDataHandler::files`, with each file's light flag) and every tome (`TESObjectBOOK` that teaches a
+  spell, keyed by plugin name and local id), then hands them to a detached worker thread; no RE object
+  crosses over.
+- The worker (`FindReachedTomes`, TomeReachPass.cpp) reads every plugin (`ScanPlugin`, TomeReachRecords.cpp;
+  compressed records through zlib). A tome counts as handed out when a record refers to it: a placed
+  reference (`REFR` `NAME`), a leveled list (`LVLI` `LVLO`), a container, NPC or quest inventory (`CNTO`), a
+  form list (`FLST` `LNAM`), a recipe (`COBJ` `CNAM`), a quest alias's created, forced or unique item
+  (`ALCO`, `ALFR`, `ALUA`) or a script property (`VMAD`). Aliases and script properties are read loosely,
+  every four bytes as a possible form id: a false hit only keeps a tome. Form ids resolve through each
+  plugin's own master list, 12 bits for a light plugin.
+- A tome no record names can still come from an SKSE distribution framework: the worker reads the configs
+  under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
+  FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
+  (from the BOOK record) or as plugin and id (`0x800~Plugin.esp`, `Plugin.esp|0x800`). Only these files:
+  inventory layout lists (GridInventory) and icon lists name every book.
+- A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
+  (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
+  the perk adapters. When any plugin cannot be read or is damaged (a record past the end of the file, a
+  compressed record that does not inflate), or the pass has not finished when the scan runs (the
+  first seconds after the game starts), no spell is marked and the log says so.
+- On the author's load order (3,939 plugins, 0.94 GB) it leaves out 46 spells from 11 mods, among them 24
+  summons of a daedra creature pack, Wish Magic's eight wishes and Novice Bolt Spells' three shards; the
+  Python measurement it was checked against is `lab/tome-reach/` (`tome_reach.py`, `make_inputs.py`, the
+  expected list), and `tools/tome-reach-test` runs the plugin's own pass on the same inputs.
+- The file path is the engine's own folder for the plugin (`TESFile::path`), then `Data/<name>`; the log's
+  `TomeReach: reading ...` line names the first one, and `TomeReach: N plugins, N tomes ...` the result.
+- What it cannot see: a tome an SKSE plugin or a script hands out through `GetFormFromFile` with no
+  property, and a config that names a tome by its runtime id (`0xFE000800~Plugin.esl`, a load order
+  prefix) instead of its id in the plugin. Such a spell would leave the tree wrongly; none was found on the author's load order (no script
+  there calls `GetFormFromFile` naming one of the 11 plugins).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
@@ -220,7 +259,7 @@ button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan sta
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
 toggle and the background tome scan behind it are gone (2026-09-30): the tree itself leaves out what a
-player does not learn (the scan keeps every spell and marks `taughtByTome` and `voiceSlot`), so a
+player does not learn (the scan keeps every spell and marks `taughtByTome`, `tomeUnreachable` and `voiceSlot`), so a
 `tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch

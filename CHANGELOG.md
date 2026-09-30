@@ -67,6 +67,10 @@
 - Spells equipped in the voice slot are left out of the tree even when a tome teaches them, and their tome
   teaches them the vanilla way: they are mods' script and animation spells (Smooth Animation's ChargeEffect),
   and one learned would take the shout's place. Rescan and rebuild.
+- Spells whose tomes nothing in your load order hands out - no copy placed, sold, dropped, crafted or given by
+  a quest, script or distribution config - are left out of the tree: no tome of theirs can be found, so the
+  tree could not offer them (a quest or perk that grants such a spell still does). The plugin reads your
+  plugin files once in the background after the game starts to find them; a damaged plugin turns this off.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the

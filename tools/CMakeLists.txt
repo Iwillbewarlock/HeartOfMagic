@@ -79,6 +79,30 @@ target_link_libraries(librarian-test PRIVATE
 )
 
 # =============================================================================
+# tome-reach-test  -  offline harness for the tome reach pass
+# =============================================================================
+# The plugin's own TomeReach sources: which tree spells have tomes nothing in
+# the load order hands out (inputs from lab/tome-reach/make_inputs.py).
+
+add_executable(tome-reach-test
+    tome-reach-test.cpp
+    ${SL_SRC_DIR}/tomereach/TomeReachRecords.cpp
+    ${SL_SRC_DIR}/tomereach/TomeReachConfig.cpp
+    ${SL_SRC_DIR}/tomereach/TomeReachPass.cpp
+)
+
+target_compile_features(tome-reach-test PRIVATE cxx_std_23)
+
+target_include_directories(tome-reach-test PRIVATE
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(tome-reach-test PRIVATE
+    nlohmann_json::nlohmann_json
+    ZLIB::ZLIB
+)
+
+# =============================================================================
 # declutter-test  -  offline harness for the native tree declutter pass
 # =============================================================================
 # The plugin's own LayoutDeclutter sources, so a tree run here comes out as it

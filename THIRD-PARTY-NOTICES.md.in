@@ -157,6 +157,7 @@ texts are in `licenses/`.
 | DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
 | RapidFuzz (rapidfuzz-cpp) | 3.3.3 | MIT | `licenses/rapidfuzz-cpp.txt` |
 | Highway | 1.3.0 | Apache-2.0 | `licenses/highway.txt` |
+| zlib | 1.3.1 | Zlib | `licenses/zlib.txt` |
 
 The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.
 `SpellLearning.dll` also uses Microsoft's OpenMP runtime, `vcomp140.dll`, which is not in the zip: it comes

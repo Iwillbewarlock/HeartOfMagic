@@ -53,6 +53,10 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spellscanner/SpellScannerCasters.cpp
     src/spellscanner/SpellScannerCopies.cpp
     src/spellscanner/SpellScannerScan.cpp
+    src/tomereach/TomeReachRecords.cpp
+    src/tomereach/TomeReachConfig.cpp
+    src/tomereach/TomeReachPass.cpp
+    src/tomereach/TomeReach.cpp
     src/librarian/LibrarianRules.cpp
     src/librarian/LibrarianClassify.cpp
     src/librarian/LibrarianCatalog.cpp
@@ -112,6 +116,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     xbyak::xbyak
     hwy::hwy
     hwy::hwy_contrib
+    ZLIB::ZLIB
 )
 
 # Highway foreach_target dispatch must not be merged into unity build groups

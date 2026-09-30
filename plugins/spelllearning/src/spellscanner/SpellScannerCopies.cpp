@@ -14,9 +14,10 @@ namespace SpellScanner
     // =============================================================================
     //
     // The scan keeps every spell, so the librarian's catalog and the perk adapters
-    // see them all, and marks two facts from the record: taughtByTome (some tome
-    // teaches it) and voiceSlot (it is equipped in the voice slot). The tree takes
-    // only spells a tome teaches that are not voice slot spells
+    // see them all, and marks facts from the record: taughtByTome (some tome
+    // teaches it), voiceSlot (it is equipped in the voice slot) and tomeUnreachable
+    // (nothing hands out any of its tomes, TomeReach). The tree takes only spells a
+    // tome teaches, whose tome something hands out, that are not voice slot spells
     // (isTaughtByTome, proceduralTreeBuilder.js): a player casts spells from the
     // hands, and a voice slot spell (a mod's script or animation spell, Smooth
     // Animation's ChargeEffect) would take the shout's place when learned.
@@ -100,7 +101,7 @@ namespace SpellScanner
     }
 
     void LogSpellsOutOfTree(const std::vector<RE::SpellItem*>& spells,
-        const std::unordered_set<RE::FormID>& taught)
+        const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable)
     {
         std::unordered_set<std::string> keysWithPerk;
         for (auto* spell : spells) {
@@ -108,6 +109,7 @@ namespace SpellScanner
         }
 
         OutOfTree voice{ "spells equipped in the voice slot (script and animation spells)" };
+        OutOfTree unhanded{ "spells whose tomes nothing hands out (not placed, sold, dropped, crafted or given)" };
         OutOfTree copies{ "non-player copies (same name and school as a spell with a half-cost perk, "
                           "no perk of their own, no tome)" };
         OutOfTree freeSpells{ "free spells no tome teaches (NPC attacks, follower calls, test and utility spells)" };
@@ -116,7 +118,7 @@ namespace SpellScanner
             if (IsEquippedInVoiceSlot(spell)) {
                 voice.Add(spell);
             } else if (taught.contains(spell->GetFormID())) {
-                continue;
+                if (unreachable.contains(spell->GetFormID())) unhanded.Add(spell);
             } else if (!spell->data.castingPerk && keysWithPerk.contains(CopyKey(spell))) {
                 copies.Add(spell);
             } else if (spell->CalculateMagickaCost(nullptr) < kFreeSpellCost) {
@@ -126,6 +128,7 @@ namespace SpellScanner
             }
         }
         voice.Log();
+        unhanded.Log();
         copies.Log();
         freeSpells.Log();
         other.Log();

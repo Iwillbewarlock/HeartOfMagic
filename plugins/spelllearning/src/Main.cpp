@@ -13,6 +13,7 @@
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
 #include "librarian/PerkAdapterPatch.h"
+#include "tomereach/TomeReach.h"
 
 // =============================================================================
 // SPELL LEARNING API IMPLEMENTATION (for SKSE inter-plugin messaging)
@@ -401,6 +402,10 @@ void OnDataLoaded()
     // Perk overhauls see the modded spells the catalog knows (keywords added
     // in memory, from the catalog the last scan left)
     Librarian::PerkAdapters::Apply(Librarian::PerkAdapters::kDataLoadedReason);
+
+    // Which tomes something hands out: read from the plugin files on a worker
+    // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
+    TomeReach::StartAfterDataLoaded();
 }
 
 void OnNewGame()

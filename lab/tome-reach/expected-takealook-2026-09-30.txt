@@ -1,0 +1,63 @@
+plugins whose scripts call GetFormFromFile with their own name: []
+tree spells checked: 1428
+cleared only by a config file: 1
+    벨렉 세인 소환 / SLM_PirateKing.esp
+        
+spells whose every tome nothing refers to: 46
+  24  mihaildeadrapack.esp
+        오그림 소환 [mihailbooksummonogrim]
+        데드랜드 베인킨 소환 [mihailbanekin_summon_bookFIREDUPLICATE001]
+        지빌라이 고문관 소환 [mihailxivilai_deadlands_summon_xivilai3_book]
+        마니아의 폴리워그 소환 [mihailpollywog_spell_book_MANIA]
+        디멘시아의 폴리워그 소환 [mihailpollywog_spell_book_DEMENTED]
+        초월한 종복 소환 [mihailexp1_summon_book]
+        스캠프 소환 [mihailscamp_summon_book]
+        베인캠프 소환 [mihaibanekamp_summon_book]
+        콜드하버 베인킨 소환 [mihailbanekin_summon_book]
+        지브킨 학살자 소환 [mihailxivkyn_summon_book_1]
+        지브킨 편태자 소환 [mihailxivkyn_summon_book_2]
+        지브킨 적출자 소환 [mihailxivkyn_summon_book_3]
+        지브킨 공포술사 소환 [mihailxivkyn_summon_book_4]
+        주시자 소환 [mihailwatcher_spell_summon_book]
+        까마귀 영혼 소환 [mihailwraithofcrows_summon_book]
+        굶주린 자 소환 [mihailhungersummon_book]
+        지빌라이 소각자 소환 [mihailxivilai_deadlands_summon_xivilai2_book]
+        지빌라이 학살 사제 소환 [mihailxivilai_deadlands_summon_xivilai4_book]
+        상급 클랜피어 소환 [mihailhighclannfear_spell_book]
+        데드랜드 베인킨 소환 [mihailbanekin_summon_bookFIRE]
+        데이드랫 소환 [mihail_daedrat_summon_book]
+        화염 데이드랫 소환 [mihail_daedrat_summon_bookDAGON]
+        더스크랫 소환 [mihail_daedrat_summon_bookDUSK]
+        더스크 팬서 소환 [mihail_duskpanther_summon_book]
+   8  WishMagic.esl
+        소원 - 청명한 하늘 [_TRF_SpellTomeOrderG]
+        소원 - 광역 회복 [_TRF_SpellTomeOrderB]
+        소원 - 변이 [_TRF_SpellTomeOrderD]
+        소원 - 진미 현현 [_TRF_SpellTomeOrderC]
+        소원 - 마법 부여 원반 현현 [_TRF_SpellTomeOrderF]
+        소원 - 마법 거울 현현 [_TRF_SpellTomeOrderE]
+        소원 - 인도의 빛 [_TRF_SpellTomeOrderA]
+        소원 - 무지갯빛 비 [_TRF_SpellTomeOrderH]
+   3  NoviceBoltSpells.esp
+        불씨조각 [SpellTomeEmbershard]
+        냉기조각 [SpellTomeFrostshard]
+        번개조각 [SpellTomeThundershard]
+   2  Glenmoril.esm
+        리그의 광휘 소환 [zzzRevSpellTomeKinRadLurker]
+        히스트 호버 소환 [zzzRevSpellTomeHistHover]
+   2  MysticismMagic.esp
+        지장 [MAG_SpellTomeEncumber]
+        부담의 룬 [MAG_SpellTomeBurdenRune]
+   2  mihailhighfantasypack.esp
+        드래곤 폭풍 [mihailfirewyrm_book]
+        아메노스 오나우그 소환 [mihailornaug_summon_book]
+   1  WildwakerMagic.esl
+        리퍼 도미나 [_PO_SpellTomeScarlet75]
+   1  Midnight Sun.esm
+        절망의 전령 소환 [_NV_SpellTomeSummonFamiliar]
+   1  JS Order of Aetherius.esp
+        망령 무리 소환 [JSSpellTomeConjureGhostPack]
+   1  Meridia.esp
+        메리디아의 빛 [NMeridiaMeridiasLightSpellTome]
+   1  mihailashgolemexpansion.esp
+        화산재 골렘 소환 [mihailspellconjureashgolemspellbook]

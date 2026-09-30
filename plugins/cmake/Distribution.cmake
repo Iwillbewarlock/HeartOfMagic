@@ -111,7 +111,7 @@ set(_licenses_dist "${DIST_VERSION_DIR}/licenses")
 set(_vcpkg_share "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share")
 # The vcpkg ports whose code ends up in the DLLs (vcpkg.json, and CommonLib's DirectXTK)
 set(_vcpkg_license_ports
-    fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway)
+    fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway zlib)
 
 configure_file(
     "${CMAKE_SOURCE_DIR}/THIRD-PARTY-NOTICES.md.in"

@@ -51,6 +51,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(xbyak CONFIG REQUIRED)
 find_package(hwy CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # ============================================================================
 # Sub-projects

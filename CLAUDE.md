@@ -212,7 +212,7 @@ node run-tests.js
 | `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar), and the spell card's rounded Magicka cost |
 | `modules/spellNamesTest.js` | Names in the spell card's lists (a shared name gets its plugin, a unique one does not, hidden names `???` with no plugin, SpellCache plugin before persistentId, counts after a new tree or invalidate) and TreeParser dropping self links |
 | `modules/levelFilterTest.js` | The spell card's level as a tree filter (`level.<Level>` lights every spell of that level; pressable only when shown and counted) |
-| `modules/tomeFilterTest.js` | The tree's tome filter: spells marked `taughtByTome` false or `voiceSlot` true stay out of the tree build and the primed count; a scan without the marks keeps every spell |
+| `modules/tomeFilterTest.js` | The tree's tome filter: spells marked `taughtByTome` false, `tomeUnreachable` or `voiceSlot` true stay out of the tree build and the primed count; a scan without the marks keeps every spell |
 | `test-runner.html` | Browser-based test runner |
 | `dev-harness.html` | Desktop harness (open in a browser, mock C++ bridge in `dev-harness-bridge.js`). Generated: `node tools/make-dev-harness.js` puts the parts of `dev-harness-parts.html` into `index.html`, so it loads exactly the panel's scripts in the panel's order - never edit it by hand, edit `dev-harness-parts.html` and regenerate |
 
@@ -250,7 +250,9 @@ This project does not have a C++ test framework. Validation is done through:
   `treebuilder-test` (the Classic tree builder; it prints each school's shape - `Structure <school>: nodes, links,
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
   spells that never branches), `librarian-test` (spell tag librarian; `--adapters <dir> --catalog <file>` plans the perk adapter
-  keyword writes with the plugin's own planner) and `declutter-test`
+  keyword writes with the plugin's own planner), `tome-reach-test` (which tree spells have tomes nothing hands
+  out: `tome-reach-test -i inputs.json -s spell_scan_output.json`, inputs from `lab/tome-reach/make_inputs.py`;
+  it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")

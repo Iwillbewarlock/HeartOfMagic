@@ -4,6 +4,7 @@
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
 #include "librarian/Librarian.h"
+#include "tomereach/TomeReach.h"
 
 namespace SpellScanner
 {
@@ -228,11 +229,16 @@ namespace SpellScanner
         // marked with what the tree goes by: whether a tome teaches it and whether
         // it is equipped in the voice slot (SpellScannerCopies.cpp)
         const auto taught = SpellsTaughtByTomes();
-        LogSpellsOutOfTree(kept, taught);
+        std::unordered_set<RE::FormID> unreachable;
+        if (!TomeReach::UnreachableSpells(unreachable)) {
+            logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
+        }
+        LogSpellsOutOfTree(kept, taught, unreachable);
         for (auto* spell : kept) {
             auto spellJson = BuildSpellJson(spell, spell->GetFormID(), fields);
             spellJson["taughtByTome"] = taught.contains(spell->GetFormID());
             spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
+            if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
             spellArray.push_back(std::move(spellJson));
             scannedCount++;
         }
