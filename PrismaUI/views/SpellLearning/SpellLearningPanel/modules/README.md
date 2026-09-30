@@ -21,7 +21,8 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
 | `uiHelpers.js` | 506 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist) |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `treeParser.js` | 992 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId` |
+| `treeParser.js` | 547 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId`; `updateNodeFromCache` fills a node from the spell info and drops the level filter's counts when its level changes |
+| `orphanRepair.js` | 456 | `analyzeOrphans` / `repairOrphans` / `updateOrphanRepairButton`: spells the loaded tree cannot reach and prerequisite links to spells it does not have, and the orphan repair button (split from treeParser.js, 2026-09-30) |
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
@@ -80,7 +81,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 205 | Spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~25,797 | the 58 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~43,400 lines in 96 files) |
+| **TOTAL** | ~25,808 | the 59 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~45,500 lines in 107 files) |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,
@@ -111,6 +112,7 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 
 <!-- 3. Parsers -->
 <script src="modules/treeParser.js"></script>
+<script src="modules/orphanRepair.js"></script>
 <script src="modules/spellNames.js"></script>
 
 <!-- 4. Renderer -->
@@ -149,6 +151,7 @@ colorUtils.js         (uses: state.js, constants.js)
 uiHelpers.js          (uses: state.js)
     ↓
 treeParser.js         (uses: state.js)
+orphanRepair.js       (uses: state.js)
 spellNames.js         (uses when called: state.js, spellCache.js, treeViewerUI.js)
     ↓
 wheelRenderer.js      (uses: state.js, config.js, colorUtils.js, treeParser.js)
@@ -193,6 +196,10 @@ script.js             (uses: all modules)
 ### treeParser.js
 - `TreeParser.parse(data)` - Parse and validate tree JSON
 - `TreeParser.detectAndFixCycles(nodes)` - Fix circular dependencies
+
+### orphanRepair.js
+- `analyzeOrphans()` - Count unreachable spells and missing prerequisite links (read only)
+- `repairOrphans()` - Reconnect them; `updateOrphanRepairButton()` shows the button when there is something to repair
 
 ### wheelRenderer.js
 - `WheelRenderer.init(svg)` - Initialize renderer
