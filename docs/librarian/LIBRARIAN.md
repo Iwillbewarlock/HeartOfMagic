@@ -18,9 +18,9 @@ spell_scan_output.json  ──▶  룰 매칭 + 축 도출  ──▶  spell_cat
 (`RunScanToFile`, UI 의 `OnScanSpells`)이 같은 `Librarian::ClassifyScan` 을 부르므로
 Papyrus 로 돌리든 패널의 Scan 버튼을 누르든 같은 카탈로그가 남는다.
 
-카탈로그에 들어가는 건 스캔이 남긴 주문뿐이다. NPC·함정·스크립트용 사본(이름과 학파가 같은
-주문 중 반감 퍽이 있는 주문이 따로 있는데 자신은 퍽도 없고 가르치는 톰도 없는 주문)은 스캔이
-빼므로 카탈로그에도 없다(2026-09-30, `docs/ARCHITECTURE.md` "Non-player copies").
+카탈로그에는 스캔한 주문이 전부 들어간다. 톰이 가르치지 않는 주문(NPC·함정·스크립트용 사본, 무료
+주문, 퀘스트·퍽·스크립트 주문)과 음성 슬롯 주문도 카탈로그와 퍽 어댑터에는 들어가고 트리에서만
+빠진다(`taughtByTome`, `voiceSlot`, 2026-09-30, `docs/ARCHITECTURE.md` "The scan keeps every spell").
 
 **카탈로그는 트리가 읽는다(2026-09-27).** `ClassifyScan` 은 카탈로그를 만든 뒤(효과 없는 스펠북
 스캔이면 마지막 전체 스캔이 남긴 카탈로그를 읽어) 각 주문의 `traits`·`chips` 의 `element.*` 를 카탈로그

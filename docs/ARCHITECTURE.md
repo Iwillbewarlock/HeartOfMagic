@@ -79,25 +79,46 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
-- `FindNonPlayerCopies(spells)` - The spells a player does not learn among the kept ones, none taught by a tome: NPC, trap and script copies, and free spells (SpellScannerCopies.cpp, below)
+- `SpellsTaughtByTomes()` - The spells some tome teaches; the scan marks each spell `taughtByTome` from it
+- `IsEquippedInVoiceSlot(spell)` - The spell is equipped in the voice slot (the default object `kVoiceEquip`); the scan marks `voiceSlot` from it and the tome hook hands such a spell to the vanilla path
+- `LogSpellsOutOfTree(spells, taught)` - Logs, by kind, the scanned spells the tree leaves out (SpellScannerCopies.cpp, below)
 
-**Non-player copies (2026-09-30):** the game keeps copies of many spells for NPCs, traps and scripts
-(TrapFireball01, HazardGuardianCircleSpell, Miraak's Lightning Storm, cloak damage spells). They share the
-real spell's name and school but have no half-cost perk, so `DetermineSpellTier` falls back to the effect's
-minimum skill - often 0 - and a Master spell's copy was built into the tree as Novice (a player report:
-Bane of the Undead and Harmony at the roots with the tome filter off). After its other filters,
-`ScanSpellsToJson` drops a spell when another kept spell with the same name (ASCII case ignored) and school
-has a half-cost perk, it has none, and no tome teaches it. The log names the first five
-(`SpellScanner: dropped N non-player copies ...`); they count as filtered. On the author's load order
-(3546 spells) it drops 391, all NPC, trap, hand or cloak-damage copies. The editor id filter
-(`isNonPlayerSpell` in the same loop) cannot do this: it reads `GetFormEditorID()`, which the engine leaves
-empty for spells, so it never matches (turning it on would also drop Soul Trap on "trap").
+**The scan keeps every spell; the tree takes what a tome teaches (2026-09-30):** the panel's "Tomes only"
+switch was on by default and filtered at tree build time only: Classic's build request kept the scanned
+spells a tome teaches, while the scan, the librarian's catalog and the perk adapters saw every spell. When
+the switch went, that filter went with it, and about 1,100 spells no tome teaches came into the tree (2,542
+spells against 1,428). Now the scan keeps every spell that passes its other filters, so the catalog and the
+perk adapters see them all (a perk overhaul's keyword reaches a quest or perk spell too, and an effect shared
+with a spell outside the tree is still checked against that spell's tags), and marks two facts from the
+record on each: `taughtByTome` (from `SpellsTaughtByTomes`) and `voiceSlot` (`IsEquippedInVoiceSlot`). The
+tree takes a spell a tome teaches that is not in the voice slot: `isTaughtByTome` / `filterTomeSpells`
+(proceduralTreeBuilder.js) in Classic's build request, the primed count (`getPrimedSpells`) and the tree
+preview's school sizes. A scan from before the marks has no fields and keeps every spell. The scan status's
+spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged
+and has neither mark.
 
-**Free spells (2026-09-30):** the same pass also drops a spell no tome teaches whose magicka cost
-(`CalculateMagickaCost`) is below 0.5: a player spell always costs something, while creatures' attacks,
-followers' calls (Inigo, Val Serano), pets' whistles and mods' test or utility spells (SexLab, Smooth
-Animation, BowRapidCombo, PhotoMode) cost nothing. Logged as `SpellScanner: dropped N free spells no tome
-teaches ...`. On the author's load order about 640 of 3155 scanned spells cost nothing before the tome check.
+`LogSpellsOutOfTree` logs what that leaves out, by kind, naming the first five of each
+(`SpellScanner: N <kind> stay in the scan, out of the tree: ...`):
+
+- **Voice slot spells**, whether a tome teaches them or not. A player's spells equip in the hands; voice slot
+  spells are mods' script and animation spells (11 of Smooth Animation's - ChargeEffect, dodge and shield
+  bash effects - and a follower call of CJ03Elroy's on the author's load order). One learned would take the
+  shout's place, so the tome hook (`OnSpellTomeReadImpl`) gives such a spell the vanilla handling - learned
+  at once, no learning target, early learning, weakening or ISL study.
+- **Non-player copies:** the game keeps copies of many spells for NPCs, traps and scripts (TrapFireball01,
+  HazardGuardianCircleSpell, Miraak's Lightning Storm, cloak damage spells). They share the real spell's name
+  and school but have no half-cost perk, so `DetermineSpellTier` falls back to the effect's minimum skill -
+  often 0 - and a Master spell's copy was built into the tree as Novice (a player report: Bane of the Undead
+  and Harmony at the roots with the tome filter off). A copy is a spell no tome teaches with no half-cost perk
+  when another scanned spell of the same name (ASCII case ignored) and school has one. On the author's load
+  order (3546 spells) there are 391, all NPC, trap, hand or cloak-damage copies. The editor id filter
+  (`isNonPlayerSpell` in the scan loop) cannot find them: it reads `GetFormEditorID()`, which the engine
+  leaves empty for spells, so it never matches (turning it on would also drop Soul Trap on "trap").
+- **Free spells:** no tome teaches them and their magicka cost (`CalculateMagickaCost`) is below 0.5: a
+  player spell always costs something, while creatures' attacks, followers' calls (Inigo, Val Serano), pets'
+  whistles and mods' test or utility spells (SexLab, BowRapidCombo, PhotoMode) cost nothing. About 610 on the
+  author's load order.
+- **The other spells no tome teaches:** quest, perk and script spells.
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
@@ -198,8 +219,8 @@ takes the mode from the request's `scanMode`, the same check `RunScan` uses). A 
 button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
-toggle and the background tome scan behind it are gone (2026-09-30): the full scan itself leaves out what a
-player does not learn (non-player copies and free spells no tome teaches, `FindNonPlayerCopies`), so a
+toggle and the background tome scan behind it are gone (2026-09-30): the tree itself leaves out what a
+player does not learn (the scan keeps every spell and marks `taughtByTome` and `voiceSlot`), so a
 `tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch

@@ -54,8 +54,11 @@ var ClassicBuildRequest = {
 
         var spellsToProcess, config;
         try {
-            // Apply the scan filters: blacklist, whitelist
+            // Apply the scan filters: tome, blacklist, whitelist
             spellsToProcess = spellData.spells;
+            if (typeof filterTomeSpells === 'function') {
+                spellsToProcess = filterTomeSpells(spellsToProcess);
+            }
             if (typeof filterBlacklistedSpells === 'function') {
                 spellsToProcess = filterBlacklistedSpells(spellsToProcess);
             }

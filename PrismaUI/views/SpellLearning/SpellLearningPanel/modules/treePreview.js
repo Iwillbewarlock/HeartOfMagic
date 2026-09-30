@@ -181,7 +181,9 @@ var TreePreview = {
         var self = this;
         this.schoolData = {};
         if (spellData && spellData.spells) {
-            spellData.spells.forEach(function(spell) {
+            // Only the spells the tree will take (tome taught, not voice slot)
+            var treeSpells = (typeof filterTomeSpells === 'function') ? filterTomeSpells(spellData.spells) : spellData.spells;
+            treeSpells.forEach(function(spell) {
                 var school = spell.school || 'Unknown';
                 self.schoolData[school] = (self.schoolData[school] || 0) + 1;
             });

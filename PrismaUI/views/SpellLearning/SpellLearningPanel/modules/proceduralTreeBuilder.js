@@ -16,6 +16,29 @@
  */
 
 // =============================================================================
+// TOME FILTER
+// =============================================================================
+
+/**
+ * A spell the tree takes: some tome teaches it, as the scan page's "Tomes only"
+ * switch did in its default (on) position before it went (2026-09-30), and it
+ * is not equipped in the voice slot (a mod's script or animation spell, which
+ * would take the shout's place when learned). The scan keeps every spell for
+ * the librarian and the perk adapters and marks taughtByTome and voiceSlot; a
+ * scan from before the marks has no fields, and its spells count as taken.
+ * @param {Object} spell
+ * @returns {boolean}
+ */
+function isTaughtByTome(spell) {
+    return !spell || (spell.taughtByTome !== false && spell.voiceSlot !== true);
+}
+
+/** The spells the tree takes (isTaughtByTome). */
+function filterTomeSpells(spells) {
+    return spells.filter(isTaughtByTome);
+}
+
+// =============================================================================
 // BLACKLIST FILTER
 // =============================================================================
 

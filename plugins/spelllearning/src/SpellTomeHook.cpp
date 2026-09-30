@@ -5,6 +5,7 @@
 #include "ISLIntegration.h"
 #include "SpellTomeHookGate.h"
 #include "SpellTomeHookSites.h"
+#include "SpellScanner.h"
 
 // Xbyak for assembly code generation
 #include <xbyak/xbyak.h>
@@ -75,6 +76,14 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         return;
     }
 
+    // A spell equipped in the voice slot is a mod's script or animation spell,
+    // never in the tree (SpellScannerCopies.cpp): its tome teaches it the vanilla
+    // way, with no learning target, early learning or weakening
+    const bool voiceSlot = SpellScanner::IsEquippedInVoiceSlot(a_spell);
+    if (voiceSlot) {
+        logger::info("SpellTomeHook: '{}' is a voice slot spell - vanilla handling", a_spell->GetName());
+    }
+
     // =========================================================================
     // ISL INTEGRATION — Immersive Spell Learning compatibility
     // =========================================================================
@@ -89,7 +98,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // SpellEffectivenessHook applies power scaling. Player then gains
     // mastery through the normal spell-casting XP system.
     // =========================================================================
-    if (DESTIntegration::IsActive()) {
+    if (DESTIntegration::IsActive() && !voiceSlot) {
         logger::info("SpellTomeHook: ISL/DEST active — checking requirements before delegation");
 
         RE::FormID spellFormId = a_spell->GetFormID();
@@ -138,7 +147,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // =========================================================================
     // VANILLA MODE - Instant learn, consume book (like normal Skyrim)
     // =========================================================================
-    if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem) {
+    if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem || voiceSlot) {
         // Still check if player already knows the spell
         if (player->HasSpell(a_spell)) {
             if (hook->m_settings.showNotifications) {

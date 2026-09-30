@@ -23,7 +23,7 @@ namespace SpellScanner
         logger::info("SpellScanner: Found {} total spell forms", allSpells.size());
 
         json spellArray = json::array();
-        std::vector<RE::SpellItem*> kept;  // passed every filter; copies are sorted out after the loop
+        std::vector<RE::SpellItem*> kept;  // passed every filter; marked for the tree after the loop
         int scannedCount = 0;
         int skippedCount = 0;
         int filteredCount = 0;
@@ -224,14 +224,16 @@ namespace SpellScanner
             kept.push_back(spell);
         }
 
-        // NPC, trap and script copies of a spell only show once every spell is in
-        const auto copies = FindNonPlayerCopies(kept);
+        // Every spell stays (the librarian and the perk adapters read them all),
+        // marked with what the tree goes by: whether a tome teaches it and whether
+        // it is equipped in the voice slot (SpellScannerCopies.cpp)
+        const auto taught = SpellsTaughtByTomes();
+        LogSpellsOutOfTree(kept, taught);
         for (auto* spell : kept) {
-            if (copies.contains(spell->GetFormID())) {
-                filteredCount++;
-                continue;
-            }
-            spellArray.push_back(BuildSpellJson(spell, spell->GetFormID(), fields));
+            auto spellJson = BuildSpellJson(spell, spell->GetFormID(), fields);
+            spellJson["taughtByTome"] = taught.contains(spell->GetFormID());
+            spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
+            spellArray.push_back(std::move(spellJson));
             scannedCount++;
         }
 

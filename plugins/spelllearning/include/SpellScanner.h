@@ -132,12 +132,17 @@ namespace SpellScanner
     // the tag librarian reads it as evidence of blood magic.
     bool IsCastByVampires(RE::FormID spellFormId);
 
-    // Of the spells the scan kept, those a player does not learn
-    // (SpellScannerCopies.cpp), none of them taught by a tome: another spell's
-    // NPC, trap or script copy (same name and school as a spell with a
-    // half-cost perk, no perk of its own), and a spell that costs no magicka
-    // (a creature's attack, a follower's call, a test or utility spell).
-    std::unordered_set<RE::FormID> FindNonPlayerCopies(const std::vector<RE::SpellItem*>& spells);
+    // What the tree goes by (SpellScannerCopies.cpp): the scan keeps every spell
+    // and marks taughtByTome and voiceSlot; the tree takes spells a tome teaches
+    // that are not in the voice slot.
+    std::unordered_set<RE::FormID> SpellsTaughtByTomes();
+    bool IsEquippedInVoiceSlot(RE::SpellItem* spell);
+
+    // Logs, by kind, the scanned spells the tree leaves out: voice slot spells,
+    // and among those no tome teaches NPC, trap or script copies, free spells
+    // and the rest.
+    void LogSpellsOutOfTree(const std::vector<RE::SpellItem*>& spells,
+        const std::unordered_set<RE::FormID>& taught);
 
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard

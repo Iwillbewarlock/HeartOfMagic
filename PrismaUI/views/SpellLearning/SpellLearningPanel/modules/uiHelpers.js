@@ -217,7 +217,10 @@ function getPrimedSpells() {
     }
 
 
+    var tomeCheck = (typeof isTaughtByTome === 'function') ? isTaughtByTome : null;
+
     return data.spells.filter(function(spell) {
+        if (tomeCheck && !tomeCheck(spell)) return false;
         var stableKey = spell.plugin ? spell.plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) : '';
         if (stableKey && blacklistKeys[stableKey]) return false;
         if (blacklistFormIds[spell.formId]) return false;

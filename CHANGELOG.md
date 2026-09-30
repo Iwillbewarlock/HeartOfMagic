@@ -61,15 +61,12 @@
   by that target. Rescan to see the new tags.
 - Turn Undead spells are no longer tagged as aimed at creatures and people, Fury and Paralysis no longer
   carry courage and calm tags from the helper effects inside them, and raised corpses count people too.
-- NPC, trap and script copies of spells no longer end up in the tree. The game keeps copies like the trap
-  Fireball, the hazard Guardian Circle or Miraak's Lightning Storm; they share the real spell's name but not
-  its tier perk, so a Master spell's copy was placed at the root as Novice (seen with Bane of the Undead and
-  Harmony when the tome filter is off). The scan now leaves out a spell with no tier perk when a spell of the
-  same name and school has one, unless a tome teaches it.
-- Spells a player does not learn are left out of the scan: any spell that costs no magicka and that no
-  tome teaches - creatures' attacks, follower calls (Summon Inigo, Summon Val Serano), pet whistles, and
-  the test and utility spells of other mods (SexLab, Smooth Animation, PhotoMode). Rescan and rebuild. The scan
-  page's "Tomes only" switch is gone: the scan now keeps only what can be learned by itself.
+- The scan page's "Tomes only" switch is gone: the tree is always built from spells a tome teaches, as it
+  was with the switch on (its default). If you had turned it off, quest, perk and script spells no tome
+  teaches leave the tree at the next build; they still get the perk overhaul keywords.
+- Spells equipped in the voice slot are left out of the tree even when a tome teaches them, and their tome
+  teaches them the vanilla way: they are mods' script and animation spells (Smooth Animation's ChargeEffect),
+  and one learned would take the shout's place. Rescan and rebuild.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the
