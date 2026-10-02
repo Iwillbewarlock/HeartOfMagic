@@ -1044,6 +1044,7 @@ window.onPlayerKnownSpells = function(dataStr) {
             // Second pass: Recalculate availability for all nodes
             // Spells that are unlocked (mastered OR already-known) can unlock children
             var availableCount = recalculateNodeAvailability();
+            if (typeof NewSpells !== 'undefined') NewSpells.compare();
             
             console.log('[SpellLearning] Mastered: ' + masteredCount + ', Already Known: ' + alreadyKnownCount + 
                         ', Learning: ' + learningCount + ', Relocked: ' + relockedCount + 
@@ -1146,6 +1147,9 @@ window.onPanelShowing = function() {
         TreePreview._markDirty();
     }
 
+    // Spells unlocked while hidden (the replies below are compared too)
+    if (typeof NewSpells !== 'undefined') NewSpells.onShow();
+
     // Re-fetch progress and known spells from C++ to catch any XP gained while panel was hidden
     if (fetching) {
         console.log('[SpellLearning] Panel showing - syncing progress from C++');
@@ -1178,6 +1182,7 @@ window.onPanelHiding = function() {
     if (document.body) document.body.classList.add('panel-hidden');   // CSS animations pause (patch-ui.css)
     // What the tree shows now: opening again repaints it only if that changed
     if (typeof OpenRefreshGate !== 'undefined') OpenRefreshGate.onHide();
+    if (typeof NewSpells !== 'undefined') NewSpells.onHide();   // what is unlocked now: news next time
 
     // Stop ALL render loops to free CPU
     // CanvasRenderer (main tree view - canvasRendererV2)

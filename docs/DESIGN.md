@@ -784,6 +784,41 @@ watches the game's input too: Escape with the panel open calls `onNativeEscape` 
 `UIManager::OnEscapePressed`). One press can arrive both ways: the plugin's copy waits 80 ms and does nothing when the view's own keydown came meanwhile (only the view knows which field or dialog the press was for); the second arrival within 250 ms is ignored.
 An open dialog takes the press whichever arrival comes first (Find Spell closes; other dialogs close through their own keys), so the panel never closes behind one; a dialog field that uses the press itself marks it too.
 
+## New spells and next goals (2026-10-02)
+
+`modules/newSpells.js` (`NewSpells`) adds two things to the tree page's footer, both meant to show the
+player what changed and where to go without costing the tree a repaint.
+
+**New spells.** When the panel closes (`onPanelHiding`) the unlocked spells are noted. When it opens
+(`onPanelShowing`, then the `GetProgress` and `GetPlayerKnownSpells` replies, compared for
+`OPEN_WINDOW_MS` = 3 s after opening) every spell unlocked now that was not then is new - mastered
+through XP or learned from a tome or vendor alike. Each gets a gold ring that spreads once
+(`BURST_MS`, started `BURST_DELAY_MS` after the last reply so it does not share the frame of the
+reply's tree repaint) and then a small gold mark (`--accent-gold`) at the spell's top right. The mark
+stays until the spell's card is shown (`renderSpellCard` -> `NewSpells.markSeen`: a click, the hover
+preview, or the footer chip). The footer chip `#footer-new` ("New 2") goes to the oldest one. A spell
+the player unlocks with the panel open is not new, and edit-mode copies (`originalFormId`) never are.
+Only from one opening to the next: the first opening after a save loads, or after a new tree
+(`NewSpells.reset` in `treeLoad.js`), has nothing to compare with. The ring is skipped (the mark stays)
+when the render popup's "still everything" switch is on (`DesignEffectsSetting._master`).
+
+Cost: the ring and the marks are FxLayer spots (keys `newring:<n>`, `newmark:<n>`), drawn from
+`CanvasRenderer._drawMoving`; the tree layer and the main canvas are not drawn for them. Measured in the
+dev harness on a 3546-spell tree: during a ring 0 tree layer draws and 0 main canvas repaints, and a mark
+going away is one spot hidden. At most `MAX_MARKS` = 4 marks are drawn (FxLayer has 16 spots; hub,
+particles, hover and the learning glows use some), the chip counts all. A still mark is kept by its spot
+`version` and not drawn again. The ring's frames are animation frames (`_requestAnimationOnlyFrame`),
+throttled like the heart's.
+
+**Next goals.** `#footer-goals` lists up to `GOAL_COUNT` = 3 spells: the learning targets first, then
+learnable spells with XP, most first (`NewSpells.goals`; spells of a hidden school and at 100% left out).
+Each chip is the name and the progress ring's percent; the name hides as the card's does (`???` under
+`revealName` unless learning or cheat mode, through `spellDisplayName`). The footer stays one row: on a narrow panel the
+chips shrink and long names end in an ellipsis (`.footer-center` clips). Pressing one does what a click on
+the spell does (`CanvasRenderer.selectNodeAndFocus`). The chips are rebuilt only when the key (count, ids,
+names, percents) changes; `updateUnlockedCount`, `ProgressUpdates.handle` and the progress reply ask.
+The labels are `footer.newSpells` and `footer.nextGoals`; spell names are the game's.
+
 ## Hover preview (2026-09-23)
 
 The details panel used to open only on a click. Now resting the cursor on a spell for `DWELL_MS`
@@ -1249,6 +1284,7 @@ Tree applied
 | `designPresets.js` | `DesignPresets`: built-in and `presets/design/*.json` looks, the Design Preset selector, preset CSS |
 | `wheelRenderer.js` | Legacy SVG renderer (still loaded, not primary) |
 | `treeViewerUI.js` | Tree viewer page setup and Import (with `treeLoad.js`, `spellCardView.js`, `spellProgressView.js`, `findSpell.js`, split out 2026-09-30) |
+| `newSpells.js` | `NewSpells`: spells unlocked while the panel was closed (ring, mark, footer chip) and the footer's next goals (see *New spells and next goals*) |
 | `detailsPeek.js` | Hover preview: the card follows the cursor without selecting; the panel keeps its place when nothing is selected |
 | `treeParser.js` | Parses spell_tree.json, cycle detection, orphan fixing |
 | `spellNames.js` | `spellDisplayName`: names in the spell card's lists, with the plugin when two spells share a name |
@@ -1288,6 +1324,7 @@ Visual-First builds that used them.
 | `classic/classicTreeOutput.js` | Classic result and layout → the saved tree JSON |
 | `classic/classicRenderer.js` | Classic mode renderer |
 | `classic/classicLayout.js` | Classic layout engine |
+| `classic/classicRadialOrder.js` | After the layout: nearby spells trade places so higher tier, then dearer Magicka, sits farther out (see TREE_BUILDING_SYSTEM.md, *Radial order*) |
 | `classic/classicSettings.js` | Classic mode settings |
 | `classic/classicThemeEngine.js` | Classic theme engine |
 

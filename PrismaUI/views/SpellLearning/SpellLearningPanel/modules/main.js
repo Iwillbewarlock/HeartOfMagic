@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         // Core UI
         if (typeof initializePanel === 'function') initializePanel();
+        if (typeof NewSpells !== 'undefined') NewSpells.init();   // footer: new spells, next goals
         if (typeof initializeTabs === 'function') initializeTabs();
         
         // Drag and resize

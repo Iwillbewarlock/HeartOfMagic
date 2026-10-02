@@ -741,6 +741,53 @@ else:
 
 These modes control **visual clustering** (spatial grouping of similar spells), not tree structure. The C++ builder determines parent/child links; the layout engine determines where each node sits on screen.
 
+### Radial order (`classicRadialOrder.js`, 2026-10-02)
+
+In a school, a higher tier sits farther from the heart, and within a tier a spell that costs more Magicka
+sits farther out. `ClassicLayout.layoutAllSchools` runs `ClassicRadialOrder.apply` on each school's
+placed spells after pass 2, before the tree is written out (and so before the declutter pass below).
+
+The layout grows outward from the root, each spell next to its parent, so how far out a spell lands is
+mostly how many links below the root it is - not its tier or cost. Aiming each spell's slot at a
+cost-dependent point of its tier zone in `_findSlots` was tried first and moved nothing measurable
+(within-tier cost/distance correlation stayed at about 0). So the order is made afterwards, by trading
+places between neighbours:
+
+- **Order key** = tier index (Novice 0 .. Master 4) + cost rank × `COST_SPAN` (0.9). The cost rank is the
+  spell's place by `magickaCost` among the school's spells of its tier, 0..1: a rank, not the number,
+  since mods put costs ten times the game's; equal costs share a rank, no cost ranks lowest, a tier of
+  one spell is 0.5. With `COST_SPAN` < 1 tier decides first, then cost. A spell with no known tier does
+  not trade.
+- **A trade**: two spells within `REACH` (6) tier spacings whose keys and distances from the center
+  disagree swap positions (and grid points), if the lines at the two together grow by at most `ALLOW`
+  (1) tier spacing. Each spell takes its best trade (gain = key gap × distance gap − line growth), up to
+  `PASSES` (16) passes or until none is made. Roots stay. The lines are the layout's own
+  `parentFormId` links, the ones `ClassicTreeOutput` saves.
+
+Measured on the 1,381-spell tree of the dev load order (the saved tree's structure laid out again in the
+dev harness with the game's scan; the offline layout matched the saved tree's tier profile), lines as saved:
+
+| School | Mean distance by tier, % of max (N/A/Ad/E/M) | Tier ~ distance | Cost ~ distance within a tier | Mean line | Crossings |
+|---|---|---|---|---|---|
+| Alteration | 26/22/41/66/69 -> 16/28/42/65/70 | 0.82 -> 0.87 | -0.05 -> 0.19 | 165 -> 136 | 186 -> 127 |
+| Conjuration | 36/33/54/72/83 -> 29/34/54/74/84 | 0.77 -> 0.83 | -0.02 -> 0.21 | 133 -> 104 | 1243 -> 619 |
+| Destruction | 19/24/38/53/80 -> 14/24/34/55/83 | 0.80 -> 0.89 | 0.01 -> 0.18 | 158 -> 131 | 507 -> 275 |
+| Illusion | 19/19/31/56/60 -> 14/21/32/56/62 | 0.83 -> 0.87 | 0.08 -> 0.35 | 131 -> 108 | 170 -> 98 |
+| Restoration | 20/20/41/53/72 -> 9/21/38/60/73 | 0.77 -> 0.89 | 0.08 -> 0.29 | 154 -> 121 | 289 -> 112 |
+
+(Spearman rank correlations; line lengths in layout units.) Novice and Apprentice no longer sit at the
+same distance, and the lines got shorter with fewer crossings: a trade that puts a spell in order mostly
+also brings it nearer the spells it links to. On a tree built fresh from the same scan by the native
+builder (`treebuilder-test -t classic`, seed 742228) and laid out the same way, averaged over the five
+schools: tier ~ distance 0.83 -> 0.89, cost ~ distance within a tier -0.00 -> 0.26, mean line 153 -> 127,
+crossings 490 -> 305. On the Flat grid (spacing 30): 0.74 -> 0.81, -0.05 -> 0.33, 170 -> 127, 706 -> 433.
+Share of a spell's six nearest neighbours with its theme: 0.357 before, 0.354 after (theme grouping
+kept). A limit of 15 degrees between trade partners (to keep theme sectors) was tried and dropped: it
+lowered that share to 0.346 and weakened the order. The declutter pass agrees with itself across the
+change: on the saved game tree after this pass, `declutter-test` and `LayoutDeclutter.apply` gave the same
+positions for all 1,381 spells. The pass takes about 45 ms for the five schools in the
+desktop browser (whole layout ~95 ms); it runs once per tree build, not per frame. Tested by `modules/classicRadialOrderTest.js`.
+
 ### Decluttering before save (`layoutDeclutter.js`, `layoutLineClear.js`, `layoutLineGrid.js`, 2026-09-26)
 
 The growth mode (classic; tree, graph, oracle and thematic did the same before they were removed) bakes x/y into the tree and calls

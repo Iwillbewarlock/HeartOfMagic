@@ -798,6 +798,13 @@
                         </span>
                     </div>
                     <div class="footer-center">
+                        <button type="button" id="footer-new" class="footer-chip footer-chip-new hidden">
+                            <span class="footer-chip-dot"></span><span data-i18n="footer.newSpells">New</span> <span id="footer-new-count">0</span>
+                        </button>
+                        <div id="footer-goals-wrap" class="footer-goals hidden">
+                            <span class="footer-goals-label" data-i18n="footer.nextGoals">Next</span>
+                            <span id="footer-goals"></span>
+                        </div>
                         <div class="state-legend">
                             <span class="legend-item locked"><span class="legend-dot"></span><span data-i18n="footer.legendLocked">Locked</span></span>
                             <span class="legend-item available"><span class="legend-dot"></span><span data-i18n="footer.legendAvailable">Available</span></span>
@@ -1967,6 +1974,7 @@
     <script src="modules/state.js"></script>
     <script src="modules/logGate.js"></script>
     <script src="modules/openRefreshGate.js"></script>
+    <script src="modules/newSpells.js"></script>
     <script src="modules/config.js"></script>
 
     <!-- 1.5. Shape profiles (WheelRenderer's per-school shape modifiers) -->
@@ -2063,6 +2071,7 @@
     <!-- 5c. Tree Growth -->
     <script src="modules/classic/classicRenderer.js"></script>
     <script src="modules/classic/classicThemeEngine.js"></script>
+    <script src="modules/classic/classicRadialOrder.js"></script>
     <script src="modules/classic/classicLayout.js"></script>
     <script src="modules/classic/classicSettings.js"></script>
     <script src="modules/classic/classicBuildRequest.js"></script>

@@ -213,6 +213,8 @@ node run-tests.js
 | `modules/spellNamesTest.js` | Names in the spell card's lists (a shared name gets its plugin, a unique one does not, hidden names `???` with no plugin, SpellCache plugin before persistentId, counts after a new tree or invalidate) and TreeParser dropping self links |
 | `modules/levelFilterTest.js` | The spell card's level as a tree filter (`level.<Level>` lights every spell of that level; pressable only when shown and counted) |
 | `modules/tomeFilterTest.js` | The tree's tome filter: spells marked `taughtByTome` false, `tomeUnreachable` or `voiceSlot` true stay out of the tree build and the primed count; a scan without the marks keeps every spell |
+| `modules/newSpellsTest.js` | The footer's new spells and next goals (`NewSpells`): new only between a close and the next opening, once, no edit-mode copies, a seen card drops the mark, a new tree resets, goals learning first then by XP (three, hidden schools out), goal names hide like the card's, marks capped |
+| `modules/classicRadialOrderTest.js` | The Classic layout's radial order pass (`ClassicRadialOrder`): cost ranks per tier (ties, no cost, a tier of one), tier before cost, out-of-order neighbours trade places (cost within a tier, and across tiers), roots stay, no trade that stretches the lines past `ALLOW`, grid points stay distinct |
 | `test-runner.html` | Browser-based test runner |
 | `dev-harness.html` | Desktop harness (open in a browser, mock C++ bridge in `dev-harness-bridge.js`). Generated: `node tools/make-dev-harness.js` puts the parts of `dev-harness-parts.html` into `index.html`, so it loads exactly the panel's scripts in the panel's order - never edit it by hand, edit `dev-harness-parts.html` and regenerate |
 

@@ -87,6 +87,7 @@ function renderSpellCard(node, opts) {
     var preview = !!(opts && opts.preview);
     var panel = document.getElementById('details-panel');
     if (!panel) return;
+    if (typeof NewSpells !== 'undefined') NewSpells.markSeen(node);   // its card shown: no longer new
     panel.classList.remove('hidden');
     panel.classList.remove('is-empty');
     panel.classList.toggle('peeking', preview);

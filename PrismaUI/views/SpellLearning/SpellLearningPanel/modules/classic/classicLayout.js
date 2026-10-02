@@ -212,6 +212,13 @@ var ClassicLayout = {
             var positioned = this._layoutOnGrid(
                 sd2.tree, sd2.info, sd2.roots, grid, sd2.gridPts, mode
             );
+            // Nearby spells trade places: higher tier, then dearer, farther out (ClassicRadialOrder)
+            if (typeof ClassicRadialOrder !== 'undefined') {
+                var spellMap2 = this._spellMap || {};
+                var trades = ClassicRadialOrder.apply(positioned,
+                    function (id) { return spellMap2[id] || null; }, grid.tierSpacing || grid.spacing || 30);
+                console.log('[ClassicLayout] ' + sd2.name + ': ' + trades + ' radial order trades');
+            }
             result.schools[sd2.name] = {
                 nodes: positioned,
                 color: sd2.info.color || '#888888',

@@ -20,6 +20,7 @@
             if (!this._fxThisFrame) {
                 this._drawDetachedParticles(ctx, view);
                 TreeStyle.renderOverlay(ctx, this, view);
+                if (typeof NewSpells !== 'undefined') NewSpells.drawSpots(this, view, 1, ctx);
                 return;
             }
             var self = this;
@@ -57,6 +58,9 @@
                         function(c) { TreeStyle.renderOverlay(c, self, view, node); });
                 });
             }
+
+            // Spells new since the panel was last open: a ring, then a mark (NewSpells)
+            if (typeof NewSpells !== 'undefined') NewSpells.drawSpots(this, view, dpr);
         },
 
         /**

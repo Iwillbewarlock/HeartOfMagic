@@ -892,6 +892,7 @@ window.onProgressData = function(dataStr) {
         // only if the states or rings differ from what the tree showed
         // (OpenRefreshGate; asked on every reply, it counts them)
         var redraw = typeof OpenRefreshGate === 'undefined' || OpenRefreshGate.reply();
+        if (typeof NewSpells !== 'undefined') { NewSpells.compare(); NewSpells.refreshFooter(); }
         if (rebuildPaths && redraw && typeof CanvasRenderer !== 'undefined' && CanvasRenderer._nodeMap) {
             console.log('[SpellLearning] Rebuilding CanvasRenderer learning paths...');
             CanvasRenderer._buildLearningPaths();

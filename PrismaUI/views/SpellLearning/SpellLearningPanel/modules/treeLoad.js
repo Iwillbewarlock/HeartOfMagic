@@ -195,6 +195,7 @@ function _loadTrustedTree(data, switchToTreeTab) {
     if (typeof DetailsPeek !== 'undefined') DetailsPeek.applyLayout();
     document.getElementById('total-count').textContent = nodes.length;
     document.getElementById('unlocked-count').textContent = '0';
+    if (typeof NewSpells !== 'undefined') NewSpells.reset();
 
     if (switchToTreeTab !== false) {
         switchTab('spellTree');
@@ -445,6 +446,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
 
     document.getElementById('total-count').textContent = result.nodes.length;
     document.getElementById('unlocked-count').textContent = '0';  // Always 0 on load - will be updated after save loads
+    if (typeof NewSpells !== 'undefined') NewSpells.reset();
     
     // Switch to Spell Tree tab if requested (e.g., on startup with saved tree)
     if (switchToTreeTab !== false) {

@@ -1888,6 +1888,95 @@ body {
 .footer-center {
     display: flex;
     align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;              /* a narrow panel: goal names shorten, the row stays one row */
+    margin: 0 12px;
+}
+
+.state-legend,
+.footer-chip-new {
+    flex-shrink: 0;
+}
+
+/* New spells and next goals (newSpells.js): chips in the footer's one row */
+.footer-goals {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.footer-goals.hidden,
+.footer-chip.hidden {
+    display: none;
+}
+
+.footer-goals-label {
+    font-size: 0.65em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#footer-goals {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.footer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 150px;
+    padding: 2px 8px;
+    font: inherit;
+    font-size: 0.72em;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.footer-chip:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-gold);
+}
+
+.footer-chip.is-learning {
+    border-color: var(--node-learning-border);
+}
+
+.footer-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.footer-chip-pct {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.footer-chip-new {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+}
+
+.footer-chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-gold);
 }
 
 .state-legend {

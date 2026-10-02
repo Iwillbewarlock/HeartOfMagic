@@ -135,6 +135,7 @@ var ProgressUpdates = {
             }
         }
         this._painted[canonId] = repaint ? afterPct : paintedPct;
+        if (typeof NewSpells !== 'undefined') NewSpells.refreshFooter();   // next goals
 
         // C++ takes the panel's number if it has another one (RequiredXPSync)
         if (typeof RequiredXPSync !== 'undefined') RequiredXPSync.sync();

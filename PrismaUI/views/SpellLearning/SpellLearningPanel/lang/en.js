@@ -177,6 +177,8 @@ window._i18nPreload = {
     "footer.legendUnlocked": "Unlocked",
     "footer.spellsLabel": "spells",
     "footer.statusReady": "Ready",
+    "footer.newSpells": "New",
+    "footer.nextGoals": "Next",
     "footer.unlockedLabel": "unlocked",
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",

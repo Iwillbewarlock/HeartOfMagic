@@ -114,6 +114,7 @@ function updateUnlockedCount() {
         if (nodes[i].state === 'unlocked') count++;
     }
     el.textContent = count;
+    if (typeof NewSpells !== 'undefined') NewSpells.refreshFooter();   // next goals
 }
 
 function setStatusIcon(icon) {

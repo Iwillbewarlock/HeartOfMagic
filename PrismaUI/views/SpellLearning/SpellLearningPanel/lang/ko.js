@@ -177,6 +177,8 @@ window._i18nPreload = {
     "footer.legendUnlocked": "해제됨",
     "footer.spellsLabel": "주문",
     "footer.statusReady": "준비됨",
+    "footer.newSpells": "새 주문",
+    "footer.nextGoals": "다음 목표",
     "footer.unlockedLabel": "해제됨",
     "header.panelTitle": "HEART OF MAGIC",
     "header.title": "Heart of Magic",
