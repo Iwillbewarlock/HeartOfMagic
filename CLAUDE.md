@@ -37,6 +37,7 @@ What are you doing?
 │   ├─► Tag definitions → docs/librarian/TAGS.md
 │   ├─► Measured coverage and accuracy → docs/librarian/MEASURED.md
 │   ├─► Perk overhaul keywords (adapters/*.json) → docs/librarian/PERK_ADAPTERS.md
+│   ├─► Spell Research archetype lists (compat/spellresearch.json) → docs/librarian/SPELL_RESEARCH.md
 │   └─► Why it exists, what is left → docs/librarian/Concept.md, docs/librarian/ToDo.md
 │
 ├─► Working with DEST/ISL compatibility?
@@ -252,7 +253,8 @@ This project does not have a C++ test framework. Validation is done through:
   `treebuilder-test` (the Classic tree builder; it prints each school's shape - `Structure <school>: nodes, links,
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
   spells that never branches), `librarian-test` (spell tag librarian; `--adapters <dir> --catalog <file>` plans the perk adapter
-  keyword writes with the plugin's own planner), `tome-reach-test` (which tree spells have tomes nothing hands
+  keyword writes with the plugin's own planner; `--spellresearch <file> --catalog <file> [-a <answers>]` counts the
+  Spell Research registrations and scores their labels), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`

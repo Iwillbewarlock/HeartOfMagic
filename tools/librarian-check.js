@@ -9,12 +9,14 @@
  * Accuracy (a drop fails the check, exit 1):
  *   - the Spell Research answer set, all rules and the vanilla-structure tier alone
  *     (librarian-test -a, -t mgef): precision, recall, F1
+ *   - the Spell Research labels the tags fold into (librarian-test --spellresearch -a):
+ *     precision, recall, F1 against the same answer set
  *   - every AI-judged round in lab/librarian-judge/<round>/verdicts.json: precision
  *   - the share of spells with no tag at all (a rise fails)
  * Speed (over budget warns - timings depend on the machine):
  *   - classifying the pinned dump, a Classic tree build of it (treebuilder-test)
  *   - with --log: the perk adapters at game start and after a scan, from the game's log
- * Also reported: how many keyword writes the perk adapters plan.
+ * Also reported: how many keyword writes the perk adapters plan, how many spells go to Spell Research.
  *
  * Inputs: the pinned dump (lab/librarian-judge/dumps/, not in git) and the answer set,
  * paths in tools/librarian-check.local.json (not in git):
@@ -115,6 +117,17 @@ function measureIn(tmp, paths, logPath) {
     if (adapters.status !== 0) throw new Error('librarian-test --adapters failed:\n' + adapters.out);
     figures.info.adapterWrites = need(number(adapters.out, /planned writes:\s*(\d+)/), 'planned adapter writes', adapters.out);
 
+    // Spell Research: the SR labels the tags fold into, scored against the same answer set
+    var sr = run('librarian-test.exe', ['-i', paths.dump, '--catalog', catalog,
+        '--spellresearch', path.join(RULES, 'compat', 'spellresearch.json')]
+        .concat(paths.answers ? ['-a', paths.answers] : []));
+    if (sr.status !== 0) throw new Error('librarian-test --spellresearch failed:\n' + sr.out);
+    figures.info.srRegistrations = need(number(sr.out, /planned registrations:\s*(\d+)/), 'SR registrations', sr.out);
+    if (paths.answers) {
+        var srScore = sr.out.slice(sr.out.indexOf('SPELL RESEARCH LABELS'));
+        figures.accuracy.spellResearch = need(scoreLine(srScore, 'both'), 'SR label score', sr.out);
+    }
+
     // treebuilder-test exits 2 on a bad link or a school that never branches: that is a failure too
     var tree = run('treebuilder-test.exe', ['-i', merged, '-o', path.join(tmp, 'tree.json'), '-t', 'classic', '-s', '1']);
     if (tree.status !== 0) throw new Error('treebuilder-test failed (exit ' + tree.status + '):\n' + tree.out);
@@ -139,7 +152,7 @@ function compare(now, base) {
         if (value === null || value === undefined || was === null || was === undefined) return;
         if (value < was - TOLERANCE) failures.push(label + ' ' + was + ' -> ' + value);
     };
-    ['all', 'mgef'].forEach(function (tier) {
+    ['all', 'mgef', 'spellResearch'].forEach(function (tier) {
         var a = now.accuracy[tier], b = (base.accuracy || {})[tier];
         if (!a || !b) return;
         drop('answer set (' + tier + ') precision', a.p, b.p);

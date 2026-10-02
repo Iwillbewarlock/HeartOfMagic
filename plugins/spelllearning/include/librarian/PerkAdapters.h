@@ -52,6 +52,8 @@
 //   - a "formList" line puts each spell it picks into that FormList instead:
 //     the same conditions, no leak check (the list names the spell itself), a
 //     spell already in the list as its plugin wrote it is left alone
+//   - formListsNone: no earlier live formList line of this plan picked the
+//     spell for these lists. Entries a plugin or script made are not looked at
 // =============================================================================
 
 namespace Librarian::Adapters
@@ -118,6 +120,9 @@ namespace Librarian::Adapters
         std::vector<EffectCondition> spellHas;
         std::vector<EffectCondition> spellLacks;
         std::vector<std::string> keywordsNone;
+        // FormLists (persistent ids) that earlier formList lines of this plan
+        // must not have picked the spell for
+        std::vector<std::string> formListsNone;
     };
 
     struct File

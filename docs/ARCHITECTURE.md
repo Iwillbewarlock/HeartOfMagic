@@ -249,6 +249,21 @@ wrote is never touched). The scan leaves the added keywords out (`PerkAdapters::
 the chips and the card icon lookup), so a scan still records the plugins as written. Report:
 `perk_adapters_report.json` next to the catalog; switch: `config.json` `perkAdapters.enabled` (default on).
 Rules, measurements and what is left out: docs/librarian/PERK_ADAPTERS.md.
+The planner's game-side source (`LoadOrderSource`, `LibrarianLoadOrderSource.cpp`) is shared with the
+Spell Research registrations below; it indexes the effect users only when a keyword line asks.
+
+**Spell Research (2026-10-03).** The catalog's third consumer, active only with `SpellResearch.esp` loaded:
+`Librarian::SpellResearchPatch` (`LibrarianSpellResearchPatch.cpp`) registers catalog spells in Spell Research's
+archetype FormLists when its Import ends (a `MessageBoxMenu` closing while `_SR_GlobalIsSetup` is 1 and the tier
+lists changed, run as an SKSE task), at `kPostLoadGame` and after a full scan (`OnCatalogChanged`, beside the perk
+adapters). Only spells a tome teaches (`SpellScanner::TomesBySpell`); spells already in an SR tier list are left as
+SR's patches filed them. The lists per spell come from `LibrarianSpellResearch.cpp` (pure, shared with
+`librarian-test --spellresearch`): tier, school, casting and targets from the catalog fields, elements and
+techniques from `librarian/compat/spellresearch.json` planned with the perk adapter planner (formList lines,
+`formListsNone`). Entries go in through `BGSListForm::AddForm`, the script path, so they live in the save and
+SR's next Import clears them with its own; tome pairs only while a tier's two tome lists have equal counts.
+Report: `spell_research_report.json`; switch: `config.json` `spellResearch.enabled` (default on).
+docs/librarian/SPELL_RESEARCH.md.
 
 `castByVampires: true` marks a spell a vampire NPC carries - an NPC whose race or record has the
 `Vampire` keyword, through its own or its race's spell list and the leveled spell lists in them, plus
