@@ -1,0 +1,30 @@
+{
+    "enableCounter": true,
+    "counterWindow": 0.25,
+    "wardBonusWindow": 0.10,
+    "frontAngle": 60.0,
+    "skipIfOtherParryMod": true,
+    "filterMode": "shift",
+    "hookReturnOnCounter": false,
+    "requireKnownWard": true,
+    "counterResult": "ward",
+    "dualCastPerk": "Skyrim.esm|0x153D1",
+
+    "wardLingerSeconds": 1.0,
+    "holdWard": true,
+    "holdRefreshSeconds": 0.25,
+    "sphereWardAllAngles": true,
+
+    "warnLeadSeconds": 0.6,
+    "warnRadius": 120.0,
+    "promptText": "Counter",
+
+    "slowMoScale": 0.4,
+    "slowMoDuration": 0.35,
+    "freeNextCast": true,
+    "freeCastWindow": 3.0,
+    "xpPerCounter": 5.0,
+    "hudText": "Countered",
+
+    "testTools": false
+}

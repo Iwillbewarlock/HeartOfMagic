@@ -65,6 +65,7 @@ set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
 add_subdirectory(plugins/BookXP)
+add_subdirectory(plugins/Combat)
 add_subdirectory(tools)
 
 # Generate fomod/info.xml from template with current version

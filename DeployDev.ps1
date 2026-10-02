@@ -16,11 +16,15 @@
 .EXAMPLE
     .\DeployDev.ps1
     .\DeployDev.ps1 -PanelOnly
+    .\DeployDev.ps1 -NoCombat     # without the SL_Combat addon
+    .\DeployDev.ps1 -CombatOnly   # only the SL_Combat addon, nothing else touched
 #>
 [CmdletBinding()]
 param(
     [string]$ModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev',
-    [switch]$PanelOnly
+    [switch]$PanelOnly,
+    [switch]$NoCombat,
+    [switch]$CombatOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +37,25 @@ if (-not (Test-Path $ModPath)) {
 }
 
 $repo = $PSScriptRoot
+
+# -CombatOnly: just the combat addon (DLL, and its settings file the first time).
+# The panel, the main plugin and the data files stay as they are in the install,
+# so work in progress elsewhere in the tree does not ride along.
+if ($CombatOnly) {
+    $combatSrc = Join-Path $repo 'build\plugins\Combat\Release\SL_Combat.dll'
+    if (-not (Test-Path $combatSrc)) { throw "No built addon at $combatSrc. Run .\BuildRelease.ps1 -preset Release-2026 first." }
+    $pluginsDst = Join-Path $ModPath 'SKSE\Plugins'
+    New-Item -ItemType Directory -Force -Path $pluginsDst | Out-Null
+    Copy-Item $combatSrc (Join-Path $pluginsDst 'SL_Combat.dll') -Force
+    $combatCfgDst = Join-Path $pluginsDst 'SL_Combat.json'
+    if (-not (Test-Path $combatCfgDst)) { Copy-Item (Join-Path $repo 'SKSE\Plugins\SL_Combat.json') $combatCfgDst }
+    # The icon view an earlier build installed (replaced by SkyPrompt)
+    $combatViewDst = Join-Path $ModPath 'PrismaUI\views\SL_Combat'
+    if (Test-Path $combatViewDst) { Remove-Item $combatViewDst -Recurse -Force }
+    Write-Host 'combat  SL_Combat.dll only (-CombatOnly; settings: SKSE\Plugins\SL_Combat.json)'
+    return
+}
+
 $panelSrc = Join-Path $repo 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $panelDst = Join-Path $ModPath 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $dllSrc = Join-Path $repo 'build\plugins\spelllearning\Release\SpellLearning.dll'
@@ -42,6 +65,25 @@ if (-not $PanelOnly) {
     if (-not (Test-Path $dllSrc)) { throw "No built plugin at $dllSrc. Run .\BuildRelease.ps1 -preset Release-2026 first." }
     Copy-Item $dllSrc $dllDst -Force
     Write-Host ("plugin  {0}" -f (Split-Path $dllDst -Leaf))
+
+    # The combat addon (M1 spell counter, docs/COMBAT.md): not in the release yet,
+    # so only the dev install gets it. -NoCombat takes it out again. Its settings
+    # file is copied once and then left alone, so a tester's tuning survives.
+    $combatSrc = Join-Path $repo 'build\plugins\Combat\Release\SL_Combat.dll'
+    $combatDst = Join-Path $ModPath 'SKSE\Plugins\SL_Combat.dll'
+    $combatCfgSrc = Join-Path $repo 'SKSE\Plugins\SL_Combat.json'
+    $combatCfgDst = Join-Path $ModPath 'SKSE\Plugins\SL_Combat.json'
+    if ($NoCombat) {
+        if (Test-Path $combatDst) { Remove-Item $combatDst -Force }
+        # The icon view an earlier build installed (replaced by SkyPrompt)
+        $combatViewDst = Join-Path $ModPath 'PrismaUI\views\SL_Combat'
+        if (Test-Path $combatViewDst) { Remove-Item $combatViewDst -Recurse -Force }
+        Write-Host 'combat  removed (-NoCombat)'
+    } elseif (Test-Path $combatSrc) {
+        Copy-Item $combatSrc $combatDst -Force
+        if (-not (Test-Path $combatCfgDst)) { Copy-Item $combatCfgSrc $combatCfgDst }
+        Write-Host 'combat  SL_Combat.dll (settings: SKSE\Plugins\SL_Combat.json)'
+    }
 }
 
 # The design presets shipped with the mod (Night Grimoire, Chalkboard): data
@@ -81,6 +123,7 @@ if (Test-Path $rulesSrc) {
         Copy-Item (Join-Path $adaptersSrc '*.json') $adaptersDst -Force
         Write-Host ("adapters {0}" -f ((Get-ChildItem $adaptersSrc -Filter '*.json').Count))
     }
+
 }
 
 # The dev install is a debug install: its panel scans also write the analysis
