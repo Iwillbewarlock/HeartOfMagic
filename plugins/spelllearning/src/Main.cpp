@@ -467,6 +467,8 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             // Install hooks after all plugins are loaded but before game data
             SpellEffectivenessHook::Install();
             SpellEffectivenessHook::InstallDisplayHooks();
+            // Casts that send no cast event (SpellHotbar 2, Spell.Cast) still give XP
+            SpellCastHandler::InstallImmediateCastHook();
 
             // Install spell tome hook (intercepts book reading)
             if (SpellTomeHook::Install()) {

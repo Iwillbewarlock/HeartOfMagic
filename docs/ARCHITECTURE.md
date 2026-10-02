@@ -653,11 +653,23 @@ struct EarlyLearningSettings {
 // SpellItem::GetFullName (vtable) - Display name modification
 ```
 
-### 5. **SpellCastHandler** (`plugins/spelllearning/src/SpellCastHandler.cpp`, `plugins/spelllearning/include/SpellCastHandler.h`)
+### 5. **SpellCastHandler** (`plugins/spelllearning/src/SpellCastHandler.cpp`, `plugins/spelllearning/src/SpellCastImmediateHook.cpp`, `plugins/spelllearning/include/SpellCastHandler.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
 - Listen to spell cast events (`TESSpellCastEvent`)
+- Catch casts that send no such event (2026-10-02): `MagicCaster::CastSpellImmediate` (vtable slot 0x01,
+  hooked on `VTABLE_ActorMagicCaster[0]` at kPostLoad; ActorMagicCaster does not override it, so only
+  actors' casters pass). SpellHotbar 2 casts every hotbar spell this way and Papyrus `Spell.Cast` does
+  too; before, those casts gave no XP. Only the player's casts of a real spell (`kSpell`) the player has
+  (`Actor::HasSpell`, so a mod's helper or proc spell does not count) are credited. A cast seen both ways
+  within `kSameCastWindowSeconds` (0.3 s) is credited once; repeats seen the same way still count each.
+  A stream of immediate re-casts of one spell less than `kImmediateStreamGapSeconds` (0.45 s) apart -
+  a mod refreshing a ward every 0.25 s - counts once, at its start, like a held concentration spell;
+  SpellHotbar 2's own casts are at least its 0.5 s cooldown apart and each count. Two different casts of
+  one spell 0.3 s apart, one by hand and one from the hotbar, count once (rare; credited short, never twice).
+  SpellLearning.log says once a session when a spell was first credited from an immediate cast and when
+  a cast was first seen both ways
 - Identify spell school from cast
 - Route to ProgressionManager for XP calculation
 - **Throttled notifications** (configurable interval, default 10 seconds)
@@ -1242,6 +1254,7 @@ went with the LLM feature on 2026-09-28.
 ### XP Progression Flow (with Early Learning)
 ```
 Player casts spell → SpellCastHandler::ProcessEvent()
+  (or CastSpellImmediate hook → OnImmediateCast(), e.g. SpellHotbar 2; same task, known spells only)
   → Identify spell school → ProgressionManager::OnSpellCast()
   → Calculate XP (direct/school/any multipliers, self-cast bonus)
   → Update progress

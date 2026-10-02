@@ -66,11 +66,16 @@ RE::BSEventNotifyControl SpellCastHandler::ProcessEvent(
     // queue, one task at a time. So the cast joins that queue too. Only the
     // spell id travels; the rest is looked up again when the task runs.
     const RE::FormID spellId = a_event->spell;
-    AddTaskToGameThread("SpellCast", [this, spellId]() { HandlePlayerCast(spellId); });
+    AddTaskToGameThread("SpellCast", [this, spellId]() { HandlePlayerCast(spellId, false); });
     return RE::BSEventNotifyControl::kContinue;
 }
 
-void SpellCastHandler::HandlePlayerCast(RE::FormID spellId)
+void SpellCastHandler::OnImmediateCast(RE::FormID spellId)
+{
+    AddTaskToGameThread("SpellCastImmediate", [this, spellId]() { HandlePlayerCast(spellId, true); });
+}
+
+void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate)
 {
     auto* player = RE::PlayerCharacter::GetSingleton();
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
@@ -82,6 +87,43 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId)
     auto spellType = spell->GetSpellType();
     if (spellType != RE::MagicSystem::SpellType::kSpell) {
         return;
+    }
+    // An immediate cast may be a mod's helper or proc spell: only one the player has counts
+    if (a_immediate && !player->HasSpell(spell)) {
+        return;
+    }
+
+    const auto castAt = std::chrono::steady_clock::now();
+
+    // An immediate re-cast stream: only its first cast counts (every cast moves the mark)
+    if (a_immediate) {
+        auto prev = m_lastImmediateAt.find(spellId);
+        const bool inStream = prev != m_lastImmediateAt.end() &&
+            std::chrono::duration<float>(castAt - prev->second).count() < kImmediateStreamGapSeconds;
+        m_lastImmediateAt[spellId] = castAt;
+        if (inStream) {
+            return;
+        }
+    }
+
+    // The same cast seen by both the event and the immediate-cast hook counts once
+    auto last = m_lastCredited.find(spellId);
+    if (last != m_lastCredited.end() && last->second.immediate != a_immediate && !last->second.matched &&
+        std::chrono::duration<float>(castAt - last->second.at).count() < kSameCastWindowSeconds) {
+        last->second.matched = true;
+        // Once a session: shows whether vanilla casts reach the hook too
+        if (!m_loggedDuplicate) {
+            m_loggedDuplicate = true;
+            logger::info("SpellCastHandler: {} ({:08X}) seen by both the cast event and the immediate-cast hook; "
+                "credited once (logged once a session)", spell->GetName(), spellId);
+        }
+        return;
+    }
+    m_lastCredited[spellId] = Credited{ castAt, a_immediate };
+    if (a_immediate && !m_loggedImmediate) {
+        m_loggedImmediate = true;
+        logger::info("SpellCastHandler: {} ({:08X}) credited from an immediate cast (SpellHotbar 2, Spell.Cast; "
+            "logged once a session)", spell->GetName(), spellId);
     }
 
     // Get spell school

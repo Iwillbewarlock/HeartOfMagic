@@ -64,6 +64,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianAdapters.cpp
     src/librarian/LibrarianPerkAdapterPatch.cpp
     src/SpellCastHandler.cpp
+    src/SpellCastImmediateHook.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
     src/progressionmanager/ProgressionManagerTargets.cpp
     src/progressionmanager/ProgressionManagerXP.cpp
