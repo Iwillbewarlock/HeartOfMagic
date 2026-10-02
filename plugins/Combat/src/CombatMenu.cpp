@@ -183,6 +183,8 @@ namespace SLCombat
         ImGui::SliderFloat("Front angle (deg, without 360 Ward)", &c.frontAngle, 15.0f, 180.0f, "%.0f");
         ImGui::Checkbox("Every direction with 360 Ward", &c.sphereWardAllAngles);
         ImGui::Checkbox("Needs a known ward", &c.requireKnownWard);
+        ImGui::Checkbox("Needs a spell in hand", &c.requireSpellInHand);
+        Hint("Off: a two-hander, a bow or weapons alone can counter too.");
         ImGui::SliderFloat("Prompt appears (s before impact)", &c.warnLeadSeconds, 0.3f, 1.5f, "%.2f");
         ImGui::SliderFloat("Ignore misses wider than", &c.warnRadius, 40.0f, 300.0f, "%.0f");
         ImGui::InputText("Prompt text", s_promptText.data(), s_promptText.size());

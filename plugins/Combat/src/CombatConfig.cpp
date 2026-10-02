@@ -38,6 +38,7 @@ namespace SLCombat
         json["filterMode"] = filterMode == FilterMode::kShift ? "shift" : "systemGroup";
         json["hookReturnOnCounter"] = hookReturnOnCounter;
         json["requireKnownWard"] = requireKnownWard;
+        json["requireSpellInHand"] = requireSpellInHand;
         json["counterResult"] = counterResult == CounterResult::kAbsorb  ? "absorb" :
                                 counterResult == CounterResult::kReflect ? "reflect" :
                                                                            "ward";
@@ -96,6 +97,7 @@ namespace SLCombat
         Read(json, "skipIfOtherParryMod", skipIfOtherParryMod);
         Read(json, "hookReturnOnCounter", hookReturnOnCounter);
         Read(json, "requireKnownWard", requireKnownWard);
+        Read(json, "requireSpellInHand", requireSpellInHand);
 
         Read(json, "wardLingerSeconds", wardLingerSeconds);
         Read(json, "holdWard", holdWard);

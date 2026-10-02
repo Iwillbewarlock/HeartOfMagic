@@ -6,8 +6,8 @@
 // SkyPrompt is required. While IncomingWarning reports a spell about to hit,
 // a SkyPrompt prompt "<promptText> [key]" sits on the player (near the head in
 // third person) with a progress ring running down to the impact. Its key is
-// the counter key (CounterKey: the game's block key unless counterKey is set),
-// whatever the hands hold. While it shows, SkyPrompt takes that key, so a
+// the counter key (CounterKey: the game's block key unless counterKey is set);
+// it needs a spell in a hand unless requireSpellInHand is off. While it shows, SkyPrompt takes that key, so a
 // press does not block or cast; outside that moment the key works as usual.
 // The press (kDown) is the counter press; the counter itself is judged at
 // impact (ProjectileCounter). kUp ends a held ward.

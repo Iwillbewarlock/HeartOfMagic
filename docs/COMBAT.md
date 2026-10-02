@@ -46,8 +46,8 @@ time) and leaves the panel and the main plugin in the install as they are.
    speed; spell missiles have no gravity), and the player knows a ward (`requireKnownWard`). The nearest threat
    is kept, and reported to `CounterPrompt`.
 2. **Prompt = counter key.** While there is a threat, `CounterPrompt` shows one SkyPrompt prompt (`promptText`)
-   on the **counter key** (`CounterKey`), whatever the hands hold - spells, a one- or two-handed weapon, a bow,
-   fists:
+   on the **counter key** (`CounterKey`) when at least one hand holds a spell (`requireSpellInHand`, on by
+   default; off, any equipment counters - a two-handed weapon, a bow, a sword and shield, fists):
 
    | `counterKey` | Keyboard / mouse | Gamepad |
    |---|---|---|
@@ -156,7 +156,8 @@ whenever either hand holds a ward (`skipIfOtherParryMod`).
 
 With SKSE Menu Framework installed (SkyPrompt needs it anyway), the game's Menu Framework window has
 **Heart of Magic Combat > Counter**. It shows the state (counter active, 360 Ward, the dual-cast perk's name, the
-ward a counter would raise) and edits the settings below - the counter and its key, the ward, the reward, the
+ward a counter would raise) and edits the settings below - the counter and its key (and whether it needs a spell
+in hand), the ward, the reward, the
 two texts. The key line names the current key; **Block key**, **Middle Mouse**, **Mouse 4**, **Mouse 5** set it
 in one press, and **Key code** takes any code (an invalid one goes back to `-1`).
 The page works on a copy: **Apply and save** hands it to the game thread, which makes it live and rewrites
@@ -193,6 +194,7 @@ initialisation, which finds nothing when SKSE loads SL_Combat first (CIGAR found
 | `freeCastWindow` | `3.0` | Seconds the free cast stays available |
 | `xpPerCounter` | `5` | Learning XP to the next cast's spell; `0` = none |
 | `requireKnownWard` | `true` | The counter needs at least one known ward spell |
+| `requireSpellInHand` | `true` | The prompt (and so the counter) needs a spell in at least one hand; `false` = any equipment |
 | `wardLingerSeconds` | `1.0` | The counter's ward stays up this long even if the key is let go (free) |
 | `holdWard` | `true` | Holding the counter key after a counter keeps a ward up |
 | `holdRefreshSeconds` | `0.25` | How often the held ward is re-cast and its magicka charged |
@@ -247,7 +249,7 @@ and XP, mastery and unlocks stay Heart of Magic's. Without Heart of Magic the co
 | 16 | One spell, or without the perk | `dual=false`, the plain ward |
 | 17 | A spell that will clearly miss | No prompt |
 | 18 | Counter, let go at once | The ward stays about 1 s with no magicka spent, then `counter.ward down` |
-| 19 | Two-handed sword, bow, sword and shield, fists | The same prompt on the block key; a press in time counters |
+| 19 | Two-handed sword, bow, sword and shield, fists (no spell) | No prompt; with `requireSpellInHand` off, the same prompt on the block key and a press in time counters |
 | 20 | Settings page: set Mouse 4 (or a keyboard key), Apply | The key line names it; the next prompt shows that key, a press counters, the block key blocks as usual |
 | 21 | Same with a gamepad | The prompt shows the gamepad's block button; it counters |
 | 22 | Settings page: Block key, Apply | Back to the block key |

@@ -38,6 +38,7 @@ namespace SLCombat
         FilterMode filterMode = FilterMode::kShift;
         bool  hookReturnOnCounter = false;  ///< value the collision hook returns when it countered
         bool  requireKnownWard = true;   ///< the counter needs at least one known ward spell
+        bool  requireSpellInHand = true; ///< the counter needs a spell in at least one hand
         /// With spells in both hands and this perk, the counter's ward is dual-cast
         std::string dualCastPerk = "Skyrim.esm|0x153D1";  ///< Restoration Dual Casting
         CounterResult counterResult = CounterResult::kWard;

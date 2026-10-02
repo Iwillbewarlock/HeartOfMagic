@@ -8,6 +8,7 @@
     "filterMode": "shift",
     "hookReturnOnCounter": false,
     "requireKnownWard": true,
+    "requireSpellInHand": true,
     "counterResult": "ward",
     "dualCastPerk": "Skyrim.esm|0x153D1",
 

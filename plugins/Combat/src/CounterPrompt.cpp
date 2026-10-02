@@ -131,15 +131,22 @@ namespace SLCombat
             return speed + start;
         }
 
+        RE::SpellItem* SpellInHand(RE::PlayerCharacter* a_player, bool a_leftHand)
+        {
+            auto* form = a_player->GetEquippedObject(a_leftHand);
+            return form ? form->As<RE::SpellItem>() : nullptr;
+        }
+
         bool WardInHand(RE::PlayerCharacter* a_player)
         {
-            for (bool left : { true, false }) {
-                auto* form = a_player->GetEquippedObject(left);
-                if (IsWardSpell(form ? form->As<RE::SpellItem>() : nullptr)) {
-                    return true;
-                }
-            }
-            return false;
+            return IsWardSpell(SpellInHand(a_player, true)) || IsWardSpell(SpellInHand(a_player, false));
+        }
+
+        /// requireSpellInHand: a spell in at least one hand; off, any equipment counters
+        bool HandsCanCounter(RE::PlayerCharacter* a_player)
+        {
+            return !CombatConfig::Get().requireSpellInHand || SpellInHand(a_player, true) ||
+                   SpellInHand(a_player, false);
         }
 
         void AddTaskLater(std::chrono::milliseconds a_delay, std::function<void()> a_task)
@@ -211,13 +218,17 @@ namespace SLCombat
         if (!player) {
             return;
         }
+        if (!HandsCanCounter(player)) {
+            Hide();  // no spell in hand (requireSpellInHand): nothing to counter with
+            return;
+        }
         ScheduleHideCheck();
         s_wardInHand.store(WardInHand(player));
         if (m_shown) {
             return;  // already up; the ring runs on its own
         }
 
-        // One prompt on the counter key, whatever the hands hold
+        // One prompt on the counter key
         Command command;
         command.send = true;
         command.progress = RingProgress(a_secondsToHit);
