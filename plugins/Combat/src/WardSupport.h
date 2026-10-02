@@ -8,8 +8,9 @@
 //     go (free), for safety;
 //   - holding the counter key after a counter keeps a real ward up: the
 //     player's strongest known ward is cast on them every refresh while the
-//     button stays down, and its magicka cost per second is charged. When the
-//     hand already holds a ward, the game's own hold does it and we do nothing;
+//     key stays down, and its magicka cost per second is charged;
+//   - with spells in both hands and the Restoration dual-casting perk, the
+//     counter's ward and the held ward are dual-cast (stronger, costlier);
 //   - "360 Ward.esp" (360 Ward by Averoze) makes wards a full sphere: with it
 //     loaded, counters work from every direction; without it, within frontAngle.
 //   Blocking streams and breath shouts with a ward is left to ward mods
@@ -26,8 +27,7 @@ namespace SLCombat
         /// Called at kDataLoaded: looks for 360 Ward and the dual-cast perk.
         static void Detect();
 
-        /// Spells in both hands and the Restoration dual-cast perk: a dual-cast ward is possible
-        /// (it is used when both counter keys are pressed / held).
+        /// Spells in both hands and the Restoration dual-cast perk: the ward is dual-cast.
         static bool CanDualCast(RE::PlayerCharacter* a_player);
 
         /// The strongest ward spell the player knows (by Ward Power magnitude), or null.
@@ -35,8 +35,7 @@ namespace SLCombat
 
         /// Cast the strongest known ward on the player now (the counter's ward).
         /// Returns Ward Power right after, for the log.
-        /// a_bothKeys: both counter keys pressed; with CanDualCast, the ward is dual-cast.
-        static float RaiseWard(RE::PlayerCharacter* a_player, bool a_bothKeys);
+        static float RaiseWard(RE::PlayerCharacter* a_player);
 
         /// True with 360 Ward loaded (and sphereWardAllAngles on): no facing limit.
         static bool AllAngles();
@@ -45,9 +44,8 @@ namespace SLCombat
         static std::string DualCastPerkName();
 
         // --- held ward (game thread): refreshed on a timer while the key is held
-        /// a_bothKeys: the counter used both keys; the hold stays dual while both are held.
-        static void StartHold(Hand a_hand, bool a_bothKeys);
-        static void ReleaseHold(Hand a_hand);
+        static void StartHold();
+        static void ReleaseHold();
 
     private:
         static void CastWard(RE::PlayerCharacter* a_player, RE::SpellItem* a_ward, bool a_dual);

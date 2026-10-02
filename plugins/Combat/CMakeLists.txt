@@ -27,6 +27,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/Main.cpp
         src/CombatConfig.cpp
         src/CounterInput.cpp
+        src/CounterKey.cpp
         src/ProjectileCounter.cpp
         src/CounterResponse.cpp
         src/WardSupport.cpp

@@ -30,8 +30,9 @@ namespace SLCombat
     {
         // --- counter -------------------------------------------------------
         bool  enableCounter = true;
-        float counterWindow = 0.25f;     ///< seconds before impact a cast press still counts
-        float wardBonusWindow = 0.10f;   ///< extra seconds when the pressed hand holds a ward
+        int   counterKey = -1;           ///< the counter key (CounterKey.h); -1 = the game's block key
+        float counterWindow = 0.25f;     ///< seconds before impact a counter press still counts
+        float wardBonusWindow = 0.10f;   ///< extra seconds when either hand holds a ward
         float frontAngle = 60.0f;        ///< degrees either side of the player's facing
         bool  skipIfOtherParryMod = true;
         FilterMode filterMode = FilterMode::kShift;
@@ -43,7 +44,7 @@ namespace SLCombat
 
         // --- ward ----------------------------------------------------------
         float wardLingerSeconds = 1.0f;  ///< the counter's ward stays up this long even if let go (free)
-        bool  holdWard = true;           ///< holding the button after a counter keeps a ward up
+        bool  holdWard = true;           ///< holding the counter key after a counter keeps a ward up
         float holdRefreshSeconds = 0.25f;  ///< how often the held ward is re-cast and charged
         bool  sphereWardAllAngles = true;  ///< with 360 Ward, counters from every direction (else frontAngle)
 

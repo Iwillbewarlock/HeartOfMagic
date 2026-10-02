@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "CombatMenu.h"
 #include "CombatConfig.h"
+#include "CounterKey.h"
 #include "TestSpawn.h"
 #include "WardSupport.h"
 
@@ -76,6 +77,28 @@ namespace SLCombat
         void Hint(const char* a_text)
         {
             ImGui::TextDisabled("%s", a_text);
+        }
+
+        void RenderCounterKey(CombatConfig& a_config)
+        {
+            ImGui::Text("Counter key: %s", CounterKey::Name(a_config.counterKey).c_str());
+            if (ImGui::Button("Block key")) {
+                a_config.counterKey = CounterKey::kGameBlockKey;
+            }
+            using Mouse = RE::BSWin32MouseDevice::Keys;
+            constexpr std::array kMouseChoices{ Mouse::kMiddleButton, Mouse::kButton3, Mouse::kButton4 };
+            for (auto button : kMouseChoices) {
+                int code = CounterKey::kMouseOffset + static_cast<int>(button);
+                ImGui::SameLine();
+                if (ImGui::Button(CounterKey::Name(code).c_str())) {
+                    a_config.counterKey = code;
+                }
+            }
+            if (ImGui::InputInt("Key code", &a_config.counterKey, 0, 0) && !CounterKey::Valid(a_config.counterKey)) {
+                a_config.counterKey = CounterKey::kGameBlockKey;
+            }
+            Hint("-1 = the game's block key. Codes as in SkyUI menus: keyboard scan code (G = 34),\n"
+                 "256 + mouse button (258 middle, 259 / 260 side buttons). A gamepad always uses block.");
         }
 
         void PostSpawn(TestMage a_kind)
@@ -154,6 +177,7 @@ namespace SLCombat
         ImGui::SeparatorText("Counter");
         ImGui::Checkbox("Counter on", &c.enableCounter);
         Hint("Turning it on takes a game restart if it was off at load.");
+        RenderCounterKey(c);
         ImGui::SliderFloat("Success window (s)", &c.counterWindow, 0.1f, 0.5f, "%.2f");
         ImGui::SliderFloat("Extra window, ward in hand (s)", &c.wardBonusWindow, 0.0f, 0.3f, "%.2f");
         ImGui::SliderFloat("Front angle (deg, without 360 Ward)", &c.frontAngle, 15.0f, 180.0f, "%.0f");
@@ -171,7 +195,8 @@ namespace SLCombat
         // --- ward -------------------------------------------------------------
         ImGui::SeparatorText("Ward");
         ImGui::SliderFloat("Ward stays after a counter (s, free)", &c.wardLingerSeconds, 0.0f, 3.0f, "%.1f");
-        ImGui::Checkbox("Hold the key to keep the ward up", &c.holdWard);
+        ImGui::Checkbox("Hold the counter key to keep the ward up", &c.holdWard);
+        Hint("Spells in both hands and the Restoration dual-casting perk: the ward is dual-cast.");
         ImGui::SliderFloat("Ward refresh (s)", &c.holdRefreshSeconds, 0.1f, 0.5f, "%.2f");
 
         // --- reward -----------------------------------------------------------

@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "CounterPrompt.h"
 #include "CombatConfig.h"
+#include "CounterKey.h"
 #include "IncomingWarning.h"
 #include "WardSupport.h"
 
@@ -47,13 +48,10 @@ namespace SLCombat
             bool send = false;
             float progress = 0.0f;
             std::string text;
-            std::array<CounterPrompt::KeyList, 2> keys;
+            CounterPrompt::KeyList keys;
         };
 
-        constexpr std::uint8_t kLeftBit = 1;
-        constexpr std::uint8_t kRightBit = 2;
-        constexpr SkyPromptAPI::ActionID kLeftAction = 0;
-        constexpr SkyPromptAPI::ActionID kRightAction = 1;
+        constexpr SkyPromptAPI::ActionID kCounterAction = 0;
 
         std::mutex s_queueLock;
         std::vector<Command> s_queue;
@@ -61,9 +59,8 @@ namespace SLCombat
         std::atomic<Clock::rep> s_lastPresent{ 0 };
         bool s_hookInstalled = false;
 
-        // Each hand's ward flag, read by ProcessEvent on SkyPrompt's thread
-        std::atomic<bool> s_leftWard{ false };
-        std::atomic<bool> s_rightWard{ false };
+        // A hand holds a ward (the longer window), read by ProcessEvent on SkyPrompt's thread
+        std::atomic<bool> s_wardInHand{ false };
 
         void Deliver(Command& a_command);
 
@@ -134,72 +131,15 @@ namespace SLCombat
             return speed + start;
         }
 
-        RE::SpellItem* SpellInHand(RE::PlayerCharacter* a_player, bool a_leftHand)
+        bool WardInHand(RE::PlayerCharacter* a_player)
         {
-            auto* form = a_player->GetEquippedObject(a_leftHand);
-            return form ? form->As<RE::SpellItem>() : nullptr;
-        }
-
-        /// Weapons that take both hands: no block key then.
-        bool TwoHandedOrRanged(const RE::TESForm* a_form)
-        {
-            const auto* weapon = a_form ? a_form->As<RE::TESObjectWEAP>() : nullptr;
-            if (!weapon) {
-                return false;
-            }
-            using Type = RE::WEAPON_TYPE;
-            auto type = weapon->GetWeaponType();
-            return type == Type::kTwoHandSword || type == Type::kTwoHandAxe || type == Type::kBow ||
-                   type == Type::kCrossbow;
-        }
-
-        /// The left hand can block: a one-handed weapon, fists or a shield, and no two-hander.
-        bool LeftBlocks(RE::PlayerCharacter* a_player)
-        {
-            if (TwoHandedOrRanged(a_player->GetEquippedObject(false))) {
-                return false;
-            }
-            const auto* left = a_player->GetEquippedObject(true);
-            if (!left) {
-                return true;  // bare hand
-            }
-            if (const auto* weapon = left->As<RE::TESObjectWEAP>()) {
-                return weapon->IsHandToHandMelee() || weapon->IsOneHandedSword() || weapon->IsOneHandedDagger() ||
-                       weapon->IsOneHandedAxe() || weapon->IsOneHandedMace();
-            }
-            const auto* armor = left->As<RE::TESObjectARMO>();
-            return armor && armor->IsShield();
-        }
-
-        /// Which buttons are counter keys now. Bit 0: the left button (a spell's cast, or
-        /// the block key for a one-handed weapon, fists or a shield); bit 1: the right
-        /// button (only for a spell).
-        std::uint8_t CounterHands(RE::PlayerCharacter* a_player)
-        {
-            std::uint8_t hands = 0;
-            if (SpellInHand(a_player, true) || LeftBlocks(a_player)) {
-                hands |= kLeftBit;
-            }
-            if (SpellInHand(a_player, false)) {
-                hands |= kRightBit;
-            }
-            return hands;
-        }
-
-        CounterPrompt::KeyList KeysFor(const RE::BSFixedString& a_userEvent)
-        {
-            CounterPrompt::KeyList keys;
-            auto* controls = RE::ControlMap::GetSingleton();
-            if (!controls) {
-                return keys;
-            }
-            for (auto device : { RE::INPUT_DEVICE::kKeyboard, RE::INPUT_DEVICE::kMouse, RE::INPUT_DEVICE::kGamepad }) {
-                auto key = controls->GetMappedKey(a_userEvent.c_str(), device);
-                if (key != RE::ControlMap::kInvalid) {
-                    keys.emplace_back(device, key);
+            for (bool left : { true, false }) {
+                auto* form = a_player->GetEquippedObject(left);
+                if (IsWardSpell(form ? form->As<RE::SpellItem>() : nullptr)) {
+                    return true;
                 }
             }
-            return keys;
+            return false;
         }
 
         void AddTaskLater(std::chrono::milliseconds a_delay, std::function<void()> a_task)
@@ -268,37 +208,27 @@ namespace SLCombat
     void CounterPrompt::Show(float a_secondsToHit)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
-        auto* userEvents = RE::UserEvents::GetSingleton();
-        if (!player || !userEvents) {
-            return;
-        }
-        // Every spell hand's button, and the block key for one-handed weapons and fists
-        std::uint8_t hands = CounterHands(player);
-        if (hands == 0) {
-            Hide();  // a two-hander or a bow with no spell: nothing to counter with
+        if (!player) {
             return;
         }
         ScheduleHideCheck();
-        if (m_shown && m_shownHands == hands) {
+        s_wardInHand.store(WardInHand(player));
+        if (m_shown) {
             return;  // already up; the ring runs on its own
         }
 
+        // One prompt on the counter key, whatever the hands hold
         Command command;
         command.send = true;
         command.progress = RingProgress(a_secondsToHit);
         command.text = CombatConfig::Get().promptText;
-        if (hands & kLeftBit) {
-            command.keys[0] = KeysFor(userEvents->leftAttack);
-            s_leftWard.store(IsWardSpell(SpellInHand(player, true)));
+        command.keys = CounterKey::PromptKeys();
+        if (command.keys.empty()) {
+            return;  // no key set and nothing bound to block
         }
-        if (hands & kRightBit) {
-            command.keys[1] = KeysFor(userEvents->rightAttack);
-            s_rightWard.store(IsWardSpell(SpellInHand(player, false)));
-        }
-        m_shownHands = hands;
         m_shown = true;
-        logger::info("counter.prompt show left={} right={} in={:.2f}s", command.keys[0].size(), command.keys[1].size(),
-            a_secondsToHit);
+        logger::info("counter.prompt show key='{}' bindings={} in={:.2f}s",
+            CounterKey::Name(CombatConfig::Get().counterKey), command.keys.size(), a_secondsToHit);
         Enqueue(std::move(command));
     }
 
@@ -308,7 +238,6 @@ namespace SLCombat
             return;
         }
         m_shown = false;
-        m_shownHands = 0;
         Command command;
         command.send = false;
         Enqueue(std::move(command));
@@ -334,7 +263,7 @@ namespace SLCombat
     // Render thread (Publish) and SkyPrompt's thread (ProcessEvent)
     // =========================================================================
 
-    void CounterPrompt::Publish(bool a_send, float a_progress, std::string a_text, std::array<KeyList, 2> a_keys)
+    void CounterPrompt::Publish(bool a_send, float a_progress, std::string a_text, KeyList a_keys)
     {
         if (!a_send) {
             SkyPromptAPI::RemovePrompt(this, m_client);
@@ -345,16 +274,10 @@ namespace SLCombat
         m_previousText = std::move(m_text);
         m_text = std::move(a_text);
         m_keys = std::move(a_keys);
-        m_promptCount = 0;
-        constexpr std::array kActions{ kLeftAction, kRightAction };
-        for (std::size_t i = 0; i < m_keys.size(); ++i) {
-            if (m_keys[i].empty()) {
-                continue;
-            }
-            std::span<const std::pair<RE::INPUT_DEVICE, SkyPromptAPI::ButtonID>> keys(m_keys[i].data(), m_keys[i].size());
-            m_prompts[m_promptCount++] = SkyPromptAPI::Prompt(m_text, kCounterEvent, kActions[i],
-                SkyPromptAPI::kSinglePress, kPlayerRef, keys, 0xFFFFFFFF, a_progress);
-        }
+        std::span<const std::pair<RE::INPUT_DEVICE, SkyPromptAPI::ButtonID>> keys(m_keys.data(), m_keys.size());
+        m_prompt = SkyPromptAPI::Prompt(m_text, kCounterEvent, kCounterAction, SkyPromptAPI::kSinglePress, kPlayerRef,
+            keys, 0xFFFFFFFF, a_progress);
+        m_promptCount = 1;
         if (!SkyPromptAPI::SendPrompt(this, m_client)) {
             logger::info("counter.prompt SendPrompt returned false (already queued or refused)");
         }
@@ -362,25 +285,26 @@ namespace SLCombat
 
     std::span<const SkyPromptAPI::Prompt> CounterPrompt::GetPrompts() const
     {
-        return { m_prompts.data(), m_promptCount };
+        return { &m_prompt, m_promptCount };
     }
 
     void CounterPrompt::ProcessEvent(SkyPromptAPI::PromptEvent a_event) const
     {
-        bool left = a_event.prompt.actionID == kLeftAction;
-        Hand hand = left ? Hand::kLeft : Hand::kRight;
+        if (a_event.prompt.actionID != kCounterAction) {
+            return;
+        }
         auto* input = CounterInput::GetSingleton();
         switch (a_event.type) {
         case SkyPromptAPI::kDown:
             // The press time is taken now, on SkyPrompt's thread; only atomics are touched
-            input->RecordPress(hand, left ? s_leftWard.load() : s_rightWard.load());
-            input->SetHeld(hand, true);
-            logger::info("counter.prompt press hand={}", hand == Hand::kLeft ? "left" : "right");
+            input->RecordPress(s_wardInHand.load());
+            input->SetHeld(true);
+            logger::info("counter.prompt press");
             break;
         case SkyPromptAPI::kUp:
-            input->SetHeld(hand, false);
+            input->SetHeld(false);
             if (auto* tasks = SKSE::GetTaskInterface()) {
-                tasks->AddTask([hand]() { WardSupport::ReleaseHold(hand); });
+                tasks->AddTask([]() { WardSupport::ReleaseHold(); });
             }
             break;
         default:

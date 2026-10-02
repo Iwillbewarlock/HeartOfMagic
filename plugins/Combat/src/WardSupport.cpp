@@ -46,12 +46,9 @@ namespace SLCombat
         }
 
         // Held ward state: touched only from the input sink and game-thread tasks
-        Hand            s_holdHand = Hand::kNone;
         std::atomic<RE::SpellItem*> s_holdWard{ nullptr };
         Clock::time_point s_lastRefresh{};
         bool s_loopRunning = false;                       ///< game thread
-        bool s_holdBoth = false;                          ///< game thread: the hold began with both keys
-        std::atomic<bool> s_lingerDual{ false };          ///< the counter's ward was dual-cast
         std::atomic<std::int64_t> s_lingerUntil{ 0 };     ///< Clock ticks; set from the collision hook
 
         float WardMagnitude(const RE::SpellItem* a_spell)
@@ -66,13 +63,10 @@ namespace SLCombat
             return best;
         }
 
-        RE::SpellItem* SpellInHand(RE::PlayerCharacter* a_player, Hand a_hand)
+        bool SpellInHand(RE::PlayerCharacter* a_player, bool a_leftHand)
         {
-            if (a_hand == Hand::kNone) {
-                return nullptr;
-            }
-            auto* form = a_player->GetEquippedObject(a_hand == Hand::kLeft);
-            return form ? form->As<RE::SpellItem>() : nullptr;
+            auto* form = a_player->GetEquippedObject(a_leftHand);
+            return form && form->Is(RE::FormType::Spell);
         }
     }
 
@@ -100,8 +94,8 @@ namespace SLCombat
 
     bool WardSupport::CanDualCast(RE::PlayerCharacter* a_player)
     {
-        return a_player && s_dualCastPerk && SpellInHand(a_player, Hand::kLeft) &&
-               SpellInHand(a_player, Hand::kRight) && a_player->HasPerk(s_dualCastPerk);
+        return a_player && s_dualCastPerk && SpellInHand(a_player, true) &&
+               SpellInHand(a_player, false) && a_player->HasPerk(s_dualCastPerk);
     }
 
     bool WardSupport::AllAngles()
@@ -137,14 +131,13 @@ namespace SLCombat
         }
     }
 
-    float WardSupport::RaiseWard(RE::PlayerCharacter* a_player, bool a_bothKeys)
+    float WardSupport::RaiseWard(RE::PlayerCharacter* a_player)
     {
         auto* ward = BestKnownWard(a_player);
         if (!ward) {
             return 0.0f;
         }
-        bool dual = a_bothKeys && CanDualCast(a_player);
-        s_lingerDual.store(dual);
+        bool dual = CanDualCast(a_player);
         CastWard(a_player, ward, dual);
         logger::info("counter.ward raise ward={:08X} dual={}", ward->GetFormID(), dual);
 
@@ -165,25 +158,19 @@ namespace SLCombat
     //   neither        -> the loop ends
     // =========================================================================
 
-    void WardSupport::StartHold(Hand a_hand, bool a_bothKeys)
+    void WardSupport::StartHold()
     {
         const auto& config = CombatConfig::Get();
         auto* player = RE::PlayerCharacter::GetSingleton();
-        if (!config.holdWard || !player || a_hand == Hand::kNone) {
-            return;
-        }
-        if (IsWardSpell(SpellInHand(player, a_hand))) {
-            logger::info("counter.ward hold: the hand holds a ward - the game keeps it up");
+        if (!config.holdWard || !player) {
             return;
         }
         auto* ward = BestKnownWard(player);
         if (!ward) {
             return;
         }
-        // Stop the hand's own charge (a firebolt would otherwise fire on release)
+        // Stop a hand's own charge (a firebolt would otherwise fire on release)
         player->InterruptCast(false);
-        s_holdHand = a_hand;
-        s_holdBoth = a_bothKeys;
         s_holdWard.store(ward);
         s_lastRefresh = Clock::now();
         logger::info("counter.ward hold start ward={:08X} '{}'", ward->GetFormID(), ward->GetName());
@@ -217,14 +204,14 @@ namespace SLCombat
             s_loopRunning = false;
             return;
         }
-        if (s_holdWard.load() && !CounterInput::GetSingleton()->IsHeld(s_holdHand)) {
+        if (s_holdWard.load() && !CounterInput::GetSingleton()->IsHeld()) {
             StopHold("released");
         }
         if (s_holdWard.load()) {
             Refresh(player);  // may stop the hold when magicka runs out
         } else if (Clock::now().time_since_epoch().count() < s_lingerUntil.load()) {
             if (auto* ward = BestKnownWard(player)) {
-                CastWard(player, ward, s_lingerDual.load() && CanDualCast(player));
+                CastWard(player, ward, CanDualCast(player));
             }
         } else {
             s_loopRunning = false;
@@ -235,9 +222,9 @@ namespace SLCombat
         ScheduleTick();
     }
 
-    void WardSupport::ReleaseHold(Hand a_hand)
+    void WardSupport::ReleaseHold()
     {
-        if (s_holdWard.load() && a_hand == s_holdHand) {
+        if (s_holdWard.load()) {
             StopHold("released");
         }
     }
@@ -252,10 +239,8 @@ namespace SLCombat
         if (!ward) {
             return;
         }
-        // A concentration ward's cost is per second; dual-cast costs more and holds more.
-        // Dual only while both keys stay held
-        auto* input = CounterInput::GetSingleton();
-        bool dual = s_holdBoth && input->IsHeld(Hand::kLeft) && input->IsHeld(Hand::kRight) && CanDualCast(a_player);
+        // A concentration ward's cost is per second; dual-cast costs more and holds more
+        bool dual = CanDualCast(a_player);
         float cost = ward->CalculateMagickaCost(a_player) * elapsed * (dual ? GameSettingFloat(kDualCostSetting, 1.0f) : 1.0f);
         auto* values = a_player->AsActorValueOwner();
         if (values->GetActorValue(RE::ActorValue::kMagicka) < cost) {
@@ -271,7 +256,6 @@ namespace SLCombat
     void WardSupport::StopHold(const char* a_reason)
     {
         logger::info("counter.ward hold end ({})", a_reason);
-        s_holdHand = Hand::kNone;
         s_holdWard.store(nullptr);
         FlushLog();
     }

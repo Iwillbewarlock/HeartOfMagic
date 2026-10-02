@@ -2,8 +2,9 @@
 // SL_Combat - Heart of Magic combat addon
 // =============================================================================
 // Milestone M1: the spell counter. A spell missile that reaches the player
-// right after a cast press of a spell-holding hand is sent back at its caster,
-// with slow motion, a free next cast and learning XP (docs/COMBAT.md).
+// right after a press of the counter key (the block key unless set) meets a
+// ward raised at once, with slow motion, a free next cast and learning XP
+// (docs/COMBAT.md).
 //
 // Talks to Heart of Magic only through the public API (SpellLearningAPI.h);
 // runs without it too (no XP then).

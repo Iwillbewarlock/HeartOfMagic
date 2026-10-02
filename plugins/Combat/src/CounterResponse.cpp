@@ -111,7 +111,7 @@ namespace SLCombat
     // Counter
     // =========================================================================
 
-    void CounterResponse::OnCounter(RE::MagicItem* a_spell, RE::TESObjectREFR*, Hand a_hand, bool a_bothHands)
+    void CounterResponse::OnCounter(RE::MagicItem* a_spell, RE::TESObjectREFR*)
     {
         // Called from the collision hook, whose thread is not known: everything
         // here waits for the game thread (one frame; the effects last 0.35 s+).
@@ -120,11 +120,11 @@ namespace SLCombat
         if (!tasks) {
             return;
         }
-        tasks->AddTask([spellName = std::move(spellName), a_hand, a_bothHands]() {
+        tasks->AddTask([spellName = std::move(spellName)]() {
             const auto& config = CombatConfig::Get();
             StartSlowMotion();
-            if (CounterInput::GetSingleton()->IsHeld(a_hand)) {
-                WardSupport::StartHold(a_hand, a_bothHands);
+            if (CounterInput::GetSingleton()->IsHeld()) {
+                WardSupport::StartHold();
             }
 
             if (config.freeNextCast || config.xpPerCounter > 0.0f) {

@@ -103,18 +103,6 @@ namespace SLCombat
                 a_projectile->Kill();
             });
         }
-
-        const char* HandName(Hand a_hand)
-        {
-            switch (a_hand) {
-            case Hand::kLeft:
-                return "left";
-            case Hand::kRight:
-                return "right";
-            default:
-                return "none";
-            }
-        }
     }
 
     RE::hkpCollidable* OtherSideOfHit(RE::hkpAllCdPointCollector* a_collector, RE::Actor* a_actor)
@@ -217,9 +205,9 @@ namespace SLCombat
         bool knowsWard = !config.requireKnownWard || WardSupport::BestKnownWard(player) != nullptr;
         bool countered = press.inWindow && inFront && !standDown && knowsWard;
 
-        logger::info("counter.impact spell={:08X} '{}' shooter={:08X} msSincePress={:.0f} hand={} ward={} knowsWard={} angle={:.0f} countered={}",
+        logger::info("counter.impact spell={:08X} '{}' shooter={:08X} msSincePress={:.0f} ward={} knowsWard={} angle={:.0f} countered={}",
             runtime.spell->GetFormID(), runtime.spell->GetName(), shooter ? shooter->GetFormID() : 0,
-            press.secondsAgo < 0.0f ? -1.0f : press.secondsAgo * 1000.0f, HandName(press.hand), press.ward,
+            press.secondsAgo < 0.0f ? -1.0f : press.secondsAgo * 1000.0f, press.ward,
             knowsWard, angle, countered);
 
         // Info lines wait in the buffer (Common.h); the M1 test reads these live
@@ -232,15 +220,15 @@ namespace SLCombat
         }
 
         CounterInput::GetSingleton()->Consume();
-        CounterResponse::OnCounter(runtime.spell, shooter, press.hand, press.bothHands);
+        CounterResponse::OnCounter(runtime.spell, shooter);
 
         switch (config.counterResult) {
         case CounterResult::kWard:
             {
                 // The counter raises a ward and the hit goes on: the game's own ward
                 // rules (and ward mods, 360 Ward) decide what it stops
-                // Both keys pressed (spells in both hands, dual-cast perk): the dual-cast ward
-                float wardPower = WardSupport::RaiseWard(player, press.bothHands);
+                // Spells in both hands and the dual-cast perk: the dual-cast ward
+                float wardPower = WardSupport::RaiseWard(player);
                 logger::info("counter.hit spell={:08X} ward raised wardPower={:.1f}", runtime.spell->GetFormID(), wardPower);
                 return s_original(a_this, a_collector);
             }

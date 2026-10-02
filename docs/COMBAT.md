@@ -6,7 +6,7 @@ plan M0-M5) is the "SL_Combat 계획서" artifact; this file documents what is b
 
 | Milestone | What | State |
 |---|---|---|
-| M1 | Spell counter: when a spell is about to hit, a SkyPrompt prompt turns the spell hands' cast buttons (and the block key with a one-handed weapon or fists) into counter keys; a press in time raises the player's ward (dual-cast with the perk), which takes the hit, stays up 1 s, and holding keeps it up | **built, not yet tested in game** |
+| M1 | Spell counter: when a spell is about to hit, a SkyPrompt prompt turns the counter key (the block key unless set) into the counter; a press in time raises the player's ward (dual-cast with spells in both hands and the perk), which takes the hit, stays up 1 s, and holding keeps it up | **built, not yet tested in game** |
 | M2 | Spell colors (roles), chains, Opening/Down states | planned |
 | M3 | Combat HUD | planned |
 | M4 | Super gauge | planned |
@@ -26,8 +26,9 @@ time) and leaves the panel and the main plugin in the install as they are.
 | `plugins/Combat/src/Main.cpp` | Plugin entry (asks SKSE for a 14-byte trampoline); installs everything at `kDataLoaded` once SkyPrompt answers; clears state on load/new game |
 | `plugins/Combat/src/CombatConfig.*` | Settings from `Data/SKSE/Plugins/SL_Combat.json` (every key has a default) |
 | `plugins/Combat/src/IncomingWarning.*` | `MissileProjectile::UpdateImpl` hook: spell missiles about to hit the player (the nearest threat) |
-| `plugins/Combat/src/CounterPrompt.*` | The SkyPrompt prompts (one per spell hand), their render-thread queue, the counter key presses |
-| `plugins/Combat/src/CounterInput.*` | The counter presses per hand (from the prompt) and whether the cast buttons are held |
+| `plugins/Combat/src/CounterPrompt.*` | The SkyPrompt prompt on the counter key, its render-thread queue, the counter key presses |
+| `plugins/Combat/src/CounterKey.*` | The counter key: the `counterKey` code, its bindings for the prompt, its name, matching its button events |
+| `plugins/Combat/src/CounterInput.*` | The counter press (from the prompt) and whether the counter key is held |
 | `plugins/Combat/src/ProjectileCounter.*` | The `MissileProjectile` collision hook, the counter decision, what a counter does with the missile |
 | `plugins/Combat/src/CounterResponse.*` | Slow motion, the refunded next cast, learning XP through the Heart of Magic API |
 | `plugins/Combat/src/WardSupport.*` | Known-ward check, raising the counter's ward (dual-cast), the held ward, 360 Ward detection |
@@ -44,24 +45,23 @@ time) and leaves the panel and the main plugin in the install as they are.
    `warnRadius` of the player's chest and reaches it within `warnLeadSeconds` (distance along the velocity /
    speed; spell missiles have no gravity), and the player knows a ward (`requireKnownWard`). The nearest threat
    is kept, and reported to `CounterPrompt`.
-2. **Prompt = counter key.** While there is a threat, `CounterPrompt` shows a SkyPrompt prompt (`promptText`) for
-   **every counter key** - one prompt per key on one row, each keyed to that button (`"Left Attack/Block"` /
-   `"Right Attack/Block"` as the control map binds them, for keyboard, mouse and gamepad):
+2. **Prompt = counter key.** While there is a threat, `CounterPrompt` shows one SkyPrompt prompt (`promptText`)
+   on the **counter key** (`CounterKey`), whatever the hands hold - spells, a one- or two-handed weapon, a bow,
+   fists:
 
-   | In the hand | Counter key |
-   |---|---|
-   | A spell (either hand) | That hand's cast button |
-   | Left: a one-handed weapon, fists or a shield (and no two-hander) | The left button - the block key |
-   | A two-handed weapon, bow or crossbow, no spell | None |
- The prompt is attached to the player (reference 0x14), which SkyPrompt draws beside the head, and
-   its progress ring runs down to the impact. While it shows, SkyPrompt takes those keys: a press does not cast,
-   it is the counter press (`kDown`, its time recorded at once). Outside that moment the buttons cast as usual,
-   so spamming spells never counters. A right-hand weapon gets no prompt. The prompt comes down 100 ms after the
-   threats stop. With no spell in hand the counter still needs a known ward; the ward it raises is the
-   strongest known one, as always.
+   | `counterKey` | Keyboard / mouse | Gamepad |
+   |---|---|---|
+   | `-1` (default) | The game's block key, `"Left Attack/Block"` as the control map binds it (follows a remap) | Its block binding |
+   | A code | That key (SkyUI code: scan code, or 256 + mouse button) | Its block binding |
+
+   The prompt is attached to the player (reference 0x14), which SkyPrompt draws beside the head, and
+   its progress ring runs down to the impact. While it shows, SkyPrompt takes that key: a press does not block or
+   cast, it is the counter press (`kDown`, its time recorded at once). Outside that moment the key works as usual,
+   so blocking or casting never counters. The prompt comes down 100 ms after the threats stop. The counter still
+   needs a known ward; the ward it raises is the strongest known one, as always.
 3. **Impact.** `ProjectileCounter` hooks `MissileProjectile` vtable slot **0xBE (190)**. When a spell missile's
    collision list has the player on one side of a hit pair, the counter press is checked:
-   - it was at most `counterWindow` seconds ago (+`wardBonusWindow` when that hand holds a ward) - pressing as
+   - it was at most `counterWindow` seconds ago (+`wardBonusWindow` when a hand holds a ward) - pressing as
      soon as the prompt appears (0.6 s out) is too early,
    - the player knows at least one ward spell,
    - the projectile came from within `frontAngle` degrees of the player's facing (measured from its velocity),
@@ -71,9 +71,8 @@ time) and leaves the panel and the main plugin in the install as they are.
    `CastSpellImmediate` from the instant caster, no magicka charged) and lets the original collision go on: the
    game's own ward rules take the hit, and so do ward mods and 360 Ward's sphere, since it is the real ward
    spell (`counterResult: "ward"`). **Dual cast:** with spells in both hands and the Restoration dual-casting perk
-   (`dualCastPerk`), pressing **both** counter keys (each inside its window) casts the ward with the game's dual-cast
-   effectiveness (`fMagicDualCastingEffectivenessBase`); one key gives the plain ward. The linger keeps whichever
-   it was.
+   (`dualCastPerk`) the ward is cast with the game's dual-cast effectiveness (`fMagicDualCastingEffectivenessBase`);
+   otherwise the plain ward. The linger and the hold follow the same rule at each refresh.
    Fallbacks behind the same setting, for the M1 test: `"absorb"` drops the hit and removes the missile with its
    explosion cleared; `"reflect"` sends it back at the shooter's chest.
    **Linger:** the counter's ward stays up `wardLingerSeconds` (1 s) even if the key is let go - re-cast every
@@ -82,14 +81,11 @@ time) and leaves the panel and the main plugin in the install as they are.
    (`freeCastWindow`; its magicka refunded 0.6 s after the cast) and `xpPerCounter` learning XP to that cast's
    spell through `AddSourcedXP(..., "combat")`.
 6. **Hold.** If the counter key is still down a frame after the counter, a ward stays up while it is held,
-   beyond the linger
-   (`holdWard`): when that hand holds a ward the game's own concentration cast does it; otherwise every
-   `holdRefreshSeconds` the strongest known ward is cast on the player again - dual-cast only while both keys stay
-   held after a both-key counter, plain once one is let go - and its
-   per-second magicka cost (x `fMagicDualCastingCostMult` when dual) charged; released (prompt `kUp`, or the
-   button's up event) or out of magicka, it stops; the linger, if still running, carries on free. One loop on the
-   game thread does both: held key -> charged refresh, within the linger -> free refresh, neither -> the ward is
-   let go (`counter.ward down`).
+   beyond the linger (`holdWard`): every `holdRefreshSeconds` the strongest known ward is cast on the player again
+   (dual-cast by the rule above) and its per-second magicka cost (x `fMagicDualCastingCostMult` when dual)
+   charged; released (prompt `kUp`, or the key's up event) or out of magicka, it stops; the linger, if still
+   running, carries on free. One loop on the game thread does both: held key -> charged refresh, within the
+   linger -> free refresh, neither -> the ward is let go (`counter.ward down`).
 
 Only `MissileProjectile` is countered: firebolt, fireball, ice spike and other missiles. Beams (Lightning Bolt),
 cones (breath shouts) and flames are not; what a held ward stops is left to the game and to ward mods.
@@ -105,8 +101,8 @@ a lock; with no Present call for 5 s the queue is delivered from the calling thr
 round. `ProcessEvent` arrives on SkyPrompt's thread and touches atomics only; the ward release it causes is
 posted as a task.
 
-Unverified until the game is run: that SkyPrompt takes the mouse buttons (the usual cast keys) while the prompt
-shows, so the press does not also cast; that two prompts with different keys share one row; that the ring
+Unverified until the game is run: that SkyPrompt takes the counter key (the block key's mouse button, or a side
+button) while the prompt shows, so the press does not also block or cast; that the ring
 speed encoding (`speed + start`, SkyPrompt's "Progress Circle") runs out near the impact; that
 `CastSpellImmediate` of a concentration ward raises Ward Power before the same hit is applied (else
 `"counterResult": "absorb"`); that `0x153D1` is the Restoration dual-casting perk (the log names it at load).
@@ -150,16 +146,19 @@ slow motion extends it instead of stacking.
 ### Other parry mods
 
 At load the addon logs which projectile-parry DLLs are present. Weapon/shield parry mods (`EldenParry.dll`,
-`ParryAll.dll`, `DualWieldParryingNG.dll`, `ValhallaCombat.dll`) need a block or bash, which a spell hand
-cannot do, so they do not overlap and the counter stays on. A ward-reflect mod (`PerfectlyValidWards.dll` -
-the DLL name is unverified) reflects from the same ward press, so with it loaded a press from a ward hand does
-not counter (`skipIfOtherParryMod`).
+`ParryAll.dll`, `DualWieldParryingNG.dll`, `ValhallaCombat.dll`) parry on a block. With the counter on the block
+key the two meet only while the prompt shows - SkyPrompt then takes the key, so the game sees no block and the
+counter wins; set `counterKey` to another key to keep them apart. Unverified in game. A ward-reflect mod (`PerfectlyValidWards.dll` -
+the DLL name is unverified) reflects spells off a ward held in hand, so with it loaded the counter stands down
+whenever either hand holds a ward (`skipIfOtherParryMod`).
 
 ## Settings page (SKSE Menu Framework)
 
 With SKSE Menu Framework installed (SkyPrompt needs it anyway), the game's Menu Framework window has
 **Heart of Magic Combat > Counter**. It shows the state (counter active, 360 Ward, the dual-cast perk's name, the
-ward a counter would raise) and edits the settings below - the counter, the ward, the reward, the two texts.
+ward a counter would raise) and edits the settings below - the counter and its key, the ward, the reward, the
+two texts. The key line names the current key; **Block key**, **Middle Mouse**, **Mouse 4**, **Mouse 5** set it
+in one press, and **Key code** takes any code (an invalid one goes back to `-1`).
 The page works on a copy: **Apply and save** hands it to the game thread, which makes it live and rewrites
 `SL_Combat.json` with every key; **Revert** goes back to the live values; **Defaults** loads the built-in ones
 (keep them with Apply). Turning the counter on takes a restart when it was off at load, since the hooks are
@@ -179,12 +178,13 @@ initialisation, which finds nothing when SKSE loads SL_Combat first (CIGAR found
 | Key | Default | Meaning |
 |---|---|---|
 | `enableCounter` | `true` | Off = no hook, no sinks |
-| `counterWindow` | `0.25` | Seconds before impact a cast press still counts |
-| `wardBonusWindow` | `0.10` | Extra seconds when the pressed hand holds a ward |
+| `counterKey` | `-1` | The counter key: `-1` the game's block key; else a SkyUI key code (keyboard scan code 1-255, 256 + mouse button: 258 middle, 259 / 260 side buttons). A gamepad always uses its block binding |
+| `counterWindow` | `0.25` | Seconds before impact a counter press still counts |
+| `wardBonusWindow` | `0.10` | Extra seconds when either hand holds a ward |
 | `frontAngle` | `60` | Degrees either side of the facing; hits from behind are not countered |
-| `skipIfOtherParryMod` | `true` | Ward presses do not counter when a ward-reflect mod is loaded |
+| `skipIfOtherParryMod` | `true` | With a ward-reflect mod loaded, no counter while either hand holds a ward |
 | `filterMode` | `"shift"` | `"shift"` or `"systemGroup"` (above) |
-| `dualCastPerk` | `"Skyrim.esm\|0x153D1"` | With spells in both hands and this perk, the counter's ward is dual-cast |
+| `dualCastPerk` | `"Skyrim.esm\|0x153D1"` | With spells in both hands and this perk, the counter's (and the held) ward is dual-cast |
 | `counterResult` | `"ward"` | `"ward"` (raise a ward, the game takes the hit), `"absorb"` or `"reflect"` (fallbacks above) |
 | `hookReturnOnCounter` | `false` | Value the collision hook returns after an `"absorb"` / `"reflect"` counter |
 | `slowMoScale` | `0.4` | Time multiplier during slow motion; `1` turns it off |
@@ -194,7 +194,7 @@ initialisation, which finds nothing when SKSE loads SL_Combat first (CIGAR found
 | `xpPerCounter` | `5` | Learning XP to the next cast's spell; `0` = none |
 | `requireKnownWard` | `true` | The counter needs at least one known ward spell |
 | `wardLingerSeconds` | `1.0` | The counter's ward stays up this long even if the key is let go (free) |
-| `holdWard` | `true` | Holding the button after a counter keeps a ward up |
+| `holdWard` | `true` | Holding the counter key after a counter keeps a ward up |
 | `holdRefreshSeconds` | `0.25` | How often the held ward is re-cast and its magicka charged |
 | `sphereWardAllAngles` | `true` | With 360 Ward loaded, counters from every direction; without it `frontAngle` applies anyway |
 | `warnLeadSeconds` | `0.6` | How early the prompt appears, in seconds before impact |
@@ -214,13 +214,13 @@ and XP, mastery and unlocks stay Heart of Magic's. Without Heart of Magic the co
 
 | Line | When |
 |---|---|
-| `counter.impact spell=… shooter=… msSincePress=… hand=… ward=… knowsWard=… angle=… countered=…` | Every spell missile that hits the player |
+| `counter.impact spell=… shooter=… msSincePress=… ward=… knowsWard=… angle=… countered=…` | Every spell missile that hits the player |
 | `counter.hit spell=… ward raised wardPower=…` (or `absorbed` / `reflected to …`) | A counter |
 | `counter.slowmo scale=… saved=…` / `counter.slowmo restored=…` / `counter.slowmo left alone …` | Slow motion on / off / someone else changed the speed meanwhile |
 | `counter.refund spell=… cost=…` | The free cast's magicka given back |
 | `counter.ward hold start/refresh/end …` / `counter.ward down` | The held ward (refresh shows the cost charged and Ward Power) / the ward let go after the linger and hold |
 | `counter.xp spell=… asked=… granted=…` | Learning XP sent to Heart of Magic |
-| `counter.prompt show left=… right=… in=…` / `counter.prompt press hand=…` | The prompt up (keys per hand) / a counter-key press |
+| `counter.prompt show key=… bindings=… in=…` / `counter.prompt press` | The prompt up (the key's name, how many device bindings) / a counter-key press |
 | `counter.ward raise ward=… dual=… effectiveness=…` | The counter's ward |
 
 `msSincePress=-1` means no press was recorded. These lines turn the M1 checklist below into numbers.
@@ -238,21 +238,19 @@ and XP, mastery and unlocks stay Heart of Magic's. Without Heart of Magic the co
 | 7 | Get hit from behind right after a press | `countered=false` (angle > `frontAngle`) |
 | 8 | Repeat 1-6 on SE (1.5.97) and AE | Same results |
 | 9 | Unlearn every ward (or a character without one), counter | `knowsWard=false`, no counter |
-| 10 | Counter, keep holding (a non-ward spell in hand) | `counter.ward hold start`, a ward visible, magicka draining, `wardPower>0`; release ends it |
+| 10 | Counter, keep holding | `counter.ward hold start`, a ward visible, magicka draining, `wardPower>0`; release ends it |
 | 11 | With and without 360 Ward: counter a missile from behind | With: countered; without: `countered=false` |
-| 12 | Face a Firebolt caster with a spell in one hand | The prompt appears beside the head about 0.6 s out with that hand's key, the ring runs down, gone after the hit |
-| 13 | Spells in both hands | Two prompts on one row, one per hand's key; either one counters |
-| 14 | While the prompt shows, press the key early (as soon as it appears) | No cast (SkyPrompt takes the key), `countered=false` (too early) |
-| 15 | Spam casts with no spell incoming | Spells cast normally; no `counter.prompt press` |
-| 16 | Weapon in one hand, spell in the other | One prompt, on the spell hand's key; the weapon hand attacks as usual |
-| 17 | Spells in both hands, Restoration dual-casting perk, counter pressing both keys | `counter.ward raise … dual=true`, a stronger ward; at load the log names the perk |
-| 18 | Same pressing one key only, or without the perk | `dual=false`, the plain ward |
-| 18b | Both keys, keep holding both, then let one go | `refresh dual=true` while both are held, `dual=false` (and the plain cost) after |
-| 19 | A spell that will clearly miss | No prompt |
-| 20 | Counter, let go at once | The ward stays about 1 s with no magicka spent, then `counter.ward down` |
-| 21 | One-handed sword (or fists) in the right hand, left empty or a shield | One prompt on the block key; a press in time counters and the ward rises |
-| 22 | One-handed weapon left, spell right | Two prompts: block key (left) and the spell's cast (right) |
-| 23 | Two-handed sword or bow, no spell | No prompt |
+| 12 | Face a Firebolt caster | The prompt appears beside the head about 0.6 s out with the block key, the ring runs down, gone after the hit |
+| 13 | While the prompt shows, press the key early (as soon as it appears) | No block or cast (SkyPrompt takes the key), `countered=false` (too early) |
+| 14 | Block or cast with no spell incoming | Block and spells work normally; no `counter.prompt press` |
+| 15 | Spells in both hands, Restoration dual-casting perk, counter | `counter.ward raise … dual=true`, a stronger ward; at load the log names the perk |
+| 16 | One spell, or without the perk | `dual=false`, the plain ward |
+| 17 | A spell that will clearly miss | No prompt |
+| 18 | Counter, let go at once | The ward stays about 1 s with no magicka spent, then `counter.ward down` |
+| 19 | Two-handed sword, bow, sword and shield, fists | The same prompt on the block key; a press in time counters |
+| 20 | Settings page: set Mouse 4 (or a keyboard key), Apply | The key line names it; the next prompt shows that key, a press counters, the block key blocks as usual |
+| 21 | Same with a gamepad | The prompt shows the gamepad's block button; it counters |
+| 22 | Settings page: Block key, Apply | Back to the block key |
 
 If `counter.hit … ward raised` shows `wardPower=0` or the full damage still lands, the ward came too late: try
 `"counterResult": "absorb"`. In the fallbacks, if the missile hits the player again, try

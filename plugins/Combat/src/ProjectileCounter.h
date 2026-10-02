@@ -36,9 +36,9 @@ namespace SLCombat
     RE::hkpCollidable* OtherSideOfHit(RE::hkpAllCdPointCollector* a_collector, RE::Actor* a_actor);
 
     /// Logs the projectile-parry DLLs that are loaded. Returns true when one of
-    /// them reflects spells from a ward held in a spell hand (Perfectly Valid
-    /// Wards): the same press as our counter, so ours stands down for ward presses.
-    /// Weapon/shield parry mods (Elden Parry, Parry for All, Dual Wield Parrying)
-    /// need a block or bash, which a spell hand cannot do, so they do not count.
+    /// them reflects spells from a ward held in hand (Perfectly Valid Wards), so
+    /// ours stands down when a hand holds a ward. Weapon/shield parry mods (Elden
+    /// Parry, Parry for All, Dual Wield Parrying) parry on a block; while our
+    /// prompt shows SkyPrompt takes the block key, so they do not count.
     bool DetectWardReflectMod();
 }

@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "CombatConfig.h"
+#include "CounterKey.h"
 
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -29,6 +30,7 @@ namespace SLCombat
     {
         nlohmann::ordered_json json;
         json["enableCounter"] = enableCounter;
+        json["counterKey"] = counterKey;
         json["counterWindow"] = counterWindow;
         json["wardBonusWindow"] = wardBonusWindow;
         json["frontAngle"] = frontAngle;
@@ -87,6 +89,7 @@ namespace SLCombat
         }
 
         Read(json, "enableCounter", enableCounter);
+        Read(json, "counterKey", counterKey);
         Read(json, "counterWindow", counterWindow);
         Read(json, "wardBonusWindow", wardBonusWindow);
         Read(json, "frontAngle", frontAngle);
@@ -110,6 +113,11 @@ namespace SLCombat
         Read(json, "testTools", testTools);
 
         Read(json, "dualCastPerk", dualCastPerk);
+
+        if (!CounterKey::Valid(counterKey)) {
+            logger::warn("SL_Combat: counterKey {} is not a keyboard or mouse key - using the block key", counterKey);
+            counterKey = CounterKey::kGameBlockKey;
+        }
 
         std::string result;
         Read(json, "counterResult", result);

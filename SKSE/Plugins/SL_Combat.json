@@ -1,5 +1,6 @@
 {
     "enableCounter": true,
+    "counterKey": -1,
     "counterWindow": 0.25,
     "wardBonusWindow": 0.10,
     "frontAngle": 60.0,

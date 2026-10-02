@@ -28,9 +28,8 @@ namespace SLCombat
         static CounterResponse* GetSingleton();
         static void Register();
 
-        /// a_hand: the hand whose press countered; still held a frame later, it keeps a ward up.
-        /// a_bothHands: both keys were pressed (a dual-cast counter).
-        static void OnCounter(RE::MagicItem* a_spell, RE::TESObjectREFR* a_shooter, Hand a_hand, bool a_bothHands);
+        /// The counter key still held a frame later keeps a ward up.
+        static void OnCounter(RE::MagicItem* a_spell, RE::TESObjectREFR* a_shooter);
 
         /// Put the time multiplier back if slow motion is running (menus).
         static void EndSlowMotion();
