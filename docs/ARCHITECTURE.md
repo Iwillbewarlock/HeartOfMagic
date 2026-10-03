@@ -145,14 +145,25 @@ records with their plugins).
 - **Editor ids:** the engine keeps no editor id for spells; they come from po3's Tweaks (the scan dump has
   them). Without it no spell has one and nothing merges.
 - **The copy's tome:** reading it reads the kept spell's tome (`SpellTomeHook::OnSpellTomeReadImpl` through
-  `TreeSpellForTome`): the same prerequisite and skill checks, learning target, tome XP (granted once per
+  `TreeSpellForTome`) when the tree in use has the kept spell as a node and not the copy: the same prerequisite and skill checks, learning target, tome XP (granted once per
   kept spell) and early learning for the kept spell, and ISL is handed the kept spell, so the copy never goes
   into the spellbook through the mod. The copy's tome in the inventory counts for the kept spell's inventory
   boost (`PlayerHasSpellTome`). In vanilla mode (the tome hook off, or the progression system off, with no
-  ISL) a tome teaches what it names, copies included. `TreeSpellForTome` works the groups out from the loaded
-  spells on first use, again once the tome reach pass is done, then keeps them.
+  ISL) a tome teaches what it names, copies included.
+- **The tree in use decides:** the groups come from the spells loaded now, so a plugin added after the tree
+  was built can name a record the tree does not hold. `TreeSpellForTome` asks the tree first
+  (`ProgressionManager::IsTreeSpell`: every node the panel sent with `SetTreePrerequisites`, roots too,
+  cleared with the tree): a node's own tome always teaches that node, and a copy's tome reads as the kept
+  spell's only when that one is a node. Until the panel sends a tree no spell is a node, so every tome reads
+  as itself. Game thread (the node set has no lock, like the rest of ProgressionManager).
+- **When the groups are worked out:** `PrepareTreeSpellForTome`, on the game thread once the tome reach pass
+  is done (Main.cpp: a thread waits with `TomeReach::WaitUntilDone`, then queues it), so a cast's tome
+  inventory check (`PlayerHasSpellTome`) never walks every form. A tree node's tome costs one set lookup. A
+  tome read before then works them out on that call, and again once the pass is done.
+- **The tome scan** (Papyrus `RunScan "tomes"`, `ScanSpellTomes`) marks `duplicateOf` the same way
+  (`MarkDuplicateSpells`).
 - **Saves and trees from before:** a tree built from an older scan still holds both nodes until it is built
-  again (the copy's node then cannot be learned from its tome). Copies a save already learned stay in the
+  again; both are nodes, so each one's tome teaches that one. Copies a save already learned stay in the
   spellbook; nothing is removed.
 
 **Tomes nothing hands out (2026-09-30):** a tome record can exist that no player ever finds: no copy is placed,

@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <filesystem>
 
@@ -74,6 +75,9 @@ public:
     
     void SetPrereqRequirements(RE::FormID spellId, const PrereqRequirements& reqs);
     void ClearAllTreePrerequisites();  // Called when tree reloads
+    // Whether the tree the panel sent (SetPrereqRequirements, roots included) has
+    // this spell as a node. Empty until the panel sends its tree.
+    bool IsTreeSpell(RE::FormID spellId) const;
     PrereqRequirements GetPrereqRequirements(RE::FormID spellId) const;
     bool AreTreePrerequisitesMet(RE::FormID spellId) const;
     // True when XPSettings::reverseUnlock is on and a spell that lists this one as
@@ -267,6 +271,9 @@ private:
     
     // Tree prerequisites: spell formId -> hard/soft prereq requirements
     std::unordered_map<RE::FormID, PrereqRequirements> m_prereqRequirements;
+
+    // Every node of that tree, prerequisites or not (IsTreeSpell)
+    std::unordered_set<RE::FormID> m_treeSpells;
 
     // The same links the other way: spell formId -> spells that list it as a hard
     // or soft prerequisite (IsUnlockedByKnownChild), so the per-cast checks look

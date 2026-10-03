@@ -406,6 +406,19 @@ void OnDataLoaded()
     // Which tomes something hands out: read from the plugin files on a worker
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
+
+    // One spell from two plugins: the groups a copy's tome reads by, worked out
+    // on the game thread once that pass is done, never on a cast's tome check
+    // (SpellScannerDuplicates.cpp). The wait is on a thread of its own.
+    try {
+        std::thread([] {
+            constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
+            TomeReach::WaitUntilDone(kTomeReachWaitLimit);
+            AddTaskToGameThread("PrepareTreeSpellForTome", [] { SpellScanner::PrepareTreeSpellForTome(); });
+        }).detach();
+    } catch (const std::system_error& e) {
+        logger::warn("No thread to wait for the tome reach pass ({}) - copy tomes are grouped on first use", e.what());
+    }
 }
 
 void OnNewGame()

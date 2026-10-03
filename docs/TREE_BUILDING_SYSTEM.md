@@ -181,7 +181,7 @@ toward summons; what was missing was `kind.bound` itself.
 
 **Strength 0 is the 1.2.0 builder**: the flat +30 for any shared element and nothing else. Checked: on the same
 scan and seed the tree at 0 is identical to the 1.2.0 tree (only `generatedAt` and the new `config.type_grouping`
-differ). The setting is the panel's *Type grouping* (Classic Growth Settings, `TreeBuilderSetting`, saved as
+and `config.tier_mode` differ). The setting is the panel's *Type grouping* (Classic Growth Settings, `TreeBuilderSetting`, saved as
 `treeTypeGrouping` in UnifiedConfig, default 1, steps of 0.1).
 
 Measured on the 3,546-spell dev load order (scan of 2026-10-02, `treebuilder-test -c` with `type_grouping`,

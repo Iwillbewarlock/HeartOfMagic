@@ -337,6 +337,7 @@ namespace SpellScanner
 
         json spellArray = json::array();
         std::set<RE::FormID> seenSpellIds;  // Track unique spells
+        std::vector<RE::SpellItem*> tomeSpells;  // spellArray's spells, for the duplicateOf marks
         int tomeCount = 0;
         int skippedDuplicates = 0;
         const FieldConfig& fields = config.fields;
@@ -378,8 +379,11 @@ namespace SpellScanner
             }
 
             spellArray.push_back(spellJson);
+            tomeSpells.push_back(spell);
             tomeCount++;
         }
+        // Another plugin's copy of a spell, marked as the full scan marks it
+        MarkDuplicateSpells(spellArray, tomeSpells);
 
         logger::info("SpellScanner: Found {} unique spells from tomes, skipped {} duplicates",
                      tomeCount, skippedDuplicates);

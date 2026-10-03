@@ -185,6 +185,7 @@ void ProgressionManager::SetPrereqRequirements(RE::FormID spellId, const PrereqR
         LinkRequiredBy(spellId, old->second, false);
     }
     LinkRequiredBy(spellId, reqs, true);
+    m_treeSpells.insert(spellId);
 
     if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {
         m_prereqRequirements.erase(spellId);
@@ -209,7 +210,13 @@ void ProgressionManager::ClearAllTreePrerequisites()
 {
     m_prereqRequirements.clear();
     m_requiredBy.clear();
+    m_treeSpells.clear();
     logger::info("ProgressionManager: Cleared all tree prerequisites");
+}
+
+bool ProgressionManager::IsTreeSpell(RE::FormID spellId) const
+{
+    return m_treeSpells.contains(spellId);
 }
 
 ProgressionManager::PrereqRequirements ProgressionManager::GetPrereqRequirements(RE::FormID spellId) const

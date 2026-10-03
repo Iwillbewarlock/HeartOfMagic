@@ -153,10 +153,22 @@ namespace SpellScanner
     std::unordered_map<RE::FormID, RE::FormID> FindDuplicateSpells(const std::vector<RE::SpellItem*>& spells,
         const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable);
 
+    // FindDuplicateSpells over `spells` (the same order as `spellArray`), each
+    // dropped one's entry marked "duplicateOf" - the tome scan's marks.
+    void MarkDuplicateSpells(json& spellArray, const std::vector<RE::SpellItem*>& spells);
+
     // The spell a tome of `spell` teaches through the tree: the kept record when
-    // `spell` is a duplicate, else `spell` itself. Any thread; the groups are
-    // worked out once (again when the tome reach pass finishes) and kept.
+    // `spell` is a duplicate that is not a node of the tree in use and the kept
+    // one is (ProgressionManager::IsTreeSpell), else `spell` itself. Game thread
+    // (the tree's node set has no lock). A tree node costs one set lookup; the
+    // groups are worked out by PrepareTreeSpellForTome, or on the first call
+    // that needs them if a tome is read before that ran.
     RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell);
+
+    // Works the groups out from the loaded spells, again once the tome reach pass
+    // is done, then keeps them. Main.cpp calls it on the game thread after that
+    // pass, so a cast's tome check never walks every form.
+    void PrepareTreeSpellForTome();
 
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard

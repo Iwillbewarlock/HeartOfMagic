@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "EncodingUtils.h"
+#include "ProgressionManager.h"
 #include "SpellScanner.h"
 #include "tomereach/TomeReach.h"
 
@@ -26,7 +27,8 @@ namespace SpellScanner
     // hands out another's - then the earliest of those. The others are marked
     // duplicateOf in the scan (they stay for the librarian and the perk adapters)
     // and the tree leaves them out (isTaughtByTome, proceduralTreeBuilder.js).
-    // Reading one of their tomes reads the kept spell's (SpellTomeHook).
+    // Reading one of their tomes reads the kept spell's (SpellTomeHook) - when the
+    // tree in use has the kept spell as a node and not the copy (TreeSpellForTome).
 
     namespace
     {
@@ -114,36 +116,70 @@ namespace SpellScanner
         return duplicateOf;
     }
 
-    RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell)
+    void MarkDuplicateSpells(json& spellArray, const std::vector<RE::SpellItem*>& spells)
     {
-        if (!spell) return spell;
-
-        // Built once the tome reach pass is done; until then (or when it failed,
-        // as the scan sees it too) without tomeUnreachable, and built again on
-        // the next call that finds the pass done
-        static std::mutex lock;
-        static std::unordered_map<RE::FormID, RE::FormID> duplicateOf;
-        static bool built = false;
-        static bool settled = false;
-
-        std::lock_guard guard(lock);
-        if (!settled) {
-            std::unordered_set<RE::FormID> unreachable;
-            const bool ready = TomeReach::UnreachableSpells(unreachable);
-            if (!built || ready) {
-                auto* dh = RE::TESDataHandler::GetSingleton();
-                if (!dh) return spell;
-                const auto& all = dh->GetFormArray<RE::SpellItem>();
-                const std::vector<RE::SpellItem*> spells(all.begin(), all.end());
-                duplicateOf = FindDuplicateSpells(spells, SpellsTaughtByTomes(), unreachable);
-                built = true;
-                settled = ready;
+        std::unordered_set<RE::FormID> unreachable;
+        TomeReach::UnreachableSpells(unreachable);
+        const auto duplicates = FindDuplicateSpells(spells, SpellsTaughtByTomes(), unreachable);
+        for (std::size_t i = 0; i < spells.size() && i < spellArray.size(); ++i) {
+            if (auto it = duplicates.find(spells[i]->GetFormID()); it != duplicates.end()) {
+                spellArray[i]["duplicateOf"] = std::format("0x{:08X}", it->second);
             }
         }
+    }
 
-        const auto it = duplicateOf.find(spell->GetFormID());
-        if (it == duplicateOf.end()) return spell;
-        auto* kept = RE::TESForm::LookupByID<RE::SpellItem>(it->second);
+    namespace
+    {
+        // The groups as TreeSpellForTome reads them. Built once the tome reach pass
+        // is done; until then (or when it failed, as the scan sees it too) without
+        // tomeUnreachable, and built again on the next call that finds the pass done
+        std::mutex g_duplicateLock;
+        std::unordered_map<RE::FormID, RE::FormID> g_duplicateOf;
+        bool g_duplicatesBuilt = false;
+        bool g_duplicatesSettled = false;
+
+        // Under g_duplicateLock
+        void BuildDuplicateGroups()
+        {
+            if (g_duplicatesSettled) return;
+            std::unordered_set<RE::FormID> unreachable;
+            const bool ready = TomeReach::UnreachableSpells(unreachable);
+            if (g_duplicatesBuilt && !ready) return;
+            auto* dh = RE::TESDataHandler::GetSingleton();
+            if (!dh) return;
+            const auto& all = dh->GetFormArray<RE::SpellItem>();
+            const std::vector<RE::SpellItem*> spells(all.begin(), all.end());
+            g_duplicateOf = FindDuplicateSpells(spells, SpellsTaughtByTomes(), unreachable);
+            g_duplicatesBuilt = true;
+            g_duplicatesSettled = ready;
+        }
+    }
+
+    void PrepareTreeSpellForTome()
+    {
+        std::lock_guard guard(g_duplicateLock);
+        BuildDuplicateGroups();
+    }
+
+    RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell)
+    {
+        // The tree in use decides, not the load order alone: the groups come from
+        // the spells loaded now, and a plugin added after the tree was built can
+        // name a record the tree does not hold. A tree node's tome teaches that
+        // node; a copy's tome reads as the kept spell's only when that one is a node.
+        auto* pm = ProgressionManager::GetSingleton();
+        if (!spell || !pm || pm->IsTreeSpell(spell->GetFormID())) return spell;
+
+        RE::FormID keptId = 0;
+        {
+            std::lock_guard guard(g_duplicateLock);
+            BuildDuplicateGroups();
+            const auto it = g_duplicateOf.find(spell->GetFormID());
+            if (it == g_duplicateOf.end()) return spell;
+            keptId = it->second;
+        }
+        if (!pm->IsTreeSpell(keptId)) return spell;
+        auto* kept = RE::TESForm::LookupByID<RE::SpellItem>(keptId);
         return kept ? kept : spell;
     }
 }
