@@ -319,12 +319,9 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
                 logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",
                     targetSpellId, newProgress * 100.0f);
 
-                // Fire ModEvent: SpellLearning_SpellEarlyGranted
-                auto* costliest = spell->GetCostliestEffectItem();
-                std::string schoolStr = (costliest && costliest->baseEffect)
-                    ? SpellScanner::GetSchoolName(costliest->baseEffect->GetMagickSkill())
-                    : "Unknown";
-                SendModEvent("SpellLearning_SpellEarlyGranted", schoolStr, newProgress * 100.0f, spell);
+                // Fire ModEvent: SpellLearning_SpellEarlyGranted, naming the school the way
+                // TargetChanged did for this spell (its target key), not the costliest effect's
+                SendModEvent("SpellLearning_SpellEarlyGranted", EventSchoolOf(targetSpellId), newProgress * 100.0f, spell);
             }
         }
 
@@ -366,12 +363,9 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
                 HudNotify::Show("hud.mastered", "{{spell}} MASTERED! Full power unlocked.",
                     { { "spell", spell->GetName() } });
 
-                // Fire ModEvent: SpellLearning_SpellMastered
-                auto* costliest = spell->GetCostliestEffectItem();
-                std::string schoolStr = (costliest && costliest->baseEffect)
-                    ? SpellScanner::GetSchoolName(costliest->baseEffect->GetMagickSkill())
-                    : "Unknown";
-                SendModEvent("SpellLearning_SpellMastered", schoolStr, 0.0f, spell);
+                // Fire ModEvent: SpellLearning_SpellMastered, naming the school the way
+                // TargetChanged did for this spell (its target key), not the costliest effect's
+                SendModEvent("SpellLearning_SpellMastered", EventSchoolOf(targetSpellId), 0.0f, spell);
             }
 
             // Clear learning target for this school (spell is mastered)

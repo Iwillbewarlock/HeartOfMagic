@@ -204,6 +204,7 @@
     "editMode.exitEditMode": "Wyjdź z trybu edycji",
     "editMode.nothingToUndo": "Brak akcji do cofnięcia",
     "editMode.undoAction": "Cofnij: {{action}}",
+    "editMode.rootNotDeleted": "Nie usunięto: {{name}} to korzeń swojej szkoły",
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Czarna lista",
     "filter.title": "Filtry",
@@ -216,6 +217,8 @@
     "footer.legendUnlocked": "Odblokowane",
     "footer.spellsLabel": "zaklęcia",
     "footer.statusReady": "Gotowe",
+    "footer.newSpells": "Nowe",
+    "footer.nextGoals": "Następne",
     "footer.unlockedLabel": "odblokowane",
 
 

@@ -99,7 +99,8 @@ TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
         var count = function() {
             return (listeners.mousemove || []).length + (listeners.mouseup || []).length + (listeners.blur || []).length;
         };
-        var press = { button: 0, clientX: 100, clientY: 100, preventDefault: function() {}, stopPropagation: function() {} };
+        var press = { button: 0, buttons: 1, clientX: 100, clientY: 100, preventDefault: function() {}, stopPropagation: function() {} };
+        var pressNoButtons = { button: 0, buttons: 0, clientX: 100, clientY: 100, preventDefault: function() {}, stopPropagation: function() {} };
         var move = function(dx, buttons) {
             return { clientX: 100 + dx, clientY: 100, buttons: buttons, preventDefault: function() {} };
         };
@@ -124,9 +125,27 @@ TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
 
         T._startDrag(press);
         fire('mousemove', move(50, undefined));
-        this.check(T._drag !== null, 'no buttons field (an older engine): the drag goes on');
+        this.check(T._drag !== null, 'a move with no buttons field: the drag goes on');
         fire('mouseup', { stopPropagation: function() {} });
         this.check(T._drag === null && count() === 0 && saveCount() === before + 3, 'a release ends it as before');
+
+        // An older engine with no buttons field at all: the press reports nothing
+        T._startDrag({ button: 0, clientX: 100, clientY: 100, preventDefault: function() {}, stopPropagation: function() {} });
+        fire('mousemove', move(100, 0));
+        this.check(T._drag !== null, 'a press with no buttons field: a move with buttons 0 does not end the drag');
+        fire('mouseup', { stopPropagation: function() {} });
+        before = saveCount() - 3;   // that release saved once: the counts below go on from here
+
+        // An engine that sends buttons 0 on every event (Ultralight may): the
+        // press reports 0 too, so 0 on a move says nothing about a lost release
+        T._startDrag(pressNoButtons);
+        fire('mousemove', move(200, 0));
+        this.check(T._drag !== null && T.current() > 1 && saveCount() === before + 3,
+            'buttons always 0: a move goes on resizing, the drag does not end');
+        fire('mousemove', move(300, 0));
+        this.check(T._drag !== null, 'buttons always 0: still dragging after more moves');
+        fire('mouseup', { stopPropagation: function() {} });
+        this.check(T._drag === null && count() === 0 && saveCount() === before + 4, 'buttons always 0: the release ends it');
     } finally {
         g.document = oldDocument;
         g.addEventListener = oldAdd;

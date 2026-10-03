@@ -9,10 +9,12 @@
  * the plugin then clears it under whatever key holds it.
  *
  * window.onLearningTargetDropped (from UIManager::NotifyLearningTargetDropped):
- * a school key no longer holds the spell; the panel's copy forgets that key.
+ * a school key no longer holds the spell; the panel's copy forgets that key
+ * and redraws the learning paths, the wheel's marks and the open spell card.
  *
  * Pure apart from the callback (learningTargetKeysTest.js covers it).
- * Depends on (read when called, optional): state, resolveCanonicalId.
+ * Depends on (read when called, optional): state, resolveCanonicalId,
+ * CanvasRenderer, WheelRenderer, showSpellDetails.
  * Exports (global): LearningTargetKeys, onLearningTargetDropped
  */
 
@@ -43,6 +45,23 @@ var LearningTargetKeys = {
         if (held !== formId && held !== canon) return false;
         delete targets[school];
         return true;
+    },
+
+    /**
+     * Redraw what shows the targets after a key changed: the tree's learning
+     * paths, the wheel's learning marks and the open spell card (its Learn button)
+     */
+    refreshViews: function() {
+        if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer._nodeMap) {
+            CanvasRenderer._buildLearningPaths();
+            CanvasRenderer._needsRender = true;
+        }
+        if (typeof WheelRenderer !== 'undefined' && typeof WheelRenderer.updateNodeStates === 'function') {
+            WheelRenderer.updateNodeStates();
+        }
+        if (typeof state !== 'undefined' && state.selectedNode && typeof showSpellDetails === 'function') {
+            showSpellDetails(state.selectedNode);
+        }
     }
 };
 
@@ -54,6 +73,7 @@ window.onLearningTargetDropped = function(dataStr) {
         if (!data || typeof state === 'undefined' || !state.learningTargets) return;
         if (LearningTargetKeys.drop(state.learningTargets, data.school, data.formId)) {
             console.log('[SpellLearning] Learning target key dropped: ' + data.school + ' (' + data.formId + ')');
+            LearningTargetKeys.refreshViews();
         }
     } catch (e) {
         console.error('[SpellLearning] Failed to parse dropped learning target:', e);

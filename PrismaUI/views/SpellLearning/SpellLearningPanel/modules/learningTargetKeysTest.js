@@ -5,9 +5,10 @@
  * Checks: the key holding a spell when it is the node's school and when it is
  * another one (a save from before kept a multi-school spell under its costliest
  * effect's school), the canonical id, the preferred key first, no match; the
- * dropped-key callback forgetting only a key that still holds that spell; and
- * that the Learn button and the spell card look the spell up this way and send
- * its formId with the clear.
+ * dropped-key callback forgetting only a key that still holds that spell and
+ * redrawing the paths, wheel marks and open card when it does; and that the
+ * Learn button (normal and cheat mode), the spell card and the wheel's learning
+ * mark look the spell up this way and the clear sends its formId.
  *
  * Depends on: learningTargetKeys.js - under node this file runs it into the
  * global scope the way the page's script tag does. Swaps the global `state`
@@ -47,6 +48,7 @@ var LearningTargetKeysTest = {
         }
         var K = g.LearningTargetKeys;
         var oldState = g.state;
+        var oldCanvas = g.CanvasRenderer, oldWheel = g.WheelRenderer, oldDetails = g.showSpellDetails;
         try {
             // A multi-school spell: first effect Alteration (its tree node's school),
             // costliest effect Destruction (the key a tome used before)
@@ -59,11 +61,25 @@ var LearningTargetKeysTest = {
             this.check(K.schoolOf(targets, '0x9', null, 'Alteration') === null && K.schoolOf(null, '0x1') === null &&
                 K.schoolOf(targets, '') === null, 'no key holds it: null');
 
-            g.state = { learningTargets: { Destruction: '0x0001A001', Alteration: '0x0005E005' } };
+            var selected = { formId: '0x0001A001', school: 'Alteration' };
+            g.state = { learningTargets: { Destruction: '0x0001A001', Alteration: '0x0005E005' }, selectedNode: selected };
+            var calls = { paths: 0, wheel: 0, card: [] };
+            g.CanvasRenderer = { _nodeMap: {}, _buildLearningPaths: function() { calls.paths++; } };
+            g.WheelRenderer = { updateNodeStates: function() { calls.wheel++; } };
+            g.showSpellDetails = function(node) { calls.card.push(node); };
             g.onLearningTargetDropped(JSON.stringify({ school: 'Destruction', formId: '0x0001A001' }));
             this.check(!g.state.learningTargets.hasOwnProperty('Destruction'), 'a dropped key is forgotten');
+            this.check(calls.paths === 1 && g.CanvasRenderer._needsRender === true && calls.wheel === 1 &&
+                calls.card.length === 1 && calls.card[0] === selected,
+                'a dropped key redraws the learning paths, the wheel marks and the open spell card');
             g.onLearningTargetDropped(JSON.stringify({ school: 'Alteration', formId: '0x0001A001' }));
             this.check(g.state.learningTargets.Alteration === '0x0005E005', 'a key holding another spell stays');
+            this.check(calls.paths === 1 && calls.wheel === 1 && calls.card.length === 1, 'nothing dropped, nothing redrawn');
+            delete g.CanvasRenderer; delete g.WheelRenderer; delete g.showSpellDetails;
+            g.state.learningTargets.Illusion = '0x0002B002';
+            g.state.selectedNode = null;
+            g.onLearningTargetDropped(JSON.stringify({ school: 'Illusion', formId: '0x0002B002' }));
+            this.check(!g.state.learningTargets.hasOwnProperty('Illusion'), 'no renderer or card loaded: the key still goes');
             var oldError = console.error;
             console.error = function() {};
             try { g.onLearningTargetDropped('not json'); } finally { console.error = oldError; }
@@ -76,8 +92,13 @@ var LearningTargetKeysTest = {
                 'the Learn button finds the key by id and sends the formId with the clear');
             this.check(/LearningTargetKeys\.schoolOf\(state\.learningTargets, node\.formId, canonId/.test(this._file('spellProgressView.js')),
                 'the spell card finds the target by id');
+            this.check(/LearningTargetKeys\.schoolOf\(state\.learningTargets, node\.formId, canonId, node\.school\) !== null;\s*if \(isLearningTarget\)/.test(this._file('spellProgressView.js')),
+                "cheat mode's Learn button finds the target by id");
+            this.check(/LearningTargetKeys\.schoolOf\(state\.learningTargets, node\.formId, _uCanonId/.test(this._file('wheelRenderer.js')),
+                "the wheel's learning mark finds the target by id");
         } finally {
             g.state = oldState;
+            g.CanvasRenderer = oldCanvas; g.WheelRenderer = oldWheel; g.showSpellDetails = oldDetails;
         }
         return { passed: this.passed, failed: this.failed };
     }

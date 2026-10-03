@@ -204,6 +204,7 @@
     "editMode.exitEditMode": "Quitter le mode édition",
     "editMode.nothingToUndo": "Rien à annuler",
     "editMode.undoAction": "Annuler : {{action}}",
+    "editMode.rootNotDeleted": "Non supprimé : {{name}} est la racine de son école",
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Liste noire",
     "filter.title": "Filtres",
@@ -216,6 +217,8 @@
     "footer.legendUnlocked": "Débloqué",
     "footer.spellsLabel": "sorts",
     "footer.statusReady": "Prêt",
+    "footer.newSpells": "Nouveaux",
+    "footer.nextGoals": "Prochains",
     "footer.unlockedLabel": "débloqués",
 
 

@@ -49,14 +49,18 @@ private:
     // yet. Only a report of the OTHER way within the window takes one of them and
     // earns nothing; repeats seen the same way always count (a spell in each hand).
     //
-    // The window: both reports of one cast come out of one engine cast (the same
-    // call chain on one thread), so in the same frame, and
-    // their times are taken when the engine reports them (ProcessEvent /
-    // OnImmediateCast), not when the queued task runs - queue delay is not in the
-    // gap. 0.1 s is 3 frames at 30 fps, 6 at 60, so a slow frame between the two
-    // still pairs; a real second cast the other way is further apart than that
-    // (SpellHotbar 2's cooldown is 0.5 s, a hand cast's animation longer still).
-    // It was 0.3 s, which could swallow a genuine second cast.
+    // The window: the two reports need not come from one call chain or one thread
+    // (the cast event arrives on whichever thread did the casting - four different
+    // ones seen in game). The assumption is only that both are sent within a frame
+    // or so of the one engine cast behind them. Their times are taken when the
+    // engine reports them (ProcessEvent / OnImmediateCast), not when the queued task
+    // runs - queue delay is not in the gap. 0.1 s is 3 frames at 30 fps, 6 at 60, so
+    // a slow frame between the two still pairs; a real second cast the other way is
+    // further apart than that (SpellHotbar 2's cooldown is 0.5 s, a hand cast's
+    // animation longer still). It was 0.3 s, which could swallow a genuine second
+    // cast. Each pairing logs its measured gap at debug level ("duplicate skipped
+    // ... s apart") to check the assumption in game.
+    // a_gapSeconds: set to the gap to the paired report when this returns true.
     static constexpr float kSameCastWindowSeconds = 0.1f;
     static constexpr std::size_t kMaxPendingPerWay = 8;
     struct PendingCasts
@@ -66,7 +70,7 @@ private:
     };
     std::unordered_map<RE::FormID, PendingCasts> m_pendingCasts;
     // True when this report is the second report of a cast already credited
-    bool IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt);
+    bool IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt, float& a_gapSeconds);
     void RememberCredited(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt);
     // A spell re-cast immediately again and again (a mod refreshing a ward every 0.25 s)
     // counts once, at the start of the stream, like a held concentration spell. Below

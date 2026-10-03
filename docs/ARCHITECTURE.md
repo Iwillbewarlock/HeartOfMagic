@@ -735,9 +735,11 @@ struct EarlyLearningSettings {
   `kSameCastWindowSeconds` (0.1 s, either side - tasks run in queue order) takes one of them and earns
   nothing (`IsSecondReport`), so event, event, hook, hook is two credits, not three, and a slow game thread
   no longer opens the window. Only reports of different ways pair; two of the same way never do. The two
-  reports of one cast come out of one engine cast, in the same frame, so 0.1 s (3 frames at 30 fps) is room
-  for a slow frame while a genuine second cast the other way (SpellHotbar 2's 0.5 s cooldown, a hand cast's
-  animation) falls outside it; at 0.3 s it could swallow one. Repeats seen the same way still count each (a spell in each hand). Before,
+  reports of one cast need not come from one thread (the event comes from whichever thread cast the spell);
+  the window assumes only that both are sent within a frame or so of the one engine cast, so 0.1 s (3 frames
+  at 30 fps) is room for a slow frame while a genuine second cast the other way (SpellHotbar 2's 0.5 s cooldown, a hand cast's
+  animation) falls outside it; at 0.3 s it could swallow one. The debug log's "duplicate skipped" line gives
+  each pair's measured gap ("0.004s apart, window 0.10s"), to check that assumption in game. Repeats seen the same way still count each (a spell in each hand). Before,
   only the last credit was remembered and its time was the task's.
   A stream of immediate re-casts of one spell less than `kImmediateStreamGapSeconds` (0.45 s) apart -
   a mod refreshing a ward every 0.25 s - counts once, at its start, like a held concentration spell;
@@ -755,11 +757,15 @@ struct EarlyLearningSettings {
   `OnSpellCast` paid it twice per cast - or of one school the panel did not look at, so it could neither
   show nor clear it. Now there is one key, `TargetSchoolOf` (the node's school), for the panel, the tome path
   and the cast; `SetLearningTarget` drops the spell from any other school (`DropTargetFromOtherSchools`), a
-  loaded save moves each spell to that key when it is free and keeps it under one school
-  (`CanonicalizeLearningTargets`), and `OnSpellCast` credits a target spell at most once per cast. Every key
-  dropped is told to the panel (`UIManager::NotifyLearningTargetDropped` -> `onLearningTargetDropped`,
-  `modules/learningTargetKeys.js`), and the panel's clear sends the spell's formId too, so the plugin clears it
-  under whatever key holds it
+  loaded save keeps each spell under one school (`CanonicalizeLearningTargets`: all targets collected first,
+  then each moved to that key unless a target staying put holds it, in formId order, so two spells saved under
+  each other's school swap and none is lost), and `OnSpellCast` credits a target spell at most once per cast.
+  A target can therefore stay under an older key, so the panel looks targets up by formId
+  (`LearningTargetKeys.schoolOf`), never by `node.school`. Every key dropped or moved is told to the panel
+  (`UIManager::NotifyLearningTargetDropped` -> `onLearningTargetDropped`, which redraws the learning paths, the
+  wheel marks and the open spell card; a key set by the move -> `onLearningTargetSet`) and fires
+  `SpellLearning_TargetChanged` (0 for the key cleared, 1 for the key set), and the panel's clear sends the
+  spell's formId too, so the plugin clears it under whatever key holds it
 - Identify spell school from cast
 - Route to ProgressionManager for XP calculation
 - **Throttled notifications** (configurable interval, default 10 seconds)
@@ -1050,6 +1056,7 @@ SpellLearning.GetSourceCap(source)                     ; Cap % for any source
 - `SpellLearning_XPGained` — (strArg=source, numArg=amount, sender=Spell)
 - `SpellLearning_SpellMastered` — (strArg=school, sender=Spell)
 - `SpellLearning_SpellEarlyGranted` — (strArg=school, numArg=progress%, sender=Spell)
+  (school: the key the spell is a target under, as `TargetChanged` named it - `ProgressionManager::EventSchoolOf`)
 - `SpellLearning_TargetChanged` — (strArg=school, numArg=1.0/0.0, sender=Spell)
 - `SpellLearning_SourceRegistered` — (strArg=sourceId)
 

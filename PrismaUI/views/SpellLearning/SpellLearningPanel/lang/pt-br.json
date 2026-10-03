@@ -204,6 +204,7 @@
     "editMode.exitEditMode": "Sair do Modo de Edição",
     "editMode.nothingToUndo": "Nada para desfazer",
     "editMode.undoAction": "Desfazer: {{action}}",
+    "editMode.rootNotDeleted": "Não excluída: {{name}} é a raiz de sua escola",
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Lista Negra",
     "filter.title": "Filtros",
@@ -216,6 +217,8 @@
     "footer.legendUnlocked": "Desbloqueada",
     "footer.spellsLabel": "magias",
     "footer.statusReady": "Pronto",
+    "footer.newSpells": "Novas",
+    "footer.nextGoals": "Próximas",
     "footer.unlockedLabel": "desbloqueadas",
 
 

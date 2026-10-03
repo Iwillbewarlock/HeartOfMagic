@@ -204,6 +204,7 @@
     "editMode.exitEditMode": "編集モード終了",
     "editMode.nothingToUndo": "元に戻す操作がありません",
     "editMode.undoAction": "元に戻す: {{action}}",
+    "editMode.rootNotDeleted": "削除されません: {{name}} はこの学派のルートです",
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> ブラックリスト",
     "filter.title": "フィルター",
@@ -216,6 +217,8 @@
     "footer.legendUnlocked": "解放済み",
     "footer.spellsLabel": "呪文",
     "footer.statusReady": "準備完了",
+    "footer.newSpells": "新しい呪文",
+    "footer.nextGoals": "次の目標",
     "footer.unlockedLabel": "解放済み",
 
 

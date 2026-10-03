@@ -397,9 +397,13 @@ All use SKSE's `ModCallbackEvent(string eventName, string strArg, float numArg, 
 | `SpellLearning_XPGained` | After any XP added | Source name (built-in or modded) | XP amount granted | Spell form |
 | `SpellLearning_SpellMastered` | 100% XP + unlocked | School name | 0.0 | Spell form |
 | `SpellLearning_SpellEarlyGranted` | Early grant at threshold | School name | Progress % | Spell form |
-| `SpellLearning_TargetChanged` | Target set or cleared | School name | 1.0=set, 0.0=cleared | Spell or None |
+| `SpellLearning_TargetChanged` | Target set or cleared (also a key cleared because the spell was set under another school, and each key changed when a save loads) | School name | 1.0=set, 0.0=cleared | Spell or None |
 | `SpellLearning_ProgressMilestone` | Power step crossed | Step label | Effectiveness % | Spell form |
 | `SpellLearning_SourceRegistered` | New modded source registered | Source ID | 0.0 | None |
+
+The school of `SpellMastered` and `SpellEarlyGranted` (1.2.1) is the key the spell is a learning target under, the
+one `TargetChanged` named (the tree school, see above); 1.2.0 sent the costliest effect's school, which differs
+for a spell with effects of two schools.
 
 ### Fire Locations in ProgressionManager.cpp
 

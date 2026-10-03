@@ -53,6 +53,14 @@
   (0x... or four or more hex digits), after the name matches, so "fe" no longer lists every ESL spell.
   Switching tabs, closing the panel or loading a tree hides it, and the highlight ignores spaces like the
   search.
+- A spell with effects of two schools now earns cast XP at the rate of its tree school (its first effect's),
+  the school it is listed under, instead of its costliest effect's. So for those spells the School, Direct and
+  Any cast XP rates can come out differently from 1.2.0 (a cast now counts as "same school" for the targets of
+  its first effect's school).
+- Modders: `SpellLearning_SpellMastered` and `SpellLearning_SpellEarlyGranted` name the school the spell is the
+  learning target of (the one `SpellLearning_TargetChanged` named), not its costliest effect's.
+  `SpellLearning_TargetChanged` also fires (0) for a school that loses the spell because it was set under
+  another school, and for each school changed when a save from before is put right on load.
 
 ### Fixed
 

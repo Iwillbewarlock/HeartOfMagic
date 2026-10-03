@@ -204,6 +204,7 @@
     "editMode.exitEditMode": "Esci dalla Modalità Modifica",
     "editMode.nothingToUndo": "Niente da annullare",
     "editMode.undoAction": "Annulla: {{action}}",
+    "editMode.rootNotDeleted": "Non eliminato: {{name}} è la radice della sua scuola",
 
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Lista Esclusi",
     "filter.title": "Filtri",
@@ -216,6 +217,8 @@
     "footer.legendUnlocked": "Sbloccato",
     "footer.spellsLabel": "incantesimi",
     "footer.statusReady": "Pronto",
+    "footer.newSpells": "Nuovi",
+    "footer.nextGoals": "Prossimi",
     "footer.unlockedLabel": "sbloccati",
 
 

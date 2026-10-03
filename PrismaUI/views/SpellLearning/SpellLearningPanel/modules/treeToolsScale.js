@@ -115,6 +115,10 @@ var TreeToolsScale = {
         this._drag = {
             x: e.clientX, y: e.clientY,
             scale: this.current(),
+            // Does this engine say which buttons are down? Ultralight may send 0
+            // on every event, so a move with buttons 0 means a lost release only
+            // when the press itself reported its button (as canvasRendererInput)
+            reported: typeof e.buttons === 'number' && e.buttons > 0,
             width: bar.offsetWidth * this.current(),
             height: bar.offsetHeight * this.current(),
             move: function(ev) { self._onDragMove(ev); },
@@ -129,12 +133,14 @@ var TreeToolsScale = {
     /**
      * The pointer moved during a drag. No button held means the release went
      * somewhere this page did not hear it (outside the view, the game took the
-     * mouse): the drag ends here instead of following the pointer on.
+     * mouse): the drag ends here instead of following the pointer on. Only
+     * when the press reported its button: an engine that always sends 0 would
+     * otherwise end every drag on its first move.
      */
     _onDragMove: function(ev) {
         var d = this._drag;
         if (!d) return;
-        if (typeof ev.buttons === 'number' && ev.buttons === 0) {
+        if (d.reported && ev.buttons === 0) {
             this._endDrag(null);
             return;
         }

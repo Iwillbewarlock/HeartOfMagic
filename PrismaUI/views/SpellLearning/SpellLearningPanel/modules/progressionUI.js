@@ -374,7 +374,10 @@ function onLearnClick() {
             // Clear all local targets
             state.learningTargets = {};
         } else {
-            // In "perSchool" mode, check if switching targets in same school
+            // In "perSchool" mode, check if switching targets in same school.
+            // Raw node.school on purpose: this spell is held under no key (heldSchool
+            // above), and the plugin's SetLearningTarget replaces exactly the spell
+            // under the key it is sent, node.school
             var existingTarget = state.learningTargets[node.school];
             if (existingTarget && existingTarget !== node.formId) {
                 // Switching targets in same school - old spell will be removed by C++

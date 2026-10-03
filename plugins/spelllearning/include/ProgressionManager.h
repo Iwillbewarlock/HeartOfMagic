@@ -277,12 +277,18 @@ private:
 
     // One spell is the learning target of one school at most: a spell under two keys
     // earned XP twice per cast (ProgressionManagerCore.cpp). Every key dropped is
-    // told to the panel (UIManager::NotifyLearningTargetDropped)
+    // told to the panel (UIManager::NotifyLearningTargetDropped) and fires
+    // SpellLearning_TargetChanged with 0 for that key
     void DropTargetFromOtherSchools(const std::string& keepSchool, RE::FormID formId);
-    // At save load: each target under one key, its TargetSchoolOf key when that one
-    // is free (a save from before kept a tome's target under the costliest effect's
-    // school, which the panel could neither see nor clear)
+    // At save load: each target under one key, its TargetSchoolOf key unless a target
+    // staying put holds it (a save from before kept a tome's target under the costliest
+    // effect's school, which the panel could neither see nor clear). Order-independent
+    // (collect, then place); every key changed is told to the panel and fires
+    // SpellLearning_TargetChanged (0 for a key cleared, 1 for a key set)
     void CanonicalizeLearningTargets();
+    // The school a ModEvent about this spell names: the key it is a target under,
+    // else TargetSchoolOf, else "Unknown"
+    std::string EventSchoolOf(RE::FormID formId) const;
 
     // Learning targets: school name -> spell formId
     std::unordered_map<std::string, RE::FormID> m_learningTargets;

@@ -82,7 +82,8 @@ void SpellCastHandler::OnImmediateCast(RE::FormID spellId)
 // ONE CAST, ONE CREDIT (event and immediate-cast hook)
 // =============================================================================
 
-bool SpellCastHandler::IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt)
+bool SpellCastHandler::IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt,
+                                      float& a_gapSeconds)
 {
     auto found = m_pendingCasts.find(spellId);
     if (found == m_pendingCasts.end()) return false;
@@ -98,6 +99,8 @@ bool SpellCastHandler::IsSecondReport(RE::FormID spellId, bool a_immediate, Cloc
     auto& otherWay = a_immediate ? pending.byEvent : pending.byHook;
     bool second = false;
     if (!otherWay.empty()) {
+        const auto paired = otherWay.front();
+        a_gapSeconds = std::chrono::duration<float>(a_castAt > paired ? a_castAt - paired : paired - a_castAt).count();
         otherWay.pop_front();
         second = true;
     }
@@ -145,10 +148,14 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate, Cl
     }
 
     // The same cast seen by both the event and the immediate-cast hook counts once
-    if (IsSecondReport(spellId, a_immediate, a_castAt)) {
-        // Debug: the cast's one info line (OnSpellCast) is already in the log
-        logger::debug("XP: duplicate skipped - {} ({:08X}) from {}: the same cast was already credited the other way",
-            spell->GetName(), spellId, path);
+    float pairGap = 0.0f;
+    if (IsSecondReport(spellId, a_immediate, a_castAt, pairGap)) {
+        // Debug: the cast's one info line (OnSpellCast) is already in the log. The
+        // gap between the two reports is what the window rests on (see the header):
+        // the log shows how far apart they really are in game
+        logger::debug("XP: duplicate skipped - {} ({:08X}) from {}: the same cast was already credited the other way "
+                      "({:.3f}s apart, window {:.2f}s)",
+            spell->GetName(), spellId, path, pairGap, kSameCastWindowSeconds);
         return;
     }
     if (inStream) {

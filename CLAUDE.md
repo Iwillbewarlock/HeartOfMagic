@@ -153,6 +153,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -NoCombat    # without the SL_Combat addon (otherwise deployed when built)
 .\DeployDev.ps1 -CombatOnly  # only SL_Combat.dll (+ its settings file once); nothing else in the install changes
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
+.\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -162,7 +163,9 @@ verifies the copy landed. Unless `-PanelOnly`, it also copies the compiled Papyr
 (`build/Scripts/output/*.pex`, with their `.psc` in `Scripts/Source`) the way the release lays them out: the
 core ones always, the BookXP script only when the install has `SL_BookXP.dll` (or the script) or with
 `-WithBookXP`, the ISL patch's three only when the install already has the patch's script or with
-`-WithISLPatch`, each checked by hash. It copies the shipped design presets and removes only the ones the mod no
+`-WithISLPatch`, each checked by hash. Everything it will copy is checked before the first copy (the DLL, the
+panel, each of those `.pex` present and newer than its `.psc`): a missing or stale build stops it with the install
+untouched (`-NoScripts` deploys without the scripts on purpose). It copies the shipped design presets and removes only the ones the mod no
 longer ships (a list in the script); any other design JSON in the install (an add-on being tried) stays.
 
 ### Local Build Configuration
@@ -229,8 +232,8 @@ node run-tests.js
 | `modules/prereqEditTest.js` | Edit mode's prerequisite editing (`PrereqEdit`, `EditMode`): a link goes into Required once, delete and the eraser take only that one, H/S moves without a second entry, undo of each (type, line, `softNeeded`), a move into an empty Optional list needing 1, deleting a spell (`deleteNode`: no reference left in the saved tree - children, locks, bridges - its undo entries dropped so Ctrl+Z after it links nothing to it and saves nothing, a school root refused), the repair of a tree saved by 1.2.0 (a PreReq Master lock on the parent lowers `softNeeded` instead), `copyTo`, and no two lists of a `ClassicTreeOutput` node sharing an array |
 | `modules/notificationSettingTest.js` | Settings > Show Notifications (`NotificationSetting`): defaults, save/load into `config.notifications`, wrong or missing values, Reset to Defaults, the weakened alert controls disabled while it is off |
 | `modules/spellSearchTest.js` | Find Spell's matcher (`SpellSearch`): shown name, school (English and translated) and formId (only a formId-like text, "fe" is not one; after name matches), case and spaces ignored (Korean too), exact - prefix - rest - formId order alphabetical within each, the 80 cap, locked spells out in discovery mode and in with cheat mode or discovery mode off, the raw tree data (no states) listing nothing in discovery mode, the space-blind highlight range |
-| `modules/treeToolsScaleTest.js` | The tree tool bar's size (`TreeToolsScale`): clamp 1x - 3x in 0.05 steps, the scale a drag gives, save/load, Reset to Defaults, saving only a finished drag, a lost release (a move with no button held, focus lost) ending the drag |
-| `modules/learningTargetKeysTest.js` | A learning target found by spell id, not school key (`LearningTargetKeys`): a multi-school spell under another key than its node's, the canonical id, `onLearningTargetDropped` forgetting only a key that still holds that spell, the Learn button and spell card using it and the clear sending the formId |
+| `modules/treeToolsScaleTest.js` | The tree tool bar's size (`TreeToolsScale`): clamp 1x - 3x in 0.05 steps, the scale a drag gives, save/load, Reset to Defaults, saving only a finished drag, a lost release (a move with no button held, focus lost) ending the drag - the no-button check only when the press reported its button, so an engine sending buttons 0 on every event keeps dragging until the release |
+| `modules/learningTargetKeysTest.js` | A learning target found by spell id, not school key (`LearningTargetKeys`): a multi-school spell under another key than its node's, the canonical id, `onLearningTargetDropped` forgetting only a key that still holds that spell and then redrawing the learning paths, wheel marks and open spell card, the Learn button (cheat mode too), spell card and wheel learning mark using it and the clear sending the formId |
 | `modules/findSpellDismissTest.js` | The Find Spell dropdown going away by itself (`dismissFindSpell`): hidden from any tab, not "open" behind another tab (Escape goes on), and called by the tab switch, the close button, `onPanelHiding` and `loadTreeData` |
 | `test-runner.html` | Browser-based test runner |
 | `dev-harness.html` | Desktop harness (open in a browser, mock C++ bridge in `dev-harness-bridge.js`). Generated: `node tools/make-dev-harness.js` puts the parts of `dev-harness-parts.html` into `index.html`, so it loads exactly the panel's scripts in the panel's order - never edit it by hand, edit `dev-harness-parts.html` and regenerate |

@@ -144,7 +144,8 @@ function updateDetailsProgression(node, opts) {
             // Also show learn button in cheat mode (for normal learning path)
             if (node.state === 'available' || node.state === 'learning') {
                 learnBtn.classList.remove('hidden');
-                var isLearningTarget = state.learningTargets && state.learningTargets[node.school] === node.formId;
+                // By id: the key holding it may not be node.school (learningTargetKeys.js)
+                var isLearningTarget = LearningTargetKeys.schoolOf(state.learningTargets, node.formId, canonId, node.school) !== null;
                 if (isLearningTarget) {
                     learnBtn.textContent = tOr('details.learning', null, 'Learning...');
                     learnBtn.classList.add('active');

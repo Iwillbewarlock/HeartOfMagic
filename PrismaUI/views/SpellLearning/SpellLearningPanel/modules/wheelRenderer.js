@@ -2656,7 +2656,8 @@ var WheelRenderer = {
             }
             
             var _uCanonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
-            var isLearningTarget = state.learningTargets[node.school] === _uCanonId || state.learningTargets[node.school] === node.formId;
+            // By id: the key holding it may not be node.school (learningTargetKeys.js)
+            var isLearningTarget = LearningTargetKeys.schoolOf(state.learningTargets, node.formId, _uCanonId, node.school) !== null;
             var progress = state.spellProgress[_uCanonId];
             
             if (isLearningTarget && node.state !== 'unlocked') {
