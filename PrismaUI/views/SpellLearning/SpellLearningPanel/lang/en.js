@@ -169,6 +169,7 @@ window._i18nPreload = {
     "editMode.exitEditMode": "Exit Edit Mode",
     "editMode.nothingToUndo": "Nothing to undo",
     "editMode.undoAction": "Undo: {{action}}",
+    "editMode.rootNotDeleted": "Not deleted: {{name}} is the root of its school",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> Blacklist",
     "filter.title": "Filters",
     "filter.whitelist": "<span class=\"btn-icon\">[+]</span> Whitelist",

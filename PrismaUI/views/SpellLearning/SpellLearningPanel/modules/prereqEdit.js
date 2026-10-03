@@ -173,7 +173,8 @@ var PrereqEdit = {
     /**
      * `forget` over every node of a saved tree (`{schools: {name: {nodes}}}`),
      * and its cross-school bridges to or from `id` out, so a reload finds no
-     * reference to a deleted spell.
+     * reference to a deleted spell. A school's `root` is not touched: edit mode
+     * never deletes a root (EditMode._isSchoolRoot).
      * @returns {number} nodes that named `id`
      */
     forgetInTree: function(raw, id) {

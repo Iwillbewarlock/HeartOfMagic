@@ -141,7 +141,10 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   so the next save carries it and the card and C++ judge by the same lists before any edit. Deleting a spell
   (the eraser on a node) takes it out of every other spell's three lists, `children` and PreReq Master
   locks and drops the saved tree's bridges to or from it (`PrereqEdit.forget` / `forgetInTree`), so no
-  spell waits on it after a reload.
+  spell waits on it after a reload; undo entries that name it are dropped, and an undo whose spells are
+  not both in the tree changes and saves nothing. A school's root (`isRoot` or `schools[name].root`) is
+  refused with a status line (`editMode.rootNotDeleted`), before Shift+eraser blacklists it: its children
+  would be left with no prerequisite, and a reload would make the school's first node the root.
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 - **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
   (`PANEL_BASE_FONT_SIZE` times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell

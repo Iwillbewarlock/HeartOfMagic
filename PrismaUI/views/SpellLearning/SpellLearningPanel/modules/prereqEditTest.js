@@ -208,6 +208,8 @@ var PrereqEditTest = {
      * own arrays (treeLoad copies them), so nothing waits on it after a reload.
      * D is deleted; C its child (Required), L locked on it (PreReq Master, hard,
      * not a child), B a bridge target in another school (soft, not a child).
+     * Before the delete, × takes D off C (an undo entry naming D); after it, Ctrl+Z
+     * must not give C a prerequisite that is gone. R, the school's root, is refused.
      */
     _deleteNode: function(g) {
         var D = '0x0000DEAD';
@@ -240,11 +242,18 @@ var PrereqEditTest = {
         g.state = { selectedNode: null, treeData: { rawData: raw, nodes: nodes.slice() } };
         var hadIndex = CanvasRenderer.buildSpatialIndex;
         CanvasRenderer.buildSpatialIndex = function() {};
+        EditMode.undoStack = [];
+        var rootRefused, rootKept;
         try {
+            EditMode.deletePrerequisite(map.get('C'), D);
             EditMode.deleteNode(map.get(D));
+            rootRefused = EditMode.deleteNode(map.get('R')) === false;
+            rootKept = !!map.get('R') && CanvasRenderer.nodes.indexOf(map.get('R')) !== -1 &&
+                raw.schools.Destruction.root === 'R' && raw.schools.Destruction.nodes[0].formId === 'R';
         } finally {
             CanvasRenderer.buildSpatialIndex = hadIndex;
         }
+        this.check(EditMode.undoStack.length === 0, 'delete node: undo entries naming it are dropped');
         var saved = JSON.stringify(raw);
         this.check(saved.indexOf(D) === -1, 'delete node: the saved tree names it nowhere (reload finds no reference)');
         var rawOf = function(id) {
@@ -264,6 +273,28 @@ var PrereqEditTest = {
         this.check(this._same(map.get('C').hardPrereqs, []) && this._same(map.get('L').hardPrereqs, []) &&
             this._same(map.get('R').children, ['L']) && CanvasRenderer.nodes.length === 4 && CanvasRenderer.edges.length === 1,
             'delete node: the panel nodes, edges and list match');
+        this.check(rootRefused && rootKept, 'delete node: a school root is refused and stays the root');
+
+        // Ctrl+Z after the delete, and an entry naming the deleted spell that got past
+        // the drop: nothing re-added, no line from it, nothing saved
+        var saves = 0, hadSave = g.saveTreeToFile;
+        g.saveTreeToFile = function() { saves++; return false; };
+        try {
+            EditMode.undo();
+            EditMode.undoStack = [
+                { type: 'removePrereq', data: { fromId: D, toId: 'C', wasHard: true } },
+                { type: 'addPrereq', data: { fromId: D, toId: 'C' } },
+                { type: 'togglePrereqType', data: { nodeId: 'C', prereqId: D, wasType: 'hard' } }
+            ];
+            EditMode.undo(); EditMode.undo(); EditMode.undo();
+        } finally {
+            g.saveTreeToFile = hadSave;
+        }
+        var cNode = map.get('C');
+        this.check(saves === 0 && this._same(cNode.hardPrereqs, []) && this._same(cNode.prerequisites, []) &&
+            this._same(cNode.softPrereqs, []) && this._same(c.hardPrereqs, []) &&
+            !CanvasRenderer.edges.some(function(e) { return e.from === D || e.to === D; }),
+            'undo after delete node: no prerequisite or line to the deleted spell, nothing saved');
     },
 
     _classicOutput: function() {

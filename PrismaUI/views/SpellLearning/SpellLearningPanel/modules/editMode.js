@@ -452,24 +452,27 @@ var EditMode = {
 
     _undoAddPrereq: function(data) {
         // Remove the prereq that was added (from every list: PrereqEdit.remove)
-        var toNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.toId) : null;
-        if (toNode) PrereqEdit.remove(toNode, data.fromId);
+        if (!this._bothExist(data.fromId, data.toId)) return;
+        var toNode = CanvasRenderer._nodeMap.get(data.toId);
+        PrereqEdit.remove(toNode, data.fromId);
         this._unlinkChild(data.fromId, data.toId);
         this._afterPrereqEdit(toNode);
     },
 
     _undoRemovePrereq: function(data) {
-        // Re-add the prereq the way it was (an entry without `was`: drawn, hard or soft by wasHard)
-        var toNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.toId) : null;
-        var was = data.was || { type: data.wasHard ? 'hard' : 'soft', linked: true, softNeeded: toNode ? toNode.softNeeded : 0 };
-        if (toNode) PrereqEdit.restore(toNode, data.fromId, was);
+        // Re-add the prereq the way it was (an entry without `was`: drawn, hard or soft by wasHard).
+        // Never a link to or from a deleted spell: nothing is changed or saved then
+        if (!this._bothExist(data.fromId, data.toId)) return;
+        var toNode = CanvasRenderer._nodeMap.get(data.toId);
+        var was = data.was || { type: data.wasHard ? 'hard' : 'soft', linked: true, softNeeded: toNode.softNeeded || 0 };
+        PrereqEdit.restore(toNode, data.fromId, was);
         if (was.linked) this._linkChild(data.fromId, data.toId);
         this._afterPrereqEdit(toNode);
     },
 
     _undoTogglePrereqType: function(data) {
-        var node = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.nodeId) : null;
-        if (!node) return;
+        if (!this._bothExist(data.prereqId, data.nodeId)) return;
+        var node = CanvasRenderer._nodeMap.get(data.nodeId);
 
         // Back to the type it had (none, when the toggle added it) and the old softNeeded
         var wasType = data.wasType !== undefined ? data.wasType : (data.wasHard ? 'hard' : 'soft');
@@ -477,6 +480,12 @@ var EditMode = {
         var softNeeded = data.softNeeded !== undefined ? data.softNeeded : (node.softNeeded || 0);
         PrereqEdit.restore(node, data.prereqId, { type: wasType, linked: linked, softNeeded: softNeeded });
         this._afterPrereqEdit(node);
+    },
+
+    /** Both spells still in the tree (an undo entry may name one deleted since) */
+    _bothExist: function(a, b) {
+        var map = CanvasRenderer._nodeMap;
+        return !!(map && map.get(a) && map.get(b));
     },
 
     /** fromId's child entry and the drawn line to toId, once each */
@@ -831,6 +840,11 @@ var EditMode = {
             // Check if clicking on a node - delete it (shift+click also blacklists)
             var node = CanvasRenderer.findNodeAt(world.x, world.y);
             if (node) {
+                // A school's root is refused before Shift blacklists it (deleteNode says why)
+                if (this._isSchoolRoot(node)) {
+                    this.deleteNode(node);
+                    return;
+                }
                 if (e.shiftKey && typeof addToBlacklist === 'function') {
                     addToBlacklist({
                         formId: node.formId || node.id,
@@ -1242,9 +1256,23 @@ var EditMode = {
      * Delete a node and all its connections
      */
     deleteNode: function(node) {
-        if (!node) return;
+        if (!node) return false;
 
         var nodeId = node.formId || node.id;
+
+        // A school's root stays: the saved tree's `root` names it, its children would be left
+        // without a prerequisite, and a reload would make another spell the root (treeLoad,
+        // canvasRendererData and the C++ tree check fall back to the school's first node)
+        if (this._isSchoolRoot(node)) {
+            var label = node.name || nodeId;
+            console.log('[EditMode] Not deleting the school root:', label);
+            if (typeof setTreeStatus === 'function') {
+                setTreeStatus(typeof tOr === 'function'
+                    ? tOr('editMode.rootNotDeleted', { name: label }, 'Not deleted: {{name}} is the root of its school')
+                    : 'Not deleted: ' + label + ' is the root of its school');
+            }
+            return false;
+        }
         console.log('[EditMode] Deleting node:', node.name || nodeId);
 
         // Every other spell that names it - a child, a parent, a bridge target
@@ -1281,6 +1309,12 @@ var EditMode = {
         if (state.treeData && state.treeData.rawData) PrereqEdit.forgetInTree(state.treeData.rawData, nodeId);
         this.syncPrerequisitesToRawData();
 
+        // Undo entries that name it go: an undo would link a spell to one that is gone
+        this.undoStack = this.undoStack.filter(function(a) {
+            var d = a.data || {};
+            return d.nodeId !== nodeId && d.fromId !== nodeId && d.toId !== nodeId && d.prereqId !== nodeId;
+        });
+
         // Clear selection if deleted node was selected
         if (state.selectedNode && (state.selectedNode.formId === nodeId || state.selectedNode.id === nodeId)) {
             state.selectedNode = null;
@@ -1294,6 +1328,16 @@ var EditMode = {
         if (typeof setTreeStatus === 'function') {
             setTreeStatus('Deleted: ' + (node.name || nodeId));
         }
+        return true;
+    },
+
+    /** The node is its school's root (`isRoot`, or the saved tree's `schools[school].root`) */
+    _isSchoolRoot: function(node) {
+        if (!node) return false;
+        if (node.isRoot) return true;
+        var raw = state.treeData && state.treeData.rawData;
+        var school = raw && raw.schools && raw.schools[node.school];
+        return !!(school && school.root && school.root === (node.formId || node.id));
     },
 
     /**

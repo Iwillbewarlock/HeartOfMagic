@@ -34,6 +34,8 @@
   when the spell had no Optional ones now needs that one, instead of needing none.
 - Deleting a spell in edit mode takes it out of every spell that needed it - its children, a PreReq Master
   lock on it, a cross-school link from it - so none of them waits on a spell that is gone after a reload.
+  Ctrl+Z after it no longer links a spell back to the deleted one, and a school's root spell is not
+  deleted (the status line says why).
   A spell whose Optional links need none of them says so on the card instead of "need 0 of 2".
 - One spell is no longer in the tree twice (or three times) when two mods carry it, such as Saints and
   Seducers' Conjure Hunger and ECSS Summonable Creatures' version of it. Records with the same editor ID in
