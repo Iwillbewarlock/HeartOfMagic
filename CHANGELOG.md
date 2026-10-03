@@ -12,6 +12,15 @@
   A built tree used one list for two things, so every change to one went into the other. A link is now
   Required only, delete removes just that one, H/S moves it, and undo puts it back the way it was. A tree
   saved with the old mix-up is put right when it loads: a link listed as both stays Required, copies go.
+- One spell is no longer in the tree twice (or three times) when two mods carry it, such as Saints and
+  Seducers' Conjure Hunger and ECSS Summonable Creatures' version of it. Records with the same editor ID in
+  the same school count as one spell: the tree keeps the one from the earlier plugin in the load order (or
+  the one whose tome can be found), and reading another one's tome counts as reading that spell's tome -
+  same learning target, tome XP and early learning, and the other copy is not added to the spellbook. Spells
+  that only share a name (in some translations different spells do) stay apart. Build the tree again (Scan,
+  then build) to take the copies out of it. Copies already in a save's spellbook stay there; the mod does
+  not remove spells. Needs editor IDs (po3's Tweaks); without them nothing is merged. In vanilla mode a tome
+  still teaches the spell it names.
 
 ## Heart of Magic Librarian 1.2.0
 

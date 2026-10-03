@@ -1,4 +1,5 @@
 #include "SpellTomeHook.h"
+#include "SpellScanner.h"
 
 #include <mutex>
 
@@ -102,7 +103,8 @@ bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
     const auto counts = player->GetInventoryCounts([spellFormId](RE::TESBoundObject& a_object) {
         auto* book = a_object.As<RE::TESObjectBOOK>();
         if (!book || !book->TeachesSpell()) return false;
-        auto* taughtSpell = book->GetSpell();
+        // Another plugin's copy's tome counts for the kept spell (SpellScannerDuplicates.cpp)
+        auto* taughtSpell = SpellScanner::TreeSpellForTome(book->GetSpell());
         return taughtSpell && taughtSpell->GetFormID() == spellFormId;
     });
     for (const auto& [item, count] : counts) {

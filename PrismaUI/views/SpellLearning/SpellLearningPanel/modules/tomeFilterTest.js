@@ -2,10 +2,10 @@
  * TomeFilterTest - node tests for the tree's tome filter (run-tests.js).
  *
  * The scan keeps every spell for the librarian and the perk adapters and marks
- * taughtByTome, tomeUnreachable and voiceSlot; the tree and the primed count
- * take only spells a tome teaches, whose tome something hands out, that are not
- * in the voice slot. A scan from before the marks has no fields and keeps all
- * its spells.
+ * taughtByTome, tomeUnreachable, voiceSlot and duplicateOf; the tree and the
+ * primed count take only spells a tome teaches, whose tome something hands out,
+ * that are not in the voice slot and not another plugin's copy of a kept spell.
+ * A scan from before the marks has no fields and keeps all its spells.
  *
  * Depends on: proceduralTreeBuilder.js (isTaughtByTome, filterTomeSpells) and
  * uiHelpers.js (getPrimedSpells) - under node this file runs them into the
@@ -55,18 +55,24 @@ var TomeFilterTest = {
                 { formId: '0x02', plugin: 'Skyrim.esm', school: 'Destruction', taughtByTome: false },
                 { formId: '0x03', plugin: 'Mod.esp', school: 'Alteration' },
                 { formId: '0x05', plugin: 'Mod.esp', school: 'Alteration', taughtByTome: true, voiceSlot: true },
-                { formId: '0x06', plugin: 'Mod.esp', school: 'Alteration', taughtByTome: true, tomeUnreachable: true }
+                { formId: '0x06', plugin: 'Mod.esp', school: 'Alteration', taughtByTome: true, tomeUnreachable: true },
+                { formId: '0x07', plugin: 'Base.esp', school: 'Conjuration', editorId: 'EC_SS_ConjureHunger', taughtByTome: true },
+                { formId: '0xFE801834', plugin: 'Addon.esp', school: 'Conjuration', editorId: 'EC_SS_ConjureHunger',
+                  taughtByTome: true, duplicateOf: '0x07' }
             ];
-            this.check(this._ids(g.filterTomeSpells(spells)) === '0x01,0x03',
-                'the tree drops spells no tome teaches, whose tomes nothing hands out, and voice slot spells; ' +
-                'keeps a scan without the marks');
+            this.check(this._ids(g.filterTomeSpells(spells)) === '0x01,0x03,0x07',
+                'the tree drops spells no tome teaches, whose tomes nothing hands out, voice slot spells and ' +
+                'duplicates; keeps a scan without the marks and the kept record of a duplicate');
+            this.check(g.isTaughtByTome({ formId: '0x08', taughtByTome: true, duplicateOf: '' }) &&
+                !g.isTaughtByTome({ formId: '0x09', taughtByTome: true, duplicateOf: '0x07' }),
+                'only a set duplicateOf leaves a spell out');
             this.check(g.filterTomeSpells([{ formId: '0x04' }]).length === 1,
                 'a scan from before the mark keeps every spell');
 
             g.state = { lastSpellData: { spells: spells } };
             g.settings = { spellBlacklist: [], pluginWhitelist: [] };
-            this.check(this._ids(g.getPrimedSpells()) === '0x01,0x03',
-                'the primed count leaves out spells no tome teaches');
+            this.check(this._ids(g.getPrimedSpells()) === '0x01,0x03,0x07',
+                'the primed count leaves out spells no tome teaches and duplicates');
         } finally {
             g.state = oldState;
             g.settings = oldSettings;

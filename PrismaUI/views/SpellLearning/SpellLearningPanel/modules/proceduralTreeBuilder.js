@@ -26,14 +26,18 @@
  * placed copy, a leveled list, a container, a recipe, a quest item, a script
  * property or a distribution config); and it is not equipped in the voice slot
  * (a mod's script or animation spell, which would take the shout's place when
- * learned). The scan keeps every spell for the librarian and the perk adapters
- * and marks taughtByTome, tomeUnreachable and voiceSlot; a scan from before the
- * marks has no fields, and its spells count as taken.
+ * learned); and it is not another plugin's copy of a spell the tree has
+ * (duplicateOf names the kept record: same editor id and school, its tome reads
+ * as the kept spell's - SpellScannerDuplicates.cpp). The scan keeps every spell
+ * for the librarian and the perk adapters and marks taughtByTome,
+ * tomeUnreachable, voiceSlot and duplicateOf; a scan from before the marks has
+ * no fields, and its spells count as taken.
  * @param {Object} spell
  * @returns {boolean}
  */
 function isTaughtByTome(spell) {
-    return !spell || (spell.taughtByTome !== false && spell.tomeUnreachable !== true && spell.voiceSlot !== true);
+    return !spell || (spell.taughtByTome !== false && spell.tomeUnreachable !== true &&
+        spell.voiceSlot !== true && !spell.duplicateOf);
 }
 
 /** The spells the tree takes (isTaughtByTome). */

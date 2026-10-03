@@ -85,8 +85,8 @@ namespace SpellScanner
             // Skip _Copy variants
             if (lower.find("copy") != std::string::npos) return true;
 
-            // Skip DLC-specific reused base game spells (usually have DLC1/DLC2 prefix + same name)
-            // These are often duplicates for DLC NPCs
+            // One spell from two plugins (same editor id and school) is marked
+            // duplicateOf after this loop (SpellScannerDuplicates.cpp)
 
             return false;
         };
@@ -226,19 +226,24 @@ namespace SpellScanner
         }
 
         // Every spell stays (the librarian and the perk adapters read them all),
-        // marked with what the tree goes by: whether a tome teaches it and whether
-        // it is equipped in the voice slot (SpellScannerCopies.cpp)
+        // marked with what the tree goes by: whether a tome teaches it, whether
+        // it is equipped in the voice slot (SpellScannerCopies.cpp) and whether it
+        // is another plugin's copy of a spell (SpellScannerDuplicates.cpp)
         const auto taught = SpellsTaughtByTomes();
         std::unordered_set<RE::FormID> unreachable;
         if (!TomeReach::UnreachableSpells(unreachable)) {
             logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
         }
         LogSpellsOutOfTree(kept, taught, unreachable);
+        const auto duplicates = FindDuplicateSpells(kept, taught, unreachable);
         for (auto* spell : kept) {
             auto spellJson = BuildSpellJson(spell, spell->GetFormID(), fields);
             spellJson["taughtByTome"] = taught.contains(spell->GetFormID());
             spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
             if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
+            if (auto it = duplicates.find(spell->GetFormID()); it != duplicates.end()) {
+                spellJson["duplicateOf"] = std::format("0x{:08X}", it->second);
+            }
             spellArray.push_back(std::move(spellJson));
             scannedCount++;
         }

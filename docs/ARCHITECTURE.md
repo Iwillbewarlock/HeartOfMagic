@@ -91,9 +91,10 @@ the switch went, that filter went with it, and about 1,100 spells no tome teache
 spells against 1,428). Now the scan keeps every spell that passes its other filters, so the catalog and the
 perk adapters see them all (a perk overhaul's keyword reaches a quest or perk spell too, and an effect shared
 with a spell outside the tree is still checked against that spell's tags), and marks facts from the
-record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`) and
-`tomeUnreachable` (below, "Tomes nothing hands out"). The tree takes a spell a tome teaches, whose tome
-something hands out, that is not in the voice slot: `isTaughtByTome` / `filterTomeSpells`
+record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`),
+`tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell from two plugins").
+The tree takes a spell a tome teaches, whose tome something hands out, that is not in the voice slot and not
+another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`
 (proceduralTreeBuilder.js) in Classic's build request, the primed count (`getPrimedSpells`) and the tree
 preview's school sizes. A scan from before the marks has no fields and keeps every spell. The scan status's
 spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged
@@ -122,6 +123,37 @@ and has neither mark.
   author's load order.
 - **Spells whose tomes nothing hands out** (`tomeUnreachable`, below).
 - **The other spells no tome teaches:** quest, perk and script spells.
+
+**One spell from two plugins (1.2.1):** a mod and its add-on can both carry a spell, each record with its own
+tome: Saints and Seducers' Conjure Hunger (`EC_SS_ConjureHunger`, Adept) and ECSS Summonable Creatures' record
+with the same editor id (Expert). The scan and the tree go by FormID, so both were tree nodes and both tomes
+taught a copy (a Nexus report: three Conjure Hungers in the tree and the spellbook). `FindDuplicateSpells`
+(SpellScannerDuplicates.cpp) groups the spells the tree could take (a tome teaches it, not in the voice slot,
+with a name) by editor id (ASCII case ignored) and school. One record per group stays: the earliest plugin's
+in the load order (`TESDataHandler::files` among the loaded files, the TomeReach pattern), unless it is
+`tomeUnreachable` and another is not - then the earliest of those. The others get
+`"duplicateOf": "<kept formId>"` in the scan, next to `tomeUnreachable`; they stay in the catalog and the perk
+adapters, and `isTaughtByTome` leaves them out of the tree and the primed count. The log says
+`SpellScanner: N duplicate spells merged into M`, and at debug level one line per group (kept and merged
+records with their plugins).
+
+- **Not the name:** a translation gives different spells one name (Korean: Calm `0x04DEE9` and Pacify
+  `0x04DEED` are both 진정), so the key is the editor id. On the author's load order (3546 scanned, 1382 tree
+  spells) it merges one group, the two Conjure Hungers; 25 names are shared in the tree, each by different
+  editor ids. Name, school and an identical effect list (effect form, magnitude, duration, area) were
+  measured too and found no pair with different editor ids, so they are not used.
+- **Editor ids:** the engine keeps no editor id for spells; they come from po3's Tweaks (the scan dump has
+  them). Without it no spell has one and nothing merges.
+- **The copy's tome:** reading it reads the kept spell's tome (`SpellTomeHook::OnSpellTomeReadImpl` through
+  `TreeSpellForTome`): the same prerequisite and skill checks, learning target, tome XP (granted once per
+  kept spell) and early learning for the kept spell, and ISL is handed the kept spell, so the copy never goes
+  into the spellbook through the mod. The copy's tome in the inventory counts for the kept spell's inventory
+  boost (`PlayerHasSpellTome`). In vanilla mode (the tome hook off, or the progression system off, with no
+  ISL) a tome teaches what it names, copies included. `TreeSpellForTome` works the groups out from the loaded
+  spells on first use, again once the tome reach pass is done, then keeps them.
+- **Saves and trees from before:** a tree built from an older scan still holds both nodes until it is built
+  again (the copy's node then cannot be learned from its tome). Copies a save already learned stay in the
+  spellbook; nothing is removed.
 
 **Tomes nothing hands out (2026-09-30):** a tome record can exist that no player ever finds: no copy is placed,
 sold, dropped, crafted or given (a mod's cut or unfinished content, a patch that is not installed). The spell
@@ -271,7 +303,7 @@ button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan sta
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
 toggle and the background tome scan behind it are gone (2026-09-30): the tree itself leaves out what a
-player does not learn (the scan keeps every spell and marks `taughtByTome`, `tomeUnreachable` and `voiceSlot`), so a
+player does not learn (the scan keeps every spell and marks `taughtByTome`, `tomeUnreachable`, `voiceSlot` and `duplicateOf`), so a
 `tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch

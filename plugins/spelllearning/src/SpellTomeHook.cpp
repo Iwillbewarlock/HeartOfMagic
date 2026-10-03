@@ -84,6 +84,18 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         logger::info("SpellTomeHook: '{}' is a voice slot spell - vanilla handling", a_spell->GetName());
     }
 
+    // Another plugin's copy of a tree spell (SpellScannerDuplicates.cpp) stays
+    // out of the tree: its tome reads as the kept spell's tome, so the player
+    // learns that one and never the copy. Vanilla mode teaches what the tome names.
+    const bool vanillaMode = !hook->m_settings.enabled || !hook->m_settings.useProgressionSystem;
+    if (!voiceSlot && (DESTIntegration::IsActive() || !vanillaMode)) {
+        if (auto* treeSpell = SpellScanner::TreeSpellForTome(a_spell); treeSpell != a_spell) {
+            logger::info("SpellTomeHook: '{}' ({:08X}) is a copy of {:08X} - the tome reads as that spell's",
+                a_spell->GetName(), a_spell->GetFormID(), treeSpell->GetFormID());
+            a_spell = treeSpell;
+        }
+    }
+
     // =========================================================================
     // ISL INTEGRATION — Immersive Spell Learning compatibility
     // =========================================================================
@@ -147,7 +159,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // =========================================================================
     // VANILLA MODE - Instant learn, consume book (like normal Skyrim)
     // =========================================================================
-    if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem || voiceSlot) {
+    if (vanillaMode || voiceSlot) {
         // Still check if player already knows the spell
         if (player->HasSpell(a_spell)) {
             if (hook->m_settings.showNotifications) {

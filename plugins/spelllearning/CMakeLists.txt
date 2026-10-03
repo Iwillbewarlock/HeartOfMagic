@@ -52,6 +52,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/spellscanner/SpellScannerCard.cpp
     src/spellscanner/SpellScannerCasters.cpp
     src/spellscanner/SpellScannerCopies.cpp
+    src/spellscanner/SpellScannerDuplicates.cpp
     src/spellscanner/SpellScannerScan.cpp
     src/tomereach/TomeReachRecords.cpp
     src/tomereach/TomeReachConfig.cpp

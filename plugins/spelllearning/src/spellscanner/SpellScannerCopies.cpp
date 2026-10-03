@@ -16,9 +16,10 @@ namespace SpellScanner
     // The scan keeps every spell, so the librarian's catalog and the perk adapters
     // see them all, and marks facts from the record: taughtByTome (some tome
     // teaches it), voiceSlot (it is equipped in the voice slot) and tomeUnreachable
-    // (nothing hands out any of its tomes, TomeReach). The tree takes only spells a
+    // (nothing hands out any of its tomes, TomeReach), and duplicateOf (another
+    // plugin's copy, SpellScannerDuplicates.cpp). The tree takes only spells a
     // tome teaches, whose tome something hands out, that are not voice slot spells
-    // (isTaughtByTome, proceduralTreeBuilder.js): a player casts spells from the
+    // or copies (isTaughtByTome, proceduralTreeBuilder.js): a player casts spells from the
     // hands, and a voice slot spell (a mod's script or animation spell, Smooth
     // Animation's ChargeEffect) would take the shout's place when learned.
     //

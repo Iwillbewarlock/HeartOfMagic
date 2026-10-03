@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -133,9 +134,9 @@ namespace SpellScanner
     bool IsCastByVampires(RE::FormID spellFormId);
 
     // What the tree goes by (SpellScannerCopies.cpp): the scan keeps every spell
-    // and marks taughtByTome, voiceSlot and tomeUnreachable (TomeReach); the tree
-    // takes spells a tome teaches, whose tome something hands out, that are not in
-    // the voice slot.
+    // and marks taughtByTome, voiceSlot, tomeUnreachable (TomeReach) and
+    // duplicateOf (below); the tree takes spells a tome teaches, whose tome
+    // something hands out, that are not in the voice slot and not copies.
     std::unordered_set<RE::FormID> SpellsTaughtByTomes();
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell);
 
@@ -144,6 +145,18 @@ namespace SpellScanner
     // teaches NPC, trap or script copies, free spells and the rest.
     void LogSpellsOutOfTree(const std::vector<RE::SpellItem*>& spells,
         const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable);
+
+    // One spell from two plugins (SpellScannerDuplicates.cpp): the same editor id
+    // in the same school among the spells a tome teaches, not in the voice slot.
+    // Returns each dropped record's FormID -> the kept one's (the earliest plugin's,
+    // one whose tome something hands out first); the scan marks them duplicateOf.
+    std::unordered_map<RE::FormID, RE::FormID> FindDuplicateSpells(const std::vector<RE::SpellItem*>& spells,
+        const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable);
+
+    // The spell a tome of `spell` teaches through the tree: the kept record when
+    // `spell` is a duplicate, else `spell` itself. Any thread; the groups are
+    // worked out once (again when the tome reach pass finishes) and kept.
+    RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell);
 
     // Structure evidence added on top of the builders above when effectDetails
     // is on (SpellScannerEvidence.cpp): flags, projectile, explosion, hazard

@@ -4,7 +4,7 @@ A tome counts as obtainable when anything refers to it: a placed reference (REFR
 a leveled list (LVLI), a container or NPC inventory (CNTO), a form list (FLST),
 a crafting recipe (COBJ), a script property (any 4-byte form id inside a VMAD -
 loose on purpose: a false hit only keeps a tome), or a SPID/KID ini line naming it.
-Prints the tree spells (taughtByTome, not voiceSlot, in the scan dump) whose every
+Prints the tree spells (taughtByTome, not voiceSlot, no duplicateOf, in the scan dump) whose every
 tome is unreferenced, grouped by plugin.
 """
 import json, mmap, os, re, struct, sys, zlib
@@ -193,7 +193,7 @@ evidence = defaultdict(lambda: defaultdict(int))
 ini_only = []
 checked = 0
 for s in scan:
-    if s.get('taughtByTome') is not True or s.get('voiceSlot'):
+    if s.get('taughtByTome') is not True or s.get('voiceSlot') or s.get('duplicateOf'):
         continue
     plugin, local = s['persistentId'].split('|')
     skey = (plugin.lower(), int(local, 16))
