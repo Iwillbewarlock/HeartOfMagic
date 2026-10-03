@@ -105,6 +105,12 @@ function saveScannerPreset(name) {
         s.classicSettings = JSON.parse(JSON.stringify(TreeGrowthClassic.settings));
     }
 
+    // The Classic builder options a player sets (Type grouping, Tiers by Magicka
+    // cost): kept in the global settings, carried by the preset too
+    if (typeof TreeBuilderSetting !== 'undefined') {
+        TreeBuilderSetting.saveTo(s);
+    }
+
     // Tree Growth active mode (Classic, the one builder)
     if (typeof TreeGrowth !== 'undefined') {
         s.treeGrowthActiveMode = TreeGrowth.activeMode;
@@ -209,6 +215,13 @@ function applyScannerPreset(name) {
         // Spell matching toggle needs special handling
         _updateClassicMatchButtons(TreeGrowthClassic.settings.spellMatching);
         // Tier zones chart is visual-only; redrawn on next render
+    }
+
+    // --- Classic builder options (Type grouping, Tiers by Magicka cost) ---
+    // A preset from before they were saved gets the defaults (1.0, off), so a
+    // preset gives the same build whatever was set before it
+    if (typeof TreeBuilderSetting !== 'undefined') {
+        TreeBuilderSetting.loadFrom(s);
     }
 
     // --- Tree Growth active mode ---

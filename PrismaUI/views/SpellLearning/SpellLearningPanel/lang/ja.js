@@ -150,6 +150,8 @@ window._i18nPreload = {
     "details.prereqRequiredCount": "{{met}}/{{total}} 必須",
     "details.prereqOptionalCount": "{{met}}/{{total}} 任意",
     "details.softNeed": "{{total}}のうち{{need}}必要",
+    "details.softNoneNeeded": "必要なし",
+    "details.prereqOptionalNone": "任意、必要なし",
     "details.prereqCount": "前提条件 {{n}}個",
     "details.stateWeakened": "弱体化（{{pct}}%）",
     "details.learning": "学習中...",

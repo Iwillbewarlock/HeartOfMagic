@@ -1087,7 +1087,7 @@ var EditMode = {
             hardPrereqMap[nodeId] = (node.hardPrereqs || []).slice();
             softPrereqMap[nodeId] = (node.softPrereqs || []).slice();
             softNeededMap[nodeId] = node.softNeeded || 0;
-            childrenMap[nodeId] = node.children || [];
+            childrenMap[nodeId] = (node.children || []).slice();
         }
 
         // Update rawData
@@ -1247,37 +1247,13 @@ var EditMode = {
         var nodeId = node.formId || node.id;
         console.log('[EditMode] Deleting node:', node.name || nodeId);
 
-        // Remove from all parent nodes' children arrays
-        if (node.prerequisites && node.prerequisites.length > 0) {
-            node.prerequisites.forEach(function(prereqId) {
-                var prereqNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(prereqId) : null;
-                if (prereqNode && prereqNode.children) {
-                    var idx = prereqNode.children.indexOf(nodeId);
-                    if (idx !== -1) prereqNode.children.splice(idx, 1);
-                }
-            });
-        }
-
-        // Remove from all child nodes' prerequisites arrays
-        if (node.children && node.children.length > 0) {
-            node.children.forEach(function(childId) {
-                var childNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(childId) : null;
-                if (childNode) {
-                    if (childNode.prerequisites) {
-                        var idx = childNode.prerequisites.indexOf(nodeId);
-                        if (idx !== -1) childNode.prerequisites.splice(idx, 1);
-                    }
-                    if (childNode.hardPrereqs) {
-                        var idx = childNode.hardPrereqs.indexOf(nodeId);
-                        if (idx !== -1) childNode.hardPrereqs.splice(idx, 1);
-                    }
-                    if (childNode.softPrereqs) {
-                        var idx = childNode.softPrereqs.indexOf(nodeId);
-                        if (idx !== -1) childNode.softPrereqs.splice(idx, 1);
-                    }
-                }
-            });
-        }
+        // Every other spell that names it - a child, a parent, a bridge target
+        // (soft, not a child), a PreReq Master lock (hard) - lets it go, each list
+        // as a new array: the saved tree has its own arrays, so the saved tree is
+        // cleaned below (forgetInTree) and from these lists (sync), not by sharing
+        (CanvasRenderer.nodes || []).forEach(function(other) {
+            if (other !== node) PrereqEdit.forget(other, nodeId);
+        });
 
         // Remove all edges involving this node
         if (CanvasRenderer.edges) {
@@ -1300,8 +1276,10 @@ var EditMode = {
             CanvasRenderer._nodeMap.delete(nodeId);
         }
 
-        // Remove from rawData
+        // Out of rawData with every reference to it, then the other spells' new lists in
         this.removeNodeFromRawData(node);
+        if (state.treeData && state.treeData.rawData) PrereqEdit.forgetInTree(state.treeData.rawData, nodeId);
+        this.syncPrerequisitesToRawData();
 
         // Clear selection if deleted node was selected
         if (state.selectedNode && (state.selectedNode.formId === nodeId || state.selectedNode.id === nodeId)) {
@@ -1467,6 +1445,10 @@ var EditMode = {
         if (state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0) {
             console.log('[EditMode] Source: lastSpellData -', state.lastSpellData.spells.length, 'spells');
             state.lastSpellData.spells.forEach(function(spell) {
+                // Another plugin's copy of a spell (duplicateOf, SpellScannerDuplicates.cpp)
+                // is not offered: spawning it would put one spell on the tree twice. A copy
+                // already on the tree still comes in from the sources below.
+                if (spell.duplicateOf) return;
                 addSpell(
                     spell.formId || spell.id,
                     spell.name || spell.spellName,
@@ -1773,11 +1755,12 @@ var EditMode = {
             x: node.x,
             y: node.y,
             tier: node.tier,
-            prerequisites: node.prerequisites || [],
-            hardPrereqs: node.hardPrereqs || [],
-            softPrereqs: node.softPrereqs || [],
+            // Copies: rawData never shares an array with a node
+            prerequisites: (node.prerequisites || []).slice(),
+            hardPrereqs: (node.hardPrereqs || []).slice(),
+            softPrereqs: (node.softPrereqs || []).slice(),
             softNeeded: node.softNeeded || 0,
-            children: node.children || []
+            children: (node.children || []).slice()
         });
 
         console.log('[EditMode] Added node to rawData:', node.formId);

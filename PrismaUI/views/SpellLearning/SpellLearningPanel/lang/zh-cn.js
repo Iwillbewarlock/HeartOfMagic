@@ -150,6 +150,8 @@ window._i18nPreload = {
     "details.prereqRequiredCount": "必需 {{met}}/{{total}}",
     "details.prereqOptionalCount": "可选 {{met}}/{{total}}",
     "details.softNeed": "需要 {{need}}/{{total}}",
+    "details.softNoneNeeded": "无需",
+    "details.prereqOptionalNone": "可选，无需",
     "details.prereqCount": "{{n}} 个前置条件",
     "details.stateWeakened": "减弱（{{pct}}%）",
     "details.learning": "学习中...",

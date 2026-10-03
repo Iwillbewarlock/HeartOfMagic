@@ -4488,13 +4488,14 @@ body {
 }
 
 /* Tree builder options under the grid (TreeBuilderSetting): a checkbox line and
-   the one-line hints, in the design's muted text */
+   the one-line hints, in the design's muted text. In em so Font Size scales them:
+   12.8px and 12px on the 16px body at 1.0x, not below the 12px floor (patch-ui.css) */
 .tree-preview-option {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 4px 4px 2px;
-    font-size: 10px;
+    font-size: 0.8em;
 }
 
 .tree-preview-option label {
@@ -4506,7 +4507,7 @@ body {
 }
 
 .tree-preview-hint {
-    font-size: 9px;
+    font-size: 0.75em;
     color: var(--text-muted);
     padding: 0 4px 4px;
 }

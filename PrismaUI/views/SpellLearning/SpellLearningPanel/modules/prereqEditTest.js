@@ -6,7 +6,8 @@
  * Optional made a second entry. Checks PrereqEdit's rules (an id once, in one
  * of hard and soft; `prerequisites` the drawn lines), EditMode's link, delete,
  * eraser, toggle and the undo of each on a stand-in tree, the repair of a tree
- * saved by 1.2.0, and that ClassicTreeOutput gives every list its own array.
+ * saved by 1.2.0, deleting a spell (no reference left in the saved tree), and
+ * that ClassicTreeOutput gives every list its own array.
  *
  * Depends on: prereqEdit.js, editMode.js, classic/classicTreeOutput.js - under
  * node this file runs them into the global scope the way the page's script
@@ -202,6 +203,69 @@ var PrereqEditTest = {
         self.check(s.prerequisites !== s.softPrereqs && s.prerequisites !== s.hardPrereqs, 'EditMode: lists stay separate arrays');
     },
 
+    /**
+     * Deleting a spell: every reference to it leaves the saved tree, which has its
+     * own arrays (treeLoad copies them), so nothing waits on it after a reload.
+     * D is deleted; C its child (Required), L locked on it (PreReq Master, hard,
+     * not a child), B a bridge target in another school (soft, not a child).
+     */
+    _deleteNode: function(g) {
+        var D = '0x0000DEAD';
+        var raw = { schools: {
+            Destruction: { root: 'R', nodes: [
+                { formId: 'R', children: [D, 'L'], prerequisites: [], hardPrereqs: [], softPrereqs: [], softNeeded: 0 },
+                { formId: D, children: ['C'], prerequisites: ['R'], hardPrereqs: ['R'], softPrereqs: [], softNeeded: 0 },
+                { formId: 'C', children: [], prerequisites: [D], hardPrereqs: [D], softPrereqs: [], softNeeded: 0 },
+                { formId: 'L', children: [], prerequisites: ['R'], hardPrereqs: [D], softPrereqs: ['R'], softNeeded: 1,
+                  locks: [{ nodeId: D, revealed: false }] }
+            ] },
+            Conjuration: { root: 'B', nodes: [
+                { formId: 'B', children: [], prerequisites: [], hardPrereqs: [], softPrereqs: [D], softNeeded: 1 }
+            ] }
+        }, bridges: [{ from: D, to: 'B' }, { from: 'R', to: 'B' }] };
+        // The panel's nodes: copies of the saved lists, no locks (treeLoad.js)
+        var nodes = [];
+        for (var sn in raw.schools) {
+            raw.schools[sn].nodes.forEach(function(nd) {
+                nodes.push({ formId: nd.formId, id: nd.formId, school: sn, children: nd.children.slice(),
+                    prerequisites: nd.prerequisites.slice(), hardPrereqs: nd.hardPrereqs.slice(),
+                    softPrereqs: nd.softPrereqs.slice(), softNeeded: nd.softNeeded });
+            });
+        }
+        var map = new Map();
+        nodes.forEach(function(n) { map.set(n.formId, n); });
+        CanvasRenderer._nodeMap = map;
+        CanvasRenderer.nodes = nodes.slice();
+        CanvasRenderer.edges = [{ from: 'R', to: D }, { from: D, to: 'C' }, { from: 'R', to: 'L' }];
+        g.state = { selectedNode: null, treeData: { rawData: raw, nodes: nodes.slice() } };
+        var hadIndex = CanvasRenderer.buildSpatialIndex;
+        CanvasRenderer.buildSpatialIndex = function() {};
+        try {
+            EditMode.deleteNode(map.get(D));
+        } finally {
+            CanvasRenderer.buildSpatialIndex = hadIndex;
+        }
+        var saved = JSON.stringify(raw);
+        this.check(saved.indexOf(D) === -1, 'delete node: the saved tree names it nowhere (reload finds no reference)');
+        var rawOf = function(id) {
+            for (var s in raw.schools) {
+                var ns = raw.schools[s].nodes;
+                for (var i = 0; i < ns.length; i++) if (ns[i].formId === id) return ns[i];
+            }
+            return null;
+        };
+        var c = rawOf('C'), l = rawOf('L'), b = rawOf('B'), r = rawOf('R');
+        this.check(!rawOf(D) && this._same(c.hardPrereqs, []) && this._same(c.prerequisites, []) && this._same(r.children, ['L']),
+            'delete node: child and parent cleaned in the saved tree');
+        this.check(this._same(l.hardPrereqs, []) && l.locks.length === 0 && this._same(l.softPrereqs, ['R']) && l.softNeeded === 1,
+            'delete node: a lock on it gone, the rest kept');
+        this.check(this._same(b.softPrereqs, []) && b.softNeeded === 0 && raw.bridges.length === 1 && raw.bridges[0].from === 'R',
+            'delete node: a bridge from it gone (soft list and saved bridges)');
+        this.check(this._same(map.get('C').hardPrereqs, []) && this._same(map.get('L').hardPrereqs, []) &&
+            this._same(map.get('R').children, ['L']) && CanvasRenderer.nodes.length === 4 && CanvasRenderer.edges.length === 1,
+            'delete node: the panel nodes, edges and list match');
+    },
+
     _classicOutput: function() {
         var treeData = { schools: { Destruction: { root: 'R', nodes: [
             { formId: 'R', tier: 1 }, { formId: 'A', tier: 2 }, { formId: 'B', tier: 2, locks: [{ nodeId: 'A' }] }
@@ -252,6 +316,7 @@ var PrereqEditTest = {
         try {
             this._unit();
             this._editMode(g);
+            this._deleteNode(g);
             this._classicOutput();
         } finally {
             console.log = old.log;

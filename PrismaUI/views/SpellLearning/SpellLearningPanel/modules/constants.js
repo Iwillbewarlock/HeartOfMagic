@@ -18,6 +18,24 @@ var PANEL_BASE_FONT_SIZE = 16;
 // settings.nodeFontSize; the slider runs 6..18)
 var DEFAULT_NODE_FONT_SIZE = 12;
 
+// The two sliders' ranges (index.html: fontSizeSlider, tree-node-font-size say
+// the same); a saved value outside them is held to them when the config loads
+var FONT_SIZE_MULTIPLIER_MIN = 0.7;
+var FONT_SIZE_MULTIPLIER_MAX = 2.0;
+var NODE_FONT_SIZE_MIN = 6;
+var NODE_FONT_SIZE_MAX = 18;
+
+/**
+ * A saved number held to [min, max]; a missing or non-number value gives
+ * `fallback`. `whole` rounds it (a slider with step 1).
+ */
+function clampSetting(value, min, max, fallback, whole) {
+    var v = Number(value);
+    if (value === undefined || value === null || value === '' || !isFinite(v)) return fallback;
+    if (whole) v = Math.round(v);
+    return v < min ? min : (v > max ? max : v);
+}
+
 // =============================================================================
 // DEFAULT TREE RULES PROMPT
 // =============================================================================

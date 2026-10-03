@@ -150,6 +150,8 @@ window._i18nPreload = {
     "details.prereqRequiredCount": "{{met}}/{{total}} gerekli",
     "details.prereqOptionalCount": "{{met}}/{{total}} isteğe bağlı",
     "details.softNeed": "{{total}} tanesinden {{need}} tanesi gerekli",
+    "details.softNoneNeeded": "hiçbiri gerekmiyor",
+    "details.prereqOptionalNone": "isteğe bağlı, hiçbiri gerekmiyor",
     "details.prereqCount": "{{n}} ön koşul",
     "details.stateWeakened": "Zayıflatılmış (%{{pct}})",
     "details.learning": "Öğreniliyor...",

@@ -150,6 +150,8 @@ window._i18nPreload = {
     "details.prereqRequiredCount": "{{met}}/{{total}} erforderlich",
     "details.prereqOptionalCount": "{{met}}/{{total}} optional",
     "details.softNeed": "benötigt {{need}} von {{total}}",
+    "details.softNoneNeeded": "keine benötigt",
+    "details.prereqOptionalNone": "optional, keine benötigt",
     "details.prereqCount": "{{n}} Voraussetzung(en)",
     "details.stateWeakened": "Geschwächt ({{pct}}%)",
     "details.learning": "Lernt...",

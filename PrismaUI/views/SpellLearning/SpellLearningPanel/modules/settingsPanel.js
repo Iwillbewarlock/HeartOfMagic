@@ -1113,7 +1113,9 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.designPreset = DesignPresets.savedChoice(data);
         DesignPresets.apply(settings.designPreset);
         settings.learningColor = data.learningColor || '#7890A8';
-        settings.fontSizeMultiplier = data.fontSizeMultiplier !== undefined ? data.fontSizeMultiplier : 1.0;
+        // Held to the slider's range: a hand-edited config can hold anything
+        settings.fontSizeMultiplier = clampSetting(data.fontSizeMultiplier,
+            FONT_SIZE_MULTIPLIER_MIN, FONT_SIZE_MULTIPLIER_MAX, 1.0, false);
         settings.aggressivePathValidation = data.aggressivePathValidation !== false;  // default true
         
         // === Progression Settings ===
@@ -1493,7 +1495,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.particleTrailEnabled = data.particleTrailEnabled !== false;
         settings.globeBgFill = data.globeBgFill !== false;
         settings.globeParticleRadius = data.globeParticleRadius !== undefined ? data.globeParticleRadius : 50;
-        settings.nodeFontSize = data.nodeFontSize !== undefined ? data.nodeFontSize : DEFAULT_NODE_FONT_SIZE;
+        settings.nodeFontSize = clampSetting(data.nodeFontSize,
+            NODE_FONT_SIZE_MIN, NODE_FONT_SIZE_MAX, DEFAULT_NODE_FONT_SIZE, true);
 
         // Spell blacklist
         if (data.spellBlacklist && Array.isArray(data.spellBlacklist)) {
@@ -2411,7 +2414,8 @@ function loadBlacklistSpellSources() {
         allSpells.push({ formId: formId, name: name || formId, school: school || 'Unknown' });
     }
 
-    // Source 1: Scanned spell data
+    // Source 1: Scanned spell data. Copies (duplicateOf) stay in the list: the tree
+    // already leaves them out, and blacklisting one does no harm (modules/README.md)
     if (state.lastSpellData && state.lastSpellData.spells) {
         state.lastSpellData.spells.forEach(function(spell) {
             addSpell(spell.formId || spell.id, spell.name || spell.spellName, spell.school);

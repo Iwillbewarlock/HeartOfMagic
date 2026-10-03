@@ -154,6 +154,8 @@
     "details.prereqRequiredCount": "{{met}}/{{total}} 必需",
     "details.prereqOptionalCount": "{{met}}/{{total}} 可選",
     "details.softNeed": "需要 {{need}}/{{total}}",
+    "details.softNoneNeeded": "無需",
+    "details.prereqOptionalNone": "可選，無需",
     "details.prereqCount": "{{n}} 個前置條件",
     "details.stateWeakened": "減弱（{{pct}}%）",
     "details.learning": "學習中...",

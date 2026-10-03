@@ -384,7 +384,10 @@ function renderSpellCard(node, opts) {
             } else {
                 var parts = [];
                 if (totalHard > 0) parts.push(tOr('details.prereqRequiredCount', { met: hardMet, total: totalHard }, '{{met}}/{{total}} required'));
-                if (totalSoft > 0) parts.push(tOr('details.prereqOptionalCount', { met: softMet, total: softNeeded }, '{{met}}/{{total}} optional'));
+                // A soft list with none needed (a repaired lock) is met already, in C++ and
+                // cppCallbacks.js alike: no count that reads as "0 of N"
+                if (totalSoft > 0 && softNeeded > 0) parts.push(tOr('details.prereqOptionalCount', { met: softMet, total: softNeeded }, '{{met}}/{{total}} optional'));
+                else if (totalSoft > 0) parts.push(tOr('details.prereqOptionalNone', null, 'optional, none needed'));
                 prereqSummary.textContent = parts.join(' • ');
                 prereqSummary.className = 'prereq-summary ' + 
                     (hardMet === totalHard && softMet >= softNeeded ? 'complete' : 'incomplete');
@@ -426,7 +429,9 @@ function renderSpellCard(node, opts) {
                 var ofLabel = document.createTextNode(' of ' + softPrereqs.length + ')');
                 softNeededCount.appendChild(ofLabel);
             } else {
-                softNeededCount.textContent = '(' + tOr('details.softNeed', { need: softNeeded, total: softPrereqs.length }, 'need {{need}} of {{total}}') + ')';
+                softNeededCount.textContent = '(' + (softNeeded > 0 ?
+                    tOr('details.softNeed', { need: softNeeded, total: softPrereqs.length }, 'need {{need}} of {{total}}') :
+                    tOr('details.softNoneNeeded', null, 'none needed')) + ')';
             }
         }
         

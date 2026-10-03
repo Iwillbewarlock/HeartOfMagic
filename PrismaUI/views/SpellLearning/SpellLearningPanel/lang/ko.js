@@ -150,6 +150,8 @@ window._i18nPreload = {
     "details.prereqRequiredCount": "필수 {{met}}/{{total}}",
     "details.prereqOptionalCount": "선택 {{met}}/{{total}}",
     "details.softNeed": "{{total}}개 중 {{need}}개 필요",
+    "details.softNoneNeeded": "필요 없음",
+    "details.prereqOptionalNone": "선택, 필요 없음",
     "details.prereqCount": "선행 조건 {{n}}개",
     "details.stateWeakened": "약화됨 ({{pct}}%)",
     "details.learning": "학습 중...",

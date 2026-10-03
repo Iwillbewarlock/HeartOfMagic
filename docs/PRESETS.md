@@ -80,6 +80,9 @@ Balanced progression. 100 XP for Novice spells up to 1500 XP for Master. Standar
 - Root base settings (Sun mode: ring tier, grid density, grid type; Flat mode: line points, direction)
 - Active root mode (Sun/Flat)
 - Classic growth settings (spread, radial bias, center mask, spell matching mode)
+- Classic builder options `treeTypeGrouping` (Type grouping, 0..2) and `treeTiersByCost` (Tiers by Magicka
+  cost), 1.2.1. They live in the global settings too; applying a preset sets them, and a preset saved
+  before 1.2.1 (without the keys) sets the defaults, 1.0 and off, so a preset always gives the same build
 - Active growth mode (Classic; an old preset naming another mode falls back to Classic, and its
   `treeGrowthTreeSettings` - the removed Tree mode's settings - are ignored and no longer saved)
 - PreReq Master settings (lock percentages, tier constraints, distribution mode)

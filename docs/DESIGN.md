@@ -125,7 +125,8 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 - **Edit mode** — move nodes, pen tool, eraser (developer feature). A spell's prerequisites are three
   lists: `hardPrereqs` (Required, all needed, "H" on the card), `softPrereqs` (Optional, `softNeeded` of
   them needed, "S") and `prerequisites` (the links drawn as tree lines; a PreReq Master lock is hard and a
-  cross-school bridge soft without being in it, and C++ reads it only when hard and soft are both empty).
+  cross-school bridge soft without being in it; C++ never reads it - the panel sends hard, soft and
+  `softNeeded` only - and a saved node with hard and soft both empty gets them from it at load, `treeLoad.js`).
   `modules/prereqEdit.js` (`PrereqEdit`) keeps them right on every edit: a pen link goes into
   `prerequisites` and Required once, H/S moves an id from one list to the other, × and the eraser take it
   out of every list, `softNeeded` is held to the soft list (and raised to 1 when an id moves into a soft
@@ -137,7 +138,10 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   on the layout parent is in both lists from the build, not from that bug, and already met `softNeeded`:
   taken out of soft, `softNeeded` goes down by one for each, so a bridge left in soft stays optional. A
   repaired node is written back to the saved tree (`PrereqEdit.copyTo` on `state.treeData.rawData`'s node),
-  so the next save carries it and the card and C++ judge by the same lists before any edit.
+  so the next save carries it and the card and C++ judge by the same lists before any edit. Deleting a spell
+  (the eraser on a node) takes it out of every other spell's three lists, `children` and PreReq Master
+  locks and drops the saved tree's bridges to or from it (`PrereqEdit.forget` / `forgetInTree`), so no
+  spell waits on it after a reload.
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 - **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
   (`PANEL_BASE_FONT_SIZE` times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell

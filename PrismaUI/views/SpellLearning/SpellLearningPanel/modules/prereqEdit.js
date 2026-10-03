@@ -8,7 +8,10 @@
  *   prerequisites  the links drawn as tree lines. A PreReq Master lock is hard
  *                  but drawn as a lock chain, and a cross-school bridge is soft
  *                  but drawn by BridgeView, so neither is in this list. C++
- *                  reads it only when hard and soft are both empty.
+ *                  never reads it (the panel sends hard, soft and softNeeded
+ *                  only); a saved node with hard and soft both empty gets them
+ *                  from it at load (treeLoad.js: one entry hard, more: the
+ *                  first hard, the rest soft with 1 needed).
  *
  * An id is in at most one of hard and soft, and at most once in each list.
  * Every list is the spell's own array: before 1.2.1 a built tree used one array
@@ -142,6 +145,50 @@ var PrereqEdit = {
         node.softPrereqs = this._drop(node.softPrereqs, id);
         this._clamp(node);
         return was;
+    },
+
+    /**
+     * Every trace of spell `id` in `node`, for a deleted spell: out of the three
+     * lists (`remove`), the tree's `children` and the PreReq Master `locks`, each
+     * as a new array (the saved tree's node may hold the old one).
+     * @returns {boolean} whether `node` named `id` anywhere
+     */
+    forget: function(node, id) {
+        if (!node) return false;
+        var named = !!this.typeOf(node, id) ||
+            !!(node.prerequisites && node.prerequisites.indexOf(id) !== -1) ||
+            !!(node.children && node.children.indexOf(id) !== -1) ||
+            this._lockIds(node.locks).indexOf(id) !== -1;
+        if (!named) return false;
+        this.remove(node, id);
+        if (node.children) node.children = this._drop(node.children, id);
+        if (node.locks) {
+            node.locks = node.locks.filter(function(l) {
+                return ((l && typeof l === 'object') ? l.nodeId : l) !== id;
+            });
+        }
+        return true;
+    },
+
+    /**
+     * `forget` over every node of a saved tree (`{schools: {name: {nodes}}}`),
+     * and its cross-school bridges to or from `id` out, so a reload finds no
+     * reference to a deleted spell.
+     * @returns {number} nodes that named `id`
+     */
+    forgetInTree: function(raw, id) {
+        if (!raw) return 0;
+        var count = 0;
+        for (var schoolName in (raw.schools || {})) {
+            var nodes = raw.schools[schoolName].nodes || [];
+            for (var i = 0; i < nodes.length; i++) {
+                if (this.forget(nodes[i], id)) count++;
+            }
+        }
+        if (raw.bridges) {
+            raw.bridges = raw.bridges.filter(function(b) { return b.from !== id && b.to !== id; });
+        }
+        return count;
     },
 
     /**
