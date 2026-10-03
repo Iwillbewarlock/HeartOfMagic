@@ -126,6 +126,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 skillLevel: nd.skillLevel || null,
                 traits: nd.traits || null
             };
+            // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats
+            PrereqEdit.repair(node);
 
             // Roots and prereq-less nodes are available
             if (isRootNode || !node.prerequisites || node.prerequisites.length === 0) {
@@ -488,6 +490,8 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
         node.hardPrereqs = hardPrereqs;
         node.softPrereqs = softPrereqs;
         node.softNeeded = softNeeded;
+        // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats
+        PrereqEdit.repair(node);
     });
 
     // Also on this path, or the bridges of the previous tree would stay on screen

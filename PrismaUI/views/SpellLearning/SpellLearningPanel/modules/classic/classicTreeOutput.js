@@ -138,12 +138,14 @@ var ClassicTreeOutput = {
                     lockHardPrereqs = sn.locks.map(function(l) { return l.nodeId; });
                 }
 
+                // Every list its own array: one shared by prerequisites and
+                // softPrereqs made an edit-mode link land in both (1.2.0)
                 var outNode = {
                     formId: sn.formId,
-                    children: layoutChildren,
-                    prerequisites: layoutPrereqs,
+                    children: layoutChildren.slice(),
+                    prerequisites: layoutPrereqs.slice(),
                     hardPrereqs: lockHardPrereqs,
-                    softPrereqs: layoutPrereqs,
+                    softPrereqs: layoutPrereqs.slice(),
                     softNeeded: layoutPrereqs.length > 0 ? 1 : 0,
                     tier: sn.tier || 1
                 };

@@ -122,7 +122,17 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 - **Discovery mode** — hides spell names/effects until XP thresholds are met
 - **Zoom/pan** — mouse wheel + drag; one wheel notch zooms by `CanvasRenderer.WHEEL_ZOOM_STEP` (15%, was 10%; out is the exact inverse of in, so a notch in and out returns to the same zoom)
 - **Heart Settings popup** — cosmetic settings (starfield, globe, dividers, connections, node sizes)
-- **Edit mode** — move nodes, pen tool, eraser (developer feature)
+- **Edit mode** — move nodes, pen tool, eraser (developer feature). A spell's prerequisites are three
+  lists: `hardPrereqs` (Required, all needed, "H" on the card), `softPrereqs` (Optional, `softNeeded` of
+  them needed, "S") and `prerequisites` (the links drawn as tree lines; a PreReq Master lock is hard and a
+  cross-school bridge soft without being in it, and C++ reads it only when hard and soft are both empty).
+  `modules/prereqEdit.js` (`PrereqEdit`) keeps them right on every edit: a pen link goes into
+  `prerequisites` and Required once, H/S moves an id from one list to the other, × and the eraser take it
+  out of every list, `softNeeded` is held to the soft list, and undo puts back the type, the line and
+  `softNeeded`. An id is never in both hard and soft, and no two lists share an array. 1.2.0 built trees
+  with one array for `prerequisites` and `softPrereqs`, so a link landed in both, a delete took both and
+  H/S made a second entry; a tree saved that way is repaired when it loads (`PrereqEdit.repair`, called by
+  both paths in `treeLoad.js`: an id in both lists stays Required only, repeats go).
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 
 ### Decided: the tree stays 2D (2026-09-22)

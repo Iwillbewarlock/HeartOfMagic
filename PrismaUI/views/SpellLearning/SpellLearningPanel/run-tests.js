@@ -87,6 +87,7 @@ loadModule('levelFilterTest', './modules/levelFilterTest.js');
 loadModule('tomeFilterTest', './modules/tomeFilterTest.js');
 loadModule('newSpellsTest', './modules/newSpellsTest.js');
 loadModule('classicRadialOrderTest', './modules/classicRadialOrderTest.js');
+loadModule('prereqEditTest', './modules/prereqEditTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

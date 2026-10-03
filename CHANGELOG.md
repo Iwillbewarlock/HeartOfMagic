@@ -1,5 +1,15 @@
 # Changelog
 
+## Heart of Magic Librarian 1.2.1 (unreleased)
+
+### Fixed
+
+- Editing prerequisites in edit mode works as shown again. A new link showed up as both Required and
+  Optional, deleting one deleted both, and switching one between Required and Optional left a second copy.
+  A built tree used one list for two things, so every change to one went into the other. A link is now
+  Required only, delete removes just that one, H/S moves it, and undo puts it back the way it was. A tree
+  saved with the old mix-up is put right when it loads: a link listed as both stays Required, copies go.
+
 ## Heart of Magic Librarian 1.2.0
 
 ### New

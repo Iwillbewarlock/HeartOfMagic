@@ -68,7 +68,7 @@ var SchoolBridges = {
             if (!target || target.isRoot || !target.softNeeded) return false;
             var soft = target.softPrereqs || [];
             if (soft.indexOf(sourceId) >= 0) return true;
-            // A copy: the layout shares one array between prerequisites and softPrereqs
+            // A new array, so a bridge can never reach prerequisites (the drawn lines)
             target.softPrereqs = soft.concat([sourceId]);
             return true;
         };

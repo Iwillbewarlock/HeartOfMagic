@@ -40,17 +40,14 @@ var TreeParser = {
     /**
      * A spell is never its own child or prerequisite: the list without `id`, and
      * without anything that is not a formId string (a tree saved by the 6316b47
-     * build has null links, which would make {to: null} edges). The same array
-     * when there is nothing to drop; [] for a missing list.
+     * build has null links, which would make {to: null} edges). Always a new
+     * array ([] for a missing list): a built tree handed over in memory may use
+     * one array for two lists, and a node must never share one (PrereqEdit).
      * Also used by the trusted fast path in treeViewerUI.js.
      */
     withoutId: function(list, id) {
-        if (!list || !list.length) return list || [];
-        var keep = function(x) { return typeof x === 'string' && x !== id; };
-        for (var i = 0; i < list.length; i++) {
-            if (!keep(list[i])) return list.filter(keep);
-        }
-        return list;
+        if (!list || !list.length) return [];
+        return list.filter(function(x) { return typeof x === 'string' && x !== id; });
     },
 
     /** softNeeded no larger than the soft list, so dropping a self id cannot lock a spell */

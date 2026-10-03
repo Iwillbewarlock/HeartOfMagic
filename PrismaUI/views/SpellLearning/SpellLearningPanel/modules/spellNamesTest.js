@@ -195,7 +195,9 @@ var SpellNamesTest = {
                 'TreeParser: null and other non-string links dropped, no {to: null} edge');
             var same = ['B', 'C'];
             this.check(P.withoutId(null, 'A').length === 0 && P.withoutId(['B'], 'A').join() === 'B' &&
-                P.withoutId(same, 'A') === same && P.withoutId([null, 'B'], 'A').join() === 'B' &&
+                // always a new array, even with nothing to drop (no list shared between nodes or lists)
+                P.withoutId(same, 'A') !== same && P.withoutId(same, 'A').join() === 'B,C' &&
+                P.withoutId([null, 'B'], 'A').join() === 'B' &&
                 P.clampSoftNeeded(3, ['x']) === 1 && P.clampSoftNeeded(undefined, []) === 0,
                 'withoutId / clampSoftNeeded edge cases');
         } finally {

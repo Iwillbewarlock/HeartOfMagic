@@ -451,129 +451,68 @@ var EditMode = {
     },
 
     _undoAddPrereq: function(data) {
-        // Remove the prereq that was added
+        // Remove the prereq that was added (from every list: PrereqEdit.remove)
         var toNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.toId) : null;
-        var fromNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.fromId) : null;
-
-        if (toNode) {
-            // Remove from all prereq arrays
-            if (toNode.prerequisites) {
-                var idx = toNode.prerequisites.indexOf(data.fromId);
-                if (idx !== -1) toNode.prerequisites.splice(idx, 1);
-            }
-            if (toNode.hardPrereqs) {
-                var idx = toNode.hardPrereqs.indexOf(data.fromId);
-                if (idx !== -1) toNode.hardPrereqs.splice(idx, 1);
-            }
-            if (toNode.softPrereqs) {
-                var idx = toNode.softPrereqs.indexOf(data.fromId);
-                if (idx !== -1) toNode.softPrereqs.splice(idx, 1);
-            }
-        }
-
-        if (fromNode && fromNode.children) {
-            var idx = fromNode.children.indexOf(data.toId);
-            if (idx !== -1) fromNode.children.splice(idx, 1);
-        }
-
-        // Remove edge
-        if (CanvasRenderer.edges) {
-            for (var i = CanvasRenderer.edges.length - 1; i >= 0; i--) {
-                var e = CanvasRenderer.edges[i];
-                if (e.from === data.fromId && e.to === data.toId) {
-                    CanvasRenderer.edges.splice(i, 1);
-                }
-            }
-        }
-
-        this.syncPrerequisitesToRawData();
-        this.saveTree();
-        CanvasRenderer._needsRender = true;
-
-        // Refresh details panel
-        if (toNode && state.selectedNode && (state.selectedNode.formId === toNode.formId || state.selectedNode.id === toNode.id)) {
-            if (typeof showSpellDetails === 'function') showSpellDetails(toNode);
-        }
+        if (toNode) PrereqEdit.remove(toNode, data.fromId);
+        this._unlinkChild(data.fromId, data.toId);
+        this._afterPrereqEdit(toNode);
     },
 
     _undoRemovePrereq: function(data) {
-        // Re-add the prereq that was removed
+        // Re-add the prereq the way it was (an entry without `was`: drawn, hard or soft by wasHard)
         var toNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.toId) : null;
-        var fromNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.fromId) : null;
-
-        if (toNode) {
-            if (!toNode.prerequisites) toNode.prerequisites = [];
-            if (toNode.prerequisites.indexOf(data.fromId) === -1) {
-                toNode.prerequisites.push(data.fromId);
-            }
-
-            if (data.wasHard) {
-                if (!toNode.hardPrereqs) toNode.hardPrereqs = [];
-                if (toNode.hardPrereqs.indexOf(data.fromId) === -1) {
-                    toNode.hardPrereqs.push(data.fromId);
-                }
-            } else {
-                if (!toNode.softPrereqs) toNode.softPrereqs = [];
-                if (toNode.softPrereqs.indexOf(data.fromId) === -1) {
-                    toNode.softPrereqs.push(data.fromId);
-                }
-            }
-        }
-
-        if (fromNode) {
-            if (!fromNode.children) fromNode.children = [];
-            if (fromNode.children.indexOf(data.toId) === -1) {
-                fromNode.children.push(data.toId);
-            }
-        }
-
-        // Add edge
-        if (CanvasRenderer.edges) {
-            CanvasRenderer.edges.push({ from: data.fromId, to: data.toId });
-        }
-
-        this.syncPrerequisitesToRawData();
-        this.saveTree();
-        CanvasRenderer._needsRender = true;
-
-        // Refresh details panel
-        if (toNode && state.selectedNode && (state.selectedNode.formId === toNode.formId || state.selectedNode.id === toNode.id)) {
-            if (typeof showSpellDetails === 'function') showSpellDetails(toNode);
-        }
+        var was = data.was || { type: data.wasHard ? 'hard' : 'soft', linked: true, softNeeded: toNode ? toNode.softNeeded : 0 };
+        if (toNode) PrereqEdit.restore(toNode, data.fromId, was);
+        if (was.linked) this._linkChild(data.fromId, data.toId);
+        this._afterPrereqEdit(toNode);
     },
 
     _undoTogglePrereqType: function(data) {
         var node = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(data.nodeId) : null;
         if (!node) return;
 
-        // Restore to previous type
-        if (data.wasHard) {
-            // Was hard, now soft -> move back to hard
-            if (node.softPrereqs) {
-                var idx = node.softPrereqs.indexOf(data.prereqId);
-                if (idx !== -1) node.softPrereqs.splice(idx, 1);
-            }
-            if (!node.hardPrereqs) node.hardPrereqs = [];
-            if (node.hardPrereqs.indexOf(data.prereqId) === -1) {
-                node.hardPrereqs.push(data.prereqId);
-            }
-        } else {
-            // Was soft, now hard -> move back to soft
-            if (node.hardPrereqs) {
-                var idx = node.hardPrereqs.indexOf(data.prereqId);
-                if (idx !== -1) node.hardPrereqs.splice(idx, 1);
-            }
-            if (!node.softPrereqs) node.softPrereqs = [];
-            if (node.softPrereqs.indexOf(data.prereqId) === -1) {
-                node.softPrereqs.push(data.prereqId);
+        // Back to the type it had (none, when the toggle added it) and the old softNeeded
+        var wasType = data.wasType !== undefined ? data.wasType : (data.wasHard ? 'hard' : 'soft');
+        var linked = !!(node.prerequisites && node.prerequisites.indexOf(data.prereqId) !== -1);
+        var softNeeded = data.softNeeded !== undefined ? data.softNeeded : (node.softNeeded || 0);
+        PrereqEdit.restore(node, data.prereqId, { type: wasType, linked: linked, softNeeded: softNeeded });
+        this._afterPrereqEdit(node);
+    },
+
+    /** fromId's child entry and the drawn line to toId, once each */
+    _linkChild: function(fromId, toId) {
+        var fromNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(fromId) : null;
+        if (fromNode) {
+            if (!fromNode.children) fromNode.children = [];
+            if (fromNode.children.indexOf(toId) === -1) fromNode.children.push(toId);
+        }
+        if (CanvasRenderer.edges) {
+            var exists = CanvasRenderer.edges.some(function(e) { return e.from === fromId && e.to === toId; });
+            if (!exists) CanvasRenderer.edges.push({ from: fromId, to: toId });
+        }
+    },
+
+    /** fromId's child entry and the drawn line to toId out */
+    _unlinkChild: function(fromId, toId) {
+        var fromNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(fromId) : null;
+        if (fromNode && fromNode.children) {
+            var idx = fromNode.children.indexOf(toId);
+            if (idx !== -1) fromNode.children.splice(idx, 1);
+        }
+        if (CanvasRenderer.edges) {
+            for (var i = CanvasRenderer.edges.length - 1; i >= 0; i--) {
+                var e = CanvasRenderer.edges[i];
+                if (e.from === fromId && e.to === toId) CanvasRenderer.edges.splice(i, 1);
             }
         }
+    },
 
+    /** After a prerequisite change: rawData, save, repaint, the card if it shows `node` */
+    _afterPrereqEdit: function(node) {
         this.syncPrerequisitesToRawData();
         this.saveTree();
-
-        // Refresh details panel
-        if (state.selectedNode && (state.selectedNode.formId === node.formId || state.selectedNode.id === node.id)) {
+        CanvasRenderer._needsRender = true;
+        if (node && state.selectedNode && (state.selectedNode.formId === node.formId || state.selectedNode.id === node.id)) {
             if (typeof showSpellDetails === 'function') showSpellDetails(node);
         }
     },
@@ -862,38 +801,15 @@ var EditMode = {
         var fromId = fromNode.formId || fromNode.id;
         var toId = toNode.formId || toNode.id;
 
-        // Check if already exists in any prereq list
-        var alreadyExists = (toNode.prerequisites && toNode.prerequisites.indexOf(fromId) !== -1) ||
-                           (toNode.hardPrereqs && toNode.hardPrereqs.indexOf(fromId) !== -1) ||
-                           (toNode.softPrereqs && toNode.softPrereqs.indexOf(fromId) !== -1);
-
-        if (alreadyExists) {
+        // Drawn and Required, once (PrereqEdit.add refuses one that is already there)
+        if (!PrereqEdit.add(toNode, fromId, false)) {
             console.log('[EditMode] Prerequisite already exists');
             return false;
         }
-
-        // Add to toNode's prerequisites (legacy array)
-        if (!toNode.prerequisites) toNode.prerequisites = [];
-        toNode.prerequisites.push(fromId);
-
-        // Add to hardPrereqs by default (new prereqs are hard requirements)
-        if (!toNode.hardPrereqs) toNode.hardPrereqs = [];
-        toNode.hardPrereqs.push(fromId);
-
-        // Add to fromNode's children
-        if (!fromNode.children) fromNode.children = [];
-        if (fromNode.children.indexOf(toId) === -1) {
-            fromNode.children.push(toId);
-        }
-
-        // Add edge to renderer
-        if (CanvasRenderer.edges) {
-            CanvasRenderer.edges.push({ from: fromId, to: toId });
-        }
+        this._linkChild(fromId, toId);
 
         console.log('[EditMode] Added prerequisite:', fromNode.name || fromId, '->', toNode.name || toId);
 
-        // Push to undo stack
         this.pushUndo({
             type: 'addPrereq',
             data: {
@@ -902,18 +818,7 @@ var EditMode = {
             }
         });
 
-        // Sync to rawData and save
-        this.syncPrerequisitesToRawData();
-        this.saveTree();
-
-        // Refresh details panel if toNode is selected
-        if (state.selectedNode && (state.selectedNode.formId === toNode.formId || state.selectedNode.id === toNode.id)) {
-            if (typeof showSpellDetails === 'function') {
-                showSpellDetails(toNode);
-            }
-        }
-
-        CanvasRenderer._needsRender = true;
+        this._afterPrereqEdit(toNode);
         return true;
     },
 
@@ -1023,66 +928,22 @@ var EditMode = {
     removeEdge: function(edge, skipUndo) {
         var fromId = edge.from;
         var toId = edge.to;
-
-        var fromNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(fromId) : null;
         var toNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(toId) : null;
 
-        // Check if it was a hard prereq before removing (for undo)
-        var wasHard = toNode && toNode.hardPrereqs && toNode.hardPrereqs.indexOf(fromId) !== -1;
-
-        // Push to undo stack before removing (unless skipUndo is true)
+        // Out of every list; what it was goes on the undo stack
+        var was = toNode ? PrereqEdit.remove(toNode, fromId) : { type: null, linked: true, softNeeded: 0 };
         if (!skipUndo) {
             this.pushUndo({
                 type: 'removePrereq',
                 data: {
                     fromId: fromId,
                     toId: toId,
-                    wasHard: wasHard
+                    wasHard: was.type === 'hard',
+                    was: was
                 }
             });
         }
-
-        // Remove from toNode's prerequisites (legacy array)
-        if (toNode && toNode.prerequisites) {
-            var idx = toNode.prerequisites.indexOf(fromId);
-            if (idx !== -1) {
-                toNode.prerequisites.splice(idx, 1);
-            }
-        }
-
-        // Remove from toNode's hardPrereqs
-        if (toNode && toNode.hardPrereqs) {
-            var idx = toNode.hardPrereqs.indexOf(fromId);
-            if (idx !== -1) {
-                toNode.hardPrereqs.splice(idx, 1);
-            }
-        }
-
-        // Remove from toNode's softPrereqs
-        if (toNode && toNode.softPrereqs) {
-            var idx = toNode.softPrereqs.indexOf(fromId);
-            if (idx !== -1) {
-                toNode.softPrereqs.splice(idx, 1);
-            }
-        }
-
-        // Remove from fromNode's children
-        if (fromNode && fromNode.children) {
-            var idx = fromNode.children.indexOf(toId);
-            if (idx !== -1) {
-                fromNode.children.splice(idx, 1);
-            }
-        }
-
-        // Remove edge from renderer
-        if (CanvasRenderer.edges) {
-            for (var i = CanvasRenderer.edges.length - 1; i >= 0; i--) {
-                var e = CanvasRenderer.edges[i];
-                if (e.from === fromId && e.to === toId) {
-                    CanvasRenderer.edges.splice(i, 1);
-                }
-            }
-        }
+        this._unlinkChild(fromId, toId);
 
         console.log('[EditMode] Removed edge:', fromId, '->', toId);
 
@@ -1221,9 +1082,10 @@ var EditMode = {
         for (var i = 0; i < CanvasRenderer.nodes.length; i++) {
             var node = CanvasRenderer.nodes[i];
             var nodeId = node.formId || node.id;
-            prereqMap[nodeId] = node.prerequisites || [];
-            hardPrereqMap[nodeId] = node.hardPrereqs || [];
-            softPrereqMap[nodeId] = node.softPrereqs || [];
+            // Copies: rawData never shares an array with a node or another list
+            prereqMap[nodeId] = (node.prerequisites || []).slice();
+            hardPrereqMap[nodeId] = (node.hardPrereqs || []).slice();
+            softPrereqMap[nodeId] = (node.softPrereqs || []).slice();
             softNeededMap[nodeId] = node.softNeeded || 0;
             childrenMap[nodeId] = node.children || [];
         }
@@ -1288,58 +1150,23 @@ var EditMode = {
     togglePrereqType: function(node, prereqId) {
         if (!node) return null;
 
-        // Ensure arrays exist
-        if (!node.hardPrereqs) node.hardPrereqs = [];
-        if (!node.softPrereqs) node.softPrereqs = [];
+        // Moves it between the lists, never into both (PrereqEdit.toggle)
+        var r = PrereqEdit.toggle(node, prereqId);
+        console.log('[EditMode] Changed prereq', prereqId, 'to', r.type.toUpperCase());
 
-        var hardIdx = node.hardPrereqs.indexOf(prereqId);
-        var softIdx = node.softPrereqs.indexOf(prereqId);
-
-        // Track original state for undo
-        var wasHard = hardIdx !== -1;
-
-        var newType;
-        if (hardIdx !== -1) {
-            // Currently hard -> move to soft
-            node.hardPrereqs.splice(hardIdx, 1);
-            node.softPrereqs.push(prereqId);
-            newType = 'soft';
-            console.log('[EditMode] Changed prereq', prereqId, 'to SOFT');
-        } else if (softIdx !== -1) {
-            // Currently soft -> move to hard
-            node.softPrereqs.splice(softIdx, 1);
-            node.hardPrereqs.push(prereqId);
-            newType = 'hard';
-            console.log('[EditMode] Changed prereq', prereqId, 'to HARD');
-        } else {
-            // Not in either - add to hard by default
-            node.hardPrereqs.push(prereqId);
-            newType = 'hard';
-            console.log('[EditMode] Added prereq', prereqId, 'as HARD');
-        }
-
-        // Push to undo stack
         this.pushUndo({
             type: 'togglePrereqType',
             data: {
                 nodeId: node.formId || node.id,
                 prereqId: prereqId,
-                wasHard: wasHard
+                wasHard: r.wasType === 'hard',
+                wasType: r.wasType,
+                softNeeded: r.softNeeded
             }
         });
 
-        // Sync and save
-        this.syncPrerequisitesToRawData();
-        this.saveTree();
-
-        // Refresh details panel
-        if (state.selectedNode && (state.selectedNode.formId === node.formId || state.selectedNode.id === node.id)) {
-            if (typeof showSpellDetails === 'function') {
-                showSpellDetails(node);
-            }
-        }
-
-        return newType;
+        this._afterPrereqEdit(node);
+        return r.type;
     },
 
     /**
@@ -1389,64 +1216,22 @@ var EditMode = {
 
         var nodeId = node.formId || node.id;
 
-        // Check if it was hard before removing (for undo)
-        var wasHard = node.hardPrereqs && node.hardPrereqs.indexOf(prereqId) !== -1;
-
-        // Push to undo stack before removing
+        // Out of every list (it is in one of hard and soft); what it was goes on the undo stack
+        var was = PrereqEdit.remove(node, prereqId);
         this.pushUndo({
             type: 'removePrereq',
             data: {
                 fromId: prereqId,
                 toId: nodeId,
-                wasHard: wasHard
+                wasHard: was.type === 'hard',
+                was: was
             }
         });
-
-        // Remove from all prereq arrays
-        if (node.prerequisites) {
-            var idx = node.prerequisites.indexOf(prereqId);
-            if (idx !== -1) node.prerequisites.splice(idx, 1);
-        }
-        if (node.hardPrereqs) {
-            var idx = node.hardPrereqs.indexOf(prereqId);
-            if (idx !== -1) node.hardPrereqs.splice(idx, 1);
-        }
-        if (node.softPrereqs) {
-            var idx = node.softPrereqs.indexOf(prereqId);
-            if (idx !== -1) node.softPrereqs.splice(idx, 1);
-        }
-
-        // Remove from parent's children
-        var prereqNode = CanvasRenderer._nodeMap ? CanvasRenderer._nodeMap.get(prereqId) : null;
-        if (prereqNode && prereqNode.children) {
-            var idx = prereqNode.children.indexOf(nodeId);
-            if (idx !== -1) prereqNode.children.splice(idx, 1);
-        }
-
-        // Remove edge from renderer
-        if (CanvasRenderer.edges) {
-            for (var i = CanvasRenderer.edges.length - 1; i >= 0; i--) {
-                var e = CanvasRenderer.edges[i];
-                if (e.from === prereqId && e.to === nodeId) {
-                    CanvasRenderer.edges.splice(i, 1);
-                }
-            }
-        }
+        this._unlinkChild(prereqId, nodeId);
 
         console.log('[EditMode] Deleted prereq', prereqId, 'from', node.name || nodeId);
 
-        // Sync and save
-        this.syncPrerequisitesToRawData();
-        this.saveTree();
-
-        // Refresh details panel
-        if (state.selectedNode && (state.selectedNode.formId === node.formId || state.selectedNode.id === node.id)) {
-            if (typeof showSpellDetails === 'function') {
-                showSpellDetails(node);
-            }
-        }
-
-        CanvasRenderer._needsRender = true;
+        this._afterPrereqEdit(node);
     },
 
     // =========================================================================
