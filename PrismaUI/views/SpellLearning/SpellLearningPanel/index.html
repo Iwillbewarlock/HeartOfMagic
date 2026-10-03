@@ -443,13 +443,15 @@
                         <g id="center-hub"></g>
                     </svg>
                     
+                    <!-- The tool bar and the rows under it, stacked so a wrapped bar pushes them down (patch-ui.css) -->
+                    <div class="tree-top-tools">
                     <!-- Zoom Controls -->
                     <div class="zoom-controls">
                         <button id="zoom-in" class="zoom-btn" title="Zoom In" data-i18n-title="buttons.zoomIn">+</button>
                         <span id="zoom-level">100%</span>
                         <button id="zoom-out" class="zoom-btn" title="Zoom Out" data-i18n-title="buttons.zoomOut">−</button>
                         <button id="home-view-btn" class="zoom-btn" title="Home view" data-i18n-title="buttons.homeView"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg></button>
-                        <button id="find-spell-btn" class="zoom-btn" title="Search spells (F)" data-i18n-title="buttons.findSpell"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg></button>
+                        <button id="find-spell-btn" class="zoom-btn" title="Search spells" data-i18n-title="buttons.findSpell"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg></button>
                         <span id="renderer-badge" class="renderer-badge canvas" title="Renderer: CANVAS (Canvas 2D)" data-i18n-title="buttons.activeRenderer">Canvas</span>
                         <button id="heart-settings-btn" class="zoom-btn" title="Heart Animation Settings" data-i18n-title="buttons.heartSettings">⚙</button>
                         <button id="edit-tree-btn" class="zoom-btn" title="Edit Tree" data-i18n-title="buttons.editTree">✎</button>
@@ -458,12 +460,21 @@
                             <button id="edit-tool-pen" class="zoom-btn edit-tool" title="Pen Tool - Draw Prerequisites" data-i18n-title="buttons.penTool">✒</button>
                             <button id="edit-tool-eraser" class="zoom-btn edit-tool" title="Eraser Tool - Remove Links" data-i18n-title="buttons.eraserTool">⌫</button>
                         </span>
+                        <!-- Drag to size the bar 1x - 3x, double-click for 1x (modules/treeToolsScale.js) -->
+                        <span id="tree-tools-grip" class="tree-tools-grip" title="Drag to resize these buttons, double-click to reset" data-i18n-title="tree.toolsResize"></span>
                     </div>
                     
                     <!-- School jump tabs (built by treeNav.js when a tree loads) -->
                     <div id="tree-school-tabs"></div>
                     <!-- Shows the keyword being filtered on; bridgeView.js fills it -->
                     <div id="tree-trait-filter"></div>
+                    </div>
+
+                    <!-- Find Spell: a dropdown under the magnifier button, which shows and hides it (modules/findSpell.js) -->
+                    <div id="find-spell-panel" class="find-spell-panel hidden">
+                        <input type="text" id="find-spell-search" class="spawn-search" placeholder="Search spells on tree..." data-i18n-placeholder="modals.findSpell.placeholder" autocomplete="off" spellcheck="false">
+                        <div id="find-spell-list" class="spawn-spell-list"></div>
+                    </div>
 
                     <!-- Render Customization Settings Popup -->
                     <div id="heart-settings-popup" class="heart-settings-popup" style="display: none;">
@@ -1715,23 +1726,6 @@
         </div>
     </div>
 
-    <!-- Find Spell Modal (Spell Tree Search) -->
-    <div id="find-spell-modal" class="modal hidden">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content find-spell-modal">
-            <div class="modal-header">
-                <h3 data-i18n="modals.findSpell.title">Find Spell</h3>
-                <span class="find-spell-hint">F</span>
-                <button class="modal-close" id="find-spell-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <input type="text" id="find-spell-search" class="spawn-search" placeholder="Search spells on tree..." data-i18n-placeholder="modals.findSpell.placeholder" autofocus>
-                <div id="find-spell-list" class="spawn-spell-list">
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Preset Name Prompt Modal -->
     <div id="preset-name-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
@@ -1972,6 +1966,8 @@
     <script src="modules/treeLoad.js"></script>
     <script src="modules/spellCardView.js"></script>
     <script src="modules/spellProgressView.js"></script>
+    <script src="modules/spellSearch.js"></script>
+    <script src="modules/treeToolsScale.js"></script>
     <script src="modules/findSpell.js"></script>
     <script src="modules/treeNav.js"></script>
     <script src="modules/detailsPeek.js"></script>

@@ -25,6 +25,17 @@
   off. Weakened Spell Alerts stays as an option under it and is greyed out while it is off. Reset to
   Defaults turns it back on; settings presets do not change it.
 
+- The tree's tool bar (zoom, home, Find Spell, render settings, edit) can be made bigger: drag the small
+  grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings and
+  Reset to Defaults puts it back. A bar wider than the tree wraps, and the school tabs move down with it.
+
+### Changed
+
+- Find Spell opens as a dropdown under the magnifier button instead of a window over the tree; the button
+  shows and hides it, and Esc or choosing a spell hides it. The F key no longer opens it. The search ignores
+  spaces ("헝거소환" finds "헝거 소환"), an exact name comes first and then names that start with the text,
+  and "Found: ..." after the jump is in the panel's language.
+
 ### Fixed
 
 - Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel

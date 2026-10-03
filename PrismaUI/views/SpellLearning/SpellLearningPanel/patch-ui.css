@@ -508,6 +508,69 @@ body.panel-hidden *::after {
 .tree-preview-tab { padding: 9px 18px; font-size: 0.95em; }
 .zoom-btn { width: 29px; height: 29px; font-size: 16px; }
 .zoom-btn svg { width: 17px; height: 17px; }
+/* The tree's tool bar can be made bigger with its corner grip (treeToolsScale.js,
+   1x - 3x): a transform, so a bar wider than the tree wraps instead of running off
+   the edge, and .tree-top-tools below stacks the rows under it */
+.zoom-controls { flex-wrap: wrap; }
+
+/* The bar, the school tabs and the trait filter in one column at the tree's top
+   left (index.html .tree-top-tools): a bar that wraps pushes the rows under it
+   down instead of covering them. Each keeps its own look (designs style them by id). */
+.tree-top-tools {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    max-width: calc(100% - 28px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.tree-top-tools > * {
+    pointer-events: auto;
+}
+
+/* The bar holds its resize grip (treeToolsScale.js); in the column it has no
+   offsets of its own (the details-bottom rule above sets top: 14px) */
+#contentSpellTree .tree-top-tools .zoom-controls {
+    position: relative;
+    top: auto;
+    left: auto;
+    bottom: auto;
+}
+
+/* The grip: a corner mark at the bar's bottom right, the corner away from its anchor */
+.tree-tools-grip {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid var(--text-muted, #7A7A6A);
+    border-bottom: 2px solid var(--text-muted, #7A7A6A);
+    cursor: nwse-resize;
+    opacity: 0.7;
+    box-sizing: border-box;
+}
+
+.tree-tools-grip:hover {
+    border-color: var(--accent, #C8A860);
+    opacity: 1;
+}
+
+.tree-top-tools #tree-school-tabs,
+.tree-top-tools #tree-trait-filter {
+    position: static;
+    top: auto;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    max-width: 100%;
+    box-sizing: border-box;
+}
 
 .toggle-switch { width: 52px; height: 26px; }
 .toggle-slider::before { width: 20px; height: 20px; left: 2px; bottom: 2px; }
@@ -517,3 +580,32 @@ body.panel-hidden *::after {
 .toggle-switch.toggle-sm .toggle-slider::before { width: 16px; height: 16px; }
 .toggle-switch.toggle-sm input:checked + .toggle-slider:before,
 .toggle-switch.toggle-sm input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* ---- Find Spell: a dropdown under the tool bar's magnifier (findSpell.js) ----
+   findSpell.js puts it under the button (left/top); the tree around it stays
+   in view. Theme colours: the panel's own background and divider. */
+.find-spell-panel {
+    position: absolute;
+    top: 94px;
+    left: 14px;
+    width: 380px;
+    max-width: calc(100% - 16px);
+    padding: 8px;
+    background: var(--panel-bg, rgba(10, 10, 20, 0.95));
+    border: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+    z-index: 210;
+    box-sizing: border-box;
+}
+
+.find-spell-panel.hidden {
+    display: none;
+}
+
+.find-spell-panel .spawn-search {
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+.find-spell-panel .spawn-spell-list {
+    max-height: min(420px, 55vh);
+}

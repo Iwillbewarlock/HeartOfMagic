@@ -321,7 +321,7 @@ function initializeTreeViewer() {
     var bridgesList = document.getElementById('spell-bridges');
     if (bridgesList) bridgesList.addEventListener('click', handlePrereqClick);
 
-    // Find Spell (F key)
+    // Find Spell (the magnifier button)
     initializeFindSpell();
 }
 

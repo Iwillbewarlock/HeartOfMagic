@@ -2289,29 +2289,8 @@ body {
 }
 
 /* =============================================================================
-   FIND SPELL MODAL (Spell Tree Search)
+   FIND SPELL (the tree's search dropdown; its box is in patch-ui.css)
    ============================================================================= */
-
-.find-spell-modal {
-    width: 360px;
-}
-
-.find-spell-modal .modal-header {
-    position: relative;
-}
-
-.find-spell-hint {
-    position: absolute;
-    right: 40px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.65em;
-    color: var(--text-muted);
-    border: 1px solid var(--divider);
-    padding: 1px 6px;
-    border-radius: 2px;
-    opacity: 0.6;
-}
 
 .find-spell-item {
     padding: 10px 12px;

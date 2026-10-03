@@ -54,6 +54,21 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   selection. Esc works in two steps (`initializeKeyboardShortcuts` in `script.js`): with a spell
   selected on the tree the first press only drops it, the next closes the panel. An Esc a dialog's own
   field already used (Find Spell, a rename box) does neither
+- **Tool bar** (zoom, home, Find Spell, render settings, edit; top left of the tree) — `.tree-top-tools`
+  stacks it with the school tabs and the trait filter, so a bar that wraps pushes them down. The grip at
+  its bottom-right corner (the corner away from its anchor) sizes the whole bar 1x - 3x by dragging
+  (`modules/treeToolsScale.js`: a `scale()` transform plus a margin of the same growth so the rows below
+  move; the bar's max width is the tree's width over the scale so it wraps rather than runs off). Double-click
+  the grip for 1x. Saved as `treeToolsScale` with the panel settings, 1x on Reset to Defaults; the grip takes
+  its own mouse presses (no tree pan). The render settings and Find Spell popups open under the bar's scaled
+  bottom (`TreeNav.placeUnder`)
+- **Find Spell** — the magnifier button shows a dropdown under the bar with a search field and the list; the
+  button again, Esc in the field or choosing a spell hides it (there is no F key since 1.2.1). Matching is
+  `SpellSearch` (`modules/spellSearch.js`): the shown (translated) name, the school or the formId, ignoring
+  case and spaces ("헝거소환" finds "헝거 소환"); an exact name first, then names starting with the text, then
+  the rest, alphabetical in each, at most 80. In discovery mode without cheat mode locked spells are left out.
+  Enter or a click centres the tree on the spell and selects it; the status line says "Found: <name>"
+  (`tree.findFound`)
 - **Details sidebar** — spell name, school, tier, effects, prerequisites, learning controls
 - **Spell card** — the details panel reads top to bottom as a card: name (+ school badge) →
   keyword chips → description → figures (cost, type, effects with magnitude and duration).
@@ -821,7 +836,7 @@ log tells which case it is.
 closes the panel (`handleEscapePress`, script.js). In game the view does not always get the key, so the plugin
 watches the game's input too: Escape with the panel open calls `onNativeEscape` (Main.cpp `InputHandler`,
 `UIManager::OnEscapePressed`). One press can arrive both ways: the plugin's copy waits 80 ms and does nothing when the view's own keydown came meanwhile (only the view knows which field or dialog the press was for); the second arrival within 250 ms is ignored.
-An open dialog takes the press whichever arrival comes first (Find Spell closes; other dialogs close through their own keys), so the panel never closes behind one; a dialog field that uses the press itself marks it too.
+The Find Spell dropdown or an open dialog takes the press whichever arrival comes first (Find Spell hides; other dialogs close through their own keys), so the panel never closes behind one; a dialog field that uses the press itself marks it too.
 
 ## New spells and next goals (2026-10-02)
 

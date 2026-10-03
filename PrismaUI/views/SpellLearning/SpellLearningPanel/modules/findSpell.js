@@ -1,90 +1,100 @@
 /**
- * Find Spell (F on the tree): the search window, its list and keyboard
- * navigation, and panning to the chosen spell. Split out of treeViewerUI.js
- * (600-line limit); loads after spellProgressView.js.
+ * Find Spell (the magnifier button on the tree's tool bar): a dropdown under
+ * the button with a search field and the matching spells, keyboard navigation,
+ * and panning to the chosen spell. Split out of treeViewerUI.js (600-line
+ * limit); loads after spellProgressView.js and spellSearch.js.
+ *
+ * The button shows the dropdown and hides it again; Escape in the field and
+ * choosing a spell hide it too. Which spells match and in what order is
+ * SpellSearch (spellSearch.js): shown name, school or formId, ignoring case
+ * and spaces, exact and prefix name matches first.
  */
 
 // =============================================================================
-// FIND SPELL (F key search on spell tree)
+// FIND SPELL
 // =============================================================================
 
 var _findSpellSelectedIndex = -1;
 var _findSpellFiltered = [];
+// Typing waits this long before the list is made again (a tree has ~1,500 spells)
+var FIND_SPELL_DEBOUNCE_MS = 80;
+var _findSpellTimer = null;
 
 function initializeFindSpell() {
-    var modal = document.getElementById('find-spell-modal');
-    if (!modal) return;
-
     var searchInput = document.getElementById('find-spell-search');
-    var closeBtn = document.getElementById('find-spell-close');
-    var backdrop = modal.querySelector('.modal-backdrop');
+    if (!searchInput) return;
 
-    // F key to open
-    document.addEventListener('keydown', function(e) {
-        // Don't trigger if typing in an input/textarea or if a modal is already open
-        var tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-        if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-        if (e.key === 'f' || e.key === 'F') {
-            // Only when on spell tree tab
-            if (state.currentTab !== 'spellTree') return;
-            // Don't open if another modal is visible
-            var openModals = document.querySelectorAll('.modal:not(.hidden)');
-            if (openModals.length > 0) return;
-
-            e.preventDefault();
-            openFindSpell();
-        }
+    searchInput.addEventListener('input', function() {
+        if (_findSpellTimer) clearTimeout(_findSpellTimer);
+        _findSpellTimer = setTimeout(function() {
+            _findSpellTimer = null;
+            renderFindSpellList(searchInput.value);
+        }, FIND_SPELL_DEBOUNCE_MS);
     });
 
-    // Close handlers
-    if (closeBtn) closeBtn.addEventListener('click', closeFindSpell);
-    if (backdrop) backdrop.addEventListener('click', closeFindSpell);
-
-    // Search input
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            renderFindSpellList(searchInput.value);
-        });
-
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                closeFindSpell();
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                navigateFindSpell(1);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                navigateFindSpell(-1);
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                confirmFindSpell();
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            // Used here: the panel's Escape handler sees defaultPrevented and lets it be
+            e.preventDefault();
+            closeFindSpell();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            navigateFindSpell(1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            navigateFindSpell(-1);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (_findSpellTimer) {
+                clearTimeout(_findSpellTimer);
+                _findSpellTimer = null;
+                renderFindSpellList(searchInput.value);
             }
-        });
-    }
+            confirmFindSpell();
+        }
+    });
+}
+
+function isFindSpellOpen() {
+    var panel = document.getElementById('find-spell-panel');
+    return !!(panel && !panel.classList.contains('hidden'));
+}
+
+/** The magnifier button: show the dropdown, or hide it when it is showing */
+function toggleFindSpell() {
+    if (isFindSpellOpen()) closeFindSpell();
+    else openFindSpell();
 }
 
 function openFindSpell() {
-    var modal = document.getElementById('find-spell-modal');
+    var panel = document.getElementById('find-spell-panel');
     var searchInput = document.getElementById('find-spell-search');
-    if (!modal) return;
+    if (!panel) return;
 
-    modal.classList.remove('hidden');
+    panel.classList.remove('hidden');
+    if (typeof TreeNav !== 'undefined') TreeNav.placeUnder(panel, document.getElementById('find-spell-btn'));
+    var btn = document.getElementById('find-spell-btn');
+    if (btn) btn.classList.add('active');
     _findSpellSelectedIndex = -1;
 
     if (searchInput) {
         searchInput.value = '';
         searchInput.focus();
     }
-
     renderFindSpellList('');
 }
 
 function closeFindSpell() {
-    var modal = document.getElementById('find-spell-modal');
-    if (modal) modal.classList.add('hidden');
+    var panel = document.getElementById('find-spell-panel');
+    if (panel) panel.classList.add('hidden');
+    var btn = document.getElementById('find-spell-btn');
+    if (btn) btn.classList.remove('active');
+    var searchInput = document.getElementById('find-spell-search');
+    if (searchInput && document.activeElement === searchInput) searchInput.blur();
+    if (_findSpellTimer) {
+        clearTimeout(_findSpellTimer);
+        _findSpellTimer = null;
+    }
     _findSpellSelectedIndex = -1;
     _findSpellFiltered = [];
 }
@@ -93,129 +103,93 @@ function renderFindSpellList(searchTerm) {
     var listEl = document.getElementById('find-spell-list');
     if (!listEl) return;
 
-    searchTerm = (searchTerm || '').toLowerCase().trim();
+    var hits = SpellSearch.search(null, searchTerm);
+    _findSpellFiltered = hits.map(function(h) { return h.node; });
+    _findSpellSelectedIndex = hits.length > 0 ? 0 : -1;
+    listEl.innerHTML = '';
 
-    // Get all nodes on tree
-    var nodes = [];
-    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.nodes && CanvasRenderer.nodes.length > 0) {
-        nodes = CanvasRenderer.nodes;
-    } else if (state.treeData && state.treeData.rawData && state.treeData.rawData.schools) {
-        // Fallback: pull from raw tree data
-        var schools = state.treeData.rawData.schools;
-        for (var schoolName in schools) {
-            var school = schools[schoolName];
-            if (school.nodes) {
-                school.nodes.forEach(function(n) {
-                    nodes.push({
-                        formId: n.formId || n.id || n.spellId,
-                        name: n.name || n.spellName || n.formId,
-                        school: schoolName,
-                        level: n.level || n.skillLevel || '',
-                        x: n.x,
-                        y: n.y
-                    });
-                });
-            }
-        }
-    }
-
-    // Discovery mode: undiscovered (locked) spells must not be searchable by name
-    if (settings.discoveryMode !== false && !settings.cheatMode) {
-        nodes = nodes.filter(function(node) { return node.state !== 'locked'; });
-    }
-
-    // Filter by search term
-    var filtered;
-    if (searchTerm) {
-        filtered = nodes.filter(function(node) {
-            var name = (node.name || '').toLowerCase();
-            var school = (node.school || '').toLowerCase();
-            var formId = (node.formId || '').toLowerCase();
-            return name.indexOf(searchTerm) !== -1 ||
-                   school.indexOf(searchTerm) !== -1 ||
-                   formId.indexOf(searchTerm) !== -1;
-        });
-    } else {
-        filtered = nodes.slice();
-    }
-
-    // Sort: alphabetical by name
-    filtered.sort(function(a, b) {
-        var na = (a.name || '').toLowerCase();
-        var nb = (b.name || '').toLowerCase();
-        return na < nb ? -1 : na > nb ? 1 : 0;
-    });
-
-    // Limit display
-    filtered = filtered.slice(0, 80);
-    _findSpellFiltered = filtered;
-    _findSpellSelectedIndex = filtered.length > 0 ? 0 : -1;
-
-    if (filtered.length === 0) {
+    if (hits.length === 0) {
         var emptyEl = document.createElement('div');
         emptyEl.className = 'find-spell-empty';
-        emptyEl.textContent = searchTerm
+        emptyEl.textContent = SpellSearch.fold(searchTerm)
             ? tOr('tree.findNoMatch', null, 'No matching spells on tree')
             : tOr('tree.findNoSpells', null, 'No spells on tree');
-        listEl.innerHTML = '';
         listEl.appendChild(emptyEl);
         return;
     }
 
-    listEl.innerHTML = '';
-    filtered.forEach(function(node, idx) {
+    // State chip reuses the footer legend labels (already translated)
+    var stateKeys = {
+        locked: 'footer.legendLocked',
+        available: 'footer.legendAvailable',
+        learning: 'footer.legendLearning',
+        unlocked: 'footer.legendUnlocked'
+    };
+    var term = String(searchTerm || '').toLowerCase().trim();
+
+    hits.forEach(function(hit, idx) {
+        var node = hit.node;
         var item = document.createElement('div');
         item.className = 'find-spell-item' + (idx === 0 ? ' selected' : '');
         item.dataset.index = idx;
 
-        // School color dot
-        var color = typeof getOrAssignSchoolColor === 'function'
-            ? getOrAssignSchoolColor(node.school)
-            : '#888';
+        var color = typeof getOrAssignSchoolColor === 'function' ? getOrAssignSchoolColor(node.school) : '#888';
 
-        // Highlight matching text in name
-        var displayName = node.name || node.formId || '???';
-        if (searchTerm) {
-            displayName = highlightMatch(displayName, searchTerm);
+        var dot = document.createElement('div');
+        dot.className = 'find-spell-dot';
+        dot.style.background = color;
+        item.appendChild(dot);
+
+        var text = document.createElement('div');
+        text.className = 'find-spell-text';
+        var nameEl = document.createElement('div');
+        nameEl.className = 'find-spell-name';
+        appendHighlighted(nameEl, hit.name || '???', term);
+        text.appendChild(nameEl);
+
+        var info = document.createElement('div');
+        info.className = 'find-spell-info';
+        var schoolEl = document.createElement('span');
+        schoolEl.className = 'find-spell-school';
+        schoolEl.style.color = color;
+        schoolEl.textContent = node.school || '';
+        info.appendChild(schoolEl);
+        text.appendChild(info);
+        item.appendChild(text);
+
+        if (node.level) {
+            var tier = document.createElement('span');
+            tier.className = 'find-spell-tier';
+            tier.textContent = node.level;
+            item.appendChild(tier);
         }
-
-        // State chip reuses the footer legend labels (already translated)
-        var stateKeys = {
-            locked: 'footer.legendLocked',
-            available: 'footer.legendAvailable',
-            learning: 'footer.legendLearning',
-            unlocked: 'footer.legendUnlocked'
-        };
-        var stateLabel = stateKeys[node.state] ? t(stateKeys[node.state]) : '';
-
-        item.innerHTML =
-            '<div class="find-spell-dot" style="background:' + color + '"></div>' +
-            '<div class="find-spell-text">' +
-                '<div class="find-spell-name">' + displayName + '</div>' +
-                '<div class="find-spell-info">' +
-                    '<span class="find-spell-school" style="color:' + color + '">' + (node.school || '') + '</span>' +
-                '</div>' +
-            '</div>' +
-            (node.level ? '<span class="find-spell-tier">' + node.level + '</span>' : '') +
-            (stateLabel ? '<span class="find-spell-state ' + node.state + '">' + stateLabel + '</span>' : '');
+        if (stateKeys[node.state]) {
+            var chip = document.createElement('span');
+            chip.className = 'find-spell-state ' + node.state;
+            chip.textContent = t(stateKeys[node.state]);
+            item.appendChild(chip);
+        }
 
         item.addEventListener('click', function() {
             _findSpellSelectedIndex = idx;
             confirmFindSpell();
         });
-
         listEl.appendChild(item);
     });
 }
 
-function highlightMatch(text, term) {
-    var lower = text.toLowerCase();
-    var idx = lower.indexOf(term);
-    if (idx === -1) return text;
-    var before = text.substring(0, idx);
-    var match = text.substring(idx, idx + term.length);
-    var after = text.substring(idx + term.length);
-    return before + '<mark>' + match + '</mark>' + after;
+/** The text into el, the first place it holds term (as typed) in <mark> */
+function appendHighlighted(el, text, term) {
+    var at = term ? text.toLowerCase().indexOf(term) : -1;
+    if (at === -1) {
+        el.textContent = text;
+        return;
+    }
+    el.appendChild(document.createTextNode(text.substring(0, at)));
+    var mark = document.createElement('mark');
+    mark.textContent = text.substring(at, at + term.length);
+    el.appendChild(mark);
+    el.appendChild(document.createTextNode(text.substring(at + term.length)));
 }
 
 function navigateFindSpell(direction) {
@@ -224,18 +198,15 @@ function navigateFindSpell(direction) {
     var listEl = document.getElementById('find-spell-list');
     if (!listEl) return;
 
-    // Remove current selection
     var items = listEl.querySelectorAll('.find-spell-item');
     if (items[_findSpellSelectedIndex]) {
         items[_findSpellSelectedIndex].classList.remove('selected');
     }
 
-    // Move index
     _findSpellSelectedIndex += direction;
     if (_findSpellSelectedIndex < 0) _findSpellSelectedIndex = _findSpellFiltered.length - 1;
     if (_findSpellSelectedIndex >= _findSpellFiltered.length) _findSpellSelectedIndex = 0;
 
-    // Apply selection & scroll into view
     if (items[_findSpellSelectedIndex]) {
         items[_findSpellSelectedIndex].classList.add('selected');
         items[_findSpellSelectedIndex].scrollIntoView({ block: 'nearest' });
@@ -248,6 +219,12 @@ function confirmFindSpell() {
     var node = _findSpellFiltered[_findSpellSelectedIndex];
     closeFindSpell();
     smoothPanToNode(node);
+}
+
+/** The tree status line after a jump: "Found: <name>" in the panel's language */
+function _findSpellFoundStatus(node) {
+    if (typeof setTreeStatus !== 'function') return;
+    setTreeStatus(tOr('tree.findFound', { name: node.name || node.formId }, 'Found: {{name}}'));
 }
 
 /**
@@ -266,11 +243,7 @@ function smoothPanToNode(targetNode) {
     // Preferred path: TreeCamera handles rotation-aware centering + selection
     if (typeof TreeCamera !== 'undefined' && CanvasRenderer.canvas) {
         CanvasRenderer.selectNodeAndFocus(node, {
-            onComplete: function() {
-                if (typeof setTreeStatus === 'function') {
-                    setTreeStatus('Found: ' + (node.name || node.formId));
-                }
-            }
+            onComplete: function() { _findSpellFoundStatus(node); }
         });
         return;
     }
@@ -284,21 +257,21 @@ function smoothPanToNode(targetNode) {
     var duration = 400; // ms
     var startTime = null;
 
-    function easeOutCubic(t) {
-        return 1 - Math.pow(1 - t, 3);
+    function easeOutCubic(x) {
+        return 1 - Math.pow(1 - x, 3);
     }
 
     function animate(timestamp) {
         if (!startTime) startTime = timestamp;
         var elapsed = timestamp - startTime;
-        var t = Math.min(elapsed / duration, 1);
-        var eased = easeOutCubic(t);
+        var p = Math.min(elapsed / duration, 1);
+        var eased = easeOutCubic(p);
 
         CanvasRenderer.panX = startPanX + (targetPanX - startPanX) * eased;
         CanvasRenderer.panY = startPanY + (targetPanY - startPanY) * eased;
         CanvasRenderer._needsRender = true;
 
-        if (t < 1) {
+        if (p < 1) {
             requestAnimationFrame(animate);
         } else {
             // Select the node after animation completes
@@ -306,9 +279,7 @@ function smoothPanToNode(targetNode) {
             if (typeof showSpellDetails === 'function') {
                 showSpellDetails(node);
             }
-            if (typeof setTreeStatus === 'function') {
-                setTreeStatus('Found: ' + (node.name || node.formId));
-            }
+            _findSpellFoundStatus(node);
         }
     }
 

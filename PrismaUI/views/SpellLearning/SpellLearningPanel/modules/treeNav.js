@@ -3,11 +3,11 @@
  *
  * - School jump tabs above the tree (one per school, colored, click = focus root)
  * - Home button (reset rotation / pan / zoom)
- * - Search button (opens the Find Spell modal, same as the F key)
+ * - Search button (shows and hides the Find Spell dropdown, findSpell.js)
  * - Details panel layout (bottom info bar vs. right sidebar, settings.detailsLayout)
  *
  * Depends on: settings (state.js), CanvasRenderer (canvasRendererV2.js),
- *             TreeCamera (treeCamera.js), openFindSpell (treeViewerUI.js)
+ *             TreeCamera (treeCamera.js), toggleFindSpell (findSpell.js)
  */
 
 var TreeNav = {
@@ -24,7 +24,7 @@ var TreeNav = {
 
         var findBtn = document.getElementById('find-spell-btn');
         if (findBtn) findBtn.addEventListener('click', function() {
-            if (typeof openFindSpell === 'function') openFindSpell();
+            if (typeof toggleFindSpell === 'function') toggleFindSpell();
         });
 
         window.addEventListener('nodeSelected', function(e) {
@@ -33,6 +33,24 @@ var TreeNav = {
 
         this.applyDetailsLayout();
         console.log('[TreeNav] Initialized');
+    },
+
+    /**
+     * Put a popup (absolutely placed in the tree) just under a tool bar button,
+     * kept inside the tree: the bar's height changes when it wraps on a narrow
+     * panel. Used by Find Spell and the render settings popup.
+     */
+    placeUnder: function(panel, btn) {
+        var host = panel && (panel.offsetParent || panel.parentElement);
+        if (!btn || !host || !btn.getBoundingClientRect || !host.getBoundingClientRect) return;
+        var b = btn.getBoundingClientRect();
+        var h = host.getBoundingClientRect();
+        // Below the whole bar, not only the button: a wrapped bar has a row under it
+        var bar = typeof btn.closest === 'function' ? btn.closest('.zoom-controls') : null;
+        var bottom = bar ? bar.getBoundingClientRect().bottom : b.bottom;
+        var width = panel.offsetWidth || 0;
+        panel.style.left = Math.max(8, Math.min(b.left - h.left, h.width - width - 8)) + 'px';
+        panel.style.top = (bottom - h.top + 6) + 'px';
     },
 
     // =========================================================================

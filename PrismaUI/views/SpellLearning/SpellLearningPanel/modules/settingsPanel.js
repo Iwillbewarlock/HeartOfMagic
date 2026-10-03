@@ -358,6 +358,8 @@ function initializeSettings() {
     // NOTIFICATION SETTINGS (Show Notifications, weakened spell alerts)
     // =========================================================================
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.init();
+    // The tree's tool bar size (its corner grip)
+    if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.init();
     
     // UI Theme selector
     initializeThemeSelector();
@@ -859,6 +861,7 @@ function saveUnifiedConfig() {
     // Known higher spells (reverse unlock): what they open, XP share, own gain rates
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(unifiedConfig);
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.saveTo(unifiedConfig);
+    if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.saveTo(unifiedConfig);
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
     if (typeof RenderSettings !== 'undefined') RenderSettings.saveTo(unifiedConfig);
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.saveTo(unifiedConfig);
@@ -895,6 +898,7 @@ function resetSettings() {
     settings.autoAdvanceMode = 'branch';
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.reset();
+    if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.reset();
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.reset();
     if (typeof RenderSettings !== 'undefined') RenderSettings.reset();
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.reset();
@@ -1258,6 +1262,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         
         // Notification settings (Show Notifications, weakened spell alerts)
         if (typeof NotificationSetting !== 'undefined') NotificationSetting.loadFrom(data);
+        if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.loadFrom(data);
         
         // Update settings presets UI
         if (typeof updateSettingsPresetsUI === 'function') {
@@ -1970,6 +1975,8 @@ function initializeHeartSettings() {
         e.preventDefault();
         var isHidden = popup.style.display === 'none' || popup.style.display === '';
         popup.style.display = isHidden ? 'block' : 'none';
+        // Under the button: the tool bar is taller now and wraps on a narrow panel
+        if (isHidden && typeof TreeNav !== 'undefined') TreeNav.placeUnder(popup, settingsBtn);
         console.log('[HeartSettings] Toggled popup:', isHidden ? 'open' : 'closed');
     });
     

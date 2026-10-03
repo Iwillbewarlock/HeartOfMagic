@@ -381,14 +381,8 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 
 /* Hovered and picked rows: a brown wash, the theme's white one vanishes on paper */
 .modal-content .spawn-spell-item:hover,
-.modal-content .find-spell-item:hover,
-.modal-content .find-spell-item.selected,
 .modal-content .whitelist-entry:hover {
     background: rgba(90, 58, 20, 0.14);
-}
-
-.modal-content .find-spell-item.selected {
-    border-left-color: #6b4410;
 }
 
 /* The search dropdown lies over the list below it, so it needs a solid page */

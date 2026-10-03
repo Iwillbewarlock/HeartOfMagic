@@ -31,7 +31,9 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeLoad.js` | 563 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData` |
 | `spellCardView.js` | 539 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
 | `spellProgressView.js` | 218 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
-| `findSpell.js` | 318 | Find Spell (F): search window, list, keyboard navigation, pan to the spell |
+| `findSpell.js` | 287 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell |
+| `spellSearch.js` | 114 | `SpellSearch`: which spells Find Spell lists for a text (name, school, formId; case and spaces ignored; exact, prefix, rest; locked left out in discovery mode) |
+| `treeToolsScale.js` | 137 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale` |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
@@ -126,6 +128,8 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/treeLoad.js"></script>
 <script src="modules/spellCardView.js"></script>
 <script src="modules/spellProgressView.js"></script>
+<script src="modules/spellSearch.js"></script>
+<script src="modules/treeToolsScale.js"></script>
 <script src="modules/findSpell.js"></script>
 <script src="modules/progressionUI.js"></script>
 <script src="modules/buttonHandlers.js"></script>

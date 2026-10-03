@@ -103,8 +103,8 @@ var NATIVE_ESCAPE_WAIT_MS = 80;
 var _lastEscapeAt = 0;
 
 /**
- * Escape: an open dialog takes the press (Find Spell closes; other dialogs
- * close through their own keys), so the panel never closes behind one -
+ * Escape: the Find Spell dropdown or an open dialog takes the press (Find
+ * Spell hides; dialogs close through their own keys), so the panel never closes behind one -
  * whichever of the two arrivals comes first. On the tree with a spell
  * selected the first press only drops the selection; the next one closes.
  * @returns {boolean} false when it was the same press again
@@ -113,11 +113,11 @@ function handleEscapePress() {
     var now = Date.now();
     if (now - _lastEscapeAt < ESCAPE_REPEAT_MS) return false;
     _lastEscapeAt = now;
-    if (document.querySelectorAll('.modal:not(.hidden)').length > 0) {
-        var find = document.getElementById('find-spell-modal');
-        if (find && !find.classList.contains('hidden') && typeof closeFindSpell === 'function') closeFindSpell();
+    if (typeof isFindSpellOpen === 'function' && isFindSpellOpen()) {
+        closeFindSpell();
         return true;
     }
+    if (document.querySelectorAll('.modal:not(.hidden)').length > 0) return true;
     if (state.currentTab === 'spellTree' && state.selectedNode && typeof clearSpellSelection === 'function') {
         clearSpellSelection();
         return true;
@@ -149,7 +149,7 @@ function initializeKeyboardShortcuts() {
         // Escape: with a spell selected on the tree, the first press only drops
         // the selection; the next one closes (even when typing)
         if (e.key === 'Escape') {
-            // A dialog's own field already used this press (Find Spell closes
+            // A dialog's own field already used this press (Find Spell hides
             // itself): note the press so the plugin's copy of it does nothing
             if (e.defaultPrevented) {
                 _lastEscapeAt = Date.now();
@@ -261,6 +261,8 @@ function switchTab(tabId) {
         if (!state.treeInitialized) {
             initializeTreeViewer();
         }
+        // The tool bar's size: its room under it is measured, which needs the tab showing
+        if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.apply();
         // Update transform on tab switch
         if (WheelRenderer.svg) {
             setTimeout(function() { WheelRenderer.updateTransform(); }, 50);
