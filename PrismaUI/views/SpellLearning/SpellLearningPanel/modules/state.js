@@ -68,7 +68,7 @@ var settings = {
     edgeStyle: 'straight',        // 'straight' or 'curved' (Bezier) edge rendering
     nodeSizeScaling: true,
     showNodeNames: true,
-    nodeFontSize: 10,
+    nodeFontSize: DEFAULT_NODE_FONT_SIZE,
     showSchoolDividers: true,
     strictPieSlices: true,  // Keep schools strictly in their pie slices (vs. allowing overlap)
     dividerFade: 50,      // 0-100, percentage of line length to fade out

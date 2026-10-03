@@ -7,6 +7,18 @@
  */
 
 // =============================================================================
+// DEFAULT TEXT SIZES (2026-10-04: raised from 14 and 10 for readability)
+// =============================================================================
+
+// Panel body text in px at Font Size 1.0x (applyFontSizeMultiplier; the CSS
+// body rule in styles-skyrim.css says the same before the settings load)
+var PANEL_BASE_FONT_SIZE = 16;
+
+// The tree's spell names in px (Settings > UI Display > Tree > Spell Name Size,
+// settings.nodeFontSize; the slider runs 6..18)
+var DEFAULT_NODE_FONT_SIZE = 12;
+
+// =============================================================================
 // DEFAULT TREE RULES PROMPT
 // =============================================================================
 

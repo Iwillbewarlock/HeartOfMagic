@@ -85,7 +85,7 @@ body {
     background: transparent;
     color: var(--text-primary);
     overflow: hidden;
-    font-size: 14px;
+    font-size: 16px;            /* PANEL_BASE_FONT_SIZE (constants.js); the Font Size setting overrides it */
     letter-spacing: 0.5px;
 }
 
@@ -1716,7 +1716,9 @@ body {
     right: -30px;
     transform: translateY(-50%);
     width: 30px;
-    height: 90px;
+    min-height: 90px;           /* grows with the text (Font Size), never shorter than before */
+    padding: 6px 0;
+    box-sizing: border-box;
     background: linear-gradient(135deg, rgba(120, 144, 168, 0.9), rgba(80, 100, 120, 0.9));
     border: 1px solid rgba(120, 144, 168, 0.5);
     border-left: none;
@@ -3013,8 +3015,9 @@ body {
 .power-step-row {
     display: grid;
     /* Fixed so the rows line up; wide enough for the longest translations
-       ("Estágio 6", "% puissance") - "% XP" alone would fit in 42px */
-    grid-template-columns: 64px 50px 72px 50px 72px 1fr;
+       ("Estágio 6", "% puissance") - "% XP" alone would fit in 42px. In em
+       (64/50/72px at the old 14px text) so they grow with Font Size */
+    grid-template-columns: 4.6em 3.6em 5.1em 3.6em 5.1em 1fr;
     align-items: center;
     gap: 6px;
     padding: 5px 8px;
@@ -4471,8 +4474,8 @@ body {
 }
 
 .tree-preview-settings-grid .tree-preview-setting {
-    flex: 1 1 120px;
-    min-width: 120px;
+    flex: 1 1 7.5em;            /* 120px at 16px text, grows with Font Size */
+    min-width: 7.5em;
     margin-bottom: 0;
 }
 

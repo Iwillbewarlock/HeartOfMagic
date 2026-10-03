@@ -16,6 +16,8 @@
 
 ### Fixed
 
+- Bigger default text: the panel's text is 16px at Font Size 1.0x (was 14px) and the tree's spell names 12
+  (was 10). Saved settings keep their values; Reset to Defaults gives the new sizes.
 - Settings > Font Size goes up to 2.0x (it stopped at 1.5x), and it now also enlarges the spell names on
   the tree (on top of Spell Name Size). The spell card grows with the text: the side panel gets wider and
   the bottom bar taller, so nothing is cut off at the larger sizes.

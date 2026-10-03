@@ -135,11 +135,22 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   both paths in `treeLoad.js`: an id in both lists stays Required only, repeats go).
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 - **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
-  (14px times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell
+  (`PANEL_BASE_FONT_SIZE` times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell
   names are Spell Name Size times it (a new size is a new label font, `LayerBuild.noteRestyle`). The spell
   card's sidebar width and the bottom bar's height and fixed columns are in em of that font, so the card
   grows with the text instead of cutting it off (at 2.0x the bottom bar is twice as tall and leaves the tree
   less room). Icon buttons keep their px sizes.
+- **Default text sizes** (1.2.1, `modules/constants.js`): body text `PANEL_BASE_FONT_SIZE` 16px (was 14px; the
+  `body` rule in `styles-skyrim.css` says 16px too, for the moment before the settings load) and Spell Name
+  Size `DEFAULT_NODE_FONT_SIZE` 12 (was 10; slider still 6 to 18). Only defaults changed: a saved
+  `nodeFontSize` stays, and Reset to Defaults now puts Spell Name Size back to 12 too (it did not reset it
+  before). The designs (`themes/design-*.css`, the Chalkboard and Night Grimoire presets) set no base or
+  name size of their own, so all five follow. Three fixed px boxes now scale with the text: the power step
+  rows' columns (em), the tree builder's setting cells (`min-width` 7.5em) and the How to Play side tab
+  (`min-height`, grows to fit). Checked in the dev harness at 1.0x and 2.0x (1600x900): no text cut off or
+  spilling that was not there at 14px; one left as it was - the last power step row's "100% Power" runs a
+  little past its column at every size. The label pass culls by the label's own size, so 12 needs no change
+  there.
 
 ### Decided: the tree stays 2D (2026-09-22)
 

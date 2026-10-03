@@ -938,6 +938,7 @@ function resetSettings() {
     DesignPresets.apply(settings.designPreset);
     settings.learningColor = '#7890A8';
     settings.fontSizeMultiplier = 1.0;
+    settings.nodeFontSize = DEFAULT_NODE_FONT_SIZE;
     settings.learningMode = 'perSchool';
     settings.autoAdvanceLearning = true;
     settings.autoAdvanceMode = 'branch';
@@ -1474,7 +1475,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.particleTrailEnabled = data.particleTrailEnabled !== false;
         settings.globeBgFill = data.globeBgFill !== false;
         settings.globeParticleRadius = data.globeParticleRadius !== undefined ? data.globeParticleRadius : 50;
-        settings.nodeFontSize = data.nodeFontSize !== undefined ? data.nodeFontSize : 10;
+        settings.nodeFontSize = data.nodeFontSize !== undefined ? data.nodeFontSize : DEFAULT_NODE_FONT_SIZE;
 
         // Spell blacklist
         if (data.spellBlacklist && Array.isArray(data.spellBlacklist)) {
@@ -1885,9 +1886,8 @@ function applyFontSizeMultiplier(multiplier) {
     var root = document.documentElement;
     root.style.setProperty('--font-size-multiplier', multiplier);
     
-    // Apply to body font size (base is 14px in Skyrim theme)
-    var baseFontSize = 14;
-    document.body.style.fontSize = (baseFontSize * multiplier) + 'px';
+    // Body text: PANEL_BASE_FONT_SIZE (constants.js) times the multiplier
+    document.body.style.fontSize = (PANEL_BASE_FONT_SIZE * multiplier) + 'px';
 
     // The tree's names are drawn on the canvas, not sized by CSS. A new size is a
     // new font for them: widths and letters made again before the names (noteRestyle)
@@ -2205,8 +2205,8 @@ function initializeHeartSettings() {
     var nodeFontSize = document.getElementById('tree-node-font-size');
     var nodeFontSizeVal = document.getElementById('tree-node-font-size-val');
     if (nodeFontSize) {
-        nodeFontSize.value = settings.nodeFontSize || 10;
-        if (nodeFontSizeVal) nodeFontSizeVal.textContent = settings.nodeFontSize || 10;
+        nodeFontSize.value = settings.nodeFontSize || DEFAULT_NODE_FONT_SIZE;
+        if (nodeFontSizeVal) nodeFontSizeVal.textContent = settings.nodeFontSize || DEFAULT_NODE_FONT_SIZE;
         nodeFontSize.addEventListener('input', function() {
             settings.nodeFontSize = parseInt(this.value);
             if (nodeFontSizeVal) nodeFontSizeVal.textContent = this.value;

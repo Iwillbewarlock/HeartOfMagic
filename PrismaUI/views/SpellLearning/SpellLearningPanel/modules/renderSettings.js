@@ -110,7 +110,7 @@ var RenderSettings = {
         if (curved) curved.checked = settings.edgeStyle === 'curved';
         var font = document.getElementById('tree-node-font-size');
         var fontVal = document.getElementById('tree-node-font-size-val');
-        var fontSize = settings.nodeFontSize || 10;
+        var fontSize = settings.nodeFontSize || DEFAULT_NODE_FONT_SIZE;
         if (font) font.value = fontSize;
         if (fontVal) fontVal.textContent = fontSize;
         var zoom = document.getElementById('tree-focus-zoom');
