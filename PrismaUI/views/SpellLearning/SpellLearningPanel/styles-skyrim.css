@@ -1239,7 +1239,7 @@ body {
     top: 10px;
     right: 10px;
     bottom: 46px;
-    width: 15.72em;     /* 220px at the 14px body font; grows with Settings > Font Size */
+    width: 15.72em;     /* 252px at the 16px body font (220px on the old 14px); grows with Settings > Font Size */
     background: rgba(0, 0, 0, 0.92);
     border: 1px solid var(--divider);
     border-radius: 0;
@@ -3016,7 +3016,8 @@ body {
     display: grid;
     /* Fixed so the rows line up; wide enough for the longest translations
        ("Estágio 6", "% puissance") - "% XP" alone would fit in 42px. In em
-       (64/50/72px at the old 14px text) so they grow with Font Size */
+       (74/58/82px at the 16px body font, 64/50/72px on the old 14px) so they
+       grow with Font Size */
     grid-template-columns: 4.6em 3.6em 5.1em 3.6em 5.1em 1fr;
     align-items: center;
     gap: 6px;
@@ -4474,7 +4475,7 @@ body {
 }
 
 .tree-preview-settings-grid .tree-preview-setting {
-    flex: 1 1 7.5em;            /* 120px at 16px text, grows with Font Size */
+    flex: 1 1 7.5em;            /* 120px at the 16px body font; grows with Font Size */
     min-width: 7.5em;
     margin-bottom: 0;
 }
@@ -4484,6 +4485,30 @@ body {
     font-size: 0.8em;
     color: var(--text-muted);
     margin-bottom: 4px;
+}
+
+/* Tree builder options under the grid (TreeBuilderSetting): a checkbox line and
+   the one-line hints, in the design's muted text */
+.tree-preview-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 4px 2px;
+    font-size: 10px;
+}
+
+.tree-preview-option label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.tree-preview-hint {
+    font-size: 9px;
+    color: var(--text-muted);
+    padding: 0 4px 4px;
 }
 
 /* Drag-to-slide number inputs */

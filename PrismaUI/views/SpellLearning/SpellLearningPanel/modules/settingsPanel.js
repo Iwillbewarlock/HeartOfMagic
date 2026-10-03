@@ -1052,7 +1052,25 @@ function resetSettings() {
             if (valueEl) valueEl.textContent = cfg.val + '%';
         }
     });
-    
+
+    // Font Size and Spell Name Size: the sliders, their labels and the text itself
+    var fontSizeSlider = document.getElementById('fontSizeSlider');
+    if (fontSizeSlider) {
+        fontSizeSlider.value = settings.fontSizeMultiplier;
+        updateSliderFillReset(fontSizeSlider);
+        var fontSizeValue = document.getElementById('fontSizeValue');
+        if (fontSizeValue) fontSizeValue.textContent = settings.fontSizeMultiplier.toFixed(1) + 'x';
+    }
+    applyFontSizeMultiplier(settings.fontSizeMultiplier);
+    var nodeFontSlider = document.getElementById('tree-node-font-size');
+    if (nodeFontSlider) {
+        nodeFontSlider.value = settings.nodeFontSize;
+        updateSliderFillReset(nodeFontSlider);
+        var nodeFontValue = document.getElementById('tree-node-font-size-val');
+        if (nodeFontValue) nodeFontValue.textContent = settings.nodeFontSize;
+    }
+    if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+
     // Re-render tree
     if (state.treeData) {
         WheelRenderer.render();

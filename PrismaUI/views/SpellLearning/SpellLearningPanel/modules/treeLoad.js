@@ -4,6 +4,21 @@
  * treeViewerUI.js (600-line limit); loads right after it.
  */
 
+/** The saved tree's nodes by formId (the raw nodes a load repair writes back to) */
+function _rawNodesById(rawData) {
+    var byId = {};
+    var rawSchools = (rawData && rawData.schools) || {};
+    for (var name in rawSchools) {
+        if (!rawSchools.hasOwnProperty(name)) continue;
+        var list = rawSchools[name].nodes || [];
+        for (var i = 0; i < list.length; i++) {
+            var id = list[i].formId || list[i].id || list[i].spellId;
+            if (id) byId[id] = list[i];
+        }
+    }
+    return byId;
+}
+
 /**
  * Fast path for trustPrereqs data — builds nodes/edges/schools directly
  * from JSON and sends to TrustedRenderer. No TreeParser, no WheelRenderer,
@@ -126,8 +141,10 @@ function _loadTrustedTree(data, switchToTreeTab) {
                 skillLevel: nd.skillLevel || null,
                 traits: nd.traits || null
             };
-            // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats
-            PrereqEdit.repair(node);
+            // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats.
+            // A repaired node goes into the saved tree too (nd is its raw node), so the next save
+            // carries it and the card and C++ judge by the same lists before any edit.
+            if (PrereqEdit.repair(node, nd.locks) > 0) PrereqEdit.copyTo(nd, node);
 
             // Roots and prereq-less nodes are available
             if (isRootNode || !node.prerequisites || node.prerequisites.length === 0) {
@@ -457,6 +474,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
     }
     
     // Compute hard/soft prereqs on each node (source of truth for all systems)
+    var rawById = null;
     result.nodes.forEach(function(node) {
         // Use new unified hard/soft prereq system if available
         var hardPrereqs = node.hardPrereqs || [];
@@ -490,8 +508,12 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
         node.hardPrereqs = hardPrereqs;
         node.softPrereqs = softPrereqs;
         node.softNeeded = softNeeded;
-        // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats
-        PrereqEdit.repair(node);
+        // An id in both hard and soft (an edit-mode link from 1.2.0) goes to hard only, no repeats;
+        // a repaired node goes into the saved tree too, as on the trusted path
+        if (PrereqEdit.repair(node) > 0) {
+            if (!rawById) rawById = _rawNodesById(result.rawData);
+            PrereqEdit.copyTo(rawById[node.formId || node.id], node);
+        }
     });
 
     // Also on this path, or the bridges of the previous tree would stay on screen

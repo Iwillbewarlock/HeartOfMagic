@@ -94,7 +94,7 @@
     padding: 6px 12px;
     min-height: 24px;
     font-family: inherit;
-    /* 12px on the panel's 14px base; game UI text below that is hard to read on a TV */
+    /* 13.6px on the panel's 16px body font at 1.0x; game UI text below 12px is hard to read on a TV */
     font-size: 0.85em;
     cursor: pointer;
 }
@@ -297,9 +297,9 @@ button.easy-preset-chip {
    Same #details-panel element as the sidebar, re-flowed as a horizontal bar
    above the tree footer. Section columns are placed with CSS grid so the
    existing populate code in treeViewerUI.js keeps working unchanged.
-   Sizes in em of the 14px body font (180px tall, 150px header, 200px progress,
-   110px buttons at 1.0x), so the bar grows with Settings > Font Size instead
-   of cutting off its text. */
+   Sizes in em of the 16px body font (206px tall, 172px header, 229px progress,
+   126px buttons at 1.0x; first set as 180/150/200/110px on the old 14px font),
+   so the bar grows with Settings > Font Size instead of cutting off its text. */
 #contentSpellTree.details-bottom .details-panel {
     top: auto;
     left: 10px;

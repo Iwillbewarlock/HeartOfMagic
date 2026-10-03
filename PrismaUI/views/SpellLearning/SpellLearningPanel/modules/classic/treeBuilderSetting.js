@@ -54,16 +54,16 @@ var TreeBuilderSetting = {
                 TreePreviewUtils.settingHTML(t('preview.classic.typeGrouping'), 'tgClassicTypeGrouping',
                     0, this.MAX_TYPE_GROUPING, this.TYPE_GROUPING_STEP, this.typeGrouping().toFixed(1)) +
             '</div>' +
-            '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
+            '<div class="tree-preview-hint">' +
                 t('preview.classic.typeGroupingHint') +
             '</div>' +
-            '<div style="display:flex; align-items:center; gap:8px; margin:4px 4px 2px; font-size:10px;">' +
-                '<label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:rgba(184,168,120,0.6);">' +
+            '<div class="tree-preview-option">' +
+                '<label>' +
                     '<input type="checkbox" id="tgClassicTiersByCost"' + (this.tiersByCost() ? ' checked' : '') + '>' +
                     t('preview.classic.tiersByCost') +
                 '</label>' +
             '</div>' +
-            '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
+            '<div class="tree-preview-hint">' +
                 t('preview.classic.tiersByCostHint') +
             '</div>';
     },

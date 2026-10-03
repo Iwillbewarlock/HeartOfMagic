@@ -39,25 +39,64 @@ var PrereqEdit = {
         node.softNeeded = n > max ? max : (n < 0 ? 0 : n);
     },
 
+    /** softNeeded raised to 1 when the soft list has one and none is needed */
+    _needOne: function(node) {
+        if (!node.softNeeded && node.softPrereqs && node.softPrereqs.length > 0) node.softNeeded = 1;
+    },
+
+    /** The ids of a PreReq Master lock list ({nodeId} entries or bare ids) */
+    _lockIds: function(locks) {
+        var ids = [];
+        if (!locks) return ids;
+        for (var i = 0; i < locks.length; i++) {
+            var l = locks[i];
+            var id = (l && typeof l === 'object') ? l.nodeId : l;
+            if (id !== undefined && id !== null) ids.push(id);
+        }
+        return ids;
+    },
+
     /**
      * Own arrays for all three lists, no repeats, and an id in both hard and
      * soft kept in hard only: that is what a link made by the old edit mode was
      * meant to be (it was added as Required and landed in Optional as well).
      * softNeeded keeps its value, held to the soft list's length.
+     *
+     * A PreReq Master lock on a layout parent is in both lists from the build
+     * (hard as the lock, soft as the tree line), and that one already counted
+     * toward softNeeded: the lock always meets it. Taken out of soft, softNeeded
+     * goes down by one for each, so the rest (a bridge) does not become needed.
+     * @param {Array} [locks] the node's lock list (default `node.locks`)
      * @returns {number} entries dropped
      */
-    repair: function(node) {
+    repair: function(node, locks) {
         if (!node) return 0;
         var before = (node.prerequisites ? node.prerequisites.length : 0) +
                      (node.hardPrereqs ? node.hardPrereqs.length : 0) +
                      (node.softPrereqs ? node.softPrereqs.length : 0);
+        var lockIds = this._lockIds(locks === undefined ? node.locks : locks);
         var hard = this.unique(node.hardPrereqs);
-        var soft = this.unique(node.softPrereqs).filter(function(id) { return hard.indexOf(id) === -1; });
+        var allSoft = this.unique(node.softPrereqs);
+        var soft = allSoft.filter(function(id) { return hard.indexOf(id) === -1; });
+        var lockMoved = allSoft.filter(function(id) { return hard.indexOf(id) !== -1 && lockIds.indexOf(id) !== -1; }).length;
         node.prerequisites = this.unique(node.prerequisites);
         node.hardPrereqs = hard;
         node.softPrereqs = soft;
+        if (lockMoved > 0) node.softNeeded = (node.softNeeded || 0) - lockMoved;
         this._clamp(node);
         return before - node.prerequisites.length - hard.length - soft.length;
+    },
+
+    /**
+     * The three lists and softNeeded of `node` onto `raw` (the saved tree's
+     * node), as copies, so the next save carries what a repair changed.
+     */
+    copyTo: function(raw, node) {
+        if (!raw || !node) return;
+        raw.prerequisites = (node.prerequisites || []).slice();
+        raw.hardPrereqs = (node.hardPrereqs || []).slice();
+        raw.softPrereqs = (node.softPrereqs || []).slice();
+        raw.softNeeded = node.softNeeded || 0;
     },
 
     /** 'hard', 'soft' or null */
@@ -79,8 +118,12 @@ var PrereqEdit = {
     add: function(node, id, asSoft) {
         if (this.typeOf(node, id) || (node.prerequisites && node.prerequisites.indexOf(id) !== -1)) return false;
         node.prerequisites = (node.prerequisites || []).concat([id]);
-        if (asSoft) node.softPrereqs = (node.softPrereqs || []).concat([id]);
-        else node.hardPrereqs = (node.hardPrereqs || []).concat([id]);
+        if (asSoft) {
+            node.softPrereqs = (node.softPrereqs || []).concat([id]);
+            this._needOne(node);
+        } else {
+            node.hardPrereqs = (node.hardPrereqs || []).concat([id]);
+        }
         return true;
     },
 
@@ -119,12 +162,19 @@ var PrereqEdit = {
 
     /**
      * `id` into hard or soft only; `prerequisites` (the drawn line) is left as it is.
+     * Into soft with softNeeded 0 (the soft list was empty) needs 1: a soft list
+     * with none needed is met by nothing at all (cppCallbacks.js), so the
+     * prerequisite would be gone.
      */
     setType: function(node, id, type) {
         node.hardPrereqs = this._drop(node.hardPrereqs, id);
         node.softPrereqs = this._drop(node.softPrereqs, id);
-        if (type === 'soft') node.softPrereqs = node.softPrereqs.concat([id]);
-        else node.hardPrereqs = node.hardPrereqs.concat([id]);
+        if (type === 'soft') {
+            node.softPrereqs = node.softPrereqs.concat([id]);
+            this._needOne(node);
+        } else {
+            node.hardPrereqs = node.hardPrereqs.concat([id]);
+        }
         this._clamp(node);
     },
 

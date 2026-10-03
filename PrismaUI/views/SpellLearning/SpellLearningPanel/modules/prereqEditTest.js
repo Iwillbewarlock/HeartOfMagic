@@ -97,6 +97,48 @@ var PrereqEditTest = {
             bad.prerequisites !== bad.softPrereqs, 'repair: hard keeps it, repeats out, own arrays, softNeeded held');
         var good = { prerequisites: ['P'], hardPrereqs: [], softPrereqs: ['P'], softNeeded: 1 };
         this.check(PE.repair(good) === 0 && good.softNeeded === 1 && this._same(good.softPrereqs, ['P']), 'repair: a clean node unchanged');
+
+        // A PreReq Master lock on the layout parent: hard as the lock, soft as the
+        // line, and it met softNeeded. Out of soft, the bridge B stays optional.
+        var locked = { prerequisites: ['P'], hardPrereqs: ['P'], softPrereqs: ['P', 'B'], softNeeded: 1, locks: [{ nodeId: 'P' }] };
+        this.check(PE.repair(locked) === 1 && this._same(locked.hardPrereqs, ['P']) && this._same(locked.softPrereqs, ['B']) &&
+            locked.softNeeded === 0, 'repair: a lock on the parent lowers softNeeded, the bridge stays optional');
+        var lockedOnly = { prerequisites: ['P'], hardPrereqs: ['P'], softPrereqs: ['P'], softNeeded: 1 };
+        PE.repair(lockedOnly, ['P']);
+        this.check(this._same(lockedOnly.softPrereqs, []) && lockedOnly.softNeeded === 0, 'repair: lock ids passed in, soft emptied, need 0');
+        var twoNeeded = { prerequisites: ['P', 'Q'], hardPrereqs: ['P'], softPrereqs: ['P', 'Q', 'B'], softNeeded: 2, locks: [{ nodeId: 'P' }] };
+        PE.repair(twoNeeded);
+        this.check(this._same(twoNeeded.softPrereqs, ['Q', 'B']) && twoNeeded.softNeeded === 1, 'repair: need 2 with the lock is need 1 without it');
+        var notLock = { prerequisites: ['P', 'X'], hardPrereqs: ['X'], softPrereqs: ['P', 'X', 'B'], softNeeded: 1, locks: [{ nodeId: 'P' }] };
+        PE.repair(notLock);
+        this.check(this._same(notLock.softPrereqs, ['P', 'B']) && notLock.softNeeded === 1, 'repair: a 1.2.0 edit duplicate keeps softNeeded');
+
+        // Into soft with nothing needed: needs 1, or the prerequisite would be gone
+        var hs = { prerequisites: ['X'], hardPrereqs: ['X'], softPrereqs: [], softNeeded: 0 };
+        PE.toggle(hs, 'X');
+        var first = hs.softNeeded;
+        PE.toggle(hs, 'X');
+        var back = hs.softNeeded;
+        PE.toggle(hs, 'X');
+        this.check(first === 1 && back === 0 && hs.softNeeded === 1 && this._same(hs.softPrereqs, ['X']),
+            'toggle H->S->H->S: softNeeded 1 each time it is soft');
+        var fresh = { prerequisites: [], hardPrereqs: [], softPrereqs: [], softNeeded: 0 };
+        PE.add(fresh, 'X');
+        PE.toggle(fresh, 'X');
+        this.check(fresh.softNeeded === 1 && this._same(fresh.softPrereqs, ['X']), 'a new Required link toggled to S needs 1');
+        var softAdd = { prerequisites: [], hardPrereqs: [], softPrereqs: [], softNeeded: 0 };
+        PE.add(softAdd, 'X', true);
+        this.check(softAdd.softNeeded === 1, 'add as soft to an empty soft list needs 1');
+        var undoable = { prerequisites: ['X'], hardPrereqs: ['X'], softPrereqs: [], softNeeded: 0 };
+        var tt = PE.toggle(undoable, 'X');
+        PE.restore(undoable, 'X', { type: tt.wasType, linked: true, softNeeded: tt.softNeeded });
+        this.check(undoable.softNeeded === 0 && this._same(undoable.hardPrereqs, ['X']), 'undo of H->S puts softNeeded 0 back');
+
+        // copyTo: copies, not the node's arrays
+        var raw = {};
+        PE.copyTo(raw, locked);
+        this.check(this._same(raw.softPrereqs, ['B']) && raw.softNeeded === 0 && raw.softPrereqs !== locked.softPrereqs &&
+            raw.hardPrereqs !== locked.hardPrereqs, 'copyTo: the lists as copies');
     },
 
     _editMode: function(g) {

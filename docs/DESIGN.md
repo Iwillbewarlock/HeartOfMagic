@@ -128,11 +128,16 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   cross-school bridge soft without being in it, and C++ reads it only when hard and soft are both empty).
   `modules/prereqEdit.js` (`PrereqEdit`) keeps them right on every edit: a pen link goes into
   `prerequisites` and Required once, H/S moves an id from one list to the other, × and the eraser take it
-  out of every list, `softNeeded` is held to the soft list, and undo puts back the type, the line and
-  `softNeeded`. An id is never in both hard and soft, and no two lists share an array. 1.2.0 built trees
+  out of every list, `softNeeded` is held to the soft list (and raised to 1 when an id moves into a soft
+  list that needed none: a soft list with `softNeeded` 0 is met by nothing, so the prerequisite would be
+  gone), and undo puts back the type, the line and `softNeeded`. An id is never in both hard and soft, and no two lists share an array. 1.2.0 built trees
   with one array for `prerequisites` and `softPrereqs`, so a link landed in both, a delete took both and
   H/S made a second entry; a tree saved that way is repaired when it loads (`PrereqEdit.repair`, called by
-  both paths in `treeLoad.js`: an id in both lists stays Required only, repeats go).
+  both paths in `treeLoad.js`: an id in both lists stays Required only, repeats go). A PreReq Master lock
+  on the layout parent is in both lists from the build, not from that bug, and already met `softNeeded`:
+  taken out of soft, `softNeeded` goes down by one for each, so a bridge left in soft stays optional. A
+  repaired node is written back to the saved tree (`PrereqEdit.copyTo` on `state.treeData.rawData`'s node),
+  so the next save carries it and the card and C++ judge by the same lists before any edit.
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 - **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
   (`PANEL_BASE_FONT_SIZE` times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell
@@ -1119,7 +1124,8 @@ with the next build (`ClassicBuildRequest`, `type_grouping`); a tree already bui
 TREE_BUILDING_SYSTEM.md, *Type grouping*. Under it, a checkbox **Tiers by Magicka cost** (off by default,
 `treeTiersByCost`, `tiers_by_cost`) with its own hint line: the tree's five tiers go by Magicka cost rank instead
 of Novice to Master; the spells' levels (XP, spell card) stay. Both hints use the same 9px muted line as the
-Spell Matching description. See TREE_BUILDING_SYSTEM.md, *Tiers by Magicka cost*.
+Spell Matching description (classes `tree-preview-option` and `tree-preview-hint`, the design's
+`--text-secondary` and `--text-muted`). See TREE_BUILDING_SYSTEM.md, *Tiers by Magicka cost*.
 
 ### Extra Settings Tabs
 

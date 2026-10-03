@@ -17,7 +17,8 @@
 ### Fixed
 
 - Bigger default text: the panel's text is 16px at Font Size 1.0x (was 14px) and the tree's spell names 12
-  (was 10). Saved settings keep their values; Reset to Defaults gives the new sizes.
+  (was 10). Saved settings keep their values; Reset to Defaults gives the new sizes, and its sliders and
+  the text change at once.
 - Settings > Font Size goes up to 2.0x (it stopped at 1.5x), and it now also enlarges the spell names on
   the tree (on top of Spell Name Size). The spell card grows with the text: the side panel gets wider and
   the bottom bar taller, so nothing is cut off at the larger sizes.
@@ -25,12 +26,17 @@
   Optional, deleting one deleted both, and switching one between Required and Optional left a second copy.
   A built tree used one list for two things, so every change to one went into the other. A link is now
   Required only, delete removes just that one, H/S moves it, and undo puts it back the way it was. A tree
-  saved with the old mix-up is put right when it loads: a link listed as both stays Required, copies go.
+  saved with the old mix-up is put right when it loads: a link listed as both stays Required, copies go,
+  and the fix is saved with the tree. A PreReq Master lock on a spell's parent is not taken for that
+  mix-up: the spell's other optional links (a bridge) stay optional. Switching a Required link to Optional
+  when the spell had no Optional ones now needs that one, instead of needing none.
 - One spell is no longer in the tree twice (or three times) when two mods carry it, such as Saints and
   Seducers' Conjure Hunger and ECSS Summonable Creatures' version of it. Records with the same editor ID in
   the same school count as one spell: the tree keeps the one from the earlier plugin in the load order (or
   the one whose tome can be found), and reading another one's tome counts as reading that spell's tome -
-  same learning target, tome XP and early learning, and the other copy is not added to the spellbook. Spells
+  same learning target, tome XP and early learning, and the other copy is not added to the spellbook. A
+  spell that is in your tree is always taught by its own tome, even when a mod added later carries the same
+  spell. Spells
   that only share a name (in some translations different spells do) stay apart. Build the tree again (Scan,
   then build) to take the copies out of it. Copies already in a save's spellbook stay there; the mod does
   not remove spells. Needs editor IDs (po3's Tweaks); without them nothing is merged. In vanilla mode a tome
