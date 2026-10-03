@@ -15,8 +15,21 @@
   their level's tier, and a spell's level itself (XP needed, the spell card) does not change. Off by default.
   The cross-school links follow the same tiers. Scanner presets save both settings (an older preset sets the
   defaults).
+- The in-game corner messages (spell learned, power increased, mastered, tome study, the weakened spell
+  alert, the Immersive Spell Learning patch's study messages, BookXP) now follow the panel's language
+  instead of always being English: they come from the language files' new `hud.*` keys (all 13 languages;
+  a missing key shows English). Changing the language in Settings changes them at once. Skill names in
+  "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus) and
+  `ShowNotification` (C++ API version 2) give the same for their own messages.
+- **Show Notifications** (Settings > Early Learning, on by default) turns every corner message of the mod
+  off. Weakened Spell Alerts stays as an option under it and is greyed out while it is off. Reset to
+  Defaults turns it back on; settings presets do not change it.
 
 ### Fixed
+
+- Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel
+  showed, and Reset to Defaults and settings presets left the controls as they were. They are saved now,
+  reset, and follow a preset.
 
 - Bigger default text: the panel's text is 16px at Font Size 1.0x (was 14px) and the tree's spell names 12
   (was 10). Saved settings keep their values; Reset to Defaults gives the new sizes, and its sliders and

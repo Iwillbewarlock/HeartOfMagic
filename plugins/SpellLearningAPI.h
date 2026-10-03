@@ -32,7 +32,9 @@
 
 namespace SpellLearning {
 
-    constexpr uint32_t kAPIVersion = 1;
+    // 2: ShowNotification (added at the end of ISpellLearningAPI - check
+    //    GetAPIVersion() >= 2 before calling it)
+    constexpr uint32_t kAPIVersion = 2;
 
     // SKSE message types
     // kMessageType_APIReady is broadcasted BY SpellLearning at kPostPostLoad.
@@ -97,6 +99,18 @@ namespace SpellLearning {
 
         // Source registration
         virtual bool RegisterXPSource(const std::string& sourceId, const std::string& displayName) = 0;
+
+        // Notifications (API version 2 and later)
+        // Shows a corner (HUD) message in the language the player picked for the
+        // Heart of Magic panel: the text of `key` in the panel's lang/<locale>.json,
+        // or `englishText` when the language has no such key. {{name}} placeholders
+        // are filled from namesAndValues: pairCount pairs laid out as
+        // name0, value0, name1, value1, ... Shows nothing and returns false when
+        // the player turned notifications off (Settings > Show Notifications).
+        // Nothing returned crosses the DLL boundary, so a plugin built with any
+        // runtime can call it.
+        virtual bool ShowNotification(const char* key, const char* englishText,
+                                      const char* const* namesAndValues, uint32_t pairCount) = 0;
     };
 
     // Convenience: null-safe string copy for message structs

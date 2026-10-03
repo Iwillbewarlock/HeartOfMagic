@@ -1,4 +1,5 @@
 #include "SpellCastHandler.h"
+#include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "ThreadUtils.h"
@@ -178,17 +179,15 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate)
                 float effectiveness = effectivenessHook->CalculateEffectiveness(spellFormId);
                 int effectivenessPercent = static_cast<int>(effectiveness * 100);
                 
-                char notification[256];
                 if (m_accumulatedXP > 0.1f) {
-                    snprintf(notification, sizeof(notification), 
-                        "%s operating at %d%% power (+%.1f XP)", 
-                        spell->GetName(), effectivenessPercent, m_accumulatedXP);
+                    HudNotify::Show("hud.castPowerXP", "{{spell}} operating at {{percent}}% power (+{{xp}} XP)",
+                        { { "spell", spell->GetName() },
+                          { "percent", std::to_string(effectivenessPercent) },
+                          { "xp", std::format("{:.1f}", m_accumulatedXP) } });
                 } else {
-                    snprintf(notification, sizeof(notification), 
-                        "%s operating at %d%% power", 
-                        spell->GetName(), effectivenessPercent);
+                    HudNotify::Show("hud.castPower", "{{spell}} operating at {{percent}}% power",
+                        { { "spell", spell->GetName() }, { "percent", std::to_string(effectivenessPercent) } });
                 }
-                RE::SendHUDMessage::ShowHUDMessage(notification);
                 
                 // Reset tracking
                 m_lastWeakenedNotifTime = now;

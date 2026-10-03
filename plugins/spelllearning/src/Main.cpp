@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "HudNotify.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
 #include "SpellCastHandler.h"
@@ -133,6 +134,21 @@ public:
     {
         return GuardApiCall("RegisterXPSource", [&] {
             return ProgressionManager::GetSingleton()->RegisterModdedXPSource(sourceId, displayName);
+        });
+    }
+
+    bool ShowNotification(const char* key, const char* englishText,
+                          const char* const* namesAndValues, uint32_t pairCount) override
+    {
+        return GuardApiCall("ShowNotification", [&] {
+            std::vector<HudNotify::Param> params;
+            for (uint32_t i = 0; namesAndValues && i < pairCount; ++i) {
+                const char* name = namesAndValues[i * 2];
+                const char* value = namesAndValues[i * 2 + 1];
+                if (name) params.emplace_back(std::string_view(name), std::string(value ? value : ""));
+            }
+            return HudNotify::Show(key ? key : "", englishText ? englishText : "",
+                                   std::span<const HudNotify::Param>(params));
         });
     }
 

@@ -728,6 +728,15 @@ struct EarlyLearningSettings {
 - `ProcessEvent(event)` - Handle spell cast
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
+- The alert itself goes through `HudNotify::Show` (below), so Show Notifications off hides it too
+
+**HudNotify** (`include/HudNotify.h`, `src/HudNotify.cpp`): every corner (HUD) message of the plugin. `Show(key,
+english, {{name, value}...})` looks the key up in the panel's `lang/<locale>.json` (`hud.*` keys, read once per
+language by `Configure`, which `ApplySettingsFromConfig` calls on config load and every save with
+`notifications.enabled` and `ResolvePanelLocale` - config `language`, else `lang/locale.js`, else `en`), fills
+the `{{name}}` placeholders and shows it, or shows nothing when notifications are off. A missing file or key
+falls back to the English text at the call. Papyrus reaches it through `SpellLearning.NotificationText`, other
+plugins through `ISpellLearningAPI::ShowNotification` (API v2). Safe from any thread.
 
 ### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookGate.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookGate.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
 **Status:** ✅ Implemented

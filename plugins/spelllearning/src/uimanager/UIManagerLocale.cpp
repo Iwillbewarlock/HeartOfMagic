@@ -33,8 +33,12 @@
 
 namespace
 {
-    constexpr const char* kPanelUserLocalePath =
-        "Data/PrismaUI/views/SpellLearning/SpellLearningPanel/lang/user_locale.js";
+    constexpr const char* kPanelLangFolder = "Data/PrismaUI/views/SpellLearning/SpellLearningPanel/lang";
+    constexpr const char* kPanelUserLocaleFile = "user_locale.js";
+    // The shipped default language (lang/locale.js: window._i18nLocale = 'en';)
+    constexpr const char* kPanelDefaultLocaleFile = "locale.js";
+    constexpr const char* kDefaultLocaleVar = "_i18nLocale";
+    constexpr const char* kFallbackLocale = "en";
     constexpr std::size_t kMaxLocaleCodeLength = 16;
 
     // Only what lang/*.js file names use ("ko", "pt-br", "zh-cn"): the code is
@@ -69,7 +73,7 @@ void WritePanelLocale(const nlohmann::json& config)
         return;
     }
 
-    std::filesystem::path path(kPanelUserLocalePath);
+    std::filesystem::path path = std::filesystem::path(kPanelLangFolder) / kPanelUserLocaleFile;
     std::error_code ec;
     // No panel installed where expected: do not create its folders
     if (!std::filesystem::is_directory(path.parent_path(), ec)) return;
@@ -110,4 +114,37 @@ void WritePanelLocaleFromSavedConfig()
         return;
     }
     WritePanelLocale(config);
+}
+
+// =============================================================================
+// THE PANEL'S LANGUAGE FOR C++ TEXT (HUD notifications, HudNotify.h)
+// =============================================================================
+
+namespace
+{
+    // window._i18nLocale = 'ko'; -> "ko" ('' when the file or the line is not there)
+    std::string ReadDefaultLocale()
+    {
+        auto text = ReadWholeFile(std::filesystem::path(kPanelLangFolder) / kPanelDefaultLocaleFile);
+        auto at = text.find(kDefaultLocaleVar);
+        if (at == std::string::npos) return {};
+        auto quote = text.find_first_of("'\"", at);
+        if (quote == std::string::npos) return {};
+        auto end = text.find(text[quote], quote + 1);
+        if (end == std::string::npos) return {};
+        auto code = text.substr(quote + 1, end - quote - 1);
+        return IsLocaleCode(code) ? code : std::string{};
+    }
+}
+
+std::string ResolvePanelLocale(const nlohmann::json& config)
+{
+    auto code = SafeJsonValue<std::string>(config, "language", "");
+    if (code.empty() || !IsLocaleCode(code)) code = ReadDefaultLocale();
+    return code.empty() ? std::string(kFallbackLocale) : code;
+}
+
+std::filesystem::path PanelLanguageFile(const std::string& localeCode)
+{
+    return std::filesystem::path(kPanelLangFolder) / (localeCode + ".json");
 }

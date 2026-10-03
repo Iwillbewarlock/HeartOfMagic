@@ -24,7 +24,7 @@ Event OnInit()
     ; Poll for book reads every 5 seconds
     RegisterForUpdate(5.0)
 
-    Debug.Notification("[BookXP] Initialized - " + XPPerBook + " XP per book")
+    Notify(SpellLearning.NotificationText("hud.bookXpInitialized", "[BookXP] Initialized - {{xp}} XP per book", "xp", (XPPerBook as Int) as String))
 EndEvent
 
 Event OnGameLoad()
@@ -55,7 +55,7 @@ Event OnUpdate()
 
         if targets.Length == 0
             ; No active learning targets - XP would be wasted
-            Debug.Notification("[BookXP] Read " + newBooks + " book(s) but no learning targets set")
+            Notify(SpellLearning.NotificationText("hud.bookXpNoTargets", "[BookXP] Read {{count}} book(s) but no learning targets set", "count", newBooks as String))
             return
         endif
 
@@ -72,7 +72,15 @@ Event OnUpdate()
         endwhile
 
         if granted > 0
-            Debug.Notification("[BookXP] +" + totalXP + " XP to " + granted + " spell(s)")
+            Notify(SpellLearning.NotificationText("hud.bookXpGranted", "[BookXP] +{{xp}} XP to {{count}} spell(s)", "xp", (totalXP as Int) as String, "count", granted as String))
         endif
     endif
 EndEvent
+
+; Corner messages come translated from SpellLearning.NotificationText, which
+; returns "" when the player turned notifications off
+Function Notify(string asText)
+    if asText != ""
+        Debug.Notification(asText)
+    endif
+EndFunction

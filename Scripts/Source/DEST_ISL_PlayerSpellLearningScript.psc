@@ -184,13 +184,13 @@ Event OnSpellTomeRead(Book akBook, Spell akSpell, ObjectReference akContainer)
 				return
 			else
 				PlayerRef.RemoveSpell(akSpell)
-				string sText = person + " have forgotten " + akSpell.GetName() + "."
-				Debug.Notification(sText)
+				HoMNotify(SpellLearning.NotificationText("hud.studyForgotten", "{{who}} have forgotten {{spell}}.", "who", person, "spell", akSpell.GetName()))
 			endif
 		else
 			string sAlreadyKnown = Game.GetGameSettingString("sAlreadyKnown")
 			string sText = sAlreadyKnown + " " + akSpell.GetName() + "."
-			Debug.Notification(sText)
+			; [HoM] the game's own text, already in the game's language: no key, only Show Notifications
+			HoMNotify(SpellLearning.NotificationText("", sText))
 		endif
 	endif
 
@@ -228,10 +228,10 @@ endfunction
 function Study(int hoursStudied, Spell akSpell)
 	; Do all checks
 	if (PlayerRef.IsInCombat())		;Check if player is in combat
-		Debug.Notification(person + " cannot study while in combat.")
+		HoMNotify(SpellLearning.NotificationText("hud.studyInCombat", "{{who}} cannot study while in combat.", "who", person))
 		return
 	elseif (PlayerRef.IsTrespassing())		;Check if player is trespassing
-		Debug.Notification(person + " cannot study whilst trespassing.")
+		HoMNotify(SpellLearning.NotificationText("hud.studyTrespassing", "{{who}} cannot study whilst trespassing.", "who", person))
 		return
 	endif
 
@@ -339,16 +339,16 @@ function Study(int hoursStudied, Spell akSpell)
 	endif
 
 	if hoursStudied == 1
-		Debug.Notification(person + " studied " + akSpell.GetName() + " for " + hoursStudied as Int + " hour.")
+		HoMNotify(SpellLearning.NotificationText("hud.studiedHour", "{{who}} studied {{spell}} for {{hours}} hour.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String))
 	else
-		Debug.Notification(person + " studied " + akSpell.GetName() + " for " + hoursStudied as Int + " hours.")
+		HoMNotify(SpellLearning.NotificationText("hud.studiedHours", "{{who}} studied {{spell}} for {{hours}} hours.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String))
 	endif
 
 	if hoursStudiedTotal.getValue() >= hoursToMaster.getValue() as int
 		; [HoM] Modify spell name BEFORE AddSpell so notification shows "(Learning - X%)"
 		SpellLearning_ISL.OnStudyComplete(akSpell)
 		PlayerRef.AddSpell(akSpell, false)
-		Debug.Notification(person + " have learned " + akSpell.GetName() + ".")
+		HoMNotify(SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", person, "spell", akSpell.GetName()))
 		LastSpellTome.Revert()
 		hoursStudiedTotal.setValue(0)
 	endif
@@ -443,3 +443,11 @@ int function getHoursToStudy(globalvariable gv_hours, bool isNewStudy = true)
 		endif
 	return hoursToStudy
 endfunction
+
+; [HoM] Study messages come translated from Heart of Magic (the panel's language,
+; lang/*.json "hud.*" keys); "" means the player turned notifications off
+Function HoMNotify(string asText)
+	if asText != ""
+		Debug.Notification(asText)
+	endif
+EndFunction

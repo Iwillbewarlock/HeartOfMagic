@@ -1,4 +1,5 @@
 #include "SpellEffectivenessHook.h"
+#include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "ThreadUtils.h"
@@ -30,12 +31,9 @@ void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
             spell->GetName(), formId);
 
         // Show notification that spell was granted (weakened)
-        char notification[256];
         int step = hook->GetCurrentPowerStep(formId);
-        std::string label = hook->GetPowerStepLabel(step);
-        snprintf(notification, sizeof(notification), "%s %s learned (weakened)",
-            label.c_str(), spell->GetName());
-        RE::SendHUDMessage::ShowHUDMessage(notification);
+        HudNotify::Show("hud.learnedWeakened", "{{step}} {{spell}} learned (weakened)",
+            { { "step", hook->GetPowerStepLabel(step) }, { "spell", spell->GetName() } });
     }
 
     // Track as early-learned even if player already has it (but not if already tracked)

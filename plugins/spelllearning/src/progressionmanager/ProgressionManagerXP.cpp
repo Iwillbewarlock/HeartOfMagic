@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "HudNotify.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -319,10 +320,9 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
             // Show notification for power step increase
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
             if (spell) {
-                char notification[256];
-                snprintf(notification, sizeof(notification), "%s power increased to %d%%",
-                    spell->GetName(), static_cast<int>(effectiveness * 100));
-                RE::SendHUDMessage::ShowHUDMessage(notification);
+                HudNotify::Show("hud.powerIncreased", "{{spell}} power increased to {{percent}}%",
+                    { { "spell", spell->GetName() },
+                      { "percent", std::to_string(static_cast<int>(effectiveness * 100)) } });
 
                 // Fire ModEvent: SpellLearning_ProgressMilestone
                 SendModEvent("SpellLearning_ProgressMilestone",
@@ -342,10 +342,8 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
             // Show mastery notification
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
             if (spell) {
-                char notification[256];
-                snprintf(notification, sizeof(notification), "%s MASTERED! Full power unlocked.",
-                    spell->GetName());
-                RE::SendHUDMessage::ShowHUDMessage(notification);
+                HudNotify::Show("hud.mastered", "{{spell}} MASTERED! Full power unlocked.",
+                    { { "spell", spell->GetName() } });
 
                 // Fire ModEvent: SpellLearning_SpellMastered
                 auto* costliest = spell->GetCostliestEffectItem();

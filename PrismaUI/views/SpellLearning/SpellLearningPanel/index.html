@@ -1479,8 +1479,20 @@
                             </div>
                         </div>
                         
-                        <!-- Weakened Spell Notifications (inline) -->
+                        <!-- Show Notifications: every corner message of the mod (modules/notificationSetting.js) -->
                         <div class="setting-row-inline">
+                            <div class="setting-info">
+                                <span class="setting-label" data-i18n="settings.earlyLearning.showNotifications">Show Notifications</span>
+                                <span class="setting-desc" data-i18n="settings.earlyLearning.showNotificationsDesc">Top-left messages from Heart of Magic. Off hides all of them.</span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showNotificationsToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Weakened Spell Notifications (inline; greyed out while Show Notifications is off) -->
+                        <div class="setting-row-inline" id="weakenedNotificationsRow">
                             <div class="setting-info">
                                 <span class="setting-label" data-i18n="settings.earlyLearning.weakenedAlerts">Weakened Spell Alerts</span>
                             </div>
@@ -1949,6 +1961,7 @@
     <script src="modules/colorPicker.js"></script>
     <script src="modules/languageSetting.js"></script>
     <script src="modules/reverseUnlockSetting.js"></script>
+    <script src="modules/notificationSetting.js"></script>
     <script src="modules/requiredXPSync.js"></script>
     <script src="modules/designEffectsSetting.js"></script>
     <script src="modules/renderSettings.js"></script>

@@ -288,6 +288,17 @@ window.onModdedXPSourceRegistered = function(dataStr) {
 
 ## 3. Papyrus API (Script: `SpellLearning`)
 
+### Notifications
+
+```papyrus
+; A corner message in the panel's language: asKey's text in lang/<locale>.json, or asEnglish,
+; with up to three {{name}} placeholders filled. "" when Show Notifications is off - show nothing then.
+; An empty asKey only fills asEnglish (and still returns "" when notifications are off).
+string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native
+```
+
+The ISL patch (`DEST_ISL_PlayerSpellLearningScript`) and `SL_BookXP_QuestScript` show their messages this way.
+
 ### XP Functions
 
 ```papyrus
@@ -408,7 +419,7 @@ Copy `SpellLearningAPI.h` from the HeartOfMagic source into your plugin.
 
 ```cpp
 namespace SpellLearning {
-    constexpr uint32_t kAPIVersion = 1;
+    constexpr uint32_t kAPIVersion = 2;   // 2 (1.2.1): ShowNotification
 
     // Message type broadcasted by SpellLearning at kPostPostLoad.
     // Register with: messaging->RegisterListener("SpellLearning", callback)
@@ -444,9 +455,21 @@ namespace SpellLearning {
 
         // Source registration - creates UI controls in settings panel
         virtual bool RegisterXPSource(const std::string& sourceId, const std::string& displayName) = 0;
+
+        // Notifications (API version 2) - a corner message in the panel's language, nothing when the
+        // player turned notifications off. namesAndValues: pairCount {{name}}/value pairs, flattened.
+        virtual bool ShowNotification(const char* key, const char* englishText,
+                                      const char* const* namesAndValues, uint32_t pairCount) = 0;
     };
 }
 ```
+
+**ShowNotification** (version 2, 1.2.1): the text of `key` from the panel's `lang/<locale>.json` (pass a key no
+file has and you get `englishText`), `{{name}}` placeholders filled, shown in the corner; returns `false` and
+shows nothing when *Show Notifications* is off. It was added at the end of the interface: a plugin built against
+version 1 keeps working, and a plugin that calls it must check `GetAPIVersion() >= 2` first (an older Heart of
+Magic has no such entry). Only `const char*` crosses the boundary; nothing is handed back to free. BookXP's DLL
+uses it.
 
 **No exceptions cross the boundary** (1.1.0): `AddSourcedXP`, `AddRawXP`, `SetSpellXP`, `SetLearningTarget`,
 `ClearLearningTarget` and `RegisterXPSource` catch anything thrown inside Heart of Magic, log it

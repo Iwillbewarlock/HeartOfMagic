@@ -35,6 +35,11 @@ void WritePanelLocale(const nlohmann::json& config);
 // The same from the saved config.json, before the panel's view is made (the view
 // holds the file once it has loaded it). Defined in UIManagerLocale.cpp.
 void WritePanelLocaleFromSavedConfig();
+// The panel's language: config "language", else lang/locale.js, else "en".
+// Reads locale.js when the config names none. Defined in UIManagerLocale.cpp.
+std::string ResolvePanelLocale(const nlohmann::json& config);
+// lang/<localeCode>.json of the panel (the corner messages' strings, HudNotify.h)
+std::filesystem::path PanelLanguageFile(const std::string& localeCode);
 
 // Unified config (config.json) helpers, defined in UIManagerConfig.cpp.
 std::filesystem::path GetUnifiedConfigPath();

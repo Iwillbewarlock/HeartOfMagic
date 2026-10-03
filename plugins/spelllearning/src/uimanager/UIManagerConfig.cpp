@@ -9,6 +9,7 @@
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
+#include "HudNotify.h"
 #include "PassiveLearningSource.h"
 #include "ThreadUtils.h"
 
@@ -153,7 +154,15 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
             plSettings.enabled, plSettings.scope);
     }
 
-    // Notification settings
+    // Notification settings. "enabled" (Settings > Show Notifications) turns every
+    // corner message off; the corner messages' text follows the panel's language
+    bool notificationsOn = true;
+    if (config.contains("notifications") && config["notifications"].is_object()) {
+        notificationsOn = SafeJsonValue<bool>(config["notifications"], "enabled", true);
+    }
+    const auto locale = ResolvePanelLocale(config);
+    HudNotify::Configure(notificationsOn, locale, PanelLanguageFile(locale));
+
     if (config.contains("notifications") && !config["notifications"].is_null()) {
         auto& notifConfig = config["notifications"];
         auto* castHandler = SpellCastHandler::GetSingleton();
@@ -272,6 +281,7 @@ json GenerateDefaultConfig() {
             }}
         }},
         {"notifications", {
+            {"enabled", true},
             {"weakenedSpellNotifications", true},
             {"weakenedSpellInterval", 10.0f}
         }},

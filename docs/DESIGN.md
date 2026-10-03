@@ -1195,7 +1195,12 @@ All mod configuration. Split-row layout for space efficiency.
 ### Key Settings Groups
 
 **Progression:** How XP is earned and what thresholds unlock spells.
-**Early Learning:** Grants nerfed spells before full mastery.
+**Early Learning:** Grants nerfed spells before full mastery. Also holds **Show Notifications** (default on,
+`notifications.enabled`, `modules/notificationSetting.js`): off hides every corner message of the mod - C++
+(`HudNotify`), the Papyrus `SpellLearning.NotificationText` callers (ISL patch, BookXP script) and the BookXP DLL.
+**Weakened Spell Alerts** and their interval sit under it as a sub-option, greyed out (`disabled-controls`)
+while it is off. Reset to Defaults turns both on; a settings preset carries the alert options but never Show
+Notifications. The corner messages' text follows the panel language (`hud.*` keys, docs/TRANSLATING.md).
 **Spell Tomes:** How reading spell tomes interacts with progression.
 **Developer:** Import validation (Aggressive Path Validation), debug options (hidden by default).
 
@@ -1458,7 +1463,8 @@ node in the unlocked state, mastered or already known.
 Two preset types, stored as individual JSON files:
 
 ### Settings Presets (`presets/settings/`)
-Capture: Progression settings, early learning, tome learning, notifications.
+Capture: Progression settings, early learning, tome learning, notifications (the weakened spell alerts; not
+Show Notifications, which a preset never changes).
 Bundled: `DEFAULT.json`, `Easy.json`, `Hard.json`
 
 ### Scanner Presets (`presets/scanner/`)

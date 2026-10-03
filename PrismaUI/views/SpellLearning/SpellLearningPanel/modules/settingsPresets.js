@@ -373,7 +373,8 @@ function applySettingsPreset(name) {
     // --- Notifications ---
     if (ps.notifications && settings.notifications) {
         for (var k in ps.notifications) {
-            if (ps.notifications.hasOwnProperty(k)) {
+            // Show Notifications is a preference, not a play style: a preset never changes it
+            if (ps.notifications.hasOwnProperty(k) && k !== 'enabled') {
                 settings.notifications[k] = ps.notifications[k];
             }
         }
@@ -395,6 +396,7 @@ function applySettingsPreset(name) {
         updateEarlyLearningUI();
     }
 
+    if (typeof updateNotificationsUI === 'function') updateNotificationsUI();
     if (typeof updateSpellTomeLearningUI === 'function') {
         updateSpellTomeLearningUI();
     }

@@ -76,6 +76,33 @@ If a key is missing from your file, the English text from the HTML is shown as f
 
 Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
 
+### In-game corner messages (`hud.*`)
+
+The messages Heart of Magic shows in the top-left corner of the game (spell learned, power increased, tome
+study, BookXP) come from the same file: the `hud.*` keys. They are read by `SpellLearning.dll`, not by the
+panel, from `lang/<locale>.json` (the `.json`, not the `.js`) of the language picked in *Settings > UI Display >
+Language* (or `locale.js`'s default when none was picked). The DLL reads them when the game starts and again
+when the language changes; a missing file or key shows the English text built into the DLL. *Settings > Early
+Learning > Show Notifications* turns them all off.
+
+| Key | English | Placeholders |
+|-----|---------|--------------|
+| `hud.learnedWeakened` | {{step}} {{spell}} learned (weakened) | `step` = power step label (as the player wrote it in Power Steps) |
+| `hud.powerIncreased` | {{spell}} power increased to {{percent}}% | |
+| `hud.mastered` | {{spell}} MASTERED! Full power unlocked. | |
+| `hud.castPowerXP` / `hud.castPower` | {{spell}} operating at {{percent}}% power (+{{xp}} XP) | weakened spell alert |
+| `hud.beginStudy`, `hud.review`, `hud.learned`, `hud.alreadyKnown` | reading a spell tome | `spell` |
+| `hud.mustMaster` | You must first master {{spells}} to grasp this tome | `spells` joined with `hud.listSeparator` and `hud.listLastSeparator` (", " and " and ") |
+| `hud.needMoreOne` / `hud.needMore` | You need to master {{count}} more related spells ... | one key for 1, one for more |
+| `hud.lackSkill` | You lack the {{school}} skill ... ({{school}}: {{current}}/{{required}}) | `school` is the game's own (translated) skill name |
+| `hud.lackKnowledge`, `hud.alreadyLearned`, `hud.beginGrasp` | the older DEST path | |
+| `hud.studyInCombat`, `hud.studyTrespassing`, `hud.studiedHour`, `hud.studiedHours`, `hud.studyLearned`, `hud.studyForgotten` | Immersive Spell Learning patch (study by the hour) | `who`, `spell`, `hours` |
+| `hud.bookXpInitialized`, `hud.bookXpNoTargets`, `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
+
+`{{who}}` in the study messages is the English "You" or "I" (ISL's first-person option) and stays English.
+Leave it out and write the sentence without a subject ("Cannot study while in combat.") - every shipped
+translation does. The corner shows plain text: no HTML in `hud.*` values.
+
 To see which keys your file lacks, compare it with `en.json`:
 
 ```
@@ -186,6 +213,7 @@ Keys use dot-notation organized by UI section:
 | `footer.*` | Footer bar |
 | `prm.*` | Pre Req Master |
 | `preview.*` | Tree preview settings |
+| `hud.*` | In-game corner messages (read by SpellLearning.dll) |
 
 ## Locale Codes
 

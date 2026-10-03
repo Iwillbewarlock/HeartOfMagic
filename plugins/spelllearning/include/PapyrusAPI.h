@@ -107,6 +107,15 @@ namespace PapyrusAPI
     // written; returns the output path, or an empty string on failure.
     RE::BSFixedString RunScan(RE::StaticFunctionTag*, RE::BSFixedString mode, RE::BSFixedString preset);
 
+    // === Notifications ===
+    // The corner message text in the panel's language (HudNotify.h): key's text,
+    // or english when the language has none, with {{name1}} .. {{name3}} filled.
+    // "" when Settings > Show Notifications is off - the script shows nothing then.
+    RE::BSFixedString NotificationText(RE::StaticFunctionTag*, RE::BSFixedString key, RE::BSFixedString english,
+                                       RE::BSFixedString name1, RE::BSFixedString value1,
+                                       RE::BSFixedString name2, RE::BSFixedString value2,
+                                       RE::BSFixedString name3, RE::BSFixedString value3);
+
     // === ModEvent senders (called by UIManager) ===
     void SendMenuOpenedEvent();
     void SendMenuClosedEvent();

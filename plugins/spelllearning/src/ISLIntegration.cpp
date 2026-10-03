@@ -1,4 +1,5 @@
 #include "ISLIntegration.h"
+#include "HudNotify.h"
 #include "ThreadUtils.h"
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
@@ -150,13 +151,13 @@ namespace DESTIntegration {
 
         auto* pm = ProgressionManager::GetSingleton();
         if (!pm->IsSpellAvailableToLearn(formIdStr)) {
-            RE::SendHUDMessage::ShowHUDMessage("You lack the knowledge to grasp this magic.");
+            HudNotify::Show("hud.lackKnowledge", "You lack the knowledge to grasp this magic.");
             return true;
         }
 
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (player && player->HasSpell(spell)) {
-            RE::SendHUDMessage::ShowHUDMessage("You have already learned this spell.");
+            HudNotify::Show("hud.alreadyLearned", "You have already learned this spell.");
             return true;
         }
 
@@ -171,9 +172,7 @@ namespace DESTIntegration {
         pm->AddXP(formIdStr, xpGrant);
         pm->SetLearningTargetFromTome(formIdStr, spell);
 
-        char note[256];
-        snprintf(note, sizeof(note), "You begin to grasp %s...", spell->GetName());
-        RE::SendHUDMessage::ShowHUDMessage(note);
+        HudNotify::Show("hud.beginGrasp", "You begin to grasp {{spell}}...", { { "spell", spell->GetName() } });
 
         UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
         return true;

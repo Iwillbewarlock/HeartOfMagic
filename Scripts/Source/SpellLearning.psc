@@ -135,3 +135,17 @@ float Function GetSourceCap(string sourceName) global native
 ;            MGEF structure the tag librarian classifies on.
 ; Blocks until the scan finishes and returns the written path, or "" on failure.
 string Function RunScan(string mode = "tomes", string preset = "full") global native
+
+; === Notifications ===
+
+; The text of a corner message in the language the player picked for the panel:
+; the text of asKey in the panel's lang/<locale>.json (a "hud.*" key), or asEnglish
+; when the language has no such key. {{name}} placeholders are filled from up to
+; three name/value pairs. An empty asKey only fills asEnglish.
+; Returns "" when the player turned notifications off (Settings > Show
+; Notifications): show nothing then.
+;   string s = SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", "You", "spell", akSpell.GetName())
+;   if s != ""
+;       Debug.Notification(s)
+;   endif
+string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native

@@ -3,6 +3,7 @@
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
+#include "HudNotify.h"
 #include "SKSE/SKSE.h"
 
 #include <future>
@@ -416,6 +417,28 @@ namespace PapyrusAPI
     }
 
     // =========================================================================
+    // NOTIFICATIONS
+    // =========================================================================
+
+    // No game state touched: runs on the calling Papyrus thread (HudNotify locks its table)
+    RE::BSFixedString NotificationText(RE::StaticFunctionTag*, RE::BSFixedString key, RE::BSFixedString english,
+                                       RE::BSFixedString name1, RE::BSFixedString value1,
+                                       RE::BSFixedString name2, RE::BSFixedString value2,
+                                       RE::BSFixedString name3, RE::BSFixedString value3)
+    {
+        if (!HudNotify::IsEnabled()) return RE::BSFixedString("");
+        std::vector<HudNotify::Param> params;
+        auto add = [&params](const RE::BSFixedString& name, const RE::BSFixedString& value) {
+            if (!name.empty()) params.emplace_back(std::string_view(name.c_str()), std::string(value.c_str()));
+        };
+        add(name1, value1);
+        add(name2, value2);
+        add(name3, value3);
+        auto text = HudNotify::Text(key.c_str(), english.c_str(), std::span<const HudNotify::Param>(params));
+        return RE::BSFixedString(text.c_str());
+    }
+
+    // =========================================================================
     // REGISTRATION
     // =========================================================================
 
@@ -465,7 +488,10 @@ namespace PapyrusAPI
         // === Scanning ===
         vm->RegisterFunction("RunScan", SCRIPT_NAME, RunScan);
 
-        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 27, SCRIPT_NAME);
+        // === Notifications ===
+        vm->RegisterFunction("NotificationText", SCRIPT_NAME, NotificationText);
+
+        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 28, SCRIPT_NAME);
 
         return true;
     }

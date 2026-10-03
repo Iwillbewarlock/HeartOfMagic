@@ -355,59 +355,9 @@ function initializeSettings() {
     }
     
     // =========================================================================
-    // NOTIFICATION SETTINGS
+    // NOTIFICATION SETTINGS (Show Notifications, weakened spell alerts)
     // =========================================================================
-    
-    // Ensure notifications object exists
-    if (!settings.notifications) {
-        settings.notifications = {
-            weakenedSpellNotifications: true,
-            weakenedSpellInterval: 10
-        };
-    }
-    
-    // Weakened spell notifications toggle
-    var weakenedNotificationsToggle = document.getElementById('weakenedNotificationsToggle');
-    var notificationIntervalRow = document.getElementById('notificationIntervalRow');
-    if (weakenedNotificationsToggle) {
-        weakenedNotificationsToggle.checked = settings.notifications.weakenedSpellNotifications;
-        // Show/hide interval row based on toggle state
-        if (notificationIntervalRow) {
-            notificationIntervalRow.style.display = weakenedNotificationsToggle.checked ? 'flex' : 'none';
-        }
-        
-        weakenedNotificationsToggle.addEventListener('change', function() {
-            settings.notifications.weakenedSpellNotifications = this.checked;
-            // Show/hide interval row
-            if (notificationIntervalRow) {
-                notificationIntervalRow.style.display = this.checked ? 'flex' : 'none';
-            }
-            console.log('[SpellLearning] Weakened spell notifications:', this.checked);
-            scheduleAutoSave();
-        });
-    }
-    
-    // Notification interval slider
-    var notificationIntervalSlider = document.getElementById('notificationIntervalSlider');
-    var notificationIntervalValue = document.getElementById('notificationIntervalValue');
-    if (notificationIntervalSlider) {
-        notificationIntervalSlider.value = settings.notifications.weakenedSpellInterval || 10;
-        if (notificationIntervalValue) {
-            notificationIntervalValue.textContent = notificationIntervalSlider.value + 's';
-        }
-        updateSliderFillGlobal(notificationIntervalSlider);
-        
-        notificationIntervalSlider.addEventListener('input', function() {
-            var value = parseInt(this.value);
-            settings.notifications.weakenedSpellInterval = value;
-            if (notificationIntervalValue) {
-                notificationIntervalValue.textContent = value + 's';
-            }
-            updateSliderFillGlobal(this);
-            console.log('[SpellLearning] Notification interval:', value, 'seconds');
-            scheduleAutoSave();
-        });
-    }
+    if (typeof NotificationSetting !== 'undefined') NotificationSetting.init();
     
     // UI Theme selector
     initializeThemeSelector();
@@ -908,6 +858,7 @@ function saveUnifiedConfig() {
     };
     // Known higher spells (reverse unlock): what they open, XP share, own gain rates
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(unifiedConfig);
+    if (typeof NotificationSetting !== 'undefined') NotificationSetting.saveTo(unifiedConfig);
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
     if (typeof RenderSettings !== 'undefined') RenderSettings.saveTo(unifiedConfig);
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.saveTo(unifiedConfig);
@@ -943,6 +894,7 @@ function resetSettings() {
     settings.autoAdvanceLearning = true;
     settings.autoAdvanceMode = 'branch';
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
+    if (typeof NotificationSetting !== 'undefined') NotificationSetting.reset();
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.reset();
     if (typeof RenderSettings !== 'undefined') RenderSettings.reset();
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.reset();
@@ -1304,16 +1256,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         }
         updateSpellTomeLearningUI();
         
-        // Load notification settings
-        if (data.notifications) {
-            var notif = data.notifications;
-            if (!settings.notifications) {
-                settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10 };
-            }
-            settings.notifications.weakenedSpellNotifications = notif.weakenedSpellNotifications !== undefined ? notif.weakenedSpellNotifications : true;
-            settings.notifications.weakenedSpellInterval = notif.weakenedSpellInterval !== undefined ? notif.weakenedSpellInterval : 10;
-        }
-        updateNotificationsUI();
+        // Notification settings (Show Notifications, weakened spell alerts)
+        if (typeof NotificationSetting !== 'undefined') NotificationSetting.loadFrom(data);
         
         // Update settings presets UI
         if (typeof updateSettingsPresetsUI === 'function') {
@@ -1987,33 +1931,10 @@ function updateSpellTomeLearningUI() {
 // =============================================================================
 
 /**
- * Update notification settings UI elements from settings
+ * Update notification settings UI elements from settings (modules/notificationSetting.js)
  */
 function updateNotificationsUI() {
-    // Ensure settings exist
-    if (!settings.notifications) {
-        settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10 };
-    }
-    var notif = settings.notifications;
-    
-    // Weakened spell notifications toggle
-    var weakenedToggle = document.getElementById('weakenedNotificationsToggle');
-    if (weakenedToggle) weakenedToggle.checked = notif.weakenedSpellNotifications;
-    
-    // Notification interval slider
-    var intervalSlider = document.getElementById('notificationIntervalSlider');
-    if (intervalSlider) {
-        intervalSlider.value = notif.weakenedSpellInterval;
-        var intervalValue = document.getElementById('notificationIntervalValue');
-        if (intervalValue) intervalValue.textContent = notif.weakenedSpellInterval + 's';
-        updateSliderFillGlobal(intervalSlider);
-    }
-    
-    // Show/hide interval row based on toggle
-    var intervalRow = document.getElementById('notificationIntervalRow');
-    if (intervalRow) {
-        intervalRow.style.display = notif.weakenedSpellNotifications ? 'flex' : 'none';
-    }
+    if (typeof NotificationSetting !== 'undefined') NotificationSetting.sync();
 }
 
 // =============================================================================

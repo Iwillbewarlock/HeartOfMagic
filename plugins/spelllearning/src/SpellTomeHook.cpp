@@ -1,4 +1,5 @@
 #include "SpellTomeHook.h"
+#include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "uimanager/UIManager.h"
@@ -145,9 +146,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         DESTIntegration::DispatchSpellTomeRead(a_book, a_spell, player->AsReference());
 
         if (hook->m_settings.showNotifications) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "You begin to study %s...", a_spell->GetName());
-            RE::SendHUDMessage::ShowHUDMessage(msg);
+            HudNotify::Show("hud.beginStudy", "You begin to study {{spell}}...", { { "spell", a_spell->GetName() } });
         }
 
         // Notify UI so the tree updates
@@ -166,7 +165,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         // Still check if player already knows the spell
         if (player->HasSpell(a_spell)) {
             if (hook->m_settings.showNotifications) {
-                RE::SendHUDMessage::ShowHUDMessage("You already know this spell.");
+                HudNotify::Show("hud.alreadyKnown", "You already know this spell.");
             }
             return;
         }
@@ -182,9 +181,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         }
 
         if (hook->m_settings.showNotifications) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "Learned %s", a_spell->GetName());
-            RE::SendHUDMessage::ShowHUDMessage(msg);
+            HudNotify::Show("hud.learned", "Learned {{spell}}", { { "spell", a_spell->GetName() } });
         }
 
         logger::info("SpellTomeHook: Vanilla mode - taught '{}', consumed tome", a_spell->GetName());
@@ -241,18 +238,15 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         
         // Show notification
         if (hook->m_settings.showNotifications) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "You begin to study %s...", a_spell->GetName());
-            RE::SendHUDMessage::ShowHUDMessage(msg);
+            HudNotify::Show("hud.beginStudy", "You begin to study {{spell}}...", { { "spell", a_spell->GetName() } });
         }
     } else if (alreadyGrantedXP) {
         logger::info("SpellTomeHook: XP already granted for '{}' - no additional XP", a_spell->GetName());
         
         // Show different notification
         if (hook->m_settings.showNotifications) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "You review %s... (no additional insight)", a_spell->GetName());
-            RE::SendHUDMessage::ShowHUDMessage(msg);
+            HudNotify::Show("hud.review", "You review {{spell}}... (no additional insight)",
+                { { "spell", a_spell->GetName() } });
         }
     }
     
@@ -277,7 +271,7 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
     // Already knows this spell
     if (player->HasSpell(a_spell)) {
         if (hook->m_settings.showNotifications) {
-            RE::SendHUDMessage::ShowHUDMessage("You already know this spell.");
+            HudNotify::Show("hud.alreadyKnown", "You already know this spell.");
         }
         logger::info("SpellTomeHook: Player already knows '{}', keeping tome", a_spell->GetName());
         return false;
@@ -334,8 +328,6 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
 
             if (!hardMet || !softMet) {
                 if (hook->m_settings.showNotifications) {
-                    std::string msg;
-
                     if (!hardMet) {
                         std::vector<std::string> spellNames;
                         for (RE::FormID prereqId : unmetHard) {
@@ -344,21 +336,18 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
                                 spellNames.push_back(prereqSpell->GetName());
                             }
                         }
-
-                        msg = "You must first master ";
-                        for (size_t i = 0; i < spellNames.size(); i++) {
-                            if (i == 0) msg += spellNames[i];
-                            else if (i == spellNames.size() - 1) msg += " and " + spellNames[i];
-                            else msg += ", " + spellNames[i];
-                        }
-                    } else if (!softMet) {
+                        HudNotify::Show("hud.mustMaster", "You must first master {{spells}} to grasp this tome",
+                            { { "spells", HudNotify::JoinList(spellNames) } });
+                    } else {
                         int stillNeeded = softNeeded - softMastered;
-                        msg = "You need to master " + std::to_string(stillNeeded) + " more related spell";
-                        if (stillNeeded > 1) msg += "s";
+                        if (stillNeeded == 1) {
+                            HudNotify::Show("hud.needMoreOne", "You need to master 1 more related spell to grasp this tome");
+                        } else {
+                            HudNotify::Show("hud.needMore",
+                                "You need to master {{count}} more related spells to grasp this tome",
+                                { { "count", std::to_string(stillNeeded) } });
+                        }
                     }
-
-                    msg += " to grasp this tome";
-                    RE::SendHUDMessage::ShowHUDMessage(msg.c_str());
                 }
 
                 logger::info("SpellTomeHook: Player missing prerequisites for '{}' (hardMet={}, softMet={})",
@@ -382,20 +371,14 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
 
                 if (playerSkill < minimumSkill) {
                     if (hook->m_settings.showNotifications) {
-                        char msg[256];
-                        const char* schoolName = "";
-                        switch (school) {
-                            case RE::ActorValue::kAlteration:  schoolName = "Alteration"; break;
-                            case RE::ActorValue::kConjuration: schoolName = "Conjuration"; break;
-                            case RE::ActorValue::kDestruction: schoolName = "Destruction"; break;
-                            case RE::ActorValue::kIllusion:    schoolName = "Illusion"; break;
-                            case RE::ActorValue::kRestoration: schoolName = "Restoration"; break;
-                            default: schoolName = "magic"; break;
-                        }
-                        snprintf(msg, sizeof(msg),
-                            "You lack the %s skill to learn this spell. (%s: %.0f/%d)",
-                            schoolName, schoolName, playerSkill, minimumSkill);
-                        RE::SendHUDMessage::ShowHUDMessage(msg);
+                        // The game's own (already translated) name of the skill
+                        const auto* skillInfo = RE::ActorValueList::GetActorValueInfo(school);
+                        const char* skillName = skillInfo ? skillInfo->GetFullName() : nullptr;
+                        HudNotify::Show("hud.lackSkill",
+                            "You lack the {{school}} skill to learn this spell. ({{school}}: {{current}}/{{required}})",
+                            { { "school", (skillName && *skillName) ? skillName : "magic" },
+                              { "current", std::format("{:.0f}", playerSkill) },
+                              { "required", std::to_string(minimumSkill) } });
                     }
                     logger::info("SpellTomeHook: Player lacks skill for '{}' (needs {}, has {:.0f})",
                         a_spell->GetName(), minimumSkill, player->AsActorValueOwner()->GetActorValue(school));
