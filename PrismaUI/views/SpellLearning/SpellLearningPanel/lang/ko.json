@@ -169,6 +169,7 @@
     "editMode.editTree": "트리 편집",
     "editMode.exitEditMode": "편집 모드 종료",
     "editMode.nothingToUndo": "되돌릴 작업이 없습니다",
+    "editMode.rootNotDeleted": "삭제하지 않음: {{name}}은(는) 이 학파의 뿌리입니다",
     "editMode.undoAction": "되돌리기: {{action}}",
     "filter.blacklist": "<span class=\"btn-icon\">[-]</span> 블랙리스트",
     "filter.title": "필터",
