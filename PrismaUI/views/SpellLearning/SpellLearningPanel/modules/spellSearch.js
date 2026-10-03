@@ -46,7 +46,7 @@ var SpellSearch = {
     /** Whether a folded text is meant as a formId: "0x..." or FORMID_MIN_DIGITS+ hex digits */
     looksLikeFormId: function(q) {
         if (!q) return false;
-        if (q.indexOf('0x') === 0) return true;
+        if (q.indexOf('0x') === 0) return q.length > 2;   // "0x" alone would match every formId
         return q.length >= this.FORMID_MIN_DIGITS && /^[0-9a-f]+$/.test(q);
     },
 

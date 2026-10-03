@@ -76,6 +76,7 @@ var SpellSearchTest = {
             this.check(this._names(S.search(esl, '0xfe')) === 'Fear|Ward', 'a text starting with 0x matches formIds');
             this.check(this._names(S.search(esl, 'fe0018')) === 'Fear|Ward', '4+ hex digits match formIds');
             this.check(S.search(esl, 'fe00')[0].rank === S.RANK_FORMID, 'a formId match is its own group');
+            this.check(S.search(esl, '0x').length === 0, '"0x" alone matches no formId');
             var mixed = [
                 { formId: '0x00ACE123', name: 'Zeta', school: 'Alteration', state: 'available' },
                 { formId: '0x00000001', name: 'Mace of Ice', school: 'Alteration', state: 'available' }
