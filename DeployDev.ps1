@@ -123,7 +123,14 @@ if (Test-Path $rulesSrc) {
         Copy-Item (Join-Path $adaptersSrc '*.json') $adaptersDst -Force
         Write-Host ("adapters {0}" -f ((Get-ChildItem $adaptersSrc -Filter '*.json').Count))
     }
-
+    # Other mods' archetype mappings (Spell Research): read when their import finishes and at save load
+    $compatSrc = Join-Path $rulesSrc 'compat'
+    if (Test-Path $compatSrc) {
+        $compatDst = Join-Path $rulesDst 'compat'
+        New-Item -ItemType Directory -Force -Path $compatDst | Out-Null
+        Copy-Item (Join-Path $compatSrc '*.json') $compatDst -Force
+        Write-Host ("compat  {0}" -f ((Get-ChildItem $compatSrc -Filter '*.json').Count))
+    }
 }
 
 # The dev install is a debug install: its panel scans also write the analysis

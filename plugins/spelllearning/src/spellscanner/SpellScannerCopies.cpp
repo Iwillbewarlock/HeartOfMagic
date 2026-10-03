@@ -79,16 +79,23 @@ namespace SpellScanner
         };
     }
 
-    std::unordered_set<RE::FormID> SpellsTaughtByTomes()
+    std::unordered_map<RE::FormID, RE::TESObjectBOOK*> TomesBySpell()
     {
-        std::unordered_set<RE::FormID> taught;
+        std::unordered_map<RE::FormID, RE::TESObjectBOOK*> tomes;
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) return taught;
+        if (!dataHandler) return tomes;
 
         for (auto* book : dataHandler->GetFormArray<RE::TESObjectBOOK>()) {
             if (!book || !book->TeachesSpell()) continue;
-            if (auto* spell = book->GetSpell()) taught.insert(spell->GetFormID());
+            if (auto* spell = book->GetSpell()) tomes.try_emplace(spell->GetFormID(), book);
         }
+        return tomes;
+    }
+
+    std::unordered_set<RE::FormID> SpellsTaughtByTomes()
+    {
+        std::unordered_set<RE::FormID> taught;
+        for (const auto& [spell, book] : TomesBySpell()) taught.insert(spell);
         return taught;
     }
 

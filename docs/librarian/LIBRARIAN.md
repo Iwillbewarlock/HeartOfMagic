@@ -278,10 +278,13 @@ librarian-test --catalog <카탈로그> -a <정답셋>          # 게임이 쓴 
 
 **회귀 검사 (2026-09-30).** `node tools/librarian-check.js` 가 고정 덤프(`lab/librarian-judge/dumps/`)로 정답셋
 (전체·구조 등급), 모든 AI 채점 회차, 태그 0개 비율을 재서 `tools/librarian-baseline.json` 보다 나빠지면 실패한다.
+Spell Research 라벨(`librarian-test --spellresearch -a`)의 정답셋 점수도 같은 기준선에 든다(2026-10-03).
 분류·트리 빌드·(로그를 주면) 게임의 퍽 어댑터 시간은 예산을 넘으면 경고만 한다. 의도한 변경 뒤에는
 `--update` 로 기준선을 새로 쓴다.
 
 ## 6. 퍽 모드 호환 — 퍽 어댑터 (2026-09-30)
+
+> Spell Research 호환(카탈로그의 세 번째 손님, 같은 판정기)은 `SPELL_RESEARCH.md`.
 
 카탈로그의 두 번째 손님. 퍽 모드마다 어댑터 파일(`librarian/adapters/*.json`)이 "어떤 태그와 어떤
 이펙트 구조면 이 퍽 모드가 찾는 키워드를 붙인다"를 적고, 게임 시작 때와 전체 스캔 뒤에 이펙트에

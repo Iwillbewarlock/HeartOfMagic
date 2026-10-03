@@ -138,6 +138,8 @@ namespace SpellScanner
     // duplicateOf (below); the tree takes spells a tome teaches, whose tome
     // something hands out, that are not in the voice slot and not copies.
     std::unordered_set<RE::FormID> SpellsTaughtByTomes();
+    // The first loaded book that teaches each spell, by the spell's FormID
+    std::unordered_map<RE::FormID, RE::TESObjectBOOK*> TomesBySpell();
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell);
 
     // Logs, by kind, the scanned spells the tree leaves out: voice slot spells,

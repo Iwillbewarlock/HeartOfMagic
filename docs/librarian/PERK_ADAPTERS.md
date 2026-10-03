@@ -73,6 +73,7 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `effect` | 스캔 이펙트 필드. 맞는 **첫 번째 보이는 이펙트**가 키워드를 받는다(없으면 첫 보이는 이펙트) |
 | `spellHas` / `spellLacks` | 주문의 어떤 이펙트가(숨김 포함) 맞아야 / 하나도 맞으면 안 된다 |
 | `keywordsNone` | 주문에 이 키워드가 하나도 없어야 한다 — 앞선 줄이 붙인 것까지 센다. 제외 조건 |
+| `formListsNone` | 같은 판정에서 앞선(켜진) `formList` 줄이 이 FormList(영구 id)들로 고른 주문이 아니어야 한다. 레코드나 다른 모드가 목록에 이미 넣은 주문은 보지 않는다(그 주문이 앞선 줄에도 맞았으면 센다). Spell Research 의 "SR 원소가 없는 주문" 차집합에 쓴다(2026-10-03) |
 
 이펙트 조건 키: `archetype`, `archetypeAny`, `archetypeNone`, `primaryAV`, `primaryAVAny`,
 `resistance`, `detrimental`, `delivery`, `minDuration`, `noDuration`,

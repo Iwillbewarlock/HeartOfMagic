@@ -21,6 +21,7 @@
 #include "JsonFile.h"
 #include "LibrarianAdapterRun.h"
 #include "LibrarianScore.h"
+#include "LibrarianSpellResearchRun.h"
 #include "LibrarianVocabCheck.h"
 
 #include <algorithm>
@@ -74,43 +75,16 @@ namespace
             << "      Plans the perk adapter keyword writes with the plugin's own\n"
             << "      planner and prints agree / writes / gain / leaks per line.\n"
             << "\n"
+            << "Spell Research (no rules needed):\n"
+            << "  -i <dump> --catalog <spell_catalog.json> --spellresearch <file> [-a <answers>] [-o <report.json>]\n"
+            << "      Counts the spells each SR list gets with the plugin's own code\n"
+            << "      and, with -a, scores the SR elements and techniques.\n"
+            << "\n"
             << "Vocabulary check (no dump needed):\n"
             << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
             << "      Fails when a rule file uses a tag outside TagVocabulary.h,\n"
             << "      or when the JavaScript mirror has drifted from it.\n";
     }
-
-    // A scan dump can carry console noise ahead of the JSON when it was saved
-    // through the panel, so start reading at the first line that opens an
-    // object rather than at byte zero.
-    json ReadDump(const std::string& path)
-    {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            throw std::runtime_error("Cannot open file: " + path);
-        }
-
-        std::string line;
-        std::string body;
-        bool started = false;
-        while (std::getline(file, line)) {
-            if (!started) {
-                const auto firstReal = line.find_first_not_of(" \t\r");
-                if (firstReal == std::string::npos || line[firstReal] != '{') {
-                    continue;
-                }
-                started = true;
-            }
-            body += line;
-            body += '\n';
-        }
-
-        if (!started) {
-            throw std::runtime_error("No JSON body found in: " + path);
-        }
-        return json::parse(body);
-    }
-
 }
 
 int main(int argc, char* argv[])
@@ -126,6 +100,7 @@ int main(int argc, char* argv[])
     std::string tier;
     std::string catalogPath;
     std::string adaptersPath;
+    std::string spellResearchPath;
     bool verbose = false;
     bool checkVocabulary = false;
 
@@ -151,6 +126,8 @@ int main(int argc, char* argv[])
             catalogPath = argv[++i];
         } else if (arg == "--adapters" && hasNext) {
             adaptersPath = argv[++i];
+        } else if (arg == "--spellresearch" && hasNext) {
+            spellResearchPath = argv[++i];
         } else if (arg == "--check-vocab") {
             checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
@@ -176,6 +153,15 @@ int main(int argc, char* argv[])
             std::cerr << "Error: " << e.what() << "\n";
             return 1;
         }
+    }
+
+    if (!spellResearchPath.empty()) {
+        if (inputPath.empty() || catalogPath.empty()) {
+            std::cerr << "--spellresearch needs -i <dump> and --catalog <catalog>\n\n";
+            PrintUsage(argv[0]);
+            return 1;
+        }
+        return RunSpellResearch(inputPath, catalogPath, spellResearchPath, answersPath, outputPath, verbose);
     }
 
     if (!adaptersPath.empty()) {
@@ -217,7 +203,7 @@ int main(int argc, char* argv[])
     }
 
     try {
-        const json dump = ReadDump(inputPath);
+        const json dump = ReadDumpJson(inputPath);
 
         // A dump taken after the keyword patch ran describes a load order the
         // plugin itself edited, so its coverage is not what another user sees.

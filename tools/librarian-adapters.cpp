@@ -23,36 +23,11 @@
 using json = nlohmann::json;
 namespace Adapters = Librarian::Adapters;
 
-namespace
-{
-    json ReadDumpBody(const std::string& path)
-    {
-        // Same tolerance as the classifier's reader: skip console noise before
-        // the first line that opens an object.
-        std::ifstream file(path);
-        if (!file.is_open()) throw std::runtime_error("Cannot open file: " + path);
-        std::string line;
-        std::string body;
-        bool started = false;
-        while (std::getline(file, line)) {
-            if (!started) {
-                const auto first = line.find_first_not_of(" \t\r");
-                if (first == std::string::npos || line[first] != '{') continue;
-                started = true;
-            }
-            body += line;
-            body += '\n';
-        }
-        if (!started) throw std::runtime_error("No JSON body found in: " + path);
-        return json::parse(body);
-    }
-}
-
 int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
     const std::string& adaptersDir, const std::string& reportPath)
 {
     try {
-        const json dump = ReadDumpBody(dumpPath);
+        const json dump = ReadDumpJson(dumpPath);
         const json catalogDocument = ReadJsonFile(catalogPath);
         const json& catalog = catalogDocument.at("spells");
 

@@ -138,6 +138,8 @@ M2 가 잰 태그 0개 268건(18.6%) 과 이런 미세 구분이다.**
 3. `librarian-test --check-vocab -r <룰 디렉터리>` 로 룰 파일과 어긋나지 않는지 확인한다
 4. 태그를 **지우는** 것은 카탈로그 호환을 깬다. 지우기 전에 `vocab` 버전을 올릴지 판단할 것
 
-손님에게 나갈 때 뭉치는 것은 어댑터의 일이다. 예를 들어 Spell Research 어댑터는
-`blood` → `health`, `eldritch` → `apparition`, `holy` → `sun`, `necrotic` → `undead`,
-`teleport` → (버림) 으로 접어서 내보내면 된다. **어휘 자체를 SR 에 맞춰 줄이지 않는다.**
+손님에게 나갈 때 뭉치는 것은 어댑터의 일이다. Spell Research 어댑터(`SPELL_RESEARCH.md` 2절, 2026-10-02 확정)는
+`blood` → `health`(언데드·괴저 주문 제외), `teleport` → `summoning`, `dispel` → `curing`, 그리고 `holy`·`necrotic`·
+`eldritch` 의 체력 피해 중 SR 원소가 없는 것 → `arcane` 으로 접고 나머지는 버린다. 처음 적었던
+`eldritch → apparition`, `necrotic → undead`, `holy → sun` 은 실제 주문과 SR 정답셋에 맞지 않아 쓰지 않는다.
+**어휘 자체를 SR 에 맞춰 줄이지 않는다.**

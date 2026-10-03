@@ -14,6 +14,7 @@
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
 #include "librarian/PerkAdapterPatch.h"
+#include "librarian/SpellResearchPatch.h"
 #include "tomereach/TomeReach.h"
 
 // =============================================================================
@@ -419,6 +420,9 @@ void OnDataLoaded()
     // in memory, from the catalog the last scan left)
     Librarian::PerkAdapters::Apply(Librarian::PerkAdapters::kDataLoadedReason);
 
+    // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
+    Librarian::SpellResearchPatch::Install();
+
     // Which tomes something hands out: read from the plugin files on a worker
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
@@ -440,6 +444,7 @@ void OnDataLoaded()
 void OnNewGame()
 {
     logger::info("New game started - progression will be cleared");
+    Librarian::SpellResearchPatch::OnNewGame();
     // Progress is automatically cleared by OnRevert callback
 
     // Fix input lock if UI was open in main menu
@@ -459,6 +464,9 @@ void OnPostLoadGame()
 
     // The inventory is the loaded save's now, whatever was cached before
     SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
+
+    // Spell Research's lists are the loaded save's: register what they lack
+    Librarian::SpellResearchPatch::OnGameLoaded();
 
     // Fix input/focus state that may be left bad by other mods or previous session
     if (UIManager::GetSingleton()->IsInitialized()) {
