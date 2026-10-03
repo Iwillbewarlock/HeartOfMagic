@@ -296,19 +296,22 @@ button.easy-preset-chip {
 /* ---- Bottom details bar (settings.detailsLayout = 'bottom') ----
    Same #details-panel element as the sidebar, re-flowed as a horizontal bar
    above the tree footer. Section columns are placed with CSS grid so the
-   existing populate code in treeViewerUI.js keeps working unchanged. */
+   existing populate code in treeViewerUI.js keeps working unchanged.
+   Sizes in em of the 14px body font (180px tall, 150px header, 200px progress,
+   110px buttons at 1.0x), so the bar grows with Settings > Font Size instead
+   of cutting off its text. */
 #contentSpellTree.details-bottom .details-panel {
     top: auto;
     left: 10px;
     right: 10px;
     bottom: 44px;
     width: auto;
-    height: 180px;
+    height: 12.86em;
     flex-direction: row;
 }
 
 #contentSpellTree.details-bottom .details-header {
-    width: 150px;
+    width: 10.72em;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -360,7 +363,7 @@ button.easy-preset-chip {
 #contentSpellTree.details-bottom .details-col-links .detail-section + .detail-section { margin-top: 8px; }
 
 #contentSpellTree.details-bottom .progress-section {
-    width: 200px;
+    width: 14.29em;
     flex-shrink: 0;
     margin-top: 0;
     padding: 10px 12px;
@@ -379,7 +382,7 @@ button.easy-preset-chip {
     flex-direction: column;
     justify-content: center;
     align-items: stretch;
-    min-width: 110px;
+    min-width: 7.86em;
     padding: 28px 12px 10px;
     border-top: none;
     border-left: 1px solid var(--divider, var(--panel-border, rgba(255, 255, 255, 0.08)));

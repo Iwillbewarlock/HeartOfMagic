@@ -40,7 +40,8 @@
             if (settings.showNodeNames === false) return null;
 
             var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
-            var fontSize = settings.nodeFontSize || 10;
+            // Spell Name Size, times the panel's Font Size (labelScale, set by applyFontSizeMultiplier)
+            var fontSize = (settings.nodeFontSize || 10) * (this.labelScale || 1);
             var style = TreeStyle.tokens;
 
             var focusOnly = this.zoom < this.LABEL_FOCUS_ZOOM;

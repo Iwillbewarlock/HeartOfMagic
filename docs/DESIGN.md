@@ -134,6 +134,12 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   H/S made a second entry; a tree saved that way is repaired when it loads (`PrereqEdit.repair`, called by
   both paths in `treeLoad.js`: an id in both lists stays Required only, repeats go).
 - **Empty state** — shown when no tree is loaded, prompts user to scan
+- **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
+  (14px times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell
+  names are Spell Name Size times it (a new size is a new label font, `LayerBuild.noteRestyle`). The spell
+  card's sidebar width and the bottom bar's height and fixed columns are in em of that font, so the card
+  grows with the text instead of cutting it off (at 2.0x the bottom bar is twice as tall and leaves the tree
+  less room). Icon buttons keep their px sizes.
 
 ### Decided: the tree stays 2D (2026-09-22)
 

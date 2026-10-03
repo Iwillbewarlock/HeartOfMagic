@@ -1870,8 +1870,9 @@ function applyLearningColor(color) {
 }
 
 /**
- * Apply font size multiplier to the entire UI
- * @param {number} multiplier - Font size multiplier (0.7 - 1.5)
+ * Apply font size multiplier to the entire UI: the page's text (sized in em
+ * from the body) and the spell names on the tree (CanvasRenderer.labelScale)
+ * @param {number} multiplier - Font size multiplier (the slider gives 0.7 - 2.0)
  */
 function applyFontSizeMultiplier(multiplier) {
     if (!multiplier || multiplier < 0.5 || multiplier > 2) {
@@ -1884,6 +1885,14 @@ function applyFontSizeMultiplier(multiplier) {
     // Apply to body font size (base is 14px in Skyrim theme)
     var baseFontSize = 14;
     document.body.style.fontSize = (baseFontSize * multiplier) + 'px';
+
+    // The tree's names are drawn on the canvas, not sized by CSS. A new size is a
+    // new font for them: widths and letters made again before the names (noteRestyle)
+    if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.labelScale !== multiplier) {
+        CanvasRenderer.labelScale = multiplier;
+        if (typeof LayerBuild !== 'undefined') LayerBuild.noteRestyle();
+        CanvasRenderer._needsRender = true;
+    }
     
     console.log('[SpellLearning] Applied font size multiplier:', multiplier);
 }

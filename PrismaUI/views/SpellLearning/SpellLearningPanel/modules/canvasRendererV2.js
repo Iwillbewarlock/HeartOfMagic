@@ -106,6 +106,7 @@ var CanvasRenderer = {
     RING_ALPHA: 0.6,              // the thin ring's alpha (times the focus dimming) and width
     RING_WIDTH: 1.2,
     LABEL_PAD: 2,                 // css px round a name's box when names are kept apart
+    labelScale: 1,                // Settings > Font Size: spell names are Spell Name Size times this (applyFontSizeMultiplier)
 
     // LOD (Level of Detail) - zoom-based rendering tiers
     _lodTier: 'full',        // 'full' | 'simple' | 'minimal'

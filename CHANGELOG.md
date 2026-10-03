@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Settings > Font Size goes up to 2.0x (it stopped at 1.5x), and it now also enlarges the spell names on
+  the tree (on top of Spell Name Size). The spell card grows with the text: the side panel gets wider and
+  the bottom bar taller, so nothing is cut off at the larger sizes.
 - Editing prerequisites in edit mode works as shown again. A new link showed up as both Required and
   Optional, deleting one deleted both, and switching one between Required and Optional left a second copy.
   A built tree used one list for two things, so every change to one went into the other. A link is now

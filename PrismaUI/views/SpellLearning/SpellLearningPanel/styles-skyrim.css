@@ -1239,7 +1239,7 @@ body {
     top: 10px;
     right: 10px;
     bottom: 46px;
-    width: 220px;
+    width: 15.72em;     /* 220px at the 14px body font; grows with Settings > Font Size */
     background: rgba(0, 0, 0, 0.92);
     border: 1px solid var(--divider);
     border-radius: 0;
