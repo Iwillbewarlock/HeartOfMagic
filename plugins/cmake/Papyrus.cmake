@@ -9,7 +9,10 @@ if(NOT DEFINED DIST_VERSION_DIR)
     return()
 endif()
 
-set(PAPYRUS_COMPILER "${CMAKE_SOURCE_DIR}/plugins/external/papyrus-compiler/papyrus.exe")
+# A checkout without its own copy (a git worktree) can point at another one:
+# -DPAPYRUS_COMPILER=<path>, which BuildRelease.ps1 passes from $papyrusCompilerPath
+set(PAPYRUS_COMPILER "${CMAKE_SOURCE_DIR}/plugins/external/papyrus-compiler/papyrus.exe"
+    CACHE FILEPATH "papyrus.exe (russo-2025/papyrus-compiler)")
 
 if(EXISTS "${PAPYRUS_COMPILER}")
     set(PAPYRUS_HEADERS_DIR "${CMAKE_SOURCE_DIR}/Scripts/headers")
@@ -65,5 +68,6 @@ else()
     message(WARNING
         "Papyrus compiler not found at ${PAPYRUS_COMPILER}. "
         "Papyrus script compilation will be skipped. "
-        "Place papyrus.exe under plugins/external/papyrus-compiler/ to enable.")
+        "Place papyrus.exe under plugins/external/papyrus-compiler/ (DownloadExternalDeps.ps1), "
+        "or set $papyrusCompilerPath in Build_Config_Local.ps1, to enable.")
 endif()

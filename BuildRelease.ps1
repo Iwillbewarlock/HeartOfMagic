@@ -36,6 +36,14 @@ $cmakeArgs = @("-S", ".", "--preset=$preset", "-DCMAKE_COMPILE_JOBS=$threads", "
 if ($fresh) {
     $cmakeArgs += "--fresh"
 }
+# Papyrus compiler elsewhere (a worktree has no plugins/external/papyrus-compiler of its own)
+if ($papyrusCompilerPath) {
+    if (Test-Path $papyrusCompilerPath) {
+        $cmakeArgs += "-DPAPYRUS_COMPILER=$papyrusCompilerPath"
+    } else {
+        Write-Warning "papyrusCompilerPath '$papyrusCompilerPath' not found - using plugins/external/papyrus-compiler"
+    }
+}
 
 & cmake $cmakeArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }
