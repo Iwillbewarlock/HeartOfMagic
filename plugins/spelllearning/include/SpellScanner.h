@@ -168,6 +168,10 @@ namespace SpellScanner
     // that needs them if a tome is read before that ran.
     RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell);
 
+    // The duplicate group `spell` belongs to (the same groups TreeSpellForTome
+    // reads), the kept record first; empty when it is in none. Any thread.
+    std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell);
+
     // Works the groups out from the loaded spells, again once the tome reach pass
     // is done, then keeps them. Main.cpp calls it on the game thread after that
     // pass, so a cast's tome check never walks every form.

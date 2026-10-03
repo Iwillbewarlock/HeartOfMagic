@@ -75,6 +75,10 @@
   - **마법책이 가르치는 주문만** 대상이다(로드된 책의 `TeachesSpell`, 스캐너의 `TomesBySpell`). 전체 스캔의 카탈로그에는
     NPC·퀘스트·생물 주문도 들어 있다(TAKEALOOK 3546 중 2118). 이것까지 넣으면 플레이어용 원본과 같은 이름의 NPC 판
     (수치·퍽 연동이 다름)이 조합 후보에 함께 뜬다(2026-10-03 리뷰에서 발견).
+  - 트리처럼 **음성 슬롯 주문**(`voiceSlot`)과 **다른 플러그인의 같은 주문 사본**(`duplicateOf`, 스캐너의
+    `DuplicateGroupOf` — 트리와 마법책 판정이 읽는 그 묶음)은 넣지 않는다. 묶음에서는 남기는 레코드 하나만 넣고,
+    묶음의 어느 레코드든 SR 등급 목록에 이미 있으면 그 묶음은 넣지 않는다 — 한 주문이 SR 에 두 번 뜨지 않게
+    (2026-10-04). 빠진 수는 로그 한 줄과 보고서 `leftOut` 에 남는다.
   - 마법책은 있는데 그 책을 나눠 주는 곳이 없는 주문(`tomeUnreachable`, 트리에서는 빠짐)도 **등록한다** — SR 의 연구가
     그 주문에 닿는 길이 된다. 의도한 결정이다.
   - 카탈로그 주문 중 **어느 `_SR_ListAllSpells{등급}` 에도 없는 주문만** 등록한다. SR 패치가 등록한 주문은
@@ -136,7 +140,7 @@
 - 카탈로그 옆 `spell_research_report.json`(등록이 실제로 돈 때만): `reason`(import | load), `alreadyRegistered`(SR
   등급 목록에 이미 있던 주문 수), `registered`, `entries`(목록 항목 수), `perList`, `tomes`, `failed`(등급 목록이 받지
   않은 주문 — 그 세션 동안 다시 시도하지 않는다), `tomeTiersSkipped`(짝 목록 길이가 달라 마법책을 건너뛴 등급),
-  `noSchoolOrTier`, `lines`(줄별 gain), `elapsedMs`.
+  `noSchoolOrTier`, `leftOut`(`voiceSlot`·`duplicate`: 트리처럼 뺀 마법책 주문 수), `lines`(줄별 gain), `elapsedMs`.
 - 로그: 설치 때 한 줄(`SpellResearch: SpellResearch.esp found ...`), 등록 때 한 줄 요약, 첫 항목의
   `scriptAddedFormCount` 전후 값.
 - 빠른 길: 전역 두 개와 등급 목록 항목 수를 먼저 본다. 수가 지난번과 같으면(Import 가 아닌 메시지 상자) 설정 파일도

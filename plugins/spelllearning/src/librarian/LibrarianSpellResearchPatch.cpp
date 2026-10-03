@@ -105,18 +105,47 @@ namespace Librarian::SpellResearchPatch
                 && std::ranges::find(SR::kTiers, text("tier")) != SR::kTiers.end();
         }
 
+        // Tome spells the tree leaves out and SR is not given, by why (MissingSpells)
+        struct Skipped
+        {
+            std::size_t voiceSlot = 0;
+            std::size_t duplicate = 0;
+        };
+
+        // Another plugin's copy of a spell (duplicateOf in the scan), or the kept
+        // record of a group SR already holds a member of: each spell is in SR once
+        bool DuplicateLeftOut(RE::FormID formId, const Registered& registered)
+        {
+            const auto group = SpellScanner::DuplicateGroupOf(formId);
+            if (group.empty()) return false;
+            if (group.front() != formId) return true;
+            return std::ranges::any_of(group, [&](RE::FormID member) { return registered.spells.contains(member); });
+        }
+
         // The catalog spells to register: a tome teaches them (the catalog also
-        // holds NPC, quest and creature spells, which SR must not hand out), SR
-        // can file them by school and tier, and no tier list has them yet.
+        // holds NPC, quest and creature spells, which SR must not hand out), not
+        // in the voice slot and not another plugin's copy (duplicateOf), as the
+        // tree goes; SR can file them by school and tier, and no tier list has
+        // them yet. Unlike the tree, a spell whose tomes nothing hands out
+        // (tomeUnreachable) is registered: SR's research is a way to it.
         json MissingSpells(const json& catalogSpells, const Registered& registered,
-            const std::unordered_map<RE::FormID, RE::TESObjectBOOK*>& tomes)
+            const std::unordered_map<RE::FormID, RE::TESObjectBOOK*>& tomes,
+            Skipped& skipped)
         {
             json missing = json::object();
             for (const auto& [id, entry] : catalogSpells.items()) {
                 if (!HasSchoolAndTier(entry)) continue;
                 const RE::FormID formId = SpellScanner::ResolvePersistentFormId(id);
                 if (!formId || !tomes.contains(formId) || registered.spells.contains(formId) || g_failed.contains(formId)) continue;
-                if (RE::TESForm::LookupByID<RE::SpellItem>(formId)) missing[id] = entry;
+                auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
+                if (!spell) continue;
+                if (SpellScanner::IsEquippedInVoiceSlot(spell)) {
+                    ++skipped.voiceSlot;
+                } else if (DuplicateLeftOut(formId, registered)) {
+                    ++skipped.duplicate;
+                } else {
+                    missing[id] = entry;
+                }
             }
             return missing;
         }
@@ -243,7 +272,12 @@ namespace Librarian::SpellResearchPatch
             }
             const Registered registered = ReadRegistered();
             const auto tomes = SpellScanner::TomesBySpell();
-            const json missing = MissingSpells(catalog["spells"], registered, tomes);
+            Skipped skipped;
+            const json missing = MissingSpells(catalog["spells"], registered, tomes, skipped);
+            if (skipped.voiceSlot || skipped.duplicate) {
+                logger::info("SpellResearch: {} - left out as the tree leaves them: {} voice slot spells, "
+                             "{} copies from another plugin", reason, skipped.voiceSlot, skipped.duplicate);
+            }
             if (missing.empty()) return;
 
             json rules;
@@ -285,6 +319,7 @@ namespace Librarian::SpellResearchPatch
             report["problems"] = problems;
             report["alreadyRegistered"] = registered.spells.size();
             report["noSchoolOrTier"] = registrations.noSchoolOrTier;
+            report["leftOut"] = { { "voiceSlot", skipped.voiceSlot }, { "duplicate", skipped.duplicate } };
             const Totals totals = Register(registrations, report);
             g_lastSeen = CountRegistered();
 

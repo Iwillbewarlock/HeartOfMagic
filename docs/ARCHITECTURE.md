@@ -303,8 +303,10 @@ Spell Research registrations below; it indexes the effect users only when a keyw
 `Librarian::SpellResearchPatch` (`LibrarianSpellResearchPatch.cpp`) registers catalog spells in Spell Research's
 archetype FormLists when its Import ends (a `MessageBoxMenu` closing while `_SR_GlobalIsSetup` is 1 and the tier
 lists changed, run as an SKSE task), at `kPostLoadGame` and after a full scan (`OnCatalogChanged`, beside the perk
-adapters). Only spells a tome teaches (`SpellScanner::TomesBySpell`); spells already in an SR tier list are left as
-SR's patches filed them. The lists per spell come from `LibrarianSpellResearch.cpp` (pure, shared with
+adapters). Only spells a tome teaches (`SpellScanner::TomesBySpell`), and as in the tree not voice slot spells or
+another plugin's copy (`SpellScanner::DuplicateGroupOf`: the kept record only, none of a group SR already holds a
+member of); tomeUnreachable spells are registered (SR's research is a way to them). Spells already in an SR tier
+list are left as SR's patches filed them. The lists per spell come from `LibrarianSpellResearch.cpp` (pure, shared with
 `librarian-test --spellresearch`): tier, school, casting and targets from the catalog fields, elements and
 techniques from `librarian/compat/spellresearch.json` planned with the perk adapter planner (formList lines,
 `formListsNone`). Entries go in through `BGSListForm::AddForm`, the script path, so they live in the save and

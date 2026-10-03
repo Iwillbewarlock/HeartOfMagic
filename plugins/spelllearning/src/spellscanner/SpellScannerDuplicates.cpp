@@ -191,6 +191,14 @@ namespace SpellScanner
         BuildDuplicateGroups();
     }
 
+    std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell)
+    {
+        std::lock_guard guard(g_duplicateLock);
+        BuildDuplicateGroups();
+        const auto it = g_groupOf.find(spell);
+        return it == g_groupOf.end() ? std::vector<RE::FormID>() : g_groups[it->second];
+    }
+
     RE::SpellItem* TreeSpellForTome(RE::SpellItem* spell)
     {
         // The tree in use decides, not the load order alone: the groups come from

@@ -34,6 +34,11 @@
 - The tree's tool bar (zoom, home, Find Spell, render settings, edit) can be made bigger: drag the small
   grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings and
   Reset to Defaults puts it back. A bar wider than the tree wraps, and the school tabs move down with it.
+- Spell Research compatibility: with Spell Research loaded, the spells your mods' tomes teach that Spell
+  Research does not know yet are added to its research lists after its Import and at every save load, so
+  they turn up in research, spell composing and tome copying. Like the tree, it leaves out voice slot spells
+  and a second plugin's copy of the same spell (each spell is listed once). Switch: `spellResearch.enabled`
+  in config.json (on by default).
 
 ### Changed
 
