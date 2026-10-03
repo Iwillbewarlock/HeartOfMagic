@@ -116,7 +116,8 @@ numbers still hold (Classic's output did not change with the removal).
 
 **Purpose:** Tier-first ordering. Novice spells are always ancestors of higher-tier spells.
 
-**Core constraint:** `node.depth = tier_index` — Novice=0, Apprentice=1, Adept=2, Expert=3, Master=4.
+**Core constraint:** `node.depth = tier_index` — Novice=0, Apprentice=1, Adept=2, Expert=3, Master=4 (or the
+Magicka cost tier, with *Tiers by Magicka cost* below).
 
 **Algorithm:**
 
@@ -199,6 +200,35 @@ elements - fewer means fewer separate clusters.) Fire, frost and shock were alre
 under another of the three; the rest without the same element hang off spells with no element or a spell
 carrying two); what moves is the kinds and the rarer elements. The same-mod share gives a little, as expected
 when kind and element weigh more. Above 1 little is gained.
+
+**Tiers by Magicka cost** (`BuildConfig::tiersByCost`, request key `tiers_by_cost`, default off; 2026-10-04,
+from the same Nexus request: "grouping spells by mana cost instead of only novice to master"). Each school's spells
+with a Magicka cost above 0 (`magickaCost`, a number or a numeric string in the scan) are sorted by cost and cut into
+the same five tiers by rank (`CostTiers` in `TreeBuilderClassic.cpp`): a group of equal costs goes to the tier
+its first spell's rank falls in (`floor(5 × rank / count)`), so equal costs never split and the tiers come out
+about the same size. Ranks, not the numbers: mods put costs ten times the game's. Spells without a cost keep
+their level's tier. The tier pass, `PickRoot` (a vanilla spell from the cheapest tier) and the orphan pass all
+read this tier; the node's `skillLevel` stays the spell's level, so XP, the spell card and every
+`getTierIndex`-style lookup (level first) are unchanged - only `tier` (depth + 1) follows cost. The output
+says `config.tier_mode`: `"cost"` or `"level"`; the layout reads it (*Radial order*, below). The log has one
+line per school: `TreeBuilder: <school> tiers by Magicka cost a/b/c/d/e (n without a cost)`. Panel: *Tiers by
+Magicka cost* under *Type grouping* (`TreeBuilderSetting`, `treeTiersByCost`).
+
+Tier sizes on the 3,546-spell dev scan (`treebuilder-test -c` with `tiers_by_cost`, seeds 1-3, all exit 0;
+spells per tier Novice/Apprentice/Adept/Expert/Master, then by level for comparison):
+
+| school | by cost | without a cost | by level |
+|---|---|---|---|
+| Alteration | 65/40/45/46/42 | 43 | 73/35/54/47/29 |
+| Conjuration | 234/179/161/182/167 | 76 | 163/183/213/213/151 |
+| Destruction | 565/303/293/315/306 | 434 | 761/249/368/230/174 |
+| Illusion | 72/31/31/34/30 | 49 | 63/29/31/48/27 |
+| Restoration | 108/81/74/71/71 | 76 | 106/87/87/63/62 |
+
+The first tier is the biggest because the spells without a cost stay at their level, mostly Novice (in
+Destruction most of the 434 are Vigilant's and other quest mods' Fire and Forget spells with no cost on the
+record). With type grouping 1: bound weapons under a bound parent 70.6-72.5%, fire/frost/shock under the same
+element 91.1-92.1% (seeds 1-3).
 
 **Text Similarity (Jaccard):**
 ```
@@ -789,7 +819,11 @@ These modes control **visual clustering** (spatial grouping of similar spells), 
 ### Radial order (`classicRadialOrder.js`, 2026-10-02)
 
 In a school, a higher tier sits farther from the heart, and within a tier a spell that costs more Magicka
-sits farther out. `ClassicLayout.layoutAllSchools` runs `ClassicRadialOrder.apply` on each school's
+sits farther out. For a tree built with *Tiers by Magicka cost* (`config.tier_mode` `"cost"`) the tier is the
+tree's: `ClassicRadialOrder.treeLevels` maps each node's `tier` to a level name and `withLevels` gives the layout
+a spell map whose copies carry it (`ClassicLayout.layoutAllSchools` sets `_treeLevels`, `_layoutOnGrid` uses it
+for `_spellMap`), so the tier zones and the order key below go by the cost tier; the scan's records are not
+changed. In such a tree the cost rank inside a tier still orders it, which is the same order the tier came from. `ClassicLayout.layoutAllSchools` runs `ClassicRadialOrder.apply` on each school's
 placed spells after pass 2, before the tree is written out (and so before the declutter pass below).
 
 The layout grows outward from the root, each spell next to its parent, so how far out a spell lands is

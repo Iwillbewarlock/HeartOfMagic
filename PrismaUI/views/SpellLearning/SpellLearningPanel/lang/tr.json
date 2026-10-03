@@ -268,6 +268,10 @@
     "preview.classic.tierNovice": "Acemi",
     "preview.classic.tierZones": "Kademe Bölgeleri",
     "preview.classic.title": "Klasik Büyüme Ayarları",
+    "preview.classic.tiersByCost": "Büyü gücü maliyetine göre kademeler",
+    "preview.classic.tiersByCostHint": "Her okulun büyüleri Acemi–Usta yerine büyü gücü maliyetine göre, en ucuzdan başlayarak beş kademeye ayrılır. Maliyeti olmayan büyüler kendi seviyelerinin kademesinde kalır. Seviyeleri (XP, büyü kartı) değişmez. Bir sonraki oluşturmada geçerli.",
+    "preview.classic.typeGrouping": "Türe göre gruplama",
+    "preview.classic.typeGroupingHint": "Bir türdeki (bağlı silahlar, rünler) ve bir elementteki (ateş, buz, şok) büyülerin aynı dalda ne kadar toplandığı. 0 = 1.2.0'daki gibi. Bir sonraki oluşturmada geçerli.",
 
     "preview.flat.direction": "Yön",
     "preview.flat.horizontal": "Yatay",
@@ -561,8 +565,6 @@
     "design.arcane.desc": "Açık bir büyü kitabı: parşömen sayfa, mürekkep çizgileri, bölüm başlıkları ve açılınca mürekkep gibi yayılan ağaç.",
     "design.classic.desc": "Orijinal görünüm: sade ve çizimi en hafif olan.",
     "design.modern.desc": "Gradyanlı ve parıltılı modern koyu arayüzde orijinal ağaç.",
-    "preview.classic.typeGrouping": "Türe göre gruplama",
-    "preview.classic.typeGroupingHint": "Bir türdeki (bağlı silahlar, rünler) ve bir elementteki (ateş, buz, şok) büyülerin aynı dalda ne kadar toplandığı. 0 = 1.2.0'daki gibi. Bir sonraki oluşturmada geçerli.",
     "settings.ui.title": "UI Görünümü",
 
     "settingsPanel.pressAKey": "Bir tuşa basın...",

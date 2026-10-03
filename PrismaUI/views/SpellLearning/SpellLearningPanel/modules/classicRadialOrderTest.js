@@ -8,7 +8,8 @@
  * and a lower tier out past a higher one too (a dear Expert inside a cheap
  * Master); a spell can trade with its own child; roots never move; a trade that
  * would stretch the lines too far is not made; spells keep distinct grid
- * points; a school already in order is left alone.
+ * points; a school already in order is left alone; a tree built by Magicka
+ * cost lends its tiers as the spells' levels (treeLevels, withLevels).
  *
  * Depends on: classic/classicRadialOrder.js - under node this file runs it
  * into the global scope the way the page's script tag does.
@@ -139,6 +140,25 @@ var ClassicRadialOrderTest = {
         var spots = {};
         var distinct = mixed.every(function(n) { var k = n.x + ',' + n.y; if (spots[k]) return false; spots[k] = 1; return true; });
         this.check(distinct, 'every spell keeps its own grid point');
+
+        // A tree by Magicka cost: the layout reads each spell's level as its tree tier
+        var byLevel = { config: { tier_mode: 'level' }, schools: { D: { nodes: [{ formId: 'a', tier: 3 }] } } };
+        this.check(O.treeLevels(byLevel) === null && O.treeLevels({ schools: {} }) === null,
+            'a tree by level keeps the spells own levels');
+        var byCost = { config: { tier_mode: 'cost' }, schools: {
+            D: { nodes: [{ formId: 'm', tier: 1 }, { formId: 'n', tier: 5 }, { formId: 'o', tier: 9 }] } } };
+        var lv = O.treeLevels(byCost);
+        this.check(lv && lv.m === 'Novice' && lv.n === 'Master' && lv.o === 'Master',
+            'a tree by cost: each spell at the level of its tree tier (past Master stays Master)');
+        var scan = { m: { formId: 'm', skillLevel: 'Master', magickaCost: 5 }, n: { formId: 'n', skillLevel: 'Novice', magickaCost: 90 },
+            x: { formId: 'x', skillLevel: 'Adept', magickaCost: 40 } };
+        var map = O.withLevels(scan, lv);
+        this.check(map.m.skillLevel === 'Novice' && map.n.skillLevel === 'Master' && map.m.magickaCost === 5 && map.x === scan.x,
+            'withLevels: copies carry the tree level, other spells are the same records');
+        this.check(scan.m.skillLevel === 'Master' && scan.n.skillLevel === 'Novice', 'withLevels leaves the scan records alone');
+        this.check(O.withLevels(scan, null) === scan, 'withLevels with no levels is the map itself');
+        this.check(O.key(map.m.skillLevel, 0.5) < O.key(map.n.skillLevel, 0.5),
+            'the cheap Master in a cost tree keys inside the dear Novice');
 
         return { passed: this.passed, failed: this.failed };
     }

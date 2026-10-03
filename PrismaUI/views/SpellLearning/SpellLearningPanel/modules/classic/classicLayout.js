@@ -49,6 +49,9 @@ var ClassicLayout = {
         var result = { schools: {} };
         if (!treeData || !treeData.schools || !baseData) return result;
 
+        // A tree by Magicka cost: place spells by their tree tier (ClassicRadialOrder.treeLevels)
+        this._treeLevels = typeof ClassicRadialOrder !== 'undefined' ? ClassicRadialOrder.treeLevels(treeData) : null;
+
         var ls = layoutSettings || {};
         var spread = ls.spread !== undefined ? ls.spread : 50;
         var radialBias = ls.radialBias !== undefined ? ls.radialBias : 50;
@@ -344,7 +347,7 @@ var ClassicLayout = {
                 if (spells[smi].formId) spellMap[spells[smi].formId] = spells[smi];
             }
         }
-        this._spellMap = spellMap;
+        this._spellMap = this._treeLevels ? ClassicRadialOrder.withLevels(spellMap, this._treeLevels) : spellMap;
         var deferredNodes = []; // shared across phases 1-3
 
         // ==== Phase 1: Seed ALL physical roots before any BFS ====

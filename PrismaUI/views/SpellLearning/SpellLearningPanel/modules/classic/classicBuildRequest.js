@@ -3,10 +3,11 @@
  *
  * Puts together the ProceduralTreeGenerate request for a Classic build (the
  * scan filters, the grid hint from TreePreview, the selected roots and the
- * builder's config, with the player's options from TreeBuilderSetting) and sends it a frame later, so the progress modal
- * shows before JSON.stringify blocks. TreeGrowthClassic.buildTree() starts the
- * modal, the pending flag and the Build buttons first; a throw here means no
- * request and so no reply, and send() lets go of all three itself.
+ * builder's config, with the player's options from TreeBuilderSetting) and
+ * sends it a frame later, so the progress modal shows before JSON.stringify
+ * blocks. TreeGrowthClassic.buildTree() starts the modal, the pending flag
+ * and the Build buttons first; a throw here means no request and so no reply,
+ * and send() lets go of all three itself.
  *
  * Usage:
  *   ClassicBuildRequest.send(spellData);
@@ -31,7 +32,9 @@ var ClassicBuildRequest = {
         symmetry: 0.3,
         max_children_per_node: 3,
         top_themes_per_school: 8,
-        prefer_vanilla_roots: true
+        prefer_vanilla_roots: true,
+        type_grouping: 1,          // the player's options replace these two (TreeBuilderSetting.applyTo)
+        tiers_by_cost: false
     },
 
     /**

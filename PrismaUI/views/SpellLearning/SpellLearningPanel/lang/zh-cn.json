@@ -268,6 +268,10 @@
     "preview.classic.tierNovice": "新手级",
     "preview.classic.tierZones": "等级区域",
     "preview.classic.title": "经典生长设置",
+    "preview.classic.tiersByCost": "按法力消耗分级",
+    "preview.classic.tiersByCostHint": "各系法术按法力消耗从低到高分成五级,而不是从新手到大师。没有消耗的法术保留其等级所在的一级。法术等级(经验、法术卡)不变。下次生成时生效。",
+    "preview.classic.typeGrouping": "按类型归组",
+    "preview.classic.typeGroupingHint": "同一类型(召唤武器、符文)和同一元素(火、冰、电)的法术聚在同一分支的强度。0 = 与 1.2.0 相同。下次生成时生效。",
 
     "preview.flat.direction": "方向",
     "preview.flat.horizontal": "水平",
@@ -561,8 +565,6 @@
     "design.arcane.desc": "展开的魔法书：羊皮纸页面、墨线、章节标题，打开时法术树如墨水般晕染开来。",
     "design.classic.desc": "原始外观：朴素，绘制开销最低。",
     "design.modern.desc": "原始法术树，搭配带渐变和光效的现代暗色界面。",
-    "preview.classic.typeGrouping": "按类型归组",
-    "preview.classic.typeGroupingHint": "同一类型(召唤武器、符文)和同一元素(火、冰、电)的法术聚在同一分支的强度。0 = 与 1.2.0 相同。下次生成时生效。",
     "settings.ui.title": "UI显示",
 
     "settingsPanel.pressAKey": "请按一个键...",

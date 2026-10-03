@@ -200,6 +200,12 @@ namespace TreeBuilder
         static constexpr float kDefaultTypeGrouping = 1.0f;
         static constexpr float kMaxTypeGrouping = 2.0f;
         float typeGrouping = kDefaultTypeGrouping;
+        // Tiers by Magicka cost instead of the spells' levels: each school's
+        // spells with a cost are cut into TIER_COUNT tiers of about the same size
+        // by cost rank (spells without one keep their level's tier). The spells'
+        // levels - XP, the spell card - stay as they are; the tree's output says
+        // config.tier_mode "cost". Request config key "tiers_by_cost".
+        bool tiersByCost = false;
 
         // Per-school root overrides: school → formId
         std::unordered_map<std::string, std::string> selectedRoots;

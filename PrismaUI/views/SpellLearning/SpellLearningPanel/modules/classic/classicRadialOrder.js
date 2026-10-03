@@ -25,6 +25,12 @@
  * tier ~0 -> 0.18-0.35, tier/distance 0.77-0.83 -> 0.83-0.89, the lines shorter and crossing
  * less; ~45 ms for all five, once per build.
  *
+ * A tree built with tiers by Magicka cost (treeData.config.tier_mode "cost",
+ * 2026-10-04) puts a spell in the tier of its cost rank, not its level. The
+ * layout then reads each spell's level as the tree's tier (treeLevels,
+ * withLevels), so its tier zones and the cost ranks here go by the tier the
+ * spell is in; the cost rank within such a tier still orders it.
+ *
  * Depends on: nothing (ClassicLayout.layoutAllSchools calls apply)
  */
 
@@ -35,6 +41,49 @@ var ClassicRadialOrder = {
     REACH: 6,           // trade partners within this many tier spacings
     ALLOW: 1,           // a trade may lengthen the lines by this many tier spacings
     PASSES: 16,
+
+    /**
+     * The levels the layout places a tree's spells by: null for a tree by level
+     * (each spell's own skillLevel), else formId -> the level name of its tree
+     * tier (node.tier, 1-based) for a tree by Magicka cost.
+     * @param {Object} treeData - the C++ build result (config, schools)
+     * @returns {Object|null}
+     */
+    treeLevels: function(treeData) {
+        if (!treeData || !treeData.config || treeData.config.tier_mode !== 'cost' || !treeData.schools) return null;
+        var levels = {};
+        for (var school in treeData.schools) {
+            if (!treeData.schools.hasOwnProperty(school)) continue;
+            var nodes = treeData.schools[school].nodes || [];
+            for (var i = 0; i < nodes.length; i++) {
+                var t = Math.max(1, Math.min(this.TIERS.length, Number(nodes[i].tier) || 1));
+                levels[nodes[i].formId] = this.TIERS[t - 1];
+            }
+        }
+        return levels;
+    },
+
+    /**
+     * A spell map whose spells carry the given levels: each spell in levels is
+     * a copy with skillLevel replaced (the scan's own records stay as they are).
+     * @param {Object} spellMap - formId -> scan spell
+     * @param {Object|null} levels - from treeLevels
+     * @returns {Object} spellMap itself when levels is null
+     */
+    withLevels: function(spellMap, levels) {
+        if (!levels) return spellMap;
+        var out = {};
+        for (var id in spellMap) {
+            if (!spellMap.hasOwnProperty(id)) continue;
+            var sp = spellMap[id];
+            if (!levels.hasOwnProperty(id) || !sp) { out[id] = sp; continue; }
+            var copy = {};
+            for (var k in sp) { if (sp.hasOwnProperty(k)) copy[k] = sp[k]; }
+            copy.skillLevel = levels[id];
+            out[id] = copy;
+        }
+        return out;
+    },
 
     /**
      * Magicka cost rank of every spell within its tier.

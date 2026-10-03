@@ -10,6 +10,9 @@
   On a 3,500-spell load order three in four bound weapons now hang off another bound weapon (up from under
   three in five). The strength is a new setting, **Type grouping** in the Classic Growth Settings on the
   scan page (0 to 2, default 1); 0 builds the tree exactly as 1.2.0 did. Build the tree again to see it.
+- Tiers by Magicka cost (asked for on Nexus): a new checkbox under Type grouping builds each school's five
+  tiers by how much the spells cost, cheapest first, instead of Novice to Master. Spells with no cost stay at
+  their level's tier, and a spell's level itself (XP needed, the spell card) does not change. Off by default.
 
 ### Fixed
 

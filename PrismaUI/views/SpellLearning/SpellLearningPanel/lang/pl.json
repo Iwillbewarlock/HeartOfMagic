@@ -268,6 +268,10 @@
     "preview.classic.tierNovice": "Nowicjusz",
     "preview.classic.tierZones": "Strefy rozmieszczenia poziomów",
     "preview.classic.title": "Ustawienia wzrostu klasycznego",
+    "preview.classic.tiersByCost": "Poziomy według kosztu magii",
+    "preview.classic.tiersByCostHint": "Zaklęcia każdej szkoły trafiają do pięciu poziomów według kosztu magii, od najtańszych, zamiast od Nowicjusza do Mistrza. Zaklęcia bez kosztu zostają na poziomie swojej rangi. Ich ranga (PD, karta) się nie zmienia. Działa od następnego budowania.",
+    "preview.classic.typeGrouping": "Grupowanie wg typu",
+    "preview.classic.typeGroupingHint": "Jak mocno zaklęcia jednego rodzaju (przywołana broń, runy) i jednego żywiołu (ogień, mróz, błyskawica) trzymają się jednej gałęzi. 0 = jak w 1.2.0. Działa od następnego budowania.",
 
     "preview.flat.direction": "Kierunek",
     "preview.flat.horizontal": "Poziomy",
@@ -561,8 +565,6 @@
     "design.arcane.desc": "Otwarta księga zaklęć: pergaminowa strona, linie atramentu, tytuły rozdziałów, a drzewo rozlewa się jak atrament po otwarciu.",
     "design.classic.desc": "Pierwotny wygląd: prosty i najlżejszy do rysowania.",
     "design.modern.desc": "Pierwotne drzewo na nowoczesnym ciemnym interfejsie z gradientami i poświatą.",
-    "preview.classic.typeGrouping": "Grupowanie wg typu",
-    "preview.classic.typeGroupingHint": "Jak mocno zaklęcia jednego rodzaju (przywołana broń, runy) i jednego żywiołu (ogień, mróz, błyskawica) trzymają się jednej gałęzi. 0 = jak w 1.2.0. Działa od następnego budowania.",
     "settings.ui.title": "Wygląd interfejsu",
 
     "settingsPanel.pressAKey": "Naciśnij klawisz...",

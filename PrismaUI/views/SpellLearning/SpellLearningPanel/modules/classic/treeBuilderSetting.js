@@ -9,6 +9,12 @@
  *   config's "type_grouping" (C++ BuildConfig::typeGrouping, see
  *   docs/TREE_BUILDING_SYSTEM.md, "Type grouping").
  *
+ *   Tiers by Magicka cost (settings.treeTiersByCost, default off) - each
+ *   school's spells go into five tiers by Magicka cost rank instead of by their
+ *   level (spells without a cost keep their level's tier). Sent as
+ *   "tiers_by_cost" (BuildConfig::tiersByCost). The spells' levels - XP, the
+ *   spell card - stay as they are.
+ *
  * Takes effect at the next build; a built tree does not change.
  *
  * Depends on: settings (state.js), treePreviewUtils.js (settingHTML, bindInput),
@@ -29,9 +35,15 @@ var TreeBuilderSetting = {
         return Number((Math.round(v / this.TYPE_GROUPING_STEP) * this.TYPE_GROUPING_STEP).toFixed(1));
     },
 
+    /** Whether the tiers go by Magicka cost (off unless saved true). */
+    tiersByCost: function() {
+        return typeof settings !== 'undefined' && settings.treeTiersByCost === true;
+    },
+
     /** Put the player's options into a build request's config. */
     applyTo: function(config) {
         config.type_grouping = this.typeGrouping();
+        config.tiers_by_cost = this.tiersByCost();
         return config;
     },
 
@@ -44,6 +56,15 @@ var TreeBuilderSetting = {
             '</div>' +
             '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
                 t('preview.classic.typeGroupingHint') +
+            '</div>' +
+            '<div style="display:flex; align-items:center; gap:8px; margin:4px 4px 2px; font-size:10px;">' +
+                '<label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:rgba(184,168,120,0.6);">' +
+                    '<input type="checkbox" id="tgClassicTiersByCost"' + (this.tiersByCost() ? ' checked' : '') + '>' +
+                    t('preview.classic.tiersByCost') +
+                '</label>' +
+            '</div>' +
+            '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
+                t('preview.classic.tiersByCostHint') +
             '</div>';
     },
 
@@ -56,27 +77,39 @@ var TreeBuilderSetting = {
             if (field) field.value = self.typeGrouping().toFixed(1);
             if (typeof autoSaveSettings === 'function') autoSaveSettings();
         });
+        var byCost = document.getElementById('tgClassicTiersByCost');
+        if (byCost) {
+            byCost.addEventListener('change', function() {
+                settings.treeTiersByCost = this.checked;
+                if (typeof autoSaveSettings === 'function') autoSaveSettings();
+            });
+        }
     },
 
     /** Show the saved values on the controls (the config can arrive after the panel is built). */
     syncControls: function() {
         var field = typeof document !== 'undefined' ? document.getElementById('tgClassicTypeGrouping') : null;
         if (field) field.value = this.typeGrouping().toFixed(1);
+        var byCost = typeof document !== 'undefined' ? document.getElementById('tgClassicTiersByCost') : null;
+        if (byCost) byCost.checked = this.tiersByCost();
     },
 
     loadFrom: function(data) {
         settings.treeTypeGrouping = (data && data.treeTypeGrouping !== undefined) ?
             data.treeTypeGrouping : this.DEFAULT_TYPE_GROUPING;
         settings.treeTypeGrouping = this.typeGrouping();
+        settings.treeTiersByCost = !!(data && data.treeTiersByCost === true);
         this.syncControls();
     },
 
     saveTo: function(config) {
         config.treeTypeGrouping = this.typeGrouping();
+        config.treeTiersByCost = this.tiersByCost();
     },
 
     reset: function() {
         settings.treeTypeGrouping = this.DEFAULT_TYPE_GROUPING;
+        settings.treeTiersByCost = false;
         this.syncControls();
     }
 };

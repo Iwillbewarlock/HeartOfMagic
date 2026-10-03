@@ -96,6 +96,9 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     if (config.contains("type_grouping") && config["type_grouping"].is_number()) {
         bc.typeGrouping = std::clamp(config["type_grouping"].get<float>(), 0.0f, BuildConfig::kMaxTypeGrouping);
     }
+    if (config.contains("tiers_by_cost") && config["tiers_by_cost"].is_boolean()) {
+        bc.tiersByCost = config["tiers_by_cost"].get<bool>();
+    }
 
     // Selected roots
     if (config.contains("selected_roots") && config["selected_roots"].is_object()) {

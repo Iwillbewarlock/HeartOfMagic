@@ -1105,7 +1105,10 @@ the slider grid, have **Type grouping** (0 to 2, steps of 0.1, default 1) - how 
 one-line hint sits under it. It is a drag input like the sliders above it (`TreePreviewUtils.settingHTML`),
 saved with the other settings in UnifiedConfig (`treeTypeGrouping`), reset by Reset to Defaults, and sent
 with the next build (`ClassicBuildRequest`, `type_grouping`); a tree already built does not change. See
-TREE_BUILDING_SYSTEM.md, *Type grouping*.
+TREE_BUILDING_SYSTEM.md, *Type grouping*. Under it, a checkbox **Tiers by Magicka cost** (off by default,
+`treeTiersByCost`, `tiers_by_cost`) with its own hint line: the tree's five tiers go by Magicka cost rank instead
+of Novice to Master; the spells' levels (XP, spell card) stay. Both hints use the same 9px muted line as the
+Spell Matching description. See TREE_BUILDING_SYSTEM.md, *Tiers by Magicka cost*.
 
 ### Extra Settings Tabs
 
@@ -1350,7 +1353,7 @@ Visual-First builds that used them.
 | `classic/classicLayout.js` | Classic layout engine |
 | `classic/classicRadialOrder.js` | After the layout: nearby spells trade places so higher tier, then dearer Magicka, sits farther out (see TREE_BUILDING_SYSTEM.md, *Radial order*) |
 | `classic/classicSettings.js` | Classic mode settings |
-| `classic/treeBuilderSetting.js` | The builder options the player sets (Type grouping): controls, saved values, what a build request sends |
+| `classic/treeBuilderSetting.js` | The builder options the player sets (Type grouping, Tiers by Magicka cost): controls, saved values, what a build request sends |
 | `classic/classicThemeEngine.js` | Classic theme engine |
 
 ### UI Panels & Features

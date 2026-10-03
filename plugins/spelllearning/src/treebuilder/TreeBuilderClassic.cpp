@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <random>
 
 using namespace TreeBuilder::Internal;
@@ -15,6 +16,57 @@ namespace
     // read best side by side, so they are drawn together on a branch. Below
     // the element bonus, so a mod's fire spell still goes to fire first.
     constexpr float kSameModBonus = 20.0f;
+
+    // The spell's Magicka cost when it has one above 0 (the scan writes a
+    // number, or a numeric string)
+    std::optional<float> SpellMagickaCost(const json& spell)
+    {
+        const auto it = spell.find("magickaCost");
+        if (it == spell.end()) return std::nullopt;
+        float cost = 0.0f;
+        if (it->is_number()) {
+            cost = it->get<float>();
+        } else if (it->is_string()) {
+            try {
+                cost = std::stof(it->get<std::string>());
+            } catch (const std::exception&) {
+                return std::nullopt;
+            }
+        } else {
+            return std::nullopt;
+        }
+        if (!(cost > 0.0f)) return std::nullopt;
+        return cost;
+    }
+
+    // Tiers by Magicka cost (BuildConfig::tiersByCost): formId -> tier index.
+    // The school's spells with a cost, cheapest first, cut into TIER_COUNT parts
+    // of about the same size by rank; a group of equal costs goes to the tier its
+    // first spell's rank falls in, so equal costs never split. Ranks, not the
+    // numbers: mods put costs ten times the game's. Spells without a cost are
+    // left out (they keep their level's tier).
+    std::unordered_map<std::string, int> CostTiers(const std::vector<json>& schoolSpells)
+    {
+        std::vector<std::pair<float, std::string>> costed;
+        for (const auto& spell : schoolSpells) {
+            const auto cost = SpellMagickaCost(spell);
+            if (cost) costed.emplace_back(*cost, spell.value("formId", std::string("")));
+        }
+        std::sort(costed.begin(), costed.end());
+
+        std::unordered_map<std::string, int> tiers;
+        const std::size_t count = costed.size();
+        std::size_t start = 0;
+        while (start < count) {
+            std::size_t end = start;
+            while (end + 1 < count && costed[end + 1].first == costed[start].first) ++end;
+            const int tier = (std::min)(TreeBuilder::TIER_COUNT - 1,
+                static_cast<int>(start * TreeBuilder::TIER_COUNT / count));
+            for (std::size_t i = start; i <= end; ++i) tiers[costed[i].second] = tier;
+            start = end + 1;
+        }
+        return tiers;
+    }
 }
 
 // =============================================================================
@@ -187,13 +239,33 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
 
         auto schoolThemes = themes.contains(schoolName) ? themes[schoolName] : std::vector<std::string>{};
 
-        // Group by tier
+        // Group by tier: the spell's level (unknown -> Novice), or with
+        // tiersByCost its Magicka cost rank. The level itself (skillLevel: XP,
+        // the spell card) stays; only the tier the tree puts it in follows cost.
+        const auto costTiers = config.tiersByCost ? CostTiers(schoolSpellList)
+                                                  : std::unordered_map<std::string, int>{};
         std::unordered_map<std::string, std::vector<json>> byTier;
+        std::unordered_map<std::string, int> tierOf;  // formId -> tier index
+        int tierSizes[TIER_COUNT] = {};
         for (const auto& spell : schoolSpellList) {
-            auto tier = spell.value("skillLevel", std::string(""));
-            if (TierIndex(tier) < 0) tier = "Novice";
-            byTier[tier].push_back(spell);
+            const auto fid = spell.value("formId", std::string(""));
+            const auto cost = costTiers.find(fid);
+            const int tierIdx = cost != costTiers.end()
+                ? cost->second
+                : (std::max)(0, TierIndex(spell.value("skillLevel", std::string(""))));
+            byTier[TIER_NAMES[tierIdx]].push_back(spell);
+            tierOf[fid] = tierIdx;
+            ++tierSizes[tierIdx];
         }
+        if (config.tiersByCost) {
+            logger::info("TreeBuilder: {} tiers by Magicka cost {}/{}/{}/{}/{} ({} without a cost)", schoolName,
+                tierSizes[0], tierSizes[1], tierSizes[2], tierSizes[3], tierSizes[4],
+                schoolSpellList.size() - costTiers.size());
+        }
+        const auto tierIndexOf = [&tierOf](const std::string& fid) {
+            const auto it = tierOf.find(fid);
+            return it != tierOf.end() ? it->second : 0;
+        };
 
         // Pick root
         auto* rootSpell = PickRoot(byTier, config, schoolName, rng);
@@ -288,13 +360,13 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
 
         for (const auto& orphanId : unconnectedIds) {
             auto& orphanNode = nodes[orphanId];
-            int nodeTierIdx = std::max(0, TierIndex(orphanNode.tier));
+            int nodeTierIdx = tierIndexOf(orphanId);
             TreeNode* bestParent = nullptr;
             float bestScore = -std::numeric_limits<float>::max();
 
             for (const auto& cid : connected) {
                 auto& cnode = nodes[cid];
-                int cnodeTierIdx = std::max(0, TierIndex(cnode.tier));
+                int cnodeTierIdx = tierIndexOf(cid);
                 float score = 0.0f;
 
                 if (cnodeTierIdx <= nodeTierIdx) {
@@ -357,7 +429,8 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
         {"shape", "tier_first"},
         {"density", config.density},
         {"symmetry", config.symmetry},
-        {"type_grouping", config.typeGrouping}
+        {"type_grouping", config.typeGrouping},
+        {"tier_mode", config.tiersByCost ? "cost" : "level"}
     };
 
     // Validate and auto-fix
