@@ -187,7 +187,8 @@ var settings = {
         // Prerequisite requirements for tome learning
         requirePrereqs: true,             // Require tree prerequisites to be mastered
         requireAllPrereqs: true,          // Require ALL prereqs (vs just one)
-        requireSkillLevel: false          // Require minimum skill level for spell tier
+        requireSkillLevel: false,         // Require minimum skill level for spell tier
+        studySkillXP: true                // ISL study raises the school's skill (Game.AdvanceSkill)
     },
     // In-game notification settings
     notifications: {

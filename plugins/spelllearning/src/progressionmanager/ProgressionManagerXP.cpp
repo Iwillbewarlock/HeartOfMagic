@@ -74,7 +74,8 @@ void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
 // XP TRACKING (spell cast events)
 // =============================================================================
 
-void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castSpellId, float baseXP)
+void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castSpellId, float baseXP,
+                                     std::string_view a_path)
 {
     // Get early learning settings
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
@@ -84,11 +85,18 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     // AddXP clears targets when a spell is mastered (every school targeting it),
     // which would erase from the map under the loop. A target cleared or changed
     // meanwhile is skipped, so a mastered spell gets no more XP from this cast.
+    // A spell held under two school keys (a save from before DropTargetFromOtherSchools)
+    // gets XP from one cast once
     const std::vector<std::pair<std::string, RE::FormID>> targets(m_learningTargets.begin(), m_learningTargets.end());
+    std::vector<RE::FormID> credited;
+    credited.reserve(targets.size());
+    const auto* castSpell = RE::TESForm::LookupByID<RE::SpellItem>(castSpellId);
+    const char* castName = castSpell ? castSpell->GetName() : "?";
     for (const auto& [targetSchool, targetId] : targets) {
         auto current = m_learningTargets.find(targetSchool);
         if (current == m_learningTargets.end() || current->second != targetId) continue;
         if (targetId == 0) continue;
+        if (std::find(credited.begin(), credited.end(), targetId) != credited.end()) continue;
 
         // Check if target is already fully mastered
         auto progress = GetProgress(targetId);
@@ -219,6 +227,10 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
 
         float actualXPGain = (std::min)(xpGain, remainingCap);
 
+        credited.push_back(targetId);
+        const char* sourceName = source == XPSource::Any ? "any" : source == XPSource::School ? "school" :
+                                 source == XPSource::Direct ? "direct" : "self";
+
         // Track XP by source
         switch (source) {
             case XPSource::Any:    progRef.xpFromAny += actualXPGain; break;
@@ -232,16 +244,14 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         if (m_xpSettings.learningMode == "single") {
             // Only process the first active learning target
             AddXP(targetId, actualXPGain);
-            logger::trace("ProgressionManager: Cast {:08X} granted {:.1f} XP (capped from {:.1f}) to target {:08X} (single mode, source: {})",
-                castSpellId, actualXPGain, xpGain, targetId,
-                source == XPSource::Any ? "any" : source == XPSource::School ? "school" : source == XPSource::Direct ? "direct" : "self");
+            LogXPGrant(a_path, targetId, actualXPGain,
+                       std::format("cast {} ({:08X}), {} rate, single mode", castName, castSpellId, sourceName));
             return;  // Only one target in single mode
         } else {
             // Per-school mode - each school's target gets XP
             AddXP(targetId, actualXPGain);
-            logger::trace("ProgressionManager: Cast {:08X} granted {:.1f} XP (capped from {:.1f}) to target {:08X} (school: {}, source: {})",
-                castSpellId, actualXPGain, xpGain, targetId, targetSchool,
-                source == XPSource::Any ? "any" : source == XPSource::School ? "school" : source == XPSource::Direct ? "direct" : "self");
+            LogXPGrant(a_path, targetId, actualXPGain,
+                       std::format("cast {} ({:08X}), {} rate, {} target", castName, castSpellId, sourceName, targetSchool));
         }
     }
 }

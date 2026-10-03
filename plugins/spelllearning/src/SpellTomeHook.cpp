@@ -231,6 +231,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // Grant XP ONLY if not already granted for this spell
     if (hook->m_settings.grantXPOnRead && !alreadyGrantedXP) {
         pm->AddXP(formIdStr, xpToGrant);
+        ProgressionManager::LogXPGrant("tome", spellFormId, xpToGrant, "read once");
         hook->MarkTomeXPGranted(spellFormId);
         
         logger::info("SpellTomeHook: Granted {:.1f} XP ({:.0f}% of {:.1f} required) for '{}'",

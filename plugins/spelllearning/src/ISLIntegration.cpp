@@ -4,6 +4,7 @@
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
+#include "SpellTomeHook.h"
 
 namespace DESTIntegration {
 
@@ -170,6 +171,7 @@ namespace DESTIntegration {
         float xpGrant   = reqXP * threshold;
 
         pm->AddXP(formIdStr, xpGrant);
+        ProgressionManager::LogXPGrant("tome (DEST)", spell->GetFormID(), xpGrant);
         pm->SetLearningTargetFromTome(formIdStr, spell);
 
         HudNotify::Show("hud.beginGrasp", "You begin to grasp {{spell}}...", { { "spell", spell->GetName() } });
@@ -285,6 +287,13 @@ namespace DESTIntegration {
             return IsActive();
         }
 
+        // Settings > Spell Tomes > Skill XP from Studying: whether the patched ISL script
+        // raises the school's skill after a study session (off: a skill mod does it)
+        bool StudySkillXP(RE::StaticFunctionTag*)
+        {
+            return SpellTomeHook::GetSingleton()->GetSettings().studySkillXP;
+        }
+
         // =====================================================================
         // ISL Study Callbacks — called from patched DEST_ISL_PlayerSpellLearningScript
         // =====================================================================
@@ -317,6 +326,8 @@ namespace DESTIntegration {
                 float sessionXP = (static_cast<float>(a_hoursStudied) / a_hoursToMaster) * totalStudyXP;
 
                 pm->AddXPNoGrant(formIdStr, sessionXP);
+                ProgressionManager::LogXPGrant("study", a_spell->GetFormID(), sessionXP,
+                                               std::format("{} hours", a_hoursStudied));
 
                 logger::info("DESTIntegration: OnStudyProgress — {} studied {} hrs ({:.0f}/{:.0f}), "
                              "granted {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
@@ -379,6 +390,7 @@ namespace DESTIntegration {
         vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_ISL",  Papyrus::IsIntegrationActive);
         vm->RegisterFunction("OnStudyProgress",     "SpellLearning_ISL",  Papyrus::OnStudyProgress);
         vm->RegisterFunction("OnStudyComplete",     "SpellLearning_ISL",  Papyrus::OnStudyComplete);
+        vm->RegisterFunction("StudySkillXP",        "SpellLearning_ISL",  Papyrus::StudySkillXP);
 
         logger::info("DESTIntegration: Registered SpellLearning_DEST/ISL Papyrus functions");
         return true;

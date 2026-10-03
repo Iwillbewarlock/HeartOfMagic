@@ -67,16 +67,53 @@ RE::BSEventNotifyControl SpellCastHandler::ProcessEvent(
     // queue, one task at a time. So the cast joins that queue too. Only the
     // spell id travels; the rest is looked up again when the task runs.
     const RE::FormID spellId = a_event->spell;
-    AddTaskToGameThread("SpellCast", [this, spellId]() { HandlePlayerCast(spellId, false); });
+    const auto castAt = Clock::now();   // now, not when the task runs: the pairing compares these
+    AddTaskToGameThread("SpellCast", [this, spellId, castAt]() { HandlePlayerCast(spellId, false, castAt); });
     return RE::BSEventNotifyControl::kContinue;
 }
 
 void SpellCastHandler::OnImmediateCast(RE::FormID spellId)
 {
-    AddTaskToGameThread("SpellCastImmediate", [this, spellId]() { HandlePlayerCast(spellId, true); });
+    const auto castAt = Clock::now();
+    AddTaskToGameThread("SpellCastImmediate", [this, spellId, castAt]() { HandlePlayerCast(spellId, true, castAt); });
 }
 
-void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate)
+// =============================================================================
+// ONE CAST, ONE CREDIT (event and immediate-cast hook)
+// =============================================================================
+
+bool SpellCastHandler::IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt)
+{
+    auto found = m_pendingCasts.find(spellId);
+    if (found == m_pendingCasts.end()) return false;
+    auto& pending = found->second;
+    const auto expired = [a_castAt](Clock::time_point t) {
+        const auto gap = a_castAt > t ? a_castAt - t : t - a_castAt;
+        return std::chrono::duration<float>(gap).count() > kSameCastWindowSeconds;
+    };
+    // Reports run in queue order, not always in time order: drop by distance either way
+    for (auto* way : { &pending.byEvent, &pending.byHook }) {
+        way->erase(std::remove_if(way->begin(), way->end(), expired), way->end());
+    }
+    auto& otherWay = a_immediate ? pending.byEvent : pending.byHook;
+    bool second = false;
+    if (!otherWay.empty()) {
+        otherWay.pop_front();
+        second = true;
+    }
+    if (pending.byEvent.empty() && pending.byHook.empty()) m_pendingCasts.erase(found);
+    return second;
+}
+
+void SpellCastHandler::RememberCredited(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt)
+{
+    auto& pending = m_pendingCasts[spellId];
+    auto& way = a_immediate ? pending.byHook : pending.byEvent;
+    way.push_back(a_castAt);
+    while (way.size() > kMaxPendingPerWay) way.pop_front();
+}
+
+void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt)
 {
     auto* player = RE::PlayerCharacter::GetSingleton();
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
@@ -94,38 +131,31 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate)
         return;
     }
 
-    const auto castAt = std::chrono::steady_clock::now();
+    const char* path = a_immediate ? "cast hook (immediate cast: SpellHotbar 2, Spell.Cast)" : "cast event";
 
     // An immediate re-cast stream: only its first cast counts (every cast moves the mark)
+    bool inStream = false;
     if (a_immediate) {
         auto prev = m_lastImmediateAt.find(spellId);
-        const bool inStream = prev != m_lastImmediateAt.end() &&
-            std::chrono::duration<float>(castAt - prev->second).count() < kImmediateStreamGapSeconds;
-        m_lastImmediateAt[spellId] = castAt;
-        if (inStream) {
-            return;
+        if (prev != m_lastImmediateAt.end()) {
+            const auto gap = a_castAt > prev->second ? a_castAt - prev->second : prev->second - a_castAt;
+            inStream = std::chrono::duration<float>(gap).count() < kImmediateStreamGapSeconds;
         }
+        m_lastImmediateAt[spellId] = a_castAt;
     }
 
     // The same cast seen by both the event and the immediate-cast hook counts once
-    auto last = m_lastCredited.find(spellId);
-    if (last != m_lastCredited.end() && last->second.immediate != a_immediate && !last->second.matched &&
-        std::chrono::duration<float>(castAt - last->second.at).count() < kSameCastWindowSeconds) {
-        last->second.matched = true;
-        // Once a session: shows whether vanilla casts reach the hook too
-        if (!m_loggedDuplicate) {
-            m_loggedDuplicate = true;
-            logger::info("SpellCastHandler: {} ({:08X}) seen by both the cast event and the immediate-cast hook; "
-                "credited once (logged once a session)", spell->GetName(), spellId);
-        }
+    if (IsSecondReport(spellId, a_immediate, a_castAt)) {
+        logger::info("XP: duplicate skipped - {} ({:08X}) from {}: the same cast was already credited the other way",
+            spell->GetName(), spellId, path);
         return;
     }
-    m_lastCredited[spellId] = Credited{ castAt, a_immediate };
-    if (a_immediate && !m_loggedImmediate) {
-        m_loggedImmediate = true;
-        logger::info("SpellCastHandler: {} ({:08X}) credited from an immediate cast (SpellHotbar 2, Spell.Cast; "
-            "logged once a session)", spell->GetName(), spellId);
+    if (inStream) {
+        logger::debug("XP: {} ({:08X}) re-cast by an immediate cast within {:.2f}s - counted at the start of the stream",
+            spell->GetName(), spellId, kImmediateStreamGapSeconds);
+        return;
     }
+    RememberCredited(spellId, a_immediate, a_castAt);
 
     // Get spell school
     auto* effect = spell->GetCostliestEffectItem();
@@ -157,7 +187,7 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate)
         xpGain);
 
     // Grant XP to learning targets in this school
-    ProgressionManager::GetSingleton()->OnSpellCast(schoolName, spell->GetFormID(), xpGain);
+    ProgressionManager::GetSingleton()->OnSpellCast(schoolName, spell->GetFormID(), xpGain, path);
 
     // =========================================================================
     // THROTTLED WEAKENED SPELL NOTIFICATION

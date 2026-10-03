@@ -120,6 +120,9 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
 
     if (adjustedAmount > 0.0f) {
         AddXP(targetId, adjustedAmount);
+        // BookXP's source reads as "book" in the log; any other mod's by its id
+        LogXPGrant(sourceName == "book_reading" ? std::string("book") : "source " + sourceName, targetId, adjustedAmount,
+                   std::format("{:.2f} asked", amount));
         SendModEvent("SpellLearning_XPGained", sourceName, adjustedAmount,
                       RE::TESForm::LookupByID(targetId));
     }
@@ -148,6 +151,7 @@ float ProgressionManager::AddRawXP(RE::FormID targetId, float amount)
 
     if (actualAmount > 0.0f) {
         AddXP(targetId, actualAmount);
+        LogXPGrant("raw", targetId, actualAmount);
         SendModEvent("SpellLearning_XPGained", "raw", actualAmount,
                       RE::TESForm::LookupByID(targetId));
     }

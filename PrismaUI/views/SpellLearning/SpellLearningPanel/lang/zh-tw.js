@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "先精通父法術",
     "settings.tomeLearning.requireSkill": "要求技能",
     "settings.tomeLearning.requireSkillDesc": "滿足最低技能等級",
+    "settings.tomeLearning.studySkillXP": "研習獲得技能經驗",
+    "settings.tomeLearning.studySkillXPDesc": "研習法術書（Immersive Spell Learning）會提升該系技能。關閉：技能交給技能成長模組",
     "settings.tomeLearning.subtitle": "魔法書行為",
     "settings.tomeLearning.title": "魔法書學習",
     "settings.tomeLearning.useProgression": "使用進度系統",

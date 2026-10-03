@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Najpierw opanuj zaklęcia nadrzędne",
     "settings.tomeLearning.requireSkill": "Wymagaj umiejętności",
     "settings.tomeLearning.requireSkillDesc": "Osiągnij minimalny poziom umiejętności",
+    "settings.tomeLearning.studySkillXP": "PD umiejętności z nauki",
+    "settings.tomeLearning.studySkillXPDesc": "Studiowanie księgi (Immersive Spell Learning) podnosi umiejętność szkoły. Wyłączone: umiejętności zostają dla moda umiejętności",
     "settings.tomeLearning.subtitle": "Zachowanie tomów",
     "settings.tomeLearning.title": "Nauka z tomów zaklęć",
     "settings.tomeLearning.useProgression": "Użyj systemu progresji",

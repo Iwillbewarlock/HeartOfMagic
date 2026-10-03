@@ -334,7 +334,8 @@ function Study(int hoursStudied, Spell akSpell)
 		endif
 	endif
 
-	if SkillExp.getValue() > 0
+	; [HoM] Settings > Spell Tomes > Skill XP from Studying: off leaves skills to a skill mod
+	if SkillExp.getValue() > 0 && SpellLearning_ISL.StudySkillXP()
 		Game.AdvanceSkill(SpellMagEffect.GetAssociatedSkill(), SkillExp.getValue() * hoursStudied)
 	endif
 

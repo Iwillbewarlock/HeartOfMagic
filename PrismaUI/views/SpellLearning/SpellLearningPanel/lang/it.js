@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Padroneggia prima gli incantesimi genitori",
     "settings.tomeLearning.requireSkill": "Richiedi Abilità",
     "settings.tomeLearning.requireSkillDesc": "Raggiungi il livello minimo di abilità",
+    "settings.tomeLearning.studySkillXP": "XP abilità dallo studio",
+    "settings.tomeLearning.studySkillXPDesc": "Studiare un tomo (Immersive Spell Learning) aumenta l'abilità della scuola. Disattivato: le abilità restano alla tua mod delle abilità",
     "settings.tomeLearning.subtitle": "Comportamento Tomi",
     "settings.tomeLearning.title": "Apprendimento da Tomi",
     "settings.tomeLearning.useProgression": "Usa Sistema di Progressione",

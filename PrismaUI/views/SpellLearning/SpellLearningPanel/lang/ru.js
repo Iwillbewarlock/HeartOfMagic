@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Сначала освоить родительские заклинания",
     "settings.tomeLearning.requireSkill": "Требовать навык",
     "settings.tomeLearning.requireSkillDesc": "Достичь минимального уровня навыка",
+    "settings.tomeLearning.studySkillXP": "Опыт навыка за изучение",
+    "settings.tomeLearning.studySkillXPDesc": "Изучение тома (Immersive Spell Learning) повышает навык школы. Выключено: навыки остаются вашему моду навыков",
     "settings.tomeLearning.subtitle": "Поведение фолиантов",
     "settings.tomeLearning.title": "Изучение через фолианты",
     "settings.tomeLearning.useProgression": "Использовать систему прогресса",

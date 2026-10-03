@@ -542,6 +542,8 @@
     "settings.tomeLearning.requirePrereqsDesc": "상위 주문을 먼저 숙달",
     "settings.tomeLearning.requireSkill": "스킬 필수",
     "settings.tomeLearning.requireSkillDesc": "최소 스킬 레벨 충족",
+    "settings.tomeLearning.studySkillXP": "공부로 기술 경험치",
+    "settings.tomeLearning.studySkillXPDesc": "마법서 공부(Immersive Spell Learning)가 해당 계열 기술을 올립니다. 끄면 기술은 기술 성장 모드에 맡깁니다",
     "settings.tomeLearning.subtitle": "마법서 동작",
     "settings.tomeLearning.title": "마법서 학습",
     "settings.tomeLearning.useProgression": "진행 시스템 사용",

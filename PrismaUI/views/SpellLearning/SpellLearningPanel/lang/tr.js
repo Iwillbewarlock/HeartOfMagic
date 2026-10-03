@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Önce üst büyülerde ustalaşın",
     "settings.tomeLearning.requireSkill": "Beceri Gerekli",
     "settings.tomeLearning.requireSkillDesc": "Minimum beceri seviyesini karşılayın",
+    "settings.tomeLearning.studySkillXP": "Çalışmadan beceri XP'si",
+    "settings.tomeLearning.studySkillXPDesc": "Bir kitabı çalışmak (Immersive Spell Learning) okulun becerisini yükseltir. Kapalı: beceriler beceri modunuza kalır",
     "settings.tomeLearning.subtitle": "Kitap Davranışı",
     "settings.tomeLearning.title": "Büyü Kitabı Öğrenme",
     "settings.tomeLearning.useProgression": "İlerleme Sistemini Kullan",

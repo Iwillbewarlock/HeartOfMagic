@@ -353,6 +353,16 @@ function initializeSettings() {
             scheduleAutoSave();
         });
     }
+
+    // Skill XP from studying (ISL patch: Game.AdvanceSkill after a study session)
+    var studySkillXPToggle = document.getElementById('tomeStudySkillXPToggle');
+    if (studySkillXPToggle) {
+        studySkillXPToggle.checked = settings.spellTomeLearning.studySkillXP !== false;
+        studySkillXPToggle.addEventListener('change', function() {
+            settings.spellTomeLearning.studySkillXP = this.checked;
+            scheduleAutoSave();
+        });
+    }
     
     // =========================================================================
     // NOTIFICATION SETTINGS (Show Notifications, weakened spell alerts)
@@ -898,6 +908,12 @@ function resetSettings() {
     settings.autoAdvanceMode = 'branch';
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.reset();
+    // Skill XP from studying: on (the only tome setting Reset to Defaults touches)
+    if (settings.spellTomeLearning) {
+        settings.spellTomeLearning.studySkillXP = true;
+        var studySkillXPReset = document.getElementById('tomeStudySkillXPToggle');
+        if (studySkillXPReset) studySkillXPReset.checked = true;
+    }
     if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.reset();
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.reset();
     if (typeof RenderSettings !== 'undefined') RenderSettings.reset();
@@ -1257,6 +1273,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             settings.spellTomeLearning.requirePrereqs = stl.requirePrereqs !== undefined ? stl.requirePrereqs : true;
             settings.spellTomeLearning.requireAllPrereqs = stl.requireAllPrereqs !== undefined ? stl.requireAllPrereqs : true;
             settings.spellTomeLearning.requireSkillLevel = stl.requireSkillLevel !== undefined ? stl.requireSkillLevel : false;
+            settings.spellTomeLearning.studySkillXP = stl.studySkillXP !== false;
         }
         updateSpellTomeLearningUI();
         
@@ -1915,6 +1932,9 @@ function updateSpellTomeLearningUI() {
     
     var requireSkillLevelToggle = document.getElementById('tomeRequireSkillLevelToggle');
     if (requireSkillLevelToggle) requireSkillLevelToggle.checked = stl.requireSkillLevel;
+
+    var studySkillXPToggle = document.getElementById('tomeStudySkillXPToggle');
+    if (studySkillXPToggle) studySkillXPToggle.checked = stl.studySkillXP !== false;
     
     // Show/hide child setting based on parent
     var allPrereqsRow = document.getElementById('tomeRequireAllPrereqsRow');

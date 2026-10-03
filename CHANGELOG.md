@@ -25,6 +25,12 @@
   off. Weakened Spell Alerts stays as an option under it and is greyed out while it is off. Reset to
   Defaults turns it back on; settings presets do not change it.
 
+- **Skill XP from Studying** (Settings > Spell Tomes, on by default): with the Immersive Spell Learning
+  patch, turn it off and studying a tome no longer raises the school's skill, so a skill mod (Static Skill
+  Leveling and the like) handles skills alone. Needs the patch's updated script (optional/ISLPatch).
+- Every XP grant is one line in SpellLearning.log: how much, to which spell, and where it came from (cast
+  event, immediate cast hook, tome, study, book, another mod's source), and a cast already counted the
+  other way says "duplicate skipped".
 - The tree's tool bar (zoom, home, Find Spell, render settings, edit) can be made bigger: drag the small
   grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings and
   Reset to Defaults puts it back. A bar wider than the tree wraps, and the school tabs move down with it.
@@ -38,6 +44,12 @@
 
 ### Fixed
 
+- Spells no longer earn double XP with mods that cast them a second way (SpellHotbar 2, Papyrus Spell.Cast):
+  each cast is counted once however the game reports it. Before, two quick casts reported both ways could
+  count three times, and a busy frame could let one cast count twice.
+- A spell set as the learning target from the panel and again from its tome no longer gets XP twice per
+  cast: a spell is the target of one school only, and a save that already has it under two is put right
+  when it loads.
 - Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel
   showed, and Reset to Defaults and settings presets left the controls as they were. They are saved now,
   reset, and follow a preset.

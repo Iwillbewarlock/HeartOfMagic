@@ -709,14 +709,27 @@ struct EarlyLearningSettings {
   hooked on `VTABLE_ActorMagicCaster[0]` at kPostLoad; ActorMagicCaster does not override it, so only
   actors' casters pass). SpellHotbar 2 casts every hotbar spell this way and Papyrus `Spell.Cast` does
   too; before, those casts gave no XP. Only the player's casts of a real spell (`kSpell`) the player has
-  (`Actor::HasSpell`, so a mod's helper or proc spell does not count) are credited. A cast seen both ways
-  within `kSameCastWindowSeconds` (0.3 s) is credited once; repeats seen the same way still count each.
+  (`Actor::HasSpell`, so a mod's helper or proc spell does not count) are credited.
+  **One cast, one credit (1.2.1).** Each report is stamped when the engine sends it (`ProcessEvent` /
+  `OnImmediateCast`), not when the queued task runs. Per spell, `m_pendingCasts` holds the casts credited
+  from each way (event, hook) that the other way may still report; a report of the other way within
+  `kSameCastWindowSeconds` (0.3 s, either side - tasks run in queue order) takes one of them and earns
+  nothing (`IsSecondReport`), so event, event, hook, hook is two credits, not three, and a slow game thread
+  no longer opens the window. Repeats seen the same way still count each (a spell in each hand). Before,
+  only the last credit was remembered and its time was the task's.
   A stream of immediate re-casts of one spell less than `kImmediateStreamGapSeconds` (0.45 s) apart -
   a mod refreshing a ward every 0.25 s - counts once, at its start, like a held concentration spell;
   SpellHotbar 2's own casts are at least its 0.5 s cooldown apart and each count. Two different casts of
   one spell 0.3 s apart, one by hand and one from the hotbar, count once (rare; credited short, never twice).
-  SpellLearning.log says once a session when a spell was first credited from an immediate cast and when
-  a cast was first seen both ways
+- **XP log (1.2.1):** every grant is one info line in SpellLearning.log, `XP: +<amount> to <spell> (<id>) from
+  <path> - <detail>`, path `cast event`, `cast hook (immediate cast ...)`, `tome`, `tome (DEST)`, `study`,
+  `book` (BookXP), `source <id>` (other mods, passive) or `raw` (`ProgressionManager::LogXPGrant`); a report
+  dropped as the other half of a credited cast logs `XP: duplicate skipped - ...`
+- **One school per learning target (1.2.1):** the panel keys a target by the node's school (first effect),
+  a tome read by the costliest effect's school, so one spell could be the target of two schools and
+  `OnSpellCast` paid it twice per cast. `SetLearningTarget` now drops the spell from any other school
+  (`DropTargetFromOtherSchools`), a loaded save keeps each spell under one school (its own when held there,
+  `DedupeLearningTargets`), and `OnSpellCast` credits a target spell at most once per cast
 - Identify spell school from cast
 - Route to ProgressionManager for XP calculation
 - **Throttled notifications** (configurable interval, default 10 seconds)

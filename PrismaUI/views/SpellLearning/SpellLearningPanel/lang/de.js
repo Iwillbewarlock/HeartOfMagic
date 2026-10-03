@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Zuerst Elternzauber meistern",
     "settings.tomeLearning.requireSkill": "Fertigkeit nötig",
     "settings.tomeLearning.requireSkillDesc": "Mindestfertigkeitsstufe erreichen",
+    "settings.tomeLearning.studySkillXP": "Fertigkeits-EP durch Studieren",
+    "settings.tomeLearning.studySkillXPDesc": "Das Studieren eines Folianten (Immersive Spell Learning) steigert die Fertigkeit der Schule. Aus: Fertigkeiten bleiben deinem Fertigkeits-Mod überlassen",
     "settings.tomeLearning.subtitle": "Zauberbuch-Verhalten",
     "settings.tomeLearning.title": "Zauberbuch-Lernen",
     "settings.tomeLearning.useProgression": "Fortschrittssystem nutzen",

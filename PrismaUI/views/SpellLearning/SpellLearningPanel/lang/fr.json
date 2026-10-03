@@ -560,6 +560,8 @@
     "settings.tomeLearning.requirePrereqsDesc": "Maîtriser d'abord les sorts parents",
     "settings.tomeLearning.requireSkill": "Exiger une compétence",
     "settings.tomeLearning.requireSkillDesc": "Atteindre le niveau minimal de compétence",
+    "settings.tomeLearning.studySkillXP": "XP de compétence en étudiant",
+    "settings.tomeLearning.studySkillXPDesc": "Étudier un tome (Immersive Spell Learning) augmente la compétence de l'école. Désactivé : laissez les compétences à votre mod de compétences",
     "settings.tomeLearning.subtitle": "Comportement des grimoires",
     "settings.tomeLearning.title": "Apprentissage par grimoires",
     "settings.tomeLearning.useProgression": "Utiliser le système de progression",

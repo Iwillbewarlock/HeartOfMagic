@@ -126,6 +126,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         tomeSettings.requirePrereqs = SafeJsonValue<bool>(tomeConfig, "requirePrereqs", true);
         tomeSettings.requireAllPrereqs = SafeJsonValue<bool>(tomeConfig, "requireAllPrereqs", true);
         tomeSettings.requireSkillLevel = SafeJsonValue<bool>(tomeConfig, "requireSkillLevel", false);
+        tomeSettings.studySkillXP = SafeJsonValue<bool>(tomeConfig, "studySkillXP", true);
         SpellTomeHook::GetSingleton()->SetSettings(tomeSettings);
         logger::info("UIManager: Applied SpellTomeHook settings - useProgressionSystem: {}, requirePrereqs: {}",
             tomeSettings.useProgressionSystem, tomeSettings.requirePrereqs);
@@ -266,7 +267,8 @@ json GenerateDefaultConfig() {
             {"tomeInventoryBoostPercent", 25.0f},
             {"requirePrereqs", true},
             {"requireAllPrereqs", true},
-            {"requireSkillLevel", false}
+            {"requireSkillLevel", false},
+            {"studySkillXP", true}
         }},
         {"passiveLearning", {
             {"enabled", false},

@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include <chrono>
+#include <deque>
 #include <unordered_map>
 
 class SpellCastHandler : public RE::BSTEventSink<RE::TESSpellCastEvent>
@@ -35,27 +36,34 @@ private:
     SpellCastHandler(const SpellCastHandler&) = delete;
     SpellCastHandler& operator=(const SpellCastHandler&) = delete;
 
+    using Clock = std::chrono::steady_clock;
+
     // The work for one player cast, run on the game thread. a_immediate: seen by the
     // CastSpellImmediate hook rather than the cast event (only known spells count then).
-    void HandlePlayerCast(RE::FormID spellId, bool a_immediate);
+    // a_castAt: when the engine reported it, not when the queued task runs.
+    void HandlePlayerCast(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt);
 
-    // One cast reported by both ways (event and immediate cast) is credited once;
-    // repeats seen the same way always count (a spell in each hand)
+    // One cast reported both ways (the cast event and the immediate-cast hook) is
+    // credited once, whichever way comes first and however the reports interleave:
+    // per spell, the credited casts of each way that the other way has not reported
+    // yet. A report of the other way within the window takes one of them and
+    // earns nothing; repeats seen the same way always count (a spell in each hand).
     static constexpr float kSameCastWindowSeconds = 0.3f;
-    struct Credited
+    static constexpr std::size_t kMaxPendingPerWay = 8;
+    struct PendingCasts
     {
-        std::chrono::steady_clock::time_point at;
-        bool immediate = false;
-        bool matched = false;   // already paired with its other-way report: pairs once
+        std::deque<Clock::time_point> byEvent;   // credited from the event, hook report still possible
+        std::deque<Clock::time_point> byHook;    // credited from the hook, event report still possible
     };
-    std::unordered_map<RE::FormID, Credited> m_lastCredited;
+    std::unordered_map<RE::FormID, PendingCasts> m_pendingCasts;
+    // True when this report is the second report of a cast already credited
+    bool IsSecondReport(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt);
+    void RememberCredited(RE::FormID spellId, bool a_immediate, Clock::time_point a_castAt);
     // A spell re-cast immediately again and again (a mod refreshing a ward every 0.25 s)
     // counts once, at the start of the stream, like a held concentration spell. Below
     // SpellHotbar 2's 0.5 s cooldown, so its casts each count.
     static constexpr float kImmediateStreamGapSeconds = 0.45f;
     std::unordered_map<RE::FormID, std::chrono::steady_clock::time_point> m_lastImmediateAt;
-    bool m_loggedImmediate = false;   // first immediate-cast credit logged
-    bool m_loggedDuplicate = false;   // first cast seen both ways logged
 
     bool m_registered = false;
     

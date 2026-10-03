@@ -560,6 +560,8 @@
     "settings.tomeLearning.requirePrereqsDesc": "まず親呪文を習得",
     "settings.tomeLearning.requireSkill": "スキル必須",
     "settings.tomeLearning.requireSkillDesc": "最低スキルレベルを満たす",
+    "settings.tomeLearning.studySkillXP": "研究でスキル経験値",
+    "settings.tomeLearning.studySkillXPDesc": "呪文書の研究（Immersive Spell Learning）でその系統のスキルが上がる。オフ：スキルはスキル成長MODに任せる",
     "settings.tomeLearning.subtitle": "魔導書の挙動",
     "settings.tomeLearning.title": "魔導書学習",
     "settings.tomeLearning.useProgression": "進捗システムを使用",

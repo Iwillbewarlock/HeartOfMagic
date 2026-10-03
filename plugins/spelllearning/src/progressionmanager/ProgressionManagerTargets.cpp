@@ -38,6 +38,7 @@ void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID
         m_targetPrerequisites.erase(oldTargetId);
     }
 
+    DropTargetFromOtherSchools(school, formId);
     m_learningTargets[school] = formId;
     m_dirty = true;
 

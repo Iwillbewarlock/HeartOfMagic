@@ -538,6 +538,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Dominar magias pais primeiro",
     "settings.tomeLearning.requireSkill": "Exigir Habilidade",
     "settings.tomeLearning.requireSkillDesc": "Atingir nível mínimo de habilidade",
+    "settings.tomeLearning.studySkillXP": "XP de habilidade ao estudar",
+    "settings.tomeLearning.studySkillXPDesc": "Estudar um tomo (Immersive Spell Learning) aumenta a habilidade da escola. Desligado: as habilidades ficam com seu mod de habilidades",
     "settings.tomeLearning.subtitle": "Comportamento do Tomo",
     "settings.tomeLearning.title": "Aprendizado por Tomo de Magia",
     "settings.tomeLearning.useProgression": "Usar Sistema de Progressão",

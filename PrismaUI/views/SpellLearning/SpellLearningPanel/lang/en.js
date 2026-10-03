@@ -541,6 +541,8 @@ window._i18nPreload = {
     "settings.tomeLearning.requirePrereqsDesc": "Master parent spells first",
     "settings.tomeLearning.requireSkill": "Require Skill",
     "settings.tomeLearning.requireSkillDesc": "Meet minimum skill level",
+    "settings.tomeLearning.studySkillXP": "Skill XP from Studying",
+    "settings.tomeLearning.studySkillXPDesc": "Studying a tome (Immersive Spell Learning) raises the school's skill. Off: leave skills to your skill mod",
     "settings.tomeLearning.subtitle": "Tome Behavior",
     "settings.tomeLearning.title": "Spell Tome Learning",
     "settings.tomeLearning.useProgression": "Use Progression System",
