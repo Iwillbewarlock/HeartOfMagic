@@ -786,7 +786,8 @@ plugins through `ISpellLearningAPI::ShowNotification` (API v2). Safe from any th
 bool enabled = true;
 bool grantXPOnRead = true;
 bool autoSetLearningTarget = true;
-bool showNotifications = true;
+bool showNotifications = true;        // under Settings > Show Notifications (HudNotify)
+bool studySkillXP = true;             // ISL patch: a study session raises the school's skill
 float xpPercentToGrant = 25.0;        // % of required XP per tome read
 float tomeInventoryBoostPercent = 25.0; // Bonus while tome in inventory
 ```

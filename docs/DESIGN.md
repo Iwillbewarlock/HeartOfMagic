@@ -1220,7 +1220,7 @@ Notifications. The corner messages' text follows the panel language (`hud.*` key
 (`spellTomeLearning.studySkillXP`, default on, 1.2.1): with the Immersive Spell Learning patch, whether a
 study session raises the school's skill (`Game.AdvanceSkill` in `DEST_ISL_PlayerSpellLearningScript`, asked
 through `SpellLearning_ISL.StudySkillXP()`). Off leaves skills to a skill mod such as Static Skill Leveling.
-Reset to Defaults turns it on.
+Reset to Defaults turns it on; a settings preset never changes it (like Show Notifications).
 **Developer:** Import validation (Aggressive Path Validation), debug options (hidden by default).
 
 ---

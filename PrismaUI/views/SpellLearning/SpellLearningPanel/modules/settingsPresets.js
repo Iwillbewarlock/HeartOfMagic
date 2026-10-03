@@ -364,7 +364,8 @@ function applySettingsPreset(name) {
     // --- Spell Tome Learning (deep copy) ---
     if (ps.spellTomeLearning) {
         for (var k in ps.spellTomeLearning) {
-            if (ps.spellTomeLearning.hasOwnProperty(k)) {
+            // Skill XP from Studying is about other mods, not a play style: a preset never changes it
+            if (ps.spellTomeLearning.hasOwnProperty(k) && k !== 'studySkillXP') {
                 settings.spellTomeLearning[k] = ps.spellTomeLearning[k];
             }
         }

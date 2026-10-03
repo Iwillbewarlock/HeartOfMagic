@@ -160,6 +160,8 @@ var EditMode = {
         if (editTools) {
             editTools.style.display = 'inline-flex';
         }
+        // The bar got wider: at a bigger size it may wrap differently (treeToolsScale.js)
+        if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.apply();
 
         // Select move tool by default
         this.selectTool('move');
@@ -205,6 +207,7 @@ var EditMode = {
         if (editTools) {
             editTools.style.display = 'none';
         }
+        if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.apply();
 
         // Hide debug grid and rebuild discovery visibility
         if (typeof CanvasRenderer !== 'undefined') {
