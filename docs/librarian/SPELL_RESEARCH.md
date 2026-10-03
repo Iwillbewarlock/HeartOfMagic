@@ -160,6 +160,21 @@
      저장 → 불러오기 뒤에도 등록이 남아 있고, 재Import 직후(맞춤 전) 우리 주문이 목록에서 빠지는지 본다.
      `forms` 배열에 들어갔다면 `Revert()` 가 지우지 못해 마법책 짝이 어긋난다
 
+## 7-1. Spell Research - Prisma UI (Nexus 187900, 0.2.0 확인)
+
+SR 의 메시지 상자와 메뉴를 PrismaUI 창으로 바꾸는 모드. `_SR_QuestScript`, `_SR_EffectComposeSpellScript`,
+`_SR_EffectResearchScript`, `_SR_FurnitureCauldronScript`, `_SRU_Utility`, `_SRU_AnalyzeSpell` 을 덮어쓴다
+(2026-10-03 설치본 소스로 확인).
+
+- **Import 감지는 그대로 된다**: `_SR_ImportMain` 은 덮어쓰지 않아 "All Spells Imported" 는 원래 메시지 상자다
+  (3절 시점 1). 이 상자를 나중에 `SRPrismaUI.ShowNotice` 로 바꾸면 시점 1 이 사라지고 2·3 만 남는다.
+- **실제 조합은 우리 등록을 본다**: 덮어쓴 조합 스크립트도 목록을 Papyrus `HasForm`/`GetAt` 으로 그 자리에서 읽는다.
+- **확인 안 됨 — 조합 창의 미리보기**: 후보 수와 reach 는 DLL 의 `BuildComposeCache` 가 따로 센다(소스 없음). 세이브 쪽
+  등록(`scriptAddedTempForms`)을 읽는지, 언제 다시 만드는지 모른다. 못 읽거나 맞춤 전에 만든 캐시라면 창의 숫자에는
+  우리 주문이 빠지고 실제 결과에는 나온다.
+- 게임 확인(7절 3 에 더해): 우리 주문만 맞는 논문 조합에서 조합 창의 후보 수가 0 이 아닌지, 그 조합으로 실제
+  우리 주문이 나오는지. `SpellResearchPrismaUI.log` 의 `Compose Spell cache: …` 줄이 캐시를 만든 때다.
+
 ## 8. 하지 않는 것
 
 - SR 게임플레이(연구 세션·저널·실험 실패) 재구현, SR 어휘를 사서 태그로 채택(Concept.md).
