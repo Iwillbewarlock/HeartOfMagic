@@ -94,6 +94,8 @@ namespace SpellScanner
 
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell)
     {
+        // The record's equip slot against the game's voice slot (a default object),
+        // not what the player has equipped: the same answer whatever the player does.
         // Asked each time: before the data loads the default object is not set yet
         const auto* defaults = RE::BGSDefaultObjectManager::GetSingleton();
         const auto* voiceSlot = defaults ?

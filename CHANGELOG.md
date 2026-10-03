@@ -13,6 +13,8 @@
 - Tiers by Magicka cost (asked for on Nexus): a new checkbox under Type grouping builds each school's five
   tiers by how much the spells cost, cheapest first, instead of Novice to Master. Spells with no cost stay at
   their level's tier, and a spell's level itself (XP needed, the spell card) does not change. Off by default.
+  The cross-school links follow the same tiers. Scanner presets save both settings (an older preset sets the
+  defaults).
 
 ### Fixed
 
@@ -30,17 +32,20 @@
   and the fix is saved with the tree. A PreReq Master lock on a spell's parent is not taken for that
   mix-up: the spell's other optional links (a bridge) stay optional. Switching a Required link to Optional
   when the spell had no Optional ones now needs that one, instead of needing none.
+- Deleting a spell in edit mode takes it out of every spell that needed it - its children, a PreReq Master
+  lock on it, a cross-school link from it - so none of them waits on a spell that is gone after a reload.
+  A spell whose Optional links need none of them says so on the card instead of "need 0 of 2".
 - One spell is no longer in the tree twice (or three times) when two mods carry it, such as Saints and
   Seducers' Conjure Hunger and ECSS Summonable Creatures' version of it. Records with the same editor ID in
   the same school count as one spell: the tree keeps the one from the earlier plugin in the load order (or
-  the one whose tome can be found), and reading another one's tome counts as reading that spell's tome -
+  the one whose tome can be found), and reading another one's tome counts as reading the tome of the one in your tree -
   same learning target, tome XP and early learning, and the other copy is not added to the spellbook. A
   spell that is in your tree is always taught by its own tome, even when a mod added later carries the same
   spell. Spells
   that only share a name (in some translations different spells do) stay apart. Build the tree again (Scan,
   then build) to take the copies out of it. Copies already in a save's spellbook stay there; the mod does
-  not remove spells. Needs editor IDs (po3's Tweaks); without them nothing is merged. In vanilla mode a tome
-  still teaches the spell it names.
+  not remove spells. Needs editor IDs (po3's Tweaks); without them nothing is merged. In vanilla mode (without
+  ISL/DEST) a tome still teaches the spell it names.
 
 ## Heart of Magic Librarian 1.2.0
 

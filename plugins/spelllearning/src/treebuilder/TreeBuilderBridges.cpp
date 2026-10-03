@@ -44,7 +44,8 @@ namespace
     // one incidental word among many does not.
     constexpr float kMinAffinity = 0.34f;
 
-    // The source is what you learn first: same tier or the one below.
+    // The source is what you learn first: same tier or the one below, in the
+    // tiers the tree was built with (by level, or by Magicka cost).
     constexpr int kMaxTierGap = 1;
 
     constexpr std::size_t kBridgesPerSchoolPair = 12;  // keeps the picture readable
@@ -98,7 +99,8 @@ namespace
     }
 }
 
-json TreeBuilder::ComputeCrossSchoolBridges(const std::vector<json>& spells)
+json TreeBuilder::ComputeCrossSchoolBridges(const std::vector<json>& spells,
+    const std::unordered_map<std::string, int>& tiers)
 {
     const auto modTags = FindModTags(spells);
 
@@ -122,7 +124,9 @@ json TreeBuilder::ComputeCrossSchoolBridges(const std::vector<json>& spells)
         entry.formId = spell.value("formId", std::string(""));
         entry.school = spell.value("school", std::string(""));
         if (entry.formId.empty() || entry.school.empty()) continue;
-        entry.tier = std::max(0, TierIndex(spell.value("skillLevel", std::string(""))));
+        const auto tier = tiers.find(entry.formId);
+        entry.tier = tier != tiers.end() ? tier->second
+                                         : std::max(0, TierIndex(spell.value("skillLevel", std::string(""))));
 
         const auto all = SpellKeywords(spell, modTags);
         for (const auto& keyword : all) {

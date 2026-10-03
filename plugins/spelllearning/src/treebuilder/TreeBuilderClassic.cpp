@@ -67,6 +67,27 @@ namespace
         }
         return tiers;
     }
+
+    // A spell's tier: its cost tier when it has one, else its level's (unknown -> Novice)
+    int TierOf(const json& spell, const std::unordered_map<std::string, int>& costTiers)
+    {
+        const auto cost = costTiers.find(spell.value("formId", std::string("")));
+        return cost != costTiers.end() ? cost->second
+                                       : (std::max)(0, TreeBuilder::TierIndex(spell.value("skillLevel", std::string(""))));
+    }
+}
+
+std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<json>& spells, bool tiersByCost)
+{
+    std::unordered_map<std::string, std::vector<json>> bySchool;
+    for (const auto& spell : spells) bySchool[spell.value("school", std::string(""))].push_back(spell);
+
+    std::unordered_map<std::string, int> tiers;
+    for (const auto& [school, schoolSpells] : bySchool) {
+        const auto costTiers = tiersByCost ? CostTiers(schoolSpells) : std::unordered_map<std::string, int>{};
+        for (const auto& spell : schoolSpells) tiers[spell.value("formId", std::string(""))] = TierOf(spell, costTiers);
+    }
+    return tiers;
 }
 
 // =============================================================================
@@ -249,10 +270,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
         int tierSizes[TIER_COUNT] = {};
         for (const auto& spell : schoolSpellList) {
             const auto fid = spell.value("formId", std::string(""));
-            const auto cost = costTiers.find(fid);
-            const int tierIdx = cost != costTiers.end()
-                ? cost->second
-                : (std::max)(0, TierIndex(spell.value("skillLevel", std::string(""))));
+            const int tierIdx = TierOf(spell, costTiers);
             byTier[TIER_NAMES[tierIdx]].push_back(spell);
             tierOf[fid] = tierIdx;
             ++tierSizes[tierIdx];

@@ -27,8 +27,15 @@ namespace SpellScanner
     // hands out another's - then the earliest of those. The others are marked
     // duplicateOf in the scan (they stay for the librarian and the perk adapters)
     // and the tree leaves them out (isTaughtByTome, proceduralTreeBuilder.js).
-    // Reading one of their tomes reads the kept spell's (SpellTomeHook) - when the
-    // tree in use has the kept spell as a node and not the copy (TreeSpellForTome).
+    // Reading a tome of a group member that is not a node of the tree in use reads
+    // the one member that is (SpellTomeHook, TreeSpellForTome): usually the kept
+    // spell, but a tree built before the copy was marked, or by hand in edit mode,
+    // can hold another member. With no member a node, or two, the tome teaches its
+    // own spell.
+    //
+    // The voice slot check reads the record (its equip slot against the game's
+    // voice slot default object), not what the player has equipped, so the groups
+    // do not change with the player.
 
     namespace
     {
@@ -72,34 +79,46 @@ namespace SpellScanner
         {
             return std::format("0x{:08X} ({})", spell->GetFormID(), GetPluginName(spell->GetFormID()));
         }
+
+        // The groups of two or more, each sorted with the kept record first
+        std::vector<std::vector<RE::SpellItem*>> FindDuplicateGroups(const std::vector<RE::SpellItem*>& spells,
+            const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable)
+        {
+            std::unordered_map<std::string, std::vector<RE::SpellItem*>> groups;
+            for (auto* spell : spells) {
+                std::string key = DuplicateKey(spell, taught);
+                if (!key.empty()) groups[std::move(key)].push_back(spell);
+            }
+
+            const auto positions = LoadPositions();
+            auto positionOf = [&positions](RE::SpellItem* spell) {
+                const auto it = positions.find(spell->GetFile(0));
+                return it != positions.end() ? it->second : kUnknownLoadPosition;
+            };
+
+            std::vector<std::vector<RE::SpellItem*>> found;
+            for (auto& [key, members] : groups) {
+                if (members.size() < 2) continue;
+                std::ranges::sort(members, [&](RE::SpellItem* a, RE::SpellItem* b) {
+                    const auto pa = positionOf(a), pb = positionOf(b);
+                    return pa != pb ? pa < pb : a->GetFormID() < b->GetFormID();
+                });
+                const auto reachable = std::ranges::find_if(members,
+                    [&](RE::SpellItem* s) { return !unreachable.contains(s->GetFormID()); });
+                if (reachable != members.end()) std::rotate(members.begin(), reachable, reachable + 1);
+                found.push_back(std::move(members));
+            }
+            return found;
+        }
     }
 
     std::unordered_map<RE::FormID, RE::FormID> FindDuplicateSpells(const std::vector<RE::SpellItem*>& spells,
         const std::unordered_set<RE::FormID>& taught, const std::unordered_set<RE::FormID>& unreachable)
     {
-        std::unordered_map<std::string, std::vector<RE::SpellItem*>> groups;
-        for (auto* spell : spells) {
-            std::string key = DuplicateKey(spell, taught);
-            if (!key.empty()) groups[std::move(key)].push_back(spell);
-        }
-
-        const auto positions = LoadPositions();
-        auto positionOf = [&positions](RE::SpellItem* spell) {
-            const auto it = positions.find(spell->GetFile(0));
-            return it != positions.end() ? it->second : kUnknownLoadPosition;
-        };
-
         std::unordered_map<RE::FormID, RE::FormID> duplicateOf;
         std::size_t merged = 0;
-        for (auto& [key, members] : groups) {
-            if (members.size() < 2) continue;
-            std::ranges::sort(members, [&](RE::SpellItem* a, RE::SpellItem* b) {
-                const auto pa = positionOf(a), pb = positionOf(b);
-                return pa != pb ? pa < pb : a->GetFormID() < b->GetFormID();
-            });
-            const auto reachable = std::ranges::find_if(members,
-                [&](RE::SpellItem* s) { return !unreachable.contains(s->GetFormID()); });
-            RE::SpellItem* kept = reachable != members.end() ? *reachable : members.front();
+        for (const auto& members : FindDuplicateGroups(spells, taught, unreachable)) {
+            RE::SpellItem* kept = members.front();
 
             std::string dropped;
             for (auto* spell : members) {
@@ -110,7 +129,8 @@ namespace SpellScanner
             }
             ++merged;
             logger::debug("SpellScanner: duplicate '{}' ({}): kept {}, merged {}",
-                EncodingUtils::SanitizeToUTF8(kept->GetFullName()), key, Describe(kept), dropped);
+                EncodingUtils::SanitizeToUTF8(kept->GetFullName()),
+                EncodingUtils::SanitizeToUTF8(kept->GetFormEditorID()), Describe(kept), dropped);
         }
         logger::info("SpellScanner: {} duplicate spells merged into {}", duplicateOf.size(), merged);
         return duplicateOf;
@@ -134,7 +154,8 @@ namespace SpellScanner
         // is done; until then (or when it failed, as the scan sees it too) without
         // tomeUnreachable, and built again on the next call that finds the pass done
         std::mutex g_duplicateLock;
-        std::unordered_map<RE::FormID, RE::FormID> g_duplicateOf;
+        std::vector<std::vector<RE::FormID>> g_groups;               // each group's members
+        std::unordered_map<RE::FormID, std::size_t> g_groupOf;      // member -> index in g_groups
         bool g_duplicatesBuilt = false;
         bool g_duplicatesSettled = false;
 
@@ -149,7 +170,16 @@ namespace SpellScanner
             if (!dh) return;
             const auto& all = dh->GetFormArray<RE::SpellItem>();
             const std::vector<RE::SpellItem*> spells(all.begin(), all.end());
-            g_duplicateOf = FindDuplicateSpells(spells, SpellsTaughtByTomes(), unreachable);
+            g_groups.clear();
+            g_groupOf.clear();
+            for (const auto& members : FindDuplicateGroups(spells, SpellsTaughtByTomes(), unreachable)) {
+                std::vector<RE::FormID> ids;
+                for (auto* member : members) {
+                    g_groupOf[member->GetFormID()] = g_groups.size();
+                    ids.push_back(member->GetFormID());
+                }
+                g_groups.push_back(std::move(ids));
+            }
             g_duplicatesBuilt = true;
             g_duplicatesSettled = ready;
         }
@@ -166,20 +196,27 @@ namespace SpellScanner
         // The tree in use decides, not the load order alone: the groups come from
         // the spells loaded now, and a plugin added after the tree was built can
         // name a record the tree does not hold. A tree node's tome teaches that
-        // node; a copy's tome reads as the kept spell's only when that one is a node.
+        // node; another member's tome reads as the node's when exactly one member
+        // is a node (the kept one, or the copy an older tree holds).
         auto* pm = ProgressionManager::GetSingleton();
         if (!spell || !pm || pm->IsTreeSpell(spell->GetFormID())) return spell;
 
-        RE::FormID keptId = 0;
+        std::vector<RE::FormID> members;  // copied out: IsTreeSpell is not asked under the lock
         {
             std::lock_guard guard(g_duplicateLock);
             BuildDuplicateGroups();
-            const auto it = g_duplicateOf.find(spell->GetFormID());
-            if (it == g_duplicateOf.end()) return spell;
-            keptId = it->second;
+            const auto it = g_groupOf.find(spell->GetFormID());
+            if (it == g_groupOf.end()) return spell;
+            members = g_groups[it->second];
         }
-        if (!pm->IsTreeSpell(keptId)) return spell;
-        auto* kept = RE::TESForm::LookupByID<RE::SpellItem>(keptId);
-        return kept ? kept : spell;
+        RE::FormID nodeId = 0;
+        for (const RE::FormID member : members) {
+            if (!pm->IsTreeSpell(member)) continue;
+            if (nodeId != 0) return spell;  // two members are nodes: each tome teaches its own
+            nodeId = member;
+        }
+        if (nodeId == 0) return spell;
+        auto* node = RE::TESForm::LookupByID<RE::SpellItem>(nodeId);
+        return node ? node : spell;
     }
 }

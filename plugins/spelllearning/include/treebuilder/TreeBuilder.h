@@ -123,8 +123,17 @@ namespace TreeBuilder
     // Links between schools: spells of different schools that share a telling
     // keyword. Returned as data for the layout to add as an extra way in, never
     // written into the trees, so every school still stands on its own.
+    // `tiers` is each spell's tree tier (SpellTiers), so a bridge's source is never
+    // in a later tier than its target in the tree that is built; a spell missing
+    // from it uses its level's tier.
     // Returns { bridges: [...], schoolLinks: [{a, b, kin}] }.
-    json ComputeCrossSchoolBridges(const std::vector<json>& spells);
+    json ComputeCrossSchoolBridges(const std::vector<json>& spells,
+        const std::unordered_map<std::string, int>& tiers);
+
+    // formId -> the tier the Classic builder puts each spell in: its level's
+    // (unknown -> Novice), or with tiersByCost its Magicka cost rank within its
+    // school (spells without a cost keep their level's). TreeBuilderClassic.cpp.
+    std::unordered_map<std::string, int> SpellTiers(const std::vector<json>& spells, bool tiersByCost);
 
     // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
     std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);

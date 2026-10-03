@@ -157,9 +157,10 @@ namespace SpellScanner
     // dropped one's entry marked "duplicateOf" - the tome scan's marks.
     void MarkDuplicateSpells(json& spellArray, const std::vector<RE::SpellItem*>& spells);
 
-    // The spell a tome of `spell` teaches through the tree: the kept record when
-    // `spell` is a duplicate that is not a node of the tree in use and the kept
-    // one is (ProgressionManager::IsTreeSpell), else `spell` itself. Game thread
+    // The spell a tome of `spell` teaches through the tree: when `spell` is in a
+    // duplicate group and is not a node of the tree in use, the one member that is
+    // (ProgressionManager::IsTreeSpell; the kept record, or a copy an older tree
+    // holds), else `spell` itself (no member a node, or two). Game thread
     // (the tree's node set has no lock). A tree node costs one set lookup; the
     // groups are worked out by PrepareTreeSpellForTome, or on the first call
     // that needs them if a tome is read before that ran.

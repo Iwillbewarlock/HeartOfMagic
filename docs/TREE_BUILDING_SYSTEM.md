@@ -207,7 +207,8 @@ with a Magicka cost above 0 (`magickaCost`, a number or a numeric string in the 
 the same five tiers by rank (`CostTiers` in `TreeBuilderClassic.cpp`): a group of equal costs goes to the tier
 its first spell's rank falls in (`floor(5 × rank / count)`), so equal costs never split and the tiers come out
 about the same size. Ranks, not the numbers: mods put costs ten times the game's. Spells without a cost keep
-their level's tier. The tier pass, `PickRoot` (a vanilla spell from the cheapest tier) and the orphan pass all
+their level's tier. The tier pass, `PickRoot` (a vanilla spell from the cheapest tier), the orphan pass and the
+cross-school bridges (`TreeBuilder::SpellTiers`, the same tiers handed to `ComputeCrossSchoolBridges`) all
 read this tier; the node's `skillLevel` stays the spell's level, so XP, the spell card and every
 `getTierIndex`-style lookup (level first) are unchanged - only `tier` (depth + 1) follows cost. The output
 says `config.tier_mode`: `"cost"` or `"level"`; the layout reads it (*Radial order*, below). The log has one
@@ -563,13 +564,13 @@ Rules, all mechanical:
 | An id word counts only when spells of **two plugins** use it | A word one plugin uses is the author's shorthand (`styy`, `dcd`); being rare it outweighed everything and bridged a mod to itself |
 | An id word that repeats a trait of the same spell is dropped (`word.frost` next to `element.frost`) | One fact, counted once |
 | Weighted Jaccard over IDF weights (whole load order) ≥ `kMinAffinity` 0.34 | |
-| `from` is the same tier or one below (`kMaxTierGap`) | You learn the source first |
+| `from` is the same tier or one below (`kMaxTierGap`), in the tiers the tree is built with (`SpellTiers`: by level, or by Magicka cost rank with `tiersByCost`) | You learn the source first; with the level's tier in a cost tree a bridge could point back up the tree |
 | Per target, the closest source of each other school | |
 | Per school pair: most **evidence** (summed weight of what is shared) first, at most 12, at most 3 with the identical shared set, a source used at most twice | A one-keyword spell is a "perfect" match for anything; one mod's family of detect spells took every slot |
 | Two spells of one tier that pick each other become one record, `twoWay` | |
 
 Measured on the 1440-spell test load order: 180 bridges (44 two-way) touching 245 spells (identical for
-all five builders of the time: bridges read the spells, not the tree). Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
+all five builders of the time: bridges read the spells and their tiers, not the tree's links). Pairs: Conjuration-Destruction, Alteration-Conjuration, Destruction-Restoration and
 Conjuration-Restoration are full (24), Illusion-Restoration has 6.
 
 **`schoolLinks`** (`[{a, b, kin}]`, next to `bridges`) counts, per pair of schools, every spell that found

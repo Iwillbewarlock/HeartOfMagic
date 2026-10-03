@@ -6,6 +6,7 @@
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
+#include "SpellTomeHook.h"
 
 // =============================================================================
 // LEARNING TARGETS
@@ -211,6 +212,9 @@ void ProgressionManager::ClearAllTreePrerequisites()
     m_prereqRequirements.clear();
     m_requiredBy.clear();
     m_treeSpells.clear();
+    // Which spell a copy's tome counts for follows the tree (TreeSpellForTome):
+    // a tome-in-inventory answer from the old tree must not stay
+    if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
     logger::info("ProgressionManager: Cleared all tree prerequisites");
 }
 

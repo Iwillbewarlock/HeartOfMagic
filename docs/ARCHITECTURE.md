@@ -145,7 +145,8 @@ records with their plugins).
 - **Editor ids:** the engine keeps no editor id for spells; they come from po3's Tweaks (the scan dump has
   them). Without it no spell has one and nothing merges.
 - **The copy's tome:** reading it reads the kept spell's tome (`SpellTomeHook::OnSpellTomeReadImpl` through
-  `TreeSpellForTome`) when the tree in use has the kept spell as a node and not the copy: the same prerequisite and skill checks, learning target, tome XP (granted once per
+  `TreeSpellForTome`) when the tree in use has the kept spell as a node and not the copy (in general: the
+  member that is a node, below): the same prerequisite and skill checks, learning target, tome XP (granted once per
   kept spell) and early learning for the kept spell, and ISL is handed the kept spell, so the copy never goes
   into the spellbook through the mod. The copy's tome in the inventory counts for the kept spell's inventory
   boost (`PlayerHasSpellTome`). In vanilla mode (the tome hook off, or the progression system off, with no
@@ -153,8 +154,10 @@ records with their plugins).
 - **The tree in use decides:** the groups come from the spells loaded now, so a plugin added after the tree
   was built can name a record the tree does not hold. `TreeSpellForTome` asks the tree first
   (`ProgressionManager::IsTreeSpell`: every node the panel sent with `SetTreePrerequisites`, roots too,
-  cleared with the tree): a node's own tome always teaches that node, and a copy's tome reads as the kept
-  spell's only when that one is a node. Until the panel sends a tree no spell is a node, so every tome reads
+  cleared with the tree): a node's own tome always teaches that node, and another group member's tome reads
+  as the tome of the one member that is a node - the kept spell, or the copy a tree built before the marks
+  (or edited by hand) holds. With no member a node, or two, the tome teaches its own spell. The groups do not
+  depend on the player: the voice slot check reads the record's equip slot, not what is equipped. Until the panel sends a tree no spell is a node, so every tome reads
   as itself. Game thread (the node set has no lock, like the rest of ProgressionManager).
 - **When the groups are worked out:** `PrepareTreeSpellForTome`, on the game thread once the tome reach pass
   is done (Main.cpp: a thread waits with `TomeReach::WaitUntilDone`, then queues it), so a cast's tome
@@ -1061,7 +1064,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 **Synchronization primitives:**
 - `SpellEffectivenessHook` — `std::shared_mutex` (reader-writer) for hot-path spell data
-- `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink only touches the counter)
+- `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink and a tree load or clear only touch the counter)
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
 - `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)

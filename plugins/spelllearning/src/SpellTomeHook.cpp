@@ -85,9 +85,10 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     }
 
     // Another plugin's copy of a tree spell (SpellScannerDuplicates.cpp) stays
-    // out of the tree: its tome reads as the kept spell's tome, so the player
-    // learns that one and never the copy - only when the tree in use has the kept
-    // spell and not the copy (a tree node's own tome always teaches that node).
+    // out of the tree: its tome reads as the tome of the group member that is a
+    // tree node (the kept spell, or the copy an older tree holds), so the player
+    // learns that one and never the copy - only when exactly one member is a node
+    // (a tree node's own tome always teaches that node).
     // Vanilla mode teaches what the tome names.
     const bool vanillaMode = !hook->m_settings.enabled || !hook->m_settings.useProgressionSystem;
     if (!voiceSlot && (DESTIntegration::IsActive() || !vanillaMode)) {

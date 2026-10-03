@@ -3,6 +3,7 @@
 #include "uimanager/UIManager.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
+#include "SpellTomeHook.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -548,6 +549,9 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 count++;
             }
 
+            // The new tree's nodes decide which spell a copy's tome counts for
+            // (TreeSpellForTome): answers cached before they arrived start over
+            if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
             logger::info("UIManager: Set tree prerequisites for {} spells", count);
 
         } catch (const std::exception& e) {

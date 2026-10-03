@@ -62,9 +62,11 @@ public:
 
     // Tome inventory cache (SpellTomeHookInventory.cpp). The answer to "does the
     // player carry a tome for this spell" is kept per spell until the player's
-    // inventory changes. RegisterInventoryEvents listens for container changes
-    // (call once at kDataLoaded, game thread); InvalidateTomeInventoryCache is
-    // also called on revert and load, and is safe from any thread.
+    // inventory changes or the tree does. RegisterInventoryEvents listens for
+    // container changes (call once at kDataLoaded, game thread);
+    // InvalidateTomeInventoryCache is also called on revert and load, and when
+    // the tree's nodes are cleared or set (a copy's tome counts for the spell
+    // that is a node, SpellScanner::TreeSpellForTome); safe from any thread.
     void RegisterInventoryEvents();
     void InvalidateTomeInventoryCache();
     
