@@ -19,6 +19,7 @@ add_executable(${PROJECT_NAME}
     ${SL_SRC_DIR}/treebuilder/TreeBuilderReachability.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderSimilarity.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderClassic.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderTypeGrouping.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp
     ${SL_SRC_DIR}/treebuilder/SimdKernels.cpp

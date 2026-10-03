@@ -93,6 +93,9 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     bc.density = config.value("density", 0.6f);
     bc.symmetry = config.value("symmetry", 0.3f);
     bc.commonThemeShare = config.value("common_theme_share", bc.commonThemeShare);
+    if (config.contains("type_grouping") && config["type_grouping"].is_number()) {
+        bc.typeGrouping = std::clamp(config["type_grouping"].get<float>(), 0.0f, BuildConfig::kMaxTypeGrouping);
+    }
 
     // Selected roots
     if (config.contains("selected_roots") && config["selected_roots"].is_object()) {

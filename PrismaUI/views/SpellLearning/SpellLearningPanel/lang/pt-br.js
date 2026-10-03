@@ -539,6 +539,8 @@ window._i18nPreload = {
     "design.arcane.desc": "Um grimório aberto: página de pergaminho, linhas de tinta, títulos de capítulo e a árvore que se espalha como tinta ao abrir.",
     "design.classic.desc": "A aparência original: simples e a mais leve de desenhar.",
     "design.modern.desc": "A árvore original na interface escura moderna, com gradientes e brilho.",
+    "preview.classic.typeGrouping": "Agrupar por tipo",
+    "preview.classic.typeGroupingHint": "Quanto feitiços de um tipo (armas conjuradas, runas) e de um elemento (fogo, gelo, choque) ficam no mesmo galho. 0 = como na 1.2.0. Vale a partir da próxima geração.",
     "settings.ui.title": "Exibição da UI",
     "settingsPanel.pressAKey": "Pressione uma tecla...",
     "settingsPresets.overwriteConfirm": "Um preset chamado \"{{name}}\" já existe. Sobrescrever?",

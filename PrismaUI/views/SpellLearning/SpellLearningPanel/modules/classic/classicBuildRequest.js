@@ -3,7 +3,7 @@
  *
  * Puts together the ProceduralTreeGenerate request for a Classic build (the
  * scan filters, the grid hint from TreePreview, the selected roots and the
- * builder's fixed config) and sends it a frame later, so the progress modal
+ * builder's config, with the player's options from TreeBuilderSetting) and sends it a frame later, so the progress modal
  * shows before JSON.stringify blocks. TreeGrowthClassic.buildTree() starts the
  * modal, the pending flag and the Build buttons first; a throw here means no
  * request and so no reply, and send() lets go of all three itself.
@@ -91,6 +91,7 @@ var ClassicBuildRequest = {
             for (var ck in this.BUILDER_CONFIG) {
                 if (this.BUILDER_CONFIG.hasOwnProperty(ck)) config[ck] = this.BUILDER_CONFIG[ck];
             }
+            if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.applyTo(config);
             config.grid_hint = gridHint;
             config.selected_roots = typeof TreePreview !== 'undefined' ? TreePreview._flattenSelectedRoots() : {};
         } catch (e) {

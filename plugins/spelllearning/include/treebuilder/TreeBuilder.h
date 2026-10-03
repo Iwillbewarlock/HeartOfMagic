@@ -193,6 +193,13 @@ namespace TreeBuilder
         // 41%), so SharesTheme ignores it there. 0 = off, the behaviour before
         // 2026-09-23. Request config key "common_theme_share".
         float commonThemeShare = 0.4f;
+        // How strongly a parent of the same kind and element is preferred
+        // (Internal::TypeGrouping, the panel's "Type grouping" setting): 0 = the
+        // 1.2.0 scoring, kDefaultTypeGrouping the default, up to kMaxTypeGrouping.
+        // Request config key "type_grouping".
+        static constexpr float kDefaultTypeGrouping = 1.0f;
+        static constexpr float kMaxTypeGrouping = 2.0f;
+        float typeGrouping = kDefaultTypeGrouping;
 
         // Per-school root overrides: school → formId
         std::unordered_map<std::string, std::string> selectedRoots;

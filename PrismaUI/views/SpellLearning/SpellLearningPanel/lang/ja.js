@@ -539,6 +539,8 @@ window._i18nPreload = {
     "design.arcane.desc": "開いた魔法書：羊皮紙のページ、インクの線、章題、そして開くとインクのように広がるツリー。",
     "design.classic.desc": "元の見た目：シンプルで描画が最も軽い。",
     "design.modern.desc": "元のツリーに、グラデーションと光彩のあるモダンなダークUI。",
+    "preview.classic.typeGrouping": "種類でまとめる",
+    "preview.classic.typeGroupingHint": "同じ種類(召喚武器、ルーン)・同じ属性(炎、冷気、雷)の呪文を一つの枝にまとめる強さ。0 = 1.2.0 と同じ。次の生成から適用。",
     "settings.ui.title": "UI表示",
     "settingsPanel.pressAKey": "キーを押してください...",
     "settingsPresets.overwriteConfirm": "「{{name}}」という名前のプリセットが既に存在します。上書きしますか？",

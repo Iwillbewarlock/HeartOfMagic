@@ -561,6 +561,8 @@
     "design.arcane.desc": "Un grimoire ouvert : page de parchemin, traits d'encre, titres de chapitre, et l'arbre qui se répand comme de l'encre à l'ouverture.",
     "design.classic.desc": "L'apparence d'origine : sobre et la plus légère à dessiner.",
     "design.modern.desc": "L'arbre d'origine sur l'interface sombre moderne, avec dégradés et halos.",
+    "preview.classic.typeGrouping": "Regroupement par type",
+    "preview.classic.typeGroupingHint": "À quel point les sorts d'un même type (armes invoquées, runes) et d'un même élément (feu, givre, foudre) restent sur une branche. 0 = comme en 1.2.0. Appliqué à la prochaine génération.",
     "settings.ui.title": "Affichage de l'interface",
 
     "settingsPanel.pressAKey": "Appuyez sur une touche...",

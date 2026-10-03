@@ -2,6 +2,15 @@
 
 ## Heart of Magic Librarian 1.2.1 (unreleased)
 
+### New
+
+- Tighter grouping by type when the tree is built (asked for on Nexus). Spells of one kind - bound weapons,
+  runes, cloaks - now look for a parent of the same kind, rarer kinds and elements weigh more than common
+  ones, and a spell made of one element is kept off a branch of another (fire, frost and shock stay apart).
+  On a 3,500-spell load order three in four bound weapons now hang off another bound weapon (up from under
+  three in five). The strength is a new setting, **Type grouping** in the Classic Growth Settings on the
+  scan page (0 to 2, default 1); 0 builds the tree exactly as 1.2.0 did. Build the tree again to see it.
+
 ### Fixed
 
 - Settings > Font Size goes up to 2.0x (it stopped at 1.5x), and it now also enlarges the spell names on

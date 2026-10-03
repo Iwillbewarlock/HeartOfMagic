@@ -561,6 +561,8 @@
     "design.arcane.desc": "Un grimorio abierto: página de pergamino, líneas de tinta, títulos de capítulo y el árbol que se extiende como tinta al abrirlo.",
     "design.classic.desc": "El aspecto original: sencillo y el más ligero de dibujar.",
     "design.modern.desc": "El árbol original sobre la interfaz oscura moderna, con degradados y brillo.",
+    "preview.classic.typeGrouping": "Agrupar por tipo",
+    "preview.classic.typeGroupingHint": "Cuánto se mantienen en una rama los hechizos de un tipo (armas invocadas, runas) y de un elemento (fuego, escarcha, rayo). 0 = como en 1.2.0. Se aplica en la próxima generación.",
     "settings.ui.title": "Pantalla de UI",
 
     "settingsPanel.pressAKey": "Presiona una tecla...",

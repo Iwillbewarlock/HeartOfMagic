@@ -105,6 +105,7 @@ var settings = {
     fontSizeMultiplier: 1.0,    // Global font size multiplier (0.5 - 2.0)
     // Tree generation settings
     aggressivePathValidation: true,   // Strict reachability check (safe but simple trees)
+    treeTypeGrouping: 1,        // Classic builder: how strongly one kind / element stays on a branch, 0..2 (treeBuilderSetting.js)
     // Progression settings
     learningMode: 'perSchool',  // 'perSchool' or 'single'
     autoAdvanceLearning: true,  // Auto-select next spell when one is mastered

@@ -1099,6 +1099,14 @@ Full control over tree generation.
 └──────────────────────────────────────────────┘
 ```
 
+**Builder options** (2026-10-04, `modules/classic/treeBuilderSetting.js`): the Classic Growth Settings, under
+the slider grid, have **Type grouping** (0 to 2, steps of 0.1, default 1) - how strongly spells of one kind
+(bound weapons, runes) and one element (fire, frost, shock) stay on one branch; 0 builds as 1.2.0 did. A
+one-line hint sits under it. It is a drag input like the sliders above it (`TreePreviewUtils.settingHTML`),
+saved with the other settings in UnifiedConfig (`treeTypeGrouping`), reset by Reset to Defaults, and sent
+with the next build (`ClassicBuildRequest`, `type_grouping`); a tree already built does not change. See
+TREE_BUILDING_SYSTEM.md, *Type grouping*.
+
 ### Extra Settings Tabs
 
 Only visible after a spell scan.
@@ -1342,6 +1350,7 @@ Visual-First builds that used them.
 | `classic/classicLayout.js` | Classic layout engine |
 | `classic/classicRadialOrder.js` | After the layout: nearby spells trade places so higher tier, then dearer Magicka, sits farther out (see TREE_BUILDING_SYSTEM.md, *Radial order*) |
 | `classic/classicSettings.js` | Classic mode settings |
+| `classic/treeBuilderSetting.js` | The builder options the player sets (Type grouping): controls, saved values, what a build request sends |
 | `classic/classicThemeEngine.js` | Classic theme engine |
 
 ### UI Panels & Features

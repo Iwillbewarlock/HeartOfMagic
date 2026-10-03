@@ -41,21 +41,31 @@ namespace TreeBuilder::Internal
     // spells are the tree's frame rather than one author's set)
     bool SharesModPlugin(const TreeNode& a, const TreeNode& b);
 
-    // Both spells made of the same thing (both blood, both water): an element.*
-    // trait in common - the elements the tag librarian hands on. Classic gives
-    // a parent like that a bonus on its own scale.
-    inline bool SharesElement(const TreeNode& a, const TreeNode& b)
+    // Classic's parent score for kind and element (TreeBuilderTypeGrouping.cpp):
+    // a shared element.* trait (the elements the tag librarian hands on) and a
+    // shared kind.* trait, each weighed by how rare it is in the school, and a
+    // penalty for two spells made of different things. Built once per school;
+    // strength is BuildConfig::typeGrouping, 0 = the flat 1.2.0 element bonus.
+    class TypeGrouping
     {
-        const auto at = a.spellData.find("traits");
-        const auto bt = b.spellData.find("traits");
-        if (at == a.spellData.end() || bt == b.spellData.end() || !at->is_array() || !bt->is_array()) return false;
-        for (const auto& x : *at) {
-            if (!x.is_string() || !x.get_ref<const std::string&>().starts_with("element.")) continue;
-            for (const auto& y : *bt) {
-                if (y == x) return true;
-            }
-        }
-        return false;
-    }
+    public:
+        TypeGrouping(const std::unordered_map<std::string, TreeNode>& nodes, float strength);
+
+        // What `parent` adds to its score as `child`'s parent
+        float Score(const TreeNode& child, const TreeNode& parent) const;
+
+    private:
+        struct Types {
+            std::vector<std::string> elements;
+            std::vector<std::string> kinds;
+        };
+
+        // Rarity of the rarest trait the two lists share, -1 when they share none
+        float BestSharedRarity(const std::vector<std::string>& a, const std::vector<std::string>& b) const;
+
+        float m_strength;
+        std::unordered_map<std::string, Types> m_types;   // formId -> its element and kind traits
+        std::unordered_map<std::string, float> m_rarity;  // trait -> 0 (every spell) .. 1 (rare)
+    };
 
 }  // namespace TreeBuilder::Internal

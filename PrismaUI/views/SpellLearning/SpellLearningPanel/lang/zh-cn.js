@@ -539,6 +539,8 @@ window._i18nPreload = {
     "design.arcane.desc": "展开的魔法书：羊皮纸页面、墨线、章节标题，打开时法术树如墨水般晕染开来。",
     "design.classic.desc": "原始外观：朴素，绘制开销最低。",
     "design.modern.desc": "原始法术树，搭配带渐变和光效的现代暗色界面。",
+    "preview.classic.typeGrouping": "按类型归组",
+    "preview.classic.typeGroupingHint": "同一类型(召唤武器、符文)和同一元素(火、冰、电)的法术聚在同一分支的强度。0 = 与 1.2.0 相同。下次生成时生效。",
     "settings.ui.title": "UI显示",
     "settingsPanel.pressAKey": "请按一个键...",
     "settingsPresets.overwriteConfirm": "名为\"{{name}}\"的预设已存在。是否覆盖？",

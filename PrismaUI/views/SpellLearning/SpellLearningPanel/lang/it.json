@@ -561,6 +561,8 @@
     "design.arcane.desc": "Un grimorio aperto: pagina di pergamena, linee d'inchiostro, titoli dei capitoli e l'albero che si espande come inchiostro all'apertura.",
     "design.classic.desc": "L'aspetto originale: semplice e il più leggero da disegnare.",
     "design.modern.desc": "L'albero originale sull'interfaccia scura moderna, con sfumature e bagliori.",
+    "preview.classic.typeGrouping": "Raggruppamento per tipo",
+    "preview.classic.typeGroupingHint": "Quanto gli incantesimi di un tipo (armi evocate, rune) e di un elemento (fuoco, gelo, folgore) restano su un ramo. 0 = come in 1.2.0. Vale dalla prossima generazione.",
     "settings.ui.title": "Visualizzazione UI",
 
     "settingsPanel.pressAKey": "Premi un tasto...",

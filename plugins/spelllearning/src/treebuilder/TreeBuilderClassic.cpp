@@ -8,14 +8,8 @@ using namespace TreeBuilder::Internal;
 
 namespace
 {
-    // A parent made of the same thing (both blood, both water) - the element
-    // traits the tag librarian hands on. A little more than a theme match: enough to
-    // pull a mod's blood spells onto one branch, not enough to outweigh an
-    // effect that is plainly the same spell a tier up.
-    // Measured on the 1,428-spell test load order (classic, seeds 1-3): same
-    // element clusters 333 -> 247 at 30, barely fewer above it (241 at 60),
-    // theme-sharing edges and tier gaps unchanged.
-    constexpr float kSharedElementBonus = 30.0f;
+    // The element and kind scores (same element, same kind, different
+    // elements) are in TreeBuilderTypeGrouping.cpp (TypeGrouping).
 
     // A parent from the same mod: one author's spells were made as a set and
     // read best side by side, so they are drawn together on a branch. Below
@@ -34,6 +28,7 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
     int tierIdx,
     int maxChildren,
     const TreeBuilder::SimilarityMatrix& sims,
+    const TypeGrouping& grouping,
     std::mt19937& rng)
 {
     // Collect candidates from lower tiers
@@ -107,7 +102,7 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
             }
         }
 
-        if (SharesElement(node, *candidate)) score += kSharedElementBonus;
+        score += grouping.Score(node, *candidate);
         if (SharesModPlugin(node, *candidate)) score += kSameModBonus;
 
         // Combined NLP similarity
@@ -226,6 +221,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
             }
         }
         DropCommonThemes(nodes, config.commonThemeShare);
+        const TypeGrouping grouping(nodes, config.typeGrouping);
 
         // Build tree tier-by-tier
         std::unordered_set<std::string> connected;
@@ -254,7 +250,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 if (nodeIt == nodes.end()) continue;
 
                 auto* parent = FindBestClassicParent(
-                    nodeIt->second, available, tierIdx, maxChildren, sims, rng);
+                    nodeIt->second, available, tierIdx, maxChildren, sims, grouping, rng);
 
                 if (parent) {
                     LinkNodes(*parent, nodeIt->second);
@@ -314,7 +310,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 if (SharesTheme(orphanNode, cnode)) {
                     score += 15.0f;
                 }
-                if (SharesElement(orphanNode, cnode)) score += kSharedElementBonus;
+                score += grouping.Score(orphanNode, cnode);
                 if (SharesModPlugin(orphanNode, cnode)) score += kSameModBonus;
 
                 score -= static_cast<float>(cnode.children.size()) * 8.0f;
@@ -360,7 +356,8 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
     treeData["config"] = {
         {"shape", "tier_first"},
         {"density", config.density},
-        {"symmetry", config.symmetry}
+        {"symmetry", config.symmetry},
+        {"type_grouping", config.typeGrouping}
     };
 
     // Validate and auto-fix

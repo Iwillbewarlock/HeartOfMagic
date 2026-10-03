@@ -539,6 +539,8 @@ window._i18nPreload = {
     "design.arcane.desc": "Otwarta księga zaklęć: pergaminowa strona, linie atramentu, tytuły rozdziałów, a drzewo rozlewa się jak atrament po otwarciu.",
     "design.classic.desc": "Pierwotny wygląd: prosty i najlżejszy do rysowania.",
     "design.modern.desc": "Pierwotne drzewo na nowoczesnym ciemnym interfejsie z gradientami i poświatą.",
+    "preview.classic.typeGrouping": "Grupowanie wg typu",
+    "preview.classic.typeGroupingHint": "Jak mocno zaklęcia jednego rodzaju (przywołana broń, runy) i jednego żywiołu (ogień, mróz, błyskawica) trzymają się jednej gałęzi. 0 = jak w 1.2.0. Działa od następnego budowania.",
     "settings.ui.title": "Wygląd interfejsu",
     "settingsPanel.pressAKey": "Naciśnij klawisz...",
     "settingsPresets.overwriteConfirm": "Szablon o nazwie «{{name}}» już istnieje. Nadpisać?",

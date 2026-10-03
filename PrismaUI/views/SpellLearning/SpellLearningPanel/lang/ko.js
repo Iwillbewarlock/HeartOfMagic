@@ -541,6 +541,8 @@ window._i18nPreload = {
     "design.arcane.desc": "펼친 마법서: 양피지 지면, 잉크 선, 장 제목, 그리고 열 때 잉크처럼 번지며 드러나는 트리.",
     "design.classic.desc": "원래 모습: 단순하고 가장 가볍게 그려집니다.",
     "design.modern.desc": "원래 트리에 그라데이션과 빛 효과가 있는 모던 다크 UI.",
+    "preview.classic.typeGrouping": "유형별 묶기",
+    "preview.classic.typeGroupingHint": "같은 종류(소환 무기, 룬)와 같은 원소(화염, 냉기, 전격)의 주문을 한 가지에 모으는 정도. 0 = 1.2.0과 같음. 다음 생성부터 적용.",
     "settings.ui.title": "UI 표시",
     "settingsPanel.pressAKey": "키를 누르세요...",
     "settingsPresets.overwriteConfirm": "\"{{name}}\" 이름의 프리셋이 이미 존재합니다. 덮어쓰시겠습니까?",

@@ -12,7 +12,7 @@
  *   ClassicSettings.setTreeBuilt(built);
  *   ClassicSettings.setStatusText(text, tone, key, params);   // tone: TreeGrowth.STATUS_COLORS key
  *
- * Depends on: treePreviewUtils.js (settingHTML, bindInput)
+ * Depends on: treePreviewUtils.js (settingHTML, bindInput), treeBuilderSetting.js (optional)
  */
 
 var ClassicSettings = {
@@ -94,6 +94,9 @@ var ClassicSettings = {
                 H(t('preview.classic.radialBias'), 'tgClassicRadialBias', 0, 100, 5, radialBias) +
                 H(t('preview.classic.globeMask'), 'tgClassicCenterMask', 0, 10, 1, centerMask, ' tiers') +
             '</div>' +
+
+            // --- Builder options the player sets (treeBuilderSetting.js), applied at the next build ---
+            (typeof TreeBuilderSetting !== 'undefined' ? TreeBuilderSetting.html() : '') +
 
             // --- Dynamic Grid Expansion toggle ---
             '<div style="display:flex; align-items:center; gap:8px; margin:4px 4px 6px; font-size:10px;">' +
@@ -244,6 +247,8 @@ var ClassicSettings = {
                 onChanged('dynamicGridExpansion', this.checked);
             });
         }
+
+        if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.bind();
 
         // Tier zone drag
         this._bindTierZoneDrag(cb);

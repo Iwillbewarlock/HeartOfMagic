@@ -142,7 +142,9 @@ numbers still hold (Classic's output did not change with the removal).
 | Effect similarity | +0 to +40 | Effect-name affinity × 40, the strongest signal |
 | Theme match | +15 (+25 when effect similarity > 0.5) | `SharesTheme` |
 | Theme mismatch | -10 | Both have themes, none shared |
-| Shared element | +30 | Both carry the same `element.*` trait (the tag librarian's elements; since 2026-09-27) |
+| Shared element | +30 to +30 × (1 + 0.5 × g) | Both carry the same `element.*` trait (the tag librarian's elements; since 2026-09-27). Raised by the element's rarity in the school since 2026-10-04 (*Type grouping* below) |
+| Shared kind | +0 to +30 × g | Both carry the same `kind.*` trait (`kind.bound`, `kind.rune` ...), weighed by its rarity in the school; not counted when the two are made of different elements (2026-10-04) |
+| Different elements | -15 × g | Both carry elements and share none: fire under frost, poison under disease (2026-10-04) |
 | Same mod | +20 | Both come from the same plugin, not the game or a DLC (`SharesModPlugin`, since 2026-09-30). On the 3,546-spell load order (seeds 1-3) links whose parent is from the child's own mod went from 46% to 65%; same-element links and tier gaps unchanged |
 | Text + name similarity | +0 to +30 | (text × 0.4 + name × 0.6) × 30 |
 | Load balancing | -8 per child | Prefer parents with fewer children |
@@ -150,10 +152,53 @@ numbers still hold (Classic's output did not change with the removal).
 | Tier proximity | +10 / +5 | Immediate predecessor / two tiers back |
 | Random jitter | ±2 | Variety |
 
-Orphans reattached at the end use +15 for a shared theme, the same +30 for a shared element and +20 for the same mod.
+g is the *Type grouping* strength (0 to 2, default 1). Orphans reattached at the end use +15 for a shared theme,
+the same element and kind scores as above and +20 for the same mod.
 The element bonus was measured on the 1,428-spell test load order (seeds 1-3): separate same-element
 clusters 333 -> 247 at 30 and barely fewer above it (241 at 60); edges whose ends share a theme and
 the tier gaps stayed the same.
+
+**Type grouping** (`Internal::TypeGrouping`, `TreeBuilderTypeGrouping.cpp`, `BuildConfig::typeGrouping`, request key
+`type_grouping`, 2026-10-04). A Nexus request asked for tighter grouping by type - bound weapons together,
+fire, frost and shock kept apart. Before, a kind (`kind.bound` ...) only counted through the themes, and every
+shared element counted the same flat +30. Per school the builder counts how many spells carry each `element.*`
+and `kind.*` trait and gives each a rarity: `clamp(ln(1/share) / ln(1/0.02), 0, 1)` - 1 for a trait on 2% of
+the school or less, 0 for one every spell has (`kind.summon` on 80% of Conjuration is about 0.06, `kind.bound`
+on 5% about 0.75, `element.fire` on 25% of Destruction about 0.35). Then, at strength g:
+
+- shared element: 30 × (1 + 0.5 × g × rarity of the rarest shared element) - never less than the old +30, so
+  a common element keeps its pull and a rare one gets up to 45 (g 1) or 60 (g 2);
+- shared kind: 30 × g × rarity of the rarest shared kind, not counted when the two carry different elements (a
+  frost rune is no parent for a fire rune). Halving it when only one of the two has an element was tried and
+  dropped: bound weapons under a bound parent 74% -> 69%, fire/frost/shock unchanged;
+- different elements: -15 × g.
+
+Note on the bound weapons: the librarian files them under `weapon`, `soul` and `daedra`, but none of those
+reaches the tree - `weapon` and `daedra` are not tree elements (`Librarian::TREE_ELEMENTS`) and `soul` is held
+back from summons, bound weapons and raised dead (`CONJURED_KINDS`). So the elements never pulled bound weapons
+toward summons; what was missing was `kind.bound` itself.
+
+**Strength 0 is the 1.2.0 builder**: the flat +30 for any shared element and nothing else. Checked: on the same
+scan and seed the tree at 0 is identical to the 1.2.0 tree (only `generatedAt` and the new `config.type_grouping`
+differ). The setting is the panel's *Type grouping* (Classic Growth Settings, `TreeBuilderSetting`, saved as
+`treeTypeGrouping` in UnifiedConfig, default 1, steps of 0.1).
+
+Measured on the 3,546-spell dev load order (scan of 2026-10-02, `treebuilder-test -c` with `type_grouping`,
+seeds 1-10, averages; every run exits 0):
+
+| strength | bound weapon under a bound parent | separate bound groups | fire/frost/shock under the same element | under another of the three | element branch starts | mod spell under its own mod |
+|---|---|---|---|---|---|---|
+| 0 (1.2.0) | 57.3% | 21.9 | 92.8% | 1.2% | 363 | 64.3% |
+| 0.5 | 68.6% | 16.2 | 92.7% | 1.0% | 355 | 62.7% |
+| 1 (default) | 73.6% | 13.6 | 92.7% | 1.1% | 345 | 61.8% |
+| 1.5 | 71.8% | 14.4 | 92.3% | 1.2% | 347 | 61.1% |
+| 2 | 74.3% | 13.1 | 91.8% | 1.1% | 352 | 60.7% |
+
+(51 bound weapons; "element branch starts" counts every spell with an element its parent lacks, over all
+elements - fewer means fewer separate clusters.) Fire, frost and shock were already kept apart at 0 (about 1%
+under another of the three; the rest without the same element hang off spells with no element or a spell
+carrying two); what moves is the kinds and the rarer elements. The same-mod share gives a little, as expected
+when kind and element weigh more. Above 1 little is gained.
 
 **Text Similarity (Jaccard):**
 ```

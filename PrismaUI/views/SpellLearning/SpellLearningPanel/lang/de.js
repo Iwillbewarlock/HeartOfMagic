@@ -539,6 +539,8 @@ window._i18nPreload = {
     "design.arcane.desc": "Ein aufgeschlagenes Zauberbuch: Pergament, Tintenlinien, Kapitelüberschriften, und der Baum breitet sich beim Öffnen wie Tinte aus.",
     "design.classic.desc": "Das ursprüngliche Aussehen: schlicht und am leichtesten zu zeichnen.",
     "design.modern.desc": "Der ursprüngliche Baum auf der modernen dunklen Oberfläche mit Verläufen und Leuchten.",
+    "preview.classic.typeGrouping": "Typ-Gruppierung",
+    "preview.classic.typeGroupingHint": "Wie stark Zauber einer Art (gebundene Waffen, Runen) und eines Elements (Feuer, Frost, Blitz) an einem Ast bleiben. 0 = wie in 1.2.0. Gilt ab dem nächsten Aufbau.",
     "settings.ui.title": "UI-Anzeige",
     "settingsPanel.pressAKey": "Drücke eine Taste...",
     "settingsPresets.overwriteConfirm": "Eine Voreinstellung namens \"{{name}}\" existiert bereits. Überschreiben?",
