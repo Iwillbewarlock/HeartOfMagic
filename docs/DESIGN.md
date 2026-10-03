@@ -60,15 +60,21 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   (`modules/treeToolsScale.js`: a `scale()` transform plus a margin of the same growth so the rows below
   move; the bar's max width is the tree's width over the scale so it wraps rather than runs off). Double-click
   the grip for 1x. Saved as `treeToolsScale` with the panel settings, 1x on Reset to Defaults; the grip takes
-  its own mouse presses (no tree pan). The render settings and Find Spell popups open under the bar's scaled
+  its own mouse presses (no tree pan), and a release the page never hears (a move with no button held, the
+  page losing focus) ends the drag. The render settings and Find Spell popups open under the bar's scaled
   bottom (`TreeNav.placeUnder`)
 - **Find Spell** — the magnifier button shows a dropdown under the bar with a search field and the list; the
-  button again, Esc in the field or choosing a spell hides it (there is no F key since 1.2.1). Matching is
-  `SpellSearch` (`modules/spellSearch.js`): the shown (translated) name, the school or the formId, ignoring
-  case and spaces ("헝거소환" finds "헝거 소환"); an exact name first, then names starting with the text, then
-  the rest, alphabetical in each, at most 80. In discovery mode without cheat mode locked spells are left out.
-  Enter or a click centres the tree on the spell and selects it; the status line says "Found: <name>"
-  (`tree.findFound`)
+  button again, Esc in the field or choosing a spell hides it (there is no F key since 1.2.1), and so do
+  switching tabs, closing the panel (button, hotkey, Esc) and loading a tree (`dismissFindSpell`), so a
+  dropdown out of sight never takes an Esc. Matching is `SpellSearch` (`modules/spellSearch.js`): the shown
+  (translated) name or the school - English or its name in the panel's language (`chips.school.*`, also what
+  the list shows) - ignoring case and spaces ("헝거소환" finds "헝거 소환", and the highlight ignores spaces
+  too); the formId only for a text that looks like one (`0x...` or 4+ hex digits, so "fe" does not list every
+  ESL spell). An exact name first, then names starting with the text, then the other name or school matches,
+  then formId matches, alphabetical in each, at most 80. In discovery mode without cheat mode locked spells
+  are left out (before the tree is drawn, when only the raw tree data without spell states is there, nothing
+  is listed). Enter or a click centres the tree on the spell and selects it; the status line says "Found:
+  <name>" (`tree.findFound`). Its CSS is in `patch-tree-tools.css` with the tool bar's
 - **Details sidebar** — spell name, school, tier, effects, prerequisites, learning controls
 - **Spell card** — the details panel reads top to bottom as a card: name (+ school badge) →
   keyword chips → description → figures (cost, type, effects with magnitude and duration).
@@ -1219,7 +1225,9 @@ Notifications. The corner messages' text follows the panel language (`hud.*` key
 **Spell Tomes:** How reading spell tomes interacts with progression. **Skill XP from Studying**
 (`spellTomeLearning.studySkillXP`, default on, 1.2.1): with the Immersive Spell Learning patch, whether a
 study session raises the school's skill (`Game.AdvanceSkill` in `DEST_ISL_PlayerSpellLearningScript`, asked
-through `SpellLearning_ISL.StudySkillXP()`). Off leaves skills to a skill mod such as Static Skill Leveling.
+through `SpellLearning_ISL.SkipStudySkillXP()`, true only when the setting is off, so a missing native - a
+patch script with an older SpellLearning_ISL.pex - reads None = false and raises the skill as ISL does). Off
+leaves skills to a skill mod such as Static Skill Leveling.
 Reset to Defaults turns it on; a settings preset never changes it (like Show Notifications).
 **Developer:** Import validation (Aggressive Path Validation), debug options (hidden by default).
 

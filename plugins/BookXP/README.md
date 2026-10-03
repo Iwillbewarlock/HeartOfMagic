@@ -10,7 +10,8 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
    "+XP to N spell(s)" with `api->ShowNotification("hud.bookXpGranted", ...)` (API v2): in the panel's
    language, and not at all when Settings > Show Notifications is off. With an older Heart of Magic (API v1)
    it shows the English text itself. The Papyrus version (`SL_BookXP_QuestScript`) gets its text from
-   `SpellLearning.NotificationText` the same way.
+   `SpellLearning.NotificationText` the same way, and shows its English text when that gives "" while
+   `SpellLearning.NotificationsOff()` is false (an older SpellLearning.pex without the natives).
 
 ## C++ API Demonstrated
 

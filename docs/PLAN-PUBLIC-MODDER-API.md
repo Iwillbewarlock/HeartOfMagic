@@ -295,9 +295,25 @@ window.onModdedXPSourceRegistered = function(dataStr) {
 ; with up to three {{name}} placeholders filled. "" when Show Notifications is off - show nothing then.
 ; An empty asKey only fills asEnglish (and still returns "" when notifications are off).
 string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native
+
+; True only when Show Notifications is off.
+bool Function NotificationsOff() global native
 ```
 
 The ISL patch (`DEST_ISL_PlayerSpellLearningScript`) and `SL_BookXP_QuestScript` show their messages this way.
+A script that may run with an older `SpellLearning.pex` (the native missing: the call gives "") shows its own
+English text when the result is "" and `NotificationsOff()` is false - a missing `NotificationsOff` reads as
+false too, so an install mix shows the message in English rather than nothing:
+
+```papyrus
+string s = SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", "You", "spell", akSpell.GetName())
+if s == "" && !SpellLearning.NotificationsOff()
+    s = "You have learned " + akSpell.GetName() + "."
+endif
+if s != ""
+    Debug.Notification(s)
+endif
+```
 
 ### XP Functions
 
@@ -345,6 +361,12 @@ Function SetLearningTargetForSchool(string schoolName, Spell akSpell) global nat
 Function ClearLearningTarget(string schoolName) global native
 Function ClearAllLearningTargets() global native
 ```
+
+The school a target is kept under (1.2.1) is the spell's tree school: the school of its first effect, as the
+panel's tree shows it (the costliest effect's only when the first has none). `SetLearningTarget(akSpell)`
+picks that school itself; `SetLearningTargetForSchool` should be given it too, since a spell is the target
+of one school at most (setting it under another school moves it there). `ClearLearningTarget(schoolName)`
+also clears that spell under any other school.
 
 ### Settings Queries (read-only)
 

@@ -27,10 +27,13 @@
 
 - **Skill XP from Studying** (Settings > Spell Tomes, on by default): with the Immersive Spell Learning
   patch, turn it off and studying a tome no longer raises the school's skill, so a skill mod (Static Skill
-  Leveling and the like) handles skills alone. Needs the patch's updated script (optional/ISLPatch).
-- Every XP grant is one line in SpellLearning.log: how much, to which spell, and where it came from (cast
-  event, immediate cast hook, tome, study, book, another mod's source), and a cast already counted the
-  other way says "duplicate skipped".
+  Leveling and the like) handles skills alone. Needs the patch's updated script (optional/ISLPatch). A patch
+  script installed with an older Heart of Magic script (the new functions missing) studies and shows its
+  messages as before, in English, instead of losing the skill gain and the messages.
+- SpellLearning.log shows where XP comes from: every tome, study, book and other-mod grant is one line (how
+  much, to which spell, from where), and every cast that earned XP is one line (the spell, cast event or
+  immediate cast hook, the total XP and how many learning targets got it). The per-target detail and
+  "duplicate skipped" for a cast already counted the other way are in the debug log.
 - The tree's tool bar (zoom, home, Find Spell, render settings, edit) can be made bigger: drag the small
   grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings and
   Reset to Defaults puts it back. A bar wider than the tree wraps, and the school tabs move down with it.
@@ -45,7 +48,11 @@
 - Find Spell opens as a dropdown under the magnifier button instead of a window over the tree; the button
   shows and hides it, and Esc or choosing a spell hides it. The F key no longer opens it. The search ignores
   spaces ("헝거소환" finds "헝거 소환"), an exact name comes first and then names that start with the text,
-  and "Found: ..." after the jump is in the panel's language.
+  and "Found: ..." after the jump is in the panel's language. A school's name in the panel's language
+  finds its spells too and is what the list shows; a formId is matched only for text that looks like one
+  (0x... or four or more hex digits), after the name matches, so "fe" no longer lists every ESL spell.
+  Switching tabs, closing the panel or loading a tree hides it, and the highlight ignores spaces like the
+  search.
 
 ### Fixed
 
@@ -55,6 +62,17 @@
 - A spell set as the learning target from the panel and again from its tome no longer gets XP twice per
   cast: a spell is the target of one school only, and a save that already has it under two is put right
   when it loads.
+- A spell with effects of two schools that was set as the learning target from its tome kept getting XP
+  but the panel neither showed it as the target nor could stop it: the tome filed it under its costliest
+  effect's school, the panel under the tree's (the first effect's). Both use the tree's school now, the
+  panel's Stop Learning clears the spell whatever school holds it, and a save that has it under the other
+  school is moved over when it loads.
+- Two casts of one spell, one by hand and one through SpellHotbar 2 or Spell.Cast, less than 0.3 s apart
+  could count once: one cast's two reports are now paired only within 0.1 s.
+- In discovery mode, Find Spell used before the tree was drawn could list locked spells; it lists nothing
+  until the tree is there.
+- Dragging the tool bar's size grip no longer sticks to the mouse when the button is let go outside the
+  panel.
 - Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel
   showed, and Reset to Defaults and settings presets left the controls as they were. They are saved now,
   reset, and follow a preset.

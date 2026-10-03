@@ -24,7 +24,7 @@ Event OnInit()
     ; Poll for book reads every 5 seconds
     RegisterForUpdate(5.0)
 
-    Notify(SpellLearning.NotificationText("hud.bookXpInitialized", "[BookXP] Initialized - {{xp}} XP per book", "xp", (XPPerBook as Int) as String))
+    Notify(SpellLearning.NotificationText("hud.bookXpInitialized", "[BookXP] Initialized - {{xp}} XP per book", "xp", (XPPerBook as Int) as String), "[BookXP] Initialized - " + (XPPerBook as Int) as String + " XP per book")
 EndEvent
 
 Event OnGameLoad()
@@ -55,7 +55,7 @@ Event OnUpdate()
 
         if targets.Length == 0
             ; No active learning targets - XP would be wasted
-            Notify(SpellLearning.NotificationText("hud.bookXpNoTargets", "[BookXP] Read {{count}} book(s) but no learning targets set", "count", newBooks as String))
+            Notify(SpellLearning.NotificationText("hud.bookXpNoTargets", "[BookXP] Read {{count}} book(s) but no learning targets set", "count", newBooks as String), "[BookXP] Read " + newBooks as String + " book(s) but no learning targets set")
             return
         endif
 
@@ -72,14 +72,21 @@ Event OnUpdate()
         endwhile
 
         if granted > 0
-            Notify(SpellLearning.NotificationText("hud.bookXpGranted", "[BookXP] +{{xp}} XP to {{count}} spell(s)", "xp", (totalXP as Int) as String, "count", granted as String))
+            Notify(SpellLearning.NotificationText("hud.bookXpGranted", "[BookXP] +{{xp}} XP to {{count}} spell(s)", "xp", (totalXP as Int) as String, "count", granted as String), "[BookXP] +" + (totalXP as Int) as String + " XP to " + granted as String + " spell(s)")
         endif
     endif
 EndEvent
 
-; Corner messages come translated from SpellLearning.NotificationText, which
-; returns "" when the player turned notifications off
-Function Notify(string asText)
+; Corner messages come translated from SpellLearning.NotificationText. "" is either
+; notifications turned off (NotificationsOff says so) or a SpellLearning.pex without
+; these natives (both read as ""/None): then asEnglish, so the message still shows
+Function Notify(string asText, string asEnglish)
+    if asText == ""
+        if SpellLearning.NotificationsOff()
+            return
+        endif
+        asText = asEnglish
+    endif
     if asText != ""
         Debug.Notification(asText)
     endif

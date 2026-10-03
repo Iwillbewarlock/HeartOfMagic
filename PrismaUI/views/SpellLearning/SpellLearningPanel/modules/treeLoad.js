@@ -269,6 +269,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
 
 function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
     var data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+    // Its list is of the tree being replaced
+    if (typeof dismissFindSpell === 'function') dismissFindSpell();
 
     _logToSKSE('[loadTreeData] === ENTRY === typeof=' + (typeof jsonData) +
                ', trustPrereqs=' + data.trustPrereqs +

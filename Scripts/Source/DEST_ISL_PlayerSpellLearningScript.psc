@@ -184,13 +184,13 @@ Event OnSpellTomeRead(Book akBook, Spell akSpell, ObjectReference akContainer)
 				return
 			else
 				PlayerRef.RemoveSpell(akSpell)
-				HoMNotify(SpellLearning.NotificationText("hud.studyForgotten", "{{who}} have forgotten {{spell}}.", "who", person, "spell", akSpell.GetName()))
+				HoMNotify(SpellLearning.NotificationText("hud.studyForgotten", "{{who}} have forgotten {{spell}}.", "who", person, "spell", akSpell.GetName()), person + " have forgotten " + akSpell.GetName() + ".")
 			endif
 		else
 			string sAlreadyKnown = Game.GetGameSettingString("sAlreadyKnown")
 			string sText = sAlreadyKnown + " " + akSpell.GetName() + "."
 			; [HoM] the game's own text, already in the game's language: no key, only Show Notifications
-			HoMNotify(SpellLearning.NotificationText("", sText))
+			HoMNotify(SpellLearning.NotificationText("", sText), sText)
 		endif
 	endif
 
@@ -228,10 +228,10 @@ endfunction
 function Study(int hoursStudied, Spell akSpell)
 	; Do all checks
 	if (PlayerRef.IsInCombat())		;Check if player is in combat
-		HoMNotify(SpellLearning.NotificationText("hud.studyInCombat", "{{who}} cannot study while in combat.", "who", person))
+		HoMNotify(SpellLearning.NotificationText("hud.studyInCombat", "{{who}} cannot study while in combat.", "who", person), person + " cannot study while in combat.")
 		return
 	elseif (PlayerRef.IsTrespassing())		;Check if player is trespassing
-		HoMNotify(SpellLearning.NotificationText("hud.studyTrespassing", "{{who}} cannot study whilst trespassing.", "who", person))
+		HoMNotify(SpellLearning.NotificationText("hud.studyTrespassing", "{{who}} cannot study whilst trespassing.", "who", person), person + " cannot study whilst trespassing.")
 		return
 	endif
 
@@ -334,22 +334,23 @@ function Study(int hoursStudied, Spell akSpell)
 		endif
 	endif
 
-	; [HoM] Settings > Spell Tomes > Skill XP from Studying: off leaves skills to a skill mod
-	if SkillExp.getValue() > 0 && SpellLearning_ISL.StudySkillXP()
+	; [HoM] Settings > Spell Tomes > Skill XP from Studying: off leaves skills to a skill mod.
+	; Asked as "skip?" so that a missing native (an older SpellLearning_ISL.pex: None = false) raises the skill as ISL does
+	if SkillExp.getValue() > 0 && !SpellLearning_ISL.SkipStudySkillXP()
 		Game.AdvanceSkill(SpellMagEffect.GetAssociatedSkill(), SkillExp.getValue() * hoursStudied)
 	endif
 
 	if hoursStudied == 1
-		HoMNotify(SpellLearning.NotificationText("hud.studiedHour", "{{who}} studied {{spell}} for {{hours}} hour.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String))
+		HoMNotify(SpellLearning.NotificationText("hud.studiedHour", "{{who}} studied {{spell}} for {{hours}} hour.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String), person + " studied " + akSpell.GetName() + " for " + hoursStudied as String + " hour.")
 	else
-		HoMNotify(SpellLearning.NotificationText("hud.studiedHours", "{{who}} studied {{spell}} for {{hours}} hours.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String))
+		HoMNotify(SpellLearning.NotificationText("hud.studiedHours", "{{who}} studied {{spell}} for {{hours}} hours.", "who", person, "spell", akSpell.GetName(), "hours", hoursStudied as String), person + " studied " + akSpell.GetName() + " for " + hoursStudied as String + " hours.")
 	endif
 
 	if hoursStudiedTotal.getValue() >= hoursToMaster.getValue() as int
 		; [HoM] Modify spell name BEFORE AddSpell so notification shows "(Learning - X%)"
 		SpellLearning_ISL.OnStudyComplete(akSpell)
 		PlayerRef.AddSpell(akSpell, false)
-		HoMNotify(SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", person, "spell", akSpell.GetName()))
+		HoMNotify(SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", person, "spell", akSpell.GetName()), person + " have learned " + akSpell.GetName() + ".")
 		LastSpellTome.Revert()
 		hoursStudiedTotal.setValue(0)
 	endif
@@ -446,8 +447,16 @@ int function getHoursToStudy(globalvariable gv_hours, bool isNewStudy = true)
 endfunction
 
 ; [HoM] Study messages come translated from Heart of Magic (the panel's language,
-; lang/*.json "hud.*" keys); "" means the player turned notifications off
-Function HoMNotify(string asText)
+; lang/*.json "hud.*" keys). "" is either notifications turned off (NotificationsOff
+; says so) or a SpellLearning.pex without these natives (both read as ""/None): then
+; asEnglish, the message as ISL wrote it, so an install mix never loses the message
+Function HoMNotify(string asText, string asEnglish)
+	if asText == ""
+		if SpellLearning.NotificationsOff()
+			return
+		endif
+		asText = asEnglish
+	endif
 	if asText != ""
 		Debug.Notification(asText)
 	endif

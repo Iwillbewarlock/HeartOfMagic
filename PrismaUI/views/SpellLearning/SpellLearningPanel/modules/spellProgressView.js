@@ -27,7 +27,7 @@ function updateDetailsProgression(node, opts) {
     // Get progress data for this spell (use canonical ID for duplicates)
     var canonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
     var progress = state.spellProgress[canonId] || { xp: 0, required: 100, unlocked: false, ready: false };
-    var isLearningTarget = state.learningTargets[node.school] === canonId || state.learningTargets[node.school] === node.formId;
+    var isLearningTarget = LearningTargetKeys.schoolOf(state.learningTargets, node.formId, canonId, node.school) !== null;
 
     // Debug: log learning target check to file via C++ (developer mode, not for every hover)
     if (!preview && typeof LogGate !== 'undefined' && LogGate.on()) {

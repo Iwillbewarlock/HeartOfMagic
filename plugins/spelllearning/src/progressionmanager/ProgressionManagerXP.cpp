@@ -90,13 +90,18 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
     const std::vector<std::pair<std::string, RE::FormID>> targets(m_learningTargets.begin(), m_learningTargets.end());
     std::vector<RE::FormID> credited;
     credited.reserve(targets.size());
+    float totalXP = 0.0f;
+    int duplicateKeys = 0;   // the same spell met again under a second school key
     const auto* castSpell = RE::TESForm::LookupByID<RE::SpellItem>(castSpellId);
     const char* castName = castSpell ? castSpell->GetName() : "?";
     for (const auto& [targetSchool, targetId] : targets) {
         auto current = m_learningTargets.find(targetSchool);
         if (current == m_learningTargets.end() || current->second != targetId) continue;
         if (targetId == 0) continue;
-        if (std::find(credited.begin(), credited.end(), targetId) != credited.end()) continue;
+        if (std::find(credited.begin(), credited.end(), targetId) != credited.end()) {
+            ++duplicateKeys;
+            continue;
+        }
 
         // Check if target is already fully mastered
         auto progress = GetProgress(targetId);
@@ -240,19 +245,25 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         }
 
         // In "single" mode, only the first learning target gets XP
-        // In "perSchool" mode, each school's target gets XP independently
-        if (m_xpSettings.learningMode == "single") {
-            // Only process the first active learning target
-            AddXP(targetId, actualXPGain);
-            LogXPGrant(a_path, targetId, actualXPGain,
-                       std::format("cast {} ({:08X}), {} rate, single mode", castName, castSpellId, sourceName));
-            return;  // Only one target in single mode
-        } else {
-            // Per-school mode - each school's target gets XP
-            AddXP(targetId, actualXPGain);
-            LogXPGrant(a_path, targetId, actualXPGain,
-                       std::format("cast {} ({:08X}), {} rate, {} target", castName, castSpellId, sourceName, targetSchool));
-        }
+        // In "perSchool" mode, each school's target gets XP independently.
+        // Per target at debug level: the cast's one info line follows the loop
+        AddXP(targetId, actualXPGain);
+        totalXP += actualXPGain;
+        const bool single = m_xpSettings.learningMode == "single";
+        LogXPGrant(a_path, targetId, actualXPGain,
+                   single ? std::format("cast {} ({:08X}), {} rate, single mode", castName, castSpellId, sourceName)
+                          : std::format("cast {} ({:08X}), {} rate, {} target", castName, castSpellId, sourceName,
+                                        targetSchool),
+                   true);
+        if (single) break;  // Only one target in single mode
+    }
+
+    // One info line per cast that earned something (a cast earning nothing stays at debug)
+    if (!credited.empty()) {
+        logger::info("XP: cast {} ({:08X}) from {}: +{:.2f} to {} target(s), {} duplicate key(s) skipped",
+                     castName, castSpellId, a_path, totalXP, credited.size(), duplicateKeys);
+    } else {
+        logger::debug("XP: cast {} ({:08X}) from {}: no target credited", castName, castSpellId, a_path);
     }
 }
 

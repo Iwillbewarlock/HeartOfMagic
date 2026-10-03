@@ -4,12 +4,13 @@
  * Checks: the clamp (1x - 3x, steps of 0.05, anything that is not a number gives
  * 1x), the scale a drag gives (bigger right/down, smaller left/up, within the
  * clamp), save -> load round trip, a config without the key, Reset to Defaults,
- * and that only a finished change saves.
+ * that only a finished change saves, and a drag whose release never comes
+ * (a move with no button held, the page losing focus) ending and saving.
  *
  * Depends on: treeToolsScale.js - under node this file runs it into the global
- * scope the way the page's script tag does. Swaps the globals `settings` and
- * `autoSaveSettings` for its own while it runs (document.querySelector is null
- * under node, so apply() has no bar to change).
+ * scope the way the page's script tag does. Swaps the globals `settings`,
+ * `autoSaveSettings`, `document`, `addEventListener` and `removeEventListener`
+ * for its own while it runs (the drag test gives document a fake bar).
  */
 
 var TreeToolsScaleTest = {
@@ -73,11 +74,64 @@ var TreeToolsScaleTest = {
             this.check(g.settings.treeToolsScale === 3, 'a saved value out of range is clamped');
             T.reset();
             this.check(g.settings.treeToolsScale === 1 && T.current() === 1, 'Reset to Defaults: 1x');
+
+            this._dragTests(g, T, function() { return saves; });
         } finally {
             g.settings = oldSettings;
             g.autoSaveSettings = oldSave;
         }
         return { passed: this.passed, failed: this.failed };
+    }
+};
+
+/** Drags with fake window listeners and a fake bar: a lost release still ends the drag */
+TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
+    var oldDocument = g.document, oldAdd = g.addEventListener, oldRemove = g.removeEventListener;
+    var listeners = {};
+    try {
+        g.addEventListener = function(type, fn) { (listeners[type] = listeners[type] || []).push(fn); };
+        g.removeEventListener = function(type, fn) {
+            listeners[type] = (listeners[type] || []).filter(function(f) { return f !== fn; });
+        };
+        var bar = { offsetWidth: 200, offsetHeight: 40, style: {}, parentElement: null };
+        g.document = { querySelector: function() { return bar; } };
+        var fire = function(type, ev) { (listeners[type] || []).slice().forEach(function(fn) { fn(ev); }); };
+        var count = function() {
+            return (listeners.mousemove || []).length + (listeners.mouseup || []).length + (listeners.blur || []).length;
+        };
+        var press = { button: 0, clientX: 100, clientY: 100, preventDefault: function() {}, stopPropagation: function() {} };
+        var move = function(dx, buttons) {
+            return { clientX: 100 + dx, clientY: 100, buttons: buttons, preventDefault: function() {} };
+        };
+
+        g.settings = { treeToolsScale: 1 };
+        var before = saveCount();
+        T._startDrag(press);
+        this.check(count() === 3, 'a drag listens for move, release and focus loss');
+        fire('mousemove', move(200, 1));
+        this.check(T.current() > 1 && saveCount() === before, 'moving with the button held resizes, no save yet');
+        var sized = T.current();
+        fire('mousemove', move(400, 0));
+        this.check(T._drag === null && count() === 0 && T.current() === sized && saveCount() === before + 1,
+            'a move with no button held (the release was lost) ends the drag and saves');
+        fire('mousemove', move(600, 1));
+        this.check(T.current() === sized, 'after that the bar no longer follows the pointer');
+
+        T._startDrag(press);
+        fire('mousemove', move(-100, 1));
+        fire('blur', {});
+        this.check(T._drag === null && count() === 0 && saveCount() === before + 2, 'the page losing focus ends the drag');
+
+        T._startDrag(press);
+        fire('mousemove', move(50, undefined));
+        this.check(T._drag !== null, 'no buttons field (an older engine): the drag goes on');
+        fire('mouseup', { stopPropagation: function() {} });
+        this.check(T._drag === null && count() === 0 && saveCount() === before + 3, 'a release ends it as before');
+    } finally {
+        g.document = oldDocument;
+        g.addEventListener = oldAdd;
+        g.removeEventListener = oldRemove;
+        T._drag = null;
     }
 };
 

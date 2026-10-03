@@ -12,7 +12,9 @@
  * scaled bottom (TreeNav.placeUnder).
  *
  * Saved as settings.treeToolsScale in the panel config; Reset to Defaults sets 1.
- * The grip takes its own mouse presses: the tree does not pan from them.
+ * The grip takes its own mouse presses: the tree does not pan from them. A
+ * release the page never hears (a move with no button held, the page losing
+ * focus) ends the drag too, so the bar does not keep following the pointer.
  *
  * Depends on: settings, autoSaveSettings (optional)
  */
@@ -108,29 +110,48 @@ var TreeToolsScale = {
         e.stopPropagation();
         var bar = document.querySelector('.tree-top-tools .zoom-controls');
         if (!bar) return;
+        if (this._drag) this._endDrag(null);   // a drag whose end never came
         var self = this;
         this._drag = {
             x: e.clientX, y: e.clientY,
             scale: this.current(),
             width: bar.offsetWidth * this.current(),
-            height: bar.offsetHeight * this.current()
+            height: bar.offsetHeight * this.current(),
+            move: function(ev) { self._onDragMove(ev); },
+            up: function(ev) { self._endDrag(ev); },
+            blur: function() { self._endDrag(null); }
         };
-        var move = function(ev) {
-            if (!self._drag) return;
-            ev.preventDefault();
-            var d = self._drag;
-            self.set(self.scaleForDrag(d.scale, d.width, d.height, ev.clientX - d.x, ev.clientY - d.y), false);
-        };
-        var up = function(ev) {
-            window.removeEventListener('mousemove', move, true);
-            window.removeEventListener('mouseup', up, true);
-            if (!self._drag) return;
-            ev.stopPropagation();
-            self._drag = null;
-            self.set(self.current(), true);
-        };
-        window.addEventListener('mousemove', move, true);
-        window.addEventListener('mouseup', up, true);
+        window.addEventListener('mousemove', this._drag.move, true);
+        window.addEventListener('mouseup', this._drag.up, true);
+        window.addEventListener('blur', this._drag.blur);
+    },
+
+    /**
+     * The pointer moved during a drag. No button held means the release went
+     * somewhere this page did not hear it (outside the view, the game took the
+     * mouse): the drag ends here instead of following the pointer on.
+     */
+    _onDragMove: function(ev) {
+        var d = this._drag;
+        if (!d) return;
+        if (typeof ev.buttons === 'number' && ev.buttons === 0) {
+            this._endDrag(null);
+            return;
+        }
+        ev.preventDefault();
+        this.set(this.scaleForDrag(d.scale, d.width, d.height, ev.clientX - d.x, ev.clientY - d.y), false);
+    },
+
+    /** End the drag (released, lost release, or the page lost focus) and save the size */
+    _endDrag: function(ev) {
+        var d = this._drag;
+        if (!d) return;
+        window.removeEventListener('mousemove', d.move, true);
+        window.removeEventListener('mouseup', d.up, true);
+        window.removeEventListener('blur', d.blur);
+        this._drag = null;
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        this.set(this.current(), true);
     }
 };
 

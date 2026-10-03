@@ -556,7 +556,9 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 - `OnSpellCast(school, castSpellId, baseXP)` - Handle cast event
 - `GetProgress(formId)` - Get SpellProgress struct
 - `IsSpellAvailableToLearn(formId)` - Check if spell can receive XP
-- `ClearLearningTargetForSpell(formId)` - Clear every school whose target is this spell (found by id in the target map, not from the spell's effects: the panel keys a target by the tree node's school, which comes from the first effect and can differ from the costliest effect's) - on mastery, unlock and relock
+- `ClearLearningTargetForSpell(formId)` - Clear every school whose target is this spell (found by id in the target map, not from the spell's effects) - on mastery, unlock and relock, and when the panel's clear carries the spell's formId
+- `ClearLearningTarget(school)` - Clear that school's target, and the same spell under any other school key
+- `TargetSchoolOf(spell)` - The one school key a spell is a learning target under: the tree node's school (first effect, `SpellScanner::GetSpellSchool`), which the panel keys by; the costliest effect's school only when the first effect has none. The tome path and the cast's school (`SpellCastHandler`, for the same-school rate) use it too
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
 
 **Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the
@@ -730,23 +732,34 @@ struct EarlyLearningSettings {
   **One cast, one credit (1.2.1).** Each report is stamped when the engine sends it (`ProcessEvent` /
   `OnImmediateCast`), not when the queued task runs. Per spell, `m_pendingCasts` holds the casts credited
   from each way (event, hook) that the other way may still report; a report of the other way within
-  `kSameCastWindowSeconds` (0.3 s, either side - tasks run in queue order) takes one of them and earns
+  `kSameCastWindowSeconds` (0.1 s, either side - tasks run in queue order) takes one of them and earns
   nothing (`IsSecondReport`), so event, event, hook, hook is two credits, not three, and a slow game thread
-  no longer opens the window. Repeats seen the same way still count each (a spell in each hand). Before,
+  no longer opens the window. Only reports of different ways pair; two of the same way never do. The two
+  reports of one cast come out of one engine cast, in the same frame, so 0.1 s (3 frames at 30 fps) is room
+  for a slow frame while a genuine second cast the other way (SpellHotbar 2's 0.5 s cooldown, a hand cast's
+  animation) falls outside it; at 0.3 s it could swallow one. Repeats seen the same way still count each (a spell in each hand). Before,
   only the last credit was remembered and its time was the task's.
   A stream of immediate re-casts of one spell less than `kImmediateStreamGapSeconds` (0.45 s) apart -
   a mod refreshing a ward every 0.25 s - counts once, at its start, like a held concentration spell;
   SpellHotbar 2's own casts are at least its 0.5 s cooldown apart and each count. Two different casts of
-  one spell 0.3 s apart, one by hand and one from the hotbar, count once (rare; credited short, never twice).
-- **XP log (1.2.1):** every grant is one info line in SpellLearning.log, `XP: +<amount> to <spell> (<id>) from
+  one spell under 0.1 s apart, one by hand and one from the hotbar, count once (rare; credited short, never twice).
+- **XP log (1.2.1):** every grant is one line in SpellLearning.log, `XP: +<amount> to <spell> (<id>) from
   <path> - <detail>`, path `cast event`, `cast hook (immediate cast ...)`, `tome`, `tome (DEST)`, `study`,
-  `book` (BookXP), `source <id>` (other mods, passive) or `raw` (`ProgressionManager::LogXPGrant`); a report
-  dropped as the other half of a credited cast logs `XP: duplicate skipped - ...`
+  `book` (BookXP), `source <id>` (other mods, passive) or `raw` (`ProgressionManager::LogXPGrant`). Info
+  level, except a cast's per-target lines, which are debug: a cast writes one info line,
+  `XP: cast <spell> (<id>) from <path>: +<total> to <n> target(s), <k> duplicate key(s) skipped` (only when
+  it earned something; the cast handler runs on every player cast). A report dropped as the other half of a
+  credited cast logs `XP: duplicate skipped - ...` at debug level
 - **One school per learning target (1.2.1):** the panel keys a target by the node's school (first effect),
-  a tome read by the costliest effect's school, so one spell could be the target of two schools and
-  `OnSpellCast` paid it twice per cast. `SetLearningTarget` now drops the spell from any other school
-  (`DropTargetFromOtherSchools`), a loaded save keeps each spell under one school (its own when held there,
-  `DedupeLearningTargets`), and `OnSpellCast` credits a target spell at most once per cast
+  a tome read used the costliest effect's school, so one spell could be the target of two schools and
+  `OnSpellCast` paid it twice per cast - or of one school the panel did not look at, so it could neither
+  show nor clear it. Now there is one key, `TargetSchoolOf` (the node's school), for the panel, the tome path
+  and the cast; `SetLearningTarget` drops the spell from any other school (`DropTargetFromOtherSchools`), a
+  loaded save moves each spell to that key when it is free and keeps it under one school
+  (`CanonicalizeLearningTargets`), and `OnSpellCast` credits a target spell at most once per cast. Every key
+  dropped is told to the panel (`UIManager::NotifyLearningTargetDropped` -> `onLearningTargetDropped`,
+  `modules/learningTargetKeys.js`), and the panel's clear sends the spell's formId too, so the plugin clears it
+  under whatever key holds it
 - Identify spell school from cast
 - Route to ProgressionManager for XP calculation
 - **Throttled notifications** (configurable interval, default 10 seconds)
@@ -765,7 +778,9 @@ english, {{name, value}...})` looks the key up in the panel's `lang/<locale>.jso
 language by `Configure`, which `ApplySettingsFromConfig` calls on config load and every save with
 `notifications.enabled` and `ResolvePanelLocale` - config `language`, else `lang/locale.js`, else `en`), fills
 the `{{name}}` placeholders and shows it, or shows nothing when notifications are off. A missing file or key
-falls back to the English text at the call. Papyrus reaches it through `SpellLearning.NotificationText`, other
+falls back to the English text at the call. Papyrus reaches it through `SpellLearning.NotificationText` (with
+`SpellLearning.NotificationsOff`, so that a script running with an older SpellLearning.pex, where the native is
+missing and the call gives "", still shows its own English text - docs/PLAN-PUBLIC-MODDER-API.md), other
 plugins through `ISpellLearningAPI::ShowNotification` (API v2). Safe from any thread.
 
 ### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookGate.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookGate.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)

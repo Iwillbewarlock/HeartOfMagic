@@ -18,13 +18,17 @@
     .\DeployDev.ps1 -PanelOnly
     .\DeployDev.ps1 -NoCombat     # without the SL_Combat addon
     .\DeployDev.ps1 -CombatOnly   # only the SL_Combat addon, nothing else touched
+    .\DeployDev.ps1 -WithISLPatch # also the ISL patch's scripts (otherwise only if the install has them)
+    .\DeployDev.ps1 -WithBookXP   # also the BookXP script (otherwise only if the install has BookXP)
 #>
 [CmdletBinding()]
 param(
     [string]$ModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev',
     [switch]$PanelOnly,
     [switch]$NoCombat,
-    [switch]$CombatOnly
+    [switch]$CombatOnly,
+    [switch]$WithISLPatch,
+    [switch]$WithBookXP
 )
 
 $ErrorActionPreference = 'Stop'
@@ -143,6 +147,42 @@ if (Test-Path $debugSrc) {
     Write-Host "debug   debug.json (panel scans write spell_scan_output.json)"
 }
 
+# The compiled Papyrus scripts (BuildRelease.ps1 puts them in build\Scripts\output),
+# laid out as the release has them (plugins/cmake/Papyrus.cmake, Distribution.cmake):
+# the core ones in Scripts\ always; the BookXP script (in the release's Scripts\ too,
+# but only of use with SL_BookXP.dll) and the ISL patch's three (optional\ISLPatch, a
+# FOMOD option) only when the install already has that part or the switch asks for it.
+# Each .psc goes to Scripts\Source next to its .pex, as in the release.
+if (-not $PanelOnly) {
+    $pexSrc = Join-Path $repo 'build\Scripts\output'
+    $pscSrc = Join-Path $repo 'Scripts\Source'
+    $scriptsDst = Join-Path $ModPath 'Scripts'
+    if (-not (Test-Path $pexSrc)) { throw "No compiled scripts at $pexSrc. Run .\BuildRelease.ps1 -preset Release-2026 first (with the Papyrus compiler)." }
+    # Mirrors PAPYRUS_SPELLLEARNING_SOURCES / PAPYRUS_ISL_SOURCES in plugins/cmake/Papyrus.cmake
+    $scripts = @('DEST_FormExt', 'SpellLearning', 'SpellLearning_DEST', 'SpellLearning_DEST_Handler',
+                 'SpellLearning_ISL', 'SpellLearning_ISL_Handler')
+    $hasBookXP = (Test-Path (Join-Path $ModPath 'SKSE\Plugins\SL_BookXP.dll')) -or
+                 (Test-Path (Join-Path $scriptsDst 'SL_BookXP_QuestScript.pex'))
+    if ($WithBookXP -or $hasBookXP) { $scripts += 'SL_BookXP_QuestScript' }
+    if ($WithISLPatch -or (Test-Path (Join-Path $scriptsDst 'DEST_ISL_PlayerSpellLearningScript.pex'))) {
+        $scripts += @('DEST_AliasExt', 'DEST_ISL_PlayerSpellLearningScript', 'DEST_UIExt')
+    }
+    New-Item -ItemType Directory -Force -Path (Join-Path $scriptsDst 'Source') | Out-Null
+    foreach ($name in $scripts) {
+        $pex = Join-Path $pexSrc "$name.pex"
+        if (-not (Test-Path $pex)) { throw "Not compiled: $pex" }
+        Copy-Item $pex (Join-Path $scriptsDst "$name.pex") -Force
+        Copy-Item (Join-Path $pscSrc "$name.psc") (Join-Path $scriptsDst "Source\$name.psc") -Force
+    }
+    # Verified like the panel below: a copy that did not take stops the deploy
+    foreach ($name in $scripts) {
+        $a = (Get-FileHash (Join-Path $pexSrc "$name.pex")).Hash
+        $b = (Get-FileHash (Join-Path $scriptsDst "$name.pex")).Hash
+        if ($a -ne $b) { throw "Copy did not take: Scripts\$name.pex" }
+    }
+    Write-Host ("scripts {0} .pex ({1})" -f $scripts.Count, ($scripts -join ', '))
+}
+
 # Keep the language line the dev install is set to
 $localeDst = Join-Path $panelDst 'lang\locale.js'
 $keptLocale = if (Test-Path $localeDst) { Get-Content $localeDst -Raw -Encoding UTF8 } else { $null }
@@ -157,7 +197,7 @@ if ($keptLocale) {
     Write-Host 'panel   copied'
 }
 
-$checked = @('modules\bridgeView.js', 'modules\spellCard.js', 'patch-ui.css', 'index.html')
+$checked = @('modules\bridgeView.js', 'modules\spellCard.js', 'patch-ui.css', 'patch-tree-tools.css', 'index.html')
 foreach ($file in $checked) {
     $a = (Get-FileHash (Join-Path $panelSrc $file)).Hash
     $b = (Get-FileHash (Join-Path $panelDst $file)).Hash

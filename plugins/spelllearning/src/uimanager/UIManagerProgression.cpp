@@ -96,6 +96,10 @@ void UIManager::OnClearLearningTarget(const char* argument)
         try {
             json request = json::parse(argStr);
             std::string school = request.value("school", "");
+            // The spell the panel means: cleared under whatever key holds it (the
+            // panel's school key and the plugin's could differ in a save from before)
+            const std::string formIdStr = request.value("formId", "");
+            const RE::FormID spellId = formIdStr.empty() ? 0 : static_cast<RE::FormID>(std::stoul(formIdStr, nullptr, 0));
 
             if (!school.empty()) {
                 // Get the current learning target formId BEFORE clearing
@@ -110,6 +114,9 @@ void UIManager::OnClearLearningTarget(const char* argument)
                     instance->UpdateSpellState(ss.str(), "available");
                     logger::info("UIManager: Cleared learning target {} - set to available", ss.str());
                 }
+            }
+            if (spellId != 0) {
+                ProgressionManager::GetSingleton()->ClearLearningTargetForSpell(spellId);
             }
         } catch (const std::exception& e) {
             logger::error("UIManager: ClearLearningTarget exception: {}", e.what());

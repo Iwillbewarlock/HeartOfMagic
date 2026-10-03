@@ -115,6 +115,8 @@ namespace PapyrusAPI
                                        RE::BSFixedString name1, RE::BSFixedString value1,
                                        RE::BSFixedString name2, RE::BSFixedString value2,
                                        RE::BSFixedString name3, RE::BSFixedString value3);
+    // True only when Show Notifications is off (a missing native reads as false: show)
+    bool NotificationsOff(RE::StaticFunctionTag*);
 
     // === ModEvent senders (called by UIManager) ===
     void SendMenuOpenedEvent();

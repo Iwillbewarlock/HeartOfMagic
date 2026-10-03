@@ -70,6 +70,9 @@ public:
     void NotifySpellUnlocked(RE::FormID formId, bool success);
     void NotifyLearningTargetSet(const std::string& school, RE::FormID formId, const std::string& spellName);
     void NotifyLearningTargetCleared(RE::FormID formId);  // When a learning target is switched/cleared
+    // A school key no longer holds this spell (it stays the target under another
+    // key, or was cleared there too): the panel drops its copy of that key
+    void NotifyLearningTargetDropped(const std::string& school, RE::FormID formId);
     
     // Game state notifications
     void NotifyMainMenuLoaded();      // Called on kDataLoaded - reset tree states

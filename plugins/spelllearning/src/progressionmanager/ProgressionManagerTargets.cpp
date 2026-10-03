@@ -80,9 +80,10 @@ RE::FormID ProgressionManager::GetLearningTarget(const std::string& school) cons
 void ProgressionManager::ClearLearningTarget(const std::string& school)
 {
     // Check if there was an active target to clear
+    RE::FormID oldTargetId = 0;
     auto it = m_learningTargets.find(school);
     if (it != m_learningTargets.end() && it->second != 0) {
-        RE::FormID oldTargetId = it->second;
+        oldTargetId = it->second;
 
         // If old target was early-learned and not mastered, remove the spell from player
         auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
@@ -105,6 +106,8 @@ void ProgressionManager::ClearLearningTarget(const std::string& school)
 
     m_learningTargets.erase(school);
     m_dirty = true;
+    // The spell under another school key as well (an older save): cleared there too
+    DropTargetFromOtherSchools(school, oldTargetId);
 
     // Fire ModEvent: SpellLearning_TargetChanged (cleared)
     SendModEvent("SpellLearning_TargetChanged", school, 0.0f, nullptr);
@@ -406,16 +409,11 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
         }
     }
 
-    // Determine spell school from its costliest effect
-    auto* effect = spell->GetCostliestEffectItem();
-    if (!effect || !effect->baseEffect) {
-        logger::warn("ProgressionManager: Could not determine school for spell {}", spell->GetName());
-        return;
-    }
-
-    auto school = effect->baseEffect->GetMagickSkill();
-    std::string schoolName = SpellScanner::GetSchoolName(school);
-    if (schoolName == "Unknown") {
+    // The school key the panel uses for this spell (the tree node's school): a key
+    // of its own here (the costliest effect's, before) left the panel unable to
+    // see or clear the target
+    const std::string schoolName = TargetSchoolOf(spell);
+    if (schoolName.empty()) {
         logger::warn("ProgressionManager: Unknown school for spell {}", spell->GetName());
         return;
     }

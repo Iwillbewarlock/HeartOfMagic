@@ -5,9 +5,12 @@
  * limit); loads after spellProgressView.js and spellSearch.js.
  *
  * The button shows the dropdown and hides it again; Escape in the field and
- * choosing a spell hide it too. Which spells match and in what order is
- * SpellSearch (spellSearch.js): shown name, school or formId, ignoring case
- * and spaces, exact and prefix name matches first.
+ * choosing a spell hide it too, and so do leaving the tree tab, closing the
+ * panel and loading a tree (dismissFindSpell): a dropdown left open out of
+ * sight took the next Escape. Which spells match and in what order is
+ * SpellSearch (spellSearch.js): shown name, school (English or translated) or
+ * a formId-like text, ignoring case and spaces, exact and prefix name matches
+ * first. The highlight ignores spaces the same way.
  */
 
 // =============================================================================
@@ -55,9 +58,20 @@ function initializeFindSpell() {
     });
 }
 
+/** Shown: not hidden, and on the tree tab (a dropdown out of sight is not open) */
 function isFindSpellOpen() {
     var panel = document.getElementById('find-spell-panel');
-    return !!(panel && !panel.classList.contains('hidden'));
+    if (!panel || panel.classList.contains('hidden')) return false;
+    return !(typeof state !== 'undefined' && state && state.currentTab && state.currentTab !== 'spellTree');
+}
+
+/**
+ * Hide the dropdown if it is up, whatever tab is in front: the tab switch,
+ * the panel closing (button, hotkey, Escape) and a tree load call this.
+ */
+function dismissFindSpell() {
+    var panel = document.getElementById('find-spell-panel');
+    if (panel && !panel.classList.contains('hidden')) closeFindSpell();
 }
 
 /** The magnifier button: show the dropdown, or hide it when it is showing */
@@ -125,7 +139,6 @@ function renderFindSpellList(searchTerm) {
         learning: 'footer.legendLearning',
         unlocked: 'footer.legendUnlocked'
     };
-    var term = String(searchTerm || '').toLowerCase().trim();
 
     hits.forEach(function(hit, idx) {
         var node = hit.node;
@@ -144,7 +157,7 @@ function renderFindSpellList(searchTerm) {
         text.className = 'find-spell-text';
         var nameEl = document.createElement('div');
         nameEl.className = 'find-spell-name';
-        appendHighlighted(nameEl, hit.name || '???', term);
+        appendHighlighted(nameEl, hit.name || '???', searchTerm);
         text.appendChild(nameEl);
 
         var info = document.createElement('div');
@@ -152,7 +165,7 @@ function renderFindSpellList(searchTerm) {
         var schoolEl = document.createElement('span');
         schoolEl.className = 'find-spell-school';
         schoolEl.style.color = color;
-        schoolEl.textContent = node.school || '';
+        schoolEl.textContent = SpellSearch.schoolLabel(node.school);
         info.appendChild(schoolEl);
         text.appendChild(info);
         item.appendChild(text);
@@ -178,18 +191,18 @@ function renderFindSpellList(searchTerm) {
     });
 }
 
-/** The text into el, the first place it holds term (as typed) in <mark> */
+/** The text into el, the first place it holds term in <mark> (case and spaces ignored) */
 function appendHighlighted(el, text, term) {
-    var at = term ? text.toLowerCase().indexOf(term) : -1;
-    if (at === -1) {
+    var range = SpellSearch.matchRange(text, term);
+    if (!range) {
         el.textContent = text;
         return;
     }
-    el.appendChild(document.createTextNode(text.substring(0, at)));
+    el.appendChild(document.createTextNode(text.substring(0, range[0])));
     var mark = document.createElement('mark');
-    mark.textContent = text.substring(at, at + term.length);
+    mark.textContent = text.substring(range[0], range[1]);
     el.appendChild(mark);
-    el.appendChild(document.createTextNode(text.substring(at + term.length)));
+    el.appendChild(document.createTextNode(text.substring(range[1])));
 }
 
 function navigateFindSpell(direction) {

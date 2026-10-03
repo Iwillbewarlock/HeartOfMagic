@@ -226,6 +226,7 @@ function switchTab(tabId) {
     }
 
     state.currentTab = tabId;
+    if (typeof dismissFindSpell === 'function') dismissFindSpell();   // not left open behind another tab
 
     // The tree is only drawn while its tab is in front (CanvasRenderer.startRenderLoop
     // refuses otherwise); it used to go on animating behind the settings page

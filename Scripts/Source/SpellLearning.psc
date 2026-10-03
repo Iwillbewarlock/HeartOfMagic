@@ -143,9 +143,18 @@ string Function RunScan(string mode = "tomes", string preset = "full") global na
 ; when the language has no such key. {{name}} placeholders are filled from up to
 ; three name/value pairs. An empty asKey only fills asEnglish.
 ; Returns "" when the player turned notifications off (Settings > Show
-; Notifications): show nothing then.
+; Notifications): show nothing then. A script that may run with an older
+; SpellLearning.pex (no such native: the call gives "") asks NotificationsOff too
+; and shows its own English text when that is false:
 ;   string s = SpellLearning.NotificationText("hud.studyLearned", "{{who}} have learned {{spell}}.", "who", "You", "spell", akSpell.GetName())
+;   if s == "" && !SpellLearning.NotificationsOff()
+;       s = "You have learned " + akSpell.GetName() + "."
+;   endif
 ;   if s != ""
 ;       Debug.Notification(s)
 ;   endif
 string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native
+
+; True only when the player turned notifications off (Settings > Show Notifications).
+; A missing native reads as false, so a script falls back to showing its message.
+bool Function NotificationsOff() global native

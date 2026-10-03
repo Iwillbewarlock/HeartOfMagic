@@ -131,6 +131,7 @@ function onPasteTreeClick() {
 }
 
 function onCloseClick() {
+    if (typeof dismissFindSpell === 'function') dismissFindSpell();
     // Auto-save settings when close is requested
     autoSaveSettings();
     

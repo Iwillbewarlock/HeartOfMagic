@@ -146,7 +146,8 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate, Cl
 
     // The same cast seen by both the event and the immediate-cast hook counts once
     if (IsSecondReport(spellId, a_immediate, a_castAt)) {
-        logger::info("XP: duplicate skipped - {} ({:08X}) from {}: the same cast was already credited the other way",
+        // Debug: the cast's one info line (OnSpellCast) is already in the log
+        logger::debug("XP: duplicate skipped - {} ({:08X}) from {}: the same cast was already credited the other way",
             spell->GetName(), spellId, path);
         return;
     }
@@ -157,21 +158,11 @@ void SpellCastHandler::HandlePlayerCast(RE::FormID spellId, bool a_immediate, Cl
     }
     RememberCredited(spellId, a_immediate, a_castAt);
 
-    // Get spell school
-    auto* effect = spell->GetCostliestEffectItem();
-    if (!effect || !effect->baseEffect) {
+    // The cast spell's school, keyed the way learning targets are (the tree node's
+    // school: first effect), so "same school" means the same school as on the tree
+    const std::string schoolName = ProgressionManager::TargetSchoolOf(spell);
+    if (schoolName.empty()) {
         return;
-    }
-
-    auto school = effect->baseEffect->GetMagickSkill();
-    std::string schoolName;
-    switch (school) {
-        case RE::ActorValue::kAlteration:  schoolName = "Alteration"; break;
-        case RE::ActorValue::kConjuration: schoolName = "Conjuration"; break;
-        case RE::ActorValue::kDestruction: schoolName = "Destruction"; break;
-        case RE::ActorValue::kIllusion:    schoolName = "Illusion"; break;
-        case RE::ActorValue::kRestoration: schoolName = "Restoration"; break;
-        default: return;
     }
 
     // Calculate XP based on magicka cost (higher cost = more XP)

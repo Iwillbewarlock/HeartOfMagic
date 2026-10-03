@@ -319,14 +319,18 @@ function onLearnClick() {
     if (!state.selectedNode) return;
     
     var node = state.selectedNode;
-    var isCurrentTarget = state.learningTargets[node.school] === node.formId;
+    // Looked up by id: the key holding it may not be node.school (learningTargetKeys.js)
+    var learnCanonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
+    var heldSchool = LearningTargetKeys.schoolOf(state.learningTargets, node.formId, learnCanonId, node.school);
+    var isCurrentTarget = heldSchool !== null;
     
     if (isCurrentTarget) {
-        // Clear the target - C++ will remove early-learned spell from player
+        // Clear the target - C++ will remove early-learned spell from player.
+        // The formId too: the plugin clears it under whatever key holds it
         if (window.callCpp) {
-            window.callCpp('ClearLearningTarget', JSON.stringify({ school: node.school }));
+            window.callCpp('ClearLearningTarget', JSON.stringify({ school: heldSchool, formId: node.formId }));
         }
-        delete state.learningTargets[node.school];
+        delete state.learningTargets[heldSchool];
         
         // Reset node state from 'learning' back to 'available'
         if (node.state === 'learning') {

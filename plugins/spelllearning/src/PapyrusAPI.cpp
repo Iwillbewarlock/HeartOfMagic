@@ -438,6 +438,14 @@ namespace PapyrusAPI
         return RE::BSFixedString(text.c_str());
     }
 
+    // True only when Settings > Show Notifications is off. A script shows its own
+    // English text when NotificationText gives "" and this is false: a missing
+    // native (an older SpellLearning.pex) answers ""/None = false, so messages show
+    bool NotificationsOff(RE::StaticFunctionTag*)
+    {
+        return !HudNotify::IsEnabled();
+    }
+
     // =========================================================================
     // REGISTRATION
     // =========================================================================
@@ -490,8 +498,9 @@ namespace PapyrusAPI
 
         // === Notifications ===
         vm->RegisterFunction("NotificationText", SCRIPT_NAME, NotificationText);
+        vm->RegisterFunction("NotificationsOff", SCRIPT_NAME, NotificationsOff);
 
-        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 28, SCRIPT_NAME);
+        logger::info("PapyrusAPI: Registered {} functions under script '{}'", 29, SCRIPT_NAME);
 
         return true;
     }

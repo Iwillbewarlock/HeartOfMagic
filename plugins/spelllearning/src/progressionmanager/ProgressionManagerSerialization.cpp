@@ -136,7 +136,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                 }
             }
 
-            DedupeLearningTargets();
+            CanonicalizeLearningTargets();
             logger::info("ProgressionManager: Loaded {} learning targets", m_learningTargets.size());
             break;
         }

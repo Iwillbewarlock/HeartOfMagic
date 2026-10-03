@@ -24,6 +24,8 @@ Function OnStudyProgress(Spell akSpell, int hoursStudied, float totalStudied, fl
 ; Called from patched ISL script when study is complete and spell is learned
 Function OnStudyComplete(Spell akSpell) global native
 
-; Settings > Spell Tomes > Skill XP from Studying (default on): whether a study
-; session raises the school's skill. Off: a skill mod (Static Skill Leveling...) does it
-bool Function StudySkillXP() global native
+; Settings > Spell Tomes > Skill XP from Studying (default on): true only when it is
+; off, so a study session does not raise the school's skill (a skill mod - Static Skill
+; Leveling... - does it). Asked this way round so that a missing native (None = false)
+; keeps ISL's own behaviour: the skill is raised.
+bool Function SkipStudySkillXP() global native

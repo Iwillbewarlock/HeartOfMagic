@@ -250,6 +250,17 @@ void UIManager::NotifyLearningTargetCleared(RE::FormID formId)
     UpdateSpellState(formIdStr, "available");
 }
 
+void UIManager::NotifyLearningTargetDropped(const std::string& school, RE::FormID formId)
+{
+    if (!m_prismaUI || !m_prismaUI->IsValid(m_view) || formId == 0) {
+        return;
+    }
+    json notify;
+    notify["school"] = school;
+    notify["formId"] = std::format("0x{:08X}", formId);
+    CallView("onLearningTargetDropped", JsonText::Dump(notify).c_str());
+}
+
 void UIManager::NotifyModdedSourceRegistered(const std::string& sourceId,
                                               const std::string& displayName,
                                               float multiplier, float cap)

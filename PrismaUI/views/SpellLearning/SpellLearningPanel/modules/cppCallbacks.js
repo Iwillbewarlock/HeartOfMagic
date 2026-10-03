@@ -1179,6 +1179,7 @@ window.onPanelShowing = function() {
 window.onPanelHiding = function() {
     console.log('[SpellLearning] Panel hiding - stopping rendering');
     window._panelVisible = false;
+    if (typeof dismissFindSpell === 'function') dismissFindSpell();   // closed by the hotkey too
     if (document.body) document.body.classList.add('panel-hidden');   // CSS animations pause (patch-ui.css)
     // What the tree shows now: opening again repaints it only if that changed
     if (typeof OpenRefreshGate !== 'undefined') OpenRefreshGate.onHide();

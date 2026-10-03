@@ -54,8 +54,14 @@ public:
     // Learning targets (one per school)
     void SetLearningTarget(const std::string& school, RE::FormID formId, const std::vector<RE::FormID>& prereqs = {});
     RE::FormID GetLearningTarget(const std::string& school) const;
+    // Clears the school's target, and that spell under any other school key too
     void ClearLearningTarget(const std::string& school);
     void ClearLearningTargetForSpell(RE::FormID formId);  // Clear every school targeting this spell (mastered, unlocked, relocked)
+    // The school key a spell is a learning target under: the tree node's school
+    // (its first effect, SpellScanner::GetSpellSchool), which the panel keys by too;
+    // the costliest effect's school for a spell whose first effect has none.
+    // "" when neither is one of the five magic schools.
+    static std::string TargetSchoolOf(RE::SpellItem* spell);
     
     // Direct prerequisite checking (for XP bonuses)
     bool IsDirectPrerequisite(RE::FormID targetSpellId, RE::FormID castSpellId) const;
@@ -95,9 +101,11 @@ public:
     // XP tracking
     // a_path: which way the cast was seen ("cast event", "cast hook"), for the XP log
     void OnSpellCast(const std::string& school, RE::FormID castSpellId, float baseXP, std::string_view a_path);
-    // One info line per XP grant: amount, spell, where it came from (cast event,
-    // cast hook, tome, study, source <name>, raw) and what earned it
-    static void LogXPGrant(std::string_view a_path, RE::FormID targetId, float amount, std::string_view a_detail = {});
+    // One line per XP grant: amount, spell, where it came from (cast event,
+    // cast hook, tome, study, source <name>, raw) and what earned it. Info level,
+    // or debug for a cast's per-target lines (OnSpellCast logs one info line per cast)
+    static void LogXPGrant(std::string_view a_path, RE::FormID targetId, float amount, std::string_view a_detail = {},
+                           bool a_debugLevel = false);
     void AddXP(RE::FormID targetSpellId, float amount);
     void AddXP(const std::string& formIdStr, float amount);  // String overload for DEST integration
     void AddXPNoGrant(const std::string& formIdStr, float amount);  // Record XP without early spell grant (ISL compat)
@@ -267,12 +275,14 @@ private:
 
     std::filesystem::path GetProgressFilePath() const;
 
-    // One spell is the learning target of one school at most: the panel keys a target
-    // by the node's school (first effect), a tome by the costliest effect's school, and
-    // a spell under two keys earned XP twice per cast (ProgressionManagerCore.cpp)
+    // One spell is the learning target of one school at most: a spell under two keys
+    // earned XP twice per cast (ProgressionManagerCore.cpp). Every key dropped is
+    // told to the panel (UIManager::NotifyLearningTargetDropped)
     void DropTargetFromOtherSchools(const std::string& keepSchool, RE::FormID formId);
-    // The same for a save written before: each spell kept under one school (its own, if held there)
-    void DedupeLearningTargets();
+    // At save load: each target under one key, its TargetSchoolOf key when that one
+    // is free (a save from before kept a tome's target under the costliest effect's
+    // school, which the panel could neither see nor clear)
+    void CanonicalizeLearningTargets();
 
     // Learning targets: school name -> spell formId
     std::unordered_map<std::string, RE::FormID> m_learningTargets;

@@ -287,11 +287,14 @@ namespace DESTIntegration {
             return IsActive();
         }
 
-        // Settings > Spell Tomes > Skill XP from Studying: whether the patched ISL script
-        // raises the school's skill after a study session (off: a skill mod does it)
-        bool StudySkillXP(RE::StaticFunctionTag*)
+        // Settings > Spell Tomes > Skill XP from Studying: true only when it is off (a
+        // skill mod raises skills), so the patched ISL script skips the skill gain. The
+        // question is asked this way round so that a missing native (a newer patch .pex
+        // with an older SpellLearning_ISL.pex, where the call returns None = false)
+        // keeps ISL's own behaviour: the skill is raised.
+        bool SkipStudySkillXP(RE::StaticFunctionTag*)
         {
-            return SpellTomeHook::GetSingleton()->GetSettings().studySkillXP;
+            return !SpellTomeHook::GetSingleton()->GetSettings().studySkillXP;
         }
 
         // =====================================================================
@@ -390,7 +393,7 @@ namespace DESTIntegration {
         vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_ISL",  Papyrus::IsIntegrationActive);
         vm->RegisterFunction("OnStudyProgress",     "SpellLearning_ISL",  Papyrus::OnStudyProgress);
         vm->RegisterFunction("OnStudyComplete",     "SpellLearning_ISL",  Papyrus::OnStudyComplete);
-        vm->RegisterFunction("StudySkillXP",        "SpellLearning_ISL",  Papyrus::StudySkillXP);
+        vm->RegisterFunction("SkipStudySkillXP",    "SpellLearning_ISL",  Papyrus::SkipStudySkillXP);
 
         logger::info("DESTIntegration: Registered SpellLearning_DEST/ISL Papyrus functions");
         return true;

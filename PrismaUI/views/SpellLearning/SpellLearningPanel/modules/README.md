@@ -30,10 +30,10 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
 | `treeLoad.js` | 563 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData` |
 | `spellCardView.js` | 539 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
-| `spellProgressView.js` | 218 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
-| `findSpell.js` | 287 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell |
-| `spellSearch.js` | 114 | `SpellSearch`: which spells Find Spell lists for a text (name, school, formId; case and spaces ignored; exact, prefix, rest; locked left out in discovery mode) |
-| `treeToolsScale.js` | 137 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale` |
+| `spellProgressView.js` | 216 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
+| `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
+| `spellSearch.js` | 180 | `SpellSearch`: which spells Find Spell lists for a text (name, school English or translated, formId only for a formId-like text; case and spaces ignored; exact, prefix, rest, formId; locked left out in discovery mode, raw tree data then lists nothing), the space-blind highlight range |
+| `treeToolsScale.js` | 158 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale`; a lost release (no button held, focus lost) ends the drag |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 486 | `TreeStyle`: tree look as design-preset tokens; halos, labels (the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
@@ -80,7 +80,8 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `renderSettings.js` | 182 | The render popup (gear in the zoom bar), one page of chips: the "still everything" master switch, moving parts, what is on the tree; the star twinkle switch; puts saved values back on the popup and on Settings > Tree View |
 | `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
-| `progressionUI.js` | 918 | How-to-Learn panel, learning status badges |
+| `learningTargetKeys.js` | 61 | `LearningTargetKeys`: the school key holding a spell, looked up by id (Learn button, spell card); `onLearningTargetDropped` |
+| `progressionUI.js` | 923 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
 | `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 227 | The tome filter (`isTaughtByTome`, `filterTomeSpells`: the tree takes only spells a tome teaches, whose tome something hands out, that are not in the voice slot and not another plugin's copy of a spell - `duplicateOf`, the kept record's formId, set by the scan, SpellScannerDuplicates.cpp; edit mode's spawn list leaves the copies out too, so one spell is never put on the tree twice, while the blacklist list keeps them, where picking one does no harm), spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
@@ -131,6 +132,7 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/spellSearch.js"></script>
 <script src="modules/treeToolsScale.js"></script>
 <script src="modules/findSpell.js"></script>
+<script src="modules/learningTargetKeys.js"></script>
 <script src="modules/progressionUI.js"></script>
 <script src="modules/buttonHandlers.js"></script>
 

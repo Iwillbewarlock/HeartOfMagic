@@ -8,6 +8,8 @@
     <link rel="stylesheet" id="ui-theme-css" href="styles-skyrim.css">
     <!-- UI patch (navigation chrome, bottom details bar) - theme-agnostic, survives theme switches -->
     <link rel="stylesheet" href="patch-ui.css">
+    <!-- The tree's top-left tools (tool bar size, Find Spell dropdown): after patch-ui.css, which it continues -->
+    <link rel="stylesheet" href="patch-tree-tools.css">
 </head>
 <body>
     <!-- Full-screen overlay to block clicks on SWF UI when panel has focus -->
@@ -443,7 +445,7 @@
                         <g id="center-hub"></g>
                     </svg>
                     
-                    <!-- The tool bar and the rows under it, stacked so a wrapped bar pushes them down (patch-ui.css) -->
+                    <!-- The tool bar and the rows under it, stacked so a wrapped bar pushes them down (patch-tree-tools.css) -->
                     <div class="tree-top-tools">
                     <!-- Zoom Controls -->
                     <div class="zoom-controls">
@@ -1982,6 +1984,7 @@
     <script src="modules/findSpell.js"></script>
     <script src="modules/treeNav.js"></script>
     <script src="modules/detailsPeek.js"></script>
+    <script src="modules/learningTargetKeys.js"></script>
     <script src="modules/progressionUI.js"></script>
     <script src="modules/progressUpdates.js"></script>
     <script src="modules/settingsPresets.js"></script>
