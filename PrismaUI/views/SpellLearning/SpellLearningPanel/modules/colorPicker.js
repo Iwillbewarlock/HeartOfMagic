@@ -26,7 +26,7 @@ var ColorPicker = {
         // Header
         var header = document.createElement('div');
         header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #333;';
-        header.innerHTML = '<span style="color:#b8a878; font-size:12px;">Color Picker</span>';
+        header.innerHTML = '<span style="color:#b8a878; font-size:0.8em;">Color Picker</span>';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
@@ -72,7 +72,7 @@ var ColorPicker = {
         
         var applyBtn = document.createElement('button');
         applyBtn.textContent = 'Apply';
-        applyBtn.style.cssText = 'background:#b8a878; border:none; color:#000; padding:6px 12px; cursor:pointer; font-size:11px;';
+        applyBtn.style.cssText = 'background:#b8a878; border:none; color:#000; padding:6px 12px; cursor:pointer; font-size:0.75em;';
         applyBtn.onclick = function() { ColorPicker._applyAndClose(); };
         previewRow.appendChild(applyBtn);
         

@@ -184,7 +184,7 @@ body {
 }
 
 .version-tag {
-    font-size: 0.7em;
+    font-size: 0.8em;
     padding: 2px 8px;
     background: rgba(184, 168, 120, 0.15);
     color: var(--accent-gold);
@@ -536,7 +536,7 @@ body {
 
 /* School Labels */
 .school-label {
-    font-size: 11px;
+    font-size: 0.75em;
     font-weight: 400;
     letter-spacing: 3px;
     text-transform: uppercase;
@@ -553,7 +553,7 @@ body {
 
 .center-hub-text {
     fill: var(--accent-gold);
-    font-size: 9px;
+    font-size: 0.75em;
     font-weight: 400;
     text-anchor: middle;
     dominant-baseline: middle;
@@ -877,7 +877,7 @@ body {
 }
 
 .edit-tool {
-    font-size: 12px;
+    font-size: 0.8em;
 }
 
 #zoom-level {
@@ -888,7 +888,7 @@ body {
 }
 
 .renderer-badge {
-    font-size: 0.65em;
+    font-size: 0.75em;
     padding: 2px 6px;
     border-radius: 3px;
     font-weight: bold;
@@ -987,7 +987,7 @@ body {
 }
 
 .heart-settings-popup .popup-row span {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-muted);
     min-width: 30px;
     text-align: right;
@@ -995,7 +995,7 @@ body {
 
 .heart-settings-popup .popup-apply-btn {
     padding: 2px 8px;
-    font-size: 0.7em;
+    font-size: 0.8em;
     background: rgba(184, 168, 120, 0.2);
     border: 1px solid var(--accent);
     color: var(--accent);
@@ -1014,7 +1014,7 @@ body {
     border: 1px solid var(--divider);
     color: var(--text-primary);
     padding: 2px 6px;
-    font-size: 0.7em;
+    font-size: 0.8em;
     border-radius: 3px;
     cursor: pointer;
     min-width: 90px;
@@ -1031,7 +1031,7 @@ body {
     border: 1px solid var(--divider);
     color: var(--text-primary);
     padding: 2px 6px;
-    font-size: 0.7em;
+    font-size: 0.8em;
     border-radius: 3px;
     min-width: 70px;
     max-width: 90px;
@@ -1086,7 +1086,7 @@ body {
     gap: 4px;
 }
 .popup-cell label {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     white-space: nowrap;
 }
@@ -1108,7 +1108,7 @@ body {
     cursor: pointer;
 }
 .popup-cell span {
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted);
     min-width: 20px;
     text-align: right;
@@ -1146,7 +1146,7 @@ body {
     bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-muted);
     background: rgba(0, 0, 0, 0.7);
     padding: 5px 12px;
@@ -1279,7 +1279,7 @@ body {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 0;
-    font-size: 0.65em;
+    font-size: 0.75em;
     font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -1305,14 +1305,14 @@ body {
 }
 
 .detail-label {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .detail-value {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-primary);
     font-weight: 400;
 }
@@ -1429,7 +1429,7 @@ body {
     border: 1px solid var(--divider);
     border-radius: 3px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 0.75em;
     font-weight: bold;
     transition: all 0.15s ease;
 }
@@ -1478,7 +1478,7 @@ body {
     border-radius: 3px;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-size: 12px;
+    font-size: 0.8em;
     text-align: center;
 }
 
@@ -1496,7 +1496,7 @@ body {
     margin-bottom: 2px;
     background: rgba(255,255,255,0.03);
     border-radius: 0;
-    font-size: 0.7em;
+    font-size: 0.8em;
 }
 
 .detail-list.clickable li {
@@ -1520,7 +1520,7 @@ body {
 }
 
 .detail-desc {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     font-style: italic;
     line-height: 1.4;
@@ -1540,7 +1540,7 @@ body {
 .state-badge {
     padding: 5px 12px;
     border-radius: 0;
-    font-size: 0.65em;
+    font-size: 0.75em;
     font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -1567,7 +1567,7 @@ body {
     border: 1px solid rgba(136, 168, 120, 0.3);
     border-radius: 0;
     color: var(--accent-green);
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-weight: 400;
     cursor: pointer;
     transition: all 0.1s;
@@ -1590,7 +1590,7 @@ body {
     border: 1px solid rgba(120, 144, 168, 0.3);
     border-radius: 0;
     color: var(--accent-blue);
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-weight: 400;
     cursor: pointer;
     transition: all 0.1s;
@@ -1626,7 +1626,7 @@ body {
 .learning-status-badge {
     padding: 5px 12px;
     border-radius: 0;
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -1673,7 +1673,7 @@ body {
 .learning-effectiveness.full { color: var(--accent-green); }
 
 .learning-status-hint {
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted);
     margin-bottom: 10px;
     line-height: 1.4;
@@ -1729,7 +1729,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-weight: 500;
     color: var(--text-bright);
     transition: all 0.15s ease;
@@ -1834,7 +1834,7 @@ body {
 .progress-label {
     display: flex;
     justify-content: space-between;
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     margin-bottom: 5px;
 }
@@ -1919,7 +1919,7 @@ body {
 }
 
 .footer-goals-label {
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1941,7 +1941,7 @@ body {
     max-width: 150px;
     padding: 2px 8px;
     font: inherit;
-    font-size: 0.72em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     background: transparent;
     border: 1px solid var(--divider);
@@ -1984,7 +1984,7 @@ body {
 .state-legend {
     display: flex;
     gap: 10px;
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -2280,7 +2280,7 @@ body {
     display: inline-block;
     margin-left: 8px;
     padding: 1px 5px;
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--accent-gold);
     border: 1px solid var(--accent-gold);
     border-radius: 2px;
@@ -2341,7 +2341,7 @@ body {
 }
 
 .find-spell-info {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     margin-top: 1px;
 }
@@ -2359,7 +2359,7 @@ body {
 }
 
 .find-spell-tier {
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted);
     border: 1px solid var(--divider);
     padding: 0 4px;
@@ -2656,7 +2656,7 @@ body {
 }
 
 .tooltip-state {
-    font-size: 0.65em;
+    font-size: 0.75em;
     font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -2771,7 +2771,7 @@ body {
 }
 
 .setting-pair .setting-desc {
-    font-size: 0.7em;
+    font-size: 0.8em;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -2781,7 +2781,7 @@ body {
 .setting-pair .setting-select {
     min-width: 0;
     max-width: 100%;
-    font-size: 0.75em;
+    font-size: 0.85em;
 }
 
 /* Three settings side-by-side */
@@ -2839,7 +2839,7 @@ body {
 }
 
 .modded-source-name {
-    font-size: 12px;
+    font-size: 0.8em;
     color: #d4c8a0;
     font-weight: 500;
 }
@@ -2968,7 +2968,7 @@ body {
 }
 
 .settings-split .setting-note {
-    font-size: 0.65em;
+    font-size: 0.75em;
     margin-top: 6px;
     padding: 4px 6px;
 }
@@ -3053,7 +3053,7 @@ body {
 }
 
 .power-step-unit {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-muted, #8a8070);
     white-space: nowrap;
 }
@@ -3077,7 +3077,7 @@ body {
 }
 
 .passive-tier-grid .tier-xp-unit {
-    font-size: 0.65em;
+    font-size: 0.75em;
     color: var(--text-muted, #8a8070);
     margin-top: -2px;
 }
@@ -3309,7 +3309,7 @@ body {
 }
 
 .lock-label {
-    font-size: 0.65em;
+    font-size: 0.75em;
     padding: 1px 5px;
     background: rgba(184, 140, 60, 0.15);
     border: 1px solid rgba(184, 140, 60, 0.3);
@@ -3394,7 +3394,7 @@ body {
 }
 
 .setting-note {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--accent-gold);
     margin-top: 8px;
     padding: 6px 8px;
@@ -3416,7 +3416,7 @@ body {
 }
 
 .subsection-title {
-    font-size: 0.75em;
+    font-size: 0.9em;  /* 12px inside a .settings-subsection (0.85em) at Font Size 1.0x */
     font-weight: 400;
     color: var(--accent-blue);
     text-transform: uppercase;
@@ -3454,7 +3454,7 @@ body {
 }
 
 .tier-xp-item label {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -3651,7 +3651,7 @@ body {
     border: 1px solid var(--divider);
     border-radius: 0;
     color: var(--text-primary);
-    font-size: 0.8em;
+    font-size: 0.9em;
     cursor: pointer;
     min-width: 160px;
 }
@@ -3750,7 +3750,7 @@ body {
 
 .cheat-warning {
     margin-left: auto;
-    font-size: 0.65em;
+    font-size: 0.75em;
     padding: 2px 6px;
     background: rgba(168, 120, 120, 0.15);
     color: var(--accent-red);
@@ -3906,7 +3906,7 @@ body {
 }
 
 .scanner-presets-label {
-    font-size: 9px;
+    font-size: 0.75em;
     font-weight: 600;
     letter-spacing: 1.2px;
     color: rgba(184, 168, 120, 0.45);
@@ -3916,7 +3916,7 @@ body {
 
 .scanner-preset-save-btn {
     padding: 3px 10px !important;
-    font-size: 10px !important;
+    font-size: 0.75em !important;
     white-space: nowrap;
     border: 1px solid rgba(184, 168, 120, 0.3);
     background: rgba(184, 168, 120, 0.1);
@@ -3950,7 +3950,7 @@ body {
     gap: 4px;
     padding: 3px 8px;
     border-radius: 10px;
-    font-size: 10px;
+    font-size: 0.75em;
     cursor: pointer;
     border: 1px solid rgba(184, 168, 120, 0.25);
     background: rgba(184, 168, 120, 0.08);
@@ -3979,7 +3979,7 @@ body {
     border: none;
     border-bottom: 1px solid rgba(184, 168, 120, 0.5);
     color: #b8a878;
-    font-size: 10px;
+    font-size: 0.75em;
     width: 80px;
     padding: 0;
     outline: none;
@@ -3987,7 +3987,7 @@ body {
 }
 
 .scanner-preset-update {
-    font-size: 12px;
+    font-size: 0.8em;
     opacity: 0.3;
     cursor: pointer;
     margin-left: 1px;
@@ -3999,7 +3999,7 @@ body {
 }
 
 .scanner-preset-delete {
-    font-size: 12px;
+    font-size: 0.8em;
     opacity: 0.3;
     cursor: pointer;
     margin-left: 1px;
@@ -4106,7 +4106,7 @@ body {
 }
 
 .scan-stat-label {
-    font-size: 0.7em;
+    font-size: 0.8em;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -4144,7 +4144,7 @@ body {
 
 .scan-school-count {
     color: var(--text-muted);
-    font-size: 0.9em;
+    font-size: 1em;
 }
 
 /* Filter controls */
@@ -4598,7 +4598,7 @@ body {
     background: rgba(255, 255, 255, 0.9);
 }
 .classic-tier-label {
-    font-size: 9px;
+    font-size: 0.75em;
     color: rgba(184, 168, 120, 0.7);
     margin-top: 2px;
     white-space: nowrap;
@@ -4607,7 +4607,7 @@ body {
     position: absolute;
     width: 100%;
     text-align: center;
-    font-size: 8px;
+    font-size: 0.75em;
     color: rgba(255, 255, 255, 0.7);
     pointer-events: none;
     top: 50%;
@@ -4772,7 +4772,7 @@ body {
 }
 
 .easy-status-wrap {
-    font-size: 11px;
+    font-size: 0.85em;
     color: var(--text-muted);
     padding-top: 4px;
 }
@@ -4799,4 +4799,9 @@ body {
     flex: none;
     width: 100%;
     height: 100%;
+}
+
+/* A description inside a subsection (0.85em) at the readable floor, 12px at Font Size 1.0x */
+.settings-subsection .setting-desc {
+    font-size: 0.9em;
 }

@@ -173,6 +173,12 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   card's sidebar width and the bottom bar's height and fixed columns are in em of that font, so the card
   grows with the text instead of cutting it off (at 2.0x the bottom bar is twice as tall and leaves the tree
   less room). Icon buttons keep their px sizes.
+- **Smallest text** (2026-10-05): no panel text is under 0.75em of the body font (12px at 1.0x). The stylesheets'
+  0.65em / 0.7em sizes went to 0.75em / 0.8em, fixed 8-12px sizes (styles, the Classic builder's settings,
+  the colour picker, the complex tab's status) became em so they follow Font Size, a subsection's titles and
+  descriptions are 0.9em of its 0.85em, and select boxes (language, design) are 0.9em. The Classic builder's
+  Spell Matching descriptions and the Globe Mask unit are language keys (`preview.classic.match*Desc`,
+  `preview.classic.tiersUnit`).
 - **Default text sizes** (1.2.1, `modules/constants.js`): body text `PANEL_BASE_FONT_SIZE` 16px (was 14px; the
   `body` rule in `styles-skyrim.css` says 16px too, for the moment before the settings load) and Spell Name
   Size `DEFAULT_NODE_FONT_SIZE` 12 (was 10; slider still 6 to 18). Only defaults changed: a saved

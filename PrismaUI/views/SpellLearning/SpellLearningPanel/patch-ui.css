@@ -47,7 +47,7 @@
     color: var(--text-secondary, #9A9A8A);
     padding: 4px 7px;                       /* short names (treeNav._schoolShort): about half the old width */
     font-family: inherit;
-    font-size: 0.7em;
+    font-size: 0.8em;
     letter-spacing: 0.5px;
     text-transform: uppercase;
     cursor: pointer;
@@ -130,7 +130,7 @@ button.easy-preset-chip {
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #9fe09f;
     font-family: Consolas, 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 0.8em;
     line-height: 1.5;
     white-space: pre;
     pointer-events: none;
@@ -191,7 +191,7 @@ button.easy-preset-chip {
 }
 
 .find-spell-state {
-    font-size: 0.65em;
+    font-size: 0.75em;
     padding: 0 5px;
     border: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
     border-radius: 2px;
@@ -281,7 +281,7 @@ button.easy-preset-chip {
 
 .details-peek-hint {
     display: none;
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-style: italic;
     color: var(--text-muted, #6A6A5A);
 }
@@ -477,7 +477,7 @@ body.panel-hidden *::after {
 
 /* A line of explanation in the render settings popup */
 .popup-note {
-    font-size: 0.72em;
+    font-size: 0.8em;
     line-height: 1.4;
     color: var(--text-muted);
     margin: 2px 0 6px;
@@ -501,7 +501,7 @@ body.panel-hidden *::after {
 .btn { padding: 10px 17px; font-size: 0.95em; }
 .btn-sm { padding: 7px 13px; font-size: 0.9em; }
 .segmented-toggle .seg-btn { padding: 5px 13px; font-size: 0.85em; }
-.scanner-preset-chip { padding: 5px 11px; font-size: 12px; }
+.scanner-preset-chip { padding: 5px 11px; font-size: 0.8em; }
 .easy-preset-chip { padding: 12px 24px; font-size: 15px; }
 .scanner-mode-btn,
 .prm-tab,
