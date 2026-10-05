@@ -157,7 +157,7 @@ namespace DESTIntegration {
         }
 
         auto* player = RE::PlayerCharacter::GetSingleton();
-        if (player && player->HasSpell(spell)) {
+        if (player && (player->HasSpell(spell) || pm->PlayerKnowsCopyOf(spell->GetFormID()))) {
             HudNotify::Show("hud.alreadyLearned", "You have already learned this spell.");
             return true;
         }

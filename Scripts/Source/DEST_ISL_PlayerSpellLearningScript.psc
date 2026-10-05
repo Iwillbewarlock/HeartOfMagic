@@ -189,7 +189,7 @@ Event OnSpellTomeRead(Book akBook, Spell akSpell, ObjectReference akContainer)
 		else
 			string sAlreadyKnown = Game.GetGameSettingString("sAlreadyKnown")
 			string sText = sAlreadyKnown + " " + akSpell.GetName() + "."
-			; [HoM] the game's own text, already in the game's language: no key, only Show Notifications
+			; [HoM] the game's own text, already in the game's language: no key, so it always shows (not an XP alert)
 			HoMNotify(SpellLearning.NotificationText("", sText), sText)
 		endif
 	endif

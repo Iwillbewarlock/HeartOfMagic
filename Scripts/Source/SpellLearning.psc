@@ -155,6 +155,7 @@ string Function RunScan(string mode = "tomes", string preset = "full") global na
 ;   endif
 string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native
 
-; True only when the player turned notifications off (Settings > Show Notifications).
+; True only when the player turned XP alerts off (Settings > XP Alerts). NotificationText
+; then gives "" for an XP message (casting, studying, book XP) and the text for any other.
 ; A missing native reads as false, so a script falls back to showing its message.
 bool Function NotificationsOff() global native

@@ -778,13 +778,15 @@ struct EarlyLearningSettings {
 - `ProcessEvent(event)` - Handle spell cast
 - `SetNotificationInterval()` / `GetNotificationInterval()` - Notification throttling
 - `SetWeakenedNotificationsEnabled()` / `GetWeakenedNotificationsEnabled()`
-- The alert itself goes through `HudNotify::Show` (below), so Show Notifications off hides it too
+- The alert itself goes through `HudNotify::Show` (below), so XP Alerts off hides it too
 
 **HudNotify** (`include/HudNotify.h`, `src/HudNotify.cpp`): every corner (HUD) message of the plugin. `Show(key,
 english, {{name, value}...})` looks the key up in the panel's `lang/<locale>.json` (`hud.*` keys, read once per
 language by `Configure`, which `ApplySettingsFromConfig` calls on config load and every save with
 `notifications.enabled` and `ResolvePanelLocale` - config `language`, else `lang/locale.js`, else `en`), fills
-the `{{name}}` placeholders and shows it, or shows nothing when notifications are off. A missing file or key
+the `{{name}}` placeholders and shows it, or shows nothing for an XP message (`IsXPAlert`: `hud.castPower*`,
+`hud.powerIncreased`, `hud.beginStudy`, `hud.review`, `hud.beginGrasp`, `hud.studiedHour(s)`, `hud.bookXp*`) while
+XP Alerts (`notifications.enabled`) is off; every other key always shows (`IsShown`). A missing file or key
 falls back to the English text at the call. Papyrus reaches it through `SpellLearning.NotificationText` (with
 `SpellLearning.NotificationsOff`, so that a script running with an older SpellLearning.pex, where the native is
 missing and the call gives "", still shows its own English text - docs/PLAN-PUBLIC-MODDER-API.md), other
@@ -825,7 +827,7 @@ plugins through `ISpellLearningAPI::ShowNotification` (API v2). Safe from any th
 bool enabled = true;
 bool grantXPOnRead = true;
 bool autoSetLearningTarget = true;
-bool showNotifications = true;        // under Settings > Show Notifications (HudNotify)
+bool showNotifications = true;        // under Settings > XP Alerts for the study lines (HudNotify)
 bool studySkillXP = true;             // ISL patch: a study session raises the school's skill
 float xpPercentToGrant = 25.0;        // % of required XP per tome read
 float tomeInventoryBoostPercent = 25.0; // Bonus while tome in inventory

@@ -21,9 +21,13 @@
   a missing key shows English). Changing the language in Settings changes them at once. Skill names in
   "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus) and
   `ShowNotification` (C++ API version 2) give the same for their own messages.
-- **Show Notifications** (Settings > Early Learning, on by default) turns every corner message of the mod
-  off. Weakened Spell Alerts stays as an option under it and is greyed out while it is off. Reset to
-  Defaults turns it back on; settings presets do not change it.
+- **XP Alerts** (Settings > Early Learning, on by default) turns the corner messages about XP and power off:
+  casting a weakened spell, power steps, studying a tome, book XP. Learned, mastered, blocked tomes and the
+  Spell Research line always show. Weakened Spell Alerts stays as an option under it and is greyed out while it
+  is off. Reset to Defaults turns it back on; settings presets do not change it.
+- A copy of a spell you learned before the copies were merged (another plugin's record of the same spell)
+  now counts as that spell: its children open, and Heart of Magic does not give you the tree's record on top
+  of it.
 
 - **Skill XP from Studying** (Settings > Spell Tomes, on by default): with the Immersive Spell Learning
   patch, turn it off and studying a tome no longer raises the school's skill, so a skill mod (Static Skill

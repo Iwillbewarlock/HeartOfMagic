@@ -1226,14 +1226,16 @@ All mod configuration. Split-row layout for space efficiency.
 ### Key Settings Groups
 
 **Progression:** How XP is earned and what thresholds unlock spells.
-**Early Learning:** Grants nerfed spells before full mastery. Also holds **Show Notifications** (default on,
-`notifications.enabled`, `modules/notificationSetting.js`): off hides every corner message of the mod - C++
-(`HudNotify`), the Papyrus `SpellLearning.NotificationText` callers (ISL patch, BookXP script) and the BookXP DLL.
+**Early Learning:** Grants nerfed spells before full mastery. Also holds **XP Alerts** (default on,
+`notifications.enabled` - the key kept the first name, Show Notifications - `modules/notificationSetting.js`):
+off hides the corner messages about XP and power (`HudNotify::IsXPAlert`: casting, power steps, studying, book
+XP) wherever they come from - C++ (`HudNotify`), the Papyrus `SpellLearning.NotificationText` callers (ISL patch,
+BookXP script) and the BookXP DLL. Learned, mastered, blocked tomes and the Spell Research line always show.
 **Weakened Spell Alerts** and their interval sit under it as a sub-option, greyed out (`disabled-controls`)
-while it is off. Reset to Defaults turns both on; a settings preset carries the alert options but never Show
-Notifications. The corner messages' text follows the panel language (`hud.*` keys, docs/TRANSLATING.md), or
+while it is off. Reset to Defaults turns both on; a settings preset carries the alert options but never XP
+Alerts. The corner messages' text follows the panel language (`hud.*` keys, docs/TRANSLATING.md), or
 English with **Notification Language** set so (`notifications.language`: `panel` default, `en`; greyed out
-with Show Notifications off; a preset never changes it): the game draws the corner with its own font, so a
+with XP Alerts off; a preset never changes it): the game draws the corner with its own font, so a
 panel language in a script that font lacks (Japanese on a Korean game font) showed boxes.
 **Spell Tomes:** How reading spell tomes interacts with progression. With Spell Research loaded, its first line
 says what Heart of Magic last added to Spell Research's lists (`modules/spellResearchStatus.js`,
@@ -1243,7 +1245,7 @@ study session raises the school's skill (`Game.AdvanceSkill` in `DEST_ISL_Player
 through `SpellLearning_ISL.SkipStudySkillXP()`, true only when the setting is off, so a missing native - a
 patch script with an older SpellLearning_ISL.pex - reads None = false and raises the skill as ISL does). Off
 leaves skills to a skill mod such as Static Skill Leveling.
-Reset to Defaults turns it on; a settings preset never changes it (like Show Notifications).
+Reset to Defaults turns it on; a settings preset never changes it (like XP Alerts).
 **Developer:** Import validation (Aggressive Path Validation), debug options (hidden by default).
 
 ---
@@ -1506,7 +1508,7 @@ Two preset types, stored as individual JSON files:
 
 ### Settings Presets (`presets/settings/`)
 Capture: Progression settings, early learning, tome learning, notifications (the weakened spell alerts; not
-Show Notifications or Notification Language, which a preset never changes).
+XP Alerts or Notification Language, which a preset never changes).
 Bundled: `DEFAULT.json`, `Easy.json`, `Hard.json`
 
 ### Scanner Presets (`presets/scanner/`)

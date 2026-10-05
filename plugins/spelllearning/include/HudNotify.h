@@ -16,7 +16,9 @@
 //   - the text comes from the panel's language file (lang/<locale>.json, the
 //     "hud.*" keys), with the English text written at the call as the fallback
 //     when the file or the key is missing, and
-//   - Settings > "Show Notifications" (notifications.enabled) turns all of them off.
+//   - Settings > "XP Alerts" (notifications.enabled, the key keeps its old name)
+//     turns the XP messages off (IsXPAlert: casting, power steps, studying, book
+//     XP). Learned, mastered, blocked tomes and the Spell Research line always show.
 //
 // The strings use the panel's {{name}} placeholders (modules/i18n.js). The table
 // is read once per language: Configure() runs whenever the settings are applied
@@ -35,8 +37,14 @@ namespace HudNotify
      */
     void Configure(bool enabled, const std::string& localeCode, const std::filesystem::path& langFile);
 
-    /** Settings > Show Notifications. */
+    /** Settings > XP Alerts. */
     [[nodiscard]] bool IsEnabled();
+
+    /** The key is an XP message, which the XP Alerts switch turns off. */
+    [[nodiscard]] bool IsXPAlert(std::string_view a_key);
+
+    /** Whether a message of this key shows now: anything but an XP alert, or every one with XP Alerts on. */
+    [[nodiscard]] bool IsShown(std::string_view a_key);
 
     /**
      * {{name}} in a_text replaced by its value. Pure; a value that itself holds
@@ -56,7 +64,7 @@ namespace HudNotify
         return Text(a_key, a_english, std::span<const Param>(a_params.begin(), a_params.size()));
     }
 
-    /** Show Text(...) in the corner. Nothing when notifications are off; returns whether it showed. */
+    /** Show Text(...) in the corner. Nothing for an XP alert with XP Alerts off; returns whether it showed. */
     bool Show(std::string_view a_key, std::string_view a_english, std::span<const Param> a_params);
     inline bool Show(std::string_view a_key, std::string_view a_english, std::initializer_list<Param> a_params = {})
     {

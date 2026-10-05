@@ -246,7 +246,7 @@ std::vector<RE::FormID> ProgressionManager::GetTreePrerequisites(RE::FormID spel
     return all;
 }
 
-bool ProgressionManager::IsSpellMastered(RE::FormID spellId) const
+bool ProgressionManager::IsOwnSpellMastered(RE::FormID spellId) const
 {
     // Check our progress tracking
     auto it = m_spellProgress.find(spellId);
@@ -472,6 +472,12 @@ bool ProgressionManager::CanUnlock(RE::FormID formId) const
 
     // Check XP requirement
     if (it->second.unlocked || it->second.progressPercent < 1.0f) {
+        return false;
+    }
+
+    // The player knows a copy of it: granting this one too would put it in the book twice
+    if (PlayerKnowsCopyOf(formId)) {
+        logger::info("ProgressionManager: {:08X} not granted - the player knows a copy of it", formId);
         return false;
     }
 

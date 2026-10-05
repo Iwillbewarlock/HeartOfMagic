@@ -93,6 +93,11 @@ public:
     std::vector<RE::FormID> GetUnmetHardPrerequisites(RE::FormID spellId) const;
     std::pair<int, int> GetSoftPrerequisiteStatus(RE::FormID spellId) const;  // (mastered, needed)
     bool IsSpellMastered(RE::FormID spellId) const;  // 100% progress or explicitly unlocked
+    // Another plugin's copy of this spell (SpellScanner::DuplicateGroupOf) that the
+    // player knows, learned before the copies were merged or from outside the tree:
+    // it is this spell to the tree (IsSpellMastered), and this one is not granted on
+    // top of it (CanUnlock, the early grant, the tome's "already know").
+    bool PlayerKnowsCopyOf(RE::FormID spellId) const;
     
     // Legacy compatibility
     void SetTreePrerequisites(RE::FormID spellId, const std::vector<RE::FormID>& prereqs);
@@ -309,6 +314,8 @@ private:
     const std::vector<RE::FormID>& GetRequiredBy(RE::FormID spellId) const;
     void LinkRequiredBy(RE::FormID spellId, const PrereqRequirements& reqs, bool link);
     std::unordered_map<RE::FormID, std::vector<RE::FormID>> m_requiredBy;
+
+    bool IsOwnSpellMastered(RE::FormID spellId) const;  // IsSpellMastered without the copies
 
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;

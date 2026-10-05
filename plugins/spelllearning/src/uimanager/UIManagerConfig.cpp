@@ -155,8 +155,8 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
             plSettings.enabled, plSettings.scope);
     }
 
-    // Notification settings. "enabled" (Settings > Show Notifications) turns every
-    // corner message off; the corner messages' text follows the panel's language,
+    // Notification settings. "enabled" (Settings > XP Alerts) turns the XP corner
+    // messages off (HudNotify::IsXPAlert); the corner messages' text follows the panel's language,
     // or English when "language" says so (Notification Language: the game draws the
     // corner with its own font, which may not have the panel language's letters)
     static constexpr const char* kHudLanguageEnglish = "en";

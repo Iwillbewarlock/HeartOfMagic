@@ -365,7 +365,7 @@ function initializeSettings() {
     }
     
     // =========================================================================
-    // NOTIFICATION SETTINGS (Show Notifications, weakened spell alerts)
+    // NOTIFICATION SETTINGS (XP Alerts, weakened spell alerts)
     // =========================================================================
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.init();
     // The tree's tool bar size (its corner grip)
@@ -1277,7 +1277,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         }
         updateSpellTomeLearningUI();
         
-        // Notification settings (Show Notifications, weakened spell alerts)
+        // Notification settings (XP Alerts, weakened spell alerts)
         if (typeof NotificationSetting !== 'undefined') NotificationSetting.loadFrom(data);
         if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.loadFrom(data);
         

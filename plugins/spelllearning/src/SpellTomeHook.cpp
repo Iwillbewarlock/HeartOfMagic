@@ -269,8 +269,8 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!pm || !player) return true;  // Can't check, allow
 
-    // Already knows this spell
-    if (player->HasSpell(a_spell)) {
+    // Already knows this spell, or a copy of it (learned before the copies were merged)
+    if (player->HasSpell(a_spell) || pm->PlayerKnowsCopyOf(spellFormId)) {
         if (hook->m_settings.showNotifications) {
             HudNotify::Show("hud.alreadyKnown", "You already know this spell.");
         }

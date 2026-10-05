@@ -292,11 +292,12 @@ window.onModdedXPSourceRegistered = function(dataStr) {
 
 ```papyrus
 ; A corner message in the panel's language: asKey's text in lang/<locale>.json, or asEnglish,
-; with up to three {{name}} placeholders filled. "" when Show Notifications is off - show nothing then.
+; with up to three {{name}} placeholders filled. "" for an XP message key (casting, studying, book XP)
+; while XP Alerts is off - show nothing then. Any other key always gives its text.
 ; An empty asKey only fills asEnglish (and still returns "" when notifications are off).
 string Function NotificationText(string asKey, string asEnglish, string asName1 = "", string asValue1 = "", string asName2 = "", string asValue2 = "", string asName3 = "", string asValue3 = "") global native
 
-; True only when Show Notifications is off.
+; True only when XP Alerts is off.
 bool Function NotificationsOff() global native
 ```
 
@@ -492,7 +493,8 @@ namespace SpellLearning {
 
 **ShowNotification** (version 2, 1.2.1): the text of `key` from the panel's `lang/<locale>.json` (pass a key no
 file has and you get `englishText`), `{{name}}` placeholders filled, shown in the corner; returns `false` and
-shows nothing when *Show Notifications* is off. It was added at the end of the interface: a plugin built against
+shows nothing for an XP message key (`hud.bookXp*` and the others `HudNotify::IsXPAlert` names) while *XP
+Alerts* is off. It was added at the end of the interface: a plugin built against
 version 1 keeps working, and a plugin that calls it must check `GetAPIVersion() >= 2` first (an older Heart of
 Magic has no such entry). Only `const char*` crosses the boundary; nothing is handed back to free. BookXP's DLL
 uses it.
@@ -655,7 +657,8 @@ Modded source **settings** (multiplier, cap, enabled) persist in unified config 
 - [ ] `AddSourcedXP` with custom source -- auto-registers, respects modded cap
 - [ ] `AddRawXP` -- bypasses all caps and multipliers
 - [ ] `GetSpellProgress` / `GetSpellCurrentXP` / `GetSpellRequiredXP` -- return correct values
-- [ ] `IsSpellMastered` -- true after 100% XP + unlocked
+- [ ] `IsSpellMastered` -- true after 100% XP + unlocked, or when another plugin's copy of the spell
+  (SpellScanner::DuplicateGroupOf) is - a copy of it the player knows counts
 - [ ] `SetLearningTarget` / `ClearLearningTarget` -- target changes reflected in UI + tree
 - [ ] `GetLearningTarget` / `GetAllLearningTargets` -- return correct forms
 

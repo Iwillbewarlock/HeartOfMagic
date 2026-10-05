@@ -83,7 +83,7 @@ study, BookXP) come from the same file: the `hud.*` keys. They are read by `Spel
 panel, from `lang/<locale>.json` (the `.json`, not the `.js`) of the language picked in *Settings > UI Display >
 Language* (or `locale.js`'s default when none was picked). The DLL reads them when the game starts and again
 when the language changes; a missing file or key shows the English text built into the DLL. *Settings > Early
-Learning > Show Notifications* turns them all off.
+Learning > XP Alerts* turns the XP ones off (casting, studying, book XP); the rest always show.
 
 | Key | English | Placeholders |
 |-----|---------|--------------|

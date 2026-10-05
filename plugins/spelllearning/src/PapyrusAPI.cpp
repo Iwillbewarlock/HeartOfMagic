@@ -426,7 +426,7 @@ namespace PapyrusAPI
                                        RE::BSFixedString name2, RE::BSFixedString value2,
                                        RE::BSFixedString name3, RE::BSFixedString value3)
     {
-        if (!HudNotify::IsEnabled()) return RE::BSFixedString("");
+        if (!HudNotify::IsShown(key.c_str())) return RE::BSFixedString("");
         std::vector<HudNotify::Param> params;
         auto add = [&params](const RE::BSFixedString& name, const RE::BSFixedString& value) {
             if (!name.empty()) params.emplace_back(std::string_view(name.c_str()), std::string(value.c_str()));
@@ -438,7 +438,8 @@ namespace PapyrusAPI
         return RE::BSFixedString(text.c_str());
     }
 
-    // True only when Settings > Show Notifications is off. A script shows its own
+    // True only when Settings > XP Alerts is off (NotificationText then gives "" for
+    // an XP alert, and the text for anything else). A script shows its own
     // English text when NotificationText gives "" and this is false: a missing
     // native (an older SpellLearning.pex) answers ""/None = false, so messages show
     bool NotificationsOff(RE::StaticFunctionTag*)

@@ -1,11 +1,11 @@
 /**
- * NotificationSettingTest - node tests for Settings > Show Notifications and the
+ * NotificationSettingTest - node tests for Settings > XP Alerts (formerly Show Notifications) and the
  * weakened spell alerts under it (notificationSetting.js, run-tests.js).
  *
  * Checks: the defaults (all on, 10 s), a config without the section or with
  * wrong values, save -> load round trip into config.notifications, Reset to
  * Defaults, the weakened alert toggle and interval slider greyed out (disabled)
- * while Show Notifications is off and back on with it, the interval row hidden
+ * while XP Alerts is off and back on with it, the interval row hidden
  * with the alerts off, Notification Language (panel by default, English kept
  * through save and load, unknown values back to panel, greyed out with the rest).
  *
@@ -89,7 +89,7 @@ var NotificationSettingTest = {
             self.check(g.settings.notifications.enabled === false && saves === 1, 'turning Show Notifications off saves it');
             self.check(els.weakenedNotificationsToggle.disabled && els.notificationIntervalSlider.disabled &&
                 els.weakenedNotificationsRow.classList.contains('disabled-controls'),
-                'with Show Notifications off the weakened alert controls are disabled');
+                'with XP Alerts off the weakened alert controls are disabled');
             self.check(els.weakenedNotificationsToggle.checked === true,
                 'the weakened alert choice is kept while greyed out');
             els.showNotificationsToggle.checked = true;

@@ -1,4 +1,6 @@
 #include "HudNotify.h"
+#include <algorithm>
+#include <array>
 #include "PathText.h"
 
 #include <atomic>
@@ -84,6 +86,25 @@ namespace HudNotify
         return g_enabled.load();
     }
 
+    bool IsXPAlert(std::string_view a_key)
+    {
+        // How XP and power grow: casting a weakened spell, a power step, studying a
+        // tome (the hook, the ISL patch's hours), book XP. Not learned, mastered,
+        // blocked or the Spell Research line - those the player needs to see
+        static constexpr std::array<std::string_view, 11> kXPAlertKeys = {
+            "hud.castPowerXP", "hud.castPower", "hud.powerIncreased",
+            "hud.beginStudy", "hud.review", "hud.beginGrasp",
+            "hud.studiedHour", "hud.studiedHours",
+            "hud.bookXpGranted", "hud.bookXpNoTargets", "hud.bookXpInitialized"
+        };
+        return std::ranges::find(kXPAlertKeys, a_key) != kXPAlertKeys.end();
+    }
+
+    bool IsShown(std::string_view a_key)
+    {
+        return IsEnabled() || !IsXPAlert(a_key);
+    }
+
     std::string FillPlaceholders(std::string_view a_text, std::span<const Param> a_params)
     {
         std::string out;
@@ -128,7 +149,7 @@ namespace HudNotify
 
     bool Show(std::string_view a_key, std::string_view a_english, std::span<const Param> a_params)
     {
-        if (!IsEnabled()) return false;
+        if (!IsShown(a_key)) return false;
         auto text = Text(a_key, a_english, a_params);
         if (text.empty()) return false;
         RE::SendHUDMessage::ShowHUDMessage(text.c_str());

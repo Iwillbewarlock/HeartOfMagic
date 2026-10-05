@@ -110,12 +110,12 @@ namespace PapyrusAPI
     // === Notifications ===
     // The corner message text in the panel's language (HudNotify.h): key's text,
     // or english when the language has none, with {{name1}} .. {{name3}} filled.
-    // "" when Settings > Show Notifications is off - the script shows nothing then.
+    // "" for an XP alert key when Settings > XP Alerts is off - the script shows nothing then.
     RE::BSFixedString NotificationText(RE::StaticFunctionTag*, RE::BSFixedString key, RE::BSFixedString english,
                                        RE::BSFixedString name1, RE::BSFixedString value1,
                                        RE::BSFixedString name2, RE::BSFixedString value2,
                                        RE::BSFixedString name3, RE::BSFixedString value3);
-    // True only when Show Notifications is off (a missing native reads as false: show)
+    // True only when XP Alerts is off (a missing native reads as false: show)
     bool NotificationsOff(RE::StaticFunctionTag*);
 
     // === ModEvent senders (called by UIManager) ===

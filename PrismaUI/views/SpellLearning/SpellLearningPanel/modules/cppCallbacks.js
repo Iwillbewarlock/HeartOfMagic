@@ -913,6 +913,31 @@ function recalculateNodeAvailability() {
 }
 
 // Callback when we receive the list of player's known spells
+/**
+ * Every member of a duplicate group (a kept spell and the records the scan marked
+ * duplicateOf it) known when one of them is, so the tree's node reads as learned
+ * whichever record the save holds.
+ * @param {Set} known - formIds the player knows; added to in place
+ */
+function markKnownCopies(known) {
+    var spells = (state.lastSpellData && state.lastSpellData.spells) || [];
+    var groups = {};
+    for (var i = 0; i < spells.length; i++) {
+        var kept = spells[i].duplicateOf;
+        if (!kept) continue;
+        if (!groups[kept]) groups[kept] = [kept];
+        groups[kept].push(spells[i].formId);
+    }
+    for (var keptId in groups) {
+        if (!groups.hasOwnProperty(keptId)) continue;
+        var members = groups[keptId];
+        var any = false;
+        for (var m = 0; m < members.length && !any; m++) any = known.has(members[m]);
+        if (!any) continue;
+        for (var a = 0; a < members.length; a++) known.add(members[a]);
+    }
+}
+
 window.onPlayerKnownSpells = function(dataStr) {
     console.log('[SpellLearning] Received player known spells');
     try {
@@ -927,6 +952,9 @@ window.onPlayerKnownSpells = function(dataStr) {
         
         // Store in state for reference
         state.playerKnownSpells = new Set(knownSpells);
+        // Another plugin's copy of a spell (the scan's duplicateOf) known from before the
+        // copies were merged is that spell, as C++ counts it (ProgressionManagerCopies.cpp)
+        markKnownCopies(state.playerKnownSpells);
         state.weakenedSpells = new Set(weakenedSpells);  // Track which are weakened
         
         // Update tree node states if tree is loaded

@@ -1,11 +1,14 @@
 /**
- * NotificationSetting - Settings > Early Learning > "Show Notifications" and
- * "Weakened Spell Alerts".
+ * NotificationSetting - Settings > Early Learning > "XP Alerts" and "Weakened
+ * Spell Alerts".
  *
- * Show Notifications (notifications.enabled) turns every corner (HUD) message of
- * Heart of Magic off: C++ HudNotify, the Papyrus SpellLearning.NotificationText
- * native (ISL patch study messages, BookXP) and the BookXP addon read it. The
- * weakened spell alerts (and how often they come) are a part of it, so their
+ * XP Alerts (notifications.enabled - the key keeps its first name, "Show
+ * Notifications", 2026-10-04) turns the corner (HUD) messages about XP and power
+ * off: casting a weakened spell, power steps, studying a tome, book XP
+ * (HudNotify::IsXPAlert, read by C++ HudNotify, the Papyrus
+ * SpellLearning.NotificationText native and the BookXP addon). Learned,
+ * mastered, blocked tomes and the Spell Research line always show (2026-10-05).
+ * The weakened spell alerts (and how often they come) are a part of it, so their
  * controls are greyed out while it is off. The messages' text follows the panel's
  * language (lang/*.json "hud.*" keys, docs/TRANSLATING.md), or English when
  * Notification Language says so: the game draws the corner with its own font,
@@ -14,7 +17,7 @@
  *
  * Saved as config.notifications = { enabled, weakenedSpellNotifications,
  * weakenedSpellInterval, language }. A settings preset carries the alert options,
- * never Show Notifications or the language (preferences, not a play style):
+ * never XP Alerts or the language (preferences, not a play style):
  * settingsPresets.js skips them.
  *
  * Depends on: settings, autoSaveSettings (optional), updateSliderFillGlobal (optional)
@@ -109,7 +112,7 @@ var NotificationSetting = {
         this._showInterval();
         // The interval means nothing with the alerts off
         if (intervalRow) intervalRow.style.display = n.weakenedSpellNotifications !== false ? 'flex' : 'none';
-        // Show Notifications off: the alerts are off too, whatever they say
+        // XP Alerts off: the weakened alerts are off too, whatever they say
         if (weakenedRow && weakenedRow.classList) weakenedRow.classList.toggle('disabled-controls', n.enabled === false);
     },
 

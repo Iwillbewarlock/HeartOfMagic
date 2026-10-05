@@ -99,7 +99,7 @@ private:
             auto countText = std::to_string(granted);
             constexpr const char* kEnglish = "[BookXP] +{{xp}} XP to {{count}} spell(s)";
             // Heart of Magic 1.2.1+ shows it in the panel's language and honours
-            // Settings > Show Notifications; an older one gets the English text
+            // Settings > XP Alerts (hud.bookXpGranted is an XP alert); an older one gets the English text
             if (g_api->GetAPIVersion() >= 2) {
                 const char* params[] = { "xp", xpText.c_str(), "count", countText.c_str() };
                 g_api->ShowNotification("hud.bookXpGranted", kEnglish, params, 2);
