@@ -93,9 +93,15 @@ perk adapters see them all (a perk overhaul's keyword reaches a quest or perk sp
 with a spell outside the tree is still checked against that spell's tags), and marks facts from the
 record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`),
 `freeSpell` (`IsFreeSpell`: under 0.5 Magicka to cast - a pet's, mount's or follower's call, a mod's utility
-spell, 2026-10-05), `tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell
+spell, 2026-10-05), `gate` (the spell gate, `SpellScannerGate.cpp` `JudgeSpell`, 2026-10-06: `{band, reasons}`
+when the band is not "in". "out" - free, a summon or reanimation over an hour, banish only, or an "out" rule
+from `gate/rules.json` (plugin masters plus effect archetypes, never spell names) - leaves the tree, a saved
+tree's load (`ValidateAndFixTree`) and Spell Research; "review" - a horse summon, a unique NPC summon, a
+script-only spell under 20 Magicka, a "review" rule - stays and is listed in the blacklist window's
+"Spells to look over" (`modules/gateReview.js`: Leave out blacklists it, Keep stores it in `gateReviewed`)),
+`tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell
 from two plugins"). The tree takes a spell a tome teaches, whose tome something hands out, that is not in the
-voice slot, costs something to cast and is not another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`
+voice slot, costs something to cast, is not left out by the spell gate and is not another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`
 (proceduralTreeBuilder.js) in Classic's build request, the primed count (`getPrimedSpells`) and the tree
 preview's school sizes. A scan from before the marks has no fields and keeps every spell. The scan status's
 spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged

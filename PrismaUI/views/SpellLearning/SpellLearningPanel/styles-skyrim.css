@@ -2443,6 +2443,15 @@ body {
 
 .blacklist-entry-info {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* The spell gate's review rows (gateReview.js): Keep / Leave out keep their words on one line */
+#gate-review-entries .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin-left: 6px;
 }
 
 .blacklist-entry-name {

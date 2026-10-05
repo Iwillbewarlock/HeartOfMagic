@@ -30,16 +30,20 @@
  * (duplicateOf names the kept record: same editor id and school, its tome reads
  * as the kept spell's - SpellScannerDuplicates.cpp); and it costs something to
  * cast (freeSpell is not set: a pet's or follower's call, a quest's utility
- * spell, 2026-10-05). The scan keeps every spell for the librarian and the perk
- * adapters and marks taughtByTome, tomeUnreachable, voiceSlot, freeSpell and
- * duplicateOf; a scan from before the marks has no fields, and its spells count
+ * spell, 2026-10-05); and the spell gate does not leave it out (gate.band is not
+ * "out": free, a summon that stays over an hour, banish only, a rule - the same
+ * JudgeSpell the tree load and Spell Research use, SpellScannerGate.cpp; "review"
+ * stays in, GateReview lists it). The scan keeps every spell for the librarian and
+ * the perk adapters and marks taughtByTome, tomeUnreachable, voiceSlot, freeSpell,
+ * gate and duplicateOf; a scan from before the marks has no fields, and its spells count
  * as taken.
  * @param {Object} spell
  * @returns {boolean}
  */
 function isTaughtByTome(spell) {
     return !spell || (spell.taughtByTome !== false && spell.tomeUnreachable !== true &&
-        spell.voiceSlot !== true && spell.freeSpell !== true && !spell.duplicateOf);
+        spell.voiceSlot !== true && spell.freeSpell !== true && !spell.duplicateOf &&
+        !(spell.gate && spell.gate.band === 'out'));
 }
 
 /** The spells the tree takes (isTaughtByTome). */

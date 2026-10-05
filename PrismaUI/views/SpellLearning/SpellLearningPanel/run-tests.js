@@ -94,6 +94,7 @@ loadModule('spellSearchTest', './modules/spellSearchTest.js');
 loadModule('treeToolsScaleTest', './modules/treeToolsScaleTest.js');
 loadModule('learningTargetKeysTest', './modules/learningTargetKeysTest.js');
 loadModule('findSpellDismissTest', './modules/findSpellDismissTest.js');
+loadModule('gateReviewTest', './modules/gateReviewTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

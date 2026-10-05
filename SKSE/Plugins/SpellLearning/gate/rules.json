@@ -1,0 +1,20 @@
+{
+  "_about": "Spell gate rules (docs/librarian/ToDo.md M9, SpellScannerGate.cpp): spells of a plugin that depends on one of 'masters', every effect one of 'archetypes', go to 'band' (out: not in the tree or Spell Research; review: the panel's review list). Sets by record data, never by spell name.",
+  "rules": [
+    {
+      "id": "adultFramework",
+      "band": "out",
+      "masters": [
+        "SexLab.esm",
+        "SexLabAroused.esm",
+        "OSLAroused.esm",
+        "OStim.esp"
+      ],
+      "archetypes": [
+        "Script",
+        "DetectLife",
+        "ValueModifier"
+      ]
+    }
+  ]
+}

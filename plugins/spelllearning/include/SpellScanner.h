@@ -148,6 +148,18 @@ namespace SpellScanner
     // a free "spell" next to real ones breaks the picture (2026-10-05).
     bool IsFreeSpell(RE::SpellItem* spell);
 
+    // The spell gate (SpellScannerGate.cpp, docs/librarian/ToDo.md M9): whether a tome
+    // spell is a player's spell, with the evidence. "out" leaves the tree and Spell
+    // Research, "review" stays and goes to the panel's review list, "in" is the rest.
+    struct GateVerdict
+    {
+        std::string band = "in";
+        std::vector<std::string> reasons;   // free, longSummon, banishOnly, rule:<id>, horseSummon, uniqueSummon, cheapScript
+    };
+    GateVerdict JudgeSpell(RE::SpellItem* spell);
+    // The scan's marks: freeSpell, and "gate": {band, reasons} unless the band is "in"
+    void MarkGate(json& spellJson, RE::SpellItem* spell);
+
     // Logs, by kind, the scanned spells the tree leaves out: voice slot spells,
     // spells whose tomes nothing hands out (TomeReach), and among those no tome
     // teaches NPC, trap or script copies, free spells and the rest.

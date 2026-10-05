@@ -240,7 +240,7 @@ namespace SpellScanner
             auto spellJson = BuildSpellJson(spell, spell->GetFormID(), fields);
             spellJson["taughtByTome"] = taught.contains(spell->GetFormID());
             spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
-            if (IsFreeSpell(spell)) spellJson["freeSpell"] = true;
+            MarkGate(spellJson, spell);
             if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
             if (auto it = duplicates.find(spell->GetFormID()); it != duplicates.end()) {
                 spellJson["duplicateOf"] = std::format("0x{:08X}", it->second);

@@ -157,7 +157,7 @@
 - 카탈로그 옆 `spell_research_report.json`(등록이 실제로 돈 때만): `reason`(import | load), `alreadyRegistered`(SR
   등급 목록에 이미 있던 주문 수), `registered`, `entries`(목록 항목 수), `perList`, `tomes`, `failed`(등급 목록이 받지
   않은 주문 — 그 세션 동안 다시 시도하지 않는다), `tomeTiersSkipped`(짝 목록 길이가 달라 마법책을 건너뛴 등급),
-  `noSchoolOrTier`, `leftOut`(`voiceSlot`·`duplicate`: 트리처럼 뺀 마법책 주문 수), `lines`(줄별 gain), `elapsedMs`.
+  `noSchoolOrTier`, `leftOut`(`voiceSlot`·`gate`(주문 감별기의 out: 무료, 1시간 넘는 소환, 추방만, 규칙)·`duplicate`·`tomeUnreachable`·`player`: 트리처럼 뺀 마법책 주문 수), `lines`(줄별 gain), `elapsedMs`.
 - 로그: 설치 때 한 줄(`SpellResearch: SpellResearch.esp found ...`), 등록 때 한 줄 요약, 첫 항목의
   `scriptAddedFormCount` 전후 값.
 - 빠른 길: 전역 두 개와 등급 목록 항목 수를 먼저 본다. 수가 지난번과 같으면(Import 가 아닌 메시지 상자) 설정 파일도

@@ -860,6 +860,8 @@ function saveUnifiedConfig() {
 
         // Spell blacklist & plugin whitelist
         spellBlacklist: settings.spellBlacklist || [],
+        // Spell gate review spells the player kept (GateReview, plugin:localFormId)
+        gateReviewed: settings.gateReviewed || [],
         pluginWhitelist: settings.pluginWhitelist || [],
 
         // User-selected root spells per school
@@ -1471,6 +1473,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         } else {
             settings.spellBlacklist = [];
         }
+
+        settings.gateReviewed = Array.isArray(data.gateReviewed) ? data.gateReviewed : [];
 
         // Plugin whitelist
         if (data.pluginWhitelist && Array.isArray(data.pluginWhitelist)) {
@@ -2515,6 +2519,8 @@ function renderBlacklistEntries() {
     var blacklist = settings.spellBlacklist || [];
 
     if (countEl) countEl.textContent = blacklist.length;
+    // A spell taken off the blacklist goes back to the gate's review list, and one put on leaves it
+    if (typeof GateReview !== 'undefined') GateReview.render();
 
     if (blacklist.length === 0) {
         container.innerHTML = '<div class="blacklist-empty">No spells blacklisted</div>';

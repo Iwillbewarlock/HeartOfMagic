@@ -142,9 +142,9 @@ namespace SpellScanner
 
     namespace
     {
-        // What a tree node must be to show: a spell with a name, that costs something to
-        // cast (IsFreeSpell) and is not in the voice slot - what a scan lets into a new
-        // tree. A saved tree is checked again as it loads: a stale formId can name another
+        // What a tree node must be to show: a spell with a name, that the spell gate does
+        // not leave out (JudgeSpell: free, a summon that stays, a rule) and that is not in
+        // the voice slot - what a scan lets into a new tree. A saved tree is checked again as it loads: a stale formId can name another
         // plugin's record (an unnamed Constant Effect ability), and a tree built before a
         // rule came in still holds spells the rule leaves out (2026-10-05).
         bool IsPlayerSpell(const std::string& formIdStr)
@@ -158,7 +158,7 @@ namespace SpellScanner
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
             if (!spell) return false;
             const char* name = spell->GetFullName();
-            return name && *name && !IsFreeSpell(spell) && !IsEquippedInVoiceSlot(spell);
+            return name && *name && JudgeSpell(spell).band != "out" && !IsEquippedInVoiceSlot(spell);
         }
     }
 

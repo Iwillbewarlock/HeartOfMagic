@@ -188,6 +188,15 @@ if (Test-Path $rulesSrc) {
     }
 }
 
+# The spell gate's rules (SpellScannerGate.cpp)
+$gateSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\gate'
+if (-not $PanelOnly -and (Test-Path $gateSrc)) {
+    $gateDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\gate'
+    New-Item -ItemType Directory -Force -Path $gateDst | Out-Null
+    Copy-Item (Join-Path $gateSrc '*.json') $gateDst -Force
+    Write-Host ("gate    {0}" -f ((Get-ChildItem $gateSrc -Filter '*.json').Count))
+}
+
 # The dev install is a debug install: its panel scans also write the analysis
 # dump (debug/debug.json, shipped the same way in the debug symbols archive)
 $debugSrc = Join-Path $repo 'debug\debug.json'

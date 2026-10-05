@@ -211,6 +211,7 @@ var settings = {
     // Spell blacklist (excluded from tree building)
     // Each entry: { formId: '0x...', name: 'Spell Name', school: 'School' }
     spellBlacklist: [],
+    gateReviewed: [],
     // Plugin whitelist (only scan spells from these plugins when enabled)
     // Each entry: { plugin: 'PluginName.esp', enabled: true, spellCount: 42 }
     // If empty or all disabled, all plugins are scanned (default behavior)

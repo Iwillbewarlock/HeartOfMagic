@@ -370,7 +370,21 @@
 
 ---
 
-### [ ] M9. 주문 감별기 — 증거 점수로 고르는 플레이어 주문 (2026-10-05 설계, 사용자 결정)
+### [~] M9. 주문 감별기 — 증거 점수로 고르는 플레이어 주문 (2026-10-05 설계, 사용자 결정)
+
+- **2026-10-06 구현 (하이브리드, 사용자 결정)**: 측정(`lab/spell-gate/2026-10-05/LEDGER.md`, 플러그인 하나씩 빼고
+  검증) 결과 텍스트 특징은 처음 보는 플러그인에 일반화되지 않아 점수기 대신 세 겹으로 갔다.
+  1. 레코드 증거 `SpellScannerGate.cpp` `JudgeSpell` → 구간 in/review/out + 이유. **out**: `free`(0.5 마나 미만),
+     `longSummon`(소환·되살리기 지속 1시간 초과: 머무는 동료·탈것), `banishOnly`(탈것 돌려보내기). **review**:
+     `horseSummon`(소환 대상 종족 키워드에 Horse), `uniqueSummon`(유일 NPC 소환), `cheapScript`(스크립트 효과만, 20 마나 미만).
+  2. 규칙 파일 `SKSE/Plugins/SpellLearning/gate/rules.json`: 플러그인 마스터 + 효과 원형 집합으로 구간을 정한다
+     (`adultFramework`: SexLab·OStim 계열의 탐지·스크립트 주문 → out). 이름으로는 고르지 않는다.
+  3. 스캔이 `gate: {band, reasons}` 표시를 남기고(`MarkGate`), 패널 빌더(`isTaughtByTome`), 저장된 트리 로드
+     (`ValidateAndFixTree` 의 `IsPlayerSpell`), Spell Research(`MissingSpells`, 보고서 `leftOut.gate`)가 같은 판정을 쓴다.
+     review 는 트리에 남고 블랙리스트 창의 "살펴볼 주문" 목록(`modules/gateReview.js`)에 이유와 함께 뜬다: 빼기 →
+     블랙리스트, 두기 → `gateReviewed`(config.json) 에 남아 목록에서 사라진다.
+  - 측정: 무료 규칙만으로 정답 "아님" 89개 중 37개(오탐 0). 장기 소환·말·추방을 더하면 42개, 오탐 13(전투용 말 소환 — 그래서 말은 review).
+  - **남은 것**: MGEF Papyrus 스크립트 이름 읽기(나머지 47개는 스크립트 이름이나 마스터로만 보인다), 게임 안 확인.
 
 - **질문 하나**: "플레이어가 마법서로 배워 실제로 쓰는 주문인가". 아니면 트리에도, Spell Research 에도 넣지 않는다
   (사용자 규칙: 빌더 = SR, 몰입을 깨는 것은 나오지 않는다). 지금의 거름망(마법서, 손에 닿는 마법서, 음성 슬롯,

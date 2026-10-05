@@ -1268,7 +1268,7 @@ Reset to Defaults turns it on; a settings preset never changes it (like XP Alert
 |-------|---------|--------|
 | Build Progress | Build Tree button | `buildProgress.js` |
 | Preset Name | Save Preset button | `uiHelpers.js` |
-| Blacklist | Blacklist button | `buttonHandlers.js` |
+| Blacklist | Blacklist button | `buttonHandlers.js` (its lower list, "Spells to look over", is `gateReview.js`: spells the spell gate marked "review", with the reasons; Leave out / Keep) |
 | Whitelist | Whitelist button | `buttonHandlers.js` |
 | Import Tree | Import button (tree page) | `treeViewerUI.js` |
 | Spawn Spell | Edit mode | `editMode.js` |

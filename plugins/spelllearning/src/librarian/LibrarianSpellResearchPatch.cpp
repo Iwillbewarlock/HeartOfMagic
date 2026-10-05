@@ -135,7 +135,7 @@ namespace Librarian::SpellResearchPatch
         struct Skipped
         {
             std::size_t voiceSlot = 0;
-            std::size_t freeSpell = 0;
+            std::size_t freeSpell = 0;      // the spell gate's "out" (free, a summon that stays, a rule)
             std::size_t duplicate = 0;
             std::size_t unreachable = 0;
             std::size_t playerLeftOut = 0;   // the player's spell blacklist or a plugin turned off
@@ -225,7 +225,7 @@ namespace Librarian::SpellResearchPatch
         // holds NPC, quest and creature spells, which SR must not hand out), and
         // the rest exactly as the panel's builder takes spells into the tree
         // (2026-10-05): whose tome something hands out (not tomeUnreachable), not
-        // in the voice slot, not free (freeSpell), not another plugin's copy
+        // in the voice slot, not left out by the spell gate (JudgeSpell), not another plugin's copy
         // (duplicateOf), not blacklisted and not from a plugin turned off in the
         // whitelist. SR can file them by school and tier, and no tier list has them yet.
         json MissingSpells(const json& catalogSpells, const Registered& registered,
@@ -248,7 +248,7 @@ namespace Librarian::SpellResearchPatch
                     ++skipped.unreachable;
                 } else if (PlayerLeftOut(id, formId, playerFilter)) {
                     ++skipped.playerLeftOut;
-                } else if (SpellScanner::IsFreeSpell(spell)) {
+                } else if (SpellScanner::JudgeSpell(spell).band == "out") {
                     ++skipped.freeSpell;
                 } else if (DuplicateLeftOut(formId, registered)) {
                     ++skipped.duplicate;
@@ -393,7 +393,7 @@ namespace Librarian::SpellResearchPatch
             const json missing = MissingSpells(catalog["spells"], registered, tomes, skipped);
             if (skipped.voiceSlot || skipped.freeSpell || skipped.duplicate || skipped.unreachable || skipped.playerLeftOut) {
                 logger::info("SpellResearch: {} - left out as the tree leaves them: {} voice slot spells, "
-                             "{} free spells, {} copies from another plugin, {} whose tomes nothing hands out, "
+                             "{} the spell gate leaves out, {} copies from another plugin, {} whose tomes nothing hands out, "
                              "{} blacklisted or from a plugin turned off", reason, skipped.voiceSlot,
                              skipped.freeSpell, skipped.duplicate, skipped.unreachable, skipped.playerLeftOut);
             }
@@ -441,7 +441,7 @@ namespace Librarian::SpellResearchPatch
             report["problems"] = problems;
             report["alreadyRegistered"] = registered.spells.size();
             report["noSchoolOrTier"] = registrations.noSchoolOrTier;
-            report["leftOut"] = { { "voiceSlot", skipped.voiceSlot }, { "freeSpell", skipped.freeSpell },
+            report["leftOut"] = { { "voiceSlot", skipped.voiceSlot }, { "gate", skipped.freeSpell },
                                   { "duplicate", skipped.duplicate }, { "tomeUnreachable", skipped.unreachable },
                                   { "player", skipped.playerLeftOut } };
             const Totals totals = Register(registrations, report);

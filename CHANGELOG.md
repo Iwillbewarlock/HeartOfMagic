@@ -27,6 +27,12 @@
 - Spells that cost nothing to cast stay out of the tree and of Spell Research: pet, mount and follower calls
   (Witcher Horses, the Creation Club pets, Inigo), a mod's utility spells, Equilibrium. A tree you already have
   drops them the next time it loads - no rebuild needed - and drops any node that is no longer a named spell.
+- A spell gate picks the tree's spells more tightly, and Spell Research gets the same set. Left out on their
+  own: summons that last over an hour (mounts and companions that stay), spells that only dismiss a mount, and
+  an adult framework's detect and script spells (a rules file, `gate/rules.json`, by the plugin's masters).
+  Spells it is unsure of - a horse summon, a summon of one named character, a cheap spell that only runs a
+  script - stay in the tree and are listed under **Spells to look over** in the Blacklist window with the
+  reason: Leave out puts one on the blacklist, Keep takes it off the list.
 - After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
   spell) where one of yours was: its saved ID now pointed at another plugin's record. The tree now always
   finds each spell by its plugin and record, and its prerequisite lists follow too.

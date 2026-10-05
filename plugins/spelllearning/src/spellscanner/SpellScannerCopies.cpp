@@ -40,10 +40,6 @@ namespace SpellScanner
         // How many spells each log line names; the count covers the rest.
         constexpr std::size_t kLoggedSpells = 5;
 
-        // Below this a spell costs nothing to cast: a player spell always costs
-        // something, a creature's attack, a follower's call or a test spell not.
-        constexpr float kFreeSpellCost = 0.5f;
-
         // Same spell to a player: same name (ASCII case ignored) in the same school.
         std::string CopyKey(RE::SpellItem* spell)
         {
@@ -97,11 +93,6 @@ namespace SpellScanner
         std::unordered_set<RE::FormID> taught;
         for (const auto& [spell, book] : TomesBySpell()) taught.insert(spell);
         return taught;
-    }
-
-    bool IsFreeSpell(RE::SpellItem* spell)
-    {
-        return spell && spell->CalculateMagickaCost(nullptr) < kFreeSpellCost;
     }
 
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell)
