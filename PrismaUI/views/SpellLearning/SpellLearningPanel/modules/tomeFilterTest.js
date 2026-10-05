@@ -56,13 +56,14 @@ var TomeFilterTest = {
                 { formId: '0x03', plugin: 'Mod.esp', school: 'Alteration' },
                 { formId: '0x05', plugin: 'Mod.esp', school: 'Alteration', taughtByTome: true, voiceSlot: true },
                 { formId: '0x06', plugin: 'Mod.esp', school: 'Alteration', taughtByTome: true, tomeUnreachable: true },
+                { formId: '0x0A', plugin: 'Pets.esl', school: 'Conjuration', taughtByTome: true, freeSpell: true },
                 { formId: '0x07', plugin: 'Base.esp', school: 'Conjuration', editorId: 'EC_SS_ConjureHunger', taughtByTome: true },
                 { formId: '0xFE801834', plugin: 'Addon.esp', school: 'Conjuration', editorId: 'EC_SS_ConjureHunger',
                   taughtByTome: true, duplicateOf: '0x07' }
             ];
             this.check(this._ids(g.filterTomeSpells(spells)) === '0x01,0x03,0x07',
-                'the tree drops spells no tome teaches, whose tomes nothing hands out, voice slot spells and ' +
-                'duplicates; keeps a scan without the marks and the kept record of a duplicate');
+                'the tree drops spells no tome teaches, whose tomes nothing hands out, voice slot spells, free ' +
+                'spells and duplicates; keeps a scan without the marks and the kept record of a duplicate');
             this.check(g.isTaughtByTome({ formId: '0x08', taughtByTome: true, duplicateOf: '' }) &&
                 !g.isTaughtByTome({ formId: '0x09', taughtByTome: true, duplicateOf: '0x07' }),
                 'only a set duplicateOf leaves a spell out');

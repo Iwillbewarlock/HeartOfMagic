@@ -107,11 +107,11 @@ int main(int argc, char** argv)
             }
         }
 
-        // The tree's spells (taught by a tome, not in the voice slot, no duplicateOf) whose every tome is unreached
+        // The tree's spells (taught by a tome, not in the voice slot, not free, no duplicateOf) whose every tome is unreached
         std::map<std::string, std::vector<std::string>> lost;
         std::size_t checked = 0, total = 0;
         for (const auto& s : ReadJson(scan)["spells"]) {
-            if (s.value("taughtByTome", false) != true || s.value("voiceSlot", false) || s.contains("duplicateOf")) continue;
+            if (s.value("taughtByTome", false) != true || s.value("voiceSlot", false) || s.value("freeSpell", false) || s.contains("duplicateOf")) continue;
             const auto id = s.value("persistentId", std::string());
             const auto bar = id.find('|');
             if (bar == std::string::npos) continue;

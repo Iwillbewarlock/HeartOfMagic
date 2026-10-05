@@ -99,6 +99,11 @@ namespace SpellScanner
         return taught;
     }
 
+    bool IsFreeSpell(RE::SpellItem* spell)
+    {
+        return spell && spell->CalculateMagickaCost(nullptr) < kFreeSpellCost;
+    }
+
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell)
     {
         // The record's equip slot against the game's voice slot (a default object),
@@ -120,6 +125,7 @@ namespace SpellScanner
 
         OutOfTree voice{ "spells equipped in the voice slot (script and animation spells)" };
         OutOfTree unhanded{ "spells whose tomes nothing hands out (not placed, sold, dropped, crafted or given)" };
+        OutOfTree freeTaught{ "free spells a tome teaches (pet and follower calls, quest utility spells)" };
         OutOfTree copies{ "non-player copies (same name and school as a spell with a half-cost perk, "
                           "no perk of their own, no tome)" };
         OutOfTree freeSpells{ "free spells no tome teaches (NPC attacks, follower calls, test and utility spells)" };
@@ -128,16 +134,21 @@ namespace SpellScanner
             if (IsEquippedInVoiceSlot(spell)) {
                 voice.Add(spell);
             } else if (taught.contains(spell->GetFormID())) {
-                if (unreachable.contains(spell->GetFormID())) unhanded.Add(spell);
+                if (IsFreeSpell(spell)) {
+                    freeTaught.Add(spell);
+                } else if (unreachable.contains(spell->GetFormID())) {
+                    unhanded.Add(spell);
+                }
             } else if (!spell->data.castingPerk && keysWithPerk.contains(CopyKey(spell))) {
                 copies.Add(spell);
-            } else if (spell->CalculateMagickaCost(nullptr) < kFreeSpellCost) {
+            } else if (IsFreeSpell(spell)) {
                 freeSpells.Add(spell);
             } else {
                 other.Add(spell);
             }
         }
         voice.Log();
+        freeTaught.Log();
         unhanded.Log();
         copies.Log();
         freeSpells.Log();

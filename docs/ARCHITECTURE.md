@@ -92,9 +92,10 @@ spells against 1,428). Now the scan keeps every spell that passes its other filt
 perk adapters see them all (a perk overhaul's keyword reaches a quest or perk spell too, and an effect shared
 with a spell outside the tree is still checked against that spell's tags), and marks facts from the
 record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`),
-`tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell from two plugins").
-The tree takes a spell a tome teaches, whose tome something hands out, that is not in the voice slot and not
-another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`
+`freeSpell` (`IsFreeSpell`: under 0.5 Magicka to cast - a pet's, mount's or follower's call, a mod's utility
+spell, 2026-10-05), `tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell
+from two plugins"). The tree takes a spell a tome teaches, whose tome something hands out, that is not in the
+voice slot, costs something to cast and is not another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`
 (proceduralTreeBuilder.js) in Classic's build request, the primed count (`getPrimedSpells`) and the tree
 preview's school sizes. A scan from before the marks has no fields and keeps every spell. The scan status's
 spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged
@@ -334,7 +335,7 @@ button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan sta
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
 toggle and the background tome scan behind it are gone (2026-09-30): the tree itself leaves out what a
-player does not learn (the scan keeps every spell and marks `taughtByTome`, `tomeUnreachable`, `voiceSlot` and `duplicateOf`), so a
+player does not learn (the scan keeps every spell and marks `taughtByTome`, `tomeUnreachable`, `voiceSlot`, `freeSpell` and `duplicateOf`), so a
 `tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch
@@ -500,6 +501,10 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 - Top byte = mod index (or 0xFE for ESL)
 - ESL: bits [12:23] = light index, bits [0:11] = local ID
 - Regular: bits [0:23] = local ID
+- On tree load a node must still be a player's spell (`IsPlayerSpell`, SpellScannerFormId.cpp): a SpellItem
+  with a name, not free, not in the voice slot. Anything else leaves the tree there and then (logged "not a
+  player's spell now"), so a stale formId that names another record, or a spell a newer rule leaves out, never
+  shows as an unnamed or code-like node and no rebuild is needed (2026-10-05).
 - On tree load, every node with a persistentId takes the FormID it resolves to (since 2026-10-05 also when the
   saved FormID is still a valid form: after a load order change it can be another plugin's record, shown as an
   unnamed "Constant Effect" node; a persistentId that no longer resolves drops the node); `children`,

@@ -134,13 +134,19 @@ namespace SpellScanner
     bool IsCastByVampires(RE::FormID spellFormId);
 
     // What the tree goes by (SpellScannerCopies.cpp): the scan keeps every spell
-    // and marks taughtByTome, voiceSlot, tomeUnreachable (TomeReach) and
+    // and marks taughtByTome, voiceSlot, freeSpell, tomeUnreachable (TomeReach) and
     // duplicateOf (below); the tree takes spells a tome teaches, whose tome
-    // something hands out, that are not in the voice slot and not copies.
+    // something hands out, that are not in the voice slot, cost something to cast
+    // and are not copies.
     std::unordered_set<RE::FormID> SpellsTaughtByTomes();
     // The first loaded book that teaches each spell, by the spell's FormID
     std::unordered_map<RE::FormID, RE::TESObjectBOOK*> TomesBySpell();
     bool IsEquippedInVoiceSlot(RE::SpellItem* spell);
+    // A spell that costs nothing to cast (under 0.5 Magicka): a pet's or a follower's
+    // call, a quest's utility spell. The scan marks it freeSpell and the tree, the
+    // primed count and the Spell Research registrations leave it out, tome or not:
+    // a free "spell" next to real ones breaks the picture (2026-10-05).
+    bool IsFreeSpell(RE::SpellItem* spell);
 
     // Logs, by kind, the scanned spells the tree leaves out: voice slot spells,
     // spells whose tomes nothing hands out (TomeReach), and among those no tome

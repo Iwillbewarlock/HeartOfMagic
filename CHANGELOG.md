@@ -21,6 +21,12 @@
   a missing key shows English). Changing the language in Settings changes them at once. Skill names in
   "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus) and
   `ShowNotification` (C++ API version 2) give the same for their own messages.
+- Spell Research gets exactly the spells the tree builder takes: no more spells whose tomes cannot be found,
+  and your spell blacklist and the plugins you turned off apply there too. Press Import Spells in Spell
+  Research once to apply it to a save that already imported.
+- Spells that cost nothing to cast stay out of the tree and of Spell Research: pet, mount and follower calls
+  (Witcher Horses, the Creation Club pets, Inigo), a mod's utility spells, Equilibrium. A tree you already have
+  drops them the next time it loads - no rebuild needed - and drops any node that is no longer a named spell.
 - After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
   spell) where one of yours was: its saved ID now pointed at another plugin's record. The tree now always
   finds each spell by its plugin and record, and its prerequisite lists follow too.

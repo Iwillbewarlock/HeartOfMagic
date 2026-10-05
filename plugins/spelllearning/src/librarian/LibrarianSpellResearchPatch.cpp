@@ -8,6 +8,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "tomereach/TomeReach.h"
 #include "uimanager/UIManager.h"
 
 #include <chrono>
@@ -134,8 +135,81 @@ namespace Librarian::SpellResearchPatch
         struct Skipped
         {
             std::size_t voiceSlot = 0;
+            std::size_t freeSpell = 0;
             std::size_t duplicate = 0;
+            std::size_t unreachable = 0;
+            std::size_t playerLeftOut = 0;   // the player's spell blacklist or a plugin turned off
         };
+
+        // What the panel's builder leaves out on the player's say (proceduralTreeBuilder.js:
+        // the spell blacklist and the plugins turned off in the plugin whitelist), read from
+        // config.json where the panel saves them, so SR gets the builder's spells exactly
+        struct PlayerFilter
+        {
+            std::unordered_set<std::string> blacklisted;      // "plugin.esp|<local id>", lowercase plugin
+            std::unordered_set<RE::FormID> blacklistedIds;     // entries that only carry a formId
+            std::unordered_set<std::string> pluginsOff;        // lowercase
+        };
+
+        std::string Lower(std::string text)
+        {
+            std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return text;
+        }
+
+        // "plugin|<local id as a number>" for a plugin name and a hex local id ("0x00080B" or "00080b")
+        std::string LocalKey(const std::string& plugin, const std::string& localHex)
+        {
+            try {
+                return Lower(plugin) + "|" + std::to_string(std::stoul(localHex, nullptr, 16));
+            } catch (const std::exception&) {
+                return {};
+            }
+        }
+
+        PlayerFilter ReadPlayerFilter()
+        {
+            PlayerFilter filter;
+            json config;
+            if (!ReadJsonFile(DataPath("config.json"), config) || !config.is_object()) return filter;
+            const auto text = [](const json& entry, const char* key) {
+                const auto found = entry.find(key);
+                return (found != entry.end() && found->is_string()) ? found->get<std::string>() : std::string();
+            };
+            if (const auto list = config.find("spellBlacklist"); list != config.end() && list->is_array()) {
+                for (const auto& entry : *list) {
+                    if (!entry.is_object()) continue;
+                    const auto key = LocalKey(text(entry, "plugin"), text(entry, "localFormId"));
+                    if (!text(entry, "plugin").empty() && !key.empty()) {
+                        filter.blacklisted.insert(key);
+                    } else if (const auto id = SpellScanner::ResolvePersistentFormId(text(entry, "formId")); id) {
+                        filter.blacklistedIds.insert(id);
+                    } else {
+                        try {
+                            filter.blacklistedIds.insert(static_cast<RE::FormID>(std::stoul(text(entry, "formId"), nullptr, 16)));
+                        } catch (const std::exception&) {}
+                    }
+                }
+            }
+            if (const auto list = config.find("pluginWhitelist"); list != config.end() && list->is_array()) {
+                for (const auto& entry : *list) {
+                    const auto enabled = entry.is_object() ? entry.find("enabled") : entry.end();
+                    if (entry.is_object() && enabled != entry.end() && enabled->is_boolean() && !enabled->get<bool>()) {
+                        filter.pluginsOff.insert(Lower(text(entry, "plugin")));
+                    }
+                }
+            }
+            return filter;
+        }
+
+        bool PlayerLeftOut(const std::string& persistentId, RE::FormID formId, const PlayerFilter& filter)
+        {
+            const auto pipe = persistentId.find('|');
+            if (pipe == std::string::npos) return filter.blacklistedIds.contains(formId);
+            const std::string plugin = persistentId.substr(0, pipe);
+            return filter.pluginsOff.contains(Lower(plugin)) || filter.blacklistedIds.contains(formId) ||
+                filter.blacklisted.contains(LocalKey(plugin, persistentId.substr(pipe + 1)));
+        }
 
         // Another plugin's copy of a spell (duplicateOf in the scan), or the kept
         // record of a group SR already holds a member of: each spell is in SR once
@@ -148,15 +222,19 @@ namespace Librarian::SpellResearchPatch
         }
 
         // The catalog spells to register: a tome teaches them (the catalog also
-        // holds NPC, quest and creature spells, which SR must not hand out), not
-        // in the voice slot and not another plugin's copy (duplicateOf), as the
-        // tree goes; SR can file them by school and tier, and no tier list has
-        // them yet. Unlike the tree, a spell whose tomes nothing hands out
-        // (tomeUnreachable) is registered: SR's research is a way to it.
+        // holds NPC, quest and creature spells, which SR must not hand out), and
+        // the rest exactly as the panel's builder takes spells into the tree
+        // (2026-10-05): whose tome something hands out (not tomeUnreachable), not
+        // in the voice slot, not free (freeSpell), not another plugin's copy
+        // (duplicateOf), not blacklisted and not from a plugin turned off in the
+        // whitelist. SR can file them by school and tier, and no tier list has them yet.
         json MissingSpells(const json& catalogSpells, const Registered& registered,
             const std::unordered_map<RE::FormID, RE::TESObjectBOOK*>& tomes,
             Skipped& skipped)
         {
+            std::unordered_set<RE::FormID> unreachable;
+            TomeReach::UnreachableSpells(unreachable);   // empty until the pass is done, as the scan's marks
+            const PlayerFilter playerFilter = ReadPlayerFilter();
             json missing = json::object();
             for (const auto& [id, entry] : catalogSpells.items()) {
                 if (!HasSchoolAndTier(entry)) continue;
@@ -166,6 +244,12 @@ namespace Librarian::SpellResearchPatch
                 if (!spell) continue;
                 if (SpellScanner::IsEquippedInVoiceSlot(spell)) {
                     ++skipped.voiceSlot;
+                } else if (unreachable.contains(formId)) {
+                    ++skipped.unreachable;
+                } else if (PlayerLeftOut(id, formId, playerFilter)) {
+                    ++skipped.playerLeftOut;
+                } else if (SpellScanner::IsFreeSpell(spell)) {
+                    ++skipped.freeSpell;
                 } else if (DuplicateLeftOut(formId, registered)) {
                     ++skipped.duplicate;
                 } else {
@@ -307,9 +391,11 @@ namespace Librarian::SpellResearchPatch
             const auto tomes = SpellScanner::TomesBySpell();
             Skipped skipped;
             const json missing = MissingSpells(catalog["spells"], registered, tomes, skipped);
-            if (skipped.voiceSlot || skipped.duplicate) {
+            if (skipped.voiceSlot || skipped.freeSpell || skipped.duplicate || skipped.unreachable || skipped.playerLeftOut) {
                 logger::info("SpellResearch: {} - left out as the tree leaves them: {} voice slot spells, "
-                             "{} copies from another plugin", reason, skipped.voiceSlot, skipped.duplicate);
+                             "{} free spells, {} copies from another plugin, {} whose tomes nothing hands out, "
+                             "{} blacklisted or from a plugin turned off", reason, skipped.voiceSlot,
+                             skipped.freeSpell, skipped.duplicate, skipped.unreachable, skipped.playerLeftOut);
             }
             if (missing.empty()) {
                 SetStatus("upToDate", reason, registered.spells.size());
@@ -355,7 +441,9 @@ namespace Librarian::SpellResearchPatch
             report["problems"] = problems;
             report["alreadyRegistered"] = registered.spells.size();
             report["noSchoolOrTier"] = registrations.noSchoolOrTier;
-            report["leftOut"] = { { "voiceSlot", skipped.voiceSlot }, { "duplicate", skipped.duplicate } };
+            report["leftOut"] = { { "voiceSlot", skipped.voiceSlot }, { "freeSpell", skipped.freeSpell },
+                                  { "duplicate", skipped.duplicate }, { "tomeUnreachable", skipped.unreachable },
+                                  { "player", skipped.playerLeftOut } };
             const Totals totals = Register(registrations, report);
             g_lastSeen = CountRegistered();
 

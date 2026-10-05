@@ -140,6 +140,28 @@ namespace SpellScanner
         return IsFormIdValid(formId);
     }
 
+    namespace
+    {
+        // What a tree node must be to show: a spell with a name, that costs something to
+        // cast (IsFreeSpell) and is not in the voice slot - what a scan lets into a new
+        // tree. A saved tree is checked again as it loads: a stale formId can name another
+        // plugin's record (an unnamed Constant Effect ability), and a tree built before a
+        // rule came in still holds spells the rule leaves out (2026-10-05).
+        bool IsPlayerSpell(const std::string& formIdStr)
+        {
+            RE::FormID formId = 0;
+            try {
+                formId = static_cast<RE::FormID>(std::stoul(formIdStr, nullptr, 16));
+            } catch (...) {
+                return false;
+            }
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
+            if (!spell) return false;
+            const char* name = spell->GetFullName();
+            return name && *name && !IsFreeSpell(spell) && !IsEquippedInVoiceSlot(spell);
+        }
+    }
+
     TreeValidationResult ValidateAndFixTree(json& treeData)
     {
         TreeValidationResult result;
@@ -148,6 +170,7 @@ namespace SpellScanner
         std::unordered_map<std::string, std::string> formIdRemapping;
         // The formId every kept node has after the pass (kept or resolved)
         std::unordered_set<std::string> finalFormIds;
+        std::size_t notPlayerSpells = 0;
         // One per pass: the file list is converted once, not once per node
         PluginLookup pluginLookup;
 
@@ -211,6 +234,15 @@ namespace SpellScanner
                             missingPluginsSet.insert(persistentId.substr(0, pipePos));
                         }
                     }
+                }
+
+                // A node the tree shows is a player's spell (IsPlayerSpell). Anything else leaves
+                // the tree as it loads, so the player never meets an unnamed or code-like node
+                if (isValid && !IsPlayerSpell(node["formId"].get<std::string>())) {
+                    isValid = false;
+                    notPlayerSpells++;
+                    logger::info("SpellScanner: {} ({}) is not a player's spell now - left out of the tree",
+                        node["formId"].get<std::string>(), node.value("name", std::string("?")));
                 }
 
                 if (isValid) {
@@ -337,8 +369,10 @@ namespace SpellScanner
         result.missingPlugins.assign(missingPluginsSet.begin(), missingPluginsSet.end());
         result.invalidFormIds.assign(invalidFormIdsSet.begin(), invalidFormIdsSet.end());
 
-        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent, {} invalid, {} references remapped",
-            result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.invalidNodes, formIdRemapping.size());
+        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent, {} invalid "
+            "({} not a player's spell), {} references remapped",
+            result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.invalidNodes, notPlayerSpells,
+            formIdRemapping.size());
 
         return result;
     }

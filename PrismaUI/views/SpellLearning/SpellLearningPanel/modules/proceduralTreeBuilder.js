@@ -28,16 +28,18 @@
  * (a mod's script or animation spell, which would take the shout's place when
  * learned); and it is not another plugin's copy of a spell the tree has
  * (duplicateOf names the kept record: same editor id and school, its tome reads
- * as the kept spell's - SpellScannerDuplicates.cpp). The scan keeps every spell
- * for the librarian and the perk adapters and marks taughtByTome,
- * tomeUnreachable, voiceSlot and duplicateOf; a scan from before the marks has
- * no fields, and its spells count as taken.
+ * as the kept spell's - SpellScannerDuplicates.cpp); and it costs something to
+ * cast (freeSpell is not set: a pet's or follower's call, a quest's utility
+ * spell, 2026-10-05). The scan keeps every spell for the librarian and the perk
+ * adapters and marks taughtByTome, tomeUnreachable, voiceSlot, freeSpell and
+ * duplicateOf; a scan from before the marks has no fields, and its spells count
+ * as taken.
  * @param {Object} spell
  * @returns {boolean}
  */
 function isTaughtByTome(spell) {
     return !spell || (spell.taughtByTome !== false && spell.tomeUnreachable !== true &&
-        spell.voiceSlot !== true && !spell.duplicateOf);
+        spell.voiceSlot !== true && spell.freeSpell !== true && !spell.duplicateOf);
 }
 
 /** The spells the tree takes (isTaughtByTome). */
