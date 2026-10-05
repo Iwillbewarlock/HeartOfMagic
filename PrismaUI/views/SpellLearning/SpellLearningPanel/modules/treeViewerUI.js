@@ -223,8 +223,7 @@ var SmartRenderer = {
         var renderer = this.activeRenderer.toUpperCase();
         badge.textContent = renderer;
         badge.classList.add(this.activeRenderer);
-        badge.title = 'Renderer: ' + renderer +
-            (this.activeRenderer === 'canvas' ? ' (Canvas 2D)' : ' (SVG DOM)');
+        setI18n(badge, 'buttons.activeRenderer', null, 'Active renderer', 'title');
     }
 };
 
@@ -372,7 +371,7 @@ function importTreeFromModal() {
     // Step 2: Validate through TreeParser
     var parsed = TreeParser.parse(data);
     if (!parsed.success) {
-        showImportError(t('status.treeValidationFailed', {error: parsed.error || 'Unknown error'}));
+        showImportError(t('status.treeValidationFailed', {error: parsed.error || tOr('status.unknownError', null, 'Unknown error')}));
         return;
     }
 

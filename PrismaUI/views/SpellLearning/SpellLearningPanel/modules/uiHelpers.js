@@ -188,6 +188,30 @@ function getLocalFormId(formIdStr) {
  * Get all primed spells (post-blacklist/whitelist/tome filtering).
  * @returns {Array} Filtered spell objects from state.lastSpellData
  */
+/**
+ * Text that goes into innerHTML: a spell's, a plugin's or a mod's name can hold
+ * <, & or quotes.
+ * @param {*} text
+ * @returns {string}
+ */
+function escapeHtml(text) {
+    return String(text === undefined || text === null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** A school's name in the panel's language (SpellSearch.schoolLabel), empty for none */
+function schoolText(school) {
+    if (!school) return '';
+    return typeof SpellSearch !== 'undefined' ? SpellSearch.schoolLabel(school) : String(school);
+}
+
+/** A spell level in the panel's language (SpellCard.levelText), empty for none */
+function levelText(level) {
+    if (!level) return '';
+    return typeof SpellCard !== 'undefined' ? SpellCard.levelText(level) : String(level);
+}
+
 function getPrimedSpells() {
     var data = state.lastSpellData;
     if (!data || !data.spells || data.spells.length === 0) return [];
@@ -271,7 +295,7 @@ function updatePrimedCount() {
             var color = schoolColors[school] || 'var(--text-muted)';
             html += '<div class="scan-school-row">' +
                 '<span class="scan-school-dot" style="background:' + color + '"></span>' +
-                '<span class="scan-school-name">' + school + '</span>' +
+                '<span class="scan-school-name">' + escapeHtml(schoolText(school)) + '</span>' +
                 '<span class="scan-school-count">' + schoolCounts[school] + '</span>' +
                 '</div>';
         });
@@ -302,7 +326,13 @@ function showPresetNamePrompt(title, onConfirm) {
         return;
     }
 
-    titleEl.textContent = title || tOr('modals.presetName.title', null, 'Save Preset');
+    // The caller's title is already in the panel's language; the static key would put "Save Preset" back on a switch
+    if (title) {
+        clearI18n(titleEl);
+        titleEl.textContent = title;
+    } else {
+        setI18n(titleEl, 'modals.presetName.title', null, 'Save Preset');
+    }
     input.value = '';
     modal.classList.remove('hidden');
 

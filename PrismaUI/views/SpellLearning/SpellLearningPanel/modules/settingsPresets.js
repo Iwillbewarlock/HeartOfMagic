@@ -569,7 +569,8 @@ function updateSettingsPresetsUI() {
 
         var nameSpan = document.createElement('span');
         nameSpan.className = 'scanner-preset-name';
-        nameSpan.textContent = chipName;
+        // The shipped presets' names (Default, Easy, Hard) in the panel's language; a player's own as written
+        setI18n(nameSpan, 'presets.name.' + String(chipName).toLowerCase(), null, chipName);
         nameSpan.setAttribute('data-preset', key);
 
         // Single click to apply

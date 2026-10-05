@@ -148,6 +148,10 @@ namespace SpellScanner
     // a free "spell" next to real ones breaks the picture (2026-10-05).
     bool IsFreeSpell(RE::SpellItem* spell);
 
+    // The actors a summon brings: the NPC itself, or every NPC in its leveled
+    // list and the lists inside it (SpellScannerEvidence.cpp)
+    void CollectSummonedNPCs(RE::TESForm* form, std::vector<RE::TESNPC*>& npcs, int depth = 0);
+
     // The spell gate (SpellScannerGate.cpp, docs/librarian/ToDo.md M9): whether a tome
     // spell is a player's spell, with the evidence. "out" leaves the tree and Spell
     // Research, "review" stays and goes to the panel's review list, "in" is the rest.

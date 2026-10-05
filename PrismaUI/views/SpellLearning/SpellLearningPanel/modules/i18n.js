@@ -142,6 +142,14 @@
         return str;
     }
 
+    /** An element's translation, with the values setI18n left on it (data-i18n...-params) */
+    function textFor(el, name, key) {
+        if (!key || _translations[key] === undefined) return undefined;
+        var raw = el.getAttribute(name + '-params');
+        if (!raw) return _translations[key];
+        try { return t(key, JSON.parse(raw)); } catch (e) { return _translations[key]; }
+    }
+
     /**
      * Scan the DOM and apply translations to elements with data-i18n attributes.
      * Call this after DOMContentLoaded or after dynamically adding translated elements.
@@ -154,14 +162,6 @@
      * 
      * @param {Element} [root=document] - Optional root element to scan within
      */
-    /** An element's translation, with the values setI18n left on it (data-i18n...-params) */
-    function textFor(el, name, key) {
-        if (!key || _translations[key] === undefined) return undefined;
-        var raw = el.getAttribute(name + '-params');
-        if (!raw) return _translations[key];
-        try { return t(key, JSON.parse(raw)); } catch (e) { return _translations[key]; }
-    }
-
     function applyI18nToDOM(root) {
         if (!_loaded) return;
 

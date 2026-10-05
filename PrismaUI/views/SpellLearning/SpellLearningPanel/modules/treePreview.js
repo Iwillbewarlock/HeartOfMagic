@@ -589,11 +589,12 @@ var TreePreview = {
         // Update title
         var title = modal.querySelector('.modal-header h3');
         if (title) {
-            var label = 'Select Root \u2014 ' + school;
             if (this._rootSelectionIndex > 0) {
-                label += ' #' + (this._rootSelectionIndex + 1);
+                setI18n(title, 'preview.selectRootN', { school: schoolText(school), n: this._rootSelectionIndex + 1 },
+                    'Select Root - {{school}} #{{n}}');
+            } else {
+                setI18n(title, 'preview.selectRoot', { school: schoolText(school) }, 'Select Root - {{school}}');
             }
-            title.textContent = label;
         }
 
         // Load primed spells for this school
@@ -633,6 +634,9 @@ var TreePreview = {
         if (title) {
             setI18n(title, 'modals.spawnSpell.title', null, 'Spawn Spell Node');
         }
+        // The root list turns the button into "Clear Selection"; the spawn menu shares it
+        var cancelBtn = document.getElementById('spawn-cancel');
+        if (cancelBtn) setI18n(cancelBtn, 'modals.spawnSpell.cancel', null, 'Cancel');
     },
 
     _renderRootSelectionList: function(searchTerm) {
@@ -685,12 +689,13 @@ var TreePreview = {
             item.className = 'spawn-spell-item' + (isSelected ? ' on-tree' : '');
             item.dataset.formId = spell.formId;
 
-            var badge = isSelected ? '<span class="spawn-on-tree-badge">CURRENT</span>' : '';
+            var badge = isSelected ? '<span class="spawn-on-tree-badge">' +
+                escapeHtml(tOr('preview.currentRoot', null, 'CURRENT')) + '</span>' : '';
             item.innerHTML =
-                '<div class="spawn-spell-name">' + (spell.name || spell.formId) + badge + '</div>' +
+                '<div class="spawn-spell-name">' + escapeHtml(spell.name || spell.formId) + badge + '</div>' +
                 '<div class="spawn-spell-info">' +
-                    '<span>' + (spell.skillLevel || spell.level || '') + '</span>' +
-                    '<span style="opacity:0.5">' + (spell.formId || '') + '</span>' +
+                    '<span>' + escapeHtml(levelText(spell.skillLevel || spell.level)) + '</span>' +
+                    '<span style="opacity:0.5">' + escapeHtml(spell.formId) + '</span>' +
                 '</div>';
 
             item.addEventListener('click', function() {

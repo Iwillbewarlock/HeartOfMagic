@@ -1246,7 +1246,7 @@
 
             // Advance build progress: prereqs done → finalize → complete
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                BuildProgress.setDetail(lockCount + ' prerequisite locks applied');
+                BuildProgress.setDetail(tOr('prm.status.applied', { count: lockCount }, '{{count}} locks applied'));
                 BuildProgress.setStage('finalize');
                 setTimeout(function() {
                     BuildProgress.complete(lockCount + ' locks applied');
@@ -1266,7 +1266,7 @@
 
                 // Advance build progress after JS fallback
                 if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                    BuildProgress.setDetail(fbCount + ' locks applied (JS fallback)');
+                    BuildProgress.setDetail(tOr('prm.status.applied', { count: fbCount }, '{{count}} locks applied'));
                     BuildProgress.setStage('finalize');
                     setTimeout(function() { BuildProgress.complete(); }, 400);
                 }
@@ -2045,7 +2045,7 @@
             ctx.fillStyle = 'rgba(184, 168, 120, 0.3)';
             ctx.font = '11px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Build a tree to see preview', w / 2, h / 2);
+            ctx.fillText(tOr('prm.buildTreeFirst', null, 'Build a tree first'), w / 2, h / 2);
         }
     }
 
@@ -2119,7 +2119,7 @@
             onLocksChanged();
             // Synchronous (JS fallback) → finalize + complete
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-                BuildProgress.setDetail(result + ' locks applied');
+                BuildProgress.setDetail(tOr('prm.status.applied', { count: result }, '{{count}} locks applied'));
                 BuildProgress.setStage('finalize');
                 setTimeout(function() { BuildProgress.complete(result + ' locks applied'); }, 400);
             }

@@ -45,13 +45,14 @@
             var infoText;
             if (node.state === 'locked') {
                 // Undiscovered: tell the player what it is (school/tier) and how to reveal it
-                var tierText = node.level || node.skillLevel || '';
-                infoText = node.school + (tierText ? ' \u2022 ' + tierText : '') + ' \u2022 ' +
+                var tierText = levelText(node.level || node.skillLevel);
+                infoText = schoolText(node.school) + (tierText ? ' \u2022 ' + tierText : '') + ' \u2022 ' +
                            tt('tooltip.lockedHint', null, 'Unlock a linked spell to reveal');
             } else if (showDetails) {
-                infoText = node.school + ' \u2022 ' + (node.level || '?') + ' \u2022 ' + (node.cost || '?') + ' magicka';
+                infoText = schoolText(node.school) + ' \u2022 ' + (levelText(node.level) || '?') + ' \u2022 ' +
+                           tt('tooltip.magicka', { cost: node.cost || '?' }, '{{cost}} Magicka');
             } else {
-                infoText = node.school + ' \u2022 ' + tt('tooltip.progress', { pct: Math.round(progressPercent) }, 'Progress: ' + Math.round(progressPercent) + '%');
+                infoText = schoolText(node.school) + ' \u2022 ' + tt('tooltip.progress', { pct: Math.round(progressPercent) }, 'Progress: ' + Math.round(progressPercent) + '%');
             }
             if (!showName && node.state !== 'locked') {
                 nameText = '??? (' + tt('tooltip.revealAt', { pct: revealThreshold }, 'name at ' + revealThreshold + '%') + ')';

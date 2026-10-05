@@ -1555,18 +1555,20 @@ function addModdedXPSourceUI(sourceId, displayName, multiplier, cap, enabled) {
                 '<input type="checkbox" id="moddedEnabled_' + sourceId + '"' + (enabled ? ' checked' : '') + '>' +
                 '<span class="toggle-slider"></span>' +
             '</label>' +
-            '<span class="modded-source-name">' + displayName + '</span>' +
+            '<span class="modded-source-name">' + escapeHtml(displayName) + '</span>' +
         '</div>' +
         '<div class="slider-grid slider-grid-2">' +
             '<div class="slider-compact">' +
-                '<span class="slider-compact-label">Multiplier</span>' +
+                '<span class="slider-compact-label" data-i18n="settings.progression.moddedMultiplier">' +
+                    escapeHtml(tOr('settings.progression.moddedMultiplier', null, 'Multiplier')) + '</span>' +
                 '<div class="slider-compact-control">' +
                     '<input type="range" id="moddedMult_' + sourceId + '" min="0" max="200" value="' + multiplier + '" class="setting-slider">' +
                     '<span id="moddedMultVal_' + sourceId + '" class="slider-value">' + multiplier + '%</span>' +
                 '</div>' +
             '</div>' +
             '<div class="slider-compact">' +
-                '<span class="slider-compact-label">Cap</span>' +
+                '<span class="slider-compact-label" data-i18n="settings.progression.moddedCap">' +
+                    escapeHtml(tOr('settings.progression.moddedCap', null, 'Cap')) + '</span>' +
                 '<div class="slider-compact-control">' +
                     '<input type="range" id="moddedCap_' + sourceId + '" min="0" max="100" value="' + cap + '" class="setting-slider">' +
                     '<span id="moddedCapVal_' + sourceId + '" class="slider-value">' + cap + '%</span>' +
@@ -2440,8 +2442,8 @@ function renderBlacklistSearchResults(searchTerm) {
         var item = document.createElement('div');
         item.className = 'spawn-spell-item';
         item.innerHTML =
-            '<div class="spawn-spell-name">' + (spell.name || spell.formId) + '</div>' +
-            '<div class="spawn-spell-info"><span>' + (spell.school || 'Unknown') + '</span></div>';
+            '<div class="spawn-spell-name">' + escapeHtml(spell.name || spell.formId) + '</div>' +
+            '<div class="spawn-spell-info"><span>' + escapeHtml(schoolText(spell.school)) + '</span></div>';
 
         item.addEventListener('click', function() {
             addToBlacklist(spell);
@@ -2533,12 +2535,13 @@ function renderBlacklistEntries() {
     blacklist.forEach(function(entry) {
         var div = document.createElement('div');
         div.className = 'blacklist-entry';
-        var subtitle = (entry.school || '');
+        // Older entries stored 'Unknown' for a spell with no school
+        var subtitle = entry.school && entry.school !== 'Unknown' ? schoolText(entry.school) : '';
         if (entry.plugin) subtitle += (subtitle ? ' - ' : '') + entry.plugin;
         div.innerHTML =
             '<div class="blacklist-entry-info">' +
-                '<div class="blacklist-entry-name">' + (entry.name || entry.formId) + '</div>' +
-                '<div class="blacklist-entry-school">' + subtitle + '</div>' +
+                '<div class="blacklist-entry-name">' + escapeHtml(entry.name || entry.formId) + '</div>' +
+                '<div class="blacklist-entry-school">' + escapeHtml(subtitle) + '</div>' +
             '</div>' +
             '<button class="blacklist-remove-btn">&times;</button>';
 

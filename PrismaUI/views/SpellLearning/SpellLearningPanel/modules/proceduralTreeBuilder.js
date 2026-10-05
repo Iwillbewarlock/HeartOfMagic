@@ -160,7 +160,8 @@ window.filterWhitelistedSpells = filterWhitelistedSpells;
  */
 function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
     console.error(logPrefix + ' C++ build failed:', error);
-    var errorMsg = 'Tree build failed: ' + error + '\nPlease report this error on the mod page.';
+    var errorMsg = tOr('status.treeBuildFailed', { error: error }, 'Tree build failed: {{error}}') + '\n' +
+        tOr('status.reportOnModPage', null, 'Please report this error on the mod page.');
     var retryFn = typeof retryBuild === 'function' ? function() {
         if (settingsModule) settingsModule.setStatusText(t('buildProgress.retrying'), 'working', 'buildProgress.retrying');
         retryBuild();

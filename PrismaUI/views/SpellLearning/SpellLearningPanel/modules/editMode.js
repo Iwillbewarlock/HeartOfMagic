@@ -1611,12 +1611,13 @@ var EditMode = {
             item.className = 'spawn-spell-item' + (isOnTree ? ' on-tree' : '');
             item.dataset.formId = spell.formId;
 
-            var badge = isOnTree ? '<span class="spawn-on-tree-badge">ON TREE</span>' : '';
+            var badge = isOnTree ? '<span class="spawn-on-tree-badge">' +
+                escapeHtml(tOr('modals.spawnSpell.onTree', null, 'ON TREE')) + '</span>' : '';
             item.innerHTML =
-                '<div class="spawn-spell-name">' + (spell.name || spell.formId) + badge + '</div>' +
+                '<div class="spawn-spell-name">' + escapeHtml(spell.name || spell.formId) + badge + '</div>' +
                 '<div class="spawn-spell-info">' +
-                    '<span>' + (spell.school || 'Unknown') + '</span>' +
-                    '<span>' + (spell.level || '') + '</span>' +
+                    '<span>' + escapeHtml(schoolText(spell.school)) + '</span>' +
+                    '<span>' + escapeHtml(levelText(spell.level)) + '</span>' +
                 '</div>';
 
             item.addEventListener('click', function() {
@@ -1769,7 +1770,7 @@ var EditMode = {
         CanvasRenderer._needsRender = true;
 
         if (typeof setTreeStatus === 'function') {
-            setTreeStatusKey('editMode.spawned', { name: spell.name }, 'Spawned: {{name}}');
+            setTreeStatusKey('editMode.spawned', { name: spell.name }, 'Added: {{name}}');
         }
 
         this.hideSpawnMenu();

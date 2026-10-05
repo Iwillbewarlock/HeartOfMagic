@@ -1,6 +1,5 @@
 #include "Common.h"
 #include "JsonText.h"
-#include "PathText.h"
 #include "SpellScanner.h"
 
 #include <fstream>
@@ -70,7 +69,16 @@ namespace SpellScanner
             return it == kByName.end() ? std::nullopt : std::optional(it->second);
         }
 
-        // gate/rules.json, read once: {"rules": [{"id", "band", "masters": [...], "archetypes": [...]}]}
+        // A rule's text field; anything but a string (a number, null) reads as the default
+        std::string TextField(const json& entry, const char* name, const char* fallback)
+        {
+            const auto it = entry.find(name);
+            return (it != entry.end() && it->is_string()) ? it->get<std::string>() : std::string(fallback);
+        }
+
+        // gate/rules.json, read once: {"rules": [{"id", "band", "masters": [...], "archetypes": [...]}]}.
+        // Nothing in the file may throw out of here: the scan, a saved tree's load and
+        // Spell Research all judge spells through it.
         const std::vector<GateRule>& Rules()
         {
             static std::vector<GateRule> rules;
@@ -88,22 +96,30 @@ namespace SpellScanner
                     logger::error("SpellGate: {} is not valid JSON - {}", kRulesPath, e.what());
                     return;
                 }
+                if (!document.is_object()) return;
                 const auto list = document.find("rules");
                 if (list == document.end() || !list->is_array()) return;
                 for (const auto& entry : *list) {
                     if (!entry.is_object()) continue;
                     GateRule rule;
-                    rule.id = entry.value("id", std::string());
-                    rule.band = entry.value("band", std::string("out"));
+                    rule.id = TextField(entry, "id", "");
+                    rule.band = TextField(entry, "band", "out");
                     if (rule.id.empty() || (rule.band != "out" && rule.band != "review")) {
                         logger::warn("SpellGate: rule without an id or with band '{}' - skipped", rule.band);
                         continue;
                     }
-                    for (const auto& master : entry.value("masters", json::array())) {
+                    const auto masters = entry.find("masters");
+                    const auto names = entry.find("archetypes");
+                    if (masters == entry.end() || !masters->is_array() ||
+                        (names != entry.end() && !names->is_array())) {
+                        logger::warn("SpellGate: rule '{}': masters and archetypes must be lists - skipped", rule.id);
+                        continue;
+                    }
+                    for (const auto& master : *masters) {
                         if (master.is_string()) rule.masters.push_back(Lower(master.get<std::string>()));
                     }
                     bool known = true;
-                    for (const auto& name : entry.value("archetypes", json::array())) {
+                    for (const auto& name : names != entry.end() ? *names : json::array()) {
                         const auto archetype = name.is_string() ? ArchetypeByName(name.get<std::string>()) : std::nullopt;
                         if (!archetype) {
                             known = false;
@@ -130,21 +146,6 @@ namespace SpellScanner
                 if (master && std::ranges::find(masters, Lower(master)) != masters.end()) return true;
             }
             return false;
-        }
-
-        // The summoned actor of a summon effect (a leveled list's first NPC)
-        RE::TESNPC* SummonedNPC(const RE::EffectSetting* base)
-        {
-            if (!base || !base->data.associatedForm) return nullptr;
-            if (auto* npc = base->data.associatedForm->As<RE::TESNPC>()) return npc;
-            if (auto* leveled = base->data.associatedForm->As<RE::TESLevCharacter>()) {
-                for (const auto& entry : leveled->entries) {
-                    if (entry.form) {
-                        if (auto* npc = entry.form->As<RE::TESNPC>()) return npc;
-                    }
-                }
-            }
-            return nullptr;
         }
 
         bool IsHorse(RE::TESNPC* npc)
@@ -190,9 +191,12 @@ namespace SpellScanner
                 base->data.archetype == RE::EffectArchetype::kReanimate;
             if (!summon) continue;
             if (static_cast<float>(effect->effectItem.duration) > kLongSummonSeconds) longSummon = true;
-            auto* npc = SummonedNPC(base);
-            if (IsHorse(npc)) horse = true;
-            if (npc && npc->IsUnique()) unique = true;
+            std::vector<RE::TESNPC*> npcs;
+            CollectSummonedNPCs(base->data.associatedForm, npcs);
+            for (auto* npc : npcs) {
+                if (IsHorse(npc)) horse = true;
+                if (npc->IsUnique()) unique = true;
+            }
         }
         if (longSummon) out("longSummon");
         if (!archetypes.empty() && archetypes.size() == 1 && archetypes.contains(RE::EffectArchetype::kBanish)) {
@@ -202,8 +206,9 @@ namespace SpellScanner
         auto* file = spell->GetFile(0);
         for (const auto& rule : Rules()) {
             if (!PluginDependsOn(file, rule.masters)) continue;
-            const bool fits = rule.archetypes.empty() ||
-                std::ranges::all_of(archetypes, [&](RE::EffectArchetype a) { return rule.archetypes.contains(a); });
+            // A spell with no effects is not "every effect one of these"
+            const bool fits = !archetypes.empty() && (rule.archetypes.empty() ||
+                std::ranges::all_of(archetypes, [&](RE::EffectArchetype a) { return rule.archetypes.contains(a); }));
             if (!fits) continue;
             if (rule.band == "out") {
                 out("rule:" + rule.id);

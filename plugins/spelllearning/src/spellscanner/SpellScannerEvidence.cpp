@@ -257,23 +257,32 @@ namespace SpellScanner
             }
         }
 
-        void CollectSummonedKeywords(RE::TESForm* form, std::set<std::string>& keywords, int depth)
+        void CollectSummonedKeywords(RE::TESForm* form, std::set<std::string>& keywords)
         {
-            if (!form || depth > kMaxLeveledDepth) return;
-
-            if (auto* npc = form->As<RE::TESNPC>()) {
+            std::vector<RE::TESNPC*> npcs;
+            CollectSummonedNPCs(form, npcs);
+            for (auto* npc : npcs) {
                 const auto* race = npc->GetRace();
-                if (!race) return;
+                if (!race) continue;
                 for (const auto* keyword : race->GetKeywords()) {
                     const char* editorId = keyword ? keyword->GetFormEditorID() : nullptr;
                     if (editorId && editorId[0] != '\0') keywords.insert(editorId);
                 }
-                return;
             }
-            if (auto* leveled = form->As<RE::TESLevCharacter>()) {
-                for (const auto& entry : leveled->entries) {
-                    CollectSummonedKeywords(entry.form, keywords, depth + 1);
-                }
+        }
+    }
+
+    void CollectSummonedNPCs(RE::TESForm* form, std::vector<RE::TESNPC*>& npcs, int depth)
+    {
+        if (!form || depth > kMaxLeveledDepth) return;
+
+        if (auto* npc = form->As<RE::TESNPC>()) {
+            npcs.push_back(npc);
+            return;
+        }
+        if (auto* leveled = form->As<RE::TESLevCharacter>()) {
+            for (const auto& entry : leveled->entries) {
+                CollectSummonedNPCs(entry.form, npcs, depth + 1);
             }
         }
     }
@@ -330,7 +339,7 @@ namespace SpellScanner
 
         if (data.archetype == RE::EffectArchetype::kSummonCreature && data.associatedForm) {
             std::set<std::string> keywords;
-            CollectSummonedKeywords(data.associatedForm, keywords, 0);
+            CollectSummonedKeywords(data.associatedForm, keywords);
             if (!keywords.empty()) {
                 effectJson["summonedKeywords"] = keywords;
             }

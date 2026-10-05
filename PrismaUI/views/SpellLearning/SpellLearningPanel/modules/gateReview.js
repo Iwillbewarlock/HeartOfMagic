@@ -69,7 +69,9 @@ var GateReview = {
         var box = document.getElementById('gate-review-entries');
         var count = document.getElementById('gate-review-count');
         if (!box) return;
-        var spells = (state.lastSpellData && state.lastSpellData.spells) || [];
+        // getPrimedSpells: the spells the tree builds from (tome, blacklist, plugin whitelist)
+        var spells = typeof getPrimedSpells === 'function' ? getPrimedSpells()
+            : ((state.lastSpellData && state.lastSpellData.spells) || []);
         var list = this.pending(spells, settings.spellBlacklist, settings.gateReviewed);
         if (count) count.textContent = list.length;
         box.innerHTML = '';

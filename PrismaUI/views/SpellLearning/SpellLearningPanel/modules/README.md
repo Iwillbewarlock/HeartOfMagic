@@ -19,7 +19,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 506 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist) |
+| `uiHelpers.js` | 506 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist), `escapeHtml` (names into innerHTML), `schoolText` / `levelText` (a school's and a level's names in the panel's language) |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
 | `treeParser.js` | 544 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, always a new array, and `clampSoftNeeded`, also used by `treeLoad.js`), keeps `persistentId`; `updateNodeFromCache` fills a node from the spell info and drops the level filter's counts when its level changes |
 | `prereqEdit.js` | 240 | `PrereqEdit`: a spell's `hardPrereqs`, `softPrereqs` and `prerequisites` (the drawn lines) as edit mode changes them - `add`, `remove`/`restore`, `toggle`/`setType`, `repair` (a tree saved by 1.2.0, with a link in both hard and soft; a lock on the parent lowers `softNeeded`), `copyTo` (a repair into the saved tree), `forget`/`forgetInTree` (a deleted spell out of every node's lists, children and locks, and the saved tree's bridges: edit mode's `deleteNode`, which refuses a school's root, so `root` never names a deleted spell); an id once, in one of hard and soft, every list its own array; tests in `prereqEditTest.js` |
@@ -85,7 +85,8 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `learningTargetKeys.js` | 61 | `LearningTargetKeys`: the school key holding a spell, looked up by id (Learn button, spell card); `onLearningTargetDropped` |
 | `progressionUI.js` | 923 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
-| `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
+| `cppStatusKeys.js` | 25 | `CPP_STATUS_KEYS` / `cppStatusKey`: the language key of each English status message the DLL sends (scan bar, tree status line) |
+| `cppCallbacks.js` | 1250 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 227 | The tome filter (`isTaughtByTome`, `filterTomeSpells`: the tree takes only spells a tome teaches, whose tome something hands out, that are not in the voice slot and not another plugin's copy of a spell - `duplicateOf`, the kept record's formId, set by the scan, SpellScannerDuplicates.cpp; edit mode's spawn list leaves the copies out too, so one spell is never put on the tree twice, while the blacklist list keeps them, where picking one does no harm), spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~25,830 | the 59 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~45,500 lines in 107 files) |
@@ -139,6 +140,7 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/buttonHandlers.js"></script>
 
 <!-- 6. Integrations -->
+<script src="modules/cppStatusKeys.js"></script>
 <script src="modules/cppCallbacks.js"></script>
 
 <!-- 7. Main Application -->

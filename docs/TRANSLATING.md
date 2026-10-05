@@ -82,7 +82,7 @@ at once (`applyI18nToDOM`, which reads the values; `modules/i18nRelabelTest.js`)
 an element afterwards calls `clearI18n(element)` first (`setTreeStatus` does), or the next switch would put the
 keyed text back. The tree and Pre Req Master status lines take keys directly: `setTreeStatusKey(key, params,
 fallback)`, `PreReqMaster.updateStatus(key, params, fallback)`. The DLL's own status messages are English;
-`CPP_STATUS_KEYS` in `modules/cppCallbacks.js` gives each its key (a DLL text changed without updating that
+`CPP_STATUS_KEYS` in `modules/cppStatusKeys.js` gives each its key (a DLL text changed without updating that
 table shows in English). The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
 
 ### In-game corner messages (`hud.*`)

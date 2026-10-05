@@ -64,10 +64,10 @@ var TreeParser = {
 
         if (typeof data === 'string') {
             try { data = JSON.parse(data); }
-            catch (e) { return { success: false, error: e.message }; }
+            catch (e) { return { success: false, error: tOr('status.invalidJson', { error: e.message }, 'Invalid JSON: {{error}}') }; }
         }
 
-        if (!data.schools) return { success: false, error: 'Missing schools' };
+        if (!data.schools) return { success: false, error: tOr('status.treeMissingSchools', null, 'The tree has no schools') };
 
         var allFormIds = [];
         var self = this;

@@ -177,7 +177,7 @@ function updateEasyPresetChips() {
         if (name === _easySelectedPreset) {
             chip.classList.add('selected');
         }
-        chip.textContent = name;
+        setI18n(chip, 'presets.name.' + String(name).toLowerCase(), null, name);
         chip.setAttribute('data-preset', name);
         chip.addEventListener('click', function() {
             var presetName = this.getAttribute('data-preset');

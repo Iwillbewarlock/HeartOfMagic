@@ -126,7 +126,7 @@ function onPasteTreeClick() {
         state.pasteTarget = 'import-textarea';
         window.callCpp('GetClipboard', '');
     } else {
-        showImportError('Paste not available - C++ bridge required');
+        showImportError(tOr('status.pasteUnavailable', null, 'Paste is not available here'));
     }
 }
 

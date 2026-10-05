@@ -2325,11 +2325,13 @@ var WheelRenderer = {
         var nameText = showName ? (node.name || node.formId) : '???';
         var infoText;
         if (node.state === 'locked') {
-            infoText = 'Unlock prerequisites first';
+            infoText = tOr('tooltip.lockedHint', null, 'Unlock a linked spell to reveal');
         } else if (showDetails) {
-            infoText = node.school + ' • ' + (node.level || '?') + ' • ' + (node.cost || '?') + ' magicka';
+            infoText = schoolText(node.school) + ' • ' + (levelText(node.level) || '?') + ' • ' +
+                tOr('tooltip.magicka', { cost: node.cost || '?' }, '{{cost}} Magicka');
         } else {
-            infoText = node.school + ' • Progress: ' + progressPercent + '%';
+            infoText = schoolText(node.school) + ' • ' +
+                tOr('tooltip.progress', { pct: progressPercent }, 'Progress: {{pct}}%');
         }
         
         tooltip.querySelector('.tooltip-name').textContent = nameText;
