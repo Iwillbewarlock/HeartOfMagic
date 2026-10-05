@@ -302,6 +302,14 @@ namespace Librarian::SpellResearchPatch
                          "{} would not take, {} tome tiers out of step, in {} ms",
                 reason, totals.spells, totals.entries, totals.tomes, registered.spells.size(), totals.failed,
                 totals.tomeTiersSkipped, elapsed);
+
+            // The player sees SR's own "All Spells Imported" count only for its three
+            // games; say what Heart of Magic added (a load or scan that adds none is silent)
+            if (totals.spells > 0) {
+                const auto notification = std::format("Heart of Magic: {} mod spells added to Spell Research",
+                    totals.spells);
+                RE::SendHUDMessage::ShowHUDMessage(notification.c_str());
+            }
         }
 
         void SafeReconcile(std::string_view reason)

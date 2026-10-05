@@ -133,12 +133,16 @@
 
 - `config.json` 의 `spellResearch.enabled`(키가 없으면 켜짐, `perkAdapters` 와 같은 규칙). 꺼도 이미 넣은 등록은
   그 세이브에 남는다 — SR 패치와 같은 방식이라 다음 재Import 때 비워진다.
-- 카탈로그 옆 `spell_research_report.json`(등록이 실제로 돈 때만): `reason`(import | load), `alreadyRegistered`(SR
+- 카탈로그 옆 `spell_research_report.json`(등록이 실제로 돈 때만): `reason`(import | load | scan), `alreadyRegistered`(SR
   등급 목록에 이미 있던 주문 수), `registered`, `entries`(목록 항목 수), `perList`, `tomes`, `failed`(등급 목록이 받지
   않은 주문 — 그 세션 동안 다시 시도하지 않는다), `tomeTiersSkipped`(짝 목록 길이가 달라 마법책을 건너뛴 등급),
   `noSchoolOrTier`, `lines`(줄별 gain), `elapsedMs`.
 - 로그: 설치 때 한 줄(`SpellResearch: SpellResearch.esp found ...`), 등록 때 한 줄 요약, 첫 항목의
   `scriptAddedFormCount` 전후 값.
+- 게임 안 알림(2026-10-05): 한 주문이라도 등록하면 HUD 에 `Heart of Magic: N mod spells added to Spell Research`.
+  SR 의 "All Spells Imported" 상자를 닫은 직후(import), HoM 을 나중에 깐 세이브를 처음 불러올 때(load), 새 모드를
+  넣고 스캔했을 때(scan) 뜬다. 새로 넣은 주문이 없으면 아무것도 띄우지 않는다. SR MCM 의 "Total spells imported" 는
+  SR 자신의 Import(기본 게임과 DLC)에 이 수를 더한 값이다.
 - 빠른 길: 전역 두 개와 등급 목록 항목 수를 먼저 본다. 수가 지난번과 같으면(Import 가 아닌 메시지 상자) 설정 파일도
   읽지 않고 끝. 다르면 카탈로그에서 등록할 주문만 골라, 없으면 끝(판정기는 돌지 않는다). 있으면 **그 주문들만** 판정기에
   넣는다(줄의 선택은 주문마다 따로라 결과가 같다). 규칙 파일을 못 읽어도 수는 기억해서 같은 경고를 되풀이하지 않는다.
