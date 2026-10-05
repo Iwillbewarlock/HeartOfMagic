@@ -1,6 +1,6 @@
 /**
  * CanvasRenderer - one spell drawn by itself: the ones NodeBatch does not take
- * (selected, hovered, on the hover path, learning, with an XP ring), and the
+ * (selected, hovered, learning, with an XP ring), and the
  * ones HoverOverlay draws again over the tree. renderNode gives every state and
  * lock look; renderMysteryNode an undiscovered spell's dashed silhouette and "?".
  *
@@ -127,7 +127,7 @@
 
             // Nodes on the hovered node's dependency path stand out a little
             if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) {
-                alpha = Math.max(alpha, 0.85);
+                alpha = Math.max(alpha, this.HOVER_PATH_ALPHA);
             }
 
             // Focus + context dimming and minimum on-screen size

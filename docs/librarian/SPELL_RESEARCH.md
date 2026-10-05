@@ -61,8 +61,10 @@
 - 세 시점에 "맞춤(reconcile)"을 한 번 돈다. 모두 게임 스레드다. 앞의 둘은 플레이어가 연구 중일 수 없는 때이고, 셋째
   (스캔 뒤)도 새 위험은 아니다: `BGSListForm::AddForm` 은 SR 자신의 Import 스크립트가 게임 중에 VM 스레드에서 부르는 바로 그
   엔진 함수다.
-  1. `MessageBoxMenu` 가 닫힐 때, `_SR_GlobalImporting == 0` 이고 `_SR_GlobalIsSetup == 1` 이며 등급 목록 크기가
+  1. `MessageBoxMenu` 가 열리거나 닫힐 때, `_SR_GlobalImporting == 0` 이고 `_SR_GlobalIsSetup == 1` 이며 등급 목록 크기가
      지난번 맞춤 뒤로 바뀌었으면(= 방금 Import 가 끝남). 다른 메시지 상자에는 목록 크기가 그대로라 돌지 않는다.
+     `_SR_ImportMain` 은 두 전역을 바꾼 **다음** "All Spells Imported" 상자를 부르므로, 열릴 때 이미 조건이 맞는다
+     (2026-10-04: 처음에는 닫힐 때만 돌아서, 상자를 읽는 동안에는 아직 들어가지 않았다).
   2. 세이브를 불러온 뒤(`kPostLoadGame`) `IsSetup == 1` 이면. HoM 을 나중에 설치한 세이브, 메시지 상자를 다른
      모드가 숨긴 경우를 여기서 잡는다. 로드 때 도는 SR 스크립트는 목록을 건드리지 않는다: Fixes 1.4.3 의
      `_SR_AliasPlayerScript.OnPlayerLoadGame` 은 `Maintenance()`(애니메이션 3개 로드)만 부른다(소스 확인).
@@ -87,6 +89,16 @@
   - 엔진의 `BGSListForm::AddForm`(Papyrus `AddForm` 과 같은 함수)으로 넣는다. 그래서 SR 패치의 등록과 똑같이
     세이브에 남고, 다음 재Import 때 SR 의 `Revert()` 로 함께 비워진 뒤 맞춤이 다시 넣는다.
   - 등록 순서는 SR 과 같다: 등급, 학파, 시전, 대상, 원소, 기법, 그다음 마법책 짝.
+- **플레이어에게 보이는 것** (2026-10-04, 사용자 보고 "재임포트해도 던가드랑 드래곤본만 인식"): SR 의 임포트
+  퀘스트는 "Importing 46 Forms from Dawnguard" 같은 알림을 띄우지만, 우리 등록은 퀘스트가 아니라 조용했다.
+  - 주문을 하나라도 넣은 맞춤은 화면 알림 `hud.spellResearchAdded`("Spell Research: Heart of Magic이 주문 N개를
+    추가했습니다", 알림 표시·알림 언어 설정을 따름)를 띄운다.
+  - 맞춤마다 상태(`SpellResearchPatch::StatusJson`: `notImported`·`off`·`noCatalog`·`upToDate`·`added`, SR 전체
+    주문 수, 넣은 수, 시각)를 남기고, 패널을 열 때와 상태가 바뀔 때 `onSpellResearchStatus` 로 보낸다. 패널은
+    설정 > 마법서 학습 맨 위의 "Spell Research" 줄에 보여 준다(`modules/spellResearchStatus.js`, SR 이 없으면 숨김).
+  - 고른 방법이 아닌 것: SR 패치 형식(ESP + 임포트 퀘스트 스크립트)의 작은 패치 동봉 — 'ESP 없이' 결정을
+    뒤집고 플러그인 칸 하나가 든다. Fixes 의 JSON 캐시에 직접 쓰기 — 다른 모드 파일이고, 캐시에 없는 주문도 목록으로
+    읽히므로 동작에 차이가 없다. `Debug.MessageBox` 가로채기 — 모든 모드의 메시지 상자를 건드린다.
 - 퍽 어댑터의 FormList 줄과 다른 점: 그쪽은 게임 시작 때 목록 레코드 배열에 메모리로만 넣는다(세이브에 안 남음).
   SR 목록은 SR 이 Import 때마다 `Revert()` 하고 세이브 쪽 등록만 쓰므로 `AddForm` 경로가 맞다.
 

@@ -2,6 +2,7 @@
 #include "JsonText.h"
 #include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
+#include "librarian/SpellResearchPatch.h"
 #include "ProgressionManager.h"
 
 // =============================================================================
@@ -313,6 +314,13 @@ void UIManager::SendProgressData(const std::string& jsonData)
     }
 
     CallView("onProgressData", jsonData.c_str());
+}
+
+void UIManager::NotifySpellResearchStatus()
+{
+    const auto status = Librarian::SpellResearchPatch::StatusJson();
+    if (status.empty() || !ViewReady()) return;
+    CallView("onSpellResearchStatus", status.c_str());
 }
 
 // =============================================================================

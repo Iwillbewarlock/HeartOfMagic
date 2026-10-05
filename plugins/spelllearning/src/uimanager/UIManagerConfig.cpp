@@ -156,12 +156,17 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
     }
 
     // Notification settings. "enabled" (Settings > Show Notifications) turns every
-    // corner message off; the corner messages' text follows the panel's language
+    // corner message off; the corner messages' text follows the panel's language,
+    // or English when "language" says so (Notification Language: the game draws the
+    // corner with its own font, which may not have the panel language's letters)
+    static constexpr const char* kHudLanguageEnglish = "en";
     bool notificationsOn = true;
+    bool hudInEnglish = false;
     if (config.contains("notifications") && config["notifications"].is_object()) {
         notificationsOn = SafeJsonValue<bool>(config["notifications"], "enabled", true);
+        hudInEnglish = SafeJsonValue<std::string>(config["notifications"], "language", "panel") == kHudLanguageEnglish;
     }
-    const auto locale = ResolvePanelLocale(config);
+    const auto locale = hudInEnglish ? std::string(kHudLanguageEnglish) : ResolvePanelLocale(config);
     HudNotify::Configure(notificationsOn, locale, PanelLanguageFile(locale));
 
     if (config.contains("notifications") && !config["notifications"].is_null()) {
@@ -285,7 +290,8 @@ json GenerateDefaultConfig() {
         {"notifications", {
             {"enabled", true},
             {"weakenedSpellNotifications", true},
-            {"weakenedSpellInterval", 10.0f}
+            {"weakenedSpellInterval", 10.0f},
+            {"language", "panel"}
         }},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}

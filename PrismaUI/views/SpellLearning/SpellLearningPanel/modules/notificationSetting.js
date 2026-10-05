@@ -7,11 +7,15 @@
  * native (ISL patch study messages, BookXP) and the BookXP addon read it. The
  * weakened spell alerts (and how often they come) are a part of it, so their
  * controls are greyed out while it is off. The messages' text follows the panel's
- * language (lang/*.json "hud.*" keys, docs/TRANSLATING.md).
+ * language (lang/*.json "hud.*" keys, docs/TRANSLATING.md), or English when
+ * Notification Language says so: the game draws the corner with its own font,
+ * which has only the letters of the language the game is set up for, so a panel
+ * language in another script (Japanese with a Korean game font) came out as boxes.
  *
  * Saved as config.notifications = { enabled, weakenedSpellNotifications,
- * weakenedSpellInterval }. A settings preset carries the alert options, never
- * Show Notifications (a preference, not a play style): settingsPresets.js skips it.
+ * weakenedSpellInterval, language }. A settings preset carries the alert options,
+ * never Show Notifications or the language (preferences, not a play style):
+ * settingsPresets.js skips them.
  *
  * Depends on: settings, autoSaveSettings (optional), updateSliderFillGlobal (optional)
  */
@@ -21,8 +25,10 @@ var NotificationSetting = {
     DEFAULTS: {
         enabled: true,
         weakenedSpellNotifications: true,
-        weakenedSpellInterval: 10
+        weakenedSpellInterval: 10,
+        language: 'panel'
     },
+    LANGUAGES: ['panel', 'en'],   // the panel's language, or English (C++ HudNotify reads 'en' as lang/en.json)
     MIN_INTERVAL: 5,
     MAX_INTERVAL: 60,
 
@@ -43,6 +49,7 @@ var NotificationSetting = {
         var master = document.getElementById('showNotificationsToggle');
         var weakened = document.getElementById('weakenedNotificationsToggle');
         var interval = document.getElementById('notificationIntervalSlider');
+        var language = document.getElementById('notificationLanguageSelect');
 
         if (master) {
             master.addEventListener('change', function() {
@@ -65,6 +72,12 @@ var NotificationSetting = {
                 self._save();
             });
         }
+        if (language) {
+            language.addEventListener('change', function() {
+                self._notif().language = self._language(this.value);
+                self._save();
+            });
+        }
         this.sync();
     },
 
@@ -76,8 +89,15 @@ var NotificationSetting = {
         var interval = document.getElementById('notificationIntervalSlider');
         var intervalRow = document.getElementById('notificationIntervalRow');
         var weakenedRow = document.getElementById('weakenedNotificationsRow');
+        var language = document.getElementById('notificationLanguageSelect');
+        var languageRow = document.getElementById('notificationLanguageRow');
 
         if (master) master.checked = n.enabled !== false;
+        if (language) {
+            language.value = this._language(n.language);
+            language.disabled = n.enabled === false;
+        }
+        if (languageRow && languageRow.classList) languageRow.classList.toggle('disabled-controls', n.enabled === false);
         if (weakened) {
             weakened.checked = n.weakenedSpellNotifications !== false;
             weakened.disabled = n.enabled === false;
@@ -102,7 +122,8 @@ var NotificationSetting = {
             enabled: src.enabled !== false,
             weakenedSpellNotifications: src.weakenedSpellNotifications !== false,
             weakenedSpellInterval: (typeof v === 'number' && isFinite(v) && v >= this.MIN_INTERVAL && v <= this.MAX_INTERVAL)
-                ? v : d.weakenedSpellInterval
+                ? v : d.weakenedSpellInterval,
+            language: this._language(src.language)
         };
         this.sync();
     },
@@ -113,7 +134,8 @@ var NotificationSetting = {
         config.notifications = {
             enabled: n.enabled !== false,
             weakenedSpellNotifications: n.weakenedSpellNotifications !== false,
-            weakenedSpellInterval: n.weakenedSpellInterval
+            weakenedSpellInterval: n.weakenedSpellInterval,
+            language: this._language(n.language)
         };
         return config;
     },
@@ -121,6 +143,11 @@ var NotificationSetting = {
     reset: function() {
         settings.notifications = JSON.parse(JSON.stringify(this.DEFAULTS));
         this.sync();
+    },
+
+    /** A known language choice, else the default (the panel's language). */
+    _language: function(value) {
+        return this.LANGUAGES.indexOf(value) >= 0 ? value : this.DEFAULTS.language;
     },
 
     _showInterval: function() {

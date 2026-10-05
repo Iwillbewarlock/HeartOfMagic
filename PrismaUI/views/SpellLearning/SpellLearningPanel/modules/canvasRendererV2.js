@@ -101,6 +101,7 @@ var CanvasRenderer = {
     LEARNABLE_SIZE: 9,
     LOCKED_SIZE: 7,
     FOCUS_GROW: 1.5,              // the selected and hovered spell are this much bigger
+    HOVER_PATH_ALPHA: 0.85,       // a locked or learnable spell on the hovered one's path: at least this bright
     HALO_SCALE: 2.6,              // a known spell's halo radius per its size
     RING_GAP: 4,                  // the XP ring and a learnable spell's thin ring: this far out
     RING_ALPHA: 0.6,              // the thin ring's alpha (times the focus dimming) and width
@@ -554,6 +555,7 @@ Object.defineProperty(CanvasRenderer, '_needsRender', {
         this.__needsRender = value;
         if (value) {
             this._treeDirty = true;
+            this._treeChanges = (this._treeChanges || 0) + 1;   // HoverOverlay.drawSpot's version
             // This is the player asking, so the frame is not throttleable.
             // The flag was left over from the previous frame's heartbeat, and
             // leaving it set is what used to hold a drag to 20 frames a second.

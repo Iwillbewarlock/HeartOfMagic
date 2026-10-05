@@ -278,6 +278,37 @@ namespace SpellScanner
             }
         }
 
+        // The cross school bridges name spells of any school, so they are fixed after
+        // every school is: an end whose spell moved takes its new formId, a bridge with
+        // an end that was removed goes. Left as they were, a load order change turned
+        // them into links to formIds the tree no longer has (the spell card listed them
+        // by raw formId, and a click went nowhere).
+        if (treeData.contains("bridges") && treeData["bridges"].is_array()) {
+            auto& bridges = treeData["bridges"];
+            const auto staleEnd = [&invalidFormIdsSet](const json& bridge) {
+                for (const char* end : { "from", "to" }) {
+                    if (!bridge.contains(end) || !bridge[end].is_string() ||
+                        invalidFormIdsSet.count(bridge[end].get<std::string>()) > 0) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            const auto before = bridges.size();
+            bridges.erase(std::remove_if(bridges.begin(), bridges.end(), staleEnd), bridges.end());
+            for (auto& bridge : bridges) {
+                for (const char* end : { "from", "to" }) {
+                    auto it = formIdRemapping.find(bridge[end].get<std::string>());
+                    if (it != formIdRemapping.end()) {
+                        bridge[end] = it->second;
+                    }
+                }
+            }
+            if (bridges.size() != before) {
+                logger::info("SpellScanner: Dropped {} bridges to removed spells", before - bridges.size());
+            }
+        }
+
         // Convert sets to vectors
         result.missingPlugins.assign(missingPluginsSet.begin(), missingPluginsSet.end());
         result.invalidFormIds.assign(invalidFormIdsSet.begin(), invalidFormIdsSet.end());

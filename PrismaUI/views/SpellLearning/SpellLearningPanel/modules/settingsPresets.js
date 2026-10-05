@@ -374,8 +374,8 @@ function applySettingsPreset(name) {
     // --- Notifications ---
     if (ps.notifications && settings.notifications) {
         for (var k in ps.notifications) {
-            // Show Notifications is a preference, not a play style: a preset never changes it
-            if (ps.notifications.hasOwnProperty(k) && k !== 'enabled') {
+            // Show Notifications and their language are preferences, not a play style: a preset never changes them
+            if (ps.notifications.hasOwnProperty(k) && k !== 'enabled' && k !== 'language') {
                 settings.notifications[k] = ps.notifications[k];
             }
         }

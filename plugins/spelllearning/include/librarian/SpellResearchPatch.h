@@ -31,4 +31,10 @@ namespace Librarian::SpellResearchPatch
     // After a full scan rewrote the catalog (game thread): spells it now has
     // are registered at once, not at the next load.
     void OnCatalogChanged();
+
+    // What the last run found, for the panel's Settings > Spell Tome Learning
+    // line (onSpellResearchStatus): {"state": "notImported" | "off" | "noCatalog"
+    // | "upToDate" | "added", "srSpells", "added", "reason", "time"}. "" when SR
+    // is not loaded or nothing ran yet. Any thread.
+    std::string StatusJson();
 }

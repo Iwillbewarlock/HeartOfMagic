@@ -51,11 +51,23 @@ var BridgeView = {
         this._byNode = {};
         var raw = treeData && treeData.rawData;
         var bridges = (raw && raw.bridges) || [];
+        // Only bridges between spells of this tree: one saved before a load order
+        // change can name formIds the tree's spells no longer have (the plugin moves
+        // the spells to their new formIds, older builds left the bridges as they were)
+        var inTree = {};
+        var nodes = (treeData && treeData.nodes) || [];
+        for (var n = 0; n < nodes.length; n++) {
+            if (nodes[n].formId) inTree[nodes[n].formId] = true;
+            if (nodes[n].id) inTree[nodes[n].id] = true;
+        }
+        var dropped = 0;
         for (var i = 0; i < bridges.length; i++) {
             var b = bridges[i];
+            if (!inTree[b.from] || !inTree[b.to]) { dropped++; continue; }
             this._add(b.from, b.to, b, true);
             this._add(b.to, b.from, b, false);
         }
+        if (dropped > 0) console.log('[BridgeView] ' + dropped + ' of ' + bridges.length + ' bridges left out: an end is not in the tree');
         this._filterTrait = null;
         this._filterLevel = null;
         this.countTraits();

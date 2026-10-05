@@ -556,6 +556,11 @@ A bridge is an **extra way in, never a requirement**. The layout is meant to add
 prerequisites of `to` (which already mean "any one of these"), so a school's tree stays complete without
 them. That is why bridges sit next to the trees and are not written into them.
 
+A bridge names its two spells by FormID only. When the load order moves them, `ValidateAndFixTree` gives
+the bridges the new FormIDs with the tree's spells and drops a bridge to a spell that is gone; the viewer
+(`BridgeView.setTree`) also leaves out a bridge with an end the tree does not have - trees saved before that
+fix kept the old FormIDs, and the spell card listed those ends by raw FormID with nowhere to go.
+
 Rules, all mechanical:
 
 | Rule | Why |

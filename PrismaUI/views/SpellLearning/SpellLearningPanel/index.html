@@ -1504,6 +1504,18 @@
                             </label>
                         </div>
 
+                        <!-- Notification Language: the panel's, or English when the game's font lacks its letters -->
+                        <div class="setting-row" id="notificationLanguageRow">
+                            <div class="setting-info">
+                                <span class="setting-label" data-i18n="settings.earlyLearning.notificationLanguage">Notification Language</span>
+                                <span class="setting-desc" data-i18n="settings.earlyLearning.notificationLanguageDesc">The game draws these messages with its own font. If they show as boxes, pick English.</span>
+                            </div>
+                            <select id="notificationLanguageSelect" class="setting-select">
+                                <option value="panel" data-i18n="settings.earlyLearning.notificationLanguagePanel">Panel language</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+
                         <!-- Weakened Spell Notifications (inline; greyed out while Show Notifications is off) -->
                         <div class="setting-row-inline" id="weakenedNotificationsRow">
                             <div class="setting-info">
@@ -1556,6 +1568,14 @@
                         <div class="settings-subsection">
                             <span class="subsection-title" data-i18n="settings.tomeLearning.subtitle">Tome Behavior</span>
                             <span class="setting-desc" style="display: block; margin-bottom: 8px;" data-i18n="settings.tomeLearning.desc">Configure how spell tomes work with the progression system.</span>
+                        </div>
+
+                        <!-- Spell Research: what Heart of Magic added to its lists (modules/spellResearchStatus.js; hidden without SR) -->
+                        <div class="setting-row" id="spellResearchStatusRow" style="display: none;">
+                            <div class="setting-info">
+                                <span class="setting-label" data-i18n="settings.tomeLearning.spellResearch">Spell Research</span>
+                                <span class="setting-desc" id="spellResearchStatusText"></span>
+                            </div>
                         </div>
                         
                         <div class="setting-row">
@@ -1969,6 +1989,7 @@
     <script src="modules/languageSetting.js"></script>
     <script src="modules/reverseUnlockSetting.js"></script>
     <script src="modules/notificationSetting.js"></script>
+    <script src="modules/spellResearchStatus.js"></script>
     <script src="modules/requiredXPSync.js"></script>
     <script src="modules/designEffectsSetting.js"></script>
     <script src="modules/renderSettings.js"></script>

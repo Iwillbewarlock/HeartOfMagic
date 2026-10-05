@@ -500,7 +500,8 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 - Top byte = mod index (or 0xFE for ESL)
 - ESL: bits [12:23] = light index, bits [0:11] = local ID
 - Regular: bits [0:23] = local ID
-- On tree load, stale FormIDs auto-resolved from persistentId field
+- On tree load, stale FormIDs auto-resolved from persistentId field; `children`, `prerequisites`, the school
+  `root` and the cross school `bridges` (both ends) follow the new FormIDs, and a bridge to a removed spell goes
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
@@ -1482,7 +1483,8 @@ All settings stored in single config file, managed through UI:
 
   "notifications": {
     "weakenedSpellNotifications": true,
-    "weakenedSpellInterval": 10
+    "weakenedSpellInterval": 10,
+    "language": "panel"
   },
 
   "spellBlacklist": [],

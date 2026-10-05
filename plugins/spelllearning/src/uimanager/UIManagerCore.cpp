@@ -179,6 +179,7 @@ void UIManager::ShowPanel()
 
     // Notify JS that panel is now visible - triggers refresh of known spells
     CallView("onPanelShowing", "");
+    NotifySpellResearchStatus();
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuOpenedEvent();

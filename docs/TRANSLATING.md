@@ -83,7 +83,10 @@ study, BookXP) come from the same file: the `hud.*` keys. They are read by `Spel
 panel, from `lang/<locale>.json` (the `.json`, not the `.js`) of the language picked in *Settings > UI Display >
 Language* (or `locale.js`'s default when none was picked). The DLL reads them when the game starts and again
 when the language changes; a missing file or key shows the English text built into the DLL. *Settings > Early
-Learning > Show Notifications* turns them all off.
+Learning > Show Notifications* turns them all off. *Notification Language* set to English reads `en.json`
+whatever the panel's language: the game draws the corner with its own font, which only has the letters of the
+language the game is set up for, so a translation in another script shows as boxes there (the panel itself is
+fine, it has its own fonts).
 
 | Key | English | Placeholders |
 |-----|---------|--------------|
@@ -98,6 +101,7 @@ Learning > Show Notifications* turns them all off.
 | `hud.lackKnowledge`, `hud.alreadyLearned`, `hud.beginGrasp` | the older DEST path | |
 | `hud.studyInCombat`, `hud.studyTrespassing`, `hud.studiedHour`, `hud.studiedHours`, `hud.studyLearned`, `hud.studyForgotten` | Immersive Spell Learning patch (study by the hour) | `who`, `spell`, `hours` |
 | `hud.bookXpInitialized`, `hud.bookXpNoTargets`, `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
+| `hud.spellResearchAdded` | Spell Research: {{count}} spells added by Heart of Magic | `count` (after Spell Research's Import, a load or a scan) |
 
 `{{who}}` in the study messages is the English "You" or "I" (ISL's first-person option) and stays English.
 Leave it out and write the sentence without a subject ("Cannot study while in combat.") - every shipped

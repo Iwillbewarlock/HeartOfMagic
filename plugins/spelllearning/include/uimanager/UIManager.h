@@ -86,6 +86,10 @@ public:
     void NotifyModdedSourceRegistered(const std::string& sourceId, const std::string& displayName,
                                        float multiplier, float cap);
 
+    // Spell Research registrations (SpellResearchPatch::StatusJson) to the panel:
+    // when it opens and whenever a run changed them. Nothing when SR has no status.
+    void NotifySpellResearchStatus();
+
     // Get the PrismaUI API (for SpellScanner to use)
     //PRISMA_UI_API::IVPrismaUI1* GetAPI() const { return m_prismaUI; }
     //PrismaView GetView() const { return m_view; }

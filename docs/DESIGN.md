@@ -244,9 +244,19 @@ out of `renderNodesSimple` so the overlay draws the hovered spell exactly as tha
 (a hover change repainted the whole tree canvas, and once more for its StaticBase picture) but on a spot
 of its own (`HoverOverlay.drawSpot`, key `hover`) over the box its spells cover (`_spotBox`: the path, the
 hovered spell, its bridges' other ends; `SPOT_PAD` round them), under the other spots (`FxLayer` option
-`under`) and kept while the hover, selection, layer and view stay the same (option `version`). The tree
+`under`) and kept while the hover, selection, tree and view stay the same (option `version`). The tree
 canvas is not touched by a hover change at all (bench: 39 draws on it before, 0 now); the picture is the
 same. Without FxLayer, `composite` works as before.
+**Wheel over a spell** (2026-10-04). Zooming with the cursor on a first-tier spell stalled: the spot is
+painted again at every zoom step, and its path (619 spells for Soul Trap) was drawn spell by spell with
+`renderNode`, 55-80 ms, twice per wheel step (measured in the PrismaUI Lab, `D:\DEV\prismaui-lab`, the
+game's Ultralight engine). Now: the path's plain spells go into `NodeBatch` like the layer's
+(`_batchPlainNode` takes hover-path spells, at least `HOVER_PATH_ALPHA` bright as `renderNode` draws them);
+path spells and lines off screen are left out (`_screenWorldBox`); the spot's version follows
+`_treeChanges` (bumped by the `_needsRender` setter) and the view instead of the tree layer's draws, so the
+layer being built again over the frames after a zoom step no longer paints the spot a second time; and
+`_spotBox` is kept while nothing it reads changes. Lab, wheel over Soul Trap: p95 60 -> 7 ms, worst 73 ->
+12 ms, no frame over 16 ms; hover at rest unchanged (0.72 ms, one paint); the picture is the same, except that where path spells overlap they now stack as the layer's batch does (halos under bodies). The spot also sets the hand-drawn look itself (`TreeStyle.beginInk`, put back after): it used to take whatever the last layer draw left, which after a level-of-detail change was the old level's.
 
 **Smaller things in the repaint** (2026-09-26):
 - The tree layer's margin is 128 css px, not 256 (`TREE_LAYER_MARGIN`): for the default panel the layer was
@@ -520,8 +530,8 @@ zoom 0.9); in game a whole tree in cheat mode was about 7,800 paint calls before
   every undiscovered one (`?` included) and every plainly known one to `NodeBatch`: one path per look
   (fill, outline, width, alpha, dashed), filled and stroked once, halos first and the known-spell centres
   on a second layer. Spells with anything of their own - available and learning ones (rings), the
-  selected and hovered spell, the hover path - are still drawn one by one by
-  `renderNode`, after the batch. The school shapes live in `NodeBatch.SHAPES`/`ROTATION`, and
+  selected and hovered spell - are still drawn one by one by
+  `renderNode`, after the batch (the hover path was too, until 2026-10-04: see "Wheel over a spell"). The school shapes live in `NodeBatch.SHAPES`/`ROTATION`, and
   `_initShapePaths`, `renderNode` and `renderMysteryNode` use them too. A full repaint went from 3,220 to
   813 paint calls; the picture is pixel-identical away from the (animated) heart. Where two spells overlap
   the outline of one can now lie over the other's fill - the batch draws all fills of a look first.
@@ -1221,8 +1231,13 @@ All mod configuration. Split-row layout for space efficiency.
 (`HudNotify`), the Papyrus `SpellLearning.NotificationText` callers (ISL patch, BookXP script) and the BookXP DLL.
 **Weakened Spell Alerts** and their interval sit under it as a sub-option, greyed out (`disabled-controls`)
 while it is off. Reset to Defaults turns both on; a settings preset carries the alert options but never Show
-Notifications. The corner messages' text follows the panel language (`hud.*` keys, docs/TRANSLATING.md).
-**Spell Tomes:** How reading spell tomes interacts with progression. **Skill XP from Studying**
+Notifications. The corner messages' text follows the panel language (`hud.*` keys, docs/TRANSLATING.md), or
+English with **Notification Language** set so (`notifications.language`: `panel` default, `en`; greyed out
+with Show Notifications off; a preset never changes it): the game draws the corner with its own font, so a
+panel language in a script that font lacks (Japanese on a Korean game font) showed boxes.
+**Spell Tomes:** How reading spell tomes interacts with progression. With Spell Research loaded, its first line
+says what Heart of Magic last added to Spell Research's lists (`modules/spellResearchStatus.js`,
+docs/librarian/SPELL_RESEARCH.md section 3); hidden without it. **Skill XP from Studying**
 (`spellTomeLearning.studySkillXP`, default on, 1.2.1): with the Immersive Spell Learning patch, whether a
 study session raises the school's skill (`Game.AdvanceSkill` in `DEST_ISL_PlayerSpellLearningScript`, asked
 through `SpellLearning_ISL.SkipStudySkillXP()`, true only when the setting is off, so a missing native - a
@@ -1491,7 +1506,7 @@ Two preset types, stored as individual JSON files:
 
 ### Settings Presets (`presets/settings/`)
 Capture: Progression settings, early learning, tome learning, notifications (the weakened spell alerts; not
-Show Notifications, which a preset never changes).
+Show Notifications or Notification Language, which a preset never changes).
 Bundled: `DEFAULT.json`, `Easy.json`, `Hard.json`
 
 ### Scanner Presets (`presets/scanner/`)

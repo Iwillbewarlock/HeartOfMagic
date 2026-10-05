@@ -6,7 +6,8 @@
  * wrong values, save -> load round trip into config.notifications, Reset to
  * Defaults, the weakened alert toggle and interval slider greyed out (disabled)
  * while Show Notifications is off and back on with it, the interval row hidden
- * with the alerts off.
+ * with the alerts off, Notification Language (panel by default, English kept
+ * through save and load, unknown values back to panel, greyed out with the rest).
  *
  * Depends on: notificationSetting.js - under node this file runs it into the
  * global scope the way the page's script tag does. Swaps the globals `settings`,
@@ -64,7 +65,9 @@ var NotificationSettingTest = {
                 notificationIntervalSlider: this._el(),
                 notificationIntervalValue: this._el(),
                 notificationIntervalRow: this._el(),
-                weakenedNotificationsRow: this._el()
+                weakenedNotificationsRow: this._el(),
+                notificationLanguageSelect: this._el(),
+                notificationLanguageRow: this._el()
             };
             var saves = 0;
             g.document = { getElementById: function(id) { return els[id] || null; } };
@@ -99,21 +102,37 @@ var NotificationSettingTest = {
             els.weakenedNotificationsToggle.fire('change');
             self.check(els.notificationIntervalRow.style.display === 'none', 'alerts off hide the interval');
 
+            // Notification Language
+            self.check(g.settings.notifications.language === 'panel' && els.notificationLanguageSelect.value === 'panel',
+                'notifications follow the panel language by default');
+            var before = saves;
+            els.notificationLanguageSelect.value = 'en';
+            els.notificationLanguageSelect.fire('change');
+            self.check(g.settings.notifications.language === 'en' && saves === before + 1, 'choosing English saves it');
+            els.notificationLanguageSelect.value = 'xx';
+            els.notificationLanguageSelect.fire('change');
+            self.check(g.settings.notifications.language === 'panel', 'an unknown choice falls back to the panel language');
+            g.settings.notifications.language = 'en';
+
             // Save -> load
             g.settings.notifications.enabled = false;
             g.settings.notifications.weakenedSpellInterval = 30;
             var config = NS.saveTo({});
             self.check(config.notifications && config.notifications.enabled === false &&
                 config.notifications.weakenedSpellNotifications === false &&
-                config.notifications.weakenedSpellInterval === 30, 'saved into config.notifications');
+                config.notifications.weakenedSpellInterval === 30 && config.notifications.language === 'en',
+                'saved into config.notifications');
             g.settings = {};
             NS.loadFrom(JSON.parse(JSON.stringify(config)));
             self.check(g.settings.notifications.enabled === false && g.settings.notifications.weakenedSpellInterval === 30 &&
-                els.showNotificationsToggle.checked === false && els.weakenedNotificationsToggle.disabled,
-                'loaded back with the controls');
+                els.showNotificationsToggle.checked === false && els.weakenedNotificationsToggle.disabled &&
+                g.settings.notifications.language === 'en' && els.notificationLanguageSelect.value === 'en' &&
+                els.notificationLanguageSelect.disabled && els.notificationLanguageRow.classList.contains('disabled-controls'),
+                'loaded back with the controls (language greyed out with Show Notifications off)');
 
             NS.loadFrom({});
-            self.check(g.settings.notifications.enabled === true, 'a config from before the setting: on');
+            self.check(g.settings.notifications.enabled === true && g.settings.notifications.language === 'panel',
+                'a config from before the setting: on, in the panel language');
             NS.loadFrom({ notifications: { enabled: 'x', weakenedSpellInterval: 500 } });
             self.check(g.settings.notifications.enabled === true && g.settings.notifications.weakenedSpellInterval === 10,
                 'wrong values fall back to the defaults');

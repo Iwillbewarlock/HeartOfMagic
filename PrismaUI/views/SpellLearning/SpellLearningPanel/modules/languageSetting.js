@@ -49,7 +49,8 @@ var LANGUAGE_REFRESH_STEPS = [
     ['scan status bar', function() { if (typeof relabelScanStatus === 'function') relabelScanStatus(); }],
     ['tome learning description', function() { if (typeof updateSpellTomeLearningUI === 'function') updateSpellTomeLearningUI(); }],
     ['power steps', function() { if (typeof renderPowerSteps === 'function') renderPowerSteps(); }],
-    ['how-to lists', function() { if (typeof updateHowToContent === 'function') updateHowToContent(); }]
+    ['how-to lists', function() { if (typeof updateHowToContent === 'function') updateHowToContent(); }],
+    ['spell research line', function() { if (typeof SpellResearchStatus !== 'undefined') SpellResearchStatus.render(); }]
 ];
 
 function refreshScriptTexts() {

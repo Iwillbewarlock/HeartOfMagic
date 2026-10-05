@@ -4,12 +4,16 @@
 #include "librarian/LoadOrderSource.h"
 #include "librarian/PerkAdapters.h"
 #include "librarian/SpellResearch.h"
+#include "HudNotify.h"
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "uimanager/UIManager.h"
 
 #include <chrono>
+#include <ctime>
 #include <fstream>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -43,6 +47,27 @@ namespace Librarian::SpellResearchPatch
         // Spells whose tier list would not take them: left out of the check
         // for missing spells, or every load would plan them again.
         std::unordered_set<RE::FormID> g_failed;
+
+        // What the last run found (StatusJson): written on the game thread, read
+        // when the panel opens
+        std::mutex g_statusLock;
+        json g_status;
+
+        void SetStatus(const char* state, std::string_view reason, std::size_t srSpells = 0, std::size_t added = 0)
+        {
+            const std::time_t now = std::time(nullptr);
+            std::tm local{};
+            localtime_s(&local, &now);
+            char clock[8] = {};
+            std::strftime(clock, sizeof(clock), "%H:%M", &local);
+            {
+                std::lock_guard lock(g_statusLock);
+                g_status = { { "state", state }, { "reason", std::string(reason) }, { "srSpells", srSpells },
+                             { "added", added }, { "time", clock } };
+            }
+            // The panel's line, if it is open (a scan from the panel ends here)
+            UIManager::GetSingleton()->NotifySpellResearchStatus();
+        }
 
         RE::BGSListForm* ResolveList(const std::string& persistentId)
         {
@@ -258,16 +283,24 @@ namespace Librarian::SpellResearchPatch
 
             // Only once an Import finished, never while one runs, and only when
             // the tier lists changed since the last run (an Import, a load)
-            if (GlobalValue(g_lists.isSetup) != 1.0f || GlobalValue(g_lists.importing) != 0.0f) return;
+            if (GlobalValue(g_lists.isSetup) != 1.0f) {
+                SetStatus("notImported", reason);
+                return;
+            }
+            if (GlobalValue(g_lists.importing) != 0.0f) return;
             const std::size_t entries = CountRegistered();
             if (entries == g_lastSeen) return;
             g_lastSeen = entries;
-            if (!ConfigSwitchOn(CONFIG_SECTION)) return;
+            if (!ConfigSwitchOn(CONFIG_SECTION)) {
+                SetStatus("off", reason);
+                return;
+            }
 
             const auto started = std::chrono::steady_clock::now();
             json catalog;
             if (!LoadCatalog(catalog) || !catalog.is_object() || !catalog.contains("spells") || !catalog["spells"].is_object()) {
                 logger::info("SpellResearch: {} - no catalog yet, a full scan makes one", reason);
+                SetStatus("noCatalog", reason);
                 return;
             }
             const Registered registered = ReadRegistered();
@@ -278,7 +311,10 @@ namespace Librarian::SpellResearchPatch
                 logger::info("SpellResearch: {} - left out as the tree leaves them: {} voice slot spells, "
                              "{} copies from another plugin", reason, skipped.voiceSlot, skipped.duplicate);
             }
-            if (missing.empty()) return;
+            if (missing.empty()) {
+                SetStatus("upToDate", reason, registered.spells.size());
+                return;
+            }
 
             json rules;
             std::vector<std::string> problems;
@@ -337,6 +373,14 @@ namespace Librarian::SpellResearchPatch
                          "{} would not take, {} tome tiers out of step, in {} ms",
                 reason, totals.spells, totals.entries, totals.tomes, registered.spells.size(), totals.failed,
                 totals.tomeTiersSkipped, elapsed);
+
+            SetStatus(totals.spells > 0 ? "added" : "upToDate", reason, registered.spells.size() + totals.spells, totals.spells);
+            // SR's own import quests say what they brought in ("Importing 46 Forms from
+            // Dawnguard"); without this the player never saw that these spells came in too
+            if (totals.spells > 0) {
+                HudNotify::Show("hud.spellResearchAdded", "Spell Research: {{count}} spells added by Heart of Magic",
+                    { { "count", std::to_string(totals.spells) } });
+            }
         }
 
         void SafeReconcile(std::string_view reason)
@@ -349,7 +393,9 @@ namespace Librarian::SpellResearchPatch
         }
 
         // SR shows "All Spells Imported" in a message box when an Import ends.
-        // Any message box closing is checked; the tier lists' size tells.
+        // Any message box opening or closing is checked; the tier lists' size
+        // tells. On opening: the Import's globals are set before SR asks for the
+        // box, so the spells are in (and announced) while the player reads it.
         class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
         {
         public:
@@ -362,7 +408,7 @@ namespace Librarian::SpellResearchPatch
             RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (event && !event->opening && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
+                if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
                     SKSE::GetTaskInterface()->AddTask([] { SafeReconcile("import"); });
                 }
                 return RE::BSEventNotifyControl::kContinue;
@@ -411,6 +457,8 @@ namespace Librarian::SpellResearchPatch
     {
         g_lastSeen = 0;
         g_failed.clear();
+        std::lock_guard lock(g_statusLock);
+        g_status = json();
     }
 
     void OnCatalogChanged()
@@ -418,5 +466,15 @@ namespace Librarian::SpellResearchPatch
         g_lastSeen = 0;
         g_failed.clear();
         SafeReconcile("scan");
+    }
+}
+
+namespace Librarian::SpellResearchPatch
+{
+    std::string StatusJson()
+    {
+        if (!g_installed) return {};
+        std::lock_guard lock(g_statusLock);
+        return g_status.is_null() ? std::string() : JsonText::Dump(g_status);
     }
 }

@@ -6,7 +6,8 @@
  * lights every Adept spell. Checks the counts, which spells match, that the
  * card's level element becomes pressable only when the level is shown and
  * some spell has it, that one click handler serves every card fill, and that
- * a second press turns the filter off.
+ * a second press turns the filter off, and that bridges to spells the tree
+ * does not have are left out.
  *
  * Depends on: bridgeView.js (BridgeView) - under node this file runs it into
  * the global scope the way the page's script tag does. Swaps the globals
@@ -150,6 +151,18 @@ var LevelFilterTest = {
             B.toggleFilter('element.fire');
             this.check(B.matchesFilter(nodes[0]) && !B.matchesFilter(nodes[1]), 'trait filter unchanged');
             B.toggleFilter('element.fire');
+
+            // Bridges saved before a load order change can name formIds the tree no
+            // longer has: those stay out (the card listed them by raw formId)
+            g.state.treeData.rawData = { bridges: [
+                { from: 'a', to: 'b', fromSchool: 'Destruction', toSchool: 'Alteration', shared: [] },
+                { from: 'a', to: '0x40E01500', fromSchool: 'Destruction', toSchool: 'Conjuration', shared: [] },
+                { from: '0xFE88EA00', to: 'c', fromSchool: 'Conjuration', toSchool: 'Destruction', shared: [] }
+            ] };
+            B.setTree(g.state.treeData);
+            this.check(B.forNode(nodes[0]).length === 1 && B.forNode(nodes[0])[0].other === 'b' &&
+                B.forNode(nodes[2]).length === 0 && B.forNode({ formId: '0x40E01500' }).length === 0,
+                'bridges with an end not in the tree are left out');
         } finally {
             g.state = oldState;
             g.document = oldDocument;
