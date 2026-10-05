@@ -1116,7 +1116,7 @@
                 updateStatus('prm.status.disabled', null, 'Prerequisite locks disabled');
                 if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
                     BuildProgress.setStage('finalize');
-                    setTimeout(function() { BuildProgress.complete('PRM disabled'); }, 300);
+                    setTimeout(function() { BuildProgress.complete(tOr('prm.status.disabled', null, 'Prerequisite locks disabled')); }, 300);
                 }
                 return;
             }
@@ -1249,7 +1249,7 @@
                 BuildProgress.setDetail(tOr('prm.status.applied', { count: lockCount }, '{{count}} locks applied'));
                 BuildProgress.setStage('finalize');
                 setTimeout(function() {
-                    BuildProgress.complete(lockCount + ' locks applied');
+                    BuildProgress.complete(tOr('prm.status.applied', { count: lockCount }, '{{count}} locks applied'));
                 }, 400);
             }
         } catch (e) {
@@ -2009,7 +2009,7 @@
             ctx.fillStyle = 'rgba(184, 168, 120, 0.4)';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(lockCount + ' locks', 8, h - 8);
+            ctx.fillText(tOr('prm.lockCount', { count: lockCount }, '{{count}} locks'), 8, h - 8);
 
             // Animation progress overlay
             if (animPlaying) {
@@ -2105,7 +2105,7 @@
             // No eligible → skip prereqs, finalize + complete
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
                 BuildProgress.setStage('finalize');
-                setTimeout(function() { BuildProgress.complete('No eligible spells for locks'); }, 300);
+                setTimeout(function() { BuildProgress.complete(tOr('prm.status.noEligible', null, 'No eligible spells for locks')); }, 300);
             }
             return;
         }
@@ -2121,7 +2121,7 @@
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
                 BuildProgress.setDetail(tOr('prm.status.applied', { count: result }, '{{count}} locks applied'));
                 BuildProgress.setStage('finalize');
-                setTimeout(function() { BuildProgress.complete(result + ' locks applied'); }, 400);
+                setTimeout(function() { BuildProgress.complete(tOr('prm.status.applied', { count: result }, '{{count}} locks applied')); }, 400);
             }
         }
     }

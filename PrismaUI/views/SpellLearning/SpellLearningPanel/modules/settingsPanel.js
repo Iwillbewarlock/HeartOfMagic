@@ -1552,7 +1552,7 @@ function addModdedXPSourceUI(sourceId, displayName, multiplier, cap, enabled) {
     row.innerHTML =
         '<div class="modded-source-header">' +
             '<label class="toggle-switch toggle-sm">' +
-                '<input type="checkbox" id="moddedEnabled_' + sourceId + '"' + (enabled ? ' checked' : '') + '>' +
+                '<input type="checkbox" id="moddedEnabled_' + escapeHtml(sourceId) + '"' + (enabled ? ' checked' : '') + '>' +
                 '<span class="toggle-slider"></span>' +
             '</label>' +
             '<span class="modded-source-name">' + escapeHtml(displayName) + '</span>' +
@@ -1562,16 +1562,16 @@ function addModdedXPSourceUI(sourceId, displayName, multiplier, cap, enabled) {
                 '<span class="slider-compact-label" data-i18n="settings.progression.moddedMultiplier">' +
                     escapeHtml(tOr('settings.progression.moddedMultiplier', null, 'Multiplier')) + '</span>' +
                 '<div class="slider-compact-control">' +
-                    '<input type="range" id="moddedMult_' + sourceId + '" min="0" max="200" value="' + multiplier + '" class="setting-slider">' +
-                    '<span id="moddedMultVal_' + sourceId + '" class="slider-value">' + multiplier + '%</span>' +
+                    '<input type="range" id="moddedMult_' + escapeHtml(sourceId) + '" min="0" max="200" value="' + multiplier + '" class="setting-slider">' +
+                    '<span id="moddedMultVal_' + escapeHtml(sourceId) + '" class="slider-value">' + multiplier + '%</span>' +
                 '</div>' +
             '</div>' +
             '<div class="slider-compact">' +
                 '<span class="slider-compact-label" data-i18n="settings.progression.moddedCap">' +
                     escapeHtml(tOr('settings.progression.moddedCap', null, 'Cap')) + '</span>' +
                 '<div class="slider-compact-control">' +
-                    '<input type="range" id="moddedCap_' + sourceId + '" min="0" max="100" value="' + cap + '" class="setting-slider">' +
-                    '<span id="moddedCapVal_' + sourceId + '" class="slider-value">' + cap + '%</span>' +
+                    '<input type="range" id="moddedCap_' + escapeHtml(sourceId) + '" min="0" max="100" value="' + cap + '" class="setting-slider">' +
+                    '<span id="moddedCapVal_' + escapeHtml(sourceId) + '" class="slider-value">' + cap + '%</span>' +
                 '</div>' +
             '</div>' +
         '</div>';
@@ -2535,8 +2535,7 @@ function renderBlacklistEntries() {
     blacklist.forEach(function(entry) {
         var div = document.createElement('div');
         div.className = 'blacklist-entry';
-        // Older entries stored 'Unknown' for a spell with no school
-        var subtitle = entry.school && entry.school !== 'Unknown' ? schoolText(entry.school) : '';
+        var subtitle = schoolText(entry.school);
         if (entry.plugin) subtitle += (subtitle ? ' - ' : '') + entry.plugin;
         div.innerHTML =
             '<div class="blacklist-entry-info">' +
@@ -2800,9 +2799,10 @@ function createWhitelistEntry(plugin, count, isEnabled) {
     div.innerHTML =
         '<div class="whitelist-entry-left">' +
             '<input type="checkbox" class="whitelist-checkbox" ' + (isEnabled ? 'checked' : '') + '>' +
-            '<span class="whitelist-entry-name">' + plugin + '</span>' +
+            '<span class="whitelist-entry-name">' + escapeHtml(plugin) + '</span>' +
         '</div>' +
-        '<span class="whitelist-entry-count">(' + count + ' spells)</span>';
+        '<span class="whitelist-entry-count">(' +
+            escapeHtml(tOr('modals.whitelist.spellCount', { count: count }, '{{count}} spells')) + ')</span>';
 
     // Click anywhere on the row to toggle
     div.addEventListener('click', function(e) {

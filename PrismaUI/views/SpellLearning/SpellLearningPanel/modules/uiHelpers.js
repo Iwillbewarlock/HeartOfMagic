@@ -185,10 +185,6 @@ function getLocalFormId(formIdStr) {
 // =============================================================================
 
 /**
- * Get all primed spells (post-blacklist/whitelist/tome filtering).
- * @returns {Array} Filtered spell objects from state.lastSpellData
- */
-/**
  * Text that goes into innerHTML: a spell's, a plugin's or a mod's name can hold
  * <, & or quotes.
  * @param {*} text
@@ -200,18 +196,27 @@ function escapeHtml(text) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** A school's name in the panel's language (SpellSearch.schoolLabel), empty for none */
+/**
+ * A school's name in the panel's language (SpellSearch.schoolLabel). The panel
+ * stores 'Unknown' for a spell with no school; the player reads "Other" in
+ * their language, never the raw word.
+ */
 function schoolText(school) {
     if (!school) return '';
+    if (school === 'Unknown') return tOr('chips.school.unknown', null, 'Other');
     return typeof SpellSearch !== 'undefined' ? SpellSearch.schoolLabel(school) : String(school);
 }
 
-/** A spell level in the panel's language (SpellCard.levelText), empty for none */
+/** A spell level in the panel's language (SpellCard.levelText), empty for none or 'Unknown' */
 function levelText(level) {
-    if (!level) return '';
+    if (!level || level === 'Unknown') return '';
     return typeof SpellCard !== 'undefined' ? SpellCard.levelText(level) : String(level);
 }
 
+/**
+ * Get all primed spells (post-blacklist/whitelist/tome filtering).
+ * @returns {Array} Filtered spell objects from state.lastSpellData
+ */
 function getPrimedSpells() {
     var data = state.lastSpellData;
     if (!data || !data.spells || data.spells.length === 0) return [];
@@ -312,7 +317,7 @@ function updatePrimedCount() {
  * @param {string} title  - Modal title (e.g. "Save Scanner Preset")
  * @param {Function} onConfirm - Called with the trimmed name string
  */
-function showPresetNamePrompt(title, onConfirm) {
+function showPresetNamePrompt(title, onConfirm, titleKey) {
     var modal = document.getElementById('preset-name-modal');
     var titleEl = document.getElementById('preset-name-title');
     var input = document.getElementById('preset-name-input');
@@ -326,13 +331,8 @@ function showPresetNamePrompt(title, onConfirm) {
         return;
     }
 
-    // The caller's title is already in the panel's language; the static key would put "Save Preset" back on a switch
-    if (title) {
-        clearI18n(titleEl);
-        titleEl.textContent = title;
-    } else {
-        setI18n(titleEl, 'modals.presetName.title', null, 'Save Preset');
-    }
+    // titleKey: the caller's title written again on a language switch (else the static "Save Preset" would come back)
+    setI18n(titleEl, titleKey || 'modals.presetName.title', null, title || 'Save Preset');
     input.value = '';
     modal.classList.remove('hidden');
 

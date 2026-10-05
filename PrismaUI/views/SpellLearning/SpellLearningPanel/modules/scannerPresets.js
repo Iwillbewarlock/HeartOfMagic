@@ -63,10 +63,10 @@ function initializeScannerPresets() {
 // =============================================================================
 
 function promptSaveScannerPreset() {
-    showPresetNamePrompt(tOr('presets.saveScanner', null, 'Save Scanner Preset'), function(name) {
+    showPresetNamePrompt('Save Scanner Preset', function(name) {
         // Check for duplicate — overwrite without confirmation since user typed the name
         saveScannerPreset(name);
-    });
+    }, 'presets.saveScanner');
 }
 
 function saveScannerPreset(name) {

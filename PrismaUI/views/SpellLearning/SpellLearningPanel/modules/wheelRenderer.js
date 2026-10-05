@@ -2138,7 +2138,7 @@ var WheelRenderer = {
                 labelAngleDeg += 180;  // Flip so text is right-side up
             }
             label.setAttribute('transform', 'rotate(' + labelAngleDeg + ', ' + labelX + ', ' + labelY + ')');
-            label.textContent = schoolName.toUpperCase();
+            label.textContent = schoolText(schoolName).toUpperCase();
             this.spokesLayer.appendChild(label);
         }
     },
@@ -2338,7 +2338,7 @@ var WheelRenderer = {
         tooltip.querySelector('.tooltip-info').textContent = infoText;
         
         var stateEl = tooltip.querySelector('.tooltip-state');
-        stateEl.textContent = node.state;
+        stateEl.textContent = (typeof spellStateLabel === 'function') ? spellStateLabel(node.state) : node.state;
         stateEl.className = 'tooltip-state ' + node.state;
         
         tooltip.classList.remove('hidden');

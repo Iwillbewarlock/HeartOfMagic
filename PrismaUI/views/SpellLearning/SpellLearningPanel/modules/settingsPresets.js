@@ -251,13 +251,13 @@ function initializeSettingsPresets() {
 // =============================================================================
 
 function promptSaveSettingsPreset() {
-    showPresetNamePrompt(tOr('presets.saveSettings', null, 'Save Settings Preset'), function(name) {
+    showPresetNamePrompt('Save Settings Preset', function(name) {
         // Cannot use reserved name
         if (name.toLowerCase() === SETTINGS_PRESET_DEFAULT_NAME.toLowerCase() && !settingsPresets[name]) {
             return;
         }
         saveSettingsPreset(name);
-    });
+    }, 'presets.saveSettings');
 }
 
 function saveSettingsPreset(name) {

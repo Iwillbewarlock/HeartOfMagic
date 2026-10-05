@@ -325,7 +325,7 @@ function renderSpellCard(node, opts) {
             // Toggle hard/soft button
             var toggleBtn = document.createElement('button');
             toggleBtn.className = 'prereq-toggle-btn ' + (isHard ? 'hard' : 'soft');
-            toggleBtn.textContent = isHard ? 'H' : 'S';
+            toggleBtn.textContent = isHard ? tOr('details.prereqHardShort', null, 'H') : tOr('details.prereqSoftShort', null, 'S');
             if (isHard) setI18n(toggleBtn, 'details.prereqHardTitle', null, 'Required - click to make it optional', 'title');
             else setI18n(toggleBtn, 'details.prereqSoftTitle', null, 'Optional - click to make it required', 'title');
             toggleBtn.addEventListener('click', function(e) {
@@ -408,8 +408,10 @@ function renderSpellCard(node, opts) {
             if (isEditMode && softPrereqs.length > 0) {
                 // Create editable input
                 softNeededCount.innerHTML = '';
-                var needLabel = document.createTextNode('(need ');
-                softNeededCount.appendChild(needLabel);
+                // "need {{need}} of {{total}}" in the panel's language, the number box where {{need}} goes
+                var needParts = tOr('details.softNeed', { total: softPrereqs.length }, 'need {{need}} of {{total}}')
+                    .split('{{need}}');
+                softNeededCount.appendChild(document.createTextNode('(' + needParts[0]));
 
                 var input = document.createElement('input');
                 input.type = 'number';
@@ -428,8 +430,7 @@ function renderSpellCard(node, opts) {
                 });
                 softNeededCount.appendChild(input);
 
-                var ofLabel = document.createTextNode(' of ' + softPrereqs.length + ')');
-                softNeededCount.appendChild(ofLabel);
+                softNeededCount.appendChild(document.createTextNode((needParts[1] || '') + ')'));
             } else {
                 softNeededCount.textContent = '(' + (softNeeded > 0 ?
                     tOr('details.softNeed', { need: softNeeded, total: softPrereqs.length }, 'need {{need}} of {{total}}') :

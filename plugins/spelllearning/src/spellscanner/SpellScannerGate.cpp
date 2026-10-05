@@ -103,7 +103,8 @@ namespace SpellScanner
                     if (!entry.is_object()) continue;
                     GateRule rule;
                     rule.id = TextField(entry, "id", "");
-                    rule.band = TextField(entry, "band", "out");
+                    const auto band = entry.find("band");
+                    rule.band = band == entry.end() ? "out" : TextField(entry, "band", "");
                     if (rule.id.empty() || (rule.band != "out" && rule.band != "review")) {
                         logger::warn("SpellGate: rule without an id or with band '{}' - skipped", rule.band);
                         continue;
@@ -139,9 +140,11 @@ namespace SpellScanner
             return rules;
         }
 
+        // The plugin is one of the masters, or depends on one directly
         bool PluginDependsOn(RE::TESFile* file, const std::vector<std::string>& masters)
         {
             if (!file) return false;
+            if (std::ranges::find(masters, Lower(std::string(file->GetFilename()))) != masters.end()) return true;
             for (const char* master : file->masters) {
                 if (master && std::ranges::find(masters, Lower(master)) != masters.end()) return true;
             }
