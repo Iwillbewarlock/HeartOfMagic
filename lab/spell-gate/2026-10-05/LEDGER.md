@@ -39,3 +39,11 @@ Dump: TAKEALOOK dev install, `spell_scan_output.json` 2026-10-05 22:52 (3,775 sp
   the only tie), script-only conveniences (food, chest, bread, ore, book), follower calls (Feris, Melana), quest
   helpers. Their difference lives in the attached Papyrus script and the plugin's masters, not in any field the
   scan reads. 89 "out" from ~15 plugins is too few for a learner to generalize to an unseen mod family.
+
+## 2026-10-06 rules.json `adultFramework` 측정
+
+- Confirmed: 마스터(SexLab.esm, SexLabAroused.esm, OSLAroused.esm, OStim.esp)에 기대는 카드의 플러그인은
+  `SexLab Eager NPCs.esp` 하나(플러그인 헤더 MAST 를 직접 읽음, scratchpad `rule_measure.py`). 효과 원형이 전부
+  {Script, DetectLife, ValueModifier} 안인 주문 20개, labels.json 에서 20개 모두 out. 오탐 0.
+- 표본이 한 플러그인뿐이라 ValueModifier 만 있는 주문(양성구유 오라 1개)이 다른 SexLab 의존 모드의 진짜 버프를
+  빼는지는 이 로드 오더로는 모른다.

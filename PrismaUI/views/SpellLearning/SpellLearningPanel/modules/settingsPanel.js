@@ -2523,7 +2523,8 @@ function renderBlacklistEntries() {
     if (typeof GateReview !== 'undefined') GateReview.render();
 
     if (blacklist.length === 0) {
-        container.innerHTML = '<div class="blacklist-empty">No spells blacklisted</div>';
+        container.innerHTML = '<div class="blacklist-empty">' +
+            (typeof tOr === 'function' ? tOr('modals.blacklist.empty', null, 'No spells blacklisted') : 'No spells blacklisted') + '</div>';
         return;
     }
 
