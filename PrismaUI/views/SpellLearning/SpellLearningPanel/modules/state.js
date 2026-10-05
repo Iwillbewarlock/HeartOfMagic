@@ -190,7 +190,8 @@ var settings = {
     // In-game notification settings
     notifications: {
         weakenedSpellNotifications: true, // Show "X operating at Y% power" when casting weakened spells
-        weakenedSpellInterval: 10         // Seconds between notifications (default 10)
+        weakenedSpellInterval: 10,        // Seconds between notifications (default 10)
+        spellResearchNotice: true         // HUD line after a Spell Research Import: mod spells Heart of Magic added
     },
     // Passive learning settings
     passiveLearning: {

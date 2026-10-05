@@ -76,6 +76,8 @@ If a key is missing from your file, the English text from the HTML is shown as f
 
 Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
 
+A few keys are shown by the DLL in the game itself, not by the panel: `notifications.spellResearchAdded` (the HUD line after a Spell Research Import; keep `{{count}}`). The DLL reads them from your `lang/<code>.json` when the settings are applied, so they need the `.json` file, not only the preload, and fall back to `en.json`.
+
 To see which keys your file lacks, compare it with `en.json`:
 
 ```

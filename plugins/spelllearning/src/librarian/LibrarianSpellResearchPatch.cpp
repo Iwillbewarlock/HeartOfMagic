@@ -36,6 +36,11 @@ namespace Librarian::SpellResearchPatch
         bool g_installed = false;
         SR::Lists g_lists;
 
+        // The HUD line after a registration (SetNotice)
+        constexpr std::string_view kCountPlaceholder = "{{count}}";
+        bool g_noticeOn = true;
+        std::string g_noticeText = kAddedNoticeEnglish;
+
         // Entries in the five tier lists after the last run, for the save
         // loaded now. Same count at the next message box: no Import ran since.
         std::size_t g_lastSeen = 0;
@@ -305,9 +310,12 @@ namespace Librarian::SpellResearchPatch
 
             // The player sees SR's own "All Spells Imported" count only for its three
             // games; say what Heart of Magic added (a load or scan that adds none is silent)
-            if (totals.spells > 0) {
-                const auto notification = std::format("Heart of Magic: {} mod spells added to Spell Research",
-                    totals.spells);
+            if (totals.spells > 0 && g_noticeOn) {
+                std::string notification = g_noticeText;
+                const auto at = notification.find(kCountPlaceholder);
+                if (at != std::string::npos) {
+                    notification.replace(at, kCountPlaceholder.size(), std::to_string(totals.spells));
+                }
                 RE::SendHUDMessage::ShowHUDMessage(notification.c_str());
             }
         }
@@ -391,5 +399,11 @@ namespace Librarian::SpellResearchPatch
         g_lastSeen = 0;
         g_failed.clear();
         SafeReconcile("scan");
+    }
+
+    void SetNotice(bool enabled, std::string text)
+    {
+        g_noticeOn = enabled;
+        g_noticeText = text.empty() ? std::string(kAddedNoticeEnglish) : std::move(text);
     }
 }

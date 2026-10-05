@@ -35,6 +35,9 @@ namespace
 {
     constexpr const char* kPanelUserLocalePath =
         "Data/PrismaUI/views/SpellLearning/SpellLearningPanel/lang/user_locale.js";
+    constexpr const char* kPanelLangDir = "Data/PrismaUI/views/SpellLearning/SpellLearningPanel/lang";
+    constexpr const char* kShippedLocaleMarker = "_i18nLocale";
+    constexpr const char* kEnglish = "en";
     constexpr std::size_t kMaxLocaleCodeLength = 16;
 
     // Only what lang/*.js file names use ("ko", "pt-br", "zh-cn"): the code is
@@ -110,4 +113,64 @@ void WritePanelLocaleFromSavedConfig()
         return;
     }
     WritePanelLocale(config);
+}
+
+// =============================================================================
+// PANEL TEXT FOR THE DLL
+// =============================================================================
+//
+// The DLL shows a few lines itself (the Spell Research HUD line). They live in
+// the panel's language files with everything else, so a translator has one
+// place: the language the player chose, or the one lang/locale.js ships with.
+
+namespace
+{
+    // lang/locale.js: window._i18nLocale = 'ko';
+    std::string ShippedLocale()
+    {
+        const std::string text = ReadWholeFile(std::filesystem::path(kPanelLangDir) / "locale.js");
+        const auto at = text.find(kShippedLocaleMarker);
+        if (at == std::string::npos) return {};
+        const auto open = text.find_first_of("'\"", at);
+        if (open == std::string::npos) return {};
+        const auto close = text.find(text[open], open + 1);
+        if (close == std::string::npos) return {};
+        std::string code = text.substr(open + 1, close - open - 1);
+        return IsLocaleCode(code) ? code : std::string();
+    }
+
+    // A flat key ("a.b.c") or the same key nested, as lang/build-preloads.js reads both
+    std::string LookupKey(const nlohmann::json& lang, const std::string& key)
+    {
+        const auto flat = lang.find(key);
+        if (flat != lang.end() && flat->is_string()) return flat->get<std::string>();
+        const nlohmann::json* node = &lang;
+        std::size_t start = 0;
+        while (start <= key.size()) {
+            const auto dot = key.find('.', start);
+            const std::string part = key.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+            if (!node->is_object()) return {};
+            const auto next = node->find(part);
+            if (next == node->end()) return {};
+            node = &*next;
+            if (dot == std::string::npos) break;
+            start = dot + 1;
+        }
+        return node->is_string() ? node->get<std::string>() : std::string();
+    }
+}
+
+std::string PanelText(const nlohmann::json& config, const char* key, const char* fallback)
+{
+    std::string code = SafeJsonValue<std::string>(config, "language", "");
+    if (!IsLocaleCode(code) || code.empty()) code = ShippedLocale();
+    for (const std::string& lang : { code, std::string(kEnglish) }) {
+        if (lang.empty()) continue;
+        const auto parsed = nlohmann::json::parse(
+            ReadWholeFile(std::filesystem::path(kPanelLangDir) / (lang + ".json")), nullptr, false);
+        if (parsed.is_discarded() || !parsed.is_object()) continue;
+        std::string text = LookupKey(parsed, key);
+        if (!text.empty()) return text;
+    }
+    return fallback;
 }

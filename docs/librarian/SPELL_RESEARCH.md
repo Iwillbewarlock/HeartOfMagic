@@ -139,10 +139,17 @@
   `noSchoolOrTier`, `lines`(줄별 gain), `elapsedMs`.
 - 로그: 설치 때 한 줄(`SpellResearch: SpellResearch.esp found ...`), 등록 때 한 줄 요약, 첫 항목의
   `scriptAddedFormCount` 전후 값.
-- 게임 안 알림(2026-10-05): 한 주문이라도 등록하면 HUD 에 `Heart of Magic: N mod spells added to Spell Research`.
-  SR 의 "All Spells Imported" 상자를 닫은 직후(import), HoM 을 나중에 깐 세이브를 처음 불러올 때(load), 새 모드를
-  넣고 스캔했을 때(scan) 뜬다. 새로 넣은 주문이 없으면 아무것도 띄우지 않는다. SR MCM 의 "Total spells imported" 는
-  SR 자신의 Import(기본 게임과 DLC)에 이 수를 더한 값이다.
+- 게임 안 알림(2026-10-05): 한 주문이라도 등록하면 HUD 에 한 줄(영어로는 `Heart of Magic: N mod spells added
+  to Spell Research`). SR 의 "All Spells Imported" 상자를 닫은 직후(import), HoM 을 나중에 깐 세이브를 처음 불러올
+  때(load), 새 모드를 넣고 스캔했을 때(scan) 뜬다. 새로 넣은 주문이 없으면 아무것도 띄우지 않는다. SR MCM 의
+  "Total spells imported" 는 SR 자신의 Import(기본 게임과 DLC)에 이 수를 더한 값이다.
+  - 문구는 패널 언어 파일의 `notifications.spellResearchAdded`(`{{count}}` 자리에 수). DLL 이 설정을 적용할 때
+    (`ApplySettingsFromConfig`) 패널 언어(설정의 `language`, 비었으면 `lang/locale.js`)의 `lang/<code>.json` 에서 읽고,
+    없으면 `en.json`, 그것도 없으면 코드의 영어(`kAddedNoticeEnglish`). `PanelText`(UIManagerLocale.cpp).
+  - 끄기: 설정 > 조기 습득의 알림 줄 아래 "Spell Research 임포트 알림"(`notifications.spellResearchNotice`, 기본 켜짐).
+    알림만 끈다 - 등록은 그대로 한다(등록 자체는 `config.json` 의 `spellResearch.enabled`).
+  - 같은 날 고침: 패널이 저장하는 설정에 `notifications` 가 빠져 있어서, "약화된 주문 알림" 스위치와 간격도 DLL 에는
+    닿지 않고 기본값으로 돌았다. 이제 함께 저장된다.
 - 빠른 길: 전역 두 개와 등급 목록 항목 수를 먼저 본다. 수가 지난번과 같으면(Import 가 아닌 메시지 상자) 설정 파일도
   읽지 않고 끝. 다르면 카탈로그에서 등록할 주문만 골라, 없으면 끝(판정기는 돌지 않는다). 있으면 **그 주문들만** 판정기에
   넣는다(줄의 선택은 주문마다 따로라 결과가 같다). 규칙 파일을 못 읽어도 수는 기억해서 같은 경고를 되풀이하지 않는다.

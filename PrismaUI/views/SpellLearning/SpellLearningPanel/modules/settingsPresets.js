@@ -85,7 +85,8 @@ var BUILT_IN_SETTINGS_PRESETS = {
             },
             notifications: {
                 weakenedSpellNotifications: true,
-                weakenedSpellInterval: 10
+                weakenedSpellInterval: 10,
+                spellResearchNotice: true
             }
         }
     },
@@ -143,7 +144,8 @@ var BUILT_IN_SETTINGS_PRESETS = {
             },
             notifications: {
                 weakenedSpellNotifications: true,
-                weakenedSpellInterval: 10
+                weakenedSpellInterval: 10,
+                spellResearchNotice: true
             }
         }
     },
@@ -201,7 +203,8 @@ var BUILT_IN_SETTINGS_PRESETS = {
             },
             notifications: {
                 weakenedSpellNotifications: true,
-                weakenedSpellInterval: 10
+                weakenedSpellInterval: 10,
+                spellResearchNotice: true
             }
         }
     }

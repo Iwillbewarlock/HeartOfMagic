@@ -6,6 +6,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
+#include "librarian/SpellResearchPatch.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
@@ -164,6 +165,14 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
                 castHandler->GetNotificationInterval());
         }
     }
+
+    // Spell Research: the HUD line after Heart of Magic registered spells, in the panel's language
+    bool srNotice = true;
+    if (config.contains("notifications") && config["notifications"].is_object()) {
+        srNotice = SafeJsonValue<bool>(config["notifications"], "spellResearchNotice", true);
+    }
+    Librarian::SpellResearchPatch::SetNotice(srNotice,
+        PanelText(config, "notifications.spellResearchAdded", Librarian::SpellResearchPatch::kAddedNoticeEnglish));
 }
 
 std::filesystem::path GetSettingsFilePath()
@@ -273,7 +282,8 @@ json GenerateDefaultConfig() {
         }},
         {"notifications", {
             {"weakenedSpellNotifications", true},
-            {"weakenedSpellInterval", 10.0f}
+            {"weakenedSpellInterval", 10.0f},
+            {"spellResearchNotice", true}
         }},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}
