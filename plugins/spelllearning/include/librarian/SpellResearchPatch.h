@@ -32,9 +32,9 @@ namespace Librarian::SpellResearchPatch
     // are registered at once, not at the next load.
     void OnCatalogChanged();
 
-    // The HUD line after spells were registered: the panel's switch
-    // (notifications.spellResearchNotice) and its text in the panel's language,
-    // with {{count}} for the number (lang key notifications.spellResearchAdded).
+    // The HUD line after spells were registered (always shown: it comes once per
+    // Import), in the panel's language with {{count}} for the number (lang key
+    // notifications.spellResearchAdded).
     inline constexpr const char* kAddedNoticeEnglish = "Heart of Magic: {{count}} mod spells added to Spell Research";
-    void SetNotice(bool enabled, std::string text);
+    void SetNoticeText(std::string text);
 }

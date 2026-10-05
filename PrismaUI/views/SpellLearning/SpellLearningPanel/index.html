@@ -1479,10 +1479,12 @@
                             </div>
                         </div>
                         
-                        <!-- Weakened Spell Notifications (inline) -->
+                        <!-- XP alerts (inline): the weakened cast line (every N s), power steps, a tome's study lines.
+                             Learned, mastered and blocked messages always show. Key: notifications.weakenedSpellNotifications -->
                         <div class="setting-row-inline">
                             <div class="setting-info">
-                                <span class="setting-label" data-i18n="settings.earlyLearning.weakenedAlerts">Weakened Spell Alerts</span>
+                                <span class="setting-label" data-i18n="settings.earlyLearning.weakenedAlerts">XP Alerts</span>
+                                <span class="setting-desc" data-i18n="settings.earlyLearning.weakenedAlertsDesc">Power and XP while you cast a weakened spell, power steps, studying a tome. Learned and mastered always show</span>
                             </div>
                             <div class="inline-controls">
                                 <label class="toggle-switch">
@@ -1495,18 +1497,6 @@
                                     <span class="slider-value" id="notificationIntervalValue">10s</span>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Spell Research: the HUD line after Heart of Magic added spells to it -->
-                        <div class="setting-row">
-                            <div class="setting-info">
-                                <span class="setting-label" data-i18n="settings.notifications.spellResearchNotice">Spell Research Import Notice</span>
-                                <span class="setting-desc" data-i18n="settings.notifications.spellResearchNoticeDesc">After a Spell Research Import, say how many mod spells Heart of Magic added to it</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="spellResearchNoticeToggle" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
                         </div>
                         
                         <!-- Power Steps Configuration -->

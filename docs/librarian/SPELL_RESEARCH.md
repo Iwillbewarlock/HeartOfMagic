@@ -146,10 +146,10 @@
   - 문구는 패널 언어 파일의 `notifications.spellResearchAdded`(`{{count}}` 자리에 수). DLL 이 설정을 적용할 때
     (`ApplySettingsFromConfig`) 패널 언어(설정의 `language`, 비었으면 `lang/locale.js`)의 `lang/<code>.json` 에서 읽고,
     없으면 `en.json`, 그것도 없으면 코드의 영어(`kAddedNoticeEnglish`). `PanelText`(UIManagerLocale.cpp).
-  - 끄기: 설정 > 조기 습득의 알림 줄 아래 "Spell Research 임포트 알림"(`notifications.spellResearchNotice`, 기본 켜짐).
-    알림만 끈다 - 등록은 그대로 한다(등록 자체는 `config.json` 의 `spellResearch.enabled`).
-  - 같은 날 고침: 패널이 저장하는 설정에 `notifications` 가 빠져 있어서, "약화된 주문 알림" 스위치와 간격도 DLL 에는
-    닿지 않고 기본값으로 돌았다. 이제 함께 저장된다.
+  - 끄는 스위치는 없다: Import 한 번에 한 번 뜨는 줄이다. HoM 의 알림 스위치는 "경험치 알림" 하나다(ARCHITECTURE.md,
+    Notifications).
+  - 같은 날 고침: 패널이 저장하는 설정에 `notifications` 가 빠져 있어서, 알림 스위치와 간격이 DLL 에는 닿지 않고
+    기본값으로 돌았다. 이제 함께 저장된다.
 - 빠른 길: 전역 두 개와 등급 목록 항목 수를 먼저 본다. 수가 지난번과 같으면(Import 가 아닌 메시지 상자) 설정 파일도
   읽지 않고 끝. 다르면 카탈로그에서 등록할 주문만 골라, 없으면 끝(판정기는 돌지 않는다). 있으면 **그 주문들만** 판정기에
   넣는다(줄의 선택은 주문마다 따로라 결과가 같다). 규칙 파일을 못 읽어도 수는 기억해서 같은 경고를 되풀이하지 않는다.

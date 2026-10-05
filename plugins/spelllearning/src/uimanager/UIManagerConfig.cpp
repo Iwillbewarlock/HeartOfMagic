@@ -159,7 +159,8 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         auto& notifConfig = config["notifications"];
         auto* castHandler = SpellCastHandler::GetSingleton();
         if (castHandler) {
-            castHandler->SetWeakenedNotificationsEnabled(SafeJsonValue<bool>(notifConfig, "weakenedSpellNotifications", true));
+            // The key keeps its old name: it is the XP alerts switch now (SpellCastHandler.h)
+            castHandler->SetXPNotificationsEnabled(SafeJsonValue<bool>(notifConfig, "weakenedSpellNotifications", true));
             castHandler->SetNotificationInterval(SafeJsonValue<float>(notifConfig, "weakenedSpellInterval", 10.0f));
             logger::info("UIManager: Applied notification settings - interval: {}s",
                 castHandler->GetNotificationInterval());
@@ -167,11 +168,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
     }
 
     // Spell Research: the HUD line after Heart of Magic registered spells, in the panel's language
-    bool srNotice = true;
-    if (config.contains("notifications") && config["notifications"].is_object()) {
-        srNotice = SafeJsonValue<bool>(config["notifications"], "spellResearchNotice", true);
-    }
-    Librarian::SpellResearchPatch::SetNotice(srNotice,
+    Librarian::SpellResearchPatch::SetNoticeText(
         PanelText(config, "notifications.spellResearchAdded", Librarian::SpellResearchPatch::kAddedNoticeEnglish));
 }
 
@@ -282,8 +279,7 @@ json GenerateDefaultConfig() {
         }},
         {"notifications", {
             {"weakenedSpellNotifications", true},
-            {"weakenedSpellInterval", 10.0f},
-            {"spellResearchNotice", true}
+            {"weakenedSpellInterval", 10.0f}
         }},
         {"schoolColors", json::object()},
         {"customProfiles", json::object()}

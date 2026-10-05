@@ -1080,6 +1080,17 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
   "PrismaUI not valid" warning - written to disk at once - is logged once, not once per cast.
 - `PapyrusAPI` `AddSourcedXP`/`AddRawXP` log at debug (another mod may call them on every hit).
 
+### Notifications (2026-10-05)
+- One switch, Settings > Early Learning > "XP Alerts" (`notifications.weakenedSpellNotifications`, the key keeps
+  its old name), turns off the XP lines: the weakened cast line (`SpellCastHandler`, every
+  `weakenedSpellInterval` s), the power step line (`ProgressionManagerXP`) and a tome's study lines ("You begin to
+  study / review", `SpellTomeHook`; "You begin to grasp", `DESTIntegration`). `SpellCastHandler::GetXPNotificationsEnabled`
+  is what each reads.
+- Always shown: learned (early grant, "Learned X"), mastered, blocked tomes (prerequisites, skill), and the Spell
+  Research line (docs/librarian/SPELL_RESEARCH.md). The tome's own `spellTomeLearning.showNotifications` still
+  turns off every tome line.
+- The panel's save carries `notifications` since 2026-10-05; before, it left them out and the DLL kept its defaults.
+
 ### C++ Plugin Performance (Feb 2026)
 - **`std::shared_mutex`** for read-heavy concurrent access (replaces `std::mutex`)
   - Read operations use `std::shared_lock` (non-blocking concurrent reads)
@@ -1411,8 +1422,8 @@ All settings stored in single config file, managed through UI:
   "dividerCustomColor": "#ffffff",
 
   "notifications": {
-    "weakenedSpellNotifications": true,
-    "weakenedSpellInterval": 10
+    "weakenedSpellNotifications": true,   // "XP Alerts": weakened cast line, power steps, tome study lines
+    "weakenedSpellInterval": 10           // seconds between weakened cast lines
   },
 
   "spellBlacklist": [],

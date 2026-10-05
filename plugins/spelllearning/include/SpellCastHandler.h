@@ -26,8 +26,12 @@ public:
     void SetNotificationInterval(float seconds) { m_notificationIntervalSeconds = seconds; }
     float GetNotificationInterval() const { return m_notificationIntervalSeconds; }
     
-    void SetWeakenedNotificationsEnabled(bool enabled) { m_weakenedNotificationsEnabled = enabled; }
-    bool GetWeakenedNotificationsEnabled() const { return m_weakenedNotificationsEnabled; }
+    // XP alerts (notifications.weakenedSpellNotifications, "XP Alerts" in the panel): the
+    // weakened cast line here, the power step line (ProgressionManagerXP) and a tome's
+    // study lines (SpellTomeHook, DESTIntegration). Learned, mastered and blocked
+    // messages are not XP alerts and always show.
+    void SetXPNotificationsEnabled(bool enabled) { m_weakenedNotificationsEnabled = enabled; }
+    bool GetXPNotificationsEnabled() const { return m_weakenedNotificationsEnabled; }
 
 private:
     SpellCastHandler() = default;

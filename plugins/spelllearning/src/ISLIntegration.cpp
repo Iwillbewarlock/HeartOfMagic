@@ -3,6 +3,7 @@
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
+#include "SpellCastHandler.h"
 
 namespace DESTIntegration {
 
@@ -176,9 +177,13 @@ namespace DESTIntegration {
         pm->AddXP(formIdStr, xpGrant);
         pm->SetLearningTargetFromTome(formIdStr, spell);
 
-        char note[256];
-        snprintf(note, sizeof(note), "You begin to grasp %s...", spell->GetName());
-        RE::SendHUDMessage::ShowHUDMessage(note);
+        // An XP alert (the panel's "XP Alerts" switch, SpellCastHandler.h)
+        auto* castHandler = SpellCastHandler::GetSingleton();
+        if (!castHandler || castHandler->GetXPNotificationsEnabled()) {
+            char note[256];
+            snprintf(note, sizeof(note), "You begin to grasp %s...", spell->GetName());
+            RE::SendHUDMessage::ShowHUDMessage(note);
+        }
 
         UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
         return true;

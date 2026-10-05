@@ -189,9 +189,8 @@ var settings = {
     },
     // In-game notification settings
     notifications: {
-        weakenedSpellNotifications: true, // Show "X operating at Y% power" when casting weakened spells
-        weakenedSpellInterval: 10,        // Seconds between notifications (default 10)
-        spellResearchNotice: true         // HUD line after a Spell Research Import: mod spells Heart of Magic added
+        weakenedSpellNotifications: true, // XP alerts: weakened casts, power steps, tome study lines (learned/mastered always show)
+        weakenedSpellInterval: 10         // Seconds between weakened cast lines (default 10)
     },
     // Passive learning settings
     passiveLearning: {

@@ -6,6 +6,7 @@
 #include "SpellTomeHookGate.h"
 #include "SpellTomeHookSites.h"
 #include "SpellScanner.h"
+#include "SpellCastHandler.h"
 
 // Xbyak for assembly code generation
 #include <xbyak/xbyak.h>
@@ -55,6 +56,16 @@ void SpellTomeHook::OnSpellTomeRead(RE::TESObjectBOOK* a_book, RE::SpellItem* a_
         logger::error("SpellTomeHook: reading a tome threw: {}", e.what());
     } catch (...) {
         logger::error("SpellTomeHook: reading a tome threw an unknown exception");
+    }
+}
+
+namespace
+{
+    // The study lines are XP alerts (the panel's "XP Alerts" switch, SpellCastHandler.h)
+    bool XPAlertsOn()
+    {
+        auto* castHandler = SpellCastHandler::GetSingleton();
+        return !castHandler || castHandler->GetXPNotificationsEnabled();
     }
 }
 
@@ -143,7 +154,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         // --- Dispatch to ISL for study UX ---
         DESTIntegration::DispatchSpellTomeRead(a_book, a_spell, player->AsReference());
 
-        if (hook->m_settings.showNotifications) {
+        if (hook->m_settings.showNotifications && XPAlertsOn()) {
             char msg[256];
             snprintf(msg, sizeof(msg), "You begin to study %s...", a_spell->GetName());
             RE::SendHUDMessage::ShowHUDMessage(msg);
@@ -238,8 +249,8 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         logger::info("SpellTomeHook: Granted {:.1f} XP ({:.0f}% of {:.1f} required) for '{}'",
                      xpToGrant, hook->m_settings.xpPercentToGrant, requiredXP, a_spell->GetName());
         
-        // Show notification
-        if (hook->m_settings.showNotifications) {
+        // Show notification (an XP alert too, SpellCastHandler.h)
+        if (hook->m_settings.showNotifications && XPAlertsOn()) {
             char msg[256];
             snprintf(msg, sizeof(msg), "You begin to study %s...", a_spell->GetName());
             RE::SendHUDMessage::ShowHUDMessage(msg);
@@ -248,7 +259,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         logger::info("SpellTomeHook: XP already granted for '{}' - no additional XP", a_spell->GetName());
         
         // Show different notification
-        if (hook->m_settings.showNotifications) {
+        if (hook->m_settings.showNotifications && XPAlertsOn()) {
             char msg[256];
             snprintf(msg, sizeof(msg), "You review %s... (no additional insight)", a_spell->GetName());
             RE::SendHUDMessage::ShowHUDMessage(msg);

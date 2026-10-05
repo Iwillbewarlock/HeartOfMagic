@@ -362,22 +362,11 @@ function initializeSettings() {
     if (!settings.notifications) {
         settings.notifications = {
             weakenedSpellNotifications: true,
-            weakenedSpellInterval: 10,
-            spellResearchNotice: true
+            weakenedSpellInterval: 10
         };
     }
-
-    // Spell Research import notice (the DLL's HUD line, LibrarianSpellResearchPatch.cpp)
-    var spellResearchNoticeToggle = document.getElementById('spellResearchNoticeToggle');
-    if (spellResearchNoticeToggle) {
-        spellResearchNoticeToggle.checked = settings.notifications.spellResearchNotice !== false;
-        spellResearchNoticeToggle.addEventListener('change', function() {
-            settings.notifications.spellResearchNotice = this.checked;
-            scheduleAutoSave();
-        });
-    }
     
-    // Weakened spell notifications toggle
+    // XP alerts toggle (weakened casts, power steps, tome study lines - SpellCastHandler.h)
     var weakenedNotificationsToggle = document.getElementById('weakenedNotificationsToggle');
     var notificationIntervalRow = document.getElementById('notificationIntervalRow');
     if (weakenedNotificationsToggle) {
@@ -865,7 +854,7 @@ function saveUnifiedConfig() {
         // Spell tome learning
         spellTomeLearning: settings.spellTomeLearning,
 
-        // In-game notifications (weakened spells, the Spell Research import notice).
+        // In-game notifications (the XP alerts switch and its interval).
         // Missing from the save before 2026-10-05: the DLL kept its defaults whatever was set here
         notifications: settings.notifications,
         
@@ -1299,11 +1288,10 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (data.notifications) {
             var notif = data.notifications;
             if (!settings.notifications) {
-                settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10, spellResearchNotice: true };
+                settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10 };
             }
             settings.notifications.weakenedSpellNotifications = notif.weakenedSpellNotifications !== undefined ? notif.weakenedSpellNotifications : true;
             settings.notifications.weakenedSpellInterval = notif.weakenedSpellInterval !== undefined ? notif.weakenedSpellInterval : 10;
-            settings.notifications.spellResearchNotice = notif.spellResearchNotice !== false;
         }
         updateNotificationsUI();
         
@@ -1975,12 +1963,9 @@ function updateSpellTomeLearningUI() {
 function updateNotificationsUI() {
     // Ensure settings exist
     if (!settings.notifications) {
-        settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10, spellResearchNotice: true };
+        settings.notifications = { weakenedSpellNotifications: true, weakenedSpellInterval: 10 };
     }
     var notif = settings.notifications;
-
-    var srNoticeToggle = document.getElementById('spellResearchNoticeToggle');
-    if (srNoticeToggle) srNoticeToggle.checked = notif.spellResearchNotice !== false;
     
     // Weakened spell notifications toggle
     var weakenedToggle = document.getElementById('weakenedNotificationsToggle');

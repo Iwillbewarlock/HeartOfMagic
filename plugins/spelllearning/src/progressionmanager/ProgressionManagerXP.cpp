@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "SpellCastHandler.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -316,13 +317,16 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
                 targetSpellId, effectivenessHook->GetPowerStepLabel(currentStep),
                 static_cast<int>(effectiveness * 100));
 
-            // Show notification for power step increase
+            // Show notification for power step increase (an XP alert, SpellCastHandler.h)
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
             if (spell) {
-                char notification[256];
-                snprintf(notification, sizeof(notification), "%s power increased to %d%%",
-                    spell->GetName(), static_cast<int>(effectiveness * 100));
-                RE::SendHUDMessage::ShowHUDMessage(notification);
+                auto* castHandler = SpellCastHandler::GetSingleton();
+                if (!castHandler || castHandler->GetXPNotificationsEnabled()) {
+                    char notification[256];
+                    snprintf(notification, sizeof(notification), "%s power increased to %d%%",
+                        spell->GetName(), static_cast<int>(effectiveness * 100));
+                    RE::SendHUDMessage::ShowHUDMessage(notification);
+                }
 
                 // Fire ModEvent: SpellLearning_ProgressMilestone
                 SendModEvent("SpellLearning_ProgressMilestone",
