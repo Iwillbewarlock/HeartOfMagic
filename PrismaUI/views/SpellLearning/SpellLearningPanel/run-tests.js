@@ -63,6 +63,8 @@ console.log('');
 loadModule('constants', './modules/constants.js', true);
 loadModule('state', './modules/state.js');
 loadModule('config', './modules/config.js');
+// TreeParser (spellNamesTest, prereqListsTest) keeps its lists through it, as the page loads it first
+loadModule('prereqLists', './modules/prereqLists.js', true);
 loadModule('shapeProfiles', './modules/shapeProfiles.js');
 loadModule('layoutLineClear', './modules/layoutLineClear.js');
 loadModule('layoutLineGrid', './modules/layoutLineGrid.js');
@@ -87,6 +89,8 @@ loadModule('levelFilterTest', './modules/levelFilterTest.js');
 loadModule('tomeFilterTest', './modules/tomeFilterTest.js');
 loadModule('newSpellsTest', './modules/newSpellsTest.js');
 loadModule('classicRadialOrderTest', './modules/classicRadialOrderTest.js');
+loadModule('prereqListsTest', './modules/prereqListsTest.js');
+loadModule('spellCopiesTest', './modules/spellCopiesTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

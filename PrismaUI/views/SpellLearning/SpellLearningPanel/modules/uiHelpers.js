@@ -185,7 +185,7 @@ function getLocalFormId(formIdStr) {
 // =============================================================================
 
 /**
- * Get all primed spells (post-blacklist/whitelist/tome filtering).
+ * Get all primed spells (post-blacklist/whitelist/tome filtering, copies merged).
  * @returns {Array} Filtered spell objects from state.lastSpellData
  */
 function getPrimedSpells() {
@@ -220,7 +220,7 @@ function getPrimedSpells() {
 
     var tomeCheck = (typeof isTaughtByTome === 'function') ? isTaughtByTome : null;
 
-    return data.spells.filter(function(spell) {
+    var primed = data.spells.filter(function(spell) {
         if (tomeCheck && !tomeCheck(spell)) return false;
         var stableKey = spell.plugin ? spell.plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) : '';
         if (stableKey && blacklistKeys[stableKey]) return false;
@@ -228,6 +228,8 @@ function getPrimedSpells() {
         if (whitelistActive && spell.plugin && !whitelistPlugins[spell.plugin.toLowerCase()]) return false;
         return true;
     });
+    // Copies of one spell count once, as the tree takes them (SpellCopies)
+    return (typeof SpellCopies !== 'undefined') ? SpellCopies.forTree(primed).spells : primed;
 }
 
 /**

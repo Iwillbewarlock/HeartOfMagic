@@ -546,6 +546,15 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
 
                 pm->SetPrereqRequirements(formId, reqs);
                 count++;
+
+                // A copy merged into a tree spell (the panel's SpellCopies): its tome teaches that spell
+                if (entry.contains("copyOf") && entry["copyOf"].is_string()) {
+                    try {
+                        pm->SetTreeCopy(formId, std::stoul(entry["copyOf"].get<std::string>(), nullptr, 0));
+                    } catch (const std::exception& e) {
+                        logger::warn("UIManager: Could not parse copyOf for spell {:08X}: {}", formId, e.what());
+                    }
+                }
             }
 
             logger::info("UIManager: Set tree prerequisites for {} spells", count);

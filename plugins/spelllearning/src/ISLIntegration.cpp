@@ -145,17 +145,22 @@ namespace DESTIntegration {
         logger::info("DESTIntegration::OnSpellTomeRead — {} ({})",
                      book->GetName(), spell->GetName());
 
+        auto* pm = ProgressionManager::GetSingleton();
+        // A copy merged into a tree spell (SpellCopies) is learned as that spell, as in SpellTomeHook
+        if (auto* treeSpell = RE::TESForm::LookupByID<RE::SpellItem>(pm->TreeSpellFor(spell->GetFormID()))) {
+            spell = treeSpell;
+        }
+
         char formIdStr[32];
         snprintf(formIdStr, sizeof(formIdStr), "0x%08X", spell->GetFormID());
 
-        auto* pm = ProgressionManager::GetSingleton();
         if (!pm->IsSpellAvailableToLearn(formIdStr)) {
             RE::SendHUDMessage::ShowHUDMessage("You lack the knowledge to grasp this magic.");
             return true;
         }
 
         auto* player = RE::PlayerCharacter::GetSingleton();
-        if (player && player->HasSpell(spell)) {
+        if (player && (player->HasSpell(spell) || pm->PlayerKnowsSpellOrCopy(spell->GetFormID()))) {
             RE::SendHUDMessage::ShowHUDMessage("You have already learned this spell.");
             return true;
         }

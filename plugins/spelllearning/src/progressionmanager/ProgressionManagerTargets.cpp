@@ -209,6 +209,8 @@ void ProgressionManager::ClearAllTreePrerequisites()
 {
     m_prereqRequirements.clear();
     m_requiredBy.clear();
+    m_treeCopyOf.clear();
+    m_treeCopies.clear();
     logger::info("ProgressionManager: Cleared all tree prerequisites");
 }
 
@@ -232,6 +234,16 @@ std::vector<RE::FormID> ProgressionManager::GetTreePrerequisites(RE::FormID spel
 }
 
 bool ProgressionManager::IsSpellMastered(RE::FormID spellId) const
+{
+    if (IsOwnSpellMastered(spellId)) return true;
+    // A copy merged into this tree spell, mastered or known from before the merge,
+    // is this spell to the tree: its children open
+    auto it = m_treeCopies.find(spellId);
+    return it != m_treeCopies.end() &&
+        std::ranges::any_of(it->second, [this](RE::FormID copyId) { return IsOwnSpellMastered(copyId); });
+}
+
+bool ProgressionManager::IsOwnSpellMastered(RE::FormID spellId) const
 {
     // Check our progress tracking
     auto it = m_spellProgress.find(spellId);
@@ -462,6 +474,13 @@ bool ProgressionManager::CanUnlock(RE::FormID formId) const
 
     // Check XP requirement
     if (it->second.unlocked || it->second.progressPercent < 1.0f) {
+        return false;
+    }
+
+    // The player knows a copy merged into this spell: it is this spell to the tree
+    // (IsSpellMastered), and granting this one too would put it in the book twice
+    if (PlayerKnowsCopyOf(formId)) {
+        logger::info("ProgressionManager: {:08X} not granted - the player knows a copy of it", formId);
         return false;
     }
 

@@ -93,6 +93,9 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
     bc.density = config.value("density", 0.6f);
     bc.symmetry = config.value("symmetry", 0.3f);
     bc.commonThemeShare = config.value("common_theme_share", bc.commonThemeShare);
+    bc.groupStrength = std::clamp(config.value("group_strength", bc.groupStrength), 0.0f,
+        BuildConfig::kMaxGroupStrength);
+    bc.orderByCost = config.value("order_by", std::string("tier")) == "cost";
 
     // Selected roots
     if (config.contains("selected_roots") && config["selected_roots"].is_object()) {

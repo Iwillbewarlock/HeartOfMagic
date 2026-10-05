@@ -69,6 +69,20 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     
     logger::info("SpellTomeHook: Player reading spell tome '{}' for spell '{}'",
                  a_book->GetName(), a_spell->GetName());
+
+    // A copy the panel merged into a tree spell (SpellCopies) is that spell to the
+    // tree: its tome teaches the tree spell, so learning it opens the tree spell's
+    // children instead of a spell the tree does not show
+    if (auto* pmCopies = ProgressionManager::GetSingleton()) {
+        const RE::FormID treeId = pmCopies->TreeSpellFor(a_spell->GetFormID());
+        if (treeId != a_spell->GetFormID()) {
+            if (auto* treeSpell = RE::TESForm::LookupByID<RE::SpellItem>(treeId)) {
+                logger::info("SpellTomeHook: '{}' {:08X} is a copy of tree spell {:08X} - teaching that",
+                    a_spell->GetName(), a_spell->GetFormID(), treeId);
+                a_spell = treeSpell;
+            }
+        }
+    }
     
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player) {
@@ -149,7 +163,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // =========================================================================
     if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem || voiceSlot) {
         // Still check if player already knows the spell
-        if (player->HasSpell(a_spell)) {
+        if (player->HasSpell(a_spell) || ProgressionManager::GetSingleton()->PlayerKnowsSpellOrCopy(a_spell->GetFormID())) {
             if (hook->m_settings.showNotifications) {
                 RE::SendHUDMessage::ShowHUDMessage("You already know this spell.");
             }
@@ -259,8 +273,8 @@ bool SpellTomeHook::CheckLearningRequirements(RE::SpellItem* a_spell, RE::FormID
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!pm || !player) return true;  // Can't check, allow
 
-    // Already knows this spell
-    if (player->HasSpell(a_spell)) {
+    // Already knows this spell, or a copy merged into it (SpellCopies)
+    if (player->HasSpell(a_spell) || pm->PlayerKnowsSpellOrCopy(spellFormId)) {
         if (hook->m_settings.showNotifications) {
             RE::SendHUDMessage::ShowHUDMessage("You already know this spell.");
         }

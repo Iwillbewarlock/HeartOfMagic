@@ -67,6 +67,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/SpellCastImmediateHook.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
     src/progressionmanager/ProgressionManagerTargets.cpp
+    src/progressionmanager/ProgressionManagerCopies.cpp
     src/progressionmanager/ProgressionManagerXP.cpp
     src/progressionmanager/ProgressionManagerAPI.cpp
     src/progressionmanager/ProgressionManagerSerialization.cpp

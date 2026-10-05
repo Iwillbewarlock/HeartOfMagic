@@ -79,7 +79,11 @@ Balanced progression. 100 XP for Novice spells up to 1500 XP for Master. Standar
   preset's or config's `treeGeneration` is ignored
 - Root base settings (Sun mode: ring tier, grid density, grid type; Flat mode: line points, direction)
 - Active root mode (Sun/Flat)
-- Classic growth settings (spread, radial bias, center mask, spell matching mode)
+- Classic growth settings (spread, radial bias, center mask, spell matching mode, group by kind
+  `groupStrength`, order outward by `orderBy`, one spell for copies `mergeCopies`; a preset without the
+  last three - every preset made before 2026-10-04, the shipped DEFAULT.json too - sets them to their
+  defaults 50, `tier` and on (`TreeGrowthClassic.BUILD_DEFAULTS`, filled in by `applyScannerPreset`)
+  rather than keeping what was set before)
 - Active growth mode (Classic; an old preset naming another mode falls back to Classic, and its
   `treeGrowthTreeSettings` - the removed Tree mode's settings - are ignored and no longer saved)
 - PreReq Master settings (lock percentages, tier constraints, distribution mode)

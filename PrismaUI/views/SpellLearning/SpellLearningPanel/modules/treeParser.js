@@ -125,6 +125,7 @@ var TreeParser = {
                     (nd.x !== undefined && nd.y !== undefined && !(nd.x === 0 && nd.y === 0));
                 // trustPrereqs data has authoritative positions — flag for renderer
                 var fromEngine = nd._fromLayoutEngine || (trustPrereqs && hasPrecomputed);
+                var lists = PrereqLists.normalize(self.withoutId(nd.hardPrereqs, id), self.withoutId(nd.softPrereqs, id));
 
                 self.nodes.set(id, {
                     id: id,
@@ -151,10 +152,12 @@ var TreeParser = {
                     _fromVisualFirst: nd._fromVisualFirst || false,
                     _fromLayoutEngine: fromEngine,
                     isRoot: nd.isRoot || false,  // CRITICAL: Preserve root flag for origin lines
-                    // Preserve hard/soft prerequisite data
-                    hardPrereqs: self.withoutId(nd.hardPrereqs, id),
-                    softPrereqs: self.withoutId(nd.softPrereqs, id),
-                    softNeeded: self.clampSoftNeeded(nd.softNeeded, self.withoutId(nd.softPrereqs, id)),
+                    // Preserve hard/soft prerequisite data, as separate lists (PrereqLists)
+                    hardPrereqs: lists.hard,
+                    softPrereqs: lists.soft,
+                    softNeeded: self.clampSoftNeeded(nd.softNeeded, lists.soft),
+                    // Copies of this spell merged into it (SpellCopies)
+                    copies: nd.copies || [],
                     // Lock prerequisites (Pre Req Master)
                     locks: nd.locks || [],
                     // Theme data baked from tree generator

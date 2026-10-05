@@ -61,6 +61,9 @@ var ClassicSettings = {
         var centerMask = s.centerMask !== undefined ? s.centerMask : 3;
         var spellMatching = s.spellMatching || 'layered';
         var dynamicExpansion = s.dynamicGridExpansion !== false;
+        var groupStrength = s.groupStrength !== undefined ? s.groupStrength : TreeGrowthClassic.BUILD_DEFAULTS.groupStrength;
+        var orderBy = s.orderBy === 'cost' ? 'cost' : 'tier';
+        var mergeCopies = s.mergeCopies !== false;
         var H = TreePreviewUtils.settingHTML;
 
         // Toggle button styles
@@ -93,6 +96,36 @@ var ClassicSettings = {
                 H(t('preview.classic.spread'), 'tgClassicSpread', 0, 100, 5, spread) +
                 H(t('preview.classic.radialBias'), 'tgClassicRadialBias', 0, 100, 5, radialBias) +
                 H(t('preview.classic.globeMask'), 'tgClassicCenterMask', 0, 10, 1, centerMask, ' tiers') +
+                H(tOr('preview.classic.groupStrength', null, 'Group by Kind'), 'tgClassicGroupStrength', 0, 100, 5, groupStrength) +
+            '</div>' +
+            '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
+                tOr('preview.classic.groupStrengthDesc', null,
+                    'How tightly spells of one kind sit together: same element (fire, frost, shock), bound weapons, summons. 0 = ignore kind, 50 = default. Applies at the next build.') +
+            '</div>' +
+
+            // --- Order outward by (2-way) ---
+            '<div style="display:flex; align-items:center; gap:8px; margin-bottom:2px; padding:0 4px;">' +
+                '<span style="font-size:10px; color:rgba(184,168,120,0.6); white-space:nowrap;">' + tOr('preview.classic.orderBy', null, 'Order Outward By') + '</span>' +
+                '<div style="display:flex;">' +
+                    '<div id="tgClassicOrderTier" style="' + btnBase + ' border-radius:3px 0 0 3px; ' + (orderBy === 'tier' ? btnAct : btnOff) + '">' + tOr('preview.classic.orderTier', null, 'Tier') + '</div>' +
+                    '<div id="tgClassicOrderCost" style="' + btnBase + ' border-radius:0 3px 3px 0; border-left:none; ' + (orderBy === 'cost' ? btnAct : btnOff) + '">' + tOr('preview.classic.orderCost', null, 'Magicka Cost') + '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="font-size:9px; color:rgba(184,168,120,0.35); padding:0 4px 4px;">' +
+                tOr('preview.classic.orderByDesc', null,
+                    'Tier: Novice in the middle, Master at the edge. Magicka Cost: the cheapest spells in the middle, the dearest at the edge; each tier zone keeps its size. Applies at the next build.') +
+            '</div>' +
+
+            // --- Merge copies of one spell ---
+            '<div style="display:flex; align-items:center; gap:8px; margin:4px 4px 6px; font-size:10px;">' +
+                '<label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:rgba(184,168,120,0.6);">' +
+                    '<input type="checkbox" id="tgClassicMergeCopies"' + (mergeCopies ? ' checked' : '') + '>' +
+                    tOr('preview.classic.mergeCopies', null, 'One Spell for Copies') +
+                '</label>' +
+                '<span style="color:rgba(184,168,120,0.3); font-size:9px;" title="' +
+                    tOr('preview.classic.mergeCopiesDesc', null,
+                        'Records with the same name, school, cost and effects (a mod installed twice, a copied spell) take one place in the tree. Their tomes ask for the same prerequisites. Applies at the next build.') +
+                '">(?)</span>' +
             '</div>' +
 
             // --- Dynamic Grid Expansion toggle ---
@@ -237,6 +270,32 @@ var ClassicSettings = {
             })(modes[mi]);
         }
 
+        TreePreviewUtils.bindInput('tgClassicGroupStrength', function (v) {
+            onChanged('groupStrength', v);
+        });
+
+        // Order outward by: tier or Magicka cost
+        var orderBtns = {
+            tier: document.getElementById('tgClassicOrderTier'),
+            cost: document.getElementById('tgClassicOrderCost')
+        };
+        var bindOrder = function (mode) {
+            if (!orderBtns[mode]) return;
+            orderBtns[mode].addEventListener('click', function () {
+                ClassicSettings.setOrderButtons(mode);
+                onChanged('orderBy', mode);
+            });
+        };
+        bindOrder('tier');
+        bindOrder('cost');
+
+        var mergeCheck = document.getElementById('tgClassicMergeCopies');
+        if (mergeCheck) {
+            mergeCheck.addEventListener('change', function () {
+                onChanged('mergeCopies', this.checked);
+            });
+        }
+
         // Dynamic Grid Expansion toggle
         var dynExpandCheck = document.getElementById('tgClassicDynExpand');
         if (dynExpandCheck) {
@@ -250,6 +309,18 @@ var ClassicSettings = {
 
         // Re-apply internal state to fresh DOM
         this._refreshDOM();
+    },
+
+    /** Show which order button is on ('tier' or 'cost'); also after a preset loads. */
+    setOrderButtons: function (mode) {
+        var ids = { tier: 'tgClassicOrderTier', cost: 'tgClassicOrderCost' };
+        for (var key in ids) {
+            if (!ids.hasOwnProperty(key)) continue;
+            var btn = document.getElementById(ids[key]);
+            if (!btn) continue;
+            btn.style.background = key === mode ? 'rgba(184,168,120,0.25)' : 'transparent';
+            btn.style.color = key === mode ? 'rgba(184,168,120,0.9)' : 'rgba(184,168,120,0.4)';
+        }
     },
 
     /** Return a copy of the current tier zones. */

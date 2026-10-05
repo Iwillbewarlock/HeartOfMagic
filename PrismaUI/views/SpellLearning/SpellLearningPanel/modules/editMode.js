@@ -527,6 +527,8 @@ var EditMode = {
             }
         }
 
+        if (toNode && data.oldSoftNeeded !== undefined) toNode.softNeeded = data.oldSoftNeeded;
+
         // Add edge
         if (CanvasRenderer.edges) {
             CanvasRenderer.edges.push({ from: data.fromId, to: data.toId });
@@ -568,6 +570,7 @@ var EditMode = {
                 node.softPrereqs.push(data.prereqId);
             }
         }
+        if (data.oldSoftNeeded !== undefined) node.softNeeded = data.oldSoftNeeded;
 
         this.syncPrerequisitesToRawData();
         this.saveTree();
@@ -1037,7 +1040,8 @@ var EditMode = {
                 data: {
                     fromId: fromId,
                     toId: toId,
-                    wasHard: wasHard
+                    wasHard: wasHard,
+                    oldSoftNeeded: toNode ? (toNode.softNeeded || 0) : 0
                 }
             });
         }
@@ -1083,6 +1087,8 @@ var EditMode = {
                 }
             }
         }
+
+        if (toNode) this._keepSoftNeededInRange(toNode, false);
 
         console.log('[EditMode] Removed edge:', fromId, '->', toId);
 
@@ -1297,6 +1303,7 @@ var EditMode = {
 
         // Track original state for undo
         var wasHard = hardIdx !== -1;
+        var oldSoftNeeded = node.softNeeded || 0;
 
         var newType;
         if (hardIdx !== -1) {
@@ -1318,13 +1325,17 @@ var EditMode = {
             console.log('[EditMode] Added prereq', prereqId, 'as HARD');
         }
 
+        // An optional prerequisite counts only when softNeeded asks for one
+        this._keepSoftNeededInRange(node, newType === 'soft');
+
         // Push to undo stack
         this.pushUndo({
             type: 'togglePrereqType',
             data: {
                 nodeId: node.formId || node.id,
                 prereqId: prereqId,
-                wasHard: wasHard
+                wasHard: wasHard,
+                oldSoftNeeded: oldSoftNeeded
             }
         });
 
@@ -1340,6 +1351,18 @@ var EditMode = {
         }
 
         return newType;
+    },
+
+    /**
+     * softNeeded between 0 and the optional list's length; at least 1 when
+     * atLeastOne and the list has any, or a prerequisite just made optional
+     * would count for nothing
+     */
+    _keepSoftNeededInRange: function(node, atLeastOne) {
+        var count = (node.softPrereqs || []).length;
+        var needed = Math.min(node.softNeeded || 0, count);
+        if (atLeastOne && count > 0 && needed < 1) needed = 1;
+        node.softNeeded = needed;
     },
 
     /**
@@ -1398,7 +1421,8 @@ var EditMode = {
             data: {
                 fromId: prereqId,
                 toId: nodeId,
-                wasHard: wasHard
+                wasHard: wasHard,
+                oldSoftNeeded: node.softNeeded || 0
             }
         });
 
@@ -1432,6 +1456,8 @@ var EditMode = {
                 }
             }
         }
+
+        this._keepSoftNeededInRange(node, false);
 
         console.log('[EditMode] Deleted prereq', prereqId, 'from', node.name || nodeId);
 

@@ -181,8 +181,9 @@ var TreePreview = {
         var self = this;
         this.schoolData = {};
         if (spellData && spellData.spells) {
-            // Only the spells the tree will take (tome taught, not voice slot)
+            // Only the spells the tree will take (tome taught, not voice slot, copies merged)
             var treeSpells = (typeof filterTomeSpells === 'function') ? filterTomeSpells(spellData.spells) : spellData.spells;
+            if (typeof SpellCopies !== 'undefined') treeSpells = SpellCopies.forTree(treeSpells).spells;
             treeSpells.forEach(function(spell) {
                 var school = spell.school || 'Unknown';
                 self.schoolData[school] = (self.schoolData[school] || 0) + 1;

@@ -98,6 +98,30 @@ preview's school sizes. A scan from before the marks has no fields and keeps eve
 spell count still counts every scanned spell. Papyrus `RunScan`'s tome scan (`ScanSpellTomes`) is unchanged
 and has neither mark.
 
+After the tome, blacklist and whitelist filters, copies of one spell take one place in the tree
+(`SpellCopies`, spellCopies.js, 2026-10-04): records with the same name (case ignored), school, Magicka cost
+and effects (each effect's editor id, magnitude, duration and area; not the effect's form, since a
+duplicated plugin's effects are records of their own too). A mod installed twice or a spell copied by
+another mod showed two or three times in the tree, and each copy could be learned (Nexus report, three
+Conjure Hunger). The first copy in scan order stays - unless the player knows a later one (then the first known copy), or
+has XP in one (then the first with XP), so a save that started on a copy keeps it in the tree - and saves
+the others as `copies`.
+`PrereqLists.cppEntries` sends each copy to `SetTreePrerequisites` with `copyOf` (the tree spell) and that
+spell's prerequisites; C++ keeps the pairs (`ProgressionManager::SetTreeCopy`, cleared with the tree's
+prerequisites) and a copy's tome teaches the tree spell (`TreeSpellFor`): in `SpellTomeHook::OnSpellTomeReadImpl`
+(vanilla, progression and the ISL dispatch) and in `DESTIntegration::OnSpellTomeRead` (the Papyrus ISL
+entry). A copy the player already knows counts as the tree spell: `IsSpellMastered` is true when a copy is
+mastered or known (not weakened), so the tree spell's children open, and "already know" covers a known copy
+(`PlayerKnowsSpellOrCopy`), XP never grants it on top of a known copy (`CanUnlock`, the early grant:
+`PlayerKnowsCopyOf`), and the panel marks the tree spell known when a copy is (`onPlayerKnownSpells`), so
+the same spell is not learned twice. A copy's tome in the inventory gives the tree spell the tome boost
+(`PlayerHasSpellTome`). C++ takes a pair only when both spells exist with the same name and school
+(`SetTreeCopy`), so a saved copy id that a load order change moved to another spell is ignored. The code is
+in ProgressionManagerCopies.cpp. Without these a copy learned from its own tome was a spell
+the tree does not show, and mastering it never opened the tree spell's children. Spells that only share a name stay
+apart, and a scan without effects never merges. The same merge runs in the primed count and the preview's
+school sizes. The Classic setting "One Spell for Copies" (`mergeCopies`, on) turns it off.
+
 `LogSpellsOutOfTree` logs what that leaves out, by kind, naming the first five of each
 (`SpellScanner: N <kind> stay in the scan, out of the tree: ...`):
 
@@ -923,7 +947,7 @@ SpellLearning.SetSpellXP(spell, xp)                   ; Debug: set exact XP
 SpellLearning.GetSpellProgress(spell)                 ; 0.0-100.0%
 SpellLearning.GetSpellCurrentXP(spell)                ; Raw XP
 SpellLearning.GetSpellRequiredXP(spell)               ; Required XP
-SpellLearning.IsSpellMastered(spell)                  ; 100% + unlocked
+SpellLearning.IsSpellMastered(spell)                  ; 100% + unlocked, or a merged copy is
 SpellLearning.IsSpellUnlocked(spell)                  ; Granted to player
 SpellLearning.IsSpellAvailableToLearn(spell)           ; In tree, prereqs met
 SpellLearning.ArePrerequisitesMet(spell)               ; Tree prereqs check

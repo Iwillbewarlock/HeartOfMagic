@@ -290,8 +290,8 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 
         // Check if we just crossed the unlock threshold (first grant)
         if (oldProgress < unlockThreshold && newProgress >= unlockThreshold) {
-            // Grant the spell early (nerfed)
-            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
+            // Grant the spell early (nerfed) - not when the player knows a copy of it (CanUnlock)
+            auto* spell = PlayerKnowsCopyOf(targetSpellId) ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
             if (spell) {
                 SpellEffectivenessHook::GrantEarlySpell(spell);
                 logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",

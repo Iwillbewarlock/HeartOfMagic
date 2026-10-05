@@ -1,4 +1,5 @@
 #include "SpellTomeHook.h"
+#include "ProgressionManager.h"
 
 #include <mutex>
 
@@ -99,11 +100,15 @@ bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
     // Counting only the books that teach this spell skips copying every item
     // the player carries - the unfiltered GetInventory() duplicates each
     // entry's extra data just so it can be looked at and thrown away.
-    const auto counts = player->GetInventoryCounts([spellFormId](RE::TESBoundObject& a_object) {
+    // A copy's tome counts for the tree spell it was merged into (SpellCopies)
+    const auto* pm = ProgressionManager::GetSingleton();
+    const auto counts = player->GetInventoryCounts([spellFormId, pm](RE::TESBoundObject& a_object) {
         auto* book = a_object.As<RE::TESObjectBOOK>();
         if (!book || !book->TeachesSpell()) return false;
         auto* taughtSpell = book->GetSpell();
-        return taughtSpell && taughtSpell->GetFormID() == spellFormId;
+        if (!taughtSpell) return false;
+        const RE::FormID taughtId = pm ? pm->TreeSpellFor(taughtSpell->GetFormID()) : taughtSpell->GetFormID();
+        return taughtId == spellFormId;
     });
     for (const auto& [item, count] : counts) {
         if (count > 0) return true;

@@ -927,6 +927,16 @@ window.onPlayerKnownSpells = function(dataStr) {
         
         // Store in state for reference
         state.playerKnownSpells = new Set(knownSpells);
+        // A known copy merged into a tree spell (SpellCopies) is that spell, as C++ counts
+        // it (IsSpellMastered): known here too, so the panel and the tome agree
+        if (state.treeData && state.treeData.nodes) {
+            state.treeData.nodes.forEach(function(node) {
+                var copies = node.copies || [];
+                for (var ci = 0; ci < copies.length; ci++) {
+                    if (state.playerKnownSpells.has(copies[ci])) { state.playerKnownSpells.add(node.formId); break; }
+                }
+            });
+        }
         state.weakenedSpells = new Set(weakenedSpells);  // Track which are weakened
         
         // Update tree node states if tree is loaded

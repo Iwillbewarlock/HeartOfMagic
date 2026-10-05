@@ -70,6 +70,18 @@ var ClassicLayout = {
         // Dynamic grid expansion: expand grid when a school runs out of placement space
         this._dynamicGridExpansion = ls.dynamicGridExpansion !== false;
 
+        // Group by kind: scales the pull toward a theme's sector as the build scaled the
+        // links (C++ echoes group_strength in the tree's config: 1 = as measured, 0 = none,
+        // 2 = twice). A tree from before it has none: 1. Like orderBy, the setting applies
+        // at the next build, not at a re-layout
+        var builtStrength = treeData.config ? treeData.config.group_strength : undefined;
+        this._groupScale = typeof builtStrength === 'number' ? builtStrength : 1;
+
+        // Outward by Magicka cost: a tree C++ built by cost carries each spell's build
+        // tier (orderTier, the cost rank in its school), and its zones go by it. Keyed
+        // on the tree, not the setting: the setting applies at the next build
+        this._orderTier = this._orderTiers(treeData);
+
         var mode = baseData.mode || 'sun';
         var grid = baseData.grid;
         var baseSchools = baseData.schools || [];
@@ -341,7 +353,7 @@ var ClassicLayout = {
         var spellMap = {};
         if (spells) {
             for (var smi = 0; smi < spells.length; smi++) {
-                if (spells[smi].formId) spellMap[spells[smi].formId] = spells[smi];
+                if (spells[smi].formId) spellMap[spells[smi].formId] = this._withOrderTier(spells[smi]);
             }
         }
         this._spellMap = spellMap;
@@ -1196,7 +1208,7 @@ var ClassicLayout = {
                         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
                         var absDiff = Math.abs(angleDiff);
                         // +2.5 at sector center, 0 at ~65°, -1.0 at opposite side
-                        finalScore += 2.5 - absDiff * (3.5 / Math.PI);
+                        finalScore += (2.5 - absDiff * (3.5 / Math.PI)) * this._groupScale;
                     }
                 }
 
@@ -1334,6 +1346,34 @@ var ClassicLayout = {
             return state.lastSpellData.spells;
         }
         return null;
+    },
+
+    /** formId -> the build tier C++ gave it (orderTier), from a cost-ordered build. @private */
+    _orderTiers: function (treeData) {
+        var map = {};
+        var count = 0;
+        for (var sName in treeData.schools) {
+            if (!treeData.schools.hasOwnProperty(sName)) continue;
+            var sNodes = treeData.schools[sName].nodes || [];
+            for (var i = 0; i < sNodes.length; i++) {
+                if (sNodes[i].orderTier) { map[sNodes[i].formId] = sNodes[i].orderTier; count++; }
+            }
+        }
+        // A tree built by tier has none: zones stay by skill level
+        return count > 0 ? map : null;
+    },
+
+    /**
+     * The spell the layout reads: in a cost-ordered build a view of it whose
+     * skillLevel is its build tier, so zones, sorts and ClassicRadialOrder go by
+     * cost; the scan's spell itself is never changed. @private
+     */
+    _withOrderTier: function (spell) {
+        var tier = this._orderTier ? this._orderTier[spell.formId] : null;
+        if (!tier || tier === spell.skillLevel) return spell;
+        var view = Object.create(spell);
+        view.skillLevel = tier;
+        return view;
     },
 
     _findSpell: function (formId, spells) {

@@ -317,7 +317,7 @@ Function SetSpellXP(Spell akSpell, float xp) global native
 float Function GetSpellProgress(Spell akSpell) global native        ; 0.0-100.0%
 float Function GetSpellCurrentXP(Spell akSpell) global native       ; Raw XP number
 float Function GetSpellRequiredXP(Spell akSpell) global native      ; XP needed to master
-bool Function IsSpellMastered(Spell akSpell) global native           ; 100% + unlocked
+bool Function IsSpellMastered(Spell akSpell) global native           ; 100% + unlocked, or a copy merged into it is
 bool Function IsSpellUnlocked(Spell akSpell) global native           ; Granted to player
 bool Function IsSpellAvailableToLearn(Spell akSpell) global native   ; In tree, prereqs met
 bool Function ArePrerequisitesMet(Spell akSpell) global native       ; Tree prereqs check
@@ -606,7 +606,8 @@ Modded source **settings** (multiplier, cap, enabled) persist in unified config 
 - [ ] `AddSourcedXP` with custom source -- auto-registers, respects modded cap
 - [ ] `AddRawXP` -- bypasses all caps and multipliers
 - [ ] `GetSpellProgress` / `GetSpellCurrentXP` / `GetSpellRequiredXP` -- return correct values
-- [ ] `IsSpellMastered` -- true after 100% XP + unlocked
+- [ ] `IsSpellMastered` -- true after 100% XP + unlocked, or when a copy merged into the tree spell (the panel's
+  SpellCopies) is mastered or known
 - [ ] `SetLearningTarget` / `ClearLearningTarget` -- target changes reflected in UI + tree
 - [ ] `GetLearningTarget` / `GetAllLearningTargets` -- return correct forms
 

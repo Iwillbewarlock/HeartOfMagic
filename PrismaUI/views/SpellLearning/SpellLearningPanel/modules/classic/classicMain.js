@@ -33,6 +33,11 @@ var TreeGrowthClassic = {
         centerMask: 3,
         spellMatching: 'layered',
         dynamicGridExpansion: true,  // Expand grid when schools run out of space
+        // Same kind together (0 off, 50 as measured, 100 twice: C++ group_strength), outward by
+        // 'tier' or 'cost', one tree spell for copies (SpellCopies): see BUILD_DEFAULTS
+        groupStrength: 50,
+        orderBy: 'tier',
+        mergeCopies: true,
         tierZones: {
             Novice:     { min: 0,  max: 40 },
             Apprentice: { min: 10, max: 55 },
@@ -40,6 +45,13 @@ var TreeGrowthClassic = {
             Expert:     { min: 50, max: 90 },
             Master:     { min: 65, max: 100 }
         }
+    },
+
+    /** The build settings a preset from before them lacks (scannerPresets.js fills them in) */
+    BUILD_DEFAULTS: {
+        groupStrength: 50,
+        orderBy: 'tier',
+        mergeCopies: true
     },
 
     _treeData: null,

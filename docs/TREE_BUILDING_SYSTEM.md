@@ -124,7 +124,7 @@ numbers still hold (Classic's output did not change with the removal).
 2. **Discover themes** via `DiscoverThemesPerSchool()` (TF-IDF)
 3. **Build NLP data** — extract text per spell for similarity scoring
 4. **Per-school tree building:**
-   - Group spells by tier (unknown → Novice)
+   - Group spells by tier (unknown → Novice); with `order_by: "cost"` by build tier (below)
    - Pick root: prefer vanilla Novice spell (`formId >> 24 < 0x05`)
    - Assign themes to nodes via keyword frequency in spell text
    - **Tier-by-tier connection:** For each tier in order (Novice→Master):
@@ -151,6 +151,26 @@ numbers still hold (Classic's output did not change with the removal).
 | Random jitter | ±2 | Variety |
 
 Orphans reattached at the end use +15 for a shared theme, the same +30 for a shared element and +20 for the same mod.
+
+**Group by kind (`group_strength`, 2026-10-04).** The theme bonus, the theme mismatch penalty and the
+element bonus (for orphans too) are multiplied by the request's `group_strength`, 0 to
+`BuildConfig::kMaxGroupStrength` (2), default 1 (the weights above). The panel sends the Classic setting
+"Group by Kind" (`groupStrength`, 0-100, 50 = 1) divided by 50. C++ echoes it in the tree's `config`
+(`group_strength`) and the layout scales its theme sector pull (`_findSlots`, +2.5 at a sector's centre) by
+that, so links and positions follow the same build; a tree from before it lays out at 1. On the 3,155-spell dump (seed 7) links whose
+ends carry an element share one in 76.2% at 0, 95.3% at 1 and 95.6% at 2 - the element bonus is near its
+ceiling at 1, so most of what 2 adds is in the layout.
+
+**Order outward by Magicka cost (`order_by: "cost"`, 2026-10-04).** A spell's build tier is then its cost
+rank in its school (`CostOrderTiers`): the school's spells, sorted by Magicka cost, take the tiers the
+school's spells hold, in order, so each tier keeps its size and the cheapest spells make Novice (equal costs
+keep skill level order; a scan without costs keeps every tier). Tier grouping, parent selection and the
+orphan pass use it; each node carries it as `orderTier`, and `ClassicLayout` reads the spells' `skillLevel`
+through a view with `orderTier` (`_withOrderTier`), so zones, sorts and `ClassicRadialOrder` go by cost.
+The saved `skillLevel` (XP, the spell card) stays the spell's own. On the same dump links whose parent costs
+more than the child go from 882 to 554 of 3,150. The panel's setting is "Order Outward By" (`orderBy`,
+`tier` / `cost`) and applies at the next build: the layout goes by `orderTier` whenever the tree carries it,
+whatever the setting says now, and a tree built by tier has none.
 The element bonus was measured on the 1,428-spell test load order (seeds 1-3): separate same-element
 clusters 333 -> 247 at 30 and barely fewer above it (241 at 60); edges whose ends share a theme and
 the tier gaps stayed the same.
@@ -1213,6 +1233,11 @@ The Classic builder outputs this JSON schema, which the downstream JS systems (l
   }
 }
 ```
+
+A cost-ordered build (`order_by: "cost"`) adds `orderTier` to each node, the tier it was built in. The tree
+the panel saves (`ClassicTreeOutput`) adds `copies` to a spell that copies were merged into (`SpellCopies`),
+and keeps `prerequisites` (every link), `hardPrereqs` and `softPrereqs` as three separate arrays
+(`PrereqLists`).
 
 ---
 

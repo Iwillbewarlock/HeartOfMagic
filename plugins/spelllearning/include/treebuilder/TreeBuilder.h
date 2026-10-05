@@ -193,6 +193,16 @@ namespace TreeBuilder
         // 41%), so SharesTheme ignores it there. 0 = off, the behaviour before
         // 2026-09-23. Request config key "common_theme_share".
         float commonThemeShare = 0.4f;
+        // How strongly spells of one kind (same element, same theme) are linked
+        // to each other: scales the Classic builder's element and theme bonuses.
+        // 1 = the weights as measured (kSharedElementBonus), 0 = kind ignored,
+        // kMaxGroupStrength = twice as strong. Request config key "group_strength".
+        float groupStrength = 1.0f;
+        static constexpr float kMaxGroupStrength = 2.0f;
+        // What a spell's tier is for building: "tier" (its skill level) or "cost"
+        // (its Magicka cost rank in the school, CostOrderTiers). Request config
+        // key "order_by"; a cost build writes each node's build tier as "orderTier".
+        bool orderByCost = false;
 
         // Per-school root overrides: school → formId
         std::unordered_map<std::string, std::string> selectedRoots;

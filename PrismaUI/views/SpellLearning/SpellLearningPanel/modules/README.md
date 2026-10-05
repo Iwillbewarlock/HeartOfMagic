@@ -19,15 +19,17 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 506 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist) |
+| `uiHelpers.js` | 511 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist) |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
-| `treeParser.js` | 547 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId`; `updateNodeFromCache` fills a node from the spell info and drops the level filter's counts when its level changes |
+| `prereqLists.js` | 79 | `PrereqLists`: `normalize` (fresh required and optional lists, no repeats, an id in both stays required: repairs trees saved by the 1.2.0 editor bug) and `cppEntries` (what `SetTreePrerequisites` takes, merged copies with their spell's lists) |
+| `spellCopies.js` | 136 | `SpellCopies`: copies of one spell (same name, school, Magicka cost and effects) take one tree place; `merge` (a later copy the player knows stays instead of the first), `forTree` (the Classic setting `mergeCopies`); used by the Classic build request, the primed count and the preview's school sizes |
+| `treeParser.js` | 550 | Tree JSON parsing, validation, cycle detection; required and optional lists through `PrereqLists.normalize`, a node's `copies` kept; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, `clampSoftNeeded`, also used by `treeViewerUI.js`), keeps `persistentId`; `updateNodeFromCache` fills a node from the spell info and drops the level filter's counts when its level changes |
 | `orphanRepair.js` | 456 | `analyzeOrphans` / `repairOrphans` / `updateOrphanRepairButton`: spells the loaded tree cannot reach and prerequisite links to spells it does not have, and the orphan repair button (split from treeParser.js, 2026-09-30) |
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 2973 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
-| `treeLoad.js` | 537 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData` |
+| `treeLoad.js` | 526 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; both send the prerequisites to C++ through `PrereqLists.cppEntries` |
 | `spellCardView.js` | 535 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
 | `spellProgressView.js` | 218 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
 | `findSpell.js` | 318 | Find Spell (F): search window, list, keyboard navigation, pan to the spell |
@@ -78,7 +80,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `progressionUI.js` | 918 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
-| `cppCallbacks.js` | 1244 | C++ SKSE plugin callback handlers |
+| `cppCallbacks.js` | 1229 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 227 | The tome filter (`isTaughtByTome`, `filterTomeSpells`: the tree takes only spells a tome teaches, whose tome something hands out, that are not in the voice slot), spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~25,830 | the 59 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~45,500 lines in 107 files) |
@@ -111,6 +113,8 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/uiHelpers.js"></script>
 
 <!-- 3. Parsers -->
+<script src="modules/prereqLists.js"></script>
+<script src="modules/spellCopies.js"></script>
 <script src="modules/treeParser.js"></script>
 <script src="modules/orphanRepair.js"></script>
 <script src="modules/spellNames.js"></script>

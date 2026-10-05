@@ -21,6 +21,48 @@ namespace
     // read best side by side, so they are drawn together on a branch. Below
     // the element bonus, so a mod's fire spell still goes to fire first.
     constexpr float kSameModBonus = 20.0f;
+
+    // Theme bonus and mismatch penalty for a parent (FindBestClassicParent)
+    constexpr float kThemeBonusClose = 25.0f;   // same theme, effects alike (above kCloseEffectSim)
+    constexpr float kCloseEffectSim = 0.5f;
+    constexpr float kThemeBonus = 15.0f;
+    constexpr float kThemeMismatch = 10.0f;
+
+    // The tier each spell is built in when the tree goes outward by Magicka cost:
+    // the school's spells, sorted by cost, take the tiers the school's spells hold,
+    // in order. Each tier keeps its size and the cheapest spells make Novice; equal
+    // costs keep their skill level order. A scan without costs keeps every tier.
+    std::unordered_map<std::string, std::string> CostOrderTiers(const std::vector<json>& spells)
+    {
+        struct Entry
+        {
+            double cost;
+            int tier;
+            std::string formId;
+        };
+        std::vector<Entry> entries;
+        std::vector<int> tiers;
+        entries.reserve(spells.size());
+        for (const auto& spell : spells) {
+            const auto it = spell.find("magickaCost");
+            const double cost = (it != spell.end() && it->is_number()) ? it->get<double>() : 0.0;
+            const int tier = std::max(0, TreeBuilder::TierIndex(spell.value("skillLevel", std::string(""))));
+            entries.push_back({ cost, tier, spell.value("formId", std::string("")) });
+            tiers.push_back(tier);
+        }
+        std::sort(tiers.begin(), tiers.end());
+        std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+            if (a.cost != b.cost) return a.cost < b.cost;
+            if (a.tier != b.tier) return a.tier < b.tier;
+            return a.formId < b.formId;
+        });
+
+        std::unordered_map<std::string, std::string> orderTier;
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            orderTier[entries[i].formId] = TreeBuilder::TIER_NAMES[tiers[i]];
+        }
+        return orderTier;
+    }
 }
 
 // =============================================================================
@@ -34,6 +76,7 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
     int tierIdx,
     int maxChildren,
     const TreeBuilder::SimilarityMatrix& sims,
+    float groupStrength,
     std::mt19937& rng)
 {
     // Collect candidates from lower tiers
@@ -100,14 +143,14 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
         // Theme match
         if (!node.theme.empty() && !candidate->theme.empty()) {
             if (SharesTheme(node, *candidate)) {
-                float themeBonus = (effectSim > 0.5f) ? 25.0f : 15.0f;
-                score += themeBonus;
+                float themeBonus = (effectSim > kCloseEffectSim) ? kThemeBonusClose : kThemeBonus;
+                score += themeBonus * groupStrength;
             } else {
-                score -= 10.0f;
+                score -= kThemeMismatch * groupStrength;
             }
         }
 
-        if (SharesElement(node, *candidate)) score += kSharedElementBonus;
+        if (SharesElement(node, *candidate)) score += kSharedElementBonus * groupStrength;
         if (SharesModPlugin(node, *candidate)) score += kSameModBonus;
 
         // Combined NLP similarity
@@ -192,12 +235,20 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
 
         auto schoolThemes = themes.contains(schoolName) ? themes[schoolName] : std::vector<std::string>{};
 
-        // Group by tier
+        // Group by tier: the skill level, or the cost rank (CostOrderTiers)
+        const auto orderTier = config.orderByCost ? CostOrderTiers(schoolSpellList)
+                                                  : std::unordered_map<std::string, std::string>{};
+        auto buildTierOf = [&](const json& spell) {
+            auto tier = spell.value("skillLevel", std::string(""));
+            if (config.orderByCost) {
+                const auto it = orderTier.find(spell.value("formId", std::string("")));
+                if (it != orderTier.end()) tier = it->second;
+            }
+            return TierIndex(tier) < 0 ? std::string("Novice") : tier;
+        };
         std::unordered_map<std::string, std::vector<json>> byTier;
         for (const auto& spell : schoolSpellList) {
-            auto tier = spell.value("skillLevel", std::string(""));
-            if (TierIndex(tier) < 0) tier = "Novice";
-            byTier[tier].push_back(spell);
+            byTier[buildTierOf(spell)].push_back(spell);
         }
 
         // Pick root
@@ -254,7 +305,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 if (nodeIt == nodes.end()) continue;
 
                 auto* parent = FindBestClassicParent(
-                    nodeIt->second, available, tierIdx, maxChildren, sims, rng);
+                    nodeIt->second, available, tierIdx, maxChildren, sims, config.groupStrength, rng);
 
                 if (parent) {
                     LinkNodes(*parent, nodeIt->second);
@@ -292,13 +343,13 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
 
         for (const auto& orphanId : unconnectedIds) {
             auto& orphanNode = nodes[orphanId];
-            int nodeTierIdx = std::max(0, TierIndex(orphanNode.tier));
+            int nodeTierIdx = std::max(0, TierIndex(buildTierOf(orphanNode.spellData)));
             TreeNode* bestParent = nullptr;
             float bestScore = -std::numeric_limits<float>::max();
 
             for (const auto& cid : connected) {
                 auto& cnode = nodes[cid];
-                int cnodeTierIdx = std::max(0, TierIndex(cnode.tier));
+                int cnodeTierIdx = std::max(0, TierIndex(buildTierOf(cnode.spellData)));
                 float score = 0.0f;
 
                 if (cnodeTierIdx <= nodeTierIdx) {
@@ -312,9 +363,9 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 score += effectSim * 30.0f;
 
                 if (SharesTheme(orphanNode, cnode)) {
-                    score += 15.0f;
+                    score += kThemeBonus * config.groupStrength;
                 }
-                if (SharesElement(orphanNode, cnode)) score += kSharedElementBonus;
+                if (SharesElement(orphanNode, cnode)) score += kSharedElementBonus * config.groupStrength;
                 if (SharesModPlugin(orphanNode, cnode)) score += kSameModBonus;
 
                 score -= static_cast<float>(cnode.children.size()) * 8.0f;
@@ -339,7 +390,9 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
 
         json nodesList = json::array();
         for (const auto& [nid, nd] : nodes) {
-            nodesList.push_back(nd.ToDict());
+            auto dict = nd.ToDict();
+            if (config.orderByCost) dict["orderTier"] = buildTierOf(nd.spellData);
+            nodesList.push_back(std::move(dict));
         }
         schoolResult["nodes"] = nodesList;
         schoolResult["config_used"] = {
@@ -360,7 +413,9 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
     treeData["config"] = {
         {"shape", "tier_first"},
         {"density", config.density},
-        {"symmetry", config.symmetry}
+        {"symmetry", config.symmetry},
+        // The layout pulls kinds together as strongly as the links did (ClassicLayout)
+        {"group_strength", config.groupStrength}
     };
 
     // Validate and auto-fix

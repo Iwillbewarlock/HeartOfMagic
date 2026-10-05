@@ -73,7 +73,14 @@ public:
     };
     
     void SetPrereqRequirements(RE::FormID spellId, const PrereqRequirements& reqs);
-    void ClearAllTreePrerequisites();  // Called when tree reloads
+    void ClearAllTreePrerequisites();  // Called when tree reloads (also drops the tree copies)
+    // A copy of a tree spell that the panel merged into it (SpellCopies): its tome
+    // teaches the tree spell, so mastering it opens the tree spell's children
+    void SetTreeCopy(RE::FormID copyId, RE::FormID treeSpellId);
+    RE::FormID TreeSpellFor(RE::FormID spellId) const;  // the tree spell, or spellId itself
+    // The player knows the spell or a copy merged into it (a save that learned the copy first)
+    bool PlayerKnowsSpellOrCopy(RE::FormID spellId) const;
+    bool PlayerKnowsCopyOf(RE::FormID spellId) const;   // a copy only, not the spell itself
     PrereqRequirements GetPrereqRequirements(RE::FormID spellId) const;
     bool AreTreePrerequisitesMet(RE::FormID spellId) const;
     // True when XPSettings::reverseUnlock is on and a spell that lists this one as
@@ -82,7 +89,7 @@ public:
     bool IsUnlockedByKnownChild(RE::FormID spellId) const;
     std::vector<RE::FormID> GetUnmetHardPrerequisites(RE::FormID spellId) const;
     std::pair<int, int> GetSoftPrerequisiteStatus(RE::FormID spellId) const;  // (mastered, needed)
-    bool IsSpellMastered(RE::FormID spellId) const;  // 100% progress or explicitly unlocked
+    bool IsSpellMastered(RE::FormID spellId) const;  // 100% progress or explicitly unlocked, or a copy of it is
     
     // Legacy compatibility
     void SetTreePrerequisites(RE::FormID spellId, const std::vector<RE::FormID>& prereqs);
@@ -275,6 +282,11 @@ private:
     const std::vector<RE::FormID>& GetRequiredBy(RE::FormID spellId) const;
     void LinkRequiredBy(RE::FormID spellId, const PrereqRequirements& reqs, bool link);
     std::unordered_map<RE::FormID, std::vector<RE::FormID>> m_requiredBy;
+
+    // Copy formId -> the tree spell it was merged into, and the other way (SetTreeCopy)
+    std::unordered_map<RE::FormID, RE::FormID> m_treeCopyOf;
+    std::unordered_map<RE::FormID, std::vector<RE::FormID>> m_treeCopies;
+    bool IsOwnSpellMastered(RE::FormID spellId) const;  // IsSpellMastered without the copies
 
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;

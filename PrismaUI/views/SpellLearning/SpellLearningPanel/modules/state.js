@@ -240,6 +240,8 @@ var state = {
     isResizing: false,
     currentTab: 'spellTree',
     lastSpellData: null,
+    // The last Classic build's merged copies, kept spell formId -> copy formIds (SpellCopies)
+    treeSpellCopies: {},
     originalPrompt: DEFAULT_TREE_RULES,
     // Field output settings
     fields: {

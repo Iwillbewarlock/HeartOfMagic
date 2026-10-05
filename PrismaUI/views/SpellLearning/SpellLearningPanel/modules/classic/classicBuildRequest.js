@@ -14,6 +14,7 @@
  * Depends on:
  *   classicSettings.js       (ClassicSettings.setStatusText)
  *   proceduralTreeBuilder.js (filterBlacklistedSpells, filterWhitelistedSpells)
+ *   spellCopies.js           (SpellCopies.forTree - copies of one spell merged)
  *   treePreview.js           (TreePreview.getOutput, _flattenSelectedRoots)
  *   cppCallbacks.js          (ScanRef.compact)
  *   buildProgress.js (BuildProgress), treeGrowth.js (TreeGrowth.setBuilding), i18n.js (t)
@@ -32,6 +33,31 @@ var ClassicBuildRequest = {
         max_children_per_node: 3,
         top_themes_per_school: 8,
         prefer_vanilla_roots: true
+    },
+
+    /**
+     * A chosen root that was merged into another copy (SpellCopies) becomes that
+     * copy, or C++ would not find it and pick a root of its own.
+     * @param {Object} roots - school -> {formId, ...} (TreePreview._flattenSelectedRoots)
+     * @param {Object} copies - kept formId -> copy formIds
+     */
+    _rootsOffCopies: function (roots, copies) {
+        var keptOf = {};
+        for (var kept in copies) {
+            if (!copies.hasOwnProperty(kept)) continue;
+            for (var c = 0; c < copies[kept].length; c++) keptOf[copies[kept][c]] = kept;
+        }
+        for (var school in roots) {
+            if (!roots.hasOwnProperty(school) || school === '_allRoots') continue;
+            var root = roots[school];
+            if (!root || !keptOf[root.formId]) continue;
+            var moved = {};
+            for (var key in root) {
+                if (root.hasOwnProperty(key)) moved[key] = root[key];
+            }
+            moved.formId = keptOf[root.formId];
+            roots[school] = moved;
+        }
     },
 
     /**
@@ -54,7 +80,7 @@ var ClassicBuildRequest = {
 
         var spellsToProcess, config;
         try {
-            // Apply the scan filters: tome, blacklist, whitelist
+            // Apply the scan filters: tome, blacklist, whitelist, then merge copies
             spellsToProcess = spellData.spells;
             if (typeof filterTomeSpells === 'function') {
                 spellsToProcess = filterTomeSpells(spellsToProcess);
@@ -65,6 +91,10 @@ var ClassicBuildRequest = {
             if (typeof filterWhitelistedSpells === 'function') {
                 spellsToProcess = filterWhitelistedSpells(spellsToProcess);
             }
+            // One tree spell for copies of the same spell; ClassicTreeOutput saves the copies on it
+            var merged = SpellCopies.forTree(spellsToProcess);
+            spellsToProcess = merged.spells;
+            state.treeSpellCopies = merged.copies;
             console.log('[ClassicGrowth] Filtered spells: ' + spellsToProcess.length + '/' + spellData.spells.length);
 
             // Gather grid layout info so C++ can adapt branching
@@ -92,7 +122,14 @@ var ClassicBuildRequest = {
                 if (this.BUILDER_CONFIG.hasOwnProperty(ck)) config[ck] = this.BUILDER_CONFIG[ck];
             }
             config.grid_hint = gridHint;
+            // Same kind together (0-100, 50 = the builder's own weights) and what tier means
+            var cs = (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic.settings) || {};
+            var defaults = (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic.BUILD_DEFAULTS) || { groupStrength: 50 };
+            // groupStrength 0-100 maps to C++ group_strength 0-2: the default is 1, the weights as measured
+            config.group_strength = (cs.groupStrength !== undefined ? cs.groupStrength : defaults.groupStrength) / defaults.groupStrength;
+            config.order_by = cs.orderBy === 'cost' ? 'cost' : 'tier';
             config.selected_roots = typeof TreePreview !== 'undefined' ? TreePreview._flattenSelectedRoots() : {};
+            this._rootsOffCopies(config.selected_roots, merged.copies);
         } catch (e) {
             failRequest(e);
             return;

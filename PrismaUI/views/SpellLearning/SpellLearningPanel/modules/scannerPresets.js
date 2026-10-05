@@ -199,15 +199,26 @@ function applyScannerPreset(name) {
     // --- Classic Growth ---
     if (s.classicSettings && typeof TreeGrowthClassic !== 'undefined') {
         _deepCopy(s.classicSettings, TreeGrowthClassic.settings);
+        // A preset from before the build settings has none of them: their defaults, not what was set before
+        var buildDefaults = TreeGrowthClassic.BUILD_DEFAULTS || {};
+        for (var bdKey in buildDefaults) {
+            if (buildDefaults.hasOwnProperty(bdKey) && !s.classicSettings.hasOwnProperty(bdKey)) {
+                TreeGrowthClassic.settings[bdKey] = buildDefaults[bdKey];
+            }
+        }
         _updateDragInputs({
             'tgClassicOpacity': TreeGrowthClassic.settings.ghostOpacity,
             'tgClassicNodeSize': TreeGrowthClassic.settings.nodeRadius,
             'tgClassicSpread': TreeGrowthClassic.settings.spread,
             'tgClassicRadialBias': TreeGrowthClassic.settings.radialBias,
-            'tgClassicCenterMask': TreeGrowthClassic.settings.centerMask
+            'tgClassicCenterMask': TreeGrowthClassic.settings.centerMask,
+            'tgClassicGroupStrength': TreeGrowthClassic.settings.groupStrength
         });
         // Spell matching toggle needs special handling
         _updateClassicMatchButtons(TreeGrowthClassic.settings.spellMatching);
+        if (typeof ClassicSettings !== 'undefined') ClassicSettings.setOrderButtons(TreeGrowthClassic.settings.orderBy);
+        var mergeBox = document.getElementById('tgClassicMergeCopies');
+        if (mergeBox) mergeBox.checked = TreeGrowthClassic.settings.mergeCopies !== false;
         // Tier zones chart is visual-only; redrawn on next render
     }
 

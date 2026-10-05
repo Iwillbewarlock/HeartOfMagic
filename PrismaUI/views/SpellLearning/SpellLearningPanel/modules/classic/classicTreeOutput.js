@@ -109,6 +109,7 @@ var ClassicTreeOutput = {
         var sliceAngle = numSchools > 0 ? 360 / numSchools : this.DEFAULT_SLICE_DEG;
 
         var srcSchools = treeData.schools || {};
+        var copiesOf = (typeof state !== 'undefined' && state.treeSpellCopies) || {};
         for (var schoolName in srcSchools) {
             if (!srcSchools.hasOwnProperty(schoolName)) continue;
             var src = srcSchools[schoolName];
@@ -143,11 +144,14 @@ var ClassicTreeOutput = {
                     children: layoutChildren,
                     prerequisites: layoutPrereqs,
                     hardPrereqs: lockHardPrereqs,
-                    softPrereqs: layoutPrereqs,
+                    // A copy: the editor changes the two lists apart (PrereqLists)
+                    softPrereqs: layoutPrereqs.slice(),
                     softNeeded: layoutPrereqs.length > 0 ? 1 : 0,
                     tier: sn.tier || 1
                 };
                 if (lockData.length > 0) outNode.locks = lockData;
+                // Copies merged into this spell before the build (SpellCopies)
+                if (copiesOf[sn.formId]) outNode.copies = copiesOf[sn.formId].slice();
                 if (sn.skillLevel) outNode.skillLevel = sn.skillLevel;
                 if (sn.theme) outNode.theme = sn.theme;
                 if (sn.name) outNode.name = sn.name;
