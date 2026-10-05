@@ -14,15 +14,25 @@ Plain Python, no packages. Not shipped (lab/).
 """
 import json, sys, os, urllib.request
 
-PROMPT = """You sort Skyrim spells. For each card answer: is this a spell a player learns from a spell tome and casts during play?
+PROMPT_VERSION = 2
+PROMPT = """You sort Skyrim spells from spell tomes. Question for each card: would a player who reads this tome get an ordinary
+magic spell for their spell list - or something that is not really a spell?
 
-"in": a real castable spell - attacks, wards, heals, buffs, illusions, teleports the player uses, and summons of creatures,
-daedra, undead, spirits or named boss spirits for a fight (about 60 seconds), even from mods.
-"out": not a player spell - calling a follower, companion, pet or mount to you (or dismissing it), a mod's utility or
-settings toggle (fix heels, open a menu, spawn food or a chest for convenience), a quest helper, a debug or test spell.
+"in" (an ordinary spell; most cards are this):
+- any attack, ward, heal, cure, buff, debuff, illusion, detect, light, night eye, invisibility, waterwalking, lockpicking,
+  telekinesis, rune, Mark/Recall style teleport, soul trap - combat or not, vanilla or mod;
+- summoning creatures, atronachs, daedra, undead, golems, beasts, spirits or named heroes/bosses for a while (seconds or
+  minutes) to fight, even when they have a proper name.
+"out" (not an ordinary spell):
+- calling one specific companion, follower, pet or mount (a horse, unicorn, indrik "mount", a named follower) to you, or
+  dismissing it;
+- a mod's convenience or settings tool: spawn food or a chest, change the weather or the sky, fix an animation, open a menu,
+  convert items, show debug info;
+- a quest-only helper tied to one place or quest.
 "unsure": the card does not say enough.
 
-Answer only JSON: {"verdicts": [{"id": "<id>", "label": "in"|"out"|"unsure", "why": "<at most 12 words>"}, ...]} with one entry for EVERY card, same order.
+Answer only JSON: {"verdicts": [{"id": "<id>", "label": "in"|"out"|"unsure", "why": "<at most 12 words>"}, ...]} with one
+entry for EVERY card, same order.
 
 Cards:
 """
@@ -92,7 +102,7 @@ def run(cards_path, out_path, model='qwen3.5:9b', batch=12):
             a = by_id.get(c['id'])
             if a and a.get('label') in ('in', 'out', 'unsure'):
                 verdicts.append({'id': c['id'], 'name': c['name'], 'plugin': c['plugin'], 'label': a['label'],
-                                 'why': a.get('why', ''), 'known': c['known'], 'model': model})
+                                 'why': a.get('why', ''), 'known': c['known'], 'model': model, 'prompt': PROMPT_VERSION})
         json.dump(verdicts, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print(f'{len(verdicts)}/{len(all_cards)}', flush=True)
 

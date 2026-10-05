@@ -1,0 +1,1792 @@
+{
+"Skyrim.esm|0x10FC16": {
+"id": "Skyrim.esm|0x10FC16",
+"label": "in",
+"why": "vanilla summoning spell"
+},
+"Skyrim.esm|0x109111": {
+"id": "Skyrim.esm|0x109111",
+"label": "in",
+"why": "vanilla transmutation spell"
+},
+"Skyrim.esm|0x0DA746": {
+"id": "Skyrim.esm|0x0DA746",
+"label": "in",
+"why": "vanilla equilibrium spell"
+},
+"Dragonborn.esm|0x01CDF6": {
+"id": "Dragonborn.esm|0x01CDF6",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse003-zombies.esl|0x000805": {
+"id": "ccbgssse003-zombies.esl|0x000805",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse003-zombies.esl|0x000806": {
+"id": "ccbgssse003-zombies.esl|0x000806",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse003-zombies.esl|0x000807": {
+"id": "ccbgssse003-zombies.esl|0x000807",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse010-petdwarvenarmoredmudcrab.esl|0x000810": {
+"id": "ccbgssse010-petdwarvenarmoredmudcrab.esl|0x000810",
+"label": "out",
+"why": "calling a specific pet to you"
+},
+"ccbgssse035-petnhound.esl|0x000811": {
+"id": "ccbgssse035-petnhound.esl|0x000811",
+"label": "out",
+"why": "calling a specific pet to you"
+},
+"ccbgssse025-advdsgs.esm|0x0008CB": {
+"id": "ccbgssse025-advdsgs.esm|0x0008CB",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse025-advdsgs.esm|0x08BC17": {
+"id": "ccbgssse025-advdsgs.esm|0x08BC17",
+"label": "out",
+"why": "calling a specific pet to you"
+},
+"ccbgssse025-advdsgs.esm|0x00086F": {
+"id": "ccbgssse025-advdsgs.esm|0x00086F",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"ccbgssse025-advdsgs.esm|0x19D3FA": {
+"id": "ccbgssse025-advdsgs.esm|0x19D3FA",
+"label": "in",
+"why": "summoning named daedra to fight"
+},
+"ccbgssse025-advdsgs.esm|0x08BC16": {
+"id": "ccbgssse025-advdsgs.esm|0x08BC16",
+"label": "out",
+"why": "calling a specific pet to you"
+},
+"ccrmssse001-necrohouse.esl|0x000CEC": {
+"id": "ccrmssse001-necrohouse.esl|0x000CEC",
+"label": "unsure",
+"why": "no effects or description provided"
+},
+"cckrtsse001_altar.esl|0x000CDF": {
+"id": "cckrtsse001_altar.esl|0x000CDF",
+"label": "in",
+"why": "transmutation spell for ores"
+},
+"AncientBloodII.esl|0x000816": {
+"id": "AncientBloodII.esl|0x000816",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"AncientBloodII.esl|0x000888": {
+"id": "AncientBloodII.esl|0x000888",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"WishMagic.esl|0x00081B": {
+"id": "WishMagic.esl|0x00081B",
+"label": "out",
+"why": "mod tool changing weather"
+},
+"WishMagic.esl|0x000820": {
+"id": "WishMagic.esl|0x000820",
+"label": "out",
+"why": "mod tool spawning food"
+},
+"WishMagic.esl|0x000821": {
+"id": "WishMagic.esl|0x000821",
+"label": "out",
+"why": "mod tool spawning crafting table"
+},
+"WishMagic.esl|0x000822": {
+"id": "WishMagic.esl|0x000822",
+"label": "out",
+"why": "mod tool spawning magic mirror"
+},
+"WishMagic.esl|0x000823": {
+"id": "WishMagic.esl|0x000823",
+"label": "in",
+"why": "ordinary clairvoyance detect spell"
+},
+"WishMagic.esl|0x000826": {
+"id": "WishMagic.esl|0x000826",
+"label": "in",
+"why": "combat hazard attack spell"
+},
+"WildwakerMagic.esl|0x00081B": {
+"id": "WildwakerMagic.esl|0x00081B",
+"label": "in",
+"why": "combat attack spell"
+},
+"Wyrmstooth.esp|0x581C45": {
+"id": "Wyrmstooth.esp|0x581C45",
+"label": "in",
+"why": "ordinary illusion mind control"
+},
+"Wyrmstooth.esp|0x4A9F35": {
+"id": "Wyrmstooth.esp|0x4A9F35",
+"label": "in",
+"why": "combat debuff alteration spell"
+},
+"Glenmoril.esm|0x4ECFD2": {
+"id": "Glenmoril.esm|0x4ECFD2",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Glenmoril.esm|0x372295": {
+"id": "Glenmoril.esm|0x372295",
+"label": "in",
+"why": "combat attack spell"
+},
+"Glenmoril.esm|0x372296": {
+"id": "Glenmoril.esm|0x372296",
+"label": "in",
+"why": "combat attack spell"
+},
+"Glenmoril.esm|0x372298": {
+"id": "Glenmoril.esm|0x372298",
+"label": "in",
+"why": "combat attack spell"
+},
+"Glenmoril.esm|0x37229A": {
+"id": "Glenmoril.esm|0x37229A",
+"label": "in",
+"why": "combat attack spell"
+},
+"Glenmoril.esm|0x60025C": {
+"id": "Glenmoril.esm|0x60025C",
+"label": "in",
+"why": "combat attack spell"
+},
+"Glenmoril.esm|0x60D9F9": {
+"id": "Glenmoril.esm|0x60D9F9",
+"label": "in",
+"why": "summoning spirit to fight"
+},
+"Unslaad.esm|0x35FD62": {
+"id": "Unslaad.esm|0x35FD62",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD63": {
+"id": "Unslaad.esm|0x35FD63",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD65": {
+"id": "Unslaad.esm|0x35FD65",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD67": {
+"id": "Unslaad.esm|0x35FD67",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD69": {
+"id": "Unslaad.esm|0x35FD69",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x3EAE54": {
+"id": "Unslaad.esm|0x3EAE54",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x3EAE55": {
+"id": "Unslaad.esm|0x3EAE55",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD6B": {
+"id": "Unslaad.esm|0x35FD6B",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x35FD6D": {
+"id": "Unslaad.esm|0x35FD6D",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x3EAE60": {
+"id": "Unslaad.esm|0x3EAE60",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x3EAE61": {
+"id": "Unslaad.esm|0x3EAE61",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Unslaad.esm|0x05F226": {
+"id": "Unslaad.esm|0x05F226",
+"label": "in",
+"why": "combat attack spell"
+},
+"Unslaad.esm|0x05C973": {
+"id": "Unslaad.esm|0x05C973",
+"label": "in",
+"why": "combat attack spell"
+},
+"Unslaad.esm|0x178553": {
+"id": "Unslaad.esm|0x178553",
+"label": "in",
+"why": "ordinary bound weapon spell"
+},
+"Vigilant.esm|0x1258B0": {
+"id": "Vigilant.esm|0x1258B0",
+"label": "in",
+"why": "ordinary bound weapon spell"
+},
+"Vigilant.esm|0x13B505": {
+"id": "Vigilant.esm|0x13B505",
+"label": "in",
+"why": "summoning creature to fight"
+},
+"Vigilant.esm|0x13BAAF": {
+"id": "Vigilant.esm|0x13BAAF",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x140503": {
+"id": "Vigilant.esm|0x140503",
+"label": "in",
+"why": "summoning named hero to fight"
+},
+"Vigilant.esm|0x152143": {
+"id": "Vigilant.esm|0x152143",
+"label": "in",
+"why": "summoning named hero to fight"
+},
+"Vigilant.esm|0x194C39": {
+"id": "Vigilant.esm|0x194C39",
+"label": "in",
+"why": "summoning named hero to fight"
+},
+"Vigilant.esm|0x19EB9A": {
+"id": "Vigilant.esm|0x19EB9A",
+"label": "in",
+"why": "summoning named hero to fight"
+},
+"Vigilant.esm|0x1B9239": {
+"id": "Vigilant.esm|0x1B9239",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x1BA56C": {
+"id": "Vigilant.esm|0x1BA56C",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x1BCBC9": {
+"id": "Vigilant.esm|0x1BCBC9",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x1BCBD1": {
+"id": "Vigilant.esm|0x1BCBD1",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x1E2C32": {
+"id": "Vigilant.esm|0x1E2C32",
+"label": "in",
+"why": "summoning named NPC to fight"
+},
+"Vigilant.esm|0x3F6976": {
+"id": "Vigilant.esm|0x3F6976",
+"label": "in",
+"why": "illusion distraction mechanic"
+},
+"DAc0da.esm|0x00D033": {
+"id": "DAc0da.esm|0x00D033",
+"label": "in",
+"why": "ordinary mobility dash spell"
+},
+"DAc0da.esm|0x00D03E": {
+"id": "DAc0da.esm|0x00D03E",
+"label": "in",
+"why": "puzzle mechanic rune spell"
+},
+"DAc0da.esm|0x00D067": {
+"id": "DAc0da.esm|0x00D067",
+"label": "in",
+"why": "puzzle mechanic rune spell"
+},
+"DAc0da.esm|0x00D06F": {
+"id": "DAc0da.esm|0x00D06F",
+"label": "in",
+"why": "utility platform mechanic spell"
+},
+"DAc0da.esm|0x00CCE8": {
+"id": "DAc0da.esm|0x00CCE8",
+"label": "in",
+"why": "combat rune attack spell"
+},
+"AX ValSerano.esp|0x060B48": {
+"id": "AX ValSerano.esp|0x060B48",
+"label": "out",
+"why": "calling a specific follower"
+},
+"Midnight Sun.esm|0x57FB61": {
+"id": "Midnight Sun.esm|0x57FB61",
+"label": "out",
+"why": "teleport tied to one place"
+},
+"NightmarePlane.esp|0x04E6DB": {
+"id": "NightmarePlane.esp|0x04E6DB",
+"label": "in",
+"why": "combat attack spell"
+},
+"NightmarePlane.esp|0x04E6D9": {
+"id": "NightmarePlane.esp|0x04E6D9",
+"label": "in",
+"why": "combat attack spell"
+},
+"NightmarePlane.esp|0x0495AC": {
+"id": "NightmarePlane.esp|0x0495AC",
+"label": "in",
+"why": "combat attack spell"
+},
+"BSAssets.esm|0x000D64": {
+"id": "BSAssets.esm|0x000D64",
+"label": "in",
+"why": "combat buff and heal spell"
+},
+"BSAssets.esm|0x6028CD": {
+"id": "BSAssets.esm|0x6028CD",
+"label": "in",
+"why": "ordinary lockpicking spell"
+},
+"BSAssets.esm|0x6028CF": {
+"id": "BSAssets.esm|0x6028CF",
+"label": "in",
+"why": "ordinary lockpicking spell"
+},
+"BSAssets.esm|0x6028D0": {
+"id": "BSAssets.esm|0x6028D0",
+"label": "in",
+"why": "ordinary lockpicking spell"
+},
+"BSHeartland.esm|0x083C8F": {
+"id": "BSHeartland.esm|0x083C8F",
+"label": "in",
+"why": "ordinary detect trap spell"
+},
+"BSHeartland.esm|0x072320": {
+"id": "BSHeartland.esm|0x072320",
+"label": "in",
+"why": "combat attack spell"
+},
+"Dwarfsphere.esp|0xA68B9C": {
+"id": "Dwarfsphere.esp|0xA68B9C",
+"label": "out",
+"why": "mod tool spawning food"
+},
+"Dwarfsphere.esp|0xB62BC6": {
+"id": "Dwarfsphere.esp|0xB62BC6",
+"label": "out",
+"why": "calling a specific mount"
+},
+"3DNPC.esp|0x1B4636": {
+"id": "3DNPC.esp|0x1B4636",
+"label": "in",
+"why": "combat drain attack spell"
+},
+"Haem Projects Goblands.esp|0x0BA7BD": {
+"id": "Haem Projects Goblands.esp|0x0BA7BD",
+"label": "in",
+"why": "teleportation mobility mechanic"
+},
+"FalkreathShades.esp|0x49AEE4": {
+"id": "FalkreathShades.esp|0x49AEE4",
+"label": "out",
+"why": "mod tool converting items"
+},
+"FalkreathShades.esp|0x3BB989": {
+"id": "FalkreathShades.esp|0x3BB989",
+"label": "in",
+"why": "combat cloak attack spell"
+},
+"KhajiitWillFollow.esp|0x0CB9E4": {
+"id": "KhajiitWillFollow.esp|0x0CB9E4",
+"label": "in",
+"why": "ordinary invisibility spell"
+},
+"SexLab Eager NPCs.esp|0x01DD57": {
+"id": "SexLab Eager NPCs.esp|0x01DD57",
+"label": "out",
+"why": "adult-mod utility"
+},
+"SexLab Eager NPCs.esp|0x01E2CD": {
+"id": "SexLab Eager NPCs.esp|0x01E2CD",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01E2CE": {
+"id": "SexLab Eager NPCs.esp|0x01E2CE",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01E2D0": {
+"id": "SexLab Eager NPCs.esp|0x01E2D0",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01E2D2": {
+"id": "SexLab Eager NPCs.esp|0x01E2D2",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01FDC8": {
+"id": "SexLab Eager NPCs.esp|0x01FDC8",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01FDC9": {
+"id": "SexLab Eager NPCs.esp|0x01FDC9",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01FDCB": {
+"id": "SexLab Eager NPCs.esp|0x01FDCB",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01FDCD": {
+"id": "SexLab Eager NPCs.esp|0x01FDCD",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x01FDCF": {
+"id": "SexLab Eager NPCs.esp|0x01FDCF",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x0403CD": {
+"id": "SexLab Eager NPCs.esp|0x0403CD",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x0403D1": {
+"id": "SexLab Eager NPCs.esp|0x0403D1",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x0403D3": {
+"id": "SexLab Eager NPCs.esp|0x0403D3",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x0403D5": {
+"id": "SexLab Eager NPCs.esp|0x0403D5",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x04093D": {
+"id": "SexLab Eager NPCs.esp|0x04093D",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x044F58": {
+"id": "SexLab Eager NPCs.esp|0x044F58",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x044F59": {
+"id": "SexLab Eager NPCs.esp|0x044F59",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x044F5B": {
+"id": "SexLab Eager NPCs.esp|0x044F5B",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x044F5D": {
+"id": "SexLab Eager NPCs.esp|0x044F5D",
+"label": "out",
+"why": "Adult mod utility"
+},
+"SexLab Eager NPCs.esp|0x053D96": {
+"id": "SexLab Eager NPCs.esp|0x053D96",
+"label": "out",
+"why": "Adult mod utility"
+},
+"MysticismMagic.esp|0x2A6AC9": {
+"id": "MysticismMagic.esp|0x2A6AC9",
+"label": "in",
+"why": "Ordinary buff spell"
+},
+"MysticismMagic.esp|0x2CA222": {
+"id": "MysticismMagic.esp|0x2CA222",
+"label": "in",
+"why": "Ordinary illusion buff"
+},
+"MysticismMagic.esp|0x445FA8": {
+"id": "MysticismMagic.esp|0x445FA8",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"MysticismMagic.esp|0x445FB2": {
+"id": "MysticismMagic.esp|0x445FB2",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"MysticismMagic.esp|0x45536C": {
+"id": "MysticismMagic.esp|0x45536C",
+"label": "in",
+"why": "Mark teleport spell"
+},
+"MysticismMagic.esp|0x455387": {
+"id": "MysticismMagic.esp|0x455387",
+"label": "in",
+"why": "Recall teleport spell"
+},
+"MysticismMagic.esp|0x4B0648": {
+"id": "MysticismMagic.esp|0x4B0648",
+"label": "in",
+"why": "Ordinary lockpicking spell"
+},
+"MysticismMagic.esp|0x4CECE5": {
+"id": "MysticismMagic.esp|0x4CECE5",
+"label": "in",
+"why": "Mark teleport spell"
+},
+"MysticismMagic.esp|0x4CECE6": {
+"id": "MysticismMagic.esp|0x4CECE6",
+"label": "in",
+"why": "Recall teleport spell"
+},
+"MysticismMagic.esp|0x7B720C": {
+"id": "MysticismMagic.esp|0x7B720C",
+"label": "in",
+"why": "Ordinary debuff spell"
+},
+"MysticismMagic.esp|0xAEB598": {
+"id": "MysticismMagic.esp|0xAEB598",
+"label": "in",
+"why": "Ordinary rune spell"
+},
+"MysticismMagic.esp|0xDC48DA": {
+"id": "MysticismMagic.esp|0xDC48DA",
+"label": "in",
+"why": "Ordinary ward spell"
+},
+"MysticismMagic.esp|0xDC99E1": {
+"id": "MysticismMagic.esp|0xDC99E1",
+"label": "in",
+"why": "Ordinary bound weapon spell"
+},
+"MysticismMagic.esp|0xDD3BED": {
+"id": "MysticismMagic.esp|0xDD3BED",
+"label": "in",
+"why": "Ordinary bound weapon spell"
+},
+"MysticismMagic.esp|0xDED0F7": {
+"id": "MysticismMagic.esp|0xDED0F7",
+"label": "in",
+"why": "Ordinary bound weapon spell"
+},
+"MysticismMagic.esp|0xE01500": {
+"id": "MysticismMagic.esp|0xE01500",
+"label": "in",
+"why": "Ordinary bound weapon spell"
+},
+"MysticismMagic.esp|0xFF19E0": {
+"id": "MysticismMagic.esp|0xFF19E0",
+"label": "in",
+"why": "Ordinary buff spell"
+},
+"SU04SachilFollower.esp|0xEA85B9": {
+"id": "SU04SachilFollower.esp|0xEA85B9",
+"label": "out",
+"why": "Calling a specific companion"
+},
+"HeelsFix.esp|0x00080D": {
+"id": "HeelsFix.esp|0x00080D",
+"label": "out",
+"why": "Fixes an animation"
+},
+"JS Order of Aetherius.esp|0x000702": {
+"id": "JS Order of Aetherius.esp|0x000702",
+"label": "in",
+"why": "Recall teleport spell"
+},
+"Meridia.esp|0x009ED4": {
+"id": "Meridia.esp|0x009ED4",
+"label": "in",
+"why": "Ordinary light and attack spell"
+},
+"MorthalBarrow.esp|0x122DF7": {
+"id": "MorthalBarrow.esp|0x122DF7",
+"label": "out",
+"why": "Quest helper tied to one place"
+},
+"Gourmet.esp|0x0009EE": {
+"id": "Gourmet.esp|0x0009EE",
+"label": "out",
+"why": "Converts items"
+},
+"Sorcerer.esp|0x0DF935": {
+"id": "Sorcerer.esp|0x0DF935",
+"label": "in",
+"why": "Recall teleport spell"
+},
+"Oblivion.esp|0x05BB00": {
+"id": "Oblivion.esp|0x05BB00",
+"label": "in",
+"why": "Recall teleport spell"
+},
+"Blasphemous Revenants.esp|0x000843": {
+"id": "Blasphemous Revenants.esp|0x000843",
+"label": "in",
+"why": "Ordinary heal spell"
+},
+"mihailhighfantasypack.esp|0x000A3B": {
+"id": "mihailhighfantasypack.esp|0x000A3B",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x000A3D": {
+"id": "mihailhighfantasypack.esp|0x000A3D",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x000A40": {
+"id": "mihailhighfantasypack.esp|0x000A40",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x000A43": {
+"id": "mihailhighfantasypack.esp|0x000A43",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x000B02": {
+"id": "mihailhighfantasypack.esp|0x000B02",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"mihailhighfantasypack.esp|0x019D4F": {
+"id": "mihailhighfantasypack.esp|0x019D4F",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x01EE67": {
+"id": "mihailhighfantasypack.esp|0x01EE67",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x01EE6B": {
+"id": "mihailhighfantasypack.esp|0x01EE6B",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x01EE6F": {
+"id": "mihailhighfantasypack.esp|0x01EE6F",
+"label": "out",
+"why": "Calling a specific nixad"
+},
+"mihailhighfantasypack.esp|0x029086": {
+"id": "mihailhighfantasypack.esp|0x029086",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084404": {
+"id": "mihailhighfantasypack.esp|0x084404",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084405": {
+"id": "mihailhighfantasypack.esp|0x084405",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084407": {
+"id": "mihailhighfantasypack.esp|0x084407",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084409": {
+"id": "mihailhighfantasypack.esp|0x084409",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x08440B": {
+"id": "mihailhighfantasypack.esp|0x08440B",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x08440D": {
+"id": "mihailhighfantasypack.esp|0x08440D",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x08440F": {
+"id": "mihailhighfantasypack.esp|0x08440F",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084411": {
+"id": "mihailhighfantasypack.esp|0x084411",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"mihailhighfantasypack.esp|0x084413": {
+"id": "mihailhighfantasypack.esp|0x084413",
+"label": "out",
+"why": "Calling a specific indrik mount"
+},
+"Necrotic.esp|0x0008C4": {
+"id": "Necrotic.esp|0x0008C4",
+"label": "in",
+"why": "Summoning undead"
+},
+"Necrotic.esp|0x000975": {
+"id": "Necrotic.esp|0x000975",
+"label": "in",
+"why": "Ordinary soul trap mechanic"
+},
+"Necrotic.esp|0x00097B": {
+"id": "Necrotic.esp|0x00097B",
+"label": "in",
+"why": "Ordinary soul trap mechanic"
+},
+"Necrotic.esp|0x0009A8": {
+"id": "Necrotic.esp|0x0009A8",
+"label": "in",
+"why": "Ordinary buff spell"
+},
+"Necrotic.esp|0x0009A9": {
+"id": "Necrotic.esp|0x0009A9",
+"label": "in",
+"why": "Ordinary buff spell"
+},
+"Necrotic.esp|0x0009AA": {
+"id": "Necrotic.esp|0x0009AA",
+"label": "in",
+"why": "Ordinary debuff spell"
+},
+"Necrotic.esp|0x0009AB": {
+"id": "Necrotic.esp|0x0009AB",
+"label": "in",
+"why": "Ordinary buff spell"
+},
+"Necrotic.esp|0x0009AC": {
+"id": "Necrotic.esp|0x0009AC",
+"label": "in",
+"why": "Ordinary heal spell"
+},
+"Stellaris.esp|0x000833": {
+"id": "Stellaris.esp|0x000833",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000834": {
+"id": "Stellaris.esp|0x000834",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000835": {
+"id": "Stellaris.esp|0x000835",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000836": {
+"id": "Stellaris.esp|0x000836",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000837": {
+"id": "Stellaris.esp|0x000837",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000838": {
+"id": "Stellaris.esp|0x000838",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x0008F2": {
+"id": "Stellaris.esp|0x0008F2",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Stellaris.esp|0x000907": {
+"id": "Stellaris.esp|0x000907",
+"label": "in",
+"why": "Ordinary heal and buff spell"
+},
+"Stellaris.esp|0x000908": {
+"id": "Stellaris.esp|0x000908",
+"label": "in",
+"why": "Ordinary heal and buff spell"
+},
+"Stellaris.esp|0x000909": {
+"id": "Stellaris.esp|0x000909",
+"label": "in",
+"why": "Ordinary heal and buff spell"
+},
+"Stellaris.esp|0x00090A": {
+"id": "Stellaris.esp|0x00090A",
+"label": "in",
+"why": "Ordinary heal and buff spell"
+},
+"Stellaris.esp|0x00090B": {
+"id": "Stellaris.esp|0x00090B",
+"label": "in",
+"why": "Ordinary heal and buff spell"
+},
+"Abyss.esp|0x000ACF": {
+"id": "Abyss.esp|0x000ACF",
+"label": "in",
+"why": "Ordinary attack spell"
+},
+"Abyss.esp|0x000B88": {
+"id": "Abyss.esp|0x000B88",
+"label": "in",
+"why": "stealth buff"
+},
+"Abyss.esp|0x000B89": {
+"id": "Abyss.esp|0x000B89",
+"label": "in",
+"why": "stealth buff"
+},
+"Abyss.esp|0x000BE4": {
+"id": "Abyss.esp|0x000BE4",
+"label": "in",
+"why": "damage hazard"
+},
+"Natura.esp|0x0008F3": {
+"id": "Natura.esp|0x0008F3",
+"label": "in",
+"why": "poison attack"
+},
+"Natura.esp|0x0008F4": {
+"id": "Natura.esp|0x0008F4",
+"label": "in",
+"why": "aoe damage"
+},
+"Natura.esp|0x0008F7": {
+"id": "Natura.esp|0x0008F7",
+"label": "in",
+"why": "aoe damage"
+},
+"Natura.esp|0x0008FC": {
+"id": "Natura.esp|0x0008FC",
+"label": "in",
+"why": "poison attack"
+},
+"Natura.esp|0x000907": {
+"id": "Natura.esp|0x000907",
+"label": "in",
+"why": "aoe damage"
+},
+"Natura.esp|0x00090A": {
+"id": "Natura.esp|0x00090A",
+"label": "in",
+"why": "damage cloak"
+},
+"Natura.esp|0x000D3A": {
+"id": "Natura.esp|0x000D3A",
+"label": "in",
+"why": "poison hazard"
+},
+"Natura.esp|0x000D6A": {
+"id": "Natura.esp|0x000D6A",
+"label": "in",
+"why": "damage hazard"
+},
+"Natura.esp|0x000D6B": {
+"id": "Natura.esp|0x000D6B",
+"label": "in",
+"why": "damage hazard"
+},
+"Natura.esp|0x000D6C": {
+"id": "Natura.esp|0x000D6C",
+"label": "in",
+"why": "damage hazard"
+},
+"Inquisition.esp|0x000826": {
+"id": "Inquisition.esp|0x000826",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x000829": {
+"id": "Inquisition.esp|0x000829",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x00083E": {
+"id": "Inquisition.esp|0x00083E",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x00083F": {
+"id": "Inquisition.esp|0x00083F",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x000856": {
+"id": "Inquisition.esp|0x000856",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x000857": {
+"id": "Inquisition.esp|0x000857",
+"label": "in",
+"why": "bound weapon"
+},
+"Inquisition.esp|0x000858": {
+"id": "Inquisition.esp|0x000858",
+"label": "in",
+"why": "bound weapon"
+},
+"Arcane.esp|0x000BE4": {
+"id": "Arcane.esp|0x000BE4",
+"label": "in",
+"why": "damage hazard"
+},
+"Arcane.esp|0x000BF3": {
+"id": "Arcane.esp|0x000BF3",
+"label": "in",
+"why": "aoe damage"
+},
+"Arcane.esp|0x000C0E": {
+"id": "Arcane.esp|0x000C0E",
+"label": "in",
+"why": "combat utility"
+},
+"Arcane.esp|0x000FC3": {
+"id": "Arcane.esp|0x000FC3",
+"label": "in",
+"why": "damage attack"
+},
+"Arcane.esp|0x000FC5": {
+"id": "Arcane.esp|0x000FC5",
+"label": "in",
+"why": "damage attack"
+},
+"GTS Spells Addon.esp|0x000839": {
+"id": "GTS Spells Addon.esp|0x000839",
+"label": "in",
+"why": "teleportation"
+},
+"GTS Spells Addon.esp|0x000D69": {
+"id": "GTS Spells Addon.esp|0x000D69",
+"label": "in",
+"why": "illusion distraction"
+},
+"LostGrimoire.esp|0x0C6D08": {
+"id": "LostGrimoire.esp|0x0C6D08",
+"label": "in",
+"why": "combat attack"
+},
+"LostGrimoire.esp|0x0C6D1B": {
+"id": "LostGrimoire.esp|0x0C6D1B",
+"label": "in",
+"why": "combat buff"
+},
+"LostGrimoire.esp|0x000D63": {
+"id": "LostGrimoire.esp|0x000D63",
+"label": "in",
+"why": "stealth buff"
+},
+"LostGrimoire.esp|0x0106BC": {
+"id": "LostGrimoire.esp|0x0106BC",
+"label": "in",
+"why": "bound ward shield"
+},
+"LostGrimoire.esp|0x01A8FA": {
+"id": "LostGrimoire.esp|0x01A8FA",
+"label": "out",
+"why": "spawns a storage chest"
+},
+"LostGrimoire.esp|0x05243A": {
+"id": "LostGrimoire.esp|0x05243A",
+"label": "in",
+"why": "lockpicking spell"
+},
+"LostGrimoire.esp|0x05C6C2": {
+"id": "LostGrimoire.esp|0x05C6C2",
+"label": "out",
+"why": "corpse storage utility"
+},
+"LostGrimoire.esp|0x07AD13": {
+"id": "LostGrimoire.esp|0x07AD13",
+"label": "in",
+"why": "ally buff"
+},
+"LostGrimoire.esp|0x0EA494": {
+"id": "LostGrimoire.esp|0x0EA494",
+"label": "in",
+"why": "detect exploration summon"
+},
+"LostGrimoire.esp|0x0FE928": {
+"id": "LostGrimoire.esp|0x0FE928",
+"label": "out",
+"why": "teleport to personal home"
+},
+"LostGrimoire.esp|0x11CF8C": {
+"id": "LostGrimoire.esp|0x11CF8C",
+"label": "out",
+"why": "ore extraction utility"
+},
+"LostGrimoire.esp|0x14A905": {
+"id": "LostGrimoire.esp|0x14A905",
+"label": "in",
+"why": "summoning beast to fight"
+},
+"LostGrimoire.esp|0x14A91B": {
+"id": "LostGrimoire.esp|0x14A91B",
+"label": "in",
+"why": "summoning beast to fight"
+},
+"LostGrimoire.esp|0x14A91E": {
+"id": "LostGrimoire.esp|0x14A91E",
+"label": "in",
+"why": "summoning beast to fight"
+},
+"LostGrimoire.esp|0x154B6D": {
+"id": "LostGrimoire.esp|0x154B6D",
+"label": "in",
+"why": "health manipulation"
+},
+"LostGrimoire.esp|0x154B77": {
+"id": "LostGrimoire.esp|0x154B77",
+"label": "in",
+"why": "health manipulation"
+},
+"LostGrimoire.esp|0x15EDAA": {
+"id": "LostGrimoire.esp|0x15EDAA",
+"label": "in",
+"why": "damage and light"
+},
+"LostGrimoire.esp|0x17F26D": {
+"id": "LostGrimoire.esp|0x17F26D",
+"label": "in",
+"why": "damage hazard"
+},
+"LostGrimoire.esp|0x1B6E78": {
+"id": "LostGrimoire.esp|0x1B6E78",
+"label": "in",
+"why": "damage cloak"
+},
+"LostGrimoire.esp|0x2172CD": {
+"id": "LostGrimoire.esp|0x2172CD",
+"label": "in",
+"why": "ward and attack"
+},
+"LostGrimoire.esp|0x25909A": {
+"id": "LostGrimoire.esp|0x25909A",
+"label": "in",
+"why": "summoning beast to fight"
+},
+"LostGrimoire.esp|0x2632BF": {
+"id": "LostGrimoire.esp|0x2632BF",
+"label": "in",
+"why": "teleport portal"
+},
+"LostGrimoire.esp|0x2AA114": {
+"id": "LostGrimoire.esp|0x2AA114",
+"label": "in",
+"why": "shapeshifting buff"
+},
+"LostGrimoire.esp|0x2F6107": {
+"id": "LostGrimoire.esp|0x2F6107",
+"label": "in",
+"why": "illusion distraction"
+},
+"LostGrimoire.esp|0x2FB225": {
+"id": "LostGrimoire.esp|0x2FB225",
+"label": "in",
+"why": "illusion distraction"
+},
+"LostGrimoire.esp|0x30034E": {
+"id": "LostGrimoire.esp|0x30034E",
+"label": "in",
+"why": "invisibility spirit form"
+},
+"LostGrimoire.esp|0x31E9BB": {
+"id": "LostGrimoire.esp|0x31E9BB",
+"label": "in",
+"why": "combat attack"
+},
+"LostGrimoire.esp|0x332DEF": {
+"id": "LostGrimoire.esp|0x332DEF",
+"label": "in",
+"why": "combat rune hazard"
+},
+"Inconsequential_Incantations.esp|0x000810": {
+"id": "Inconsequential_Incantations.esp|0x000810",
+"label": "in",
+"why": "disease resistance debuff"
+},
+"Inconsequential_Incantations.esp|0x00081C": {
+"id": "Inconsequential_Incantations.esp|0x00081C",
+"label": "in",
+"why": "lockpicking utility"
+},
+"Inconsequential_Incantations.esp|0x000820": {
+"id": "Inconsequential_Incantations.esp|0x000820",
+"label": "in",
+"why": "armor condition debuff"
+},
+"Inconsequential_Incantations.esp|0x000822": {
+"id": "Inconsequential_Incantations.esp|0x000822",
+"label": "in",
+"why": "weapon condition debuff"
+},
+"Inconsequential_Incantations.esp|0x000836": {
+"id": "Inconsequential_Incantations.esp|0x000836",
+"label": "in",
+"why": "bound tool"
+},
+"Inconsequential_Incantations.esp|0x000843": {
+"id": "Inconsequential_Incantations.esp|0x000843",
+"label": "in",
+"why": "bound tool"
+},
+"Inconsequential_Incantations.esp|0x000850": {
+"id": "Inconsequential_Incantations.esp|0x000850",
+"label": "in",
+"why": "bound tool"
+},
+"Inconsequential_Incantations.esp|0x000868": {
+"id": "Inconsequential_Incantations.esp|0x000868",
+"label": "in",
+"why": "bound light source"
+},
+"frozenfamiliarspell.esp|0x000D62": {
+"id": "frozenfamiliarspell.esp|0x000D62",
+"label": "in",
+"why": "summoning familiar beast"
+},
+"SLM_PirateKing.esp|0x000809": {
+"id": "SLM_PirateKing.esp|0x000809",
+"label": "in",
+"why": "summoning named boss"
+},
+"Merlin.esp|0x000879": {
+"id": "Merlin.esp|0x000879",
+"label": "unsure",
+"why": "not enough information"
+},
+"ReadingIsBad.esp|0x000800": {
+"id": "ReadingIsBad.esp|0x000800",
+"label": "out",
+"why": "reading books utility"
+},
+"Witcher Horses 2.0.esp|0x0009D9": {
+"id": "Witcher Horses 2.0.esp|0x0009D9",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009B4": {
+"id": "Witcher Horses 2.0.esp|0x0009B4",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009B7": {
+"id": "Witcher Horses 2.0.esp|0x0009B7",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D0": {
+"id": "Witcher Horses 2.0.esp|0x0009D0",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D2": {
+"id": "Witcher Horses 2.0.esp|0x0009D2",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D3": {
+"id": "Witcher Horses 2.0.esp|0x0009D3",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D4": {
+"id": "Witcher Horses 2.0.esp|0x0009D4",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D5": {
+"id": "Witcher Horses 2.0.esp|0x0009D5",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D6": {
+"id": "Witcher Horses 2.0.esp|0x0009D6",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D7": {
+"id": "Witcher Horses 2.0.esp|0x0009D7",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009D8": {
+"id": "Witcher Horses 2.0.esp|0x0009D8",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009DA": {
+"id": "Witcher Horses 2.0.esp|0x0009DA",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009DB": {
+"id": "Witcher Horses 2.0.esp|0x0009DB",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009DC": {
+"id": "Witcher Horses 2.0.esp|0x0009DC",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009DD": {
+"id": "Witcher Horses 2.0.esp|0x0009DD",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x0009DE": {
+"id": "Witcher Horses 2.0.esp|0x0009DE",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x000AE1": {
+"id": "Witcher Horses 2.0.esp|0x000AE1",
+"label": "out",
+"why": "calling a mount"
+},
+"Witcher Horses 2.0.esp|0x000B40": {
+"id": "Witcher Horses 2.0.esp|0x000B40",
+"label": "out",
+"why": "dismissing a mount"
+},
+"Inigo.esp|0x055666": {
+"id": "Inigo.esp|0x055666",
+"label": "out",
+"why": "Summons a specific named follower companion."
+},
+"feris.esp|0x19B058": {
+"id": "feris.esp|0x19B058",
+"label": "out",
+"why": "Teleports a specific named follower companion."
+},
+"DZ08_Melana.esp|0x000B07": {
+"id": "DZ08_Melana.esp|0x000B07",
+"label": "out",
+"why": "Teleports a specific named follower."
+},
+"Natura.esp|0x00097B": {
+"id": "Natura.esp|0x00097B",
+"label": "in",
+"why": "Summons a standard creature for combat."
+},
+"Wyrmstooth.esp|0x445DA5": {
+"id": "Wyrmstooth.esp|0x445DA5",
+"label": "in",
+"why": "Standard cure disease spell."
+},
+"MysticismMagic.esp|0x2CF331": {
+"id": "MysticismMagic.esp|0x2CF331",
+"label": "in",
+"why": "Night eye vision spell."
+},
+"MysticismMagic.esp|0x2E8863": {
+"id": "MysticismMagic.esp|0x2E8863",
+"label": "in",
+"why": "Absorb health attack spell."
+},
+"Natura.esp|0x000BD9": {
+"id": "Natura.esp|0x000BD9",
+"label": "in",
+"why": "Buffs nearby allies."
+},
+"DAc0da.esm|0x0048D5": {
+"id": "DAc0da.esm|0x0048D5",
+"label": "in",
+"why": "Summons a creature for a while."
+},
+"LostGrimoire.esp|0x0993A8": {
+"id": "LostGrimoire.esp|0x0993A8",
+"label": "in",
+"why": "Shapeshift buff spell."
+},
+"BSAssets.esm|0x601FB4": {
+"id": "BSAssets.esm|0x601FB4",
+"label": "in",
+"why": "Summons a scamp for combat."
+},
+"Natura.esp|0x000C8F": {
+"id": "Natura.esp|0x000C8F",
+"label": "in",
+"why": "Destruction rune trap."
+},
+"Natura.esp|0x000CCB": {
+"id": "Natura.esp|0x000CCB",
+"label": "in",
+"why": "Summons an elemental lord."
+},
+"Arcane.esp|0x000B0D": {
+"id": "Arcane.esp|0x000B0D",
+"label": "in",
+"why": "Summons an atronach."
+},
+"Skyrim.esm|0x035D80": {
+"id": "Skyrim.esm|0x035D80",
+"label": "in",
+"why": "Destruction wall attack."
+},
+"Glenmoril.esm|0x45E060": {
+"id": "Glenmoril.esm|0x45E060",
+"label": "in",
+"why": "Summons a dwemer machine for combat."
+},
+"Skyrim.esm|0x07E5D7": {
+"id": "Skyrim.esm|0x07E5D7",
+"label": "in",
+"why": "Summons a daedra for combat."
+},
+"BSAssets.esm|0x6025B9": {
+"id": "BSAssets.esm|0x6025B9",
+"label": "in",
+"why": "Summons a bound weapon."
+},
+"Glenmoril.esm|0x4F3AD2": {
+"id": "Glenmoril.esm|0x4F3AD2",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Wyrmstooth.esp|0x0B09B1": {
+"id": "Wyrmstooth.esp|0x0B09B1",
+"label": "in",
+"why": "Summons an undead draugr."
+},
+"MysticismMagic.esp|0x1B3907": {
+"id": "MysticismMagic.esp|0x1B3907",
+"label": "in",
+"why": "Waterwalking alteration spell."
+},
+"Abyss.esp|0x000860": {
+"id": "Abyss.esp|0x000860",
+"label": "in",
+"why": "Destruction magic damage attack."
+},
+"LostGrimoire.esp|0x1F3B7C": {
+"id": "LostGrimoire.esp|0x1F3B7C",
+"label": "in",
+"why": "Frost destruction attack."
+},
+"Stellaris.esp|0x000825": {
+"id": "Stellaris.esp|0x000825",
+"label": "in",
+"why": "Restoration magic damage aura."
+},
+"mihaildeadrapack.esp|0x00AA43": {
+"id": "mihaildeadrapack.esp|0x00AA43",
+"label": "in",
+"why": "Summons a daedra NPC for combat."
+},
+"DAc0da.esm|0x00B3CA": {
+"id": "DAc0da.esm|0x00B3CA",
+"label": "in",
+"why": "Summons a creature for combat."
+},
+"Skyrim.esm|0x09CE26": {
+"id": "Skyrim.esm|0x09CE26",
+"label": "in",
+"why": "Vanilla summon familiar spell."
+},
+"Glenmoril.esm|0x4415DD": {
+"id": "Glenmoril.esm|0x4415DD",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Vigilant.esm|0x110C7F": {
+"id": "Vigilant.esm|0x110C7F",
+"label": "in",
+"why": "Summons a named undead for a while to fight."
+},
+"Natura.esp|0x000A1F": {
+"id": "Natura.esp|0x000A1F",
+"label": "in",
+"why": "Summons a spriggan creature."
+},
+"Glenmoril.esm|0x51522C": {
+"id": "Glenmoril.esm|0x51522C",
+"label": "in",
+"why": "Summons an NPC for a while to fight."
+},
+"DAc0da.esm|0x0085DE": {
+"id": "DAc0da.esm|0x0085DE",
+"label": "in",
+"why": "Summons a dwarven creature."
+},
+"Glenmoril.esm|0x50E70C": {
+"id": "Glenmoril.esm|0x50E70C",
+"label": "in",
+"why": "Summons an animal creature."
+},
+"Vigilant.esm|0x115EBB": {
+"id": "Vigilant.esm|0x115EBB",
+"label": "in",
+"why": "Summons a named NPC for a while to fight."
+},
+"Bloodmoon.esp|0x000969": {
+"id": "Bloodmoon.esp|0x000969",
+"label": "in",
+"why": "Destruction magic damage attack."
+},
+"ccbgssse025-advdsgs.esm|0x000A0B": {
+"id": "ccbgssse025-advdsgs.esm|0x000A0B",
+"label": "in",
+"why": "Summons a daedra NPC."
+},
+"Skyrim.esm|0x043324": {
+"id": "Skyrim.esm|0x043324",
+"label": "in",
+"why": "Alteration light spell."
+},
+"Glenmoril.esm|0x4528D9": {
+"id": "Glenmoril.esm|0x4528D9",
+"label": "in",
+"why": "Summons an undead creature for combat."
+},
+"Necrom.esp|0x000837": {
+"id": "Necrom.esp|0x000837",
+"label": "in",
+"why": "Restoration poison rune trap."
+},
+"AncientBloodII.esl|0x00089C": {
+"id": "AncientBloodII.esl|0x00089C",
+"label": "in",
+"why": "Destruction absorb health attack."
+},
+"Vigilant.esm|0x0C5852": {
+"id": "Vigilant.esm|0x0C5852",
+"label": "in",
+"why": "Summons a creature for a while."
+},
+"MysticismMagic.esp|0x283346": {
+"id": "MysticismMagic.esp|0x283346",
+"label": "in",
+"why": "Standard cure disease spell."
+},
+"Glenmoril.esm|0x4FA5FF": {
+"id": "Glenmoril.esm|0x4FA5FF",
+"label": "in",
+"why": "Summons an animal creature."
+},
+"Necrotic.esp|0x0008C8": {
+"id": "Necrotic.esp|0x0008C8",
+"label": "in",
+"why": "Summons an undead skeleton."
+},
+"Natura.esp|0x000880": {
+"id": "Natura.esp|0x000880",
+"label": "in",
+"why": "Restoration heal over time spell."
+},
+"CJ03Elroy.esp|0x348E23": {
+"id": "CJ03Elroy.esp|0x348E23",
+"label": "in",
+"why": "Summons an undead animal for combat."
+},
+"Vigilant.esm|0x10C893": {
+"id": "Vigilant.esm|0x10C893",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"mihailmountainlion.esp|0x00081D": {
+"id": "mihailmountainlion.esp|0x00081D",
+"label": "in",
+"why": "Summons an animal for combat."
+},
+"NightmarePlane.esp|0x07C704": {
+"id": "NightmarePlane.esp|0x07C704",
+"label": "in",
+"why": "Alteration detect life spell."
+},
+"Dawnguard.esm|0x0045B8": {
+"id": "Dawnguard.esm|0x0045B8",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Natura.esp|0x00097D": {
+"id": "Natura.esp|0x00097D",
+"label": "in",
+"why": "Summons an animal creature."
+},
+"Skyrim.esm|0x10DDEC": {
+"id": "Skyrim.esm|0x10DDEC",
+"label": "in",
+"why": "Summons a daedra."
+},
+"FalkreathShades.esp|0x43530B": {
+"id": "FalkreathShades.esp|0x43530B",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"DAc0da.esm|0x005F78": {
+"id": "DAc0da.esm|0x005F78",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Glenmoril.esm|0x4528DB": {
+"id": "Glenmoril.esm|0x4528DB",
+"label": "in",
+"why": "Summons a named creature for a while to fight."
+},
+"Dawnguard.esm|0x0038B5": {
+"id": "Dawnguard.esm|0x0038B5",
+"label": "in",
+"why": "Restoration damage aura."
+},
+"Desecration.esp|0x000828": {
+"id": "Desecration.esp|0x000828",
+"label": "in",
+"why": "Destruction damage and debuff attack."
+},
+"Natura.esp|0x00097E": {
+"id": "Natura.esp|0x00097E",
+"label": "in",
+"why": "Summons an animal for combat."
+},
+"Vigilant.esm|0x11E0A4": {
+"id": "Vigilant.esm|0x11E0A4",
+"label": "in",
+"why": "Summons a named hero for a while to fight."
+},
+"Witcher Horses 2.0.esp|0x0009D1": {
+"id": "Witcher Horses 2.0.esp|0x0009D1",
+"label": "out",
+"why": "Summons a specific named horse mount."
+},
+"ECSS_SummonableCreatures.esp|0x000804": {
+"id": "ECSS_SummonableCreatures.esp|0x000804",
+"label": "in",
+"why": "Summons a creature for a while."
+},
+"Glenmoril.esm|0x4F3AD3": {
+"id": "Glenmoril.esm|0x4F3AD3",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Natura.esp|0x000D7F": {
+"id": "Natura.esp|0x000D7F",
+"label": "in",
+"why": "Destruction area damage attack."
+},
+"MysticismMagic.esp|0xD278E3": {
+"id": "MysticismMagic.esp|0xD278E3",
+"label": "in",
+"why": "Restoration poison damage attack."
+},
+"LostGrimoire.esp|0x23FB33": {
+"id": "LostGrimoire.esp|0x23FB33",
+"label": "in",
+"why": "Destruction shock attack."
+},
+"Dawnguard.esm|0x0045BA": {
+"id": "Dawnguard.esm|0x0045BA",
+"label": "in",
+"why": "Summons an undead archer."
+},
+"MysticismMagic.esp|0x45538C": {
+"id": "MysticismMagic.esp|0x45538C",
+"label": "in",
+"why": "Summons a daedra."
+},
+"MysticismMagic.esp|0x3C7542": {
+"id": "MysticismMagic.esp|0x3C7542",
+"label": "in",
+"why": "Alteration lockpicking spell."
+},
+"Natura.esp|0x000852": {
+"id": "Natura.esp|0x000852",
+"label": "in",
+"why": "Restoration stamina regen buff."
+},
+"Vigilant.esm|0x0D69F5": {
+"id": "Vigilant.esm|0x0D69F5",
+"label": "in",
+"why": "Destruction area damage effect."
+},
+"LostGrimoire.esp|0x1364E1": {
+"id": "LostGrimoire.esp|0x1364E1",
+"label": "in",
+"why": "Alteration area damage attack."
+},
+"Natura.esp|0x0009AE": {
+"id": "Natura.esp|0x0009AE",
+"label": "in",
+"why": "Summons a creature for a while."
+},
+"Unslaad.esm|0x425D38": {
+"id": "Unslaad.esm|0x425D38",
+"label": "in",
+"why": "Summons a dragon creature."
+},
+"LostGrimoire.esp|0x038F14": {
+"id": "LostGrimoire.esp|0x038F14",
+"label": "in",
+"why": "Summons an animal familiar and buffs attack."
+},
+"ccbgssse014-spellpack01.esl|0x000855": {
+"id": "ccbgssse014-spellpack01.esl|0x000855",
+"label": "in",
+"why": "Destruction damage aura and turn undead."
+},
+"Glenmoril.esm|0x50E711": {
+"id": "Glenmoril.esm|0x50E711",
+"label": "in",
+"why": "Summons an undead creature."
+},
+"Glenmoril.esm|0x45E08C": {
+"id": "Glenmoril.esm|0x45E08C",
+"label": "in",
+"why": "Summons an undead creature for combat."
+},
+"Abyss.esp|0x000A8D": {
+"id": "Abyss.esp|0x000A8D",
+"label": "in",
+"why": "Destruction damage and debuff attack."
+},
+"Skyrim.esm|0x0211F1": {
+"id": "Skyrim.esm|0x0211F1",
+"label": "in",
+"why": "Restoration ward spell."
+},
+"Natura.esp|0x000D53": {
+"id": "Natura.esp|0x000D53",
+"label": "in",
+"why": "Restoration poison damage attack."
+},
+"Glenmoril.esm|0x4584CF": {
+"id": "Glenmoril.esm|0x4584CF",
+"label": "in",
+"why": "Summons an animal creature for combat."
+},
+"Natura.esp|0x000979": {
+"id": "Natura.esp|0x000979",
+"label": "in",
+"why": "Summons an animal creature."
+},
+"BSAssets.esm|0x001D9D": {
+"id": "BSAssets.esm|0x001D9D",
+"label": "in",
+"why": "Restoration poison damage attack."
+},
+"Natura.esp|0x00086F": {
+"id": "Natura.esp|0x00086F",
+"label": "in",
+"why": "Alteration physical damage reduction buff."
+},
+"MysticismMagic.esp|0x43BD6C": {
+"id": "MysticismMagic.esp|0x43BD6C",
+"label": "in",
+"why": "Summons a ghost animal for combat."
+},
+"Glenmoril.esm|0x5294C1": {
+"id": "Glenmoril.esm|0x5294C1",
+"label": "in",
+"why": "Summons undead for combat"
+},
+"Arcane.esp|0x000860": {
+"id": "Arcane.esp|0x000860",
+"label": "in",
+"why": "Magic damage aura"
+},
+"Lightpower.esl|0x000820": {
+"id": "Lightpower.esl|0x000820",
+"label": "in",
+"why": "Shield and damage buff"
+},
+"Lightpower.esl|0x000826": {
+"id": "Lightpower.esl|0x000826",
+"label": "in",
+"why": "Restores stats damages undead"
+},
+"WishMagic.esl|0x00081C": {
+"id": "WishMagic.esl|0x00081C",
+"label": "in",
+"why": "AoE heal for allies"
+},
+"Flames of Coldharbour.esp|0x00082A": {
+"id": "Flames of Coldharbour.esp|0x00082A",
+"label": "in",
+"why": "Frost damage attack"
+},
+"LostGrimoire.esp|0x30545F": {
+"id": "LostGrimoire.esp|0x30545F",
+"label": "in",
+"why": "Debuffs speed and stamina"
+},
+"LostGrimoire.esp|0x34729B": {
+"id": "LostGrimoire.esp|0x34729B",
+"label": "in",
+"why": "Creates illusions to fight"
+},
+"Glenmoril.esm|0x35AF17": {
+"id": "Glenmoril.esm|0x35AF17",
+"label": "in",
+"why": "Frost damage and hazard"
+},
+"Abyss.esp|0x000ACC": {
+"id": "Abyss.esp|0x000ACC",
+"label": "in",
+"why": "Stat debuff spell"
+},
+"Vigilant.esm|0x247249": {
+"id": "Vigilant.esm|0x247249",
+"label": "in",
+"why": "Summons creature for combat"
+},
+"MysticismMagic.esp|0x176CD0": {
+"id": "MysticismMagic.esp|0x176CD0",
+"label": "in",
+"why": "Paralyzes living targets"
+},
+"Glenmoril.esm|0x4584C3": {
+"id": "Glenmoril.esm|0x4584C3",
+"label": "in",
+"why": "Summons daedra to fight"
+},
+"Natura.esp|0x000BD7": {
+"id": "Natura.esp|0x000BD7",
+"label": "in",
+"why": "Buffs ally physical damage"
+},
+"LostGrimoire.esp|0x253F85": {
+"id": "LostGrimoire.esp|0x253F85",
+"label": "in",
+"why": "Summons bound weapon"
+},
+"KittySpellPack02.esl|0x000829": {
+"id": "KittySpellPack02.esl|0x000829",
+"label": "in",
+"why": "Fire damage attack"
+},
+"Desecration.esp|0x00088B": {
+"id": "Desecration.esp|0x00088B",
+"label": "in",
+"why": "Places a damage rune"
+},
+"Vigilant.esm|0x03B39C": {
+"id": "Vigilant.esm|0x03B39C",
+"label": "in",
+"why": "Summons undead to fight"
+}
+}

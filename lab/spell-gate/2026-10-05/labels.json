@@ -1,0 +1,9104 @@
+{
+"Skyrim.esm|0x10FC16": {
+"label": "out",
+"source": "rule",
+"name": "드래곤 사제 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x10DDEC": {
+"label": "in",
+"source": "gemini",
+"name": "드레모라 군주 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x10F7EE": {
+"label": "in",
+"source": "local",
+"name": "번개의 흐름",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x10F7ED": {
+"label": "in",
+"source": "local",
+"name": "소각",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x10F7EC": {
+"label": "in",
+"source": "local",
+"name": "얼음 창",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x109111": {
+"label": "in",
+"source": "gemini",
+"name": "광석 변환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0CDB70": {
+"label": "in",
+"source": "local",
+"name": "드래곤가죽",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x021143": {
+"label": "in",
+"source": "local",
+"name": "예지",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0DA746": {
+"label": "out",
+"source": "rule",
+"name": "평형",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x08C1AB": {
+"label": "in",
+"source": "local",
+"name": "언데드의 파멸",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0B62EF": {
+"label": "in",
+"source": "local",
+"name": "상급 치료",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0B62EE": {
+"label": "in",
+"source": "local",
+"name": "생명의 숨결",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0B62E6": {
+"label": "in",
+"source": "local",
+"name": "쇠약",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0AB23D": {
+"label": "in",
+"source": "local",
+"name": "유령 화살",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x09CE26": {
+"label": "in",
+"source": "gemini",
+"name": "화염의 늑대 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x096D95": {
+"label": "in",
+"source": "local",
+"name": "최상급 강령술",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x096D94": {
+"label": "in",
+"source": "local",
+"name": "상급 강령술",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x08F3EB": {
+"label": "in",
+"source": "local",
+"name": "소음 억제",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8E5": {
+"label": "in",
+"source": "local",
+"name": "번개 폭풍",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8E4": {
+"label": "in",
+"source": "local",
+"name": "눈보라",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8E1": {
+"label": "in",
+"source": "local",
+"name": "하급 강령술",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8DF": {
+"label": "in",
+"source": "local",
+"name": "죽음의 노예",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8DE": {
+"label": "in",
+"source": "local",
+"name": "대규모 공포",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8DD": {
+"label": "in",
+"source": "local",
+"name": "대규모 고무",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8DB": {
+"label": "in",
+"source": "local",
+"name": "대규모 진정",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E8DA": {
+"label": "in",
+"source": "local",
+"name": "대규모 분노",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E5D7": {
+"label": "in",
+"source": "gemini",
+"name": "폭풍 군주 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E5D6": {
+"label": "in",
+"source": "local",
+"name": "서리 군주 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07E5D5": {
+"label": "in",
+"source": "local",
+"name": "화염 군주 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x07A82B": {
+"label": "in",
+"source": "local",
+"name": "화염 폭풍",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x01A4CC": {
+"label": "in",
+"source": "local",
+"name": "염동력",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x06F952": {
+"label": "in",
+"source": "local",
+"name": "상급 데이드라 추방",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x06D22C": {
+"label": "in",
+"source": "local",
+"name": "하급 데이드라 추방",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x067970": {
+"label": "in",
+"source": "local",
+"name": "번개의 룬",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x06796F": {
+"label": "in",
+"source": "local",
+"name": "서리의 룬",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x065BD7": {
+"label": "in",
+"source": "local",
+"name": "중급 강령술",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0640B6": {
+"label": "in",
+"source": "local",
+"name": "영혼 늑대 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05DD5E": {
+"label": "in",
+"source": "local",
+"name": "상급 광역 언데드 퇴치",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05DD5D": {
+"label": "in",
+"source": "local",
+"name": "상급 언데드 추방",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05DB90": {
+"label": "in",
+"source": "local",
+"name": "불꽃의 룬",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05D175": {
+"label": "in",
+"source": "local",
+"name": "수중 호흡",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05AD5F": {
+"label": "in",
+"source": "local",
+"name": "마비",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05AD5E": {
+"label": "in",
+"source": "local",
+"name": "에보니 피부",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05AD5D": {
+"label": "in",
+"source": "local",
+"name": "돌가죽",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05AD5C": {
+"label": "in",
+"source": "local",
+"name": "참나무 피부",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x05312D": {
+"label": "in",
+"source": "local",
+"name": "보호의 원",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DBA4": {
+"label": "in",
+"source": "local",
+"name": "소울 트랩",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x051B16": {
+"label": "in",
+"source": "local",
+"name": "강철피부",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEEF": {
+"label": "in",
+"source": "local",
+"name": "두려움",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEEE": {
+"label": "in",
+"source": "local",
+"name": "격노",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEED": {
+"label": "in",
+"source": "local",
+"name": "진정",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEEC": {
+"label": "in",
+"source": "local",
+"name": "집결",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEEB": {
+"label": "in",
+"source": "local",
+"name": "광분",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEEA": {
+"label": "in",
+"source": "local",
+"name": "공포",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEE9": {
+"label": "in",
+"source": "local",
+"name": "진정",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04DEE8": {
+"label": "in",
+"source": "local",
+"name": "고무",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04D3F8": {
+"label": "in",
+"source": "local",
+"name": "하급 언데드 퇴치",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04D3F2": {
+"label": "in",
+"source": "local",
+"name": "치유의 손길",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x04B146": {
+"label": "in",
+"source": "local",
+"name": "언데드 도주",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x028532": {
+"label": "in",
+"source": "local",
+"name": "목표 소멸",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x045F9D": {
+"label": "in",
+"source": "local",
+"name": "연쇄 번개",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x045F9C": {
+"label": "in",
+"source": "local",
+"name": "얼음 폭풍",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x043324": {
+"label": "in",
+"source": "gemini",
+"name": "마법 불빛",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x043323": {
+"label": "in",
+"source": "local",
+"name": "마법사의 빛",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x03AEA3": {
+"label": "in",
+"source": "local",
+"name": "번개 망토",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x03AEA2": {
+"label": "in",
+"source": "local",
+"name": "서리 망토",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x03AE9F": {
+"label": "in",
+"source": "local",
+"name": "불꽃 망토",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x035D81": {
+"label": "in",
+"source": "local",
+"name": "폭풍의 벽",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x035D80": {
+"label": "in",
+"source": "gemini",
+"name": "서리의 벽",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x035D7F": {
+"label": "in",
+"source": "local",
+"name": "불꽃의 벽",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x02F3B8": {
+"label": "in",
+"source": "local",
+"name": "급속 치유",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211F1": {
+"label": "in",
+"source": "gemini",
+"name": "중급 방어막",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211F0": {
+"label": "in",
+"source": "local",
+"name": "상급 방어막",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211EF": {
+"label": "unsure",
+"source": "none",
+"name": "시체 탐지",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211EE": {
+"label": "unsure",
+"source": "none",
+"name": "생명체 감지",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211ED": {
+"label": "unsure",
+"source": "none",
+"name": "마법 활",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211EC": {
+"label": "unsure",
+"source": "none",
+"name": "마법 전투 도끼 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0211EB": {
+"label": "unsure",
+"source": "none",
+"name": "마법 검",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0204C5": {
+"label": "unsure",
+"source": "none",
+"name": "폭풍 아트로나크 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0204C4": {
+"label": "unsure",
+"source": "none",
+"name": "서리 아트로나크 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x0204C3": {
+"label": "unsure",
+"source": "none",
+"name": "화염 아트로나크 소환",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x02DD2A": {
+"label": "unsure",
+"source": "none",
+"name": "번개조각",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x02DD29": {
+"label": "unsure",
+"source": "none",
+"name": "번개 화살",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x02B96C": {
+"label": "unsure",
+"source": "none",
+"name": "얼음 송곳",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x02B96B": {
+"label": "in",
+"source": "local",
+"name": "냉기조각",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x01C789": {
+"label": "in",
+"source": "local",
+"name": "화염구",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x013018": {
+"label": "in",
+"source": "local",
+"name": "하급 방어막",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x012FD2": {
+"label": "in",
+"source": "local",
+"name": "목표 치유",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x012FD0": {
+"label": "in",
+"source": "local",
+"name": "화염 화살",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x012FCD": {
+"label": "in",
+"source": "local",
+"name": "불씨조각",
+"plugin": "Skyrim.esm"
+},
+"Skyrim.esm|0x012FCC": {
+"label": "in",
+"source": "local",
+"name": "치유",
+"plugin": "Skyrim.esm"
+},
+"Dawnguard.esm|0x0045BA": {
+"label": "in",
+"source": "gemini",
+"name": "해골 병사 소환",
+"plugin": "Dawnguard.esm"
+},
+"Dawnguard.esm|0x0045B8": {
+"label": "in",
+"source": "gemini",
+"name": "안개병사 소환",
+"plugin": "Dawnguard.esm"
+},
+"Dawnguard.esm|0x0045B3": {
+"label": "in",
+"source": "local",
+"name": "악령 전사 소환",
+"plugin": "Dawnguard.esm"
+},
+"Dawnguard.esm|0x003F52": {
+"label": "in",
+"source": "local",
+"name": "태양 불꽃",
+"plugin": "Dawnguard.esm"
+},
+"Dawnguard.esm|0x0038B6": {
+"label": "in",
+"source": "local",
+"name": "흡혈귀의 파멸",
+"plugin": "Dawnguard.esm"
+},
+"Dawnguard.esm|0x0038B5": {
+"label": "in",
+"source": "gemini",
+"name": "스텐다르의 오라",
+"plugin": "Dawnguard.esm"
+},
+"Dragonborn.esm|0x033C66": {
+"label": "in",
+"source": "local",
+"name": "시커 소환",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x01D74B": {
+"label": "in",
+"source": "local",
+"name": "맹독의 룬",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x01CE06": {
+"label": "in",
+"source": "local",
+"name": "마법 단검",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x01CDF6": {
+"label": "in",
+"source": "gemini",
+"name": "화산재 스폰 소환",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x0177B7": {
+"label": "in",
+"source": "local",
+"name": "광분의 룬",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x0177AF": {
+"label": "in",
+"source": "local",
+"name": "화산재의 룬",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x017731": {
+"label": "in",
+"source": "local",
+"name": "재 감옥",
+"plugin": "Dragonborn.esm"
+},
+"Dragonborn.esm|0x01772D": {
+"label": "in",
+"source": "local",
+"name": "회오리 망토",
+"plugin": "Dragonborn.esm"
+},
+"ccbgssse003-zombies.esl|0x000805": {
+"label": "in",
+"source": "gemini",
+"name": "썩은 좀비 소환",
+"plugin": "ccbgssse003-zombies.esl"
+},
+"ccbgssse003-zombies.esl|0x000806": {
+"label": "in",
+"source": "gemini",
+"name": "악취나는 좀비 소환",
+"plugin": "ccbgssse003-zombies.esl"
+},
+"ccbgssse003-zombies.esl|0x000807": {
+"label": "in",
+"source": "gemini",
+"name": "악성 좀비 소환",
+"plugin": "ccbgssse003-zombies.esl"
+},
+"ccbgssse003-zombies.esl|0x000804": {
+"label": "in",
+"source": "local",
+"name": "좀비 소환",
+"plugin": "ccbgssse003-zombies.esl"
+},
+"ccbgssse010-petdwarvenarmoredmudcrab.esl|0x000810": {
+"label": "out",
+"source": "rule",
+"name": "애완동물 부르기: 드워프 진흙게",
+"plugin": "ccbgssse010-petdwarvenarmoredmudcrab.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000851": {
+"label": "in",
+"source": "local",
+"name": "오럼의 수생 탈출",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000853": {
+"label": "in",
+"source": "local",
+"name": "허스탕의 자부심",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000855": {
+"label": "in",
+"source": "gemini",
+"name": "마라의 분노",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000856": {
+"label": "in",
+"source": "local",
+"name": "원소 폭발",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000857": {
+"label": "in",
+"source": "local",
+"name": "죽음의 손길",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000858": {
+"label": "in",
+"source": "local",
+"name": "집행자의 올가미",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000859": {
+"label": "in",
+"source": "local",
+"name": "교살",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00085A": {
+"label": "in",
+"source": "local",
+"name": "숨막히는 손아귀",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00085B": {
+"label": "in",
+"source": "local",
+"name": "원소 파열",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00085F": {
+"label": "in",
+"source": "local",
+"name": "원소 화살",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000D64": {
+"label": "in",
+"source": "local",
+"name": "마비 룬",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000808": {
+"label": "in",
+"source": "local",
+"name": "속박 풀린 폭풍",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00080D": {
+"label": "in",
+"source": "local",
+"name": "속박 풀린 빙결",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00080E": {
+"label": "in",
+"source": "local",
+"name": "속박 풀린 불길",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x00084F": {
+"label": "in",
+"source": "local",
+"name": "펜릭의 환영인사",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse014-spellpack01.esl|0x000850": {
+"label": "in",
+"source": "local",
+"name": "원소 불꽃",
+"plugin": "ccbgssse014-spellpack01.esl"
+},
+"ccbgssse035-petnhound.esl|0x000811": {
+"label": "out",
+"source": "rule",
+"name": "애완동물 부르기: 닉스 하운드",
+"plugin": "ccbgssse035-petnhound.esl"
+},
+"ccbgssse067-daedinv.esm|0x147D95": {
+"label": "in",
+"source": "local",
+"name": "아일레이드 리치 소환",
+"plugin": "ccbgssse067-daedinv.esm"
+},
+"ccbgssse067-daedinv.esm|0x000B62": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 사냥꾼 소환",
+"plugin": "ccbgssse067-daedinv.esm"
+},
+"ccvsvsse003-necroarts.esl|0x000852": {
+"label": "in",
+"source": "local",
+"name": "어둠의 망령 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000854": {
+"label": "in",
+"source": "local",
+"name": "안식 없는 유령 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000856": {
+"label": "in",
+"source": "local",
+"name": "해골 사수 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x00085B": {
+"label": "in",
+"source": "local",
+"name": "해골 하수인 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x00085E": {
+"label": "in",
+"source": "local",
+"name": "고대 유령 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000861": {
+"label": "in",
+"source": "local",
+"name": "뼈 거상 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000868": {
+"label": "in",
+"source": "local",
+"name": "유령 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000869": {
+"label": "in",
+"source": "local",
+"name": "영혼의 속박",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x00086A": {
+"label": "in",
+"source": "local",
+"name": "언데드 추방",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000870": {
+"label": "in",
+"source": "local",
+"name": "망령 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000874": {
+"label": "in",
+"source": "local",
+"name": "영혼 분할",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x000877": {
+"label": "in",
+"source": "local",
+"name": "해골 투사 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccvsvsse003-necroarts.esl|0x00084E": {
+"label": "in",
+"source": "local",
+"name": "해골 흑마법사 소환",
+"plugin": "ccvsvsse003-necroarts.esl"
+},
+"ccbgssse025-advdsgs.esm|0x000A0B": {
+"label": "in",
+"source": "gemini",
+"name": "다크 세듀서 소환",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x000870": {
+"label": "in",
+"source": "local",
+"name": "다크 세듀서 암살자 소환",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x0008CB": {
+"label": "in",
+"source": "gemini",
+"name": "골든 세인트 소환",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x08BC17": {
+"label": "out",
+"source": "rule",
+"name": "애완동물 부르기: 포테마",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x00086F": {
+"label": "in",
+"source": "gemini",
+"name": "골든 세인트 사냥꾼 소환",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x19D3FA": {
+"label": "in",
+"source": "gemini",
+"name": "스타아다 소환",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccbgssse025-advdsgs.esm|0x08BC16": {
+"label": "out",
+"source": "rule",
+"name": "애완동물 부르기: 펠라지우스",
+"plugin": "ccbgssse025-advdsgs.esm"
+},
+"ccrmssse001-necrohouse.esl|0x000CEC": {
+"label": "unsure",
+"source": "none",
+"name": "강령술사의 마법",
+"plugin": "ccrmssse001-necrohouse.esl"
+},
+"cckrtsse001_altar.esl|0x000CDF": {
+"label": "in",
+"source": "gemini",
+"name": "달인의 광석변환",
+"plugin": "cckrtsse001_altar.esl"
+},
+"AncientBloodII.esl|0x000816": {
+"label": "in",
+"source": "gemini",
+"name": "돌 가고일 소환",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00083A": {
+"label": "in",
+"source": "local",
+"name": "연쇄하는 고통",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x000843": {
+"label": "in",
+"source": "local",
+"name": "흡혈의 오로라",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00084C": {
+"label": "in",
+"source": "local",
+"name": "피의 불꽃 소용돌이",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x000888": {
+"label": "in",
+"source": "gemini",
+"name": "고통의 전령 소환",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00089A": {
+"label": "in",
+"source": "local",
+"name": "피의 파열",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00089C": {
+"label": "in",
+"source": "gemini",
+"name": "피 추출",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00089D": {
+"label": "in",
+"source": "local",
+"name": "정수 흡수",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x000900": {
+"label": "in",
+"source": "local",
+"name": "영원한 군단",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x000906": {
+"label": "in",
+"source": "local",
+"name": "피의 덩굴손",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00090E": {
+"label": "in",
+"source": "local",
+"name": "박쥐의 연회",
+"plugin": "AncientBloodII.esl"
+},
+"AncientBloodII.esl|0x00091A": {
+"label": "in",
+"source": "local",
+"name": "혼돈의 불길",
+"plugin": "AncientBloodII.esl"
+},
+"WishMagic.esl|0x00081B": {
+"label": "out",
+"source": "gemini",
+"name": "소원 - 청명한 하늘",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x00081C": {
+"label": "in",
+"source": "gemini",
+"name": "소원 - 광역 회복",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x00081E": {
+"label": "in",
+"source": "local",
+"name": "소원 - 변이",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x000820": {
+"label": "out",
+"source": "gemini",
+"name": "소원 - 진미 현현",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x000821": {
+"label": "out",
+"source": "gemini",
+"name": "소원 - 마법 부여 원반 현현",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x000822": {
+"label": "out",
+"source": "gemini",
+"name": "소원 - 마법 거울 현현",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x000823": {
+"label": "in",
+"source": "gemini",
+"name": "소원 - 인도의 빛",
+"plugin": "WishMagic.esl"
+},
+"WishMagic.esl|0x000826": {
+"label": "in",
+"source": "gemini",
+"name": "소원 - 무지갯빛 비",
+"plugin": "WishMagic.esl"
+},
+"WildwakerMagic.esl|0x000817": {
+"label": "in",
+"source": "local",
+"name": "터지는 씨앗",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x000818": {
+"label": "in",
+"source": "local",
+"name": "녹턴 꽃가루",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x000819": {
+"label": "in",
+"source": "local",
+"name": "달라붙는 가시",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x00081A": {
+"label": "in",
+"source": "local",
+"name": "황혼의 낫",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x00081B": {
+"label": "out",
+"source": "rule",
+"name": "리퍼 도미나",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x00081C": {
+"label": "in",
+"source": "local",
+"name": "사신",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x00081D": {
+"label": "in",
+"source": "local",
+"name": "주파자의 장막",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x00081F": {
+"label": "in",
+"source": "local",
+"name": "가시덩굴 생성",
+"plugin": "WildwakerMagic.esl"
+},
+"WildwakerMagic.esl|0x000821": {
+"label": "in",
+"source": "local",
+"name": "자욱한 포자",
+"plugin": "WildwakerMagic.esl"
+},
+"Lightpower.esl|0x000820": {
+"label": "in",
+"source": "gemini",
+"name": "태양빛 방패",
+"plugin": "Lightpower.esl"
+},
+"Lightpower.esl|0x000822": {
+"label": "in",
+"source": "local",
+"name": "신성한 불꽃",
+"plugin": "Lightpower.esl"
+},
+"Lightpower.esl|0x000824": {
+"label": "in",
+"source": "local",
+"name": "태양의 파편",
+"plugin": "Lightpower.esl"
+},
+"Lightpower.esl|0x000825": {
+"label": "in",
+"source": "local",
+"name": "성역",
+"plugin": "Lightpower.esl"
+},
+"Lightpower.esl|0x000826": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 정화",
+"plugin": "Lightpower.esl"
+},
+"Lightpower.esl|0x000829": {
+"label": "in",
+"source": "local",
+"name": "천벌",
+"plugin": "Lightpower.esl"
+},
+"KittySpellPack02.esl|0x000816": {
+"label": "in",
+"source": "local",
+"name": "과급 도깨비불 무리",
+"plugin": "KittySpellPack02.esl"
+},
+"KittySpellPack02.esl|0x000825": {
+"label": "in",
+"source": "local",
+"name": "다이아몬드 스플래쉬",
+"plugin": "KittySpellPack02.esl"
+},
+"KittySpellPack02.esl|0x000829": {
+"label": "in",
+"source": "gemini",
+"name": "플래어 스톰",
+"plugin": "KittySpellPack02.esl"
+},
+"KittySpellPack02.esl|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "혼돈의 용광로",
+"plugin": "KittySpellPack02.esl"
+},
+"NecromancersMagic.esl|0x00081F": {
+"label": "in",
+"source": "local",
+"name": "양들의 침묵",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000820": {
+"label": "in",
+"source": "local",
+"name": "어둠의 무게",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000821": {
+"label": "in",
+"source": "local",
+"name": "역병 가시",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000822": {
+"label": "in",
+"source": "local",
+"name": "폭발 해골",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000826": {
+"label": "in",
+"source": "local",
+"name": "죽음의 낫",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000827": {
+"label": "in",
+"source": "local",
+"name": "강령술 해골",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000828": {
+"label": "in",
+"source": "local",
+"name": "죽음의 손길",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x000829": {
+"label": "in",
+"source": "local",
+"name": "파멸의 갑옷",
+"plugin": "NecromancersMagic.esl"
+},
+"NecromancersMagic.esl|0x00082C": {
+"label": "in",
+"source": "local",
+"name": "해골 무덤",
+"plugin": "NecromancersMagic.esl"
+},
+"Wyrmstooth.esp|0x0B09B2": {
+"label": "in",
+"source": "local",
+"name": "드로거 사술사 소환",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x0B09B1": {
+"label": "in",
+"source": "gemini",
+"name": "드로거 와이트 소환",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x445DA1": {
+"label": "in",
+"source": "local",
+"name": "유령 진흙게 소환",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x445DA5": {
+"label": "in",
+"source": "gemini",
+"name": "질병 치료",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x57F904": {
+"label": "in",
+"source": "local",
+"name": "자연의 부름",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x445DB1": {
+"label": "in",
+"source": "local",
+"name": "독 치료",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x57F8EA": {
+"label": "in",
+"source": "local",
+"name": "야간 시야",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x581C45": {
+"label": "in",
+"source": "gemini",
+"name": "망자의 부름",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x4A9F3C": {
+"label": "in",
+"source": "local",
+"name": "서리 난사",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x0B09B4": {
+"label": "in",
+"source": "local",
+"name": "드로거 죽음의 군주 소환",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x4A9F35": {
+"label": "in",
+"source": "gemini",
+"name": "변신",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x5862E6": {
+"label": "in",
+"source": "local",
+"name": "해골 소환",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x584017": {
+"label": "in",
+"source": "local",
+"name": "무게 완화",
+"plugin": "Wyrmstooth.esp"
+},
+"Wyrmstooth.esp|0x4A9EA2": {
+"label": "in",
+"source": "local",
+"name": "타인 은폐",
+"plugin": "Wyrmstooth.esp"
+},
+"Glenmoril.esm|0x4415DD": {
+"label": "in",
+"source": "gemini",
+"name": "떠도는 구울 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415DE": {
+"label": "in",
+"source": "local",
+"name": "구울 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415E0": {
+"label": "in",
+"source": "local",
+"name": "작은 구울 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415E2": {
+"label": "in",
+"source": "local",
+"name": "시체 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415E4": {
+"label": "in",
+"source": "local",
+"name": "트롤 구울 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415E6": {
+"label": "in",
+"source": "local",
+"name": "알구울 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4415E8": {
+"label": "in",
+"source": "local",
+"name": "거대한 시체 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x447181": {
+"label": "in",
+"source": "local",
+"name": "살인 토끼 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x447182": {
+"label": "in",
+"source": "local",
+"name": "짐승에 씌인 영혼 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD0B": {
+"label": "in",
+"source": "local",
+"name": "야수병 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD13": {
+"label": "in",
+"source": "local",
+"name": "허씬의 사냥개 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD14": {
+"label": "in",
+"source": "local",
+"name": "허씬의 부산물 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD16": {
+"label": "in",
+"source": "local",
+"name": "인면야수 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD18": {
+"label": "in",
+"source": "local",
+"name": "허씬의 야수 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD20": {
+"label": "in",
+"source": "local",
+"name": "악몽의 창백한 야수 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD26": {
+"label": "in",
+"source": "local",
+"name": "허씬의 대사제 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD31": {
+"label": "in",
+"source": "local",
+"name": "탐식의 늑대인간 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD32": {
+"label": "in",
+"source": "local",
+"name": "탐식의 광전사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD34": {
+"label": "in",
+"source": "local",
+"name": "짐승에 씌인 거인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x44CD36": {
+"label": "in",
+"source": "local",
+"name": "아트모라의 은빛 늑대 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528C1": {
+"label": "in",
+"source": "local",
+"name": "나무정령 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528C2": {
+"label": "in",
+"source": "local",
+"name": "늙은 나무정령 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528CE": {
+"label": "in",
+"source": "local",
+"name": "암석 정령 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528D8": {
+"label": "in",
+"source": "local",
+"name": "파이톤 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528D9": {
+"label": "in",
+"source": "gemini",
+"name": "쟈바 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528DB": {
+"label": "in",
+"source": "gemini",
+"name": "파스칼 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528EA": {
+"label": "in",
+"source": "local",
+"name": "난쟁이 해골 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528EB": {
+"label": "in",
+"source": "local",
+"name": "고대의 전사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528ED": {
+"label": "in",
+"source": "local",
+"name": "해골 거미 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4528EF": {
+"label": "in",
+"source": "local",
+"name": "거인 해골 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x452907": {
+"label": "in",
+"source": "local",
+"name": "여섯 번째 대가문의 보초병 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x452908": {
+"label": "in",
+"source": "local",
+"name": "여섯 번째 대가문의 현인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45290A": {
+"label": "in",
+"source": "local",
+"name": "여섯 번째 대가문의 척후 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45290C": {
+"label": "in",
+"source": "local",
+"name": "여섯 번째 대가문의 전사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x458499": {
+"label": "in",
+"source": "local",
+"name": "다고스 우르의 잔재 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584A2": {
+"label": "in",
+"source": "local",
+"name": "푸른 별의 사자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584A3": {
+"label": "in",
+"source": "local",
+"name": "아타타미 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584A5": {
+"label": "in",
+"source": "local",
+"name": "바바제리 아타타미 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584B5": {
+"label": "in",
+"source": "local",
+"name": "인형술사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584B6": {
+"label": "in",
+"source": "local",
+"name": "심연의 벌레 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584C3": {
+"label": "in",
+"source": "gemini",
+"name": "뇌식귀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584C9": {
+"label": "in",
+"source": "local",
+"name": "카발 도 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4584CF": {
+"label": "in",
+"source": "gemini",
+"name": "불타는 소 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E05D": {
+"label": "in",
+"source": "local",
+"name": "드웨머 빅독 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E05E": {
+"label": "in",
+"source": "local",
+"name": "드웨머 아이봇 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E060": {
+"label": "in",
+"source": "gemini",
+"name": "드웨머 리퍼 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E062": {
+"label": "in",
+"source": "local",
+"name": "브라스기어 - 나이트 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E064": {
+"label": "in",
+"source": "local",
+"name": "브라스기어 - 퀸 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E066": {
+"label": "in",
+"source": "local",
+"name": "드웨머 솔져 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E07A": {
+"label": "in",
+"source": "local",
+"name": "푸른 누쉬미코 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E07B": {
+"label": "in",
+"source": "local",
+"name": "카짓의 말로 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E07D": {
+"label": "in",
+"source": "local",
+"name": "원죄의 아이 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E085": {
+"label": "in",
+"source": "local",
+"name": "되다 만 아르고니안 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x45E08C": {
+"label": "in",
+"source": "gemini",
+"name": "모르-갈그의 무녀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x35AF0A": {
+"label": "in",
+"source": "local",
+"name": "화염 망령",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x35AF0C": {
+"label": "in",
+"source": "local",
+"name": "전격 망령",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x35AF0E": {
+"label": "in",
+"source": "local",
+"name": "피의 망령",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x35AF17": {
+"label": "in",
+"source": "gemini",
+"name": "서리 망령",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFC9": {
+"label": "in",
+"source": "local",
+"name": "드림 이터 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFCA": {
+"label": "in",
+"source": "local",
+"name": "드리머 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFCC": {
+"label": "in",
+"source": "local",
+"name": "알드리머 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFCE": {
+"label": "in",
+"source": "local",
+"name": "알드메리스의 조난자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFD0": {
+"label": "in",
+"source": "local",
+"name": "제국 마나노트 정찰대 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4ECFD2": {
+"label": "in",
+"source": "gemini",
+"name": "제국 마나노트 백부장 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AD2": {
+"label": "in",
+"source": "gemini",
+"name": "진흙 떠돌이 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AD3": {
+"label": "in",
+"source": "gemini",
+"name": "진흙뭉치 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AD5": {
+"label": "in",
+"source": "local",
+"name": "진흙괴물 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AD7": {
+"label": "in",
+"source": "local",
+"name": "진흙벌레 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AD9": {
+"label": "in",
+"source": "local",
+"name": "진흙 아귀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3ADB": {
+"label": "in",
+"source": "local",
+"name": "진흙 거인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3ADD": {
+"label": "in",
+"source": "local",
+"name": "진흙을 딛고 일어난 자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AFD": {
+"label": "in",
+"source": "local",
+"name": "사령 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3AFE": {
+"label": "in",
+"source": "local",
+"name": "사령 보초 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3B00": {
+"label": "in",
+"source": "local",
+"name": "사령 기사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3B02": {
+"label": "in",
+"source": "local",
+"name": "사령 군주 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4F3B04": {
+"label": "in",
+"source": "local",
+"name": "부패한 사령 군주 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4FA5F4": {
+"label": "in",
+"source": "local",
+"name": "공허한 아넴 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4FA5FE": {
+"label": "in",
+"source": "local",
+"name": "목 없는 트롤 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x4FA5FF": {
+"label": "in",
+"source": "gemini",
+"name": "달팽이 독 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50111D": {
+"label": "in",
+"source": "local",
+"name": "거울상 혈장 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x501109": {
+"label": "in",
+"source": "local",
+"name": "서리 사냥개 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x501102": {
+"label": "in",
+"source": "local",
+"name": "탈모어 사냥개 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5010FD": {
+"label": "in",
+"source": "local",
+"name": "알피리온 경 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x372295": {
+"label": "in",
+"source": "gemini",
+"name": "마법 단검",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5010F6": {
+"label": "in",
+"source": "local",
+"name": "굴라칸 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x372296": {
+"label": "in",
+"source": "gemini",
+"name": "강화된 마법 단검",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5010F1": {
+"label": "in",
+"source": "local",
+"name": "애쉬칸 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x372298": {
+"label": "in",
+"source": "gemini",
+"name": "얼어붙은 마법 단검",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5010EB": {
+"label": "in",
+"source": "local",
+"name": "허씬의 화신 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x37229A": {
+"label": "in",
+"source": "gemini",
+"name": "독성 마법 단검",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x507C06": {
+"label": "in",
+"source": "local",
+"name": "스케이븐 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x507C07": {
+"label": "in",
+"source": "local",
+"name": "스케이븐 돌격대 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E70C": {
+"label": "in",
+"source": "gemini",
+"name": "까마귀개 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E70D": {
+"label": "in",
+"source": "local",
+"name": "개까마귀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E70F": {
+"label": "in",
+"source": "local",
+"name": "감추는 자의 노예 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E711": {
+"label": "in",
+"source": "gemini",
+"name": "웅얼거리는 머리 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E713": {
+"label": "in",
+"source": "local",
+"name": "손곰 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E715": {
+"label": "in",
+"source": "local",
+"name": "베르미나의 사제 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E729": {
+"label": "in",
+"source": "local",
+"name": "발광한 여자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E72A": {
+"label": "in",
+"source": "local",
+"name": "발광한 자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E735": {
+"label": "in",
+"source": "local",
+"name": "인간거미 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E73C": {
+"label": "in",
+"source": "local",
+"name": "잊혀진 그릇 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E741": {
+"label": "in",
+"source": "local",
+"name": "혼돈의 아지달 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x50E746": {
+"label": "in",
+"source": "local",
+"name": "아네퀴나의 성왕 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x51522C": {
+"label": "in",
+"source": "gemini",
+"name": "로빈 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x515231": {
+"label": "in",
+"source": "local",
+"name": "붉은 존재 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522972": {
+"label": "in",
+"source": "local",
+"name": "해부의 신비 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522973": {
+"label": "in",
+"source": "local",
+"name": "꽈리 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522975": {
+"label": "in",
+"source": "local",
+"name": "시체파리 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522977": {
+"label": "in",
+"source": "local",
+"name": "식인 돼지 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522979": {
+"label": "in",
+"source": "local",
+"name": "구더기 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x52297B": {
+"label": "in",
+"source": "local",
+"name": "거짓 광기의 구더기 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x52298F": {
+"label": "in",
+"source": "local",
+"name": "시체 탐하는 아귀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x522997": {
+"label": "in",
+"source": "local",
+"name": "시체 맴도는 까마귀 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x52299D": {
+"label": "in",
+"source": "local",
+"name": "눈동자의 못자리 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5229A9": {
+"label": "in",
+"source": "local",
+"name": "어인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5229AA": {
+"label": "in",
+"source": "local",
+"name": "작은 어인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5229AC": {
+"label": "in",
+"source": "local",
+"name": "어인 사제 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5229AE": {
+"label": "in",
+"source": "local",
+"name": "어인 사냥개 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294C1": {
+"label": "in",
+"source": "gemini",
+"name": "드라우그 선봉대 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294C2": {
+"label": "in",
+"source": "local",
+"name": "드라우그 거인 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294C4": {
+"label": "in",
+"source": "local",
+"name": "드라우그 정찰병 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294C6": {
+"label": "in",
+"source": "local",
+"name": "드라우그 발키리 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294E1": {
+"label": "in",
+"source": "local",
+"name": "거인 교회사 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294E9": {
+"label": "in",
+"source": "local",
+"name": "새로이 태어난 자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5294EA": {
+"label": "in",
+"source": "local",
+"name": "구더기 복자 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x536B66": {
+"label": "in",
+"source": "local",
+"name": "달의 후예 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x536B6B": {
+"label": "in",
+"source": "local",
+"name": "토르베사드 레플리카눔 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x53D668": {
+"label": "in",
+"source": "local",
+"name": "리그의 광휘 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x594AC2": {
+"label": "in",
+"source": "local",
+"name": "아프카-룰 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5A20B9": {
+"label": "unsure",
+"source": "none",
+"name": "공허 구체",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x3CE9A8": {
+"label": "in",
+"source": "local",
+"name": "신성한 검 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x3DFE0B": {
+"label": "in",
+"source": "local",
+"name": "히스트 호버 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x5F2B82": {
+"label": "in",
+"source": "local",
+"name": "성 바즈라 소환",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x60025C": {
+"label": "in",
+"source": "gemini",
+"name": "성 바즈라의 횃불",
+"plugin": "Glenmoril.esm"
+},
+"Glenmoril.esm|0x60D9F9": {
+"label": "in",
+"source": "gemini",
+"name": "예렘의 자취 소환",
+"plugin": "Glenmoril.esm"
+},
+"Unslaad.esm|0x35FD62": {
+"label": "in",
+"source": "gemini",
+"name": "딜론 시바스 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD63": {
+"label": "in",
+"source": "gemini",
+"name": "드래곤의 고름 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD65": {
+"label": "in",
+"source": "gemini",
+"name": "딜론 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD67": {
+"label": "in",
+"source": "gemini",
+"name": "문드러진 자 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD69": {
+"label": "in",
+"source": "gemini",
+"name": "브렌든 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3EAE54": {
+"label": "in",
+"source": "gemini",
+"name": "호르의 사제 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3EAE55": {
+"label": "in",
+"source": "gemini",
+"name": "호르의 전사 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD6B": {
+"label": "in",
+"source": "gemini",
+"name": "말 브렌든 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD6D": {
+"label": "in",
+"source": "gemini",
+"name": "탐색하는 눈동자 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3EAE60": {
+"label": "in",
+"source": "gemini",
+"name": "드라고노르드 포나르 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3EAE61": {
+"label": "in",
+"source": "gemini",
+"name": "드라고노르드 사콘 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3EAE63": {
+"label": "in",
+"source": "local",
+"name": "드라고노르드 베두 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x35FD8F": {
+"label": "in",
+"source": "local",
+"name": "에베나르 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719F3": {
+"label": "in",
+"source": "local",
+"name": "항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719F1": {
+"label": "in",
+"source": "local",
+"name": "검은 소울젬 항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719EF": {
+"label": "in",
+"source": "local",
+"name": "소울젬 항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719ED": {
+"label": "in",
+"source": "local",
+"name": "드웨머 항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719EB": {
+"label": "in",
+"source": "local",
+"name": "백은 항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x3719EA": {
+"label": "in",
+"source": "local",
+"name": "황금 항아리 꼬마 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x38871E": {
+"label": "in",
+"source": "local",
+"name": "만년설 수호자 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x38871F": {
+"label": "in",
+"source": "local",
+"name": "만년설 거인 수호자 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x420BF3": {
+"label": "in",
+"source": "local",
+"name": "이스그림의 뇌광",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x425D39": {
+"label": "in",
+"source": "local",
+"name": "매지카 탐식귀 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x425D38": {
+"label": "in",
+"source": "gemini",
+"name": "지구력 탐식귀 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x05F226": {
+"label": "in",
+"source": "gemini",
+"name": "얼음 구체",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x425E76": {
+"label": "in",
+"source": "local",
+"name": "데이건의 감시자 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x05C973": {
+"label": "in",
+"source": "gemini",
+"name": "빙정 낙하",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x440DB8": {
+"label": "in",
+"source": "local",
+"name": "쑨의 전사 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x440DB9": {
+"label": "in",
+"source": "local",
+"name": "폭풍 아트로나크 곰 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x178553": {
+"label": "in",
+"source": "gemini",
+"name": "얼음의 활",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x17855B": {
+"label": "in",
+"source": "local",
+"name": "얼어붙은 안바르 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x465E9C": {
+"label": "in",
+"source": "local",
+"name": "라케티-닉스 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x465E90": {
+"label": "in",
+"source": "local",
+"name": "포간-시나크 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x465E8E": {
+"label": "in",
+"source": "local",
+"name": "루-시나크 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x465E8C": {
+"label": "in",
+"source": "local",
+"name": "레인-시나크 소환",
+"plugin": "Unslaad.esm"
+},
+"Unslaad.esm|0x465E8B": {
+"label": "in",
+"source": "local",
+"name": "말-시나크 소환",
+"plugin": "Unslaad.esm"
+},
+"Vigilant.esm|0x10C893": {
+"label": "in",
+"source": "gemini",
+"name": "라마에의 혈통 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10C89E": {
+"label": "in",
+"source": "local",
+"name": "몰락 발 (도마뱀) 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10D83A": {
+"label": "in",
+"source": "local",
+"name": "질서의 기사 라자 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10D83B": {
+"label": "in",
+"source": "local",
+"name": "질서의 기사 라자 (쌍검) 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10F6AC": {
+"label": "in",
+"source": "local",
+"name": "오블리비언의 점지자 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10F6B4": {
+"label": "in",
+"source": "local",
+"name": "베르나쿠스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C70": {
+"label": "in",
+"source": "local",
+"name": "멘타 나 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C75": {
+"label": "in",
+"source": "local",
+"name": "카시미르 경 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C7A": {
+"label": "in",
+"source": "local",
+"name": "학살의 마람 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C7F": {
+"label": "in",
+"source": "gemini",
+"name": "속삭임의 아리아 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C84": {
+"label": "in",
+"source": "local",
+"name": "경계병 알레젤 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x110C89": {
+"label": "in",
+"source": "local",
+"name": "거머리 왕 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1125A0": {
+"label": "in",
+"source": "local",
+"name": "감옥장 위글 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x113C46": {
+"label": "in",
+"source": "local",
+"name": "지갈랙 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x113C4F": {
+"label": "in",
+"source": "local",
+"name": "경계병 바르톨로 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x115EBB": {
+"label": "in",
+"source": "gemini",
+"name": "수도원장 코스마스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116720": {
+"label": "in",
+"source": "local",
+"name": "질서의 기사 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116721": {
+"label": "in",
+"source": "local",
+"name": "질서의 사제 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116723": {
+"label": "in",
+"source": "local",
+"name": "질서의 아트로나크 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116725": {
+"label": "in",
+"source": "local",
+"name": "질서의 첨병 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116727": {
+"label": "in",
+"source": "local",
+"name": "질서의 우상 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x116729": {
+"label": "in",
+"source": "local",
+"name": "질서의 정령 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x11E0A4": {
+"label": "in",
+"source": "gemini",
+"name": "선정자 칼리번 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1258B0": {
+"label": "in",
+"source": "gemini",
+"name": "화염의 활",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x12A7B3": {
+"label": "in",
+"source": "local",
+"name": "검은 성모 메어리 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x12A7B8": {
+"label": "in",
+"source": "local",
+"name": "산사태 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x12BB6F": {
+"label": "in",
+"source": "local",
+"name": "데이드로스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x12BB70": {
+"label": "in",
+"source": "local",
+"name": "스캠프 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4EC": {
+"label": "in",
+"source": "local",
+"name": "발라의 사냥개 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4ED": {
+"label": "in",
+"source": "local",
+"name": "해골벌레 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4EF": {
+"label": "in",
+"source": "local",
+"name": "뼈 폭풍 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4F1": {
+"label": "in",
+"source": "local",
+"name": "차륜해골 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4F3": {
+"label": "in",
+"source": "local",
+"name": "샴블즈 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B4F5": {
+"label": "in",
+"source": "local",
+"name": "샴블즈 로드 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B500": {
+"label": "in",
+"source": "local",
+"name": "해골마 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13B505": {
+"label": "in",
+"source": "gemini",
+"name": "요술사 만사르 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x13BAAF": {
+"label": "in",
+"source": "gemini",
+"name": "볼로어 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1404FE": {
+"label": "in",
+"source": "local",
+"name": "봉인된 태양",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x140503": {
+"label": "in",
+"source": "gemini",
+"name": "펠리날 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x152143": {
+"label": "in",
+"source": "gemini",
+"name": "준칸 경 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x194C39": {
+"label": "in",
+"source": "gemini",
+"name": "모리하우스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x19EB9A": {
+"label": "in",
+"source": "gemini",
+"name": "그레이 프린스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1B9239": {
+"label": "in",
+"source": "gemini",
+"name": "발라 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1BA56C": {
+"label": "in",
+"source": "gemini",
+"name": "성전사 멜루스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1BCBC9": {
+"label": "in",
+"source": "gemini",
+"name": "정원사 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1BCBD1": {
+"label": "in",
+"source": "gemini",
+"name": "토롤프 경 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x1E2C32": {
+"label": "in",
+"source": "gemini",
+"name": "고리에우스의 자취 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x22A059": {
+"label": "in",
+"source": "local",
+"name": "교황 메거스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x23611A": {
+"label": "in",
+"source": "local",
+"name": "리토 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x247249": {
+"label": "in",
+"source": "gemini",
+"name": "해골 유니콘 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x273504": {
+"label": "in",
+"source": "local",
+"name": "오로란 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x2C2410": {
+"label": "in",
+"source": "local",
+"name": "오로란 지휘관 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x2C2411": {
+"label": "in",
+"source": "local",
+"name": "오로란 수호자 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x2C2413": {
+"label": "in",
+"source": "local",
+"name": "오로란 발키리 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x2C2415": {
+"label": "in",
+"source": "local",
+"name": "우마릴 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x2F2035": {
+"label": "in",
+"source": "local",
+"name": "메리디아의 활",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x3F6976": {
+"label": "in",
+"source": "gemini",
+"name": "전음",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x3FB794": {
+"label": "in",
+"source": "local",
+"name": "보이지 않는 몸",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x03B39F": {
+"label": "in",
+"source": "local",
+"name": "뱀파이어 사령술사 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x03B39D": {
+"label": "in",
+"source": "local",
+"name": "혈기사 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x03B39C": {
+"label": "in",
+"source": "gemini",
+"name": "야생 뱀파이어 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x51D5D1": {
+"label": "in",
+"source": "local",
+"name": "곪아터진 오그림 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0C5852": {
+"label": "in",
+"source": "gemini",
+"name": "다이오니온 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0CDE71": {
+"label": "in",
+"source": "local",
+"name": "반딧불",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0CDE72": {
+"label": "in",
+"source": "local",
+"name": "헤매이는 반딧불",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0D429B": {
+"label": "in",
+"source": "local",
+"name": "황야의 수호자 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0D69F5": {
+"label": "in",
+"source": "gemini",
+"name": "눈부신 화염",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0D69F6": {
+"label": "in",
+"source": "local",
+"name": "눈부신 화염구",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0D69F8": {
+"label": "in",
+"source": "local",
+"name": "눈부신 거대 화염구",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0DE93A": {
+"label": "in",
+"source": "local",
+"name": "느린 화염 고리",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0EFC34": {
+"label": "in",
+"source": "local",
+"name": "경계병 알타노 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0F6B56": {
+"label": "in",
+"source": "local",
+"name": "드레거스 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x0FD09E": {
+"label": "in",
+"source": "local",
+"name": "볼라르 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x5585A9": {
+"label": "in",
+"source": "local",
+"name": "영혼 고문관 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x108319": {
+"label": "in",
+"source": "local",
+"name": "고대 불꽃의 정령 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10831A": {
+"label": "in",
+"source": "local",
+"name": "고대 불꽃의 매복자 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10831C": {
+"label": "in",
+"source": "local",
+"name": "고대 불꽃의 아트로나크 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10831E": {
+"label": "in",
+"source": "local",
+"name": "고대 불꽃의 여왕 소환",
+"plugin": "Vigilant.esm"
+},
+"Vigilant.esm|0x10832B": {
+"label": "in",
+"source": "local",
+"name": "고대 불꽃의 군주 소환",
+"plugin": "Vigilant.esm"
+},
+"DAc0da.esm|0x00B3C1": {
+"label": "in",
+"source": "local",
+"name": "썬더나크 군주 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00D033": {
+"label": "in",
+"source": "gemini",
+"name": "조율 기술 : 양자 재채기",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00D037": {
+"label": "in",
+"source": "local",
+"name": "조율 기술 : 가상 부뇌",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00D03E": {
+"label": "in",
+"source": "gemini",
+"name": "조율 기술 : 분할 큐브",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00D067": {
+"label": "in",
+"source": "gemini",
+"name": "조율 기술 : 분할 가능한 솟박스",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00D06F": {
+"label": "in",
+"source": "gemini",
+"name": "조율 기술 : 팬 큐브",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CCE8": {
+"label": "in",
+"source": "gemini",
+"name": "치즈 홀리데이",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048AE": {
+"label": "in",
+"source": "local",
+"name": "야그라 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048AF": {
+"label": "in",
+"source": "local",
+"name": "야그라 전사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048B0": {
+"label": "in",
+"source": "local",
+"name": "야그라 치유사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048B1": {
+"label": "in",
+"source": "local",
+"name": "야그라 보행자 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048B2": {
+"label": "in",
+"source": "local",
+"name": "야그라 유충 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048BD": {
+"label": "in",
+"source": "local",
+"name": "첩보원, 야그라 키메라 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048C1": {
+"label": "in",
+"source": "local",
+"name": "야그라 키메라 시제품 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048C6": {
+"label": "in",
+"source": "local",
+"name": "벌레의 조산사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048CA": {
+"label": "in",
+"source": "local",
+"name": "바다 슬로드 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048CF": {
+"label": "in",
+"source": "local",
+"name": "나무 망령 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048D5": {
+"label": "in",
+"source": "gemini",
+"name": "우드랜드 인간놈 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048D9": {
+"label": "in",
+"source": "local",
+"name": "얼음 뱀 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048F2": {
+"label": "in",
+"source": "local",
+"name": "벌레의 제물 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048F8": {
+"label": "in",
+"source": "local",
+"name": "흐겔헬름 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0048F9": {
+"label": "in",
+"source": "local",
+"name": "흐겔헬름손 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x004903": {
+"label": "in",
+"source": "local",
+"name": "신드웬 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x004F8D": {
+"label": "in",
+"source": "local",
+"name": "언더킹 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005022": {
+"label": "in",
+"source": "local",
+"name": "아카시야 사몬 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005032": {
+"label": "in",
+"source": "local",
+"name": "잉골 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005164": {
+"label": "in",
+"source": "local",
+"name": "슬로드 좀비 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051A8": {
+"label": "in",
+"source": "local",
+"name": "유사 드라고 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051B4": {
+"label": "in",
+"source": "local",
+"name": "하프드레이크 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051C7": {
+"label": "in",
+"source": "local",
+"name": "엑립의 천사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051E1": {
+"label": "in",
+"source": "local",
+"name": "민의 영혼 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051E3": {
+"label": "in",
+"source": "local",
+"name": "일니의 영혼 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0051E5": {
+"label": "in",
+"source": "local",
+"name": "베인할 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005235": {
+"label": "in",
+"source": "local",
+"name": "바닷빛 살점 아트로나크 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0053B0": {
+"label": "in",
+"source": "local",
+"name": "야그라 시터 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0053C7": {
+"label": "in",
+"source": "local",
+"name": "살점 허물 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0053D8": {
+"label": "in",
+"source": "local",
+"name": "살점추적자 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005513": {
+"label": "in",
+"source": "local",
+"name": "바닷빛 살점 허물 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005F74": {
+"label": "in",
+"source": "local",
+"name": "골드본 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005F75": {
+"label": "in",
+"source": "local",
+"name": "골드본 크롤러 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005F76": {
+"label": "in",
+"source": "local",
+"name": "골드본 윌러 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005F77": {
+"label": "in",
+"source": "local",
+"name": "황금혈통 수호자 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005F78": {
+"label": "in",
+"source": "gemini",
+"name": "골드본 거상 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x005FD4": {
+"label": "in",
+"source": "local",
+"name": "골드본 척후병 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x006094": {
+"label": "in",
+"source": "local",
+"name": "골드본 폭풍 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x006109": {
+"label": "in",
+"source": "local",
+"name": "벌레의 신 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00610A": {
+"label": "in",
+"source": "local",
+"name": "강령술사의 달 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085DD": {
+"label": "in",
+"source": "local",
+"name": "드워프 일꾼 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085DE": {
+"label": "in",
+"source": "gemini",
+"name": "드워프 전사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085E6": {
+"label": "in",
+"source": "local",
+"name": "느추낙 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085E7": {
+"label": "in",
+"source": "local",
+"name": "느추낙 세컨드 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085F3": {
+"label": "in",
+"source": "local",
+"name": "빛나는 침묵자 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085F4": {
+"label": "in",
+"source": "local",
+"name": "아포크리파 하운드 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085F5": {
+"label": "in",
+"source": "local",
+"name": "아포크리파 사냥꾼 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x0085F6": {
+"label": "in",
+"source": "local",
+"name": "빛나는 침묵 약탈자 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00B1FD": {
+"label": "in",
+"source": "local",
+"name": "주린 아르크투스 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00B200": {
+"label": "in",
+"source": "local",
+"name": "듀막의 조율외장 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00B3C2": {
+"label": "in",
+"source": "local",
+"name": "폭풍 오른손 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00B3C3": {
+"label": "in",
+"source": "local",
+"name": "폭풍 왼손 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00B3CA": {
+"label": "in",
+"source": "gemini",
+"name": "화염 구체 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CB96": {
+"label": "in",
+"source": "local",
+"name": "유령 합창단 소환 9",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CBD1": {
+"label": "in",
+"source": "local",
+"name": "비전술사 소환",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CC83": {
+"label": "in",
+"source": "local",
+"name": "지연식 화염 룬",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CC93": {
+"label": "in",
+"source": "local",
+"name": "지연식 냉기 룬",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CC94": {
+"label": "in",
+"source": "local",
+"name": "지연식 전격 룬",
+"plugin": "DAc0da.esm"
+},
+"DAc0da.esm|0x00CC9E": {
+"label": "in",
+"source": "local",
+"name": "드웨머 운철",
+"plugin": "DAc0da.esm"
+},
+"Skyrim Extended Cut - Saints and Seducers.esp|0x1425A4": {
+"label": "in",
+"source": "local",
+"name": "헝거 소환",
+"plugin": "Skyrim Extended Cut - Saints and Seducers.esp"
+},
+"AX ValSerano.esp|0x0545C9": {
+"label": "in",
+"source": "local",
+"name": "세라노의 결속 방패",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x060B48": {
+"label": "out",
+"source": "rule",
+"name": "세라노 소환",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x41F7BB": {
+"label": "in",
+"source": "local",
+"name": "폭풍 골렘 소환",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x7ADDA2": {
+"label": "in",
+"source": "local",
+"name": "번개 구체 소환",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x7ADDA3": {
+"label": "in",
+"source": "local",
+"name": "번개 소용돌이",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x7ADDA5": {
+"label": "in",
+"source": "local",
+"name": "번개 덫",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x7ADDA7": {
+"label": "in",
+"source": "local",
+"name": "소용돌이 소환",
+"plugin": "AX ValSerano.esp"
+},
+"AX ValSerano.esp|0x7B5B7D": {
+"label": "in",
+"source": "local",
+"name": "라이트닝 분출",
+"plugin": "AX ValSerano.esp"
+},
+"Midnight Sun.esm|0x286CAE": {
+"label": "in",
+"source": "local",
+"name": "무덤 사냥개 소환",
+"plugin": "Midnight Sun.esm"
+},
+"Midnight Sun.esm|0x286CB2": {
+"label": "in",
+"source": "local",
+"name": "사령 기사 소환",
+"plugin": "Midnight Sun.esm"
+},
+"Midnight Sun.esm|0x286CB5": {
+"label": "in",
+"source": "local",
+"name": "절망의 전령 소환",
+"plugin": "Midnight Sun.esm"
+},
+"Midnight Sun.esm|0x560D48": {
+"label": "in",
+"source": "local",
+"name": "챠루스 소환",
+"plugin": "Midnight Sun.esm"
+},
+"Midnight Sun.esm|0x57FB61": {
+"label": "out",
+"source": "gemini",
+"name": "에버미스트 요새 안내 마법",
+"plugin": "Midnight Sun.esm"
+},
+"NightmarePlane.esp|0x07C704": {
+"label": "in",
+"source": "gemini",
+"name": "수면 감지 ",
+"plugin": "NightmarePlane.esp"
+},
+"NightmarePlane.esp|0x04E6DB": {
+"label": "in",
+"source": "gemini",
+"name": "상급 악몽의 계략",
+"plugin": "NightmarePlane.esp"
+},
+"NightmarePlane.esp|0x04E6D9": {
+"label": "in",
+"source": "gemini",
+"name": "하급 악몽의 계략",
+"plugin": "NightmarePlane.esp"
+},
+"NightmarePlane.esp|0x0495AC": {
+"label": "in",
+"source": "gemini",
+"name": "악몽의 계략",
+"plugin": "NightmarePlane.esp"
+},
+"CJ03Elroy.esp|0xFC7B37": {
+"label": "in",
+"source": "local",
+"name": "균류 드로거 소환",
+"plugin": "CJ03Elroy.esp"
+},
+"CJ03Elroy.esp|0x348E23": {
+"label": "in",
+"source": "gemini",
+"name": "거대 뼈 거미 소환",
+"plugin": "CJ03Elroy.esp"
+},
+"CJ03Elroy.esp|0x65E3B6": {
+"label": "in",
+"source": "local",
+"name": "교황 수호병 소환",
+"plugin": "CJ03Elroy.esp"
+},
+"BSAssets.esm|0x000D64": {
+"label": "in",
+"source": "gemini",
+"name": "비전 수용소",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x0012C7": {
+"label": "in",
+"source": "local",
+"name": "독성 미사일",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x001D9D": {
+"label": "in",
+"source": "gemini",
+"name": "작열하는 독",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x001DA0": {
+"label": "in",
+"source": "local",
+"name": "독성 일제 사격",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x002308": {
+"label": "in",
+"source": "local",
+"name": "독소 구름",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x003E18": {
+"label": "in",
+"source": "local",
+"name": "느린 낙하",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x003E27": {
+"label": "in",
+"source": "local",
+"name": "성역",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x003E28": {
+"label": "in",
+"source": "local",
+"name": "위험 감지",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x004E53": {
+"label": "in",
+"source": "local",
+"name": "벌레떼",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x007980": {
+"label": "in",
+"source": "local",
+"name": "상급 독성 미사일",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x601FB4": {
+"label": "in",
+"source": "gemini",
+"name": "스캠프 소환",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x60250B": {
+"label": "in",
+"source": "local",
+"name": "마법 단검",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x602511": {
+"label": "in",
+"source": "local",
+"name": "수상 보행",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x602595": {
+"label": "in",
+"source": "local",
+"name": "속박된 철퇴",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x6025B9": {
+"label": "in",
+"source": "gemini",
+"name": "속박된 대검",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x6028CD": {
+"label": "in",
+"source": "gemini",
+"name": "수습생 자물쇠 열기",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x6028CF": {
+"label": "in",
+"source": "gemini",
+"name": "전문가 자물쇠 열기",
+"plugin": "BSAssets.esm"
+},
+"BSAssets.esm|0x6028D0": {
+"label": "in",
+"source": "gemini",
+"name": "달인 자물쇠 열기",
+"plugin": "BSAssets.esm"
+},
+"BSHeartland.esm|0x06B57B": {
+"label": "in",
+"source": "local",
+"name": "불빛",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x083C8F": {
+"label": "in",
+"source": "gemini",
+"name": "함정 탐지",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x06FA2C": {
+"label": "in",
+"source": "local",
+"name": "포스 룬",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x06FF7B": {
+"label": "in",
+"source": "local",
+"name": "라쟈다의 소환된 좀비",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x071152": {
+"label": "in",
+"source": "local",
+"name": "생명력 흡수 망토",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x07230A": {
+"label": "in",
+"source": "local",
+"name": "좀비 소환",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x072311": {
+"label": "in",
+"source": "local",
+"name": "냉기화염 룬",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x072320": {
+"label": "in",
+"source": "gemini",
+"name": "서리불길",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x07233B": {
+"label": "in",
+"source": "local",
+"name": "새하얀 화염화살",
+"plugin": "BSHeartland.esm"
+},
+"BSHeartland.esm|0x0782C5": {
+"label": "in",
+"source": "local",
+"name": "윌-오-위스프 소환",
+"plugin": "BSHeartland.esm"
+},
+"Dwarfsphere.esp|0xA68B97": {
+"label": "in",
+"source": "local",
+"name": "비전 외피",
+"plugin": "Dwarfsphere.esp"
+},
+"Dwarfsphere.esp|0xA68B9C": {
+"label": "out",
+"source": "gemini",
+"name": "음식과 음료 소환",
+"plugin": "Dwarfsphere.esp"
+},
+"Dwarfsphere.esp|0x8DC495": {
+"label": "in",
+"source": "local",
+"name": "시간 붕괴",
+"plugin": "Dwarfsphere.esp"
+},
+"Dwarfsphere.esp|0xA68B90": {
+"label": "in",
+"source": "local",
+"name": "질병 치료",
+"plugin": "Dwarfsphere.esp"
+},
+"Dwarfsphere.esp|0xB62BC6": {
+"label": "out",
+"source": "gemini",
+"name": "순간이동 점퍼 군주의 선돌",
+"plugin": "Dwarfsphere.esp"
+},
+"3DNPC.esp|0x130D41": {
+"label": "in",
+"source": "local",
+"name": "드래곤 프리스트 소환",
+"plugin": "3DNPC.esp"
+},
+"3DNPC.esp|0x13B526": {
+"label": "in",
+"source": "local",
+"name": "격노 마비",
+"plugin": "3DNPC.esp"
+},
+"3DNPC.esp|0x1B018A": {
+"label": "in",
+"source": "local",
+"name": "엘드리치의 늑대 소환",
+"plugin": "3DNPC.esp"
+},
+"3DNPC.esp|0x1B4636": {
+"label": "out",
+"source": "rule",
+"name": "수혈",
+"plugin": "3DNPC.esp"
+},
+"3DNPC.esp|0x1CED4C": {
+"label": "in",
+"source": "local",
+"name": "드라보스 소환",
+"plugin": "3DNPC.esp"
+},
+"Haem Projects Goblands.esp|0x0BA7BD": {
+"label": "out",
+"source": "rule",
+"name": "진실의 길",
+"plugin": "Haem Projects Goblands.esp"
+},
+"Haem Projects Goblands.esp|0x2778EC": {
+"label": "in",
+"source": "local",
+"name": "역병불꽃 화살",
+"plugin": "Haem Projects Goblands.esp"
+},
+"Haem Projects Goblands.esp|0x2778E1": {
+"label": "in",
+"source": "local",
+"name": "역병불꽃 구체",
+"plugin": "Haem Projects Goblands.esp"
+},
+"Haem Projects Goblands.esp|0x2778D4": {
+"label": "in",
+"source": "local",
+"name": "역병불꽃 불길",
+"plugin": "Haem Projects Goblands.esp"
+},
+"FalkreathShades.esp|0x43530B": {
+"label": "in",
+"source": "gemini",
+"name": "썩은 덩어리 소환",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x0F40A4": {
+"label": "in",
+"source": "local",
+"name": "강렬한 화염",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x49AEE4": {
+"label": "out",
+"source": "gemini",
+"name": "재료 주입",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x0D0989": {
+"label": "in",
+"source": "local",
+"name": "그림자 손아귀",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x0D5A90": {
+"label": "in",
+"source": "local",
+"name": "생명의 피 흡수",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x3BB989": {
+"label": "in",
+"source": "gemini",
+"name": "맹렬한 화염",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x1178F8": {
+"label": "in",
+"source": "local",
+"name": "생명의 피 공물",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x3F352C": {
+"label": "in",
+"source": "local",
+"name": "무덤 수호자 소환",
+"plugin": "FalkreathShades.esp"
+},
+"FalkreathShades.esp|0x435308": {
+"label": "in",
+"source": "local",
+"name": "그림자 소환",
+"plugin": "FalkreathShades.esp"
+},
+"HammetDungeon01.esm|0x897EF5": {
+"label": "in",
+"source": "local",
+"name": "아르카스 소환",
+"plugin": "HammetDungeon01.esm"
+},
+"HammetDungeon02.esm|0x62F417": {
+"label": "in",
+"source": "local",
+"name": "드워프 구체 소환",
+"plugin": "HammetDungeon02.esm"
+},
+"KhajiitWillFollow.esp|0x0CB9E4": {
+"label": "in",
+"source": "gemini",
+"name": "스쿠마 고양이의 말",
+"plugin": "KhajiitWillFollow.esp"
+},
+"VanillaPlusBosses.esp|0x0B1C0D": {
+"label": "in",
+"source": "local",
+"name": "언데드 챔피언 소환",
+"plugin": "VanillaPlusBosses.esp"
+},
+"SexLab Eager NPCs.esp|0x01DD57": {
+"label": "out",
+"source": "gemini",
+"name": "연인 (Lovers) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01E2CD": {
+"label": "out",
+"source": "gemini",
+"name": "동료 (Allies) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01E2CE": {
+"label": "out",
+"source": "gemini",
+"name": "절친 (Confidant) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01E2D0": {
+"label": "out",
+"source": "gemini",
+"name": "친구 (Friend) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01E2D2": {
+"label": "out",
+"source": "gemini",
+"name": "구경꾼 (Bystanders) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01FDC8": {
+"label": "out",
+"source": "gemini",
+"name": "성적 충동 상태 (Sexmad) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01FDC9": {
+"label": "out",
+"source": "gemini",
+"name": "흥분 상태 (Aroused) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01FDCB": {
+"label": "out",
+"source": "gemini",
+"name": "정신 산만 상태 (Distracted) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01FDCD": {
+"label": "out",
+"source": "gemini",
+"name": "자발적 (Willing) 상태 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x01FDCF": {
+"label": "out",
+"source": "gemini",
+"name": "만족 상태 (Satisfied) 감지",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x0403CD": {
+"label": "out",
+"source": "gemini",
+"name": "성욕 (Libido) 주입 - 중급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x0403D1": {
+"label": "out",
+"source": "gemini",
+"name": "성욕 (Libido) 주입 - 하급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x0403D3": {
+"label": "out",
+"source": "gemini",
+"name": "성욕 (Libido) 주입 - 상급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x0403D5": {
+"label": "out",
+"source": "gemini",
+"name": "성욕 (Libido) 주입 - 최상급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x04093D": {
+"label": "out",
+"source": "gemini",
+"name": "성욕 폭발 (Libido Explosion)",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x044F58": {
+"label": "out",
+"source": "gemini",
+"name": "열정 (Ardor) 확대 - 하급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x044F59": {
+"label": "out",
+"source": "gemini",
+"name": "열정 (Ardor) 확대 - 중급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x044F5B": {
+"label": "out",
+"source": "gemini",
+"name": "열정 (Ardor) 확대 - 상급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x044F5D": {
+"label": "out",
+"source": "gemini",
+"name": "열정 (Ardor) 확대 - 최상급",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"SexLab Eager NPCs.esp|0x053D96": {
+"label": "out",
+"source": "gemini",
+"name": "양성구유 (Androgyny) 오라",
+"plugin": "SexLab Eager NPCs.esp"
+},
+"mihailskeletalrevenants.esp|0x0008DA": {
+"label": "in",
+"source": "local",
+"name": "완전한 섐블즈 소환",
+"plugin": "mihailskeletalrevenants.esp"
+},
+"mihailskeletalrevenants.esp|0x000ABE": {
+"label": "in",
+"source": "local",
+"name": "뼈 거상 소환",
+"plugin": "mihailskeletalrevenants.esp"
+},
+"mihailskeletalrevenants.esp|0x000ABF": {
+"label": "in",
+"source": "local",
+"name": "드래곤파이어 뼈 거상 소환",
+"plugin": "mihailskeletalrevenants.esp"
+},
+"mihailskeletalrevenants.esp|0x000AC0": {
+"label": "in",
+"source": "local",
+"name": "스톤파이어 뼈 거상 소환",
+"plugin": "mihailskeletalrevenants.esp"
+},
+"mihailskeletalrevenants.esp|0x000AC1": {
+"label": "in",
+"source": "local",
+"name": "썬더차일드 뼈 거상 소환",
+"plugin": "mihailskeletalrevenants.esp"
+},
+"MysticismMagic.esp|0x00FFF4": {
+"label": "in",
+"source": "local",
+"name": "드레모라 사냥꾼 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x00FFF5": {
+"label": "in",
+"source": "local",
+"name": "드레모라 마법사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x01F2FA": {
+"label": "in",
+"source": "local",
+"name": "악령 궁수 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x01F2FB": {
+"label": "in",
+"source": "local",
+"name": "악령 흑마법사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x10D264": {
+"label": "in",
+"source": "local",
+"name": "바람 보행자",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x10D265": {
+"label": "in",
+"source": "local",
+"name": "바람 순찰자",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x176CD0": {
+"label": "in",
+"source": "gemini",
+"name": "이동불가",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1901E5": {
+"label": "in",
+"source": "local",
+"name": "화산재 구름",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x19A3ED": {
+"label": "in",
+"source": "local",
+"name": "특급 염동력",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1AE7FA": {
+"label": "in",
+"source": "local",
+"name": "불타는 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1AE800": {
+"label": "in",
+"source": "local",
+"name": "오한의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1AE801": {
+"label": "in",
+"source": "local",
+"name": "정전기의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1B3907": {
+"label": "in",
+"source": "gemini",
+"name": "바닷 걸음",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1B8A09": {
+"label": "in",
+"source": "local",
+"name": "피의 창",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1B8A10": {
+"label": "in",
+"source": "local",
+"name": "엔트로피의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1B8A15": {
+"label": "in",
+"source": "local",
+"name": "엔트로피 화살",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D7020": {
+"label": "in",
+"source": "local",
+"name": "화형",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D7023": {
+"label": "in",
+"source": "local",
+"name": "대 화염",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D702A": {
+"label": "in",
+"source": "local",
+"name": "강력한 번갯불",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D702B": {
+"label": "in",
+"source": "local",
+"name": "상급 동상",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D702D": {
+"label": "in",
+"source": "local",
+"name": "불타는 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D702F": {
+"label": "in",
+"source": "local",
+"name": "충격 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1D7031": {
+"label": "in",
+"source": "local",
+"name": "얼어붙는 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1DC141": {
+"label": "in",
+"source": "local",
+"name": "산의 손가락",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1E634D": {
+"label": "in",
+"source": "local",
+"name": "독 화살",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1E634F": {
+"label": "in",
+"source": "local",
+"name": "독기 화살",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1E6352": {
+"label": "in",
+"source": "local",
+"name": "독성 구름",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1FA75F": {
+"label": "in",
+"source": "local",
+"name": "죽음의 구름",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x1FF868": {
+"label": "in",
+"source": "local",
+"name": "상급 화염의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x20496A": {
+"label": "in",
+"source": "local",
+"name": "태양빛의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x209A73": {
+"label": "in",
+"source": "local",
+"name": "맹독 망토",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x209A74": {
+"label": "in",
+"source": "local",
+"name": "독의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x209A76": {
+"label": "in",
+"source": "local",
+"name": "독사의 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x209A7A": {
+"label": "in",
+"source": "local",
+"name": "치명적인 독 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2280B0": {
+"label": "in",
+"source": "local",
+"name": "광휘의 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2466C0": {
+"label": "in",
+"source": "local",
+"name": "태양 빛 폭발",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2508C9": {
+"label": "in",
+"source": "local",
+"name": "반사광",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2559DE": {
+"label": "in",
+"source": "local",
+"name": "재조직",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2559DF": {
+"label": "in",
+"source": "local",
+"name": "돌연변이화",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x25FBFF": {
+"label": "in",
+"source": "local",
+"name": "충전 폭발",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x274020": {
+"label": "in",
+"source": "local",
+"name": "조율",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x274025": {
+"label": "in",
+"source": "local",
+"name": "에테리우스의 예언",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x27E242": {
+"label": "in",
+"source": "local",
+"name": "신속회복",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x27E243": {
+"label": "in",
+"source": "local",
+"name": "특급 치유",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x283346": {
+"label": "in",
+"source": "gemini",
+"name": "질병 치료",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x283349": {
+"label": "in",
+"source": "local",
+"name": "특급 방어막",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29265D": {
+"label": "in",
+"source": "local",
+"name": "화염 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29265E": {
+"label": "in",
+"source": "local",
+"name": "화염 껍질",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292664": {
+"label": "in",
+"source": "local",
+"name": "전격 산탄",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292665": {
+"label": "in",
+"source": "local",
+"name": "번개 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29266B": {
+"label": "in",
+"source": "local",
+"name": "냉기 껍질",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29266C": {
+"label": "in",
+"source": "local",
+"name": "냉기 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292672": {
+"label": "in",
+"source": "local",
+"name": "독 껍질",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292673": {
+"label": "in",
+"source": "local",
+"name": "독성 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292677": {
+"label": "in",
+"source": "local",
+"name": "약점 - 화염",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29267B": {
+"label": "in",
+"source": "local",
+"name": "약점 - 번개",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29267C": {
+"label": "in",
+"source": "local",
+"name": "냉기 취약",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292680": {
+"label": "in",
+"source": "local",
+"name": "약점 - 독",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292684": {
+"label": "in",
+"source": "local",
+"name": "깃털",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x292689": {
+"label": "in",
+"source": "local",
+"name": "짐꾼",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2977A1": {
+"label": "in",
+"source": "local",
+"name": "저속 낙하",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x29C8AB": {
+"label": "unsure",
+"source": "none",
+"name": "방어구 부식",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2A19B3": {
+"label": "in",
+"source": "local",
+"name": "해체",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2A19B9": {
+"label": "in",
+"source": "local",
+"name": "방어구 포식자",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2A6AC8": {
+"label": "in",
+"source": "local",
+"name": "장막",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2A6AC9": {
+"label": "in",
+"source": "gemini",
+"name": "성역",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2ABBDC": {
+"label": "in",
+"source": "local",
+"name": "정화",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2B0CE9": {
+"label": "in",
+"source": "local",
+"name": "침묵",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2B0CEE": {
+"label": "in",
+"source": "local",
+"name": "지배",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2B5DFA": {
+"label": "in",
+"source": "local",
+"name": "무음",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CA217": {
+"label": "in",
+"source": "local",
+"name": "제어",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CA219": {
+"label": "in",
+"source": "local",
+"name": "지배",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CA222": {
+"label": "in",
+"source": "gemini",
+"name": "카멜레온",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CA226": {
+"label": "in",
+"source": "local",
+"name": "유령걸음",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CF331": {
+"label": "in",
+"source": "gemini",
+"name": "밤눈",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2CF335": {
+"label": "in",
+"source": "local",
+"name": "마비의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2DE640": {
+"label": "in",
+"source": "local",
+"name": "엔트로피의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2DE648": {
+"label": "in",
+"source": "local",
+"name": "뼈 약화",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2DE656": {
+"label": "in",
+"source": "local",
+"name": "지구력 흡수",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2E8863": {
+"label": "in",
+"source": "gemini",
+"name": "엔트로피의 손아귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2E8870": {
+"label": "in",
+"source": "local",
+"name": "세계의 목",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2ED973": {
+"label": "in",
+"source": "local",
+"name": "블랙 마쉬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2FCC82": {
+"label": "in",
+"source": "local",
+"name": "상급 번개의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x2FCC83": {
+"label": "in",
+"source": "local",
+"name": "상급 냉기의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x399C05": {
+"label": "in",
+"source": "local",
+"name": "폭풍격류",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3C2436": {
+"label": "in",
+"source": "local",
+"name": "초보 등급 자물쇠 해제",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3C753F": {
+"label": "in",
+"source": "local",
+"name": "견습 자물쇠 해제",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3C7540": {
+"label": "in",
+"source": "local",
+"name": "숙련 등급 자물쇠 해제",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3C7542": {
+"label": "in",
+"source": "gemini",
+"name": "전문 자물쇠 해제",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3C7547": {
+"label": "in",
+"source": "local",
+"name": "부담",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3DB99C": {
+"label": "in",
+"source": "local",
+"name": "샬리도어의 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3E0AC5": {
+"label": "in",
+"source": "local",
+"name": "진정의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3E5BD3": {
+"label": "in",
+"source": "local",
+"name": "침묵의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3E5BE1": {
+"label": "in",
+"source": "local",
+"name": "지배의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x3E5BEE": {
+"label": "in",
+"source": "local",
+"name": "공포의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x40933C": {
+"label": "in",
+"source": "local",
+"name": "해골 전사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x413541": {
+"label": "in",
+"source": "local",
+"name": "해골 병사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x413545": {
+"label": "in",
+"source": "local",
+"name": "해골 궁수 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x413549": {
+"label": "in",
+"source": "local",
+"name": "해골 마법사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x41864C": {
+"label": "in",
+"source": "local",
+"name": "해골 투사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x41D74F": {
+"label": "in",
+"source": "local",
+"name": "드레모라 전사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x42795A": {
+"label": "in",
+"source": "local",
+"name": "드레모라 흑마법사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD62": {
+"label": "in",
+"source": "local",
+"name": "잔혹한 유령 늑대 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD66": {
+"label": "in",
+"source": "local",
+"name": "유령 검치호랑이 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD6C": {
+"label": "in",
+"source": "gemini",
+"name": "유령 곰 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD6D": {
+"label": "in",
+"source": "local",
+"name": "유령 말 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD72": {
+"label": "in",
+"source": "local",
+"name": "유령 야수 인간 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD7A": {
+"label": "in",
+"source": "local",
+"name": "선조 수호자 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD82": {
+"label": "in",
+"source": "local",
+"name": "선조 마법사 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x43BD87": {
+"label": "in",
+"source": "local",
+"name": "선조 암살자 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x440E96": {
+"label": "in",
+"source": "local",
+"name": "영혼 찢기",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x440E99": {
+"label": "in",
+"source": "local",
+"name": "생명 강탈",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FA0": {
+"label": "in",
+"source": "local",
+"name": "라마에의 포옹",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FA8": {
+"label": "in",
+"source": "gemini",
+"name": "영혼 분리",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FB2": {
+"label": "in",
+"source": "gemini",
+"name": "정수 약화",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FB7": {
+"label": "in",
+"source": "local",
+"name": "생기 흡수",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FC4": {
+"label": "in",
+"source": "local",
+"name": "매지카 흡수",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FD0": {
+"label": "in",
+"source": "local",
+"name": "휘몰아치는 화염",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x445FFD": {
+"label": "in",
+"source": "local",
+"name": "흰 서리",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x446019": {
+"label": "in",
+"source": "local",
+"name": "드워프 거미 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x45536C": {
+"label": "in",
+"source": "gemini",
+"name": "표시",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x45536D": {
+"label": "in",
+"source": "local",
+"name": "복귀",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x455387": {
+"label": "in",
+"source": "gemini",
+"name": "샬리도어의 표식",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x45538C": {
+"label": "in",
+"source": "gemini",
+"name": "고위 시커 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x45F595": {
+"label": "in",
+"source": "local",
+"name": "화산재 껍질 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x46E8A8": {
+"label": "in",
+"source": "local",
+"name": "엔트로피 폭발",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x482CE4": {
+"label": "in",
+"source": "local",
+"name": "스탠다르의 순례자",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x48CEEB": {
+"label": "in",
+"source": "local",
+"name": "지혜의 원",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x48CF04": {
+"label": "in",
+"source": "local",
+"name": "독이빨",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x48CF09": {
+"label": "in",
+"source": "local",
+"name": "일식",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4AB524": {
+"label": "in",
+"source": "local",
+"name": "고요",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4AB528": {
+"label": "in",
+"source": "local",
+"name": "공황",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4AB52F": {
+"label": "in",
+"source": "local",
+"name": "진노",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4B063A": {
+"label": "in",
+"source": "local",
+"name": "진정",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4B063B": {
+"label": "in",
+"source": "local",
+"name": "홀림",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4B0648": {
+"label": "in",
+"source": "gemini",
+"name": "반갑지 않은 손님",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4B065B": {
+"label": "in",
+"source": "local",
+"name": "잿빛 폭풍",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4B065F": {
+"label": "in",
+"source": "local",
+"name": "세계의 무게",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4CECE5": {
+"label": "in",
+"source": "gemini",
+"name": "평면의 닻",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x4CECE6": {
+"label": "in",
+"source": "gemini",
+"name": "한계 전환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x515B97": {
+"label": "in",
+"source": "local",
+"name": "중급 치유",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x705EAF": {
+"label": "in",
+"source": "local",
+"name": "소실",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7388D3": {
+"label": "in",
+"source": "local",
+"name": "햇빛조각",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7847E9": {
+"label": "in",
+"source": "local",
+"name": "작열",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x78E9F4": {
+"label": "in",
+"source": "local",
+"name": "광휘의 태양빛",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7B720C": {
+"label": "in",
+"source": "gemini",
+"name": "무기 분해",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7BC311": {
+"label": "in",
+"source": "local",
+"name": "여명",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7D0721": {
+"label": "in",
+"source": "local",
+"name": "신속한 수영",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x7D5826": {
+"label": "in",
+"source": "local",
+"name": "디벨라의 심장",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x844E4A": {
+"label": "in",
+"source": "local",
+"name": "구조 파괴",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x890D64": {
+"label": "in",
+"source": "local",
+"name": "햇빛의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x8C886D": {
+"label": "in",
+"source": "local",
+"name": "독 조각",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9420A3": {
+"label": "in",
+"source": "local",
+"name": "맹독 살포",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9606AC": {
+"label": "in",
+"source": "local",
+"name": "미아즈마",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x96F9BA": {
+"label": "in",
+"source": "local",
+"name": "독의 벽",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9A74C9": {
+"label": "in",
+"source": "local",
+"name": "고속 재생",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9A74CB": {
+"label": "in",
+"source": "local",
+"name": "아케이의 빛",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9AC5CE": {
+"label": "in",
+"source": "local",
+"name": "찬란한 태양빛의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9C09E5": {
+"label": "in",
+"source": "local",
+"name": "태양빛의 벽",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9E9213": {
+"label": "in",
+"source": "local",
+"name": "검 파괴자",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0x9F8524": {
+"label": "in",
+"source": "local",
+"name": "영혼 수확",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xA07827": {
+"label": "in",
+"source": "local",
+"name": "급속 냉각",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xA0782A": {
+"label": "in",
+"source": "local",
+"name": "감전사",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xA0782D": {
+"label": "in",
+"source": "local",
+"name": "죽음의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xA9A573": {
+"label": "in",
+"source": "local",
+"name": "소실",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xAC7E8B": {
+"label": "in",
+"source": "local",
+"name": "지장",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xAEB598": {
+"label": "in",
+"source": "gemini",
+"name": "부담의 룬",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xB467E6": {
+"label": "in",
+"source": "local",
+"name": "침묵",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xB4B8F4": {
+"label": "in",
+"source": "local",
+"name": "분노",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xC43A35": {
+"label": "in",
+"source": "local",
+"name": "화염의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xC4DC3A": {
+"label": "in",
+"source": "local",
+"name": "투명화",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xC857B9": {
+"label": "in",
+"source": "local",
+"name": "모든 것 탐지",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xCDB97D": {
+"label": "in",
+"source": "local",
+"name": "빙결의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xCF9FAB": {
+"label": "in",
+"source": "local",
+"name": "정전기의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xD278E3": {
+"label": "in",
+"source": "gemini",
+"name": "맹독의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xD45F28": {
+"label": "in",
+"source": "local",
+"name": "광휘의 손길",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDB04D0": {
+"label": "in",
+"source": "local",
+"name": "데이드릭 치료",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDB04D2": {
+"label": "in",
+"source": "local",
+"name": "오블리비언의 은총",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDC48DA": {
+"label": "in",
+"source": "gemini",
+"name": "마법 방패",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDC99E1": {
+"label": "in",
+"source": "gemini",
+"name": "마법 대검",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDD3BED": {
+"label": "in",
+"source": "gemini",
+"name": "마법 도끼",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xDED0F7": {
+"label": "in",
+"source": "gemini",
+"name": "마법 전투망치",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE01500": {
+"label": "in",
+"source": "gemini",
+"name": "마법 철퇴",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE7ADBD": {
+"label": "in",
+"source": "local",
+"name": "화산재 수호자 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE7FEC6": {
+"label": "in",
+"source": "local",
+"name": "죽음의 사냥개 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE7FECB": {
+"label": "in",
+"source": "local",
+"name": "볼키하 사냥개 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE7FED0": {
+"label": "in",
+"source": "local",
+"name": "가고일 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xE7FED5": {
+"label": "in",
+"source": "local",
+"name": "흉포한 가고일 소환",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xF21F4A": {
+"label": "in",
+"source": "local",
+"name": "힘의 원",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xF3635D": {
+"label": "in",
+"source": "local",
+"name": "힘의 샘",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xF3636B": {
+"label": "in",
+"source": "local",
+"name": "지혜의 샘",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xF3637F": {
+"label": "in",
+"source": "local",
+"name": "생명의 영역",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xF3B48D": {
+"label": "in",
+"source": "local",
+"name": "생명의 근원",
+"plugin": "MysticismMagic.esp"
+},
+"MysticismMagic.esp|0xFF19E0": {
+"label": "out",
+"source": "rule",
+"name": "대칭",
+"plugin": "MysticismMagic.esp"
+},
+"SU04SachilFollower.esp|0xEA85B9": {
+"label": "out",
+"source": "rule",
+"name": "사'칠 배치",
+"plugin": "SU04SachilFollower.esp"
+},
+"HeelsFix.esp|0x00080D": {
+"label": "out",
+"source": "rule",
+"name": "힐 갱신",
+"plugin": "HeelsFix.esp"
+},
+"JS Order of Aetherius.esp|0x0007CA": {
+"label": "in",
+"source": "local",
+"name": "망령 무리 소환",
+"plugin": "JS Order of Aetherius.esp"
+},
+"JS Order of Aetherius.esp|0x000702": {
+"label": "in",
+"source": "gemini",
+"name": "신비한 은신처 순간이동",
+"plugin": "JS Order of Aetherius.esp"
+},
+"GlenmorilCCpatch.esp|0x000A78": {
+"label": "in",
+"source": "local",
+"name": "아크의 수호자 소환",
+"plugin": "GlenmorilCCpatch.esp"
+},
+"ECSS - Summon Dylora.esp|0x000800": {
+"label": "in",
+"source": "local",
+"name": "다일로라 소환",
+"plugin": "ECSS - Summon Dylora.esp"
+},
+"Meridia.esp|0x036B46": {
+"label": "in",
+"source": "local",
+"name": "불사의 강령술사 소환",
+"plugin": "Meridia.esp"
+},
+"Meridia.esp|0x009ED4": {
+"label": "in",
+"source": "gemini",
+"name": "메리디아의 빛",
+"plugin": "Meridia.esp"
+},
+"MorthalBarrow.esp|0x122DF7": {
+"label": "out",
+"source": "gemini",
+"name": "환영마법 해제",
+"plugin": "MorthalBarrow.esp"
+},
+"MorthalBarrow.esp|0x23E070": {
+"label": "in",
+"source": "local",
+"name": "가고일 소환",
+"plugin": "MorthalBarrow.esp"
+},
+"HeartOfTheReach.esp|0x096172": {
+"label": "in",
+"source": "local",
+"name": "늪지 스프리건 소환",
+"plugin": "HeartOfTheReach.esp"
+},
+"EbonyBladeCurse.esp|0x00080C": {
+"label": "in",
+"source": "local",
+"name": "거미 데이드라 소환",
+"plugin": "EbonyBladeCurse.esp"
+},
+"MysticismJumpSpells.esp|0x000802": {
+"label": "in",
+"source": "local",
+"name": "도약",
+"plugin": "MysticismJumpSpells.esp"
+},
+"MysticismJumpSpells.esp|0x000805": {
+"label": "in",
+"source": "local",
+"name": "스프링힐",
+"plugin": "MysticismJumpSpells.esp"
+},
+"RunePeryiteSkeletons.esp|0x000839": {
+"label": "in",
+"source": "local",
+"name": "병든 해골 전사 소환",
+"plugin": "RunePeryiteSkeletons.esp"
+},
+"RunePeryiteSkeletons.esp|0x000840": {
+"label": "in",
+"source": "local",
+"name": "병든 해골 마법사 소환",
+"plugin": "RunePeryiteSkeletons.esp"
+},
+"Gourmet.esp|0x0009EE": {
+"label": "out",
+"source": "gemini",
+"name": "빵 변환",
+"plugin": "Gourmet.esp"
+},
+"Sorcerer.esp|0x0DF935": {
+"label": "in",
+"source": "gemini",
+"name": "발레리카의 신호기",
+"plugin": "Sorcerer.esp"
+},
+"Oblivion.esp|0x05BB00": {
+"label": "in",
+"source": "gemini",
+"name": "데이드릭 귀환",
+"plugin": "Oblivion.esp"
+},
+"Oblivion.esp|0x089418": {
+"label": "in",
+"source": "local",
+"name": "해골 드래곤 소환",
+"plugin": "Oblivion.esp"
+},
+"Blasphemous Revenants.esp|0x000030": {
+"label": "in",
+"source": "local",
+"name": "폭발 해골 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x000036": {
+"label": "in",
+"source": "local",
+"name": "불안정한 폭발 해골 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00003E": {
+"label": "in",
+"source": "local",
+"name": "폭렬 폭발 해골 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00005D": {
+"label": "in",
+"source": "local",
+"name": "오염된 마법사 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00006C": {
+"label": "in",
+"source": "local",
+"name": "타락한 그림자 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00006D": {
+"label": "in",
+"source": "local",
+"name": "오염된 병사 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00006E": {
+"label": "in",
+"source": "local",
+"name": "오염된 궁수 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00008D": {
+"label": "in",
+"source": "local",
+"name": "드로거 죽음의 군주 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x00008E": {
+"label": "in",
+"source": "local",
+"name": "드로거 소환",
+"plugin": "Blasphemous Revenants.esp"
+},
+"Blasphemous Revenants.esp|0x000843": {
+"label": "in",
+"source": "gemini",
+"name": "영혼의 족쇄",
+"plugin": "Blasphemous Revenants.esp"
+},
+"MysteriumXarxes.esp|0x000003": {
+"label": "in",
+"source": "local",
+"name": "미식 던 조수 소환",
+"plugin": "MysteriumXarxes.esp"
+},
+"MysteriumXarxes.esp|0x000811": {
+"label": "in",
+"source": "local",
+"name": "아일레이드 와이트 소환",
+"plugin": "MysteriumXarxes.esp"
+},
+"MysteriumXarxes.esp|0x000827": {
+"label": "in",
+"source": "local",
+"name": "미식 던 광신도 소환",
+"plugin": "MysteriumXarxes.esp"
+},
+"MysteriumXarxes.esp|0x000828": {
+"label": "in",
+"source": "local",
+"name": "미식 던 요원 소환",
+"plugin": "MysteriumXarxes.esp"
+},
+"MysteriumXarxes.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "아일레이드 와이트 군주 소환",
+"plugin": "MysteriumXarxes.esp"
+},
+"Menagerie - Mysticism.esp|0x000804": {
+"label": "in",
+"source": "local",
+"name": "뼈 늑대 소환",
+"plugin": "Menagerie - Mysticism.esp"
+},
+"Menagerie - Mysticism.esp|0x000805": {
+"label": "in",
+"source": "local",
+"name": "고대 뼈 늑대 소환",
+"plugin": "Menagerie - Mysticism.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000804": {
+"label": "in",
+"source": "gemini",
+"name": "엘리트라 님프 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x00080C": {
+"label": "in",
+"source": "local",
+"name": "살점 아트로나크 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000816": {
+"label": "in",
+"source": "local",
+"name": "호박 아트로나크 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x00081B": {
+"label": "in",
+"source": "local",
+"name": "날스 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000834": {
+"label": "in",
+"source": "local",
+"name": "헝거 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x00083D": {
+"label": "in",
+"source": "local",
+"name": "엘리트라 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000842": {
+"label": "in",
+"source": "local",
+"name": "살점 군주 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x00084F": {
+"label": "in",
+"source": "local",
+"name": "호박 군주 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000857": {
+"label": "in",
+"source": "local",
+"name": "탐욕스러운 헝거 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000858": {
+"label": "in",
+"source": "local",
+"name": "스칼론 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"ECSS_SummonableCreatures.esp|0x000859": {
+"label": "in",
+"source": "local",
+"name": "날스 장로 소환",
+"plugin": "ECSS_SummonableCreatures.esp"
+},
+"mihailmountainlion.esp|0x00081D": {
+"label": "in",
+"source": "gemini",
+"name": "표범 소환",
+"plugin": "mihailmountainlion.esp"
+},
+"mihailmountainlion.esp|0x000820": {
+"label": "in",
+"source": "local",
+"name": "흑표범 소환",
+"plugin": "mihailmountainlion.esp"
+},
+"mihailashgolemexpansion.esp|0x00591A": {
+"label": "in",
+"source": "local",
+"name": "화산재 골렘 소환",
+"plugin": "mihailashgolemexpansion.esp"
+},
+"mihailashgolemexpansion.esp|0x000812": {
+"label": "in",
+"source": "local",
+"name": "잉걸불의 징조 소환",
+"plugin": "mihailashgolemexpansion.esp"
+},
+"mihailelementalgolems.esp|0x00591A": {
+"label": "in",
+"source": "local",
+"name": "화염 골렘 소환",
+"plugin": "mihailelementalgolems.esp"
+},
+"mihailelementalgolems.esp|0x019D29": {
+"label": "in",
+"source": "local",
+"name": "폭풍 골렘 소환",
+"plugin": "mihailelementalgolems.esp"
+},
+"mihaildeadrapack.esp|0x000864": {
+"label": "in",
+"source": "local",
+"name": "오그림 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0008BE": {
+"label": "in",
+"source": "local",
+"name": "콜드하버 베인킨 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00092D": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 베인킨 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000957": {
+"label": "in",
+"source": "local",
+"name": "경계자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000986": {
+"label": "in",
+"source": "local",
+"name": "지빌라이 유린자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000988": {
+"label": "in",
+"source": "local",
+"name": "지빌라이 고문관 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0009A6": {
+"label": "in",
+"source": "local",
+"name": "마니아의 폴리워그 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0009A8": {
+"label": "in",
+"source": "local",
+"name": "디멘시아의 폴리워그 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0009D7": {
+"label": "in",
+"source": "local",
+"name": "하보크렐 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A01": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 데이드로스 타이탄 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A03": {
+"label": "in",
+"source": "local",
+"name": "콜드하버의 숭고한 데이드로스 타이탄 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A04": {
+"label": "in",
+"source": "local",
+"name": "데이드로스 데스딜러 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A05": {
+"label": "in",
+"source": "local",
+"name": "데이드로스 페인브링거 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A07": {
+"label": "in",
+"source": "local",
+"name": "하급 데이드로스 공포발톱 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x000A10": {
+"label": "unsure",
+"source": "none",
+"name": "초월한 종복 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA26": {
+"label": "in",
+"source": "local",
+"name": "스캠프 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA2A": {
+"label": "in",
+"source": "local",
+"name": "베인캠프 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA2E": {
+"label": "in",
+"source": "local",
+"name": "콜드하버 베인킨 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA42": {
+"label": "in",
+"source": "local",
+"name": "지브킨 학살자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA43": {
+"label": "in",
+"source": "gemini",
+"name": "지브킨 편태자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA45": {
+"label": "in",
+"source": "local",
+"name": "지브킨 적출자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x00AA47": {
+"label": "in",
+"source": "local",
+"name": "지브킨 공포술사 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A141": {
+"label": "in",
+"source": "local",
+"name": "조증 그루밋 늪지 몰이꾼 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A145": {
+"label": "in",
+"source": "local",
+"name": "미친 그루밋 늪지 몰이꾼 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A149": {
+"label": "in",
+"source": "local",
+"name": "조증 그루밋 늪지 약탈자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A14D": {
+"label": "in",
+"source": "local",
+"name": "미친 그루밋 늪지 약탈자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A151": {
+"label": "in",
+"source": "local",
+"name": "조증 그루밋 안개 강도 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x01A155": {
+"label": "in",
+"source": "local",
+"name": "미친 그루밋 안개 강도 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x02404B": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 데이드로스 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x02404C": {
+"label": "in",
+"source": "local",
+"name": "콜드하버 공포 데이드로스 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x02E1CB": {
+"label": "in",
+"source": "local",
+"name": "주시자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x03322A": {
+"label": "in",
+"source": "local",
+"name": "과부 데이드라 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x033239": {
+"label": "in",
+"source": "local",
+"name": "까마귀 영혼 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x042585": {
+"label": "in",
+"source": "local",
+"name": "굶주린 자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x04C793": {
+"label": "in",
+"source": "local",
+"name": "바일 수호자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x04C797": {
+"label": "in",
+"source": "local",
+"name": "지빌라이 소각자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x04C79F": {
+"label": "in",
+"source": "local",
+"name": "지빌라이 학살 사제 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0518E4": {
+"label": "in",
+"source": "local",
+"name": "상급 클랜피어 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x052D64": {
+"label": "in",
+"source": "local",
+"name": "그림자 데이드라 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x056A38": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 베인킨 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06ADF6": {
+"label": "in",
+"source": "local",
+"name": "데이드랫 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06ADFA": {
+"label": "in",
+"source": "local",
+"name": "화염 데이드랫 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06ADFE": {
+"label": "in",
+"source": "local",
+"name": "더스크랫 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06AE02": {
+"label": "in",
+"source": "local",
+"name": "더스크 팬서 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06FFAF": {
+"label": "in",
+"source": "local",
+"name": "콜드하버 데이드로스 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x06FFB0": {
+"label": "in",
+"source": "local",
+"name": "데드랜드 공포 데이드로스 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0897E1": {
+"label": "in",
+"source": "local",
+"name": "루이나크 파괴자 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihaildeadrapack.esp|0x0897E5": {
+"label": "in",
+"source": "local",
+"name": "루이나크 블레이즈마울 소환",
+"plugin": "mihaildeadrapack.esp"
+},
+"mihailhighfantasypack.esp|0x0009B1": {
+"label": "in",
+"source": "local",
+"name": "돈우드 인드릭 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000A3B": {
+"label": "out",
+"source": "rule",
+"name": "호박 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000A3D": {
+"label": "out",
+"source": "rule",
+"name": "옥 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000A40": {
+"label": "out",
+"source": "rule",
+"name": "자수정 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000A43": {
+"label": "out",
+"source": "rule",
+"name": "터키석 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000A84": {
+"label": "in",
+"source": "local",
+"name": "고론 소환 ",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x000B02": {
+"label": "in",
+"source": "gemini",
+"name": "드래곤 폭풍",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x019D4F": {
+"label": "out",
+"source": "rule",
+"name": "사파이어 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x01EE67": {
+"label": "out",
+"source": "rule",
+"name": "핏빛 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x01EE6B": {
+"label": "out",
+"source": "rule",
+"name": "황수정 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x01EE6F": {
+"label": "out",
+"source": "rule",
+"name": "흑요석 닉사드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x029067": {
+"label": "in",
+"source": "local",
+"name": "아메노스 오나우그 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x029086": {
+"label": "out",
+"source": "gemini",
+"name": "돈우드 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x04C797": {
+"label": "in",
+"source": "local",
+"name": "상록수 드라이어드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x04C79E": {
+"label": "in",
+"source": "local",
+"name": "가을그늘 드라이어드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x04C7AA": {
+"label": "in",
+"source": "local",
+"name": "어둠뿌리 드라이어드 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084404": {
+"label": "out",
+"source": "gemini",
+"name": "프로스트라이트 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084405": {
+"label": "out",
+"source": "gemini",
+"name": "크림슨 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084407": {
+"label": "out",
+"source": "gemini",
+"name": "라임더스크 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084409": {
+"label": "out",
+"source": "gemini",
+"name": "모스하트 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x08440B": {
+"label": "out",
+"source": "gemini",
+"name": "에본글로우 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x08440D": {
+"label": "out",
+"source": "gemini",
+"name": "스펙트럴 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x08440F": {
+"label": "out",
+"source": "gemini",
+"name": "루미너스 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084411": {
+"label": "out",
+"source": "gemini",
+"name": "글래셜 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"mihailhighfantasypack.esp|0x084413": {
+"label": "out",
+"source": "gemini",
+"name": "이그니어스 인드릭 탈것 소환",
+"plugin": "mihailhighfantasypack.esp"
+},
+"Necrotic.esp|0x0008C4": {
+"label": "in",
+"source": "gemini",
+"name": "괴저 영혼 죽음군주 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0008C5": {
+"label": "in",
+"source": "local",
+"name": "괴저 영혼 사냥개 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0008C6": {
+"label": "in",
+"source": "local",
+"name": "괴저 영혼 마검사 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0008C7": {
+"label": "in",
+"source": "local",
+"name": "괴저 해골 사제 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0008C8": {
+"label": "in",
+"source": "gemini",
+"name": "괴저 해골 병사 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0008C9": {
+"label": "in",
+"source": "local",
+"name": "괴저 해골 망령 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x00093A": {
+"label": "in",
+"source": "local",
+"name": "괴저 해골 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x00093B": {
+"label": "in",
+"source": "local",
+"name": "괴저 해골 광전사 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x00093C": {
+"label": "in",
+"source": "local",
+"name": "괴저 영혼 궁수 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x00093D": {
+"label": "in",
+"source": "local",
+"name": "괴저 영혼 병사 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000975": {
+"label": "in",
+"source": "gemini",
+"name": "괴저 파편 수집",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x00097B": {
+"label": "in",
+"source": "gemini",
+"name": "괴저 파편 수확",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000987": {
+"label": "in",
+"source": "local",
+"name": "괴저 암말 소환",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009A8": {
+"label": "in",
+"source": "gemini",
+"name": "타락한 파편 주입",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009A9": {
+"label": "in",
+"source": "gemini",
+"name": "흉악한 파편 주입",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009AA": {
+"label": "in",
+"source": "gemini",
+"name": "부정한 파편 주입",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009AB": {
+"label": "in",
+"source": "gemini",
+"name": "끔찍한 파편 주입",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009AC": {
+"label": "in",
+"source": "gemini",
+"name": "사악한 파편 주입",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009FC": {
+"label": "in",
+"source": "local",
+"name": "괴저 전투도끼",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009FD": {
+"label": "in",
+"source": "local",
+"name": "괴저 활",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009FE": {
+"label": "in",
+"source": "local",
+"name": "괴저 단검",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x0009FF": {
+"label": "in",
+"source": "local",
+"name": "괴저 대검",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A00": {
+"label": "in",
+"source": "local",
+"name": "괴저 둔기",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A01": {
+"label": "in",
+"source": "local",
+"name": "괴저 방패",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A02": {
+"label": "in",
+"source": "local",
+"name": "괴저 검",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A03": {
+"label": "in",
+"source": "local",
+"name": "괴저 도끼",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A04": {
+"label": "in",
+"source": "local",
+"name": "괴저 전투망치",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A4B": {
+"label": "in",
+"source": "local",
+"name": "하급 시체 희생",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A4C": {
+"label": "in",
+"source": "local",
+"name": "특급 시체 희생",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A4D": {
+"label": "in",
+"source": "local",
+"name": "최하급 시체 희생",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A4E": {
+"label": "in",
+"source": "local",
+"name": "중급 시체 희생",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A4F": {
+"label": "in",
+"source": "local",
+"name": "상급 시체 희생",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A84": {
+"label": "in",
+"source": "local",
+"name": "시체 폭발",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A85": {
+"label": "in",
+"source": "local",
+"name": "끔찍한 시체 폭발",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000A86": {
+"label": "in",
+"source": "local",
+"name": "파괴적 시체 폭발",
+"plugin": "Necrotic.esp"
+},
+"Necrotic.esp|0x000AB4": {
+"label": "in",
+"source": "local",
+"name": "괴저 밴시 소환",
+"plugin": "Necrotic.esp"
+},
+"Arclight.esp|0x000825": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 오라",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000829": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 화살",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 손바닥",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x00082B": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 접촉",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x00082C": {
+"label": "in",
+"source": "local",
+"name": "뇌광 방전",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "뇌광 조각",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 손아귀",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 룬",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000832": {
+"label": "in",
+"source": "local",
+"name": "충전된 뇌광의 룬",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 불빛",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000834": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 사슬",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000835": {
+"label": "in",
+"source": "local",
+"name": "뇌광 폭발",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000836": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 손길",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000837": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 벽",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 파도",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x0008F2": {
+"label": "unsure",
+"source": "none",
+"name": "뇌광 폭풍",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000980": {
+"label": "in",
+"source": "local",
+"name": "뇌광 아트로나크 소환",
+"plugin": "Arclight.esp"
+},
+"Arclight.esp|0x000981": {
+"label": "in",
+"source": "local",
+"name": "뇌광의 군주 소환",
+"plugin": "Arclight.esp"
+},
+"Desecration.esp|0x000814": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염 화살",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000817": {
+"label": "in",
+"source": "local",
+"name": "괴저 불씨",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000819": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염구",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00081C": {
+"label": "in",
+"source": "local",
+"name": "괴저 불꽃 망토",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00081E": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염 폭풍",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000821": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염의 벽",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000825": {
+"label": "in",
+"source": "local",
+"name": "괴저 연소",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000828": {
+"label": "in",
+"source": "gemini",
+"name": "괴저 화염 손길",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "괴저 황폐",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "상급 괴저 불꽃",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "괴저 불꽃 손길",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염 폭풍우",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "괴저 화상",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000835": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염 손아귀",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000888": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염의 룬",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00088B": {
+"label": "in",
+"source": "gemini",
+"name": "강력한 괴저 화염의 룬",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x000959": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염 아트로나크 소환",
+"plugin": "Desecration.esp"
+},
+"Desecration.esp|0x00095A": {
+"label": "in",
+"source": "local",
+"name": "괴저 화염의 군주 소환",
+"plugin": "Desecration.esp"
+},
+"Vulcano.esp|0x000825": {
+"label": "in",
+"source": "local",
+"name": "화산의 오라",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000829": {
+"label": "in",
+"source": "local",
+"name": "용암 화살",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "용암의 손바닥",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082B": {
+"label": "in",
+"source": "local",
+"name": "용암 접촉",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082C": {
+"label": "in",
+"source": "local",
+"name": "화산 심장부",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "화산재",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082E": {
+"label": "in",
+"source": "local",
+"name": "용암 대지",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "용암의 손아귀",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "용암의 룬",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000832": {
+"label": "in",
+"source": "local",
+"name": "녹은 용암의 룬",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "용암 파편",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000834": {
+"label": "in",
+"source": "local",
+"name": "녹은 용암",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000835": {
+"label": "in",
+"source": "local",
+"name": "용암 폭발",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000836": {
+"label": "in",
+"source": "local",
+"name": "용암의 손길",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000837": {
+"label": "in",
+"source": "local",
+"name": "용암의 벽",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "용암 칼날",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x0008F2": {
+"label": "in",
+"source": "local",
+"name": "용암 광선",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x00094C": {
+"label": "in",
+"source": "local",
+"name": "용암 지룡 소환",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000969": {
+"label": "in",
+"source": "local",
+"name": "화산 분출",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000980": {
+"label": "in",
+"source": "local",
+"name": "용암 아트로나크 소환",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x000981": {
+"label": "in",
+"source": "local",
+"name": "용암의 군주 소환",
+"plugin": "Vulcano.esp"
+},
+"Vulcano.esp|0x0009AA": {
+"label": "in",
+"source": "local",
+"name": "화산암재",
+"plugin": "Vulcano.esp"
+},
+"Stellaris.esp|0x000825": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 오라",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000829": {
+"label": "in",
+"source": "local",
+"name": "천체의 화살",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "천체의 소거",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082B": {
+"label": "in",
+"source": "local",
+"name": "천체의 접촉",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082C": {
+"label": "in",
+"source": "local",
+"name": "천체의 중심",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "천체 가루",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082E": {
+"label": "in",
+"source": "local",
+"name": "천체의 핵심",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "천체의 손아귀",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "천체의 룬",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000832": {
+"label": "in",
+"source": "local",
+"name": "빛나는 천체의 룬",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000833": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 조각",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000834": {
+"label": "in",
+"source": "gemini",
+"name": "천체 유성",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000835": {
+"label": "in",
+"source": "gemini",
+"name": "천체 유성 폭발",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000836": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 손길",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000837": {
+"label": "in",
+"source": "gemini",
+"name": "천체 가루의 벽",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000838": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 파동",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x0008F2": {
+"label": "in",
+"source": "gemini",
+"name": "천체 유성우",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000907": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 구조",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000908": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 결합",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x000909": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 복구",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00090A": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 재생",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00090B": {
+"label": "in",
+"source": "gemini",
+"name": "천체의 재창조",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00094C": {
+"label": "in",
+"source": "local",
+"name": "천체 지룡 소환",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00095A": {
+"label": "in",
+"source": "local",
+"name": "천체의 손",
+"plugin": "Stellaris.esp"
+},
+"Stellaris.esp|0x00096D": {
+"label": "in",
+"source": "local",
+"name": "빛나는 천체 가루",
+"plugin": "Stellaris.esp"
+},
+"Necrom.esp|0x000830": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 오라",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000832": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 화살",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 손아귀",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000834": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 구체",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000835": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 주입",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000836": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 촉수의 룬",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000837": {
+"label": "in",
+"source": "gemini",
+"name": "섬뜩한 룬",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000839": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 얼룩",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x00083A": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 촉수",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x00083F": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 조각",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000840": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 분열",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000841": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 손길",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000842": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 눈",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x000847": {
+"label": "in",
+"source": "local",
+"name": "촉수의 벽",
+"plugin": "Necrom.esp"
+},
+"Necrom.esp|0x0008F8": {
+"label": "in",
+"source": "local",
+"name": "섬뜩한 섬광",
+"plugin": "Necrom.esp"
+},
+"Flames of Coldharbour.esp|0x000814": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염 화살",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000817": {
+"label": "in",
+"source": "local",
+"name": "차가운 불씨",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000819": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염구",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00081C": {
+"label": "in",
+"source": "local",
+"name": "냉기 불꽃 망토",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00081E": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염 폭풍",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000821": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염의 벽",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000825": {
+"label": "in",
+"source": "local",
+"name": "냉기 연소",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000828": {
+"label": "in",
+"source": "local",
+"name": "냉기 불타는 손길",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00082A": {
+"label": "in",
+"source": "gemini",
+"name": "냉기 황폐화",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "상급 냉기 불길",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00082F": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염의 손길",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염 폭풍우",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "냉기 작열",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000835": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염의 손아귀",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000888": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염의 룬",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00088B": {
+"label": "in",
+"source": "local",
+"name": "상급 냉기 화염의 룬",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x000959": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염 아트로나크 소환",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Flames of Coldharbour.esp|0x00095A": {
+"label": "in",
+"source": "local",
+"name": "냉기 화염의 군주 소환",
+"plugin": "Flames of Coldharbour.esp"
+},
+"Bloodmoon.esp|0x00081D": {
+"label": "in",
+"source": "local",
+"name": "피 분사",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00081E": {
+"label": "in",
+"source": "local",
+"name": "피의 화살",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000830": {
+"label": "in",
+"source": "local",
+"name": "피의 룬",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "혈류의 룬",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "피의 오라",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000842": {
+"label": "in",
+"source": "local",
+"name": "피눈물",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00084A": {
+"label": "in",
+"source": "local",
+"name": "피의 투창",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00085A": {
+"label": "in",
+"source": "local",
+"name": "피의 소용돌이",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000860": {
+"label": "in",
+"source": "local",
+"name": "피의 사슬",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000895": {
+"label": "in",
+"source": "local",
+"name": "피의 변이체 소환",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00089D": {
+"label": "in",
+"source": "local",
+"name": "피의 손길",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00089F": {
+"label": "in",
+"source": "local",
+"name": "유혈",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x0008A1": {
+"label": "in",
+"source": "local",
+"name": "피의 손아귀",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x0008A3": {
+"label": "in",
+"source": "local",
+"name": "피의 손바닥",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000944": {
+"label": "in",
+"source": "local",
+"name": "혈류의 변이체 소환",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000965": {
+"label": "in",
+"source": "local",
+"name": "피의 벽",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000968": {
+"label": "in",
+"source": "local",
+"name": "혈액 방출",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x000969": {
+"label": "in",
+"source": "gemini",
+"name": "혈압",
+"plugin": "Bloodmoon.esp"
+},
+"Bloodmoon.esp|0x00096A": {
+"label": "in",
+"source": "local",
+"name": "혈액 박탈",
+"plugin": "Bloodmoon.esp"
+},
+"Abyss.esp|0x000810": {
+"label": "in",
+"source": "local",
+"name": "그림자 화살",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000829": {
+"label": "in",
+"source": "local",
+"name": "그림자 흡수",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "그림자의 룬",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x00082B": {
+"label": "in",
+"source": "local",
+"name": "심연 그림자의 룬",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "그림자 파열",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "그림자의 오라",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000860": {
+"label": "in",
+"source": "gemini",
+"name": "그림자의 눈",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x00086F": {
+"label": "in",
+"source": "local",
+"name": "그림자 구슬",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000974": {
+"label": "in",
+"source": "local",
+"name": "그림자 분출",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000A8C": {
+"label": "in",
+"source": "local",
+"name": "그림자의 손길",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000A8D": {
+"label": "in",
+"source": "gemini",
+"name": "심연 그림자의 손길",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000A8E": {
+"label": "in",
+"source": "local",
+"name": "그림자의 손아귀",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000A8F": {
+"label": "in",
+"source": "local",
+"name": "심연 그림자의 손아귀",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ABC": {
+"label": "in",
+"source": "local",
+"name": "그림자 망토",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000AC1": {
+"label": "in",
+"source": "local",
+"name": "그림자 재생",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ACB": {
+"label": "in",
+"source": "local",
+"name": "그림자 사슬",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ACC": {
+"label": "in",
+"source": "gemini",
+"name": "그림자 파멸",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ACD": {
+"label": "in",
+"source": "local",
+"name": "그림자 영혼",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ACE": {
+"label": "in",
+"source": "local",
+"name": "그림자 쇠약",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000ACF": {
+"label": "in",
+"source": "gemini",
+"name": "그림자 무덤",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000B0D": {
+"label": "in",
+"source": "local",
+"name": "그림자 아트로나크 소환",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000B0E": {
+"label": "in",
+"source": "local",
+"name": "그림자의 군주 소환",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000B88": {
+"label": "in",
+"source": "gemini",
+"name": "그림자 밟기",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000B89": {
+"label": "in",
+"source": "gemini",
+"name": "심연 그림자 밟기",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000BA0": {
+"label": "in",
+"source": "local",
+"name": "그림자 습격",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000BAC": {
+"label": "in",
+"source": "local",
+"name": "그림자 표식",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000BB6": {
+"label": "in",
+"source": "local",
+"name": "그림자 폭발",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000BE4": {
+"label": "in",
+"source": "gemini",
+"name": "그림자의 벽",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000BF3": {
+"label": "in",
+"source": "local",
+"name": "그림자 공허",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000C0B": {
+"label": "in",
+"source": "local",
+"name": "그림자 격류",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000C0C": {
+"label": "in",
+"source": "local",
+"name": "심연 그림자 흡수",
+"plugin": "Abyss.esp"
+},
+"Abyss.esp|0x000C31": {
+"label": "in",
+"source": "local",
+"name": "그림자 늑대 소환",
+"plugin": "Abyss.esp"
+},
+"Lunaris.esp|0x00080E": {
+"label": "in",
+"source": "local",
+"name": "월광",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000810": {
+"label": "in",
+"source": "local",
+"name": "달빛 섬광",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000816": {
+"label": "in",
+"source": "local",
+"name": "달의 불꽃",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000824": {
+"label": "in",
+"source": "local",
+"name": "달빛의 룬",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000827": {
+"label": "in",
+"source": "local",
+"name": "선명한 달빛의 룬",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "달의 화살",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00083F": {
+"label": "in",
+"source": "local",
+"name": "달의 오라",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00084B": {
+"label": "in",
+"source": "local",
+"name": "달의 특이점",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000859": {
+"label": "in",
+"source": "local",
+"name": "달의 폭발",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00085E": {
+"label": "in",
+"source": "local",
+"name": "달의 신호",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000861": {
+"label": "in",
+"source": "local",
+"name": "선명한 달빛",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x000868": {
+"label": "in",
+"source": "local",
+"name": "달빛의 손길",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00086A": {
+"label": "in",
+"source": "local",
+"name": "달의 손길",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00086C": {
+"label": "in",
+"source": "local",
+"name": "달의 손아귀",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x00086E": {
+"label": "in",
+"source": "local",
+"name": "월식",
+"plugin": "Lunaris.esp"
+},
+"Lunaris.esp|0x0008CD": {
+"label": "in",
+"source": "local",
+"name": "달빛의 벽",
+"plugin": "Lunaris.esp"
+},
+"Natura.esp|0x000802": {
+"label": "in",
+"source": "local",
+"name": "참나무 심장",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00083B": {
+"label": "in",
+"source": "local",
+"name": "개화",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000846": {
+"label": "in",
+"source": "local",
+"name": "활력",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000847": {
+"label": "in",
+"source": "local",
+"name": "인내",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000851": {
+"label": "in",
+"source": "local",
+"name": "강함",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000852": {
+"label": "in",
+"source": "gemini",
+"name": "회춘",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00086F": {
+"label": "in",
+"source": "gemini",
+"name": "나무 껍질",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000875": {
+"label": "in",
+"source": "local",
+"name": "가시",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000876": {
+"label": "in",
+"source": "local",
+"name": "쐐기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000880": {
+"label": "in",
+"source": "gemini",
+"name": "생명의 맥박",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000886": {
+"label": "in",
+"source": "local",
+"name": "대지의 방패",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00088B": {
+"label": "in",
+"source": "local",
+"name": "소생의 성장",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000897": {
+"label": "in",
+"source": "local",
+"name": "치유의 샘",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000898": {
+"label": "in",
+"source": "local",
+"name": "생명의 샘",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000899": {
+"label": "in",
+"source": "local",
+"name": "생명의 분수",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00089A": {
+"label": "in",
+"source": "local",
+"name": "생명 연장",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00089B": {
+"label": "in",
+"source": "local",
+"name": "생명 활성화",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0008F3": {
+"label": "in",
+"source": "gemini",
+"name": "벌레 미사일",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0008F4": {
+"label": "in",
+"source": "gemini",
+"name": "벌레 떼",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0008F7": {
+"label": "in",
+"source": "gemini",
+"name": "벌레 방출",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0008FC": {
+"label": "in",
+"source": "gemini",
+"name": "메뚜기 먼지",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000907": {
+"label": "in",
+"source": "gemini",
+"name": "벌레 폭탄",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00090A": {
+"label": "in",
+"source": "gemini",
+"name": "벌레 망토",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000945": {
+"label": "in",
+"source": "local",
+"name": "스프리건 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000946": {
+"label": "in",
+"source": "local",
+"name": "스프리건 치유사 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000947": {
+"label": "in",
+"source": "local",
+"name": "타버린 스프리건 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00095F": {
+"label": "in",
+"source": "local",
+"name": "대지의 스프리건 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000960": {
+"label": "in",
+"source": "local",
+"name": "자연의 혼령 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000973": {
+"label": "in",
+"source": "local",
+"name": "동상 거미 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000974": {
+"label": "in",
+"source": "local",
+"name": "콜 머드크랩",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000975": {
+"label": "in",
+"source": "local",
+"name": "늑대 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000976": {
+"label": "in",
+"source": "local",
+"name": "사슴 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000977": {
+"label": "in",
+"source": "local",
+"name": "백색 거미 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000978": {
+"label": "in",
+"source": "local",
+"name": "흉포한 늑대 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000979": {
+"label": "in",
+"source": "gemini",
+"name": "챠루스 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097A": {
+"label": "in",
+"source": "local",
+"name": "검치호 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097B": {
+"label": "in",
+"source": "gemini",
+"name": "챠루스 리퍼 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097C": {
+"label": "in",
+"source": "local",
+"name": "곰 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097D": {
+"label": "in",
+"source": "gemini",
+"name": "챠루스 헌터 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097E": {
+"label": "in",
+"source": "gemini",
+"name": "계곡 검치호 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x00097F": {
+"label": "in",
+"source": "local",
+"name": "계곡 사슴 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0009AE": {
+"label": "in",
+"source": "gemini",
+"name": "얼어붙은 스프리건 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0009EC": {
+"label": "in",
+"source": "local",
+"name": "바위 아트로나크 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x0009ED": {
+"label": "in",
+"source": "local",
+"name": "바위의 군주 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000A1F": {
+"label": "in",
+"source": "gemini",
+"name": "감전된 스프리건 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000AB4": {
+"label": "in",
+"source": "local",
+"name": "돌 던지기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000AB5": {
+"label": "in",
+"source": "local",
+"name": "바위 던지기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000ABD": {
+"label": "in",
+"source": "local",
+"name": "바위 분쇄",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000AFE": {
+"label": "in",
+"source": "local",
+"name": "바위 떨구기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B08": {
+"label": "in",
+"source": "local",
+"name": "바위 부수기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B0F": {
+"label": "in",
+"source": "local",
+"name": "바위 망토",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B21": {
+"label": "in",
+"source": "local",
+"name": "진압용 물 볼트",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B2B": {
+"label": "in",
+"source": "local",
+"name": "물의 구체",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B2C": {
+"label": "in",
+"source": "local",
+"name": "물 튀김",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B3B": {
+"label": "in",
+"source": "local",
+"name": "물의 파동",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B43": {
+"label": "in",
+"source": "local",
+"name": "물의 소용돌이",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B48": {
+"label": "in",
+"source": "local",
+"name": "물의 망토",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B6C": {
+"label": "in",
+"source": "local",
+"name": "바람 기류",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B6D": {
+"label": "in",
+"source": "local",
+"name": "바람 일으키기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B6E": {
+"label": "in",
+"source": "local",
+"name": "바람 소용돌이",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B6F": {
+"label": "in",
+"source": "local",
+"name": "바람의 칼날",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B70": {
+"label": "in",
+"source": "local",
+"name": "거센 바람",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000B81": {
+"label": "in",
+"source": "local",
+"name": "바람 망토",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BC7": {
+"label": "in",
+"source": "local",
+"name": "야생성",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BD6": {
+"label": "in",
+"source": "local",
+"name": "신속한 추격",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BD7": {
+"label": "in",
+"source": "gemini",
+"name": "유리턱",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BD8": {
+"label": "in",
+"source": "local",
+"name": "와일드 헌트",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BD9": {
+"label": "in",
+"source": "gemini",
+"name": "야생성 (Ferality)",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BF4": {
+"label": "in",
+"source": "local",
+"name": "신출귀몰",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BF6": {
+"label": "in",
+"source": "local",
+"name": "도피",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000BF8": {
+"label": "in",
+"source": "local",
+"name": "나이트쉐이드",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C0E": {
+"label": "in",
+"source": "local",
+"name": "활력 부여",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C2E": {
+"label": "in",
+"source": "local",
+"name": "벌레의 손길",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C2F": {
+"label": "in",
+"source": "local",
+"name": "벌레 물기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C30": {
+"label": "in",
+"source": "local",
+"name": "벌레의 손아귀",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C31": {
+"label": "in",
+"source": "local",
+"name": "벌레 독침",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C3A": {
+"label": "in",
+"source": "local",
+"name": "메두사",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C3B": {
+"label": "in",
+"source": "local",
+"name": "바위의 손",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C3C": {
+"label": "in",
+"source": "local",
+"name": "바위의 손아귀",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C3D": {
+"label": "in",
+"source": "local",
+"name": "바위 주먹",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C42": {
+"label": "in",
+"source": "local",
+"name": "물의 손길",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C43": {
+"label": "in",
+"source": "local",
+"name": "물의 손",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C44": {
+"label": "in",
+"source": "local",
+"name": "물의 손아귀",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C45": {
+"label": "in",
+"source": "local",
+"name": "물의 손바닥",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C4A": {
+"label": "in",
+"source": "local",
+"name": "바람의 손길",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C4B": {
+"label": "in",
+"source": "local",
+"name": "바람 밀기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C4C": {
+"label": "in",
+"source": "local",
+"name": "바람의 손아귀",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C4D": {
+"label": "in",
+"source": "local",
+"name": "바람이 분다",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C62": {
+"label": "in",
+"source": "local",
+"name": "벌레의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C82": {
+"label": "in",
+"source": "local",
+"name": "강력한 벌레의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C83": {
+"label": "in",
+"source": "local",
+"name": "바위의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C84": {
+"label": "in",
+"source": "local",
+"name": "강력한 바위의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C8C": {
+"label": "in",
+"source": "local",
+"name": "물의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C8D": {
+"label": "in",
+"source": "local",
+"name": "강력한 물의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C8E": {
+"label": "in",
+"source": "local",
+"name": "바람의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000C8F": {
+"label": "in",
+"source": "gemini",
+"name": "강력한 바람의 룬",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000CCA": {
+"label": "in",
+"source": "local",
+"name": "물 아트로나크 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000CCB": {
+"label": "in",
+"source": "gemini",
+"name": "물의 군주 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000CCC": {
+"label": "in",
+"source": "local",
+"name": "바람 아트로나크 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000CCD": {
+"label": "in",
+"source": "local",
+"name": "바람의 군주 소환",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000CD9": {
+"label": "in",
+"source": "local",
+"name": "잡아당긴다",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D37": {
+"label": "in",
+"source": "local",
+"name": "역병 벌레떼",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D38": {
+"label": "in",
+"source": "local",
+"name": "치명적인 벌레 뿌리기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D3A": {
+"label": "in",
+"source": "gemini",
+"name": "벌레의 벽",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D53": {
+"label": "in",
+"source": "gemini",
+"name": "벌레의 습격",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D6A": {
+"label": "in",
+"source": "gemini",
+"name": "바위의 벽",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D6B": {
+"label": "in",
+"source": "gemini",
+"name": "물의 벽",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D6C": {
+"label": "in",
+"source": "gemini",
+"name": "바람의 벽",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D72": {
+"label": "in",
+"source": "local",
+"name": "사나운 바람",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D7B": {
+"label": "in",
+"source": "local",
+"name": "바위 폭발",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D7C": {
+"label": "in",
+"source": "local",
+"name": "강력한 바위 뿌리기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D7D": {
+"label": "in",
+"source": "local",
+"name": "강력한 바람 기류",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D7E": {
+"label": "in",
+"source": "local",
+"name": "강력한 물 뿌리기",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D7F": {
+"label": "in",
+"source": "gemini",
+"name": "폭풍",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D80": {
+"label": "in",
+"source": "local",
+"name": "물의 파동",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D81": {
+"label": "in",
+"source": "local",
+"name": "바위 우박",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000D82": {
+"label": "in",
+"source": "local",
+"name": "간헐천",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000E10": {
+"label": "in",
+"source": "local",
+"name": "뿌리",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000E11": {
+"label": "in",
+"source": "local",
+"name": "고대 나무 껍질",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000E12": {
+"label": "in",
+"source": "local",
+"name": "속박",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000E30": {
+"label": "in",
+"source": "local",
+"name": "물의 창",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000E31": {
+"label": "in",
+"source": "local",
+"name": "돌풍",
+"plugin": "Natura.esp"
+},
+"Natura.esp|0x000F8F": {
+"label": "in",
+"source": "local",
+"name": "회춘의 손길",
+"plugin": "Natura.esp"
+},
+"Inquisition.esp|0x00080B": {
+"label": "in",
+"source": "local",
+"name": "신성한 검",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x00080C": {
+"label": "in",
+"source": "local",
+"name": "신성한 방패",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x000826": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 대검",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x000829": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 전투도끼",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x00083E": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 도끼",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x00083F": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 철퇴",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x000856": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 단검",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x000857": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 활",
+"plugin": "Inquisition.esp"
+},
+"Inquisition.esp|0x000858": {
+"label": "in",
+"source": "gemini",
+"name": "신성한 전투망치",
+"plugin": "Inquisition.esp"
+},
+"Arcane.esp|0x000810": {
+"label": "in",
+"source": "local",
+"name": "비전 화살",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000829": {
+"label": "in",
+"source": "local",
+"name": "비전 안개",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "비전의 룬",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x00082B": {
+"label": "in",
+"source": "local",
+"name": "충전된 비전의 룬",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "비전 작렬",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000838": {
+"label": "in",
+"source": "local",
+"name": "비전 오라",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000860": {
+"label": "in",
+"source": "gemini",
+"name": "비전의 눈",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x00086F": {
+"label": "in",
+"source": "local",
+"name": "비전 구체",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000974": {
+"label": "in",
+"source": "local",
+"name": "비전 폭발",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000A8C": {
+"label": "in",
+"source": "local",
+"name": "비전 손길",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000A8D": {
+"label": "in",
+"source": "local",
+"name": "충전된 비전 손길",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000A8E": {
+"label": "in",
+"source": "local",
+"name": "비전 손아귀",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000A8F": {
+"label": "in",
+"source": "local",
+"name": "충전된 비전 손아귀",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000ACB": {
+"label": "in",
+"source": "local",
+"name": "비전 변형",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000ACC": {
+"label": "in",
+"source": "local",
+"name": "비전 변위",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000ACD": {
+"label": "in",
+"source": "local",
+"name": "비전 왜곡",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000ACE": {
+"label": "in",
+"source": "local",
+"name": "비전 장력",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000B0D": {
+"label": "in",
+"source": "gemini",
+"name": "비전 아트로나크 소환",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000B0E": {
+"label": "in",
+"source": "local",
+"name": "비전의 군주 소환",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000BE4": {
+"label": "in",
+"source": "gemini",
+"name": "비전의 벽",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000BF3": {
+"label": "in",
+"source": "gemini",
+"name": "비전 황폐",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000C0E": {
+"label": "in",
+"source": "gemini",
+"name": "비전 소용돌이",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000FC3": {
+"label": "in",
+"source": "gemini",
+"name": "충전된 비전 안개",
+"plugin": "Arcane.esp"
+},
+"Arcane.esp|0x000FC5": {
+"label": "in",
+"source": "gemini",
+"name": "빛나는 비전 안개",
+"plugin": "Arcane.esp"
+},
+"GTS Spells Addon.esp|0x000800": {
+"label": "in",
+"source": "local",
+"name": "정신 속임수",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000806": {
+"label": "in",
+"source": "local",
+"name": "크롤",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000808": {
+"label": "in",
+"source": "local",
+"name": "두뇌 안개",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00080D": {
+"label": "in",
+"source": "local",
+"name": "에너지 고갈",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00080F": {
+"label": "in",
+"source": "local",
+"name": "환영",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000810": {
+"label": "in",
+"source": "local",
+"name": "정신 균열",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000813": {
+"label": "in",
+"source": "local",
+"name": "신기루",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00081B": {
+"label": "in",
+"source": "local",
+"name": "비틀거림",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00081D": {
+"label": "in",
+"source": "local",
+"name": "미진",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000820": {
+"label": "in",
+"source": "local",
+"name": "정신 지배",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000823": {
+"label": "in",
+"source": "local",
+"name": "발작",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000826": {
+"label": "in",
+"source": "local",
+"name": "독 치료",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "블러",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00082E": {
+"label": "in",
+"source": "local",
+"name": "계몽",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000833": {
+"label": "in",
+"source": "local",
+"name": "착란의 가시",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000839": {
+"label": "in",
+"source": "gemini",
+"name": "점멸",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x00085C": {
+"label": "in",
+"source": "local",
+"name": "가면무도회",
+"plugin": "GTS Spells Addon.esp"
+},
+"GTS Spells Addon.esp|0x000D69": {
+"label": "in",
+"source": "gemini",
+"name": "교란",
+"plugin": "GTS Spells Addon.esp"
+},
+"LostGrimoire.esp|0x0C6D08": {
+"label": "in",
+"source": "gemini",
+"name": "하수인 폭파",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0C6D1B": {
+"label": "in",
+"source": "gemini",
+"name": "소환 왕관",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x000D63": {
+"label": "in",
+"source": "gemini",
+"name": "영혼 장막",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0106BC": {
+"label": "in",
+"source": "gemini",
+"name": "마법 방패",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x01A8FA": {
+"label": "out",
+"source": "gemini",
+"name": "소환 상자",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x038F14": {
+"label": "in",
+"source": "gemini",
+"name": "검치호랑이 사역마 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x03E02A": {
+"label": "in",
+"source": "local",
+"name": "곰 사역마 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x03E02C": {
+"label": "in",
+"source": "local",
+"name": "트롤 사역마 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x05243A": {
+"label": "in",
+"source": "gemini",
+"name": "해금",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x05C6A1": {
+"label": "in",
+"source": "local",
+"name": "매머드 사역마 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x05C6C2": {
+"label": "out",
+"source": "gemini",
+"name": "시체 저장",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0617ED": {
+"label": "in",
+"source": "local",
+"name": "날개달린 황혼 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x07AD04": {
+"label": "in",
+"source": "local",
+"name": "깃털걸음",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x07AD13": {
+"label": "out",
+"source": "rule",
+"name": "축복내림",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x07AD1B": {
+"label": "in",
+"source": "local",
+"name": "빛의 광선",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x07FE45": {
+"label": "in",
+"source": "local",
+"name": "변신: 말",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x084F5B": {
+"label": "in",
+"source": "local",
+"name": "변신: 여우",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x084F76": {
+"label": "in",
+"source": "local",
+"name": "변신: 멧돼지",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0993A3": {
+"label": "in",
+"source": "local",
+"name": "변신: 설원거미",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0993A8": {
+"label": "in",
+"source": "gemini",
+"name": "변신: 차루스 헌터",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0A86BD": {
+"label": "in",
+"source": "local",
+"name": "변신",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0A86DF": {
+"label": "in",
+"source": "local",
+"name": "순간이동",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x45DB79": {
+"label": "in",
+"source": "local",
+"name": "마련 말 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0CBE32": {
+"label": "in",
+"source": "local",
+"name": "마법 지팡이",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0D6046": {
+"label": "in",
+"source": "local",
+"name": "드레모라 소서리스 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0D6054": {
+"label": "in",
+"source": "local",
+"name": "럴커 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0DB165": {
+"label": "in",
+"source": "local",
+"name": "드레모라 광전사 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0E537F": {
+"label": "in",
+"source": "local",
+"name": "속박되지 않은 아트로나크",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0EA494": {
+"label": "in",
+"source": "gemini",
+"name": "윌 오 위습 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0EF5B2": {
+"label": "in",
+"source": "local",
+"name": "하수인 강화",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0F97C5": {
+"label": "in",
+"source": "local",
+"name": "충격파",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0F97CF": {
+"label": "in",
+"source": "local",
+"name": "강화 염동",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x0FE928": {
+"label": "out",
+"source": "gemini",
+"name": "주머니 차원",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x108B33": {
+"label": "in",
+"source": "local",
+"name": "활력 부여",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x108B3F": {
+"label": "in",
+"source": "local",
+"name": "마법 장벽",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x11CF8C": {
+"label": "out",
+"source": "gemini",
+"name": "광맥 추출",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1313B3": {
+"label": "in",
+"source": "local",
+"name": "야간 시야",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1364BE": {
+"label": "in",
+"source": "local",
+"name": "폭발의 룬",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1364CA": {
+"label": "in",
+"source": "local",
+"name": "충격파",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1364E1": {
+"label": "in",
+"source": "gemini",
+"name": "지진",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x13B5EE": {
+"label": "in",
+"source": "local",
+"name": "태양의 룬",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14A905": {
+"label": "in",
+"source": "gemini",
+"name": "거미줄 덮인 고치",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14A91B": {
+"label": "in",
+"source": "gemini",
+"name": "공포의 고치",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14A91E": {
+"label": "in",
+"source": "gemini",
+"name": "비늘 덮인 고치",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14A939": {
+"label": "in",
+"source": "local",
+"name": "옛 신의 의식",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14FA4B": {
+"label": "in",
+"source": "local",
+"name": "빛의 장벽",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x14FA58": {
+"label": "in",
+"source": "local",
+"name": "하급 비전 치유",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x154B62": {
+"label": "in",
+"source": "local",
+"name": "중급 비전 치유",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x154B6D": {
+"label": "in",
+"source": "gemini",
+"name": "체력 분할",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x154B77": {
+"label": "in",
+"source": "gemini",
+"name": "체력 교환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x154B84": {
+"label": "in",
+"source": "local",
+"name": "정화",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x154B8F": {
+"label": "in",
+"source": "local",
+"name": "부활",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x15EDAA": {
+"label": "in",
+"source": "gemini",
+"name": "태양 파편",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x17F248": {
+"label": "in",
+"source": "local",
+"name": "독의 씨앗",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x17F26D": {
+"label": "in",
+"source": "gemini",
+"name": "야생 성장",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x19D8F2": {
+"label": "in",
+"source": "local",
+"name": "극심한 고통",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x19D8F6": {
+"label": "in",
+"source": "local",
+"name": "검은 무리",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1B1D56": {
+"label": "in",
+"source": "local",
+"name": "맹독 망토",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1B6E78": {
+"label": "in",
+"source": "gemini",
+"name": "독성 구름",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1C61B9": {
+"label": "in",
+"source": "local",
+"name": "맹독 화살",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1D5500": {
+"label": "in",
+"source": "local",
+"name": "신성한 축복",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1D5515": {
+"label": "in",
+"source": "local",
+"name": "신성한 수호자",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1DA65D": {
+"label": "in",
+"source": "local",
+"name": "신성한 방패",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1EEA7A": {
+"label": "in",
+"source": "local",
+"name": "드래곤파이어",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1F3B7C": {
+"label": "in",
+"source": "gemini",
+"name": "울부짖는 돌풍",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x1F8C85": {
+"label": "in",
+"source": "local",
+"name": "천둥 폭발",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x202EA8": {
+"label": "in",
+"source": "local",
+"name": "불꽃심장",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x207FB4": {
+"label": "in",
+"source": "local",
+"name": "폭풍 균열",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2172CD": {
+"label": "in",
+"source": "gemini",
+"name": "극지 요새",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2214DA": {
+"label": "in",
+"source": "local",
+"name": "폭발",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2214F7": {
+"label": "in",
+"source": "local",
+"name": "찌리릿",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x221502": {
+"label": "in",
+"source": "local",
+"name": "급랭",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x22150E": {
+"label": "in",
+"source": "local",
+"name": "화염 폭탄",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x23FB27": {
+"label": "in",
+"source": "local",
+"name": "한기 강타",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x23FB33": {
+"label": "in",
+"source": "gemini",
+"name": "감전사",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x23FB3E": {
+"label": "in",
+"source": "local",
+"name": "파이어-브랜드 생성",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x249D5C": {
+"label": "in",
+"source": "local",
+"name": "아이스-브레이커 생성",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x24EE6C": {
+"label": "in",
+"source": "local",
+"name": "마법 벌목도끼",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x253F85": {
+"label": "in",
+"source": "gemini",
+"name": "마법 곡괭이",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x25909A": {
+"label": "in",
+"source": "gemini",
+"name": "충실한 패밀리어",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2632BF": {
+"label": "in",
+"source": "gemini",
+"name": "표식의 차원문",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x27C7DF": {
+"label": "in",
+"source": "local",
+"name": "변신: 설원곰",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2A5009": {
+"label": "in",
+"source": "local",
+"name": "변신: 검치호",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2AA114": {
+"label": "in",
+"source": "gemini",
+"name": "변신: 늑대",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2B9450": {
+"label": "in",
+"source": "local",
+"name": "자리바꾸기",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2C875E": {
+"label": "in",
+"source": "local",
+"name": "얼음 결정 씨앗",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2C876F": {
+"label": "in",
+"source": "local",
+"name": "서리 장막",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2D7A82": {
+"label": "in",
+"source": "local",
+"name": "살라맨더 비늘",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2D7A90": {
+"label": "in",
+"source": "local",
+"name": "전기장",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2DCBAC": {
+"label": "in",
+"source": "local",
+"name": "찌릿찌릿한 정전기",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2DCBBB": {
+"label": "in",
+"source": "local",
+"name": "불태움",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2F0FD3": {
+"label": "in",
+"source": "local",
+"name": "혼란",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2F6107": {
+"label": "in",
+"source": "gemini",
+"name": "환영 토끼",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2FB225": {
+"label": "in",
+"source": "gemini",
+"name": "환영 진흙게",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x2FB23C": {
+"label": "in",
+"source": "local",
+"name": "정신 고통",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x30034E": {
+"label": "in",
+"source": "gemini",
+"name": "영적 발사체",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x30545F": {
+"label": "in",
+"source": "gemini",
+"name": "오한피로",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x30546D": {
+"label": "in",
+"source": "local",
+"name": "침묵",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x30F682": {
+"label": "in",
+"source": "local",
+"name": "은빛 혀",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x314798": {
+"label": "in",
+"source": "local",
+"name": "결속",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x3147A7": {
+"label": "in",
+"source": "local",
+"name": "매혹",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x31E9BB": {
+"label": "in",
+"source": "gemini",
+"name": "과충전",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x32DCE5": {
+"label": "in",
+"source": "local",
+"name": "지옥불",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x332DEF": {
+"label": "in",
+"source": "gemini",
+"name": "서리결정 파열",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x337F03": {
+"label": "in",
+"source": "local",
+"name": "속삭이는 유혹",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x337F12": {
+"label": "in",
+"source": "local",
+"name": "진정의 기운",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x337F19": {
+"label": "in",
+"source": "local",
+"name": "공포의 기운",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x337F22": {
+"label": "in",
+"source": "local",
+"name": "격노의 기운",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x33D040": {
+"label": "in",
+"source": "local",
+"name": "환영 미끼",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x33D051": {
+"label": "in",
+"source": "local",
+"name": "환상의 보물",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x34729B": {
+"label": "in",
+"source": "gemini",
+"name": "간교한 마술사",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x34C3AE": {
+"label": "in",
+"source": "local",
+"name": "현혹",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x3565D1": {
+"label": "in",
+"source": "local",
+"name": "정신의 비명",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x38E14C": {
+"label": "in",
+"source": "local",
+"name": "다이어울프 사역마 소환",
+"plugin": "LostGrimoire.esp"
+},
+"LostGrimoire.esp|0x42B153": {
+"label": "in",
+"source": "local",
+"name": "키틴 고치",
+"plugin": "LostGrimoire.esp"
+},
+"Inconsequential_Incantations.esp|0x000803": {
+"label": "in",
+"source": "local",
+"name": "강화",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000805": {
+"label": "in",
+"source": "local",
+"name": "가속",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000808": {
+"label": "in",
+"source": "local",
+"name": "숙청",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x00080C": {
+"label": "in",
+"source": "local",
+"name": "질병 취약",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000810": {
+"label": "in",
+"source": "gemini",
+"name": "불구 면역",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000813": {
+"label": "in",
+"source": "local",
+"name": "무모함",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000816": {
+"label": "in",
+"source": "local",
+"name": "매지카 전이",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000819": {
+"label": "in",
+"source": "local",
+"name": "면역 강화",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x00081C": {
+"label": "in",
+"source": "gemini",
+"name": "자물쇠",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000820": {
+"label": "in",
+"source": "gemini",
+"name": "방어구 황폐",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000822": {
+"label": "in",
+"source": "gemini",
+"name": "무기 황폐",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000827": {
+"label": "in",
+"source": "local",
+"name": "마비 방패",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x00082A": {
+"label": "in",
+"source": "local",
+"name": "마비 치료",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x00082D": {
+"label": "in",
+"source": "local",
+"name": "수상 보행 부여",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000831": {
+"label": "in",
+"source": "local",
+"name": "시야 흐리기",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000836": {
+"label": "in",
+"source": "gemini",
+"name": "마법 곡괭이 소환",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000843": {
+"label": "in",
+"source": "gemini",
+"name": "마법 벌목도끼 소환",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000850": {
+"label": "in",
+"source": "gemini",
+"name": "마법 낚싯대",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000861": {
+"label": "in",
+"source": "local",
+"name": "매혹적인 기운",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000865": {
+"label": "in",
+"source": "local",
+"name": "위협의 아우라",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000868": {
+"label": "in",
+"source": "gemini",
+"name": "마법 횃불",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000876": {
+"label": "in",
+"source": "local",
+"name": "Forcebolt (outdated)",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x00087C": {
+"label": "in",
+"source": "local",
+"name": "Kinetic Blast (outdated)",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000880": {
+"label": "in",
+"source": "local",
+"name": "Drain Charge",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000884": {
+"label": "in",
+"source": "local",
+"name": "Absorb Charge",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"Inconsequential_Incantations.esp|0x000888": {
+"label": "in",
+"source": "local",
+"name": "Divine Perseverance",
+"plugin": "Inconsequential_Incantations.esp"
+},
+"frozenfamiliarspell.esp|0x000D62": {
+"label": "in",
+"source": "gemini",
+"name": "얼어붙은 늑대",
+"plugin": "frozenfamiliarspell.esp"
+},
+"SLM_PirateKing.esp|0x000809": {
+"label": "in",
+"source": "gemini",
+"name": "벨렉 세인 소환",
+"plugin": "SLM_PirateKing.esp"
+},
+"mihailstormgolem.esp|0x000817": {
+"label": "in",
+"source": "local",
+"name": "폭풍 골렘 소환",
+"plugin": "mihailstormgolem.esp"
+},
+"Merlin.esp|0x000879": {
+"label": "unsure",
+"source": "none",
+"name": "멀린 소환",
+"plugin": "Merlin.esp"
+},
+"ReadingIsBad.esp|0x000800": {
+"label": "out",
+"source": "gemini",
+"name": "지식 흡수",
+"plugin": "ReadingIsBad.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D9": {
+"label": "out",
+"source": "rule",
+"name": "나이트메어 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009B4": {
+"label": "out",
+"source": "rule",
+"name": "천둥 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009B7": {
+"label": "out",
+"source": "rule",
+"name": "브론즈 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009CF": {
+"label": "in",
+"source": "local",
+"name": "황혼 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D0": {
+"label": "out",
+"source": "rule",
+"name": "천상의 유니콘 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D1": {
+"label": "out",
+"source": "gemini",
+"name": "굴린다그르 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D2": {
+"label": "out",
+"source": "rule",
+"name": "죽음 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D3": {
+"label": "out",
+"source": "rule",
+"name": "절망 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D4": {
+"label": "out",
+"source": "rule",
+"name": "드웨머 말 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D5": {
+"label": "out",
+"source": "gemini",
+"name": "엠버하트 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D6": {
+"label": "out",
+"source": "rule",
+"name": "유령마 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D7": {
+"label": "out",
+"source": "rule",
+"name": "켈피 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009D8": {
+"label": "out",
+"source": "rule",
+"name": "네더 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009DA": {
+"label": "out",
+"source": "gemini",
+"name": "퍼마프로스트 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009DB": {
+"label": "out",
+"source": "gemini",
+"name": "역병 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009DC": {
+"label": "out",
+"source": "rule",
+"name": "루인 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009DD": {
+"label": "out",
+"source": "rule",
+"name": "유니콘 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x0009DE": {
+"label": "out",
+"source": "gemini",
+"name": "레이쓰 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x000AE1": {
+"label": "out",
+"source": "rule",
+"name": "검은 유니콘 소환",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Witcher Horses 2.0.esp|0x000B40": {
+"label": "out",
+"source": "rule",
+"name": "말 해제",
+"plugin": "Witcher Horses 2.0.esp"
+},
+"Inigo.esp|0x055666": {
+"label": "out",
+"source": "rule",
+"name": "이니고 소환",
+"plugin": "Inigo.esp"
+},
+"feris.esp|0x19B058": {
+"label": "out",
+"source": "rule",
+"name": "페리스 소환",
+"plugin": "feris.esp"
+},
+"DZ08_Melana.esp|0x000B07": {
+"label": "out",
+"source": "rule",
+"name": "멜레나 소환",
+"plugin": "DZ08_Melana.esp"
+},
+"NoviceBoltSpells.esp|0x000800": {
+"label": "in",
+"source": "local",
+"name": "불씨조각",
+"plugin": "NoviceBoltSpells.esp"
+},
+"NoviceBoltSpells.esp|0x000803": {
+"label": "in",
+"source": "local",
+"name": "냉기조각",
+"plugin": "NoviceBoltSpells.esp"
+},
+"NoviceBoltSpells.esp|0x000805": {
+"label": "in",
+"source": "local",
+"name": "번개조각",
+"plugin": "NoviceBoltSpells.esp"
+}
+}
