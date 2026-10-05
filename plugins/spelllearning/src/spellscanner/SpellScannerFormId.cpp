@@ -173,21 +173,30 @@ namespace SpellScanner
                 std::string formIdStr = node["formId"].get<std::string>();
                 bool isValid = IsFormIdValid(formIdStr);
 
-                if (!isValid && node.contains("persistentId") && node["persistentId"].is_string()) {
-                    // Try to resolve from persistent ID
+                // The persistent ID ("Plugin.esp|0x00080B") names the record whatever the load
+                // order, so it wins whenever the node has one. A formId saved before a load order
+                // change can still be a valid form - another plugin's record that took the old
+                // index (an unnamed Constant Effect ability in place of a spell, 2026-10-05) - so
+                // it is not trusted on its own.
+                if (node.contains("persistentId") && node["persistentId"].is_string()) {
                     std::string persistentId = node["persistentId"].get<std::string>();
                     RE::FormID resolvedId = ResolveWith(persistentId, pluginLookup);
 
                     if (resolvedId != 0 && IsFormIdValid(resolvedId)) {
-                        // Update formId with resolved value, track old->new mapping
-                        std::string oldFormId = formIdStr;
-                        node["formId"] = std::format("0x{:08X}", resolvedId);
-                        formIdRemapping[oldFormId] = node["formId"].get<std::string>();
+                        const std::string resolvedStr = std::format("0x{:08X}", resolvedId);
+                        if (resolvedStr != formIdStr) {
+                            // Update formId with resolved value, track old->new mapping
+                            node["formId"] = resolvedStr;
+                            formIdRemapping[formIdStr] = resolvedStr;
+                            result.resolvedFromPersistent++;
+                            logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}",
+                                formIdStr, resolvedStr, persistentId);
+                        }
                         isValid = true;
-                        result.resolvedFromPersistent++;
-                        logger::info("SpellScanner: Resolved {} -> 0x{:08X} from persistent ID",
-                            formIdStr, resolvedId);
                     } else {
+                        // The plugin or the record is gone: the old formId, valid or not, is
+                        // not this spell
+                        isValid = false;
                         // Extract plugin name from persistent ID for error reporting
                         auto pipePos = persistentId.find('|');
                         if (pipePos != std::string::npos) {
@@ -211,54 +220,6 @@ namespace SpellScanner
                 nodes.erase(nodes.begin() + *it);
             }
 
-            // Clean up children/prerequisites that reference removed nodes
-            for (auto& node : nodes) {
-                if (node.contains("children") && node["children"].is_array()) {
-                    auto& children = node["children"];
-                    children.erase(
-                        std::remove_if(children.begin(), children.end(),
-                            [&invalidFormIdsSet](const json& child) {
-                                return child.is_string() && invalidFormIdsSet.count(child.get<std::string>()) > 0;
-                            }),
-                        children.end());
-                }
-                if (node.contains("prerequisites") && node["prerequisites"].is_array()) {
-                    auto& prereqs = node["prerequisites"];
-                    prereqs.erase(
-                        std::remove_if(prereqs.begin(), prereqs.end(),
-                            [&invalidFormIdsSet](const json& prereq) {
-                                return prereq.is_string() && invalidFormIdsSet.count(prereq.get<std::string>()) > 0;
-                            }),
-                        prereqs.end());
-                }
-            }
-
-            // Rewrite children/prerequisites that referenced old formIds of resolved nodes
-            if (!formIdRemapping.empty()) {
-                for (auto& node : nodes) {
-                    if (node.contains("children") && node["children"].is_array()) {
-                        for (auto& child : node["children"]) {
-                            if (child.is_string()) {
-                                auto it = formIdRemapping.find(child.get<std::string>());
-                                if (it != formIdRemapping.end()) {
-                                    child = it->second;
-                                }
-                            }
-                        }
-                    }
-                    if (node.contains("prerequisites") && node["prerequisites"].is_array()) {
-                        for (auto& prereq : node["prerequisites"]) {
-                            if (prereq.is_string()) {
-                                auto it = formIdRemapping.find(prereq.get<std::string>());
-                                if (it != formIdRemapping.end()) {
-                                    prereq = it->second;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             // Update root if it was invalid
             if (schoolData.contains("root") && schoolData["root"].is_string()) {
                 std::string rootId = schoolData["root"].get<std::string>();
@@ -274,6 +235,49 @@ namespace SpellScanner
                 auto remapIt = formIdRemapping.find(rootId);
                 if (remapIt != formIdRemapping.end()) {
                     schoolData["root"] = remapIt->second;
+                }
+            }
+        }
+
+        // The links, after every school is checked: a cross-school bridge puts a spell of
+        // another school in a node's optional list, so a formId resolved in a later school
+        // must reach it too
+        for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
+            if (!schoolData.contains("nodes") || !schoolData["nodes"].is_array()) continue;
+            auto& nodes = schoolData["nodes"];
+            // Every link list of a node: the tree's own, and the required / optional lists C++
+            // reads (left out before 2026-10-05, so a load order change kept old formIds there)
+            static constexpr std::array<const char*, 4> kLinkLists = {
+                "children", "prerequisites", "hardPrereqs", "softPrereqs"
+            };
+
+            // Clean up links that reference removed nodes. The saved links all hold old
+            // formIds, so this and the rewrite below look each one up once: a new formId that
+            // equals another node's old one is never mapped twice
+            for (auto& node : nodes) {
+                for (const char* key : kLinkLists) {
+                    if (!node.contains(key) || !node[key].is_array()) continue;
+                    auto& links = node[key];
+                    links.erase(
+                        std::remove_if(links.begin(), links.end(),
+                            [&invalidFormIdsSet](const json& link) {
+                                return link.is_string() && invalidFormIdsSet.count(link.get<std::string>()) > 0;
+                            }),
+                        links.end());
+                }
+            }
+
+            // Rewrite links that referenced old formIds of resolved nodes
+            if (!formIdRemapping.empty()) {
+                for (auto& node : nodes) {
+                    for (const char* key : kLinkLists) {
+                        if (!node.contains(key) || !node[key].is_array()) continue;
+                        for (auto& link : node[key]) {
+                            if (!link.is_string()) continue;
+                            auto it = formIdRemapping.find(link.get<std::string>());
+                            if (it != formIdRemapping.end()) link = it->second;
+                        }
+                    }
                 }
             }
         }

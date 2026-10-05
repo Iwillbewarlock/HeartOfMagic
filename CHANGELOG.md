@@ -21,6 +21,9 @@
   a missing key shows English). Changing the language in Settings changes them at once. Skill names in
   "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus) and
   `ShowNotification` (C++ API version 2) give the same for their own messages.
+- After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
+  spell) where one of yours was: its saved ID now pointed at another plugin's record. The tree now always
+  finds each spell by its plugin and record, and its prerequisite lists follow too.
 - **XP Alerts** (Settings > Early Learning, on by default) turns the corner messages about XP and power off:
   casting a weakened spell, power steps, studying a tome, book XP. Learned, mastered, blocked tomes and the
   Spell Research line always show. Weakened Spell Alerts stays as an option under it and is greyed out while it

@@ -500,7 +500,10 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 - Top byte = mod index (or 0xFE for ESL)
 - ESL: bits [12:23] = light index, bits [0:11] = local ID
 - Regular: bits [0:23] = local ID
-- On tree load, stale FormIDs auto-resolved from persistentId field; `children`, `prerequisites`, the school
+- On tree load, every node with a persistentId takes the FormID it resolves to (since 2026-10-05 also when the
+  saved FormID is still a valid form: after a load order change it can be another plugin's record, shown as an
+  unnamed "Constant Effect" node; a persistentId that no longer resolves drops the node); `children`,
+  `prerequisites`, `hardPrereqs`, `softPrereqs` (all schools, after every school is checked), the school
   `root` and the cross school `bridges` (both ends) follow the new FormIDs, and a bridge to a removed spell goes
 ```
 
@@ -1402,11 +1405,10 @@ Player reads spell tome → TESObjectBOOK::ProcessBook hooked
 ### FormID Validation Flow (on tree load)
 ```
 Load spell_tree.json → For each node:
-  → Try to resolve runtime FormID
-  → If invalid (load order changed):
-    → Check for persistentId field ("Plugin.esp|0x001234")
-    → ResolvePersistentFormId() → Get new runtime FormID
-    → Update node with resolved FormID
+  → persistentId field ("Plugin.esp|0x001234")? ResolvePersistentFormId() → the node takes that FormID
+    (whether or not the saved one is still a valid form); none resolved → the node goes
+  → No persistentId: the saved FormID stays if it is valid
+  → Then every node's link lists follow the new FormIDs
   → Auto-save corrected tree
   → Report validation results to UI
 ```
