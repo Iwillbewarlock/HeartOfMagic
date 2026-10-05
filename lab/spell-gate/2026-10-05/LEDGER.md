@@ -28,3 +28,14 @@ Dump: TAKEALOOK dev install, `spell_scan_output.json` 2026-10-05 22:52 (3,775 sp
 - What the Gemini "out" set has in common is not in the dump's structure: the summoned actor is a mount or a
   follower (race/faction), the plugin is an adult or follower mod (masters), the description says "mount", "pet",
   "follower". Text tokens + those game facts should be measured next.
+
+## Measurement 2 (2026-10-06, `score_proto.py`, leave-one-plugin-out)
+- + long summon (over an hour: Witcher Horses 99 days, nixads 300 days), horse summon, banish-only, effect/name
+  words: at most 37-40/89 caught with 3-16 false outs. Words do not generalize to an unseen plugin.
+- Plain rule set (free, long summon, horse summon, banish-only): 42/89, 13 false - the horse summons that fight
+  (skeletal horse, phantom mare...) and two long-lived summons. Some of those "in" labels are questionable (Witcher
+  Horses' "황혼 소환" judged in) - horse summons need a human decision.
+- The 47 the record cannot reach: SexLab Eager NPCs' 20 detect/inject spells (no shared structure; its master is
+  the only tie), script-only conveniences (food, chest, bread, ore, book), follower calls (Feris, Melana), quest
+  helpers. Their difference lives in the attached Papyrus script and the plugin's masters, not in any field the
+  scan reads. 89 "out" from ~15 plugins is too few for a learner to generalize to an unseen mod family.
