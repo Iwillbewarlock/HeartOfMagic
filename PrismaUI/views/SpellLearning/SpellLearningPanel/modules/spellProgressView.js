@@ -105,7 +105,8 @@ function updateDetailsProgression(node, opts) {
                 // Show if this is an override
                 var hasOverride = xpOverrides[node.formId] !== undefined;
                 xpRequiredInput.classList.toggle('has-override', hasOverride);
-                xpRequiredInput.title = hasOverride ? 'Custom override (tier default: ' + tierXP + ')' : 'Tier default';
+                if (hasOverride) setI18n(xpRequiredInput, 'details.xpOverride', { xp: tierXP }, 'Custom (tier default: {{xp}})', 'title');
+                else setI18n(xpRequiredInput, 'details.xpTierDefault', null, 'Tier default', 'title');
                 
                 xpRequiredInput.onchange = function() {
                     var newRequired = Math.max(1, parseInt(this.value) || tierXP);
@@ -113,7 +114,7 @@ function updateDetailsProgression(node, opts) {
                     // Store as override
                     xpOverrides[node.formId] = newRequired;
                     this.classList.add('has-override');
-                    this.title = 'Custom override (tier default: ' + tierXP + ')';
+                    setI18n(this, 'details.xpOverride', { xp: tierXP }, 'Custom (tier default: {{xp}})', 'title');
                     progress.required = newRequired;
                     // Update progress bar
                     var percent = newRequired > 0 ? (progress.xp / newRequired) * 100 : 0;

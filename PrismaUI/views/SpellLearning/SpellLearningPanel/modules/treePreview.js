@@ -631,7 +631,7 @@ var TreePreview = {
         // Restore original title
         var title = modal ? modal.querySelector('.modal-header h3') : null;
         if (title) {
-            title.textContent = 'Spawn Spell Node';
+            setI18n(title, 'modals.spawnSpell.title', null, 'Spawn Spell Node');
         }
     },
 
@@ -666,11 +666,15 @@ var TreePreview = {
         var currentFormId = currentRoot ? currentRoot.formId : null;
 
         if (filtered.length === 0 && !searchTerm) {
-            spellList.innerHTML = '<div class="spawn-no-results">No primed spells for ' + school + '</div>';
+            spellList.innerHTML = '<div class="spawn-no-results"></div>';
+            setI18n(spellList.firstChild, 'preview.noPrimedSpells',
+                { school: typeof SpellSearch !== 'undefined' ? SpellSearch.schoolLabel(school) : school },
+                'No primed spells for {{school}}');
             return;
         }
         if (filtered.length === 0) {
-            spellList.innerHTML = '<div class="spawn-no-results">No matching spells</div>';
+            spellList.innerHTML = '<div class="spawn-no-results"></div>';
+            setI18n(spellList.firstChild, 'search.noMatchingSpells', null, 'No matching spells');
             return;
         }
 
@@ -724,12 +728,12 @@ var TreePreview = {
             var rootKey = this._rootKey(this._rootSelectionSchool, this._rootSelectionIndex);
             var hasSelection = settings.selectedRoots && settings.selectedRoots[rootKey];
             if (hasSelection) {
-                cancelBtn.textContent = 'Clear Selection';
+                setI18n(cancelBtn, 'preview.clearSelection', null, 'Clear Selection');
                 cancelBtn.onclick = function() {
                     self._clearRoot(rootKey);
                 };
             } else {
-                cancelBtn.textContent = 'Cancel';
+                setI18n(cancelBtn, 'modals.spawnSpell.cancel', null, 'Cancel');
                 cancelBtn.onclick = function() { self.hideRootSelectionModal(); };
             }
         }

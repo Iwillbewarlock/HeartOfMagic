@@ -1979,7 +1979,7 @@ var WheelRenderer = {
         text.classList.add('center-hub-text');
         text.setAttribute('x', 0);
         text.setAttribute('y', 0);
-        text.textContent = 'MAGIC';
+        setI18n(text, 'tree.centerHub', null, 'MAGIC');
         this.centerHub.appendChild(text);
     },
 

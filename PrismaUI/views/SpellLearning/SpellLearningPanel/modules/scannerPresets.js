@@ -63,7 +63,7 @@ function initializeScannerPresets() {
 // =============================================================================
 
 function promptSaveScannerPreset() {
-    showPresetNamePrompt('Save Scanner Preset', function(name) {
+    showPresetNamePrompt(tOr('presets.saveScanner', null, 'Save Scanner Preset'), function(name) {
         // Check for duplicate — overwrite without confirmation since user typed the name
         saveScannerPreset(name);
     });
@@ -268,12 +268,12 @@ function deleteScannerPreset(name, deleteBtn) {
         if (deleteBtn) {
             deleteBtn.setAttribute('data-armed', 'true');
             deleteBtn.classList.add('armed');
-            deleteBtn.title = 'Click again to confirm delete';
+            setI18n(deleteBtn, 'presets.deleteConfirm', null, 'Click again to delete', 'title');
             // Auto-disarm after 2 seconds
             setTimeout(function() {
                 deleteBtn.removeAttribute('data-armed');
                 deleteBtn.classList.remove('armed');
-                deleteBtn.title = 'Delete preset';
+                setI18n(deleteBtn, 'presets.delete', null, 'Delete preset', 'title');
             }, 2000);
         }
         return;
@@ -421,7 +421,7 @@ function updateScannerPresetsUI() {
             var updateBtn = document.createElement('span');
             updateBtn.className = 'scanner-preset-update';
             updateBtn.innerHTML = '&#8635;';
-            updateBtn.title = 'Update preset with current settings';
+            setI18n(updateBtn, 'presets.update', null, 'Update the preset with the current settings', 'title');
             updateBtn.addEventListener('click', (function(k) {
                 return function(e) {
                     e.stopPropagation();
@@ -436,7 +436,7 @@ function updateScannerPresetsUI() {
             var deleteBtn = document.createElement('span');
             deleteBtn.className = 'scanner-preset-delete';
             deleteBtn.textContent = '\u00d7';
-            deleteBtn.title = 'Delete preset';
+            setI18n(deleteBtn, 'presets.delete', null, 'Delete preset', 'title');
             deleteBtn.addEventListener('click', (function(k, btn) {
                 return function(e) {
                     e.stopPropagation();

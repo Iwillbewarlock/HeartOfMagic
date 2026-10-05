@@ -346,9 +346,9 @@ function hideImportModal() {
 function loadSavedTree() {
     if (window.callCpp) {
         window.callCpp('LoadSpellTree', '');
-        setTreeStatus(t('status.loadingSavedTree'));
+        setTreeStatusKey('status.loadingSavedTree');
     } else {
-        setTreeStatus(t('status.noSavedTree'));
+        setTreeStatusKey('status.noSavedTree');
     }
 }
 
@@ -379,7 +379,7 @@ function importTreeFromModal() {
     // Step 3: Load the validated tree
     loadTreeData(data, true, true);
     hideImportModal();
-    setTreeStatus(t('status.treeSavedCount', {count: parsed.nodes.length}));
+    setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
 
     // Save to file via C++
     if (window.callCpp) {

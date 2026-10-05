@@ -154,6 +154,14 @@
      * 
      * @param {Element} [root=document] - Optional root element to scan within
      */
+    /** An element's translation, with the values setI18n left on it (data-i18n...-params) */
+    function textFor(el, name, key) {
+        if (!key || _translations[key] === undefined) return undefined;
+        var raw = el.getAttribute(name + '-params');
+        if (!raw) return _translations[key];
+        try { return t(key, JSON.parse(raw)); } catch (e) { return _translations[key]; }
+    }
+
     function applyI18nToDOM(root) {
         if (!_loaded) return;
 
@@ -162,28 +170,22 @@
         // textContent
         var elements = root.querySelectorAll('[data-i18n]');
         for (var i = 0; i < elements.length; i++) {
-            var key = elements[i].getAttribute('data-i18n');
-            if (key && _translations[key] !== undefined) {
-                elements[i].textContent = _translations[key];
-            }
+            var text = textFor(elements[i], 'data-i18n', elements[i].getAttribute('data-i18n'));
+            if (text !== undefined) elements[i].textContent = text;
         }
 
         // placeholder
         var placeholders = root.querySelectorAll('[data-i18n-placeholder]');
         for (var j = 0; j < placeholders.length; j++) {
-            var pKey = placeholders[j].getAttribute('data-i18n-placeholder');
-            if (pKey && _translations[pKey] !== undefined) {
-                placeholders[j].placeholder = _translations[pKey];
-            }
+            var pText = textFor(placeholders[j], 'data-i18n-placeholder', placeholders[j].getAttribute('data-i18n-placeholder'));
+            if (pText !== undefined) placeholders[j].placeholder = pText;
         }
 
         // title / tooltip
         var titles = root.querySelectorAll('[data-i18n-title]');
         for (var k = 0; k < titles.length; k++) {
-            var tKey = titles[k].getAttribute('data-i18n-title');
-            if (tKey && _translations[tKey] !== undefined) {
-                titles[k].title = _translations[tKey];
-            }
+            var tText = textFor(titles[k], 'data-i18n-title', titles[k].getAttribute('data-i18n-title'));
+            if (tText !== undefined) titles[k].title = tText;
         }
 
         // innerHTML (for rich text like cheat mode info)
@@ -295,9 +297,41 @@
         return str;
     }
 
+    /**
+     * Text a script writes that a language switch writes again: sets the element's
+     * text (or its attribute attr, 'title' or 'placeholder') with tOr and leaves the
+     * key and values on it (data-i18n[-attr], data-i18n[-attr]-params) for
+     * applyI18nToDOM, which switchLocale runs over the page.
+     * @param {Element} el
+     * @param {string} key
+     * @param {Object|null} params - {{variable}} values
+     * @param {string} fallback - English, shown when the language lacks the key
+     * @param {string} [attr] - 'title' or 'placeholder'; the text when left out
+     */
+    function setI18n(el, key, params, fallback, attr) {
+        if (!el) return;
+        var name = attr ? 'data-i18n-' + attr : 'data-i18n';
+        el.setAttribute(name, key);
+        if (params) el.setAttribute(name + '-params', JSON.stringify(params));
+        else el.removeAttribute(name + '-params');
+        var text = tOr(key, params, fallback === undefined ? key : fallback);
+        if (attr) el.setAttribute(attr, text);
+        else el.textContent = text;
+    }
+
+    /** Text written without a key: a language switch leaves the element alone. */
+    function clearI18n(el, attr) {
+        if (!el) return;
+        var name = attr ? 'data-i18n-' + attr : 'data-i18n';
+        el.removeAttribute(name);
+        el.removeAttribute(name + '-params');
+    }
+
     // Expose globally
     window.t = t;
     window.tOr = tOr;
+    window.setI18n = setI18n;
+    window.clearI18n = clearI18n;
     window.initI18n = initI18n;
     window.applyI18nToDOM = applyI18nToDOM;
     window.getLocale = getLocale;

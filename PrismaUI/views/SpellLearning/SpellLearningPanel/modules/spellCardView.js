@@ -240,11 +240,11 @@ function renderSpellCard(node, opts) {
                     li.textContent = e;
                 } else if (e.scaledMagnitude !== undefined) {
                     // Scaled effect from C++
-                    var text = e.name || 'Effect';
+                    var text = e.name || tOr('details.effect', null, 'Effect');
                     if (e.scaledMagnitude > 0) {
                         text += ' (' + e.scaledMagnitude + ')';
                         if (e.originalMagnitude && e.originalMagnitude !== e.scaledMagnitude) {
-                            li.title = 'Full power: ' + e.originalMagnitude;
+                            setI18n(li, 'details.fullPower', { value: e.originalMagnitude }, 'Full power: {{value}}', 'title');
                         }
                     }
                     if (e.duration > 0) {
@@ -326,7 +326,8 @@ function renderSpellCard(node, opts) {
             var toggleBtn = document.createElement('button');
             toggleBtn.className = 'prereq-toggle-btn ' + (isHard ? 'hard' : 'soft');
             toggleBtn.textContent = isHard ? 'H' : 'S';
-            toggleBtn.title = isHard ? 'Hard (required) - click to make Soft' : 'Soft (optional) - click to make Hard';
+            if (isHard) setI18n(toggleBtn, 'details.prereqHardTitle', null, 'Required - click to make it optional', 'title');
+            else setI18n(toggleBtn, 'details.prereqSoftTitle', null, 'Optional - click to make it required', 'title');
             toggleBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (typeof EditMode !== 'undefined') {
@@ -339,7 +340,7 @@ function renderSpellCard(node, opts) {
             var deleteBtn = document.createElement('button');
             deleteBtn.className = 'prereq-delete-btn';
             deleteBtn.textContent = '×';
-            deleteBtn.title = 'Remove prerequisite';
+            setI18n(deleteBtn, 'details.removePrereq', null, 'Remove prerequisite', 'title');
             deleteBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (typeof EditMode !== 'undefined') {
@@ -495,7 +496,7 @@ function renderSpellCard(node, opts) {
                 icon.textContent = '\u{1F517}';
                 var label = document.createElement('span');
                 label.className = 'lock-label';
-                label.textContent = 'LOCK';
+                setI18n(label, 'details.lock', null, 'LOCK');
                 li.appendChild(icon);
                 li.appendChild(document.createTextNode(' ' +
                     (lockNode ? spellDisplayName(lock.nodeId, lockNode, showName) : (showName ? lock.name : '???')) + ' '));

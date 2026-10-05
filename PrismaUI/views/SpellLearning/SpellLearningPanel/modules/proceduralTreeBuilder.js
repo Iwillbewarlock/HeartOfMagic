@@ -232,9 +232,10 @@ window.onProceduralTreeComplete = function(resultStr) {
         state._classicGrowthBuildPending = false;
         if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
         if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
-            BuildProgress.fail('Result parse error');
+            BuildProgress.fail(tOr('status.buildResultUnreadable', null, "The tree builder's result could not be read"));
         }
-        updateStatus('Result parse error');
+        updateStatus(tOr('status.buildResultUnreadable', null, "The tree builder's result could not be read"),
+            'status.buildResultUnreadable');
         setStatusIcon('X');
     }
 };

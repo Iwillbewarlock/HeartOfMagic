@@ -308,7 +308,15 @@ function getXPForTier(level) {
 
 function setTreeStatus(msg) {
     var el = document.getElementById('tree-status-text');
-    if (el) el.textContent = msg;
+    if (!el) return;
+    if (typeof clearI18n === 'function') clearI18n(el);
+    el.textContent = msg;
+}
+
+/** The status line in the panel's language, written again by a language switch (setI18n) */
+function setTreeStatusKey(key, params, fallback) {
+    var el = document.getElementById('tree-status-text');
+    if (el) setI18n(el, key, params, fallback);
 }
 
 // =============================================================================
@@ -346,7 +354,7 @@ function onLearnClick() {
             CanvasRenderer._needsRender = true;
         }
         
-        setTreeStatus(t('progression.stoppedLearning', {name: node.name || node.formId}));
+        setTreeStatusKey('progression.stoppedLearning', {name: node.name || node.formId});
         console.log('[SpellLearning] Cleared learning target - early spell removed from player');
     } else {
         // In "single" mode, clear ALL other learning targets first
@@ -422,7 +430,7 @@ function onLearnClick() {
             CanvasRenderer._needsRender = true;
         }
         
-        setTreeStatus(t('progression.nowLearning', {name: node.name || node.formId}));
+        setTreeStatusKey('progression.nowLearning', {name: node.name || node.formId});
     }
     
     // Recalculate node availability (in case switching targets changes what's available)
@@ -447,7 +455,7 @@ function onUnlockClick() {
             // Relock the spell (remove from player) - send canonical formId to C++
             if (window.callCpp) {
                 window.callCpp('RelockSpell', JSON.stringify({ formId: canonId }));
-                setTreeStatus(t('progression.relocking', {name: node.name || node.formId}));
+                setTreeStatusKey('progression.relocking', {name: node.name || node.formId});
             }
 
             // Update local state immediately for responsiveness (canonical ID)
@@ -472,7 +480,7 @@ function onUnlockClick() {
             // Unlock the spell (cheat - bypass XP) - send canonical formId to C++
             if (window.callCpp) {
                 window.callCpp('CheatUnlockSpell', JSON.stringify({ formId: canonId }));
-                setTreeStatus(t('progression.cheatUnlocking', {name: node.name || node.formId}));
+                setTreeStatusKey('progression.cheatUnlocking', {name: node.name || node.formId});
             }
 
             // Update local state immediately for responsiveness (canonical ID)
@@ -504,13 +512,13 @@ function onUnlockClick() {
     
     // NORMAL MODE: Require XP
     if (!progress || progress.xp < progress.required) {
-        setTreeStatus(t('progression.notEnoughXp'));
+        setTreeStatusKey('progression.notEnoughXp');
         return;
     }
     
     if (window.callCpp) {
         window.callCpp('UnlockSpell', JSON.stringify({ formId: canonId }));
-        setTreeStatus(t('progression.unlocking', {name: node.name || node.formId}));
+        setTreeStatusKey('progression.unlocking', {name: node.name || node.formId});
     }
 }
 
@@ -637,7 +645,7 @@ function autoAdvanceLearningTarget(masteredCanonId, school) {
         CanvasRenderer._needsRender = true;
     }
 
-    setTreeStatus('Now learning: ' + (candidate.name || candidate.formId));
+    setTreeStatusKey('progression.nowLearning', { name: candidate.name || candidate.formId }, 'Now learning: {{name}}');
     console.log('[SpellLearning] Auto-advanced to: ' + (candidate.name || candidate.formId) + ' (' + candidate.school + ')');
 
     // Update node visuals
@@ -703,7 +711,7 @@ window.onSpellReady = function(dataStr) {
         }) : null;
         var name = node ? (node.name || node.formId) : data.formId;
 
-        setTreeStatus(t('progression.readyToUnlock', {name: name}));
+        setTreeStatusKey('progression.readyToUnlock', {name: name});
 
         // Update details panel if selected node matches canonical ID
         var selectedCanon = state.selectedNode ? ((typeof getCanonicalFormId === 'function') ? getCanonicalFormId(state.selectedNode) : state.selectedNode.formId) : null;
@@ -737,7 +745,7 @@ window.onSpellUnlocked = function(dataStr) {
                     var nCanon = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(n) : n.formId;
                     if (nCanon === canonId && n.state !== 'unlocked') {
                         n.state = 'unlocked';
-                        setTreeStatus(t('progression.mastered', {name: n.name || n.formId}));
+                        setTreeStatusKey('progression.mastered', {name: n.name || n.formId});
                         if (typeof syncDuplicateState === 'function') syncDuplicateState(n);
                     }
                 });
@@ -778,7 +786,7 @@ window.onSpellUnlocked = function(dataStr) {
             // Update unlocked count
             updateUnlockedCount();
         } else {
-            setTreeStatus(t('progression.failedUnlock'));
+            setTreeStatusKey('progression.failedUnlock');
         }
         
     } catch (e) {
@@ -820,7 +828,7 @@ window.onLearningTargetSet = function(dataStr) {
                 }
             }
             
-            setTreeStatus(t('progression.nowLearning', {name: data.spellName || data.formId}));
+            setTreeStatusKey('progression.nowLearning', {name: data.spellName || data.formId});
         }
     } catch (e) {
         console.error('[SpellLearning] Failed to parse learning target:', e);

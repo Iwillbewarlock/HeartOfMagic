@@ -1113,7 +1113,7 @@
             // Respect PRM toggle -- if user disabled PRM while C++ was scoring, bail out
             if (!isEnabled()) {
                 _prmLog('PRM disabled during C++ scoring -- discarding results');
-                updateStatus('Prerequisite locks disabled');
+                updateStatus('prm.status.disabled', null, 'Prerequisite locks disabled');
                 if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
                     BuildProgress.setStage('finalize');
                     setTimeout(function() { BuildProgress.complete('PRM disabled'); }, 300);
@@ -1128,13 +1128,13 @@
                 var request = buildLockRequest();
                 if (request) {
                     var count = applyLocksWithJSScorer(request);
-                    updateStatus(count + ' locks applied (JS fallback)');
+                    updateStatus('prm.status.applied', { count: count }, '{{count}} locks applied');
                     onLocksChanged();
                     if (typeof TreeAnimation !== 'undefined' && TreeAnimation.notifyLocksApplied) {
                         TreeAnimation.notifyLocksApplied();
                     }
                 } else {
-                    updateStatus('No eligible spells for locks');
+                    updateStatus('prm.status.noEligible', null, 'No eligible spells for locks');
                 }
                 return;
             }
@@ -1236,7 +1236,7 @@
             }
 
             _prmLog('Applied ' + lockCount + ' locks (NLP, ' + (result.count || lockCount) + ' scored, ' + skippedCount + ' rejected)');
-            updateStatus(lockCount + ' locks applied (NLP)');
+            updateStatus('prm.status.applied', { count: lockCount }, '{{count}} locks applied');
             onLocksChanged();
 
             // Notify animation to start chain phase
@@ -1258,7 +1258,7 @@
             var fbRequest = buildLockRequest();
             if (fbRequest) {
                 var fbCount = applyLocksWithJSScorer(fbRequest);
-                updateStatus(fbCount + ' locks applied (JS fallback)');
+                updateStatus('prm.status.applied', { count: fbCount }, '{{count}} locks applied');
                 onLocksChanged();
                 if (typeof TreeAnimation !== 'undefined' && TreeAnimation.notifyLocksApplied) {
                     TreeAnimation.notifyLocksApplied();
@@ -1297,7 +1297,7 @@
         _cachedPosMap = null;
 
         _prmLog('Cleared ' + cleared + ' locks');
-        updateStatus('Locks cleared');
+        updateStatus('prm.status.cleared', null, 'Locks cleared');
         onLocksChanged();
         return cleared;
     }
@@ -1394,9 +1394,10 @@
     // UI HELPERS
     // =========================================================================
 
-    function updateStatus(msg) {
+    /** The status line in the panel's language, written again by a language switch (setI18n) */
+    function updateStatus(key, params, fallback) {
         var el = document.getElementById('prmStatus');
-        if (el) el.textContent = msg;
+        if (el) setI18n(el, key, params, fallback);
     }
 
     function setButtonsEnabled(enabled) {
@@ -2084,7 +2085,7 @@
         if (!isEnabled()) return;
 
         _prmLog('Auto-applying locks after tree build...');
-        updateStatus('Auto-applying locks...');
+        updateStatus('prm.status.autoApplying', null, 'Applying locks...');
 
         // Invalidate position cache (tree layout may have changed)
         _cachedPosMap = null;
@@ -2099,7 +2100,7 @@
 
         var request = buildLockRequest();
         if (!request || request.eligible.length === 0) {
-            updateStatus('No eligible spells for locks');
+            updateStatus('prm.status.noEligible', null, 'No eligible spells for locks');
             renderPreview();
             // No eligible → skip prereqs, finalize + complete
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
@@ -2112,9 +2113,9 @@
         var result = applyLocksWithScorer(request);
         if (result === -1) {
             // Async (NLP) - callback will handle status + onLocksChanged + BuildProgress
-            updateStatus('Scoring with NLP...');
+            updateStatus('prm.status.scoring', null, 'Comparing spells...');
         } else {
-            updateStatus(result + ' locks auto-applied');
+            updateStatus('prm.status.applied', { count: result }, '{{count}} locks applied');
             onLocksChanged();
             // Synchronous (JS fallback) → finalize + complete
             if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
@@ -2234,20 +2235,20 @@
                 var request = buildLockRequest();
                 if (!request || request.eligible.length === 0) {
                     _prmLog('No eligible spells found - aborting apply');
-                    updateStatus('No eligible spells found');
+                    updateStatus('prm.status.noEligible', null, 'No eligible spells for locks');
                     return;
                 }
 
-                updateStatus('Applying locks...');
+                updateStatus('prm.status.autoApplying', null, 'Applying locks...');
                 _prmLog('Applying ' + request.eligible.length + ' eligible spell locks...');
 
                 var result = applyLocksWithScorer(request);
                 if (result === -1) {
                     // Async (NLP) - callback will handle status + onLocksChanged
-                    updateStatus('Scoring with NLP...');
+                    updateStatus('prm.status.scoring', null, 'Comparing spells...');
                 } else {
                     _prmLog('Locks applied: ' + result);
-                    updateStatus(result + ' locks applied');
+                    updateStatus('prm.status.applied', { count: result }, '{{count}} locks applied');
                     onLocksChanged();
                 }
             });

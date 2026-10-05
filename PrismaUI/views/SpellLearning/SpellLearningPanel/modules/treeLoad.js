@@ -264,7 +264,7 @@ function _loadTrustedTree(data, switchToTreeTab) {
     }
 
     _logToSKSE('[_loadTrustedTree] === DONE ===');
-    setTreeStatus(t('status.loadedTrustedTree', {count: nodes.length}));
+    setTreeStatusKey('status.loadedTrustedTree', {count: nodes.length});
 }
 
 function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
@@ -375,7 +375,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
 
         if (totalProblems > 0) {
             console.log('[SpellLearning] Validation found ' + totalProblems + ' unreachable spells - regenerate tree');
-            setTreeStatus(t('status.warningUnreachable', {count: totalProblems}));
+            setTreeStatusKey('status.warningUnreachable', {count: totalProblems});
         }
     }
     
@@ -454,8 +454,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
             TreeParser.updateNodeFromCache(node);
         });
         SmartRenderer.setData(result.nodes, result.edges, result.schools);
-        setTreeStatus('Loaded ' + result.nodes.length + ' spells' + 
-            (SmartRenderer.activeRenderer === 'canvas' ? ' (Canvas mode)' : ''));
+        setTreeStatusKey('status.loadedSpells', { found: result.nodes.length }, 'Loaded {{found}} spells');
     });
 
     // Initial render - use SmartRenderer to auto-switch based on node count

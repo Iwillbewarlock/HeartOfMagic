@@ -2429,7 +2429,8 @@ function renderBlacklistSearchResults(searchTerm) {
     filtered = filtered.slice(0, 10);
 
     if (filtered.length === 0) {
-        dropdown.innerHTML = '<div class="spawn-no-results">No matching spells found</div>';
+        dropdown.innerHTML = '<div class="spawn-no-results"></div>';
+        setI18n(dropdown.firstChild, 'search.noMatchingSpells', null, 'No matching spells');
         dropdown.classList.remove('hidden');
         return;
     }
@@ -2523,8 +2524,8 @@ function renderBlacklistEntries() {
     if (typeof GateReview !== 'undefined') GateReview.render();
 
     if (blacklist.length === 0) {
-        container.innerHTML = '<div class="blacklist-empty">' +
-            (typeof tOr === 'function' ? tOr('modals.blacklist.empty', null, 'No spells blacklisted') : 'No spells blacklisted') + '</div>';
+        container.innerHTML = '<div class="blacklist-empty"></div>';
+        setI18n(container.firstChild, 'modals.blacklist.empty', null, 'No spells blacklisted');
         return;
     }
 
@@ -2539,9 +2540,10 @@ function renderBlacklistEntries() {
                 '<div class="blacklist-entry-name">' + (entry.name || entry.formId) + '</div>' +
                 '<div class="blacklist-entry-school">' + subtitle + '</div>' +
             '</div>' +
-            '<button class="blacklist-remove-btn" title="Remove from blacklist">&times;</button>';
+            '<button class="blacklist-remove-btn">&times;</button>';
 
         var removeBtn = div.querySelector('.blacklist-remove-btn');
+        setI18n(removeBtn, 'modals.blacklist.remove', null, 'Remove from blacklist', 'title');
         removeBtn.addEventListener('click', function() {
             removeFromBlacklist(entry.plugin, entry.localFormId, entry.formId);
         });
@@ -2761,7 +2763,8 @@ function renderWhitelistEntries() {
     var enabledModCount = 0;
 
     if (modPlugins.length === 0) {
-        modContainer.innerHTML = '<div class="whitelist-empty">Scan spells first to see mod plugins</div>';
+        modContainer.innerHTML = '<div class="whitelist-empty"></div>';
+        setI18n(modContainer.firstChild, 'modals.whitelist.scanFirst', null, 'Scan spells first to see mod plugins');
     } else {
         modPlugins.forEach(function(plugin) {
             var count = pluginCounts[plugin] || 0;

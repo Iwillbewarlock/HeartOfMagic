@@ -447,9 +447,10 @@ function updateOrphanRepairButton() {
     var stats = lastOrphanStats || analyzeOrphans();
     if (stats.totalOrphans > 0 || stats.totalMissingPrereqs > 0) {
         var total = stats.totalOrphans + stats.totalMissingPrereqs;
-        btn.textContent = total + ' orphan' + (total !== 1 ? 's' : '') + ' - repair';
+        setI18n(btn, 'tree.orphanRepair', { count: total }, 'Repair unreachable spells ({{count}})');
         btn.style.display = '';
-        btn.title = stats.totalOrphans + ' unreachable nodes, ' + stats.totalMissingPrereqs + ' missing prereq refs';
+        setI18n(btn, 'tree.orphanRepairTitle', { orphans: stats.totalOrphans, missing: stats.totalMissingPrereqs },
+            '{{orphans}} unreachable spells, {{missing}} missing prerequisite links', 'title');
     } else {
         btn.style.display = 'none';
     }

@@ -74,7 +74,16 @@ Update this with your translation info:
 
 If a key is missing from your file, the English text from the HTML is shown as fallback. You don't need to translate every key to get started.
 
-Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
+Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason.
+Text that stays on screen (a status line, an empty-list line, a button, a tooltip) is written with
+`setI18n(element, key, params, englishFallback[, 'title' | 'placeholder'])` instead: it leaves the key and its
+values on the element (`data-i18n`, `data-i18n-params`), so changing the language in Settings writes it again
+at once (`applyI18nToDOM`, which reads the values; `modules/i18nRelabelTest.js`). Text written by hand into such
+an element afterwards calls `clearI18n(element)` first (`setTreeStatus` does), or the next switch would put the
+keyed text back. The tree and Pre Req Master status lines take keys directly: `setTreeStatusKey(key, params,
+fallback)`, `PreReqMaster.updateStatus(key, params, fallback)`. The DLL's own status messages are English;
+`CPP_STATUS_KEYS` in `modules/cppCallbacks.js` gives each its key (a DLL text changed without updating that
+table shows in English). The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
 
 ### In-game corner messages (`hud.*`)
 

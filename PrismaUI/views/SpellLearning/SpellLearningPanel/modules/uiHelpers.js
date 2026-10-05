@@ -302,7 +302,7 @@ function showPresetNamePrompt(title, onConfirm) {
         return;
     }
 
-    titleEl.textContent = title || 'Save Preset';
+    titleEl.textContent = title || tOr('modals.presetName.title', null, 'Save Preset');
     input.value = '';
     modal.classList.remove('hidden');
 

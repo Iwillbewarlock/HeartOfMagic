@@ -396,7 +396,7 @@ var EditMode = {
         if (this.undoStack.length === 0) {
             console.log('[EditMode] Nothing to undo');
             if (typeof setTreeStatus === 'function') {
-                setTreeStatus(t('editMode.nothingToUndo'));
+                setTreeStatusKey('editMode.nothingToUndo');
             }
             return;
         }
@@ -426,7 +426,7 @@ var EditMode = {
         }
 
         if (typeof setTreeStatus === 'function') {
-            setTreeStatus(t('editMode.undoAction', {action: action.type}));
+            setTreeStatusKey('editMode.undoAction', {action: action.type});
         }
     },
 
@@ -1146,7 +1146,7 @@ var EditMode = {
             if (saved) {
                 console.log('[EditMode] Tree saved');
                 if (typeof setTreeStatus === 'function') {
-                    setTreeStatus('Changes saved');
+                    setTreeStatusKey('status.changesSaved', null, 'Changes saved');
                 }
             }
             return saved;
@@ -1270,9 +1270,7 @@ var EditMode = {
             var label = node.name || nodeId;
             console.log('[EditMode] Not deleting the school root:', label);
             if (typeof setTreeStatus === 'function') {
-                setTreeStatus(typeof tOr === 'function'
-                    ? tOr('editMode.rootNotDeleted', { name: label }, 'Not deleted: {{name}} is the root of its school')
-                    : 'Not deleted: ' + label + ' is the root of its school');
+                setTreeStatusKey('editMode.rootNotDeleted', { name: label }, 'Not deleted: {{name}} is the root of its school');
             }
             return false;
         }
@@ -1329,7 +1327,7 @@ var EditMode = {
         CanvasRenderer._needsRender = true;
 
         if (typeof setTreeStatus === 'function') {
-            setTreeStatus('Deleted: ' + (node.name || nodeId));
+            setTreeStatusKey('editMode.deleted', { name: node.name || nodeId }, 'Deleted: {{name}}');
         }
         return true;
     },
@@ -1447,7 +1445,8 @@ var EditMode = {
         var spellList = document.getElementById('spawn-spell-list');
 
         if (spellList) {
-            spellList.innerHTML = '<div class="spawn-loading">Loading spells...</div>';
+            spellList.innerHTML = '<div class="spawn-loading"></div>';
+            setI18n(spellList.firstChild, 'modals.spawnSpell.loading', null, 'Loading spells...');
         }
 
         this.allSpells = [];
@@ -1545,7 +1544,8 @@ var EditMode = {
             // No data from any source - try requesting a scan from C++
             console.log('[EditMode] No spell data from any source, requesting scan...');
             if (spellList) {
-                spellList.innerHTML = '<div class="spawn-loading">Scanning game spells... (use Spell Scan tab first if this persists)</div>';
+                spellList.innerHTML = '<div class="spawn-loading"></div>';
+                setI18n(spellList.firstChild, 'modals.spawnSpell.scanning', null, 'Scanning spells... (open the Spell Scan tab first if this stays)');
             }
             this.spellsLoaded = false;
             if (window.callCpp) {
@@ -1599,7 +1599,8 @@ var EditMode = {
 
         // Render
         if (filtered.length === 0) {
-            spellList.innerHTML = '<div class="spawn-no-results">No matching spells found</div>';
+            spellList.innerHTML = '<div class="spawn-no-results"></div>';
+            setI18n(spellList.firstChild, 'search.noMatchingSpells', null, 'No matching spells');
             return;
         }
 
@@ -1654,7 +1655,7 @@ var EditMode = {
         console.log('[EditMode] Panned to:', node.name || formId);
 
         if (typeof setTreeStatus === 'function') {
-            setTreeStatus('Focused: ' + (node.name || formId));
+            setTreeStatusKey('editMode.focused', { name: node.name || formId }, 'Focused: {{name}}');
         }
 
         this.hideSpawnMenu();
@@ -1768,7 +1769,7 @@ var EditMode = {
         CanvasRenderer._needsRender = true;
 
         if (typeof setTreeStatus === 'function') {
-            setTreeStatus('Spawned: ' + spell.name);
+            setTreeStatusKey('editMode.spawned', { name: spell.name }, 'Spawned: {{name}}');
         }
 
         this.hideSpawnMenu();
