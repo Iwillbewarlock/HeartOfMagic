@@ -3,6 +3,9 @@
 #include "PluginNames.h"
 #include "SpellScanner.h"
 
+#include <array>
+#include <unordered_set>
+
 namespace SpellScanner
 {
     // =============================================================================
@@ -143,6 +146,8 @@ namespace SpellScanner
         std::set<std::string> missingPluginsSet;
         std::set<std::string> invalidFormIdsSet;
         std::unordered_map<std::string, std::string> formIdRemapping;
+        // The formId every kept node has after the pass (kept or resolved)
+        std::unordered_set<std::string> finalFormIds;
         // One per pass: the file list is converted once, not once per node
         PluginLookup pluginLookup;
 
@@ -178,7 +183,10 @@ namespace SpellScanner
                 // change can still be a valid form - another plugin's record that took the old
                 // index (an unnamed Constant Effect ability in place of a spell, 2026-10-05) - so
                 // it is not trusted on its own.
-                if (node.contains("persistentId") && node["persistentId"].is_string()) {
+                // Only a well-formed one ("Plugin|0x..."): an empty or broken field is no persistent
+                // ID, and the node keeps the old rule (its formId if that is valid)
+                if (node.contains("persistentId") && node["persistentId"].is_string() &&
+                    node["persistentId"].get<std::string>().find('|') != std::string::npos) {
                     std::string persistentId = node["persistentId"].get<std::string>();
                     RE::FormID resolvedId = ResolveWith(persistentId, pluginLookup);
 
@@ -207,6 +215,7 @@ namespace SpellScanner
 
                 if (isValid) {
                     result.validNodes++;
+                    finalFormIds.insert(node["formId"].get<std::string>());
                 } else {
                     nodesToRemove.push_back(i);
                     result.invalidNodes++;
@@ -237,6 +246,17 @@ namespace SpellScanner
                     schoolData["root"] = remapIt->second;
                 }
             }
+        }
+
+        // A formId some node holds after the pass is that node's, even when it is also the
+        // old formId of another node that moved or went (two plugins swapped light indices:
+        // Arclight's spell left 0xFE906838 and Bloodmoon's took it, 2026-10-05). A link to
+        // it stays; mapping it to the other node's new formId would hand the kept node's
+        // links to the moved one. The moved node loses links saved under the shared old
+        // formId - they cannot be told apart - and the panel's orphan repair reattaches it.
+        for (const auto& id : finalFormIds) {
+            formIdRemapping.erase(id);
+            invalidFormIdsSet.erase(id);
         }
 
         // The links, after every school is checked: a cross-school bridge puts a spell of
