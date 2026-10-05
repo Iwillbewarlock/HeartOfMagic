@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
+#include "librarian/SpellResearchPatch.h"
 #include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
@@ -440,6 +441,7 @@ namespace SpellScanner
         // preset without effects leaves the catalog as it was.
         if (config.fields.effectDetails) {
             Librarian::PerkAdapters::Apply("RunScan");
+            Librarian::SpellResearchPatch::OnCatalogChanged();
         }
 
         return WriteScanOutput(result);

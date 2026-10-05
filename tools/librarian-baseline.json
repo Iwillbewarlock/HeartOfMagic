@@ -1,7 +1,7 @@
 {
   "_comment": "Written by tools/librarian-check.js --update. Accuracy may not drop; budgets only warn.",
   "dump": "takealook-2026-09-30.json",
-  "updated": "2026-09-30",
+  "updated": "2026-10-02",
   "accuracy": {
     "noTagsPct": 9.1,
     "all": {
@@ -14,7 +14,12 @@
       "r": 74.8,
       "f1": 79.8
     },
-    "mgefNoTagsPct": 20.2
+    "mgefNoTagsPct": 20.2,
+    "spellResearch": {
+      "p": 84.8,
+      "r": 81.7,
+      "f1": 83.2
+    }
   },
   "judge": {
     "2026-09-30": 87.7,

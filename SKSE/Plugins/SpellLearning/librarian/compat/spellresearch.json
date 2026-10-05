@@ -1,0 +1,629 @@
+{
+  "_comment": [
+    "Spell Research 2.2.3: the lists a catalog spell is registered in when SR's Import finishes.",
+    "The tier, school, casting and targets come from the catalog fields; the adapters fold the librarian's",
+    "elements and techniques into SR's. Persistent ids, because FormLists keep no editor id at runtime.",
+    "docs/librarian/SPELL_RESEARCH.md has the mapping and the measurements behind it."
+  ],
+  "perkMod": "Spell Research 2.2.3",
+  "measured": "2026-10-03",
+  "requires": {
+    "any": [
+      "SpellResearch.esp"
+    ]
+  },
+  "lists": {
+    "allSpells": {
+      "novice": "SpellResearch.esp|0x133E",
+      "apprentice": "SpellResearch.esp|0x133F",
+      "adept": "SpellResearch.esp|0x1340",
+      "expert": "SpellResearch.esp|0x1341",
+      "master": "SpellResearch.esp|0x1342"
+    },
+    "tomes": {
+      "novice": "SpellResearch.esp|0x1344",
+      "apprentice": "SpellResearch.esp|0x1345",
+      "adept": "SpellResearch.esp|0x1346",
+      "expert": "SpellResearch.esp|0x1347",
+      "master": "SpellResearch.esp|0x1348"
+    },
+    "tomeSpells": {
+      "novice": "SpellResearch.esp|0x134A",
+      "apprentice": "SpellResearch.esp|0x134B",
+      "adept": "SpellResearch.esp|0x134C",
+      "expert": "SpellResearch.esp|0x134D",
+      "master": "SpellResearch.esp|0x134E"
+    },
+    "school": {
+      "alteration": "SpellResearch.esp|0xD62",
+      "conjuration": "SpellResearch.esp|0xD63",
+      "destruction": "SpellResearch.esp|0xD64",
+      "illusion": "SpellResearch.esp|0xD65",
+      "restoration": "SpellResearch.esp|0xD66"
+    },
+    "casting": {
+      "fireforget": "SpellResearch.esp|0xD68",
+      "concentration": "SpellResearch.esp|0xD67"
+    },
+    "target": {
+      "actor": "SpellResearch.esp|0xD69",
+      "aoe": "SpellResearch.esp|0xD6A",
+      "location": "SpellResearch.esp|0xD6B",
+      "self": "SpellResearch.esp|0xD6C"
+    },
+    "isSetup": "SpellResearch.esp|0x624F",
+    "importing": "SpellResearch.esp|0x4C8D",
+    "element": {
+      "acid": "SpellResearch.esp|0xD7C",
+      "air": "SpellResearch.esp|0xD7D",
+      "apparition": "SpellResearch.esp|0xD7E",
+      "arcane": "SpellResearch.esp|0xD7F",
+      "armor": "SpellResearch.esp|0xD80",
+      "construct": "SpellResearch.esp|0xD81",
+      "creature": "SpellResearch.esp|0xD82",
+      "daedra": "SpellResearch.esp|0xD83",
+      "disease": "SpellResearch.esp|0xD84",
+      "earth": "SpellResearch.esp|0xD85",
+      "fire": "SpellResearch.esp|0xD86",
+      "flesh": "SpellResearch.esp|0xD87",
+      "force": "SpellResearch.esp|0xD88",
+      "frost": "SpellResearch.esp|0xD89",
+      "health": "SpellResearch.esp|0xD8A",
+      "human": "SpellResearch.esp|0xD8B",
+      "life": "SpellResearch.esp|0xD8C",
+      "light": "SpellResearch.esp|0xD8D",
+      "magicka": "SpellResearch.esp|0xD8E",
+      "metal": "SpellResearch.esp|0xD8F",
+      "nature": "SpellResearch.esp|0xD90",
+      "poison": "SpellResearch.esp|0xD91",
+      "resistance": "SpellResearch.esp|0xD92",
+      "shadow": "SpellResearch.esp|0xD93",
+      "shield": "SpellResearch.esp|0xD94",
+      "shock": "SpellResearch.esp|0xD95",
+      "soul": "SpellResearch.esp|0xD96",
+      "stamina": "SpellResearch.esp|0xD97",
+      "sun": "SpellResearch.esp|0xD98",
+      "time": "SpellResearch.esp|0xD99",
+      "trap": "SpellResearch.esp|0xD9A",
+      "undead": "SpellResearch.esp|0xD9B",
+      "water": "SpellResearch.esp|0xD9C",
+      "weapon": "SpellResearch.esp|0xD9D"
+    },
+    "technique": {
+      "cloak": "SpellResearch.esp|0xD6D",
+      "control": "SpellResearch.esp|0xD6E",
+      "courage": "SpellResearch.esp|0xD6F",
+      "curing": "SpellResearch.esp|0xD70",
+      "curse": "SpellResearch.esp|0xD71",
+      "fear": "SpellResearch.esp|0xD72",
+      "frenzy": "SpellResearch.esp|0xD73",
+      "infuse": "SpellResearch.esp|0xD74",
+      "pacify": "SpellResearch.esp|0xD75",
+      "sense": "SpellResearch.esp|0xD76",
+      "siphon": "SpellResearch.esp|0xD77",
+      "strengthen": "SpellResearch.esp|0xD78",
+      "summoning": "SpellResearch.esp|0xD79",
+      "telekinesis": "SpellResearch.esp|0xD7A",
+      "transform": "SpellResearch.esp|0xD7B"
+    }
+  },
+  "adapters": [
+    {
+      "formList": "SpellResearch.esp|0xD7C",
+      "why": "acid",
+      "tags": {
+        "any": [
+          "acid"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7D",
+      "why": "air",
+      "tags": {
+        "any": [
+          "air"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7E",
+      "why": "apparition",
+      "tags": {
+        "any": [
+          "apparition"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD80",
+      "why": "armor",
+      "tags": {
+        "any": [
+          "armor"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD81",
+      "why": "construct",
+      "tags": {
+        "any": [
+          "construct"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD82",
+      "why": "creature",
+      "tags": {
+        "any": [
+          "creature"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD83",
+      "why": "daedra",
+      "tags": {
+        "any": [
+          "daedra"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD84",
+      "why": "disease",
+      "tags": {
+        "any": [
+          "disease"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD85",
+      "why": "earth",
+      "tags": {
+        "any": [
+          "earth"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD86",
+      "why": "fire",
+      "tags": {
+        "any": [
+          "fire"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD87",
+      "why": "flesh",
+      "tags": {
+        "any": [
+          "flesh"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD88",
+      "why": "force",
+      "tags": {
+        "any": [
+          "force"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD89",
+      "why": "frost",
+      "tags": {
+        "any": [
+          "frost"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8A",
+      "why": "health: health or blood, never on undead or necrotic spells (raising and summoning the dead are not health)",
+      "tags": {
+        "any": [
+          "health",
+          "blood"
+        ],
+        "none": [
+          "undead",
+          "necrotic"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8B",
+      "why": "human",
+      "tags": {
+        "any": [
+          "human"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8C",
+      "why": "life",
+      "tags": {
+        "any": [
+          "life"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8D",
+      "why": "light",
+      "tags": {
+        "any": [
+          "light"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8D",
+      "why": "light: SR files Alteration invisibility under light (Invisibility, Fade Other, Shroudwalk)",
+      "spell": {
+        "school": "Alteration"
+      },
+      "spellHas": [
+        {
+          "archetype": "Invisibility"
+        }
+      ]
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8E",
+      "why": "magicka",
+      "tags": {
+        "any": [
+          "magicka"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD8F",
+      "why": "metal",
+      "tags": {
+        "any": [
+          "metal"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD90",
+      "why": "nature",
+      "tags": {
+        "any": [
+          "nature"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD91",
+      "why": "poison",
+      "tags": {
+        "any": [
+          "poison"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD92",
+      "why": "resistance",
+      "tags": {
+        "any": [
+          "resistance"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD93",
+      "why": "shadow",
+      "tags": {
+        "any": [
+          "shadow"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD94",
+      "why": "shield",
+      "tags": {
+        "any": [
+          "shield"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD95",
+      "why": "shock",
+      "tags": {
+        "any": [
+          "shock"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD96",
+      "why": "soul",
+      "tags": {
+        "any": [
+          "soul"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD97",
+      "why": "stamina",
+      "tags": {
+        "any": [
+          "stamina"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD98",
+      "why": "sun",
+      "tags": {
+        "any": [
+          "sun"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD99",
+      "why": "time",
+      "tags": {
+        "any": [
+          "time"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD9A",
+      "why": "trap",
+      "tags": {
+        "any": [
+          "trap"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD9B",
+      "why": "undead",
+      "tags": {
+        "any": [
+          "undead"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD9C",
+      "why": "water",
+      "tags": {
+        "any": [
+          "water"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD9D",
+      "why": "weapon",
+      "tags": {
+        "any": [
+          "weapon"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7F",
+      "why": "arcane",
+      "tags": {
+        "any": [
+          "arcane"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7F",
+      "why": "arcane: holy, necrotic or eldritch damage to health with no other SR element - SR files Holy - Blast and the like as arcane",
+      "tags": {
+        "any": [
+          "holy",
+          "necrotic",
+          "eldritch"
+        ]
+      },
+      "spellHas": [
+        {
+          "detrimental": true,
+          "primaryAV": "Health",
+          "archetypeAny": [
+            "ValueModifier",
+            "DualValueModifier",
+            "Absorb"
+          ]
+        }
+      ],
+      "formListsNone": [
+        "SpellResearch.esp|0xD7C",
+        "SpellResearch.esp|0xD7D",
+        "SpellResearch.esp|0xD7E",
+        "SpellResearch.esp|0xD80",
+        "SpellResearch.esp|0xD81",
+        "SpellResearch.esp|0xD82",
+        "SpellResearch.esp|0xD83",
+        "SpellResearch.esp|0xD84",
+        "SpellResearch.esp|0xD85",
+        "SpellResearch.esp|0xD86",
+        "SpellResearch.esp|0xD87",
+        "SpellResearch.esp|0xD88",
+        "SpellResearch.esp|0xD89",
+        "SpellResearch.esp|0xD8A",
+        "SpellResearch.esp|0xD8B",
+        "SpellResearch.esp|0xD8C",
+        "SpellResearch.esp|0xD8D",
+        "SpellResearch.esp|0xD8E",
+        "SpellResearch.esp|0xD8F",
+        "SpellResearch.esp|0xD90",
+        "SpellResearch.esp|0xD91",
+        "SpellResearch.esp|0xD92",
+        "SpellResearch.esp|0xD93",
+        "SpellResearch.esp|0xD94",
+        "SpellResearch.esp|0xD95",
+        "SpellResearch.esp|0xD96",
+        "SpellResearch.esp|0xD97",
+        "SpellResearch.esp|0xD98",
+        "SpellResearch.esp|0xD99",
+        "SpellResearch.esp|0xD9A",
+        "SpellResearch.esp|0xD9B",
+        "SpellResearch.esp|0xD9C",
+        "SpellResearch.esp|0xD9D"
+      ]
+    },
+    {
+      "formList": "SpellResearch.esp|0xD6D",
+      "why": "cloak",
+      "tags": {
+        "any": [
+          "cloak"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD6E",
+      "why": "control",
+      "tags": {
+        "any": [
+          "control"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD6F",
+      "why": "courage",
+      "tags": {
+        "any": [
+          "courage"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD70",
+      "why": "curing: curing or dispel (SR files Dispel Magic as curing)",
+      "tags": {
+        "any": [
+          "curing",
+          "dispel"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD71",
+      "why": "curse",
+      "tags": {
+        "any": [
+          "curse"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD72",
+      "why": "fear",
+      "tags": {
+        "any": [
+          "fear"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD73",
+      "why": "frenzy",
+      "tags": {
+        "any": [
+          "frenzy"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD74",
+      "why": "infuse",
+      "tags": {
+        "any": [
+          "infuse"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD75",
+      "why": "pacify",
+      "tags": {
+        "any": [
+          "pacify"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD76",
+      "why": "sense",
+      "tags": {
+        "any": [
+          "sense"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD77",
+      "why": "siphon",
+      "tags": {
+        "any": [
+          "siphon"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD78",
+      "why": "strengthen",
+      "tags": {
+        "any": [
+          "strengthen"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD79",
+      "why": "summoning: SR uses it for moving things across space - summons, bound weapons, calling pets, mark and recall, teleport",
+      "tags": {
+        "any": [
+          "summoning",
+          "teleport"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7A",
+      "why": "telekinesis",
+      "tags": {
+        "any": [
+          "telekinesis"
+        ]
+      }
+    },
+    {
+      "formList": "SpellResearch.esp|0xD7B",
+      "why": "transform",
+      "tags": {
+        "any": [
+          "transform"
+        ]
+      }
+    }
+  ]
+}

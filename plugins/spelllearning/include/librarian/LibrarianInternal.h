@@ -105,4 +105,17 @@ namespace Librarian::Detail
         }
         return true;
     }
+
+    // A feature switch in config.json ("<section>": { "enabled": false }).
+    // Absent or unreadable config means on: the point is a feature that works
+    // for a player who never opens the settings.
+    [[nodiscard]] inline bool ConfigSwitchOn(const char* section)
+    {
+        json config;
+        if (!ReadJsonFile(DataPath("config.json"), config) || !config.is_object()) return true;
+        const auto found = config.find(section);
+        if (found == config.end() || !found->is_object()) return true;
+        const auto enabled = found->find("enabled");
+        return !(enabled != found->end() && enabled->is_boolean() && !enabled->get<bool>());
+    }
 }

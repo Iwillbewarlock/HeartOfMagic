@@ -6,6 +6,7 @@
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "librarian/PerkAdapterPatch.h"
+#include "librarian/SpellResearchPatch.h"
 #include "tomereach/TomeReach.h"
 
 #include <thread>
@@ -131,6 +132,7 @@ void UIManager::RunScan(const std::string& argStr)
     // as it was, and the work would land on the frames the panel opens in.
     if (!useTomeMode) {
         Librarian::PerkAdapters::Apply("scan");
+        Librarian::SpellResearchPatch::OnCatalogChanged();
         // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
         if (SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
     }

@@ -318,6 +318,20 @@
 - [ ] 게임 시작 1.7 초 — 로딩 중이라 플레이 끊김은 아님. 필요하면 캐시·지연 실행으로 줄인다
 - [ ] FormList 어댑터, 보조 이펙트(Impact) 어댑터, 소환수 종족 키워드
 
+### [~] M6''. 손님 3 — Spell Research (2026-10-03 구현·빌드, 게임 확인 대기)
+> SR 이 깔려 있으면 Import 가 끝난 뒤와 세이브 로드 때 SR 이 모르는 카탈로그 주문을 SR 아키타입 목록에 등록한다.
+> 대응표는 2026-10-02 세션에서 줄마다 확정. 문서: `SPELL_RESEARCH.md`
+- [x] 판정기에 `formListsNone`, 순수 등록 계획 `LibrarianSpellResearch.cpp`, 규칙 `librarian/compat/spellresearch.json`
+- [x] `librarian-test --spellresearch` — 고정 덤프(표시 없음) 3155 주문, SR 라벨 F1 83.2(사서 태그 그대로는 82.5),
+      `librarian-check` 기준선에 넣음. 게임 스캔(마법책 표시 있음)으로는 마법책 주문 1428 등록, F1 87.6
+- [x] 리뷰 반영(2026-10-03): 마법책 주문만 등록(NPC·퀘스트 주문 2118 제외), 전체 스캔 뒤에도 등록, 빠른 길 순서,
+      빠진 주문만 판정기에, 마법책 짝 정렬 검사 강화, 꺼진 줄은 `formListsNone` 표시를 남기지 않음
+- [x] 게임 쪽 `LibrarianSpellResearchPatch.cpp` (MessageBoxMenu 닫힘 + kPostLoadGame)
+- [ ] 게임 확인: `SPELL_RESEARCH.md` 7절 체크리스트, 특히 `AddForm` 이 스크립트 쪽(`scriptAddedFormCount`)에 들어가는지
+- [ ] 스크롤 짝(`_SR_ListScrolls*`): 스캔이 주문↔스크롤 짝을 모른다. 이펙트 목록이 같은 스크롤 하나만 짝으로 보고 측정
+- [ ] 사서: "반사 광선"(햇빛 광선, Lightpower)이 `sun` 대신 `holy` 만 받아 SR 에서 `arcane` 이 된다. `sun` 룰 보강
+- [ ] `acid`, `life` 는 사서 룰이 한 주문도 주지 않는다(TAGS.md 4절) — 이 둘의 SR 조합은 SR 패치 주문에서만 나온다
+
 ### [제거] M6. 손님 2 — 퍽 모드 호환 보정 (2026-09-10 구현 → **2026-09-21 포크에서 제거**)
 > 키워드 주입은 나중에 만들 별도 모드의 일이라 범위 밖이고, 처음 게임에서 돌려 보니 오탐이 나왔다
 > (`MagicNightEye` → 생명 감지 82건, `MagicRune` → SpawnHazard 31건 등). 경위는 `LIBRARIAN.md` 6절.

@@ -152,6 +152,7 @@ namespace Librarian::Adapters
             read.Optional("enabled", enabled, &json::is_boolean);
             line.enabled = enabled.value_or(true);
             read.List("keywordsNone", line.keywordsNone);
+            read.List("formListsNone", line.formListsNone);
 
             bool ok = true;
             if (const auto tags = object.find("tags"); tags != object.end()) {
@@ -191,7 +192,7 @@ namespace Librarian::Adapters
             ok = ParseEffectList(object, "spellLacks", where, line.spellLacks, problems) && ok;
 
             read.RejectUnknown({ "keyword", "keywordForm", "formList", "why", "enabled", "tags", "spell", "effect", "spellHas",
-                "spellLacks", "keywordsNone" });
+                "spellLacks", "keywordsNone", "formListsNone" });
             return read.ok && ok;
         }
 
@@ -311,6 +312,13 @@ namespace Librarian::Adapters
             const std::string name = Field(spell, "name");
             return name.empty() ? id : name + " [" + id + "]";
         }
+
+        // A formList line's pick, kept among the spell's carried keywords so
+        // formListsNone reads it like keywordsNone. No editor id has a '@'.
+        std::string ListMark(const std::string& formList)
+        {
+            return "@list:" + formList;
+        }
     }
 
     // =========================================================================
@@ -406,6 +414,9 @@ namespace Librarian::Adapters
         for (const auto& keyword : line.keywordsNone) {
             if (carried.contains(keyword)) return std::nullopt;
         }
+        for (const auto& formList : line.formListsNone) {
+            if (carried.contains(ListMark(formList))) return std::nullopt;
+        }
 
         static const EffectCondition kAnyEffect;
         const EffectCondition& target = line.effect ? *line.effect : kAnyEffect;
@@ -451,6 +462,9 @@ namespace Librarian::Adapters
                 if (isList) {
                     source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
                         if (!PickTarget(spell, &entry, line, carriedBy(id, spell))) return;
+                        // In the list either way now: later lines' formListsNone see it
+                        // (not a line measured while off - it changes nothing)
+                        if (live) carriedCache[id].insert(ListMark(line.formList));
                         if (source.inFormList && source.inFormList(line.formList, id)) {
                             ++stats.agree;
                             return;
