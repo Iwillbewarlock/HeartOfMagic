@@ -1868,7 +1868,7 @@ var WheelRenderer = {
     getNodeDisplayName: function(node, nodeWidth) {
         // Cheat mode shows all names
         if (settings.cheatMode) {
-            var name = node.name || 'Unknown';
+            var name = node.name || '???';
             return name.length > 10 ? name.slice(0, 9) + '…' : name;
         }
         

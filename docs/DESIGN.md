@@ -173,6 +173,12 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   card's sidebar width and the bottom bar's height and fixed columns are in em of that font, so the card
   grows with the text instead of cutting it off (at 2.0x the bottom bar is twice as tall and leaves the tree
   less room). Icon buttons keep their px sizes.
+- **No code in front of the player** (2026-10-05): the spell card never shows a FormID or an English placeholder. A
+  spell with no name reads `???` (cheat mode too; the `[LOCKED]` tag went - the Locked badge says it), a school the
+  game does not name shows no badge, the badge, the level and the casting type are in the panel's language
+  (`chips.school.*`, `settings.progression.tier*`, `details.typeFireAndForget`, `chips.cast.concentration`,
+  `details.typeConstantEffect`; `SpellCard.levelText` / `typeText`), and Find Spell's "Found" line and the wheel's
+  label fall back to `???` as well.
 - **Smallest text** (2026-10-05): no panel text is under 0.75em of the body font (12px at 1.0x). The stylesheets'
   0.65em / 0.7em sizes went to 0.75em / 0.8em, fixed 8-12px sizes (styles, the Classic builder's settings,
   the colour picker, the complex tab's status) became em so they follow Font Size, a subsection's titles and

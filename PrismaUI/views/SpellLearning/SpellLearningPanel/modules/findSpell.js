@@ -237,7 +237,7 @@ function confirmFindSpell() {
 /** The tree status line after a jump: "Found: <name>" in the panel's language */
 function _findSpellFoundStatus(node) {
     if (typeof setTreeStatus !== 'function') return;
-    setTreeStatus(tOr('tree.findFound', { name: node.name || node.formId }, 'Found: {{name}}'));
+    setTreeStatus(tOr('tree.findFound', { name: node.name || '???' }, 'Found: {{name}}'));
 }
 
 /**

@@ -300,6 +300,8 @@
     "preview.classic.matchLayeredDesc": "呪文のテーマでまとめます。同じテーマの呪文が同じ方向に集まります。既定値。",
     "preview.classic.matchSmartDesc": "テーマを探し直して置き換えます。最も強くまとまりますが遅くなります。",
     "preview.classic.tiersUnit": "段",
+    "details.typeFireAndForget": "発射",
+    "details.typeConstantEffect": "常時効果",
     "preview.classic.spellMatching": "呪文マッチング",
     "preview.classic.spread": "広がり",
     "preview.classic.tierAdept": "熟練者",

@@ -171,17 +171,18 @@ function renderSpellCard(node, opts) {
     var showLevel = !isLocked || settings.cheatMode || isEditActive;
     var showFigures = showDescription;
     
-    // School badge always visible
-    document.getElementById('spell-school').textContent = node.school;
-    document.getElementById('spell-school').className = 'school-badge ' + node.school.toLowerCase();
+    // School badge always visible - a school the game does not name (a spell it could not
+    // read) shows no badge, never "UNKNOWN": nothing code-like reaches the player
+    var school = SpellCard.KNOWN_SCHOOLS.indexOf(node.school) !== -1 ? node.school : '';
+    // The badge text in the panel's language (chips.school.*, as the tree's chapter titles)
+    document.getElementById('spell-school').textContent =
+        school ? tOr('chips.school.' + school.toLowerCase(), null, school) : '';
+    document.getElementById('spell-school').className = 'school-badge ' + school.toLowerCase();
 
-    // Name - progressive reveal (cheat mode shows all)
+    // Name - progressive reveal (cheat mode shows all). A spell with no name reads "???",
+    // never its formId; the Locked badge below already says it is locked
     if (showName) {
-        var nameDisplay = node.name || node.formId;
-        if (settings.cheatMode && node.state === 'locked') {
-            nameDisplay = (node.name || 'Unknown') + ' [LOCKED]';
-        }
-        document.getElementById('spell-name').textContent = nameDisplay;
+        document.getElementById('spell-name').textContent = node.name || '???';
     } else {
         document.getElementById('spell-name').textContent = '???';
     }
@@ -195,10 +196,10 @@ function renderSpellCard(node, opts) {
 
     // Level is what the node's size already gives away; cost and type are figures
     var levelEl = document.getElementById('spell-level');
-    levelEl.textContent = showLevel ? (node.level || '?') : '???';
+    levelEl.textContent = showLevel ? SpellCard.levelText(node.level) : '???';
     if (typeof BridgeView !== 'undefined') BridgeView.bindLevel(levelEl, node, showLevel);
     document.getElementById('spell-cost').textContent = showFigures ? (node.cost || '?') : '???';
-    document.getElementById('spell-type').textContent = showFigures ? (node.type || '?') : '???';
+    document.getElementById('spell-type').textContent = showFigures ? SpellCard.typeText(node.type) : '???';
     
     // The raw effect list is how the spell is wired, not something a player reads:
     // helper effects, duplicates, internal names. The card's description and chips say

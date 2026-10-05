@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Ordnet nach den Themen der Zauber. Zauber eines Themas liegen in einer Richtung. Standard.",
     "preview.classic.matchSmartDesc": "Findet die Themen neu und ersetzt die alten. Stärkste Gruppierung, aber langsamer.",
     "preview.classic.tiersUnit": "Stufen",
+    "details.typeFireAndForget": "Abfeuern",
+    "details.typeConstantEffect": "Dauerhafter Effekt",
     "preview.classic.spellMatching": "Zauberzuordnung",
     "preview.classic.spread": "Streuung",
     "preview.classic.tierAdept": "Adept",

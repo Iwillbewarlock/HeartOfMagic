@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Группирует по темам заклинаний. Заклинания одной темы идут в одну сторону. По умолчанию.",
     "preview.classic.matchSmartDesc": "Заново находит темы и заменяет старые. Самая сильная группировка, но медленнее.",
     "preview.classic.tiersUnit": "уровн.",
+    "details.typeFireAndForget": "Выстрел",
+    "details.typeConstantEffect": "Постоянный эффект",
     "preview.classic.spellMatching": "Сопоставление заклинаний",
     "preview.classic.spread": "Разброс",
     "preview.classic.tierAdept": "Адепт",

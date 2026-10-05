@@ -300,6 +300,8 @@
     "preview.classic.matchLayeredDesc": "依法術主題聚集，同一主題的法術朝同一方向。預設。",
     "preview.classic.matchSmartDesc": "重新辨識主題並替換舊的。聚集最強，但較慢。",
     "preview.classic.tiersUnit": "級",
+    "details.typeFireAndForget": "射出",
+    "details.typeConstantEffect": "持續效果",
     "preview.classic.spellMatching": "法術配對",
     "preview.classic.spread": "擴展",
     "preview.classic.tierAdept": "老練級",

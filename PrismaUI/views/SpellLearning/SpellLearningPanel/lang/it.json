@@ -300,6 +300,8 @@
     "preview.classic.matchLayeredDesc": "Raggruppa per tema degli incantesimi. Quelli dello stesso tema vanno nella stessa direzione. Predefinito.",
     "preview.classic.matchSmartDesc": "Ritrova i temi e sostituisce quelli vecchi. Raggruppa di più, ma è più lento.",
     "preview.classic.tiersUnit": "livelli",
+    "details.typeFireAndForget": "Lancia e dimentica",
+    "details.typeConstantEffect": "Effetto costante",
     "preview.classic.spellMatching": "Abbinamento Incantesimi",
     "preview.classic.spread": "Diffusione",
     "preview.classic.tierAdept": "Adepto",

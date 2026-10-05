@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Agrupa según los temas de los hechizos. Los del mismo tema quedan en la misma dirección. Predeterminado.",
     "preview.classic.matchSmartDesc": "Vuelve a buscar los temas y reemplaza los anteriores. Agrupa más, pero es más lento.",
     "preview.classic.tiersUnit": "niveles",
+    "details.typeFireAndForget": "Disparar y olvidar",
+    "details.typeConstantEffect": "Efecto constante",
     "preview.classic.spellMatching": "Coincidencia de Hechizos",
     "preview.classic.spread": "Dispersión",
     "preview.classic.tierAdept": "Adepto",

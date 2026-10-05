@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Büyülerin temalarına göre gruplar. Aynı temadaki büyüler aynı yöne toplanır. Varsayılan.",
     "preview.classic.matchSmartDesc": "Temaları yeniden bulup eskilerin yerine koyar. En güçlü gruplama, ama daha yavaş.",
     "preview.classic.tiersUnit": "seviye",
+    "details.typeFireAndForget": "Ateşle ve unut",
+    "details.typeConstantEffect": "Sürekli etki",
     "preview.classic.spellMatching": "Büyü Eşleştirme",
     "preview.classic.spread": "Yayılma",
     "preview.classic.tierAdept": "Usta Çırak",

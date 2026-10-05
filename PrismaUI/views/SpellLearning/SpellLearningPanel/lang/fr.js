@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Regroupe selon les thèmes des sorts. Les sorts d'un même thème vont dans la même direction. Par défaut.",
     "preview.classic.matchSmartDesc": "Retrouve les thèmes et remplace les anciens. Regroupement le plus fort, mais plus lent.",
     "preview.classic.tiersUnit": "rangs",
+    "details.typeFireAndForget": "Tir unique",
+    "details.typeConstantEffect": "Effet constant",
     "preview.classic.spellMatching": "Correspondance des sorts",
     "preview.classic.spread": "Dispersion",
     "preview.classic.tierAdept": "Adepte",

@@ -10,6 +10,26 @@
  */
 
 var SpellCard = {
+
+    /** The five schools the card names; anything else is a spell the game could not read */
+    KNOWN_SCHOOLS: ['Alteration', 'Conjuration', 'Destruction', 'Illusion', 'Restoration'],
+
+    /** A spell level in the panel's language (the game sends Novice..Master in English) */
+    levelText: function(level) {
+        if (!level) return '?';
+        return tOr('settings.progression.tier' + level, null, level);
+    },
+
+    /** A casting type in the panel's language (Fire and Forget, Concentration, Constant Effect) */
+    typeText: function(type) {
+        var keys = {
+            'Fire and Forget': 'details.typeFireAndForget',
+            'Concentration': 'chips.cast.concentration',
+            'Constant Effect': 'details.typeConstantEffect'
+        };
+        if (!type) return '?';
+        return keys[type] ? tOr(keys[type], null, type) : type;
+    },
     _fallbackLabels: {
         'element.fire': 'Fire',
         'element.frost': 'Frost',

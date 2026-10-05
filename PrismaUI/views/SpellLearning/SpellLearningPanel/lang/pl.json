@@ -300,6 +300,8 @@
     "preview.classic.matchLayeredDesc": "Grupuje według motywów zaklęć. Zaklęcia jednego motywu idą w jednym kierunku. Domyślnie.",
     "preview.classic.matchSmartDesc": "Ponownie wyszukuje motywy i zastępuje stare. Najsilniejsze grupowanie, ale wolniej.",
     "preview.classic.tiersUnit": "poziomy",
+    "details.typeFireAndForget": "Wystrzel i zapomnij",
+    "details.typeConstantEffect": "Stały efekt",
     "preview.classic.spellMatching": "Dopasowanie zaklęć",
     "preview.classic.spread": "Rozrzut",
     "preview.classic.tierAdept": "Adept",

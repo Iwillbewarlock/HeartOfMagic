@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Agrupa pelos temas dos feitiços. Os do mesmo tema ficam na mesma direção. Padrão.",
     "preview.classic.matchSmartDesc": "Procura os temas de novo e substitui os antigos. Agrupa mais, porém é mais lento.",
     "preview.classic.tiersUnit": "níveis",
+    "details.typeFireAndForget": "Disparar e esquecer",
+    "details.typeConstantEffect": "Efeito constante",
     "preview.classic.spellMatching": "Correspondência de Magias",
     "preview.classic.spread": "Dispersão",
     "preview.classic.tierAdept": "Adepto",

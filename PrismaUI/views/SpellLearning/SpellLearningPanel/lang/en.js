@@ -285,6 +285,8 @@ window._i18nPreload = {
     "preview.classic.matchLayeredDesc": "Uses NLP-assigned themes for spatial clustering. Same-theme spells group angularly. Default.",
     "preview.classic.matchSmartDesc": "Re-discovers themes in JS, overrides NLP assignments. Strongest clustering but slower.",
     "preview.classic.tiersUnit": "tiers",
+    "details.typeFireAndForget": "Fire and Forget",
+    "details.typeConstantEffect": "Constant Effect",
     "preview.classic.spellMatching": "Spell Matching",
     "preview.classic.spread": "Spread",
     "preview.classic.tierAdept": "Adept",
