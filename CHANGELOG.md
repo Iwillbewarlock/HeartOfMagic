@@ -1,6 +1,6 @@
 # Changelog
 
-## Heart of Magic Librarian 1.2.1 (unreleased)
+## Heart of Magic Librarian 1.3.0 (unreleased)
 
 After updating: open the panel, **Scan**, and **build the tree again**. With Spell Research, press its
 Import Spells once.

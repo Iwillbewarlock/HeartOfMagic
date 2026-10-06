@@ -1,12 +1,12 @@
-Heart of Magic Librarian 1.2.1 - text for the Nexus upload
-(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.2.1" section. Full list: CHANGELOG.md.)
+Heart of Magic Librarian 1.3.0 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.3.0" section. Full list: CHANGELOG.md.)
 
 =====================================================================
 1. Files tab - main file
 =====================================================================
 
 Name: Heart of Magic Librarian
-Version: 1.2.1
+Version: 1.3.0
 
 Description:
 Main file. Run the installer (it offers the ISL / DEST compatibility patch). After updating from 1.2.0: Scan and build the tree again; with Spell Research, press its Import Spells once.
@@ -15,11 +15,11 @@ Debug Symbols file description (same version):
 Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
 
 Source file description:
-The complete source of 1.2.1 (git tag v1.2.1).
+The complete source of 1.3.0 (git tag v1.3.0).
 
 
 =====================================================================
-2. Changelogs tab - version 1.2.1 (one line per entry)
+2. Changelogs tab - version 1.3.0 (one line per entry)
 =====================================================================
 
 Spell Research compatibility: your mods' tome spells join its research lists after its Import and at every save load - exactly the spells your tree has, each once. A corner message says how many were added.
@@ -43,7 +43,7 @@ Fixed: Weakened Spell Alerts and its interval were never saved.
 3. Posts tab - announcement (optional)
 =====================================================================
 
-1.2.1 is up.
+1.3.0 is up.
 
 Thank you for the reports and ideas - several of them are in this update:
 - The same spell from two mods (Saints and Seducers and ECSS, for one) is in the tree once now. It needs powerofthree's Tweaks with "Load EditorIDs".
