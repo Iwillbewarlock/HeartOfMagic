@@ -69,31 +69,41 @@ function filterTomeSpells(spells) {
 // BLACKLIST FILTER
 // =============================================================================
 
+/** The plugin a spell comes from: its persistentId ("Plugin.esp|0x00123456"), else its plugin or source field */
+function spellPluginName(spell) {
+    if (spell.persistentId && spell.persistentId.indexOf('|') !== -1) return spell.persistentId.split('|')[0];
+    return spell.plugin || spell.source || '';
+}
+
 /**
  * Filter blacklisted spells from a spell array.
- * Uses settings.spellBlacklist (saved persistently via UnifiedConfig).
+ * Uses settings.spellBlacklist (saved persistently via UnifiedConfig). An entry with
+ * plugin and localFormId matches by those, so it survives a load order change (as
+ * Spell Research's filter in the DLL does); an older entry with only a formId
+ * matches by formId.
  */
 function filterBlacklistedSpells(spells) {
     if (!settings.spellBlacklist || settings.spellBlacklist.length === 0) {
         return spells;
     }
 
-    var blacklistedIds = {};
+    var keys = {};
+    var formIds = {};
     settings.spellBlacklist.forEach(function(entry) {
-        blacklistedIds[entry.formId] = true;
+        if (entry.plugin && entry.localFormId) {
+            keys[String(entry.plugin).toLowerCase() + ':' + String(entry.localFormId).toLowerCase()] = true;
+        } else if (entry.formId) {
+            formIds[entry.formId] = true;
+        }
     });
 
-    var filtered = spells.filter(function(spell) {
+    return spells.filter(function(spell) {
         var formId = spell.formId || spell.id;
-        return !blacklistedIds[formId];
+        var plugin = spellPluginName(spell);
+        if (plugin && formId && typeof getLocalFormId === 'function' &&
+                keys[plugin.toLowerCase() + ':' + getLocalFormId(formId)]) return false;
+        return !formIds[formId];
     });
-
-    var removedCount = spells.length - filtered.length;
-    if (removedCount > 0) {
-        console.log('[Procedural] Filtered ' + removedCount + ' blacklisted spells (' + filtered.length + ' remaining)');
-    }
-
-    return filtered;
 }
 
 window.filterBlacklistedSpells = filterBlacklistedSpells;
@@ -105,56 +115,25 @@ window.filterBlacklistedSpells = filterBlacklistedSpells;
 /**
  * Filter spells to exclude those from disabled plugins.
  * Uses settings.pluginWhitelist (saved persistently via UnifiedConfig).
- * All plugins are ENABLED by default - this filters OUT explicitly disabled ones.
- * Blacklist is applied separately (filters individual spells).
+ * All plugins are ENABLED by default - this filters OUT explicitly disabled ones,
+ * so a plugin installed after the list was saved comes in (as in the DLL's
+ * Spell Research filter). Blacklist is applied separately (filters individual spells).
  */
 function filterWhitelistedSpells(spells) {
     if (!settings.pluginWhitelist || settings.pluginWhitelist.length === 0) {
         return spells;  // No whitelist configured = include all
     }
 
-    // Get DISABLED plugins (whitelist is opt-out, not opt-in)
-    var disabledPlugins = settings.pluginWhitelist.filter(function(entry) {
-        return entry.enabled === false;
-    });
-
-    if (disabledPlugins.length === 0) {
-        return spells;  // Nothing disabled = include all
-    }
-
-    // Build lookup of disabled plugin names (lowercase for case-insensitive comparison)
     var disabledMap = {};
-    disabledPlugins.forEach(function(entry) {
-        disabledMap[entry.plugin.toLowerCase()] = true;
+    settings.pluginWhitelist.forEach(function(entry) {
+        if (entry.enabled === false && entry.plugin) disabledMap[String(entry.plugin).toLowerCase()] = true;
     });
 
-    var filtered = spells.filter(function(spell) {
-        var plugin = null;
-
-        // Extract plugin from persistentId: "PluginName.esp|0x00123456"
-        if (spell.persistentId && spell.persistentId.includes('|')) {
-            plugin = spell.persistentId.split('|')[0];
-        }
-        // Fallback: try source field
-        else if (spell.source) {
-            plugin = spell.source;
-        }
-
-        if (!plugin) {
-            // Can't determine plugin - include it to be safe
-            return true;
-        }
-
-        // Include if NOT in disabled list
-        return disabledMap[plugin.toLowerCase()] !== true;
+    return spells.filter(function(spell) {
+        var plugin = spellPluginName(spell);
+        // Can't determine plugin - include it to be safe
+        return !plugin || disabledMap[plugin.toLowerCase()] !== true;
     });
-
-    var removedCount = spells.length - filtered.length;
-    if (removedCount > 0) {
-        console.log('[Procedural] Whitelist filtered ' + removedCount + ' spells from disabled plugins (' + filtered.length + ' remaining)');
-    }
-
-    return filtered;
 }
 
 window.filterWhitelistedSpells = filterWhitelistedSpells;

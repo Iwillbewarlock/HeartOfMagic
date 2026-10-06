@@ -223,42 +223,12 @@ function getPrimedSpells(spellFilter) {
     var data = state.lastSpellData;
     if (!data || !data.spells || data.spells.length === 0) return [];
 
-    // Build blacklist lookup — use stable plugin:localFormId keys, fall back to raw formId
-    var blacklistKeys = {};
-    var blacklistFormIds = {};
-    if (settings.spellBlacklist) {
-        settings.spellBlacklist.forEach(function(entry) {
-            if (entry.plugin && entry.localFormId) {
-                blacklistKeys[entry.plugin.toLowerCase() + ':' + entry.localFormId] = true;
-            } else if (entry.formId) {
-                blacklistFormIds[entry.formId] = true;
-            }
-        });
-    }
-
-    // Build whitelist lookup (case-insensitive) - only filter if whitelist has enabled entries
-    var whitelistActive = false;
-    var whitelistPlugins = {};
-    if (settings.pluginWhitelist && settings.pluginWhitelist.length > 0) {
-        settings.pluginWhitelist.forEach(function(entry) {
-            if (entry.enabled) {
-                whitelistActive = true;
-                whitelistPlugins[entry.plugin.toLowerCase()] = true;
-            }
-        });
-    }
-
-
+    // The same filters, in the same order, as the tree build (classicBuildRequest.js)
     var tomeCheck = spellFilter || ((typeof isTaughtByTome === 'function') ? isTaughtByTome : null);
-
-    return data.spells.filter(function(spell) {
-        if (tomeCheck && !tomeCheck(spell)) return false;
-        var stableKey = spell.plugin ? spell.plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) : '';
-        if (stableKey && blacklistKeys[stableKey]) return false;
-        if (blacklistFormIds[spell.formId]) return false;
-        if (whitelistActive && spell.plugin && !whitelistPlugins[spell.plugin.toLowerCase()]) return false;
-        return true;
-    });
+    var spells = tomeCheck ? data.spells.filter(tomeCheck) : data.spells.slice();
+    if (typeof filterBlacklistedSpells === 'function') spells = filterBlacklistedSpells(spells);
+    if (typeof filterWhitelistedSpells === 'function') spells = filterWhitelistedSpells(spells);
+    return spells;
 }
 
 /**

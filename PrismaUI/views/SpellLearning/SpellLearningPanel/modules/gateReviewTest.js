@@ -70,6 +70,17 @@ var GateReviewTest = {
                     'an included out spell comes back into the tree and leaves the list');
                 this.check(g.isTaughtByTome({ formId: '0x01000809', plugin: 'X.esp', freeSpell: true }) === false,
                     'a scan from before the gate: freeSpell still leaves a spell out');
+                // The tree build's plugin and spell filters (also the panel's primed list, and the DLL's for Spell Research)
+                g.settings = {
+                    pluginWhitelist: [{ plugin: 'A.esp', enabled: true }, { plugin: 'B.esp', enabled: false }],
+                    spellBlacklist: [{ formId: '0x02000801', plugin: 'D.esp', localFormId: '000801' }, { formId: '0x05000999' }]
+                };
+                var plug = function(list) { return list.map(function(s) { return s.plugin; }).join(','); };
+                this.check(plug(g.filterWhitelistedSpells([{ plugin: 'A.esp' }, { plugin: 'B.esp' }, { plugin: 'New.esp' }])) === 'A.esp,New.esp',
+                    'plugin list: only a plugin turned off leaves; one installed after the list was saved comes in');
+                this.check(plug(g.filterBlacklistedSpells([{ plugin: 'D.esp', formId: '0x07000801' }, { plugin: 'E.esp', formId: '0x02000801' },
+                        { plugin: 'F.esp', formId: '0x05000999' }])) === 'E.esp',
+                    'blacklist: plugin and local id survive a load order change; an old formId-only entry still matches');
             } finally {
                 g.settings = oldSettings;
             }

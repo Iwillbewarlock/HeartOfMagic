@@ -40,6 +40,11 @@
   failed, scanning tomes, the config.json errors), empty-list and search lines, the blacklist and preset
   buttons' tooltips, the spell card's tooltips, the unreachable-spell repair button, the colour picker and the
   early-learning sliders' tooltips.
+- The scan page's primed spell count, the root picker and the spell gate's lists now use the tree build's own
+  plugin and blacklist filters. Before, once the plugin list had been opened, a mod installed later counted as
+  turned off there (16 plugins on a large load order, though the tree itself took their spells), and the tree
+  build matched blacklist entries by load-order formId only, so a blacklisted spell could come back after the
+  load order changed.
 - After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
   spell) where one of yours was: its saved ID now pointed at another plugin's record. The tree now always
   finds each spell by its plugin and record, and its prerequisite lists follow too.
