@@ -143,11 +143,11 @@ namespace SpellScanner
     namespace
     {
         // What a tree node must be to show: a spell with a name, that the spell gate does
-        // not leave out (JudgeSpell: free, a summon that stays, a rule) and that is not in
+        // not leave out (GateLeavesOut: free or dismiss-only, unless the player included it) and that is not in
         // the voice slot - what a scan lets into a new tree. A saved tree is checked again as it loads: a stale formId can name another
         // plugin's record (an unnamed Constant Effect ability), and a tree built before a
         // rule came in still holds spells the rule leaves out (2026-10-05).
-        bool IsPlayerSpell(const std::string& formIdStr)
+        bool IsPlayerSpell(const std::string& formIdStr, const std::unordered_set<std::string>& gateKept)
         {
             RE::FormID formId = 0;
             try {
@@ -158,12 +158,13 @@ namespace SpellScanner
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
             if (!spell) return false;
             const char* name = spell->GetFullName();
-            return name && *name && JudgeSpell(spell).band != "out" && !IsEquippedInVoiceSlot(spell);
+            return name && *name && !GateLeavesOut(spell, gateKept) && !IsEquippedInVoiceSlot(spell);
         }
     }
 
     TreeValidationResult ValidateAndFixTree(json& treeData)
     {
+        const auto gateKept = ReadGateKept();
         TreeValidationResult result;
         std::set<std::string> missingPluginsSet;
         std::set<std::string> invalidFormIdsSet;
@@ -238,7 +239,7 @@ namespace SpellScanner
 
                 // A node the tree shows is a player's spell (IsPlayerSpell). Anything else leaves
                 // the tree as it loads, so the player never meets an unnamed or code-like node
-                if (isValid && !IsPlayerSpell(node["formId"].get<std::string>())) {
+                if (isValid && !IsPlayerSpell(node["formId"].get<std::string>(), gateKept)) {
                     isValid = false;
                     notPlayerSpells++;
                     logger::info("SpellScanner: {} ({}) is not a player's spell now - left out of the tree",

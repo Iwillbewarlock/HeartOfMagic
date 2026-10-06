@@ -215,9 +215,11 @@ function levelText(level) {
 
 /**
  * Get all primed spells (post-blacklist/whitelist/tome filtering).
+ * @param {function(Object):boolean} [spellFilter] - the tome filter; isTaughtByTome
+ *   when left out (GateReview passes isTreeCandidate to see the gate's "out" spells)
  * @returns {Array} Filtered spell objects from state.lastSpellData
  */
-function getPrimedSpells() {
+function getPrimedSpells(spellFilter) {
     var data = state.lastSpellData;
     if (!data || !data.spells || data.spells.length === 0) return [];
 
@@ -247,7 +249,7 @@ function getPrimedSpells() {
     }
 
 
-    var tomeCheck = (typeof isTaughtByTome === 'function') ? isTaughtByTome : null;
+    var tomeCheck = spellFilter || ((typeof isTaughtByTome === 'function') ? isTaughtByTome : null);
 
     return data.spells.filter(function(spell) {
         if (tomeCheck && !tomeCheck(spell)) return false;

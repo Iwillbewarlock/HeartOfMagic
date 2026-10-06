@@ -94,11 +94,14 @@ with a spell outside the tree is still checked against that spell's tags), and m
 record on each: `taughtByTome` (from `SpellsTaughtByTomes`), `voiceSlot` (`IsEquippedInVoiceSlot`),
 `freeSpell` (`IsFreeSpell`: under 0.5 Magicka to cast - a pet's, mount's or follower's call, a mod's utility
 spell, 2026-10-05), `gate` (the spell gate, `SpellScannerGate.cpp` `JudgeSpell`, 2026-10-06: `{band, reasons}`
-when the band is not "in". "out" - free, a summon or reanimation over an hour, banish only, or an "out" rule
-from `gate/rules.json` (plugin masters plus effect archetypes, never spell names) - leaves the tree, a saved
-tree's load (`ValidateAndFixTree`) and Spell Research; "review" - a horse summon, a unique NPC summon, a
-script-only spell under 20 Magicka, a "review" rule - stays and is listed in the blacklist window's
-"Spells to look over" (`modules/gateReview.js`: Leave out blacklists it, Keep stores it in `gateReviewed`)),
+when the band is not "in". "out" - free, or only dismisses a summon (banish only), or an "out" rule from
+`gate/rules.json` (none ships) - leaves the tree, a saved tree's load (`ValidateAndFixTree`) and Spell Research
+unless the player includes it again from the blacklist window's "Left out by itself" list (`GateLeavesOut`
+with `ReadGateKept`, the panel's `gateReviewed` in config.json); "review" - a summon or reanimation over an
+hour, a horse summon, a unique NPC summon, a script-only spell under 20 Magicka, a rule from
+`gate/rules.json` (plugin masters plus effect archetypes, never spell names; the shipped one is "review") -
+stays and is listed in "Spells to look over" (`modules/gateReview.js`: Leave out blacklists it, Keep stores
+it in `gateReviewed`)),
 `tomeUnreachable` (below, "Tomes nothing hands out") and `duplicateOf` (below, "One spell
 from two plugins"). The tree takes a spell a tome teaches, whose tome something hands out, that is not in the
 voice slot, costs something to cast, is not left out by the spell gate and is not another plugin's copy of a tree spell: `isTaughtByTome` / `filterTomeSpells`

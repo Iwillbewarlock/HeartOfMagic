@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "JsonText.h"
+#include "librarian/LibrarianInternal.h"
 #include "SpellScanner.h"
 
 #include <fstream>
@@ -11,8 +12,11 @@
 // =============================================================================
 //
 // Evidence from the record, each with a reason the panel shows. "out" leaves the
-// tree and Spell Research; "review" stays in and goes to the panel's review list,
-// where the player keeps it or blacklists it; "in" is everything else.
+// tree and Spell Research unless the player includes it again (the panel's
+// gateReviewed list, ReadGateKept / GateLeavesOut); "review" stays in and goes to
+// the panel's review list, where the player keeps it or blacklists it; "in" is
+// everything else. Since 2026-10-06 only free spells and dismiss-only spells are
+// "out" by themselves; long summons and the rules file's families are reviewed.
 //
 // Measured on TAKEALOOK (2026-10-06, lab/spell-gate): the free rule alone caught 37
 // of the 89 spells judged "not a player spell" with no false hit; a summon over an
@@ -36,6 +40,12 @@ namespace SpellScanner
         constexpr float kCheapScriptCost = 20.0f;
 
         constexpr const char* kRulesPath = "Data/SKSE/Plugins/SpellLearning/gate/rules.json";
+
+        // A form id's load index and local id (light plugins sit at index 0xFE)
+        constexpr unsigned kLoadIndexShift = 24;
+        constexpr RE::FormID kLightIndex = 0xFE;
+        constexpr RE::FormID kLightLocalMask = 0xFFF;
+        constexpr RE::FormID kFullLocalMask = 0xFFFFFF;
 
         struct GateRule
         {
@@ -201,7 +211,9 @@ namespace SpellScanner
                 if (npc->IsUnique()) unique = true;
             }
         }
-        if (longSummon) out("longSummon");
+        // A mount or companion that stays - or a real summon a mod lets last (2026-10-06:
+        // two judged player spells were among them), so the player decides
+        if (longSummon) review("longSummon");
         if (!archetypes.empty() && archetypes.size() == 1 && archetypes.contains(RE::EffectArchetype::kBanish)) {
             out("banishOnly");
         }
@@ -229,6 +241,37 @@ namespace SpellScanner
             }
         }
         return verdict;
+    }
+
+    std::unordered_set<std::string> ReadGateKept()
+    {
+        std::unordered_set<std::string> kept;
+        json config;
+        namespace Detail = Librarian::Detail;
+        if (!Detail::ReadJsonFile(Detail::DataPath("config.json"), config) || !config.is_object()) return kept;
+        const auto list = config.find("gateReviewed");
+        if (list == config.end() || !list->is_array()) return kept;
+        for (const auto& entry : *list) {
+            if (!entry.is_string()) continue;
+            const auto text = entry.get<std::string>();
+            const auto colon = text.rfind(':');
+            if (colon == std::string::npos) continue;
+            try {
+                kept.insert(Lower(text.substr(0, colon)) + "|" + std::to_string(std::stoul(text.substr(colon + 1), nullptr, 16)));
+            } catch (const std::exception&) {}
+        }
+        return kept;
+    }
+
+    bool GateLeavesOut(RE::SpellItem* spell, const std::unordered_set<std::string>& kept)
+    {
+        if (!spell || JudgeSpell(spell).band != "out") return false;
+        auto* file = spell->GetFile(0);
+        if (!file) return true;
+        // The local id as the panel's getLocalFormId reads it: 12 bits in a light plugin, 24 in a full one
+        const RE::FormID id = spell->GetFormID();
+        const RE::FormID local = (id >> kLoadIndexShift) == kLightIndex ? (id & kLightLocalMask) : (id & kFullLocalMask);
+        return !kept.contains(Lower(std::string(file->GetFilename())) + "|" + std::to_string(local));
     }
 
     void MarkGate(json& spellJson, RE::SpellItem* spell)

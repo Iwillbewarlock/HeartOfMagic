@@ -235,6 +235,7 @@ namespace Librarian::SpellResearchPatch
             std::unordered_set<RE::FormID> unreachable;
             TomeReach::UnreachableSpells(unreachable);   // empty until the pass is done, as the scan's marks
             const PlayerFilter playerFilter = ReadPlayerFilter();
+            const auto gateKept = SpellScanner::ReadGateKept();
             json missing = json::object();
             for (const auto& [id, entry] : catalogSpells.items()) {
                 if (!HasSchoolAndTier(entry)) continue;
@@ -248,7 +249,7 @@ namespace Librarian::SpellResearchPatch
                     ++skipped.unreachable;
                 } else if (PlayerLeftOut(id, formId, playerFilter)) {
                     ++skipped.playerLeftOut;
-                } else if (SpellScanner::JudgeSpell(spell).band == "out") {
+                } else if (SpellScanner::GateLeavesOut(spell, gateKept)) {
                     ++skipped.gateOut;
                 } else if (DuplicateLeftOut(formId, registered)) {
                     ++skipped.duplicate;

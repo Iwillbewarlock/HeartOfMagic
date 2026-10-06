@@ -161,6 +161,11 @@ namespace SpellScanner
         std::vector<std::string> reasons;   // free, longSummon, banishOnly, rule:<id>, horseSummon, uniqueSummon, cheapScript
     };
     GateVerdict JudgeSpell(RE::SpellItem* spell);
+    // The spells the player put back in from the panel (config.json gateReviewed), as
+    // "plugin|local id" keys; read once per tree load or Spell Research pass
+    std::unordered_set<std::string> ReadGateKept();
+    // JudgeSpell says "out" and the player did not include the spell again
+    bool GateLeavesOut(RE::SpellItem* spell, const std::unordered_set<std::string>& kept);
     // The scan's marks: freeSpell, and "gate": {band, reasons} unless the band is "in"
     void MarkGate(json& spellJson, RE::SpellItem* spell);
 

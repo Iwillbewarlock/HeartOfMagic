@@ -2448,7 +2448,8 @@ body {
 }
 
 /* The spell gate's review rows (gateReview.js): Keep / Leave out keep their words on one line */
-#gate-review-entries .btn {
+#gate-review-entries .btn,
+#gate-out-entries .btn {
     flex-shrink: 0;
     white-space: nowrap;
     margin-left: 6px;

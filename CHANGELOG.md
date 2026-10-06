@@ -27,12 +27,14 @@
 - Spells that cost nothing to cast stay out of the tree and of Spell Research: pet, mount and follower calls
   (Witcher Horses, the Creation Club pets, Inigo), a mod's utility spells, Equilibrium. A tree you already have
   drops them the next time it loads - no rebuild needed - and drops any node that is no longer a named spell.
-- A spell gate picks the tree's spells more tightly, and Spell Research gets the same set. Left out on their
-  own: summons that last over an hour (mounts and companions that stay), spells that only dismiss a mount, and
-  an adult framework's detect and script spells (a rules file, `gate/rules.json`, by the plugin's masters).
-  Spells it is unsure of - a horse summon, a summon of one named character, a cheap spell that only runs a
-  script - stay in the tree and are listed under **Spells to look over** in the Blacklist window with the
-  reason: Leave out puts one on the blacklist, Keep takes it off the list.
+- A spell gate picks the tree's spells more tightly, and Spell Research gets the same set. Spells it is
+  unsure of - a summon that stays over an hour (mounts and companions), a horse summon, a summon of one named
+  character, a cheap spell that only runs a script, an adult framework's detect and script spells (a rules
+  file, `gate/rules.json`, by the plugin's masters) - stay in the tree and are listed under **Spells to look
+  over** in the Blacklist window with the reason: Leave out puts one on the blacklist, Keep takes it off the
+  list. Free spells and spells that only dismiss a summon stay out, listed under **Left out by itself**:
+  Include puts a real spell back (Mysticism's Symmetry costs nothing to cast) - into the tree the next time
+  it is built, and into Spell Research.
 - The panel's last English-only texts are now in every language and follow a language switch at once: the
   status lines under the tree and in Pre Req Master (including the DLL's own messages - tree saved, save
   failed, scanning tomes, the config.json errors), empty-list and search lines, the blacklist and preset
