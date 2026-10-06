@@ -2,150 +2,112 @@
 
 ## Heart of Magic Librarian 1.2.1 (unreleased)
 
+After updating: open the panel, **Scan**, and **build the tree again**. With Spell Research, press its
+Import Spells once.
+
 ### New
 
-- Tighter grouping by type when the tree is built (asked for on Nexus). Spells of one kind - bound weapons,
-  runes, cloaks - now look for a parent of the same kind, rarer kinds and elements weigh more than common
-  ones, and a spell made of one element is kept off a branch of another (fire, frost and shock stay apart).
-  On a 3,500-spell load order three in four bound weapons now hang off another bound weapon (up from under
-  three in five). The strength is a new setting, **Type grouping** in the Classic Growth Settings on the
-  scan page (0 to 2, default 1); 0 builds the tree exactly as 1.2.0 did. Build the tree again to see it.
-- Tiers by Magicka cost (asked for on Nexus): a new checkbox under Type grouping builds each school's five
+- **Spell Research compatibility.** With Spell Research loaded, the spells your mods' tomes teach that
+  Spell Research does not know yet are added to its research lists after its Import and at every save load,
+  so they turn up in research, spell composing and tome copying. It takes exactly the spells the tree takes:
+  the same tome checks, your spell blacklist, the plugins you turned off and the spell gate below; each spell
+  once, however many mods carry it. A corner message says how many spells Heart of Magic added (in the
+  panel's language). Switch: `spellResearch.enabled` in config.json (on by default).
+- **A spell gate keeps non-player spells out of the tree** (and out of Spell Research). Spells that cost
+  nothing to cast - pet, mount and follower calls (Witcher Horses, the Creation Club pets, Inigo), a mod's
+  utility spells, Equilibrium - and spells that only dismiss a summon stay out by themselves. Spells it is
+  unsure of stay in the tree and are listed with the reason in the Blacklist window under **Spells to look
+  over**: a summon that stays over an hour (mounts and companions), a horse summon, a summon of one named
+  character, a cheap spell that only runs a script, an adult framework's detect and script spells (a rules
+  file, `gate/rules.json`, by the plugin's masters, never by spell name). Leave out puts one on the
+  blacklist, Keep takes it off the list. The spells left out are listed under **Left out by itself**:
+  Include puts a real spell back (Mysticism's Symmetry, for one, costs nothing to cast) - into the tree the
+  next time it is built, and into Spell Research. A tree you already have drops left-out spells the next time
+  it loads, with no rebuild.
+- **Type grouping** (asked for on Nexus). Spells of one kind - bound weapons, runes, cloaks - now look for a
+  parent of the same kind, rarer kinds and elements weigh more than common ones, and a spell made of one
+  element is kept off a branch of another (fire, frost and shock stay apart). On a 3,500-spell load order
+  three in four bound weapons now hang off another bound weapon (up from under three in five). The strength
+  is a new setting in the Classic Growth Settings on the scan page (0 to 2, default 1); 0 builds the tree as
+  1.2.0 did.
+- **Tiers by Magicka cost** (asked for on Nexus): a checkbox under Type grouping builds each school's five
   tiers by how much the spells cost, cheapest first, instead of Novice to Master. Spells with no cost stay at
   their level's tier, and a spell's level itself (XP needed, the spell card) does not change. Off by default.
-  The cross-school links follow the same tiers. Scanner presets save both settings (an older preset sets the
-  defaults).
-- The in-game corner messages (spell learned, power increased, mastered, tome study, the weakened spell
-  alert, the Immersive Spell Learning patch's study messages, BookXP) now follow the panel's language
-  instead of always being English: they come from the language files' new `hud.*` keys (all 13 languages;
-  a missing key shows English). Changing the language in Settings changes them at once. Skill names in
-  "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus) and
-  `ShowNotification` (C++ API version 2) give the same for their own messages.
-- Spell Research gets exactly the spells the tree builder takes: no more spells whose tomes cannot be found,
-  and your spell blacklist and the plugins you turned off apply there too. Press Import Spells in Spell
-  Research once to apply it to a save that already imported.
-- Spells that cost nothing to cast stay out of the tree and of Spell Research: pet, mount and follower calls
-  (Witcher Horses, the Creation Club pets, Inigo), a mod's utility spells, Equilibrium. A tree you already have
-  drops them the next time it loads - no rebuild needed - and drops any node that is no longer a named spell.
-- A spell gate picks the tree's spells more tightly, and Spell Research gets the same set. Spells it is
-  unsure of - a summon that stays over an hour (mounts and companions), a horse summon, a summon of one named
-  character, a cheap spell that only runs a script, an adult framework's detect and script spells (a rules
-  file, `gate/rules.json`, by the plugin's masters) - stay in the tree and are listed under **Spells to look
-  over** in the Blacklist window with the reason: Leave out puts one on the blacklist, Keep takes it off the
-  list. Free spells and spells that only dismiss a summon stay out, listed under **Left out by itself**:
-  Include puts a real spell back (Mysticism's Symmetry costs nothing to cast) - into the tree the next time
-  it is built, and into Spell Research.
-- The panel's last English-only texts are now in every language and follow a language switch at once: the
-  status lines under the tree and in Pre Req Master (including the DLL's own messages - tree saved, save
-  failed, scanning tomes, the config.json errors), empty-list and search lines, the blacklist and preset
-  buttons' tooltips, the spell card's tooltips, the unreachable-spell repair button, the colour picker and the
-  early-learning sliders' tooltips.
-- The scan page's primed spell count, the root picker and the spell gate's lists now use the tree build's own
-  plugin and blacklist filters. Before, once the plugin list had been opened, a mod installed later counted as
-  turned off there (16 plugins on a large load order, though the tree itself took their spells), and the tree
-  build matched blacklist entries by load-order formId only, so a blacklisted spell could come back after the
-  load order changed.
-- After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
-  spell) where one of yours was: its saved ID now pointed at another plugin's record. The tree now always
-  finds each spell by its plugin and record, and its prerequisite lists follow too.
+  The cross-school links follow the same tiers. Scanner presets save both settings.
+- **The in-game corner messages are in your language**: spell learned, power increased, mastered, tome
+  study, the weakened spell alert, the Immersive Spell Learning patch's study messages, BookXP (all 13
+  languages; a missing key shows English). Changing the language in Settings changes them at once. Skill
+  names in "You lack the ... skill" are the game's own. Modders: `SpellLearning.NotificationText` (Papyrus)
+  and `ShowNotification` (C++ API version 2) give the same for their own messages.
 - **XP Alerts** (Settings > Early Learning, on by default) turns the corner messages about XP and power off:
   casting a weakened spell, power steps, studying a tome, book XP. Learned, mastered, blocked tomes and the
-  Spell Research line always show. Weakened Spell Alerts stays as an option under it and is greyed out while it
-  is off. Reset to Defaults turns it back on; settings presets do not change it.
-- A copy of a spell you learned before the copies were merged (another plugin's record of the same spell)
-  now counts as that spell: its children open, and Heart of Magic does not give you the tree's record on top
-  of it.
-
+  Spell Research line always show. Weakened Spell Alerts stays as an option under it. Reset to Defaults turns
+  it back on; settings presets do not change it.
 - **Skill XP from Studying** (Settings > Spell Tomes, on by default): with the Immersive Spell Learning
   patch, turn it off and studying a tome no longer raises the school's skill, so a skill mod (Static Skill
-  Leveling and the like) handles skills alone. Needs the patch's updated script (optional/ISLPatch). A patch
-  script installed with an older Heart of Magic script (the new functions missing) studies and shows its
-  messages as before, in English, instead of losing the skill gain and the messages.
-- SpellLearning.log shows where XP comes from: every tome, study, book and other-mod grant is one line (how
-  much, to which spell, from where), and every cast that earned XP is one line (the spell, cast event or
-  immediate cast hook, the total XP and how many learning targets got it). The per-target detail and
-  "duplicate skipped" for a cast already counted the other way are in the debug log.
+  Leveling and the like) handles skills alone. Needs the patch's updated script (optional/ISLPatch).
 - The tree's tool bar (zoom, home, Find Spell, render settings, edit) can be made bigger: drag the small
-  grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings and
-  Reset to Defaults puts it back. A bar wider than the tree wraps, and the school tabs move down with it.
-- Spell Research compatibility: with Spell Research loaded, the spells your mods' tomes teach that Spell
-  Research does not know yet are added to its research lists after its Import and at every save load, so
-  they turn up in research, spell composing and tome copying. Like the tree, it leaves out voice slot spells
-  and a second plugin's copy of the same spell (each spell is listed once). Switch: `spellResearch.enabled`
-  in config.json (on by default).
+  grip at its bottom-right corner (1x to 3x, double-click for 1x). The size is kept with the settings.
+- SpellLearning.log shows where XP comes from: every tome, study, book and other-mod grant is one line (how
+  much, to which spell, from where), and every cast that earned XP is one line.
 
 ### Changed
 
-- Find Spell opens as a dropdown under the magnifier button instead of a window over the tree; the button
-  shows and hides it, and Esc or choosing a spell hides it. The F key no longer opens it. The search ignores
-  spaces ("헝거소환" finds "헝거 소환"), an exact name comes first and then names that start with the text,
-  and "Found: ..." after the jump is in the panel's language. A school's name in the panel's language
-  finds its spells too and is what the list shows; a formId is matched only for text that looks like one
-  (0x... or four or more hex digits), after the name matches, so "fe" no longer lists every ESL spell.
-  Switching tabs, closing the panel or loading a tree hides it, and the highlight ignores spaces like the
-  search.
+- The whole panel is in your language: the status lines under the tree and in Pre Req Master (the DLL's own
+  messages too - tree saved, save failed, scanning tomes, the config.json errors), the spell card (school,
+  level, casting type, tooltips), search and empty-list lines, the blacklist, plugin list and preset buttons,
+  the tree's tooltips (school, level, Magicka), the colour picker and the build progress. Text on screen
+  changes at once when you switch the language. A spell with no school shows as "Other", never "Unknown".
+- Bigger text: the panel's text is 16px at Font Size 1.0x (was 14px) and the tree's spell names 12 (was 10);
+  the smallest labels (the language list, the Classic Growth Settings) are no smaller than 0.75em. Font Size
+  goes up to 2.0x (it stopped at 1.5x) and also enlarges the spell names on the tree; the spell card grows
+  with the text. Saved settings keep their values; Reset to Defaults gives the new sizes.
+- Find Spell opens as a dropdown under the magnifier button instead of a window over the tree; Esc or
+  choosing a spell hides it, and the F key no longer opens it. The search ignores spaces ("헝거소환" finds
+  "헝거 소환"), an exact name comes first, a school's name in your language finds its spells, and a formId
+  is matched only for text that looks like one, so "fe" no longer lists every ESL spell.
+- Zooming with the mouse over a spell no longer stutters (a first-tier spell's highlighted path was painted
+  spell by spell at every zoom step).
 - A spell with effects of two schools now earns cast XP at the rate of its tree school (its first effect's),
-  the school it is listed under, instead of its costliest effect's. So for those spells the School, Direct and
-  Any cast XP rates can come out differently from 1.2.0 (a cast now counts as "same school" for the targets of
-  its first effect's school).
+  the school it is listed under, instead of its costliest effect's.
 - Modders: `SpellLearning_SpellMastered` and `SpellLearning_SpellEarlyGranted` name the school the spell is the
-  learning target of (the one `SpellLearning_TargetChanged` named), not its costliest effect's.
-  `SpellLearning_TargetChanged` also fires (0) for a school that loses the spell because it was set under
-  another school, and for each school changed when a save from before is put right on load.
+  learning target of, not its costliest effect's. `SpellLearning_TargetChanged` also fires (0) for a school
+  that loses the spell because it was set under another school, and for each school put right on load.
 
 ### Fixed
 
-- Spells no longer earn double XP with mods that cast them a second way (SpellHotbar 2, Papyrus Spell.Cast):
-  each cast is counted once however the game reports it. Before, two quick casts reported both ways could
-  count three times, and a busy frame could let one cast count twice.
-- A spell set as the learning target from the panel and again from its tome no longer gets XP twice per
-  cast: a spell is the target of one school only, and a save that already has it under two is put right
-  when it loads.
-- A spell with effects of two schools that was set as the learning target from its tome kept getting XP
-  but the panel neither showed it as the target nor could stop it: the tome filed it under its costliest
-  effect's school, the panel under the tree's (the first effect's). Both use the tree's school now, the
-  panel's Stop Learning clears the spell whatever school holds it, and a save that has it under the other
-  school is moved over when it loads.
-- Two casts of one spell, one by hand and one through SpellHotbar 2 or Spell.Cast, less than 0.3 s apart
-  could count once: one cast's two reports are now paired only within 0.1 s.
-- In discovery mode, Find Spell used before the tree was drawn could list locked spells; it lists nothing
-  until the tree is there.
-- Dragging the tool bar's size grip no longer sticks to the mouse when the button is let go outside the
-  panel.
-- Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel
-  showed, and Reset to Defaults and settings presets left the controls as they were. They are saved now,
-  reset, and follow a preset.
-
-- Bigger default text: the panel's text is 16px at Font Size 1.0x (was 14px) and the tree's spell names 12
-  (was 10). Saved settings keep their values; Reset to Defaults gives the new sizes, and its sliders and
-  the text change at once.
-- Settings > Font Size goes up to 2.0x (it stopped at 1.5x), and it now also enlarges the spell names on
-  the tree (on top of Spell Name Size). The spell card grows with the text: the side panel gets wider and
-  the bottom bar taller, so nothing is cut off at the larger sizes.
-- Editing prerequisites in edit mode works as shown again. A new link showed up as both Required and
-  Optional, deleting one deleted both, and switching one between Required and Optional left a second copy.
-  A built tree used one list for two things, so every change to one went into the other. A link is now
-  Required only, delete removes just that one, H/S moves it, and undo puts it back the way it was. A tree
-  saved with the old mix-up is put right when it loads: a link listed as both stays Required, copies go,
-  and the fix is saved with the tree. A PreReq Master lock on a spell's parent is not taken for that
-  mix-up: the spell's other optional links (a bridge) stay optional. Switching a Required link to Optional
-  when the spell had no Optional ones now needs that one, instead of needing none.
-- Deleting a spell in edit mode takes it out of every spell that needed it - its children, a PreReq Master
-  lock on it, a cross-school link from it - so none of them waits on a spell that is gone after a reload.
-  Ctrl+Z after it no longer links a spell back to the deleted one, and a school's root spell is not
-  deleted (the status line says why).
-  A spell whose Optional links need none of them says so on the card instead of "need 0 of 2".
-- One spell is no longer in the tree twice (or three times) when two mods carry it, such as Saints and
+- **One spell is no longer in the tree twice** (or three times) when two mods carry it, such as Saints and
   Seducers' Conjure Hunger and ECSS Summonable Creatures' version of it. Records with the same editor ID in
-  the same school count as one spell: the tree keeps the one from the earlier plugin in the load order (or
-  the one whose tome can be found), and reading another one's tome counts as reading the tome of the one in your tree -
-  same learning target, tome XP and early learning, and the other copy is not added to the spellbook. A
-  spell that is in your tree is always taught by its own tome, even when a mod added later carries the same
-  spell. Spells
-  that only share a name (in some translations different spells do) stay apart. Build the tree again (Scan,
-  then build) to take the copies out of it. Copies already in a save's spellbook stay there; the mod does
-  not remove spells. Needs editor IDs (po3's Tweaks); without them nothing is merged. In vanilla mode (without
-  ISL/DEST) a tome still teaches the spell it names.
+  the same school count as one spell: the tree keeps the one from the earlier plugin (or the one whose tome
+  can be found), and reading another one's tome counts as reading the tome of the one in your tree. A copy you
+  already learned counts as that spell: its children open, and you are not given the tree's record on top of
+  it. Spells that only share a name stay apart. Needs editor IDs (po3's Tweaks); without them nothing is
+  merged. Copies already in a save's spellbook stay there.
+- **Editing prerequisites in edit mode works as shown.** A new link showed up as both Required and Optional,
+  deleting one deleted both, and switching one left a second copy. A link is now Required only, delete removes
+  just that one, H/S moves it, and undo puts it back. A tree saved with the old mix-up is put right when it
+  loads. A spell whose Optional links need none of them says so on the card instead of "need 0 of 2".
+- Deleting a spell in edit mode takes it out of every spell that needed it - its children, a PreReq Master
+  lock on it, a cross-school link from it - so none of them waits on a spell that is gone. Ctrl+Z after it no
+  longer links a spell back to the deleted one, and a school's root spell is not deleted (the status line says
+  why).
+- After a load order change, a saved tree could show a nameless "Constant Effect" spell (or another mod's
+  spell) where one of yours was. The tree now always finds each spell by its plugin and record, and a node
+  that is not a player's spell any more leaves the tree as it loads.
+- A blacklisted spell could come back into the tree after the load order changed (the tree build matched
+  the blacklist by load-order formId). It now matches by plugin and record, as the rest of the panel does.
+- Once the plugin list had been opened, a mod installed later counted as turned off in the primed spell
+  count and the root picker (the tree itself took its spells). Only plugins you turn off are left out now.
+- Spells no longer earn double XP with mods that cast them a second way (SpellHotbar 2, Papyrus Spell.Cast):
+  each cast is counted once however the game reports it.
+- A spell set as the learning target from the panel and again from its tome no longer gets XP twice per cast:
+  a spell is the target of one school only, and a save that already has it under two is put right on load.
+- A spell with effects of two schools that was set as the learning target from its tome kept getting XP but
+  the panel neither showed it as the target nor could stop it. Both now use the tree's school, Stop Learning
+  clears it whatever school holds it, and a save that has it under the other school is moved over on load.
+- In discovery mode, Find Spell used before the tree was drawn could list locked spells.
+- Weakened Spell Alerts and its interval were never saved: the game always used on / 10 s whatever the panel
+  showed. They are saved now, reset, and follow a preset.
 
 ## Heart of Magic Librarian 1.2.0
 

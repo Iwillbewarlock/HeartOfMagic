@@ -1,0 +1,59 @@
+Heart of Magic Librarian 1.2.1 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.2.1" section. Full list: CHANGELOG.md.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.2.1
+
+Description:
+Main file. Run the installer (it offers the ISL / DEST compatibility patch). After updating from 1.2.0: Scan and build the tree again; with Spell Research, press its Import Spells once.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+Source file description:
+The complete source of 1.2.1 (git tag v1.2.1).
+
+
+=====================================================================
+2. Changelogs tab - version 1.2.1 (one line per entry)
+=====================================================================
+
+Spell Research compatibility: your mods' tome spells join its research lists after its Import and at every save load - exactly the spells your tree has, each once. A corner message says how many were added.
+A spell gate keeps non-player spells out of the tree and Spell Research: free pet, mount and follower calls, utility spells, dismiss spells.
+Blacklist window: "Spells to look over" (summons that stay for hours, horse summons, named characters, cheap script spells) with Leave out / Keep, and "Left out by itself" with Include to put a real spell back.
+Type grouping (asked for in the Posts): bound weapons, runes and cloaks grow from their own kind; fire, frost and shock keep apart. Strength 0 to 2 on the scan page.
+Tiers by Magicka cost (asked for in the Posts): optional, orders each school's tiers by cost instead of Novice to Master.
+One spell is in the tree once when two mods carry it (needs po3's Tweaks); a copy you already learned counts as that spell.
+Editing prerequisites in edit mode works as shown again; deleting a spell takes it out of everything that needed it.
+The in-game messages and every text in the panel follow the panel's language (13 languages) and change at once on a switch.
+XP Alerts switch: turn off XP and power messages; learned and mastered always show.
+Skill XP from Studying switch for the ISL patch, for skill mods like Static Skill Leveling.
+Bigger default text, Font Size up to 2.0x, a resizable tool bar, Find Spell as a dropdown, no stutter when zooming over a spell.
+Fixed: a saved tree could show a nameless "Constant Effect" spell after a load order change.
+Fixed: a blacklisted spell could come back after a load order change.
+Fixed: double XP with SpellHotbar 2 / Spell.Cast, and a spell set as the target twice getting XP twice.
+Fixed: Weakened Spell Alerts and its interval were never saved.
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.2.1 is up.
+
+Thank you for the reports and ideas - several of them are in this update:
+- The same spell from two mods (Saints and Seducers and ECSS, for one) is in the tree once now. It needs powerofthree's Tweaks with "Load EditorIDs".
+- Editing prerequisites in edit mode works as shown again: a new link no longer turns up as both Required and Optional.
+- Type grouping and Tiers by Magicka cost are on the scan page, in the Classic Growth Settings.
+
+New: Spell Research compatibility. With Spell Research loaded, your mods' tome spells join its research lists - the same spells your tree has.
+
+New: a spell gate. Follower and pet calls, free utility spells and the like stay out of the tree. If it left out a spell you want, open the Blacklist window, find it under "Left out by itself" and press Include. If something odd is still in your tree, "Spells to look over" in the same window lists the doubtful ones.
+
+After updating: Scan and build the tree again. With Spell Research, press its Import Spells once.
+
+If a spell is left out or let in wrongly, tell me the mod and the spell name here.
