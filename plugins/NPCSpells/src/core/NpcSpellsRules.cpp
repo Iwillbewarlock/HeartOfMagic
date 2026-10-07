@@ -48,7 +48,8 @@ Rules DefaultRules()
     r.keywordNpc = Ref("013794:Skyrim.esm"); r.keywordCreature = Ref("013795:Skyrim.esm"); r.keywordAnimal = Ref("013798:Skyrim.esm");
     return r;
 }
-bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
+namespace {
+bool ParseRulesImpl(const std::string& jsonText, Rules& out, std::string& error)
 {
     nlohmann::json j = nlohmann::json::parse(jsonText, nullptr, false);
     if (j.is_discarded() || !j.is_object()) { error = "rules JSON is not an object"; return false; }
@@ -85,5 +86,12 @@ bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
     if (auto rg = j.find("redguard"); rg != j.end()) ReadRef(*rg, "race", out.redguardRace, error);
     if (auto k = j.find("keywords"); k != j.end()) { ReadRef(*k, "npc", out.keywordNpc, error); ReadRef(*k, "creature", out.keywordCreature, error); ReadRef(*k, "animal", out.keywordAnimal, error); }
     return true;
+}
+}
+// A wrong-typed value (a string where a number belongs, a non-object rung) is malformed input: false + error, never a throw out of data load
+bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
+{
+    try { return ParseRulesImpl(jsonText, out, error); }
+    catch (const nlohmann::json::exception& e) { error = std::string("rules JSON has a wrong-typed value: ") + e.what(); return false; }
 }
 }
