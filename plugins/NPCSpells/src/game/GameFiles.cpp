@@ -1,7 +1,6 @@
 #include "game/GameFiles.h"
 
 #include "core/NpcSpellsSlots.h"
-#include "tomereach/TomeReachRecords.h"
 
 #include <algorithm>
 #include <fstream>
@@ -83,7 +82,7 @@ namespace
     void ReadDistr(NpcSpellsGame::Inputs& in)
     {
         for (const auto& f : TomeReach::FindDistributionConfigs(NpcSpellsGame::kDataDir)) {
-            if (TomeReach::LowerAscii(f.filename().string()).ends_with(kSpidSuffix)) {
+            if (TomeReach::LowerUtf8(f.filename()).ends_with(kSpidSuffix)) {
                 in.distr.Add(f);
             }
         }

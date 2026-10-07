@@ -40,5 +40,7 @@ void NpcSpellsGame::Run()
         // Tasks 9-10: pool, list contents, NPCs, report
     } catch (const std::exception& e) {
         logger::error("NPCSpells: stopped by an error: {}", e.what());
+    } catch (...) {
+        logger::error("NPCSpells: stopped by an unknown error");
     }
 }

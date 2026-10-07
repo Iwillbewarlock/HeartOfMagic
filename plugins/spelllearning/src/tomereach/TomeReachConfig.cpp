@@ -68,10 +68,16 @@ namespace TomeReach
         }
     }
 
+    std::string LowerUtf8(const std::filesystem::path& path)
+    {
+        const auto u8 = path.u8string();
+        return LowerAscii(std::string_view(reinterpret_cast<const char*>(u8.data()), u8.size()));
+    }
+
     bool IsDistributionConfig(const std::filesystem::path& file)
     {
-        const auto name = LowerAscii(file.filename().string());
-        const auto dir = LowerAscii(file.parent_path().string());
+        const auto name = LowerUtf8(file.filename());
+        const auto dir = LowerUtf8(file.parent_path());
         for (auto skipped : kSkippedFolders) {
             if (Contains(dir, skipped)) return false;
         }
@@ -88,19 +94,34 @@ namespace TomeReach
         return false;
     }
 
+    namespace
+    {
+        // One directory entry: an entry whose status cannot be read, or whose name
+        // cannot be handled, is skipped alone; the scan goes on. No logger here (the
+        // offline harness builds this file without one).
+        void AddIfConfig(const std::filesystem::directory_entry& entry, std::vector<std::filesystem::path>& out)
+        {
+            try {
+                std::error_code ec;
+                if (entry.is_regular_file(ec) && !ec && IsDistributionConfig(entry.path())) out.push_back(entry.path());
+            } catch (...) {
+            }
+        }
+    }
+
     std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir)
     {
         namespace fs = std::filesystem;
         std::vector<fs::path> out;
         std::error_code ec;
         for (fs::directory_iterator it(dataDir, ec), end; !ec && it != end; it.increment(ec)) {
-            if (it->is_regular_file(ec) && IsDistributionConfig(it->path())) out.push_back(it->path());
+            AddIfConfig(*it, out);
         }
         const auto plugins = dataDir / "SKSE" / "Plugins";
         ec.clear();
         for (fs::recursive_directory_iterator it(plugins, fs::directory_options::skip_permission_denied, ec), end;
              !ec && it != end; it.increment(ec)) {
-            if (it->is_regular_file(ec) && IsDistributionConfig(it->path())) out.push_back(it->path());
+            AddIfConfig(*it, out);
         }
         return out;
     }

@@ -18,6 +18,10 @@
 
 namespace TomeReach
 {
+    // A path's UTF-8 bytes, ASCII lowered. Never throws on names outside the ANSI
+    // code page, as path::string() does.
+    std::string LowerUtf8(const std::filesystem::path& path);
+
     // A file one of the distribution frameworks reads
     bool IsDistributionConfig(const std::filesystem::path& file);
 

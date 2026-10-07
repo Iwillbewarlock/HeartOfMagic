@@ -178,6 +178,38 @@ namespace
         Check(text.Names("other.esm", 0x999, "ConfigTome"), "an editor id names its tome");
         Check(!text.Names("other.esm", 0x999, "ConfigTom"), "a shorter editor id does not");
     }
+
+    // File and folder names outside the ANSI code page (Thai is outside CP949 and CP1252 alike):
+    // path::string() throws on them, so the scan must read names as UTF-8 and keep going.
+    void NonAnsiNames(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-scan";
+        const auto thaiFolder = data / "SKSE" / "Plugins" / fs::path(u8"SkyPatcher") / fs::path(u8"ไทย");
+        std::error_code ec;
+        fs::create_directories(thaiFolder, ec);
+        Write(data, "Plain_DISTR.ini", Bytes{});
+        std::ofstream(data / fs::path(u8"ไทย_DISTR.ini")) << "Spell = 0x800~Master.esm\n";
+        std::ofstream(data / fs::path(u8"ไทย.txt")) << "not a config\n";
+        std::ofstream(thaiFolder / fs::path(u8"a.ini")) << "x\n";
+
+        std::vector<fs::path> found;
+        bool threw = false;
+        try {
+            found = TomeReach::FindDistributionConfigs(data);
+        } catch (...) {
+            threw = true;
+        }
+        auto has = [&](const fs::path& p) { return std::ranges::find(found, p) != found.end(); };
+        Check(!threw, "a non-ANSI file name does not throw out of the scan");
+        Check(has(data / "Plain_DISTR.ini") && has(data / fs::path(u8"ไทย_DISTR.ini")),
+            "a non-ANSI _DISTR.ini is found next to a plain one");
+        Check(has(thaiFolder / "a.ini"), "a config in a non-ANSI SkyPatcher subfolder is found");
+        Check(found.size() == 3, "a non-config with a non-ANSI name is not");
+        const std::u8string lowered = u8"ไทย_distr.ini";
+        Check(TomeReach::LowerUtf8(fs::path(u8"ไทย_DISTR.INI")) == std::string(lowered.begin(), lowered.end()),
+            "LowerUtf8 lowers ASCII and keeps UTF-8 bytes");
+    }
 }
 
 int RunSelfTest()
@@ -301,6 +333,7 @@ int RunSelfTest()
             "a plugin that cannot be opened, or whose header is cut, is unreadable");
     }
     ConfigRules();
+    NonAnsiNames(dir);
 
     std::printf("self-test: %d passed, %d failed\n", g_passed, g_failed);
     std::error_code ec;
