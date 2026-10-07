@@ -13,6 +13,7 @@ namespace NpcSpells {
     inline constexpr std::size_t kTierCount = 5;
     inline constexpr std::array<std::uint16_t, kTierCount> kTierFloor{ 0, 25, 50, 75, 100 };
     inline constexpr std::size_t kMaxEntries = 255;   // TESLeveledList::numEntries is uint8
+    inline constexpr std::uint8_t kAllLevelsFlag = 1;  // llFlags bit 0: kCalculateFromAllLevelsLTOrEqPCLevel
     inline constexpr std::size_t kRungCount = 5;      // ladder length; the slot table has 5 rungs per (school, group, variant)
     inline constexpr std::array<std::string_view, kSchoolCount> kSchoolNames{ "alteration", "conjuration", "destruction", "illusion", "restoration" };
     inline constexpr std::array<std::string_view, kTierCount> kTierNames{ "novice", "apprentice", "adept", "expert", "master" };
