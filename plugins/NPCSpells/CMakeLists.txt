@@ -53,4 +53,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ZLIB::ZLIB
 )
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE NPCSPELLS_VERSION="${PROJECT_VERSION}")
+
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "HeartOfMagic_NPCSpells")

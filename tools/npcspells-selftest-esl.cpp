@@ -1,5 +1,6 @@
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsEsl.h"
+#include "core/NpcSpellsReport.h"
 #include "core/NpcSpellsSlots.h"
 #include <algorithm>
 #include <cstring>
@@ -50,5 +51,24 @@ int RunEslSelfTest()
     Check(count == table.size() * kMaxChunks && count == 921, "921 LVSP records (slots x kMaxChunks)");
     Check(idsOk, "in-file FormIDs are 0x01000800.. in table order, form version 44, uncompressed");
     Check(bodies, "each record: EDID, OBND(12), LVLD 0, LVLF, LLCT 0");
+    std::printf("report\n");
+    ReportData rd; rd.version = "1.2.0"; rd.stopReason.clear(); rd.pool.kept = 1400; rd.build.lists = 600; rd.build.emptySlots = 12; rd.build.droppedOverCapacity = 0;
+    rd.eslRecords = 921; rd.listSizes = { { "HoMNS_Destruction_None_All_R1_C0", 240, 0 } }; rd.npcsScanned = 26090; rd.npcsAttached = 2; rd.skipped = { { "template spell list", 14389 } };
+    rd.byTier = { 170, 69, 48 }; rd.timingsMs = { { "total", 123.4 } };
+    const auto destSlot = *FindSlot({ School::Destruction, kGroupNone, Variant::All, 0, false });
+    const auto thalmorSlot = *FindSlot({ School::Destruction, 4, Variant::Prefer, 1, false });
+    NpcDecision mage; mage.eligible = true; mage.tier = ClassTier::Mage; mage.undead = UndeadPolicy::Conjurer; mage.lists = { { destSlot, 0 } };
+    NpcDecision thalmor; thalmor.eligible = true; thalmor.tier = ClassTier::Hybrid; thalmor.group = 4; thalmor.lists = { { thalmorSlot, 2 } };
+    rd.npcs = { { "Skyrim.esm|0x01CB4E", "Bandit Wizard", mage }, { "Skyrim.esm|0x0D8D62", "Thalmor Justiciar", thalmor } };
+    const std::string text = RenderReport(rd);
+    Check(text.find("HoMNS_Destruction_None_All_R1_C0") != std::string::npos && text.find("240") != std::string::npos, "report lists each list with its entry count");
+    Check(text.find("template spell list") != std::string::npos && text.find("14389") != std::string::npos, "report lists skip reasons with counts");
+    Check(text.find("total") != std::string::npos && text.find("123.4") != std::string::npos, "report carries timings");
+    Check(text.find("Skyrim.esm|0x01CB4E") != std::string::npos && text.find("Bandit Wizard") != std::string::npos && text.find("conjurer") != std::string::npos,
+          "every NPC row: persistent id, name, reason");
+    Check(text.find("Skyrim.esm|0x0D8D62") != std::string::npos && text.find("group Thalmor") != std::string::npos && text.find("hybrid") != std::string::npos &&
+          text.find(EditorIdFor(SlotTable()[thalmorSlot].key, 2)) != std::string::npos, "every NPC row: group and attached list EditorIDs");
+    ReportData stopped; stopped.stopReason = "spell_tree.json not found";
+    Check(RenderReport(stopped).find("spell_tree.json not found") != std::string::npos, "a stopped run says why");
     return NpcSpellsCheck::g_failed;
 }

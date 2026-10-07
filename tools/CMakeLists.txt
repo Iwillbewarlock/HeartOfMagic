@@ -147,6 +147,7 @@ set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsEsl.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsTemplate.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsNpc.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsReport.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
