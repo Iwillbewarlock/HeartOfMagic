@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -115,17 +116,21 @@ private:
     // A scan (UIManagerScanner.cpp): the form reads in one game thread task
     // (CollectScan), the text work on a worker thread (PrepareScanText), the form
     // writes and the panel in a second game thread task (FinishScan). One at a
-    // time; a request meanwhile waits (one per mode) and EndScan starts it.
+    // time; a request meanwhile waits (one per mode) and EndScan starts it. The
+    // steps pass a ScanTicket along; letting go of its last copy ends the scan.
+    struct ScanTicket;
     static void OnScanSpells(const char* argument);
     void RequestScan(std::string argStr);
-    void StartScan(std::string argStr);
-    void CollectScan(const std::string& argStr);
+    // false when it could not start (logged; the running flag is cleared)
+    bool LaunchScan(std::string argStr) noexcept;
+    void StartScan(std::string argStr, std::shared_ptr<ScanTicket> ticket);
+    void CollectScan(const std::string& argStr, std::shared_ptr<ScanTicket> ticket);
     static std::string PrepareScanText(nlohmann::json&& output, bool tomeScan);
-    void FinishScan(std::string result, bool tomeScan);
+    void FinishScan(std::string result, bool tomeScan) noexcept;
     void StoreAndSendFullScan(std::string result);
-    void EndScan();
-    // What the panel is told when a scan throws (onScanFailed)
-    void ReportScanFailure(const char* what, bool tomeScan);
+    void EndScan() noexcept;
+    // What the panel is told when a scan throws (onScanFailed); never throws itself
+    void ReportScanFailure(const char* what, bool tomeScan) noexcept;
     static void OnSaveOutput(const char* argument);
     static void OnLoadPrompt(const char* argument);
     

@@ -5,9 +5,11 @@
 #include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
+#include "ThreadUtils.h"
 
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <unordered_set>
 
 namespace SpellScanner
@@ -362,6 +364,10 @@ namespace SpellScanner
 
     std::string WriteScanOutput(const std::string& content)
     {
+        // The panel's full scan writes from its worker thread (debug installs),
+        // Papyrus RunScan and the Save button from the game thread: one at a time
+        static std::mutex writeMutex;
+        std::lock_guard lock(writeMutex);
         try {
             std::filesystem::path outputDir(SCAN_OUTPUT_DIR);
             std::filesystem::create_directories(outputDir);
@@ -435,7 +441,9 @@ namespace SpellScanner
         // its elements into the traits, before the dump is written so the file
         // carries them. It reports its own failures; the scan's own result
         // stands either way.
-        Librarian::ClassifyScan(result);
+        // On the game thread it does not wait for a panel scan's classification
+        // (that would stop the game for seconds); it takes the catalog there is.
+        Librarian::ClassifyScan(result, !IsOnGameThread());
 
         // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A
         // preset without effects leaves the catalog as it was.

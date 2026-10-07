@@ -5,6 +5,8 @@
 
 #include <chrono>
 #include <sstream>
+#include <system_error>
+#include <thread>
 
 // =============================================================================
 // LibrarianCatalog - the four axes, and reading and writing spell_catalog.json
@@ -21,6 +23,12 @@ namespace Librarian
     {
         constexpr const char* CATALOG_FILE = "spell_catalog.json";
 
+        // Putting the new catalog in place fails while a reader has the old one
+        // open (ifstream does not share delete) or an antivirus scans it; both
+        // pass in moments, so it is tried again a few times.
+        constexpr int CATALOG_RENAME_TRIES = 3;
+        constexpr std::chrono::milliseconds CATALOG_RENAME_RETRY_DELAY{ 25 };
+
         std::filesystem::path CatalogPath()
         {
             return DataPath(CATALOG_FILE);
@@ -35,6 +43,42 @@ namespace Librarian
             std::ostringstream stream;
             stream << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
             return stream.str();
+        }
+
+        // Written beside the catalog and then put in its place: the panel's scan
+        // writes it on a worker thread while the game thread may read it (perk
+        // adapters, Spell Research at a save load, the first spell card), and a
+        // reader must get the old file or the new one, never half of one.
+        // On failure the old file stays and the part file is removed.
+        bool WriteCatalogFile(const std::filesystem::path& path, const std::string& text)
+        {
+            std::filesystem::path partPath = path;
+            partPath += ".part";
+            std::error_code ignored;
+            {
+                std::ofstream file(partPath);
+                if (!file.is_open()) {
+                    logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(partPath));
+                    return false;
+                }
+                file << text;
+                if (!file.flush()) {
+                    logger::error("Librarian: writing '{}' failed", PathText::Utf8(partPath));
+                    file.close();
+                    std::filesystem::remove(partPath, ignored);
+                    return false;
+                }
+            }
+            std::error_code renameError;
+            for (int attempt = 1; attempt <= CATALOG_RENAME_TRIES; ++attempt) {
+                std::filesystem::rename(partPath, path, renameError);  // replaces the old catalog
+                if (!renameError) return true;
+                if (attempt < CATALOG_RENAME_TRIES) std::this_thread::sleep_for(CATALOG_RENAME_RETRY_DELAY);
+            }
+            logger::error("Librarian: cannot replace '{}' - {} (the old catalog stays)",
+                PathText::Utf8(path), renameError.message());
+            std::filesystem::remove(partPath, ignored);
+            return false;
         }
 
         double ConfidenceForSource(const std::string& source)
@@ -287,30 +331,9 @@ namespace Librarian
             std::filesystem::create_directories(DATA_DIR);
             const std::filesystem::path path = CatalogPath();
 
-            // Written beside the catalog and then put in its place: the panel's scan
-            // writes it on a worker thread while the game thread may read it (perk
-            // adapters, Spell Research at a save load, the first spell card), and a
-            // reader must get the old file or the new one, never half of one.
-            std::filesystem::path partPath = path;
-            partPath += ".part";
-            {
-                std::ofstream file(partPath);
-                if (!file.is_open()) {
-                    logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(partPath));
-                    return false;
-                }
-                file << JsonText::Dump(catalog, 2);
-                if (!file.flush()) {
-                    logger::error("Librarian: writing '{}' failed", PathText::Utf8(partPath));
-                    return false;
-                }
-            }
-            std::error_code renameError;
-            std::filesystem::rename(partPath, path, renameError);  // replaces the old catalog
-            if (renameError) {
-                logger::error("Librarian: cannot replace '{}' - {}", PathText::Utf8(path), renameError.message());
-                return false;
-            }
+            // A catalog that could not be written still classifies this scan: the
+            // caller keeps it in memory rather than reading the old file back.
+            if (!WriteCatalogFile(path, JsonText::Dump(catalog, 2))) return true;
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
                 PathText::Utf8(path), stats.spells, stats.tagged, stats.skipped);

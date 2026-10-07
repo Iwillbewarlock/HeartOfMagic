@@ -221,7 +221,8 @@ game the placed references of cells that are not loaded are not in memory:
 - The pass takes a few seconds after the game starts. A full scan from the panel asked for in that time
   waits for it on its own thread, up to 30 seconds (`WaitUntilDone`, UIManagerScanner.cpp; the game goes
   on), then reads the forms on the game thread as always; if the pass is still not done, no spell is marked and the log
-  says so. A tome scan does not wait (it does not use the pass), and neither does Papyrus `RunScanToFile`:
+  says so. A tome scan does not wait for the pass (it does not use it) - but one asked for while a full scan
+  runs, including while that one waits here, starts after it ("Where a scan runs"). Papyrus `RunScanToFile` does not wait either:
   a Papyrus full scan in those seconds carries no `tomeUnreachable` marks.
 - On the author's load order (3,939 plugins, 0.94 GB) it leaves out 46 spells from 11 mods, among them 24
   summons of a daedra creature pack, Wish Magic's eight wishes and Novice Bolt Spells' three shards; the
@@ -376,26 +377,38 @@ against stub headers). The only librarian code that touches forms, `LoadOrderSou
 in the same order, only the dump moved thread (the timestamp is still taken while collecting).
 
 - **One at a time.** `RequestScan` sets `m_scanRunning` (under `m_scanMutex`); a request while a scan runs is
-  kept, the latest of each mode, and `EndScan` starts it when the running one ends, the full scan first.
-  Every way out of a scan (sent, or failed in any step) goes through `EndScan`. Known limit: a game thread
-  task SKSE drops (its task interface missing) would leave the flag set and later scans waiting; the tree
-  build has the same exposure.
+  kept, the latest of each mode, and `EndScan` starts it when the running one ends, the full scan first (a
+  tome scan asked for while a full scan still waits for the tome reach pass waits too). Each scan carries a
+  `ScanTicket` (a `shared_ptr` the steps hand on by move); its destructor calls `EndScan`, so the scan ends
+  however it ended - sent, failed in any step, or a task SKSE dropped (the dropped task's lambda is destroyed
+  with the ticket). `EndScan`, `ReportScanFailure` and `FinishScan` are `noexcept` and catch their own
+  failures; a queued scan that cannot start (`LaunchScan`) clears the flag and is logged. The end runs after
+  `FinishScan` returns, outside its `try`, so trouble starting the next scan never reads "Scan failed" over
+  one already sent.
 - **Failures.** A throw in `CollectScan` or `FinishScan` is reported there; one on the worker is posted back
-  as a game thread task that calls `ReportScanFailure` (`onScanFailed`) and `EndScan`. When no thread can be
-  made, the text work runs on the game thread as it did before.
-- **Save, load or quit during a scan.** The form reads are one task, so a load cannot fall between them; the
-  worker holds only its own text. `FinishScan` after a load applies the adapters to the loaded session as any
-  scan would. Quitting while the worker runs ends the process with it, as with a tree build; the catalog is
+  as a game thread task that calls `ReportScanFailure` (`onScanFailed`). The worker's whole body sits in an
+  outer `catch (...)`: a throw while reporting (say `bad_alloc`) is logged, never let out of the thread
+  function, where it would end the game. When no thread can be made, the text work runs on the game thread
+  as it did before.
+- **Save, load or quit during a scan.** The form reads are one task, so a load cannot fall between them. The
+  worker touches no game state; besides its own text it writes the catalog file and, through
+  `RememberCatalog`, the spell card's catalog elements (`g_cardElements`, under `g_cardMutex`), and with a
+  debug install `spell_scan_output.json` (`WriteScanOutput` takes a lock, shared with Papyrus `RunScan` and
+  the Save button). `FinishScan` after a load applies the adapters to the loaded session as any scan would. Quitting while the worker runs ends the process with it, as with a tree build; the catalog is
   written beside `spell_catalog.json` and renamed over it, so a cut write leaves the old file.
 - **Panel closed during a scan.** The scan finishes; a full scan is still kept in `m_scanText`, and every call
   into the panel goes through `CallView`, which drops it when the view is gone.
 - **The catalog file.** The game thread reads `spell_catalog.json` (perk adapters, Spell Research at a save
   load, the first spell card) while the worker may write it, so `BuildAndWriteCatalog` writes
   `spell_catalog.json.part` and renames it over the catalog: a reader gets the old file or the new one. A
-  reader holding the file open at that moment makes the rename fail; the scan then keeps the old catalog and
-  logs it. `ClassifyScan` takes a lock, so a Papyrus `RunScan` (game thread) and the panel's worker never
-  write two catalogs over each other; the Papyrus call waits for the worker's classification (seconds) in
-  that rare case.
+  reader holding the file open (`ifstream` does not share delete) or an antivirus scan makes the rename fail:
+  it is tried 3 times 25 ms apart (`CATALOG_RENAME_TRIES`, `CATALOG_RENAME_RETRY_DELAY`), then the part file is
+  removed, the old file stays and it is logged - and the scan is still classified with the catalog it built
+  (`BuildAndWriteCatalog` returns true for a built catalog whose write failed), not with the old file read
+  back. `ClassifyScan` takes a lock, so a Papyrus `RunScan` and the panel's worker never write two catalogs
+  over each other. Papyrus `RunScanToFile` runs on the game thread and passes `wait = false`: while the
+  worker classifies it does not wait (that would freeze the game for seconds) but merges the catalog file
+  there is, as a tome scan does, and leaves the card's catalog to the worker.
 - **What still stops the game:** `CollectScan` (0.42 s here) and `FinishScan` (about 1.3 s, mostly the perk
   adapters, whose planner looks up forms as it goes). Next steps are in ToDo S-3.
 

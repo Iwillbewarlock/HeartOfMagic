@@ -248,8 +248,9 @@ namespace Librarian
     // Loads the rules, builds the catalog for one parsed scan dump and writes
     // it. Returns false, leaving the file there alone, when the dump has
     // nothing to classify (no effects) or anything went wrong - a failure here
-    // must never take the scan down with it. On success `catalog` holds what
-    // was written.
+    // must never take the scan down with it. On success `catalog` holds the
+    // new catalog - also when only writing the file failed (logged; the old
+    // file stays), so the scan is classified with what was built.
     bool BuildAndWriteCatalog(const json& scanDump, json& catalog);
 
     // Reads the catalog back. Returns false when it is missing or unreadable.
@@ -297,8 +298,11 @@ namespace Librarian
     // What a caller does with a scan it has just produced: classifies it (or,
     // for a scan without effects, reads the catalog already there) and merges
     // the catalog's elements into scanJson in place. On any failure scanJson is
-    // left exactly as it was.
-    void ClassifyScan(std::string& scanJson);
+    // left exactly as it was. One classification at a time: with wait false
+    // (a caller on the game thread) and another one running, this scan builds
+    // no catalog and takes the one there is, as a tome scan does, instead of
+    // stopping the game until the other is done.
+    void ClassifyScan(std::string& scanJson, bool wait = true);
 
     // The spell card builds its chips when a card opens, long after the scan,
     // so the catalog's elements are kept in memory for it: ClassifyScan stores
