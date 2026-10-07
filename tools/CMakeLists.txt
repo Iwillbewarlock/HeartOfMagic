@@ -142,6 +142,7 @@ set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsRules.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsClassTier.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsPool.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsSlots.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
