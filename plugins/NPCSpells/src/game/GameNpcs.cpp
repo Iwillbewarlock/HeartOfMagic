@@ -18,6 +18,7 @@ namespace
     constexpr std::size_t kMaxTemplateDepth = 8;  // a longer chain is malformed data; the walk stops and ProviderIndex reports it unresolvable
     constexpr std::string_view kNoSourceFile = "no source file";
     constexpr std::string_view kNoRace = "no race";
+    constexpr std::string_view kDeletedOrIgnored = "deleted or ignored record";
 
     static_assert(sizeof(RE::CLASS_DATA::SkillWeights) == std::tuple_size_v<decltype(NpcSpells::ClassWeights::w)>);
     static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byGroup)> == NpcSpells::kGroups.size());
@@ -46,7 +47,10 @@ namespace
             if (auto* form = NpcSpellsGame::LookupLocalForm(m_lookup, ref.pluginLower, ref.local)) {
                 return form->GetFormID();
             }
-            logger::warn("NPCSpells: rules: <{:06X}:{}> not found in this load order, ignored", ref.local, ref.pluginLower);
+            // One warning per distinct ref; every dropped occurrence is counted
+            if (m_warned.insert(std::format("{:06X}:{}", ref.local, ref.pluginLower)).second) {
+                logger::warn("NPCSpells: rules: <{:06X}:{}> not found in this load order, ignored", ref.local, ref.pluginLower);
+            }
             ++m_unresolved;
             return std::nullopt;
         }
@@ -62,6 +66,7 @@ namespace
 
     private:
         NpcSpellsGame::PluginLookup m_lookup;
+        std::unordered_set<std::string> m_warned;
         std::size_t& m_unresolved;
     };
 
@@ -179,6 +184,10 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
             continue;
         }
         ++stats.scanned;
+        if (npc->IsDeleted() || npc->IsIgnored()) {  // RE/T/TESForm.h:331, :336
+            ++stats.skipped[std::string(kDeletedOrIgnored)];
+            continue;
+        }
         const auto* file = npc->GetFile(0);  // the plugin that defines the record
         if (!file) {
             ++stats.skipped[std::string(kNoSourceFile)];

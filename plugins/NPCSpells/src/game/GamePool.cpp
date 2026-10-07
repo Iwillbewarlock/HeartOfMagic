@@ -10,6 +10,8 @@
 namespace
 {
     constexpr std::string_view kHexPrefix = "0x";
+    constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;       // a full plugin's local id: 24 bits
+    constexpr std::uint32_t kMaxLightLocalId = 0xFFF;     // a light plugin's: 12 bits
     constexpr int kHexBase = 16;
 
     struct PidParts
@@ -31,7 +33,7 @@ namespace
         }
         PidParts out{ std::string(pid.substr(0, bar)), 0 };
         const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), out.local, kHexBase);
-        if (hex.empty() || ec != std::errc{} || end != hex.data() + hex.size()) {
+        if (hex.empty() || ec != std::errc{} || end != hex.data() + hex.size() || out.local > kMaxLocalId) {
             return std::nullopt;
         }
         return out;
@@ -68,7 +70,9 @@ RE::TESForm* NpcSpellsGame::LookupLocalForm(PluginLookup& lookup, const std::str
                 }
             }
         });
-    if (!file) {
+    // LookupFormID (src/RE/T/TESDataHandler.cpp:125-141) adds the local id to the file's index bits unmasked:
+    // a local id too wide for the file would land in another plugin's FormID range
+    if (!file || local > (file->IsLight() ? kMaxLightLocalId : kMaxLocalId)) {  // RE/T/TESFile.h:63
         return nullptr;
     }
     // RE/T/TESDataHandler.h:62 with the file's own (raw) name; null for a plugin that is present but not loaded
