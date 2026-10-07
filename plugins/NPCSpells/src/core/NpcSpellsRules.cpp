@@ -54,8 +54,6 @@ bool ParseRulesImpl(const std::string& jsonText, Rules& out, std::string& error)
     nlohmann::json j = nlohmann::json::parse(jsonText, nullptr, false);
     if (j.is_discarded() || !j.is_object()) { error = "rules JSON is not an object"; return false; }
     out = DefaultRules();
-    if (auto t = j.find("tierTarget"); t != j.end())
-        for (std::size_t i = 0; i < kTierCount; ++i) Read(*t, std::string(kTierNames[i]).c_str(), out.tierTarget[i]);
     if (auto l = j.find("ladder"); l != j.end() && l->is_array()) {
         out.ladder.clear();
         for (const auto& rung : *l) {

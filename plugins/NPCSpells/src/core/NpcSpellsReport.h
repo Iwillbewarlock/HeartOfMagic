@@ -12,7 +12,7 @@ namespace NpcSpells {
     // Everything one run knows, rendered as the developer report (UTF-8 text; persistent ids are allowed here, never in player text)
     struct ReportData {
         std::string version, generatedUtc; bool rulesFromDefaults = false; std::string rulesError; std::string stopReason;
-        PoolStats pool; BuildStats build; std::size_t eslRecords = 0, eslMissing = 0, eslWrongType = 0, listsSkippedNoRecord = 0;
+        PoolStats pool; BuildStats build; std::size_t eslRecords = 0, eslMissing = 0, eslWrongType = 0, listsSkippedNoRecord = 0, listsSkippedPrefilled = 0;   // prefilled: the record already held entries (left as it was)
         std::vector<std::tuple<std::string, std::size_t, std::uint8_t>> listSizes;   // editorId, entries, flags
         std::size_t npcsScanned = 0, npcsEligible = 0, npcsAttached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0, unresolvedRefs = 0;
         std::vector<std::pair<std::string, std::size_t>> skipped;                     // reason, count (copied from NpcStats::skipped)

@@ -22,8 +22,10 @@ std::string RenderReport(const ReportData& d)
         d.pool.treeNodes, d.pool.notInCatalog, d.pool.noSchoolOrTier, d.pool.excludedTag, d.pool.excludedList, d.pool.excludedDistr, d.pool.unresolved, d.pool.schoolMismatch, d.pool.kept);
 
     Section(out, "Lists");
-    out += std::format("lists built {}, empty slots {}, dropped over capacity {}\nESL records {}, missing {}, wrong type {}, lists skipped for a missing record {}\nper school (alteration, conjuration, destruction, illusion, restoration): {}/{}/{}/{}/{}\n",
-        d.build.lists, d.build.emptySlots, d.build.droppedOverCapacity, d.eslRecords, d.eslMissing, d.eslWrongType, d.listsSkippedNoRecord,
+    out += std::format("lists built {}, empty slots {}, dropped over capacity {}, variant lists topped up from All {}\n"
+                       "ESL records {}, missing {}, wrong type {}, lists skipped for a missing record {}, skippedPrefilled {} (record already had entries, left as it was)\n"
+                       "per school (alteration, conjuration, destruction, illusion, restoration): {}/{}/{}/{}/{}\n",
+        d.build.lists, d.build.emptySlots, d.build.droppedOverCapacity, d.build.variantsToppedUp, d.eslRecords, d.eslMissing, d.eslWrongType, d.listsSkippedNoRecord, d.listsSkippedPrefilled,
         d.build.perSchool[0], d.build.perSchool[1], d.build.perSchool[2], d.build.perSchool[3], d.build.perSchool[4]);
     for (const auto& [id, entries, flags] : d.listSizes) out += std::format("{}  {}  flag {}\n", id, entries, flags);
 

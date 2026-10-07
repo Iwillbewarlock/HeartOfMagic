@@ -91,7 +91,41 @@ int RunNpcSelfTest()
     Check(ShareNear(ConjVariantShare(plainConjurer, rules, all, Variant::NoUndeadAll, 50000, kShareNpcs), 0.75), "conjurer, no group: NoUndeadAll ~75% of conjuration");
     Check(ShareNear(ConjVariantShare(plainConjurer, rules, all, Variant::All, 50000, kShareNpcs), 0.25), "conjurer, no group: All ~25% of conjuration");
 
-    // Expected counts: 20,000 mage NPCs; rung attach frequency equals chance; per-tier expectation equals tierTarget
+    { const auto d = DecideNpc(thalmorNecro, rules, all); Check(d.undead == UndeadPolicy::NoUndead, "Thalmor necromancer class reports undead policy NoUndead (the group's never undead rules)"); }
+
+    // Fallback chain when a variant list is missing (AttachRung): Prefer/NecroPrefer -> All; a NoUndead NPC's Prefer -> NoUndeadAll, never All
+    auto without = [](std::initializer_list<Variant> gone) { ListIndex li = AllPresent();
+        for (std::size_t s = 0; s < SlotTable().size(); ++s) for (Variant v : gone) if (SlotTable()[s].key.variant == v && !SlotTable()[s].key.nonMage) li.present[s] = { false, false, false };
+        return li; };
+    struct Tally { std::size_t schoolHits = 0, wrongVariant = 0, withoutList = 0; };
+    auto tally = [&](NpcFacts n, const ListIndex& li, School school, std::initializer_list<Variant> allowed, std::uint32_t firstId) { Tally t;
+        for (int i = 0; i < 200; ++i) { n.localId = firstId + i; const auto d = DecideNpc(n, rules, li); t.withoutList += d.slotsWithoutList;
+            for (const auto& at : d.lists) { const auto& k = SlotTable()[at.slotIndex].key; if (k.school != school || k.nonMage) continue; ++t.schoolHits;
+                if (std::find(allowed.begin(), allowed.end(), k.variant) == allowed.end()) ++t.wrongVariant; } }
+        return t; };
+    const ListIndex noPrefer = without({ Variant::Prefer }), noNecro = without({ Variant::NecroPrefer }), noUndeadAll = without({ Variant::NoUndeadAll });
+    const ListIndex noPreferNoUndeadAll = without({ Variant::Prefer, Variant::NoUndeadAll });
+    NpcFacts forswornMage = Npc(18, Elemental()); forswornMage.groupsMatched = { 1 };
+    { const auto t = tally(forswornMage, noPrefer, School::Destruction, { Variant::All }, 60000);
+      Check(t.schoolHits > 0 && t.wrongVariant == 0 && t.withoutList == 0, "Prefer missing -> All (Forsworn destruction)"); }
+    for (std::uint8_t g : { std::uint8_t{ 4 }, std::uint8_t{ 5 } }) { NpcFacts n = Npc(19, Mage()); n.groupsMatched = { g };
+      const auto dest = tally(n, noPrefer, School::Destruction, { Variant::All }, 61000), conj = tally(n, noPrefer, School::Conjuration, { Variant::All }, 61000);
+      Check(dest.schoolHits > 0 && conj.schoolHits > 0 && dest.wrongVariant == 0 && conj.wrongVariant == 0 && dest.withoutList == 0,
+            std::format("{} Prefer missing -> All (destruction and conjuration)", kGroups[g].name).c_str()); }
+    { const auto t = tally(vampire, noNecro, School::Conjuration, { Variant::All }, 62000);
+      Check(t.schoolHits > 0 && t.wrongVariant == 0 && t.withoutList == 0, "NecroPrefer missing -> All (Vampire)"); }
+    { const auto t = tally(necroNoGroup, noNecro, School::Conjuration, { Variant::All }, 63000);
+      Check(t.schoolHits > 0 && t.wrongVariant == 0 && t.withoutList == 0, "NecroPrefer missing -> All (necromancer class, no group)"); }
+    { const auto t = tally(plainConjurer, noUndeadAll, School::Conjuration, { Variant::All }, 64000);
+      Check(t.schoolHits > 0 && t.wrongVariant == 0 && t.withoutList == 0, "conjurer, no group: NoUndeadAll missing -> All"); }
+    { const auto t = tally(forswornMage, noPrefer, School::Conjuration, { Variant::NoUndeadAll }, 65000);
+      Check(t.schoolHits > 0 && t.wrongVariant == 0 && t.withoutList == 0, "NoUndead Forsworn: Prefer missing -> NoUndeadAll, never All"); }
+    { const auto t = tally(forswornMage, noPreferNoUndeadAll, School::Conjuration, {}, 66000);
+      Check(t.schoolHits == 0 && t.withoutList > 0, "NoUndead Forsworn: Prefer and NoUndeadAll missing -> no conjuration list (All is never used), counted"); }
+    { const auto t = tally(Npc(20, Elemental()), noUndeadAll, School::Conjuration, {}, 67000);
+      Check(t.schoolHits == 0 && t.withoutList > 0, "NoUndead, no group: NoUndeadAll missing -> no conjuration list, counted"); }
+
+    // Expected counts: 20,000 mage NPCs; rung attach frequency equals chance; per-tier expectation equals the ladder sum
     std::array<double, kRungCount> rungHits{}; std::size_t preferHits = 0, preferTotal = 0; const int kNpcs = 20000;
     std::size_t bothR1R2 = 0;   // rungs 1 and 2 share a chance; their dice must be independent, not one coin
     for (int i = 0; i < kNpcs; ++i) { NpcFacts m = Npc(100000 + i, Mage()); m.groupsMatched = { 4 }; const auto d = DecideNpc(m, rules, all);
@@ -103,8 +137,9 @@ int RunNpcSelfTest()
     Check(std::abs(double(bothR1R2) / kNpcs - rules.ladder[1].chance * rules.ladder[2].chance) < 0.01, "rungs 1 and 2 attach independently (both ~0.0625, not 0.25)");
     Check(std::abs(double(preferHits) / preferTotal - 0.75) < 0.02, "Prefer variant chosen ~75% of the time");
     std::array<double, kTierCount> expectedPerTier{}; for (std::size_t r = 0; r < kRungCount; ++r) for (std::size_t t = static_cast<std::size_t>(rules.ladder[r].startTier); t < kTierCount; ++t) expectedPerTier[t] += rungHits[r] / kNpcs;
-    bool targets = true; for (std::size_t t = 0; t < kTierCount; ++t) targets = targets && std::abs(expectedPerTier[t] - rules.tierTarget[t]) < 0.05;
-    Check(targets, "expected spells per tier match tierTarget (1.0 1.25 1.5 2.0 2.5) within 0.05");
+    std::array<double, kTierCount> ladderPerTier{}; for (const auto& rung : rules.ladder) for (std::size_t t = static_cast<std::size_t>(rung.startTier); t < kTierCount; ++t) ladderPerTier[t] += rung.chance;
+    bool targets = true; for (std::size_t t = 0; t < kTierCount; ++t) targets = targets && std::abs(expectedPerTier[t] - ladderPerTier[t]) < 0.05;
+    Check(targets, "expected spells per tier match the ladder (sum of chances of the rungs reaching the tier) within 0.05");
     // Hybrid: half, weighted schools only
     double hybridDest = 0; std::size_t hybridConj = 0;
     for (int i = 0; i < kNpcs; ++i) { const auto d = DecideNpc(Npc(200000 + i, Spellsword()), rules, all); hybridDest += CountSchool(d, School::Destruction); hybridConj += CountSchool(d, School::Conjuration); }

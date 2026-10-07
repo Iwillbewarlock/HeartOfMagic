@@ -123,5 +123,25 @@ int RunBuildSelfTest()
       const auto is = *FindSlot({ School::Illusion, kGroupNone, Variant::All, 0, false });
       std::size_t n = 0, withMaster = 0; for (const auto& l : tl) if (l.slotIndex == is) { ++n; for (const auto& e : l.entries) if (p[e.spellIndex].tier == Tier::Master) ++withMaster; }
       Check(n == 3 && withMaster == 3, "a 1-spell tier is copied into every chunk of a 3-chunk slot"); }
+    // A variant list missing a tier its All list holds takes that tier's All spells (no rung starves an NPC the All list would serve)
+    { auto spell = [](const char* id, School school, Tier tier, std::vector<std::string> el, std::vector<std::string> te, bool undeadRule) {
+          SpellFacts f; f.persistentId = id; f.school = school; f.tier = tier; f.elements = std::move(el); f.techniques = std::move(te); f.undeadRule = undeadRule; return f; };
+      std::vector<SpellFacts> p{ spell("E.esp|0x000800", School::Destruction, Tier::Novice, { "frost" }, {}, false),       // no Thalmor prefer tag
+                                 spell("E.esp|0x000801", School::Destruction, Tier::Adept, { "shock" }, {}, false),       // Thalmor prefer
+                                 spell("E.esp|0x000802", School::Conjuration, Tier::Novice, { "daedra" }, { "summoning" }, false),
+                                 spell("E.esp|0x000803", School::Conjuration, Tier::Adept, { "undead" }, { "summoning" }, true) };
+      BuildStats ts; const auto tl = BuildLists(p, rules, ts);
+      auto ids = [&](const SlotKey& k) { std::vector<std::string> v; const auto s = FindSlot(k); for (const auto& l : tl) if (s && l.slotIndex == *s) for (const auto& e : l.entries) v.push_back(p[e.spellIndex].persistentId); return v; };
+      auto has = [](const std::vector<std::string>& v, const char* id) { return std::find(v.begin(), v.end(), id) != v.end(); };
+      const auto thalmorPrefer = ids({ School::Destruction, 4, Variant::Prefer, 0, false });
+      Check(has(thalmorPrefer, "E.esp|0x000800") && has(thalmorPrefer, "E.esp|0x000801") && thalmorPrefer.size() == 2,
+            "Thalmor Prefer R1 with no novice prefer spell gets the novice All spell, keeps its adept prefer spell");
+      const auto necro = ids({ School::Conjuration, kGroupNone, Variant::NecroPrefer, 0, false });
+      Check(has(necro, "E.esp|0x000802") && has(necro, "E.esp|0x000803"), "NecroPrefer R1 lacking a novice undead-rule spell gets the novice All spell");
+      const auto noUndead = ids({ School::Conjuration, kGroupNone, Variant::NoUndeadAll, 0, false });
+      Check(noUndead.size() == 1 && has(noUndead, "E.esp|0x000802"), "NoUndeadAll is never topped up with an undead-rule spell (its adept tier stays empty)");
+      const auto forsworn = ids({ School::Conjuration, 1, Variant::Prefer, 0, false });
+      Check(forsworn.size() == 1 && has(forsworn, "E.esp|0x000802"), "a Mixed group's conjuration Prefer is topped up without undead-rule spells");
+      Check(ts.variantsToppedUp > 0 && ts.droppedOverCapacity == 0, "topped-up variant lists are counted"); }
     return NpcSpellsCheck::g_failed;
 }

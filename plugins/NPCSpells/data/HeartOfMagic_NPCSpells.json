@@ -1,5 +1,4 @@
 {
-  "tierTarget": { "novice": 1.0, "apprentice": 1.25, "adept": 1.5, "expert": 2.0, "master": 2.5 },
   "ladder": [
     { "startTier": "novice", "below": false, "chance": 1.0 },
     { "startTier": "apprentice", "below": true, "chance": 0.25 },

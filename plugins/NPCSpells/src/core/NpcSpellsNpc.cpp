@@ -1,7 +1,8 @@
 #include "core/NpcSpellsNpc.h"
 #include <format>
-// Decision rules: spec sections 5.1-5.2 and 5.4. Every random choice is a Dice roll keyed by
-// (plugin, local id, salt), so one NPC gets the same lists on every load and on every machine.
+// Decision rules: spec sections 5.1-5.2 and 5.4. Every random choice is a Dice roll keyed by (plugin, local id, salt),
+// so one NPC gets the same lists on every load. Deterministic per machine: the plugin name is hashed as the game gives
+// its bytes, which follow the system code page for a non-ASCII name (an ASCII name hashes the same everywhere).
 namespace NpcSpells {
 namespace {
     constexpr std::uint64_t kFnvOffset = 14695981039346656037ull, kFnvPrime = 1099511628211ull;
@@ -88,7 +89,9 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
         if (g != kGroupNone && g < kGroups.size() && (d.group == kGroupNone || g < d.group)) d.group = g;
     const auto policy = kGroups[d.group].policy;
     // Redguards are left out of the class-based undead rules (5.1): only a Vampire/Necromancer group makes one a necromancer
-    if (policy == UndeadGroupPolicy::AlwaysNecro || (npc.isNecromancerClass && !npc.isRedguard)) d.undead = UndeadPolicy::Necromancer;
+    // A never-undead group (Thalmor, Vigilant) takes no undead-rule spell whatever the class: report it as NoUndead
+    if (policy == UndeadGroupPolicy::NeverUndead) d.undead = UndeadPolicy::NoUndead;
+    else if (policy == UndeadGroupPolicy::AlwaysNecro || (npc.isNecromancerClass && !npc.isRedguard)) d.undead = UndeadPolicy::Necromancer;
     else if (npc.isUndeadException || (npc.hasClass && IsConjurationClass(npc.weights) && !npc.isRedguard)) d.undead = UndeadPolicy::Conjurer;
     std::array<bool, kSchoolCount> schools{};
     if (d.tier == ClassTier::Mage) schools.fill(true);

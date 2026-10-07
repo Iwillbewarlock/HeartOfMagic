@@ -17,23 +17,35 @@ namespace {
         return kTierFloor[std::max(idx + 1, static_cast<std::size_t>(below->startTier))];
     }
 }
+namespace {
+    // Membership before the variant: school, the group's never tags, the rung's tiers (a non-mage slot: novice nonMageTags)
+    bool InBase(const SpellFacts& s, const SlotKey& k, const Rules& rules)
+    {
+        if (s.school != k.school) return false;
+        const GroupRule* g = GroupFor(rules, k.group);
+        if (g && s.HasAnyTag(g->never)) return false;
+        if (k.nonMage) return s.tier == Tier::Novice && s.HasAnyTag(rules.nonMageTags);
+        const Rung& rung = rules.ladder[k.rung];
+        if (rung.below) return s.tier != Tier::Master;   // a below list gives the tiers under the NPC's own, so it also holds the lower ones (no level exists past master)
+        return s.tier >= rung.startTier;
+    }
+    // What the variant asks for: the group's prefer tags, or undead-rule spells only
+    bool VariantRequires(const SpellFacts& s, const SlotKey& k, const Rules& rules)
+    {
+        if (k.variant == Variant::Prefer) { const GroupRule* g = GroupFor(rules, k.group); return g && s.HasAnyTag(g->prefer); }
+        return k.variant != Variant::NecroPrefer || s.undeadRule;
+    }
+    // What the variant never holds, also when it is topped up from All: undead-rule spells in NoUndeadAll and in a Mixed
+    // group's conjuration Prefer (a NoUndead Forsworn NPC draws that Prefer list)
+    bool VariantExcludes(const SpellFacts& s, const SlotKey& k)
+    {
+        if (!s.undeadRule) return false;
+        return k.variant == Variant::NoUndeadAll || (k.variant == Variant::Prefer && k.school == School::Conjuration && kGroups[k.group].policy == UndeadGroupPolicy::Mixed);
+    }
+}
 bool InSlot(const SpellFacts& s, const SlotKey& k, const Rules& rules)
 {
-    if (s.school != k.school) return false;
-    const GroupRule* g = GroupFor(rules, k.group);
-    if (g && s.HasAnyTag(g->never)) return false;
-    if (k.nonMage) return s.tier == Tier::Novice && s.HasAnyTag(rules.nonMageTags);
-    const Rung& rung = rules.ladder[k.rung];
-    if (rung.below) { if (s.tier == Tier::Master) return false; }   // a below list gives the tiers under the NPC's own, so it also holds the lower ones (no level exists past master)
-    else if (s.tier < rung.startTier) return false;
-    const bool prefer = g && s.HasAnyTag(g->prefer);
-    switch (k.variant) {
-    case Variant::All: return true;
-    case Variant::Prefer: return prefer && !(k.school == School::Conjuration && kGroups[k.group].policy == UndeadGroupPolicy::Mixed && s.undeadRule);
-    case Variant::NecroPrefer: return s.undeadRule;
-    case Variant::NoUndeadAll: return !s.undeadRule;
-    }
-    return false;
+    return InBase(s, k, rules) && VariantRequires(s, k, rules) && !VariantExcludes(s, k);
 }
 std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rules& rules, BuildStats& stats)
 {
@@ -41,8 +53,18 @@ std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rul
     const auto& table = SlotTable();
     for (std::size_t slot = 0; slot < table.size(); ++slot) {
         const SlotKey& key = table[slot].key;
-        std::array<std::vector<std::uint32_t>, kTierCount> byTier;
-        for (std::uint32_t i = 0; i < pool.size(); ++i) if (InSlot(pool[i], key, rules)) byTier[static_cast<std::size_t>(pool[i].tier)].push_back(i);
+        // spare: the All list's spells of this (school, group, rung) that the variant does not ask for but allows
+        std::array<std::vector<std::uint32_t>, kTierCount> byTier, spare;
+        for (std::uint32_t i = 0; i < pool.size(); ++i) {
+            if (!InBase(pool[i], key, rules) || VariantExcludes(pool[i], key)) continue;
+            (VariantRequires(pool[i], key, rules) ? byTier : spare)[static_cast<std::size_t>(pool[i].tier)].push_back(i);
+        }
+        // A variant list never lacks a tier its All list holds (spec 5.1: more spells at a higher skill for every NPC):
+        // a tier with no preferred spell takes the All spells of that tier. An All list has no spare.
+        bool toppedUp = false;
+        for (std::size_t t = 0; t < kTierCount; ++t)
+            if (byTier[t].empty() && !spare[t].empty()) { byTier[t] = std::move(spare[t]); toppedUp = true; }
+        if (toppedUp) ++stats.variantsToppedUp;
         std::size_t total = 0; for (const auto& v : byTier) total += v.size();
         if (total == 0) { ++stats.emptySlots; continue; }
         // Split only over 255 (§5.4): a small slot stays one list, so a flag-0 list never misses a tier it holds

@@ -1,6 +1,7 @@
 #pragma once
 #include "core/NpcSpellsRules.h"
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace NpcSpells {

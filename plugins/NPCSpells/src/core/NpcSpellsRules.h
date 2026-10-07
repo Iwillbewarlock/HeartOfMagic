@@ -9,7 +9,6 @@ namespace NpcSpells {
     struct Rung { Tier startTier; bool below; double chance; };
     struct GroupRule { std::string name; std::vector<FormRef> factions; std::vector<std::string> prefer; double preferShare = 0.75; std::vector<std::string> never; };
     struct Rules {
-        std::array<double, kTierCount> tierTarget{ 1.0, 1.25, 1.5, 2.0, 2.5 };
         std::vector<Rung> ladder;             // default: see DefaultRules()
         double hybridScale = 0.5;
         double nonMageChance = 0.05;

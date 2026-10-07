@@ -43,14 +43,14 @@ int RunEslSelfTest()
         std::size_t q = rec + 24; bool edid = false, obnd = false, lvld = false, lvlf = false, llct = false;
         while (q < rec + 24 + size) { const std::uint16_t n = u16(q + 4);
             if (tag(q, "EDID")) edid = std::string(reinterpret_cast<const char*>(&bytes[q + 6])) == EditorIdFor(table[count / kMaxChunks].key, static_cast<std::uint8_t>(count % kMaxChunks));
-            if (tag(q, "OBND")) obnd = n == 12; if (tag(q, "LVLD")) lvld = n == 1 && bytes[q + 6] == 0; if (tag(q, "LVLF")) lvlf = n == 1; if (tag(q, "LLCT")) llct = n == 1 && bytes[q + 6] == 0;
+            if (tag(q, "OBND")) obnd = n == 12; if (tag(q, "LVLD")) lvld = n == 1 && bytes[q + 6] == 0; if (tag(q, "LVLF")) lvlf = n == 1 && bytes[q + 6] == 0; if (tag(q, "LLCT")) llct = n == 1 && bytes[q + 6] == 0;
             q += 6 + n; }
         bodies = bodies && edid && obnd && lvld && lvlf && llct;
         rec += 24 + size; ++count;
     }
     Check(count == table.size() * kMaxChunks && count == 921, "921 LVSP records (slots x kMaxChunks)");
     Check(idsOk, "in-file FormIDs are 0x01000800.. in table order, form version 44, uncompressed");
-    Check(bodies, "each record: EDID, OBND(12), LVLD 0, LVLF, LLCT 0");
+    Check(bodies, "each record: EDID, OBND(12), LVLD 0, LVLF 0, LLCT 0");
     std::printf("report\n");
     ReportData rd; rd.version = "1.2.0"; rd.stopReason.clear(); rd.pool.kept = 1400; rd.build.lists = 600; rd.build.emptySlots = 12; rd.build.droppedOverCapacity = 0;
     rd.eslRecords = 921; rd.listSizes = { { "HoMNS_Destruction_None_All_R1_C0", 240, 0 } }; rd.npcsScanned = 26090; rd.npcsAttached = 2; rd.skipped = { { "template spell list", 14389 } };
@@ -68,6 +68,8 @@ int RunEslSelfTest()
           "every NPC row: persistent id, name, reason");
     Check(text.find("Skyrim.esm|0x0D8D62") != std::string::npos && text.find("group Thalmor") != std::string::npos && text.find("hybrid") != std::string::npos &&
           text.find(EditorIdFor(SlotTable()[thalmorSlot].key, 2)) != std::string::npos, "every NPC row: group and attached list EditorIDs");
+    { ReportData pre; pre.listsSkippedPrefilled = 7; pre.build.variantsToppedUp = 31; const std::string t = RenderReport(pre);
+      Check(t.find("skippedPrefilled 7") != std::string::npos && t.find("topped up from All 31") != std::string::npos, "report shows skippedPrefilled and topped-up variant lists"); }
     ReportData stopped; stopped.stopReason = "spell_tree.json not found";
     Check(RenderReport(stopped).find("spell_tree.json not found") != std::string::npos, "a stopped run says why");
     return NpcSpellsCheck::g_failed;

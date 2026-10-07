@@ -16,7 +16,7 @@ namespace {
     }
     bool SameRules(const Rules& a, const Rules& b)
     {
-        if (a.tierTarget != b.tierTarget || a.ladder.size() != b.ladder.size() || a.groups.size() != b.groups.size()) return false;
+        if (a.ladder.size() != b.ladder.size() || a.groups.size() != b.groups.size()) return false;
         for (std::size_t i = 0; i < a.ladder.size(); ++i)
             if (a.ladder[i].startTier != b.ladder[i].startTier || a.ladder[i].below != b.ladder[i].below || std::abs(a.ladder[i].chance - b.ladder[i].chance) > 1e-9) return false;
         for (std::size_t i = 0; i < a.groups.size(); ++i) {
@@ -48,12 +48,14 @@ int RunRulesSelfTest()
 
     const Rules defaults = DefaultRules();
     Check(defaults.ladder.size() == kRungCount, "default ladder has five rungs");
-    double expected[5]{};
+    // The ladder is the only knob for spells per tier: sum of chances over rungs that reach the tier
+    constexpr std::array<double, kTierCount> kLadderExpectation{ 1.0, 1.25, 1.5, 2.0, 2.5 };
+    std::array<double, kTierCount> expected{};
     for (const auto& rung : defaults.ladder)
         for (std::size_t t = static_cast<std::size_t>(rung.startTier); t < kTierCount; ++t) expected[t] += rung.chance;
     bool ladderOk = true;
-    for (std::size_t t = 0; t < kTierCount; ++t) ladderOk = ladderOk && std::abs(expected[t] - defaults.tierTarget[t]) < 1e-9;
-    Check(ladderOk, "ladder expectations equal tierTarget per tier (1.0 1.25 1.5 2.0 2.5)");
+    for (std::size_t t = 0; t < kTierCount; ++t) ladderOk = ladderOk && std::abs(expected[t] - kLadderExpectation[t]) < 1e-9;
+    Check(ladderOk, "default ladder gives 1.0 1.25 1.5 2.0 2.5 spells per school by tier");
     Check(defaults.groups.size() == 5 && defaults.groups[1].name == "Vampire", "five default groups in spec order");
 
     std::ifstream shipped(NPCSPELLS_DATA_DIR "/HeartOfMagic_NPCSpells.json");   // compile definition, absolute path (CWD-independent)
