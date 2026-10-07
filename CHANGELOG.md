@@ -36,6 +36,12 @@
   `spell_scan_output.json` next to the catalog (the file bug reports and the offline tools use), as the
   Papyrus `RunScan` already did. The main download does not write it.
 
+- New optional addon, Heart of Magic - NPC Spells (a separate download: a DLL, a small ESL-flagged plugin and
+  a rules file): at game start it hands the spells of your tree to magic-using NPCs by school and skill,
+  through leveled spell lists, with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and
+  no undead summons for those who should not have them. Nothing is saved in your game, and a report lists who
+  got what. Needs a scan and a built tree; see `plugins/NPCSpells/README.md`.
+
 ### Fixed
 - Escape closes the panel again in game (with a spell selected, the first press drops the selection).
   The panel's page did not always receive the key; the plugin now passes Escape on from the game's input.
@@ -72,6 +78,9 @@
   tree could not offer them (a quest or perk that grants such a spell still does). The plugin reads your
   plugin files once in the background after the game starts to find them (a panel scan in those seconds
   waits for it); a damaged plugin only keeps its own tomes and its masters' in the tree.
+- That tome reach scan now also finds distribution config files whose name or folder is not in the system code
+  page (a Korean or Chinese name could stop the whole config search), and a file entry it cannot read is
+  skipped alone.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the

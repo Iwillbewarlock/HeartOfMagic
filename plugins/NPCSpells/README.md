@@ -62,21 +62,29 @@ ahead of time (at data load) and attaches them to NPC base records.
   exact half.
 - **Variants:** All (every spell of the school), Prefer (the group's `prefer` tags, `never` tags removed), NecroPrefer
   (undead-rule spells only: element `undead` with technique summoning or control), NoUndeadAll (no undead-rule spell).
-  A faction NPC gets Prefer lists with a 3/4 dice and All lists otherwise; the `never` tags apply to both. A Prefer list
-  that has no entry for the NPC's tier gives the next lower tier's bundle.
+  A faction NPC gets Prefer lists with a 3/4 dice and All lists otherwise; the `never` tags apply to both. A variant
+  list (Prefer, NecroPrefer, NoUndeadAll) that has no spell of a tier its All list (same school, group and rung) holds
+  takes the All list's spells of that tier, so no rung gives nothing to an NPC the All list would serve. What the
+  variant never holds stays out: NoUndeadAll, and a Mixed group's conjuration Prefer, get no undead-rule spell from it.
+  The report counts these lists ("variant lists topped up from All").
 - **Dice:** deterministic per NPC and salt: FNV-1a 64 plus the fmix64 finalizer, so the same NPC gets the same lists
-  on every start. The seed is the defining plugin name and the local FormID, not the runtime FormID.
+  on every start. The seed is the defining plugin name and the local FormID, not the runtime FormID. Deterministic per
+  machine: a non-ASCII plugin name is hashed in the bytes the game gives, which follow the system code page, so another
+  machine with another code page can roll differently for that plugin's NPCs (ASCII names roll the same everywhere).
 - **Who gets what:** the NPC's class (from its skill weights) decides: mage (magic weights at least 0.6 of all),
   hybrid (at least 0.3), non-mage. A non-mage gets, with 5 %, a list of novice curing/armor spells. Beast races get
   nothing; other creatures get lists only with a mage class. NPCs that inherit their spell list from a template are
   skipped (the lists go on the record that really uses it); leveled NPCs resolve to their end record. Deleted or
-  ignored NPC records are skipped.
+  ignored NPC records, and character-creation face presets, are skipped.
 - **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
   gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
   school, not a Redguard) in no group gets NoUndeadAll mostly, All otherwise; if its NoUndeadAll list is missing it
   falls back to All. Any other NPC outside the Thalmor and Vigilant groups, in no group (for example a Redguard mage),
-  gets NoUndeadAll only. Thalmor and Vigilant NPCs get the group's Prefer lists plus its All lists; their undead
-  spells are removed by the group's `never: undead` tag, not by a list variant.
+  gets NoUndeadAll only. Such an NPC in a Mixed group (Forsworn) gets the group's conjuration Prefer list (undead-rule
+  spells removed) with the 3/4 dice and NoUndeadAll otherwise, never All; a missing Prefer list falls back to
+  NoUndeadAll, and with both missing that rung gives nothing (counted). Thalmor and Vigilant NPCs get the group's
+  Prefer lists plus its All lists; their undead spells are removed by the group's `never: undead` tag, not by a list
+  variant, and the report shows them as "no undead" whatever their class.
 - **Redguards:** a Redguard whose class is below hybrid (non-mage tier) gets nothing, not even the 5 % list. A hybrid Redguard in the Vampire or
   Necromancer group keeps only its conjuration share (undead allowed through the group); a hybrid Redguard in no such
   group gets nothing. A mage Redguard gets lists, and no undead spells unless the Vampire or Necromancer group allows them.
@@ -89,14 +97,17 @@ ahead of time (at data load) and attaches them to NPC base records.
 
 ## Rules file
 
-`HeartOfMagic_NPCSpells.json` ships these keys, and no others are read: `tierTarget`, `ladder` (exactly 5 rungs, each
-with `startTier`, `below`, `chance`), `hybridScale`, `nonMageChance`, `nonMageTags`, `classTiers`, `conjuration`
+`HeartOfMagic_NPCSpells.json` ships these keys, and no others are read: `ladder` (exactly 5 rungs, each
+with `startTier`, `below`, `chance`; the expected spells per tier follow from it, there is no separate target),
+`hybridScale`, `nonMageChance`, `nonMageTags`, `classTiers`, `conjuration`
 (`necromancerClasses`, `share`), `excludeTags`, `excludeSpells`, `beastRaces`, `groups` (`name`, `factions`, `prefer`,
 `preferShare`, `never`), `undead.exceptNpcs`, `redguard.race`, `keywords` (`npc`, `creature`, `animal`).
 
 - Every record is a FormID written `XXXXXX:Plugin.ext`, mod records too. A bare EditorID is rejected and logged: the
   game gives no EditorID without powerofthree's Tweaks, and mods rename them. A ref the load order does not have
   drops that ref only (warned once in the log); the rest of its group stays. Plugin names are handled as UTF-8.
+- `classTiers` shares are compared in tenths: `mageMinMagicShare` and `hybridMinMagicShare` are rounded to the nearest
+  0.1 (0.64 reads as 0.6), then the class's magic weight sum x 10 is compared with its total weight x that many tenths.
 - `excludeSpells` uses the catalog's exact form `Plugin.esp|0xNNNN` (exact string match).
 - Group names are fixed (Forsworn, Vampire, Necromancer, Thalmor, Vigilant); a group with another name is ignored.
 - A broken file (bad JSON, wrong types, not 5 rungs) falls back to the built-in defaults; the report header says so.
@@ -111,8 +122,10 @@ reason). Sections: header (version, time, rules source); Spells (pool counts: tr
 Lists (lists built, empty slots, dropped over capacity, ESL records found/missing/wrong type, per school, every list
 with its entry count and flag); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
 NPC lists (one row for every NPC that got lists: persistent id `Plugin|0xLocal`, name, group, class tier and undead
-policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are written as the game gives them and may not be
-UTF-8.
+policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are converted to UTF-8 from the system code page.
+The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records that already
+held entries when the addon came to fill them (another plugin's override, or the engine). Those are left as they
+were and get no NPC; the first one is named in the log.
 
 ## Known limits
 
@@ -133,7 +146,7 @@ UTF-8.
 ```powershell
 .\BuildRelease.ps1 -preset Release-2026                  # DLL, npcspells-test, npcspells-esl and the ESL
 .\build\tools\Release\npcspells-test.exe                 # all suites, exit 1 on a failure
-.\build\tools\Release\npcspells-test.exe --tree <spell_tree.json> --catalog <spell_catalog.json>   # statistics on real files
+.\build\tools\Release\npcspells-test.exe --tree <spell_tree.json> --catalog <spell_catalog.json>   # statistics on real files, lowest entry level per variant slot vs its All slot
 .\build\tools\Release\npcspells-esl.exe -o <path>        # write the ESL from the slot table
 .\DeployDev.ps1 -NpcSpellsOnly                           # DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev
 ```
@@ -148,7 +161,11 @@ Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu
 
 1. Open `HeartOfMagic_NPCSpells.log`: expect "ESL records loaded=true found=921 missing=0 wrongType=0", the pool
    line, the list count, the NPC counts and "done in N ms total" (expected well under 500 ms).
-2. Open the report: no `Stopped:` line, dropped over capacity 0.
+   The list line must say `skippedPrefilled=0`. Then confirm with More Informative Console that a `HoMNS_` list
+   really holds entries: after loading a save (step 3), open a bandit mage's base record in MIC, open one of its
+   `HoMNS_` leveled lists (or `help "HoMNS_Destruction_None_All_R1_C0" 4` if the console finds it by EditorID), and
+   the list must show spells. An empty list means the fill did not land.
+2. Open the report: no `Stopped:` line, dropped over capacity 0, `skippedPrefilled 0`.
 3. Load a save. For each NPC below open the console on the actor and, in More Informative Console, the base record's
    Spells: it must list leveled lists named `HoMNS_<School>_<Group>_<Variant>_R<n>_C<n>` from our ESL. The spells they
    resolve to (MIC shows the actor's spells) must be of the NPC's tier in that school or lower (compare with its skills

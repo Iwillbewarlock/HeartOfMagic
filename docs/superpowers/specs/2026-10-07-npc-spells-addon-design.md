@@ -141,6 +141,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 - **LVSP 항목 규칙 (엔진이 요구):** 한 LVSP 에는 한 학파 주문만 넣는다. 학파는 엔진과 같은 `MagicItem::GetAssociatedSkill()`(vtable 0x66, 디스어셈블의 `[rdx+330h]`)로 정한다. 항목은 레벨 오름차순으로 정렬한다. 항목 레벨 = 그 주문 티어의 스킬 하한(견습 0, 수습 25, 숙련 50, 전문가 75, 대가 100).
 - **"스킬이 높을수록 더 많이":** LVSP 하나는 주문 하나를 준다. 그래서 개수만큼 LVSP 를 붙이고, 추가 몫의 LVSP 는 첫 항목을 높은 티어 하한부터 시작하게 만든다. 스킬이 모자라면 그 LVSP 는 아무것도 주지 않는다. 예: 파괴 몫 LVSP 1 은 견습부터, 2 는 숙련부터, 3 은 대가부터.
 - **"절반은 자기 티어, 절반은 아래":** 자기 티어 몫은 기본 동작(가장 높은 묶음), 아래 티어 몫은 "이하 전부" 플래그(`llFlags & 1`)를 켠 LVSP 로 만든다. 이 목록에서는 각 주문의 항목 레벨을 한 티어 위 하한으로 올린다(티어 t 주문은 `max(t+1, 그 칸의 시작 티어)` 의 하한, 대가 주문은 넣지 않음). 엔진이 스킬보다 높은 항목에서 멈추므로, 그 티어의 NPC 는 자기보다 낮은 티어만 뽑는다(2026-10-08 판정). 아래 티어끼리는 주문 수에 비례해 고른다.
+- **변형 목록 채우기 (2026-10-08 최종 리뷰):** 변형 목록(Prefer·NecroPrefer·NoUndeadAll)에 같은 학파·그룹·단의 All 목록이 가진 티어가 없으면, 그 티어의 All 주문을 넣는다. 선호 태그 주문이 얇은 티어에서도 어느 NPC 든 그 단에서 빈손이 되지 않게 하려는 것(§5.1 "스킬이 높을수록 더 많이"). 그룹의 `never` 태그와 변형 자체의 제외는 지킨다: NoUndeadAll 과 혼합 그룹(포스웨어) 소환 Prefer 에는 언데드 규칙 주문이 들어가지 않고, NecroPrefer 는 All 에서 채워도 된다. 비용: 얇은 티어에서는 선호 몫이 줄어든다. 보고서와 `npcspells-test --tree` 가 채운 목록 수를 센다.
 - **세력·사령술사 특화:** 그룹마다 따로 LVSP 를 만든다(예: 사령술사용 소환 LVSP 는 `undead` 주문 비중 3/4). 같은 NPC 에 같은 LVSP 가 겹치면 하나만 붙는다.
 - **매지카:** 거르지 않는다. AI 가 최대 매지카보다 비싼 주문을 전투에서 쓰지 않는다(§9).
 - **결정론:** §3 의 "같은 NPC 는 실행마다 같은 주문" 은 더 이상 지켜지지 않는다. 엔진이 하이 프로세스에 들어올 때마다 무작위로 고른다.
@@ -182,7 +183,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 }
 ```
 
-모든 레코드는 `XXXXXX:Plugin.ext` FormID 로만 적는다. 모드 레코드도 마찬가지이고 EditorID 는 받지 않는다(2026-10-08 사용자 결정). 다른 모드가 EditorID 를 바꾸고(TAKEALOOK 에서 하그레이븐 종족이 `OREO_HagravenRace`), 게임은 powerofthree's Tweaks 없이는 대부분의 폼에서 EditorID 를 빈 문자열로 돌려주기 때문이다. 못 찾은 항목은 로그에 남기고 그 항목만 버린다(§7). 위 표의 `tierSkill`, `ownTierShare`, `conjuration` 의 `necromancerGroups`·`necromancerPrefer`·`conjurerAvoidPrefer`, `undead` 의 `conjurerClasses`·`groups`, `redguard` 의 `mageOnly`·`undeadOnlyVia` 는 고정값이라 배포 파일에 넣지 않는다(README 에 적음). 배포 파일에는 `ladder`, `excludeSpells`, `keywords`(`ActorTypeNPC`·`ActorTypeCreature`·`ActorTypeAnimal` FormID) 가 더 있다. 세력 FormID 는 2026-10-08 houseCARL 로 확인했다(하그레이븐 세력은 포스웨어 그룹에 넣음, 대학·궁정 마법사는 특화 없음이라 목록에 없음). `beastRaces` 두 FormID 도 같은 날 확인.
+모든 레코드는 `XXXXXX:Plugin.ext` FormID 로만 적는다. 모드 레코드도 마찬가지이고 EditorID 는 받지 않는다(2026-10-08 사용자 결정). 다른 모드가 EditorID 를 바꾸고(TAKEALOOK 에서 하그레이븐 종족이 `OREO_HagravenRace`), 게임은 powerofthree's Tweaks 없이는 대부분의 폼에서 EditorID 를 빈 문자열로 돌려주기 때문이다. 못 찾은 항목은 로그에 남기고 그 항목만 버린다(§7). 위 표의 `tierTarget` 은 2026-10-08 최종 리뷰에서 뺐다(사다리가 유일한 손잡이이고, 티어별 기대 개수는 사다리에서 나온다). `tierSkill`, `ownTierShare`, `conjuration` 의 `necromancerGroups`·`necromancerPrefer`·`conjurerAvoidPrefer`, `undead` 의 `conjurerClasses`·`groups`, `redguard` 의 `mageOnly`·`undeadOnlyVia` 는 고정값이라 배포 파일에 넣지 않는다(README 에 적음). 배포 파일에는 `ladder`, `excludeSpells`, `keywords`(`ActorTypeNPC`·`ActorTypeCreature`·`ActorTypeAnimal` FormID) 가 더 있다. 세력 FormID 는 2026-10-08 houseCARL 로 확인했다(하그레이븐 세력은 포스웨어 그룹에 넣음, 대학·궁정 마법사는 특화 없음이라 목록에 없음). `beastRaces` 두 FormID 도 같은 날 확인.
 
 ## 6. 하트 오브 매직 본체 변경
 
@@ -201,7 +202,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 ## 8. 테스트
 
 - **오프라인 검사기 `npcspells-test`** (`tools/`, `BuildRelease.ps1` 이 빌드): 선택 로직(§5.2)을 게임 없이 돌린다. 입력은 트리·카탈로그와, 직업·종족·세력·스킬·매지카를 적은 NPC 목록 JSON(houseCARL 이나 덤프로 만든다). 실패 시 exit 1:
-  - 구간·학파마다 평균 개수가 `tierTarget` 에 맞음(혼합 절반, 비마법사 5%), 수천 번 반복으로 확인
+  - 구간·학파마다 평균 개수가 사다리(`ladder`)의 기대값(그 티어에 닿는 단의 확률 합)에 맞음(혼합 절반, 비마법사 5%), 수천 번 반복으로 확인
   - NPC 스킬 구간보다 높은 티어가 없음
   - (§5.4) 만든 LVSP 마다 한 학파 주문만 있고 항목이 레벨 오름차순이며 항목 레벨이 티어 하한과 같음, 목록당 255개 이하
   - 트리에 없는 주문이 없음
@@ -212,14 +213,15 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 
 **실측 결과**
 
-게임 밖 (2026-10-08, `npcspells-test --tree ... --catalog ...`, TAKEALOOK `overwrite/SKSE/Plugins/SpellLearning/` 의 `spell_tree.json`·`spell_catalog.json`):
+게임 밖 (2026-10-08, 최종 리뷰 수정 뒤 다시 잼, `npcspells-test --tree ... --catalog ...`, TAKEALOOK `overwrite/SKSE/Plugins/SpellLearning/` 의 `spell_tree.json`·`spell_catalog.json`):
 
 | 항목 | 값 |
 |---|---|
 | 트리 노드 | 1,452 |
 | 주문 풀에 남은 주문 | 1,305 (카탈로그에 없음 0, 학파·티어 없음 0, 제외 태그 `cloak`·`trap`·`sense` 147, 제외 목록 0) |
-| 만든 LVSP 목록 | 333 (학파별: 변화 61 · 소환 118 · 파괴 50 · 환영 44 · 회복 60) |
-| 빈 칸 | 18 |
+| 만든 LVSP 목록 | 350 (학파별: 변화 61 · 소환 119 · 파괴 55 · 환영 55 · 회복 60). 변형 목록 채우기(§5.4) 전에는 333 |
+| 빈 칸 | 1 (채우기 전 18) |
+| All 에서 채운 변형 목록 | 37. 변형 칸 145 개 모두 가장 낮은 항목 레벨이 같은 학파·그룹·단의 All 과 같음(더 높은 칸 0). 파괴 Vigilant Prefer 는 선호 태그 주문이 없어 All 과 같은 234 항목 |
 | 용량 초과로 버린 항목 | 0 |
 | 가장 큰 목록 (학파별 항목 수) | 변화 121 · 소환 243 (`HoMNS_Conjuration_*_NecroPrefer_R1_C0`) · 파괴 254 (`HoMNS_Destruction_*_All_R1_C0`, 255 한도 바로 아래) · 환영 108 · 회복 178 |
 | 청크 | 소환 `All` 목록은 3개 청크(항목 약 214 개씩), 소환 `NoUndeadAll` 은 2개 청크 (200 개 안팎씩) |
