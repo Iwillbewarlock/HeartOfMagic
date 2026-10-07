@@ -25,8 +25,8 @@
 - **Edit Mode:** Manual drag-drop and in-tree editing (add/remove nodes, links)
 
 **Game Versions:** one set of DLLs for SE 1.5.97, AE 1.6.x and AE 1.7.x (1.7.99, 1.7.104), built on
-CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All three DLLs
-(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`) use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
+CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All four DLLs
+(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`, `HeartOfMagic_NPCSpells`) use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
 with the default struct compatibility, so their `SKSEPlugin_Version` declares Address Library
 independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndependenceEx` = NoStructUse |
 AddressLibraryV5 (0x3). NoStructUse is right because the plugin reads no struct whose layout moved without
@@ -165,6 +165,10 @@ game the placed references of cells that are not loaded are not in memory:
   this way; every one of them is named by its own mod (a Creation Club pet quest's summon tome, Inigo's,
   spell packs whose scripts put their tomes on vendors), so the loose reading is kept (`tome-reach-test -v`
   lists them).
+- The config scan (`TomeReachConfig.cpp`) is shared with the NPC Spells addon (its `*_DISTR.ini` exclusion). It
+  compares file and folder names as UTF-8 (`u8string`), and a bad entry (an error code or an exception on one
+  path) skips that entry alone instead of stopping the pass, so a load order with non-ANSI file names (Korean ones)
+  no longer loses the whole scan.
 - A tome no record names can still come from an SKSE distribution framework: the worker reads the configs
   under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
@@ -1545,10 +1549,19 @@ HeartOfMagic/
 │   │   ├── CMakeLists.txt
 │   │   └── src/
 │   │       └── Main.cpp           ✅ Inert DontEatSpellTomes.dll replacement
-│   └── BookXP/                    # BookXP addon plugin
+│   ├── BookXP/                    # BookXP addon plugin
 │       ├── CMakeLists.txt
 │       └── src/
 │           └── Main.cpp           ✅ BookMenu watcher + API integration
+│   └── NPCSpells/                 # NPC Spells addon (own DLL, ESL and zip; see its README.md)
+│       ├── CMakeLists.txt
+│       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules)
+│       └── src/
+│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once
+│           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions, report
+│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records, the run
+├── tools/
+│   └── npcspells-*.cpp            ✅ NPC Spells offline harness (npcspells-test: the RE-free core, `--tree`/`--catalog` statistics on real files) and the ESL writer (npcspells-esl)
 ├── Scripts/Source/
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler
@@ -1603,6 +1616,8 @@ MO2/mods/HeartOfMagic_RELEASE/
 │           └── presets/
 └── (ESP if applicable)
 ```
+
+The NPC Spells addon ships as its own archive, `dist/HeartOfMagic-NPCSpells_<VERSION>.zip`: `HeartOfMagic_NPCSpells.esp` (ESL flag) at the root, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, and the licence files. See `plugins/NPCSpells/README.md`.
 
 ---
 

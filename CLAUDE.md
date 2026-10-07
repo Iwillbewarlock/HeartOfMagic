@@ -43,8 +43,11 @@ What are you doing?
 ├─► Working with DEST/ISL compatibility?
 │   └─► docs/DEST-IMPROVEMENTS.md
 │
-└─► Working with BookXP addon?
-    └─► plugins/BookXP/README.md
+├─► Working with BookXP addon?
+│   └─► plugins/BookXP/README.md
+│
+└─► Working with the NPC Spells addon (spells handed to NPCs through leveled lists)?
+    └─► plugins/NPCSpells/README.md (design: docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md)
 ```
 
 ## Critical Rules (MUST Follow)
@@ -441,3 +444,4 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |
+| [plugins/NPCSpells/README.md](plugins/NPCSpells/README.md) | NPC Spells addon: how its leveled lists are made, rules file, report, known limits, in-game check |
