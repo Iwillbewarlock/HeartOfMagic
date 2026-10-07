@@ -6,7 +6,7 @@ Project instructions for Claude Code when working with Heart of Magic.
 
 Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP-based progression system for Skyrim SE/AE. It scans all spells in the player's load order, generates prerequisite trees with a native C++ Classic (tier-first) builder using NLP algorithms (TF-IDF, cosine similarity, fuzzy matching), and tracks learning progress through casting, tome study, and other XP sources.
 
-**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
+**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces four DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), `SL_BookXP.dll` (BookXP addon), and `HeartOfMagic_NPCSpells.dll` (NPC Spells addon, own ESL and zip). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
 
 ## Documentation Decision Tree
 
@@ -305,6 +305,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Public C++ API | `plugins/spelllearning/src/SpellLearningAPI.h` |
 | DEST compatibility shim | `plugins/DummyDEST/` |
 | BookXP addon | `plugins/BookXP/` |
+| NPC Spells addon | `plugins/NPCSpells/` |
 | Shared CMake modules | `plugins/cmake/` |
 | CommonLibSSE-NG | `plugins/external/commonlibsse-ng/` |
 | PrismaUI frontend | `PrismaUI/views/SpellLearning/SpellLearningPanel/` |
