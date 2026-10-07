@@ -44,7 +44,7 @@ NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
 }
 
 NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool,
-    const EslRecords& records, std::size_t& skippedNoRecord)
+    const EslRecords& records, std::size_t& skippedNoRecord, std::size_t& skippedPrefilled)
 {
     NpcSpells::ListIndex index;
     index.present.assign(NpcSpells::SlotTable().size(), {});
@@ -55,9 +55,18 @@ NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::Built
             ++skippedNoRecord;
             continue;
         }
-        // RE/T/TESLeveledList.h:70-73. The shipped records hold no entries (LLCT 0), so resize allocates a fresh
-        // game-heap array (RE/M/MemoryManager.h:368) and frees nothing. numEntries is uint8: BuildLists caps a
-        // list at kMaxEntries (255).
+        // RE/T/TESLeveledList.h:70-73, RE/M/MemoryManager.h:344,357. The shipped records hold no entries (LLCT 0), so
+        // resize allocates a fresh game-heap array and frees nothing. A record that already holds an array or a count
+        // (another plugin's override, or an engine pre-allocation) is left as it was: resizing it would free memory this
+        // addon does not own. numEntries is uint8: BuildLists caps a list at kMaxEntries (255).
+        if (lev->entries.data() != nullptr || lev->numEntries != 0) {
+            if (skippedPrefilled == 0) {
+                logger::warn("NPCSpells: {} already has entries ({}); it and any other such list are left as they are (count in the report)",
+                    NpcSpells::EditorIdFor(NpcSpells::SlotTable()[list.slotIndex].key, list.chunk), lev->numEntries);
+            }
+            ++skippedPrefilled;
+            continue;
+        }
         lev->entries.resize(list.entries.size());
         for (std::size_t i = 0; i < list.entries.size(); ++i) {
             auto& e = lev->entries[i];

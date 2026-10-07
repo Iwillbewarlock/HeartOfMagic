@@ -104,16 +104,16 @@ namespace
         stageStart = Clock::now();
         NpcSpells::BuildStats& bs = rd.build;
         const auto lists = NpcSpells::BuildLists(pool.facts, inputs.rules, bs);
-        const auto index = NpcSpellsGame::FillLists(lists, pool, esl, rd.listsSkippedNoRecord);
+        const auto index = NpcSpellsGame::FillLists(lists, pool, esl, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled);
         for (const auto& l : lists) {
             rd.listSizes.emplace_back(NpcSpells::EditorIdFor(NpcSpells::SlotTable()[l.slotIndex].key, l.chunk), l.entries.size(), l.flags);
         }
         rd.timingsMs.emplace_back("lists", MsSince(stageStart));
         logger::info("NPCSpells: lists built and filled in {:.0f} ms: lists={} emptySlots={} droppedOverCapacity={} "
-                     "skippedNoRecord={} perSchool={}/{}/{}/{}/{}",
-            rd.timingsMs.back().second, bs.lists, bs.emptySlots, bs.droppedOverCapacity, rd.listsSkippedNoRecord,
+                     "variantsToppedUp={} skippedNoRecord={} skippedPrefilled={} perSchool={}/{}/{}/{}/{}",
+            rd.timingsMs.back().second, bs.lists, bs.emptySlots, bs.droppedOverCapacity, bs.variantsToppedUp, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled,
             bs.perSchool[0], bs.perSchool[1], bs.perSchool[2], bs.perSchool[3], bs.perSchool[4]);
-        if (lists.size() == rd.listsSkippedNoRecord) {
+        if (lists.size() == rd.listsSkippedNoRecord + rd.listsSkippedPrefilled) {
             rd.stopReason = "no leveled list was filled; no NPC changed";
             logger::error("NPCSpells: stopped: {}", rd.stopReason);
             return;

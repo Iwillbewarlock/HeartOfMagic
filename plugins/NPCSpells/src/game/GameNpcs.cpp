@@ -2,11 +2,14 @@
 
 #include "core/NpcSpellsSlots.h"
 #include "core/NpcSpellsTemplate.h"
+#include "PluginNames.h"
 #include "tomereach/TomeReachRecords.h"
 
 #include <algorithm>
 #include <cstring>
+#include <format>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -19,6 +22,7 @@ namespace
     constexpr std::string_view kNoSourceFile = "no source file";
     constexpr std::string_view kNoRace = "no race";
     constexpr std::string_view kDeletedOrIgnored = "deleted or ignored record";
+    constexpr std::string_view kFacePreset = "face preset";
 
     static_assert(sizeof(RE::CLASS_DATA::SkillWeights) == std::tuple_size_v<decltype(NpcSpells::ClassWeights::w)>);
     static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byGroup)> == NpcSpells::kGroups.size());
@@ -188,6 +192,10 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
             ++stats.skipped[std::string(kDeletedOrIgnored)];
             continue;
         }
+        if (npc->IsPreset()) {  // character-creation face preset (RE/T/TESActorBaseData.h:105), never placed in the world
+            ++stats.skipped[std::string(kFacePreset)];
+            continue;
+        }
         const auto* file = npc->GetFile(0);  // the plugin that defines the record
         if (!file) {
             ++stats.skipped[std::string(kNoSourceFile)];
@@ -246,7 +254,10 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
         stats.listsAttached += toAdd.size();
         ++stats.byTier[static_cast<std::size_t>(d.tier)];
         ++stats.byGroup[d.group];
-        lines.push_back({ PluginNames::MakePersistentId(file->fileName, f.localId), npc->GetName(), std::move(d) });
+        // The game gives names in the system code page; the report is UTF-8 (src/EncodingUtils.cpp)
+        const char* name = npc->GetName();
+        lines.push_back({ PluginNames::MakePersistentId(file->fileName, f.localId),
+            EncodingUtils::SanitizeToUTF8(std::string(name ? name : ""), PluginNames::kSystemCodePage), std::move(d) });
     }
     return stats;
 }
