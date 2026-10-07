@@ -63,6 +63,7 @@ SPID 가 배분
   | 혼합 | 중간 | `CombatSpellsword` `CombatNightblade` `CombatWitchblade` `CombatMonk` (이름으로 나눈 예, 가중치 미확인) |
   | 비마법사 | 없음 또는 작음 | `CombatWarrior1H/2H` `CombatBarbarian` `CombatRanger` `CombatRogue` `CombatAssassin` `CombatThief` `CombatScout` `CombatNightingale` |
 - **강도: 약하게 (고정).** 마법사는 가중치 있는 학파의 맞는 티어 주문을 평균 1.5개, 혼합은 가중치 있는 학파에서만 평균 0.5~1개, 비마법사는 5% 확률로 쉬운 주문 1개.
+- **생물 (사용자 결정 2026-10-07):** 짐승 종족은 전부 제외한다 — 늑대인간 변신 종족(`WerewolfBeastRace`), 뱀파이어 군주(`DLC1VampireBeastRace`), `ActorTypeAnimal`. 그 밖의 `ActorTypeCreature`(하그레이븐, 드래곤 프리스트, 팔머, 드라우그르, 스프리건 등)는 **마법사 단계 직업일 때만** 마법사 줄을 받는다. 생물에게는 혼합 줄과 비마법사 줄을 주지 않는다. 사람형(`ActorTypeNPC`)은 직업 단계대로.
 - **동료:** 따로 빼지 않는다. 바닐라·모드 동료도 직업 단계대로 받는다 (사용자 결정 2026-10-07).
 - **티어 → 학파 스킬 문턱:** 견습 0, 수습 25, 숙련 50, 전문가 75, 대가 100 (Mysticism 패치와 같은 방식).
 - **비마법사(전사·궁수):** 견습 이하 `curing`·`armor` 주문만.
@@ -120,7 +121,7 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 }
 ```
 
-이름은 EditorID 다. 애드온이 게임 데이터에서 FormID 로 풀고, 못 찾은 이름은 로그에 남기고 그 그룹만 건너뛴다.
+바닐라·DLC 레코드는 `XXXXXX:Plugin.esm` FormID 로 적는다. 다른 모드가 EditorID 를 바꾸기 때문이다(TAKEALOOK 에서 하그레이븐 종족이 `OREO_HagravenRace`). 모드 레코드만 EditorID 를 허용한다. 못 찾은 항목은 로그에 남기고 그 그룹만 건너뛴다.
 
 ## 6. 하트 오브 매직 본체 변경
 
@@ -162,3 +163,4 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 - 산적 마법사 NPC(`EncBandit01~06Magic…`) 직업 = `EncClassBanditWizard` (`039D30:Skyrim.esm`).
 - 탈리온: 레드가드, `TrainerConjurationMaster`. 바닐라 레코드에 주문 없음, 현재 승자(TSOS & MOS 패치)는 폭풍 아트로나크·번개 주문 4개.
 - SkyPatcher 로 주문을 주는 설정: 0줄.
+- 종족 키워드: 늑대인간 변신·뱀파이어 군주·늑대·스프리건·하그레이븐·팔머·드라우그르·드래곤 프리스트 모두 `ActorTypeCreature` (드라우그르·드래곤 프리스트는 `ActorTypeUndead` 도). 하그레이븐 종족 EditorID 는 모드가 `OREO_HagravenRace` 로 바꿈.
