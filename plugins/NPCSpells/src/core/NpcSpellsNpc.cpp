@@ -87,7 +87,8 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
     for (std::uint8_t g : npc.groupsMatched)
         if (g != kGroupNone && g < kGroups.size() && (d.group == kGroupNone || g < d.group)) d.group = g;
     const auto policy = kGroups[d.group].policy;
-    if (policy == UndeadGroupPolicy::AlwaysNecro || npc.isNecromancerClass) d.undead = UndeadPolicy::Necromancer;
+    // Redguards are left out of the class-based undead rules (5.1): only a Vampire/Necromancer group makes one a necromancer
+    if (policy == UndeadGroupPolicy::AlwaysNecro || (npc.isNecromancerClass && !npc.isRedguard)) d.undead = UndeadPolicy::Necromancer;
     else if (npc.isUndeadException || (npc.hasClass && IsConjurationClass(npc.weights) && !npc.isRedguard)) d.undead = UndeadPolicy::Conjurer;
     std::array<bool, kSchoolCount> schools{};
     if (d.tier == ClassTier::Mage) schools.fill(true);
@@ -97,6 +98,7 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
         if (policy != UndeadGroupPolicy::AlwaysNecro || d.tier == ClassTier::NonMage) { d.skipReason = "redguard non-mage"; return d; }
         const auto conj = static_cast<std::size_t>(School::Conjuration);
         const bool keep = schools[conj];
+        if (!keep) { d.skipReason = "redguard non-mage"; return d; }   // no conjuration weight: nothing left to give
         schools.fill(false);
         schools[conj] = keep;
     }

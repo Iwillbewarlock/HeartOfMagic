@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <string_view>
+#include <utility>
 using namespace NpcSpells; using NpcSpellsCheck::Check;
 namespace {
     ListIndex AllPresent() { ListIndex li; li.present.assign(SlotTable().size(), { true, true, true }); return li; }
@@ -16,6 +18,14 @@ namespace {
     NpcFacts Npc(std::uint32_t id, ClassWeights w) { NpcFacts n; n.pluginLower = "test.esp"; n.localId = id; n.hasClass = true; n.weights = w; return n; }
     std::size_t CountSchool(const NpcDecision& d, School s) { std::size_t n = 0; for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && !SlotTable()[a.slotIndex].key.nonMage) ++n; return n; }
     bool AnyVariant(const NpcDecision& d, School s, Variant v) { for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && SlotTable()[a.slotIndex].key.variant == v) return true; return false; }
+    // Conjuration attachments of one variant over many local ids: {variant hits, all conjuration hits}
+    std::pair<std::size_t, std::size_t> ConjVariantShare(NpcFacts n, const Rules& rules, const ListIndex& lists, Variant v, std::uint32_t firstId, int count) {
+        std::size_t hits = 0, total = 0;
+        for (int i = 0; i < count; ++i) { n.localId = firstId + i;
+            for (const auto& a : DecideNpc(n, rules, lists).lists) { const auto& k = SlotTable()[a.slotIndex].key; if (k.school != School::Conjuration || k.nonMage) continue; ++total; hits += k.variant == v ? 1 : 0; } }
+        return { hits, total };
+    }
+    bool ShareNear(std::pair<std::size_t, std::size_t> p, double want) { return p.second > 0 && std::abs(double(p.first) / p.second - want) < 0.02; }
 }
 int RunNpcSelfTest()
 {
@@ -38,10 +48,21 @@ int RunNpcSelfTest()
     Check(DecideNpc(hagraven, rules, all).eligible && DecideNpc(hagraven, rules, all).tier == ClassTier::Mage, "creature with a mage class receives the mage share");
     NpcFacts redWarrior = Npc(5, Warrior()); redWarrior.isRedguard = true;
     Check(!DecideNpc(redWarrior, rules, all).eligible, "Redguard non-mage -> nothing");
-    NpcFacts redMage = Npc(6, Elemental()); redMage.isRedguard = true;
-    { bool noUndead = true; for (int i = 0; i < 200; ++i) { redMage.localId = 1000 + i; const auto d = DecideNpc(redMage, rules, all);
-        noUndead = noUndead && d.eligible && d.undead == UndeadPolicy::NoUndead && !AnyVariant(d, School::Conjuration, Variant::All) && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer); }
-      Check(noUndead, "Redguard mage: conjuration only from NoUndeadAll"); }
+    NpcFacts redMage = Npc(6, Mage()); redMage.isRedguard = true;   // a conjuration class: undead rule 1 skips Redguards
+    { bool noUndead = true, gotNoUndeadAll = false; for (int i = 0; i < 200; ++i) { redMage.localId = 1000 + i; const auto d = DecideNpc(redMage, rules, all);
+        noUndead = noUndead && d.eligible && d.undead == UndeadPolicy::NoUndead && !AnyVariant(d, School::Conjuration, Variant::All) && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer);
+        gotNoUndeadAll = gotNoUndeadAll || AnyVariant(d, School::Conjuration, Variant::NoUndeadAll); }
+      Check(noUndead && gotNoUndeadAll, "Redguard conjuration-class mage: conjuration only from NoUndeadAll"); }
+    NpcFacts plainConjurer = Npc(13, Mage());
+    Check(DecideNpc(plainConjurer, rules, all).undead == UndeadPolicy::Conjurer, "non-Redguard conjuration-class mage is a conjurer");
+    NpcFacts redNecroClass = Npc(14, Mage()); redNecroClass.isRedguard = true; redNecroClass.isNecromancerClass = true;
+    { bool noUndead = true, gotNoUndeadAll = false; for (int i = 0; i < 200; ++i) { redNecroClass.localId = 5000 + i; const auto d = DecideNpc(redNecroClass, rules, all);
+        noUndead = noUndead && d.undead == UndeadPolicy::NoUndead && !AnyVariant(d, School::Conjuration, Variant::All) && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer);
+        gotNoUndeadAll = gotNoUndeadAll || AnyVariant(d, School::Conjuration, Variant::NoUndeadAll); }
+      Check(noUndead && gotNoUndeadAll, "Redguard CombatMageNecro outside Vampire/Necromancer: NoUndead, conjuration only from NoUndeadAll"); }
+    NpcFacts redSpellswordVampire = Npc(15, Spellsword()); redSpellswordVampire.isRedguard = true; redSpellswordVampire.groupsMatched = { 2 };
+    { const auto d = DecideNpc(redSpellswordVampire, rules, all);
+      Check(!d.eligible && d.lists.empty() && d.skipReason && std::string_view(d.skipReason) == "redguard non-mage", "Redguard vampire hybrid without conjuration weight: skipped as redguard non-mage"); }
     NpcFacts falion = Npc(7, Mage()); falion.isRedguard = true; falion.isUndeadException = true;
     Check(DecideNpc(falion, rules, all).undead == UndeadPolicy::Conjurer, "Falion is a conjurer despite being Redguard");
     NpcFacts redVampire = Npc(8, BattleConjurer()); redVampire.isRedguard = true; redVampire.groupsMatched = { 2 };
@@ -58,8 +79,17 @@ int RunNpcSelfTest()
     NpcFacts necroClass = Npc(10, Elemental()); necroClass.isNecromancerClass = true;
     Check(DecideNpc(necroClass, rules, all).undead == UndeadPolicy::Necromancer, "CombatMageNecro is a necromancer without a faction");
     NpcFacts thalmorNecro = Npc(11, Mage()); thalmorNecro.isNecromancerClass = true; thalmorNecro.groupsMatched = { 4 };
-    { bool ok = true; for (int i = 0; i < 100; ++i) { thalmorNecro.localId = 2000 + i; const auto d = DecideNpc(thalmorNecro, rules, all); ok = ok && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer) && !AnyVariant(d, School::Conjuration, Variant::NoUndeadAll); }
-      Check(ok, "Thalmor group: never undead overrides the necromancer class"); }
+    // NecroPrefer/NoUndeadAll slots do not exist for NeverUndead groups, so check the split that does: Prefer ~75%
+    const int kShareNpcs = 5000;
+    Check(ShareNear(ConjVariantShare(thalmorNecro, rules, all, Variant::Prefer, 20000, kShareNpcs), 0.75), "Thalmor group: necromancer class gets Prefer ~75% of conjuration (never undead overrides the class)");
+    NpcFacts vampire = Npc(16, Mage()); vampire.groupsMatched = { 2 };
+    Check(ShareNear(ConjVariantShare(vampire, rules, all, Variant::NecroPrefer, 30000, kShareNpcs), 0.75), "Vampire: NecroPrefer ~75% of conjuration");
+    Check(ShareNear(ConjVariantShare(vampire, rules, all, Variant::All, 30000, kShareNpcs), 0.25), "Vampire: All ~25% of conjuration");
+    NpcFacts necroNoGroup = Npc(17, Elemental()); necroNoGroup.isNecromancerClass = true;
+    Check(ShareNear(ConjVariantShare(necroNoGroup, rules, all, Variant::NecroPrefer, 40000, kShareNpcs), 0.75), "necromancer class, no group: NecroPrefer ~75% of conjuration");
+    Check(ShareNear(ConjVariantShare(necroNoGroup, rules, all, Variant::All, 40000, kShareNpcs), 0.25), "necromancer class, no group: All ~25% of conjuration");
+    Check(ShareNear(ConjVariantShare(plainConjurer, rules, all, Variant::NoUndeadAll, 50000, kShareNpcs), 0.75), "conjurer, no group: NoUndeadAll ~75% of conjuration");
+    Check(ShareNear(ConjVariantShare(plainConjurer, rules, all, Variant::All, 50000, kShareNpcs), 0.25), "conjurer, no group: All ~25% of conjuration");
 
     // Expected counts: 20,000 mage NPCs; rung attach frequency equals chance; per-tier expectation equals tierTarget
     std::array<double, kRungCount> rungHits{}; std::size_t preferHits = 0, preferTotal = 0; const int kNpcs = 20000;
