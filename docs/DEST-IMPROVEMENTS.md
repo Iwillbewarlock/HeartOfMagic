@@ -268,6 +268,7 @@ system:
 | Already-known detection | — | Yes (notification + skip) |
 | Vanilla mode toggle | — | Yes (instant learn fallback) |
 | Voice slot spells (mods' script and animation spells) | — | Vanilla handling: learned at once, no ISL study, not in the tree (2026-09-30) |
+| Powers, lesser powers and abilities taught by a tome | — | Vanilla handling: learned at once, no ISL study, not in the tree (2026-10-07) |
 | Container-aware reading | Yes | Yes (same `Menu_mc` check) |
 | Settings at runtime | — | Yes (from UI) |
 

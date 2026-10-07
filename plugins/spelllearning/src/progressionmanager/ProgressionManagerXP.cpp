@@ -314,7 +314,7 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         if (oldProgress < unlockThreshold && newProgress >= unlockThreshold) {
             // Grant the spell early (nerfed) - not when the player knows a copy of it (CanUnlock)
             auto* spell = PlayerKnowsCopyOf(targetSpellId) ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
-            if (spell) {
+            if (SpellEffectivenessHook::CanLearnEarly(spell)) {
                 SpellEffectivenessHook::GrantEarlySpell(spell);
                 logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",
                     targetSpellId, newProgress * 100.0f);

@@ -1,6 +1,16 @@
 # Changelog
 
-## Heart of Magic Librarian 1.3.0 (unreleased)
+## Heart of Magic Librarian 1.4.0 (unreleased)
+
+### Fixed
+
+- **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's
+  teleport power, for one, was learned at 20% and did not work). Such spells are never in the tree, so their
+  tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell
+  Learning patch. A save that already holds a power learned weakened gets it back at full strength with its
+  own name when it loads.
+
+## Heart of Magic Librarian 1.3.0
 
 After updating: open the panel, **Scan**, and **build the tree again**. With Spell Research, press its
 Import Spells once.
