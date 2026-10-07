@@ -110,6 +110,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 
 ### 5.2 선택 로직 (NPC 하나마다)
 
+0. **템플릿에서 주문 목록을 물려받는 NPC(`TemplateFlags` 에 `SpellList`)는 건너뛴다.** 게임은 그 NPC 자기 목록을 읽지 않고 템플릿 쪽 목록을 쓴다(CK·엔진 동작, 코드로는 미확인). 주문은 **자기 목록을 실제로 쓰는 레코드**(템플릿 사슬의 끝)에만 더한다. 레벨드 NPC 는 레벨드 목록이 고른 끝 레코드의 주문을 그대로 쓴다. TAKEALOOK 에서 26,090명 중 14,389명(55%)이 건너뛰는 쪽이다. 예: `LvlBanditWizardCommonerMAggro1024` → 템플릿 `OREO_LCharBanditWizardCommonerMMagesOnly`(레벨드 목록) → `EncBandit0xMagic…` 의 목록을 씀.
 1. 짐승 종족이면 끝. 생물이면 마법사 단계 직업일 때만 계속.
 2. 직업 단계, 종족, 세력(특화 그룹), 학파 스킬 5개, 매지카를 읽는다.
 3. 레드가드·언데드 규칙으로 쓸 수 있는 태그를 정한다.
@@ -171,7 +172,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 
 ## 9. 확인할 것 (구현 전)
 
-- **템플릿 NPC:** `Use Spell List` 템플릿 플래그가 켜진 NPC 는 자기 주문 목록이 무시된다. 그때는 주문 목록을 실제로 쓰는 레코드(템플릿을 따라간 끝)에 넣어야 하는지, 같은 템플릿을 쓰는 NPC 가 모두 같은 주문을 받게 되는지. 레벨드 NPC(`LvlBanditWizard…` 의 자기 직업 칸은 `EncClassDremoraMelee`)의 직업도 템플릿 끝에서 읽는다.
+- **직업·스킬을 물려받는 NPC:** 레벨드 NPC(`LvlBanditWizard…` 의 자기 직업 칸은 `EncClassDremoraMelee`)는 직업·스탯도 템플릿에서 물려받는다. 판정에 쓰는 값은 그 NPC 가 실제로 쓰는 레코드에서 읽는지 헤더로 확인한다(§5.2 0단계는 끝 레코드만 다루므로 영향이 작다).
 - **매지카와 비용 공식:** 자동 계산 스탯 NPC 의 매지카(종족 기본값, 레벨, 직업), 고정 스탯 NPC 의 값, 학파 스킬에 따른 시전 비용 감소. CommonLibSSE-NG 헤더에서 필드와 함수를 확인한다.
 - **적용 시점과 저장:** kDataLoaded 에 `TESNPC` 주문 목록(`TESSpellList`)에 넣는 방법, 그것이 세이브에 쓰이지 않는지, 이미 로드된 액터에도 보이는지.
 - **직업 단계 문턱(`classTiers`):** 바닐라 전투 직업 19개의 스킬 가중치를 읽어 위 표대로 갈리는 값. `TESClass` 의 가중치 필드 이름.
@@ -181,7 +182,7 @@ TESNPC 주문 목록에 추가 + 보고서 쓰기
 
 ## 10. 실측 근거 (2026-10-07, TAKEALOOK)
 
-- NPC 레코드 26,090개.
+- NPC 레코드 26,090개. 그중 `SpellList` 를 템플릿에서 물려받는 것 14,389개.
 - 설치된 SPID 주문 줄 423개(47개 모드). SkyPatcher 로 주문을 주는 설정 0줄.
 - 산적 마법사 NPC(`EncBandit01~06Magic…`) 직업 = `EncClassBanditWizard` (`039D30:Skyrim.esm`).
 - 탈리온: 레드가드, `TrainerConjurationMaster`. 바닐라 레코드에 주문 없음, 현재 승자(TSOS & MOS 패치)는 폭풍 아트로나크·번개 주문 4개.
