@@ -9,6 +9,10 @@
   tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell
   Learning patch. A save that already holds a power learned weakened gets it back at full strength with its
   own name when it loads.
+- **Less work behind the game while the panel is closed** (a report of lower FPS with it closed): loading a
+  save or reading a tome no longer redraws the hidden tree (opening repaints it only if something changed),
+  the fallback tree's frame loop stops while hidden, and the panel's endless animations stay paused from
+  game start until it is first opened.
 
 ## Heart of Magic Librarian 1.3.0
 

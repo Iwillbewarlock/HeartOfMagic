@@ -647,8 +647,10 @@ window.onResetTreeStates = function() {
         
         console.log('[SpellLearning] Reset complete - all nodes locked/available');
         
-        // Re-render tree
-        WheelRenderer.render();
+        // Re-render tree - not with the panel closed (every save load): opening
+        // fetches progress and known spells, and their replies repaint the tree
+        // if the states differ from what it showed when it closed (OpenRefreshGate)
+        if (window._panelVisible !== false) WheelRenderer.render();
         
         var unlockedEl = document.getElementById('unlocked-count'); if (unlockedEl) unlockedEl.textContent = '0';
     }
@@ -1111,7 +1113,11 @@ window.onPrismaReady = function() {
     // Left "visible", the tree loaded below would start its render loop and the
     // heart, globe and stars would be drawn 15 times a second behind the game
     // until the panel was first opened - minutes of it. startRenderLoop checks this.
-    if (!window._panelShownOnce) window._panelVisible = false;
+    if (!window._panelShownOnce) {
+        window._panelVisible = false;
+        // Endless CSS animations paused as onPanelHiding pauses them (patch-ui.css)
+        if (document.body) document.body.classList.add('panel-hidden');
+    }
     if (!window.callCpp) return;
 
     // C++ calls this once, and it is the only thing that asks for the saved
@@ -1152,6 +1158,10 @@ window.onPanelShowing = function() {
     if (document.body) document.body.classList.remove('panel-hidden');   // CSS animations run again (patch-ui.css)
 
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.resumePreview) PreReqMaster.resumePreview();
+    // The fallback tree (no CanvasRenderer), if it is the one in use (not hidden by treeLoad.js)
+    if (typeof TrustedRenderer !== 'undefined' && TrustedRenderer.canvas && TrustedRenderer.canvas.style.display !== 'none') {
+        TrustedRenderer._startLoop();
+    }
     // A design page left unpainted while hidden: its idle timer goes on (frames paint it on the tree tab)
     if (typeof TreeStyle !== 'undefined' && TreeStyle._pageIdleLater && TreeStyle.tokens && TreeStyle.tokens.pageColor) {
         TreeStyle._pageIdleLater();
@@ -1243,6 +1253,8 @@ window.onPanelHiding = function() {
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.pausePreview) {
         PreReqMaster.pausePreview();
     }
+    // The fallback tree's loop (treeLoad.js, no CanvasRenderer) ran on for good
+    if (typeof TrustedRenderer !== 'undefined' && TrustedRenderer._stopLoop) TrustedRenderer._stopLoop();
     // TreePreview canvas
     if (typeof TreePreview !== 'undefined' && TreePreview._stopRenderLoop) {
         TreePreview._stopRenderLoop();

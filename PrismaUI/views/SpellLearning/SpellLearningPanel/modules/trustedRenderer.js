@@ -203,8 +203,12 @@ var TrustedRenderer = {
 
     _startLoop: function() {
         var self = this;
-        if (this._rafId) cancelAnimationFrame(this._rafId);
+        this._stopLoop();
+        // Hidden panel: onPanelShowing starts it again (and its first frame draws)
+        this._needsRender = true;
+        if (window._panelVisible === false) return;
         function loop() {
+            if (window._panelVisible === false) { self._rafId = null; return; }
             if (self._needsRender) {
                 self._render();
                 self._needsRender = false;
@@ -212,6 +216,11 @@ var TrustedRenderer = {
             self._rafId = requestAnimationFrame(loop);
         }
         loop();
+    },
+
+    _stopLoop: function() {
+        if (this._rafId) cancelAnimationFrame(this._rafId);
+        this._rafId = null;
     },
 
     _render: function() {

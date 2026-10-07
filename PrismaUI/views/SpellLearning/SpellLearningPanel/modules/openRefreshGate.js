@@ -14,8 +14,8 @@
  * it opens with both replies on their way, the repaint waits; each reply,
  * after it has updated the states, asks reply() and the tree is drawn again
  * only if the note no longer matches. What changed while the panel was closed
- * (updateSpellState and onSpellUnlocked keep the state but skip the drawing)
- * shows up as a mismatch too. If the replies do not both come within WAIT_MS,
+ * (updateSpellState, onSpellUnlocked, onLearningTargetSet and onResetTreeStates
+ * keep the state but skip the drawing) shows up as a mismatch too. If the replies do not both come within WAIT_MS,
  * the tree is drawn again anyway.
  *
  * Depends on: state (state.js), CanvasRenderer (_getNodeProgressPct, _needsRender)

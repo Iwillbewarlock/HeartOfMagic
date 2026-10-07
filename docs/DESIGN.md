@@ -627,6 +627,15 @@ panel closed and in use:
   with the panel closed no longer fetches progress and known spells (opening does it again anyway), the
   PreReqMaster preview, TreeGrowth and TreePreview loops do not start while the panel is hidden, the build
   progress bar is not written, and `body.panel-hidden` pauses endless CSS animations (`patch-ui.css`).
+  Also kept to the state while hidden (2026-10-08, a report of lower FPS with the panel closed): the
+  tree reset on every save load (`onResetTreeStates`) and a learning target set by a tome
+  (`onLearningTargetSet`) change the states but skip `WheelRenderer.render` / `updateNodeStates`; no
+  separate "owed" flag - opening fetches progress and known spells, and `OpenRefreshGate` repaints on
+  the replies only if the states differ from what the tree showed when it closed (the progress reply
+  always calls `updateNodeStates`). The fallback tree (`TrustedRenderer`, only without `CanvasRenderer`)
+  stops its frame loop on `onPanelHiding` and while `window._panelVisible === false`, and `onPanelShowing`
+  starts it again when its canvas is the one shown. The view is created hidden, so `onPrismaReady` adds
+  `body.panel-hidden` too (until the first `onPanelShowing`).
 - **Opening the panel** refreshed the renderers itself and again when the known-spells reply came
   (`onPlayerKnownSpells`); now only the reply does. And only if something changed (`modules/openRefreshGate.js`,
   2026-09-26): closing the panel notes what the tree shows (every spell's state, and the XP ring of the ones

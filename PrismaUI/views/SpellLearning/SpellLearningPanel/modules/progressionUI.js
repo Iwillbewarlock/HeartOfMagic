@@ -824,7 +824,10 @@ window.onLearningTargetSet = function(dataStr) {
                         node.state = 'available';
                     }
                     console.log('[SpellLearning] Node ' + (node.name || data.formId) + ' set as learning target');
-                    WheelRenderer.updateNodeStates();
+                    // Panel closed (a tome read while playing): the state is kept, the
+                    // redraw waits - opening's progress reply marks the target and
+                    // repaints if the tree changed (OpenRefreshGate)
+                    if (window._panelVisible !== false) WheelRenderer.updateNodeStates();
                 }
             }
             

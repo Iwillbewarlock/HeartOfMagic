@@ -66,7 +66,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `canvasRendererLearning.js` | 529 | Learning paths: the growing-path animation, lasting paths, travelling pulses |
 | `nodeBatch.js` | 262 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
-| `openRefreshGateTest.js` | 64 | Node tests for `OpenRefreshGate`, run by `run-tests.js` |
+| `openRefreshGateTest.js` | 144 | Node tests for `OpenRefreshGate`, run by `run-tests.js`; also the hidden-panel pushes (`onResetTreeStates`, `onLearningTargetSet`) draw nothing until the opening's replies |
 | `statusLineTest.js` | 328 | Node tests for the status lines over a language switch (`TreeGrowth.setStatusText`/`relabelStatus`/`resetStatus`, the Easy copy, `updateScanStatus`, `onScanFailed` for a full and a tome scan (the tome one puts the scanned message back and keeps the tome list it has), `t()` keeping `$` patterns in a value) and the card's Magicka rounding, run by `run-tests.js` |
 | `spellNamesTest.js` | 210 | Node tests for `SpellNames`: a shared name gets its plugin and a unique one does not, hidden names show `???` with no plugin, SpellCache's `plugin` before the `persistentId`, counts after a new tree or `invalidate()`, edit-mode duplicates; TreeParser dropping self ids and null links from all four lists for both `trustPrereqs` values, `softNeeded` clamped, no "unobtainable" warning; run by `run-tests.js` |
 | `spellResearchStatusTest.js` | 89 | Node tests for the Spell Research line: hidden until a state comes, each state's text and numbers, English fallback, bad input hides it, `onSpellResearchStatus`; run by `run-tests.js` |
@@ -83,10 +83,10 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `learningTargetKeys.js` | 61 | `LearningTargetKeys`: the school key holding a spell, looked up by id (Learn button, spell card); `onLearningTargetDropped` |
-| `progressionUI.js` | 923 | How-to-Learn panel, learning status badges |
+| `progressionUI.js` | 937 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
 | `cppStatusKeys.js` | 25 | `CPP_STATUS_KEYS` / `cppStatusKey`: the language key of each English status message the DLL sends (scan bar, tree status line) |
-| `cppCallbacks.js` | 1250 | C++ SKSE plugin callback handlers |
+| `cppCallbacks.js` | 1266 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 227 | The tome filter (`isTaughtByTome`, `filterTomeSpells`: the tree takes only spells a tome teaches, whose tome something hands out, that are not in the voice slot and not another plugin's copy of a spell - `duplicateOf`, the kept record's formId, set by the scan, SpellScannerDuplicates.cpp; edit mode's spawn list leaves the copies out too, so one spell is never put on the tree twice, while the blacklist list keeps them, where picking one does no harm), spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
 | **TOTAL** | ~25,830 | the 59 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~45,500 lines in 107 files) |
