@@ -42,3 +42,35 @@ NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
     }
     return out;
 }
+
+NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool,
+    const EslRecords& records, std::size_t& skippedNoRecord)
+{
+    NpcSpells::ListIndex index;
+    index.present.assign(NpcSpells::SlotTable().size(), {});
+    for (const auto& list : lists) {
+        const std::size_t record = list.slotIndex * NpcSpells::kMaxChunks + list.chunk;
+        auto* lev = record < records.byRecord.size() ? records.byRecord[record] : nullptr;
+        if (!lev || list.slotIndex >= index.present.size()) {
+            ++skippedNoRecord;
+            continue;
+        }
+        // RE/T/TESLeveledList.h:70-73. The shipped records hold no entries (LLCT 0), so resize allocates a fresh
+        // game-heap array (RE/M/MemoryManager.h:368) and frees nothing. numEntries is uint8: BuildLists caps a
+        // list at kMaxEntries (255).
+        lev->entries.resize(list.entries.size());
+        for (std::size_t i = 0; i < list.entries.size(); ++i) {
+            auto& e = lev->entries[i];
+            e.form = pool.forms[list.entries[i].spellIndex];
+            e.count = 1;
+            e.level = list.entries[i].level;
+            e.pad0C = 0;
+            e.itemExtra = nullptr;
+        }
+        lev->numEntries = static_cast<std::uint8_t>(list.entries.size());
+        lev->chanceNone = 0;
+        lev->llFlags = static_cast<RE::TESLeveledList::Flag>(list.flags);  // kAllLevelsFlag = kCalculateFromAllLevelsLTOrEqPCLevel
+        index.present[list.slotIndex][list.chunk] = true;
+    }
+    return index;
+}

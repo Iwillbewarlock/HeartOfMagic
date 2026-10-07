@@ -15,12 +15,14 @@ endif()
 
 # TomeReachConfig.cpp calls TomeReach::LowerAscii (TomeReachRecords.cpp), which
 # includes <zlib.h>: the pair builds as in the main plugin and tools/tome-reach-test.
+# EncodingUtils.cpp: PluginNames (plugin names with non-ASCII bytes in persistentIds), as SpellScannerFormId.cpp.
 set(NPCSPELLS_SOURCES
     src/Main.cpp
     src/core/NpcSpellsRules.cpp src/core/NpcSpellsClassTier.cpp src/core/NpcSpellsPool.cpp src/core/NpcSpellsSlots.cpp
     src/core/NpcSpellsBuild.cpp src/core/NpcSpellsEsl.cpp src/core/NpcSpellsTemplate.cpp src/core/NpcSpellsNpc.cpp
     src/core/NpcSpellsReport.cpp
     src/game/GameFiles.cpp src/game/GameLists.cpp src/game/GamePool.cpp src/game/GameNpcs.cpp src/game/GameRun.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachConfig.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachRecords.cpp
 )
@@ -38,6 +40,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src
+    ${CMAKE_SOURCE_DIR}/plugins/spelllearning/include
 )
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../PCH.h)
