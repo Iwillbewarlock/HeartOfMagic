@@ -565,13 +565,30 @@ zoom 0.9); in game a whole tree in cheat mode was about 7,800 paint calls before
   tile's stars are generated from its seed once and kept (`_tileCache`, keyed by seed, size and density)
   instead of re-rolled every frame. The renderer also no longer re-rolls the fixed-mode stars every frame
   when no seed or density was set (it compared with `undefined`).
-- **Background and tree as one picture** (`modules/staticBase.js`). When the background is still - a design
-  page, no stars, or stars held still - `render` leaves it to `_drawTree`, which asks `StaticBase` to paste
-  background and tree layer as one kept picture: an animation frame is one full-canvas pass instead of
-  three (colour, page or stars, layer). The picture is keyed by the layer (its draws, the hover preview,
-  the pan offset) and the background; a key is built only when it has held for two frames, so a drag or
-  glide is drawn straight as before. A stretched paste always draws straight.
+- **Background and tree as one picture** (`modules/staticBase.js`). The background is still between two
+  frames - a design page, no stars, stars held still, or moving stars between two of their moves (below) -
+  so `render` leaves it to `_drawTree`, which asks `StaticBase` to paste background and tree layer as one
+  kept picture: an animation frame is one full-canvas pass instead of three (colour, page or stars,
+  layer). The picture is keyed by the layer (its draws, the hover preview, the pan offset) and the
+  background (`Starfield.moves` for the stars); a key is built only when it has held for two frames, so a
+  drag or glide is drawn straight as before. A stretched paste always draws straight, and so do moving
+  stars (a picture would last a frame or two; in the lab building it raised Modern Dark's worst frame on
+  opening) - between their moves the tree canvas is left alone anyway (`_mainShownKey`).
   `TreeStyle._pageBuilds` tells it the page was rebuilt.
+- **The stars move at their own pace** (2026-10-08). `CanvasRenderer._syncStarfield` (each frame, before
+  the key) applies the star settings and moves the stars (`Starfield.advance`: drift, twinkle) only when
+  `STAR_FRAME_MS` (160) has passed - every second animation frame; drawing them no longer moves them. A
+  frame for the heart alone in between leaves the tree canvas as it is. Before, every animation frame of a
+  starfield design (Classic, Modern Dark, a design without a page) repainted the whole tree canvas - in
+  the lab 24% of the panel 12 times a second. The speed stays (`AnimClock`, 2-3 steps a move instead of
+  1-2), and a move changes a star's opacity by at most 0.036 (brightest, fastest world-space star), under
+  the 0.04 opacity step it is drawn in (`modules/starCadenceTest.js`). In game, where frames come on the
+  loop's ~35 ms turns (an 83 ms throttle lands on ~105 ms), a move can be 4 steps, 0.048 - as the idle
+  frames (250 ms) already moved them.
+- **A changed picture costs one repaint** (2026-10-08). `_mainShownKey` was set only when `StaticBase`
+  pasted, so after each change (a tree repaint, a hover preview, a star move) the frame that drew it
+  straight was followed by a second whole repaint, the picture's paste. Drawn straight, the canvas shows
+  that key's picture as well, so it counts as shown.
 - **Zoom read-out** (`CanvasRenderer.showZoom`): written only when the number shown changes; the camera
   called it every frame of a glide.
 
@@ -594,8 +611,8 @@ puts them back over the canvas (`FxLayer.reattach`). Also:
 
 - **Input first**: no animation frame while a mouse button is held or within `INPUT_QUIET_MS` (150) of a
   press, wheel or key, so a click gets the browser at once. Hover does not pause the animations.
-- **Idle**: after `IDLE_AFTER_MS` (15 s) without input no particle leaves the heart, and frames that repaint
-  the whole tree canvas (moving stars) come every `IDLE_FRAME_MS` (250) at most.
+- **Idle**: after `IDLE_AFTER_MS` (15 s) without input no particle leaves the heart, and animation frames
+  (with them the star moves) come every `IDLE_FRAME_MS` (250) at most.
 - **Only the tree tab draws**: `switchTab` stops the render loop on the settings and scan tabs (it went on
   animating behind them) and starts it on the way back; `startRenderLoop` refuses while another tab is in
   front.
@@ -649,8 +666,8 @@ panel closed and in use:
   per click instead of two. The selection's highlight shows as the glide stops (450 ms); a click on a
   spell already in place has no glide at all (`TreeCamera.animateTo` finishes at once when the view is
   within `STILL_EPSILON`), so it shows at once.
-- **What is left** (measured in game after the above): the slowest frame after a zoom went from 97-144 ms to
-  12-19 ms and our drawing is 2-3% of the time, but the loop still turns only every 34-37 ms with the
+- **Measured in game after the above** (2026-09/10): the slowest frame after a zoom went from 97-144 ms to
+  12-19 ms and our drawing is 2-3% of the time, but the loop still turned only every 34-37 ms with the
   animations stilled (43-60 ms with them). The PerfMeter box now rewrites once a second, not four times
   (each rewrite is a repaint and an upload of the whole panel). A temporary experiment (PerfExperiment,
   removed once it had answered) switched the page between looks in developer mode, one [Perf] line each:
@@ -671,6 +688,43 @@ panel closed and in use:
   not follow its rounded corners). Night Grimoire and Chalkboard set `--book-cover`, the leather's
   one colour; a design without it gets `--book-cover-top`. Small effects stay (a button's hover glow, the
   Spell Tree tab's text glow, slider fills).
+- **What is left** (2026-10-08, measured in the offline lab `D:\DEV\prismaui-lab`: Ultralight 1.4.1 on the
+  CPU as in PrismaUI, 1920x1080, the saved 1,381-spell tree, a learning target per school; median of 3
+  runs per design, before and after taken in turns. The machine was shared with other work, so worst
+  frames carry a few ms of noise and the odd 100+ ms outlier, dropped by the median; repainted area and
+  CPU time are the steadier figures):
+
+  | Design | Idle: panel repainted per s | Idle CPU ms/s | Open: worst frame | Zoom over a spell: p95 / worst | Hover: worst |
+  |---|---|---|---|---|---|
+  | Classic | 287% -> **154%** | 96-138 -> **57-70** | 24-25 -> 27 ms | 11-12 / 17-27 -> 12 / 19 ms | 14-17 -> 16 ms |
+  | Modern Dark | 288% -> **155%** | 128-167 -> **115-122** | 30-37 -> 36 ms | 18-25 / 30-45 -> 16-33 / 22-106 ms | 24-26 -> 23 ms |
+  | Arcane | 22% (same) | 26-52 | 32 ms | 10-13 / 14-19 ms | 14-17 ms |
+  | Night Grimoire | 22% (same) | 63-89 | 30-34 ms | 12-18 / 20-29 ms | 17-31 ms |
+  | Chalkboard | 22% (same) | 63-68 | 38-52 ms | 11-12 / 19-22 ms | 14-15 ms |
+
+  (Before: this branch at `cb17d4f`; after: the star pace and the one-repaint change above. In the book
+  designs only the second applies, after a tree change, which these phases do not measure apart: their
+  rows give the range of both runs.)
+  - **Idle with animations** (C2): every design asks for ~12 frames a second (`ANIMATION_FRAME_MS`). In
+    the book designs each repaints only the heart's spot (1.8% of the panel); in the starfield designs
+    each repainted the whole tree canvas (24%), now every second one does. Not changed, since it would
+    show: the heart, its globe and runes move all the time (the globe turns, the runes rotate), so fewer
+    heart frames or a shorter `IDLE_AFTER_MS` / `IDLE_STOP_MS` would make them visibly choppier or stop
+    them sooner. That is the player's call ("Still everything", or a proposal for the user).
+  - **Idle with everything stilled** (C2): the lab repaints nothing at all (0 dirty frames; 0.5-0.8 ms per
+    host frame, the loop's JavaScript). The 34-37 ms loop turns seen in game with animations stilled are
+    therefore not the page painting: it is PrismaUI's or the game's own time, which the panel cannot
+    shorten. Two findings for whoever looks next, neither verified: the render loop keeps Ultralight's
+    `needs_paint` true on every frame (an animation frame is always booked) although nothing is dirty -
+    it would matter only if PrismaUI copied on `needs_paint`; `PrismaUI.dll` imports
+    `ultralight::IntRect::IsEmpty`, which suggests it checks the dirty bounds instead (and the in-game
+    experiment above - an idle turn booked with a timer - changed little).
+  - **Arcane's worst stall** (C3): 223 ms in game was measured before the large surfaces lost their box
+    shadows and gradients. In the lab Arcane is now in line with the others (open 32 ms, zoom 14-19 ms,
+    hover 14-17 ms; Classic 24-27 / 17-27 / 14-17). Still to confirm with `[Perf]` in game.
+  - **A proposal, not applied** (it would change the look): Modern Dark's tree frame clips the canvas to
+    rounded corners (`border-radius` with `overflow: hidden`). Square corners saved ~1 ms per repainted
+    frame in the lab (idle repaint 5.1 -> 4.1 ms, open worst 32 -> 27 ms), within the noise.
 - **Glows where they barely show:** a known spell's halo is left out when its radius on screen is under
   `HALO_MIN_SCREEN_PX` (20; the learning spell's glow stays), and a design's glow under known lines below
   `EDGE_GLOW_MIN_ZOOM` (0.8): zoomed out, Arcane drew hundreds of halo sprites and wide strokes per repaint
