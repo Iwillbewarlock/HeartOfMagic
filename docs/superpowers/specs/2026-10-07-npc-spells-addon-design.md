@@ -56,7 +56,14 @@ SPID 가 배분
 
 ### 5.1 정한 규칙 (사용자 결정, 2026-10-07)
 
-- **강도: 약하게 (고정).** 마법사 직업 NPC 는 자기 학파의 맞는 티어 주문을 평균 1.5개, 비마법사 NPC 는 5% 확률로 쉬운 주문 1개.
+- **직업 3단계 (직업 레코드의 스킬 가중치로 자동 분류).** 이름 목록을 두지 않아 모드 직업도 같은 기준으로 나뉜다.
+  | 단계 | 기준 (마법 학파 가중치 비율, 문턱은 §9 에서 바닐라 직업으로 맞춤) | 바닐라 예 |
+  |---|---|---|
+  | 마법사 | 큼 | `CombatMageDestruction` `CombatMageConjurer` `CombatMageNecro` `CombatMageElemental` `CombatSorcerer` `CombatMystic` |
+  | 혼합 | 중간 | `CombatSpellsword` `CombatNightblade` `CombatWitchblade` `CombatMonk` (이름으로 나눈 예, 가중치 미확인) |
+  | 비마법사 | 없음 또는 작음 | `CombatWarrior1H/2H` `CombatBarbarian` `CombatRanger` `CombatRogue` `CombatAssassin` `CombatThief` `CombatScout` `CombatNightingale` |
+- **강도: 약하게 (고정).** 마법사는 가중치 있는 학파의 맞는 티어 주문을 평균 1.5개, 혼합은 가중치 있는 학파에서만 평균 0.5~1개, 비마법사는 5% 확률로 쉬운 주문 1개.
+- **동료:** 따로 빼지 않는다. 바닐라·모드 동료도 직업 단계대로 받는다 (사용자 결정 2026-10-07).
 - **티어 → 학파 스킬 문턱:** 견습 0, 수습 25, 숙련 50, 전문가 75, 대가 100 (Mysticism 패치와 같은 방식).
 - **비마법사(전사·궁수):** 견습 이하 `curing`·`armor` 주문만.
 - **세력 특화 (가중치 방식):** 특화 세력 NPC 가 받는 주문의 약 3/4 를 "주로 받는 태그"에서 고른다. "절대 안 받는 태그"는 항상 지킨다.
@@ -90,7 +97,7 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 1. 제외 조건에 걸리면 건너뛴다.
 2. 학파 → SPID 스킬 조건, 티어 → `tierSkill` 문턱.
 3. 태그가 어느 세력의 `prefer` 에 들면 그 세력 줄을 쓴다(확률은 `preferShare` 몫). `never` 에 걸리는 세력은 뺀다.
-4. 특화 없는 마법사 줄을 쓴다(나머지 몫).
+4. 특화 없는 마법사 줄과 혼합 줄을 쓴다(나머지 몫. 혼합 줄은 그 직업이 가중치를 둔 학파의 주문에만).
 5. 견습 이하 `curing`·`armor` 면 비마법사 줄도 쓴다.
 6. 모든 줄에 공통 제외를 붙인다: 레드가드 비마법사 제외(언데드 주문의 뱀파이어·사령술사 줄은 예외), 언데드 주문이면 §5.1 의 언데드 대상 외 제외.
 
@@ -98,7 +105,8 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 
 ```json
 {
-  "strength": { "mageSpells": 1.5, "nonMageChance": 0.05 },
+  "strength": { "mageSpells": 1.5, "hybridSpells": 0.75, "nonMageChance": 0.05 },
+  "classTiers": { "mageMinMagicShare": 0.5, "hybridMinMagicShare": 0.2 },
   "tierSkill": { "novice": 0, "apprentice": 25, "adept": 50, "expert": 75, "master": 100 },
   "nonMageTags": ["curing", "armor"],
   "excludeTags": ["cloak", "trap", "sense"],
@@ -132,7 +140,7 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 ## 8. 테스트
 
 - **오프라인 검사기 `npcspells-test`** (`tools/`, `BuildRelease.ps1` 이 빌드): 카탈로그, 규칙 표, `_DISTR.ini` 폴더 → ini. 실패 시 exit 1:
-  - 칸마다 기대 평균이 강도에 맞음 (마법사 1.5개, 비마법사 5%)
+  - 칸마다 기대 평균이 강도에 맞음 (마법사 1.5개, 혼합 0.5~1개, 비마법사 5%)
   - 레드가드 비마법사에게 가는 줄은 뱀파이어·사령술사의 언데드 줄뿐
   - 언데드 줄이 §5.1 의 대상 밖으로 가지 않음
   - 제외 태그·이미 배분된 주문이 빠짐
@@ -146,6 +154,8 @@ SPID 는 줄마다 확률을 따로 굴린다. 그래서 확률을 주문마다 
 - 레벨드 NPC(템플릿에서 직업을 물려받음, 예: `LvlBanditWizard…` 의 자기 직업 칸은 `EncClassDremoraMelee`)에 SPID 직업 조건이 먹히는지.
 - 바닐라 세력·직업 EditorID 와 FormID (포스웨어, 하그레이븐, 뱀파이어, 사령술사, 탈모어, 감시관, 소환 계열 직업 목록).
 - 바닐라 사령술사가 소환 직업인지.
+- 직업 단계 문턱(`classTiers`): 바닐라 전투 직업 19개의 스킬 가중치를 읽어 마법사·혼합·비마법사가 위 표대로 갈리는 값으로 정한다. CommonLibSSE-NG `TESClass` 의 가중치 필드 이름 확인.
+- SPID 에 직업 단계를 거는 방법: 직업 FormID 목록을 줄마다 적는다(애드온이 로드 오더의 모든 CLAS 를 분류해 목록을 만든다).
 
 ## 10. 실측 근거 (2026-10-07, TAKEALOOK)
 
