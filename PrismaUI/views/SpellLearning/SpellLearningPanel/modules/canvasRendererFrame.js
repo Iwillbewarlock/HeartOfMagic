@@ -59,9 +59,13 @@
                 if (typeof FxLayer !== 'undefined') FxLayer.hideAll();
             }
 
-            // The background: drawn here, or - when it is still - by the tree
-            // pass, which may paste it together with the tree (StaticBase)
-            var bgPending = typeof StaticBase !== 'undefined' && StaticBase.backgroundStill(this);
+            // The stars move here, when a move is due (not while drawn), so the
+            // background is a still picture between their moves
+            this._syncStarfield(startTime);
+
+            // The background: drawn by the tree pass, which may paste it together
+            // with the tree (StaticBase); here only without StaticBase
+            var bgPending = typeof StaticBase !== 'undefined';
             if (bgPending) {
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.globalAlpha = 1.0;
@@ -139,39 +143,48 @@
             // A design preset with a page draws it here instead of the stars
             var pageDrawn = TreeStyle.renderPage(ctx, width, height);
             if (!pageDrawn && this._starfieldEnabled && typeof Starfield !== 'undefined') {
-                // Apply settings
-                Starfield.setColor(this._starfieldColor || '#ffffff');
-                Starfield.maxSize = this._starfieldMaxSize || 2.5;
-                // Compared with the defaults applied: an unset seed or density
-                // used to count as changed on every frame and re-roll the stars
-                var starSeed = this._starfieldSeed || 42;
-                var starCount = this._starfieldDensity || 200;
-                if (Starfield.seed !== starSeed) {
-                    Starfield.seed = starSeed;
-                    Starfield.stars = null;  // Force reinit with new seed
-                }
-                if (Starfield.starCount !== starCount) {
-                    Starfield.starCount = starCount;
-                    Starfield.stars = null;  // Force reinit
-                }
-
-                // Held still (twinkle off, or "still everything"): drawn, not moved
-                Starfield.still = this._starsStill === true;
-
-                // Render - either fixed to screen or world-space (seed-based)
+                // Drawn where they are (settings and moves: _syncStarfield).
+                // Either fixed to screen or world-space (seed-based)
                 if (this._starfieldFixed) {
-                    // Fixed mode: screen-space stars that drift
-                    if (!Starfield.stars || Starfield.width !== this._width || Starfield.height !== this._height) {
-                        Starfield.init(this._width, this._height);
-                    }
                     Starfield.render(ctx);
                 } else {
-                    // World-space: deterministic tile-based stars from seed
                     Starfield.renderWorldSpace(ctx, this.panX, this.panY, this.zoom, this._width, this._height);
                 }
-                // Keep animation running (throttled) - not for stars held still
-                if (!Starfield.still) this._requestAnimationOnlyFrame();
             }
+        },
+
+        /**
+         * The starfield's settings, and its move when one is due (Starfield.STAR_FRAME_MS):
+         * before the frame's StaticBase key, which holds both. Moving stars keep
+         * asking for (throttled) frames.
+         * @param {number} now - the frame's start (performance.now)
+         */
+        _syncStarfield: function(now) {
+            if (TreeStyle.tokens.pageColor || !this._starfieldEnabled || typeof Starfield === 'undefined') return;
+            Starfield.setColor(this._starfieldColor || '#ffffff');
+            Starfield.maxSize = this._starfieldMaxSize || 2.5;
+            // Compared with the defaults applied: an unset seed or density
+            // used to count as changed on every frame and re-roll the stars
+            var starSeed = this._starfieldSeed || 42;
+            var starCount = this._starfieldDensity || 200;
+            if (Starfield.seed !== starSeed) {
+                Starfield.seed = starSeed;
+                Starfield.stars = null;  // Force reinit with new seed
+            }
+            if (Starfield.starCount !== starCount) {
+                Starfield.starCount = starCount;
+                Starfield.stars = null;  // Force reinit
+            }
+            // Fixed mode: screen-space stars that drift
+            if (this._starfieldFixed && (!Starfield.stars || Starfield.width !== this._width || Starfield.height !== this._height)) {
+                Starfield.init(this._width, this._height);
+                Starfield.moves++;
+            }
+            // Held still (twinkle off, or "still everything"): drawn, not moved
+            Starfield.still = this._starsStill === true;
+            if (Starfield.still) return;
+            if (Starfield.due(now)) Starfield.advance(this._starfieldFixed, now);
+            this._requestAnimationOnlyFrame();
         },
 
         /**
@@ -359,24 +372,27 @@
             // With the moving parts on their own canvases (FxLayer), a tree canvas
             // that already shows that picture is not touched at all.
             var pasted = false;
-            var shownKey = null;
+            var mainKey = null;
             if (bgPending && !stretch) {
                 var layerKey = (src === layer ? 'layer' : 'hover|' + HoverOverlay._key) + '|' +
                     (this._treeLayerDraws || 0) + '|' + offX + ',' + offY;
-                var mainKey = StaticBase.keyFor(this, layerKey);
+                mainKey = StaticBase.keyFor(this, layerKey);
                 if (this._fxThisFrame && !this._learningPath && mainKey === this._mainShownKey) {
                     pasted = true;
                 } else {
                     pasted = StaticBase.draw(ctx, this, layerKey, drawBackground, paste);
                 }
-                // The learning path is drawn over it this frame: not the plain picture
-                if (pasted && this._fxThisFrame && !this._learningPath) shownKey = mainKey;
             }
-            this._mainShownKey = shownKey;
             if (!pasted) {
                 if (bgPending) drawBackground(ctx);
                 paste();
             }
+            // Pasted or drawn straight (a key's first frame), the canvas now shows the
+            // picture of mainKey, and the next frames with that key leave it alone;
+            // the learning path is drawn over it this frame: not the plain picture.
+            // (Only pasted ones counted: each change - a star move, a repaint of the
+            // tree - cost one more whole repaint, the StaticBase paste a frame later)
+            this._mainShownKey = (mainKey && this._fxThisFrame && !this._learningPath) ? mainKey : null;
 
             if (hoverSpot) HoverOverlay.drawSpot(this, view, dpr);
 

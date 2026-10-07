@@ -4,9 +4,10 @@
  * An animation frame (heart beat, globe, sigil) used to repaint the whole
  * canvas three times before drawing what moved: the background colour, the
  * page (or the stars) and the pasted tree layer. The game's view draws on the
- * CPU, so each of those full-screen passes costs. When the background is
- * still - a design page, no stars, or stars held still - the three are drawn
- * once into this canvas, and later frames paste it with one pass.
+ * CPU, so each of those full-screen passes costs. The background is still
+ * between two frames - a design page, no stars, stars held still, or moving
+ * stars between two of their moves (Starfield.advance) - so the three are
+ * drawn once into this canvas, and later frames paste it with one pass.
  *
  * The picture is rebuilt when its key changes (the tree layer was redrawn,
  * the hover preview changed, the view moved, the background changed). A key
@@ -25,21 +26,14 @@ var StaticBase = {
     _seen: '',             // last frame's key (a key is built on its second frame)
     _failed: false,
 
-    /** Is the background still this frame: a design page, no stars, or stars held still? */
-    backgroundStill: function(r) {
-        if (TreeStyle.tokens.pageColor) return true;
-        if (!r._starfieldEnabled || typeof Starfield === 'undefined') return true;
-        return r._starsStill === true;
-    },
-
-    /** What the background looks like, as a string (see backgroundStill). */
+    /** What the background looks like, as a string. Moving stars change it only when they move (Starfield.moves). */
     _backgroundKey: function(r) {
         var t = TreeStyle.tokens;
         if (t.pageColor) return 'page|' + t.pageColor + '|' + (TreeStyle._pageKey || '') + '|' + (TreeStyle._pageBuilds || 0);
         var k = 'bg|' + (r._bgColor || '');
         if (r._starfieldEnabled && typeof Starfield !== 'undefined') {
             k += '|stars|' + r._starfieldFixed + '|' + Starfield.seed + '|' + Starfield.starCount + '|' +
-                 Starfield.maxSize + '|' + (Starfield._hex || '') + '|' + Starfield._twinklePhase;
+                 Starfield.maxSize + '|' + (Starfield._hex || '') + '|' + Starfield.moves;
             // World-space stars follow the camera
             if (!r._starfieldFixed) k += '|' + r.panX + '|' + r.panY + '|' + r.zoom;
         }
@@ -57,6 +51,10 @@ var StaticBase = {
      */
     draw: function(ctx, r, layerKey, drawBackground, paste) {
         if (this._failed) return false;
+        // Moving stars change the picture every Starfield.STAR_FRAME_MS: one kept for
+        // them would be thrown away a frame or two later (drawn straight instead;
+        // the tree canvas is still left alone between moves, CanvasRenderer._mainShownKey)
+        if (r._starfieldEnabled && !r._starsStill && !TreeStyle.tokens.pageColor) return false;
         var w = r.canvas.width, h = r.canvas.height;
         var key = this.keyFor(r, layerKey);
         if (key !== this._key) {

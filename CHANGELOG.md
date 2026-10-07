@@ -10,6 +10,15 @@
   Learning patch. A save that already holds a power learned weakened gets it back at full strength with its
   own name when it loads.
 
+### Performance
+
+- **A lighter idle panel with the starfield** (Classic, Modern Dark, and any design without a page). The
+  stars now move every second animation frame instead of every one, at the same speed, in steps too small
+  to see; in between, a frame for the beating heart no longer repaints the whole tree. The panel repaints
+  about half as much while you look at it without touching anything.
+- After any change to the tree picture (a repaint, a hover preview, a star move) the panel repainted the
+  whole tree twice; once is enough now.
+
 ## Heart of Magic Librarian 1.3.0
 
 After updating: open the panel, **Scan**, and **build the tree again**. With Spell Research, press its

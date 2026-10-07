@@ -15,6 +15,12 @@
  * and each path is filled once, instead of one fill per star - the game's
  * view draws on the CPU and pays per fill. The world-space tiles are
  * generated once and kept (_tileCache) instead of re-rolled every frame.
+ *
+ * Moving and drawing are apart: advance() moves the stars (drift, twinkle),
+ * at most every STAR_FRAME_MS, and render()/renderWorldSpace() only draw them
+ * where they are. Between two advances the stars do not change (`moves` is in
+ * the StaticBase key the renderer compares), so a frame for the heart alone
+ * does not repaint the tree canvas under it.
  */
 
 var Starfield = {
@@ -45,6 +51,15 @@ var Starfield = {
     _tileCacheSize: 0,
     _buckets: null,            // opacity step -> Path2D, while a frame is drawn
     still: false,          // set by the renderer: draw without moving (render settings)
+    // The stars move at most this often: every second animation frame
+    // (CanvasRenderer.ANIMATION_FRAME_MS 83). Each move repaints the whole tree
+    // canvas. The speed stays (AnimClock), the steps are 2-3 instead of 1-2:
+    // a world-space star's opacity then changes by at most 0.036 a move
+    // (opacityMax 0.6 x 0.5 x twinkleRate 2 x twinkleSpeed 0.02 x 3 steps), under one
+    // OPACITY_STEP, the step it is drawn in anyway (fixed mode: 0.048, drift 0.08 px)
+    STAR_FRAME_MS: 160,
+    moves: 0,              // advances that moved something (the still picture's key)
+    _advancedAt: -1e9,
 
     // Parallax layer definitions
     // depth: 0 = fixed to screen, 1 = fixed to world
@@ -118,6 +133,31 @@ var Starfield = {
         return typeof AnimClock !== 'undefined' ? AnimClock.steps('stars-' + key) : 1;
     },
 
+    /** Is a move due at `now` (ms)? Never while held still. */
+    due: function(now) {
+        return !this.still && now - this._advancedAt >= this.STAR_FRAME_MS;
+    },
+
+    /**
+     * Move the stars by the time since the last move (AnimClock): fixed mode
+     * drifts and twinkles each star, world-space advances the shared phase.
+     * @param {boolean} fixed - fixed (screen-space) mode
+     * @param {number} now - ms (performance.now)
+     */
+    advance: function(fixed, now) {
+        if (this.still) return;
+        this._advancedAt = now;
+        var n;
+        if (fixed) {
+            n = this._steps('drift');
+            for (var i = n; i > 0; i--) this.update();
+        } else {
+            n = this._steps('twinkle');
+            this._twinklePhase += this.twinkleSpeed * n;
+        }
+        if (n > 0) this.moves++;
+    },
+
     /**
      * Update star positions and twinkle (fixed mode only)
      */
@@ -137,15 +177,10 @@ var Starfield = {
     },
 
     /**
-     * Render stars (fixed to screen mode)
+     * Render stars (fixed to screen mode) where they are (advance moves them)
      */
     render: function(ctx) {
         if (!this.enabled || !this.stars) return;
-
-        // still: drawn where they are, no drift or twinkle (render settings)
-        if (!this.still) {
-            for (var n = this._steps('drift'); n > 0; n--) this.update();
-        }
 
         this._bucketBegin();
         for (var i = 0; i < this.stars.length; i++) {
@@ -299,8 +334,6 @@ var Starfield = {
      */
     renderWorldSpace: function(ctx, panX, panY, zoom, canvasW, canvasH) {
         if (!this.enabled) return;
-
-        if (!this.still) this._twinklePhase += this.twinkleSpeed * this._steps('twinkle');
 
         // Derive camera world position from pan/zoom.
         // This is approximately zoom-independent: pure zooming barely
