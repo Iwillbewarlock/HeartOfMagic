@@ -384,7 +384,9 @@ in the same order, only the dump moved thread (the timestamp is still taken whil
   with the ticket). `EndScan`, `ReportScanFailure` and `FinishScan` are `noexcept` and catch their own
   failures; a queued scan that cannot start (`LaunchScan`) clears the flag and is logged. The end runs after
   `FinishScan` returns, outside its `try`, so trouble starting the next scan never reads "Scan failed" over
-  one already sent.
+  one already sent. The flag always clears, but a few out-of-memory paths (a dropped task, a throw caught
+  only by the worker's or the tome reach thread's last `catch`, a queued scan that cannot start) only log:
+  the panel hears no `onScanFailed`, so after a full scan the Scan button can stay greyed.
 - **Failures.** A throw in `CollectScan` or `FinishScan` is reported there; one on the worker is posted back
   as a game thread task that calls `ReportScanFailure` (`onScanFailed`). The worker's whole body sits in an
   outer `catch (...)`: a throw while reporting (say `bad_alloc`) is logged, never let out of the thread
@@ -403,9 +405,9 @@ in the same order, only the dump moved thread (the timestamp is still taken whil
   `spell_catalog.json.part` and renames it over the catalog: a reader gets the old file or the new one. A
   reader holding the file open (`ifstream` does not share delete) or an antivirus scan makes the rename fail:
   it is tried 3 times 25 ms apart (`CATALOG_RENAME_TRIES`, `CATALOG_RENAME_RETRY_DELAY`), then the part file is
-  removed, the old file stays and it is logged - and the scan is still classified with the catalog it built
-  (`BuildAndWriteCatalog` returns true for a built catalog whose write failed), not with the old file read
-  back. `ClassifyScan` takes a lock, so a Papyrus `RunScan` and the panel's worker never write two catalogs
+  removed, the old file stays and it is logged, and the scan reads the old file back (`BuildAndWriteCatalog`
+  returns false): the perk adapters, Spell Research and the next start read the file, so every reader keeps
+  the same catalog until a scan writes one (handing the built catalog on in memory is S-3 work). `ClassifyScan` takes a lock, so a Papyrus `RunScan` and the panel's worker never write two catalogs
   over each other. Papyrus `RunScanToFile` runs on the game thread and passes `wait = false`: while the
   worker classifies it does not wait (that would freeze the game for seconds) but merges the catalog file
   there is, as a tome scan does, and leaves the card's catalog to the worker.

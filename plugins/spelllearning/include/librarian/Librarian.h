@@ -248,9 +248,9 @@ namespace Librarian
     // Loads the rules, builds the catalog for one parsed scan dump and writes
     // it. Returns false, leaving the file there alone, when the dump has
     // nothing to classify (no effects) or anything went wrong - a failure here
-    // must never take the scan down with it. On success `catalog` holds the
-    // new catalog - also when only writing the file failed (logged; the old
-    // file stays), so the scan is classified with what was built.
+    // must never take the scan down with it, and when the file could not be
+    // written (logged; the old file stays and the caller reads it back, so every
+    // reader of the catalog agrees). On success `catalog` holds the new catalog.
     bool BuildAndWriteCatalog(const json& scanDump, json& catalog);
 
     // Reads the catalog back. Returns false when it is missing or unreadable.

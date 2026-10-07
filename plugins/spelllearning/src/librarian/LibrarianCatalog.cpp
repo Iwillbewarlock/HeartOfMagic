@@ -331,9 +331,11 @@ namespace Librarian
             std::filesystem::create_directories(DATA_DIR);
             const std::filesystem::path path = CatalogPath();
 
-            // A catalog that could not be written still classifies this scan: the
-            // caller keeps it in memory rather than reading the old file back.
-            if (!WriteCatalogFile(path, JsonText::Dump(catalog, 2))) return true;
+            // A catalog that could not be written is not used: the perk adapters,
+            // Spell Research and the next start read the file, so the caller reads
+            // the old file back too and every reader keeps one catalog until a scan
+            // writes it (handing the in-memory catalog on is ToDo S-3)
+            if (!WriteCatalogFile(path, JsonText::Dump(catalog, 2))) return false;
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
                 PathText::Utf8(path), stats.spells, stats.tagged, stats.skipped);
