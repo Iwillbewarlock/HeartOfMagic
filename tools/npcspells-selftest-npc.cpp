@@ -1,3 +1,96 @@
 #include "NpcSpellsCheck.h"
-// Stub until the NPC suite lands (Task 7)
-int RunNpcSelfTest() { return 0; }
+#include "core/NpcSpellsNpc.h"
+#include "core/NpcSpellsTemplate.h"
+#include "core/NpcSpellsSlots.h"
+#include <algorithm>
+#include <cmath>
+#include <format>
+using namespace NpcSpells; using NpcSpellsCheck::Check;
+namespace {
+    ListIndex AllPresent() { ListIndex li; li.present.assign(SlotTable().size(), { true, true, true }); return li; }
+    ClassWeights Mage() { ClassWeights c; c.w[12] = 1; c.w[13] = 3; c.w[14] = 2; c.w[15] = 1; c.w[16] = 3; c.w[0] = 1; return c; }       // CombatMageConjurer
+    ClassWeights Elemental() { ClassWeights c; c.w[12] = 2; c.w[13] = 1; c.w[14] = 4; c.w[15] = 1; c.w[16] = 2; c.w[0] = 1; return c; }  // destruction-led mage
+    ClassWeights Warrior() { ClassWeights c; c.w[0] = 3; c.w[3] = 3; c.w[5] = 3; return c; }
+    ClassWeights Spellsword() { ClassWeights c; c.w[0] = 3; c.w[5] = 3; c.w[12] = 1; c.w[14] = 2; c.w[16] = 2; return c; }               // .455 hybrid, no conjuration weight
+    ClassWeights BattleConjurer() { ClassWeights c; c.w[0] = 3; c.w[5] = 3; c.w[13] = 2; c.w[14] = 1; return c; }                         // 3 of 9 = .333 hybrid, conjuration and destruction weighted
+    NpcFacts Npc(std::uint32_t id, ClassWeights w) { NpcFacts n; n.pluginLower = "test.esp"; n.localId = id; n.hasClass = true; n.weights = w; return n; }
+    std::size_t CountSchool(const NpcDecision& d, School s) { std::size_t n = 0; for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && !SlotTable()[a.slotIndex].key.nonMage) ++n; return n; }
+    bool AnyVariant(const NpcDecision& d, School s, Variant v) { for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && SlotTable()[a.slotIndex].key.variant == v) return true; return false; }
+}
+int RunNpcSelfTest()
+{
+    std::printf("template\n");
+    Check(ProviderIndex({ { 0, false } }, Category::Stats) == 0, "no flags: the record provides its own stats");
+    Check(ProviderIndex({ { 0x2, false }, { 0, false } }, Category::Stats) == 1, "kStats: the template provides");
+    Check(ProviderIndex({ { 0x2, false }, { 0x2, false }, { 0, false } }, Category::Stats) == 2, "chain of two templates");
+    Check(!ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Stats).has_value(), "a leveled character provider is unresolvable");
+    Check(ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Factions) == 0, "a category without the flag stays on the record even when the template is leveled");
+
+    std::printf("npc\n");
+    const Rules rules = DefaultRules(); const ListIndex all = AllPresent();
+    NpcFacts inherits = Npc(1, Mage()); inherits.inheritsSpellList = true;
+    Check(!DecideNpc(inherits, rules, all).eligible, "template spell list -> skipped");
+    NpcFacts beast = Npc(2, Mage()); beast.isBeast = true;
+    Check(!DecideNpc(beast, rules, all).eligible, "beast race -> skipped");
+    NpcFacts creatureWarrior = Npc(3, Warrior()); creatureWarrior.isCreature = true;
+    Check(!DecideNpc(creatureWarrior, rules, all).eligible, "creature without a mage class -> skipped");
+    NpcFacts hagraven = Npc(4, Mage()); hagraven.isCreature = true;
+    Check(DecideNpc(hagraven, rules, all).eligible && DecideNpc(hagraven, rules, all).tier == ClassTier::Mage, "creature with a mage class receives the mage share");
+    NpcFacts redWarrior = Npc(5, Warrior()); redWarrior.isRedguard = true;
+    Check(!DecideNpc(redWarrior, rules, all).eligible, "Redguard non-mage -> nothing");
+    NpcFacts redMage = Npc(6, Elemental()); redMage.isRedguard = true;
+    { bool noUndead = true; for (int i = 0; i < 200; ++i) { redMage.localId = 1000 + i; const auto d = DecideNpc(redMage, rules, all);
+        noUndead = noUndead && d.eligible && d.undead == UndeadPolicy::NoUndead && !AnyVariant(d, School::Conjuration, Variant::All) && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer); }
+      Check(noUndead, "Redguard mage: conjuration only from NoUndeadAll"); }
+    NpcFacts falion = Npc(7, Mage()); falion.isRedguard = true; falion.isUndeadException = true;
+    Check(DecideNpc(falion, rules, all).undead == UndeadPolicy::Conjurer, "Falion is a conjurer despite being Redguard");
+    NpcFacts redVampire = Npc(8, BattleConjurer()); redVampire.isRedguard = true; redVampire.groupsMatched = { 2 };
+    { const auto d = DecideNpc(redVampire, rules, all); Check(d.eligible && d.group == 2 && d.undead == UndeadPolicy::Necromancer, "Redguard vampire hybrid is eligible via the Vampire group");
+      std::size_t conjLists = 0; bool onlyConj = true;
+      for (int i = 0; i < 200; ++i) { redVampire.localId = 3000 + i;
+          for (const auto& a : DecideNpc(redVampire, rules, all).lists) { const bool conj = SlotTable()[a.slotIndex].key.school == School::Conjuration && !SlotTable()[a.slotIndex].key.nonMage; onlyConj = onlyConj && conj; conjLists += conj ? 1 : 0; } }
+      Check(onlyConj && conjLists > 0, "...and only for Conjuration (destruction is weighted too but dropped)"); }
+    NpcFacts redWarriorVampire = Npc(12, Warrior()); redWarriorVampire.isRedguard = true; redWarriorVampire.groupsMatched = { 2 };
+    { bool none = true; for (int i = 0; i < 200; ++i) { redWarriorVampire.localId = 4000 + i; const auto d = DecideNpc(redWarriorVampire, rules, all); none = none && !d.eligible && d.lists.empty(); }
+      Check(none, "Redguard non-mage vampire: nothing, not even the 5% curing/armor list"); }
+    NpcFacts vampNecro = Npc(9, Mage()); vampNecro.groupsMatched = { 3, 2 };
+    Check(DecideNpc(vampNecro, rules, all).group == 2, "Vampire precedes Necromancer (built-in order)");
+    NpcFacts necroClass = Npc(10, Elemental()); necroClass.isNecromancerClass = true;
+    Check(DecideNpc(necroClass, rules, all).undead == UndeadPolicy::Necromancer, "CombatMageNecro is a necromancer without a faction");
+    NpcFacts thalmorNecro = Npc(11, Mage()); thalmorNecro.isNecromancerClass = true; thalmorNecro.groupsMatched = { 4 };
+    { bool ok = true; for (int i = 0; i < 100; ++i) { thalmorNecro.localId = 2000 + i; const auto d = DecideNpc(thalmorNecro, rules, all); ok = ok && !AnyVariant(d, School::Conjuration, Variant::NecroPrefer) && !AnyVariant(d, School::Conjuration, Variant::NoUndeadAll); }
+      Check(ok, "Thalmor group: never undead overrides the necromancer class"); }
+
+    // Expected counts: 20,000 mage NPCs; rung attach frequency equals chance; per-tier expectation equals tierTarget
+    std::array<double, kRungCount> rungHits{}; std::size_t preferHits = 0, preferTotal = 0; const int kNpcs = 20000;
+    std::size_t bothR1R2 = 0;   // rungs 1 and 2 share a chance; their dice must be independent, not one coin
+    for (int i = 0; i < kNpcs; ++i) { NpcFacts m = Npc(100000 + i, Mage()); m.groupsMatched = { 4 }; const auto d = DecideNpc(m, rules, all);
+        bool r1 = false, r2 = false;
+        for (const auto& a : d.lists) { const auto& k = SlotTable()[a.slotIndex].key; if (k.school != School::Destruction || k.nonMage) continue; rungHits[k.rung] += 1; ++preferTotal; if (k.variant == Variant::Prefer) ++preferHits; r1 = r1 || k.rung == 1; r2 = r2 || k.rung == 2; }
+        bothR1R2 += (r1 && r2) ? 1 : 0; }
+    bool freq = true; for (std::size_t r = 0; r < kRungCount; ++r) freq = freq && std::abs(rungHits[r] / kNpcs - rules.ladder[r].chance) < 0.02;
+    Check(freq, "rung attach frequency within 0.02 of its chance over 20,000 NPCs");
+    Check(std::abs(double(bothR1R2) / kNpcs - rules.ladder[1].chance * rules.ladder[2].chance) < 0.01, "rungs 1 and 2 attach independently (both ~0.0625, not 0.25)");
+    Check(std::abs(double(preferHits) / preferTotal - 0.75) < 0.02, "Prefer variant chosen ~75% of the time");
+    std::array<double, kTierCount> expectedPerTier{}; for (std::size_t r = 0; r < kRungCount; ++r) for (std::size_t t = static_cast<std::size_t>(rules.ladder[r].startTier); t < kTierCount; ++t) expectedPerTier[t] += rungHits[r] / kNpcs;
+    bool targets = true; for (std::size_t t = 0; t < kTierCount; ++t) targets = targets && std::abs(expectedPerTier[t] - rules.tierTarget[t]) < 0.05;
+    Check(targets, "expected spells per tier match tierTarget (1.0 1.25 1.5 2.0 2.5) within 0.05");
+    // Hybrid: half, weighted schools only
+    double hybridDest = 0; std::size_t hybridConj = 0;
+    for (int i = 0; i < kNpcs; ++i) { const auto d = DecideNpc(Npc(200000 + i, Spellsword()), rules, all); hybridDest += CountSchool(d, School::Destruction); hybridConj += CountSchool(d, School::Conjuration); }
+    Check(hybridConj == 0, "hybrid gets nothing in an unweighted school");
+    Check(std::abs(hybridDest / kNpcs - 0.5 * (1.0 + 0.25 + 0.25 + 0.5 + 0.5)) < 0.05, "hybrid attach expectation is half the mage's");
+    // Non-mage: 5% one novice curing/armor list
+    std::size_t nonMageLists = 0; for (int i = 0; i < kNpcs; ++i) { const auto d = DecideNpc(Npc(300000 + i, Warrior()), rules, all); nonMageLists += d.lists.size(); }
+    Check(std::abs(double(nonMageLists) / kNpcs - 0.05) < 0.01, "non-mage: about 5% get one list");
+    // Determinism and missing lists
+    const auto a = DecideNpc(Npc(42, Mage()), rules, all), b = DecideNpc(Npc(42, Mage()), rules, all);
+    Check(a.lists.size() == b.lists.size() && std::equal(a.lists.begin(), a.lists.end(), b.lists.begin(), [](const Attachment& x, const Attachment& y) { return x.slotIndex == y.slotIndex && x.chunk == y.chunk; }), "same NPC, same decision");
+    ListIndex none; none.present.assign(SlotTable().size(), { false, false, false });
+    const auto empty = DecideNpc(Npc(43, Mage()), rules, none);
+    Check(empty.eligible && empty.lists.empty() && empty.slotsWithoutList > 0, "no lists present: nothing attached, counted");
+    ListIndex onlyChunk2; onlyChunk2.present.assign(SlotTable().size(), { false, false, true });
+    { bool ok = true; for (const auto& at : DecideNpc(Npc(44, Mage()), rules, onlyChunk2).lists) ok = ok && at.chunk == 2; Check(ok, "only present chunks are attached"); }
+    Check(Dice("a.esp", 1, "x") != Dice("a.esp", 2, "x") && Dice("a.esp", 1, "x") >= 0.0 && Dice("a.esp", 1, "x") < 1.0, "dice differ per NPC and stay in [0,1)");
+    return NpcSpellsCheck::g_failed;
+}
