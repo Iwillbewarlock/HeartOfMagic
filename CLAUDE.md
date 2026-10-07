@@ -263,7 +263,7 @@ This project does not have a C++ test framework. Validation is done through:
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `npcspells-test` (the NPC Spells addon's RE-free core: `npcspells-test`
-  runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; `--tree <spell_tree.json> --catalog <spell_catalog.json>` prints slot statistics on real files)
+  runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; `--tree <spell_tree.json> --catalog <spell_catalog.json>` prints slot statistics on real files) and `npcspells-esl` (writes `HeartOfMagic_NPCSpells.esp` from the slot table at build time into `build/npcspells/`; `npcspells-esl -o <path>`)
 
 ## Code Style
 

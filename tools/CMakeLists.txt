@@ -144,6 +144,7 @@ set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsPool.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsSlots.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsBuild.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsEsl.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
@@ -162,3 +163,27 @@ target_include_directories(npcspells-test PRIVATE
 target_link_libraries(npcspells-test PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
 # The rules suite reads the shipped JSON by absolute path, so the harness runs from any directory
 target_compile_definitions(npcspells-test PRIVATE NPCSPELLS_DATA_DIR="${CMAKE_SOURCE_DIR}/plugins/NPCSpells/data")
+
+# npcspells-esl  -  writes HeartOfMagic_NPCSpells.esp (empty LVSP records at the slot table's FormIDs)
+add_executable(npcspells-esl
+    npcspells-esl.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsSlots.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsEsl.cpp
+)
+target_compile_features(npcspells-esl PRIVATE cxx_std_23)
+target_include_directories(npcspells-esl PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${NPCSPELLS_CORE_DIR}
+    ${SL_SRC_DIR}
+)
+target_link_libraries(npcspells-esl PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+
+set(NPCSPELLS_ESL_DIR "${CMAKE_BINARY_DIR}/npcspells")
+set(NPCSPELLS_ESL_FILE "${NPCSPELLS_ESL_DIR}/HeartOfMagic_NPCSpells.esp" CACHE INTERNAL "generated ESL")
+add_custom_command(OUTPUT "${NPCSPELLS_ESL_FILE}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${NPCSPELLS_ESL_DIR}"
+    COMMAND npcspells-esl -o "${NPCSPELLS_ESL_FILE}"
+    DEPENDS npcspells-esl
+    COMMENT "Writing HeartOfMagic_NPCSpells.esp from the slot table"
+    VERBATIM)
+add_custom_target(npcspells_esl ALL DEPENDS "${NPCSPELLS_ESL_FILE}")
