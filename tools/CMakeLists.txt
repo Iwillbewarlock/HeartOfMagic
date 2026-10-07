@@ -133,3 +133,28 @@ target_link_libraries(declutter-test PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# npcspells-test  -  offline harness for the NPC Spells addon core
+# =============================================================================
+set(NPCSPELLS_CORE_DIR "${CMAKE_SOURCE_DIR}/plugins/NPCSpells/src")
+set(NPCSPELLS_CORE_SOURCES
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsRules.cpp
+)
+add_executable(npcspells-test
+    npcspells-test.cpp
+    npcspells-selftest-rules.cpp
+    npcspells-selftest-build.cpp
+    npcspells-selftest-npc.cpp
+    npcspells-selftest-esl.cpp
+    ${NPCSPELLS_CORE_SOURCES}
+)
+target_compile_features(npcspells-test PRIVATE cxx_std_23)
+target_include_directories(npcspells-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${NPCSPELLS_CORE_DIR}
+    ${SL_SRC_DIR}
+)
+target_link_libraries(npcspells-test PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+# The rules suite reads the shipped JSON by absolute path, so the harness runs from any directory
+target_compile_definitions(npcspells-test PRIVATE NPCSPELLS_DATA_DIR="${CMAKE_SOURCE_DIR}/plugins/NPCSpells/data")

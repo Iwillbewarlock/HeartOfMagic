@@ -1,0 +1,33 @@
+{
+  "tierTarget": { "novice": 1.0, "apprentice": 1.25, "adept": 1.5, "expert": 2.0, "master": 2.5 },
+  "ladder": [
+    { "startTier": "novice", "below": false, "chance": 1.0 },
+    { "startTier": "apprentice", "below": true, "chance": 0.25 },
+    { "startTier": "adept", "below": true, "chance": 0.25 },
+    { "startTier": "expert", "below": true, "chance": 0.5 },
+    { "startTier": "master", "below": false, "chance": 0.5 }
+  ],
+  "hybridScale": 0.5,
+  "nonMageChance": 0.05,
+  "nonMageTags": ["curing", "armor"],
+  "classTiers": { "mageMinMagicShare": 0.6, "hybridMinMagicShare": 0.3 },
+  "conjuration": { "necromancerClasses": ["0C969F:Skyrim.esm"], "share": 0.75 },
+  "excludeTags": ["cloak", "trap", "sense"],
+  "excludeSpells": [],
+  "beastRaces": ["0CDD84:Skyrim.esm", "00283A:Dawnguard.esm"],
+  "groups": [
+    { "name": "Forsworn", "factions": ["043599:Skyrim.esm", "04359E:Skyrim.esm"],
+      "prefer": ["nature", "earth", "flesh", "fire", "curse"], "preferShare": 0.75, "never": ["sun"] },
+    { "name": "Vampire", "factions": ["027242:Skyrim.esm", "003376:Dawnguard.esm"],
+      "prefer": ["siphon", "health", "shadow", "frost", "undead"], "preferShare": 0.75, "never": ["sun", "light", "curing"] },
+    { "name": "Necromancer", "factions": ["034B74:Skyrim.esm"],
+      "prefer": ["undead", "soul", "frost", "siphon"], "preferShare": 0.75, "never": ["sun"] },
+    { "name": "Thalmor", "factions": ["039F26:Skyrim.esm", "0B80F7:Skyrim.esm", "0135A0:Skyrim.esm"],
+      "prefer": ["shock", "fire", "arcane", "light", "shield"], "preferShare": 0.75, "never": ["undead"] },
+    { "name": "Vigilant", "factions": ["0B3292:Skyrim.esm"],
+      "prefer": ["sun", "light", "curing", "shield"], "preferShare": 0.75, "never": ["undead", "daedra", "shadow"] }
+  ],
+  "undead": { "exceptNpcs": ["0135E9:Skyrim.esm"] },
+  "redguard": { "race": "013748:Skyrim.esm" },
+  "keywords": { "npc": "013794:Skyrim.esm", "creature": "013795:Skyrim.esm", "animal": "013798:Skyrim.esm" }
+}

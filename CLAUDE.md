@@ -259,10 +259,11 @@ This project does not have a C++ test framework. Validation is done through:
   Spell Research registrations and scores their labels), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
-  it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
+  it must list what `lab/tome-reach/expected-*.txt` lists on the same load order), `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
-  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `npcspells-test` (the NPC Spells addon's RE-free core: `npcspells-test`
+  runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; Task 5 adds a `--tree --catalog` mode)
 
 ## Code Style
 
