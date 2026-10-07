@@ -3,7 +3,7 @@
 ## Licenses
 
 - **The plugin DLLs are a GPL-3.0-or-later combined work.** `SKSE/Plugins/SpellLearning.dll`,
-  `SKSE/Plugins/SL_BookXP.dll` and `optional/ISLPatch/SKSE/Plugins/DontEatSpellTomes.dll` statically link
+  `SKSE/Plugins/SL_BookXP.dll`, `optional/ISLPatch/SKSE/Plugins/DontEatSpellTomes.dll` and `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` (the last shipped in the separate NPC Spells archive) statically link
   **CommonLibSSE-NG 10.0.0**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
   **GPL-3.0 Linking Exception**. The DLLs are distributed under those terms:
   `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md`

@@ -34,7 +34,6 @@ if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
 $repo = $PSScriptRoot
 
 if ($NpcSpellsOnly) {
-    if (-not (Test-Path $NpcSpellsModPath)) { New-Item -ItemType Directory -Force -Path (Join-Path $NpcSpellsModPath 'SKSE\Plugins') | Out-Null }
     $nsDll = Join-Path $repo 'build\plugins\NPCSpells\Release\HeartOfMagic_NPCSpells.dll'
     $nsEsl = Join-Path $repo 'build\npcspells\HeartOfMagic_NPCSpells.esp'
     $nsJson = Join-Path $repo 'plugins\NPCSpells\data\HeartOfMagic_NPCSpells.json'
