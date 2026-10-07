@@ -140,6 +140,7 @@ target_link_libraries(declutter-test PRIVATE
 set(NPCSPELLS_CORE_DIR "${CMAKE_SOURCE_DIR}/plugins/NPCSpells/src")
 set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsRules.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsClassTier.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp

@@ -1,5 +1,6 @@
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsRules.h"
+#include "core/NpcSpellsClassTier.h"
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -79,5 +80,20 @@ int RunRulesSelfTest()
         try { ok = ParseRules(text, wrong, err); } catch (...) { ok = true; err = "threw"; }
         Check(!ok && !err.empty() && err != "threw", text);
     }
+    auto W = [](std::initializer_list<int> magic, int nonMagicSum) { ClassWeights c; int i = 0; for (int m : magic) c.w[kFirstMagicSkill + i++] = static_cast<std::uint8_t>(m); c.w[0] = static_cast<std::uint8_t>(nonMagicSum); return c; };
+    // Skyrim.esm values (ledger): CombatMageConjurer alt1 conj3 des2 ill1 res3 = 10 of 11 -> .909
+    Check(ClassifyClass(W({ 1, 3, 2, 1, 3 }, 1), defaults) == ClassTier::Mage, "CombatMageConjurer .909 is a mage");
+    Check(ClassifyClass(W({ 2, 1, 2, 1, 1 }, 4), defaults) == ClassTier::Mage, "CombatSorcerer .636 is a mage");
+    Check(ClassifyClass(W({ 1, 1, 2, 1, 1 }, 5), defaults) == ClassTier::Hybrid, "CombatWitchblade .545 is hybrid");
+    Check(ClassifyClass(W({ 1, 0, 1, 1, 1 }, 7), defaults) == ClassTier::Hybrid, "CombatMonk .364 is hybrid");
+    Check(ClassifyClass(W({ 0, 0, 1, 1, 1 }, 8), defaults) == ClassTier::NonMage, "CombatScout .273 is a non-mage");
+    Check(ClassifyClass(W({ 0, 0, 0, 0, 0 }, 9), defaults) == ClassTier::NonMage, "a warrior with no magic weight is a non-mage");
+    Check(ClassifyClass(W({ 3, 0, 3, 0, 0 }, 4), defaults) == ClassTier::Mage, "exactly 0.600 counts as mage (integer compare)");
+    Check(ClassifyClass(W({ 3, 0, 0, 0, 0 }, 7), defaults) == ClassTier::Hybrid, "exactly 0.300 counts as hybrid");
+    Check(IsConjurationClass(W({ 1, 3, 2, 1, 3 }, 1)), "conjuration 3 = restoration 3 tie is a conjuration class");
+    Check(!IsConjurationClass(W({ 1, 3, 4, 1, 1 }, 1)), "destruction above conjuration is not (conjuration 3 meets the floor)");
+    Check(!IsConjurationClass(W({ 0, 2, 0, 0, 0 }, 1)), "conjuration 2 is below the floor of 3");
+    const auto scope = SchoolsWeighted(W({ 1, 0, 2, 0, 1 }, 3));
+    Check(scope[0] && !scope[1] && scope[2] && !scope[3] && scope[4], "weighted schools are those with weight > 0");
     return NpcSpellsCheck::g_failed;
 }
