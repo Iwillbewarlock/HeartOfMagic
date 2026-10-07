@@ -80,3 +80,4 @@ include(Papyrus)
 
 # Distribution folder assembly
 include(Distribution)
+include(DistributionNpcSpells)

@@ -16,11 +16,14 @@
 .EXAMPLE
     .\DeployDev.ps1
     .\DeployDev.ps1 -PanelOnly
+    .\DeployDev.ps1 -NpcSpellsOnly   # the NPC Spells addon: DLL, ESL, rules JSON
 #>
 [CmdletBinding()]
 param(
     [string]$ModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev',
-    [switch]$PanelOnly
+    [switch]$PanelOnly,
+    [string]$NpcSpellsModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev',
+    [switch]$NpcSpellsOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,11 +31,29 @@ $ErrorActionPreference = 'Stop'
 if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
     throw 'SkyrimSE is running. Close the game first: the panel files are open and a copy would leave the mod half written.'
 }
+$repo = $PSScriptRoot
+
+if ($NpcSpellsOnly) {
+    if (-not (Test-Path $NpcSpellsModPath)) { New-Item -ItemType Directory -Force -Path (Join-Path $NpcSpellsModPath 'SKSE\Plugins') | Out-Null }
+    $nsDll = Join-Path $repo 'build\plugins\NPCSpells\Release\HeartOfMagic_NPCSpells.dll'
+    $nsEsl = Join-Path $repo 'build\npcspells\HeartOfMagic_NPCSpells.esp'
+    $nsJson = Join-Path $repo 'plugins\NPCSpells\data\HeartOfMagic_NPCSpells.json'
+    foreach ($f in @($nsDll, $nsEsl, $nsJson)) { if (-not (Test-Path $f)) { throw "Missing $f. Run .\BuildRelease.ps1 -preset Release-2026 first." } }
+    New-Item -ItemType Directory -Force -Path (Join-Path $NpcSpellsModPath 'SKSE\Plugins') | Out-Null
+    Copy-Item $nsDll (Join-Path $NpcSpellsModPath 'SKSE\Plugins\HeartOfMagic_NPCSpells.dll') -Force
+    Copy-Item $nsJson (Join-Path $NpcSpellsModPath 'SKSE\Plugins\HeartOfMagic_NPCSpells.json') -Force
+    Copy-Item $nsEsl (Join-Path $NpcSpellsModPath 'HeartOfMagic_NPCSpells.esp') -Force
+    foreach ($pair in @(@($nsDll, 'SKSE\Plugins\HeartOfMagic_NPCSpells.dll'), @($nsEsl, 'HeartOfMagic_NPCSpells.esp'))) {
+        if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash (Join-Path $NpcSpellsModPath $pair[1])).Hash) { throw "Copy did not take: $($pair[1])" }
+    }
+    Write-Host "npcspells  dll, esl, json -> $NpcSpellsModPath (enable HeartOfMagic_NPCSpells.esp in MO2)"
+    return
+}
+
 if (-not (Test-Path $ModPath)) {
     throw "Mod folder not found: $ModPath"
 }
 
-$repo = $PSScriptRoot
 $panelSrc = Join-Path $repo 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $panelDst = Join-Path $ModPath 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $dllSrc = Join-Path $repo 'build\plugins\spelllearning\Release\SpellLearning.dll'
