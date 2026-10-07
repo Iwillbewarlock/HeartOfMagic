@@ -468,6 +468,7 @@ function mockLoadConfig() {
     var config = {
         hotkey: 'F8',
         hotkeyCode: 66,
+        magicMenu: { bookmark: true, spellInfo: true },
         pauseGameOnFocus: true,
         cheatMode: false,
         verboseLogging: false,

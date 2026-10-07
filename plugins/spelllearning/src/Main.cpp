@@ -283,7 +283,8 @@ public:
                 continue;
             }
 
-            // PERFORMANCE: Check key code before IsDown (idCode is a simple member access)
+            // PERFORMANCE: Check key code before IsDown (idCode is a simple member access).
+            // Hotkey "None" is code 0, which no key has, so it never matches
             if (buttonEvent->idCode != m_hotkeyCode) {
                 continue;
             }

@@ -480,47 +480,8 @@ function initializeSettings() {
     // Scanner Presets
     try { if (typeof initializeScannerPresets === 'function') initializeScannerPresets(); } catch(e) { console.error('[SpellLearning] Scanner presets init error:', e); }
 
-    // Hotkey configuration
-    var hotkeyInput = document.getElementById('hotkeyInput');
-    var changeHotkeyBtn = document.getElementById('changeHotkeyBtn');
-    var resetHotkeyBtn = document.getElementById('resetHotkeyBtn');
-    
-    if (hotkeyInput && changeHotkeyBtn) {
-        hotkeyInput.value = settings.hotkey;
-        
-        changeHotkeyBtn.addEventListener('click', function() {
-            hotkeyInput.classList.add('listening');
-            hotkeyInput.value = t('settingsPanel.pressAKey');
-            
-            function onKeyDown(e) {
-                e.preventDefault();
-                var keyName = e.key.toUpperCase();
-                
-                // Check if it's a valid key we support
-                if (KEY_CODES[keyName] || KEY_CODES[e.key]) {
-                    settings.hotkey = keyName;
-                    settings.hotkeyCode = KEY_CODES[keyName] || KEY_CODES[e.key];
-                    hotkeyInput.value = keyName;
-                    console.log('[SpellLearning] Hotkey changed to:', keyName, '(code:', settings.hotkeyCode, ')');
-                } else {
-                    hotkeyInput.value = settings.hotkey;
-                    console.log('[SpellLearning] Unsupported key:', e.key);
-                }
-                
-                hotkeyInput.classList.remove('listening');
-                document.removeEventListener('keydown', onKeyDown);
-            }
-            
-            document.addEventListener('keydown', onKeyDown);
-        });
-        
-        resetHotkeyBtn.addEventListener('click', function() {
-            settings.hotkey = 'F8';
-            settings.hotkeyCode = 66;
-            hotkeyInput.value = 'F8';
-            hotkeyInput.classList.remove('listening');
-        });
-    }
+    // Hotkey (Change / Reset / None) and the magic menu switches (modules/panelOpenSetting.js)
+    if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.init();
     
     // Pause Game on Focus toggle
     var pauseGameToggle = document.getElementById('pauseGameOnFocusToggle');
@@ -736,8 +697,6 @@ function saveUnifiedConfig() {
     
     var unifiedConfig = {
         // Panel settings
-        hotkey: settings.hotkey,
-        hotkeyCode: settings.hotkeyCode,
         developerMode: settings.developerMode,
         cheatMode: settings.cheatMode,
         nodeSizeScaling: settings.nodeSizeScaling,
@@ -873,6 +832,7 @@ function saveUnifiedConfig() {
     // Known higher spells (reverse unlock): what they open, XP share, own gain rates
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.saveTo(unifiedConfig);
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.saveTo(unifiedConfig);
+    if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.saveTo(unifiedConfig);
     if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.saveTo(unifiedConfig);
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
     if (typeof RenderSettings !== 'undefined') RenderSettings.saveTo(unifiedConfig);
@@ -890,8 +850,6 @@ function saveUnifiedConfig() {
 }
 
 function resetSettings() {
-    settings.hotkey = 'F8';
-    settings.hotkeyCode = 66;
     settings.developerMode = false;
     settings.cheatMode = false;
     settings.nodeSizeScaling = true;
@@ -910,6 +868,7 @@ function resetSettings() {
     settings.autoAdvanceMode = 'branch';
     if (typeof ReverseUnlockSetting !== 'undefined') ReverseUnlockSetting.reset();
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.reset();
+    if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.reset();
     // Skill XP from studying: on (the only tome setting Reset to Defaults touches)
     if (settings.spellTomeLearning) {
         settings.spellTomeLearning.studySkillXP = true;
@@ -939,7 +898,6 @@ function resetSettings() {
     // Update UI
     var cheatToggle = document.getElementById('cheatModeToggle');
     var verboseToggle = document.getElementById('verboseLogToggle');
-    var hotkeyInput = document.getElementById('hotkeyInput');
     var cheatInfo = document.getElementById('cheatModeInfo');
     
     var devModeToggle = document.getElementById('developerModeToggle');
@@ -947,7 +905,6 @@ function resetSettings() {
     if (cheatToggle) cheatToggle.checked = false;
     if (verboseToggle) verboseToggle.checked = false;
     updateDeveloperModeVisibility(false);
-    if (hotkeyInput) hotkeyInput.value = 'F8';
     if (cheatInfo) cheatInfo.classList.add('hidden');
     
     // Update progression settings UI
@@ -1064,8 +1021,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (!data) return;
         
         // === Panel Settings ===
-        settings.hotkey = data.hotkey || 'F8';
-        settings.hotkeyCode = data.hotkeyCode || 66;
+        // Hotkey (0 = None) and magicMenu, both ways to open the panel kept (panelOpenSetting.js)
+        if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.loadFrom(data);
         settings.developerMode = data.developerMode || false;
         settings.cheatMode = data.cheatMode || false;
         settings.nodeSizeScaling = data.nodeSizeScaling !== false;  // default true
@@ -1192,7 +1149,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         // Update UI toggles
         var cheatToggle = document.getElementById('cheatModeToggle');
         var verboseToggle = document.getElementById('verboseLogToggle');
-        var hotkeyInput = document.getElementById('hotkeyInput');
         var cheatInfo = document.getElementById('cheatModeInfo');
         
         var devModeToggle = document.getElementById('developerModeToggle');
@@ -1289,7 +1245,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         }
         
         if (verboseToggle) verboseToggle.checked = settings.verboseLogging;
-        if (hotkeyInput) hotkeyInput.value = settings.hotkey;
         if (cheatInfo) cheatInfo.classList.toggle('hidden', !settings.cheatMode);
         
         // Update progression settings UI

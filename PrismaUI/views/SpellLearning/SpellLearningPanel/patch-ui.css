@@ -516,3 +516,10 @@ body.panel-hidden *::after {
 .toggle-switch.toggle-sm .toggle-slider::before { width: 16px; height: 16px; }
 .toggle-switch.toggle-sm input:checked + .toggle-slider:before,
 .toggle-switch.toggle-sm input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* Settings > Hotkey notes (panelOpenSetting.js): a line of their own under the row, with
+   their own .hidden for UI theme add-ons; the letter key warning in the theme's red */
+.hotkey-note { display: block; margin: 0 0 8px; }
+.hotkey-note.hidden { display: none; }
+#hotkeyLetterWarning { color: var(--accent-red); }
+.hotkey-input-group { flex-wrap: wrap; justify-content: flex-end; }

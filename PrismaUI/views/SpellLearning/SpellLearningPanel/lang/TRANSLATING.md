@@ -74,7 +74,16 @@ Update this with your translation info:
 
 If a key is missing from your file, the English text from the HTML is shown as fallback. You don't need to translate every key to get started.
 
-Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason. The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
+Text that scripts build (the spell card's buttons, status badges, prerequisite summary, the Find Spell list) goes through `tOr(key, params, englishFallback)` from `modules/i18n.js`, so a missing key shows English there too, never the raw key. Code that writes text into the page should use `tOr` rather than `t` for the same reason.
+Text that stays on screen (a status line, an empty-list line, a button, a tooltip) is written with
+`setI18n(element, key, params, englishFallback[, 'title' | 'placeholder'])` instead: it leaves the key and its
+values on the element (`data-i18n`, `data-i18n-params`), so changing the language in Settings writes it again
+at once (`applyI18nToDOM`, which reads the values; `modules/i18nRelabelTest.js`). Text written by hand into such
+an element afterwards calls `clearI18n(element)` first (`setTreeStatus` does), or the next switch would put the
+keyed text back. The tree and Pre Req Master status lines take keys directly: `setTreeStatusKey(key, params,
+fallback)`, `PreReqMaster.updateStatus(key, params, fallback)`. The DLL's own status messages are English;
+`CPP_STATUS_KEYS` in `modules/cppStatusKeys.js` gives each its key (a DLL text changed without updating that
+table shows in English). The card's node state words reuse the footer legend keys (`footer.legendAvailable` ...).
 
 ### In-game corner messages (`hud.*`)
 
@@ -83,7 +92,10 @@ study, BookXP) come from the same file: the `hud.*` keys. They are read by `Spel
 panel, from `lang/<locale>.json` (the `.json`, not the `.js`) of the language picked in *Settings > UI Display >
 Language* (or `locale.js`'s default when none was picked). The DLL reads them when the game starts and again
 when the language changes; a missing file or key shows the English text built into the DLL. *Settings > Early
-Learning > XP Alerts* turns the XP ones off (casting, studying, book XP); the rest always show.
+Learning > XP Alerts* turns the XP ones off (casting, studying, book XP); the rest always show. *Notification Language* set to English reads `en.json`
+whatever the panel's language: the game draws the corner with its own font, which only has the letters of the
+language the game is set up for, so a translation in another script shows as boxes there (the panel itself is
+fine, it has its own fonts).
 
 | Key | English | Placeholders |
 |-----|---------|--------------|
@@ -98,6 +110,7 @@ Learning > XP Alerts* turns the XP ones off (casting, studying, book XP); the re
 | `hud.lackKnowledge`, `hud.alreadyLearned`, `hud.beginGrasp` | the older DEST path | |
 | `hud.studyInCombat`, `hud.studyTrespassing`, `hud.studiedHour`, `hud.studiedHours`, `hud.studyLearned`, `hud.studyForgotten` | Immersive Spell Learning patch (study by the hour) | `who`, `spell`, `hours` |
 | `hud.bookXpInitialized`, `hud.bookXpNoTargets`, `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
+| `hud.spellResearchAdded` | Spell Research: {{count}} spells added by Heart of Magic | `count` (after Spell Research's Import, a load or a scan) |
 
 `{{who}}` in the study messages is the English "You" or "I" (ISL's first-person option) and stays English.
 Leave it out and write the sentence without a subject ("Cannot study while in combat.") - every shipped
@@ -123,9 +136,9 @@ node lang/build-preloads.js
 
 Output:
 ```
-  en.js  (589 keys from en.json)
-  fr.js  (589 keys from fr.json)
-  de.js  (589 keys from de.json)
+  en.js  (738 keys from en.json)
+  fr.js  (738 keys from fr.json)
+  de.js  (738 keys from de.json)
 Done - 3 preload file(s) generated.
 ```
 
@@ -189,7 +202,7 @@ overlays them), then choosing the language in Settings.
    at start, that file - or the picker - may still name another one.
 3. Restart the game once and check the whole panel
 4. If testing in a browser (dev harness), check console (F12) for `[i18n]` messages:
-   - `[i18n] Loaded locale "de" from preload (589 keys)` = working
+   - `[i18n] Loaded locale "de" from preload (738 keys)` = working
    - `[i18n] Preload is "en" but requested "de"` = missing `de.js` preload
 
 **Note:** You do NOT need to edit `index.html`. The loading system automatically picks up any locale that has a matching `.js` preload file.
