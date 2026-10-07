@@ -37,88 +37,193 @@ namespace
     }
 }
 
+
+// =============================================================================
+// THE SCAN, OFF THE GAME THREAD WHERE IT CAN BE (docs/ARCHITECTURE.md, "Where a scan runs")
+//
+//   1. CollectScan    - game thread task: every form read (SpellScanner::Collect*)
+//   2. PrepareScanText - worker thread: the 10-20 MB dump, the librarian, the debug
+//                        dump file. Strings and files only, no game form is read
+//   3. FinishScan     - game thread task: perk adapters and Spell Research (they
+//                        write forms), then the panel gets the spells
+//
+// One scan runs at a time, from RequestScan until its ScanTicket is let go. A
+// request meanwhile waits, one per mode (the latest wins) - a tome scan too, also
+// while a full scan is still waiting for the tome reach pass; EndScan starts it,
+// the full scan first.
+// =============================================================================
+
+// Held by every step of one scan: the tasks and threads it hands itself on to
+// take it along by move. The last one let go ends the scan however it ended -
+// sent, failed in any step, or a task SKSE dropped - so m_scanRunning cannot
+// stay set. Normally that is FinishScan's or the failure report's game thread
+// task; EndScan does not call into the panel, so any thread is safe.
+struct UIManager::ScanTicket
+{
+    ScanTicket() = default;
+    ScanTicket(const ScanTicket&) = delete;
+    ScanTicket& operator=(const ScanTicket&) = delete;
+    ~ScanTicket()
+    {
+        if (auto* instance = GetSingleton()) instance->EndScan();
+    }
+};
+
 void UIManager::OnScanSpells(const char* argument)
 {
     logger::info("UIManager: ScanSpells callback triggered");
+    if (auto* instance = GetSingleton()) {
+        instance->RequestScan(std::string(argument ? argument : ""));
+    }
+}
 
-    std::string argStr(argument ? argument : "");
+void UIManager::RequestScan(std::string argStr)
+{
+    const bool tomeScan = IsTomeScan(argStr);
+    {
+        std::lock_guard lock(m_scanMutex);
+        if (m_scanRunning) {
+            logger::info("UIManager: a scan is running - the {} scan starts after it", tomeScan ? "tome" : "full");
+            (tomeScan ? m_queuedTomeScan : m_queuedFullScan) = std::move(argStr);
+            return;
+        }
+        m_scanRunning = true;
+    }
+    // The panel is waiting on this one; a queued scan that cannot start is only logged
+    if (!LaunchScan(std::move(argStr))) {
+        ReportScanFailure("", tomeScan);
+    }
+}
 
+bool UIManager::LaunchScan(std::string argStr) noexcept
+{
+    const bool tomeScan = IsTomeScan(argStr);
+    std::shared_ptr<ScanTicket> ticket;
+    try {
+        ticket = std::make_shared<ScanTicket>();
+    } catch (...) {
+        logger::error("UIManager: the {} scan could not start (no memory)", tomeScan ? "tome" : "full");
+        std::lock_guard lock(m_scanMutex);
+        m_scanRunning = false;
+        return false;
+    }
+    try {
+        StartScan(std::move(argStr), std::move(ticket));
+        return true;
+    } catch (const std::exception& e) {
+        // The ticket went with the throw, which ended this scan (EndScan)
+        logger::error("UIManager: the {} scan could not start: {}", tomeScan ? "tome" : "full", e.what());
+    } catch (...) {
+        logger::error("UIManager: the {} scan could not start", tomeScan ? "tome" : "full");
+    }
+    return false;
+}
+
+void UIManager::StartScan(std::string argStr, std::shared_ptr<ScanTicket> ticket)
+{
     // The tome reach pass runs for a few seconds after the game starts; a full scan
     // asked for in that time waits for it on its own thread (the game goes on), so
     // the spells whose tomes nothing hands out are marked (TomeReach.h). A tome scan
-    // does not use the pass and goes at once, as before.
+    // does not use the pass and starts at once (unless one is running, see above).
+    const auto collect = [](const std::string& arg, std::shared_ptr<ScanTicket> held) {
+        AddTaskToGameThread("ScanSpells", [arg, held = std::move(held)]() mutable {
+            if (auto* instance = GetSingleton()) instance->CollectScan(arg, std::move(held));
+        });
+    };
     if (IsTomeScan(argStr)) {
-        RunScanOnGameThread(argStr);
+        collect(argStr, std::move(ticket));
         return;
     }
     try {
-        std::thread([argStr]() {
-            if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
-                logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
+        std::thread([argStr, collect, ticket]() mutable {
+            // Nothing may leave a thread function: it would end the game (std::terminate)
+            try {
+                if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
+                    logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
+                }
+                collect(argStr, std::move(ticket));
+            } catch (...) {
+                logger::error("UIManager: the full scan could not be handed to the game thread");
             }
-            RunScanOnGameThread(argStr);
         }).detach();
     } catch (const std::system_error& e) {
         logger::warn("UIManager: no thread to wait for the tome reach pass ({}) - scanning now", e.what());
-        RunScanOnGameThread(argStr);
+        collect(argStr, std::move(ticket));
     }
 }
 
-void UIManager::RunScanOnGameThread(const std::string& argStr)
+void UIManager::CollectScan(const std::string& argStr, std::shared_ptr<ScanTicket> ticket)
 {
-    AddTaskToGameThread("ScanSpells", [argStr]() {
-        auto* instance = GetSingleton();
-        if (!instance || !instance->m_prismaUI) return;
+    const bool tomeScan = IsTomeScan(argStr);
 
-        // A scan that throws must still end for the player: the panel disables the Scan
-        // button until the spells come back, so without this report it stayed on
-        // "Scanning..." for good and the only trace was one line in the log.
-        try {
-            instance->RunScan(argStr);
-        } catch (const std::exception& e) {
-            instance->ReportScanFailure(e.what(), IsTomeScan(argStr));
-        } catch (...) {
-            instance->ReportScanFailure("", IsTomeScan(argStr));
+    // A scan that throws must still end for the player: the panel disables the Scan
+    // button until the spells come back, so without this report it stayed on
+    // "Scanning..." for good and the only trace was one line in the log.
+    try {
+        SpellScanner::ScanConfig scanConfig;
+        if (!argStr.empty()) {
+            try {
+                scanConfig = SpellScanner::ParseScanConfig(argStr.c_str());
+            } catch (...) {
+                // If parsing fails, use defaults
+            }
         }
-    });
-}
 
-void UIManager::ReportScanFailure(const char* what, bool tomeScan)
-{
-    // what() comes from the system (in its own code page), so make it valid UTF-8 before it is JSON
-    const std::string reason = EncodingUtils::SanitizeToUTF8(what ? what : "");
-    logger::error("UIManager: the {} scan failed: {}", tomeScan ? "tome" : "full",
-        reason.empty() ? std::string("unknown error") : reason);
-    // The mode tells the panel whether this is the scan the player is waiting on ("all") or a
-    // background tome scan that must not touch the status bar ("tomes").
-    // An empty reason (a throw that is not a std::exception) is "unknown error" in the panel's language
-    const json message = {{"mode", tomeScan ? "tomes" : "all"}, {"reason", reason}};
-    CallView("onScanFailed",
-        JsonText::Dump(message).c_str());
-}
+        UpdateStatus(tomeScan ? "Scanning spell tomes..." : "Scanning all spells...");
+        auto output = std::make_shared<json>(
+            tomeScan ? SpellScanner::CollectSpellTomes(scanConfig) : SpellScanner::CollectAllSpells(scanConfig));
 
-void UIManager::RunScan(const std::string& argStr)
-{
-    // Parse the scan configuration
-    SpellScanner::ScanConfig scanConfig;
-    const bool useTomeMode = IsTomeScan(argStr);
-
-    if (!argStr.empty()) {
+        // shared_ptrs: std::function (the thread and the task) needs a copyable callable
+        const auto finish = [tomeScan](std::shared_ptr<std::string> text, std::shared_ptr<ScanTicket> held) {
+            AddTaskToGameThread("ScanSpellsDone", [text, tomeScan, held = std::move(held)]() {
+                if (auto* instance = GetSingleton()) instance->FinishScan(std::move(*text), tomeScan);
+            });
+        };
+        const auto fail = [tomeScan](std::string what, std::shared_ptr<ScanTicket> held) {
+            AddTaskToGameThread("ScanSpellsFailed", [what = std::move(what), tomeScan, held = std::move(held)]() {
+                if (auto* instance = GetSingleton()) instance->ReportScanFailure(what.c_str(), tomeScan);
+            });
+        };
         try {
-            scanConfig = SpellScanner::ParseScanConfig(argStr.c_str());
-        } catch (...) {
-            // If parsing fails, use defaults
+            std::thread([output, tomeScan, finish, fail, ticket]() mutable {
+                // Nothing may leave a thread function: it would end the game
+                // (std::terminate). A report that cannot be posted is only logged;
+                // the ticket still ends the scan when this lambda goes.
+                try {
+                    try {
+                        // The text first: the ticket must not be handed on before it exists
+                        auto text = std::make_shared<std::string>(PrepareScanText(std::move(*output), tomeScan));
+                        finish(std::move(text), std::move(ticket));
+                    } catch (const std::exception& e) {
+                        fail(e.what(), std::move(ticket));
+                    } catch (...) {
+                        fail("", std::move(ticket));
+                    }
+                } catch (...) {
+                    logger::error("UIManager: the {} scan failed and the failure could not be reported",
+                        tomeScan ? "tome" : "full");
+                }
+            }).detach();
+        } catch (const std::system_error& e) {
+            // No worker: the text work runs here, on the game thread, as it always did before
+            logger::warn("UIManager: no thread for the scan's text work ({}) - doing it now", e.what());
+            FinishScan(PrepareScanText(std::move(*output), tomeScan), tomeScan);
         }
+    } catch (const std::exception& e) {
+        ReportScanFailure(e.what(), tomeScan);
+    } catch (...) {
+        ReportScanFailure("", tomeScan);
     }
+    // The scan ends when `ticket` and its copies are let go: here, or after the worker
+}
 
-    std::string result;
-    if (useTomeMode) {
-        UpdateStatus("Scanning spell tomes...");
-        result = SpellScanner::ScanSpellTomes(scanConfig);
-    } else {
-        UpdateStatus("Scanning all spells...");
-        result = SpellScanner::ScanAllSpells(scanConfig);
-    }
+std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
+{
+    // Worker thread: what is in here takes strings and files, never a game form.
+    // Librarian::ClassifyScan is the code the offline harness links without the
+    // game (tools/CMakeLists.txt); it serializes itself against a Papyrus RunScan.
+    std::string result = JsonText::Dump(output, 2);
+    output = json();  // the parsed copy is 50-100 MB on a large load order
 
     // Classify what was just scanned and hand the catalog's elements on to
     // the traits the tree builder groups by and the chips the card shows.
@@ -127,27 +232,45 @@ void UIManager::RunScan(const std::string& argStr)
     // the result as it was rather than interrupting the scan.
     Librarian::ClassifyScan(result);
 
-    // The perk adapters read the catalog the full scan just rebuilt. Not after
-    // the tome scan the panel runs in the background: that leaves the catalog
-    // as it was, and the work would land on the frames the panel opens in.
-    if (!useTomeMode) {
-        Librarian::PerkAdapters::Apply("scan");
-        Librarian::SpellResearchPatch::OnCatalogChanged();
-        // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
-        if (SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
-    }
+    // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
+    if (!tomeScan && SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
+    return result;
+}
 
-    // A tome scan is a filter list, not the spells a tree is built from, so
-    // it is sent and not kept.
-    if (useTomeMode) {
-        SendSpellData(result);
-        return;
-    }
+void UIManager::FinishScan(std::string result, bool tomeScan) noexcept
+{
+    try {
+        // The perk adapters read the catalog the full scan just rebuilt, and with
+        // Spell Research they write forms - so here, on the game thread. Not after
+        // the tome scan the panel runs in the background: that leaves the catalog
+        // as it was, and the work would land on the frames the panel opens in.
+        if (!tomeScan) {
+            Librarian::PerkAdapters::Apply("scan");
+            Librarian::SpellResearchPatch::OnCatalogChanged();
+        }
 
+        if (tomeScan) {
+            // A tome scan is a filter list, not the spells a tree is built from,
+            // so it is sent and not kept.
+            SendSpellData(result);
+        } else {
+            StoreAndSendFullScan(std::move(result));
+        }
+    } catch (const std::exception& e) {
+        ReportScanFailure(e.what(), tomeScan);
+    } catch (...) {
+        ReportScanFailure("", tomeScan);
+    }
+    // The scan itself ends when the task holding its ticket is let go, after this
+    // returns - outside any try that could call a sent scan failed.
+}
+
+void UIManager::StoreAndSendFullScan(std::string result)
+{
     // Keep the full scan for tree builds (see m_scanText). Everything that can
     // throw happens before the panel has the data (the allocation here), and
     // what follows the send cannot report a failure: a throw that reached
-    // OnScanSpells' catch then would put "Scan failed" over a good scan.
+    // FinishScan's catch then would put "Scan failed" over a good scan.
     auto stored = std::make_shared<const std::string>(std::move(result));
     const std::string storedId = std::to_string(m_scanId + 1);
     SendSpellData(*stored);
@@ -160,6 +283,44 @@ void UIManager::RunScan(const std::string& argStr)
         logger::error("UIManager: could not tell the panel the scan id: {}", e.what());
     } catch (...) {
         logger::error("UIManager: could not tell the panel the scan id");
+    }
+}
+
+void UIManager::EndScan() noexcept
+{
+    std::optional<std::string> next;
+    {
+        std::lock_guard lock(m_scanMutex);
+        // The full scan first: the player is waiting on it, the tome list is a filter
+        if (m_queuedFullScan) {
+            next.swap(m_queuedFullScan);
+        } else if (m_queuedTomeScan) {
+            next.swap(m_queuedTomeScan);
+        } else {
+            m_scanRunning = false;  // with a next scan it stays set
+        }
+    }
+    // LaunchScan clears the flag itself when the next one cannot start
+    if (next) LaunchScan(std::move(*next));
+}
+
+void UIManager::ReportScanFailure(const char* what, bool tomeScan) noexcept
+{
+    // Every failure path ends here; a throw out of it would skip what follows at
+    // its callers, so it logs its own trouble instead
+    try {
+        // what() comes from the system (in its own code page), so make it valid UTF-8 before it is JSON
+        const std::string reason = EncodingUtils::SanitizeToUTF8(what ? what : "");
+        logger::error("UIManager: the {} scan failed: {}", tomeScan ? "tome" : "full",
+            reason.empty() ? std::string("unknown error") : reason);
+        // The mode tells the panel whether this is the scan the player is waiting on ("all") or a
+        // background tome scan that must not touch the status bar ("tomes").
+        // An empty reason (a throw that is not a std::exception) is "unknown error" in the panel's language
+        const json message = {{"mode", tomeScan ? "tomes" : "all"}, {"reason", reason}};
+        CallView("onScanFailed",
+            JsonText::Dump(message).c_str());
+    } catch (...) {
+        logger::error("UIManager: the {} scan failed and the panel could not be told", tomeScan ? "tome" : "full");
     }
 }
 

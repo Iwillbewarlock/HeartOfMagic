@@ -207,25 +207,37 @@ namespace Librarian
         return changed;
     }
 
-    void ClassifyScan(std::string& scanJson)
+    void ClassifyScan(std::string& scanJson, bool wait)
     {
+        // The panel's scan calls this on a worker thread (UIManagerScanner.cpp) and
+        // Papyrus RunScan on the game thread; one builds a catalog at a time, so two
+        // are never written over each other. The game thread does not wait for the
+        // worker (seconds of a frozen game): it takes the catalog there is instead.
+        static std::mutex classifyMutex;
+        std::unique_lock lock(classifyMutex, std::defer_lock);
+        bool building = true;
+        if (wait) {
+            lock.lock();
+        } else if (!lock.try_lock()) {
+            building = false;
+            logger::warn("Librarian: another scan is classifying - this one takes the catalog there is");
+        }
         try {
             json scanDump = json::parse(scanJson);
 
             // A scan with effects makes a fresh catalog; one without (a tome
             // list) takes its elements from the catalog the last full scan left.
             json catalog;
-            if (!BuildAndWriteCatalog(scanDump, catalog) && !LoadCatalog(catalog)) {
+            if (!(building && BuildAndWriteCatalog(scanDump, catalog)) && !LoadCatalog(catalog)) {
                 return;
             }
 
+            // Only a scan holding the lock sets the card's catalog:
+            // one that skipped would put the older file over the running build's
+            if (building) RememberCatalog(catalog);
             const std::size_t changed = MergeCatalogElements(scanDump, catalog);
-            if (changed == 0) {
-                RememberCatalog(catalog);
-                return;
-            }
+            if (changed == 0) return;
 
-            RememberCatalog(catalog);
             scanJson = JsonText::Dump(scanDump);
             logger::info("Librarian: catalog elements merged into the traits of {} spells", changed);
         } catch (const std::exception& e) {

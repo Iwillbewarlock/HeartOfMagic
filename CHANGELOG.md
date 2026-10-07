@@ -22,6 +22,10 @@
   save or reading a tome no longer redraws the hidden tree (opening repaints it only if something changed),
   the fallback tree's frame loop stops while hidden, and the panel's endless animations stay paused from
   game start until it is first opened.
+- **Scanning freezes the game for much less time.** The scan's text work and spell classification now run
+  in the background: on a 3,800-spell load order the freeze should go from about 5 seconds to about 1.7
+  (worked out from the timings of the old scan; not yet measured in game). The scan result is the same as
+  before. A scan asked for while one is running starts after it.
 
 ## Heart of Magic Librarian 1.3.0
 
