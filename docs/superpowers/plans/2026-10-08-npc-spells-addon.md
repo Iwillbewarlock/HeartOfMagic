@@ -8,7 +8,7 @@
 
 **Tech Stack:** C++23, CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`), nlohmann-json, spdlog, CMake super-build (`.\BuildRelease.ps1 -preset Release-2026`, VS 2026, build dir `build/`), PowerShell scripts. No Python anywhere.
 
-**Spec:** `D:/DEV/HeartOfMagic/docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md` (§5.4 is the distribution design; §5.1-5.3 rules; §8 tests; §9 verified facts). Ledger: `D:/DEV/HeartOfMagic/lab/addon-research/npc-spells-ledger.md`.
+**Spec:** `docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md` (repo-relative; §5.4 is the distribution design; §5.1-5.3 rules; §8 tests; §9 verified facts). Ledger: `lab/addon-research/npc-spells-ledger.md` - it exists only in the main checkout `D:/DEV/HeartOfMagic/` (untracked); read it from there, read-only. Every other path in this plan is relative to the worktree you implement in, never to the main checkout (it has its own uncommitted changes).
 
 ## Global Constraints
 
@@ -16,17 +16,17 @@
 - Read the CommonLib header before using any RE type; every RE member used is cited `header:line` in this plan and must match on the implementer's checkout.
 - No raw `new`/`delete` in addon code (CommonLib's own `TESNPC::GetSpellList()` allocates `SpellData` with `TES_HEAP_REDEFINE_NEW`, `src/RE/T/TESNPC.cpp:164-170`; the addon only calls it).
 - No manual mutex lock/unlock (the addon is single-threaded at `kDataLoaded`; no mutex needed).
-- Named constants only (`k` prefix); members `m_`, globals `g_`; PascalCase functions; 4 spaces.
-- One LVSP holds one school's spells, school = `SpellItem::GetAssociatedSkill()` (`RE/S/SpellItem.h:81`, `RE/M/MagicItem.h:100`), entries sorted ascending by level, entry level = tier skill floor 0/25/50/75/100, `llFlags & 1` = all levels <= skill (`RE/T/TESLeveledList.h:95`), <= 255 entries per list (`numEntries` is `std::uint8_t`, `TESLeveledList.h:121`).
+- Named constants only (`k` prefix); members `m_`, globals `g_`; PascalCase functions; 4 spaces. No bare numbers in code: the player check uses `TESForm::IsPlayer()` (`RE/T/TESForm.h:351`), the chain walk `kMaxTemplateDepth`, the ESL writer `kObndSize` / `kTes4DataSize` / `kTopGroupCount`, `Dice` `kDiceScale`.
+- One LVSP holds one school's spells, school = `SpellItem::GetAssociatedSkill()` (`RE/S/SpellItem.h:81`, `RE/M/MagicItem.h:100`), entries sorted ascending by level, entry level = tier skill floor 0/25/50/75/100, `llFlags & 1` = all levels <= skill (`kCalculateFromAllLevelsLTOrEqPCLevel = 1 << 0`, `RE/T/TESLeveledList.h:47`; member `llFlags` `:72`), <= 255 entries per list (`numEntries` is `std::uint8_t`, `TESLeveledList.h:73`).
 - No magicka filtering (ledger: AI never puts a spell costing more than max magicka into its combat list).
 - Only tree spells (`spell_tree.json` nodes' `persistentId`), one representative per node; catalog key = `persistentId` (`Plugin.esp|0x00XXXX`).
 - Class tiers: mage if `magicSum * 10 >= totalSum * 6`, hybrid if `magicSum * 10 >= totalSum * 3`, integer compare on `CLASS_DATA::SkillWeights` (`RE/T/TESClass.h:36-59`); conjuration class = conjuration weight >= 3 and not lower than any other magic school weight.
-- Vanilla/DLC records in the rules table are `XXXXXX:Plugin.esm` FormIDs only (mods rename EditorIDs); EditorIDs allowed for mod records only.
-- Add lists only to NPC records that use their own spell list: skip `TEMPLATE_USE_FLAG::kSpells` (`RE/T/TESActorBaseData.h:50`, bit 1<<3; CK calls it "Use Spell List").
+- Every record in the rules table is a `XXXXXX:Plugin.ext` FormID, mod records included; `ParseFormRef` rejects a bare EditorID (mods rename vanilla EditorIDs, and `TESForm::GetFormEditorID()` returns "" for most forms without powerofthree's Tweaks, `RE/T/TESForm.h:175`). The game layer never matches forms by EditorID.
+- Add lists only to NPC records that use their own spell list: skip `TEMPLATE_USE_FLAG::kSpells` (`RE/T/TESActorBaseData.h:52`, bit 1<<3; CK calls it "Use Spell List").
 - ESL: TES4 flag `0x200`, master `Skyrim.esm`, HEDR version 1.70, form version 44, own records at in-file FormIDs `0x01000800 + i`, local IDs `0x800..0xFFF` (2048 max), uncompressed, no runtime (0xFF) forms. Slots beyond the ESL's records are skipped and reported.
 - The slot table and FormID formula come from a built-in constexpr table (`kGroups`, `kMaxChunks = 3`), never from the user-editable JSON; new slots append only.
 - Build: `.\BuildRelease.ps1 -preset Release-2026`, preceded by the SkyrimSE process check; never run cmake by hand; `DeployDev.ps1` for the dev install.
-- Docs updated in the same task that changes behaviour; commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; never a "Generated with Claude" line.
+- Docs updated in the same task that changes behaviour (CLAUDE.md harness rows in Tasks 1 and 6, "four DLLs" and Key Locations in Task 8, DeployDev and dist lines in Task 11; README, ARCHITECTURE and measured numbers in Task 12); commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; never a "Generated with Claude" line.
 - Shipped artifact is the player mod; no AI at runtime; no raw FormIDs shown to players (the report is a developer file, the log is a log; no in-game UI).
 
 ## Review Focus
@@ -35,9 +35,9 @@ Failure modes most likely to bite a player; each pinned by a test in the owning 
 
 1. **Tree or catalog missing, stale, or a tree spell's plugin removed/renamed after a load-order change.** Owner: Task 3 (`PoolSelfTest`: a node whose `persistentId` is not in the catalog is counted `notInCatalog`; the game layer's resolver callback returning `nullopt` drops the spell and counts `unresolved`), Task 9 logs the counts and the report lists them. Catalog `version != 1` (`plugins/spelllearning/include/librarian/Librarian.h:234`) or a tree without `schools` stops the addon with a reason.
 2. **A tree spell whose engine school (`GetAssociatedSkill`) differs from the catalog school.** Owner: Task 3 (`ApplyEngineSchool` test: a Destruction-catalogued spell reported as Restoration by the callback moves to Restoration and increments `schoolMismatch`; a `kNone` school drops it). The engine stops walking a list when it meets a spell of another school, so a wrong-school entry would hide every entry after it.
-3. **A slot overflowing 255 entries (every flag-1 "below" list holds up to a whole school; TAKEALOOK has ~290 spells per school).** Owner: Task 5 (`BuildSelfTest`: a 700-spell synthetic school builds 3 chunks of <= 255 each, every chunk holds every tier the slot holds; 800 spells drops the surplus and counts `droppedOverCapacity`).
+3. **A slot overflowing 255 entries (every flag-1 "below" list holds up to a whole school; TAKEALOOK has ~290 spells per school).** Owner: Task 5 (`BuildSelfTest`: a slot of <= 255 spells builds one list, never split; a 700-spell synthetic school builds 3 chunks of <= 255 each, every chunk holds every tier the slot holds; 800 spells drops the surplus and counts `droppedOverCapacity`).
 4. **NPCs whose spell list, class, race or factions come from a template, including a leveled-character template.** Owner: Task 7 (`TemplateSelfTest`: `kSpells` set -> ineligible; a chain whose kStats provider is a `TESLevCharacter` -> `unresolvableStats`, the record's own class is used and the NPC is counted; a concrete-NPC chain resolves class at depth 2).
-5. **The ESL record is missing (plugin not enabled, user compacted/renamed it, record of another type at the FormID).** Owner: Task 6 (ESL read-back test asserts exactly `SlotTable().size() * kMaxChunks` LVSP records at `0x01000800..`), Task 8 (`LookupLoadedLightModByName` null -> "not loaded" error path; `As<TESLevSpell>()` null -> "wrong type" counted per slot), Task 7 (`DecideNpc` never attaches a (slot, chunk) absent from `ListIndex`). A mod renaming vanilla EditorIDs is covered by Task 1 (the parser rejects a non-FormID entry for `Skyrim.esm`/DLC masters).
+5. **The ESL record is missing (plugin not enabled, user compacted/renamed it, record of another type at the FormID).** Owner: Task 6 (ESL read-back test asserts exactly `SlotTable().size() * kMaxChunks` LVSP records at `0x01000800..`), Task 8 (`LookupLoadedLightModByName` null -> "not loaded" error path; `As<TESLevSpell>()` null -> "wrong type" counted per slot), Task 7 (`DecideNpc` never attaches a (slot, chunk) absent from `ListIndex`). A mod renaming vanilla EditorIDs is covered by Task 1 (the parser rejects every non-FormID entry, vanilla or mod); a user ladder of the wrong length is rejected by `ParseRules` (Task 1), so the DLL never indexes past `kRungCount`.
 
 ## File Structure
 
@@ -45,7 +45,7 @@ Create:
 - `plugins/NPCSpells/CMakeLists.txt` - DLL target `HeartOfMagic_NPCSpells` (copy of BookXP's `add_commonlibsse_plugin` call) plus a `npcspells_core` object list shared with tools.
 - `plugins/NPCSpells/README.md` - player and developer documentation (what it does, rules file, report, checklist).
 - `plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json` - shipped rules table (§5.3 content).
-- `plugins/NPCSpells/src/core/NpcSpellsTypes.h` - `School`, `Tier`, `ClassTier`, `UndeadPolicy`, `kTierFloor`, `kMaxEntries`, name<->enum helpers.
+- `plugins/NPCSpells/src/core/NpcSpellsTypes.h` - `School`, `Tier`, `ClassTier`, `UndeadPolicy`, `kTierFloor`, `kMaxEntries`, `kRungCount`, name<->enum helpers.
 - `plugins/NPCSpells/src/core/NpcSpellsRules.h/.cpp` - `Rules` struct, `DefaultRules()`, `ParseRules()`, FormID-string parsing.
 - `plugins/NPCSpells/src/core/NpcSpellsClassTier.h/.cpp` - `ClassifyClass`, `IsConjurationClass`, `SchoolsWeighted`.
 - `plugins/NPCSpells/src/core/NpcSpellsPool.h/.cpp` - tree ∩ catalog -> `SpellFacts`, tag/exclusion filters, `ApplyEngineSchool`.
@@ -55,10 +55,10 @@ Create:
 - `plugins/NPCSpells/src/core/NpcSpellsNpc.h/.cpp` - `Dice`, `DecideNpc` (eligibility, group, undead policy, rung/variant/chunk choice).
 - `plugins/NPCSpells/src/core/NpcSpellsEsl.h/.cpp` - `BuildEslBytes(const std::vector<SlotDef>&)`, the TES4/GRUP/LVSP writer (pure bytes).
 - `plugins/NPCSpells/src/core/NpcSpellsReport.h/.cpp` - `ReportData`, `RenderReport`.
-- `plugins/NPCSpells/src/game/GameFiles.h/.cpp` - reads tree, catalog, rules JSON, `_DISTR.ini` texts (via `TomeReach::ConfigText`).
+- `plugins/NPCSpells/src/game/GameFiles.h/.cpp` - reads tree, catalog, rules JSON, the `*_DISTR.ini` texts only (via `TomeReach::ConfigText`).
 - `plugins/NPCSpells/src/game/GamePool.h/.cpp` - persistentId -> `SpellItem*`, engine school.
 - `plugins/NPCSpells/src/game/GameLists.h/.cpp` - ESL record lookup, entry filling.
-- `plugins/NPCSpells/src/game/GameNpcs.h/.cpp` - `TESNPC` -> `NpcFacts` (template chain), `AddLevSpell`.
+- `plugins/NPCSpells/src/game/GameNpcs.h/.cpp` - `TESNPC` -> `NpcFacts` (template chain), `AddLevSpells` once per NPC.
 - `plugins/NPCSpells/src/game/GameRun.h/.cpp` - orchestration, timing, report write.
 - `plugins/NPCSpells/src/Main.cpp` - `SKSEPluginLoad`, `SetupLog`, `kDataLoaded`.
 - `tools/npcspells-test.cpp` - harness main (`--self-test`, exit 1 on failure; `--tree <f> --catalog <f>` prints slot stats on real files).
@@ -71,22 +71,28 @@ Modify:
 - `CMakeLists.txt` (top level) - `add_subdirectory(plugins/NPCSpells)`, `include(DistributionNpcSpells)`.
 - `tools/CMakeLists.txt` - `npcspells-test`, `npcspells-esl`, `npcspells_esl` custom target.
 - `DeployDev.ps1` - `-NpcSpellsOnly` switch and `$NpcSpellsModPath`.
-- `CLAUDE.md` - "four DLLs", decision tree entry, harness list rows, key locations row.
-- `docs/ARCHITECTURE.md` - DLL list, file-structure lines for `plugins/NPCSpells/`.
-- `docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md` - §8 TAKEALOOK timing line (Task 12).
+- `CLAUDE.md` - harness rows (Tasks 1, 6), "four DLLs" and key locations row (Task 8), DeployDev and dist lines (Task 11), decision tree entry and documentation row (Task 12, with the README they point to).
+- `docs/ARCHITECTURE.md` - DLL list, file-structure lines for `plugins/NPCSpells/` (Task 12).
+- `docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md` - §8 TAKEALOOK timing line (Task 12). (§4 per-NPC report, §5.1 own-tier share and the two-group `never` limit, §5.3 FormID-only refs and §7 unresolved refs were updated with this plan, before Task 1.)
 
 ---
 
 ### Task 1: Harness scaffold, types, rules table
 
 **Files**
-- Create: `plugins/NPCSpells/src/core/NpcSpellsTypes.h`, `plugins/NPCSpells/src/core/NpcSpellsRules.h`, `plugins/NPCSpells/src/core/NpcSpellsRules.cpp`, `plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json`, `tools/include/NpcSpellsCheck.h`, `tools/npcspells-test.cpp`, `tools/npcspells-selftest-rules.cpp`
-- Modify: `tools/CMakeLists.txt`
+- Create: `plugins/NPCSpells/src/core/NpcSpellsTypes.h`, `plugins/NPCSpells/src/core/NpcSpellsRules.h`, `plugins/NPCSpells/src/core/NpcSpellsRules.cpp`, `plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json`, `tools/include/NpcSpellsCheck.h`, `tools/npcspells-test.cpp`, `tools/npcspells-selftest-rules.cpp`, stubs `tools/npcspells-selftest-build.cpp`, `tools/npcspells-selftest-npc.cpp`, `tools/npcspells-selftest-esl.cpp`
+- Modify: `tools/CMakeLists.txt`, `CLAUDE.md` (harness row)
 - Test: `tools/npcspells-selftest-rules.cpp`
 
 **Interfaces**
-- Produces (`NpcSpellsTypes.h`):
+- Produces (`NpcSpellsTypes.h`, complete file):
 ```cpp
+#pragma once
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string_view>
 namespace NpcSpells {
     enum class School : std::uint8_t { Alteration = 0, Conjuration, Destruction, Illusion, Restoration, Count };
     enum class Tier : std::uint8_t { Novice = 0, Apprentice, Adept, Expert, Master, Count };
@@ -96,16 +102,24 @@ namespace NpcSpells {
     inline constexpr std::size_t kTierCount = 5;
     inline constexpr std::array<std::uint16_t, kTierCount> kTierFloor{ 0, 25, 50, 75, 100 };
     inline constexpr std::size_t kMaxEntries = 255;   // TESLeveledList::numEntries is uint8
+    inline constexpr std::size_t kRungCount = 5;      // ladder length; the slot table has 5 rungs per (school, group, variant)
     inline constexpr std::array<std::string_view, kSchoolCount> kSchoolNames{ "alteration", "conjuration", "destruction", "illusion", "restoration" };
     inline constexpr std::array<std::string_view, kTierCount> kTierNames{ "novice", "apprentice", "adept", "expert", "master" };
-    std::optional<School> SchoolFromName(std::string_view lowered);
-    std::optional<Tier> TierFromName(std::string_view lowered);
+    // inline: defined in the header, included by many TUs
+    inline std::optional<School> SchoolFromName(std::string_view lowered) {
+        for (std::size_t i = 0; i < kSchoolCount; ++i) if (kSchoolNames[i] == lowered) return static_cast<School>(i);
+        return std::nullopt;
+    }
+    inline std::optional<Tier> TierFromName(std::string_view lowered) {
+        for (std::size_t i = 0; i < kTierCount; ++i) if (kTierNames[i] == lowered) return static_cast<Tier>(i);
+        return std::nullopt;
+    }
 }
 ```
-- Produces (`NpcSpellsRules.h`):
+- Produces (`NpcSpellsRules.h`; includes `core/NpcSpellsTypes.h`, `<optional>`, `<string>`, `<string_view>`, `<vector>`):
 ```cpp
 namespace NpcSpells {
-    struct FormRef { std::string pluginLower; std::uint32_t local = 0; std::string editorId; };  // editorId only for mod records
+    struct FormRef { std::string pluginLower; std::uint32_t local = 0; };  // "XXXXXX:Plugin.ext" only, mod records included
     struct Rung { Tier startTier; bool below; double chance; };
     struct GroupRule { std::string name; std::vector<FormRef> factions; std::vector<std::string> prefer; double preferShare = 0.75; std::vector<std::string> never; };
     struct Rules {
@@ -127,9 +141,10 @@ namespace NpcSpells {
         FormRef keywordNpc, keywordCreature, keywordAnimal;
     };
     Rules DefaultRules();
-    // Parses the user JSON (§5.3 shape). Returns false and fills error on malformed JSON; unknown keys are ignored.
+    // Parses the user JSON (§5.3 shape). Returns false and fills error on malformed JSON or a ladder that is not kRungCount rungs;
+    // unknown keys are ignored; an entry that is not a FormID drops that entry only (error names it, §7).
     bool ParseRules(const std::string& jsonText, Rules& out, std::string& error);
-    // "0C969F:Skyrim.esm" -> FormRef; "SomeModEditorId" -> FormRef{editorId}; rejects EditorIDs for Skyrim.esm/Update/Dawnguard/HearthFires/Dragonborn names.
+    // "0C969F:Skyrim.esm" -> FormRef; anything else (a bare EditorID, "EditorID:Plugin.esp", more than 6 hex digits, no plugin) -> nullopt + error.
     std::optional<FormRef> ParseFormRef(std::string_view text, std::string& error);
 }
 ```
@@ -158,6 +173,7 @@ int RunEslSelfTest();
 ```cpp
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsRules.h"
+#include <cmath>
 #include <fstream>
 #include <sstream>
 using namespace NpcSpells;
@@ -169,13 +185,15 @@ int RunRulesSelfTest()
     std::string err;
     const auto necro = ParseFormRef("0C969F:Skyrim.esm", err);
     Check(necro && necro->pluginLower == "skyrim.esm" && necro->local == 0x0C969F, "FormID:Plugin parses");
+    const auto modRef = ParseFormRef("000D62:MyMod.esp", err);
+    Check(modRef && modRef->pluginLower == "mymod.esp" && modRef->local == 0xD62, "a mod record is a FormID too");
     const auto bad = ParseFormRef("OREO_HagravenRace:Skyrim.esm", err);
-    Check(!bad, "an EditorID for a vanilla master is rejected");
+    Check(!bad, "an EditorID with a plugin is rejected");
     const auto modId = ParseFormRef("MyMod_Faction", err);
-    Check(modId && modId->editorId == "MyMod_Faction", "a bare EditorID is a mod record");
+    Check(!modId && !err.empty(), "a bare EditorID is rejected (FormIDs only)");
 
     const Rules defaults = DefaultRules();
-    Check(defaults.ladder.size() == 5, "default ladder has five rungs");
+    Check(defaults.ladder.size() == kRungCount, "default ladder has five rungs");
     double expected[5]{};
     for (const auto& rung : defaults.ladder)
         for (std::size_t t = static_cast<std::size_t>(rung.startTier); t < kTierCount; ++t) expected[t] += rung.chance;
@@ -184,12 +202,23 @@ int RunRulesSelfTest()
     Check(ladderOk, "ladder expectations equal tierTarget per tier (1.0 1.25 1.5 2.0 2.5)");
     Check(defaults.groups.size() == 5 && defaults.groups[1].name == "Vampire", "five default groups in spec order");
 
-    std::ifstream shipped("../../../plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json");
+    std::ifstream shipped(NPCSPELLS_DATA_DIR "/HeartOfMagic_NPCSpells.json");   // compile definition, absolute path (CWD-independent)
     std::stringstream buf; buf << shipped.rdbuf();
     Rules parsed;
     Check(ParseRules(buf.str(), parsed, err), "shipped JSON parses");
     Check(parsed.groups.size() == defaults.groups.size() && parsed.necromancerClasses.size() == 1 &&
           parsed.excludeTags == defaults.excludeTags, "shipped JSON equals built-in defaults");
+    Check(parsed.keywordNpc.local == 0x013794 && parsed.keywordCreature.local == 0x013795 && parsed.keywordAnimal.local == 0x013798 &&
+          parsed.keywordAnimal.pluginLower == "skyrim.esm", "shipped keywords are read");
+    Rules keywordsEdited;
+    Check(ParseRules(R"({ "keywords": { "animal": "000801:MyMod.esp" } })", keywordsEdited, err) && keywordsEdited.keywordAnimal.local == 0x801 &&
+          keywordsEdited.keywordAnimal.pluginLower == "mymod.esp" && keywordsEdited.keywordNpc.local == 0x013794, "an edited keyword replaces only that keyword");
+    Rules unresolved; err.clear();
+    Check(ParseRules(R"({ "beastRaces": ["0CDD84:Skyrim.esm", "SomeRace"] })", unresolved, err) && unresolved.beastRaces.size() == 1 && !err.empty(),
+          "a non-FormID entry drops that entry only, the rest of the list stays (§7)");
+    Rules shortLadder; err.clear();
+    Check(!ParseRules(R"({ "ladder": [ { "startTier": "novice", "below": false, "chance": 1.0 } ] })", shortLadder, err) && !err.empty(),
+          "a ladder that is not five rungs is rejected");
     Rules broken;
     Check(!ParseRules("{ not json", broken, err) && !err.empty(), "malformed JSON reports an error");
     return NpcSpellsCheck::g_failed;
@@ -203,7 +232,8 @@ int RunRulesSelfTest()
 #include "NpcSpellsCheck.h"
 #include <cstdio>
 #include <string>
-int RunRealFiles(const std::string& tree, const std::string& catalog);  // Task 5
+// Stub until Task 5 replaces it in this file (slot statistics on real files)
+int RunRealFiles(const std::string&, const std::string&) { return 0; }
 int main(int argc, char** argv)
 {
     std::string tree, catalog;
@@ -221,7 +251,7 @@ int main(int argc, char** argv)
     return NpcSpellsCheck::g_failed == 0 ? 0 : 1;
 }
 ```
-  Until Tasks 5/7/6 land, `RunBuildSelfTest`, `RunNpcSelfTest`, `RunEslSelfTest` and `RunRealFiles` are stubs returning 0 in `tools/npcspells-selftest-build.cpp`, `-npc.cpp`, `-esl.cpp` (created now, filled later).
+  Until Tasks 3/7/4 land, `RunBuildSelfTest`, `RunNpcSelfTest`, `RunEslSelfTest` are stubs returning 0 in `tools/npcspells-selftest-build.cpp`, `-npc.cpp`, `-esl.cpp` (created now, each `#include "NpcSpellsCheck.h"` plus the one function; filled later). `RunRealFiles` is the stub in `npcspells-test.cpp` above, not in a suite file, so Task 3 rewriting the build suite cannot drop it.
 - [ ] Add to `tools/CMakeLists.txt`:
 ```cmake
 # =============================================================================
@@ -246,42 +276,41 @@ target_include_directories(npcspells-test PRIVATE
     ${SL_SRC_DIR}
 )
 target_link_libraries(npcspells-test PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+# The rules suite reads the shipped JSON by absolute path, so the harness runs from any directory
+target_compile_definitions(npcspells-test PRIVATE NPCSPELLS_DATA_DIR="${CMAKE_SOURCE_DIR}/plugins/NPCSpells/data")
 ```
 - [ ] Check SkyrimSE is not running, then build: `if (Get-Process -Name "SkyrimSE" -ErrorAction SilentlyContinue) { Write-Host "Skyrim is running - close it first" } else { .\BuildRelease.ps1 -preset Release-2026 }` - expected: link error (`ParseFormRef` undefined) or, with an empty `NpcSpellsRules.cpp`, the test binary runs: `.\build\tools\Release\npcspells-test.exe` prints `[FAIL]` lines and exits 1.
-- [ ] Implement `NpcSpellsTypes.h` (enums above; `SchoolFromName`/`TierFromName` linear search over the name arrays) and `NpcSpellsRules.cpp`:
+- [ ] `NpcSpellsTypes.h` is the complete file in Interfaces above. Implement `NpcSpellsRules.cpp`:
 ```cpp
 #include "core/NpcSpellsRules.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 namespace NpcSpells {
 namespace {
-    constexpr std::array<std::string_view, 5> kVanillaMasters{ "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm" };
+    constexpr std::size_t kMaxLocalHexDigits = 6;
     std::string Lower(std::string_view s) { std::string r(s); for (auto& c : r) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return r; }
     FormRef Ref(const char* text) { std::string e; return *ParseFormRef(text, e); }
     template <class T> void Read(const nlohmann::json& j, const char* key, T& out) { if (auto it = j.find(key); it != j.end()) out = it->get<T>(); }
+    // A bad entry drops that entry only (§7); the rest of the list stays
     void ReadRefs(const nlohmann::json& j, const char* key, std::vector<FormRef>& out, std::string& error) {
         auto it = j.find(key); if (it == j.end() || !it->is_array()) return;
         out.clear();
         for (const auto& v : *it) { if (auto ref = ParseFormRef(v.get<std::string>(), error)) out.push_back(*ref); }
     }
+    void ReadRef(const nlohmann::json& j, const char* key, FormRef& out, std::string& error) {
+        if (auto it = j.find(key); it != j.end() && it->is_string()) if (auto ref = ParseFormRef(it->get<std::string>(), error)) out = *ref;
+    }
 }
 std::optional<FormRef> ParseFormRef(std::string_view text, std::string& error)
 {
-    FormRef ref;
     const auto colon = text.find(':');
-    if (colon == std::string_view::npos) {
-        if (text.empty()) { error = "empty form reference"; return std::nullopt; }
-        ref.editorId = std::string(text); return ref;
-    }
+    const auto hex = colon == std::string_view::npos ? std::string_view{} : text.substr(0, colon);
+    const bool allHex = !hex.empty() && hex.size() <= kMaxLocalHexDigits && std::all_of(hex.begin(), hex.end(), [](char c) { return std::isxdigit(static_cast<unsigned char>(c)) != 0; });
+    if (!allHex || colon + 1 >= text.size()) { error = "not a FormID (XXXXXX:Plugin.ext): " + std::string(text); return std::nullopt; }
+    FormRef ref;
     ref.pluginLower = Lower(text.substr(colon + 1));
-    const auto hex = text.substr(0, colon);
-    const bool allHex = !hex.empty() && hex.size() <= 6 && std::all_of(hex.begin(), hex.end(), [](char c) { return std::isxdigit(static_cast<unsigned char>(c)) != 0; });
-    if (!allHex) {
-        const bool vanilla = std::find(kVanillaMasters.begin(), kVanillaMasters.end(), ref.pluginLower) != kVanillaMasters.end();
-        if (vanilla) { error = "vanilla records must be FormIDs: " + std::string(text); return std::nullopt; }
-        ref.editorId = std::string(hex); return ref;
-    }
     ref.local = static_cast<std::uint32_t>(std::stoul(std::string(hex), nullptr, 16));
     return ref;
 }
@@ -317,6 +346,8 @@ bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
             if (!tier) { error = "ladder: unknown tier"; return false; }
             out.ladder.push_back({ *tier, rung.value("below", false), rung.value("chance", 1.0) });
         }
+        // The slot table has kRungCount rungs; InSlot/BuildLists index rules.ladder[rung] for each
+        if (out.ladder.size() != kRungCount) { error = "ladder must have 5 rungs"; return false; }
     }
     Read(j, "hybridScale", out.hybridScale); Read(j, "nonMageChance", out.nonMageChance); Read(j, "nonMageTags", out.nonMageTags);
     if (auto c = j.find("classTiers"); c != j.end()) {
@@ -335,14 +366,51 @@ bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
         }
     }
     if (auto u = j.find("undead"); u != j.end()) ReadRefs(*u, "exceptNpcs", out.undeadExceptNpcs, error);
-    if (auto rg = j.find("redguard"); rg != j.end()) if (auto ref = ParseFormRef(rg->value("race", "013748:Skyrim.esm"), error)) out.redguardRace = *ref;
+    if (auto rg = j.find("redguard"); rg != j.end()) ReadRef(*rg, "race", out.redguardRace, error);
+    if (auto k = j.find("keywords"); k != j.end()) { ReadRef(*k, "npc", out.keywordNpc, error); ReadRef(*k, "creature", out.keywordCreature, error); ReadRef(*k, "animal", out.keywordAnimal, error); }
     return true;
 }
 }
 ```
-- [ ] Write `plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json` with exactly the §5.3 content plus the `ladder` array (`[{"startTier":"novice","below":false,"chance":1.0},{"startTier":"apprentice","below":true,"chance":0.25},{"startTier":"adept","below":true,"chance":0.25},{"startTier":"expert","below":true,"chance":0.5},{"startTier":"master","below":false,"chance":0.5}]`), `"excludeSpells": []`, and `"keywords": {"npc":"013794:Skyrim.esm","creature":"013795:Skyrim.esm","animal":"013798:Skyrim.esm"}` (verified with houseCARL 2026-10-08: ActorTypeNPC / ActorTypeCreature / ActorTypeAnimal). Drop the spec's `"conjurerClasses": "가중치로 판정"` placeholder string (it is computed).
+- [ ] Write `plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json` with exactly the keys `ParseRules` reads (a shipped key that does nothing would mislead users). The §5.3 keys `ParseRules` does not read - `tierSkill` (the engine's skill bands), `ownTierShare` (realised by the ladder), `conjuration.necromancerGroups` / `necromancerPrefer` / `conjurerAvoidPrefer` (built-in group policies, `kGroups`), `undead.groups`, `undead.conjurerClasses` (computed from weights), `redguard.mageOnly` / `undeadOnlyVia` (built-in Redguard rule) - are left out and listed in the README (Task 12) as fixed values. Keywords verified with houseCARL 2026-10-08 (ActorTypeNPC / ActorTypeCreature / ActorTypeAnimal):
+```json
+{
+  "tierTarget": { "novice": 1.0, "apprentice": 1.25, "adept": 1.5, "expert": 2.0, "master": 2.5 },
+  "ladder": [
+    { "startTier": "novice", "below": false, "chance": 1.0 },
+    { "startTier": "apprentice", "below": true, "chance": 0.25 },
+    { "startTier": "adept", "below": true, "chance": 0.25 },
+    { "startTier": "expert", "below": true, "chance": 0.5 },
+    { "startTier": "master", "below": false, "chance": 0.5 }
+  ],
+  "hybridScale": 0.5,
+  "nonMageChance": 0.05,
+  "nonMageTags": ["curing", "armor"],
+  "classTiers": { "mageMinMagicShare": 0.6, "hybridMinMagicShare": 0.3 },
+  "conjuration": { "necromancerClasses": ["0C969F:Skyrim.esm"], "share": 0.75 },
+  "excludeTags": ["cloak", "trap", "sense"],
+  "excludeSpells": [],
+  "beastRaces": ["0CDD84:Skyrim.esm", "00283A:Dawnguard.esm"],
+  "groups": [
+    { "name": "Forsworn", "factions": ["043599:Skyrim.esm", "04359E:Skyrim.esm"],
+      "prefer": ["nature", "earth", "flesh", "fire", "curse"], "preferShare": 0.75, "never": ["sun"] },
+    { "name": "Vampire", "factions": ["027242:Skyrim.esm", "003376:Dawnguard.esm"],
+      "prefer": ["siphon", "health", "shadow", "frost", "undead"], "preferShare": 0.75, "never": ["sun", "light", "curing"] },
+    { "name": "Necromancer", "factions": ["034B74:Skyrim.esm"],
+      "prefer": ["undead", "soul", "frost", "siphon"], "preferShare": 0.75, "never": ["sun"] },
+    { "name": "Thalmor", "factions": ["039F26:Skyrim.esm", "0B80F7:Skyrim.esm", "0135A0:Skyrim.esm"],
+      "prefer": ["shock", "fire", "arcane", "light", "shield"], "preferShare": 0.75, "never": ["undead"] },
+    { "name": "Vigilant", "factions": ["0B3292:Skyrim.esm"],
+      "prefer": ["sun", "light", "curing", "shield"], "preferShare": 0.75, "never": ["undead", "daedra", "shadow"] }
+  ],
+  "undead": { "exceptNpcs": ["0135E9:Skyrim.esm"] },
+  "redguard": { "race": "013748:Skyrim.esm" },
+  "keywords": { "npc": "013794:Skyrim.esm", "creature": "013795:Skyrim.esm", "animal": "013798:Skyrim.esm" }
+}
+```
+- [ ] `CLAUDE.md`, "No C++ Test Framework" harness list: add `npcspells-test` (the NPC Spells addon's RE-free core: `npcspells-test` runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`). Task 5 adds its `--tree --catalog` mode to the same row.
 - [ ] Rebuild (same SkyrimSE check) and run `.\build\tools\Release\npcspells-test.exe` - expected: all `rules` lines `[PASS]`, exit 0.
-- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsTypes.h plugins/NPCSpells/src/core/NpcSpellsRules.h plugins/NPCSpells/src/core/NpcSpellsRules.cpp plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json tools/include/NpcSpellsCheck.h tools/npcspells-test.cpp tools/npcspells-selftest-rules.cpp tools/npcspells-selftest-build.cpp tools/npcspells-selftest-npc.cpp tools/npcspells-selftest-esl.cpp tools/CMakeLists.txt; git commit -m "NPC Spells: rules table and offline harness scaffold" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
+- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsTypes.h plugins/NPCSpells/src/core/NpcSpellsRules.h plugins/NPCSpells/src/core/NpcSpellsRules.cpp plugins/NPCSpells/data/HeartOfMagic_NPCSpells.json tools/include/NpcSpellsCheck.h tools/npcspells-test.cpp tools/npcspells-selftest-rules.cpp tools/npcspells-selftest-build.cpp tools/npcspells-selftest-npc.cpp tools/npcspells-selftest-esl.cpp tools/CMakeLists.txt CLAUDE.md; git commit -m "NPC Spells: rules table and offline harness scaffold" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
 ### Task 2: Class tier classification
 
@@ -351,7 +419,7 @@ bool ParseRules(const std::string& jsonText, Rules& out, std::string& error)
 - Modify: `tools/CMakeLists.txt` (add the .cpp to `NPCSPELLS_CORE_SOURCES`), `tools/npcspells-selftest-rules.cpp` (append suite)
 - Test: `tools/npcspells-selftest-rules.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsClassTier.h` includes `core/NpcSpellsRules.h`, `<array>`, `<cstdint>`)
 ```cpp
 namespace NpcSpells {
     // The 18 CLASS_DATA::SkillWeights in record order (RE/T/TESClass.h:36-59); magic schools are indices 12..16.
@@ -364,7 +432,7 @@ namespace NpcSpells {
 ```
 
 **Steps**
-- [ ] Append to `RunRulesSelfTest()` (before `return`):
+- [ ] Add `#include "core/NpcSpellsClassTier.h"` to the include block of `tools/npcspells-selftest-rules.cpp` (`<cmath>` is already there from Task 1), then append to `RunRulesSelfTest()` (before `return`):
 ```cpp
     auto W = [](std::initializer_list<int> magic, int nonMagicSum) { ClassWeights c; int i = 0; for (int m : magic) c.w[kFirstMagicSkill + i++] = static_cast<std::uint8_t>(m); c.w[0] = static_cast<std::uint8_t>(nonMagicSum); return c; };
     // Skyrim.esm values (ledger): CombatMageConjurer alt1 conj3 des2 ill1 res3 = 10 of 11 -> .909
@@ -377,7 +445,7 @@ namespace NpcSpells {
     Check(ClassifyClass(W({ 3, 0, 3, 0, 0 }, 4), defaults) == ClassTier::Mage, "exactly 0.600 counts as mage (integer compare)");
     Check(ClassifyClass(W({ 3, 0, 0, 0, 0 }, 7), defaults) == ClassTier::Hybrid, "exactly 0.300 counts as hybrid");
     Check(IsConjurationClass(W({ 1, 3, 2, 1, 3 }, 1)), "conjuration 3 = restoration 3 tie is a conjuration class");
-    Check(!IsConjurationClass(W({ 1, 2, 3, 1, 1 }, 1)), "destruction above conjuration is not");
+    Check(!IsConjurationClass(W({ 1, 3, 4, 1, 1 }, 1)), "destruction above conjuration is not (conjuration 3 meets the floor)");
     Check(!IsConjurationClass(W({ 0, 2, 0, 0, 0 }, 1)), "conjuration 2 is below the floor of 3");
     const auto scope = SchoolsWeighted(W({ 1, 0, 2, 0, 1 }, 3));
     Check(scope[0] && !scope[1] && scope[2] && !scope[3] && scope[4], "weighted schools are those with weight > 0");
@@ -422,7 +490,7 @@ std::array<bool, kSchoolCount> SchoolsWeighted(const ClassWeights& c)
 - Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-build.cpp` (start the suite)
 - Test: `tools/npcspells-selftest-build.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsPool.h` includes `core/NpcSpellsRules.h`, `<nlohmann/json.hpp>`, `<functional>`, `<optional>`, `<string>`, `<vector>`)
 ```cpp
 namespace NpcSpells {
     struct SpellFacts {
@@ -435,7 +503,7 @@ namespace NpcSpells {
         bool HasAnyTag(const std::vector<std::string>& tags) const;
     };
     struct PoolStats { std::size_t treeNodes = 0, notInCatalog = 0, noSchoolOrTier = 0, excludedTag = 0, excludedList = 0, excludedDistr = 0, unresolved = 0, schoolMismatch = 0, kept = 0; };
-    using DistributedFn = std::function<bool(const std::string& persistentId)>;   // another _DISTR.ini already gives it
+    using DistributedFn = std::function<bool(const std::string& persistentId)>;   // another *_DISTR.ini (SPID) already names it
     // Stops with an empty pool and stats.treeNodes == 0 when catalog["version"] != 1 or tree has no "schools".
     std::vector<SpellFacts> BuildPool(const nlohmann::json& tree, const nlohmann::json& catalog, const Rules& rules, const DistributedFn& distributed, PoolStats& stats);
     using EngineSchoolFn = std::function<std::optional<School>(const std::string& persistentId)>;  // nullopt = form not found or not a spell
@@ -450,6 +518,7 @@ namespace NpcSpells {
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsPool.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
 using namespace NpcSpells; using NpcSpellsCheck::Check; using json = nlohmann::json;
 namespace {
     json Node(const char* pid) { return json{ { "formId", "0x00000000" }, { "persistentId", pid } }; }
@@ -488,6 +557,8 @@ int RunBuildSelfTest()
     ApplyEngineSchool(pool, [](const std::string& id) -> std::optional<School> {
         if (id == "A.esp|0x000801") return School::Restoration;   // planted mismatch
         if (id == "A.esp|0x000806") return std::nullopt;          // plugin gone
+        if (id == "A.esp|0x000804" || id == "A.esp|0x000805") return School::Conjuration;   // every other spell keeps its catalog school
+        if (id == "A.esp|0x000807" || id == "A.esp|0x000808") return School::Restoration;
         return School::Destruction; }, stats);
     Check(stats.schoolMismatch == 1 && find("A.esp|0x000801")->school == School::Restoration, "the engine school replaces the catalog school and is counted");
     Check(stats.unresolved == 1 && find("A.esp|0x000806") == pool.end(), "an unresolvable spell is dropped and counted");
@@ -501,7 +572,6 @@ int RunBuildSelfTest()
     return NpcSpellsCheck::g_failed;   // Task 5 continues this function
 }
 ```
-  (`ApplyEngineSchool` returning `Destruction` for the Restoration/Conjuration spells is deliberate; only the counts matter here.)
 - [ ] Build (SkyrimSE check), run - expected: `[FAIL]` lines / link errors.
 - [ ] Implement `NpcSpellsPool.cpp`:
 ```cpp
@@ -574,7 +644,7 @@ void ApplyEngineSchool(std::vector<SpellFacts>& pool, const EngineSchoolFn& engi
 - Count: non-Conjuration 4 schools x (1 + 5 x 2) = 44 variant rows x 5 rungs = 220; Conjuration (3 + 4 + 2 + 2 + 2 + 2) = 15 x 5 = 75; non-mage lists 6 groups x 2 schools (Restoration `curing`, Alteration `armor`, novice only, 1 rung) = 12. **Slots = 307.** `kMaxChunks = 3` chunks per slot (255 x 3 = 765 spells per slot, ~2.5x the biggest TAKEALOOK school). **ESL records N = 307 x 3 = 921**, local FormIDs `0x800 .. 0xB98`, in-file `0x01000800 .. 0x01000B98`. Headroom to the ESL limit (0xFFF): 1127 records. Changing `kMaxChunks` or the enumeration order renumbers every FormID: new slots append only.
 - EditorID: `HoMNS_<School>_<Group>_<Variant>_R<rung+1>_C<chunk>`, e.g. `HoMNS_Destruction_Thalmor_Prefer_R2_C0`; non-mage: `HoMNS_Restoration_Vampire_NonMage_C0`.
 
-**Interfaces**
+**Interfaces** (`NpcSpellsSlots.h` includes `core/NpcSpellsTypes.h`, `<array>`, `<cstdint>`, `<optional>`, `<string>`, `<string_view>`, `<vector>`; `kRungCount` comes from `NpcSpellsTypes.h`)
 ```cpp
 namespace NpcSpells {
     enum class UndeadGroupPolicy : std::uint8_t { Mixed, AlwaysNecro, NeverUndead };
@@ -587,7 +657,6 @@ namespace NpcSpells {
     struct SlotDef { SlotKey key; std::string editorId; };
     inline constexpr std::uint32_t kFirstLocalFormId = 0x800;
     inline constexpr std::uint8_t kMaxChunks = 3;        // renumbers every FormID if changed
-    inline constexpr std::size_t kRungCount = 5;
     const std::vector<SlotDef>& SlotTable();             // built once, append-only order
     std::optional<std::size_t> FindSlot(const SlotKey& key);
     constexpr std::uint32_t LocalFormId(std::size_t slotIndex, std::uint8_t chunk) { return kFirstLocalFormId + static_cast<std::uint32_t>(slotIndex) * kMaxChunks + chunk; }
@@ -601,6 +670,9 @@ namespace NpcSpells {
 ```cpp
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsSlots.h"
+#include <algorithm>
+#include <string>
+#include <vector>
 using namespace NpcSpells; using NpcSpellsCheck::Check;
 int RunEslSelfTest()
 {
@@ -625,6 +697,7 @@ int RunEslSelfTest()
 - [ ] Implement `NpcSpellsSlots.cpp`:
 ```cpp
 #include "core/NpcSpellsSlots.h"
+#include <cctype>
 #include <format>
 namespace NpcSpells {
 namespace {
@@ -683,16 +756,17 @@ std::optional<std::size_t> FindSlot(const SlotKey& key)
 
 **Files**
 - Create: `plugins/NPCSpells/src/core/NpcSpellsBuild.h`, `plugins/NPCSpells/src/core/NpcSpellsBuild.cpp`
-- Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-build.cpp` (second half), `tools/npcspells-test.cpp` (`RunRealFiles`)
+- Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-build.cpp` (second half), `tools/npcspells-test.cpp` (replace the `RunRealFiles` stub), `CLAUDE.md` (harness row: `--tree --catalog`)
 - Test: `tools/npcspells-selftest-build.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsBuild.h` includes `core/NpcSpellsPool.h`, `core/NpcSpellsSlots.h`, `<array>`, `<cstdint>`, `<vector>`)
 ```cpp
 namespace NpcSpells {
     struct Entry { std::uint32_t spellIndex; std::uint16_t level; };        // index into the pool
     struct BuiltList { std::size_t slotIndex; std::uint8_t chunk; std::uint8_t flags; std::vector<Entry> entries; };  // flags: 0 or 1 (kCalculateFromAllLevelsLTOrEqPCLevel)
     struct BuildStats { std::size_t lists = 0, emptySlots = 0, droppedOverCapacity = 0; std::array<std::size_t, kSchoolCount> perSchool{}; };
-    // Every (slot, chunk) with at least one entry. Entries sorted ascending by level, one school per list, chunks fed round-robin per tier.
+    // Every (slot, chunk) with at least one entry. Entries sorted ascending by level, one school per list. A slot is split only when it
+    // holds more than kMaxEntries spells (ceil(total / 255) chunks, at most kMaxChunks, fed round-robin across tiers); otherwise one list, chunk 0.
     std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rules& rules, BuildStats& stats);
     // Membership of one spell in one slot (public for the test): allowed = not in group never; variant rules of Task 4.
     bool InSlot(const SpellFacts& spell, const SlotKey& key, const Rules& rules);
@@ -701,7 +775,7 @@ namespace NpcSpells {
 Rung semantics: rung r = `rules.ladder[r]`; a list for rung r holds spells with `tier >= startTier`; `flags = below ? 1 : 0`; entry level = `kTierFloor[tier]`. Non-mage slots hold novice spells with any `nonMageTags` tag, flags 0.
 
 **Steps**
-- [ ] Append to `RunBuildSelfTest()`:
+- [ ] Add `#include "core/NpcSpellsBuild.h"`, `#include "core/NpcSpellsSlots.h"` and `#include <format>` to the include block of `tools/npcspells-selftest-build.cpp` (`<algorithm>` is there from Task 3), then append to `RunBuildSelfTest()` (replacing its `return`):
 ```cpp
     std::printf("build\n");
     // Group rules for the test: group index 1 = Forsworn (prefer fire..., never sun), 4 = Thalmor (never undead)
@@ -731,6 +805,9 @@ Rung semantics: rung r = `rules.ladder[r]`; a list for rung r holds spells with 
     }
     Check(invariants, "every list: one school, ascending levels, level = tier floor, <= 255, tier >= rung start, flag per rung");
     Check(bs.emptySlots > 0, "slots without spells are counted (small pool)");
+    { const auto small = *FindSlot({ School::Destruction, kGroupNone, Variant::All, 0, false }); std::size_t n = 0; bool chunk0 = true;
+      for (const auto& l : lists) if (l.slotIndex == small) { ++n; chunk0 = chunk0 && l.chunk == 0; }
+      Check(n == 1 && chunk0, "a slot under 255 spells builds one list (chunk 0), never split"); }
 
     // 700 novice..master spells in one school -> 3 chunks, every chunk holds every tier
     std::vector<SpellFacts> big;
@@ -791,11 +868,13 @@ std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rul
         for (std::uint32_t i = 0; i < pool.size(); ++i) if (InSlot(pool[i], key, rules)) byTier[static_cast<std::size_t>(pool[i].tier)].push_back(i);
         std::size_t total = 0; for (const auto& v : byTier) total += v.size();
         if (total == 0) { ++stats.emptySlots; continue; }
+        // Split only over 255 (§5.4): a small slot stays one list, so a flag-0 list never misses a tier it holds
+        const std::size_t chunkCount = std::min<std::size_t>(kMaxChunks, (total + kMaxEntries - 1) / kMaxEntries);
         std::array<std::vector<Entry>, kMaxChunks> chunks;
         std::size_t next = 0;
         for (std::size_t t = 0; t < kTierCount; ++t)
             for (std::uint32_t spell : byTier[t]) {
-                auto& target = chunks[next % kMaxChunks]; ++next;
+                auto& target = chunks[next % chunkCount]; ++next;
                 if (target.size() >= kMaxEntries) { ++stats.droppedOverCapacity; continue; }
                 target.push_back({ spell, kTierFloor[t] });
             }
@@ -811,19 +890,20 @@ std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rul
 }
 }
 ```
-  Round-robin per tier: `next` advances across tiers so each chunk receives every tier when a tier has >= `kMaxChunks` spells; when a chunk is full the spell is dropped and counted (the chunk index keeps advancing, so a later chunk still fills).
-- [ ] Implement `RunRealFiles` in `tools/npcspells-test.cpp`: read both files with `ReadJsonFile` (`tools/include/JsonFile.h`), `BuildPool` with a null `distributed`, `BuildLists`, then print per school `lists`, biggest list size, `emptySlots`, `droppedOverCapacity`, and each slot with `entries >= 200`. Return 0. Run on the TAKEALOOK files: `.\build\tools\Release\npcspells-test.exe --tree "D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev\SKSE\Plugins\SpellLearning\spell_tree.json" --catalog "D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev\SKSE\Plugins\SpellLearning\spell_catalog.json"` (adjust the path to where the dev install keeps them; the main plugin writes them under `Data/SKSE/Plugins/SpellLearning/`) - expected: `droppedOverCapacity 0`, no school over 765.
+  Chunks: `chunkCount = ceil(total / 255)` capped at `kMaxChunks`, so a slot of <= 255 spells is one list. Over 255, round-robin across tiers: `next` advances across tiers so each chunk receives every tier when a tier has >= `chunkCount` spells; when a chunk is full the spell is dropped and counted (the chunk index keeps advancing, so a later chunk still fills).
+- [ ] Replace the `RunRealFiles` stub in `tools/npcspells-test.cpp` (add `#include "JsonFile.h"`, `core/NpcSpellsPool.h`, `core/NpcSpellsBuild.h`, `<algorithm>`): read both files with `ReadJsonFile` (`tools/include/JsonFile.h`), `BuildPool` with a null `distributed`, `BuildLists`, then print per school `lists`, biggest list size, `emptySlots`, `droppedOverCapacity`, and each slot with `entries >= kBigListReport` (`constexpr std::size_t kBigListReport = 200;` next to the function). Return 0. Run on the TAKEALOOK files (the main plugin writes them to MO2's overwrite, checked 2026-10-08): `.\build\tools\Release\npcspells-test.exe --tree "D:\TAKEALOOK\overwrite\SKSE\Plugins\SpellLearning\spell_tree.json" --catalog "D:\TAKEALOOK\overwrite\SKSE\Plugins\SpellLearning\spell_catalog.json"` - expected: `droppedOverCapacity 0`, no school over 765.
+- [ ] `CLAUDE.md`: extend the `npcspells-test` harness row with `--tree <spell_tree.json> --catalog <spell_catalog.json>` (slot statistics on real files).
 - [ ] Build, run harness - expected all PASS.
-- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsBuild.h plugins/NPCSpells/src/core/NpcSpellsBuild.cpp tools/CMakeLists.txt tools/npcspells-selftest-build.cpp tools/npcspells-test.cpp; git commit -m "NPC Spells: build leveled lists per slot with chunking" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
+- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsBuild.h plugins/NPCSpells/src/core/NpcSpellsBuild.cpp tools/CMakeLists.txt tools/npcspells-selftest-build.cpp tools/npcspells-test.cpp CLAUDE.md; git commit -m "NPC Spells: build leveled lists per slot with chunking" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
 ### Task 6: ESL writer tool and read-back test
 
 **Files**
 - Create: `plugins/NPCSpells/src/core/NpcSpellsEsl.h`, `plugins/NPCSpells/src/core/NpcSpellsEsl.cpp`, `tools/npcspells-esl.cpp`
-- Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-esl.cpp`
+- Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-esl.cpp`, `CLAUDE.md` (harness row)
 - Test: `tools/npcspells-selftest-esl.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsEsl.h` includes `core/NpcSpellsSlots.h`, `<cstdint>`, `<string_view>`, `<vector>`)
 ```cpp
 namespace NpcSpells {
     inline constexpr std::string_view kEslFileName = "HeartOfMagic_NPCSpells.esp";
@@ -832,15 +912,16 @@ namespace NpcSpells {
     inline constexpr float kHeaderVersion = 1.70f;          // keeps 0x800..0xFFF valid on 1.5.97
     inline constexpr std::uint16_t kFormVersion = 44;
     inline constexpr std::uint32_t kOwnModIndexInFile = 0x01000000;   // one master -> own records are index 1 in the file
+    inline constexpr std::uint32_t kTopGroupCount = 1;                // HEDR numRecords counts records and groups (one GRUP LVSP)
     // TES4 (HEDR, CNAM "HeartOfMagic", MAST, DATA) + GRUP LVSP with one empty record per (slot, chunk):
-    // EDID, OBND (12 zero bytes), LVLD 0, LVLF 0, LLCT 0. Uncompressed. The flag is set by the DLL at runtime.
+    // EDID, OBND (12 zero bytes), LVLD 0, LVLF 0, LLCT 0. Uncompressed. The DLL fills entries and LVLF (llFlags) at runtime.
     std::vector<unsigned char> BuildEslBytes(const std::vector<SlotDef>& slots);
 }
 ```
 Note: the `Plugin()` helper in `tools/tome-reach-selftest.cpp` writes only MAST; it is not loadable by the game and must not be copied verbatim.
 
 **Steps**
-- [ ] Append to `RunEslSelfTest()` a minimal reader and checks:
+- [ ] Add `#include "core/NpcSpellsEsl.h"` and `#include <cstring>` to the include block of `tools/npcspells-selftest-esl.cpp` (`<algorithm>`, `<string>` are there from Task 4), then append to `RunEslSelfTest()` (replacing its `return`) a minimal reader and checks:
 ```cpp
     std::printf("esl\n");
     const auto bytes = BuildEslBytes(table);
@@ -850,10 +931,10 @@ Note: the `Plugin()` helper in `tools/tome-reach-selftest.cpp` writes only MAST;
     Check(tag(0, "TES4") && (u32(8) & 0x200) != 0, "TES4 header carries the ESL flag");
     const std::size_t tes4Size = u32(4); std::size_t p = 24; bool hedr = false, mast = false, data = false, cnam = false;
     while (p < 24 + tes4Size) { const std::uint16_t n = u16(p + 4);
-        if (tag(p, "HEDR")) { hedr = n == 12 && u32(p + 10) == table.size() * kMaxChunks && u32(p + 14) == kFirstLocalFormId + table.size() * kMaxChunks; }
+        if (tag(p, "HEDR")) { hedr = n == 12 && u32(p + 10) == table.size() * kMaxChunks + kTopGroupCount && u32(p + 14) == kFirstLocalFormId + table.size() * kMaxChunks; }
         if (tag(p, "CNAM")) cnam = true; if (tag(p, "MAST")) mast = std::string(reinterpret_cast<const char*>(&bytes[p + 6])) == "Skyrim.esm"; if (tag(p, "DATA")) data = n == 8;
         p += 6 + n; }
-    Check(hedr && cnam && mast && data, "HEDR (record count, next object id), CNAM, MAST Skyrim.esm, DATA");
+    Check(hedr && cnam && mast && data, "HEDR (records + groups = 922, next object id), CNAM, MAST Skyrim.esm, DATA");
     Check(tag(p, "GRUP") && tag(p + 8, "LVSP"), "one top group LVSP");
     std::size_t rec = p + 24; std::size_t count = 0; bool ids = true, bodies = true;
     while (rec < bytes.size()) {
@@ -881,7 +962,8 @@ namespace NpcSpells {
 namespace {
     using Bytes = std::vector<unsigned char>;
     constexpr std::uint32_t kGroupHeaderSize = 24;
-    void Put8(Bytes& b, std::uint8_t v) { b.push_back(v); }
+    constexpr std::size_t kObndSize = 12;       // OBND: six int16 bounds, all zero for a leveled list
+    constexpr std::size_t kTes4DataSize = 8;    // TES4 DATA after each MAST: uint64 master size, 0
     void Put16(Bytes& b, std::uint16_t v) { b.push_back(static_cast<unsigned char>(v)); b.push_back(static_cast<unsigned char>(v >> 8)); }
     void Put32(Bytes& b, std::uint32_t v) { for (int i = 0; i < 4; ++i) b.push_back(static_cast<unsigned char>(v >> (8 * i))); }
     void PutTag(Bytes& b, const char* t) { b.insert(b.end(), t, t + 4); }
@@ -894,14 +976,15 @@ namespace {
 std::vector<unsigned char> BuildEslBytes(const std::vector<SlotDef>& slots)
 {
     const std::uint32_t records = static_cast<std::uint32_t>(slots.size()) * kMaxChunks;
-    Bytes hedr; { float v = kHeaderVersion; unsigned char raw[4]; std::memcpy(raw, &v, 4); hedr.insert(hedr.end(), raw, raw + 4); Put32(hedr, records); Put32(hedr, kFirstLocalFormId + records); }
-    Bytes header; Join(header, Sub("HEDR", hedr)); Join(header, Sub("CNAM", Str("HeartOfMagic"))); Join(header, Sub("MAST", Str(kEslMaster))); { Bytes zero(8, 0); Join(header, Sub("DATA", zero)); }
+    // numRecords = records + groups (TES4 convention; xEdit flags a mismatch, the game does not read it)
+    Bytes hedr; { float v = kHeaderVersion; unsigned char raw[sizeof v]; std::memcpy(raw, &v, sizeof v); hedr.insert(hedr.end(), raw, raw + sizeof v); Put32(hedr, records + kTopGroupCount); Put32(hedr, kFirstLocalFormId + records); }
+    Bytes header; Join(header, Sub("HEDR", hedr)); Join(header, Sub("CNAM", Str("HeartOfMagic"))); Join(header, Sub("MAST", Str(kEslMaster))); { Bytes zero(kTes4DataSize, 0); Join(header, Sub("DATA", zero)); }
     Bytes out = Record("TES4", kTes4LightFlag, 0, header);
     Bytes group;
     for (std::size_t i = 0; i < slots.size(); ++i)
         for (std::uint8_t c = 0; c < kMaxChunks; ++c) {
             Bytes body; Join(body, Sub("EDID", Str(EditorIdFor(slots[i].key, c))));
-            { Bytes obnd(12, 0); Join(body, Sub("OBND", obnd)); }
+            { Bytes obnd(kObndSize, 0); Join(body, Sub("OBND", obnd)); }
             { Bytes one(1, 0); Join(body, Sub("LVLD", one)); Join(body, Sub("LVLF", one)); Join(body, Sub("LLCT", one)); }
             Join(group, Record("LVSP", 0, kOwnModIndexInFile | LocalFormId(i, c), body));
         }
@@ -923,8 +1006,9 @@ add_custom_command(OUTPUT "${NPCSPELLS_ESL_FILE}"
     VERBATIM)
 add_custom_target(npcspells_esl ALL DEPENDS "${NPCSPELLS_ESL_FILE}")
 ```
-- [ ] Build, run harness - expected all PASS; `build/npcspells/HeartOfMagic_NPCSpells.esp` exists (~60 KB). Optional sanity: open it in xEdit (SSEEdit) - 921 LVSP, ESL flag, no errors.
-- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsEsl.h plugins/NPCSpells/src/core/NpcSpellsEsl.cpp tools/npcspells-esl.cpp tools/CMakeLists.txt tools/npcspells-selftest-esl.cpp; git commit -m "NPC Spells: ESL writer tool with empty LVSP records" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
+- [ ] Build, run harness - expected all PASS; `build/npcspells/HeartOfMagic_NPCSpells.esp` exists (about 100 KB: 921 records x ~110 bytes). Optional sanity: open it in xEdit (SSEEdit) - 921 LVSP, ESL flag, no errors.
+- [ ] `CLAUDE.md`, harness list: add `npcspells-esl` (writes `HeartOfMagic_NPCSpells.esp` from the slot table at build time into `build/npcspells/`; `npcspells-esl -o <path>`).
+- [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsEsl.h plugins/NPCSpells/src/core/NpcSpellsEsl.cpp tools/npcspells-esl.cpp tools/CMakeLists.txt tools/npcspells-selftest-esl.cpp CLAUDE.md; git commit -m "NPC Spells: ESL writer tool with empty LVSP records" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
 ### Task 7: NPC facts, template chain, decisions
 
@@ -933,7 +1017,7 @@ add_custom_target(npcspells_esl ALL DEPENDS "${NPCSPELLS_ESL_FILE}")
 - Modify: `tools/CMakeLists.txt`, `tools/npcspells-selftest-npc.cpp`
 - Test: `tools/npcspells-selftest-npc.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsTemplate.h` includes `<cstdint>`, `<optional>`, `<vector>`; `NpcSpellsNpc.h` includes `core/NpcSpellsClassTier.h`, `core/NpcSpellsSlots.h`, `<array>`, `<string>`, `<string_view>`, `<vector>`)
 ```cpp
 namespace NpcSpells {
     // Template chain: link 0 is the NPC itself; link i+1 is link i's baseTemplateForm. Flags are TEMPLATE_USE_FLAG bits (RE/T/TESActorBaseData.h:46-62).
@@ -955,9 +1039,11 @@ namespace NpcSpells {
     struct NpcDecision { bool eligible = false; const char* skipReason = nullptr; ClassTier tier = ClassTier::NonMage; std::uint8_t group = kGroupNone; UndeadPolicy undead = UndeadPolicy::NoUndead; std::vector<Attachment> lists; std::size_t slotsWithoutList = 0; };
     double Dice(std::string_view pluginLower, std::uint32_t localId, std::string_view salt);   // FNV-1a 64 -> [0,1)
     NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& lists);
+    // One report row per NPC that got lists (Task 9 fills it, Task 10 renders it): persistentId "Plugin.esp|0x00XXXX" (catalog form), display name
+    struct NpcLine { std::string persistentId; std::string name; NpcDecision decision; };
 }
 ```
-Decision rules (§5.1-5.2 + §5.4): skip if `isPlayer`, `inheritsSpellList` ("template spell list"), `isBeast`; tier = `ClassifyClass` (no class -> NonMage); creature and tier != Mage -> skip ("creature not a mage"); group = lowest built-in index in `groupsMatched` that is > 0 (Forsworn < Vampire < Necromancer < Thalmor < Vigilant), else None; undead policy: group AlwaysNecro or `isNecromancerClass` -> Necromancer; else `isUndeadException` or (`IsConjurationClass` and not Redguard) -> Conjurer; else NoUndead; a NeverUndead group makes every policy behave as plain Prefer/All. Redguard and tier != Mage: only if group is AlwaysNecro, and then only Conjuration (hybrid with weight) else skip ("redguard non-mage"). Schools: Mage all five, Hybrid `SchoolsWeighted`, NonMage none. For each school and rung r: attach if `Dice(key, "<school>:R<r>") < chance * (hybrid ? hybridScale : 1)`; variant: non-Conjuration None -> All; faction group -> `Dice(key, "<school>:R<r>:prefer") < preferShare ? Prefer : All`; Conjuration by policy (Necromancer in Mixed/AlwaysNecro -> NecroPrefer/All at `conjurationShare`; Conjurer in Mixed -> (Forsworn: Prefer, None: NoUndeadAll)/All; NoUndead in Mixed -> Forsworn: Prefer (non-undead) / NoUndeadAll, None: NoUndeadAll only; NeverUndead -> Prefer/All). Fallbacks: Prefer or NecroPrefer absent -> All; NoUndeadAll absent -> nothing for that slot (`slotsWithoutList++`). Chunk = first present among `chunk = (hash >> 8) % kMaxChunks` scanning forward. NonMage: `u = Dice(key, "nonmage")`: `u < nonMageChance / 2` -> Restoration non-mage slot of the group, `u < nonMageChance` -> Alteration; absent -> none.
+Decision rules (§5.1-5.2 + §5.4): skip if `isPlayer`, `inheritsSpellList` ("template spell list"), `isBeast`; tier = `ClassifyClass` (no class -> NonMage); creature and tier != Mage -> skip ("creature not a mage"); group = lowest built-in index in `groupsMatched` that is > 0 (Forsworn < Vampire < Necromancer < Thalmor < Vigilant), else None; undead policy: group AlwaysNecro or `isNecromancerClass` -> Necromancer; else `isUndeadException` or (`IsConjurationClass` and not Redguard) -> Conjurer; else NoUndead; a NeverUndead group makes every policy behave as plain Prefer/All. Redguard and tier != Mage: a Hybrid in an AlwaysNecro group keeps only Conjuration (if weighted); every other non-mage Redguard - NonMage tier in any group, or Hybrid outside Vampire/Necromancer - is skipped ("redguard non-mage") and never reaches the 5% curing/armor branch (§5.1 Redguard rule). Schools: Mage all five, Hybrid `SchoolsWeighted`, NonMage none. For each school and rung r: attach if `Dice(key, "<school>:R<r>") < chance * (hybrid ? hybridScale : 1)`; variant: non-Conjuration None -> All; faction group -> `Dice(key, "<school>:R<r>:prefer") < preferShare ? Prefer : All`; Conjuration by policy (Necromancer in Mixed/AlwaysNecro -> NecroPrefer/All at `conjurationShare`; Conjurer in Mixed -> (Forsworn: Prefer, None: NoUndeadAll)/All; NoUndead in Mixed -> Forsworn: Prefer (non-undead) / NoUndeadAll, None: NoUndeadAll only; NeverUndead -> Prefer/All). Fallbacks: Prefer or NecroPrefer absent -> All; NoUndeadAll absent -> nothing for that slot (`slotsWithoutList++`). Chunk = first present among `chunk = (hash >> 8) % kMaxChunks` scanning forward. NonMage: `u = Dice(key, "nonmage")`: `u < nonMageChance / 2` -> Restoration non-mage slot of the group, `u < nonMageChance` -> Alteration; absent -> none.
 
 **Steps**
 - [ ] Write the failing test `tools/npcspells-selftest-npc.cpp`:
@@ -966,6 +1052,8 @@ Decision rules (§5.1-5.2 + §5.4): skip if `isPlayer`, `inheritsSpellList` ("te
 #include "core/NpcSpellsNpc.h"
 #include "core/NpcSpellsTemplate.h"
 #include "core/NpcSpellsSlots.h"
+#include <algorithm>
+#include <cmath>
 #include <format>
 using namespace NpcSpells; using NpcSpellsCheck::Check;
 namespace {
@@ -974,6 +1062,7 @@ namespace {
     ClassWeights Elemental() { ClassWeights c; c.w[12] = 2; c.w[13] = 1; c.w[14] = 4; c.w[15] = 1; c.w[16] = 2; c.w[0] = 1; return c; }  // destruction-led mage
     ClassWeights Warrior() { ClassWeights c; c.w[0] = 3; c.w[3] = 3; c.w[5] = 3; return c; }
     ClassWeights Spellsword() { ClassWeights c; c.w[0] = 3; c.w[5] = 3; c.w[12] = 1; c.w[14] = 2; c.w[16] = 2; return c; }               // .455 hybrid, no conjuration weight
+    ClassWeights BattleConjurer() { ClassWeights c; c.w[0] = 3; c.w[5] = 3; c.w[13] = 2; c.w[14] = 1; return c; }                         // 3 of 9 = .333 hybrid, conjuration and destruction weighted
     NpcFacts Npc(std::uint32_t id, ClassWeights w) { NpcFacts n; n.pluginLower = "test.esp"; n.localId = id; n.hasClass = true; n.weights = w; return n; }
     std::size_t CountSchool(const NpcDecision& d, School s) { std::size_t n = 0; for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && !SlotTable()[a.slotIndex].key.nonMage) ++n; return n; }
     bool AnyVariant(const NpcDecision& d, School s, Variant v) { for (const auto& a : d.lists) if (SlotTable()[a.slotIndex].key.school == s && SlotTable()[a.slotIndex].key.variant == v) return true; return false; }
@@ -1005,9 +1094,15 @@ int RunNpcSelfTest()
       Check(noUndead, "Redguard mage: conjuration only from NoUndeadAll"); }
     NpcFacts falion = Npc(7, Mage()); falion.isRedguard = true; falion.isUndeadException = true;
     Check(DecideNpc(falion, rules, all).undead == UndeadPolicy::Conjurer, "Falion is a conjurer despite being Redguard");
-    NpcFacts redVampire = Npc(8, Spellsword()); redVampire.isRedguard = true; redVampire.groupsMatched = { 2 };
+    NpcFacts redVampire = Npc(8, BattleConjurer()); redVampire.isRedguard = true; redVampire.groupsMatched = { 2 };
     { const auto d = DecideNpc(redVampire, rules, all); Check(d.eligible && d.group == 2 && d.undead == UndeadPolicy::Necromancer, "Redguard vampire hybrid is eligible via the Vampire group"); 
-      bool onlyConj = true; for (const auto& a : d.lists) onlyConj = onlyConj && SlotTable()[a.slotIndex].key.school == School::Conjuration; Check(onlyConj, "...and only for Conjuration"); }
+      std::size_t conjLists = 0; bool onlyConj = true;
+      for (int i = 0; i < 200; ++i) { redVampire.localId = 3000 + i;
+          for (const auto& a : DecideNpc(redVampire, rules, all).lists) { const bool conj = SlotTable()[a.slotIndex].key.school == School::Conjuration && !SlotTable()[a.slotIndex].key.nonMage; onlyConj = onlyConj && conj; conjLists += conj ? 1 : 0; } }
+      Check(onlyConj && conjLists > 0, "...and only for Conjuration (destruction is weighted too but dropped)"); }
+    NpcFacts redWarriorVampire = Npc(12, Warrior()); redWarriorVampire.isRedguard = true; redWarriorVampire.groupsMatched = { 2 };
+    { bool none = true; for (int i = 0; i < 200; ++i) { redWarriorVampire.localId = 4000 + i; const auto d = DecideNpc(redWarriorVampire, rules, all); none = none && !d.eligible && d.lists.empty(); }
+      Check(none, "Redguard non-mage vampire: nothing, not even the 5% curing/armor list"); }
     NpcFacts vampNecro = Npc(9, Mage()); vampNecro.groupsMatched = { 3, 2 };
     Check(DecideNpc(vampNecro, rules, all).group == 2, "Vampire precedes Necromancer (built-in order)");
     NpcFacts necroClass = Npc(10, Elemental()); necroClass.isNecromancerClass = true;
@@ -1109,7 +1204,12 @@ namespace {
         ++d.slotsWithoutList;
     }
 }
-double Dice(std::string_view pluginLower, std::uint32_t localId, std::string_view salt) { return static_cast<double>(Hash(pluginLower, localId, salt) >> 11) * (1.0 / 9007199254740992.0); }
+double Dice(std::string_view pluginLower, std::uint32_t localId, std::string_view salt)
+{
+    constexpr int kMantissaBits = 53;                                       // a double holds 53 bits exactly
+    constexpr double kDiceScale = 1.0 / static_cast<double>(1ull << kMantissaBits);
+    return static_cast<double>(Hash(pluginLower, localId, salt) >> (64 - kMantissaBits)) * kDiceScale;   // top 53 bits -> [0,1)
+}
 NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& lists)
 {
     NpcDecision d;
@@ -1125,7 +1225,8 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
     std::array<bool, kSchoolCount> schools{};
     if (d.tier == ClassTier::Mage) schools.fill(true); else if (d.tier == ClassTier::Hybrid) schools = SchoolsWeighted(npc.weights);
     if (npc.isRedguard && d.tier != ClassTier::Mage) {
-        if (policy != UndeadGroupPolicy::AlwaysNecro) { d.skipReason = "redguard non-mage"; return d; }
+        // Only a hybrid vampire/necromancer keeps its conjuration share; a NonMage-tier Redguard never gets the 5% list (§5.1)
+        if (policy != UndeadGroupPolicy::AlwaysNecro || d.tier == ClassTier::NonMage) { d.skipReason = "redguard non-mage"; return d; }
         const bool conj = schools[static_cast<std::size_t>(School::Conjuration)]; schools.fill(false); schools[static_cast<std::size_t>(School::Conjuration)] = conj;
     }
     d.eligible = true;
@@ -1155,7 +1256,8 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
 
 **Files**
 - Create: `plugins/NPCSpells/CMakeLists.txt`, `plugins/NPCSpells/src/Main.cpp`, `plugins/NPCSpells/src/game/GameFiles.h`, `plugins/NPCSpells/src/game/GameFiles.cpp`, `plugins/NPCSpells/src/game/GameLists.h`, `plugins/NPCSpells/src/game/GameLists.cpp`, `plugins/NPCSpells/src/game/GameRun.h`, `plugins/NPCSpells/src/game/GameRun.cpp`
-- Modify: `CMakeLists.txt` (top level: `add_subdirectory(plugins/NPCSpells)` after BookXP)
+- Create (empty-but-compiling stubs, filled in Tasks 9-10): `plugins/NPCSpells/src/game/GamePool.cpp`, `plugins/NPCSpells/src/game/GameNpcs.cpp`, `plugins/NPCSpells/src/core/NpcSpellsReport.cpp`
+- Modify: `CMakeLists.txt` (top level: `add_subdirectory(plugins/NPCSpells)` after BookXP), `CLAUDE.md` ("four DLLs", Key Locations row)
 - Test: build succeeds; manual log check (no RE in the harness). The offline guarantees come from Tasks 1-7.
 
 **Interfaces**
@@ -1166,6 +1268,7 @@ namespace NpcSpellsGame {
     inline constexpr const char* kRulesPath = "Data/SKSE/Plugins/HeartOfMagic_NPCSpells.json";
     inline constexpr const char* kReportPath = "Data/SKSE/Plugins/HeartOfMagic_NPCSpells_report.txt";
     inline constexpr const char* kDataDir = "Data";
+    // distr: the *_DISTR.ini (SPID) files only
     struct Inputs { nlohmann::json tree, catalog; NpcSpells::Rules rules; bool rulesFromDefaults = false; std::string rulesError; TomeReach::ConfigText distr; bool ok = false; std::string stopReason; };
     Inputs ReadInputs();                                     // GameFiles
     struct EslRecords { bool loaded = false; std::vector<RE::TESLevSpell*> byRecord; std::size_t missing = 0, wrongType = 0; };   // index = slot*kMaxChunks+chunk
@@ -1173,10 +1276,10 @@ namespace NpcSpellsGame {
     void Run();                                              // GameRun: everything at kDataLoaded
 }
 ```
-RE members used (verify on the checkout): `RE::TESDataHandler::GetSingleton()` (`RE/T/TESDataHandler.h:46`), `LookupLoadedLightModByName` (`:78`, light plugins only), `LookupLoadedModByName` (`:74`, to tell "present but not light"), `LookupForm<T>(localId, modName)` (`:65`, builds `compileIndex<<24 | smallFileCompileIndex<<12 | local`, `src/RE/T/TESDataHandler.cpp:131-142`), `RE::TESForm::As<RE::TESLevSpell>()` (`RE/T/TESForm.h:259`), `RE::TESLevSpell::FORMTYPE` (`RE/T/TESLevSpell.h:16`). `TomeReach::FindDistributionConfigs(dataDir)` and `ConfigText::Add/Names` (`plugins/spelllearning/src/tomereach/TomeReachConfig.h:25-34`).
+RE members used (verify on the checkout): `RE::TESDataHandler::GetSingleton()` (`RE/T/TESDataHandler.h:46`), `LookupLoadedLightModByName` (`:78`, light plugins only), `LookupLoadedModByName` (`:74`, to tell "present but not light"), `LookupForm(localId, modName)` (untyped `:62`, template `:65`; `LookupFormID` `src/RE/T/TESDataHandler.cpp:125-141` builds `compileIndex<<24 + smallFileCompileIndex<<12 + local` at `:136-138` without checking the form exists, so `LookupForm` + null check is the existence test), `RE::TESForm::As<RE::TESLevSpell>()` (`RE/T/TESForm.h:259`), `RE::TESLevSpell::FORMTYPE` (`RE/T/TESLevSpell.h:16`). `TomeReach::FindDistributionConfigs(dataDir)` (`plugins/spelllearning/src/tomereach/TomeReachConfig.h:25`), `ConfigText::Add` (`:30`) / `Names` (`:34`), `TomeReach::LowerAscii` (`TomeReachRecords.h:68`, defined in `TomeReachRecords.cpp:16`).
 
 **Steps**
-- [ ] `plugins/NPCSpells/CMakeLists.txt` (BookXP's shape; sources list every `src/core/*.cpp` and `src/game/*.cpp` plus `src/Main.cpp` and the two tomereach files `${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachConfig.cpp` - check that file's includes are RE-free; it is "Pure C++" per its header):
+- [ ] `plugins/NPCSpells/CMakeLists.txt` (BookXP's shape; sources list every `src/core/*.cpp` and `src/game/*.cpp` plus `src/Main.cpp` and the two tomereach files `TomeReachConfig.cpp` and `TomeReachRecords.cpp` - `TomeReachConfig.cpp` calls `TomeReach::LowerAscii`, defined in `TomeReachRecords.cpp:16`, which includes `<zlib.h>`, so the DLL links `ZLIB::ZLIB` as the main plugin does, `plugins/spelllearning/CMakeLists.txt:124`; `tools/tome-reach-test` builds the same pair the same way):
 ```cmake
 project(HeartOfMagic_NPCSpells VERSION ${PROJECT_VERSION} DESCRIPTION "Heart of Magic - NPC Spells" LANGUAGES CXX)
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
@@ -1188,15 +1291,16 @@ set(NPCSPELLS_SOURCES
     src/core/NpcSpellsBuild.cpp src/core/NpcSpellsTemplate.cpp src/core/NpcSpellsNpc.cpp src/core/NpcSpellsReport.cpp
     src/game/GameFiles.cpp src/game/GameLists.cpp src/game/GamePool.cpp src/game/GameNpcs.cpp src/game/GameRun.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachConfig.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachRecords.cpp
 )
 add_commonlibsse_plugin(${PROJECT_NAME} NAME ${PROJECT_NAME} AUTHOR "HeartOfMagic" USE_ADDRESS_LIBRARY MINIMUM_SKSE_VERSION "2.0.12" VERSION ${PROJECT_VERSION} SOURCES ${NPCSPELLS_SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src)
 target_precompile_headers(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../PCH.h)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
-target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json ZLIB::ZLIB)
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "HeartOfMagic_NPCSpells")
 ```
-  Core files must not include `PCH.h`; they include only std/nlohmann headers so the DLL's PCH and the tools' stub PCH both work (`GamePool.cpp`, `GameNpcs.cpp`, `NpcSpellsReport.cpp` are created in Tasks 9-10; create empty-but-compiling files now).
+  Core files must not include `PCH.h`; they include only std/nlohmann headers so the DLL's PCH and the tools' stub PCH both work (`GamePool.cpp`, `GameNpcs.cpp`, `NpcSpellsReport.cpp` are filled in Tasks 9-10; create them now as empty-but-compiling files - a comment line - and commit them with this task).
 - [ ] `src/Main.cpp`:
 ```cpp
 #include "Common.h"
@@ -1218,7 +1322,13 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     return true;
 }
 ```
-- [ ] `GameFiles.cpp`: `ReadInputs()` reads the three files with `std::ifstream` (missing tree or catalog -> `stopReason = "spell_tree.json or spell_catalog.json not found (run a Heart of Magic scan and tree build first)"`); rules: parse with `ParseRules`, on failure `rulesFromDefaults = true`, `rulesError`, `rules = DefaultRules()` (§7); logs each group whose name is not in `kGroups` ("rules: group '<name>' is not a built-in group, ignored"); `distr`: `for (auto& f : TomeReach::FindDistributionConfigs(kDataDir)) distr.Add(f)`.
+- [ ] `GameFiles.cpp`: `ReadInputs()` reads the three files with `std::ifstream` (missing tree or catalog -> `stopReason = "spell_tree.json or spell_catalog.json not found (run a Heart of Magic scan and tree build first)"`); rules: parse with `ParseRules`, on failure `rulesFromDefaults = true`, `rulesError`, `rules = DefaultRules()` (§7); logs each group whose name is not in `kGroups` ("rules: group '<name>' is not a built-in group, ignored"), and logs `rulesError` when `ParseRules` succeeded but dropped a non-FormID entry; `distr`: SPID files only (§5.1 "다른 `_DISTR.ini` 가 이미 주는 주문"; `FindDistributionConfigs` also returns KID, FLM, SWAP, CID, CDF, LLI, SkyPatcher and LLOS files, whose mentions do not give spells):
+```cpp
+constexpr std::string_view kSpidSuffix = "_distr.ini";   // in = the Inputs ReadInputs returns
+for (const auto& f : TomeReach::FindDistributionConfigs(kDataDir))
+    if (TomeReach::LowerAscii(f.filename().string()).ends_with(kSpidSuffix)) in.distr.Add(f);
+```
+  `ConfigText` keeps each file's whole text, so a spell named only in a `_DISTR.ini` filter (not on a `Spell =` line) is excluded too; that over-match is accepted (a few spells left out needlessly).
 - [ ] `GameLists.cpp`:
 ```cpp
 NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
@@ -1247,8 +1357,9 @@ NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
 ```
 - [ ] `GameRun.cpp` (first version): `Run()` times `ReadInputs`, logs the stop reason and returns if `!ok`; calls `LookupEslRecords`, logs `loaded/missing/wrongType`; later tasks add pool, lists, NPCs, report. Wrap the body in `try { } catch (const std::exception& e) { logger::error(...); }` so a malformed file never takes the game down.
 - [ ] Top-level `CMakeLists.txt`: `add_subdirectory(plugins/NPCSpells)` after `add_subdirectory(plugins/BookXP)`.
+- [ ] `CLAUDE.md`: "The build produces four DLLs: ... and `HeartOfMagic_NPCSpells.dll` (NPC Spells addon, own ESL and zip)"; Key Locations row `| NPC Spells addon | plugins/NPCSpells/ |`.
 - [ ] Build (SkyrimSE check) - expected: `build/plugins/NPCSpells/Release/HeartOfMagic_NPCSpells.dll` exists; `npcspells-test` still passes.
-- [ ] Commit: `git add CMakeLists.txt plugins/NPCSpells/CMakeLists.txt plugins/NPCSpells/src/Main.cpp plugins/NPCSpells/src/game; git commit -m "NPC Spells: SKSE plugin skeleton, input files and ESL record lookup" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
+- [ ] Commit: `git add CMakeLists.txt plugins/NPCSpells/CMakeLists.txt plugins/NPCSpells/src/Main.cpp plugins/NPCSpells/src/game plugins/NPCSpells/src/core/NpcSpellsReport.cpp CLAUDE.md; git commit -m "NPC Spells: SKSE plugin skeleton, input files and ESL record lookup" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
 ### Task 9: Game layer - resolve spells, fill lists, attach to NPCs
 
@@ -1260,18 +1371,30 @@ NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
 **Interfaces**
 ```cpp
 namespace NpcSpellsGame {
-    struct ResolvedPool { std::vector<NpcSpells::SpellFacts> facts; std::vector<RE::SpellItem*> forms; };   // parallel arrays
+    struct ResolvedPool { std::vector<NpcSpells::SpellFacts> facts; std::vector<RE::SpellItem*> forms; };   // parallel arrays: forms[i] is facts[i]'s spell
     ResolvedPool ResolvePool(const nlohmann::json& tree, const nlohmann::json& catalog, const NpcSpells::Rules& rules, const TomeReach::ConfigText& distr, NpcSpells::PoolStats& stats);
     // Writes entries into each ESL record present; returns the ListIndex for DecideNpc.
     NpcSpells::ListIndex FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool, const EslRecords& records, std::size_t& skippedNoRecord);
-    struct NpcStats { std::size_t scanned = 0, eligible = 0, attached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0; std::map<std::string, std::size_t> skipped; std::array<std::size_t, 3> byTier{}; std::array<std::size_t, 6> byGroup{}; };
-    NpcStats AttachToNpcs(const NpcSpells::Rules& rules, const NpcSpells::ListIndex& index, const EslRecords& records, std::vector<std::pair<std::string, NpcSpells::NpcDecision>>* sample);
+    struct NpcStats { std::size_t scanned = 0, eligible = 0, attached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0, unresolvedRefs = 0; std::map<std::string, std::size_t> skipped; std::array<std::size_t, 3> byTier{}; std::array<std::size_t, 6> byGroup{}; };
+    // lines: one row per NPC that got at least one list (every one, no cap; the report lists them all)
+    NpcStats AttachToNpcs(const NpcSpells::Rules& rules, const NpcSpells::ListIndex& index, const EslRecords& records, std::vector<NpcSpells::NpcLine>& lines);
 }
 ```
-RE members: `RE::TESDataHandler::GetFormArray<RE::TESNPC>()` (`RE/T/TESDataHandler.h:89`); `RE::TESNPC::npcClass` (`RE/T/TESNPC.h:272`), `GetRace()` (`:252`), `GetSpellList()` (`:251`, allocates `SpellData` through CommonLib when null, `src/RE/T/TESNPC.cpp:164-170`), `actorData.templateUseFlags` / `baseTemplateForm` / `factions` (`RE/T/TESActorBaseData.h:74,136,139`; `FACTION_RANK::faction` `RE/F/FactionRank.h:11`), `TESLevCharacter::FORMTYPE` (`RE/T/TESLevCharacter.h:18`), `TESClass::data.skillWeights` (`RE/T/TESClass.h:118, 36-59`), `TESRace::HasKeywordID` (`RE/B/BGSKeywordForm.h:36`; TESRace is a BGSKeywordForm, `RE/T/TESRace.h:147`), `TESForm::GetFile(0)->GetFilename()`, `GetLocalFormID()` (`RE/T/TESForm.h:275,295,58`), `TESSpellList::SpellData::AddLevSpell` (`RE/T/TESSpellList.h:23`), `TESLeveledList::entries.resize/numEntries/llFlags/chanceNone` (`RE/T/TESLeveledList.h:118-121`, `SimpleArray::resize` `RE/M/MemoryManager.h:~370`), `LEVELED_OBJECT{form,count,level,pad0C,itemExtra}` (`TESLeveledList.h:63-72`), `SpellItem::GetAssociatedSkill` (`RE/S/SpellItem.h:81`), `GetSpellType` (`:67`), `RE::ActorValue::kAlteration..kRestoration = 18..22` (`RE/A/ActorValues.h:26-30`).
+RE members: `RE::TESDataHandler::GetFormArray<RE::TESNPC>()` (`RE/T/TESDataHandler.h:89`); `RE::TESNPC::npcClass` (`RE/T/TESNPC.h:272`), `GetRace()` (`:252`), `GetSpellList()` (`:251`, allocates `SpellData` through CommonLib when null, `src/RE/T/TESNPC.cpp:164-170`), `actorData.templateUseFlags` (`REX::EnumSet<TEMPLATE_USE_FLAG, std::uint16_t>`, `.underlying()` `REX/REX/EnumSet.h:56`) / `baseTemplateForm` / `factions` (`RE/T/TESActorBaseData.h:74` inside `ACTOR_BASE_DATA`, member `actorData` `:133`; `baseTemplateForm` `:136` and `factions` `:139` are direct `TESActorBaseData` members; `FACTION_RANK::faction` `RE/F/FactionRank.h:11`), `TESLevCharacter::FORMTYPE` (`RE/T/TESLevCharacter.h:18`), `TESClass::data` (`RE/T/TESClass.h:118`) `.skillWeights` (`CLASS_DATA`, `TESClass.h:75`; `SkillWeights` `:36-59`), `TESRace::HasKeywordID` (`RE/B/BGSKeywordForm.h:36`; TESRace is a BGSKeywordForm, `RE/T/TESRace.h:147`), `TESForm::GetFile(0)` (`RE/T/TESForm.h:275`), `GetLocalFormID()` (`:295`), `GetFormID()` (`:290`), `Is(FormType)` (`:318`), `As<T>()` (`:259`), `GetName()` (`:308`), `IsPlayer()` (`:351`), `TESFile::GetFilename()` (`RE/T/TESFile.h:58`), `TESDataHandler::LookupForm(local, plugin)` (`RE/T/TESDataHandler.h:62`), `TESSpellList::SpellData::AddLevSpells(const std::vector<TESLevSpell*>&)` (`RE/T/TESSpellList.h:24`; skips lists already present, copies the array once, `src/RE/T/TESSpellList.cpp:69-77`), `TESLeveledList::entries/chanceNone/llFlags/numEntries` (`RE/T/TESLeveledList.h:70-73`; `chanceNone` is `std::int8_t`; `Flag : std::uint8_t` `:45-51`), `SimpleArray::resize` (`RE/M/MemoryManager.h:368`, game heap, default-constructs new elements), `LEVELED_OBJECT{form,count,level,pad0C,itemExtra}` (`TESLeveledList.h:15-24`), `SpellItem::GetAssociatedSkill` (`RE/S/SpellItem.h:81`), `GetSpellType` (`:67`), `RE::ActorValue::kAlteration..kRestoration = 18..22` (`RE/A/ActorValues.h:26-30`).
 
 **Steps**
-- [ ] `GamePool.cpp`: `ResolvePool` = `BuildPool(tree, catalog, rules, distributedFn, stats)` where `distributedFn` splits the persistentId at `|` (plugin, hex local) and calls `distr.Names(lowerPlugin, local, "")` (editor IDs are not in the catalog; the FormID forms are 394 of 431 SPID lines in TAKEALOOK, ledger). Then `ApplyEngineSchool` with a callback that resolves `dh->LookupForm<RE::SpellItem>(local, plugin)`, requires `GetSpellType() == RE::MagicSystem::SpellType::kSpell`, maps `GetAssociatedSkill()` 18..22 -> `School`, anything else -> `nullopt`; keep `forms` parallel to `facts` (collect in the same pass by re-looking up after `ApplyEngineSchool`, or resolve into a map first). Persistent-id plugin names with non-ASCII bytes: use `PluginNames::Lookup` from `plugins/spelllearning/include/PluginNames.h` the way `SpellScannerFormId.cpp:46-112` does, or accept the miss and count it (document the choice in README).
+- [ ] `GamePool.cpp`: `ResolvePool` = `BuildPool(tree, catalog, rules, distributedFn, stats)` where `distributedFn` splits the persistentId at `|` (plugin, hex local) and calls `distr.Names(lowerPlugin, local, "")` (editor IDs are not in the catalog; the FormID forms are 394 of 431 SPID lines in TAKEALOOK, ledger). Then `ApplyEngineSchool` with a callback that resolves `dh->LookupForm<RE::SpellItem>(local, plugin)`, requires `GetSpellType() == RE::MagicSystem::SpellType::kSpell`, maps `GetAssociatedSkill()` 18..22 -> `School`, anything else -> `nullopt`, and records every spell it accepts in a side map; `ApplyEngineSchool` drops entries, so `forms` is filled after it from that map:
+```cpp
+std::unordered_map<std::string, RE::SpellItem*> resolved;   // persistentId -> form, filled inside the EngineSchoolFn
+NpcSpells::ApplyEngineSchool(out.facts, [&](const std::string& pid) -> std::optional<NpcSpells::School> {
+    RE::SpellItem* spell = LookupSpell(pid);                    // split at '|', LookupForm<RE::SpellItem>(local, plugin)
+    if (!spell || spell->GetSpellType() != RE::MagicSystem::SpellType::kSpell) return std::nullopt;
+    const auto school = SchoolFromSkill(spell->GetAssociatedSkill());   // kAlteration..kRestoration -> School, else nullopt
+    if (school) resolved[pid] = spell;
+    return school; }, stats);
+out.forms.reserve(out.facts.size());
+for (const auto& f : out.facts) out.forms.push_back(resolved.at(f.persistentId));   // parallel to facts
+``` Persistent-id plugin names with non-ASCII bytes: use `PluginNames::Lookup` from `plugins/spelllearning/include/PluginNames.h` the way `SpellScannerFormId.cpp:46-112` does, or accept the miss and count it (document the choice in README).
 - [ ] `GameLists.cpp` `FillLists`:
 ```cpp
 NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool, const EslRecords& records, std::size_t& skippedNoRecord)
@@ -1293,15 +1416,27 @@ NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::Built
     return index;
 }
 ```
-- [ ] `GameNpcs.cpp`: build `NpcFacts` per `TESNPC`:
-  - `pluginLower` = lowered `npc->GetFile(0)->GetFilename()` (null file -> skip, "no source file"); `localId = npc->GetLocalFormID()`; `isPlayer = npc->GetFormID() == 0x7`.
-  - Chain: `std::vector<ChainLink> chain; RE::TESForm* cur = npc; for depth < 8: push { cur_as_TESNPC->actorData.templateUseFlags.underlying(), cur->Is(RE::TESLevCharacter::FORMTYPE) }; cur = TESNPC ? baseTemplateForm : nullptr`. `inheritsSpellList = (chain[0].templateFlags & kSpells) != 0`. Providers via `ProviderIndex` for Stats (class), Traits (race), Factions; `unresolvable*` when nullopt (then use the record's own fields and count).
-  - Class: `provider->npcClass` -> `weights.w[i] = reinterpret_cast<const std::uint8_t*>(&cls->data.skillWeights)[i]` for 0..17 (`SkillWeights` is 18 contiguous `uint8_t`, `TESClass.h:59` static_assert 0x12); `hasClass = cls != nullptr`; `isNecromancerClass` = class matches any `rules.necromancerClasses` (compare `GetFile(0)` name and `GetLocalFormID()` to the `FormRef`, or `GetFormEditorID()` for an EditorID ref).
-  - Race: `isBeast` = race FormRef in `beastRaces` or `race->HasKeywordID(animalKeywordFormId)`; `isCreature = race->HasKeywordID(creature) || !race->HasKeywordID(npc)`; `isRedguard` = race matches `redguardRace`; keyword FormIDs resolved once with `dh->LookupFormID(local, plugin)`.
-  - Factions: for each `FACTION_RANK` in the provider's `factions`, map faction form to a built-in group index via a precomputed `std::unordered_map<RE::FormID, std::uint8_t>` built from `rules.groups` (unresolved faction refs are logged once and skipped, §7); `multiGroup++` when more than one distinct group.
-  - `isUndeadException` = npc matches `undeadExceptNpcs`.
-  - `DecideNpc`, then for each attachment `npc->GetSpellList()->AddLevSpell(records.byRecord[slot*kMaxChunks+chunk])` (returns false if already present - count but ignore). Collect `byTier/byGroup` and up to 40 sample decisions (EditorID or FormID + tier + group + list EditorIDs) for the report.
-- [ ] `GameRun.cpp`: order and timing with `std::chrono::steady_clock`: read inputs -> ESL records -> `ResolvePool` -> `BuildLists` -> `FillLists` -> `AttachToNpcs`; log every count; stop early (with the reason) when inputs fail or the ESL is not loaded. Log total ms; the spec's budget is 0.5 s for 26k NPCs (§9).
+- [ ] `GameNpcs.cpp`: first resolve every rules `FormRef` once to a runtime FormID - `dh->LookupForm(ref.local, ref.pluginLower)` (`TESDataHandler.h:62`), null -> log the ref once ("rules: <XXXXXX:plugin> not found in this load order, ignored"), `++unresolvedRefs`, drop that ref only (the rest of its group or list stays, §7); else keep `form->GetFormID()`. Results: `std::unordered_set<RE::FormID>` for `necromancerClasses`, `beastRaces`, `undeadExceptNpcs`; one FormID each for `redguardRace` and the three keywords; `std::unordered_map<RE::FormID, std::uint8_t>` faction -> built-in group index from `rules.groups`. Forms are matched by runtime FormID only - never by `GetFormEditorID()` (empty for most forms without powerofthree's Tweaks). Then build `NpcFacts` per `TESNPC`:
+  - `pluginLower` = `TomeReach::LowerAscii(npc->GetFile(0)->GetFilename())` (null file -> skip, "no source file"); `localId = npc->GetLocalFormID()`; `isPlayer = npc->IsPlayer()` (`TESForm.h:351`, FormID 0x7).
+  - Chain (a link may be a `TESLevCharacter`, which has no `actorData`; never dereference it as an NPC):
+```cpp
+constexpr std::size_t kMaxTemplateDepth = 8;   // a longer chain is malformed data; the walk stops and ProviderIndex reports it unresolvable
+std::vector<NpcSpells::ChainLink> chain;
+RE::TESForm* cur = npc;
+for (std::size_t depth = 0; cur && depth < kMaxTemplateDepth; ++depth) {
+    auto* n = cur->As<RE::TESNPC>();
+    chain.push_back({ n ? n->actorData.templateUseFlags.underlying() : std::uint16_t{ 0 }, cur->Is(RE::TESLevCharacter::FORMTYPE) });
+    if (!n) break;
+    cur = n->baseTemplateForm;   // TESActorBaseData member, not inside actorData
+}
+```
+    `inheritsSpellList = (chain[0].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0`. Providers via `ProviderIndex` for Stats (class), Traits (race), Factions; `unresolvable*` when nullopt (then use the record's own fields and count). A provider index points at a concrete `TESNPC` link (ProviderIndex returns nullopt before stepping onto a leveled link); keep the walked `TESNPC*` pointers beside `chain` (push `n` in the same loop) to read it.
+  - Class: `provider->npcClass` -> `weights.w[i] = reinterpret_cast<const std::uint8_t*>(&cls->data.skillWeights)[i]` for 0..17 (`SkillWeights` is 18 contiguous `uint8_t`, `TESClass.h:59` static_assert 0x12); `hasClass = cls != nullptr`; `isNecromancerClass` = `cls->GetFormID()` in the resolved `necromancerClasses` set.
+  - Race: `isBeast` = race FormID in the resolved `beastRaces` set or `race->HasKeywordID(animal)`; `isCreature = race->HasKeywordID(creature) || !race->HasKeywordID(npc)`; `isRedguard` = race FormID == resolved `redguardRace`.
+  - Factions: for each `FACTION_RANK` in the provider's `factions`, look `faction->GetFormID()` up in the faction -> group map; `multiGroup++` when more than one distinct group.
+  - `isUndeadException` = `npc->GetFormID()` in the resolved `undeadExceptNpcs` set.
+  - `DecideNpc`; when `d.lists` is non-empty, collect the `TESLevSpell*` (`records.byRecord[slot*kMaxChunks+chunk]`) into one `std::vector` and call `npc->GetSpellList()->AddLevSpells(vec)` once per NPC (`TESSpellList.h:24`; it skips lists the NPC already has and copies the array once - `AddLevSpell` per list would re-copy it for every list). Collect `byTier/byGroup`, and push one `NpcLine{ persistentId = std::format("{}|0x{:06X}", npc->GetFile(0)->GetFilename(), localId), name = npc->GetName(), decision }` into `lines` for every NPC that got lists (no cap; ruling S8).
+- [ ] `GameRun.cpp`: order and timing with `std::chrono::steady_clock`: read inputs -> ESL records -> `ResolvePool` -> `BuildLists` -> `FillLists` -> `AttachToNpcs` (keep its `std::vector<NpcLine>` for the Task 10 report); log every count, including `unresolvedRefs`; stop early (with the reason) when inputs fail or the ESL is not loaded. Log total ms; the spec's budget is 0.5 s for 26k NPCs (§9).
 - [ ] Build (SkyrimSE check). Deploy with Task 11's switch once it exists; for now copy by hand is forbidden - wait for Task 11, or test after Task 11.
 - [ ] Commit: `git add plugins/NPCSpells/src/game plugins/NPCSpells/CMakeLists.txt; git commit -m "NPC Spells: resolve tree spells, fill ESL lists, attach to NPC records" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
@@ -1312,40 +1447,52 @@ NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::Built
 - Modify: `plugins/NPCSpells/src/game/GameRun.cpp`, `tools/CMakeLists.txt`, `tools/npcspells-selftest-esl.cpp` (append a report check)
 - Test: `tools/npcspells-selftest-esl.cpp`
 
-**Interfaces**
+**Interfaces** (`NpcSpellsReport.h` includes `core/NpcSpellsPool.h`, `core/NpcSpellsBuild.h`, `core/NpcSpellsNpc.h`, `<array>`, `<string>`, `<tuple>`, `<utility>`, `<vector>`)
 ```cpp
 namespace NpcSpells {
     struct ReportData {
         std::string version, generatedUtc; bool rulesFromDefaults = false; std::string rulesError; std::string stopReason;
         PoolStats pool; BuildStats build; std::size_t eslRecords = 0, eslMissing = 0, eslWrongType = 0, listsSkippedNoRecord = 0;
         std::vector<std::tuple<std::string, std::size_t, std::uint8_t>> listSizes;   // editorId, entries, flags
-        std::size_t npcsScanned = 0, npcsEligible = 0, npcsAttached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0;
-        std::vector<std::pair<std::string, std::size_t>> skipped;                     // reason, count
+        std::size_t npcsScanned = 0, npcsEligible = 0, npcsAttached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0, unresolvedRefs = 0;
+        std::vector<std::pair<std::string, std::size_t>> skipped;                     // reason, count (copied from NpcStats::skipped)
         std::array<std::size_t, 3> byTier{}; std::array<std::size_t, 6> byGroup{};
-        std::vector<std::string> samples;                                             // "EncBandit01MagicF (Skyrim.esm|0x0001CB4E) mage None: HoMNS_Destruction_None_All_R1_C0, ..."
+        std::vector<NpcLine> npcs;                                                    // every NPC that got lists, in scan order (no cap)
         std::vector<std::pair<std::string, double>> timingsMs;
     };
     std::string RenderReport(const ReportData& d);
 }
 ```
+NPC row format (one line per `NpcLine`; group = `kGroups[decision.group].name`, reason = class tier and undead policy, lists = `EditorIdFor(SlotTable()[a.slotIndex].key, a.chunk)` per attachment):
+`Skyrim.esm|0x01CB4E  Bandit Wizard  group None  mage, conjurer: HoMNS_Destruction_None_All_R1_C0, HoMNS_Conjuration_None_NoUndeadAll_R1_C0`
 
 **Steps**
-- [ ] Append to `RunEslSelfTest()`:
+- [ ] Add `#include "core/NpcSpellsReport.h"` to the include block of `tools/npcspells-selftest-esl.cpp`, then append to `RunEslSelfTest()` (replacing its `return`):
 ```cpp
     std::printf("report\n");
     ReportData rd; rd.version = "1.2.0"; rd.stopReason.clear(); rd.pool.kept = 1400; rd.build.lists = 600; rd.build.emptySlots = 12; rd.build.droppedOverCapacity = 0;
-    rd.eslRecords = 921; rd.listSizes = { { "HoMNS_Destruction_None_All_R1_C0", 240, 0 } }; rd.npcsScanned = 26090; rd.npcsAttached = 1400; rd.skipped = { { "template spell list", 14389 } };
+    rd.eslRecords = 921; rd.listSizes = { { "HoMNS_Destruction_None_All_R1_C0", 240, 0 } }; rd.npcsScanned = 26090; rd.npcsAttached = 2; rd.skipped = { { "template spell list", 14389 } };
     rd.byTier = { 170, 69, 48 }; rd.timingsMs = { { "total", 123.4 } };
+    const auto destSlot = *FindSlot({ School::Destruction, kGroupNone, Variant::All, 0, false });
+    const auto thalmorSlot = *FindSlot({ School::Destruction, 4, Variant::Prefer, 1, false });
+    NpcDecision mage; mage.eligible = true; mage.tier = ClassTier::Mage; mage.undead = UndeadPolicy::Conjurer; mage.lists = { { destSlot, 0 } };
+    NpcDecision thalmor; thalmor.eligible = true; thalmor.tier = ClassTier::Hybrid; thalmor.group = 4; thalmor.lists = { { thalmorSlot, 2 } };
+    rd.npcs = { { "Skyrim.esm|0x01CB4E", "Bandit Wizard", mage }, { "Skyrim.esm|0x0D8D62", "Thalmor Justiciar", thalmor } };
     const std::string text = RenderReport(rd);
     Check(text.find("HoMNS_Destruction_None_All_R1_C0") != std::string::npos && text.find("240") != std::string::npos, "report lists each list with its entry count");
     Check(text.find("template spell list") != std::string::npos && text.find("14389") != std::string::npos, "report lists skip reasons with counts");
     Check(text.find("total") != std::string::npos && text.find("123.4") != std::string::npos, "report carries timings");
+    Check(text.find("Skyrim.esm|0x01CB4E") != std::string::npos && text.find("Bandit Wizard") != std::string::npos && text.find("conjurer") != std::string::npos,
+          "every NPC row: persistent id, name, reason");
+    Check(text.find("Skyrim.esm|0x0D8D62") != std::string::npos && text.find("group Thalmor") != std::string::npos && text.find("hybrid") != std::string::npos &&
+          text.find(EditorIdFor(SlotTable()[thalmorSlot].key, 2)) != std::string::npos, "every NPC row: group and attached list EditorIDs");
     ReportData stopped; stopped.stopReason = "spell_tree.json not found";
     Check(RenderReport(stopped).find("spell_tree.json not found") != std::string::npos, "a stopped run says why");
+    return NpcSpellsCheck::g_failed;
 ```
 - [ ] Build (SkyrimSE check), run - expected failures.
-- [ ] Implement `RenderReport` with `std::format` sections: header (`Heart of Magic - NPC Spells report`, version, time, rules source), `Stopped: <reason>` when set, `Spells` (pool counts), `Lists` (per group/slot: for each built list `EditorID  entries  flag`; empty slots; dropped over capacity; ESL missing/wrong type; lists skipped for a missing record), `NPCs` (scanned, eligible, attached, by tier, by group, skip reasons, unresolvable template, multi-group), `Samples` (first 40), `Timing` (each phase in ms).
-- [ ] `GameRun.cpp`: fill `ReportData` and write to `kReportPath` with `std::ofstream` (create `Data/SKSE/Plugins` if missing with `std::filesystem::create_directories`); always write, even on a stop (§7).
+- [ ] Implement `RenderReport` with `std::format` sections: header (`Heart of Magic - NPC Spells report`, version, time, rules source and `rulesError`), `Stopped: <reason>` when set, `Spells` (pool counts), `Lists` (per group/slot: for each built list `EditorID  entries  flag`; empty slots; dropped over capacity; ESL missing/wrong type; lists skipped for a missing record), `NPCs` (scanned, eligible, attached, by tier, by group, skip reasons, unresolvable template, multi-group, unresolved rule refs), `NPC lists` (every `NpcLine`, the row format above; a TAKEALOOK run is ~1-2 MB, accepted - spec §4), `Timing` (each phase in ms). Tier names `non-mage`/`hybrid`/`mage`, undead names `no undead`/`conjurer`/`necromancer`, as `constexpr` arrays next to `RenderReport`.
+- [ ] `GameRun.cpp`: fill `ReportData` (`npcs` = the `AttachToNpcs` lines, `skipped` copied from the `NpcStats::skipped` map) and write to `kReportPath` with `std::ofstream` (create `Data/SKSE/Plugins` if missing with `std::filesystem::create_directories`); always write, even on a stop (§7).
 - [ ] Build, run harness - PASS.
 - [ ] Commit: `git add plugins/NPCSpells/src/core/NpcSpellsReport.h plugins/NPCSpells/src/core/NpcSpellsReport.cpp plugins/NPCSpells/src/game/GameRun.cpp tools/CMakeLists.txt tools/npcspells-selftest-esl.cpp; git commit -m "NPC Spells: report file with list, NPC and timing counts" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
@@ -1353,7 +1500,7 @@ namespace NpcSpells {
 
 **Files**
 - Create: `plugins/cmake/DistributionNpcSpells.cmake`
-- Modify: `CMakeLists.txt` (top level: `include(DistributionNpcSpells)` after `include(Distribution)`), `DeployDev.ps1`, `plugins/cmake/Distribution.cmake` (only if `THIRD-PARTY-NOTICES.md` generation must be shared - it is already configured into `${CMAKE_BINARY_DIR}`; reuse it)
+- Modify: `CMakeLists.txt` (top level: `include(DistributionNpcSpells)` after `include(Distribution)`), `DeployDev.ps1`, `CLAUDE.md` (DeployDev section, dist paragraph), `plugins/cmake/Distribution.cmake` (only if `THIRD-PARTY-NOTICES.md` generation must be shared - it is already configured into `${CMAKE_BINARY_DIR}`; reuse it)
 - Test: build produces `dist/HeartOfMagic-NPCSpells_1.2.0.zip`; `Expand-Archive` listing check.
 
 **Steps**
@@ -1408,7 +1555,8 @@ if ($NpcSpellsOnly) {
   Update the script's comment header (`.EXAMPLE .\DeployDev.ps1 -NpcSpellsOnly`). `$repo` must be defined before this block (move `$repo = $PSScriptRoot` up).
 - [ ] Build (SkyrimSE check) - expected: `dist/HeartOfMagic-NPCSpells_1.2.0.zip` and `_DebugSymbols.zip`. Verify: `Expand-Archive dist\HeartOfMagic-NPCSpells_1.2.0.zip -DestinationPath $env:TEMP\ns -Force; Get-ChildItem -Recurse $env:TEMP\ns | Select-Object FullName` - expected: `HeartOfMagic_NPCSpells.esp`, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll`, `SKSE/Plugins/HeartOfMagic_NPCSpells.json`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/...`; no `.pdb`, no report.
 - [ ] `.\DeployDev.ps1 -NpcSpellsOnly` - expected: the three files in the dev mod folder; then in MO2 enable the mod and tick the ESL.
-- [ ] Commit: `git add plugins/cmake/DistributionNpcSpells.cmake CMakeLists.txt DeployDev.ps1; git commit -m "NPC Spells: own release archive and dev deploy switch" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
+- [ ] `CLAUDE.md`: in "Deploying to the development mod folder" add `.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev`; in the dist paragraph mention the second archive `dist/HeartOfMagic-NPCSpells_<VERSION>.zip` (ESL, DLL, rules JSON, licence files; `plugins/cmake/DistributionNpcSpells.cmake`) and its `_DebugSymbols.zip`.
+- [ ] Commit: `git add plugins/cmake/DistributionNpcSpells.cmake CMakeLists.txt DeployDev.ps1 CLAUDE.md; git commit -m "NPC Spells: own release archive and dev deploy switch" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
 
 ### Task 12: Documentation, spec measurement, in-game checklist
 
@@ -1418,10 +1566,10 @@ if ($NpcSpellsOnly) {
 - Test: in-game checklist below; `node` not involved; `npcspells-test` passes.
 
 **Steps**
-- [ ] `plugins/NPCSpells/README.md` sections: What it does (one paragraph, no FormIDs); Requirements (Heart of Magic with a built tree; enable the ESL); Files (table from spec §2); How lists are made (schools x groups x variants x rungs; the ladder table with chances and the realised expected spells per tier 1.0/1.25/1.5/2.0/2.5 and own-tier share 1.0/.8/.67/.5/.6; "below" lists include the own tier - entry level = tier floor; a Prefer list missing a tier gives the next lower tier's bundle; chunks; one spell per attached list; the engine re-rolls when an actor enters high process); Rules file (`HeartOfMagic_NPCSpells.json`, every key, FormID-only for vanilla, group names fixed, unknown groups ignored); Report (`HeartOfMagic_NPCSpells_report.txt` sections); Group priority (first match in Forsworn, Vampire, Necromancer, Thalmor, Vigilant; other matched groups' `never` tags are not applied, counted as multiGroup); Known limits (same spell may be given twice if the NPC already knows it - harmless; Vigilant `never: undead` also removes Turn Undead since `undead` covers repelling; undead-rule spells are `undead` + `summoning`/`control`, so an Illusion "command undead" spell is treated as an ordinary Illusion spell); Development (harness commands, `npcspells-esl`, `DeployDev.ps1 -NpcSpellsOnly`, FormID stability rule: `kMaxChunks` and slot order are frozen, append only).
-- [ ] `CLAUDE.md`: "The build produces four DLLs: ... and `HeartOfMagic_NPCSpells.dll` (NPC Spells addon, own ESL and zip)"; decision tree: `└─► Working with the NPC Spells addon? → plugins/NPCSpells/README.md`; harness paragraph: add `npcspells-test` (`--self-test` default, exit 1; `--tree --catalog` slot stats) and `npcspells-esl` (writes the ESL at build into `build/npcspells/`); Key Locations row `| NPC Spells addon | plugins/NPCSpells/ |`; the dist paragraph: mention the second zip `dist/HeartOfMagic-NPCSpells_<VERSION>.zip`; All Documentation table row for the README.
+- [ ] `plugins/NPCSpells/README.md` sections: What it does (one paragraph, no FormIDs); Requirements (Heart of Magic with a built tree; enable the ESL); Files (table from spec §2); How lists are made (schools x groups x variants x rungs; the ladder table with chances and the realised expected spells per tier 1.0/1.25/1.5/2.0/2.5 and own-tier share 1.0/.8/.67/.5/.6; "below" lists include the own tier - entry level = tier floor; a Prefer list missing a tier gives the next lower tier's bundle; chunks; one spell per attached list; the engine re-rolls when an actor enters high process); Rules file (`HeartOfMagic_NPCSpells.json`, every key it ships; every record is a `XXXXXX:Plugin.ext` FormID, mod records too - a bare EditorID is rejected and logged; a ref not found in the load order drops that ref only; group names fixed, unknown groups ignored; the ladder must have 5 rungs; fixed values not in the file: skill bands 0/25/50/75/100 (the engine's), own-tier share (realised by the ladder), which groups are necromancers (Vampire, Necromancer), the conjurer's non-undead preference, conjurer classes (from weights), the Redguard rule); Report (`HeartOfMagic_NPCSpells_report.txt` sections, one row per NPC that got lists); Group priority (first match in Forsworn, Vampire, Necromancer, Thalmor, Vigilant; other matched groups' `never` tags are not applied, counted as multiGroup - known limit, lists are prebuilt per group); Known limits (same spell may be given twice if the NPC already knows it - harmless; Vigilant `never: undead` also removes Turn Undead since `undead` covers repelling; undead-rule spells are `undead` + `summoning`/`control`, so an Illusion "command undead" spell is treated as an ordinary Illusion spell; spells another mod's `*_DISTR.ini` names anywhere in the file - also in a filter - are left out, a few needlessly); Development (harness commands, `npcspells-esl`, `DeployDev.ps1 -NpcSpellsOnly`, FormID stability rule: `kMaxChunks` and slot order are frozen, append only).
+- [ ] `CLAUDE.md` (the harness rows, "four DLLs", Key Locations, DeployDev and dist lines landed in Tasks 1, 5, 6, 8 and 11): decision tree `└─► Working with the NPC Spells addon? → plugins/NPCSpells/README.md`; All Documentation table row for the README.
 - [ ] `docs/ARCHITECTURE.md`: "Game Versions" sentence lists four DLLs; File Structure tree adds `plugins/NPCSpells/` (CMakeLists, data/, src/core, src/game, Main.cpp) and `tools/npcspells-*.cpp`; one line under Deployment Structure for the addon zip.
-- [ ] Spec §8 "TAKEALOOK 실측": after the in-game run, fill in NPC count, attached count, lists built, biggest list, and total ms from the report (the spec asks for it), and in §9 move "[미확인] 걸린 시간" to measured.
+- [ ] Spec §8 "TAKEALOOK 실측": after the in-game run, fill in NPC count, attached count, lists built, biggest list, and total ms from the report (the spec asks for it), and in §9 move "[미확인] 걸린 시간" to measured. (§4, §5.1, §5.3 and §7 already match what ships; they were updated with this plan.)
 - [ ] In-game checklist (TAKEALOOK, dev install, More Informative Console installed). First: enable `HeartOfMagic_NPCSpells.esp` in MO2. Start the game to the main menu, open `HeartOfMagic_NPCSpells.log`: expect "ESL loaded, 921 records, 0 missing, 0 wrong type", pool counts, list count, NPC counts, total ms (< 500 ms expected). Open the report: no `Stopped:`; `droppedOverCapacity 0`. Then load a save and for each NPC below open the console on the actor, MIC base-record tab, Spells: the base must list `FExxx800+` leveled lists from our ESL as described; then press the actor's spell list (MIC shows the actor's spells) and confirm every spell from our lists is of the NPC's school skill tier or lower (compare with the NPC's skills shown by MIC) and matches the group rule:
   1. Bandit mage (`EncBandit01MagicF` etc., class `EncClassBanditWizard`): base has R1 lists for every school, group None; conjuration lists are `NoUndeadAll` or `NecroPrefer`/`All` per its class; no `cloak`/`trap`/`sense` spells.
   2. Thalmor wizard: lists of group Thalmor (`..._Thalmor_...`); no undead spell anywhere, no conjured undead.
@@ -1430,7 +1578,7 @@ if ($NpcSpellsOnly) {
   5. Redguard warrior (e.g. a Redguard mercenary / Alik'r warrior): no `HoMNS_` list at all.
   6. Redguard mage (non-vampire): lists present; conjuration only `NoUndeadAll`.
   7. Falion (Morthal): conjuration lists `NoUndeadAll`/`All` (conjurer), undead allowed.
-  8. Hagraven: lists only if its class is a mage tier (check the report sample line for its record); otherwise none.
+  8. Hagraven: lists only if its class is a mage tier (check the report's row for its record; no row = no lists); otherwise none.
   9. Wolf: no lists (beast/animal).
   10. A `LvlBanditWizard...` leveled NPC placed with `player.placeatme`: the spawned actor's base is the end record (`EncBandit0xMagic...`) and shows our lists; the leveled record itself has none.
   11. Non-mage sanity: among ~20 guards/bandits (`player.placeatme` a few `EncBandit01Melee...`), about one has a `..._NonMage_...` list.
@@ -1449,35 +1597,35 @@ if ($NpcSpellsOnly) {
 - §5.1 creatures: beasts excluded, creatures mage-only, humanoids by tier -> Task 7 (`isBeast`, `isCreature`), Task 9 (keywords, beastRaces).
 - §5.1 companions not special -> no code (Task 7 has no companion check).
 - §5.1 tiers up to own skill tier -> engine (§5.4); entry level = tier floor -> Task 5 invariant test.
-- §5.1 more at higher skill (1.0/1.25/1.5/2.0/2.5), half own tier -> Task 1 ladder + Task 7 expectation test; own-tier share realised 1.0/.8/.67/.5/.6 (documented in README, Task 12) - "half" is approximate because every rung yields exactly one spell.
+- §5.1 more at higher skill (1.0/1.25/1.5/2.0/2.5), half own tier -> Task 1 ladder + Task 7 expectation test; own-tier share realised 1.0/.8/.67/.5/.6 (spec §5.1 now says "approximately", README in Task 12) - "half" is approximate because every rung yields exactly one spell.
 - §5.1 hybrid half, weighted schools only -> Task 7 (`hybridScale`, `SchoolsWeighted`).
 - §5.1 non-mage 5% novice curing/armor -> Task 4 non-mage slots, Task 5 membership, Task 7 dice.
 - §5.1 magicka: not filtered (§5.4) -> none.
 - §5.1 faction prefer 3/4, never always -> Task 4/5 variants, Task 7 75/25 dice.
-- §5.1 Redguard rules, undead rules, Falion exception -> Task 7 tests.
+- §5.1 Redguard rules (a non-mage Redguard never gets the 5% curing/armor list), undead rules, Falion exception -> Task 7 tests.
 - §5.1 conjuration necromancer/conjurer split, CombatMageNecro -> Task 4 variants, Task 7 policy.
 - §5.1 never remove spells, don't re-give -> nothing removed; re-giving an already-known spell cannot be prevented with LVSPs (README known limit).
-- §5.1 exclusions cloak/trap/sense, reject list, other `_DISTR.ini` -> Task 3 (`excludeTags`, `excludeSpells`, `TomeReach::ConfigText`).
+- §5.1 exclusions cloak/trap/sense, reject list, other `_DISTR.ini` -> Task 3 (`excludeTags`, `excludeSpells`, `DistributedFn`), Task 8 (`TomeReach::ConfigText` over `*_DISTR.ini` files only; a filter mention over-matches, accepted).
 - §5.2 step 0 template spell list skip -> Task 7 (`inheritsSpellList`), Task 9 (`kSpells`).
-- §5.4 one school per list, ascending, tier floors, flag 1 for "below", one LVSP = one spell, chunks over 255, group lists, ESL with fixed FormIDs, skip slots beyond the ESL -> Tasks 4, 5, 6, 8, 9.
-- §5.3 rules JSON shape, FormIDs for vanilla -> Task 1.
-- §7 error handling (missing files, bad JSON -> defaults, unresolved refs skip the group, missing spells skipped, empty slots reported) -> Tasks 3, 8, 9, 10.
+- §5.4 one school per list, ascending, tier floors, flag 1 for "below", one LVSP = one spell, a slot split into chunks only over 255, group lists, ESL with fixed FormIDs, skip slots beyond the ESL -> Tasks 4, 5, 6, 8, 9.
+- §5.3 rules JSON shape (only keys `ParseRules` reads ship; the rest are fixed values in the README), FormIDs for every record, vanilla and mod -> Task 1.
+- §4 report: per-NPC rows (persistent id, name, group, reason, list EditorIDs) and counts -> Tasks 9, 10.
+- §7 error handling (missing files, bad JSON -> defaults, an unresolved ref drops that ref only, missing spells skipped, empty slots reported) -> Tasks 1, 3, 8, 9, 10.
 - §8 offline checks (counts per tier, no higher tier, list invariants, tree-only, Redguard/undead/creature/beast rules, determinism) -> Tasks 3, 5, 7; in-game checklist -> Task 12; TAKEALOOK measurement -> Task 12.
 - §2 distribution files and separate zip -> Task 11.
 
-**Spec observations (rules kept as written):** Vigilant `never: undead` also removes Turn Undead because TAGS.md's `undead` covers repelling; undead-rule spells are defined concretely as element `undead` with technique `summoning` or `control` (tested on Raise Zombie, Conjure Boneman, Turn Undead); when an NPC is in two groups the first in built-in order wins and the other group's `never` tags are not applied (counted); a Prefer list lacking the NPC's tier yields the next lower tier's bundle (flag 0).
+**Spec observations (rules kept as written):** Vigilant `never: undead` also removes Turn Undead because TAGS.md's `undead` covers repelling; undead-rule spells are defined concretely as element `undead` with technique `summoning` or `control` (tested on Raise Zombie, Conjure Boneman, Turn Undead); when an NPC is in two groups the first in built-in order wins and the other group's `never` tags are not applied (counted; a known limit in spec §5.1 and the README); a Prefer list lacking the NPC's tier yields the next lower tier's bundle (flag 0).
 
 **Could not verify (needs the in-game checklist or further disassembly):**
 - That the engine resolves each attached LVSP independently (one spell per list) - §5.4's assumption from the school-walk disassembly; the Task 12 checklist (bandit mage spell count vs attached lists) is the pin.
 - Whether `TESNPC::CopyFromTemplateForms` has already run at `kDataLoaded` for concrete templates; the chain walk in Task 9 reads the provider record directly, so it is right either way.
 - The engine's treatment of a bundle with a single entry, and of `numEntries` when `entries.size()` differs - the DLL sets both consistently.
-- `TESSpellList::SpellData::AddLevSpell` on a record the engine has already resolved into a high-process cache before `kDataLoaded` - not possible at that point (no actors yet), so not a concern.
+- `TESSpellList::SpellData::AddLevSpells` on a record the engine has already resolved into a high-process cache before `kDataLoaded` - not possible at that point (no actors yet), so not a concern.
 - Exact TAKEALOOK counts (lists, biggest list, ms) - measured in Task 12.
-- `TomeReachConfig.cpp` compiling inside the DLL's PCH environment (it is declared pure C++; if it pulls a stub-only header, compile it as a separate object or copy the two functions into `GameFiles.cpp` with a comment pointing at the original).
 
 ### Critical Files for Implementation
-- D:/DEV/HeartOfMagic/plugins/NPCSpells/src/core/NpcSpellsSlots.cpp (the slot table and FormID formula the ESL and the DLL share)
-- D:/DEV/HeartOfMagic/plugins/NPCSpells/src/core/NpcSpellsNpc.cpp (eligibility, group, undead policy, rung/variant/chunk dice)
-- D:/DEV/HeartOfMagic/plugins/NPCSpells/src/core/NpcSpellsBuild.cpp (membership, sorting, chunking, flags)
-- D:/DEV/HeartOfMagic/plugins/NPCSpells/src/game/GameNpcs.cpp (TESNPC facts via the template chain, AddLevSpell)
-- D:/DEV/HeartOfMagic/tools/CMakeLists.txt (npcspells-test, npcspells-esl, the generated ESL)
+- plugins/NPCSpells/src/core/NpcSpellsSlots.cpp (the slot table and FormID formula the ESL and the DLL share)
+- plugins/NPCSpells/src/core/NpcSpellsNpc.cpp (eligibility, group, undead policy, rung/variant/chunk dice)
+- plugins/NPCSpells/src/core/NpcSpellsBuild.cpp (membership, sorting, chunking, flags)
+- plugins/NPCSpells/src/game/GameNpcs.cpp (TESNPC facts via the template chain, AddLevSpells)
+- tools/CMakeLists.txt (npcspells-test, npcspells-esl, the generated ESL)
