@@ -287,13 +287,30 @@ namespace Librarian
             std::filesystem::create_directories(DATA_DIR);
             const std::filesystem::path path = CatalogPath();
 
-            std::ofstream file(path);
-            if (!file.is_open()) {
-                logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(path));
+            // Written beside the catalog and then put in its place: the panel's scan
+            // writes it on a worker thread while the game thread may read it (perk
+            // adapters, Spell Research at a save load, the first spell card), and a
+            // reader must get the old file or the new one, never half of one.
+            std::filesystem::path partPath = path;
+            partPath += ".part";
+            {
+                std::ofstream file(partPath);
+                if (!file.is_open()) {
+                    logger::error("Librarian: cannot open '{}' for writing", PathText::Utf8(partPath));
+                    return false;
+                }
+                file << JsonText::Dump(catalog, 2);
+                if (!file.flush()) {
+                    logger::error("Librarian: writing '{}' failed", PathText::Utf8(partPath));
+                    return false;
+                }
+            }
+            std::error_code renameError;
+            std::filesystem::rename(partPath, path, renameError);  // replaces the old catalog
+            if (renameError) {
+                logger::error("Librarian: cannot replace '{}' - {}", PathText::Utf8(path), renameError.message());
                 return false;
             }
-            file << JsonText::Dump(catalog, 2);
-            file.close();
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
                 PathText::Utf8(path), stats.spells, stats.tagged, stats.skipped);

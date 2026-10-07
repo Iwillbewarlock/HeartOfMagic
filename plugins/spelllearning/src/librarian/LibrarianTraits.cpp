@@ -209,6 +209,11 @@ namespace Librarian
 
     void ClassifyScan(std::string& scanJson)
     {
+        // The panel's scan calls this on a worker thread (UIManagerScanner.cpp) and
+        // Papyrus RunScan on the game thread; one at a time, so two catalogs are
+        // never written over each other.
+        static std::mutex classifyMutex;
+        std::lock_guard lock(classifyMutex);
         try {
             json scanDump = json::parse(scanJson);
 

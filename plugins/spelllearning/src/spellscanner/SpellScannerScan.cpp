@@ -271,7 +271,7 @@ namespace SpellScanner
     // MAIN SCAN FUNCTIONS
     // =============================================================================
 
-    std::string ScanAllSpells(const ScanConfig& config)
+    json CollectAllSpells(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
 
@@ -289,7 +289,7 @@ namespace SpellScanner
         json output;
         output["scanTimestamp"] = ss.str();
         output["spellCount"] = spellArray.size();
-        output["spells"] = spellArray;
+        output["spells"] = std::move(spellArray);
 
         // Combine prompts: User's tree rules + System instructions + Spell data
         std::string combinedPrompt;
@@ -306,7 +306,12 @@ namespace SpellScanner
 
         output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
 
-        return JsonText::Dump(output, 2);
+        return output;
+    }
+
+    std::string ScanAllSpells(const ScanConfig& config)
+    {
+        return JsonText::Dump(CollectAllSpells(config), 2);
     }
 
     std::string ScanAllSpells(const FieldConfig& config)
@@ -323,14 +328,14 @@ namespace SpellScanner
     // SCAN SPELL TOMES (Avoids duplicates - only learnable spells)
     // =============================================================================
 
-    std::string ScanSpellTomes(const ScanConfig& config)
+    json CollectSpellTomes(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell TOME scan...");
 
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) {
             logger::error("SpellScanner: Failed to get TESDataHandler");
-            return "{}";
+            return json::object();  // dumps as "{}", as this scan returned before
         }
 
         const auto& allBooks = dataHandler->GetFormArray<RE::TESObjectBOOK>();
@@ -402,7 +407,7 @@ namespace SpellScanner
         output["scanTimestamp"] = ss.str();
         output["scanMode"] = "spell_tomes";
         output["spellCount"] = spellArray.size();
-        output["spells"] = spellArray;
+        output["spells"] = std::move(spellArray);
 
         // Combine prompts
         std::string combinedPrompt;
@@ -414,7 +419,12 @@ namespace SpellScanner
         combinedPrompt += GetSystemInstructions();
         output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
 
-        return JsonText::Dump(output, 2);
+        return output;
+    }
+
+    std::string ScanSpellTomes(const ScanConfig& config)
+    {
+        return JsonText::Dump(CollectSpellTomes(config), 2);
     }
 
     // =============================================================================

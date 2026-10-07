@@ -48,6 +48,13 @@ namespace SpellScanner
     // Scan spells via spell tomes (avoids duplicates, only learnable spells)
     std::string ScanSpellTomes(const ScanConfig& config);
 
+    // The game-data half of the two scans above: every form read happens in
+    // here, so call these on the game thread. The scans above are
+    // JsonText::Dump(<this>, 2); the panel's scan does that dump on a worker
+    // thread (UIManagerScanner.cpp), so the text is the same either way.
+    json CollectAllSpells(const ScanConfig& config);
+    json CollectSpellTomes(const ScanConfig& config);
+
     // Get the system instructions for LLM output format (hidden from user)
     std::string GetSystemInstructions();
 

@@ -9,6 +9,9 @@
   tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell
   Learning patch. A save that already holds a power learned weakened gets it back at full strength with its
   own name when it loads.
+- **Scanning no longer freezes the game for seconds.** The scan's text work and spell classification now
+  run in the background: on a 3,800-spell load order the game stopped for about 5 seconds, of which about 3
+  now pass while the game goes on. The scan result is the same as before. A scan asked for while one is running starts after it.
 
 ## Heart of Magic Librarian 1.3.0
 

@@ -69,11 +69,12 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 **Key Functions:**
 - `ScanAllSpells(config)` - Main scan function
 - `ScanSpellTomes(config)` - Alternative scan via tomes
+- `CollectAllSpells(config)` / `CollectSpellTomes(config)` - The game-data half of those two (every form read; game thread): the scans above are `JsonText::Dump(<this>, 2)`, the panel's scan does that dump on a worker thread (see "Where a scan runs" below)
 - `RunScanToFile(mode, preset)` - Scan and write the dump in one call, for callers outside the UI
 - `BuildSpellJson(spell, formId, fields)` - The single source of the scan JSON shape (SpellScannerJson.cpp)
 - `BuildEffectJson(effect, fields)` - One effect, including MGEF structure when `effectDetails` is on
 - `WriteScanOutput(content)` - Write `spell_scan_output.json`, return its path
-- `DebugScanDumpEnabled()` - `debug.json` next to it says `writeScanDump: true` (debug installs: the debug symbols archive and `DeployDev.ps1` ship `debug/debug.json`); then the panel's full scan (`UIManager::RunScan`) writes the dump too, after the perk adapters
+- `DebugScanDumpEnabled()` - `debug.json` next to it says `writeScanDump: true` (debug installs: the debug symbols archive and `DeployDev.ps1` ship `debug/debug.json`); then the panel's full scan writes the dump too, on its worker thread after the librarian (`UIManager::PrepareScanText`)
 - `GetSpellInfoByFormId(formId)` - Lookup spell details
 - `GetSystemInstructions()` - LLM output format spec
 - `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format (plugin name in UTF-8, see below)
@@ -219,7 +220,7 @@ game the placed references of cells that are not loaded are not in memory:
   cut leaves no spell marked: its form ids cannot be resolved.
 - The pass takes a few seconds after the game starts. A full scan from the panel asked for in that time
   waits for it on its own thread, up to 30 seconds (`WaitUntilDone`, UIManagerScanner.cpp; the game goes
-  on), then runs on the game thread as always; if the pass is still not done, no spell is marked and the log
+  on), then reads the forms on the game thread as always; if the pass is still not done, no spell is marked and the log
   says so. A tome scan does not wait (it does not use the pass), and neither does Papyrus `RunScanToFile`:
   a Papyrus full scan in those seconds carries no `tomeUnreachable` marks.
 - On the author's load order (3,939 plugins, 0.94 GB) it leaves out 46 spells from 11 mods, among them 24
@@ -343,9 +344,9 @@ log line, and the whole vampire read is optional - if it fails the scan goes on 
 retried only at the next game start (it runs once per session); a Data walk that stops early or cannot open
 the directory is logged, not fatal.
 
-A scan that throws still ends for the player: `UIManager::OnScanSpells` runs `RunScan` inside a try block and
-answers a failure with `onScanFailed({"mode":"all"|"tomes","reason":...})` (uiHelpers.js; `ReportScanFailure`
-takes the mode from the request's `scanMode`, the same check `RunScan` uses). A full scan (`all`) enables the Scan
+A scan that throws still ends for the player: each of its three steps (see "Where a scan runs" below) runs inside a
+try block and answers a failure with `onScanFailed({"mode":"all"|"tomes","reason":...})` (uiHelpers.js;
+`ReportScanFailure` takes the mode from the request's `scanMode`, the same check `CollectScan` uses). A full scan (`all`) enables the Scan
 button again (`restoreScanButton`), puts "Scan failed: <reason>" in the scan status bar (`status.scanFailed`, all
 13 languages) and replaces edit mode's "Scanning game spells..." wait line with it. The panel disables the button
 while a scan runs, so before this a failed scan left it on "Scanning..." for good. The panel's "Tomes only"
@@ -354,9 +355,49 @@ player does not learn (the scan keeps every spell and marks `taughtByTome`, `tom
 `tomes` failure can only come from elsewhere and is just logged. An older plain
 JSON-string payload is read as a full scan's reason. A throw that is not a `std::exception` sends an empty reason,
 which the panel shows as `status.scanFailedUnknown` ("Scan failed (unknown error)", keyed so a language switch
-relabels it). `RunScan` does everything that can throw (the scan, the classification, allocating the
-shared string for `m_scanText`) before `updateSpellData`, and moves that string into `m_scanText` after it (no copy); the `onScanStored` call after it catches and logs its own failure, so no
+relabels it). The scan does everything that can throw (the scan, the classification, allocating the
+shared string for `m_scanText` in `StoreAndSendFullScan`) before `updateSpellData`, and moves that string into `m_scanText` after it (no copy); the `onScanStored` call after it catches and logs its own failure, so no
 "Scan failed" can follow a scan the panel already has.
+
+**Where a scan runs (2026-10-08, docs/librarian/ToDo.md S-3).** The panel's scan used to be one game thread
+task: on the author's load order (9,765 spell forms, 3,776 scanned) the game stood still for about 4.8 s. It is
+now three steps (UIManagerScanner.cpp):
+
+| Step | Thread | What | Time before (same load order) |
+|------|--------|------|------|
+| `CollectScan` | game thread task | `ParseScanConfig`, the status line, `SpellScanner::CollectAllSpells` / `CollectSpellTomes`: every form read (spell and book arrays, effects, perks, the voice slot, the gate, tome reach and duplicate marks) | 0.42 s |
+| `PrepareScanText` | worker (`std::thread`, detached) | `JsonText::Dump(output, 2)`, `Librarian::ClassifyScan` (parse, rules, catalog build and write, traits merge), the debug dump file | 3.1 s |
+| `FinishScan` | game thread task | `PerkAdapters::Apply` and `SpellResearchPatch::OnCatalogChanged` (full scan only; they look up and write forms), `updateSpellData`, `m_scanText`, `onScanStored` | 0.94 s + 0.36 s send |
+
+The worker reads no game form: it gets the collected `json` by value, and `ClassifyScan` is the code
+`librarian-test` links without the game (`tools/CMakeLists.txt`: LibrarianRules, Classify, Catalog, Traits
+against stub headers). The only librarian code that touches forms, `LoadOrderSource`, is used by
+`PerkAdapters::Apply`, which stays on the game thread. The text is byte for byte the old one: the same calls
+in the same order, only the dump moved thread (the timestamp is still taken while collecting).
+
+- **One at a time.** `RequestScan` sets `m_scanRunning` (under `m_scanMutex`); a request while a scan runs is
+  kept, the latest of each mode, and `EndScan` starts it when the running one ends, the full scan first.
+  Every way out of a scan (sent, or failed in any step) goes through `EndScan`. Known limit: a game thread
+  task SKSE drops (its task interface missing) would leave the flag set and later scans waiting; the tree
+  build has the same exposure.
+- **Failures.** A throw in `CollectScan` or `FinishScan` is reported there; one on the worker is posted back
+  as a game thread task that calls `ReportScanFailure` (`onScanFailed`) and `EndScan`. When no thread can be
+  made, the text work runs on the game thread as it did before.
+- **Save, load or quit during a scan.** The form reads are one task, so a load cannot fall between them; the
+  worker holds only its own text. `FinishScan` after a load applies the adapters to the loaded session as any
+  scan would. Quitting while the worker runs ends the process with it, as with a tree build; the catalog is
+  written beside `spell_catalog.json` and renamed over it, so a cut write leaves the old file.
+- **Panel closed during a scan.** The scan finishes; a full scan is still kept in `m_scanText`, and every call
+  into the panel goes through `CallView`, which drops it when the view is gone.
+- **The catalog file.** The game thread reads `spell_catalog.json` (perk adapters, Spell Research at a save
+  load, the first spell card) while the worker may write it, so `BuildAndWriteCatalog` writes
+  `spell_catalog.json.part` and renames it over the catalog: a reader gets the old file or the new one. A
+  reader holding the file open at that moment makes the rename fail; the scan then keeps the old catalog and
+  logs it. `ClassifyScan` takes a lock, so a Papyrus `RunScan` (game thread) and the panel's worker never
+  write two catalogs over each other; the Papyrus call waits for the worker's classification (seconds) in
+  that rare case.
+- **What still stops the game:** `CollectScan` (0.42 s here) and `FinishScan` (about 1.3 s, mostly the perk
+  adapters, whose planner looks up forms as it goes). Next steps are in ToDo S-3.
 
 The way back from text to a path is `PathText::FromUtf8` (`std::u8string`): UTF-8 text from the panel, such as
 a preset name in Korean, became a garbled file name or a throw through `path(std::string)`, which reads the
@@ -497,7 +538,9 @@ the path. `mode` is `"tomes"` or `"all"`, `preset` is `"minimal"`, `"balanced"` 
 `"full"`. Unlike the UI's Save button it never routes the dump through the panel, so the
 file is exactly the scan JSON.
 
-Papyrus calls it from the VM thread, so it submits the scan as a game thread task and
+It stays synchronous (`ScanAllSpells` / `ScanSpellTomes`, the same code the panel's scan runs in three
+steps): its contract is the path of a written file. The panel's scan is the one that no longer stops the
+game ("Where a scan runs" above). Papyrus calls it from the VM thread, so it submits the scan as a game thread task and
 blocks until that task reports back, with a timeout so a dropped task cannot hang the
 script forever. It also checks `IsOnGameThread()` (ThreadUtils.h) and runs the scan
 inline when the caller is already on the game thread, where submitting a task and waiting
