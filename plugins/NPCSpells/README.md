@@ -71,13 +71,17 @@ ahead of time (at data load) and attaches them to NPC base records.
   nothing; other creatures get lists only with a mage class. NPCs that inherit their spell list from a template are
   skipped (the lists go on the record that really uses it); leveled NPCs resolve to their end record. Deleted or
   ignored NPC records are skipped.
-- **Conjuration:** a necromancer (Necromancer faction, a vampire, or class `CombatMageNecro` and not a Redguard)
-  mostly gets NecroPrefer lists. A conjurer (conjuration weight 3 or more and not below any other school) gets
-  NoUndeadAll mostly, All otherwise; if that conjurer's NoUndeadAll list is missing it falls back to All. An NPC
-  that must have no undead spells (Thalmor, Vigilant, Redguard mages) never gets All conjuration lists.
-- **Redguards:** a non-mage Redguard never gets the 5 % list or any other (a vampire or necromancer Redguard still
-  gets undead through its group); a Redguard mage gets lists but no undead spells; Falion (`0135E9:Skyrim.esm`) is the
-  exception.
+- **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
+  gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
+  school, not a Redguard) in no group gets NoUndeadAll mostly, All otherwise; if its NoUndeadAll list is missing it
+  falls back to All. Any other NPC outside the Thalmor and Vigilant groups, in no group (for example a Redguard mage),
+  gets NoUndeadAll only. Thalmor and Vigilant NPCs get the group's Prefer lists plus its All lists; their undead
+  spells are removed by the group's `never: undead` tag, not by a list variant.
+- **Redguards:** a Redguard whose class is below hybrid (non-mage tier) gets nothing, not even the 5 % list. A hybrid Redguard in the Vampire or
+  Necromancer group keeps only its conjuration share (undead allowed through the group); a hybrid Redguard in no such
+  group gets nothing. A mage Redguard gets lists, and no undead spells unless the Vampire or Necromancer group allows them.
+- **Undead rule:** undead-rule spells go to necromancers (above), to conjurers that are not Redguards, and to Falion
+  (`0135E9:Skyrim.esm`, a Redguard conjuration trainer and the one named exception).
 - **Group priority:** an NPC in several groups gets the first group's lists in the order Forsworn, Vampire,
   Necromancer, Thalmor, Vigilant; the other groups' `never` tags are not applied (counted as "multi-group" in the report).
 - **Excluded:** only tree nodes are used (one representative per node, not its merged copies); tags `cloak`, `trap`,
@@ -149,6 +153,12 @@ Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu
    Spells: it must list leveled lists named `HoMNS_<School>_<Group>_<Variant>_R<n>_C<n>` from our ESL. The spells they
    resolve to (MIC shows the actor's spells) must be of the NPC's tier in that school or lower (compare with its skills
    in MIC) and match the group rule.
+   How to find and inspect actors: `help "<name>" 4` in the console lists the matching records with their base IDs;
+   click an actor in the world to select it (its name shows in the console) and inspect its base record in More
+   Informative Console; `player.placeatme <baseID>` spawns a test actor next to you. For a leveled NPC (item 10) and for
+   bandit mages, `LvlBanditWizard` (base `01E79F:Skyrim.esm` is the leveled record to spawn; load-order prefix in the
+   console differs, so confirm with `help "LvlBanditWizard" 4`) is a good start: spawn it and inspect the spawned
+   actor's base record, which is the end record, not the leveled one.
    1. Bandit mage (`EncBandit01MagicF` etc., class `EncClassBanditWizard`): R1 lists for every school, group None;
       conjuration NoUndeadAll or NecroPrefer/All per its class; no `cloak`, `trap` or `sense` spell.
    2. Thalmor wizard: `..._Thalmor_...` lists; no undead spell, no conjured undead.
