@@ -141,6 +141,7 @@ set(NPCSPELLS_CORE_DIR "${CMAKE_SOURCE_DIR}/plugins/NPCSpells/src")
 set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsRules.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsClassTier.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsPool.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
