@@ -2,6 +2,15 @@
 
 ## Heart of Magic Librarian 1.4.0 (unreleased)
 
+### New
+
+- **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then. Picking a
+  letter key now warns that typing that letter in a search box also closes the panel.
+- **Magic menu switches.** Settings > Hotkey has **Magic Menu Bookmark** and **Tags and XP in the Magic Menu**,
+  both on, for the bookmark that is coming to the magic menu. Without a hotkey the bookmark cannot be turned
+  off, and with the bookmark off None cannot be picked, so the panel can always be opened. Settings presets
+  leave all of these alone.
+
 ### Fixed
 
 - **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's

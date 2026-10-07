@@ -422,6 +422,13 @@ start. A blocked save still applies the panel's config to the game (`ApplySavedC
 sent) - the player's changes work for the session, they are just not written - and skips `WritePanelLocale`.
 `hotkeyCode` and `pauseGameOnFocus` are read with `SafeJsonValue` (a wrong type falls back to the default
 from `GenerateDefaultConfig`) - a throw there used to skip every setting after it.
+`hotkeyCode` 0 is "no hotkey" (Settings > Hotkey > None): no key has scancode 0, so the InputHandler's
+`idCode != m_hotkeyCode` never matches it; `SafeJsonValue` returns the 0 (only a missing or null key gets
+the default) and the save path's `is_number()` keeps it. `magicMenu` = { `bookmark`, `spellInfo` }, both
+on by default, is read by `ReadMagicMenuConfig` in `ApplySettingsFromConfig` (load and save) into
+`UIManager::MagicMenuBookmark()` / `MagicMenuSpellInfo()`, static atomics for the magic menu code to query.
+With no hotkey the bookmark is the only way to open the panel, so it counts as on then; a load of a config
+with both off logs a warning and sends the panel `bookmark: true`, which its next save writes.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
 an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL. The
@@ -1454,6 +1461,7 @@ All settings stored in single config file, managed through UI:
 {
   "hotkey": "F8",
   "hotkeyCode": 66,
+  "magicMenu": { "bookmark": true, "spellInfo": true },
   "cheatMode": false,
   "activeProfile": "normal",
   

@@ -89,6 +89,7 @@ loadModule('newSpellsTest', './modules/newSpellsTest.js');
 loadModule('classicRadialOrderTest', './modules/classicRadialOrderTest.js');
 loadModule('prereqEditTest', './modules/prereqEditTest.js');
 loadModule('notificationSettingTest', './modules/notificationSettingTest.js');
+loadModule('panelOpenSettingTest', './modules/panelOpenSettingTest.js');
 loadModule('spellResearchStatusTest', './modules/spellResearchStatusTest.js');
 loadModule('spellSearchTest', './modules/spellSearchTest.js');
 loadModule('treeToolsScaleTest', './modules/treeToolsScaleTest.js');
