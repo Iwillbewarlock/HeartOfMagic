@@ -41,7 +41,7 @@ namespace MagicMenuDraw
         return clip;
     }
 
-    // A one-line, not selectable text field; a_align "left", "center" or "right"
+    // A not selectable text field (lines split by a CR); a_align "left", "center" or "right"
     inline RE::GFxValue Text(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, const char* a_name, double x, double y,
         double w, double h, const std::string& a_text, std::uint32_t a_rgb, double a_size, const char* a_align = "left")
     {
@@ -58,6 +58,7 @@ namespace MagicMenuDraw
         }
         field.SetMember("embedFonts", true);
         field.SetMember("selectable", false);
+        field.SetMember("multiline", true);
         a_movie->CreateString(&text, a_text.c_str());
         field.SetMember("text", text);
         return field;

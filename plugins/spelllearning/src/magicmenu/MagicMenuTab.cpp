@@ -20,11 +20,12 @@ namespace MagicMenuBookmark::Tab
         // Sizes at a 600-wide card, scaled to the card's width. y=0 is the card's top border:
         // the fold rises kFoldH above it, the front flap hangs kFlapH into the card.
         constexpr double kRefCardWidth = 600.0;
-        constexpr double kTabW = 160.0, kFoldH = 12.0, kFlapH = 80.0, kCorner = 12.0, kRightInset = 16.0, kHoverRise = 4.0;
+        constexpr double kTabW = 90.0, kFoldH = 7.0, kFlapH = 112.0, kCorner = 8.0, kRightInset = 16.0, kHoverRise = 4.0;
         constexpr std::uint32_t kLeather = 0xA0643A, kLeatherEdge = 0x6E4024, kStitch = 0xE8DCC8, kInk = 0x5E331B;
         constexpr std::uint32_t kGold = 0xFFD27A;
-        constexpr double kStitchY = 10.0, kStitchInset = 10.0, kDash = 8.0;
-        constexpr double kLabelY = 28.0, kLabelH = 36.0, kLabelSize = 22.0;
+        constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
+        constexpr double kLabelY = 35.0, kLabelH = 54.0, kLabelSize = 15.0;
+        constexpr const char* kLabel = "Heart\rof\rMagic";  // three lines, as on the pictures
 
         struct Pt { double x, y; };
         // The outline is one table so a new design only changes it
@@ -32,15 +33,15 @@ namespace MagicMenuBookmark::Tab
                                                 { kTabW - kCorner, kFlapH }, { kCorner, kFlapH }, { 0, kFlapH - kCorner },
                                                 { 0, -kFoldH } } };
 
-        // The pictures: 256x128, the clip spans the middle kPicContentW of the width (transparent
-        // margins) and the card's top border sits kPicBorderY down from the top
+        // The pictures: 256x256, the clip spans the middle kPicContentW of the width (transparent
+        // margins) and the card's top border sits kPicBorderY down from the top (just under the fold's top)
         // Two ways of naming a picture to loadMovie, tried side by side (which one the menu takes is
         // not known yet): relative to Data/Interface, and the img:// loader relative to Data
         constexpr std::array<const char*, 2> kPicture{ "HeartOfMagic/bookmark.dds", "img://Interface/HeartOfMagic/bookmark.dds" };
         constexpr std::array<const char*, 2> kGlowPicture{ "HeartOfMagic/bookmark_glow.dds",
                                                            "img://Interface/HeartOfMagic/bookmark_glow.dds" };
         constexpr std::array<const char*, 2> kImgNames{ "img0", "img1" };
-        constexpr double kPicContentW = 0.8375, kPicPadX = 0.08125, kPicBorderY = 0.13125, kPicAspect = 2.0;
+        constexpr double kPicContentW = 0.7107, kPicPadX = 0.1447, kPicBorderY = 0.0875, kPicAspect = 1.0;
         constexpr int kPictureWaitFrames = 60;  // frames to wait for both pictures before settling on the lines
 
         // Gold glow while hovered: fade in over kGlowFadeMs, then breathe between kGlowLow and 100 every kGlowPeriodMs
@@ -83,10 +84,10 @@ namespace MagicMenuBookmark::Tab
                 MagicMenuDraw::MoveTo(a_vec, x * s, kStitchY * s);
                 MagicMenuDraw::LineTo(a_vec, (x + kDash) * s, kStitchY * s);
             }
-            MagicMenuDraw::Text(a_movie, a_vec, "hom_label", 0, kLabelY * s, kTabW * s, kLabelH * s, "Heart of Magic", kInk,
+            MagicMenuDraw::Text(a_movie, a_vec, "hom_label", 0, kLabelY * s, kTabW * s, kLabelH * s, kLabel, kInk,
                 kLabelSize * s, "center");
             auto glow = MagicMenuDraw::Text(a_movie, a_vec, "hom_glowText", 0, kLabelY * s, kTabW * s, kLabelH * s,
-                "Heart of Magic", kGold, kLabelSize * s, "center");
+                kLabel, kGold, kLabelSize * s, "center");
             glow.SetMember("_alpha", 0.0);
             const bool filtered = MagicMenuDraw::Glow(a_movie, glow, kGold, kGlowBlur, kGlowStrength);
             logger::info("MagicMenuBookmark: drawn bookmark, glow filter {}", filtered ? "on" : "not supported (gold letters only)");
