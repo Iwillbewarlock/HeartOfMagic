@@ -30,6 +30,7 @@ namespace MagicMenuBookmark
         std::vector<std::string> g_paths;
         std::vector<std::string> g_titleFields;
         std::string g_cardPath;        // where FindCard found the card last, for the log
+        std::string g_cardVar;         // the same, as a path GetVariable takes
         bool g_cardLogged = false;     // the card's children are logged once per game session
 
         std::atomic<bool> g_openPanelOnClose{ false };  // clicked: open the panel once the menu has closed
@@ -87,6 +88,7 @@ namespace MagicMenuBookmark
                     std::string name = path.substr(path.rfind('.') + 1);
                     std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
                     if (name.find(kCardHint) != std::string::npos) {
+                        g_cardVar = path;
                         g_cardPath = path + " (found by search - add it to magicmenu_paths.json)";
                         return node;
                     }
@@ -103,12 +105,35 @@ namespace MagicMenuBookmark
             for (const auto& path : g_paths) {
                 RE::GFxValue card;
                 if (a_movie->GetVariable(&card, path.c_str()) && card.IsDisplayObject()) {
-                    g_cardPath = path;
+                    g_cardPath = g_cardVar = path;
                     return card;
                 }
             }
             return a_search ? SearchCard(a_movie) : std::nullopt;
         }
+
+        constexpr std::array<const char*, 7> kFollowed{ "_x", "_y", "_xscale", "_yscale", "_rotation", "_visible", "_alpha" };
+
+        void Follow(RE::GFxValue& a_card, RE::GFxValue& a_overlay)
+        {
+            for (const auto* member : kFollowed) {
+                RE::GFxValue value;
+                if (a_card.GetMember(member, &value)) a_overlay.SetMember(member, value);
+            }
+        }
+
+        // The overlay's frame: follow the card (it moves and fades with the menu)
+        class Sync final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                auto* movie = OpenMagicMenuMovie();
+                auto card = movie ? CurrentCard(movie) : std::nullopt;
+                if (card && a_params.thisPtr) Follow(*card, *a_params.thisPtr);
+            }
+        };
+        RE::GPtr<Sync> g_sync;
 
         // Attaches once the card is there and has a width; true when done (or already done on this movie)
         bool TryAttach(RE::GFxMovieView* a_movie, int a_frame)
@@ -119,19 +144,25 @@ namespace MagicMenuBookmark
                 g_cardWithoutWidth = true;
                 return false;
             }
-            RE::GFxValue tab, watch;
-            if ((card->GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) ||
-                (card->GetMember("hom_watch", &watch) && watch.IsDisplayObject())) {
-                return true;  // already on this movie
-            }
+            RE::GFxValue parent, existing;
+            if (!card->GetMember("_parent", &parent) || !parent.IsDisplayObject()) return false;
+            if (parent.GetMember("hom_overlay", &existing) && existing.IsDisplayObject()) return true;  // already on this movie
             logger::info("MagicMenuBookmark: card at {} after {} frames ({:.0f} wide inside; its own button handlers: onPress {}, onRelease {})",
                 g_cardPath, a_frame, Bounds(*card).Width(), card->HasMember("onPress"), card->HasMember("onRelease"));
             if (!g_cardLogged) {
                 g_cardLogged = true;
                 LogTree(*card, "card", kLogDepth);
             }
-            if (UIManager::MagicMenuBookmark() && UIManager::GetSingleton()->IsInitialized()) Tab::Attach(a_movie, *card);
-            SpellInfo::Attach(a_movie, *card);
+            auto overlay = MagicMenuDraw::Clip(parent, "hom_overlay");
+            if (!overlay.IsDisplayObject()) return true;
+            Follow(*card, overlay);
+            if (!g_sync) g_sync = RE::make_gptr<Sync>();
+            RE::GFxValue fn;
+            a_movie->CreateFunction(&fn, g_sync.get());
+            overlay.SetMember("onEnterFrame", fn);
+            const auto box = Bounds(*card);
+            if (UIManager::MagicMenuBookmark() && UIManager::GetSingleton()->IsInitialized()) Tab::Attach(a_movie, overlay, box);
+            SpellInfo::Attach(a_movie, overlay, *card);
             return true;
         }
 
@@ -220,6 +251,14 @@ namespace MagicMenuBookmark
 
     CardBounds Bounds(RE::GFxValue& a_card)
     {
+        // The visible box first: getBounds of the whole card also counts hidden parts outside it
+        // (weapon labels, buttons), which put the bookmark above the box in the first game run
+        RE::GFxValue background, x, y, w, h;
+        if (a_card.GetMember("background", &background) && background.IsDisplayObject() && background.GetMember("_x", &x) &&
+            background.GetMember("_y", &y) && background.GetMember("_width", &w) && background.GetMember("_height", &h) &&
+            x.IsNumber() && y.IsNumber() && w.IsNumber() && h.IsNumber() && w.GetNumber() > 0) {
+            return { x.GetNumber(), x.GetNumber() + w.GetNumber(), y.GetNumber(), y.GetNumber() + h.GetNumber() };
+        }
         // getBounds(card) is in the card's own coordinates, where its children's _x/_y are;
         // _width is in the parent's and carries the card's own scale
         RE::GFxValue bounds;
@@ -230,6 +269,13 @@ namespace MagicMenuBookmark
             return bounds.GetMember(a_name, &value) && value.IsNumber() ? value.GetNumber() : 0.0;
         };
         return { read("xMin"), read("xMax"), read("yMin"), read("yMax") };
+    }
+
+    std::optional<RE::GFxValue> CurrentCard(RE::GFxMovieView* a_movie)
+    {
+        RE::GFxValue card;
+        if (g_cardVar.empty() || !a_movie->GetVariable(&card, g_cardVar.c_str()) || !card.IsDisplayObject()) return std::nullopt;
+        return card;
     }
 
     RE::GFxMovieView* OpenMagicMenuMovie()

@@ -20,11 +20,11 @@ namespace MagicMenuBookmark::Tab
         // Sizes at a 600-wide card, scaled to the card's width. y=0 is the card's top border:
         // the fold rises kFoldH above it, the front flap hangs kFlapH into the card.
         constexpr double kRefCardWidth = 600.0;
-        constexpr double kTabW = 80.0, kFoldH = 6.0, kFlapH = 40.0, kCorner = 6.0, kRightInset = 16.0, kHoverRise = 4.0;
+        constexpr double kTabW = 160.0, kFoldH = 12.0, kFlapH = 80.0, kCorner = 12.0, kRightInset = 16.0, kHoverRise = 4.0;
         constexpr std::uint32_t kLeather = 0xA0643A, kLeatherEdge = 0x6E4024, kStitch = 0xE8DCC8, kInk = 0x5E331B;
         constexpr std::uint32_t kGold = 0xFFD27A;
-        constexpr double kStitchY = 5.0, kStitchInset = 5.0, kDash = 4.0;
-        constexpr double kLabelY = 14.0, kLabelH = 18.0, kLabelSize = 11.0;
+        constexpr double kStitchY = 10.0, kStitchInset = 10.0, kDash = 8.0;
+        constexpr double kLabelY = 28.0, kLabelH = 36.0, kLabelSize = 22.0;
 
         struct Pt { double x, y; };
         // The outline is one table so a new design only changes it
@@ -216,7 +216,12 @@ namespace MagicMenuBookmark::Tab
         }
     }
 
-    void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_card)
+    double LeftEdge(const CardBounds& a_box)
+    {
+        return a_box.xMax - (kTabW + kRightInset) * a_box.Width() / kRefCardWidth;
+    }
+
+    void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_overlay, const CardBounds& a_box)
     {
         if (!g_click) {
             g_click = RE::make_gptr<Handler>(Handler::Kind::kClick);
@@ -224,19 +229,18 @@ namespace MagicMenuBookmark::Tab
             g_rollOut = RE::make_gptr<Handler>(Handler::Kind::kRollOut);
             g_tick = RE::make_gptr<Handler>(Handler::Kind::kTick);
         }
-        const auto box = Bounds(a_card);  // MagicMenuBookmark.cpp attaches only once this has a width
-        const double cardWidth = box.Width();
+        const double cardWidth = a_box.Width();  // MagicMenuBookmark.cpp attaches only once this has a width
         g_state = State{};
         g_state.scale = cardWidth / kRefCardWidth;
 
-        auto tab = MagicMenuDraw::Clip(a_card, "hom_bookmark");
+        auto tab = MagicMenuDraw::Clip(a_overlay, "hom_bookmark");
         if (!tab.IsDisplayObject()) return;
         auto vec = MagicMenuDraw::Clip(tab, "hom_vec");
         DrawLines(a_movie, vec, g_state.scale);
         LoadPicture(tab, "hom_pic", kPicture);
         LoadPicture(tab, "hom_picGlow", kGlowPicture);
-        tab.SetMember("_x", box.xMax - (kTabW + kRightInset) * g_state.scale);
-        tab.SetMember("_y", box.yMin);
+        tab.SetMember("_x", LeftEdge(a_box));
+        tab.SetMember("_y", a_box.yMin);
 
         SetHandler(a_movie, tab, "onRelease", g_click.get());
         SetHandler(a_movie, tab, "onRollOver", g_rollOver.get());
