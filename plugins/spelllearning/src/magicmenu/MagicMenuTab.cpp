@@ -36,11 +36,12 @@ namespace MagicMenuBookmark::Tab
         // margins) and the card's top border sits kPicBorderY down from the top
         constexpr const char* kPicture = "HeartOfMagic/bookmark.dds";
         constexpr const char* kGlowPicture = "HeartOfMagic/bookmark_glow.dds";
-        constexpr double kPicContentW = 0.8375, kPicPadX = 0.08125, kPicBorderY = 0.13125;
+        constexpr double kPicContentW = 0.8375, kPicPadX = 0.08125, kPicBorderY = 0.13125, kPicAspect = 2.0;
         constexpr int kPictureWaitFrames = 60;  // frames to wait for both pictures before settling on the lines
 
         // Gold glow while hovered: fade in over kGlowFadeMs, then breathe between kGlowLow and 100 every kGlowPeriodMs
         constexpr double kGlowFadeMs = 250.0, kGlowPeriodMs = 2000.0, kGlowLow = 60.0;
+        constexpr double kGlowBlur = 6.0, kGlowStrength = 2.0;  // the drawn clip's GlowFilter
 
         // One bookmark exists at a time (one magic menu); Attach resets this
         struct State
@@ -83,16 +84,19 @@ namespace MagicMenuBookmark::Tab
             auto glow = MagicMenuDraw::Text(a_movie, a_vec, "hom_glowText", 0, kLabelY * s, kTabW * s, kLabelH * s,
                 "Heart of Magic", kGold, kLabelSize * s, "center");
             glow.SetMember("_alpha", 0.0);
-            const bool filtered = MagicMenuDraw::Glow(a_movie, glow, kGold, 6.0, 2.0);
+            const bool filtered = MagicMenuDraw::Glow(a_movie, glow, kGold, kGlowBlur, kGlowStrength);
             logger::info("MagicMenuBookmark: drawn bookmark, glow filter {}", filtered ? "on" : "not supported (gold letters only)");
         }
 
+        // A hidden holder with the picture loaded into its child "img": loadMovie resets the clip
+        // it loads into, so the hiding stays on the holder
         void LoadPicture(RE::GFxValue& a_tab, const char* a_name, const char* a_path)
         {
-            auto pic = MagicMenuDraw::Clip(a_tab, a_name);
-            pic.SetMember("_visible", false);
+            auto holder = MagicMenuDraw::Clip(a_tab, a_name);
+            holder.SetMember("_visible", false);
+            auto img = MagicMenuDraw::Clip(holder, "img");
             const std::array<RE::GFxValue, 1> args{ RE::GFxValue(a_path) };
-            pic.Invoke("loadMovie", args);
+            img.Invoke("loadMovie", args);
         }
 
         // Both pictures loaded (a width): size and place them over the clip, hide the lines
@@ -100,15 +104,18 @@ namespace MagicMenuBookmark::Tab
         {
             auto pic = Child(a_tab, "hom_pic");
             auto glow = Child(a_tab, "hom_picGlow");
-            if (Number(pic, "_width") <= 0 || Number(glow, "_width") <= 0) return;
-            const double w = kTabW * g_state.scale / kPicContentW, h = w / 2;
-            for (auto* clip : { &pic, &glow }) {
-                clip->SetMember("_width", w);
-                clip->SetMember("_height", h);
-                clip->SetMember("_x", -kPicPadX * w);
-                clip->SetMember("_y", -kPicBorderY * h);
-                clip->SetMember("_visible", true);
+            auto picImg = Child(pic, "img");
+            auto glowImg = Child(glow, "img");
+            if (Number(picImg, "_width") <= 0 || Number(glowImg, "_width") <= 0) return;
+            const double w = kTabW * g_state.scale / kPicContentW, h = w / kPicAspect;
+            for (auto* img : { &picImg, &glowImg }) {
+                img->SetMember("_width", w);
+                img->SetMember("_height", h);
+                img->SetMember("_x", -kPicPadX * w);
+                img->SetMember("_y", -kPicBorderY * h);
             }
+            pic.SetMember("_visible", true);
+            glow.SetMember("_visible", true);
             glow.SetMember("_alpha", 0.0);
             Child(a_tab, "hom_vec").SetMember("_visible", false);
             g_state.pictures = true;
@@ -193,11 +200,8 @@ namespace MagicMenuBookmark::Tab
             g_rollOut = RE::make_gptr<Handler>(Handler::Kind::kRollOut);
             g_tick = RE::make_gptr<Handler>(Handler::Kind::kTick);
         }
-        const double cardWidth = Number(a_card, "_width");
-        if (cardWidth <= 0) {
-            logger::warn("MagicMenuBookmark: the card has no width - no bookmark");
-            return;
-        }
+        const auto box = Bounds(a_card);  // MagicMenuBookmark.cpp attaches only once this has a width
+        const double cardWidth = box.Width();
         g_state = State{};
         g_state.scale = cardWidth / kRefCardWidth;
 
@@ -207,7 +211,8 @@ namespace MagicMenuBookmark::Tab
         DrawLines(a_movie, vec, g_state.scale);
         LoadPicture(tab, "hom_pic", kPicture);
         LoadPicture(tab, "hom_picGlow", kGlowPicture);
-        tab.SetMember("_x", cardWidth - (kTabW + kRightInset) * g_state.scale);
+        tab.SetMember("_x", box.xMax - (kTabW + kRightInset) * g_state.scale);
+        tab.SetMember("_y", box.yMin);
 
         SetHandler(a_movie, tab, "onRelease", g_click.get());
         SetHandler(a_movie, tab, "onRollOver", g_rollOver.get());

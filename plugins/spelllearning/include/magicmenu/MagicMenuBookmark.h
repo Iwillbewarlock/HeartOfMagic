@@ -13,6 +13,6 @@ namespace MagicMenuBookmark
 
     // UIManager::HidePanel: true once when the panel was opened from the bookmark (then reopen the menu)
     bool TakeReturnFlag();
-    // A save load or the main menu: the panel closes without going back to the menu
+    // A new game or save load (UIManager::EnsureFocusReleased): the panel closes without going back to the menu
     void ClearReturnFlag();
 }

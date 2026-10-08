@@ -3,13 +3,22 @@
 // =============================================================================
 // MAGIC MENU BOOKMARK - shared between MagicMenuBookmark.cpp (menu events, card
 // lookup, click), MagicMenuTab.cpp (the bookmark) and MagicMenuSpellInfo.cpp
-// (XP ring and chips). All of it runs on the UI thread.
+// (XP ring and chips). All of it runs where SKSE UI tasks and the menu movie's frame
+// handlers run (the game's main loop as far as is known - not verified in the game)
 // =============================================================================
 
 namespace MagicMenuBookmark
 {
     // magicmenu_paths.json "titleFields": the item card's spell name text field, tried in order
     const std::vector<std::string>& TitleFields();
+
+    // The item card's box in its own coordinates (children's _x/_y); all 0 when it cannot be read
+    struct CardBounds
+    {
+        double xMin = 0, xMax = 0, yMin = 0, yMax = 0;
+        double Width() const { return xMax - xMin; }
+    };
+    CardBounds Bounds(RE::GFxValue& a_card);
 
     // The open magic menu's movie, or nullptr
     RE::GFxMovieView* OpenMagicMenuMovie();

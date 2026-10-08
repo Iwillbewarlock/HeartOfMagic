@@ -1,5 +1,6 @@
 #include "magicmenu/MagicMenuBookmark.h"
 #include "magicmenu/MagicMenuInternal.h"
+#include "magicmenu/MagicMenuDraw.h"
 #include "uimanager/UIManager.h"
 
 #include <algorithm>
@@ -23,10 +24,12 @@ namespace MagicMenuBookmark
         constexpr const char* kCardHint = "itemcard";  // a card the paths file does not list: a member named like this
         constexpr int kLogDepth = 2;                   // spec 4.2: the menu root's children, two levels
         constexpr int kSearchDepth = 3;
-        constexpr int kInjectRetries = 5;              // UI tasks to wait for the card clip after the open event
+        constexpr int kFindFrames = 30;                // frames to wait for the card (and its width) after the menu opens
 
         std::vector<std::string> g_paths;
         std::vector<std::string> g_titleFields;
+        std::string g_cardPath;        // where FindCard found the card last, for the log
+        bool g_cardLogged = false;     // the card's children are logged once per game session
 
         std::atomic<bool> g_openPanelOnClose{ false };  // clicked: open the panel once the menu has closed
         std::atomic<bool> g_returnToMenu{ false };      // the panel was opened from the bookmark
@@ -83,7 +86,7 @@ namespace MagicMenuBookmark
                     std::string name = path.substr(path.rfind('.') + 1);
                     std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
                     if (name.find(kCardHint) != std::string::npos) {
-                        logger::info("MagicMenuBookmark: card found by search at {} - add it to magicmenu_paths.json", path);
+                        g_cardPath = path + " (found by search - add it to magicmenu_paths.json)";
                         return node;
                     }
                 }
@@ -97,36 +100,73 @@ namespace MagicMenuBookmark
             for (const auto& path : g_paths) {
                 RE::GFxValue card;
                 if (a_movie->GetVariable(&card, path.c_str()) && card.IsDisplayObject()) {
-                    logger::info("MagicMenuBookmark: card at {}", path);
+                    g_cardPath = path;
                     return card;
                 }
             }
             return SearchCard(a_movie);
         }
 
-        void Inject(int a_triesLeft)
+        // Attaches once the card is there and has a width; true when done (or already done on this movie)
+        bool TryAttach(RE::GFxMovieView* a_movie, int a_frame)
+        {
+            auto card = FindCard(a_movie);
+            if (!card || Bounds(*card).Width() <= 0) return false;
+            RE::GFxValue tab, watch;
+            if ((card->GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) ||
+                (card->GetMember("hom_watch", &watch) && watch.IsDisplayObject())) {
+                return true;  // already on this movie
+            }
+            logger::info("MagicMenuBookmark: card at {} after {} frames ({:.0f} wide inside; its own button handlers: onPress {}, onRelease {})",
+                g_cardPath, a_frame, Bounds(*card).Width(), card->HasMember("onPress"), card->HasMember("onRelease"));
+            if (!g_cardLogged) {
+                g_cardLogged = true;
+                LogTree(*card, "card", kLogDepth);
+            }
+            if (UIManager::MagicMenuBookmark() && UIManager::GetSingleton()->IsInitialized()) Tab::Attach(a_movie, *card);
+            SpellInfo::Attach(a_movie, *card);
+            return true;
+        }
+
+        void LogNotFound(RE::GFxMovieView* a_movie)
+        {
+            logger::warn("MagicMenuBookmark: card not found in {} frames - no bookmark. The menu root's children:", kFindFrames);
+            RE::GFxValue root;
+            if (a_movie->GetVariable(&root, "_root")) LogTree(root, "_root", kLogDepth);
+        }
+
+        // The card may not exist (or be empty) when the open event comes: an empty clip on _root
+        // tries again every frame of the movie itself, up to kFindFrames, then removes itself
+        class Finder final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                auto* movie = OpenMagicMenuMovie();
+                if (!movie || !a_params.thisPtr) return;
+                const bool done = TryAttach(movie, ++m_frames);
+                if (!done && m_frames < kFindFrames) return;
+                if (!done) LogNotFound(movie);
+                a_params.thisPtr->Invoke("removeMovieClip");
+            }
+            void Reset() { m_frames = 0; }
+
+        private:
+            int m_frames = 0;
+        };
+        RE::GPtr<Finder> g_finder;
+
+        void Inject()
         {
             auto* movie = OpenMagicMenuMovie();
-            if (!movie) return;  // closed meanwhile
-            if (auto card = FindCard(movie)) {
-                RE::GFxValue tab, watch;
-                if ((card->GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) ||
-                    (card->GetMember("hom_watch", &watch) && watch.IsDisplayObject())) {
-                    return;  // already on this movie
-                }
-                logger::info("MagicMenuBookmark: card ready after {} UI tasks", kInjectRetries - a_triesLeft + 1);
-                LogTree(*card, "card", kLogDepth);
-                if (UIManager::MagicMenuBookmark()) Tab::Attach(movie, *card);
-                SpellInfo::Attach(movie, *card);
-                return;
-            }
-            if (a_triesLeft > 0) {
-                SKSE::GetTaskInterface()->AddUITask([a_triesLeft] { Inject(a_triesLeft - 1); });
-                return;
-            }
-            logger::warn("MagicMenuBookmark: card not found - no bookmark. The menu root's children:");
-            RE::GFxValue root;
-            if (movie->GetVariable(&root, "_root")) LogTree(root, "_root", kLogDepth);
+            if (!movie || TryAttach(movie, 0)) return;
+            RE::GFxValue root, fn;
+            if (!movie->GetVariable(&root, "_root") || !root.IsDisplayObject()) return;
+            if (!g_finder) g_finder = RE::make_gptr<Finder>();
+            g_finder->Reset();
+            auto finder = MagicMenuDraw::Clip(root, "hom_finder");
+            movie->CreateFunction(&fn, g_finder.get());
+            finder.SetMember("onEnterFrame", fn);
         }
 
         class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -144,11 +184,13 @@ namespace MagicMenuBookmark
                 if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
                 logger::info("MagicMenuBookmark: magic menu {}", a_event->opening ? "opened" : "closed");
                 if (a_event->opening) {
-                    SKSE::GetTaskInterface()->AddUITask([] { Inject(kInjectRetries); });
+                    g_openPanelOnClose = false;  // a click whose close never came does not open the panel later
+                    SKSE::GetTaskInterface()->AddUITask([] { Inject(); });
                 } else if (g_openPanelOnClose.exchange(false)) {
                     SKSE::GetTaskInterface()->AddTask([] {
-                        g_returnToMenu = true;
-                        UIManager::GetSingleton()->ShowPanel();
+                        auto* ui = UIManager::GetSingleton();
+                        ui->ShowPanel();
+                        g_returnToMenu = ui->IsPanelVisible();  // not opened (not initialized): nothing to return from
                     });
                 }
                 return RE::BSEventNotifyControl::kContinue;
@@ -163,6 +205,20 @@ namespace MagicMenuBookmark
     }
 
     const std::vector<std::string>& TitleFields() { return g_titleFields; }
+
+    CardBounds Bounds(RE::GFxValue& a_card)
+    {
+        // getBounds(card) is in the card's own coordinates, where its children's _x/_y are;
+        // _width is in the parent's and carries the card's own scale
+        RE::GFxValue bounds;
+        const std::array<RE::GFxValue, 1> args{ a_card };
+        if (!a_card.Invoke("getBounds", &bounds, args) || !bounds.IsObject()) return {};
+        auto read = [&](const char* a_name) {
+            RE::GFxValue value;
+            return bounds.GetMember(a_name, &value) && value.IsNumber() ? value.GetNumber() : 0.0;
+        };
+        return { read("xMin"), read("xMax"), read("yMin"), read("yMax") };
+    }
 
     RE::GFxMovieView* OpenMagicMenuMovie()
     {

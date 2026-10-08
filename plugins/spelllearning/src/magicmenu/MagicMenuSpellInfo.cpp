@@ -24,6 +24,9 @@ namespace MagicMenuBookmark::SpellInfo
     {
         constexpr std::size_t kMaxChips = 4;  // spec 2.2
         constexpr double kRingScale = 1.6;    // ring diameter / title height
+        constexpr double kMaxRingRadius = 16.0;  // a "title" field that is really a tall text box keeps a small ring
+        constexpr double kPctTop = 0.6, kPctHeight = 1.3, kPctSize = 0.75;  // the percent inside the ring, in radii
+        constexpr double kChipsHeight = 0.8, kChipsSize = 0.5;              // the chip line, in title heights
         constexpr double kGap = 6.0;
         constexpr double kBookmarkShare = 96.0 / 600.0;  // the bookmark and its inset, as a share of the card width
         constexpr double kFallbackTitleX = 12.0, kFallbackTitleY = 8.0, kFallbackTitleH = 24.0;  // no title field found
@@ -49,7 +52,8 @@ namespace MagicMenuBookmark::SpellInfo
                     return { Number(field, "_x"), Number(field, "_y"), Number(field, "_height"), Number(field, "textWidth") };
                 }
             }
-            return { kFallbackTitleX, kFallbackTitleY, kFallbackTitleH, 0.0 };
+            const auto box = Bounds(a_card);
+            return { box.xMin + kFallbackTitleX, box.yMin + kFallbackTitleY, kFallbackTitleH, 0.0 };
         }
 
         void Ring(RE::GFxValue& a_clip, double a_r, float a_progress, bool a_mastered)
@@ -107,11 +111,14 @@ namespace MagicMenuBookmark::SpellInfo
             if (!progression->IsTreeSpell(id)) return;
 
             const auto title = FindTitle(a_card);
-            const double r = title.h * kRingScale / 2;
+            const double r = std::min(title.h * kRingScale / 2, kMaxRingRadius);
+            const auto box = Bounds(a_card);
+            const double bookmarkLeft = box.xMax - box.Width() * kBookmarkShare;
             auto info = MagicMenuDraw::Clip(a_card, "hom_info");
             auto ring = MagicMenuDraw::Clip(info, "ring");
-            // Left of the name; right of it when the name starts at the card's edge
-            const double ringX = title.x - r - kGap >= r ? title.x - r - kGap : title.x + title.textWidth + kGap + r;
+            // Left of the name; right of it when the name starts at the card's edge, but never under the bookmark
+            const double leftX = title.x - r - kGap, rightX = title.x + title.textWidth + kGap + r;
+            const double ringX = leftX - r >= box.xMin || rightX + r > bookmarkLeft ? std::max(leftX, box.xMin + r) : rightX;
             const double ringY = title.y + title.h / 2;
             ring.SetMember("_x", ringX);
             ring.SetMember("_y", ringY);
@@ -119,14 +126,13 @@ namespace MagicMenuBookmark::SpellInfo
             const float progress = std::clamp(progression->GetProgressPercent(id), 0.0f, 1.0f);
             Ring(ring, r, progress, mastered);
             if (!mastered) {
-                MagicMenuDraw::Text(a_movie, info, "pct", ringX - r, ringY - r * 0.6, 2 * r, r * 1.3,
-                    std::format("{}", static_cast<int>(progress * 100)), kText, r * 0.75, "center");
+                MagicMenuDraw::Text(a_movie, info, "pct", ringX - r, ringY - r * kPctTop, 2 * r, r * kPctHeight,
+                    std::format("{}", static_cast<int>(progress * 100)), kText, r * kPctSize, "center");
             }
             // Up to the bookmark's left edge (MagicMenuTab.cpp: 96 of a 600-wide card from the right)
-            const double cardWidth = Number(a_card, "_width");
-            const double chipsWidth = std::max(0.0, cardWidth - title.x - cardWidth * kBookmarkShare - kGap);
-            MagicMenuDraw::Text(a_movie, info, "chips", title.x, title.y + title.h, chipsWidth, title.h * 0.8,
-                ChipLine(a_spell), kText, title.h * 0.5);
+            const double chipsWidth = std::max(0.0, bookmarkLeft - title.x - kGap);
+            MagicMenuDraw::Text(a_movie, info, "chips", title.x, title.y + title.h, chipsWidth, title.h * kChipsHeight,
+                ChipLine(a_spell), kText, title.h * kChipsSize);
         }
 
         RE::SpellItem* SelectedSpell()
