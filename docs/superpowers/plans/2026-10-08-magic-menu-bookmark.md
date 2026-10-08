@@ -26,7 +26,8 @@
 
 ## 책갈피 그림 (2026-10-08 사용자 변경)
 
-- 사용자: "심플하게 가죽 책갈피에 Heart of Magic이라고 영어로 적은 것". 스펙 2.1의 붉은 바탕·심장 문양 대신 이것을 쓴다. 스펙 2.1을 Task 2에서 고친다.
+- 사용자: "심플하게 가죽 책갈피에 Heart of Magic이라고 영어로 적은 것", 이어서 참고 사진(책장 위 모서리를 접어 끼우는 가죽 클립 책갈피, 접힌 선을 따라 박음질, 이름 음각)과 함께 "이런 느낌으로 주문 이름·설명 칸의 오른쪽 위에". 스펙 2.1의 붉은 바탕·심장 문양과 "위로 솟은 탭" 대신 이것을 쓴다. 스펙 2.1을 Task 2에서 고친다.
+- 모양: 설명 칸 오른쪽 위 모서리에 끼운 클립. 접힌 부분이 위 테두리 위로 조금(약 6) 올라오고, 앞날개가 칸 안쪽으로 내려온다(약 28). 아래 두 모서리는 둥글다. 황갈색 결 있는 가죽, 접힌 선 아래 밝은 박음질, 앞날개에 "Heart of Magic" 음각(바탕보다 어두운 글자).
 - 그림 파일을 Scaleform에서 불러올 수 있으면(Task 1에서 확인) 그림 한 장(`Interface/HeartOfMagic/bookmark.dds`)을 쓴다. 안 되면 갈색 가죽 띠를 선으로 그리고 `createTextField`로 "Heart of Magic"을 쓴다.
 - 모양 좌표는 상수 배열 하나(`kBookmarkOutline`)에 둔다. 그림이 바뀌어도 그 배열만 고친다.
 
@@ -36,6 +37,7 @@
 2. **메뉴가 열리는 순간 설명 칸이 아직 없는 경우.** `MenuOpenCloseEvent(opening)`는 AS2 자식이 만들어지기 전에 올 수 있다. → Task 1이 한 번 미루고(`AddUITask`) 그래도 없으면 다음 몇 프레임 다시 본다(`kInjectRetries`).
 3. **마법 메뉴를 열 때마다 무비가 새로 만들어진다.** 지난번 클립·함수는 쓸 수 없다. → 매번 다시 붙이고, 함수 처리기는 `RE::GPtr`로 정적 보관한다(Task 2).
 4. **책갈피를 누른 뒤 메뉴가 닫히기 전에 패널을 여는 경우.** 마법 메뉴와 패널 포커스가 겹친다. → 누르면 표시만 세우고 메뉴를 닫고, 메뉴 닫힘 이벤트에서 패널을 연다(Task 2).
+6. **긴 주문 이름이 클립 밑으로 들어가는 경우.** 클립 앞날개가 칸 안쪽 오른쪽 위를 덮는다. → Task 4 게임 확인 1번에서 본다. 가려지면 클립을 오른쪽 여백(`kRightInset`)을 줄이거나 앞날개(`kFlapH`)를 짧게 해서 제목 줄 위로 올린다.
 5. **권능·능력·스크롤·트리 없음.** 고리·칩 없이 제목 그대로. 주문을 바꾸면 지난 고리·칩이 남지 않아야 한다. → Task 4가 매번 지우고 다시 그린다.
 
 ---
@@ -368,31 +370,39 @@ namespace MagicMenuDraw
 `MagicMenuBookmark.cpp`의 이름 없는 namespace에:
 
 ```cpp
-        // Spec 2.1 (leather bookmark, 2026-10-08): 46x34 at a 600-wide card, scaled to the card's width.
+        // Spec 2.1 (fold-over leather clip, 2026-10-08): 100 wide at a 600-wide card, scaled to the card's width.
         // The outline is one table so a new design only changes it.
         constexpr double kRefCardWidth = 600.0;
-        constexpr double kTabW = 46.0, kTabH = 34.0, kHoverRise = 4.0, kRightInset = 24.0;
-        constexpr std::uint32_t kLeather = 0x5A3A22, kStitch = 0xC9A66B, kInk = 0xE8D3A0;
+        constexpr double kTabW = 100.0, kFoldH = 6.0, kFlapH = 28.0, kCorner = 6.0, kHoverRise = 4.0, kRightInset = 16.0;
+        constexpr std::uint32_t kLeather = 0xA0643A, kLeatherEdge = 0x6E4024, kStitch = 0xE8DCC8, kInk = 0x5E331B;
         struct Pt { double x, y; };
-        // y=0 is the card's top border; negative is above it. Open bottom edge (no line along y=0).
-        constexpr std::array<Pt, 6> kBookmarkOutline{ { { 0, 0 }, { 0, -kTabH + 6 }, { 6, -kTabH },
-                                                        { kTabW - 6, -kTabH }, { kTabW, -kTabH + 6 }, { kTabW, 0 } } };
+        // y=0 is the card's top border: the fold rises kFoldH above it, the front flap hangs kFlapH into the card
+        constexpr std::array<Pt, 7> kBookmarkOutline{ { { 0, -kFoldH }, { kTabW, -kFoldH }, { kTabW, kFlapH - kCorner },
+                                                        { kTabW - kCorner, kFlapH }, { kCorner, kFlapH }, { 0, kFlapH - kCorner },
+                                                        { 0, -kFoldH } } };
+        constexpr double kStitchY = 2.0, kStitchInset = 5.0, kDash = 4.0;
 
         void DrawTab(RE::GFxValue& a_tab, double a_scale)
         {
             MagicMenuDraw::Clear(a_tab);
-            MagicMenuDraw::LineStyle(a_tab, 1.5, kStitch);
+            MagicMenuDraw::LineStyle(a_tab, 1.0, kLeatherEdge);
             MagicMenuDraw::BeginFill(a_tab, kLeather, 100.0);
             MagicMenuDraw::MoveTo(a_tab, kBookmarkOutline[0].x * a_scale, kBookmarkOutline[0].y * a_scale);
             for (std::size_t i = 1; i < kBookmarkOutline.size(); ++i)
                 MagicMenuDraw::LineTo(a_tab, kBookmarkOutline[i].x * a_scale, kBookmarkOutline[i].y * a_scale);
             MagicMenuDraw::EndFill(a_tab);
-            MagicMenuDraw::Text(a_tab, "hom_label", 2 * a_scale, -kTabH * a_scale + 4, (kTabW - 4) * a_scale, 14 * a_scale,
-                "Heart of Magic", kInk, 8 * a_scale);
+            // the stitch line under the fold: dashes across the flap
+            MagicMenuDraw::LineStyle(a_tab, 1.0, kStitch);
+            for (double x = kStitchInset; x + kDash <= kTabW - kStitchInset; x += 2 * kDash) {
+                MagicMenuDraw::MoveTo(a_tab, x * a_scale, kStitchY * a_scale);
+                MagicMenuDraw::LineTo(a_tab, (x + kDash) * a_scale, kStitchY * a_scale);
+            }
+            MagicMenuDraw::Text(a_tab, "hom_label", 4 * a_scale, 8 * a_scale, (kTabW - 8) * a_scale, 16 * a_scale,
+                "Heart of Magic", kInk, 11 * a_scale);
         }
 ```
 
-그림 파일이 되면(Task 1 답) `DrawTab` 대신 `tab.Invoke("loadMovie", { "HeartOfMagic/bookmark.dds" })`를 쓰고 `_x`, `_y`, `_width`, `_height`로 같은 자리·크기에 맞춘다. 사용자가 고른 Gemini 그림을 DDS(BC3, 128×96)로 바꿔 `Interface/HeartOfMagic/bookmark.dds`에 둔다.
+그림 파일이 되면(Task 1 답) `DrawTab` 대신 `tab.Invoke("loadMovie", { "HeartOfMagic/bookmark.dds" })`를 쓰고 `_x`, `_y`, `_width`, `_height`로 같은 자리·크기에 맞춘다. 사용자가 고른 Gemini 그림에서 클립만 잘라 DDS(BC3, 256×88, 투명 바탕)로 바꿔 `Interface/HeartOfMagic/bookmark.dds`에 둔다.
 
 - [ ] **Step 3: 클릭 처리기와 붙이기**
 
@@ -489,7 +499,7 @@ namespace MagicMenuDraw
 
 - [ ] **Step 6: 스펙 2.1 고치고 커밋**
 
-스펙 2.1을 "가죽 책갈피, 'Heart of Magic' 영문, 그림 파일 또는 선 그리기(Task 1 답)"로 바꾼다.
+스펙 2.1을 "설명 칸 오른쪽 위 모서리에 끼운 가죽 클립 책갈피, 'Heart of Magic' 음각 영문, 그림 파일 또는 선 그리기(Task 1 답)"로 바꾸고, 참고 사진 설명을 적는다.
 
 ```bash
 git add -A plugins/spelllearning/src/magicmenu plugins/spelllearning/include/magicmenu docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md
@@ -731,7 +741,7 @@ namespace MagicMenuBookmark::SpellInfo
 
 - [ ] **Step 5: 게임 확인 (사용자, 약 5분 — 이 기능의 두 번째이자 마지막 게임 확인)**
 
-1. 마법 메뉴: 설명 칸 오른쪽 위 가죽 책갈피, "Heart of Magic" 글자. 마우스를 올리면 조금 올라온다.
+1. 마법 메뉴: 설명 칸 오른쪽 위 모서리에 끼운 가죽 클립, "Heart of Magic" 글자. 마우스를 올리면 조금 올라온다. 긴 주문 이름(예: 다른 모드의 긴 이름)이 클립에 가려지지 않는다.
 2. 배우는 중인 주문: 이름 왼쪽 파란 호와 %, 이름 아래 칩 최대 4개(+N). 마스터한 주문: 금색 원, 숫자 없음. 시작 안 한 주문: 회색 원과 0.
 3. 권능(예: 종족 권능)·스크롤로 옮기면 고리와 칩이 사라진다.
 4. 책갈피 클릭 → 메뉴 닫히고 패널 열림 → Esc → 마법 메뉴로 돌아옴. 단축키로 연 패널은 닫으면 게임으로.
