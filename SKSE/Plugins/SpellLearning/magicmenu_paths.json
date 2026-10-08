@@ -1,0 +1,8 @@
+{
+  "_comment": "Paths to the magic menu's item card (spell description box), tried in order. One line per menu mod. See docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md 4.2",
+  "cardPaths": [
+    "_root.Menu_mc.itemCardFadeHolder.ItemCard_mc",
+    "_root.Menu_mc.ItemCardFadeHolder_mc.ItemCard_mc",
+    "_root.Menu_mc.itemCard"
+  ]
+}

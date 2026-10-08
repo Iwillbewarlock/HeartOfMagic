@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
+#include "magicmenu/MagicMenuBookmark.h"
 #include "SpellScanner.h"
 #include "SpellCastHandler.h"
 #include "ProgressionManager.h"
@@ -398,7 +399,8 @@ void OnDataLoaded()
 
     // Register input handler for hotkey
     InputHandler::GetSingleton()->Register();
-    
+    MagicMenuBookmark::Install();
+
     // Register spell cast event handler for XP tracking
     SpellCastHandler::GetSingleton()->Register();
     logger::info("SpellCastHandler registered for XP tracking");
