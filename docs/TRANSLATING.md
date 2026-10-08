@@ -265,6 +265,9 @@ to about five letters (two or three CJK characters), since the tabs are narrow. 
 the full name from `chips.school.*`. A school with no short name (a modded school) is cut to five
 letters and a dot.
 
+The `chips.*` names also show in the game's magic menu, under the selected spell's name (the plugin reads
+them from the same language file as the `hud.*` lines), so keep them short there too.
+
 ## Tips
 
 - Keep translations concise - UI space is limited

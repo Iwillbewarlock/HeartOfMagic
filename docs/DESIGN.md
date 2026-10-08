@@ -1298,9 +1298,29 @@ All mod configuration. Split-row layout for space efficiency.
 └──────────────────────────────────────────────┘
 ```
 
+### Magic Menu Bookmark
+
+Drawn by the plugin into the game's magic menu, not by the panel (code: docs/ARCHITECTURE.md, "MagicMenuBookmark";
+spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md).
+
+- **Bookmark** (`magicMenu.bookmark`): a tan leather clip folded over the spell description box's top-right corner
+  (the user's reference photo, 2026-10-08), a stitch line under the fold and "Heart of Magic" pressed into the
+  flap. The pictures are `Interface/HeartOfMagic/bookmark.dds` and `bookmark_glow.dds` (256x128, the clip in the
+  middle 84% of the width); until they load, and for good if the menu cannot load them, the same clip is drawn
+  with lines and a text field. 80 wide at a 600-wide card, scaled with the card. With the mouse over it the clip
+  rises 4 and the words glow gold: the glow fades in over 0.25 s, then breathes between 60% and 100% every 2 s,
+  and fades out when the mouse leaves. Clicking it closes the magic menu, opens the panel, and closing the
+  panel (any way) opens the magic menu again; a panel opened with the hotkey closes to the game as before.
+- **Tags and XP** (`magicMenu.spellInfo`): by the selected spell's name a ring 1.6 times the name's height - a
+  blue arc as far as the learning progress with the percent inside, a full gold disc when mastered, a grey
+  circle at 0 - and under the name up to four of the panel card's chips in the panel's language, then "+N".
+  Left of the name, or right of it when the name starts at the card's edge. Spells not in the tree (powers,
+  abilities, scrolls, no tree yet) get neither. Redrawn when the selection changes.
+- Not for gamepads (they use the hotkey); one ring per spell list row is out of scope.
+
 ### Key Settings Groups
 
-**Hotkey** (`modules/panelOpenSetting.js`, 2026-10-08): how the panel opens. The toggle key has Change, Reset,(F8) and **None** - `hotkeyCode` 0, `hotkey` "" (the field shows the None label as its placeholder, so a language,switch relabels it). Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) under the,row - typing that letter in a search box reaches the game too and closes the panel - but is allowed. Two,switches follow: **Magic Menu Bookmark** (`magicMenu.bookmark`, on) and **Tags and XP in the Magic Menu**,(`magicMenu.spellInfo`, on), for the magic menu bookmark (docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md;,the menu code itself is not built yet, the switches only save). The bookmark and a hotkey are the two ways to,open the panel, so each locks the other: with None the bookmark switch is greyed out (`disabled-controls`),and a line says why; with the bookmark off the None button is disabled and a line says why. A config with,both off (hand-edited) loads with the bookmark on, in the panel and in C++. The notes are `.setting-desc,.hotkey-note` lines with their own `.hidden` rule in `patch-ui.css`, so every design draws them in its own,secondary text colour. Reset to Defaults sets F8 and both switches on; a settings preset never holds or,changes any of them (personal settings, like the language).,undefined**Progression:** How XP is earned and what thresholds unlock spells.
+**Hotkey** (`modules/panelOpenSetting.js`, 2026-10-08): how the panel opens. The toggle key has Change, Reset,(F8) and **None** - `hotkeyCode` 0, `hotkey` "" (the field shows the None label as its placeholder, so a language,switch relabels it). Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) under the,row - typing that letter in a search box reaches the game too and closes the panel - but is allowed. Two,switches follow: **Magic Menu Bookmark** (`magicMenu.bookmark`, on) and **Tags and XP in the Magic Menu**,(`magicMenu.spellInfo`, on), for the magic menu bookmark (docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md;,drawn by the plugin into the magic menu, see "Magic Menu Bookmark" above). The bookmark and a hotkey are the two ways to,open the panel, so each locks the other: with None the bookmark switch is greyed out (`disabled-controls`),and a line says why; with the bookmark off the None button is disabled and a line says why. A config with,both off (hand-edited) loads with the bookmark on, in the panel and in C++. The notes are `.setting-desc,.hotkey-note` lines with their own `.hidden` rule in `patch-ui.css`, so every design draws them in its own,secondary text colour. Reset to Defaults sets F8 and both switches on; a settings preset never holds or,changes any of them (personal settings, like the language).,undefined**Progression:** How XP is earned and what thresholds unlock spells.
 **Early Learning:** Grants nerfed spells before full mastery. Also holds **XP Alerts** (default on,
 `notifications.enabled` - the key kept the first name, Show Notifications - `modules/notificationSetting.js`):
 off hides the corner messages about XP and power (`HudNotify::IsXPAlert`: casting, power steps, studying, book

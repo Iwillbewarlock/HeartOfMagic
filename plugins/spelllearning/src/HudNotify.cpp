@@ -40,7 +40,9 @@ namespace HudNotify
             return g_table;
         }
 
-        // Only the hud.* strings: the corner messages need nothing else from the file
+        constexpr std::string_view kChipPrefix = "chips.";  // tag chip names, for the magic menu (MagicMenuSpellInfo.cpp)
+
+        // The hud.* strings and the chips.* names: nothing else of the file is read here
         Table ReadTable(const std::filesystem::path& a_file)
         {
             Table table;
@@ -56,7 +58,7 @@ namespace HudNotify
                 return table;
             }
             for (auto& [key, value] : json.items()) {
-                if (key.starts_with(kKeyPrefix) && value.is_string()) {
+                if ((key.starts_with(kKeyPrefix) || key.starts_with(kChipPrefix)) && value.is_string()) {
                     table.emplace(key, value.get<std::string>());
                 }
             }

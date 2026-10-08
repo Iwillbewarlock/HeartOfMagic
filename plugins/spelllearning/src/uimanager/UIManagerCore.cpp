@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "magicmenu/MagicMenuBookmark.h"
 #include "PapyrusAPI.h"
 #include "ThreadUtils.h"
 
@@ -208,10 +209,20 @@ void UIManager::HidePanel()
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuClosedEvent();
+
+    // Opened from the magic menu's bookmark: back to the menu, which reads its list
+    // again, so a spell learned in the panel is there
+    if (MagicMenuBookmark::TakeReturnFlag()) {
+        logger::info("UIManager: back to the magic menu");
+        RE::UIMessageQueue::GetSingleton()->AddMessage(RE::MagicMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+    }
 }
 
 void UIManager::EnsureFocusReleased()
 {
+    // A save load or the main menu closes the panel without going back to the magic menu
+    MagicMenuBookmark::ClearReturnFlag();
+
     if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
         return;
     }

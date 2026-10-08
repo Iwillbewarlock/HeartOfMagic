@@ -44,6 +44,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerLocale.cpp
     src/uimanager/UIManagerIO.cpp
     src/magicmenu/MagicMenuBookmark.cpp
+    src/magicmenu/MagicMenuTab.cpp
+    src/magicmenu/MagicMenuSpellInfo.cpp
     src/EncodingUtils.cpp
     src/spellscanner/SpellScannerHelpers.cpp
     src/spellscanner/SpellScannerFormId.cpp

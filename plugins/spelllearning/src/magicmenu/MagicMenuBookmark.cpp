@@ -1,14 +1,17 @@
 #include "magicmenu/MagicMenuBookmark.h"
+#include "magicmenu/MagicMenuInternal.h"
+#include "uimanager/UIManager.h"
 
-#include <array>
+#include <algorithm>
+#include <atomic>
+#include <cctype>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
 // =============================================================================
 // MAGIC MENU BOOKMARK - see MagicMenuBookmark.h
-// Step 1 (plan Task 1): find the item card through magicmenu_paths.json and log
-// what the bookmark will need - the card's children, the selected spell, and
-// whether a picture loads into a clip.
+// The menu's open/close events, finding the item card (spell description box)
+// in the menu's Scaleform movie, and the open-panel / back-to-menu round trip.
 // =============================================================================
 
 namespace MagicMenuBookmark
@@ -16,46 +19,37 @@ namespace MagicMenuBookmark
     namespace
     {
         constexpr const char* kPathsFile = "Data/SKSE/Plugins/SpellLearning/magicmenu_paths.json";
-        constexpr int kLogDepth = 2;       // spec 4.2: the menu root's children, two levels
-        constexpr int kInjectRetries = 5;  // UI tasks to wait for the card clip after the open event
-
-        // Picture paths tried by the image probe, relative to Data/Interface (loadMovie) and Data (img://)
-        constexpr std::array<const char*, 2> kProbeImages{ "HeartOfMagic/bookmark.dds",
-                                                           "img://Interface/HeartOfMagic/bookmark.dds" };
+        constexpr const char* kMenuRoot = "_root.Menu_mc";
+        constexpr const char* kCardHint = "itemcard";  // a card the paths file does not list: a member named like this
+        constexpr int kLogDepth = 2;                   // spec 4.2: the menu root's children, two levels
+        constexpr int kSearchDepth = 3;
+        constexpr int kInjectRetries = 5;              // UI tasks to wait for the card clip after the open event
 
         std::vector<std::string> g_paths;
+        std::vector<std::string> g_titleFields;
+
+        std::atomic<bool> g_openPanelOnClose{ false };  // clicked: open the panel once the menu has closed
+        std::atomic<bool> g_returnToMenu{ false };      // the panel was opened from the bookmark
+
+        void ReadStrings(const nlohmann::json& a_json, const char* a_key, std::vector<std::string>& a_out)
+        {
+            if (!a_json.contains(a_key) || !a_json[a_key].is_array()) return;
+            for (const auto& value : a_json[a_key]) {
+                if (value.is_string()) a_out.push_back(value.get<std::string>());
+            }
+        }
 
         void ReadPaths()
         {
             std::ifstream file(kPathsFile, std::ios::binary);
-            auto json = nlohmann::json::parse(file, nullptr, false);
-            if (json.is_discarded() || !json.contains("cardPaths") || !json["cardPaths"].is_array()) {
-                logger::warn("MagicMenuBookmark: {} missing or unreadable - no bookmark", kPathsFile);
+            const auto json = nlohmann::json::parse(file, nullptr, false);
+            if (json.is_discarded() || !json.is_object()) {
+                logger::warn("MagicMenuBookmark: {} missing or unreadable - only the card search is left", kPathsFile);
                 return;
             }
-            for (const auto& path : json["cardPaths"]) {
-                if (path.is_string()) g_paths.push_back(path.get<std::string>());
-            }
-            logger::info("MagicMenuBookmark: {} card paths", g_paths.size());
-        }
-
-        RE::GFxMovieView* OpenMagicMenuMovie()
-        {
-            auto* ui = RE::UI::GetSingleton();
-            auto menu = ui ? ui->GetMenu<RE::MagicMenu>() : nullptr;
-            return menu ? menu->uiMovie.get() : nullptr;
-        }
-
-        std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie, bool a_log)
-        {
-            for (const auto& path : g_paths) {
-                RE::GFxValue card;
-                if (a_movie->GetVariable(&card, path.c_str()) && card.IsDisplayObject()) {
-                    if (a_log) logger::info("MagicMenuBookmark: card at {}", path);
-                    return card;
-                }
-            }
-            return std::nullopt;
+            ReadStrings(json, "cardPaths", g_paths);
+            ReadStrings(json, "titleFields", g_titleFields);
+            logger::info("MagicMenuBookmark: {} card paths, {} title fields", g_paths.size(), g_titleFields.size());
         }
 
         void LogTree(const RE::GFxValue& a_node, const std::string& a_name, int a_depth)
@@ -71,58 +65,66 @@ namespace MagicMenuBookmark
             });
         }
 
-        void LogSelected()
+        // A card no listed path reaches (another menu mod): the first display object below
+        // Menu_mc whose name has "itemcard" in it, breadth first. Logged, so its path can go in the file.
+        std::optional<RE::GFxValue> SearchCard(RE::GFxMovieView* a_movie)
         {
-            auto menu = RE::UI::GetSingleton()->GetMenu<RE::MagicMenu>();
-            auto* list = menu ? menu->GetRuntimeData().itemList : nullptr;
-            auto* item = list ? list->GetSelectedItem() : nullptr;
-            auto* form = item ? item->data.baseForm : nullptr;
-            logger::info("MagicMenuBookmark: selected {} ({:08X})", form ? form->GetName() : "(none)", form ? form->GetFormID() : 0);
-        }
-
-        // One scratch clip per picture path; a loaded picture has a width a frame later
-        void ProbeImages(RE::GFxValue& a_card)
-        {
-            for (std::size_t i = 0; i < kProbeImages.size(); ++i) {
-                RE::GFxValue probe;
-                const auto name = std::format("hom_probe{}", i);
-                if (!a_card.CreateEmptyMovieClip(&probe, name.c_str(), -1)) {
-                    logger::info("MagicMenuBookmark: image probe {} - no clip", i);
-                    continue;
+            RE::GFxValue root;
+            if (!a_movie->GetVariable(&root, kMenuRoot) || !root.IsDisplayObject()) return std::nullopt;
+            std::vector<std::pair<std::string, RE::GFxValue>> level{ { kMenuRoot, root } };
+            for (int depth = 0; depth < kSearchDepth && !level.empty(); ++depth) {
+                std::vector<std::pair<std::string, RE::GFxValue>> next;
+                for (auto& [path, node] : level) {
+                    node.VisitMembers([&](const char* a_member, const RE::GFxValue& a_value) {
+                        if (a_value.IsDisplayObject()) next.emplace_back(path + "." + a_member, a_value);
+                    });
                 }
-                probe.SetMember("_alpha", 0.0);
-                std::array<RE::GFxValue, 1> args{ RE::GFxValue(kProbeImages[i]) };
-                probe.Invoke("loadMovie", args);
+                for (auto& [path, node] : next) {
+                    std::string name = path.substr(path.rfind('.') + 1);
+                    std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    if (name.find(kCardHint) != std::string::npos) {
+                        logger::info("MagicMenuBookmark: card found by search at {} - add it to magicmenu_paths.json", path);
+                        return node;
+                    }
+                }
+                level = std::move(next);
             }
-            SKSE::GetTaskInterface()->AddUITask([] {
-                auto* movie = OpenMagicMenuMovie();
-                auto card = movie ? FindCard(movie, false) : std::nullopt;
-                if (!card) return;
-                for (std::size_t i = 0; i < kProbeImages.size(); ++i) {
-                    RE::GFxValue probe, width;
-                    const auto name = std::format("hom_probe{}", i);
-                    if (card->GetMember(name.c_str(), &probe) && probe.GetMember("_width", &width))
-                        logger::info("MagicMenuBookmark: image probe {} width {}", kProbeImages[i], width.GetNumber());
-                }
-            });
+            return std::nullopt;
         }
 
-        void Diagnose(int a_triesLeft)
+        std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie)
+        {
+            for (const auto& path : g_paths) {
+                RE::GFxValue card;
+                if (a_movie->GetVariable(&card, path.c_str()) && card.IsDisplayObject()) {
+                    logger::info("MagicMenuBookmark: card at {}", path);
+                    return card;
+                }
+            }
+            return SearchCard(a_movie);
+        }
+
+        void Inject(int a_triesLeft)
         {
             auto* movie = OpenMagicMenuMovie();
             if (!movie) return;  // closed meanwhile
-            if (auto card = FindCard(movie, true)) {
-                logger::info("MagicMenuBookmark: found after {} UI tasks", kInjectRetries - a_triesLeft + 1);
+            if (auto card = FindCard(movie)) {
+                RE::GFxValue tab, watch;
+                if ((card->GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) ||
+                    (card->GetMember("hom_watch", &watch) && watch.IsDisplayObject())) {
+                    return;  // already on this movie
+                }
+                logger::info("MagicMenuBookmark: card ready after {} UI tasks", kInjectRetries - a_triesLeft + 1);
                 LogTree(*card, "card", kLogDepth);
-                LogSelected();
-                ProbeImages(*card);
+                if (UIManager::MagicMenuBookmark()) Tab::Attach(movie, *card);
+                SpellInfo::Attach(movie, *card);
                 return;
             }
             if (a_triesLeft > 0) {
-                SKSE::GetTaskInterface()->AddUITask([a_triesLeft] { Diagnose(a_triesLeft - 1); });
+                SKSE::GetTaskInterface()->AddUITask([a_triesLeft] { Inject(a_triesLeft - 1); });
                 return;
             }
-            logger::warn("MagicMenuBookmark: card not found - the menu root's children:");
+            logger::warn("MagicMenuBookmark: card not found - no bookmark. The menu root's children:");
             RE::GFxValue root;
             if (movie->GetVariable(&root, "_root")) LogTree(root, "_root", kLogDepth);
         }
@@ -139,9 +141,15 @@ namespace MagicMenuBookmark
             RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event,
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (a_event && a_event->menuName == RE::MagicMenu::MENU_NAME) {
-                    logger::info("MagicMenuBookmark: magic menu {}", a_event->opening ? "opened" : "closed");
-                    if (a_event->opening) SKSE::GetTaskInterface()->AddUITask([] { Diagnose(kInjectRetries); });
+                if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
+                logger::info("MagicMenuBookmark: magic menu {}", a_event->opening ? "opened" : "closed");
+                if (a_event->opening) {
+                    SKSE::GetTaskInterface()->AddUITask([] { Inject(kInjectRetries); });
+                } else if (g_openPanelOnClose.exchange(false)) {
+                    SKSE::GetTaskInterface()->AddTask([] {
+                        g_returnToMenu = true;
+                        UIManager::GetSingleton()->ShowPanel();
+                    });
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -152,6 +160,30 @@ namespace MagicMenuBookmark
         private:
             MenuSink() = default;
         };
+    }
+
+    const std::vector<std::string>& TitleFields() { return g_titleFields; }
+
+    RE::GFxMovieView* OpenMagicMenuMovie()
+    {
+        auto* ui = RE::UI::GetSingleton();
+        auto menu = ui ? ui->GetMenu<RE::MagicMenu>() : nullptr;
+        return menu ? menu->uiMovie.get() : nullptr;
+    }
+
+    void RequestPanel()
+    {
+        logger::info("MagicMenuBookmark: bookmark clicked");
+        g_openPanelOnClose = true;
+        RE::UIMessageQueue::GetSingleton()->AddMessage(RE::MagicMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+    }
+
+    bool TakeReturnFlag() { return g_returnToMenu.exchange(false); }
+
+    void ClearReturnFlag()
+    {
+        g_returnToMenu = false;
+        g_openPanelOnClose = false;
     }
 
     void Install()

@@ -157,6 +157,14 @@ add_custom_command(TARGET assemble_dist POST_BUILD
     VERBATIM
 )
 
+# The magic menu bookmark's pictures (MagicMenuTab.cpp loads them into the menu)
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${CMAKE_SOURCE_DIR}/Interface/HeartOfMagic"
+    "${DIST_VERSION_DIR}/Interface/HeartOfMagic"
+    VERBATIM
+)
+
 # ============================================================================
 # 5. Copy PrismaUI views
 # ============================================================================

@@ -203,6 +203,13 @@ if (-not $PanelOnly -and (Test-Path $magicMenuSrc)) {
     Copy-Item $magicMenuSrc (Join-Path $ModPath 'SKSE\Plugins\SpellLearning') -Force
     Write-Host "magic   magicmenu_paths.json"
 }
+$bookmarkSrc = Join-Path $repo 'Interface\HeartOfMagic'
+if (-not $PanelOnly -and (Test-Path $bookmarkSrc)) {
+    $bookmarkDst = Join-Path $ModPath 'Interface\HeartOfMagic'
+    New-Item -ItemType Directory -Force -Path $bookmarkDst | Out-Null
+    Copy-Item (Join-Path $bookmarkSrc '*.dds') $bookmarkDst -Force
+    Write-Host ("magic   {0} bookmark pictures" -f ((Get-ChildItem $bookmarkSrc -Filter '*.dds').Count))
+}
 
 # The dev install is a debug install: its panel scans also write the analysis
 # dump (debug/debug.json, shipped the same way in the debug symbols archive)

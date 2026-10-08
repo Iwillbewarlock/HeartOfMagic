@@ -10,6 +10,7 @@
         <folder source="SKSE"     destination="SKSE"     priority="0"/>
         <folder source="PrismaUI" destination="PrismaUI" priority="0"/>
         <folder source="Scripts"  destination="Scripts"  priority="0"/>
+        <folder source="Interface" destination="Interface" priority="0"/>
     </requiredInstallFiles>
 
     <!-- ================================================================== -->

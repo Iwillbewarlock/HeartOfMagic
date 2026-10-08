@@ -6,10 +6,14 @@
 
 - **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then. Picking a
   letter key now warns that typing that letter in a search box also closes the panel.
+- **A bookmark in the magic menu.** A leather clip on the spell description box opens Heart of Magic; close
+  the panel and you are back in the magic menu, with anything you just learned already listed. The words on it
+  glow gold while the mouse is over it.
+- **XP and tags in the magic menu.** The selected spell shows its learning progress in a ring by its name
+  (gold when mastered) and up to four of its tags under it, for spells in your tree.
 - **Magic menu switches.** Settings > Hotkey has **Magic Menu Bookmark** and **Tags and XP in the Magic Menu**,
-  both on, for the bookmark that is coming to the magic menu. Without a hotkey the bookmark cannot be turned
-  off, and with the bookmark off None cannot be picked, so the panel can always be opened. Settings presets
-  leave all of these alone.
+  both on. Without a hotkey the bookmark cannot be turned off, and with the bookmark off None cannot be
+  picked, so the panel can always be opened. Settings presets leave all of these alone.
 
 ### Fixed
 

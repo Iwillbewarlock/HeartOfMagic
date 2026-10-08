@@ -1153,6 +1153,44 @@ SpellLearning.GetSourceCap(source)                     ; Cap % for any source
 
 **C++ API (for SKSE plugins):** See `SpellLearningAPI.h` — SKSE Messaging (fire-and-forget) or full `ISpellLearningAPI` interface.
 
+### 11a. **MagicMenuBookmark** (`plugins/spelllearning/src/magicmenu/`, `plugins/spelllearning/include/magicmenu/MagicMenuBookmark.h`)
+
+A bookmark on the game's magic menu that opens the panel, and the selected spell's XP ring and tag chips
+(what they look like: docs/DESIGN.md, "Magic Menu Bookmark"; spec:
+docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). Drawn straight into the menu's Scaleform
+movie with the AS2 drawing API; no menu SWF is shipped or patched. Everything below runs on the UI thread.
+
+- **`MagicMenuBookmark.cpp`** - `Install()` (kDataLoaded) reads `SKSE/Plugins/SpellLearning/magicmenu_paths.json`
+  and adds a `MenuOpenCloseEvent` sink. On the menu opening it waits up to 5 UI tasks for the item card:
+  the file's `cardPaths` in order (`GFxMovieView::GetVariable` with the dotted path), else the first display
+  object under `_root.Menu_mc` (3 levels, breadth first) whose name contains "itemcard", logged with its path so
+  it can be added to the file. The card's children (2 levels) are logged; with no card, the root's children.
+  A new menu mod whose card is elsewhere needs one path line in the file, no rebuild.
+- **`MagicMenuTab.cpp`** - the bookmark (`hom_bookmark` on the card, gated by `UIManager::MagicMenuBookmark()`):
+  a drawn clip (`hom_vec`, outline table `kOutline`) and the two pictures loaded with `loadMovie` (`hom_pic`,
+  `hom_picGlow`, hidden until both have a width, then fitted over the clip and the drawn one hidden; after 60
+  frames without them the drawn clip stays). `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut`
+  / `onEnterFrame`: the click calls `RequestPanel()`, hover moves the clip up 4 and sets the glow target, the
+  frame tick fits the pictures and steps the glow's `_alpha` (drawn mode: a gold text field with a
+  `flash.filters.GlowFilter`, logged whether the movie supports filters).
+- **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
+  and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark.
+  `UIManager::HidePanel()` (Esc, hotkey, close button, Papyrus) takes that mark and queues `kShow` for
+  MagicMenu, which reads its list again. `EnsureFocusReleased()` (save load, main menu) clears the mark first,
+  so a load never reopens the menu.
+- **`MagicMenuSpellInfo.cpp`** - an empty `hom_watch` clip whose `onEnterFrame` compares the selected spell
+  (`MagicMenu::itemList->GetSelectedItem()`, else the list's `selectedEntry.formId`) with the last one and
+  redraws `hom_info` on a change: one native call per frame while the menu is open (upgrade path: a vfunc hook
+  on `MagicMenu::PostDisplay`). Only `ProgressionManager::IsTreeSpell` spells; progress from
+  `GetProgressPercent`, `IsSpellMastered`; chips exactly as the panel card builds them
+  (`SpellScanner::BuildSpellChips` + `Librarian::MergeCatalogChips`), named by `HudNotify::Text("chips.<id>")`
+  - `HudNotify` keeps the panel language file's `chips.*` keys next to `hud.*`, reread on a language change.
+  The spell name's text field: the file's `titleFields`, else a top-left guess.
+- **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `card at` / `card found by search at` /
+  `card not found`, `bookmark attached`, `bookmark pictures loaded` or `did not load`, `glow filter on` /
+  `not supported`, `spell info attached (title field: ...)`, `selected <name>`, `bookmark clicked`, and
+  `UIManager: back to the magic menu`.
+
 <a id="modder-api-reference"></a>
 ### Modder API Reference
 
