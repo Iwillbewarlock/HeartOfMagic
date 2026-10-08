@@ -24,7 +24,8 @@ namespace MagicMenuBookmark
         constexpr const char* kCardHint = "itemcard";  // a card the paths file does not list: a member named like this
         constexpr int kLogDepth = 2;                   // spec 4.2: the menu root's children, two levels
         constexpr int kSearchDepth = 3;
-        constexpr int kFindFrames = 30;                // frames to wait for the card (and its width) after the menu opens
+        constexpr int kFindFrames = 300;               // frames to wait for the card (and its width) after the menu opens
+        constexpr int kSearchEvery = 30;               // the name search walks the whole menu: every this many frames
 
         std::vector<std::string> g_paths;
         std::vector<std::string> g_titleFields;
@@ -95,7 +96,9 @@ namespace MagicMenuBookmark
             return std::nullopt;
         }
 
-        std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie)
+        bool g_cardWithoutWidth = false;  // this open: the card was there but had no width yet
+
+        std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie, bool a_search)
         {
             for (const auto& path : g_paths) {
                 RE::GFxValue card;
@@ -104,14 +107,18 @@ namespace MagicMenuBookmark
                     return card;
                 }
             }
-            return SearchCard(a_movie);
+            return a_search ? SearchCard(a_movie) : std::nullopt;
         }
 
         // Attaches once the card is there and has a width; true when done (or already done on this movie)
         bool TryAttach(RE::GFxMovieView* a_movie, int a_frame)
         {
-            auto card = FindCard(a_movie);
-            if (!card || Bounds(*card).Width() <= 0) return false;
+            auto card = FindCard(a_movie, a_frame % kSearchEvery == 0);
+            if (!card) return false;
+            if (Bounds(*card).Width() <= 0) {
+                g_cardWithoutWidth = true;
+                return false;
+            }
             RE::GFxValue tab, watch;
             if ((card->GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) ||
                 (card->GetMember("hom_watch", &watch) && watch.IsDisplayObject())) {
@@ -130,6 +137,10 @@ namespace MagicMenuBookmark
 
         void LogNotFound(RE::GFxMovieView* a_movie)
         {
+            if (g_cardWithoutWidth) {
+                logger::warn("MagicMenuBookmark: card at {} but it had no width for {} frames - no bookmark", g_cardPath, kFindFrames);
+                return;
+            }
             logger::warn("MagicMenuBookmark: card not found in {} frames - no bookmark. The menu root's children:", kFindFrames);
             RE::GFxValue root;
             if (a_movie->GetVariable(&root, "_root")) LogTree(root, "_root", kLogDepth);
@@ -159,6 +170,7 @@ namespace MagicMenuBookmark
         void Inject()
         {
             auto* movie = OpenMagicMenuMovie();
+            g_cardWithoutWidth = false;
             if (!movie || TryAttach(movie, 0)) return;
             RE::GFxValue root, fn;
             if (!movie->GetVariable(&root, "_root") || !root.IsDisplayObject()) return;

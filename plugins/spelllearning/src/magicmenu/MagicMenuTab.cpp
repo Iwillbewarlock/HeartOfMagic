@@ -34,8 +34,12 @@ namespace MagicMenuBookmark::Tab
 
         // The pictures: 256x128, the clip spans the middle kPicContentW of the width (transparent
         // margins) and the card's top border sits kPicBorderY down from the top
-        constexpr const char* kPicture = "HeartOfMagic/bookmark.dds";
-        constexpr const char* kGlowPicture = "HeartOfMagic/bookmark_glow.dds";
+        // Two ways of naming a picture to loadMovie, tried side by side (which one the menu takes is
+        // not known yet): relative to Data/Interface, and the img:// loader relative to Data
+        constexpr std::array<const char*, 2> kPicture{ "HeartOfMagic/bookmark.dds", "img://Interface/HeartOfMagic/bookmark.dds" };
+        constexpr std::array<const char*, 2> kGlowPicture{ "HeartOfMagic/bookmark_glow.dds",
+                                                           "img://Interface/HeartOfMagic/bookmark_glow.dds" };
+        constexpr std::array<const char*, 2> kImgNames{ "img0", "img1" };
         constexpr double kPicContentW = 0.8375, kPicPadX = 0.08125, kPicBorderY = 0.13125, kPicAspect = 2.0;
         constexpr int kPictureWaitFrames = 60;  // frames to wait for both pictures before settling on the lines
 
@@ -88,15 +92,27 @@ namespace MagicMenuBookmark::Tab
             logger::info("MagicMenuBookmark: drawn bookmark, glow filter {}", filtered ? "on" : "not supported (gold letters only)");
         }
 
-        // A hidden holder with the picture loaded into its child "img": loadMovie resets the clip
-        // it loads into, so the hiding stays on the holder
-        void LoadPicture(RE::GFxValue& a_tab, const char* a_name, const char* a_path)
+        // A hidden holder with the picture loaded into its children, one per path form: loadMovie
+        // resets the clip it loads into, so the hiding stays on the holder
+        void LoadPicture(RE::GFxValue& a_tab, const char* a_name, const std::array<const char*, 2>& a_paths)
         {
             auto holder = MagicMenuDraw::Clip(a_tab, a_name);
             holder.SetMember("_visible", false);
-            auto img = MagicMenuDraw::Clip(holder, "img");
-            const std::array<RE::GFxValue, 1> args{ RE::GFxValue(a_path) };
-            img.Invoke("loadMovie", args);
+            for (std::size_t i = 0; i < a_paths.size(); ++i) {
+                auto img = MagicMenuDraw::Clip(holder, kImgNames[i]);
+                const std::array<RE::GFxValue, 1> args{ RE::GFxValue(a_paths[i]) };
+                img.Invoke("loadMovie", args);
+            }
+        }
+
+        // The first child of a holder that has a picture (a width); the others are hidden
+        std::optional<std::pair<RE::GFxValue, std::size_t>> Loaded(RE::GFxValue& a_holder)
+        {
+            for (std::size_t i = 0; i < kImgNames.size(); ++i) {
+                RE::GFxValue img;
+                if (a_holder.GetMember(kImgNames[i], &img) && Number(img, "_width") > 0) return std::make_pair(img, i);
+            }
+            return std::nullopt;
         }
 
         // Both pictures loaded (a width): size and place them over the clip, hide the lines
@@ -104,9 +120,16 @@ namespace MagicMenuBookmark::Tab
         {
             auto pic = Child(a_tab, "hom_pic");
             auto glow = Child(a_tab, "hom_picGlow");
-            auto picImg = Child(pic, "img");
-            auto glowImg = Child(glow, "img");
-            if (Number(picImg, "_width") <= 0 || Number(glowImg, "_width") <= 0) return;
+            auto picLoaded = Loaded(pic);
+            auto glowLoaded = Loaded(glow);
+            if (!picLoaded || !glowLoaded) return;
+            for (auto* holder : { &pic, &glow }) {
+                for (const auto* name : kImgNames) Child(*holder, name).SetMember("_visible", false);
+            }
+            auto& picImg = picLoaded->first;
+            auto& glowImg = glowLoaded->first;
+            picImg.SetMember("_visible", true);
+            glowImg.SetMember("_visible", true);
             const double w = kTabW * g_state.scale / kPicContentW, h = w / kPicAspect;
             for (auto* img : { &picImg, &glowImg }) {
                 img->SetMember("_width", w);
@@ -119,7 +142,8 @@ namespace MagicMenuBookmark::Tab
             glow.SetMember("_alpha", 0.0);
             Child(a_tab, "hom_vec").SetMember("_visible", false);
             g_state.pictures = true;
-            logger::info("MagicMenuBookmark: bookmark pictures loaded ({} frames)", g_state.frames);
+            logger::info("MagicMenuBookmark: bookmark pictures loaded ({} frames, path form {})", g_state.frames,
+                kPicture[picLoaded->second]);
         }
 
         void StepGlow(RE::GFxValue& a_tab)
