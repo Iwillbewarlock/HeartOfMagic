@@ -12,15 +12,23 @@ namespace
     // A NEW ENTRY ARRAY FOR AN EMPTY RECORD
     // =========================================================================
     // On an LLCT-0 record the engine leaves entries.data() non-null while numEntries is 0 (first in-game run,
-    // 1.6.1170): what that pointer holds is unknown, so it is never freed, resized or read through. A new block in
-    // SimpleArray's layout (RE/M/MemoryManager.h:368-402, resize's else branch: one size_t count, then the elements,
-    // from the game heap) replaces the pointer. The old block is left where it is: a deliberate leak of one small
-    // block per filled list (about 338), once per game start, because freeing memory of unknown origin could
-    // corrupt the heap. The engine reads only the pointer (TESLevSpell+0x38) and numEntries (+0x42).
+    // 1.6.1170): what that pointer holds is unknown, so it is never freed, resized or read through. The old block is
+    // left where it is: a deliberate leak of one small block per filled list (about 338), once per game start, because
+    // freeing memory of unknown origin could corrupt the heap. The engine reads only the pointer (TESLevSpell+0x38) and
+    // numEntries (+0x42).
+    //
+    // The new block is headless: exactly count * sizeof(LEVELED_OBJECT) from the game heap, the pointer at its start.
+    // SimpleArray's size_t head is CommonLib's own new[]/delete[] detail (RE/M/MemoryManager.h:299-322); the engine's
+    // new[] of a trivially destructible type carries no count cookie, so when the engine (or a Papyrus
+    // LeveledSpell.AddForm on our list) frees or reallocates the array it frees the element pointer itself, which is
+    // this block's start. Consequence: SimpleArray::size()/end()/clear()/resize() would read a head that is not there.
+    // Nothing in this addon calls them on these records (lev->entries is touched only here, 2026-10-08 grep); the
+    // entries are written through the returned pointer and counted by numEntries.
     using EntryArray = RE::SimpleArray<RE::LEVELED_OBJECT>;
     static_assert(sizeof(EntryArray) == sizeof(void*), "SimpleArray is its element pointer alone");
-    static_assert(alignof(RE::LEVELED_OBJECT) <= alignof(std::size_t), "the head is one size_t (resize's else branch)");
+    static_assert(alignof(RE::LEVELED_OBJECT) <= alignof(std::size_t), "the heap's alignment covers the elements");
     static_assert(std::is_trivially_copyable_v<RE::LEVELED_OBJECT>);
+    static_assert(std::is_trivially_destructible_v<RE::LEVELED_OBJECT>, "no count cookie in the engine's new[]");
 
     // SimpleArray::_data (RE/M/MemoryManager.h, protected) reached through an explicit instantiation, which may
     // name a non-public member: a defined way to store the pointer, where a memcpy into a class with a user
@@ -37,21 +45,19 @@ namespace
     };
     template struct ExposeMember<EntryDataTag, &EntryArray::_data>;
 
-    // A zeroed array of `count` entries set into `entries`, or null when the game heap gives nothing (entries untouched)
+    // A zeroed headless array of `count` entries set into `entries`, or null when the game heap gives nothing
+    // (entries untouched)
     RE::LEVELED_OBJECT* AttachNewEntries(EntryArray& entries, std::size_t count)
     {
-        auto* head = RE::malloc<std::size_t>(sizeof(std::size_t) + sizeof(RE::LEVELED_OBJECT) * count);  // RE/M/MemoryManager.h:98-110
-        if (!head) {
+        auto* first = RE::malloc<RE::LEVELED_OBJECT>(sizeof(RE::LEVELED_OBJECT) * count);  // RE/M/MemoryManager.h:98-110
+        if (!first) {
             return nullptr;
         }
-        *head = count;
-        auto* first = reinterpret_cast<RE::LEVELED_OBJECT*>(head + 1);
         std::uninitialized_value_construct_n(first, count);
         entries.*DataMember(EntryDataTag{}) = first;
         return first;
     }
 }
-
 
 NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
 {

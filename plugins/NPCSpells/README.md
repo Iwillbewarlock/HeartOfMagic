@@ -126,7 +126,8 @@ policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are converte
 The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry
 count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
 NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
-it (it does on these LLCT-0 records): the addon gives it a new entry array and never frees or reads the old pointer.
+it (it does on these LLCT-0 records): the addon gives it a new entry array (headless, as the engine allocates a
+array of plain entries) and never frees or reads the old pointer.
 
 ## Known limits
 
