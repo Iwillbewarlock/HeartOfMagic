@@ -241,6 +241,58 @@ namespace
         constexpr std::array kSpid = { std::string_view("_distr.ini") };
         Check(TomeReach::TopLevelConfigs(data, kSpid).size() == 2, "a single suffix keeps only its own files");
     }
+
+    // Under SKSE/Plugins only the files below a direct child folder whose name holds a config folder's
+    // name are read (found by wildcard, not a full walk). The answer is a full recursive walk with that
+    // rule written out here; decoys: suffix files and config folders nested deeper are not read.
+    void PluginsSearchMatchesRule(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-plugins";
+        const auto plugins = data / "SKSE" / "Plugins";
+        std::error_code ec;
+        fs::remove_all(data, ec);
+        const fs::path files[] = {
+            plugins / "SkyPatcher" / "leveledList" / "a.ini",       // kept: nested inside a config folder
+            plugins / "SkyPatcher" / "npc" / "deep" / "b.ini",      // kept: deeper still
+            plugins / "SkyPatcher" / "readme.txt",                  // not a config extension
+            plugins / "SkyPatcher" / "meta.ini",                    // MO2's meta file
+            plugins / "My_LLOS_Patch" / "c.json",                   // kept: the name holds "llos"
+            plugins / "SkyPatcher_LLOS" / "d.ini",                  // kept once (two names in one)
+            plugins / "ContainerDistributionFramework" / "e.yaml",  // kept
+            plugins / "x_DISTR.ini",                                // decoy: a suffix file under SKSE/Plugins
+            plugins / "Other" / "y.ini",                            // decoy: not a config folder
+            plugins / "Other" / "z_KID.ini",                        // decoy: a suffix file deeper down
+            plugins / "Other" / "SkyPatcher" / "z.ini",             // decoy: a config folder not a direct child
+            plugins / "DynamicStringDistributor" / "SkyPatcher" / "w.ini",  // decoy: translation folder
+            data / "Top_DISTR.ini",                                 // kept: the top level
+        };
+        for (const auto& f : files) {
+            fs::create_directories(f.parent_path(), ec);
+            std::ofstream(f) << "x\n";
+        }
+        fs::create_directories(plugins / "LeveledList_folder.ini", ec);  // a folder with a config's name
+
+        constexpr std::array kFolders = { "skypatcher", "containerdistributionframework", "llos", "leveledlist",
+            "containeritemdistributor" };
+        std::vector<fs::path> want;
+        for (fs::directory_iterator it(data, ec), end; !ec && it != end; it.increment(ec)) {
+            if (it->is_regular_file() && TomeReach::IsDistributionConfig(it->path())) want.push_back(it->path());
+        }
+        for (fs::recursive_directory_iterator it(plugins, ec), end; !ec && it != end; it.increment(ec)) {
+            if (!it->is_regular_file() || !TomeReach::IsDistributionConfig(it->path())) continue;
+            const auto rel = fs::relative(it->path(), plugins);
+            const auto first = TomeReach::LowerUtf8(*rel.begin());
+            const bool inFolder = std::distance(rel.begin(), rel.end()) >= 2 &&
+                std::ranges::any_of(kFolders, [&](const char* f) { return first.find(f) != std::string::npos; });
+            if (inFolder) want.push_back(it->path());
+        }
+        auto found = TomeReach::FindDistributionConfigs(data);
+        std::ranges::sort(want);
+        std::ranges::sort(found);
+        Check(want.size() == 6, "the rule keeps six files (top level, nested config folders, two names once)");
+        Check(found == want, "the SKSE/Plugins folder search keeps the same files as a full walk with the rule");
+    }
 }
 
 int RunSelfTest()
@@ -366,6 +418,7 @@ int RunSelfTest()
     ConfigRules();
     NonAnsiNames(dir);
     WildcardMatchesFullListing(dir);
+    PluginsSearchMatchesRule(dir);
 
     std::printf("self-test: %d passed, %d failed\n", g_passed, g_failed);
     std::error_code ec;

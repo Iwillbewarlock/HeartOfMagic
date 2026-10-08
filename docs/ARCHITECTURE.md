@@ -173,7 +173,11 @@ game the placed references of cells that are not loaded are not in memory:
   under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
   (from the BOOK record) or as plugin and id (`0x800~Plugin.esp`, `Plugin.esp|0x800`). Only these files:
-  inventory layout lists (GridInventory) and icon lists name every book.
+  inventory layout lists (GridInventory) and icon lists name every book. The suffix files count only at
+  `Data/`'s top level, where their frameworks read them; under `SKSE/Plugins` only the files below a direct
+  child folder whose name holds a config folder's name, found by wildcard instead of a full walk (1.4 s under
+  MO2's USVFS). A suffix file elsewhere under `SKSE/Plugins` or a config folder nested deeper is not read (a
+  known limit; the upgrade is the full walk again).
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
   the perk adapters.

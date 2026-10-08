@@ -170,7 +170,9 @@ Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu
    files found in Data and under SKSE/Plugins, SPID config reading): the first run took 2847 ms reading inputs,
    2926 ms of it the SPID config search listing Data's whole USVFS-merged top level. The top level is now read
    with an OS wildcard (`*_distr.ini` only, `TomeReach::TopLevelConfigs`), so expect that step well under 100 ms;
-   the next line splits the search into "Data top level" and "SKSE/Plugins" times.
+   the next line splits the search into "Data top level" and "SKSE/Plugins" times. SKSE/Plugins is no longer
+   searched (SPID reads `_DISTR.ini` only from Data's top level; the walk took 1400 ms under USVFS and found none),
+   so its figure is always "0 ms (skipped)" and "0 under SKSE/Plugins".
    Then confirm with More Informative Console that a `HoMNS_` list
    really holds entries: after loading a save (step 3), open a bandit mage's base record in MIC, open one of its
    `HoMNS_` leveled lists (or `help "HoMNS_Destruction_None_All_R1_C0" 4` if the console finds it by EditorID), and

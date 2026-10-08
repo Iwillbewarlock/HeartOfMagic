@@ -96,50 +96,13 @@ namespace
         return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
     }
 
-    // FindDistributionConfigs' walk under SKSE/Plugins (recursive), keeping the same files it keeps that end in
-    // _distr.ini, but the file name is tested first: IsDistributionConfig (which lowers the
-    // whole parent path) runs only on the few SPID names, not on every file under SKSE/Plugins
-    void AddIfSpid(const std::filesystem::directory_entry& entry, std::vector<std::filesystem::path>& out)
+    // SPID reads *_DISTR.ini only from the data folder's top level, and the exclusion reads only those
+    // files, so SKSE/Plugins is not searched at all: its full walk took 1.4 s under MO2's USVFS
+    // (2026-10-08, ~4,500 mods) and found none there. The log keeps its "SKSE/Plugins" figure, as 0.
+    std::vector<std::filesystem::path> FindSpidConfigs(const std::filesystem::path& dataDir)
     {
-        try {
-            if (!TomeReach::LowerUtf8(entry.path().filename()).ends_with(kSpidSuffix)) {
-                return;
-            }
-            std::error_code ec;
-            if (entry.is_regular_file(ec) && !ec && TomeReach::IsDistributionConfig(entry.path())) {
-                out.push_back(entry.path());
-            }
-        } catch (...) {
-            // a name the path code cannot handle: skipped alone, as FindDistributionConfigs does
-        }
-    }
-
-    struct SpidFiles
-    {
-        std::vector<std::filesystem::path> files;
-        std::size_t atTop = 0;  // in the data folder itself (where SPID reads them); the rest are under SKSE/Plugins
-        double topMs = 0;       // the two searches' times, logged apart to see which one costs
-        double pluginsMs = 0;
-    };
-
-    SpidFiles FindSpidConfigs(const std::filesystem::path& dataDir)
-    {
-        namespace fs = std::filesystem;
-        SpidFiles out;
-        auto start = Clock::now();
         constexpr std::array kSuffixes = { kSpidSuffix };
-        out.files = TomeReach::TopLevelConfigs(dataDir, kSuffixes);  // only the *_distr.ini names, not the whole folder
-        out.atTop = out.files.size();
-        out.topMs = MsSince(start);
-        start = Clock::now();
-        const auto plugins = dataDir / "SKSE" / "Plugins";
-        std::error_code ec;
-        for (fs::recursive_directory_iterator it(plugins, fs::directory_options::skip_permission_denied, ec), end;
-             !ec && it != end; it.increment(ec)) {
-            AddIfSpid(*it, out.files);
-        }
-        out.pluginsMs = MsSince(start);
-        return out;
+        return TomeReach::TopLevelConfigs(dataDir, kSuffixes);  // only the *_distr.ini names, not the whole folder
     }
 
     // SPID files only: FindDistributionConfigs also returns KID, FLM, SWAP, CID,
@@ -150,12 +113,12 @@ namespace
     {
         auto start = Clock::now();
         const auto found = FindSpidConfigs(NpcSpellsGame::kDataDir);
-        timings += std::format(", SPID config search {:.0f} ms ({} in Data, {} under SKSE/Plugins)", MsSince(start),
-            found.atTop, found.files.size() - found.atTop);
-        logger::info("NPCSpells: SPID config search: Data top level {:.0f} ms, SKSE/Plugins {:.0f} ms", found.topMs,
-            found.pluginsMs);
+        const double searchMs = MsSince(start);
+        timings += std::format(", SPID config search {:.0f} ms ({} in Data, 0 under SKSE/Plugins)", searchMs,
+            found.size());
+        logger::info("NPCSpells: SPID config search: Data top level {:.0f} ms, SKSE/Plugins 0 ms (skipped)", searchMs);
         start = Clock::now();
-        for (const auto& f : found.files) {
+        for (const auto& f : found) {
             in.distr.Add(f);
         }
         timings += std::format(", SPID config reading {:.0f} ms ({} KB)", MsSince(start), in.distr.Text().size() / kBytesPerKb);

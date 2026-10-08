@@ -34,7 +34,8 @@ namespace TomeReach
     std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
         std::span<const std::string_view> suffixes);
 
-    // The distribution configs under a data folder: its top level and SKSE/Plugins
+    // The distribution configs under a data folder: its top level, and everything below a direct child
+    // folder of SKSE/Plugins whose name holds a config folder's name (SkyPatcher, LLOS, ...)
     std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir);
 
     // Is the plugin name at text[at, at + pluginSize) joined to the id `hex` (lower case, no leading zeros):

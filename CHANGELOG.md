@@ -80,7 +80,9 @@
   waits for it); a damaged plugin only keeps its own tomes and its masters' in the tree.
 - That tome reach scan now also finds distribution config files whose name or folder is not in the system code
   page (a Korean or Chinese name could stop the whole config search), and a file entry it cannot read is
-  skipped alone.
+  skipped alone. It no longer walks all of SKSE/Plugins (over a second on a large MO2 setup): `_DISTR.ini`,
+  `_KID.ini` and the other suffix files count only in Data itself, where their frameworks read them, and under
+  SKSE/Plugins only the files inside a SkyPatcher, LLOS, LeveledList or Container Distribution folder count.
 - A spell's tier now follows its half-cost perk (the Novice to Master perk the game discounts it with), as
   it was meant to. It never did: the perk step read a name the engine does not keep, so every spell was
   tiered by its first effect's minimum skill, and a Master spell with a 0 there counted as Novice. On the
