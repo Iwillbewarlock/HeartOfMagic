@@ -1,6 +1,7 @@
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachRecords.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdint>
@@ -8,6 +9,16 @@
 #include <fstream>
 #include <sstream>
 #include <system_error>
+
+#ifdef _WIN32
+#    ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
+#    include <windows.h>
+#endif
 
 namespace TomeReach
 {
@@ -107,18 +118,74 @@ namespace TomeReach
             } catch (...) {
             }
         }
+
+        // Every entry of a folder through AddIfConfig, or only names ending in one of `suffixes`
+        void ListFolder(const std::filesystem::path& dir, std::span<const std::string_view> suffixes, bool every,
+            std::vector<std::filesystem::path>& out)
+        {
+            std::error_code ec;
+            for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+                try {
+                    const auto name = LowerUtf8(it->path().filename());
+                    if (every || std::ranges::any_of(suffixes, [&](auto s) { return name.ends_with(s); })) {
+                        AddIfConfig(*it, out);
+                    }
+                } catch (...) {
+                }
+            }
+        }
+
+#ifdef _WIN32
+        // Only the names "*<suffix>" (the OS match is case-insensitive, like IsDistributionConfig): under
+        // MO2's USVFS the data folder's top level is every mod's files merged, thousands of entries, and
+        // listing them all took ~3 s (2026-10-08, ~4,500 mods). Each hit still goes through
+        // IsDistributionConfig on its long name, since a wildcard also matches 8.3 short names.
+        void AddMatching(const std::filesystem::path& dataDir, std::string_view suffix,
+            std::vector<std::filesystem::path>& out)
+        {
+            const auto pattern = (dataDir / ("*" + std::string(suffix))).wstring();
+            WIN32_FIND_DATAW found{};
+            const HANDLE find = FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch,
+                nullptr, FIND_FIRST_EX_LARGE_FETCH);
+            if (find == INVALID_HANDLE_VALUE) return;  // no match, or no such folder
+            do {
+                if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                    std::error_code ec;  // the entry reads its status here: one stat per match, not per file
+                    const std::filesystem::directory_entry entry(dataDir / std::filesystem::path(found.cFileName), ec);
+                    if (!ec) AddIfConfig(entry, out);
+                }
+            } while (FindNextFileW(find, &found));
+            FindClose(find);
+        }
+#endif
+    }
+
+    std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
+        std::span<const std::string_view> suffixes)
+    {
+        std::vector<std::filesystem::path> out;
+#ifdef _WIN32
+        for (auto suffix : suffixes) AddMatching(dataDir, suffix, out);
+#else
+        ListFolder(dataDir, suffixes, false, out);
+#endif
+        return out;
     }
 
     std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir)
     {
         namespace fs = std::filesystem;
+        // A data folder whose own path holds a config folder's name (".../LLOS/Data"): there the folder
+        // name, not the file name, decides (IsDistributionConfig), and only a full listing is exact
+        const auto dataLower = LowerUtf8(dataDir);
         std::vector<fs::path> out;
-        std::error_code ec;
-        for (fs::directory_iterator it(dataDir, ec), end; !ec && it != end; it.increment(ec)) {
-            AddIfConfig(*it, out);
+        if (std::ranges::any_of(kConfigFolders, [&](auto folder) { return Contains(dataLower, folder); })) {
+            ListFolder(dataDir, kConfigSuffixes, true, out);
+        } else {
+            out = TopLevelConfigs(dataDir, kConfigSuffixes);
         }
         const auto plugins = dataDir / "SKSE" / "Plugins";
-        ec.clear();
+        std::error_code ec;
         for (fs::recursive_directory_iterator it(plugins, fs::directory_options::skip_permission_denied, ec), end;
              !ec && it != end; it.increment(ec)) {
             AddIfConfig(*it, out);

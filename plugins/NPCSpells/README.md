@@ -167,7 +167,10 @@ Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu
    line, the list count, the NPC counts and "done in N ms total" (expected well under 500 ms).
    The list line must say `skippedPrefilled=0` (the first run said 338: every list was skipped, fixed since). The
    `input steps:` line times each input step (tree and catalog read and parse, rules, SPID config search with the
-   files found in Data and under SKSE/Plugins, SPID config reading): the first run took 2847 ms reading inputs.
+   files found in Data and under SKSE/Plugins, SPID config reading): the first run took 2847 ms reading inputs,
+   2926 ms of it the SPID config search listing Data's whole USVFS-merged top level. The top level is now read
+   with an OS wildcard (`*_distr.ini` only, `TomeReach::TopLevelConfigs`), so expect that step well under 100 ms;
+   the next line splits the search into "Data top level" and "SKSE/Plugins" times.
    Then confirm with More Informative Console that a `HoMNS_` list
    really holds entries: after loading a save (step 3), open a bandit mage's base record in MIC, open one of its
    `HoMNS_` leveled lists (or `help "HoMNS_Destruction_None_All_R1_C0" 4` if the console finds it by EditorID), and

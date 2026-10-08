@@ -16,6 +16,7 @@
 #include <zlib.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -210,6 +211,36 @@ namespace
         Check(TomeReach::LowerUtf8(fs::path(u8"ไทย_DISTR.INI")) == std::string(lowered.begin(), lowered.end()),
             "LowerUtf8 lowers ASCII and keeps UTF-8 bytes");
     }
+
+    // The top level is read by an OS wildcard per suffix, not a full listing: it must keep exactly the
+    // files the full listing kept (every entry through IsDistributionConfig), case and near-misses included
+    void WildcardMatchesFullListing(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-wildcard";
+        std::error_code ec;
+        fs::remove_all(data, ec);
+        fs::create_directories(data / "Dir_DISTR.ini", ec);  // a folder with a config's name
+        for (const char* name : { "A_DISTR.ini", "b_kid.INI", "C_FLM.ini", "D_Swap.ini", "E_CID.ini", "F_CDF.ini",
+                 "G_LLI.ini", "H_distr.ini.bak", "I_distr.txt", "j.json", "k.ini", "meta.ini", "LongName_DISTR_x.ini",
+                 "Mod_DISTRini", "Some Long Name With Spaces_DISTR.ini" }) {
+            std::ofstream(data / name) << "x\n";
+        }
+        std::ofstream(data / fs::path(u8"ไทย_KID.ini")) << "x\n";
+
+        std::vector<fs::path> full;
+        for (fs::directory_iterator it(data, ec), end; !ec && it != end; it.increment(ec)) {
+            if (it->is_regular_file() && TomeReach::IsDistributionConfig(it->path())) full.push_back(it->path());
+        }
+        auto found = TomeReach::FindDistributionConfigs(data);
+        std::ranges::sort(full);
+        std::ranges::sort(found);
+        Check(full.size() == 9, "the full listing keeps the nine configs (seven suffixes, spaces, Thai)");
+        Check(found == full, "the wildcard search keeps the same files as the full listing");
+
+        constexpr std::array kSpid = { std::string_view("_distr.ini") };
+        Check(TomeReach::TopLevelConfigs(data, kSpid).size() == 2, "a single suffix keeps only its own files");
+    }
 }
 
 int RunSelfTest()
@@ -334,6 +365,7 @@ int RunSelfTest()
     }
     ConfigRules();
     NonAnsiNames(dir);
+    WildcardMatchesFullListing(dir);
 
     std::printf("self-test: %d passed, %d failed\n", g_passed, g_failed);
     std::error_code ec;

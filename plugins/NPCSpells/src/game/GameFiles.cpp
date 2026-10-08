@@ -3,6 +3,7 @@
 #include "core/NpcSpellsSlots.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -95,8 +96,8 @@ namespace
         return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
     }
 
-    // FindDistributionConfigs' walk (the data folder's top level, then SKSE/Plugins recursively), keeping the same
-    // files it keeps that end in _distr.ini, but the file name is tested first: IsDistributionConfig (which lowers the
+    // FindDistributionConfigs' walk under SKSE/Plugins (recursive), keeping the same files it keeps that end in
+    // _distr.ini, but the file name is tested first: IsDistributionConfig (which lowers the
     // whole parent path) runs only on the few SPID names, not on every file under SKSE/Plugins
     void AddIfSpid(const std::filesystem::directory_entry& entry, std::vector<std::filesystem::path>& out)
     {
@@ -117,23 +118,27 @@ namespace
     {
         std::vector<std::filesystem::path> files;
         std::size_t atTop = 0;  // in the data folder itself (where SPID reads them); the rest are under SKSE/Plugins
+        double topMs = 0;       // the two searches' times, logged apart to see which one costs
+        double pluginsMs = 0;
     };
 
     SpidFiles FindSpidConfigs(const std::filesystem::path& dataDir)
     {
         namespace fs = std::filesystem;
         SpidFiles out;
-        std::error_code ec;
-        for (fs::directory_iterator it(dataDir, ec), end; !ec && it != end; it.increment(ec)) {
-            AddIfSpid(*it, out.files);
-        }
+        auto start = Clock::now();
+        constexpr std::array kSuffixes = { kSpidSuffix };
+        out.files = TomeReach::TopLevelConfigs(dataDir, kSuffixes);  // only the *_distr.ini names, not the whole folder
         out.atTop = out.files.size();
+        out.topMs = MsSince(start);
+        start = Clock::now();
         const auto plugins = dataDir / "SKSE" / "Plugins";
-        ec.clear();
+        std::error_code ec;
         for (fs::recursive_directory_iterator it(plugins, fs::directory_options::skip_permission_denied, ec), end;
              !ec && it != end; it.increment(ec)) {
             AddIfSpid(*it, out.files);
         }
+        out.pluginsMs = MsSince(start);
         return out;
     }
 
@@ -147,6 +152,8 @@ namespace
         const auto found = FindSpidConfigs(NpcSpellsGame::kDataDir);
         timings += std::format(", SPID config search {:.0f} ms ({} in Data, {} under SKSE/Plugins)", MsSince(start),
             found.atTop, found.files.size() - found.atTop);
+        logger::info("NPCSpells: SPID config search: Data top level {:.0f} ms, SKSE/Plugins {:.0f} ms", found.topMs,
+            found.pluginsMs);
         start = Clock::now();
         for (const auto& f : found.files) {
             in.distr.Add(f);

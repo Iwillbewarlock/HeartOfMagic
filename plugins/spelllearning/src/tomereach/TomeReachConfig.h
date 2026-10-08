@@ -9,9 +9,12 @@
 // Manipulator (_FLM.ini), Base Object Swapper (_SWAP.ini), Container Item
 // Distributor (_CID.ini), CDF, LLI, SkyPatcher and LLOS folders. Only these:
 // inventory display lists (GridInventory) and icon lists name every book and
-// would make every tome count. Pure C++, shared with tools/tome-reach-test.
+// would make every tome count. Shared with tools/tome-reach-test and the NPC
+// Spells addon; the data folder listing uses Win32 under _WIN32 (std::filesystem
+// otherwise).
 
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,6 +27,12 @@ namespace TomeReach
 
     // A file one of the distribution frameworks reads
     bool IsDistributionConfig(const std::filesystem::path& file);
+
+    // The files at a data folder's top level whose name ends in one of `suffixes` (ASCII lower case,
+    // matched case-insensitively) and that IsDistributionConfig accepts. Lists only the matching names
+    // (an OS wildcard), not the whole folder: under MO2's USVFS that holds every mod's files.
+    std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
+        std::span<const std::string_view> suffixes);
 
     // The distribution configs under a data folder: its top level and SKSE/Plugins
     std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir);
