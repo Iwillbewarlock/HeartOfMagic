@@ -28,6 +28,7 @@
 
 - 사용자: "심플하게 가죽 책갈피에 Heart of Magic이라고 영어로 적은 것", 이어서 참고 사진(책장 위 모서리를 접어 끼우는 가죽 클립 책갈피, 접힌 선을 따라 박음질, 이름 음각)과 함께 "이런 느낌으로 주문 이름·설명 칸의 오른쪽 위에". 스펙 2.1의 붉은 바탕·심장 문양과 "위로 솟은 탭" 대신 이것을 쓴다. 스펙 2.1을 Task 2에서 고친다.
 - 모양: 설명 칸 오른쪽 위 모서리에 끼운 클립. 접힌 부분이 위 테두리 위로 조금(약 6) 올라오고, 앞날개가 칸 안쪽으로 내려온다(약 28). 아래 두 모서리는 둥글다. 황갈색 결 있는 가죽, 접힌 선 아래 밝은 박음질, 앞날개에 "Heart of Magic" 음각(바탕보다 어두운 글자).
+- **마우스를 올리면 글자가 금빛으로 빛난다** (사용자, 2026-10-08). 빛나는 글자만 있는 두 번째 그림(`Interface/HeartOfMagic/bookmark_glow.dds`, 검은 바탕을 투명으로 바꾼 금빛 글자)을 책갈피 그림 위에 겹쳐 두고, 평소에는 `_alpha` 0, 마우스를 올리면 0.25초에 걸쳐 나타난 뒤 60~100 사이를 2초 주기로 천천히 오르내린다. 마우스를 떼면 0.25초에 걸쳐 사라진다. 그림을 못 쓰면 글자 칸에 금빛 `GlowFilter`(색 `0xFFD27A`)를 씌우는 쪽으로 간다(Task 2 Step 3b에서 지원 여부 확인).
 - 그림 파일을 Scaleform에서 불러올 수 있으면(Task 1에서 확인) 그림 한 장(`Interface/HeartOfMagic/bookmark.dds`)을 쓴다. 안 되면 갈색 가죽 띠를 선으로 그리고 `createTextField`로 "Heart of Magic"을 쓴다.
 - 모양 좌표는 상수 배열 하나(`kBookmarkOutline`)에 둔다. 그림이 바뀌어도 그 배열만 고친다.
 
@@ -466,6 +467,47 @@ namespace MagicMenuDraw
 
 `Install()`에서 `g_click = RE::make_gptr<Handler>(Handler::Kind::kClick);` 식으로 셋을 만든다. Task 1의 `Diagnose`는 `Inject(int)`로 이름을 바꾸고, 카드를 찾으면 `if (UIManager::MagicMenuBookmark()) Attach(movie, *card);`, 못 찾으면 지금처럼 트리 로그.
 
+- [ ] **Step 3b: 마우스를 올리면 금빛 글자**
+
+책갈피 클립 안에 `hom_glow` 자식을 하나 더 만들고(그림이면 `loadMovie("HeartOfMagic/bookmark_glow.dds")`, 아니면 `hom_label` 글자 칸 복제), `_alpha` 0으로 둔다. `kRollOver`/`kRollOut` 처리기는 위치 이동과 함께 `hom_glow`에 목표 상태를 적는다(`hom_glowTarget` 1 또는 0). `hom_glow`의 `onEnterFrame`에 네이티브 함수 하나를 걸어 매 프레임 `_alpha`를 목표 쪽으로 움직인다:
+
+```cpp
+        // Gold glow on hover: fade in over kGlowFadeMs, then breathe between kGlowLow and 100 every kGlowPeriodMs
+        constexpr double kGlowFadeMs = 250.0, kGlowPeriodMs = 2000.0, kGlowLow = 60.0;
+
+        class GlowTick final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                auto* glow = a_params.thisPtr;
+                RE::GFxValue target, alpha;
+                if (!glow || !glow->GetMember("hom_glowTarget", &target) || !glow->GetMember("_alpha", &alpha)) return;
+                const auto now = std::chrono::steady_clock::now();
+                const double dt = std::chrono::duration<double, std::milli>(now - m_last).count();
+                m_last = now;
+                const double step = 100.0 * std::min(dt, kGlowFadeMs) / kGlowFadeMs;
+                double a = alpha.GetNumber();
+                if (target.GetNumber() > 0) {
+                    m_phase = std::fmod(m_phase + dt / kGlowPeriodMs, 1.0);
+                    const double breath = kGlowLow + (100.0 - kGlowLow) * (0.5 + 0.5 * std::cos(2 * std::numbers::pi * m_phase));
+                    a = std::min(a + step, breath);
+                } else {
+                    m_phase = 0.0;
+                    a = std::max(a - step, 0.0);
+                }
+                glow->SetMember("_alpha", a);
+            }
+        private:
+            std::chrono::steady_clock::time_point m_last = std::chrono::steady_clock::now();
+            double m_phase = 0.0;
+        };
+```
+
+그림을 못 쓰는 경우의 확인: `movie->CreateObject(&filter, "flash.filters.GlowFilter", args, 6)`(색 `0xFFD27A`, 알파 1, blurX/Y 6, 세기 2, 품질 2)가 true이고 `hom_glow.filters = [filter]` 뒤 다시 읽은 `filters`의 길이가 1이면 지원. `GFxMovieView::CreateObject` 시그니처는 `RE/G/GFxMovie.h`에서 확인한다. 둘 다 안 되면 금빛 글자색(`0xFFD27A`)으로 바꾸는 것만 하고 원장에 Ruling을 남긴다.
+
+빛 그림은 Gemini가 그린 검은 바탕 금빛 글자를 밝기→투명도로 바꿔(밝은 곳일수록 불투명) DDS로 만든다. 책갈피 그림과 같은 크기·위치로 맞춘다.
+
 - [ ] **Step 4: 메뉴 닫힘에서 패널 열기**
 
 `MenuSink::ProcessEvent`의 닫힘 쪽:
@@ -741,7 +783,7 @@ namespace MagicMenuBookmark::SpellInfo
 
 - [ ] **Step 5: 게임 확인 (사용자, 약 5분 — 이 기능의 두 번째이자 마지막 게임 확인)**
 
-1. 마법 메뉴: 설명 칸 오른쪽 위 모서리에 끼운 가죽 클립, "Heart of Magic" 글자. 마우스를 올리면 조금 올라온다. 긴 주문 이름(예: 다른 모드의 긴 이름)이 클립에 가려지지 않는다.
+1. 마법 메뉴: 설명 칸 오른쪽 위 모서리에 끼운 가죽 클립, "Heart of Magic" 글자. 마우스를 올리면 조금 올라오고, 글자가 금빛으로 서서히 빛나며 숨 쉬듯 밝아졌다 어두워진다. 떼면 빛이 사라진다. 긴 주문 이름(예: 다른 모드의 긴 이름)이 클립에 가려지지 않는다.
 2. 배우는 중인 주문: 이름 왼쪽 파란 호와 %, 이름 아래 칩 최대 4개(+N). 마스터한 주문: 금색 원, 숫자 없음. 시작 안 한 주문: 회색 원과 0.
 3. 권능(예: 종족 권능)·스크롤로 옮기면 고리와 칩이 사라진다.
 4. 책갈피 클릭 → 메뉴 닫히고 패널 열림 → Esc → 마법 메뉴로 돌아옴. 단축키로 연 패널은 닫으면 게임으로.
