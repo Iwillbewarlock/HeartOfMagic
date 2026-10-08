@@ -28,6 +28,7 @@ namespace MagicMenuBookmark::SpellInfo
         constexpr double kPctTop = 0.6, kPctHeight = 1.3, kPctSize = 0.75;  // the percent inside the ring, in radii
         constexpr double kChipsHeight = 0.9, kChipsSize = 0.55;             // the chip line, in name text heights
         constexpr double kGap = 6.0;
+        constexpr const char* kChipSeparator = " \xC2\xB7 ";  // " · " (UTF-8 middle dot), as in the 2026-10-09 mockup
         constexpr double kTextGutter = 2.0;  // a text field draws its text this far inside its box
         constexpr double kFallbackTitleX = 12.0, kFallbackTitleY = 8.0, kFallbackTitleH = 24.0;  // no title field found
         constexpr std::uint32_t kLearning = 0x4A90D9, kMastered = 0xD6B56A, kNotStarted = 0x808080, kText = 0xDDDDDD;
@@ -109,11 +110,11 @@ namespace MagicMenuBookmark::SpellInfo
             for (const auto& chip : chips) {
                 if (!chip.is_string()) continue;
                 if (shown == kMaxChips) {
-                    line += std::format("   +{}", chips.size() - kMaxChips);
+                    line += std::format("{}+{}", kChipSeparator, chips.size() - kMaxChips);
                     break;
                 }
                 const auto id = chip.get<std::string>();
-                line += (shown ? "   " : "") + HudNotify::Text("chips." + id, id);
+                line += (shown ? kChipSeparator : "") + HudNotify::Text("chips." + id, id);
                 ++shown;
             }
             return line;
