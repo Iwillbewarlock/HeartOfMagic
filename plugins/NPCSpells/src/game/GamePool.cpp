@@ -1,5 +1,6 @@
 #include "game/GamePool.h"
 
+#include "core/NpcSpellsDistr.h"
 #include "tomereach/TomeReachRecords.h"
 
 #include <charconv>
@@ -83,10 +84,12 @@ NpcSpellsGame::ResolvedPool NpcSpellsGame::ResolvePool(const nlohmann::json& tre
     const NpcSpells::Rules& rules, const TomeReach::ConfigText& distr, NpcSpells::PoolStats& stats)
 {
     ResolvedPool out;
-    // Editor ids are not in the catalog: SPID lines naming the spell by FormID are found, editor-id lines are not
-    const NpcSpells::DistributedFn distributed = [&distr](const std::string& pid) {
+    // Editor ids are not in the catalog: SPID lines naming the spell by FormID are found, editor-id lines are not.
+    // DistrIndex gives ConfigText::Names' answers, each plugin's mentions found once.
+    NpcSpells::DistrIndex index(distr.Text());
+    const NpcSpells::DistributedFn distributed = [&index](const std::string& pid) {
         const auto parts = SplitPersistentId(pid);
-        return parts && distr.Names(TomeReach::LowerAscii(parts->plugin), parts->local, "");
+        return parts && index.Names(TomeReach::LowerAscii(parts->plugin), parts->local);
     };
     try {
         out.facts = NpcSpells::BuildPool(tree, catalog, rules, distributed, stats);

@@ -140,6 +140,11 @@ namespace TomeReach
         ++m_files;
     }
 
+    bool IdNextTo(const std::string& text, std::size_t at, std::size_t pluginSize, const std::string& hex)
+    {
+        return IdBefore(text, at, hex) || IdAfter(text, at + pluginSize, hex);
+    }
+
     bool ConfigText::Names(std::string_view pluginLower, std::uint32_t local, std::string_view editorId) const
     {
         if (!editorId.empty()) {
@@ -154,7 +159,7 @@ namespace TomeReach
         const auto hex = std::format("{:x}", local);
         const std::string plugin(pluginLower);
         for (auto at = m_text.find(plugin); at != std::string::npos; at = m_text.find(plugin, at + 1)) {
-            if (IdBefore(m_text, at, hex) || IdAfter(m_text, at + plugin.size(), hex)) return true;
+            if (IdNextTo(m_text, at, plugin.size(), hex)) return true;
         }
         return false;
     }

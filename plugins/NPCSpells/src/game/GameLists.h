@@ -25,7 +25,7 @@ namespace NpcSpellsGame
 
     // Writes entries into each ESL record present (game heap, never marked changed); returns the ListIndex for DecideNpc.
     // A list whose record is missing is counted in skippedNoRecord, one whose record already holds entries in
-    // skippedPrefilled (not touched); both are left out of the index.
+    // skippedPrefilled (count not 0: not touched); both are left out of the index. An empty record gets a new array.
     NpcSpells::ListIndex FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool,
         const EslRecords& records, std::size_t& skippedNoRecord, std::size_t& skippedPrefilled);
 }

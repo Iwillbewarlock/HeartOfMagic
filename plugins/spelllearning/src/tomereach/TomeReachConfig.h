@@ -28,6 +28,10 @@ namespace TomeReach
     // The distribution configs under a data folder: its top level and SKSE/Plugins
     std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir);
 
+    // Is the plugin name at text[at, at + pluginSize) joined to the id `hex` (lower case, no leading zeros):
+    // "<hex> ~ plugin" or "plugin | <hex>" (any of ~ | :), the test ConfigText::Names makes at each mention
+    bool IdNextTo(const std::string& text, std::size_t at, std::size_t pluginSize, const std::string& hex);
+
     class ConfigText
     {
     public:
@@ -38,6 +42,9 @@ namespace TomeReach
         [[nodiscard]] bool Names(std::string_view pluginLower, std::uint32_t local, std::string_view editorId) const;
 
         [[nodiscard]] std::size_t FileCount() const { return m_files; }
+
+        // Every config read so far, ASCII lower case, one newline after each
+        [[nodiscard]] const std::string& Text() const { return m_text; }
 
     private:
         std::string m_text;  // every config, lower case (ASCII)

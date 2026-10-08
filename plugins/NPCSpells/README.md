@@ -123,9 +123,10 @@ Lists (lists built, empty slots, dropped over capacity, ESL records found/missin
 with its entry count and flag); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
 NPC lists (one row for every NPC that got lists: persistent id `Plugin|0xLocal`, name, group, class tier and undead
 policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are converted to UTF-8 from the system code page.
-The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records that already
-held entries when the addon came to fill them (another plugin's override, or the engine). Those are left as they
-were and get no NPC; the first one is named in the log.
+The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry
+count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
+NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
+it (it does on these LLCT-0 records): the addon gives it a new entry array and never frees or reads the old pointer.
 
 ## Known limits
 
@@ -138,6 +139,8 @@ were and get no NPC; the first one is named in the log.
   few too many are skipped. Only files named `*_DISTR.ini` are read, found anywhere the shared tome-reach scan looks;
   names are read as UTF-8 and a bad entry is skipped alone.
 - Another plugin that overrides this ESL's leveled lists is not supported.
+- Each filled list leaves the small block the engine had pointed it at (about 338 blocks, once per game start): its
+  origin is unknown, so freeing it could damage the game heap.
 - The engine re-rolls each time an actor enters high process, so the same NPC can show different spells over a session.
 - Not yet measured in the game: see the spec, section 8.
 
@@ -161,7 +164,10 @@ Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu
 
 1. Open `HeartOfMagic_NPCSpells.log`: expect "ESL records loaded=true found=921 missing=0 wrongType=0", the pool
    line, the list count, the NPC counts and "done in N ms total" (expected well under 500 ms).
-   The list line must say `skippedPrefilled=0`. Then confirm with More Informative Console that a `HoMNS_` list
+   The list line must say `skippedPrefilled=0` (the first run said 338: every list was skipped, fixed since). The
+   `input steps:` line times each input step (tree and catalog read and parse, rules, SPID config search with the
+   files found in Data and under SKSE/Plugins, SPID config reading): the first run took 2847 ms reading inputs.
+   Then confirm with More Informative Console that a `HoMNS_` list
    really holds entries: after loading a save (step 3), open a bandit mage's base record in MIC, open one of its
    `HoMNS_` leveled lists (or `help "HoMNS_Destruction_None_All_R1_C0" 4` if the console finds it by EditorID), and
    the list must show spells. An empty list means the fill did not land.

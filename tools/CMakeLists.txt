@@ -148,6 +148,7 @@ set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsTemplate.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsNpc.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsReport.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsDistr.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
@@ -155,6 +156,9 @@ add_executable(npcspells-test
     npcspells-selftest-build.cpp
     npcspells-selftest-npc.cpp
     npcspells-selftest-esl.cpp
+    npcspells-selftest-distr.cpp
+    ${SL_SRC_DIR}/tomereach/TomeReachConfig.cpp
+    ${SL_SRC_DIR}/tomereach/TomeReachRecords.cpp
     ${NPCSPELLS_CORE_SOURCES}
 )
 target_compile_features(npcspells-test PRIVATE cxx_std_23)
@@ -163,7 +167,7 @@ target_include_directories(npcspells-test PRIVATE
     ${NPCSPELLS_CORE_DIR}
     ${SL_SRC_DIR}
 )
-target_link_libraries(npcspells-test PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+target_link_libraries(npcspells-test PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json ZLIB::ZLIB)
 # The rules suite reads the shipped JSON by absolute path, so the harness runs from any directory
 target_compile_definitions(npcspells-test PRIVATE NPCSPELLS_DATA_DIR="${CMAKE_SOURCE_DIR}/plugins/NPCSpells/data")
 
