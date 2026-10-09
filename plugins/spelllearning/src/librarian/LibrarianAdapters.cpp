@@ -1,5 +1,6 @@
 #include "librarian/PerkAdapters.h"
 #include "librarian/LibrarianInternal.h"
+#include "librarian/VanillaCastingPerks.h"
 
 #include <algorithm>
 #include <cctype>
@@ -132,12 +133,19 @@ namespace Librarian::Adapters
             Reader read{ object, problems, where };
             std::optional<std::string> keyword;
             std::optional<std::string> formList;
+            std::optional<std::string> castingPerk;
             read.Optional("keyword", keyword, &json::is_string);
             read.Optional("formList", formList, &json::is_string);
+            read.Optional("castingPerk", castingPerk, &json::is_string);
             line.keyword = keyword.value_or("");
             line.formList = formList.value_or("");
-            if (line.keyword.empty() == line.formList.empty()) {
-                problems.push_back(where + ": needs exactly one of \"keyword\" and \"formList\"");
+            line.castingPerk = castingPerk.value_or("");
+            if (!line.keyword.empty() + !line.formList.empty() + !line.castingPerk.empty() != 1) {
+                problems.push_back(where + ": needs exactly one of \"keyword\", \"formList\" and \"castingPerk\"");
+                return false;
+            }
+            if (!line.castingPerk.empty() && line.castingPerk != "vanilla") {
+                problems.push_back(where + ": \"castingPerk\" knows only \"vanilla\"");
                 return false;
             }
             std::optional<std::string> keywordForm;
@@ -176,7 +184,8 @@ namespace Librarian::Adapters
                     spellRead.Optional("tier", line.spell.tier, &json::is_string);
                     spellRead.Optional("casting", line.spell.casting, &json::is_string);
                     spellRead.Optional("twoHanded", line.spell.twoHanded, &json::is_boolean);
-                    spellRead.RejectUnknown({ "school", "notSchool", "tier", "casting", "twoHanded" });
+                    spellRead.Optional("taughtByTome", line.spell.taughtByTome, &json::is_boolean);
+                    spellRead.RejectUnknown({ "school", "notSchool", "tier", "casting", "twoHanded", "taughtByTome" });
                     ok = spellRead.ok && ok;
                 } else {
                     problems.push_back(where + ": 'spell' is not an object");
@@ -191,7 +200,7 @@ namespace Librarian::Adapters
             ok = ParseEffectList(object, "spellHas", where, line.spellHas, problems) && ok;
             ok = ParseEffectList(object, "spellLacks", where, line.spellLacks, problems) && ok;
 
-            read.RejectUnknown({ "keyword", "keywordForm", "formList", "why", "enabled", "tags", "spell", "effect", "spellHas",
+            read.RejectUnknown({ "keyword", "keywordForm", "formList", "castingPerk", "why", "enabled", "tags", "spell", "effect", "spellHas",
                 "spellLacks", "keywordsNone", "formListsNone" });
             return read.ok && ok;
         }
@@ -292,6 +301,7 @@ namespace Librarian::Adapters
             if (c.tier && Field(spell, "skillLevel") != *c.tier) return false;
             if (c.casting && Field(spell, "castingType") != *c.casting) return false;
             if (c.twoHanded && Flag(spell, "twoHanded") != *c.twoHanded) return false;
+            if (c.taughtByTome && Flag(spell, "taughtByTome") != *c.taughtByTome) return false;
             return true;
         }
 
@@ -353,7 +363,7 @@ namespace Librarian::Adapters
             if (!ParseLine(entry, where, line, problems)) {
                 line.enabled = false;
             }
-            if (!line.keyword.empty() || !line.formList.empty()) file.lines.push_back(std::move(line));
+            if (!line.keyword.empty() || !line.formList.empty() || !line.castingPerk.empty()) file.lines.push_back(std::move(line));
             ++index;
         }
         return true;
@@ -452,12 +462,30 @@ namespace Librarian::Adapters
                 const Line& line = file.lines[l];
                 LineStats& stats = plan.stats[f][l];
                 const bool isList = !line.formList.empty();
-                const bool defined = isList
+                const bool isCastingPerk = !line.castingPerk.empty();
+                const bool defined = isCastingPerk || (isList
                     ? (!source.formListDefined || source.formListDefined(line.formList))
-                    : (!source.keywordDefined || source.keywordDefined(line.keyword));
+                    : (!source.keywordDefined || source.keywordDefined(line.keyword)));
                 const bool live = line.enabled && defined;
                 stats.ran = live;
                 if (!live && !(source.measureDisabled && defined)) continue;
+
+                if (isCastingPerk) {
+                    source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
+                        // The perk sits on the spell record: no target effect to find
+                        if (!TagsMatch(entry, line.tags) || !SpellMatches(spell, line.spell)) return;
+                        if (!Field(spell, "castingPerk").empty()) {
+                            ++stats.agree;
+                            return;
+                        }
+                        std::string perk = VanillaCastingPerkId(Field(entry, "school"), Field(entry, "tier"));
+                        if (perk.empty()) return;
+                        ++stats.gain;
+                        AddExample(stats.gainExamples, SpellLabel(spell, id));
+                        if (live) plan.castingPerkWrites.push_back({ f, l, std::move(perk), id });
+                    });
+                    continue;
+                }
 
                 if (isList) {
                     source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
@@ -549,7 +577,8 @@ namespace Librarian::Adapters
                 const Line& line = files[f].lines[l];
                 const LineStats& s = plan.stats[f][l];
                 lines.push_back({
-                    { "keyword", line.keyword }, { "keywordForm", line.keywordForm }, { "formList", line.formList }, { "enabled", line.enabled }, { "ran", s.ran },
+                    { "keyword", line.keyword }, { "keywordForm", line.keywordForm }, { "formList", line.formList },
+                    { "castingPerk", line.castingPerk }, { "enabled", line.enabled }, { "ran", s.ran },
                     { "agree", s.agree }, { "writes", s.writes }, { "gain", s.gain }, { "leaks", s.leaks },
                     { "conditioned", s.conditioned }, { "blockedByItem", s.blockedByItem },
                     { "gainExamples", s.gainExamples }, { "leakExamples", s.leakExamples },

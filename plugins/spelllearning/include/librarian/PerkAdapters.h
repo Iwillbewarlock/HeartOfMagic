@@ -54,6 +54,10 @@
 //     spell already in the list as its plugin wrote it is left alone
 //   - formListsNone: no earlier live formList line of this plan picked the
 //     spell for these lists. Entries a plugin or script made are not looked at
+//   - a "castingPerk" line ("vanilla") gives each spell it picks that has no
+//     half-cost perk of its own the vanilla one for its catalog school and tier
+//     (DestructionNovice00 ...): the same conditions, no leak check (the perk
+//     sits on the spell record). A spell with a perk of its own counts as agree
 // =============================================================================
 
 namespace Librarian::Adapters
@@ -92,6 +96,7 @@ namespace Librarian::Adapters
         std::optional<std::string> tier;
         std::optional<std::string> casting;
         std::optional<bool> twoHanded;
+        std::optional<bool> taughtByTome;   // the scan's mark: some tome teaches it
     };
 
     struct TagCondition
@@ -103,8 +108,9 @@ namespace Librarian::Adapters
 
     struct Line
     {
-        // What the line gives a spell: a keyword on its effect, or a place in a
-        // perk mod's FormList ("formList": the list's persistent id). One of the two.
+        // What the line gives a spell: a keyword on its effect, a place in a
+        // perk mod's FormList ("formList": the list's persistent id), or a
+        // half-cost perk ("castingPerk": "vanilla"). One of the three.
         std::string keyword;
         // The keyword by its persistent id ("Update.esm|0x1EA6002"), for a
         // keyword that mods inject into one FormID under different editor ids
@@ -113,6 +119,7 @@ namespace Librarian::Adapters
         // replaces keyword before planning; offline the line keeps keyword.
         std::string keywordForm;
         std::string formList;
+        std::string castingPerk;
         bool enabled = true;
         TagCondition tags;
         SpellCondition spell;
@@ -215,6 +222,15 @@ namespace Librarian::Adapters
         std::string spellId;
     };
 
+    // A half-cost perk for a spell that has none.
+    struct CastingPerkWrite
+    {
+        std::size_t file = 0;
+        std::size_t line = 0;
+        std::string perk;               // persistent id
+        std::string spellId;
+    };
+
     struct LineStats
     {
         bool ran = false;               // enabled and its keyword defined
@@ -232,6 +248,7 @@ namespace Librarian::Adapters
     {
         std::vector<Write> writes;
         std::vector<ListWrite> listWrites;
+        std::vector<CastingPerkWrite> castingPerkWrites;
         std::vector<std::vector<LineStats>> stats;   // [file][line]
     };
 

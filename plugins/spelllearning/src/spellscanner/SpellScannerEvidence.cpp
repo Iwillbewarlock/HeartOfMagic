@@ -375,8 +375,9 @@ namespace SpellScanner
         const auto& data = spell->data;
 
         // The half cost perk is what the game itself files the spell's tier under.
-        if (data.castingPerk) {
-            spellJson["castingPerk"] = FormRef(data.castingPerk);
+        // As the plugin wrote it, not one the perk adapters filled in.
+        if (auto* castingPerk = Librarian::PerkAdapters::OriginalCastingPerk(spell)) {
+            spellJson["castingPerk"] = FormRef(castingPerk);
         }
 
         if (const auto* equipSlot = spell->GetEquipSlot()) {

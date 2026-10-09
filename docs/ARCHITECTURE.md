@@ -249,7 +249,11 @@ taken for a tier. Then minimum skill as before. The tier feeds the scan's `skill
 the tier XP (`ProgressionManagerXP`) and passive learning's caps, so all of them follow the perk after a
 rescan and rebuild; until the tree is rebuilt the panel's `node.level` (and the XP `RequiredXPSync` sends
 for a learning target) keeps the old tier. A spell without a half-cost perk still falls back to minimum
-skill.
+skill. The 25 perks live in `include/librarian/VanillaCastingPerks.h`, which the perk adapters also read:
+since 2026-10-08 they give a tome spell with no half-cost perk the vanilla one for its tier in memory
+(docs/librarian/PERK_ADAPTERS.md, 7-2). Every reader that files a spell by its own record - this tier,
+the scan's `castingPerk`, the copies check - asks `PerkAdapters::OriginalCastingPerk`, which hides a perk
+the adapters gave.
 
 **Field Config and the MGEF Structure Fields:**
 

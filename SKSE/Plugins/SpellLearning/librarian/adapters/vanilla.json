@@ -6,7 +6,7 @@
     "",
     "A line adds its keyword to a catalog spell when every condition holds:",
     "  tags         - the spell's HoM catalog tags: all / any / none",
-    "  spell        - school, notSchool, tier, casting, twoHanded (scan spell fields)",
+    "  spell        - school, notSchool, tier, casting, twoHanded, taughtByTome (scan spell fields)",
     "  effect       - scan effect fields; the first VISIBLE effect that matches gets the keyword",
     "                 (no effect block: the first visible effect)",
     "  spellHas     - some effect of the spell, hidden ones too, matches",
@@ -15,6 +15,8 @@
     "Effect fields: archetype, archetypeAny, archetypeNone, primaryAV, primaryAVAny, resistance,",
     "detrimental, delivery, minDuration, noDuration, hazardSource (impact | effect | explosion),",
     "explodes, visible, summonedAny, summonedNone (race keywords of what a summon calls up).",
+    "A \"castingPerk\": \"vanilla\" line gives a half-cost perk instead of a keyword (on the spell record,",
+    "only when the spell has none).",
     "A spell that already carries the keyword is left alone. A keyword goes onto a shared effect",
     "only when every spell using that effect passes the same line. Keywords are only added, only",
     "when the load order defines them. Files run vanilla.json first, then by name.",
@@ -111,6 +113,8 @@
     { "keyword": "MagicVampireDrain", "why": "health absorb in Destruction - Adamant and Mysticism read it with the fire, frost and shock damage keywords",
       "tags": { "all": ["siphon"] },
       "spell": { "school": "Destruction" },
-      "effect": { "archetype": "Absorb", "primaryAV": "Health" } }
+      "effect": { "archetype": "Absorb", "primaryAV": "Health" } },
+
+    { "castingPerk": "vanilla", "spell": { "taughtByTome": true }, "why": "a spell a tome teaches with no half-cost perk gets the vanilla one for its school and tier, so the vanilla half-cost perks (DestructionApprentice25: ModSpellCost x0.5 when SpellHasCastingPerk is itself) and every other perk that asks SpellHasCastingPerk (College of Winterhold) see it. The tier is the catalog's: a spell whose plugin set no perk and whose first effect says skill 0 is Novice, as the tree itself files it" }
   ]
 }

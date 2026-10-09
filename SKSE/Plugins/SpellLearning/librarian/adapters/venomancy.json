@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Perk adapter: Venomancy 1.5 (poison spells with two Custom Skills trees). Its perks ask",
+    "EPMagic_SpellHasKeyword _VENOM_MagicDamagePoison (18 conditions); Venomancy.esp puts it on its own",
+    "poison effects and its optional patches on Natura's, Lost Grimoire's and Mysticism's.",
+    "Conditions as Adamant's poison line.",
+    "_VENOM_MagicSummonVirulent marks 'Blight' summons (Virulent Binding): Venomancy's own poison skeletons,",
+    "leeches and grummites, and in its patches every spriggan summon, the Seeker and the Lurker. The lines",
+    "follow those picks: a summon with a poison or disease tag, a spriggan by race (not undead or daedra), and a Hermaeus Mora",
+    "daedra by race (seeker, lurker) with the daedra and eldritch tags.",
+    "Not given: the status keywords on Venomancy's own effects."
+  ],
+  "perkMod": "Venomancy 1.5",
+  "measured": "2026-10-08",
+  "requires": { "any": ["Venomancy.esp"] },
+  "adapters": [
+    { "keyword": "_VENOM_MagicDamagePoison", "why": "poison damage",
+      "tags": { "all": ["poison"] },
+      "effect": { "detrimental": true, "resistance": "PoisonResist", "primaryAV": "Health" } },
+    { "keyword": "_VENOM_MagicSummonVirulent", "why": "poison or disease summons",
+      "tags": { "any": ["poison", "disease"] },
+      "effect": { "archetype": "SummonCreature" } },
+    { "keyword": "_VENOM_MagicSummonVirulent", "why": "spriggans - the Natura patch marks every spriggan summon. The race keyword goes by skeleton, so undead and daedra on it (shades, golems) stay out",
+      "effect": { "archetype": "SummonCreature", "summonedAny": ["RKF_ActorTypeSpriggan"], "summonedNone": ["ActorTypeUndead", "ActorTypeDaedra"] } },
+    { "keyword": "_VENOM_MagicSummonVirulent", "why": "Hermaeus Mora's seekers and lurkers - the Mysticism and Lost Grimoire patches mark them",
+      "tags": { "all": ["daedra", "eldritch"] },
+      "effect": { "archetype": "SummonCreature", "summonedAny": ["RKF_ActorTypeAshSeeker", "RKF_ActorTypeBenthicLurker"] } }
+  ]
+}

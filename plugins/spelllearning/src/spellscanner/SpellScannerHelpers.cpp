@@ -1,6 +1,8 @@
 #include "Common.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
+#include "librarian/PerkAdapterPatch.h"
+#include "librarian/VanillaCastingPerks.h"
 
 #include <algorithm>
 #include <string_view>
@@ -212,29 +214,9 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
 
     namespace
     {
-        struct HalfCostPerkTier
-        {
-            RE::FormID formId;
-            const char* tier;
-        };
-
-        // AlterationNovice00, AlterationApprentice25 ... RestorationMaster100
-        constexpr HalfCostPerkTier kVanillaHalfCostPerks[] = {
-            { 0x000F2CA6, "Novice" }, { 0x000C44B7, "Apprentice" }, { 0x000C44B8, "Adept" },
-            { 0x000C44B9, "Expert" }, { 0x000C44BA, "Master" },                                 // Alteration
-            { 0x000F2CA7, "Novice" }, { 0x000C44BB, "Apprentice" }, { 0x000C44BC, "Adept" },
-            { 0x000C44BD, "Expert" }, { 0x000C44BE, "Master" },                                 // Conjuration
-            { 0x000F2CA8, "Novice" }, { 0x000C44BF, "Apprentice" }, { 0x000C44C0, "Adept" },
-            { 0x000C44C1, "Expert" }, { 0x000C44C2, "Master" },                                 // Destruction
-            { 0x000F2CA9, "Novice" }, { 0x000C44C3, "Apprentice" }, { 0x000C44C4, "Adept" },
-            { 0x000C44C5, "Expert" }, { 0x000C44C6, "Master" },                                 // Illusion
-            { 0x000F2CAA, "Novice" }, { 0x000C44C7, "Apprentice" }, { 0x000C44C8, "Adept" },
-            { 0x000C44C9, "Expert" }, { 0x000C44CA, "Master" },                                 // Restoration
-        };
-
         const char* VanillaHalfCostPerkTier(RE::FormID formId)
         {
-            for (const auto& entry : kVanillaHalfCostPerks) {
+            for (const auto& entry : Librarian::kVanillaCastingPerks) {
                 if (entry.formId == formId) return entry.tier;
             }
             return nullptr;
@@ -299,8 +281,9 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
 
         // First: the half-cost perk (vanilla perks by FormID, a mod's own by name)
         // CommonLib calls this castingPerk, but it's the HalfCostPerk field in the SPEL record
-        if (spell->data.castingPerk) {
-            std::string perkTier = GetSkillLevelFromPerk(spell->data.castingPerk);
+        // As the plugin wrote it: a perk the adapters filled in is not the spell's own
+        if (auto* castingPerk = Librarian::PerkAdapters::OriginalCastingPerk(spell)) {
+            std::string perkTier = GetSkillLevelFromPerk(castingPerk);
             if (!perkTier.empty()) {
                 return perkTier;
             }

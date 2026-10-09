@@ -42,6 +42,8 @@ Path of Sorcery 3.2, Vokrii 3.8.2, Ordinator 9.35.0, Vokriinator Black 6.15.3).
   키워드(`APO_VALOR_MagicDamageGeneric`)를 규칙으로 직접 나눠 주므로 그것은 필요 없다
 - **Bloodmoon · Desecration**(Darenii 주문 팩의 퍽): 원소·흡혈·태양·독·무속성 키워드만 읽는다(이미 붙인다).
   `BloodmoonDestruction`·`DesecrationDestruction` 은 그 모드 자신의 이펙트에만 있고 어느 퍽도 읽지 않는다 — 새 파일 없음
+- **Custom Skills 마법 트리**(2026-10-08): Hydromancy·Atromancy·Hemomancy·Venomancy 는 자기 키워드를 읽어 파일을 새로 만들었고, Subclasses 는 Adamant·Ascension 파일을 켜고, 나머지는
+  바닐라 키워드만 읽는다. 아래 6-2절
 
 키워드가 아닌 방법도 있다 — 주문 목록(FormList: Adamant 의 집중 화염·전기 목록, PoS 의 Advanced
 Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직 다루지 않는다(7절).
@@ -67,9 +69,10 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `keyword` | 붙일 키워드의 EditorID. 로드오더에 없으면 그 줄은 쉰다 |
 | `keywordForm` | `keyword` 와 함께: 그 키워드의 영구 id(예 `Update.esm\|0x1EA6002`). 여러 모드가 한 FormID 를 서로 다른 EditorID 로 주입할 때 쓴다 — 게임에서는 로드된 폼이 가진 이름이 `keyword` 를 대신한다(마지막에 로드된 플러그인의 이름). 오프라인 평가는 `keyword` 를 그대로 쓴다 |
 | `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
+| `castingPerk` | `keyword` 대신: `"vanilla"` 하나. 고른 주문 중 반값 시전 퍽이 **없는** 주문에 카탈로그 학파·등급의 바닐라 퍽(`DestructionNovice00` …)을 준다. 누출 검사는 없다(퍽은 주문 레코드에 붙는다). 이미 퍽이 있는 주문은 agree. 7-2절 |
 | `enabled` | `false` 면 끈다. 이유는 `why` 에 |
 | `tags` | 카탈로그 태그. `all` / `any` / `none` |
-| `spell` | 스캔 주문 필드: `school`, `notSchool`, `tier`, `casting`, `twoHanded` |
+| `spell` | 스캔 주문 필드: `school`, `notSchool`, `tier`, `casting`, `twoHanded`, `taughtByTome`(마법책이 가르치는 주문) |
 | `effect` | 스캔 이펙트 필드. 맞는 **첫 번째 보이는 이펙트**가 키워드를 받는다(없으면 첫 보이는 이펙트) |
 | `spellHas` / `spellLacks` | 주문의 어떤 이펙트가(숨김 포함) 맞아야 / 하나도 맞으면 안 된다 |
 | `keywordsNone` | 주문에 이 키워드가 하나도 없어야 한다 — 앞선 줄이 붙인 것까지 센다. 제외 조건 |
@@ -120,7 +123,9 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 
 **스캔 격리**: 스캐너는 붙인 키워드를 스캔 JSON, 칩·트리 특성, 카드 아이콘에서 뺀다
 (`PerkAdapters::IsInjected`). 스캔은 플러그인에 적힌 그대로 남고, 사서가 자기가 붙인 키워드로
-다시 분류하는 일(예전 M6 의 문제)이 없다.
+다시 분류하는 일(예전 M6 의 문제)이 없다. 채워 준 시전 퍽도 같다: 스캔 JSON 의 `castingPerk`, 주문 등급
+(`DetermineSpellTier` — 트리 깊이·등급 XP·수동 학습이 읽는다), 사본 판정은 `PerkAdapters::OriginalCastingPerk`
+로 플러그인이 적은 퍽만 본다.
 
 메모리에서만 바뀐다. 플러그인 파일도 세이브도 건드리지 않으므로 모드를 빼면 원상태다.
 설정(`perkAdapters.enabled`)은 게임 시작과 스캔 때 읽는다 — 끄면 다음 게임 시작이나 스캔부터 거둔다.
@@ -174,6 +179,80 @@ Darenii 의 주문 팩은 비전·그림자·피·괴저·자연 피해(Arcane, 
 (이펙트 83개), 누출로 막힌 이펙트 2(Necromancer's Magic 과 Midnight Sun 이 함께 쓰는 이펙트). 새로 받는
 것은 Vigilant·Glenmoril·Unslaad·Dragonborn 의 비전·지식 흡수 계열 등이고, 상당수는 NPC·보스 주문이다.
 
+## 6-2. Custom Skills 마법 트리 (2026-10-08)
+
+Custom Skills Framework 로 마법 퍽 트리를 따로 두는 모드와 마법에 닿는 커스텀 스킬 모드 20개를 넥서스에서 받아 퍽 조건을 덤프했다. 이 트리들은
+주문 모드를 SkyPatcher ini 로 **이름을 적어** 지원한다(Hydromancy: Natura, Elemental Destruction Magic Redux,
+Phenderix, KittySpellPack01, Water Atronach). 적히지 않은 모드의 주문은 퍽을 못 받는다. 어댑터는 사서 태그로 그
+목록 밖의 주문까지 같은 키워드를 준다.
+
+| 모드 (넥서스) | 퍽이 묻는 주문 키워드 | 결과 |
+|---|---|---|
+| Hydromancy 1.1 (186022) | `_HYD_MagicDamageWater`(17), `_HYD_MagicSummonWater`(1) | `hydromancy.json` |
+| Atromancy 2.1 (149636) | 바닐라 소환·원소 + `_ATRO_MagicSummon<Earth/Water/Wind/Shadow/Sun/Flesh/Sugar>`, `_ATRO_MagicSummonAtronach`, `_ATRO_MagicDamage<Earth/Water/Wind/Shadow/Sun>` | `atromancy.json` |
+| Electromancy 1.7 (171694) · Cryomancy 1.3 (179969) · Pyromancy 1.1 (182965) | `MagicDamageShock` / `Frost` / `Fire` (Pyromancy 는 자기 화상 표식 키워드도) | 바닐라 파일이 맡는다 |
+| Pyromancy - Custom Skill Tree 1.0.1 (53312) · Cryomancy - Custom Skill Tree 1.2 (121265) | 바닐라 원소 + 자기 강화 이펙트 키워드(`FLM_`/`CLM_Boosted*`) | 바닐라 파일이 맡는다 |
+| Hemomancy 2.0.2 (74968) | `Kata_BloodMagicPower`/`…Conc`(혈마법 위력·흡수 퍽), `Kata_Blood*Cost*`(피 비용 퍽) | `hemomancy.json` — 위력 키워드만 |
+| Venomancy 1.5 (146585) | `_VENOM_MagicDamagePoison`(18), `_VENOM_MagicSummonVirulent`(9) | `venomancy.json` |
+| Subclasses of Skyrim 2 1.0.3 (98784) | `MAG_MagicDamagePoison/Sun`, `MAG_MagicSummonReanimate`, `DAR_UnspecificMagicDamage`(= Ascension 의 `0x1EA6002`) — 직접 Update.esm 대역에 정의 | `adamant.json`·`ascension.json` 의 `requires` 에 추가 |
+| Constellations 1.0.3 (117352) · Sets of Skills CSF 1.3 (97855) | 바닐라 원소·소환·방어 + `EPMagic_SpellHasSkill`(학파) | 바닐라 파일이 맡는다 |
+| Custom Skills - VIGILANT 2.0a (45026) | 바닐라 + `DLC1VampireDrainEffect`(`MagicVampireDrain` 과 OR) | 바닐라 파일이 맡는다 |
+| Prelude to Purgatory 3.0b6 (53143) · Molag's Will 2.4.1 (58621) · Haemophilia 1.0.1 (46632) | 바닐라 키워드, 나머지는 행위자 키워드(`Vampire` 등) | 할 일 없음 |
+| Custom Skills - GLENMORIL 2.1.0 (45120) · Pilgrim CSF 1.2.1 (93913) | 자기 무기·축복 표식 | 할 일 없음 |
+| Everdamned 1.7.0 (162489) | 자기 피 비용 표식, `ED_Mechanics_Keyword_Hemomancy`(Vitae, Blood Resonance 발동) | `everdamned.json` — 혈마법 키워드만 |
+| College of Winterhold Perk Tree 1.1 (112348) | 바닐라(`MagicWard`·`MagicArmorSpell`·`MagicInvisibility`·`MagicRestoreHealth`) + `SpellHasCastingPerk`(파괴·소환 퍽 2개) | 키워드는 바닐라 파일이 맡는다. 시전 퍽은 아래 |
+
+Custom Skills 를 설명에 적은 넥서스 모드 560개(v2 GraphQL 설명 검색)에서 마법과 관련된 것을 골라 받았다.
+
+**Venomancy.** 본체와 선택 패치(Natura·Lost Grimoire·Mysticism)가 `_VENOM_MagicDamagePoison` 을 독 이펙트에 단다. 줄은 Adamant 의
+독 줄과 같은 조건. 측정 130 주문, 누출 0. `_VENOM_MagicSummonVirulent`("Blight" 소환 — 패치는 스프리건, 시커, 럴커를 골랐다)는
+이 고른 것을 따라 세 줄로 준다: 독·질병 태그 소환(2), 종족이 스프리건인 소환 중 언데드·데이드라가 아닌 것(11 — RKF 종족 키워드는
+골격을 따라서 망령·골렘도 스프리건으로 나온다), 데이드라·eldritch 태그에 종족이 시커·럴커인 소환(7). 2026-10-09 스캔 기준.
+
+**Everdamned.** 흡혈귀 개편의 혈마법은 자기 주문에 `ED_Mechanics_Keyword_Hemomancy` 를 달고, Vitae 와 Blood Resonance 퍽이
+그것을 묻는다. 줄은 hemomancy.json 과 같은 조건(피 태그 + 해로운 체력 이펙트)이고 비용 표식(`BloodCost*`, `DeductBloodCost`)은
+주지 않는다. 측정 121 주문(2026-10-09 스캔), 누출 1(Dawnguard 생기 흡수가 이펙트를 공유).
+
+**Atromancy Flesh·Sugar.** 애드온이 고른 살점·설탕 아트로나크는 스캔에서 갈라낼 태그도 종족 키워드도 없다(ECSS 살점 아트로나크는
+언데드 종족 키워드뿐). 주문 이름을 적지 않는 원칙(4절 3)이라 이 둘만 주지 않는다.
+
+**Hydromancy.** 물 피해는 `water` 태그 + 해로운 체력 이펙트. 소환은 `water`+`daedra` — Hydromancy ini 가 표시하는
+Natura 물 아트로나크는 Natura 가 `MagicSummonFamiliar` 를 달아 두었으므로 그 키워드로 거르지 않는다.
+
+**Hemomancy.** 자기 주문 15개에만 `Kata_BloodMagicPower`(위력)와, 체력을 대신 깎는 숨은 비용 이펙트에 `Kata_BloodCost*` 를 단다.
+Blood Pressure(+10/25/50%)·Blood Cloting(체력이 낮을 때 흡수 증가)·Blood Pact·Blood Spheres·Sanguine Mortis 가 위력 키워드를
+묻는다. 어댑터는 `blood` 태그 + 해로운 체력 이펙트에 위력 키워드만 준다. 비용 키워드는 주지 않는다 — 다른 모드의 혈마법은
+자기 비용을 따로 치르고, 비용 퍽은 Hemomancy 의 비용 이펙트 크기를 줄일 뿐이다. Hemomancy 가 체력 흡수도 혈마법으로
+두므로 흡혈 계열도 받는다. 측정: 94개 주문(이펙트 67), 누출 0. `blood` 태그 주문의 출처는 Bloodmoon 24, Ancient Blood II 22, Vigilant 21(보스·NPC),
+Mysticism 흡혈 16, Sacrilege 12, 바닐라 흡혈귀의 흡수 등. 알려진 겹침: Bloodskal Blade 의 휘두르기 주문은 KIT 가 피 원소로
+분류해 함께 받는다(무기가 대신 시전하는 주문이라 퍽이 그 피해도 키운다).
+
+**College of Winterhold.** 파괴·소환 퍽 둘은 키워드가 아니라 `SpellHasCastingPerk`(주문의 반값 시전 퍽 = 학파와 등급)를
+묻는다. 시전 퍽이 없는 주문은 바닐라 학파 퍽처럼 이 퍽도 못 받는다. TAKEALOOK 카탈로그에서 파괴 1506 중 636, 소환 862 중
+58 이 시전 퍽이 없다(대부분 Vigilant·Glenmoril·바닐라의 보스·NPC·무기 주문). 마법책 주문은 시전 퍽 줄이 채운다(7-2절).
+
+**Atromancy.** 원소 키워드는 본체(`Atromancy.esp`)가 정의하고, 선택 애드온이 SkyPatcher 로 정해진 아트로나크·주문
+모드의 이펙트에 붙인다. 애드온은 소환마다 원소 키워드 옆에 `_ATRO_MagicSummonAtronach`(Elemental Conservation 의
+비용 감소)를 함께 단다. 어댑터도 같다. 퍽은 피해 키워드를 "그 원소 아트로나크가 쓰러지면 그 원소 주문이 약해진다"
+(Diminished)에서 읽는다. 불·냉기·전격 태그가 있는 소환과 피해는 뺀다 — 바닐라 키워드로 이미 퍽을 받고, Molten-Iron
+애드온도 Vulcano 용암 아트로나크에 원소를 주지 않는다. Flesh·Sugar 는 맞는 태그가 없어 주지 않는다. 애드온이 하는
+나머지 절반(아트로나크 종족 키워드, 종족에 주는 주문)은 레코드가 다른 층이라 어댑터 몫이 아니다.
+알려진 겹침: Abyss 의 그림자 늑대는 그림자 아트로나크와 태그·종족 키워드가 같아 함께 받는다(Shadow 애드온은 뺐다).
+
+측정(TAKEALOOK 덤프, 두 파일 모두 `requires` 를 풀고 오프라인 평가 — 두 모드는 설치돼 있지 않아 agree 는 0):
+
+| 줄 | gain | 예 |
+|---|---:|---|
+| `_HYD_MagicDamageWater` · `_ATRO_MagicDamageWater` | 19 | Natura 물 주문, Simonrim 왼손 사본 |
+| `_HYD_MagicSummonWater` · `_ATRO_MagicSummonWater` | 2 | Natura 물 아트로나크·군주 |
+| `_ATRO_MagicSummonEarth/Wind/Shadow`, `…Atronach` | 2 / 2 / 3, 9 | Natura 바위·바람, Abyss 그림자 |
+| `_ATRO_MagicDamageEarth/Wind/Shadow/Sun` | 18 / 28 / 31 / 60 | Natura, Abyss, Vigilant, Dawnguard 태양 불꽃 |
+
+누출로 막힌 것: 바람 1(Dragonborn 회오리 망토가 피해 이펙트를 공유). 애드온 범위와 대조: Sun 애드온도 Dawnguard·
+Mysticism·Odin·Triumvirate 의 태양 주문을, Air 애드온도 Skyrim.esm 의 바람 이펙트를 넣으므로 바닐라·DLC 주문이 받는 것은
+제작자 뜻과 같다. Natura 물 공격 주문 중 물의 벽은 피해 이펙트가 Script·AV 없음이라 빠진다.
+게임에서는 확인하지 않았다.
+
 ## 7. 붙이지 않는 것과 이유
 
 | 키워드 | 이유 |
@@ -208,6 +287,27 @@ Darenii 의 주문 팩은 비전·그림자·피·괴저·자연 피해(Arcane, 
 퍽 조건이 다른 스레드에서 목록을 읽는다. 게임 중 스캔은 목록 계획만 보고서에 남기고(`listsDeferred`), 목록은
 다음 게임 시작에 따른다. 같은 목록을 가리키는 줄이 둘이면 한 주문이 두 줄의 `gain` 에 모두 셀 수 있다(실제 쓰기는
 한 번). 위 표의 30·36 은 그렇게 센 값이다.
+
+## 7-2. 시전 퍽 (2026-10-08)
+
+주문의 반값 시전 퍽(CommonLib `castingPerk`, SPEL 의 Half-cost Perk)은 학파와 등급 표시다. 바닐라 비용 퍽은 이것을
+읽는다 — `DestructionApprentice25` 는 `ModSpellCost ×0.5`, 조건 `SpellHasCastingPerk DestructionApprentice25`(Skyrim.esm
+레코드로 확인). College of Winterhold 의 파괴·소환 퍽도 `SpellHasCastingPerk` 로 등급별 바닐라 퍽을 묻는다. 퍽이 빈 주문은
+이 퍽들을 하나도 받지 못한다.
+
+`vanilla.json` 의 `{ "castingPerk": "vanilla", "spell": { "taughtByTome": true } }` 줄이 마법책이 가르치는 주문 중 퍽이 빈
+것에 카탈로그 학파·등급의 바닐라 퍽을 준다(25개 표: `include/librarian/VanillaCastingPerks.h`, 스캐너의 등급 판정도
+같은 표를 읽는다). 등급은 카탈로그의 것 — 퍽도 없고 첫 이펙트의 최소 숙련도가 0 인 주문은 트리가 Novice 로 두므로 Novice
+퍽을 받는다.
+
+게임에서: 주문 레코드의 포인터 하나라 FormList 와 달리 게임 중 스캔 뒤에도 바뀐다. 퍽이 비어 있을 때만 주고, 우리가 준
+퍽이 그대로일 때만 거둔다(다른 모드가 그새 퍽을 적었으면 손대지 않는다). 손으로 시전하는 주문(`SpellType::kSpell`)만.
+보고서에 `castingPerkAdded/Kept/Removed/Failed`(Failed: 풀리지 않은 폼, 손으로 시전하지 않는 주문).
+
+측정(2026-10-08 TAKEALOOK 스캔, 오프라인): 마법책 주문 중 퍽이 있는 1497, 새로 받는 20 — 바닐라 유령 화살·드래곤 사제
+소환, CC 애완동물 부르기, Glenmoril 망령 4, BSAssets 자물쇠 열기 3, 동료 모드 주문 등. 퍽이 빈 주문 대부분(파괴 636 등,
+6-2절)은 마법책이 없는 보스·NPC·퀘스트 주문이라 받지 않는다. 비용 0 인 주문(애완동물 부르기)은 받아도 달라지지 않는다.
+게임에서는 확인하지 않았다.
 
 ## 8. 게임에서 확인한 것 (2026-09-30)
 

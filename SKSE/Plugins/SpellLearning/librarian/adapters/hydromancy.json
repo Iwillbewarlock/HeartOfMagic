@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Perk adapter: Hydromancy - Water Magic Perk Tree 1.1 (Custom Skills tree). Its perks ask",
+    "EPMagic_SpellHasKeyword _HYD_MagicDamageWater (17 conditions) and _HYD_MagicSummonWater (1).",
+    "Hydromancy.esp defines both, and its SkyPatcher magiceffect ini puts them on the water effects of",
+    "a fixed list of spell mods (Natura, Elemental Destruction Magic Redux, Phenderix, KittySpellPack01,",
+    "Water Atronach); water spells of any other mod get nothing.",
+    "Summons: the ini marks Natura's water atronachs, which Natura itself marks MagicSummonFamiliar, so",
+    "the summon line does not exclude MagicSummonFamiliar; the daedra tag keeps water animals out."
+  ],
+  "perkMod": "Hydromancy - Water Magic Perk Tree 1.1",
+  "measured": "2026-10-08",
+  "requires": { "any": ["Hydromancy.esp"] },
+  "adapters": [
+    { "keyword": "_HYD_MagicDamageWater", "why": "water damage",
+      "tags": { "all": ["water"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } },
+    { "keyword": "_HYD_MagicSummonWater", "why": "water atronach and kin",
+      "tags": { "all": ["water", "daedra"] }, "effect": { "archetype": "SummonCreature" },
+      "keywordsNone": ["MagicSummonFire", "MagicSummonFrost", "MagicSummonShock", "MagicSummonUndead"] }
+  ]
+}
