@@ -1172,8 +1172,10 @@ or patched. Everything runs where SKSE UI tasks and the movie's frame handlers r
 in the run of 2026-10-08).
 
 - **`MagicMenuBookmark.cpp`** - `Install()` (kDataLoaded) adds a `MenuOpenCloseEvent` sink. On the menu
-  opening a UI task adds `hom_widget` to `_root` (sizes in units of a 720-high screen: the height of
-  `GFxMovieView::GetVisibleFrameRect()` / 720), unless both switches are off. Its `onEnterFrame` (`Follow`)
+  opening a UI task adds `hom_widget` to `_root` (sizes in the movie's stage units, which the game scales to the screen
+  like the item card, so the widget keeps its size relative to the card on every aspect ratio; measuring
+  against the visible height grew it 11% on 16:10 and covered the description on 4:3 in the 2026-10-09
+  layout simulation), unless both switches are off. Its `onEnterFrame` (`Follow`)
   finds the item card every frame (`kCardPaths`: SkyUI's `_root.Menu_mc.itemCardFadeHolder.ItemCard_mc`, then
   vanilla's `_root.Menu_mc.ItemCardFadeHolder_mc.ItemCard_mc`), takes the top-right corner of its `background`'s
   `getBounds` less the shadow margin measured in game run 2 (`kBoxInsetRight` 40, `kBoxInsetTop` 36 card

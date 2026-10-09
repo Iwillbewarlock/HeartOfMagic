@@ -25,7 +25,7 @@ namespace MagicMenuBookmark::Tab
         constexpr std::uint32_t kGold = 0xFFD27A;
         constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
         // Line widths of a kTabW-wide drawing, scaled with the clip like every size here: the widget's clip
-        // (kClipW 54 on a 720-high screen, scale 0.6) draws them 0.9 / 0.72, near the fixed 1.0 seen in game before
+        // (kClipW 54 stage units, scale 0.6) draws them 0.9 / 0.72, near the fixed 1.0 seen in game before
         constexpr double kEdgeLine = 1.5, kStitchLine = 1.2;
         constexpr double kLabelY = 35.0, kLabelH = 54.0, kLabelSize = 15.0;
         constexpr const char* kLabel = "Heart\rof\rMagic";  // three lines, as on the pictures

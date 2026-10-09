@@ -30,10 +30,10 @@ namespace MagicMenuBookmark
 
     namespace SpellInfo
     {
-        // The spell box's height in units of a 720-high screen (MagicMenuBookmark.cpp places it by this)
+        // The spell box's height in stage units (MagicMenuBookmark.cpp places it by this)
         inline constexpr double kBoxH = 64.0;
         // Follows the selected spell and draws its XP ring, name and tags in a box at (a_x, a_y), a_width
-        // wide; a_unit is one unit of a 720-high screen in the movie's coordinates
+        // wide; a_unit is one stage unit (1.0; kept as a parameter so the box scales with it)
         void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width, double a_unit);
     }
 }

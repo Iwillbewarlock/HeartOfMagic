@@ -19,10 +19,14 @@ namespace MagicMenuBookmark
 {
     namespace
     {
-        // Widget layout in units of a 720-high screen (the movie's visible height / 720). The widget's
-        // origin is the item card's visible top-right corner; the clip folds over it, the spell box sits
-        // just above the card, left of the clip.
-        constexpr double kRefHeight = 720.0;
+        // Widget layout in stage units (the menu movie's own 1280x720 stage, which the game scales to the
+        // screen, as it scales the item card): the widget keeps its size relative to the card on every
+        // aspect ratio. Measured against the visible height (/720) it grew 11% on 16:10 and covered the
+        // description's first line on 4:3 (layout simulation, 2026-10-09). The widget's origin is the
+        // item card's visible top-right corner; the clip folds over it, the spell box sits just above
+        // the card, left of the clip. Known limit: a spell name longer than about 17 characters runs
+        // under the clip (its flap hangs 67 units into the card).
+        constexpr double kStageUnit = 1.0;
         constexpr double kClipW = 54.0;      // its flap stays above the description's first line (game run 3, 2026-10-09)
         constexpr double kClipInset = 10.0;  // the clip's right edge, left of the card's right edge
         constexpr double kBoxW = 230.0, kGap = 6.0;  // the box's height: SpellInfo::kBoxH
@@ -146,11 +150,11 @@ namespace MagicMenuBookmark
             if (root.GetMember("hom_widget", &existing) && existing.IsDisplayObject()) return;  // already on this movie
 
             const auto area = movie->GetVisibleFrameRect();
-            const double unit = (area.bottom - area.top) / kRefHeight;
-            if (unit <= 0) {
+            if (area.bottom <= area.top) {
                 logger::warn("MagicMenuBookmark: the menu has no visible area - no widget");
                 return;
             }
+            const double unit = kStageUnit;
             auto widget = MagicMenuDraw::Clip(root, "hom_widget");
             if (!widget.IsDisplayObject()) return;
             widget.SetMember("_visible", false);  // until the first frame finds the card

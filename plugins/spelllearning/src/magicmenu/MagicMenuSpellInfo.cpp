@@ -23,7 +23,7 @@ namespace MagicMenuBookmark::SpellInfo
 {
     namespace
     {
-        // Box layout in units of a 720-high screen
+        // Box layout in stage units (MagicMenuBookmark.cpp)
         constexpr double kPad = 12.0, kRingR = 18.0;  // kBoxH: MagicMenuInternal.h
         constexpr double kNameY = 8.0, kNameH = 22.0, kNameSize = 15.0;
         constexpr double kTagsY = 31.0, kTagsH = 30.0, kTagsSize = 11.0;

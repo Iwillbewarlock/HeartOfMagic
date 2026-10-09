@@ -1347,7 +1347,8 @@ All mod configuration. Split-row layout for space efficiency.
 Drawn by the plugin into the game's magic menu, not by the panel (code: docs/ARCHITECTURE.md, "MagicMenuBookmark";
 spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). A widget that follows the item card's
 visible top-right corner (it slides and fades with the card); it is drawn on the menu's own layer, so the item
-card itself is left as it is. Sizes are in units of a 720-high screen.
+card itself is left as it is. Sizes are in the menu's stage units (1280x720 scaled to the screen like the card).
+Known limit: a spell name longer than about 17 characters runs under the clip.
 
 - **Clip** (`magicMenu.bookmark`): a dark, worn, matte leather fold-over clip (to match the game's menus, 2026-10-09), about 4:5, with "Heart / of / Magic" pressed
   into it on three lines and a stitch line under the fold (the user's reference photo, 2026-10-08; pictures
