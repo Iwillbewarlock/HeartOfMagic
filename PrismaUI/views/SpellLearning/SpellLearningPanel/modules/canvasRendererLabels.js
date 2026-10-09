@@ -29,8 +29,9 @@
 
         /**
          * The names that could be drawn at the current pan, in the order they are
-         * placed (in view first, then priority). Null when names are off or the
-         * tree is zoomed out too far for them. Shared by renderLabels and
+         * placed (in view first, then priority), and how many may be placed
+         * (MAX_LABELS, MAX_LABELS_FOCUS below LABEL_FOCUS_ZOOM). Null when names
+         * are off or the tree is zoomed out too far for them. Shared by renderLabels and
          * LayerScroll (the names in a strip uncovered by a drag).
          * @returns {{candidates: Array, fontSize: number, maxLabels: number}|null}
          */
@@ -54,8 +55,15 @@
 
             var edgeX0 = -50 - margin, edgeX1 = this._width + 50 + margin;
             var edgeY0 = -50 - margin, edgeY1 = this._height + 50 + margin;
-            for (var i = 0; i < this.nodes.length; i++) {
-                var node = this.nodes[i];
+            // The spells near that screen box only (_nodesInBox, ascending = node
+            // order); the screen test below stays, so the candidates and their order
+            // are the same as the full loop's
+            var nodes = this.nodes, box = this._labelWorldBox(cx, cy, cos, sin, edgeX0, edgeX1, edgeY0, edgeY1);
+            var count = this._nodesInBox(box.l, box.r, box.t, box.b);
+            var pick = count < 0 ? null : this._cull.nodePick;
+            if (count < 0) count = nodes.length;
+            for (var i = 0; i < count; i++) {
+                var node = nodes[pick ? pick[i] : i];
                 // In edit mode: show ALL labels. Otherwise: only unlocked/learning/available
                 if (!isEditActive && node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') continue;
                 if (!node.name && !isEditActive) continue;
@@ -122,7 +130,28 @@
             // In view before the margin, then high priority first; stable on index so
             // results don't flicker between frames
             candidates.sort(this._byLabelOrder);
-            return { candidates: candidates, fontSize: fontSize, maxLabels: this.MAX_LABELS };
+            // Zoomed out, fewer names: the first MAX_LABELS_FOCUS in that order
+            return { candidates: candidates, fontSize: fontSize,
+                     maxLabels: focusOnly ? this.MAX_LABELS_FOCUS : this.MAX_LABELS };
+        },
+
+        /**
+         * The world box (rotation, zoom and pan undone) holding the screen box
+         * x0..x1, y0..y1 (css px), padded by LABEL_CULL_PAD world units so a spell
+         * that rounding puts on its edge is still in it (_labelCandidates).
+         */
+        _labelWorldBox: function(cx, cy, cos, sin, x0, x1, y0, y1) {
+            var l = Infinity, r = -Infinity, t = Infinity, b = -Infinity, xs = [x0, x1], ys = [y0, y1];
+            for (var i = 0; i < 2; i++) {
+                for (var j = 0; j < 2; j++) {
+                    var u = (xs[i] - this.panX - cx) / this.zoom, v = (ys[j] - this.panY - cy) / this.zoom;
+                    var wx = u * cos + v * sin, wy = -u * sin + v * cos;
+                    if (wx < l) l = wx; if (wx > r) r = wx;
+                    if (wy < t) t = wy; if (wy > b) b = wy;
+                }
+            }
+            var pad = this.LABEL_CULL_PAD;
+            return { l: l - pad, r: r + pad, t: t - pad, b: b + pad };
         },
 
         /**

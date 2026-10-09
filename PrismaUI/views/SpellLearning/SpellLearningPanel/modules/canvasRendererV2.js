@@ -79,6 +79,8 @@ var CanvasRenderer = {
     LABEL_MIN_ZOOM: 0.5,      // Below this zoom no labels are drawn
     LABEL_FOCUS_ZOOM: 0.8,    // Below this zoom only important labels (selected/learning/available) are drawn
     MAX_LABELS: 150,          // names placed on screen at most (renderLabels, LayerScroll)
+    MAX_LABELS_FOCUS: 50,     // the same below LABEL_FOCUS_ZOOM (the most important names stay)
+    LABEL_CULL_PAD: 1,        // world units round the box _labelCandidates asks the culling index for
     DIM_OTHER_SCHOOL: 0.3,    // Focus+context: alpha factor for nodes of other schools while a node is selected
     DIM_SAME_SCHOOL: 0.6,     // Focus+context: alpha factor for off-path nodes of the selected school
     
