@@ -63,17 +63,4 @@ namespace MagicMenuDraw
         field.SetMember("text", text);
         return field;
     }
-
-    // flash.filters.GlowFilter on a clip or text field; false when the movie has no filters
-    inline bool Glow(RE::GFxMovieView* a_movie, RE::GFxValue& a_target, std::uint32_t a_rgb, double a_blur, double a_strength)
-    {
-        RE::GFxValue filter, filters, check;
-        const std::array<RE::GFxValue, 6> args{ static_cast<double>(a_rgb), 1.0, a_blur, a_blur, a_strength, 2.0 };
-        a_movie->CreateObject(&filter, "flash.filters.GlowFilter", args.data(), static_cast<std::uint32_t>(args.size()));
-        if (!filter.IsObject()) return false;
-        a_movie->CreateArray(&filters);
-        filters.PushBack(filter);
-        a_target.SetMember("filters", filters);
-        return a_target.GetMember("filters", &check) && check.IsArray() && check.GetArraySize() == 1;
-    }
 }

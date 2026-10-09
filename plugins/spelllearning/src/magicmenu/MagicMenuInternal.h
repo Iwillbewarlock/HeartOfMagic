@@ -20,8 +20,7 @@ namespace MagicMenuBookmark
 
     namespace Tab
     {
-        // The clip's height (fold included) at this width, and the part of it above the fold line
-        double Height(double a_width);
+        // The part of the clip above the fold line, at this width
         double FoldHeight(double a_width);
         // Draws the clip (hom_bookmark) into a_parent (hom_widget), its top-left at (a_x, a_y), with its click, hover and glow
         void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width);
@@ -29,6 +28,8 @@ namespace MagicMenuBookmark
 
     namespace SpellInfo
     {
+        // The spell box's height in units of a 720-high screen (MagicMenuBookmark.cpp places it by this)
+        inline constexpr double kBoxH = 64.0;
         // Follows the selected spell and draws its XP ring, name and tags in a box at (a_x, a_y), a_width
         // wide; a_unit is one unit of a 720-high screen in the movie's coordinates
         void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width, double a_unit);

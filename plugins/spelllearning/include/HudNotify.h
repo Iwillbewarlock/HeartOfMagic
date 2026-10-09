@@ -14,7 +14,7 @@
 //
 // Every corner message Heart of Magic shows goes through here, so that
 //   - the text comes from the panel's language file (lang/<locale>.json, the
-//     "hud.*" keys), with the English text written at the call as the fallback
+//     "hud.*" keys; the "chips.*" names are kept too, for the magic menu), with the English text written at the call as the fallback
 //     when the file or the key is missing, and
 //   - Settings > "XP Alerts" (notifications.enabled, the key keeps its old name)
 //     turns the XP messages off (IsXPAlert: casting, power steps, studying, book
@@ -31,7 +31,7 @@ namespace HudNotify
     using Param = std::pair<std::string_view, std::string>;
 
     /**
-     * Turn notifications on or off and load the language's hud.* strings.
+     * Turn notifications on or off and load the language's hud.* strings and chips.* names.
      * @param localeCode  the panel's language ("en", "ko", "pt-br")
      * @param langFile    lang/<localeCode>.json of the panel
      */

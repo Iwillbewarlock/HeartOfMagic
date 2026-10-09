@@ -1184,12 +1184,13 @@ in the run of 2026-10-08).
   `SpellInfo::Attach` (gated by `MagicMenuSpellInfo()`).
 - **`MagicMenuTab.cpp`** - the clip (`hom_bookmark`): a drawn clip (`hom_vec`, outline table `kOutline`, three
   text lines) and the two pictures `Interface/HeartOfMagic/bookmark.dds` / `bookmark_glow.dds` loaded with
-  `loadMovie` into hidden holders (two path forms each, Interface-relative and `img://`; the first loads in the
-  game), fitted over the clip once both have a width; after 60 frames without them the drawn clip stays.
+  `loadMovie` (paths relative to Data/Interface, which the game takes) into hidden holders, fitted over the clip
+  once both have a width; after 60 frames without them the drawn clip stays.
   `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut` / `onEnterFrame`: the click calls
   `RequestPanel()`, hover lifts the clip a little (`kHoverRise` 4 of the 90-wide drawing) and sets the glow target, the frame tick fits the pictures and steps
   the glow's `_alpha`. The game's movie has no `flash.filters.GlowFilter`, so the drawn clip's glow is gold
-  letters only (logged).
+  letters only. The widget is hidden (and so not clickable: `_alpha` 0 still takes the mouse in AS2) while the
+  card is invisible or faded below 5%; no card for 120 frames logs one warning.
 - **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
   and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark only if
   it did open. `UIManager::HidePanel()` (Esc, hotkey, close button, Papyrus) takes the mark and queues `kShow`
@@ -1207,8 +1208,8 @@ in the run of 2026-10-08).
   The first selection after a game start without a scan reads `spell_catalog.json` once (`MergeCatalogChips`).
 - **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `magic menu opened` / `closed`, `widget
   attached (visible area ...)`, once per session `card background in _root x .. y .., widget corner ..`, `the
-  menu has no visible area - no widget` (warn), `bookmark attached`, `bookmark pictures loaded (... path form ...)` or `did not load`, `drawn bookmark,
-  glow filter ...`, `spell box attached`, `bookmark clicked`, and `UIManager: back to the magic menu`;
+  menu has no visible area - no widget` (warn), `no item card (or its background) for 120 frames` (warn),
+  `bookmark attached`, `bookmark pictures did not load` (and `loaded` at debug level), `spell box attached`, `bookmark clicked`, and `UIManager: back to the magic menu`;
   `selected <name>` at debug level.
 
 <a id="modder-api-reference"></a>
