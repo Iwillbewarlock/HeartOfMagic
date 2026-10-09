@@ -1,49 +1,35 @@
 #pragma once
 
 // =============================================================================
-// MAGIC MENU BOOKMARK - shared between MagicMenuBookmark.cpp (menu events, card
-// lookup, click), MagicMenuTab.cpp (the bookmark) and MagicMenuSpellInfo.cpp
-// (XP ring and chips). All of it runs where SKSE UI tasks and the menu movie's frame
-// handlers run (the game's main loop as far as is known - not verified in the game)
+// MAGIC MENU BOOKMARK - shared between MagicMenuBookmark.cpp (menu events, the
+// widget, click), MagicMenuTab.cpp (the leather clip) and MagicMenuSpellInfo.cpp
+// (the selected spell's XP ring and tags). All of it is a widget on the magic
+// menu movie's _root at the visible area's top right; nothing is added to the
+// menu's own clips (attaching to the item card moved the menu's layout, game
+// runs 1-2, 2026-10-08/09). It runs where SKSE UI tasks and the movie's frame
+// handlers run (the game's main thread in the run of 2026-10-08).
 // =============================================================================
 
 namespace MagicMenuBookmark
 {
-    // magicmenu_paths.json "titleFields": the item card's spell name text field, tried in order
-    const std::vector<std::string>& TitleFields();
-
-    // Everything is drawn into "hom_overlay", a sibling clip above the card that copies the card's
-    // place, scale and fade every frame: nothing is added to the card itself, whose own layout code
-    // reads its size. Coordinates in the overlay are the card's own.
-
-    // The item card's visible box in its own coordinates: its "background" clip, else getBounds of
-    // the whole card; all 0 when neither can be read
-    struct CardBounds
-    {
-        double xMin = 0, xMax = 0, yMin = 0, yMax = 0;
-        double Width() const { return xMax - xMin; }
-    };
-    CardBounds Bounds(RE::GFxValue& a_card);
-
     // The open magic menu's movie, or nullptr
     RE::GFxMovieView* OpenMagicMenuMovie();
-    // The card the overlay follows, looked up again by its path
-    std::optional<RE::GFxValue> CurrentCard(RE::GFxMovieView* a_movie);
 
     // The bookmark was clicked: close the menu, then open the panel once it has closed
     void RequestPanel();
 
     namespace Tab
     {
-        // Draws the bookmark into the overlay (hom_bookmark), with its click, hover and glow
-        void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_overlay, const CardBounds& a_box);
-        // Where the bookmark starts on a card of this box (what lies right of it is under the bookmark)
-        double LeftEdge(const CardBounds& a_box);
+        // The clip's height (fold included) at this width
+        double Height(double a_width);
+        // Draws the clip into a_parent (hom_bookmark), its top-left at (a_x, a_y), with its click, hover and glow
+        void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width);
     }
 
     namespace SpellInfo
     {
-        // Follows the selected spell and draws its XP ring and tag chips into the overlay
-        void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_overlay, RE::GFxValue& a_card);
+        // Follows the selected spell and draws its XP ring, name and tags in a box at (a_x, a_y), a_width
+        // wide; a_unit is one unit of a 720-high screen in the movie's coordinates
+        void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width, double a_unit);
     }
 }

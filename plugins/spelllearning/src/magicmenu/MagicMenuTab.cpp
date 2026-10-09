@@ -7,8 +7,8 @@
 
 // =============================================================================
 // MAGIC MENU BOOKMARK - the bookmark itself (spec 2.1, plan "책갈피 그림"):
-// a leather clip folded over the item card's top-right corner, "Heart of Magic"
-// on it, rising a little and glowing gold while the mouse is over it.
+// a leather clip with "Heart / of / Magic" on it at the top of the magic menu
+// widget, rising a little and glowing gold while the mouse is over it.
 // Two pictures (Interface/HeartOfMagic/bookmark*.dds) when the menu can load
 // them; until then, and for good when it cannot, the same clip drawn with lines.
 // =============================================================================
@@ -17,10 +17,9 @@ namespace MagicMenuBookmark::Tab
 {
     namespace
     {
-        // Sizes at a 600-wide card, scaled to the card's width. y=0 is the card's top border:
-        // the fold rises kFoldH above it, the front flap hangs kFlapH into the card.
-        constexpr double kRefCardWidth = 600.0;
-        constexpr double kTabW = 90.0, kFoldH = 7.0, kFlapH = 112.0, kCorner = 8.0, kRightInset = 16.0, kHoverRise = 4.0;
+        // Sizes for a clip kTabW wide, scaled to the width the widget gives it. y=0 is the line
+        // under the fold (where a page edge would sit): the fold rises kFoldH above it, the flap hangs kFlapH.
+        constexpr double kTabW = 90.0, kFoldH = 7.0, kFlapH = 112.0, kCorner = 8.0, kHoverRise = 4.0;
         constexpr std::uint32_t kLeather = 0xA0643A, kLeatherEdge = 0x6E4024, kStitch = 0xE8DCC8, kInk = 0x5E331B;
         constexpr std::uint32_t kGold = 0xFFD27A;
         constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
@@ -217,12 +216,12 @@ namespace MagicMenuBookmark::Tab
         }
     }
 
-    double LeftEdge(const CardBounds& a_box)
+    double Height(double a_width)
     {
-        return a_box.xMax - (kTabW + kRightInset) * a_box.Width() / kRefCardWidth;
+        return (kFoldH + kFlapH) * a_width / kTabW;
     }
 
-    void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_overlay, const CardBounds& a_box)
+    void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width)
     {
         if (!g_click) {
             g_click = RE::make_gptr<Handler>(Handler::Kind::kClick);
@@ -230,24 +229,23 @@ namespace MagicMenuBookmark::Tab
             g_rollOut = RE::make_gptr<Handler>(Handler::Kind::kRollOut);
             g_tick = RE::make_gptr<Handler>(Handler::Kind::kTick);
         }
-        const double cardWidth = a_box.Width();  // MagicMenuBookmark.cpp attaches only once this has a width
         g_state = State{};
-        g_state.scale = cardWidth / kRefCardWidth;
+        g_state.scale = a_width / kTabW;
 
-        auto tab = MagicMenuDraw::Clip(a_overlay, "hom_bookmark");
+        auto tab = MagicMenuDraw::Clip(a_parent, "hom_bookmark");
         if (!tab.IsDisplayObject()) return;
         auto vec = MagicMenuDraw::Clip(tab, "hom_vec");
         DrawLines(a_movie, vec, g_state.scale);
         LoadPicture(tab, "hom_pic", kPicture);
         LoadPicture(tab, "hom_picGlow", kGlowPicture);
-        tab.SetMember("_x", LeftEdge(a_box));
-        tab.SetMember("_y", a_box.yMin);
+        tab.SetMember("_x", a_x);
+        tab.SetMember("_y", a_y + kFoldH * g_state.scale);
 
         SetHandler(a_movie, tab, "onRelease", g_click.get());
         SetHandler(a_movie, tab, "onRollOver", g_rollOver.get());
         SetHandler(a_movie, tab, "onRollOut", g_rollOut.get());
         SetHandler(a_movie, tab, "onReleaseOutside", g_rollOut.get());
         SetHandler(a_movie, tab, "onEnterFrame", g_tick.get());
-        logger::info("MagicMenuBookmark: bookmark attached (card {:.0f} wide, scale {:.2f})", cardWidth, g_state.scale);
+        logger::info("MagicMenuBookmark: bookmark attached ({:.0f} wide)", a_width);
     }
 }

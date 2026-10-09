@@ -197,12 +197,7 @@ if (-not $PanelOnly -and (Test-Path $gateSrc)) {
     Write-Host ("gate    {0}" -f ((Get-ChildItem $gateSrc -Filter '*.json').Count))
 }
 
-# Where the magic menu's item card is, per menu mod (MagicMenuBookmark.cpp)
-$magicMenuSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\magicmenu_paths.json'
-if (-not $PanelOnly -and (Test-Path $magicMenuSrc)) {
-    Copy-Item $magicMenuSrc (Join-Path $ModPath 'SKSE\Plugins\SpellLearning') -Force
-    Write-Host "magic   magicmenu_paths.json"
-}
+# The magic menu widget's pictures (MagicMenuTab.cpp)
 $bookmarkSrc = Join-Path $repo 'Interface\HeartOfMagic'
 if (-not $PanelOnly -and (Test-Path $bookmarkSrc)) {
     $bookmarkDst = Join-Path $ModPath 'Interface\HeartOfMagic'
