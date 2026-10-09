@@ -8,8 +8,9 @@
 // PerkAdapterPatch - the game side of the perk adapters (PerkAdapters.h)
 //
 // Reads the adapter files, plans with the librarian's catalog and the load
-// order, and adds the keywords to the effects in memory. Nothing is written to
-// plugin files or saves: removing the mod removes the keywords.
+// order, and adds the keywords to the effects (and spells to perk FormLists,
+// and half-cost perks to spells that have none) in memory. Nothing is written
+// to plugin files or saves: removing the mod removes them.
 //
 // Game thread only - it walks and edits forms the game reads unlocked. Both
 // callers run there: kDataLoaded, and the scan (a game-thread task).
@@ -35,4 +36,12 @@ namespace Librarian::PerkAdapters
     // as the plugins wrote it and the librarian never classifies from its own
     // additions.
     [[nodiscard]] bool IsInjected(RE::FormID effect, RE::FormID keyword);
+
+    // The spell's half-cost perk as its plugin wrote it: null when the perk it
+    // carries now is one the adapters filled in. Every reader that files a spell
+    // by its own record (scan, tier, copies) asks this instead of data.castingPerk.
+    // Game thread only, like Apply: every caller found runs there (Papyrus and
+    // passive learning hop to it); the public C++ API's GetRequiredXP is the one
+    // a plugin could call from elsewhere, and it already reads unlocked state.
+    [[nodiscard]] RE::BGSPerk* OriginalCastingPerk(const RE::SpellItem* spell);
 }

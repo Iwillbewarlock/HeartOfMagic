@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // =============================================================================
@@ -57,6 +58,7 @@ namespace Librarian
         const json& SpellJson(RE::SpellItem* spell);
 
         const json& m_catalog;
+        std::unordered_set<RE::FormID> m_taught;   // spells a tome teaches
         SpellScanner::FieldConfig m_fields;
         std::vector<CatalogSpell> m_catalogSpells;
         bool m_usersIndexed = false;

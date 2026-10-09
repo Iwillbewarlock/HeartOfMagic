@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "EncodingUtils.h"
 #include "SpellScanner.h"
+#include "librarian/PerkAdapterPatch.h"
 
 // windows.h renames GetObject to GetObjectW, which hides BGSDefaultObjectManager::GetObject
 #ifdef GetObject
@@ -112,7 +113,7 @@ namespace SpellScanner
     {
         std::unordered_set<std::string> keysWithPerk;
         for (auto* spell : spells) {
-            if (spell->data.castingPerk) keysWithPerk.insert(CopyKey(spell));
+            if (Librarian::PerkAdapters::OriginalCastingPerk(spell)) keysWithPerk.insert(CopyKey(spell));
         }
 
         OutOfTree voice{ "spells equipped in the voice slot (script and animation spells)" };
@@ -126,7 +127,7 @@ namespace SpellScanner
                 voice.Add(spell);
             } else if (taught.contains(spell->GetFormID())) {
                 if (unreachable.contains(spell->GetFormID())) unhanded.Add(spell);
-            } else if (!spell->data.castingPerk && keysWithPerk.contains(CopyKey(spell))) {
+            } else if (!Librarian::PerkAdapters::OriginalCastingPerk(spell) && keysWithPerk.contains(CopyKey(spell))) {
                 copies.Add(spell);
             } else if (spell->CalculateMagickaCost(nullptr) < kFreeSpellCost) {
                 freeSpells.Add(spell);

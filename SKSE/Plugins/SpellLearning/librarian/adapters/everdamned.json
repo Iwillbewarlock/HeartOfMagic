@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Perk adapter: Everdamned 1.7.0 (vampirism overhaul with a Blood Magic tree). Its Vitae holder perk",
+    "(Vitae refills from Vampiric Drain 'and similar effects') and Blood Resonance (melee hits on a target",
+    "under a Hemomancy spell refill Vitae) ask EPMagic_SpellHasKeyword / HasMagicEffectKeyword",
+    "ED_Mechanics_Keyword_Hemomancy, which Everdamned.esp puts only on its own blood spells.",
+    "Conditions as hemomancy.json: blood damage and blood drains.",
+    "Not given: the ED_Mechanics_Keyword_BloodCost* and DeductBloodCost keywords - they make Everdamned's own",
+    "spells cost Vitae; other blood spells pay their own cost."
+  ],
+  "perkMod": "Everdamned 1.7.0",
+  "measured": "2026-10-09",
+  "requires": { "any": ["Everdamned.esp"] },
+  "adapters": [
+    { "keyword": "ED_Mechanics_Keyword_Hemomancy", "why": "blood damage and blood drains",
+      "tags": { "all": ["blood"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } }
+  ]
+}

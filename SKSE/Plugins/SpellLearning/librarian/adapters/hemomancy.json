@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Perk adapter: Hemomancy - Blood Magic 2.0.2. Its perks ask EPMagic_SpellHasKeyword Kata_BloodMagicPower",
+    "or Kata_BloodMagicPowerConc (either one; Blood Pressure +10/25/50%, Blood Cloting, Blood Pact, Blood",
+    "Spheres, Sanguine Mortis). hemomancy.esp puts them only on its own 15 spells' effects.",
+    "Not given: the Kata_BloodCost* keywords. They sit on the hidden effect that takes health instead of",
+    "magicka on Hemomancy's own spells, and the cost perks ask them; other blood spells pay their own cost.",
+    "Hemomancy counts its own Drain Health absorb as a blood spell, so vampiric drains (blood tag) get it too.",
+    "Known overlap: the Bloodskal Blade's swing spells carry KIT's blood element and get it as well."
+  ],
+  "perkMod": "Hemomancy - Blood Magic 2.0.2",
+  "measured": "2026-10-08",
+  "requires": { "any": ["hemomancy.esp", "hemomancy.esl"] },
+  "adapters": [
+    { "keyword": "Kata_BloodMagicPower", "why": "blood damage and blood drains",
+      "tags": { "all": ["blood"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } }
+  ]
+}

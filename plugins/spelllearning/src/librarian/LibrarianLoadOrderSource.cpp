@@ -7,7 +7,8 @@
 namespace Librarian
 {
     LoadOrderSource::LoadOrderSource(const json& catalogSpells) :
-        m_catalog(catalogSpells)
+        m_catalog(catalogSpells),
+        m_taught(SpellScanner::SpellsTaughtByTomes())
     {
         m_fields.editorId = false;
         m_fields.magickaCost = false;
@@ -111,6 +112,7 @@ namespace Librarian
         auto& slot = m_spellJson[spell->GetFormID()];
         if (!slot) {
             slot = std::make_unique<json>(SpellScanner::BuildSpellJson(spell, spell->GetFormID(), m_fields));
+            (*slot)["taughtByTome"] = m_taught.contains(spell->GetFormID());   // as the full scan marks it
         }
         return *slot;
     }

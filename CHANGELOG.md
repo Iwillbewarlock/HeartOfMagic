@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- Custom Skills magic trees, Hemomancy, Venomancy and Everdamned recognise water, earth, air, shadow, sun, blood and poison
+  spells from any spell mod. Hydromancy, Atromancy and Venomancy give their perks only to the spell mods named
+  in their own patches, and Hemomancy only to its own spells; Heart of Magic now adds their keywords to every
+  spell the librarian tagged with that element (water damage and water atronachs for Hydromancy; earth, water,
+  air, shadow and sun damage and atronachs for Atromancy; blood damage and drains for Hemomancy's Blood
+  Pressure, Blood Cloting and other power perks, not its health-cost perks; poison damage and Blight summons for Venomancy;
+  blood damage and drains for Everdamned's Vitae and Blood Resonance, not its Vitae costs).
+  Atronach add-on features that sit on the atronach races stay with Atromancy's add-ons. Subclasses of Skyrim 2
+  reads the Adamant and Ascension keywords, so it now turns those adapters on. Electromancy, Cryomancy,
+  Pyromancy (both), Constellations, Sets of Skills, Vigilant and the College of Winterhold tree read only vanilla
+  keywords and need nothing new.
+
+- Tome spells with no half-cost perk get the vanilla one for their school and tier. That perk is what the
+  vanilla cost perks (and the College of Winterhold tree) look for, so a modded spell whose plugin left it empty
+  never got cheaper with Novice/Apprentice/... perks. It is set in memory only while the spell has none, taken
+  back when the adapters are off, and the scan, the spell's tier and the tree still read the spell as its plugin
+  wrote it.
+
 ## Heart of Magic Librarian 1.2.0
 
 ### New

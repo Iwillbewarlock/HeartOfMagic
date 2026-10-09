@@ -47,6 +47,11 @@ namespace Librarian::PerkAdapters
         using ListPair = std::pair<RE::FormID, RE::FormID>;
         std::set<ListPair> g_listed;
 
+        // Half-cost perks given to spells that had none: spell -> perk. The
+        // perk is one pointer on the spell record, so it can change in play
+        // too (unlike a FormList's array).
+        std::unordered_map<RE::FormID, RE::FormID> g_castingPerks;
+
         RE::BGSListForm* ResolveList(const std::string& persistentId)
         {
             const RE::FormID formId = SpellScanner::ResolvePersistentFormId(persistentId);
@@ -215,6 +220,46 @@ namespace Librarian::PerkAdapters
             return result;
         }
 
+        // The casting perk side: a spell gets one only while it has none, and
+        // loses one only while it still carries the one given here.
+        Reconciled ReconcileCastingPerks(const std::unordered_map<RE::FormID, RE::FormID>& wanted)
+        {
+            Reconciled result;
+            const std::vector<std::pair<RE::FormID, RE::FormID>> previous(g_castingPerks.begin(), g_castingPerks.end());
+            for (const auto& [spellId, perkId] : previous) {
+                const auto want = wanted.find(spellId);
+                if (want != wanted.end() && want->second == perkId) continue;
+                auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+                if (spell && spell->data.castingPerk && spell->data.castingPerk->GetFormID() == perkId) {
+                    spell->data.castingPerk = nullptr;
+                    ++result.removed;
+                }
+                g_castingPerks.erase(spellId);
+            }
+            for (const auto& [spellId, perkId] : wanted) {
+                auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+                auto* perk = RE::TESForm::LookupByID<RE::BGSPerk>(perkId);
+                // Only what the player casts from a hand: a power, ability or
+                // scroll has no casting perk to speak of
+                if (!spell || !perk || spell->data.spellType != RE::MagicSystem::SpellType::kSpell) {
+                    ++result.failed;
+                    continue;
+                }
+                if (g_castingPerks.contains(spellId)) {
+                    if (spell->data.castingPerk == perk) {
+                        ++result.kept;
+                        continue;
+                    }
+                    g_castingPerks.erase(spellId);    // someone else set the field since
+                }
+                if (spell->data.castingPerk) continue;  // the plugin's own, or another mod's
+                spell->data.castingPerk = perk;
+                g_castingPerks.emplace(spellId, perkId);
+                ++result.added;
+            }
+            return result;
+        }
+
         void WriteReport(const json& report)
         {
             const auto path = DataPath(REPORT_FILE);
@@ -232,12 +277,15 @@ namespace Librarian::PerkAdapters
         {
             const Reconciled result = Reconcile({});
             const Reconciled lists = listsNow ? ReconcileLists({}) : Reconciled{};
+            const Reconciled perks = ReconcileCastingPerks({});
             report["stopped"] = std::string(why);
             report["listsDeferred"] = !listsNow;
             report["removed"] = result.removed;
             report["listRemoved"] = lists.removed;
+            report["castingPerkRemoved"] = perks.removed;
             WriteReport(report);
-            logger::info("PerkAdapters: {} ({} keywords and {} list entries taken back)", why, result.removed, lists.removed);
+            logger::info("PerkAdapters: {} ({} keywords, {} list entries and {} casting perks taken back)",
+                why, result.removed, lists.removed, perks.removed);
         }
 
         void ApplyImpl(std::string_view reason)
@@ -322,6 +370,16 @@ namespace Librarian::PerkAdapters
             const Reconciled lists = listsNow ? ReconcileLists(wantedLists) : Reconciled{};
             report["listsDeferred"] = !listsNow;
 
+            std::unordered_map<RE::FormID, RE::FormID> wantedPerks;
+            for (const auto& write : plan.castingPerkWrites) {
+                const RE::FormID spellId = SpellScanner::ResolvePersistentFormId(write.spellId);
+                const RE::FormID perkId = SpellScanner::ResolvePersistentFormId(write.perk);
+                if (spellId && perkId) wantedPerks.emplace(spellId, perkId);
+            }
+            // A write that did not resolve, or not a hand-cast spell: in "failed"
+            Reconciled perks = ReconcileCastingPerks(wantedPerks);
+            perks.failed += plan.castingPerkWrites.size() - wantedPerks.size();
+
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - started).count();
             report["added"] = result.added;
@@ -332,14 +390,20 @@ namespace Librarian::PerkAdapters
             report["listAdded"] = lists.added;
             report["listKept"] = lists.kept;
             report["listRemoved"] = lists.removed;
+            report["castingPerkAdded"] = perks.added;
+            report["castingPerkKept"] = perks.kept;
+            report["castingPerkRemoved"] = perks.removed;
+            report["castingPerkFailed"] = perks.failed;
             report["elapsedMs"] = elapsed;
             report["files"] = Plan::PlanReport(files, plan);
             WriteReport(report);
 
             logger::info("PerkAdapters: {} - {} keywords on effects ({} new, {} kept, {} taken back, {} did not take, "
-                         "{} unresolved), {} spells in perk FormLists ({} new, {} taken back) from {} adapter files in {} ms",
+                         "{} unresolved), {} spells in perk FormLists ({} new, {} taken back), {} casting perks "
+                         "({} new, {} taken back) from {} adapter files in {} ms",
                 reason, g_injected.size(), result.added, result.kept, result.removed, result.failed, unresolved,
-                g_listed.size(), lists.added, lists.removed, files.size(), elapsed);
+                g_listed.size(), lists.added, lists.removed, g_castingPerks.size(), perks.added, perks.removed,
+                files.size(), elapsed);
             if (!listsNow) logger::info("PerkAdapters: FormLists follow this plan at the next game start");
         }
     }
@@ -347,6 +411,14 @@ namespace Librarian::PerkAdapters
     bool IsInjected(RE::FormID effect, RE::FormID keyword)
     {
         return !g_injected.empty() && g_injected.contains({ effect, keyword });
+    }
+
+    RE::BGSPerk* OriginalCastingPerk(const RE::SpellItem* spell)
+    {
+        if (!spell || !spell->data.castingPerk) return nullptr;
+        const auto given = g_castingPerks.find(spell->GetFormID());
+        if (given != g_castingPerks.end() && given->second == spell->data.castingPerk->GetFormID()) return nullptr;
+        return spell->data.castingPerk;
     }
 
     void Apply(std::string_view reason)

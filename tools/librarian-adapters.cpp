@@ -89,13 +89,16 @@ int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
             for (std::size_t l = 0; l < files[f].lines.size(); ++l) {
                 const auto& line = files[f].lines[l];
                 const auto& s = plan.stats[f][l];
-                std::cout << "  " << (line.enabled ? "" : "(off) ") << std::left << std::setw(36) << line.keyword
+                const std::string label = !line.castingPerk.empty() ? "castingPerk " + line.castingPerk
+                    : !line.formList.empty() ? line.formList : line.keyword;
+                std::cout << "  " << (line.enabled ? "" : "(off) ") << std::left << std::setw(36) << label
                           << " agree=" << std::setw(4) << s.agree << " writes=" << std::setw(4) << s.writes
                           << " gain=" << std::setw(4) << s.gain << " leaks=" << std::setw(4) << s.leaks
                           << " conditioned=" << s.conditioned << "\n";
             }
         }
         std::cout << "planned writes: " << plan.writes.size() << "\n";
+        std::cout << "planned casting perks: " << plan.castingPerkWrites.size() << "\n";
 
         if (!reportPath.empty()) {
             std::ofstream out(reportPath);
