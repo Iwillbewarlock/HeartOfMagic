@@ -47,9 +47,19 @@ namespace TomeReach
                 ++result.byConfig;
             }
         }
-        // Last: a damaged plugin could have named any tome of itself or its masters
+        // A damaged plugin could have named any tome of itself or its masters
         for (const Key tome : tomes) {
             if (damagedScope.contains(PluginOf(tome)) && result.reached.insert(tome).second) ++result.byDamaged;
+        }
+        // Last: a debug tome counts as handed out by nothing, wherever it is placed. Mods
+        // keep them in a test cell (Sa'chil's SU04SpellTomeDebug: "place Sa'chil", in
+        // the SachilDebug cell); on the author's load order every BOOK with "debug" in
+        // its editor id is one (3 of them)
+        for (const auto& [book, editorId] : editorIds) {  // the winning override's editor id
+            if (tomes.contains(book) && LowerAscii(editorId).find("debug") != std::string::npos &&
+                result.reached.erase(book)) {
+                ++result.byDebug;
+            }
         }
         if (books) *books = std::move(read);
         return result;

@@ -92,9 +92,11 @@ int main(int argc, char** argv)
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - started).count();
         std::printf("plugins %zu, unreadable %zu, damaged %zu, tomes %zu, reached by record %zu, only by a script "
-                    "property or alias %zu, only by config %zu (%zu configs), kept for a damaged plugin %zu, %lld ms\n",
+                    "property or alias %zu, only by config %zu (%zu configs), kept for a damaged plugin %zu, debug tomes left "
+                    "out %zu, %lld ms\n",
             loadOrder.size(), pass.unreadable.size(), pass.damaged.size(), tomes.size(), pass.byRecord,
-            pass.byLooseOnly, pass.byConfig, pass.configFiles, pass.byDamaged, static_cast<long long>(ms));
+            pass.byLooseOnly, pass.byConfig, pass.configFiles, pass.byDamaged, pass.byDebug,
+            static_cast<long long>(ms));
         for (const auto& u : pass.unreadable) std::printf("  unreadable: %s\n", u.c_str());
         for (const auto& d : pass.damaged) std::printf("  damaged: %s\n", d.c_str());
         if (verbose) {

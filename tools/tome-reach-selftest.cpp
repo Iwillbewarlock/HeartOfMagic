@@ -193,6 +193,7 @@ int RunSelfTest()
     Join(books, Book(0x000802, "ScriptTome", 0x902));
     Join(books, Book(0x000803, "ConfigTome", 0x903));
     Join(books, Book(0x000804, "LostTome", 0x904));
+    Join(books, Book(0x000807, "SU04SpellTomeDebug", 0x907));
     const auto master = Write(dir, "Master.esm", Plugin(0, {}, Group("BOOK", books)));
 
     // Light.esl: its own ids (index 1 = itself, one master) keep only 12 bits, so
@@ -205,7 +206,10 @@ int RunSelfTest()
     // Mod.esp: a placed copy, a compressed NPC inventory, a script property behind XXXX,
     // and a leveled list that lists the light plugin's tome
     Bytes records;
-    Join(records, Group("REFR", Record("REFR", 0, 0x02000001, Sub("NAME", U32Bytes(0x00000800)))));
+    Bytes refrs;
+    Join(refrs, Record("REFR", 0, 0x02000001, Sub("NAME", U32Bytes(0x00000800))));
+    Join(refrs, Record("REFR", 0, 0x02000005, Sub("NAME", U32Bytes(0x00000807))));  // the debug tome, placed
+    Join(records, Group("REFR", refrs));
     Join(records, Group("NPC_", Record("NPC_", kCompressedFlag, 0x02000002, Sub("CNTO", U32Bytes(0x00000801)))));
     Bytes vmad = { 5, 0, 2, 0 };
     Put32(vmad, 0x00000802);
@@ -230,6 +234,7 @@ int RunSelfTest()
         for (std::uint32_t id = 0x800; id <= 0x804; ++id) tomes.insert(TomeReach::MakeKey(m, id));
         tomes.insert(TomeReach::MakeKey(l, 0x805));
         tomes.insert(TomeReach::MakeKey(l, 0x806));
+        tomes.insert(TomeReach::MakeKey(m, 0x807));
         return TomeReach::FindReachedTomes(loadOrder, names, tomes, { cfg });
     };
 
@@ -246,6 +251,7 @@ int RunSelfTest()
         Check(reached(0x802) && pass.byLooseOnly == 1, "a script property behind XXXX reaches its tome, loosely");
         Check(reached(0x803) && pass.byConfig == 1, "a distribution config reaches its tome");
         Check(!reached(0x804), "a tome nothing refers to is not reached");
+        Check(!reached(0x807) && pass.byDebug == 1, "a placed tome with \"debug\" in its editor id is not reached");
         const auto l = names.Id("Light.esl");
         Check(pass.reached.contains(TomeReach::MakeKey(l, 0x805)),
             "a light plugin's tome is reached by its 12-bit id (0x01001805 -> 0x805)");
