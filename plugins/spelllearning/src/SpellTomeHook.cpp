@@ -77,14 +77,15 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         return;
     }
 
-    // A spell equipped in the voice slot is a mod's script or animation spell, and a
+    // A spell equipped in the voice slot is a mod's script or animation spell, a
     // power, lesser power or ability is not a spell (the scanner keeps only kSpell,
-    // SpellScannerScan.cpp): neither is in the tree, so its tome teaches it the
+    // SpellScannerScan.cpp), and a spell with no school has no tree school
+    // (TreeBuilderClassic.cpp): none is in the tree, so its tome teaches it the
     // vanilla way, with no learning target, early learning or weakening
     const bool vanillaOnly = SpellScanner::IsEquippedInVoiceSlot(a_spell) ||
         !SpellEffectivenessHook::CanLearnEarly(a_spell);
     if (vanillaOnly) {
-        logger::info("SpellTomeHook: '{}' is a voice slot spell or not a spell (power, ability) - vanilla handling", a_spell->GetName());
+        logger::info("SpellTomeHook: '{}' is a voice slot spell, a power or ability, or has no school - vanilla handling", a_spell->GetName());
     }
 
     // Another plugin's copy of a tree spell (SpellScannerDuplicates.cpp) stays

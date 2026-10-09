@@ -121,7 +121,7 @@ Magicka cost tier, with *Tiers by Magicka cost* below).
 
 **Algorithm:**
 
-1. **Group spells by school** — unknown schools → "Hedge Wizard"
+1. **Group spells by school** — only the five schools; a spell with no school stays out of the tree
 2. **Discover themes** via `DiscoverThemesPerSchool()` (TF-IDF)
 3. **Build NLP data** — extract text per spell for similarity scoring
 4. **Per-school tree building:**
