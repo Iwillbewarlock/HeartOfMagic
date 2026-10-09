@@ -21,8 +21,8 @@ namespace MagicMenuBookmark
         // origin is the item card's visible top-right corner; the clip folds over it, the spell box sits
         // just above the card, left of the clip.
         constexpr double kRefHeight = 720.0;
-        constexpr double kClipW = 70.0;
-        constexpr double kClipInset = 14.0;  // the clip's right edge, left of the card's right edge
+        constexpr double kClipW = 54.0;      // its flap stays above the description's first line (game run 3, 2026-10-09)
+        constexpr double kClipInset = 10.0;  // the clip's right edge, left of the card's right edge
         constexpr double kBoxW = 230.0, kBoxH = 64.0, kGap = 6.0;
 
         // The item card (SkyUI's ItemMenu, then vanilla's names) and the part of its "background" that is
