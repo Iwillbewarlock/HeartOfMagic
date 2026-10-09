@@ -337,8 +337,9 @@ var LayerBuild = {
             ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
-            // r.zoom is the build's here: no outlines made for names drawn without one
-            nameHalo = TreeStyle.beginLabels(ctx, w.fontSize, r.zoom);
+            // No zoom passed: the names' outlines are made at any zoom when the design
+            // has one (warmed below 0.8, a later zoom-in would make them in one frame)
+            nameHalo = TreeStyle.beginLabels(ctx, w.fontSize);
             if (to === 0) r._labelFontFrom(ctx);
             if (to === 2) {
                 ctx.font = t.chapterSize + 'px ' + TreeStyle.labelFamily();

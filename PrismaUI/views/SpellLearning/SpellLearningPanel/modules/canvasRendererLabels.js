@@ -29,8 +29,9 @@
 
         /**
          * The names that could be drawn at the current pan, in the order they are
-         * placed (in view first, then priority), and how many may be placed
-         * (MAX_LABELS, MAX_LABELS_FOCUS below LABEL_FOCUS_ZOOM). Null when names
+         * placed (the selected spell, then in view, then priority), and how many
+         * may be placed (MAX_LABELS, MAX_LABELS_FOCUS below LABEL_FOCUS_ZOOM; the
+         * selected spell's name is placed past the cap). Null when names
          * are off or the tree is zoomed out too far for them. Shared by renderLabels and
          * LayerScroll (the names in a strip uncovered by a drag).
          * @returns {{candidates: Array, fontSize: number, maxLabels: number}|null}
@@ -127,8 +128,9 @@
                 });
             }
 
-            // In view before the margin, then high priority first; stable on index so
-            // results don't flicker between frames
+            // The selected spell first (even in the margin), then in view before the
+            // margin, then high priority first; stable on index so results don't
+            // flicker between frames
             candidates.sort(this._byLabelOrder);
             // Zoomed out, fewer names: the first MAX_LABELS_FOCUS in that order
             return { candidates: candidates, fontSize: fontSize,
@@ -180,7 +182,7 @@
          * margin: CSS px drawn round the canvas (the tree layer's): the names there
          * are drawn too, so a drag that slides the layer does not show spells
          * without them - after the ones in view, which come out as they would
-         * without it. At most MAX_LABELS.
+         * without it. At most MAX_LABELS, besides the selected spell's.
          */
         renderLabels: function(ctx, cx, cy, cos, sin, margin) {
             // The names on the layer, kept for LayerScroll (a drag moves them with the picture)
@@ -193,8 +195,10 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
-            for (var c = 0; c < candidates.length && placed.length < found.maxLabels; c++) {
+            for (var c = 0; c < candidates.length; c++) {
                 var cand = candidates[c];
+                // The selected name (sorted first) is not held to the cap
+                if (cand.priority < 5 && placed.length >= found.maxLabels) break;
                 var rect = this._labelRect(ctx, cand, fontSize);
 
                 // Collision rejection: the selected node's label always wins
@@ -217,6 +221,9 @@
         },
 
         _byLabelOrder: function(a, b) {
+            // The selected spell before all (in the margin too: a drag brings it in named)
+            var as = a.priority === 5, bs = b.priority === 5;
+            if (as !== bs) return as ? -1 : 1;
             if (a.inView !== b.inView) return a.inView ? -1 : 1;
             return b.priority - a.priority;
         },
