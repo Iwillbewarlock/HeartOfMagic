@@ -132,7 +132,9 @@ school sizes. The Classic setting "One Spell for Copies" (`mergeCopies`, on) tur
   at once, no learning target, early learning, weakening or ISL study. A tome that teaches a power, lesser power
   or ability (a mod's teleport power, for one) gets the same handling: the scan keeps only `kSpell`, so the tree
   never has it, and the progression path would learn it weakened with no way to raise it (2026-10-07).
-  `SpellEffectivenessHook::CanLearnEarly` (kSpell only) guards every way into early learning - `GrantEarlySpell`,
+  A spell with no school (its costliest effect has none of the five) is the same case: the tree builder keeps
+  only the five schools, it can never be a learning target and casting it earns no XP.
+  `SpellEffectivenessHook::CanLearnEarly` (kSpell of one of the five schools) guards every way into early learning - `GrantEarlySpell`,
   `RegisterISLPendingSpell`, `AddXP`'s threshold grant (so the public API and Papyrus cannot weaken a power
   either) - and the co-save load drops powers from the early-learned list and the learning targets, so a save
   from before the fix gets the power back at full strength with its own name.

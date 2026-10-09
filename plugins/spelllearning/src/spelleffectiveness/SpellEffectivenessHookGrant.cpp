@@ -2,10 +2,22 @@
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "ThreadUtils.h"
+#include "SpellScanner.h"
 
 // =============================================================================
 // SPELL GRANTING
 // =============================================================================
+
+bool SpellEffectivenessHook::CanLearnEarly(const RE::SpellItem* spell)
+{
+    if (!spell || spell->GetSpellType() != RE::MagicSystem::SpellType::kSpell) {
+        return false;
+    }
+    // The costliest effect's school, as the learning target and cast XP read it
+    const auto* effect = spell->GetCostliestEffectItem();
+    return effect && effect->baseEffect &&
+        SpellScanner::GetSchoolName(effect->baseEffect->GetMagickSkill()) != "Unknown";
+}
 
 void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
 {
@@ -291,7 +303,7 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
             // Resolve formId in case load order changed
             RE::FormID resolvedId = 0;
             if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                // Saves from before 2026-10-07 can hold a power a tome taught weakened;
+                // Saves from before 2026-10-07 can hold a power or a schoolless spell a tome taught weakened;
                 // dropping it here gives it back its full power and its own name
                 // (OnRevert already put the name back, and nothing renames it again)
                 if (CanLearnEarly(RE::TESForm::LookupByID<RE::SpellItem>(resolvedId))) {
@@ -306,7 +318,7 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
 
         logger::info("SpellEffectivenessHook: Loaded {} early-learned spells", m_earlyLearnedSpells.size());
         if (notSpells > 0) {
-            logger::info("SpellEffectivenessHook: Dropped {} powers or abilities from the early-learned list", notSpells);
+            logger::info("SpellEffectivenessHook: Dropped {} powers, abilities or schoolless spells from the early-learned list", notSpells);
         }
         m_earlySpellCount.store(m_earlyLearnedSpells.size(), std::memory_order_release);
     }
