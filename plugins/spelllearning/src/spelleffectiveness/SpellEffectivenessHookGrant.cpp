@@ -9,7 +9,7 @@
 
 void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
 {
-    if (!spell) {
+    if (!CanLearnEarly(spell)) {
         return;
     }
 
@@ -61,7 +61,7 @@ void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
 
 void SpellEffectivenessHook::RegisterISLPendingSpell(RE::SpellItem* spell)
 {
-    if (!spell) return;
+    if (!CanLearnEarly(spell)) return;
 
     RE::FormID formId = spell->GetFormID();
 
@@ -280,6 +280,7 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
         m_earlySpellCount.store(0, std::memory_order_release);
         m_displayCache.clear();  // Clear display cache too
 
+        uint32_t notSpells = 0;
         for (uint32_t i = 0; i < count; ++i) {
             RE::FormID formId = 0;
             if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
@@ -290,13 +291,23 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
             // Resolve formId in case load order changed
             RE::FormID resolvedId = 0;
             if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                m_earlyLearnedSpells.insert(resolvedId);
+                // Saves from before 2026-10-07 can hold a power a tome taught weakened;
+                // dropping it here gives it back its full power and its own name
+                // (OnRevert already put the name back, and nothing renames it again)
+                if (CanLearnEarly(RE::TESForm::LookupByID<RE::SpellItem>(resolvedId))) {
+                    m_earlyLearnedSpells.insert(resolvedId);
+                } else {
+                    ++notSpells;
+                }
             } else {
                 logger::warn("SpellEffectivenessHook: Failed to resolve formId {:08X}", formId);
             }
         }
 
         logger::info("SpellEffectivenessHook: Loaded {} early-learned spells", m_earlyLearnedSpells.size());
+        if (notSpells > 0) {
+            logger::info("SpellEffectivenessHook: Dropped {} powers or abilities from the early-learned list", notSpells);
+        }
         m_earlySpellCount.store(m_earlyLearnedSpells.size(), std::memory_order_release);
     }
     return true;

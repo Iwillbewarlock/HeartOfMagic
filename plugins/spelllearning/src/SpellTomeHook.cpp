@@ -101,12 +101,14 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         return;
     }
 
-    // A spell equipped in the voice slot is a mod's script or animation spell,
-    // never in the tree (SpellScannerCopies.cpp): its tome teaches it the vanilla
-    // way, with no learning target, early learning or weakening
-    const bool voiceSlot = SpellScanner::IsEquippedInVoiceSlot(a_spell);
-    if (voiceSlot) {
-        logger::info("SpellTomeHook: '{}' is a voice slot spell - vanilla handling", a_spell->GetName());
+    // A spell equipped in the voice slot is a mod's script or animation spell, and a
+    // power, lesser power or ability is not a spell (the scanner keeps only kSpell,
+    // SpellScannerScan.cpp): neither is in the tree, so its tome teaches it the
+    // vanilla way, with no learning target, early learning or weakening
+    const bool vanillaOnly = SpellScanner::IsEquippedInVoiceSlot(a_spell) ||
+        !SpellEffectivenessHook::CanLearnEarly(a_spell);
+    if (vanillaOnly) {
+        logger::info("SpellTomeHook: '{}' is a voice slot spell or not a spell (power, ability) - vanilla handling", a_spell->GetName());
     }
 
     // =========================================================================
@@ -123,7 +125,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // SpellEffectivenessHook applies power scaling. Player then gains
     // mastery through the normal spell-casting XP system.
     // =========================================================================
-    if (DESTIntegration::IsActive() && !voiceSlot) {
+    if (DESTIntegration::IsActive() && !vanillaOnly) {
         logger::info("SpellTomeHook: ISL/DEST active — checking requirements before delegation");
 
         RE::FormID spellFormId = a_spell->GetFormID();
@@ -172,7 +174,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // =========================================================================
     // VANILLA MODE - Instant learn, consume book (like normal Skyrim)
     // =========================================================================
-    if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem || voiceSlot) {
+    if (!hook->m_settings.enabled || !hook->m_settings.useProgressionSystem || vanillaOnly) {
         // Still check if player already knows the spell
         if (player->HasSpell(a_spell) || ProgressionManager::GetSingleton()->PlayerKnowsSpellOrCopy(a_spell->GetFormID())) {
             if (hook->m_settings.showNotifications) {

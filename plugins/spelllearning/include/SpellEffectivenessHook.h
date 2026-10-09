@@ -93,6 +93,14 @@ public:
     bool ScalingFor(RE::FormID spellFormId, float progressPercent,
                     float& effectiveness, float& binaryThreshold) const;
     
+    // Only a spell (kSpell) is learned early and weakened. A power, lesser power or
+    // ability is never in the tree and casting it earns no XP (SpellCastHandler), so
+    // once weakened it would stay weakened for good
+    static bool CanLearnEarly(const RE::SpellItem* spell)
+    {
+        return spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell;
+    }
+
     // Grant spell to player when unlock threshold reached
     static void GrantEarlySpell(RE::SpellItem* spell);
     

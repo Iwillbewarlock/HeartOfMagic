@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "SpellEffectivenessHook.h"
 #include "JsonText.h"
 #include "SKSE/SKSE.h"
 #include <fstream>
@@ -128,11 +129,14 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
 
                 // Resolve formId (handles load order changes)
                 RE::FormID resolvedId = 0;
-                if (a_intfc->ResolveFormID(formId, resolvedId)) {
+                if (!a_intfc->ResolveFormID(formId, resolvedId)) {
+                    logger::warn("ProgressionManager: Failed to resolve target formId {:08X}", formId);
+                } else if (!SpellEffectivenessHook::CanLearnEarly(RE::TESForm::LookupByID<RE::SpellItem>(resolvedId))) {
+                    // A power a tome made the target before 2026-10-07: free the school's slot
+                    logger::info("ProgressionManager: Dropped target {} -> {:08X}, a power or ability", school, resolvedId);
+                } else {
                     m_learningTargets[school] = resolvedId;
                     logger::info("ProgressionManager: Loaded target {} -> {:08X}", school, resolvedId);
-                } else {
-                    logger::warn("ProgressionManager: Failed to resolve target formId {:08X}", formId);
                 }
             }
 

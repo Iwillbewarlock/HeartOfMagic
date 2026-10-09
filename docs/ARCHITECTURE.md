@@ -80,7 +80,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
 - `SpellsTaughtByTomes()` - The spells some tome teaches; the scan marks each spell `taughtByTome` from it
-- `IsEquippedInVoiceSlot(spell)` - The spell is equipped in the voice slot (the default object `kVoiceEquip`); the scan marks `voiceSlot` from it and the tome hook hands such a spell to the vanilla path
+- `IsEquippedInVoiceSlot(spell)` - The spell is equipped in the voice slot (the default object `kVoiceEquip`); the scan marks `voiceSlot` from it and the tome hook hands such a spell to the vanilla path, as it does a power, lesser power or ability (`GetSpellType() != kSpell`, which the scan never keeps; 2026-10-07)
 - `LogSpellsOutOfTree(spells, taught, unreachable)` - Logs, by kind, the scanned spells the tree leaves out (SpellScannerCopies.cpp, below)
 
 **The scan keeps every spell; the tree takes what a tome teaches (2026-09-30):** the panel's "Tomes only"
@@ -129,7 +129,13 @@ school sizes. The Classic setting "One Spell for Copies" (`mergeCopies`, on) tur
   spells are mods' script and animation spells (11 of Smooth Animation's - ChargeEffect, dodge and shield
   bash effects - and a follower call of CJ03Elroy's on the author's load order). One learned would take the
   shout's place, so the tome hook (`OnSpellTomeReadImpl`) gives such a spell the vanilla handling - learned
-  at once, no learning target, early learning, weakening or ISL study.
+  at once, no learning target, early learning, weakening or ISL study. A tome that teaches a power, lesser power
+  or ability (a mod's teleport power, for one) gets the same handling: the scan keeps only `kSpell`, so the tree
+  never has it, and the progression path would learn it weakened with no way to raise it (2026-10-07).
+  `SpellEffectivenessHook::CanLearnEarly` (kSpell only) guards every way into early learning - `GrantEarlySpell`,
+  `RegisterISLPendingSpell`, `AddXP`'s threshold grant (so the public API and Papyrus cannot weaken a power
+  either) - and the co-save load drops powers from the early-learned list and the learning targets, so a save
+  from before the fix gets the power back at full strength with its own name.
 - **Non-player copies:** the game keeps copies of many spells for NPCs, traps and scripts (TrapFireball01,
   HazardGuardianCircleSpell, Miraak's Lightning Storm, cloak damage spells). They share the real spell's name
   and school but have no half-cost perk, so `DetermineSpellTier` falls back to the effect's minimum skill -
