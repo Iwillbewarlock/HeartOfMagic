@@ -42,6 +42,9 @@
   about half as much while you look at it without touching anything.
 - After any change to the tree picture (a repaint, a hover preview, a star move) the panel repainted the
   whole tree twice; once is enough now.
+- **Zoomed out, spell names lose their outline** (Arcane, Night Grimoire, Chalkboard): below zoom 0.8, where
+  only the important names show, the paper- or board-coloured edge round each name is no longer drawn - it
+  cost as much as the name itself - and a design switch no longer prepares outlines that will not be drawn.
 
 ## Heart of Magic Librarian 1.3.0
 

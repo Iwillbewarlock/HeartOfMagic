@@ -449,7 +449,8 @@ inside the image callback, the tree not marked changed.
 switch the build's last frame, the names and chapter titles, took 15-22 ms on Chalkboard: not the drawing
 but the first use of the new face - measuring the names (`measureText`, 4-5 ms, into
 `CanvasRenderer._labelWidths`), shaping them, and above all the glyph outlines the halo's `strokeText`
-needs (8 ms for Chalkboard's chalk face, 3 ms for Arcane's book face); drawn again at once the same names
+needs (8 ms for Chalkboard's chalk face, 3 ms for Arcane's book face; only at zoom 0.8 and above, where
+the names are outlined - see *Names without their outline zoomed out*); drawn again at once the same names
 cost 2-3 ms. `LayerBuild.noteRestyle` (a design, Design Effects, a late stylesheet or web font, a
 language) now also marks the names' font cold (`_textCold`). A build then, after its pieces and before
 the names, measures the names it will draw into the renderer's width cache (the font set on a small
@@ -729,6 +730,18 @@ panel closed and in use:
   `HALO_MIN_SCREEN_PX` (20; the learning spell's glow stays), and a design's glow under known lines below
   `EDGE_GLOW_MIN_ZOOM` (0.8): zoomed out, Arcane drew hundreds of halo sprites and wide strokes per repaint
   (spells 25-45 ms, lines 15-30 ms of it).
+- **Names without their outline zoomed out** (2026-10-09): a design's `labelHalo` (the outline round each
+  name, a `strokeText` before the `fillText`, as costly as it in the CPU-drawn view) is left out below
+  `TreeStyle.LABEL_HALO_MIN_ZOOM` (0.8). `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
+  of names and returns it; `drawLabel` follows it; all three runs pass their zoom - the layer's names
+  (`renderLabels`), the names in a dragged strip (`LayerScroll._labels`, the layer's zoom) and the warm-up
+  (`LayerBuild._warmText`, the build's zoom), which then makes the names' letters filled only. Chapter titles
+  keep their outline at every zoom (a handful, and the only text left below 0.5). Per design: Classic and
+  Modern Dark have no outline; Arcane (dark ink on parchment), Night Grimoire (cream on indigo) and
+  Chalkboard (chalk white on slate) all use a page-coloured outline, which knocks out the lines and spells
+  under a name rather than lifting it off the page - their pages are plain colours with strong contrast to
+  the names, and between 0.5 and 0.8 only the priority names are drawn and known lines lose their glow, so
+  all three drop it alike (no per-design token). Readability there is not checked in the game yet.
 - **Repaint parts in the log** (developer mode): each `[Perf]` line ends with the longest time each part of
   a tree repaint took in those 5 s (`PerfMeter.part`, from `_renderTreeInto`: dividers, edges, nodes,
   bridges, labels, chapters, and `raster` - a one-pixel `getImageData` that makes the browser rasterize the
@@ -1146,7 +1159,8 @@ What it costs, with the tree layer in mind (see *Performance* above):
   growing clip for 600 ms at full rate) was removed on 2026-09-26: in the game every open paid for those
   frames, in the CPU-drawn view, right when the panel was busiest. A design's `reveal`, `revealMs` and
   `inkColor` are ignored.
-- Label outlines cost one `strokeText` per label (at most 150).
+- Label outlines cost one `strokeText` per label (at most 150), at zoom 0.8 and above only
+  (`TreeStyle.LABEL_HALO_MIN_ZOOM`).
 
 Not measured in the game yet; `perfMeter.js` is how to. The first draft of Arcane - glowing sprites
 behind every learned spell and a wide glow stroke under every learned edge - doubled node and edge

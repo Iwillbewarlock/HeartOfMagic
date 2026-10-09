@@ -309,7 +309,7 @@ newer version still loads.
 |-------|--------|
 | Page | `pageColor` (`""` keeps the starfield), `pageGrain` 0-1, `pageGrainColor`, `pageGlow`, `pageGlowAlpha`, `pageGlowRadius`, `pageEdge`, `pageEdgeAlpha` |
 | Ink | `schoolInk` 0-1 and `schoolInkTone`: school colours mixed toward the tone, so the player's own school colours still read on the page. `learningColor` (`""` = the player's setting) |
-| Labels | `labelFont` (a font list, or `var(--name)` to use a CSS variable the design sets per language - the canvas reads it once per design and language), `labelMaxChars`, `labelHalo` (outline colour, `""` = none), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
+| Labels | `labelFont` (a font list, or `var(--name)` to use a CSS variable the design sets per language - the canvas reads it once per design and language), `labelMaxChars`, `labelHalo` (outline colour, `""` = none; drawn at zoom 0.8 and above only), `labelHaloWidth`, `labelUnlocked`, `labelAvailable`, `labelHidden` |
 | Spells | `nodeFill`, `unlockedFill`, `unlockedRim`, `unlockedCore` (`""` = school colour or its dark shade), `lockedStroke`, `mysteryFill`, `focusStroke`, `ringTrack`, `availableAlpha`, `availableRing`, `nodeGlow`, `learningGlow` |
 | Heart | `hubFill`, `hubRing`, `hubText`, `globeColor` (`""` = the player's heart settings), `hubRunes`, `hubEmblem` (an image path drawn in the heart instead of its text; `""` = the text) |
 | Illustrations | `pageOrnament` (an image path for the page's top-left corner, mirrored into all four; needs `pageColor`; `""` = none). Paths are relative to the panel's `index.html`; an image that fails to load is simply not drawn |
