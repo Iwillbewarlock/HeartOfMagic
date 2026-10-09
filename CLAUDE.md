@@ -43,10 +43,9 @@ What are you doing?
 ├─► Working with DEST/ISL compatibility?
 │   └─► docs/DEST-IMPROVEMENTS.md
 │
-├─► Working with the magic menu bookmark (the clip that opens the panel, XP ring and chips in the magic menu)?
+├─► Working with the magic menu widget (the clip that opens the panel, the selected spell's XP ring and tags)?
 │   ├─► How it works, log lines → docs/ARCHITECTURE.md, "11a. MagicMenuBookmark"
-│   ├─► What it looks like → docs/DESIGN.md, "Magic Menu Bookmark"
-│   └─► A menu mod whose card is elsewhere → one line in SKSE/Plugins/SpellLearning/magicmenu_paths.json
+│   └─► What it looks like → docs/DESIGN.md, "Magic Menu Bookmark"
 │
 ├─► Working with BookXP addon?
 │   └─► plugins/BookXP/README.md

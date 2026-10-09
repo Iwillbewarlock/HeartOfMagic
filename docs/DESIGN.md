@@ -1301,22 +1301,24 @@ All mod configuration. Split-row layout for space efficiency.
 ### Magic Menu Bookmark
 
 Drawn by the plugin into the game's magic menu, not by the panel (code: docs/ARCHITECTURE.md, "MagicMenuBookmark";
-spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md).
+spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). A widget at the top right of the
+menu's visible area, 24 in from the top and right edges of a 720-high screen (scaled with the screen); the
+item card itself is left as it is.
 
-- **Bookmark** (`magicMenu.bookmark`): a tan leather clip folded over the spell description box's top-right corner
-  (the user's reference photo, 2026-10-08), a stitch line under the fold and "Heart of Magic" pressed into the
-  flap. The pictures are `Interface/HeartOfMagic/bookmark.dds` and `bookmark_glow.dds` (256x128, the clip in the
-  middle 84% of the width); until they load, and for good if the menu cannot load them, the same clip is drawn
-  with lines and a text field. 80 wide at a 600-wide card, scaled with the card. With the mouse over it the clip
-  rises 4 and the words glow gold: the glow fades in over 0.25 s, then breathes between 60% and 100% every 2 s,
-  and fades out when the mouse leaves. Clicking it closes the magic menu, opens the panel, and closing the
-  panel (any way) opens the magic menu again; a panel opened with the hotkey closes to the game as before.
-- **Tags and XP** (`magicMenu.spellInfo`): by the selected spell's name a ring 1.6 times the name's height - a
-  blue arc as far as the learning progress with the percent inside, a full gold disc when mastered, a grey
-  circle at 0 - and under the name up to four of the panel card's chips in the panel's language, then "+N".
-  Left of the name, or right of it when the name starts at the card's edge. Spells not in the tree (powers,
-  abilities, scrolls, no tree yet) get neither. Redrawn when the selection changes.
-- Not for gamepads (they use the hotkey); one ring per spell list row is out of scope.
+- **Clip** (`magicMenu.bookmark`): a tan leather fold-over clip, about 4:5, with "Heart / of / Magic" pressed
+  into it on three lines and a stitch line under the fold (the user's reference photo, 2026-10-08; pictures
+  made with Gemini). 70 wide, at the widget's right end. With the mouse over it the clip rises 4 and the words
+  glow gold: the glow fades in over 0.25 s, breathes between 60% and 100% every 2 s, and fades out when the
+  mouse leaves. Clicking it closes the magic menu and opens the panel; closing the panel (any way) opens the
+  magic menu again; a panel opened with the hotkey closes to the game as before. Without the pictures the
+  same clip is drawn with lines and a text field.
+- **Spell box** (`magicMenu.spellInfo`): under the clip, 230 wide and 64 high, a dark translucent box with a
+  thin bronze edge. Left: a ring - a blue arc as far as the learning progress with the percent inside, a full
+  gold disc when mastered, a grey circle at 0. Right: the spell's name, and under it up to four of the panel
+  card's tags in the panel's language joined by " · ", then "+N" (two lines when they do not fit on one).
+  Spells not in the tree (powers, abilities, scrolls, no tree yet) show no box. Redrawn when the selection
+  changes.
+- Not for gamepads (they use the hotkey).
 
 ### Key Settings Groups
 

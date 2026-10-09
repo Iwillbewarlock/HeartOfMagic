@@ -1155,51 +1155,46 @@ SpellLearning.GetSourceCap(source)                     ; Cap % for any source
 
 ### 11a. **MagicMenuBookmark** (`plugins/spelllearning/src/magicmenu/`, `plugins/spelllearning/include/magicmenu/MagicMenuBookmark.h`)
 
-A bookmark on the game's magic menu that opens the panel, and the selected spell's XP ring and tag chips
-(what they look like: docs/DESIGN.md, "Magic Menu Bookmark"; spec:
-docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). Drawn straight into the menu's Scaleform
-movie with the AS2 drawing API; no menu SWF is shipped or patched. Everything below runs on the UI thread.
+A widget in the game's magic menu: a leather clip that opens the panel, and under it a box with the
+selected spell's XP ring, name and tags (what it looks like: docs/DESIGN.md, "Magic Menu Bookmark"; spec:
+docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). Drawn with the AS2 drawing API into the
+magic menu's own Scaleform movie, as `hom_widget` on its `_root` - never inside the menu's own clips: the
+first two game runs drew on the item card and the menu's layout moved (2026-10-09). No menu SWF is shipped
+or patched. Everything runs where SKSE UI tasks and the movie's frame handlers run (the game's main thread
+in the run of 2026-10-08).
 
-- **`MagicMenuBookmark.cpp`** - `Install()` (kDataLoaded) reads `SKSE/Plugins/SpellLearning/magicmenu_paths.json`
-  and adds a `MenuOpenCloseEvent` sink. On the menu opening it looks for the item card, and while it is
-  missing or has no width an empty `hom_finder` clip on `_root` tries again every movie frame for up to 30
-  frames (a frame, not a UI task: SKSE may run tasks queued from a task in the same pass). The card: the
-  file's `cardPaths` in order (`GFxMovieView::GetVariable` with the dotted path), else the first display
-  object under `_root.Menu_mc` (3 levels, breadth first) whose name contains "itemcard", logged with its path so
-  it can be added to the file. The card's size and position come from `getBounds(card)` in its own
-  coordinates (its children's `_x`/`_y`; `_width` would carry the card's own scale). The card's children
-  (2 levels) are logged once per session, with whether the card has its own `onPress`/`onRelease` (which
-  would take the bookmark's clicks); with no card, the root's children.
-  A new menu mod whose card is elsewhere needs one path line in the file, no rebuild.
-- **`MagicMenuTab.cpp`** - the bookmark (`hom_bookmark` on the card, gated by `UIManager::MagicMenuBookmark()`):
-  a drawn clip (`hom_vec`, outline table `kOutline`) and the two pictures loaded with `loadMovie` (`hom_pic`,
-  `hom_picGlow`, hidden until both have a width, then fitted over the clip and the drawn one hidden; after 60
-  frames without them the drawn clip stays). `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut`
-  / `onEnterFrame`: the click calls `RequestPanel()`, hover moves the clip up 4 and sets the glow target, the
-  frame tick fits the pictures and steps the glow's `_alpha` (drawn mode: a gold text field with a
-  `flash.filters.GlowFilter`, logged whether the movie supports filters).
+- **`MagicMenuBookmark.cpp`** - `Install()` (kDataLoaded) adds a `MenuOpenCloseEvent` sink. On the menu
+  opening a UI task places `hom_widget` at the top right of `GFxMovieView::GetVisibleFrameRect()` (margins and
+  sizes in units of a 720-high screen, so any resolution or UI mod gets the same place), unless both switches
+  are off. Then `Tab::Attach` (gated by `UIManager::MagicMenuBookmark()` and an initialized UIManager) and
+  `SpellInfo::Attach` (gated by `MagicMenuSpellInfo()`).
+- **`MagicMenuTab.cpp`** - the clip (`hom_bookmark`): a drawn clip (`hom_vec`, outline table `kOutline`, three
+  text lines) and the two pictures `Interface/HeartOfMagic/bookmark.dds` / `bookmark_glow.dds` loaded with
+  `loadMovie` into hidden holders (two path forms each, Interface-relative and `img://`; the first loads in the
+  game), fitted over the clip once both have a width; after 60 frames without them the drawn clip stays.
+  `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut` / `onEnterFrame`: the click calls
+  `RequestPanel()`, hover lifts the clip 4 and sets the glow target, the frame tick fits the pictures and steps
+  the glow's `_alpha`. The game's movie has no `flash.filters.GlowFilter`, so the drawn clip's glow is gold
+  letters only (logged).
 - **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
-  and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark.
-  `UIManager::HidePanel()` (Esc, hotkey, close button, Papyrus) takes that mark and queues `kShow` for
-  MagicMenu, which reads its list again. The mark is set only when the panel did open (not initialized: no
-  mark), the bookmark is attached only with UIManager initialized, and a menu opening drops a click whose
-  close never came. `EnsureFocusReleased()` (new game, save load, the panel's main-menu reset) clears the
-  mark first, so a load never reopens the menu.
+  and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark only if
+  it did open. `UIManager::HidePanel()` (Esc, hotkey, close button, Papyrus) takes the mark and queues `kShow`
+  for MagicMenu, which reads its list again. `EnsureFocusReleased()` (new game, save load, the panel's
+  main-menu reset) clears the mark first, so a load never reopens the menu; a menu opening drops a click whose
+  close never came.
 - **`MagicMenuSpellInfo.cpp`** - an empty `hom_watch` clip whose `onEnterFrame` compares the selected spell
   (`MagicMenu::itemList->GetSelectedItem()`, else the list's `selectedEntry.formId`) with the last one and
   redraws `hom_info` on a change: one native call per frame while the menu is open (upgrade path: a vfunc hook
   on `MagicMenu::PostDisplay`). Only `ProgressionManager::IsTreeSpell` spells; progress from
-  `GetProgressPercent`, `IsSpellMastered`; chips exactly as the panel card builds them
+  `GetProgressPercent`, `IsSpellMastered`; tags exactly as the panel card builds them
   (`SpellScanner::BuildSpellChips` + `Librarian::MergeCatalogChips`), named by `HudNotify::Text("chips.<id>")`
   - `HudNotify` keeps the language file's `chips.*` keys next to `hud.*`, so they follow the corner messages'
-  language (the panel's, or English with Notification Language set to English, since the menu draws them
-  in the game's font too), reread on a language change. The first selection after a game start without a
-  scan reads `spell_catalog.json` once (`MergeCatalogChips`).
-  The spell name's text field: the file's `titleFields`, else a top-left guess.
-- **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `card at` / `card found by search at` /
-  `card not found`, `bookmark attached`, `bookmark pictures loaded` or `did not load`, `glow filter on` /
-  `not supported`, `spell info attached (title field: ...)`, `selected <name>`, `bookmark clicked`, and
-  `UIManager: back to the magic menu`.
+  language (the panel's, or English with Notification Language set to English), reread on a language change.
+  The first selection after a game start without a scan reads `spell_catalog.json` once (`MergeCatalogChips`).
+- **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `widget at x .. y ..` with the visible
+  area, `bookmark attached`, `bookmark pictures loaded (... path form ...)` or `did not load`, `drawn bookmark,
+  glow filter ...`, `spell box attached`, `bookmark clicked`, and `UIManager: back to the magic menu`;
+  `selected <name>` at debug level.
 
 <a id="modder-api-reference"></a>
 ### Modder API Reference
