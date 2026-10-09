@@ -313,7 +313,7 @@ a strip bare). Another shift moves the queued pieces with the picture (`moveRect
 screen-aligned and must not overlap, so a name cut by a strip edge would show as half a name: the layer
 keeps the names it placed (`_layerLabels`, from `renderLabels`), moves them with the picture, draws the
 ones reaching into a strip (outline and descenders counted) again clipped to it, and places new names
-only inside strips, against the kept ones; the 150-name cap counts the names on screen, not those left
+only inside strips, against the kept ones; the name cap (150, 50 below zoom 0.8 since 2026-10-09) counts the names on screen, not those left
 in the margin behind the drag (with twice that kept on the layer at most) (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
 `_keepLabel`, which both use). Chapter titles are drawn through the layer's margin (`renderChapters`'
 `margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
@@ -512,6 +512,23 @@ wheel zooms stayed where they were (61 before, 64 after, of about 3,400 frames -
 0.4-0.9 s in both, from the machine and Modern Dark's starfield, not from the tree). The shift itself
 (clear and draw instead of `'copy'`) is 2.6 → 2.4 ms. `modules/canvasCullTest.js` checks the grid
 against the full loop on 300 boxes.
+
+**Names from the culling index, and fewer of them at mid zoom** (2026-10-09). `_labelCandidates` looped
+over every spell to find the ones on the canvas and its margin. It now asks `_nodesInBox` for the world
+box holding that screen box (`_labelWorldBox`: rotation, zoom and pan undone, padded by `LABEL_CULL_PAD`
+world units against rounding) and keeps its own screen test, so the candidates and their order are the
+full loop's (`_gridPick` gives indices ascending, the old loop's order, which placement depends on).
+The candidates are worked out once a frame (`LayerScroll._found`) and once per build (`LayerBuild._warmText`,
+`renderLabels`), not per strip or piece. A canvas-sized box zoomed out covers more cells than `CULL_MAX_CELL_SHARE`
+allows (in the measurement below at zoom 0.9 and under) and looks at every spell as before, so the gain is at higher zoom: JavaScript
+cost of one `_labelCandidates` (`node --jitless`, 1,400 spells over a 6,000-unit radius, 1600x1000, margin
+150) 0.26 → 0.15 ms at zoom 1.3, unchanged at 0.6 and 0.9; with JIT 0.05 → 0.04 ms. The ~1.7 ms of a piece
+above is mostly the chapter titles and the names' text, not this loop. Between `LABEL_MIN_ZOOM` (0.5) and
+`LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
+`MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (in view first, then
+priority), so the selected, hovered and learning names stay; each name left out saves a halo
+`strokeText` and a `fillText` (not measured in game). `modules/labelCullTest.js` checks the index's
+candidates against the full loop's on 140 views (zooms 0.5-2.2, turned, with margins) and both caps.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
@@ -1146,7 +1163,7 @@ What it costs, with the tree layer in mind (see *Performance* above):
   growing clip for 600 ms at full rate) was removed on 2026-09-26: in the game every open paid for those
   frames, in the CPU-drawn view, right when the panel was busiest. A design's `reveal`, `revealMs` and
   `inkColor` are ignored.
-- Label outlines cost one `strokeText` per label (at most 150).
+- Label outlines cost one `strokeText` per label (at most 150; 50 below zoom 0.8).
 
 Not measured in the game yet; `perfMeter.js` is how to. The first draft of Arcane - glowing sprites
 behind every learned spell and a wide glow stroke under every learned edge - doubled node and edge

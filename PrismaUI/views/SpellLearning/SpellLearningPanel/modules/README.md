@@ -47,13 +47,14 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `layoutLineClear.js` | 570 | `LayoutLineClear`: a search that moves spells so the straight lines pass them by, meet at open angles, and keep apart from each other (bundles of long lines included); runs as a job (`start` / `step`) that can stop and resume |
 | `layoutLineGrid.js` | 450 | `LayoutLineClear`'s spatial grids (spells by cell, lines by the cells they pass near) and the fans a spell's search looks at; load right after `layoutLineClear.js` |
 | `canvasCullTest.js` | 133 | Node tests for the culling index: the spells and lines a box gets from the grids are exactly those the full loop draws, in order; rebuilt when the lists change; not used in edit mode |
+| `labelCullTest.js` | 141 | Node tests for the spell names: the candidates from the culling index are exactly the full loop's, in order (140 views); 50 names at most below zoom 0.8, the learning ones kept, 150 above |
 | `layerFlowTest.js` | 405 | Node tests for how a frame gets its tree layer: LayerScroll's shift and piece queue, `_drawTree`'s order (scroll, spread build, at once, stale build dropped, glide build and restart, restart cap, urgent build, leftover pieces drawn on a stretched frame or left waiting), a new font's widths and letters made before the names |
 | `starCadenceTest.js` | 181 | Node tests for the stars' own pace (`Starfield.advance` every `STAR_FRAME_MS`, never while still, drawing moves nothing, a move under one opacity step), `_syncStarfield`, and `_drawTree` leaving the tree canvas alone after a key's first frame (one repaint per change) |
 | `pageBuildTest.js` | 210 | Node tests for the design page painted over frames (`TreeStyle.stepPage`): step order, bands adding up to the one rect, what stands in meanwhile, look changes, frames asked for without marking the tree, the idle timer |
 | `layoutDeclutterTest.js` | 362 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
-| `canvasRendererV2.js` | 572 | `CanvasRenderer`, the tree's canvas renderer: its state and constants, start-up, canvas size, render loop, public calls, the `_needsRender` accessor. The methods live in the `canvasRenderer*.js` files below, each an IIFE that copies a table of functions onto `CanvasRenderer` (loaded right after this file) |
+| `canvasRendererV2.js` | 574 | `CanvasRenderer`, the tree's canvas renderer: its state and constants, start-up, canvas size, render loop, public calls, the `_needsRender` accessor. The methods live in the `canvasRenderer*.js` files below, each an IIFE that copies a table of functions onto `CanvasRenderer` (loaded right after this file) |
 | `canvasRendererColors.js` | 132 | School colours, colours a design and the player both set (`_designOrPlayer`), colour helpers |
 | `canvasRendererInput.js` | 464 | Mouse and wheel events, screen to world, hit testing (`findNodeAt`), hover, tooltip |
 | `canvasRendererSelect.js` | 177 | Selecting a spell and focusing on it, the dependency path sets, turning the wheel |
@@ -64,7 +65,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `canvasRendererEdges.js` | 439 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |
 | `canvasRendererNodes.js` | 418 | All spells: the pass per level of detail, NodeBatch batching (`_batchPlainNode`), shapes, sizes, dimming |
 | `canvasRendererSpell.js` | 294 | One spell drawn by itself: `renderNode`, `renderMysteryNode` |
-| `canvasRendererLabels.js` | 221 | Spell names: candidates, boxes, placement without overlaps (shared with LayerScroll) |
+| `canvasRendererLabels.js` | 251 | Spell names: candidates (from the culling index), boxes, placement without overlaps (shared with LayerScroll); fewer below zoom 0.8 (`MAX_LABELS_FOCUS`) |
 | `canvasRendererLearning.js` | 529 | Learning paths: the growing-path animation, lasting paths, travelling pulses |
 | `nodeBatch.js` | 262 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |

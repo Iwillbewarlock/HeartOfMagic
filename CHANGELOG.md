@@ -42,6 +42,9 @@
   about half as much while you look at it without touching anything.
 - After any change to the tree picture (a repaint, a hover preview, a star move) the panel repainted the
   whole tree twice; once is enough now.
+- Zoomed out to the middle range (where only important spell names show), at most 50 names are drawn
+  instead of 150, the selected and learning ones first; zoomed in, the names are found among the nearby
+  spells only. The names shown are otherwise the same.
 
 ## Heart of Magic Librarian 1.3.0
 
