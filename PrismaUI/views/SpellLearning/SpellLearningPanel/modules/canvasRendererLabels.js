@@ -195,10 +195,11 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
+            // The selected name (sorted first) is not counted against the cap
+            var capped = 0;
             for (var c = 0; c < candidates.length; c++) {
                 var cand = candidates[c];
-                // The selected name (sorted first) is not held to the cap
-                if (cand.priority < 5 && placed.length >= found.maxLabels) break;
+                if (cand.priority < 5 && capped >= found.maxLabels) break;
                 var rect = this._labelRect(ctx, cand, fontSize);
 
                 // Collision rejection: the selected node's label always wins
@@ -213,6 +214,7 @@
 
                 var lab = this._keepLabel(cand, rect);
                 placed.push(lab);
+                if (cand.priority < 5) capped++;
                 ctx.globalAlpha = lab.alpha;
                 TreeStyle.drawLabel(ctx, cand.text, cand.x, cand.y, cand.color);
             }

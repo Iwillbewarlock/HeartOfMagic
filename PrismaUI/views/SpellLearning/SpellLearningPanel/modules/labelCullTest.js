@@ -4,8 +4,8 @@
  * the full loop over every spell gives (same spells, same order, same places)
  * for many pans, zooms, turns and margins; and below LABEL_FOCUS_ZOOM at most
  * MAX_LABELS_FOCUS names are placed, the most important first, MAX_LABELS above;
- * the selected spell's name, in the layer's margin, is placed (renderLabels:
- * first; LayerScroll._labels: past a cap already full).
+ * the selected spell's name, in the layer's margin, is placed past a full cap
+ * (renderLabels and LayerScroll._labels).
  *
  * Depends on: CanvasRenderer (canvasRendererV2.js, canvasRendererData.js,
  * canvasRendererLabels.js), LayerScroll, settings; sets its own state stand-in
@@ -147,8 +147,8 @@ var LabelCullTest = {
     /**
      * The selected spell in the layer's margin while the cap is full of names in
      * view (r.nodes: the 120 of the zoom 0.6 case): renderLabels places its name
-     * first (one of the 50), and a strip LayerScroll draws over it places it past
-     * a cap already full (a drag bringing it in shows it named).
+     * besides the 50, and a strip LayerScroll draws over it places it past a cap
+     * already full (a drag bringing it in shows it named).
      */
     _selectedPastCap: function(r, ctx, g) {
         var sel = { id: 'sel', formId: '0xsel', name: 'Chosen', school: 'Destruction', state: 'available',
@@ -160,8 +160,8 @@ var LabelCullTest = {
             return false;
         };
         r.renderLabels(ctx, 1500, 1000, 1, 0, 150);
-        this.check(has(r._layerLabels) && r._layerLabels.length === 50,
-            'zoom 0.6, 120 learnable in view: the selected spell in the margin still among the 50 names (' + r._layerLabels.length + ')');
+        this.check(has(r._layerLabels) && r._layerLabels.length === 51,
+            'zoom 0.6, 120 learnable in view: the selected spell in the margin still named, besides the 50 (' + r._layerLabels.length + ')');
         var LS = g.LayerScroll;
         if (!LS || typeof LS._labels !== 'function') { this.check(false, 'LayerScroll loaded'); return; }
         // The layer's names made with nothing selected (50 in view: the cap full on

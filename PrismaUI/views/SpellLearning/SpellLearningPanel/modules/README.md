@@ -66,7 +66,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `canvasRendererEdges.js` | 439 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |
 | `canvasRendererNodes.js` | 418 | All spells: the pass per level of detail, NodeBatch batching (`_batchPlainNode`), shapes, sizes, dimming |
 | `canvasRendererSpell.js` | 294 | One spell drawn by itself: `renderNode`, `renderMysteryNode` |
-| `canvasRendererLabels.js` | 258 | Spell names: candidates (from the culling index), boxes, placement without overlaps (shared with LayerScroll); fewer below zoom 0.8 (`MAX_LABELS_FOCUS`); the selected spell's first, past the cap |
+| `canvasRendererLabels.js` | 260 | Spell names: candidates (from the culling index), boxes, placement without overlaps (shared with LayerScroll); fewer below zoom 0.8 (`MAX_LABELS_FOCUS`); the selected spell's first, past the cap |
 | `canvasRendererLearning.js` | 529 | Learning paths: the growing-path animation, lasting paths, travelling pulses |
 | `nodeBatch.js` | 262 | `NodeBatch`: locked (lock look too), learnable (no XP ring yet), undiscovered and known spells collected into one path per look, in three layers, and drawn with a few paint calls; the school shapes and their turn toward the centre |
 | `animClock.js` | 37 | `AnimClock`: how many fixed animation steps are due since the last frame, so the globe, stars and pulses keep their speed at any frame rate |
