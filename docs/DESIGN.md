@@ -294,6 +294,19 @@ layer being built again over the frames after a zoom step no longer paints the s
   (zoom settling, glide end). In the desktop bench the recording made a tree change 8.6 → 21 ms (every
   call through a wrapper) and a replay drew as much as the whole recorded area, never less than a culled
   repaint; in game a repaint is already 12-19 ms (`[Perf]` worst).
+- Looked at and not done (2026-10-09): a lower pixel ratio while dragging or zooming. `render()` drops it to 1
+  only at the `minimal` level of detail, and only when `devicePixelRatio > 1`; in game it is most likely 1
+  (Ultralight's default device scale; PrismaUI shows no other setting, the PrismaUI Lab assumes 1.0; never
+  logged, so not confirmed). Above 1 it would still cost more than it saves: a pixel ratio change resizes
+  (clears) the canvas, gives the layer a new size (`_ensureTreeLayer` marks it stale) and drops a build
+  (`LayerBuild.valid`), so each gesture would pay two whole repaints (12-19 ms in game), at its start and
+  when it settles, where a drag now draws only strips (2.5-8 ms).
+- Looked at and not done (2026-10-09): holding the stars still during a drag or wheel. No frame is booked
+  for the stars then (animation frames stop while `isPanning` and `INPUT_QUIET_MS` after a press or wheel);
+  a frame the drag asks for may move them (`_syncStarfield`, every `STAR_FRAME_MS`), but that frame repaints
+  the background anyway: the paste offset (and, for world-space stars, the pan) is in the StaticBase key, and
+  `StaticBase.draw` never keeps a picture while stars move. What stopping them would save is the move
+  itself, a few hundred additions.
 
 **A drag shifts the tree layer** (`modules/layerScroll.js`, 2026-09-27). Once a drag had used up the
 layer's margin, the whole layer was repainted - every spell, line and name - in the middle of the drag,
