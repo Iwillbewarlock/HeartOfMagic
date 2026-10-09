@@ -462,8 +462,9 @@ inside the image callback, the tree not marked changed.
 switch the build's last frame, the names and chapter titles, took 15-22 ms on Chalkboard: not the drawing
 but the first use of the new face - measuring the names (`measureText`, 4-5 ms, into
 `CanvasRenderer._labelWidths`), shaping them, and above all the glyph outlines the halo's `strokeText`
-needs (8 ms for Chalkboard's chalk face, 3 ms for Arcane's book face; only at zoom 0.8 and above, where
-the names are outlined - see *Names without their outline zoomed out*); drawn again at once the same names
+needs (8 ms for Chalkboard's chalk face, 3 ms for Arcane's book face; made at any zoom, also below 0.8 where
+the names are not outlined - see *Names without their outline zoomed out* - since a zoom-in after a design
+change made there would otherwise put them all in one frame); drawn again at once the same names
 cost 2-3 ms. `LayerBuild.noteRestyle` (a design, Design Effects, a late stylesheet or web font, a
 language) now also marks the names' font cold (`_textCold`). A build then, after its pieces and before
 the names, measures the names it will draw into the renderer's width cache (the font set on a small
@@ -539,10 +540,15 @@ cost of one `_labelCandidates` (`node --jitless`, 1,400 spells over a 6,000-unit
 150) 0.26 → 0.15 ms at zoom 1.3, unchanged at 0.6 and 0.9; with JIT 0.05 → 0.04 ms. The ~1.7 ms of a piece above is not this loop (about 0.1 ms
 with JIT in node); what the rest of it is was not measured here. Between `LABEL_MIN_ZOOM` (0.5) and
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
-`MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (in view first, then
-priority), so the selected, hovered and learning names stay; each name left out saves a halo
-`strokeText` and a `fillText` (not measured in game). `modules/labelCullTest.js` checks the index's
-candidates against the full loop's on 140 views (zooms 0.5-2.2, turned, with margins) and both caps.
+`MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (the selected spell,
+then in view, then priority), so the selected, hovered and learning names stay; each name left out saves a
+`fillText` (no outline below 0.8, see *Names without their outline zoomed out*; not measured in game). The
+selected spell sorts first even in the layer's margin and is not held to the cap there or in a dragged
+strip (`LayerScroll._labels` places it past a full cap), so a drag brings it in named; a hovered spell
+(priority 4, like the spells on the hovered path, which can be many) stays under the cap.
+`modules/labelCullTest.js` checks the index's candidates against the full loop's on 140 views (zooms
+0.5-2.2, turned, with margins), both caps, and the selected spell in the margin with 120 learnable names
+in view at zoom 0.6.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
@@ -763,9 +769,11 @@ panel closed and in use:
 - **Names without their outline zoomed out** (2026-10-09): a design's `labelHalo` (the outline round each
   name, a `strokeText` before the `fillText`, as costly as it in the CPU-drawn view) is left out below
   `TreeStyle.LABEL_HALO_MIN_ZOOM` (0.8). `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
-  of names and returns it; `drawLabel` follows it; all three runs pass their zoom - the layer's names
-  (`renderLabels`), the names in a dragged strip (`LayerScroll._labels`, the layer's zoom) and the warm-up
-  (`LayerBuild._warmText`, the build's zoom), which then makes the names' letters filled only. Chapter titles
+  of names and returns it; `drawLabel` follows it; the layer's names (`renderLabels`) and the names in a
+  dragged strip (`LayerScroll._labels`, the layer's zoom) pass their zoom. The warm-up
+  (`LayerBuild._warmText`) passes none: it makes the names' outlined letters at any zoom when the design has
+  an outline (it is spread over frames, so leaving them out below 0.8 saved nothing, and the first zoom-in
+  past 0.8 then made the new font's outlines in one frame). Chapter titles
   keep their outline at every zoom (a handful, and the only text left below 0.5). Per design: Classic and
   Modern Dark have no outline; Arcane (dark ink on parchment), Night Grimoire (cream on indigo) and
   Chalkboard (chalk white on slate) all use a page-coloured outline, which knocks out the lines and spells

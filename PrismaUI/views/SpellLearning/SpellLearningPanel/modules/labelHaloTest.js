@@ -5,10 +5,10 @@
  * - TreeStyle.beginLabels / drawLabel: a design with an outline strokes each
  *   name at TreeStyle.LABEL_HALO_MIN_ZOOM and above, not below it; with no zoom
  *   given it strokes as before; a design without one never strokes.
- * - LayerBuild._warmText: below the threshold the names' letters are made
- *   filled only (no outline that will not be drawn), the chapter titles'
- *   letters still outlined (titles keep their outline at every zoom); above
- *   it both are outlined.
+ * - LayerBuild._warmText: the names' letters are made outlined and filled at
+ *   any zoom, below the threshold too (a later zoom-in would otherwise make
+ *   the new font's outlines in one frame), and the chapter titles' letters
+ *   outlined as well.
  *
  * Depends on: treeStyle.js (run here in a sandbox of its own, so the page's
  * globals are not touched), LayerBuild (layerBuild.js); swaps the global
@@ -71,7 +71,7 @@ var LabelHaloTest = {
         return { passed: this.passed, failed: this.failed };
     },
 
-    /** The warm-up makes only the outlines that will be drawn. */
+    /** The warm-up makes the names' outlines at any zoom when the design has one. */
     _warm: function(TS) {
         var g = (typeof global !== 'undefined') ? global : window;
         var B = g.LayerBuild;
@@ -98,7 +98,7 @@ var LabelHaloTest = {
             var low = warm(0.6), high = warm(0.9);
             var nameLetters = function(l) { return l.filter(function(x) { return / [ab]$/.test(x); }); };
             var titleStrokes = function(l) { return l.filter(function(x) { return /^stroke [—Fire ]$/.test(x); }).length; };
-            this.check(nameLetters(low).join() === 'fill a,fill b', 'zoom 0.6: the names\' letters made filled only');
+            this.check(nameLetters(low).join() === 'stroke a,fill a,stroke b,fill b', 'zoom 0.6: the names\' letters outlined and filled too (ready for a zoom-in)');
             this.check(titleStrokes(low) === 6, '...the chapter titles\' letters still outlined');
             this.check(nameLetters(high).join() === 'stroke a,fill a,stroke b,fill b', 'zoom 0.9: the names\' letters outlined and filled');
             this.check(titleStrokes(high) === 6, '...and the titles\' too');

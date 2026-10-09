@@ -3,10 +3,12 @@
  * candidates _labelCandidates takes from the culling index are exactly the ones
  * the full loop over every spell gives (same spells, same order, same places)
  * for many pans, zooms, turns and margins; and below LABEL_FOCUS_ZOOM at most
- * MAX_LABELS_FOCUS names are placed, the most important first, MAX_LABELS above.
+ * MAX_LABELS_FOCUS names are placed, the most important first, MAX_LABELS above;
+ * the selected spell's name, in the layer's margin, is placed (renderLabels:
+ * first; LayerScroll._labels: past a cap already full).
  *
  * Depends on: CanvasRenderer (canvasRendererV2.js, canvasRendererData.js,
- * canvasRendererLabels.js), settings; sets its own state stand-in
+ * canvasRendererLabels.js), LayerScroll, settings; sets its own state stand-in
  */
 
 var LabelCullTest = {
@@ -124,6 +126,7 @@ var LabelCullTest = {
             for (k = 0; k < placed.length; k++) if (placed[k].node.state === 'learning') learning++;
             this.check(placed.length === 50, 'zoom 0.6: 50 of 120 names placed (' + placed.length + ')');
             this.check(learning === 20, 'zoom 0.6: every name being learned among them (' + learning + ' of 20)');
+            this._selectedPastCap(r, ctx, g);
             r.zoom = 1.0;
             spread(200, 120, 6);
             r.renderLabels(ctx, 1500, 1000, 1, 0, 0);
@@ -139,6 +142,49 @@ var LabelCullTest = {
             settings.schoolVisibility = savedG.vis; settings.showNodeNames = savedG.names; g.state = savedG.state;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * The selected spell in the layer's margin while the cap is full of names in
+     * view (r.nodes: the 120 of the zoom 0.6 case): renderLabels places its name
+     * first (one of the 50), and a strip LayerScroll draws over it places it past
+     * a cap already full (a drag bringing it in shows it named).
+     */
+    _selectedPastCap: function(r, ctx, g) {
+        var sel = { id: 'sel', formId: '0xsel', name: 'Chosen', school: 'Destruction', state: 'available',
+                    x: (-120 - 1500) / 0.6, y: 0 };    // screen x -120: in the 150 px margin, not in view
+        r.nodes.push(sel); r._cullDirty = true;
+        r.selectedNode = sel;
+        var has = function(list) {
+            for (var i = 0; i < list.length; i++) if (list[i].node === sel) return true;
+            return false;
+        };
+        r.renderLabels(ctx, 1500, 1000, 1, 0, 150);
+        this.check(has(r._layerLabels) && r._layerLabels.length === 50,
+            'zoom 0.6, 120 learnable in view: the selected spell in the margin still among the 50 names (' + r._layerLabels.length + ')');
+        var LS = g.LayerScroll;
+        if (!LS || typeof LS._labels !== 'function') { this.check(false, 'LayerScroll loaded'); return; }
+        // The layer's names made with nothing selected (50 in view: the cap full on
+        // screen), then the spell selected and a strip drawn over it
+        var savedHalo = g.TreeStyle.tokens.labelHaloWidth;
+        g.TreeStyle.tokens.labelHaloWidth = 0;
+        r.selectedNode = null;
+        r.renderLabels(ctx, 1500, 1000, 1, 0, 150);
+        r.selectedNode = sel;
+        var gc = { font: '10px x', measureText: ctx.measureText, save: function() {}, restore: function() {},
+                   setTransform: function() {}, translate: function() {}, beginPath: function() {},
+                   rect: function() {}, clip: function() {} };
+        var view = { cx: 1500, cy: 1000, cos: 1, sin: 0 };
+        LS._found = undefined;
+        try {
+            LS._labels(r, gc, [0, 0, 100, 2300], 1, 150, view, { l: 0, r: 3000, t: 0, b: 2000 }, false);
+            this.check(r._layerLabels.length === 51 && has(r._layerLabels),
+                'a dragged strip over the margin names the selected spell with the cap (50 in view) already full');
+        } finally {
+            LS._found = undefined;
+            g.TreeStyle.tokens.labelHaloWidth = savedHalo;
+        }
+        r.selectedNode = null;
     }
 };
 

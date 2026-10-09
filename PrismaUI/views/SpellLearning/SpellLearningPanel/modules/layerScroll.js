@@ -462,7 +462,8 @@ var LayerScroll = {
      * The names in a strip: kept ones reaching into it drawn again (clipped to
      * it, their outline and descenders counted), new ones placed in it against
      * the kept ones. The cap counts the names on screen, not the ones left in
-     * the margin behind the drag. Returns the new names that reach past the
+     * the margin behind the drag; the selected spell's name is placed past
+     * it. Returns the new names that reach past the
      * strip (none with keptOnly, which places no new ones).
      */
     _labels: function(r, g, rect, dpr, margin, view, viewCss, keptOnly) {
@@ -512,8 +513,10 @@ var LayerScroll = {
         var cands = found.candidates;
         var keptMax = found.maxLabels * this.KEPT_MAX_SHARE;
         var pad = r.LABEL_PAD, fontSize = found.fontSize;
-        for (var c = 0; c < cands.length && shown < found.maxLabels && kept.length < keptMax; c++) {
+        for (var c = 0; c < cands.length; c++) {
             var cand = cands[c];
+            // The selected name (sorted first) is not held to the caps
+            if (cand.priority < 5 && !(shown < found.maxLabels && kept.length < keptMax)) break;
             if (have[cand.node.id]) continue;
             // Above or below the strip: its box cannot meet it (the box's top and
             // bottom as _labelRect makes them), and its width need not be looked up
