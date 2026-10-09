@@ -20,7 +20,7 @@ namespace MagicMenuBookmark::Tab
         // Sizes for a clip kTabW wide, scaled to the width the widget gives it. y=0 is the line
         // under the fold (where a page edge would sit): the fold rises kFoldH above it, the flap hangs kFlapH.
         constexpr double kTabW = 90.0, kFoldH = 7.0, kFlapH = 112.0, kCorner = 8.0, kHoverRise = 4.0;
-        constexpr std::uint32_t kLeather = 0xA0643A, kLeatherEdge = 0x6E4024, kStitch = 0xE8DCC8, kInk = 0x5E331B;
+        constexpr std::uint32_t kLeather = 0x56463A, kLeatherEdge = 0x3A2E25, kStitch = 0x8C8070, kInk = 0x2E241C;  // dark worn leather (2026-10-09 picture)
         constexpr std::uint32_t kGold = 0xFFD27A;
         constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
         constexpr double kLabelY = 35.0, kLabelH = 54.0, kLabelSize = 15.0;
@@ -40,7 +40,7 @@ namespace MagicMenuBookmark::Tab
         constexpr std::array<const char*, 2> kGlowPicture{ "HeartOfMagic/bookmark_glow.dds",
                                                            "img://Interface/HeartOfMagic/bookmark_glow.dds" };
         constexpr std::array<const char*, 2> kImgNames{ "img0", "img1" };
-        constexpr double kPicContentW = 0.7107, kPicPadX = 0.1447, kPicBorderY = 0.0875, kPicAspect = 1.0;
+        constexpr double kPicContentW = 0.7102, kPicPadX = 0.1449, kPicBorderY = 0.0875, kPicAspect = 1.0;
         constexpr int kPictureWaitFrames = 60;  // frames to wait for both pictures before settling on the lines
 
         // Gold glow while hovered: fade in over kGlowFadeMs, then breathe between kGlowLow and 100 every kGlowPeriodMs
