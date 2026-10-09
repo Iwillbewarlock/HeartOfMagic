@@ -41,21 +41,23 @@ namespace HudNotify
         }
 
         constexpr std::string_view kChipPrefix = "chips.";  // tag chip names, for the magic menu (MagicMenuSpellInfo.cpp)
-        constexpr std::string_view kEnglishLocale = "en";
+        constexpr std::string_view kLanguageMissing = "corner messages stay in English";
+        constexpr std::string_view kEnglishMissing = "tag names the language lacks show their ids";
 
-        // The hud.* strings and the chips.* names: nothing else of the file is read here
-        Table ReadTable(const std::filesystem::path& a_file)
+        // The hud.* strings and the chips.* names: nothing else of the file is read here.
+        // a_consequence ends the warning when the file is missing or broken
+        Table ReadTable(const std::filesystem::path& a_file, std::string_view a_consequence)
         {
             Table table;
             std::ifstream file(a_file, std::ios::binary);
             if (!file.is_open()) {
-                logger::warn("HudNotify: {} not found - corner messages stay in English", PathText::Utf8(a_file));
+                logger::warn("HudNotify: {} not found - {}", PathText::Utf8(a_file), a_consequence);
                 return table;
             }
             std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
             auto json = nlohmann::json::parse(text, nullptr, false);
             if (json.is_discarded() || !json.is_object()) {
-                logger::warn("HudNotify: {} could not be read - corner messages stay in English", PathText::Utf8(a_file));
+                logger::warn("HudNotify: {} could not be read - {}", PathText::Utf8(a_file), a_consequence);
                 return table;
             }
             for (auto& [key, value] : json.items()) {
@@ -67,7 +69,8 @@ namespace HudNotify
         }
     }
 
-    void Configure(bool enabled, const std::string& localeCode, const std::filesystem::path& langFile)
+    void Configure(bool enabled, const std::string& localeCode, const std::filesystem::path& langFile,
+                   const std::filesystem::path& englishFile)
     {
         g_enabled.store(enabled);
 
@@ -75,12 +78,12 @@ namespace HudNotify
             std::lock_guard<std::mutex> lock(g_tableMutex);
             if (g_loadedOnce && g_loadedLocale == localeCode) return;
         }
-        auto read = ReadTable(langFile);
+        auto read = ReadTable(langFile, kLanguageMissing);
         // A tag name the language lacks comes from English, as the panel's card does: the chip
         // ids themselves (element.fire) are not for players. The hud.* lines fall back to the
         // English written at each call instead
-        if (localeCode != kEnglishLocale) {
-            for (auto& [key, value] : ReadTable(langFile.parent_path() / (std::string(kEnglishLocale) + ".json"))) {
+        if (langFile != englishFile) {
+            for (auto& [key, value] : ReadTable(englishFile, kEnglishMissing)) {
                 if (key.starts_with(kChipPrefix)) read.try_emplace(key, std::move(value));
             }
         }

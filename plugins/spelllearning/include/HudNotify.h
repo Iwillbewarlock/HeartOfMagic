@@ -34,8 +34,10 @@ namespace HudNotify
      * Turn notifications on or off and load the language's hud.* strings and chips.* names.
      * @param localeCode  the panel's language ("en", "ko", "pt-br")
      * @param langFile    lang/<localeCode>.json of the panel
+     * @param englishFile the panel's English file (lang/en.json): chips.* names langFile lacks come from it
      */
-    void Configure(bool enabled, const std::string& localeCode, const std::filesystem::path& langFile);
+    void Configure(bool enabled, const std::string& localeCode, const std::filesystem::path& langFile,
+                   const std::filesystem::path& englishFile);
 
     /** Settings > XP Alerts. */
     [[nodiscard]] bool IsEnabled();

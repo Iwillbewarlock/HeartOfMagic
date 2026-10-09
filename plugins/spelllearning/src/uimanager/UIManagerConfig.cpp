@@ -196,7 +196,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         hudInEnglish = SafeJsonValue<std::string>(config["notifications"], "language", "panel") == kHudLanguageEnglish;
     }
     const auto locale = hudInEnglish ? std::string(kHudLanguageEnglish) : ResolvePanelLocale(config);
-    HudNotify::Configure(notificationsOn, locale, PanelLanguageFile(locale));
+    HudNotify::Configure(notificationsOn, locale, PanelLanguageFile(locale), PanelLanguageFile(kHudLanguageEnglish));
 
     if (config.contains("notifications") && !config["notifications"].is_null()) {
         auto& notifConfig = config["notifications"];

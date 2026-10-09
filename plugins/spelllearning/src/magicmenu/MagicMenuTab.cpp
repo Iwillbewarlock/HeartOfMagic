@@ -1,6 +1,7 @@
 #include "magicmenu/MagicMenuInternal.h"
 #include "magicmenu/MagicMenuDraw.h"
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <numbers>
@@ -23,7 +24,9 @@ namespace MagicMenuBookmark::Tab
         constexpr std::uint32_t kLeather = 0x56463A, kLeatherEdge = 0x3A2E25, kStitch = 0x8C8070, kInk = 0x2E241C;  // dark worn leather (2026-10-09 picture)
         constexpr std::uint32_t kGold = 0xFFD27A;
         constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
-        constexpr double kEdgeLine = 1.5, kStitchLine = 1.2;  // line widths at kTabW, scaled with the clip
+        // Line widths of a kTabW-wide drawing, scaled with the clip like every size here: the widget's clip
+        // (kClipW 54 on a 720-high screen, scale 0.6) draws them 0.9 / 0.72, near the fixed 1.0 seen in game before
+        constexpr double kEdgeLine = 1.5, kStitchLine = 1.2;
         constexpr double kLabelY = 35.0, kLabelH = 54.0, kLabelSize = 15.0;
         constexpr const char* kLabel = "Heart\rof\rMagic";  // three lines, as on the pictures
 
@@ -71,7 +74,7 @@ namespace MagicMenuBookmark::Tab
         void DrawLines(RE::GFxMovieView* a_movie, RE::GFxValue& a_vec, double s)
         {
             MagicMenuDraw::LineStyle(a_vec, kEdgeLine * s, kLeatherEdge);
-            MagicMenuDraw::BeginFill(a_vec, kLeather, 100.0);
+            MagicMenuDraw::BeginFill(a_vec, kLeather, MagicMenuDraw::kAlphaFull);
             MagicMenuDraw::MoveTo(a_vec, kOutline[0].x * s, kOutline[0].y * s);
             for (std::size_t i = 1; i < kOutline.size(); ++i) MagicMenuDraw::LineTo(a_vec, kOutline[i].x * s, kOutline[i].y * s);
             MagicMenuDraw::EndFill(a_vec);
@@ -116,7 +119,9 @@ namespace MagicMenuBookmark::Tab
             pic.SetMember("_visible", true);
             glow.SetMember("_visible", true);
             glow.SetMember("_alpha", 0.0);
-            Child(a_tab, "hom_vec").SetMember("_visible", false);
+            // Not _visible = false: the drawn clip is the hitArea, and an invisible hitArea may stop taking
+            // the mouse in this GFx (not checked); _alpha 0 hides it and still takes the mouse in AS2
+            Child(a_tab, "hom_vec").SetMember("_alpha", 0.0);
             g_state.pictures = true;
             logger::debug("MagicMenuBookmark: bookmark pictures loaded ({} frames)", g_state.frames);
         }
@@ -129,11 +134,11 @@ namespace MagicMenuBookmark::Tab
             RE::GFxValue glow = g_state.pictures ? Child(a_tab, "hom_picGlow") : Child(a_tab, "hom_vec");
             if (!g_state.pictures) glow = Child(glow, "hom_glowText");
             if (!glow.IsDisplayObject()) return;
-            const double step = 100.0 * std::min(dt, kGlowFadeMs) / kGlowFadeMs;
+            const double step = MagicMenuDraw::kAlphaFull * std::min(dt, kGlowFadeMs) / kGlowFadeMs;
             double alpha = Number(glow, "_alpha");
             if (g_state.hover) {
                 g_state.phase = std::fmod(g_state.phase + dt / kGlowPeriodMs, 1.0);
-                const double breath = kGlowLow + (100.0 - kGlowLow) * (0.5 + 0.5 * std::cos(2 * std::numbers::pi * g_state.phase));
+                const double breath = kGlowLow + (MagicMenuDraw::kAlphaFull - kGlowLow) * (0.5 + 0.5 * std::cos(2 * std::numbers::pi * g_state.phase));
                 alpha = alpha < breath ? std::min(alpha + step, breath) : breath;
             } else {
                 g_state.phase = 0.0;
@@ -214,7 +219,7 @@ namespace MagicMenuBookmark::Tab
         LoadPicture(tab, "hom_pic", kPicture);
         LoadPicture(tab, "hom_picGlow", kGlowPicture);
         // Only the leather takes the mouse, not the pictures' transparent margins: the drawn clip
-        // (the same outline, hidden once the pictures show) is the hit area
+        // (the same outline, faded to _alpha 0 once the pictures show, so it still takes the mouse) is the hit area
         tab.SetMember("hitArea", vec);
         tab.SetMember("_x", a_x);
         tab.SetMember("_y", a_y + kFoldH * g_state.scale);

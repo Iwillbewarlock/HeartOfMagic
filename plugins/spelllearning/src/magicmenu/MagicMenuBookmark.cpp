@@ -4,6 +4,7 @@
 #include "uimanager/UIManager.h"
 
 #include <array>
+#include <optional>
 #include <atomic>
 
 // =============================================================================
@@ -82,7 +83,7 @@ namespace MagicMenuBookmark
             RE::GFxValue clip = *card;
             for (int depth = 0; depth < kMaxParents && clip.IsDisplayObject(); ++depth) {
                 RE::GFxValue a, v, parent;
-                if (clip.GetMember("_alpha", &a) && a.IsNumber()) alpha *= a.GetNumber() / 100.0;
+                if (clip.GetMember("_alpha", &a) && a.IsNumber()) alpha *= a.GetNumber() / MagicMenuDraw::kAlphaFull;
                 if (clip.GetMember("_visible", &v) && v.IsBool()) visible = visible && v.GetBool();
                 if (!clip.GetMember("_parent", &parent) || !parent.IsDisplayObject() || parent == a_root) break;
                 clip = parent;
@@ -103,9 +104,12 @@ namespace MagicMenuBookmark
         // The widget's frame: follow the card's corner (the menu slides and fades the card)
         class Follow final : public RE::GFxFunctionHandler
         {
-            int m_missing = 0;  // frames in a row without the card (one warning per long gap)
+            int m_missing = 0;  // frames in a row without the card (one warning per menu open)
 
         public:
+            // One handler lives for the session: each new widget starts the count again
+            void Reset() { m_missing = 0; }
+
             void Call(Params& a_params) override
             {
                 auto* movie = OpenMagicMenuMovie();
@@ -126,7 +130,7 @@ namespace MagicMenuBookmark
                 m_missing = 0;
                 widget.SetMember("_x", corner->x);
                 widget.SetMember("_y", corner->y);
-                widget.SetMember("_alpha", corner->alpha * 100.0);
+                widget.SetMember("_alpha", corner->alpha * MagicMenuDraw::kAlphaFull);
             }
         };
         RE::GPtr<Follow> g_follow;
@@ -151,6 +155,7 @@ namespace MagicMenuBookmark
             if (!widget.IsDisplayObject()) return;
             widget.SetMember("_visible", false);  // until the first frame finds the card
             if (!g_follow) g_follow = RE::make_gptr<Follow>();
+            g_follow->Reset();
             RE::GFxValue fn;
             movie->CreateFunction(&fn, g_follow.get());
             widget.SetMember("onEnterFrame", fn);

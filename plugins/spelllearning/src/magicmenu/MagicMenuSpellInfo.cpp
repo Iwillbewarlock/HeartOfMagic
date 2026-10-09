@@ -44,7 +44,7 @@ namespace MagicMenuBookmark::SpellInfo
         void Ring(RE::GFxValue& a_clip, double a_r, float a_progress, bool a_mastered, double a_unit)
         {
             MagicMenuDraw::LineStyle(a_clip, kRingLine * a_unit, a_mastered ? kMastered : kNotStarted);
-            if (a_mastered) MagicMenuDraw::BeginFill(a_clip, kMastered, 100.0);
+            if (a_mastered) MagicMenuDraw::BeginFill(a_clip, kMastered, MagicMenuDraw::kAlphaFull);
             MagicMenuDraw::MoveTo(a_clip, a_r, 0);
             for (int i = 1; i <= kArcSegments; ++i) {
                 const double t = 2 * std::numbers::pi * i / kArcSegments;

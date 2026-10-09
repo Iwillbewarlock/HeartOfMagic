@@ -1,18 +1,18 @@
 #pragma once
 
-#include <array>
 #include <initializer_list>
 #include <string>
 #include <vector>
 
 // =============================================================================
-// AS2 calls on a MovieClip: the drawing API (beginFill, lineTo ...), text fields
-// in the menu's own font (a Korean font mod applies), and a glow filter
+// AS2 calls on a MovieClip: the drawing API (beginFill, lineTo ...) and text
+// fields in the menu's own font (a Korean font mod applies)
 // =============================================================================
 
 namespace MagicMenuDraw
 {
     inline constexpr const char* kFont = "$EverywhereMediumFont";  // the game's fontconfig name; font mods remap it
+    inline constexpr double kAlphaFull = 100.0;  // AS2 _alpha and the drawing API's alpha are percents
 
     inline void Call(RE::GFxValue& a_clip, const char* a_name, std::initializer_list<RE::GFxValue> a_args)
     {
@@ -20,7 +20,7 @@ namespace MagicMenuDraw
         a_clip.Invoke(a_name, nullptr, args.data(), args.size());
     }
     inline void Clear(RE::GFxValue& c) { Call(c, "clear", {}); }
-    inline void LineStyle(RE::GFxValue& c, double t, std::uint32_t rgb) { Call(c, "lineStyle", { t, static_cast<double>(rgb), 100.0 }); }
+    inline void LineStyle(RE::GFxValue& c, double t, std::uint32_t rgb) { Call(c, "lineStyle", { t, static_cast<double>(rgb), kAlphaFull }); }
     inline void BeginFill(RE::GFxValue& c, std::uint32_t rgb, double alpha) { Call(c, "beginFill", { static_cast<double>(rgb), alpha }); }
     inline void EndFill(RE::GFxValue& c) { Call(c, "endFill", {}); }
     inline void MoveTo(RE::GFxValue& c, double x, double y) { Call(c, "moveTo", { x, y }); }

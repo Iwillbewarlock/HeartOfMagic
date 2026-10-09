@@ -1189,9 +1189,11 @@ in the run of 2026-10-08).
   `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut` / `onEnterFrame`: the click calls
   `RequestPanel()`, hover lifts the clip a little (`kHoverRise` 4 of the 90-wide drawing) and sets the glow target, the frame tick fits the pictures and steps
   the glow's `_alpha`. The game's movie has no `flash.filters.GlowFilter`, so the drawn clip's glow is gold
-  letters only. The drawn clip is the `hitArea`, so the pictures' transparent margins take no clicks; a hover
+  letters only. The drawn clip is the `hitArea`, so the pictures' transparent margins take no clicks; once the
+  pictures show it is faded to `_alpha` 0, not `_visible = false` (an invisible hitArea may stop taking the mouse
+  in this GFx, not checked in game); a hover
   is dropped when the widget hides (no roll-out comes then). The widget is hidden (and so not clickable: `_alpha` 0 still takes the mouse in AS2) while the
-  card is invisible or faded below 5%; no card for 120 frames logs one warning.
+  card is invisible or faded below 5%; no card for 120 frames logs one warning per menu open.
 - **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
   and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark only if
   it did open. `UIManager::HidePanel()` (Esc, hotkey, close button, Papyrus) takes the mark and queues `kShow`
