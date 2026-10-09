@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- **A mod's debug spell tome no longer counts as one you can find.** A tome kept in a test cell (its editor id
+  says debug, like Sa'chil's) left its spell looking learnable from a tome; the spell is now marked as having no
+  tome to find, like any other spell no tome hands out.
 - **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's
   teleport power, for one, was learned at 20% and did not work). Such spells are never in the tree, so their
   tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell
