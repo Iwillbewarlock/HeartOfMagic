@@ -329,7 +329,7 @@ var LayerBuild = {
         }
         var ctx = this._warmCanvas && this._warmCanvas.getContext ? this._warmCanvas.getContext('2d') : null;
         if (!ctx) { b.warmed = true; return true; }
-        var t = TreeStyle.tokens || {}, phase = -1, pad = this.WARM_PAD_PX;
+        var t = TreeStyle.tokens || {}, phase = -1, pad = this.WARM_PAD_PX, nameHalo = false;
         // The canvas is set up afresh each call (a late font may have emptied the width cache meanwhile)
         var setUp = function(to) {
             if (phase === to) return;
@@ -337,7 +337,8 @@ var LayerBuild = {
             ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
-            TreeStyle.beginLabels(ctx, w.fontSize);
+            // r.zoom is the build's here: no outlines made for names drawn without one
+            nameHalo = TreeStyle.beginLabels(ctx, w.fontSize, r.zoom);
             if (to === 0) r._labelFontFrom(ctx);
             if (to === 2) {
                 ctx.font = t.chapterSize + 'px ' + TreeStyle.labelFamily();
@@ -345,7 +346,7 @@ var LayerBuild = {
             }
         };
         var letter = function(c) {
-            if (t.labelHalo) ctx.strokeText(c, pad, pad);
+            if (phase === 2 ? t.labelHalo : nameHalo) ctx.strokeText(c, pad, pad);
             ctx.fillText(c, pad, pad);
         };
         do {

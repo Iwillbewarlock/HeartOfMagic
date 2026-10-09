@@ -45,6 +45,9 @@
 - Zoomed out to the middle range (where only important spell names show), at most 50 names are drawn
   instead of 150, the selected and learning ones first; zoomed in, the names are found among the nearby
   spells only. The names shown are otherwise the same.
+- **Zoomed out, spell names lose their outline** (Arcane, Night Grimoire, Chalkboard): below zoom 0.8, where
+  only the important names show, the paper- or board-coloured edge round each name is no longer drawn - it
+  cost as much as the name itself - and a design switch no longer prepares outlines that will not be drawn.
 
 ## Heart of Magic Librarian 1.3.0
 

@@ -476,7 +476,7 @@ var LayerScroll = {
         g.save();
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.translate(margin, margin);
-        TreeStyle.beginLabels(g, found.fontSize);
+        TreeStyle.beginLabels(g, found.fontSize, r.zoom);
         r._labelFontFrom(g);
         g.textAlign = 'center';
         g.textBaseline = 'top';
