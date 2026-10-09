@@ -206,7 +206,7 @@ var LayerFlowTest = {
                      strokeText: function(c) { log.push('stroke ' + c); }, fillText: function(c) { log.push('fill ' + c); } };
         B._warmCanvas = { getContext: function() { return wctx; } };
         g.TreeStyle = { tokens: { labelHalo: 'x', chapterTitles: true, chapterSize: 15, labelHaloWidth: 3 },
-                        beginLabels: function(ctx, size) { ctx.font = size + 'px serif'; }, labelFamily: function() { return 'serif'; },
+                        beginLabels: function(ctx, size) { ctx.font = size + 'px serif'; return true; }, labelFamily: function() { return 'serif'; },
                         _schoolName: function(n) { return n; }, renderChapters: function() { log.push('titles'); } };
         var r = { panX: 0, panY: 0, zoom: 1, rotation: 0, _layerPanX: 0, _layerPanY: 0, _layerZoom: 1, _layerRotation: 0,
                   canvas: { width: 300, height: 200 }, _treeLayer: { id: 'layer', width: 1056, height: 856 },

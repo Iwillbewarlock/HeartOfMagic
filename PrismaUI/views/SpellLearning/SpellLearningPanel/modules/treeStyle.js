@@ -304,19 +304,35 @@ var TreeStyle = {
         return v || 'sans-serif';
     },
 
-    /** Prepare ctx for a run of labels (font, outline). */
-    beginLabels: function(ctx, fontSize) {
+    /**
+     * Below this zoom the names get no outline (labelHalo). In the CPU-drawn view a
+     * strokeText costs as much as the fillText (and a new face's outlines 3-8 ms
+     * to make); zoomed out only the few priority names are drawn (0.5-0.8,
+     * CanvasRenderer.LABEL_FOCUS_ZOOM), and the designs with an outline (Arcane,
+     * Night Grimoire, Chalkboard) have names that already stand out on a plain page.
+     */
+    LABEL_HALO_MIN_ZOOM: 0.8,
+
+    /**
+     * Prepare ctx for a run of labels (font, outline). zoom: the view's; under
+     * LABEL_HALO_MIN_ZOOM the run has no outline (left out = outlined, as before).
+     * Returns whether the names of this run are outlined.
+     */
+    beginLabels: function(ctx, fontSize, zoom) {
         var t = this.tokens;
         ctx.font = fontSize + 'px ' + this.labelFamily();
-        if (t.labelHalo) {
+        this._labelHaloOn = !!t.labelHalo && !(zoom < this.LABEL_HALO_MIN_ZOOM);
+        if (this._labelHaloOn) {
             ctx.strokeStyle = t.labelHalo;
             ctx.lineWidth = t.labelHaloWidth;
             ctx.lineJoin = 'round';
         }
+        return this._labelHaloOn;
     },
 
+    /** One name, outlined when the run's beginLabels said so. */
     drawLabel: function(ctx, text, x, y, color) {
-        if (this.tokens.labelHalo) ctx.strokeText(text, x, y);
+        if (this._labelHaloOn) ctx.strokeText(text, x, y);
         ctx.fillStyle = color;
         ctx.fillText(text, x, y);
     },

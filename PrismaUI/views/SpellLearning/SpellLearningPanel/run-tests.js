@@ -81,6 +81,7 @@ loadModule('canvasRendererLabels', './modules/canvasRendererLabels.js');
 loadModule('canvasCullTest', './modules/canvasCullTest.js');
 loadModule('labelCullTest', './modules/labelCullTest.js');
 loadModule('layerFlowTest', './modules/layerFlowTest.js');
+loadModule('labelHaloTest', './modules/labelHaloTest.js');
 loadModule('pageBuildTest', './modules/pageBuildTest.js');
 loadModule('animClock', './modules/animClock.js');
 loadModule('starfield', './modules/starfield.js');

@@ -188,7 +188,7 @@
             var found = this._labelCandidates(cx, cy, cos, sin, margin);
             if (!found) return;
             var candidates = found.candidates, fontSize = found.fontSize;
-            TreeStyle.beginLabels(ctx, fontSize);
+            TreeStyle.beginLabels(ctx, fontSize, this.zoom);
             this._labelFontFrom(ctx);
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
