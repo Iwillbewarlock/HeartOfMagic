@@ -97,9 +97,9 @@ namespace TomeReach
                 }
                 logger::info("TomeReach: {} plugins, {} tomes, {} handed out by a record, {} only by a script "
                              "property or alias, {} only by a distribution config ({} configs), {} kept for a damaged "
-                             "plugin; {} spells have no tome anything hands out ({} ms)",
+                             "plugin, {} debug tomes left out; {} spells have no tome anything hands out ({} ms)",
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
-                    pass.configFiles, pass.byDamaged, unreachable.size(), ms);
+                    pass.configFiles, pass.byDamaged, pass.byDebug, unreachable.size(), ms);
                 Finish(&unreachable);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());

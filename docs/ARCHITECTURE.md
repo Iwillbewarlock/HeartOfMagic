@@ -210,6 +210,12 @@ game the placed references of cells that are not loaded are not in memory:
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
   (from the BOOK record) or as plugin and id (`0x800~Plugin.esp`, `Plugin.esp|0x800`). Only these files:
   inventory layout lists (GridInventory) and icon lists name every book.
+- A debug tome counts as unreached wherever it is placed (2026-10-09): a BOOK whose winning editor id
+  contains `debug` (case ignored). Mods keep these in a test cell reached only by `coc`: Sa'chil's
+  `SU04SpellTomeDebug` ("사'칠 배치", which moves the follower home) sits in the `SachilDebug` cell. On the
+  author's load order 3 BOOK records match and all 3 are debug books; the pass leaves out 1 tome
+  (`byDebug`, in the `TomeReach:` log line and `tome-reach-test`'s first line). Spell editor ids are not
+  used: the engine keeps none for spells, while the pass reads the BOOK's from the plugin file.
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
   the perk adapters.
