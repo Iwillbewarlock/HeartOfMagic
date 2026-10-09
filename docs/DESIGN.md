@@ -187,6 +187,16 @@ hovered spell, its bridges' other ends; `SPOT_PAD` round them), under the other 
 `under`) and kept while the hover, selection, layer and view stay the same (option `version`). The tree
 canvas is not touched by a hover change at all (bench: 39 draws on it before, 0 now); the picture is the
 same. Without FxLayer, `composite` works as before.
+**Wheel over a spell** (2026-10-04). Zooming with the cursor on a first-tier spell stalled: the spot is
+painted again at every zoom step, and its path (619 spells for Soul Trap) was drawn spell by spell with
+`renderNode`, 55-80 ms, twice per wheel step (measured in the PrismaUI Lab, `D:\DEV\prismaui-lab`, the
+game's Ultralight engine). Now: the path's plain spells go into `NodeBatch` like the layer's
+(`_batchPlainNode` takes hover-path spells, at least `HOVER_PATH_ALPHA` bright as `renderNode` draws them);
+path spells and lines off screen are left out (`_screenWorldBox`); the spot's version follows
+`_treeChanges` (bumped by the `_needsRender` setter) and the view instead of the tree layer's draws, so the
+layer being built again over the frames after a zoom step no longer paints the spot a second time; and
+`_spotBox` is kept while nothing it reads changes. Lab, wheel over Soul Trap: p95 60 -> 7 ms, worst 73 ->
+12 ms, no frame over 16 ms; hover at rest unchanged (0.72 ms, one paint); the picture is the same.
 
 **Smaller things in the repaint** (2026-09-26):
 - The tree layer's margin is 128 css px, not 256 (`TREE_LAYER_MARGIN`): for the default panel the layer was
@@ -460,8 +470,8 @@ zoom 0.9); in game a whole tree in cheat mode was about 7,800 paint calls before
   every undiscovered one (`?` included) and every plainly known one to `NodeBatch`: one path per look
   (fill, outline, width, alpha, dashed), filled and stroked once, halos first and the known-spell centres
   on a second layer. Spells with anything of their own - available and learning ones (rings), the
-  selected and hovered spell, the hover path - are still drawn one by one by
-  `renderNode`, after the batch. The school shapes live in `NodeBatch.SHAPES`/`ROTATION`, and
+  selected and hovered spell - are still drawn one by one by
+  `renderNode`, after the batch (the hover path was too, until 2026-10-04: see "Wheel over a spell"). The school shapes live in `NodeBatch.SHAPES`/`ROTATION`, and
   `_initShapePaths`, `renderNode` and `renderMysteryNode` use them too. A full repaint went from 3,220 to
   813 paint calls; the picture is pixel-identical away from the (animated) heart. Where two spells overlap
   the outline of one can now lie over the other's fill - the batch draws all fills of a look first.

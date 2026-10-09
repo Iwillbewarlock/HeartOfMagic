@@ -127,7 +127,7 @@
 
             // Nodes on the hovered node's dependency path stand out a little
             if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) {
-                alpha = Math.max(alpha, 0.85);
+                alpha = Math.max(alpha, this.HOVER_PATH_ALPHA);
             }
 
             // Focus + context dimming and minimum on-screen size

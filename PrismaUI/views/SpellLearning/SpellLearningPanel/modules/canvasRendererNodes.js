@@ -322,8 +322,8 @@
         },
 
         /**
-         * A locked, learnable or known spell with nothing of its own (not selected,
-         * hovered or on the hover path, no XP ring) goes into NodeBatch, with the
+         * A locked, learnable or known spell with nothing of its own (not selected
+         * or hovered, no XP ring) goes into NodeBatch, with the
          * look renderNode would give it - the lock look too (hard prerequisites: a
          * grey shell with a school-coloured hole until known, a grey ring once
          * known). Returns false for the others. Learnable spells used to be drawn one
@@ -336,13 +336,15 @@
             if (available && this._getNodeProgressPct(node) > 0) return false;
             if (this.selectedNode && this.selectedNode.id === node.id) return false;
             if (this.hoveredNode && this.hoveredNode.id === node.id) return false;
-            if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) return false;
             var style = TreeStyle.tokens;
             var schoolColor = node.themeColor ? TreeStyle.ink(node.themeColor) : this._getSchoolColor(node.school);
             var cf = this._contextFactor(node);
             var lock = node.hardPrereqs && node.hardPrereqs.length > 0;
             if (locked || available) {
-                var lsize = this._minSize(locked ? this.LOCKED_SIZE : this.LEARNABLE_SIZE), alpha = (locked ? 0.4 : style.availableAlpha) * cf;
+                var base = locked ? 0.4 : style.availableAlpha;
+                // On the hovered spell's path: a little brighter, as renderNode draws it
+                if (this._hoverPathNodes && this._hoverPathNodes.has(node.id)) base = Math.max(base, this.HOVER_PATH_ALPHA);
+                var lsize = this._minSize(locked ? this.LOCKED_SIZE : this.LEARNABLE_SIZE), alpha = base * cf;
                 // A learnable spell's own thin ring (renderNode draws it before the shape, unturned)
                 if (available && style.availableRing) {
                     NodeBatch.addShape(NodeBatch.RING, node.x, node.y, lsize + this.RING_GAP, null, schoolColor,

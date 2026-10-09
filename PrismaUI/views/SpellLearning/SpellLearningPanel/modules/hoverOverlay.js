@@ -23,6 +23,12 @@
  * once more for its kept picture, StaticBase), in a view the game's browser
  * paints on the CPU.
  *
+ * The spot is painted again at every zoom step, so it is kept cheap: the path's
+ * plain spells go into NodeBatch (a root's path is hundreds of spells; drawn
+ * one by one a wheel step took 55-80 ms), what is off screen is left out, and
+ * its version follows the tree's changes and the view, not the tree layer's
+ * builds (the layer is built again over the frames after a zoom step).
+ *
  * Differences from before, all small: the hover path and nodes sit on top of
  * the labels rather than under them, and the hovered spell's label no longer
  * wins label collisions (the hover card shows its name anyway). At the simple
@@ -126,15 +132,61 @@ var HoverOverlay = {
         var hovered = r.hoveredNode;
         if (!hovered || !r._nodeMap || this._hidden(r, hovered)) return;
         var box = this._spotBox(r, hovered, view);
-        var version = hovered.id + '|' + (r._treeLayerDraws || 0) + '|' + r._lodTier + '|' +
-            (r.selectedNode ? r.selectedNode.id : '') + '|' + r.panX + ',' + r.panY + '|' + r.zoom + '|' + r.rotation;
+        // What the tree says (_treeChanges) and the view, not the tree layer's draws: the
+        // spot is painted from the spells themselves, and the layer is built again over
+        // several frames after a zoom step - that used to paint the spot a second time
+        var version = hovered.id + '|' + (r._treeChanges || 0) + '|' + r._lodTier + '|' +
+            (r.selectedNode ? r.selectedNode.id : '') + '|' + r.panX + ',' + r.panY + '|' + r.zoom + '|' + r.rotation +
+            '|' + view.cx + ',' + view.cy;
         var self = this;
         FxLayer.draw('hover', box[0], box[1], box[2] - box[0], box[3] - box[1], dpr,
-            function(ctx) { self.render(ctx, r, view); }, { version: version, under: true });
+            function(ctx) { self.render(ctx, r, view, r.panX, r.panY, self._screenWorldBox(r, view)); },
+            { version: version, under: true });
+    },
+
+    _boxKey: '',
+    _box: null,
+
+    /** _spotBoxNow, kept while the hovered spell, the tree and the view stay (it runs every frame). */
+    _spotBox: function(r, hovered, view) {
+        var key = hovered.id + '|' + (r._treeChanges || 0) + '|' + (r.selectedNode ? r.selectedNode.id : '') + '|' +
+            r.panX + ',' + r.panY + '|' + r.zoom + '|' + r.rotation + '|' + view.cx + ',' + view.cy;
+        if (key !== this._boxKey || !this._box) {
+            this._box = this._spotBoxNow(r, hovered, view);
+            this._boxKey = key;
+        }
+        return this._box;
+    },
+
+    /**
+     * The world box the screen shows, padded by the spot's margin: the spot is
+     * cut to the screen, so path spells and lines outside it are not drawn
+     * (zoomed in, most of a root's path is off screen).
+     */
+    _screenWorldBox: function(r, view) {
+        var z = r.zoom, cos = view.cos, sin = view.sin;
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        var xs = [0, view.cx * 2], ys = [0, view.cy * 2];
+        for (var i = 0; i < 2; i++) {
+            for (var j = 0; j < 2; j++) {
+                // screen css px -> world (undo pan, zoom, rotation)
+                var u = (xs[i] - view.cx - r.panX) / z, v = (ys[j] - view.cy - r.panY) / z;
+                var wx = u * cos + v * sin, wy = -u * sin + v * cos;
+                if (wx < x0) x0 = wx; if (wx > x1) x1 = wx;
+                if (wy < y0) y0 = wy; if (wy > y1) y1 = wy;
+            }
+        }
+        // The most a spell draws past its centre (a focused spell's halo, as LayerScroll._worldBox)
+        var pad = Math.max(this.SPOT_PAD, r.HALO_SCALE * (r._minSize(r.KNOWN_SIZE) + r.FOCUS_GROW)) + this.SPOT_PAD_PX / z;
+        return { l: x0 - pad, r: x1 + pad, t: y0 - pad, b: y1 + pad };
+    },
+
+    _inBox: function(box, x, y) {
+        return !box || (x >= box.l && x <= box.r && y >= box.t && y <= box.b);
     },
 
     /** The screen box (CSS px) the preview covers: its spells, and the ends of the hovered one's bridges. */
-    _spotBox: function(r, hovered, view) {
+    _spotBoxNow: function(r, hovered, view) {
         var pts = [hovered];
         if (r._hoverPathNodes) {
             r._hoverPathNodes.forEach(function(id) {
@@ -168,8 +220,9 @@ var HoverOverlay = {
      * @param {Object} view - { cx, cy, rotRad }
      * @param {number} [panX] - the pan to draw at (the layer's; default the current one)
      * @param {number} [panY]
+     * @param {Object} [cull] - world box {l, r, t, b}: path spells and lines outside it are left out
      */
-    render: function(ctx, r, view, panX, panY) {
+    render: function(ctx, r, view, panX, panY, cull) {
         var hovered = r.hoveredNode;
         if (!hovered || !r._nodeMap || this._hidden(r, hovered)) return;
         if (typeof panX !== 'number') panX = r.panX;
@@ -180,9 +233,9 @@ var HoverOverlay = {
         ctx.rotate(view.rotRad);
         ctx.scale(r.zoom, r.zoom);
 
-        this._renderPathEdges(ctx, r, hovered);
+        this._renderPathEdges(ctx, r, hovered, cull);
         ctx.globalAlpha = 1.0;
-        this._renderNodes(ctx, r, hovered);
+        this._renderNodes(ctx, r, hovered, cull);
         ctx.globalAlpha = 1.0;
 
         // Its bridges (links to other schools), when something else is selected
@@ -193,7 +246,7 @@ var HoverOverlay = {
     },
 
     /** The hovered spell's path to the root, one batched stroke (renderEdges pass 1.5 did this per edge). */
-    _renderPathEdges: function(ctx, r, hovered) {
+    _renderPathEdges: function(ctx, r, hovered, cull) {
         var set = r._hoverPathEdges;
         if (r._lodTier === 'minimal' || !set || set.size === 0 || !r.edges) return;
         var curved = settings.edgeStyle === 'curved';
@@ -206,14 +259,18 @@ var HoverOverlay = {
             var edge = r.edges[i];
             if (!set.has(edge.from + '->' + edge.to)) continue;
             var a = r._nodeMap.get(edge.from), b = r._nodeMap.get(edge.to);
-            if (!a || !b || this._hidden(r, a) || this._hidden(r, b)) continue;
+            if (!a || !b) continue;
+            // Both ends past the same side of the screen: the line does not cross it
+            if (cull && ((a.x < cull.l && b.x < cull.l) || (a.x > cull.r && b.x > cull.r) ||
+                         (a.y < cull.t && b.y < cull.t) || (a.y > cull.b && b.y > cull.b))) continue;
+            if (this._hidden(r, a) || this._hidden(r, b)) continue;
             r._drawEdgePath(ctx, a.x, a.y, b.x, b.y, curved);
         }
         ctx.stroke();
     },
 
     /** The nodes on the path (brighter) and the hovered one (focus ring), drawn as the layer would. */
-    _renderNodes: function(ctx, r, hovered) {
+    _renderNodes: function(ctx, r, hovered, cull) {
         if (r._lodTier === 'minimal') {
             // The minimal level marks the hovered spell with a dot, unless the selected one has it
             if (r.selectedNode) return;
@@ -231,13 +288,20 @@ var HoverOverlay = {
             if (!(mystery && hovered.state === 'locked')) r._renderNodeSimple(ctx, hovered, r._learningColor());
             return;
         }
-        var self = this;
+        // The path's plain spells go into NodeBatch as the layer's do (a root's path
+        // is hundreds of spells, drawn again at every zoom step); the rest one by one on top
+        var self = this, special = [];
         if (r._hoverPathNodes) {
+            NodeBatch.begin();
             r._hoverPathNodes.forEach(function(id) {
                 var node = r._nodeMap.get(id);
-                if (node && node !== hovered && !self._hidden(r, node)) self._renderFull(ctx, r, node, mystery);
+                if (!node || node === hovered || !self._inBox(cull, node.x, node.y) || self._hidden(r, node)) return;
+                if (mystery && node.state === 'locked') r._batchMysteryNode(node);
+                else if (!r._batchPlainNode(node)) special.push(node);
             });
+            NodeBatch.flush(ctx, r.rotation, r._backdrop());
         }
+        for (var i = 0; i < special.length; i++) r.renderNode(ctx, special[i]);
         this._renderFull(ctx, r, hovered, mystery);
     },
 
