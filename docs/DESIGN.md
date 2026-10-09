@@ -1363,7 +1363,10 @@ card itself is left as it is. Sizes are in units of a 720-high screen.
   card's tags in the panel's language joined by " · ", then "+N" (two lines when they do not fit on one).
   Spells not in the tree (powers, abilities, scrolls, no tree yet) show no box. Redrawn when the selection
   changes.
-- Not for gamepads (they use the hotkey).
+- Not for gamepads: the clip takes only the mouse, so a gamepad player needs a hotkey. Settings > Hotkey >
+  None locks the clip on as the way in, which a gamepad cannot press (known gap, 2026-10-09; nothing decided).
+- Only the leather takes the mouse (the drawn clip is the hit area), not the pictures' transparent margins;
+  line widths scale with the screen like the rest.
 
 ### Key Settings Groups
 

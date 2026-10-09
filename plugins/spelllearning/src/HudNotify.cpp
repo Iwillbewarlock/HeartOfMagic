@@ -41,6 +41,7 @@ namespace HudNotify
         }
 
         constexpr std::string_view kChipPrefix = "chips.";  // tag chip names, for the magic menu (MagicMenuSpellInfo.cpp)
+        constexpr std::string_view kEnglishLocale = "en";
 
         // The hud.* strings and the chips.* names: nothing else of the file is read here
         Table ReadTable(const std::filesystem::path& a_file)
@@ -74,7 +75,16 @@ namespace HudNotify
             std::lock_guard<std::mutex> lock(g_tableMutex);
             if (g_loadedOnce && g_loadedLocale == localeCode) return;
         }
-        auto table = std::make_shared<const Table>(ReadTable(langFile));
+        auto read = ReadTable(langFile);
+        // A tag name the language lacks comes from English, as the panel's card does: the chip
+        // ids themselves (element.fire) are not for players. The hud.* lines fall back to the
+        // English written at each call instead
+        if (localeCode != kEnglishLocale) {
+            for (auto& [key, value] : ReadTable(langFile.parent_path() / (std::string(kEnglishLocale) + ".json"))) {
+                if (key.starts_with(kChipPrefix)) read.try_emplace(key, std::move(value));
+            }
+        }
+        auto table = std::make_shared<const Table>(std::move(read));
         logger::info("HudNotify: {} corner message strings for '{}' (notifications {})",
                      table->size(), localeCode, enabled ? "on" : "off");
         std::lock_guard<std::mutex> lock(g_tableMutex);

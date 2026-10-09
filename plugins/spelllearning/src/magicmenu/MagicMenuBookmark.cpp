@@ -114,7 +114,9 @@ namespace MagicMenuBookmark
                 const auto corner = CardCorner(movie, root);
                 auto& widget = *a_params.thisPtr;
                 // _alpha 0 still takes the mouse in AS2: a card faded out hides the widget too
-                widget.SetMember("_visible", corner.has_value() && corner->visible && corner->alpha > kMinAlpha);
+                const bool shown = corner.has_value() && corner->visible && corner->alpha > kMinAlpha;
+                widget.SetMember("_visible", shown);
+                if (!shown) Tab::Unhover(widget);
                 if (!corner) {
                     if (++m_missing == kMissingFramesWarn) {
                         logger::warn("MagicMenuBookmark: no item card (or its background) for {} frames - widget hidden", kMissingFramesWarn);

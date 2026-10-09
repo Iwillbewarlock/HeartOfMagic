@@ -1189,7 +1189,8 @@ in the run of 2026-10-08).
   `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut` / `onEnterFrame`: the click calls
   `RequestPanel()`, hover lifts the clip a little (`kHoverRise` 4 of the 90-wide drawing) and sets the glow target, the frame tick fits the pictures and steps
   the glow's `_alpha`. The game's movie has no `flash.filters.GlowFilter`, so the drawn clip's glow is gold
-  letters only. The widget is hidden (and so not clickable: `_alpha` 0 still takes the mouse in AS2) while the
+  letters only. The drawn clip is the `hitArea`, so the pictures' transparent margins take no clicks; a hover
+  is dropped when the widget hides (no roll-out comes then). The widget is hidden (and so not clickable: `_alpha` 0 still takes the mouse in AS2) while the
   card is invisible or faded below 5%; no card for 120 frames logs one warning.
 - **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
   and queues `UIManager::ShowPanel()` on the game thread, marking the panel as opened from the bookmark only if
@@ -1204,7 +1205,8 @@ in the run of 2026-10-08).
   `GetProgressPercent`, `IsSpellMastered`; tags exactly as the panel card builds them
   (`SpellScanner::BuildSpellChips` + `Librarian::MergeCatalogChips`), named by `HudNotify::Text("chips.<id>")`
   - `HudNotify` keeps the language file's `chips.*` keys next to `hud.*`, so they follow the corner messages'
-  language (the panel's, or English with Notification Language set to English), reread on a language change.
+  language (the panel's, or English with Notification Language set to English), reread on a language change;
+  a tag name the language lacks comes from `en.json`, never the raw chip id.
   The first selection after a game start without a scan reads `spell_catalog.json` once (`MergeCatalogChips`).
 - **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `magic menu opened` / `closed`, `widget
   attached (visible area ...)`, once per session `card background in _root x .. y .., widget corner ..`, `the

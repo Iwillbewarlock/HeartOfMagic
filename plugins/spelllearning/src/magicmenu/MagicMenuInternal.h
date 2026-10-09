@@ -24,6 +24,8 @@ namespace MagicMenuBookmark
         double FoldHeight(double a_width);
         // Draws the clip (hom_bookmark) into a_parent (hom_widget), its top-left at (a_x, a_y), with its click, hover and glow
         void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width);
+        // The widget was hidden: drop a hover the mouse can no longer end
+        void Unhover(RE::GFxValue& a_widget);
     }
 
     namespace SpellInfo

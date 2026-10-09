@@ -23,6 +23,7 @@ namespace MagicMenuBookmark::Tab
         constexpr std::uint32_t kLeather = 0x56463A, kLeatherEdge = 0x3A2E25, kStitch = 0x8C8070, kInk = 0x2E241C;  // dark worn leather (2026-10-09 picture)
         constexpr std::uint32_t kGold = 0xFFD27A;
         constexpr double kStitchY = 16.0, kStitchInset = 6.0, kDash = 5.0;
+        constexpr double kEdgeLine = 1.5, kStitchLine = 1.2;  // line widths at kTabW, scaled with the clip
         constexpr double kLabelY = 35.0, kLabelH = 54.0, kLabelSize = 15.0;
         constexpr const char* kLabel = "Heart\rof\rMagic";  // three lines, as on the pictures
 
@@ -69,12 +70,12 @@ namespace MagicMenuBookmark::Tab
 
         void DrawLines(RE::GFxMovieView* a_movie, RE::GFxValue& a_vec, double s)
         {
-            MagicMenuDraw::LineStyle(a_vec, 1.0, kLeatherEdge);
+            MagicMenuDraw::LineStyle(a_vec, kEdgeLine * s, kLeatherEdge);
             MagicMenuDraw::BeginFill(a_vec, kLeather, 100.0);
             MagicMenuDraw::MoveTo(a_vec, kOutline[0].x * s, kOutline[0].y * s);
             for (std::size_t i = 1; i < kOutline.size(); ++i) MagicMenuDraw::LineTo(a_vec, kOutline[i].x * s, kOutline[i].y * s);
             MagicMenuDraw::EndFill(a_vec);
-            MagicMenuDraw::LineStyle(a_vec, 1.0, kStitch);  // the stitch line under the fold
+            MagicMenuDraw::LineStyle(a_vec, kStitchLine * s, kStitch);  // the stitch line under the fold
             for (double x = kStitchInset; x + kDash <= kTabW - kStitchInset; x += 2 * kDash) {
                 MagicMenuDraw::MoveTo(a_vec, x * s, kStitchY * s);
                 MagicMenuDraw::LineTo(a_vec, (x + kDash) * s, kStitchY * s);
@@ -212,6 +213,9 @@ namespace MagicMenuBookmark::Tab
         DrawLines(a_movie, vec, g_state.scale);
         LoadPicture(tab, "hom_pic", kPicture);
         LoadPicture(tab, "hom_picGlow", kGlowPicture);
+        // Only the leather takes the mouse, not the pictures' transparent margins: the drawn clip
+        // (the same outline, hidden once the pictures show) is the hit area
+        tab.SetMember("hitArea", vec);
         tab.SetMember("_x", a_x);
         tab.SetMember("_y", a_y + kFoldH * g_state.scale);
 
@@ -221,5 +225,15 @@ namespace MagicMenuBookmark::Tab
         SetHandler(a_movie, tab, "onReleaseOutside", g_rollOut.get());
         SetHandler(a_movie, tab, "onEnterFrame", g_tick.get());
         logger::info("MagicMenuBookmark: bookmark attached ({:.0f} wide)", a_width);
+    }
+
+    void Unhover(RE::GFxValue& a_widget)
+    {
+        if (!g_state.hover) return;
+        g_state.hover = false;  // a widget hidden under the mouse gets no roll-out
+        RE::GFxValue tab;
+        if (a_widget.GetMember("hom_bookmark", &tab) && tab.IsDisplayObject()) {
+            tab.SetMember("_y", Number(tab, "_y") + kHoverRise * g_state.scale);
+        }
     }
 }

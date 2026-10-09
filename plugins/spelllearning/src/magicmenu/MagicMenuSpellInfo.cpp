@@ -35,14 +35,15 @@ namespace MagicMenuBookmark::SpellInfo
         constexpr std::uint32_t kLearning = 0x4A90D9, kMastered = 0xD6B56A, kNotStarted = 0x808080;
         constexpr std::uint32_t kNameColor = 0xF0F0F0, kTagColor = 0xBBBBBB, kPctColor = 0xDDDDDD;
         constexpr int kArcSegments = 32;
+        constexpr double kEdgeLine = 1.0, kRingLine = 2.0, kArcLine = 3.0;  // line widths, scaled with the screen
 
         // One widget at a time (one magic menu); Attach resets these
         RE::FormID g_shown = 0;  // the spell drawn now; 0 = none
         struct Layout { double x = 0, y = 0, w = 0, unit = 1; } g_layout;
 
-        void Ring(RE::GFxValue& a_clip, double a_r, float a_progress, bool a_mastered)
+        void Ring(RE::GFxValue& a_clip, double a_r, float a_progress, bool a_mastered, double a_unit)
         {
-            MagicMenuDraw::LineStyle(a_clip, 2.0, a_mastered ? kMastered : kNotStarted);
+            MagicMenuDraw::LineStyle(a_clip, kRingLine * a_unit, a_mastered ? kMastered : kNotStarted);
             if (a_mastered) MagicMenuDraw::BeginFill(a_clip, kMastered, 100.0);
             MagicMenuDraw::MoveTo(a_clip, a_r, 0);
             for (int i = 1; i <= kArcSegments; ++i) {
@@ -54,7 +55,7 @@ namespace MagicMenuBookmark::SpellInfo
                 return;
             }
             if (a_progress <= 0.0f) return;
-            MagicMenuDraw::LineStyle(a_clip, 3.0, kLearning);  // the learned part, clockwise from the top
+            MagicMenuDraw::LineStyle(a_clip, kArcLine * a_unit, kLearning);  // the learned part, clockwise from the top
             const int steps = std::max(1, static_cast<int>(std::ceil(kArcSegments * a_progress)));
             MagicMenuDraw::MoveTo(a_clip, 0, -a_r);
             for (int i = 1; i <= steps; ++i) {
@@ -98,7 +99,7 @@ namespace MagicMenuBookmark::SpellInfo
             auto info = MagicMenuDraw::Clip(a_widget, "hom_info");
             info.SetMember("_x", g_layout.x);
             info.SetMember("_y", g_layout.y);
-            MagicMenuDraw::LineStyle(info, 1.0, kBoxEdge);
+            MagicMenuDraw::LineStyle(info, kEdgeLine * u, kBoxEdge);
             MagicMenuDraw::BeginFill(info, kBoxFill, kBoxAlpha);
             MagicMenuDraw::MoveTo(info, 0, 0);
             MagicMenuDraw::LineTo(info, w, 0);
@@ -113,7 +114,7 @@ namespace MagicMenuBookmark::SpellInfo
             ring.SetMember("_y", ringY);
             const bool mastered = progression->IsSpellMastered(id);
             const float progress = std::clamp(progression->GetProgressPercent(id), 0.0f, 1.0f);
-            Ring(ring, r, progress, mastered);
+            Ring(ring, r, progress, mastered, u);
             if (!mastered) {
                 MagicMenuDraw::Text(a_movie, info, "pct", ringX - r, ringY - r * kPctTop, 2 * r, r * kPctHeight,
                     std::format("{}", static_cast<int>(progress * 100)), kPctColor, r * kPctSize, "center");
