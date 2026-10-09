@@ -522,8 +522,8 @@ The candidates are worked out once a frame (`LayerScroll._found`) and once per b
 `renderLabels`), not per strip or piece. A canvas-sized box zoomed out covers more cells than `CULL_MAX_CELL_SHARE`
 allows (in the measurement below at zoom 0.9 and under) and looks at every spell as before, so the gain is at higher zoom: JavaScript
 cost of one `_labelCandidates` (`node --jitless`, 1,400 spells over a 6,000-unit radius, 1600x1000, margin
-150) 0.26 → 0.15 ms at zoom 1.3, unchanged at 0.6 and 0.9; with JIT 0.05 → 0.04 ms. The ~1.7 ms of a piece
-above is mostly the chapter titles and the names' text, not this loop. Between `LABEL_MIN_ZOOM` (0.5) and
+150) 0.26 → 0.15 ms at zoom 1.3, unchanged at 0.6 and 0.9; with JIT 0.05 → 0.04 ms. The ~1.7 ms of a piece above is not this loop (about 0.1 ms
+with JIT in node); what the rest of it is was not measured here. Between `LABEL_MIN_ZOOM` (0.5) and
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
 `MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (in view first, then
 priority), so the selected, hovered and learning names stay; each name left out saves a halo

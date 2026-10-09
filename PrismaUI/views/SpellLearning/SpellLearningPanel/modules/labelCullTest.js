@@ -97,6 +97,10 @@ var LabelCullTest = {
             }
             r._nodesInBox = real;
             this.check(same, 'name candidates from the index = the full loop\'s: same spells, order, places (140 views)' + (same ? '' : ' - ' + firstBad));
+            r.zoom = 1.0; r.panX = 0; r.panY = 0;
+            var probe = r._labelCandidates(r._width / 2, r._height / 2, 1, 0, 0);
+            this.check(probe && isFinite(probe.fontSize) && probe.fontSize > 0 && probe.candidates.length > 0 &&
+                isFinite(probe.candidates[0].x) && isFinite(probe.candidates[0].y), 'a real font size and places (not NaN)');
             this.check(grid >= 60, 'most of those views used the grid (' + grid + ' of 140)');
 
             // The cap: 50 between LABEL_MIN_ZOOM and LABEL_FOCUS_ZOOM, 150 above
