@@ -8,8 +8,9 @@
 
 // =============================================================================
 // MAGIC MENU BOOKMARK - see MagicMenuBookmark.h
-// The menu's open/close events, the widget at the top right of the menu's
-// visible area (the leather clip, and under it the selected spell's box), and
+// The menu's open/close events, the widget that follows the item card's visible
+// top-right corner (the leather clip folded over it, and above the card, left of
+// the clip, the selected spell's box), and
 // the open-panel / back-to-menu round trip.
 // =============================================================================
 

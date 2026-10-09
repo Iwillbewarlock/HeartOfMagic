@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <vector>
 
 namespace TomeReach
 {
@@ -27,7 +28,8 @@ namespace TomeReach
         std::size_t byLooseOnly = 0;             // reached only through four bytes of a script property or alias
         std::size_t byConfig = 0;                // reached only through a distribution config
         std::size_t byDamaged = 0;               // counted as reached: a damaged plugin could refer to them
-        std::size_t byDebug = 0;                 // referred to, but a debug tome (editor id): not reached
+        std::size_t byDebug = 0;                 // debug tomes (editor id): never reached, counted in nothing else
+        std::vector<std::string> debugEditorIds; // their editor ids, for the log
         std::size_t configFiles = 0;
         std::unordered_map<Key, std::uint32_t> looseFrom;  // byLooseOnly tomes: the plugin that named them
     };

@@ -6,10 +6,10 @@
 
 - **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then. Picking a
   letter key now warns that typing that letter in a search box also closes the panel.
-- **A bookmark in the magic menu.** A leather clip at the top right of the magic menu opens Heart of Magic;
+- **A bookmark in the magic menu.** A dark leather clip on the top-right corner of the magic menu's item card opens Heart of Magic;
   close the panel and you are back in the magic menu, with anything you just learned already listed. The words
   on it glow gold while the mouse is over it.
-- **XP and tags in the magic menu.** Under the clip, the selected spell's learning progress (a ring, gold when
+- **XP and tags in the magic menu.** Above the item card, left of the clip, the selected spell's learning progress (a ring, gold when
   mastered), its name and up to four of its tags, for spells in your tree.
 - **Magic menu switches.** Settings > Hotkey has **Magic Menu Bookmark** and **Tags and XP in the Magic Menu**,
   both on. Without a hotkey the bookmark cannot be turned off, and with the bookmark off None cannot be
@@ -17,9 +17,9 @@
 
 ### Fixed
 
-- **A mod's debug spell tome no longer counts as one you can find.** A tome kept in a test cell (its editor id
-  says debug, like Sa'chil's) left its spell looking learnable from a tome; the spell is now marked as having no
-  tome to find, like any other spell no tome hands out.
+- **A mod's debug spell tome no longer counts as one you can find.** A tome whose editor id says debug (like
+  Sa'chil's, kept in a test cell) no longer makes its spell look learnable from a tome; if no other tome teaches
+  the spell, it is marked as having no tome to find. Each such tome is named in SpellLearning.log.
 - **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's
   teleport power, for one, was learned at 20% and did not work). Such spells are never in the tree, so their
   tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell

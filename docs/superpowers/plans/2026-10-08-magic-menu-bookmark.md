@@ -1,5 +1,7 @@
 # 마법 메뉴 책갈피 Implementation Plan
 
+> 상태(2026-10-09): 이 계획의 '설명 칸에 붙이기'와 `magicmenu_paths.json`은 버렸다. 지금 구조는 아이템 카드 오른쪽 위 모서리를 따라가는 `_root` 위젯이며, docs/ARCHITECTURE.md 11a와 docs/DESIGN.md "Magic Menu Bookmark"를 본다. 이 아래는 기록용이다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 마법 메뉴의 주문 설명 칸에 책갈피를 붙여 누르면 Heart of Magic 패널이 열리고 닫으면 마법 메뉴로 돌아오게 하고, 고른 주문의 경험치 고리와 태그 칩을 설명 칸에 그린다.

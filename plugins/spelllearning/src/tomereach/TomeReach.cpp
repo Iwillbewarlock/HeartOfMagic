@@ -100,6 +100,7 @@ namespace TomeReach
                              "plugin, {} debug tomes left out; {} spells have no tome anything hands out ({} ms)",
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
                     pass.configFiles, pass.byDamaged, pass.byDebug, unreachable.size(), ms);
+                for (const auto& editorId : pass.debugEditorIds) logger::info("TomeReach: debug tome left out: {}", editorId);
                 Finish(&unreachable);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());

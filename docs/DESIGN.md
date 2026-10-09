@@ -1301,18 +1301,19 @@ All mod configuration. Split-row layout for space efficiency.
 ### Magic Menu Bookmark
 
 Drawn by the plugin into the game's magic menu, not by the panel (code: docs/ARCHITECTURE.md, "MagicMenuBookmark";
-spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). A widget at the top right of the
-menu's visible area, 24 in from the top and right edges of a 720-high screen (scaled with the screen); the
-item card itself is left as it is.
+spec: docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). A widget that follows the item card's
+visible top-right corner (it slides and fades with the card); it is drawn on the menu's own layer, so the item
+card itself is left as it is. Sizes are in units of a 720-high screen.
 
-- **Clip** (`magicMenu.bookmark`): a tan leather fold-over clip, about 4:5, with "Heart / of / Magic" pressed
+- **Clip** (`magicMenu.bookmark`): a dark, worn, matte leather fold-over clip (to match the game's menus, 2026-10-09), about 4:5, with "Heart / of / Magic" pressed
   into it on three lines and a stitch line under the fold (the user's reference photo, 2026-10-08; pictures
-  made with Gemini). 70 wide, at the widget's right end. With the mouse over it the clip rises 4 and the words
+  made with Gemini). 54 wide, folded over the card's top edge 10 in from its right edge, its flap above the description's first
+  line. With the mouse over it the clip rises a little and the words
   glow gold: the glow fades in over 0.25 s, breathes between 60% and 100% every 2 s, and fades out when the
   mouse leaves. Clicking it closes the magic menu and opens the panel; closing the panel (any way) opens the
   magic menu again; a panel opened with the hotkey closes to the game as before. Without the pictures the
   same clip is drawn with lines and a text field.
-- **Spell box** (`magicMenu.spellInfo`): under the clip, 230 wide and 64 high, a dark translucent box with a
+- **Spell box** (`magicMenu.spellInfo`): above the item card, left of the clip (6 apart from each), 230 wide and 64 high, a dark translucent box with a
   thin bronze edge. Left: a ring - a blue arc as far as the learning progress with the percent inside, a full
   gold disc when mastered, a grey circle at 0. Right: the spell's name, and under it up to four of the panel
   card's tags in the panel's language joined by " · ", then "+N" (two lines when they do not fit on one).

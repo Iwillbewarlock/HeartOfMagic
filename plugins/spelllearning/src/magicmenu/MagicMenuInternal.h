@@ -23,7 +23,7 @@ namespace MagicMenuBookmark
         // The clip's height (fold included) at this width, and the part of it above the fold line
         double Height(double a_width);
         double FoldHeight(double a_width);
-        // Draws the clip into a_parent (hom_bookmark), its top-left at (a_x, a_y), with its click, hover and glow
+        // Draws the clip (hom_bookmark) into a_parent (hom_widget), its top-left at (a_x, a_y), with its click, hover and glow
         void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width);
     }
 

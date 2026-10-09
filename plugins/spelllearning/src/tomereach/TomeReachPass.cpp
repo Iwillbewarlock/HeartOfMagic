@@ -22,23 +22,38 @@ namespace TomeReach
                 damagedScope.insert(scan.scope.begin(), scan.scope.end());
             }
         }
-        result.reached = evidence.found;
+        // A debug tome counts as handed out by nothing, wherever it is placed: it is set aside
+        // before anything is counted. Mods keep them in a test cell (Sa'chil's SU04SpellTomeDebug:
+        // "place Sa'chil", in the SachilDebug cell); on the author's load order every BOOK with
+        // "debug" in its editor id is one (3 of them). Each one is logged by editor id (TomeReach.cpp)
+        std::unordered_map<Key, std::string> editorIds;
+        for (const auto& book : read) editorIds[book.book] = book.editorId;  // the winning override's
+        std::unordered_set<Key> debugTomes;
+        for (const auto& [book, editorId] : editorIds) {
+            if (tomes.contains(book) && LowerAscii(editorId).find("debug") != std::string::npos) {
+                debugTomes.insert(book);
+                result.debugEditorIds.push_back(editorId);
+            }
+        }
+        result.byDebug = debugTomes.size();
+
+        for (const Key tome : evidence.found) {
+            if (!debugTomes.contains(tome)) result.reached.insert(tome);
+        }
         result.byRecord = result.reached.size();
         for (const Key tome : evidence.foundLoose) {
-            if (result.reached.insert(tome).second) {
+            if (!debugTomes.contains(tome) && result.reached.insert(tome).second) {
                 ++result.byLooseOnly;
                 result.looseFrom.emplace(tome, evidence.looseFrom[tome]);
             }
         }
 
         // The rest: named by a distribution config, by editor id or by plugin and id
-        std::unordered_map<Key, std::string> editorIds;
-        for (const auto& book : read) editorIds[book.book] = book.editorId;
         ConfigText text;
         for (const auto& file : configs) text.Add(file);
         result.configFiles = text.FileCount();
         for (const Key tome : tomes) {
-            if (result.reached.contains(tome)) continue;
+            if (result.reached.contains(tome) || debugTomes.contains(tome)) continue;
             const auto plugin = PluginOf(tome);
             const auto local = LocalOf(tome);
             const auto edid = editorIds.find(tome);
@@ -49,16 +64,9 @@ namespace TomeReach
         }
         // A damaged plugin could have named any tome of itself or its masters
         for (const Key tome : tomes) {
-            if (damagedScope.contains(PluginOf(tome)) && result.reached.insert(tome).second) ++result.byDamaged;
-        }
-        // Last: a debug tome counts as handed out by nothing, wherever it is placed. Mods
-        // keep them in a test cell (Sa'chil's SU04SpellTomeDebug: "place Sa'chil", in
-        // the SachilDebug cell); on the author's load order every BOOK with "debug" in
-        // its editor id is one (3 of them)
-        for (const auto& [book, editorId] : editorIds) {  // the winning override's editor id
-            if (tomes.contains(book) && LowerAscii(editorId).find("debug") != std::string::npos &&
-                result.reached.erase(book)) {
-                ++result.byDebug;
+            if (!debugTomes.contains(tome) && damagedScope.contains(PluginOf(tome)) &&
+                result.reached.insert(tome).second) {
+                ++result.byDamaged;
             }
         }
         if (books) *books = std::move(read);

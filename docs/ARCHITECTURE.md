@@ -214,7 +214,9 @@ game the placed references of cells that are not loaded are not in memory:
   contains `debug` (case ignored). Mods keep these in a test cell reached only by `coc`: Sa'chil's
   `SU04SpellTomeDebug` ("사'칠 배치", which moves the follower home) sits in the `SachilDebug` cell. On the
   author's load order 3 BOOK records match and all 3 are debug books; the pass leaves out 1 tome
-  (`byDebug`, in the `TomeReach:` log line and `tome-reach-test`'s first line). Spell editor ids are not
+  (`byDebug`, in the `TomeReach:` log line and `tome-reach-test`'s first line, with one `debug tome left out:
+  <editor id>` line each). Debug tomes are set aside before anything is counted, so they are in no other count
+  and never "loose". Spell editor ids are not
   used: the engine keeps none for spells, while the pass reads the BOOK's from the plugin file.
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
@@ -1161,8 +1163,8 @@ SpellLearning.GetSourceCap(source)                     ; Cap % for any source
 
 ### 11a. **MagicMenuBookmark** (`plugins/spelllearning/src/magicmenu/`, `plugins/spelllearning/include/magicmenu/MagicMenuBookmark.h`)
 
-A widget in the game's magic menu: a leather clip that opens the panel, and under it a box with the
-selected spell's XP ring, name and tags (what it looks like: docs/DESIGN.md, "Magic Menu Bookmark"; spec:
+A widget in the game's magic menu: a leather clip folded over the item card's top-right corner that opens the
+panel, and above the card, left of the clip, a box with the selected spell's XP ring, name and tags (what it looks like: docs/DESIGN.md, "Magic Menu Bookmark"; spec:
 docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md). Drawn with the AS2 drawing API into the
 magic menu's own Scaleform movie, as `hom_widget` on its `_root` - never inside the menu's own clips: the
 first two game runs drew on the item card and the menu's layout moved (2026-10-09). No menu SWF is shipped
@@ -1170,16 +1172,22 @@ or patched. Everything runs where SKSE UI tasks and the movie's frame handlers r
 in the run of 2026-10-08).
 
 - **`MagicMenuBookmark.cpp`** - `Install()` (kDataLoaded) adds a `MenuOpenCloseEvent` sink. On the menu
-  opening a UI task places `hom_widget` at the top right of `GFxMovieView::GetVisibleFrameRect()` (margins and
-  sizes in units of a 720-high screen, so any resolution or UI mod gets the same place), unless both switches
-  are off. Then `Tab::Attach` (gated by `UIManager::MagicMenuBookmark()` and an initialized UIManager) and
+  opening a UI task adds `hom_widget` to `_root` (sizes in units of a 720-high screen: the height of
+  `GFxMovieView::GetVisibleFrameRect()` / 720), unless both switches are off. Its `onEnterFrame` (`Follow`)
+  finds the item card every frame (`kCardPaths`: SkyUI's `_root.Menu_mc.itemCardFadeHolder.ItemCard_mc`, then
+  vanilla's `_root.Menu_mc.ItemCardFadeHolder_mc.ItemCard_mc`), takes the top-right corner of its `background`'s
+  `getBounds` less the shadow margin measured in game run 2 (`kBoxInsetRight` 40, `kBoxInsetTop` 36 card
+  units), and puts the widget there in `_root` coordinates with the card's own and its parents' `_alpha` and
+  `_visible`, so it slides and fades with the card; no card or background hides it. The clip (54 wide, its
+  right edge 10 in from the card's right edge) folds over the card's top edge; the spell box (230x64) sits 6
+  above the card and 6 left of the clip. Then `Tab::Attach` (gated by `UIManager::MagicMenuBookmark()` and an initialized UIManager) and
   `SpellInfo::Attach` (gated by `MagicMenuSpellInfo()`).
 - **`MagicMenuTab.cpp`** - the clip (`hom_bookmark`): a drawn clip (`hom_vec`, outline table `kOutline`, three
   text lines) and the two pictures `Interface/HeartOfMagic/bookmark.dds` / `bookmark_glow.dds` loaded with
   `loadMovie` into hidden holders (two path forms each, Interface-relative and `img://`; the first loads in the
   game), fitted over the clip once both have a width; after 60 frames without them the drawn clip stays.
   `GFxFunctionHandler`s on `onRelease` / `onRollOver` / `onRollOut` / `onEnterFrame`: the click calls
-  `RequestPanel()`, hover lifts the clip 4 and sets the glow target, the frame tick fits the pictures and steps
+  `RequestPanel()`, hover lifts the clip a little (`kHoverRise` 4 of the 90-wide drawing) and sets the glow target, the frame tick fits the pictures and steps
   the glow's `_alpha`. The game's movie has no `flash.filters.GlowFilter`, so the drawn clip's glow is gold
   letters only (logged).
 - **Round trip** - `RequestPanel()` sets a flag and queues `kHide` for MagicMenu; the sink sees the menu close
@@ -1197,8 +1205,9 @@ in the run of 2026-10-08).
   - `HudNotify` keeps the language file's `chips.*` keys next to `hud.*`, so they follow the corner messages'
   language (the panel's, or English with Notification Language set to English), reread on a language change.
   The first selection after a game start without a scan reads `spell_catalog.json` once (`MergeCatalogChips`).
-- **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `widget at x .. y ..` with the visible
-  area, `bookmark attached`, `bookmark pictures loaded (... path form ...)` or `did not load`, `drawn bookmark,
+- **Log lines** (`SpellLearning.log`, prefix `MagicMenuBookmark:`): `magic menu opened` / `closed`, `widget
+  attached (visible area ...)`, once per session `card background in _root x .. y .., widget corner ..`, `the
+  menu has no visible area - no widget` (warn), `bookmark attached`, `bookmark pictures loaded (... path form ...)` or `did not load`, `drawn bookmark,
   glow filter ...`, `spell box attached`, `bookmark clicked`, and `UIManager: back to the magic menu`;
   `selected <name>` at debug level.
 
