@@ -3,6 +3,7 @@
 #include "magicmenu/MagicMenuDraw.h"
 #include "uimanager/UIManager.h"
 
+#include <array>
 #include <atomic>
 
 // =============================================================================
@@ -16,15 +17,105 @@ namespace MagicMenuBookmark
 {
     namespace
     {
-        // Widget layout in units of a 720-high screen (the movie's visible height / 720)
+        // Widget layout in units of a 720-high screen (the movie's visible height / 720). The widget's
+        // origin is the item card's visible top-right corner; the clip folds over it, the spell box sits
+        // just above the card, left of the clip.
         constexpr double kRefHeight = 720.0;
-        constexpr double kMargin = 24.0;     // from the visible area's top and right edges
-        constexpr double kWidgetW = 230.0;   // the spell box; the clip sits at its right end, above it
         constexpr double kClipW = 70.0;
-        constexpr double kClipGap = 6.0;     // between the clip and the box
+        constexpr double kClipInset = 14.0;  // the clip's right edge, left of the card's right edge
+        constexpr double kBoxW = 230.0, kBoxH = 64.0, kGap = 6.0;
+
+        // The item card (SkyUI's ItemMenu, then vanilla's names) and the part of its "background" that is
+        // the visible box: in game run 2 (2026-10-09) the background's bounds stood about 40 card units
+        // right of and 36 above the black box the player sees (its shadow/frame margin)
+        constexpr std::array<const char*, 2> kCardPaths{ "_root.Menu_mc.itemCardFadeHolder.ItemCard_mc",
+                                                         "_root.Menu_mc.ItemCardFadeHolder_mc.ItemCard_mc" };
+        constexpr double kBoxInsetRight = 40.0, kBoxInsetTop = 36.0;
+        constexpr int kMaxParents = 16;
 
         std::atomic<bool> g_openPanelOnClose{ false };  // clicked: open the panel once the menu has closed
         std::atomic<bool> g_returnToMenu{ false };      // the panel was opened from the bookmark
+        bool g_layoutLogged = false;                    // the first placement each session is logged
+
+        std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie)
+        {
+            for (const auto* path : kCardPaths) {
+                RE::GFxValue card;
+                if (a_movie->GetVariable(&card, path) && card.IsDisplayObject()) return card;
+            }
+            return std::nullopt;
+        }
+
+        // A point of a clip in _root's coordinates
+        std::pair<double, double> ToRoot(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, RE::GFxValue& a_root, double a_x, double a_y)
+        {
+            RE::GFxValue point, x, y;
+            a_movie->CreateObject(&point);
+            point.SetMember("x", a_x);
+            point.SetMember("y", a_y);
+            a_clip.Invoke("localToGlobal", nullptr, &point, 1);
+            a_root.Invoke("globalToLocal", nullptr, &point, 1);
+            point.GetMember("x", &x);
+            point.GetMember("y", &y);
+            return { x.IsNumber() ? x.GetNumber() : 0.0, y.IsNumber() ? y.GetNumber() : 0.0 };
+        }
+
+        // The card's visible top-right corner in _root, and whether the card is shown (its fade with
+        // its parents'); nullopt without a card or its background
+        struct Corner { double x, y, alpha; bool visible; };
+        std::optional<Corner> CardCorner(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
+        {
+            auto card = FindCard(a_movie);
+            RE::GFxValue background, bounds, xMax, yMin;
+            if (!card || !card->GetMember("background", &background) || !background.IsDisplayObject()) return std::nullopt;
+            const std::array<RE::GFxValue, 1> args{ *card };
+            if (!background.Invoke("getBounds", &bounds, args) || !bounds.IsObject() || !bounds.GetMember("xMax", &xMax) ||
+                !bounds.GetMember("yMin", &yMin) || !xMax.IsNumber() || !yMin.IsNumber()) {
+                return std::nullopt;
+            }
+            const auto [x, y] = ToRoot(a_movie, *card, a_root, xMax.GetNumber() - kBoxInsetRight, yMin.GetNumber() + kBoxInsetTop);
+            double alpha = 1.0;
+            bool visible = true;
+            RE::GFxValue clip = *card;
+            for (int depth = 0; depth < kMaxParents && clip.IsDisplayObject(); ++depth) {
+                RE::GFxValue a, v, parent;
+                if (clip.GetMember("_alpha", &a) && a.IsNumber()) alpha *= a.GetNumber() / 100.0;
+                if (clip.GetMember("_visible", &v) && v.IsBool()) visible = visible && v.GetBool();
+                if (!clip.GetMember("_parent", &parent) || !parent.IsDisplayObject() || parent == a_root) break;
+                clip = parent;
+            }
+            if (!g_layoutLogged) {
+                g_layoutLogged = true;
+                RE::GFxValue xMin, yMax;
+                bounds.GetMember("xMin", &xMin);
+                bounds.GetMember("yMax", &yMax);
+                const auto [ax, ay] = ToRoot(a_movie, *card, a_root, xMin.GetNumber(), yMin.GetNumber());
+                const auto [bx, by] = ToRoot(a_movie, *card, a_root, xMax.GetNumber(), yMax.GetNumber());
+                logger::info("MagicMenuBookmark: card background in _root x {:.0f}..{:.0f} y {:.0f}..{:.0f}, widget corner {:.0f},{:.0f}",
+                    ax, bx, ay, by, x, y);
+            }
+            return Corner{ x, y, alpha, visible };
+        }
+
+        // The widget's frame: follow the card's corner (the menu slides and fades the card)
+        class Follow final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                auto* movie = OpenMagicMenuMovie();
+                RE::GFxValue root;
+                if (!movie || !a_params.thisPtr || !movie->GetVariable(&root, "_root")) return;
+                const auto corner = CardCorner(movie, root);
+                auto& widget = *a_params.thisPtr;
+                widget.SetMember("_visible", corner.has_value() && corner->visible);
+                if (!corner) return;
+                widget.SetMember("_x", corner->x);
+                widget.SetMember("_y", corner->y);
+                widget.SetMember("_alpha", corner->alpha * 100.0);
+            }
+        };
+        RE::GPtr<Follow> g_follow;
 
         void AttachWidget()
         {
@@ -44,15 +135,17 @@ namespace MagicMenuBookmark
             }
             auto widget = MagicMenuDraw::Clip(root, "hom_widget");
             if (!widget.IsDisplayObject()) return;
-            const double x = area.right - (kMargin + kWidgetW) * unit, y = area.top + kMargin * unit;
-            widget.SetMember("_x", x);
-            widget.SetMember("_y", y);
+            widget.SetMember("_visible", false);  // until the first frame finds the card
+            if (!g_follow) g_follow = RE::make_gptr<Follow>();
+            RE::GFxValue fn;
+            movie->CreateFunction(&fn, g_follow.get());
+            widget.SetMember("onEnterFrame", fn);
 
-            const double clipW = kClipW * unit;
-            if (bookmark) Tab::Attach(movie, widget, (kWidgetW - kClipW) * unit, 0, clipW);
-            SpellInfo::Attach(movie, widget, 0, Tab::Height(clipW) + kClipGap * unit, kWidgetW * unit, unit);
-            logger::info("MagicMenuBookmark: widget at x {:.0f} y {:.0f} (visible area x {:.0f}..{:.0f} y {:.0f}..{:.0f})", x, y,
-                area.left, area.right, area.top, area.bottom);
+            const double clipW = kClipW * unit, clipX = -(kClipInset * unit + clipW);
+            if (bookmark) Tab::Attach(movie, widget, clipX, -Tab::FoldHeight(clipW), clipW);
+            SpellInfo::Attach(movie, widget, clipX - (kGap + kBoxW) * unit, -(kBoxH + kGap) * unit, kBoxW * unit, unit);
+            logger::info("MagicMenuBookmark: widget attached (visible area x {:.0f}..{:.0f} y {:.0f}..{:.0f})", area.left, area.right,
+                area.top, area.bottom);
         }
 
         class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>

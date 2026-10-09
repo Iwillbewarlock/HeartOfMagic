@@ -221,6 +221,11 @@ namespace MagicMenuBookmark::Tab
         return (kFoldH + kFlapH) * a_width / kTabW;
     }
 
+    double FoldHeight(double a_width)
+    {
+        return kFoldH * a_width / kTabW;
+    }
+
     void Attach(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, double a_x, double a_y, double a_width)
     {
         if (!g_click) {
