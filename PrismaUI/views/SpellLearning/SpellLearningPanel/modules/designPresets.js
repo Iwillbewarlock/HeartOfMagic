@@ -56,7 +56,7 @@ var DesignPresets = {
             // leather and gold, the tree, the spell card and the hover card parchment
             uiTheme: 'skyrim',
             cssFile: 'themes/design-arcane.css',
-            icons: 'themes/icons-line-gold/',
+            icons: 'themes/arcane/icons/',
             tree: {
                 // Page
                 pageColor: '#e6d6b0',
