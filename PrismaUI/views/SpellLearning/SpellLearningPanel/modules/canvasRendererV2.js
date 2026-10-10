@@ -383,6 +383,9 @@ var CanvasRenderer = {
                     self._needsRender = false;
                     self._animationOnlyRender = false;
                     self.render();
+                } else if (typeof LayerBuild !== 'undefined' && !self.isPanning) {
+                    // Nothing to draw: a slice of making every name's letters (LayerBuild.warmIdle)
+                    LayerBuild.warmIdle(self);
                 }
             } catch (e) {
                 // Once per session: a frame that throws usually throws every frame

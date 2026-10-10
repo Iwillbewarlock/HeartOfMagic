@@ -473,6 +473,26 @@ meanwhile. Bench: the finishing
 frame after a page-to-page switch 17-21 → 10-11 ms; a quick tree's repaint after a switch 40-54 → 10-13 ms
 (its frames).
 
+**Every name's letters made while the panel is still** (`LayerBuild.warmIdle`, 2026-10-10). The warm-up
+above makes only the letters of the names its build draws, and at the opening zoom (0.75) that is a handful
+(4 in the lab with a quarter of the tree known). The first zoom past 0.8 then drew ~150 names whose letters
+the engine had never drawn: 27-41 ms in one frame in the offline Ultralight lab (Korean names, 1452 spells,
+639 distinct letters at ~0.12 ms each outlined and filled), every later visit 3-6 ms. Now an animation frame
+with nothing to draw (the render loop's `!shouldRender` frames, not while a button is held) gives
+`IDLE_WARM_MS` (2 ms; Ultralight's clock is 1 ms coarse, so 2-3) to a warm-up job over the whole tree:
+the names' letters gathered `WARM_GATHER` spells a step (the names that can be drawn - unlocked, learning,
+available - first, the locked ones after), then each letter drawn once on the small canvas (outlined when
+the design has an outline, at any zoom), then the chapter titles'. The lab confirmed Ultralight's glyphs
+are shared across canvases: letters drawn on that canvas make the tree layer's first names cheap. The job
+starts again for a new font (`_glyphFontKey`: size, face, outline width, scale, title size, name length
+cap; `noteRestyle` too, a late web font keeping its name) and for a new tree (only its letters not made
+yet: `_glyphsDone`). Until it is done the font counts as cold (`LayerBuild._cold()` = `_textCold` or
+`_glyphsPending`): repaints are spread and a build still makes its own names' letters first, leaving out
+the ones the job made. Off with spell names off. Measured (`burst`, 3 notches, median of 3 runs; the job
+done ~0.6 s after the tree is drawn, its frames under 8 ms): the first zoom past 0.8 37.5 → 13.4 ms on
+Arcane, 34.9 → 10.8 ms on Classic, no frame over 16.7 ms left in the run. Measuring every name's width too
+gained nothing (13.0 against 12.7 ms), so the job makes letters only.
+
 **Where the renderer's code lives** (2026-09-28). `CanvasRenderer` is one object in thirteen files, all
 under 600 lines: `canvasRendererV2.js` holds its state and constants, start-up, canvas size, the render
 loop, the public calls and the `_needsRender` accessor; each `canvasRenderer*.js` file after it is an IIFE

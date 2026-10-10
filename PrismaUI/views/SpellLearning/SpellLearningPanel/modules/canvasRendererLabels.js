@@ -43,8 +43,7 @@
             if (settings.showNodeNames === false) return null;
 
             var isEditActive = typeof EditMode !== 'undefined' && EditMode.isActive;
-            // Spell Name Size, times the panel's Font Size (labelScale, set by applyFontSizeMultiplier)
-            var fontSize = (settings.nodeFontSize || DEFAULT_NODE_FONT_SIZE) * (this.labelScale || 1);
+            var fontSize = this._labelFontSize();
             var style = TreeStyle.tokens;
 
             var focusOnly = this.zoom < this.LABEL_FOCUS_ZOOM;
@@ -142,6 +141,11 @@
             // Zoomed out, fewer names: the first MAX_LABELS_FOCUS in that order
             return { candidates: candidates, fontSize: fontSize,
                      maxLabels: focusOnly ? this.MAX_LABELS_FOCUS : this.MAX_LABELS };
+        },
+
+        /** The names' size, css px: Spell Name Size times the panel's Font Size (labelScale, set by applyFontSizeMultiplier). */
+        _labelFontSize: function() {
+            return (settings.nodeFontSize || DEFAULT_NODE_FONT_SIZE) * (this.labelScale || 1);
         },
 
         /**

@@ -86,6 +86,12 @@ var LayerBuild = {
                               // and glyphs are made first (_warmText), spread, before the finish
     _warmCanvas: null,        // a small canvas the glyphs are drawn on to make them (_warmText)
     WARM_PAD_PX: 4,           // css px round a letter drawn there; the canvas is two letters tall and wide
+    IDLE_WARM_MS: 2,          // an idle frame's slice of the warm-up of every name's letters (warmIdle)
+    WARM_GATHER: 50,          // names whose letters are gathered in one step of that warm-up
+    _glyphs: null,            // that warm-up: a _warmJob over the tree's nodes, plus tree, len, finished
+    _glyphsKey: '',           // the font its letters are for (_glyphFontKey)
+    _glyphsDone: {},          // the letters made in it, 'n' + letter (names) or 't' + letter (chapter titles)
+    _glyphsPending: false,    // ...not all made yet: counts as _textCold (_cold)
 
     active: function() {
         return !!this._build;
@@ -100,7 +106,7 @@ var LayerBuild = {
     wanted: function(r, layer) {
         // With the names' font new (a design switch) even a quick tree's repaint is
         // spread: making the widths and glyphs of a new face costs 5-15 ms by itself
-        return this.ENABLED && (this._lastMs > this.SYNC_MAX_MS || this._textCold) && !!layer && layer.width > 0 &&
+        return this.ENABLED && (this._lastMs > this.SYNC_MAX_MS || this._cold()) && !!layer && layer.width > 0 &&
             !this.overRestarts() &&
             typeof LayerScroll !== 'undefined' && !(typeof EditMode !== 'undefined' && EditMode.isActive);
     },
@@ -129,6 +135,8 @@ var LayerBuild = {
     noteRestyle: function() {
         this._unmeasured = true;
         this._textCold = true;
+        this._glyphsKey = '';      // the face may be another under the same name (a late web font)
+        this._glyphs = null;
     },
 
     /**
@@ -257,7 +265,7 @@ var LayerBuild = {
                     b.pieces++;
                     if (ms < b.minPiece) b.minPiece = ms;
                     if (onScreen > 0) onScreen--;
-                } else if (self._textCold && !b.warmed) {
+                } else if (self._cold() && !b.warmed) {
                     // A new font: its widths and glyphs made in the time left, then the names
                     // (their time is the font's, not the tree's: left out of _estimate)
                     if (drew && left() <= 0) break;
@@ -306,46 +314,68 @@ var LayerBuild = {
      * a new face cost 5-15 ms more than the next (widths, shaping, glyph outlines
      * for the halo; 13 ms on Chalkboard in the bench), all in the finish's frame
      * before. As many as fit in the time left, one at least; returns true when
-     * all are done (b.warmed). The glyph part holds where the engine keeps its
-     * glyphs across canvases (Chrome does); the widths are ours.
+     * all are done (b.warmed). Letters the idle warm-up made (warmIdle) are not
+     * drawn again. The glyph part holds where the engine keeps its glyphs across
+     * canvases (Chrome does; Ultralight does: measured in the lab); the widths are ours.
      */
     _warmText: function(r, b, left) {
-        var w = b.warm;
-        if (!w) {
+        if (!b.warm) {
             var v = b.view, found = r._labelCandidates ? r._labelCandidates(v.cx, v.cy, v.cos, v.sin, b.margin) : null;
-            var texts = [], chars = '', titles = '', seen = {}, i, k, s;
-            if (found) for (i = 0; i < found.candidates.length; i++) texts.push(found.candidates[i].text);
-            var addChars = function(text, into) {
-                for (k = 0; k < text.length; k++) {
-                    var c = text.charAt(k), key = into + c;
-                    if (!seen[key]) { seen[key] = true; if (into === 'n') chars += c; else titles += c; }
-                }
-            };
-            for (i = 0; i < texts.length; i++) if (texts[i]) addChars(texts[i], 'n');
-            if (TreeStyle.tokens && TreeStyle.tokens.chapterTitles && r.schools) {
-                for (s in r.schools) if (r.schools.hasOwnProperty(s)) addChars('— ' + TreeStyle._schoolName(s), 't');
-            }
-            w = b.warm = { texts: texts, chars: chars, titles: titles, fontSize: found ? found.fontSize : 0, i: 0, j: 0, k: 0 };
-            if (!this._warmCanvas && typeof document !== 'undefined' && document.createElement) {
-                try { this._warmCanvas = document.createElement('canvas'); } catch (e) { this._warmCanvas = null; }
-            }
-            // Big enough for the largest letter at the build's scale (a letter off the
-            // canvas may not be drawn at all, and so not made)
-            var tk = TreeStyle.tokens || {};
-            var side = Math.ceil((2 * Math.max(w.fontSize, tk.chapterTitles ? tk.chapterSize || 0 : 0) + 2 * this.WARM_PAD_PX) * b.dpr);
-            if (this._warmCanvas && (this._warmCanvas.width !== side || this._warmCanvas.height !== side)) {
-                this._warmCanvas.width = side;
-                this._warmCanvas.height = side;
-            }
+            var texts = [], i;
+            if (found) for (i = 0; i < found.candidates.length; i++) if (found.candidates[i].text) texts.push(found.candidates[i].text);
+            var w = b.warm = this._warmJob(r, found ? found.fontSize : 0, b.dpr, texts, null);
+            for (i = 0; i < texts.length; i++) this._warmAdd(w, texts[i], 'n');
         }
+        if (this._warmRun(r, b.warm, left)) b.warmed = true;
+        return !!b.warmed;
+    },
+
+    /**
+     * A warm-up job: `widths` measured, then the letters of `nodes`' names
+     * (gathered WARM_GATHER a step, those that can show first), then the chapter
+     * titles'. Letters made already for this font (_glyphsDone) are left out;
+     * the ones it draws are added there.
+     */
+    _warmJob: function(r, fontSize, dpr, widths, nodes) {
+        var t = TreeStyle.tokens || {}, key = this._glyphFontKey(r, dpr);
+        var w = { widths: widths, i: 0, nodes: nodes, s: 0, chars: '', titles: '', j: 0, k: 0, fontSize: fontSize, dpr: dpr,
+                  seen: {}, done: key && key === this._glyphsKey ? this._glyphsDone : null };
+        if (t.chapterTitles && r.schools) {
+            for (var s in r.schools) if (r.schools.hasOwnProperty(s)) this._warmAdd(w, '— ' + TreeStyle._schoolName(s), 't');
+        }
+        if (!this._warmCanvas && typeof document !== 'undefined' && document.createElement) {
+            try { this._warmCanvas = document.createElement('canvas'); } catch (e) { this._warmCanvas = null; }
+        }
+        // Big enough for the largest letter at this scale (a letter off the
+        // canvas may not be drawn at all, and so not made)
+        var side = Math.ceil((2 * Math.max(fontSize, t.chapterTitles ? t.chapterSize || 0 : 0) + 2 * this.WARM_PAD_PX) * dpr);
+        if (this._warmCanvas && (this._warmCanvas.width !== side || this._warmCanvas.height !== side)) {
+            this._warmCanvas.width = side;
+            this._warmCanvas.height = side;
+        }
+        return w;
+    },
+
+    /** A text's letters into job w ('n' a name's, 't' a chapter title's), once each, none made already. */
+    _warmAdd: function(w, text, into) {
+        for (var k = 0; k < text.length; k++) {
+            var c = text.charAt(k), id = into + c;
+            if (w.seen[id] || (w.done && w.done[id])) continue;
+            w.seen[id] = true;
+            if (into === 'n') w.chars += c; else w.titles += c;
+        }
+    },
+
+    /** Job w's work while left() > 0 (one item at least); true when all of it is done. */
+    _warmRun: function(r, w, left) {
         var ctx = this._warmCanvas && this._warmCanvas.getContext ? this._warmCanvas.getContext('2d') : null;
-        if (!ctx) { b.warmed = true; return true; }
-        var t = TreeStyle.tokens || {}, phase = -1, pad = this.WARM_PAD_PX, nameHalo = false;
+        if (!ctx) return true;
+        var t = TreeStyle.tokens || {}, phase = -1, pad = this.WARM_PAD_PX, nameHalo = false, n = w.nodes;
         // The canvas is set up afresh each call (a late font may have emptied the width cache meanwhile)
         var setUp = function(to) {
             if (phase === to) return;
             phase = to;
-            ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
+            ctx.setTransform(w.dpr, 0, 0, w.dpr, 0, 0);
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             // No zoom passed: the names' outlines are made at any zoom when the design
@@ -357,27 +387,84 @@ var LayerBuild = {
                 ctx.lineWidth = t.labelHaloWidth + 1;
             }
         };
-        var letter = function(c) {
+        var letter = function(c, id) {
             if (phase === 2 ? t.labelHalo : nameHalo) ctx.strokeText(c, pad, pad);
             ctx.fillText(c, pad, pad);
+            if (w.done) w.done[id] = true;
         };
         do {
-            if (w.i < w.texts.length) {
+            if (w.i < w.widths.length) {
                 // The widths, with the font set as renderLabels sets it, so the cache is kept
                 setUp(0);
-                r._labelWidth(ctx, w.texts[w.i++]);
+                r._labelWidth(ctx, w.widths[w.i++]);
+            } else if (n && w.s < 2 * n.length) {
+                // The names that can be drawn now first (a zoom during the warm-up finds
+                // their letters made), the locked ones on a second pass
+                for (var e = Math.min(w.s + this.WARM_GATHER, 2 * n.length); w.s < e; w.s++) {
+                    var node = n[w.s % n.length];
+                    var shown = node.state === 'unlocked' || node.state === 'learning' || node.state === 'available';
+                    if (node.name && shown === (w.s < n.length)) this._warmAdd(w, TreeStyle.clipLabel(node.name), 'n');
+                }
             } else if (w.j < w.chars.length) {
                 setUp(1);
-                letter(w.chars.charAt(w.j++));
+                var c = w.chars.charAt(w.j++);
+                letter(c, 'n' + c);
             } else if (w.k < w.titles.length) {
                 setUp(2);
-                letter(w.titles.charAt(w.k++));
+                var d = w.titles.charAt(w.k++);
+                letter(d, 't' + d);
             } else {
                 break;
             }
         } while (left() > 0);
-        if (w.i >= w.texts.length && w.j >= w.chars.length && w.k >= w.titles.length) b.warmed = true;
-        return !!b.warmed;
+        return w.i >= w.widths.length && (!n || w.s >= 2 * n.length) && w.j >= w.chars.length && w.k >= w.titles.length;
+    },
+
+    /** What the names' letters are made for: size, face, outline, the titles' size, scale ('' when unknown). */
+    _glyphFontKey: function(r, dpr) {
+        var t = (typeof TreeStyle !== 'undefined' && TreeStyle.tokens) || null;
+        if (!t || !TreeStyle.labelFamily || !r._labelFontSize) return '';
+        return [r._labelFontSize(), TreeStyle.labelFamily(), t.labelHalo ? t.labelHaloWidth : 0, dpr,
+                t.chapterTitles ? t.chapterSize : 0, t.labelMaxChars].join('|');
+    },
+
+    /**
+     * An animation frame with nothing to draw (CanvasRenderer's loop): a slice
+     * (IDLE_WARM_MS) of making the letters of every name in the tree, outlined
+     * when the design has an outline. The repaints make only the names they draw
+     * (_warmText; 4 at the opening zoom), so the first zoom past LABEL_FOCUS_ZOOM
+     * drew ~150 names in letters new to the engine: 27-41 ms in one frame in the
+     * lab (Korean names: 639 letters, ~0.12 ms each). Made here a few a frame
+     * while the panel is open and still, they cost no visible frame. Starts again
+     * for a new font (noteRestyle, the key) or tree; until done it counts as
+     * _textCold (_cold), so a repaint meanwhile still warms its own names first.
+     */
+    warmIdle: function(r) {
+        if (!this.ENABLED || !r || !r.nodes || this._build) return;
+        if (typeof settings !== 'undefined' && settings.showNodeNames === false) return;
+        var dpr = window.devicePixelRatio || 1, key = this._glyphFontKey(r, dpr);
+        if (!key) return;
+        if (key !== this._glyphsKey) {
+            this._glyphsKey = key;
+            this._glyphsDone = {};
+            this._glyphs = null;
+        }
+        var q = this._glyphs;
+        if (!q || q.tree !== r.nodes || q.len !== r.nodes.length) {
+            q = this._glyphs = this._warmJob(r, r._labelFontSize(), dpr, [], r.nodes);
+            q.tree = r.nodes;
+            q.len = r.nodes.length;
+            this._glyphsPending = true;
+        }
+        if (!this._glyphsPending) return;
+        var now = function() { return (typeof performance !== 'undefined') ? performance.now() : Date.now(); };
+        var end = now() + this.IDLE_WARM_MS;
+        if (this._warmRun(r, q, function() { return end - now(); })) this._glyphsPending = false;
+    },
+
+    /** Is the names' font new, its letters not all made yet (a repaint is spread, its names' letters made first)? */
+    _cold: function() {
+        return this._textCold || this._glyphsPending;
     },
 
     /** The names and chapter titles, whole, over the finished pieces. */

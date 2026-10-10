@@ -15,6 +15,10 @@
  *   spread, its build measures the names' widths into the renderer's cache and
  *   draws each letter once before the names, and a slow uncounted build puts the
  *   figure just past SYNC_MAX_MS.
+ * - The idle warm-up (warmIdle): every name's letters made a slice a frame,
+ *   the names that can show first, each once; until done the font counts as
+ *   cold; a build's own warm-up skips the letters made; a new font or tree
+ *   starts it again (a new tree: only its new letters); off with names off.
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
  *   dropped (its change marked again, the restart count started over), a glide
@@ -67,12 +71,14 @@ var LayerFlowTest = {
             this._scrollTests(g, S);
             this._stepTests(g, S, B);
             this._warmTests(g, S, B);
+            this._idleWarmTests(g, B);
             this._drawTreeTests(g, S, B, CR);
         } finally {
             S._ensureSpare = saved.ensure; S._drawStrip = saved.strip; S.step = saved.step; S._spare = saved.spare;
             S._spareCtx = saved.sctx; S._pending = saved.pending; S.TARGET_FRAME_MS = saved.target;
             g.TreeStyle = saved.ts; B.start = saved.bstart; B.abort = saved.babort; B.step = saved.bstep;
             B._build = null; B._lastMs = 0; B._restarts = 0; B._textCold = false; B._unmeasured = false; B._warmCanvas = null;
+            B._glyphs = null; B._glyphsKey = ''; B._glyphsDone = {}; B._glyphsPending = false;
         }
         return { passed: this.passed, failed: this.failed };
     },
@@ -299,6 +305,53 @@ var LayerFlowTest = {
         fr._requestAnimationOnlyFrame();
         this.check(fr.__needsRender === true && fr._animationOnlyRender === true, '...and the heart alone gets a throttled frame');
         B._lastMs = 0; B._warmCanvas = null; B._build = null;
+    },
+
+    /** The idle warm-up of every name's letters (LayerBuild.warmIdle). */
+    _idleWarmTests: function(g, B) {
+        var log = [], family = 'serif', savedIdle = B.IDLE_WARM_MS, savedNames = g.settings.showNodeNames;
+        var wctx = { font: '', setTransform: function() {}, measureText: function(t) { return { width: t.length }; },
+                     strokeText: function(c) { log.push('stroke ' + c); }, fillText: function(c) { log.push(c); } };
+        B._warmCanvas = { getContext: function() { return wctx; } };
+        g.TreeStyle = { tokens: { labelHalo: 'x', labelHaloWidth: 3, labelMaxChars: 20 },
+                        beginLabels: function(ctx, size) { ctx.font = size + 'px ' + family; return true; },
+                        labelFamily: function() { return family; }, clipLabel: function(t) { return t; } };
+        var r = { nodes: [{ name: 'ab', state: 'locked' }, { name: 'bc', state: 'unlocked' }], schools: null,
+                  _labelFontSize: function() { return 10; },
+                  _labelFontFrom: function() { this._labelWidths = new Map(); },
+                  _labelWidth: function(ctx, t) { return t.length; } };
+        var layer = { width: 10 };
+        B._build = null; B._textCold = false; B._lastMs = 3; B._restarts = 0; B._glyphs = null; B._glyphsKey = '';
+        B._glyphsPending = false; B.IDLE_WARM_MS = -1;         // no time: one step a frame
+        var drain = function() { var n = 0; while (B._glyphsPending && n++ < 50) B.warmIdle(r); return n; };
+        try {
+            B.warmIdle(r);
+            this.check(B._glyphsPending && B._cold() && B.wanted(r, layer), 'a tree with letters not made: the font counts as cold, a repaint is spread');
+            drain();
+            this.check(log.join() === 'stroke b,b,stroke c,c,stroke a,a', "each letter once, outlined: the names that can show first, then the locked");
+            this.check(!B._glyphsPending && !B._cold() && !B.wanted(r, layer), 'all made: warm, a quick repaint done at once');
+            log.length = 0; B.warmIdle(r);
+            this.check(log.length === 0, '...and an idle frame after does nothing');
+            var w = B._warmJob(r, 10, 1, ['ab'], null);
+            B._warmAdd(w, 'abd', 'n');
+            this.check(w.chars === 'd', "a build's own warm-up leaves out the letters made");
+            r.nodes = r.nodes.concat([{ name: 'cd', state: 'available' }]);
+            B.warmIdle(r); drain();
+            this.check(log.join() === 'stroke d,d', 'a new tree: only its new letters');
+            log.length = 0; family = 'sans';
+            B.warmIdle(r); drain();
+            this.check(log.length === 8, 'a new face: every letter again');
+            log.length = 0; B.noteRestyle(); B._textCold = false;
+            B.warmIdle(r);
+            this.check(B._glyphsPending, 'a design change (noteRestyle) starts it again');
+            drain(); log.length = 0;
+            g.settings.showNodeNames = false; B.noteRestyle(); B._textCold = false;
+            B.warmIdle(r);
+            this.check(log.length === 0 && !B._glyphs, 'names off: nothing made');
+        } finally {
+            B.IDLE_WARM_MS = savedIdle; g.settings.showNodeNames = savedNames;
+            B._glyphs = null; B._glyphsKey = ''; B._glyphsDone = {}; B._glyphsPending = false; B._warmCanvas = null;
+        }
     },
 
     _drawTreeTests: function(g, S, B, CR) {
