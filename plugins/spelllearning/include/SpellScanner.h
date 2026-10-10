@@ -166,7 +166,7 @@ namespace SpellScanner
     struct GateVerdict
     {
         std::string band = "in";
-        std::vector<std::string> reasons;   // free, longSummon, banishOnly, rule:<id>, horseSummon, uniqueSummon, cheapScript
+        std::vector<std::string> reasons;   // free, longSummon, banishOnly, rule:<id>, horseSummon, uniqueSummon, nonHostileSummon, cheapScript
     };
     GateVerdict JudgeSpell(RE::SpellItem* spell);
     // The spells the player put back in from the panel (config.json gateReviewed), as
