@@ -74,32 +74,6 @@ ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& co
     return xpSettings;
 }
 
-// Config "magicMenu" (Settings > Hotkey, panelOpenSetting.js). hotkeyCode 0 is "no hotkey": no key has
-// scancode 0, so InputHandler never matches it. With the bookmark off as well nothing would open the
-// panel, so the bookmark counts as on then - the panel refuses that pair, a hand-edited config.json can have it.
-struct MagicMenuConfig
-{
-    bool bookmark = true;
-    bool spellInfo = true;
-    bool bookmarkForcedOn = false;  // both ways to open the panel were off
-};
-
-static MagicMenuConfig ReadMagicMenuConfig(const nlohmann::json& config)
-{
-    constexpr std::uint32_t kNoHotkeyCode = 0;
-    constexpr std::uint32_t kDefaultHotkeyCode = 66;  // F8, as GenerateDefaultConfig
-    MagicMenuConfig result;
-    if (config.contains("magicMenu") && config["magicMenu"].is_object()) {
-        result.bookmark = SafeJsonValue<bool>(config["magicMenu"], "bookmark", true);
-        result.spellInfo = SafeJsonValue<bool>(config["magicMenu"], "spellInfo", true);
-    }
-    if (!result.bookmark && SafeJsonValue<std::uint32_t>(config, "hotkeyCode", kDefaultHotkeyCode) == kNoHotkeyCode) {
-        result.bookmark = true;
-        result.bookmarkForcedOn = true;
-    }
-    return result;
-}
-
 // Apply runtime settings from a fully-merged config JSON.
 // Shared between OnLoadUnifiedConfig and the config save (UIManagerConfigSave.cpp).
 // Handles: early learning, spell tome, passive learning, and notification settings.
@@ -107,9 +81,6 @@ static MagicMenuConfig ReadMagicMenuConfig(const nlohmann::json& config)
 void ApplySettingsFromConfig(const nlohmann::json& config)
 {
     UIManager::SetPanelInfoLogging(SafeJsonValue<bool>(config, "developerMode", false));
-
-    const auto magicMenu = ReadMagicMenuConfig(config);
-    UIManager::SetMagicMenuSettings(magicMenu.bookmark, magicMenu.spellInfo);
 
     // Early learning settings
     if (config.contains("earlySpellLearning") && !config["earlySpellLearning"].is_null()) {
@@ -230,7 +201,6 @@ json GenerateDefaultConfig() {
         {"hotkey", "F8"},
         {"hotkeyCode", 66},
         {"pauseGameOnFocus", true},  // If false, game continues running when UI is open
-        {"magicMenu", {{"bookmark", true}, {"spellInfo", true}}},  // ReadMagicMenuConfig
         {"cheatMode", false},
         {"verboseLogging", false},
         // Heart animation settings
@@ -441,15 +411,6 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Preserve modded sources registered by API consumers before config loaded
     xpSettings.moddedSources = ProgressionManager::GetSingleton()->GetXPSettings().moddedSources;
     ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
-
-    // No hotkey and the bookmark off (hand-edited): the bookmark is turned on, and the panel is sent
-    // that, so its next save writes it
-    const auto magicMenu = ReadMagicMenuConfig(unifiedConfig);
-    if (magicMenu.bookmarkForcedOn) {
-        logger::warn("UIManager: config.json has no hotkey (hotkeyCode 0) and magicMenu.bookmark off - nothing would "
-                     "open the panel, so the magic menu bookmark is turned on");
-    }
-    unifiedConfig["magicMenu"] = json{{"bookmark", magicMenu.bookmark}, {"spellInfo", magicMenu.spellInfo}};
 
     // Apply early learning, tome, passive, and notification settings
     ApplySettingsFromConfig(unifiedConfig);

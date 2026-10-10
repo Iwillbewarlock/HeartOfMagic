@@ -1021,7 +1021,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (!data) return;
         
         // === Panel Settings ===
-        // Hotkey (0 = None) and magicMenu, both ways to open the panel kept (panelOpenSetting.js)
+        // Hotkey (0 = None, panelOpenSetting.js)
         if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.loadFrom(data);
         settings.developerMode = data.developerMode || false;
         settings.cheatMode = data.cheatMode || false;

@@ -19,7 +19,6 @@ var themesLoaded = false;
 var settings = {
     hotkey: 'F8',
     hotkeyCode: 66,  // DirectInput scancode for F8; 0 = no hotkey (panelOpenSetting.js)
-    magicMenu: { bookmark: true, spellInfo: true },  // the magic menu's bookmark, tags and XP (panelOpenSetting.js)
     pauseGameOnFocus: true,  // If false, game continues running when UI is open
     cheatMode: false,
     

@@ -266,7 +266,7 @@ function saveSettingsPreset(name) {
     preset.created = preset.created || Date.now();
 
     // What a preset holds is listed here and in applySettingsPreset's keys. The hotkey
-    // and magicMenu are personal (panelOpenSetting.js): never in a preset
+    // is personal (panelOpenSetting.js): never in a preset
     preset.settings = {
         // Flat progression settings
         xpGlobalMultiplier: settings.xpGlobalMultiplier,

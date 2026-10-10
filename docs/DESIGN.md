@@ -1300,7 +1300,15 @@ All mod configuration. Split-row layout for space efficiency.
 
 ### Key Settings Groups
 
-**Hotkey** (`modules/panelOpenSetting.js`, 2026-10-08): how the panel opens. The toggle key has Change, Reset,(F8) and **None** - `hotkeyCode` 0, `hotkey` "" (the field shows the None label as its placeholder, so a language,switch relabels it). Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) under the,row - typing that letter in a search box reaches the game too and closes the panel - but is allowed. Two,switches follow: **Magic Menu Bookmark** (`magicMenu.bookmark`, on) and **Tags and XP in the Magic Menu**,(`magicMenu.spellInfo`, on), for the magic menu bookmark (docs/superpowers/specs/2026-10-08-magic-menu-bookmark-design.md;,the menu code itself is not built yet, the switches only save). The bookmark and a hotkey are the two ways to,open the panel, so each locks the other: with None the bookmark switch is greyed out (`disabled-controls`),and a line says why; with the bookmark off the None button is disabled and a line says why. A config with,both off (hand-edited) loads with the bookmark on, in the panel and in C++. The notes are `.setting-desc,.hotkey-note` lines with their own `.hidden` rule in `patch-ui.css`, so every design draws them in its own,secondary text colour. Reset to Defaults sets F8 and both switches on; a settings preset never holds or,changes any of them (personal settings, like the language).,undefined**Progression:** How XP is earned and what thresholds unlock spells.
+**Hotkey** (`modules/panelOpenSetting.js`, 2026-10-08): how the panel opens. The toggle key has Change, Reset
+(F8) and **None** - `hotkeyCode` 0, `hotkey` "" (the field shows the None label as its placeholder, so a language
+switch relabels it); None can always be picked, and its button stays pressed (disabled) while it is the setting.
+Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) under the row - typing that letter
+in a search box reaches the game too and closes the panel - but is allowed. The warning is a `.setting-desc
+.hotkey-note` line with its own `.hidden` rule in `patch-ui.css`. Reset to Defaults sets F8; a settings preset
+never holds or changes the hotkey (a personal setting, like the language).
+
+**Progression:** How XP is earned and what thresholds unlock spells.
 **Early Learning:** Grants nerfed spells before full mastery. Also holds **XP Alerts** (default on,
 `notifications.enabled` - the key kept the first name, Show Notifications - `modules/notificationSetting.js`):
 off hides the corner messages about XP and power (`HudNotify::IsXPAlert`: casting, power steps, studying, book

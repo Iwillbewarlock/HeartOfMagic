@@ -46,18 +46,6 @@ public:
     static bool PanelInfoLogging() { return s_panelInfoLogging.load(std::memory_order_relaxed); }
     bool GetPauseGameOnFocus() const { return m_pauseGameOnFocus; }
 
-    // Settings > Hotkey, config "magicMenu" (ApplySettingsFromConfig): the magic menu's bookmark that
-    // opens the panel, and the selected spell's tags and XP ring by its name. Both on by default; the
-    // bookmark is always on while there is no hotkey (hotkeyCode 0), or nothing would open the panel.
-    // For the magic menu code to query; game thread sets them.
-    static void SetMagicMenuSettings(bool bookmark, bool spellInfo)
-    {
-        s_magicMenuBookmark.store(bookmark, std::memory_order_relaxed);
-        s_magicMenuSpellInfo.store(spellInfo, std::memory_order_relaxed);
-    }
-    static bool MagicMenuBookmark() { return s_magicMenuBookmark.load(std::memory_order_relaxed); }
-    static bool MagicMenuSpellInfo() { return s_magicMenuSpellInfo.load(std::memory_order_relaxed); }
-
     // How the panel's saves treat config.json, from the last load
     // (ConfigFile::SaveModeFor). Set and read under the config file lock:
     // the load on the game thread, the saves on their worker.
@@ -212,8 +200,6 @@ private:
     std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
     static inline std::atomic<bool> s_panelInfoLogging{false};
     static inline std::atomic<ConfigFile::SaveMode> s_configSaveMode{ConfigFile::SaveMode::Normal};
-    static inline std::atomic<bool> s_magicMenuBookmark{true};
-    static inline std::atomic<bool> s_magicMenuSpellInfo{true};
     bool m_isInitialized = false;
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists

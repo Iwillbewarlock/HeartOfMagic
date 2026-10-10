@@ -1,13 +1,12 @@
 /**
- * PanelOpenSettingTest - node tests for Settings > Hotkey: the None button, the
- * letter key warning and the magic menu switches (panelOpenSetting.js, run-tests.js).
+ * PanelOpenSettingTest - node tests for Settings > Hotkey: the None button and the
+ * letter key warning (panelOpenSetting.js, run-tests.js).
  *
  * Checks: None (hotkeyCode 0, hotkey "") survives save -> load (0 is not turned
- * back into F8), None decided by the code alone, wrong codes back to F8, the guard
- * both ways (no hotkey locks the bookmark on, bookmark off locks None out, each
- * with its reason shown), a config with both off loads with the bookmark on, the
- * letter key warning, Reset to Defaults, and that a settings preset holds neither
- * the hotkey nor magicMenu (settingsPresets.js).
+ * back into F8), None decided by the code alone, a leftover config.magicMenu
+ * ignored (None always pickable), wrong codes back to F8, the letter key warning,
+ * Reset to Defaults, and that a settings preset never holds the hotkey
+ * (settingsPresets.js).
  *
  * Depends on: panelOpenSetting.js - under node this file runs it into the global
  * scope the way the page's script tag does. Swaps the globals `settings`,
@@ -49,7 +48,7 @@ var PanelOpenSettingTest = {
         };
     },
 
-    /** settingsPresets.js keeps the hotkey and magicMenu out of what a preset saves and applies. */
+    /** settingsPresets.js keeps the hotkey out of what a preset saves and applies. */
     _presetsLeaveThemOut: function() {
         if (typeof require !== 'function') return true;
         var fs = require('fs'), path = require('path');
@@ -59,7 +58,7 @@ var PanelOpenSettingTest = {
         var applyStart = src.indexOf('var flatKeys = [');
         var applied = applyStart >= 0 ? src.slice(applyStart, src.indexOf('];', applyStart)) : null;
         if (saved === null || applied === null) return false;
-        return !/hotkey|magicMenu/.test(saved) && !/hotkey|magicMenu/.test(applied);
+        return !/hotkey/.test(saved) && !/hotkey/.test(applied);
     },
 
     run: function() {
@@ -80,12 +79,7 @@ var PanelOpenSettingTest = {
                 changeHotkeyBtn: this._el(),
                 resetHotkeyBtn: this._el(),
                 noHotkeyBtn: this._el(),
-                magicMenuBookmarkToggle: this._el(),
-                magicMenuSpellInfoToggle: this._el(),
-                magicMenuBookmarkRow: this._el(),
-                hotkeyLetterWarning: this._el(),
-                noHotkeyLockedReason: this._el(),
-                magicMenuBookmarkLockedReason: this._el()
+                hotkeyLetterWarning: this._el()
             };
             var shown = function(id) { return !els[id].classList.contains('hidden'); };
             var saves = 0;
@@ -98,52 +92,32 @@ var PanelOpenSettingTest = {
             var P = g.PanelOpenSetting;
 
             P.init();
-            self.check(g.settings.magicMenu.bookmark === true && g.settings.magicMenu.spellInfo === true &&
-                els.magicMenuBookmarkToggle.checked && els.magicMenuSpellInfoToggle.checked &&
-                els.hotkeyInput.value === 'F8' && !els.noHotkeyBtn.disabled && !els.magicMenuBookmarkToggle.disabled,
-                'defaults: F8, both switches on, nothing locked');
+            self.check(els.hotkeyInput.value === 'F8' && !els.noHotkeyBtn.disabled && !shown('hotkeyLetterWarning'),
+                'defaults: F8, None can be chosen, no warning');
 
             // None through the button, then save -> load
             els.noHotkeyBtn.fire('click');
             self.check(g.settings.hotkeyCode === 0 && g.settings.hotkey === '' && els.hotkeyInput.value === '' &&
                 els.noHotkeyBtn.disabled && saves === 1, 'None: code 0, no name, saved, the button pressed');
             var saved = P.saveTo({});
-            self.check(saved.hotkeyCode === 0 && saved.hotkey === '' && saved.magicMenu.bookmark === true,
-                'None saved as hotkeyCode 0, hotkey ""');
+            self.check(saved.hotkeyCode === 0 && saved.hotkey === '' && !('magicMenu' in saved),
+                'None saved as hotkeyCode 0, hotkey "" (nothing else written)');
             g.settings = { hotkey: 'F8', hotkeyCode: 66 };
             P.loadFrom(JSON.parse(JSON.stringify(saved)));
             self.check(g.settings.hotkeyCode === 0 && g.settings.hotkey === '', 'None loads back as None, not F8');
             P.loadFrom({ hotkeyCode: 0, hotkey: 'F8' });
             self.check(P.isNone() && g.settings.hotkey === '', 'code 0 is None whatever the name says');
 
-            // No hotkey: the bookmark is locked on
-            self.check(els.magicMenuBookmarkToggle.disabled && els.magicMenuBookmarkRow.classList.contains('disabled-controls') &&
-                shown('magicMenuBookmarkLockedReason'), 'no hotkey: the bookmark switch greyed out with its reason');
-            self.check(P.setMagicMenu('bookmark', false) === false && g.settings.magicMenu.bookmark === true &&
-                els.magicMenuBookmarkToggle.checked, 'no hotkey: the bookmark cannot be turned off');
-            self.check(P.setMagicMenu('spellInfo', false) === true && g.settings.magicMenu.spellInfo === false,
-                'tags and XP can be turned off without a hotkey');
-
-            // Bookmark off: None is locked out
-            P.loadFrom({ hotkey: 'F8', hotkeyCode: 66, magicMenu: { bookmark: false, spellInfo: true } });
-            self.check(g.settings.magicMenu.bookmark === false && els.noHotkeyBtn.disabled && shown('noHotkeyLockedReason') &&
-                !shown('magicMenuBookmarkLockedReason') && !els.magicMenuBookmarkToggle.disabled,
-                'bookmark off: None greyed out with its reason');
-            self.check(P.setHotkey('', 0) === false && g.settings.hotkeyCode === 66, 'bookmark off: None refused');
-            els.magicMenuBookmarkToggle.checked = true;
-            els.magicMenuBookmarkToggle.fire('change');
-            self.check(g.settings.magicMenu.bookmark === true && !els.noHotkeyBtn.disabled && !shown('noHotkeyLockedReason'),
-                'bookmark back on: None can be chosen again');
-
-            // Both off by hand: the bookmark comes back on
-            P.loadFrom({ hotkey: '', hotkeyCode: 0, magicMenu: { bookmark: false, spellInfo: false } });
-            self.check(P.isNone() && g.settings.magicMenu.bookmark === true && g.settings.magicMenu.spellInfo === false,
-                'no hotkey and the bookmark off (hand-edited): loaded with the bookmark on');
+            // A config from the unreleased magic menu switches: the leftover is ignored, None still pickable
+            P.loadFrom({ hotkey: 'F8', hotkeyCode: 66, magicMenu: { bookmark: false, spellInfo: false } });
+            self.check(g.settings.hotkeyCode === 66 && !('magicMenu' in g.settings) && !els.noHotkeyBtn.disabled,
+                'a leftover magicMenu is ignored and locks nothing');
+            els.noHotkeyBtn.fire('click');
+            self.check(P.isNone(), 'None can be chosen whatever the config held');
 
             // Wrong or missing values
             P.loadFrom({});
-            self.check(g.settings.hotkeyCode === 66 && g.settings.hotkey === 'F8' && g.settings.magicMenu.bookmark === true &&
-                g.settings.magicMenu.spellInfo === true, 'a config from before the settings: F8, both on');
+            self.check(g.settings.hotkeyCode === 66 && g.settings.hotkey === 'F8', 'a config from before the setting: F8');
             P.loadFrom({ hotkeyCode: 'F5', hotkey: 'F5' });
             self.check(g.settings.hotkeyCode === 66 && g.settings.hotkey === 'F8', 'a code that is not a number is F8');
             P.loadFrom({ hotkeyCode: -3 });
@@ -158,14 +132,16 @@ var PanelOpenSettingTest = {
             self.check(!shown('hotkeyLetterWarning'), 'a number key: no warning');
             P.loadFrom({ hotkey: 'G', hotkeyCode: 34 });
             self.check(shown('hotkeyLetterWarning'), 'a letter key loaded from the config shows the warning too');
+            P.setHotkey('', 0);
+            self.check(!shown('hotkeyLetterWarning'), 'None: no warning');
 
             // Reset to Defaults
-            P.loadFrom({ hotkey: '', hotkeyCode: 0, magicMenu: { bookmark: true, spellInfo: false } });
+            P.loadFrom({ hotkey: '', hotkeyCode: 0 });
             P.reset();
-            self.check(g.settings.hotkeyCode === 66 && g.settings.hotkey === 'F8' && g.settings.magicMenu.spellInfo === true &&
-                els.hotkeyInput.value === 'F8' && !els.magicMenuBookmarkToggle.disabled, 'Reset to Defaults: F8, both on');
+            self.check(g.settings.hotkeyCode === 66 && g.settings.hotkey === 'F8' && els.hotkeyInput.value === 'F8' &&
+                !els.noHotkeyBtn.disabled, 'Reset to Defaults: F8');
 
-            self.check(this._presetsLeaveThemOut(), 'a settings preset never saves or applies the hotkey or magicMenu');
+            self.check(this._presetsLeaveThemOut(), 'a settings preset never saves or applies the hotkey');
         } finally {
             g.settings = oldSettings;
             g.document = oldDocument;
