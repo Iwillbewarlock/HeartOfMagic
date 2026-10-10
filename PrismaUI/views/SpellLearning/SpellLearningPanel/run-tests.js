@@ -149,6 +149,7 @@ console.log('');
 // Load and run tests
 loadModule('homIcons', './modules/homIcons.js');
 loadModule('homIconsTest', './modules/homIconsTest.js');
+loadModule('iconSetsTest', './modules/iconSetsTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 
 console.log('');
