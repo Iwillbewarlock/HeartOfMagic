@@ -19,7 +19,7 @@
         "zh-tw": "夜讀的魔法書：深靛色羊皮紙、金箔墨水、章節標題，打開時法術樹以金色暈染開來。"
     },
     "cssFile": "themes/design-darkbook.css",
-    "icons": "themes/icons-line-gold/",
+    "icons": "themes/nightgrimoire/icons/",
     "css": [
         ":root {",
         "    --book-cover-top: #231d40;",
