@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "Retirer",
     "modals.gateReview.reason.horseSummon": "invoque un cheval",
     "modals.gateReview.reason.uniqueSummon": "invoque un personnage nommé",
+    "modals.gateReview.reason.nonHostileSummon": "invoque une créature d'une race non hostile (une monture ou un animal de compagnie ?)",
     "modals.gateReview.reason.cheapScript": "un sort bon marché qui ne lance qu'un script",
     "modals.gateReview.reason.rule": "correspond à une règle d'examen",
     "modals.buildProgress.done": "Terminé",

@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "빼기",
     "modals.gateReview.reason.horseSummon": "말을 소환함",
     "modals.gateReview.reason.uniqueSummon": "이름 있는 인물 한 명을 소환함",
+    "modals.gateReview.reason.nonHostileSummon": "비적대 종족의 생물을 소환 (탈것이나 반려동물?)",
     "modals.gateReview.reason.cheapScript": "스크립트만 실행하는 싼 주문",
     "modals.gateReview.reason.rule": "검토 규칙에 해당함",
     "modals.buildProgress.done": "완료",

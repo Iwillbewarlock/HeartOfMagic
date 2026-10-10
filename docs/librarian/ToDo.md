@@ -393,7 +393,8 @@
   검증) 결과 텍스트 특징은 처음 보는 플러그인에 일반화되지 않아 점수기 대신 세 겹으로 갔다.
   1. 레코드 증거 `SpellScannerGate.cpp` `JudgeSpell` → 구간 in/review/out + 이유. **out**: `free`(0.5 마나 미만),
      `banishOnly`(탈것 돌려보내기). **review**: `longSummon`(소환·되살리기 지속 1시간 초과: 머무는 동료·탈것),
-     `horseSummon`(소환 대상 종족 키워드에 Horse), `uniqueSummon`(유일 NPC 소환), `cheapScript`(스크립트 효과만, 20 마나 미만).
+     `horseSummon`(소환 대상 종족 키워드에 Horse), `uniqueSummon`(유일 NPC 소환), `cheapScript`(스크립트 효과만, 20 마나 미만),
+     `nonHostileSummon`(2026-10-10: 소환·되살리기 대상 종족의 `RACE_DATA` flags2 에 NonHostile — 탈것·반려동물).
      2026-10-06 검수 뒤 사용자 결정(A안): longSummon 과 규칙 파일은 out 에서 review 로 내림 — 정답 "넣기" 2개
      (BSHeartland 좀비, 3DNPC 늑대)가 걸렸고 out 은 되돌릴 길이 없었다.
   2. 규칙 파일 `SKSE/Plugins/SpellLearning/gate/rules.json`: 플러그인 마스터 + 효과 원형 집합으로 구간을 정한다
@@ -406,6 +407,9 @@
      `GateLeavesOut` 으로 읽어 저장된 트리 로드와 Spell Research 에도 적용). 무료 주문 35개 중 진짜 주문으로 보이는
      것: MysticismMagic 대칭, LostGrimoire 축복내림, 3DNPC 수혈 — 규칙으로는 못 가려 수동 넣기.
   - 측정: 무료 규칙만으로 정답 "아님" 89개 중 37개(오탐 0). 장기 소환·말·추방을 더하면 42개, 오탐 13(전투용 말 소환 — 그래서 말은 review).
+  - 2026-10-10 `nonHostileSummon`: 고정 덤프와 `lab/spell-gate/2026-10-05/labels.json` 으로 새로 잡는 "아님" 10개(mihail
+    인드릭 탈것 소환), 걸리는 "넣기" 5개(Glenmoril 불타는 소, Vigilant 모래 달리미, 그냥 인드릭 소환, Natura 사슴 부르기 둘) —
+    모두 반려동물에 가까워 out 이 아닌 review(플레이어가 정함).
   - **남은 것**: MGEF Papyrus 스크립트 이름 읽기(나머지 47개는 스크립트 이름이나 마스터로만 보인다), 게임 안 확인.
 
 - **질문 하나**: "플레이어가 마법서로 배워 실제로 쓰는 주문인가". 아니면 트리에도, Spell Research 에도 넣지 않는다

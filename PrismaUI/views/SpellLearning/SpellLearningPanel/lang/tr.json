@@ -253,6 +253,7 @@
     "modals.gateReview.exclude": "Çıkar",
     "modals.gateReview.reason.horseSummon": "bir at çağırır",
     "modals.gateReview.reason.uniqueSummon": "adı olan tek bir karakter çağırır",
+    "modals.gateReview.reason.nonHostileSummon": "düşmanca olmayan bir ırktan bir yaratık çağırır (binek mi, evcil hayvan mı?)",
     "modals.gateReview.reason.cheapScript": "yalnızca bir betik çalıştıran ucuz bir büyü",
     "modals.gateReview.reason.rule": "bir inceleme kuralına uyuyor",
     "modals.buildProgress.done": "Tamam",

@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "Убрать",
     "modals.gateReview.reason.horseSummon": "призывает лошадь",
     "modals.gateReview.reason.uniqueSummon": "призывает одного именного персонажа",
+    "modals.gateReview.reason.nonHostileSummon": "призывает существо неагрессивной расы (ездовое животное или питомец?)",
     "modals.gateReview.reason.cheapScript": "дешёвое заклинание, которое только запускает скрипт",
     "modals.gateReview.reason.rule": "подходит под правило проверки",
     "modals.buildProgress.done": "Готово",

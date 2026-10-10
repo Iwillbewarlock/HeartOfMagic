@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "移除",
     "modals.gateReview.reason.horseSummon": "召唤一匹马",
     "modals.gateReview.reason.uniqueSummon": "召唤一位有名字的人物",
+    "modals.gateReview.reason.nonHostileSummon": "召唤非敌对种族的生物（坐骑或宠物？）",
     "modals.gateReview.reason.cheapScript": "只运行脚本的低价法术",
     "modals.gateReview.reason.rule": "符合审查规则",
     "modals.buildProgress.done": "完成",

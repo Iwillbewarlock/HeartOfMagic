@@ -253,6 +253,7 @@
     "modals.gateReview.exclude": "Escludi",
     "modals.gateReview.reason.horseSummon": "evoca un cavallo",
     "modals.gateReview.reason.uniqueSummon": "evoca un personaggio con nome",
+    "modals.gateReview.reason.nonHostileSummon": "evoca una creatura di una razza non ostile (una cavalcatura o un animale da compagnia?)",
     "modals.gateReview.reason.cheapScript": "un incantesimo economico che esegue solo uno script",
     "modals.gateReview.reason.rule": "corrisponde a una regola di controllo",
     "modals.buildProgress.done": "Fatto",

@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "Quitar",
     "modals.gateReview.reason.horseSummon": "invoca un caballo",
     "modals.gateReview.reason.uniqueSummon": "invoca a un personaje con nombre",
+    "modals.gateReview.reason.nonHostileSummon": "invoca una criatura de una raza no hostil (¿una montura o una mascota?)",
     "modals.gateReview.reason.cheapScript": "un hechizo barato que solo ejecuta un script",
     "modals.gateReview.reason.rule": "coincide con una regla de revisión",
     "modals.buildProgress.done": "Hecho",

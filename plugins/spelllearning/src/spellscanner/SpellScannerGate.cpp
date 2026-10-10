@@ -171,6 +171,15 @@ namespace SpellScanner
             }
             return false;
         }
+
+        // The race says its actors never turn on anyone (RACE_DATA flags2 NonHostile): mounts
+        // and pets, mostly (2026-10-10: the mihail indrik mounts, but also a few summons
+        // players keep - Glenmoril's cow, Natura's deer), so review only
+        bool IsNonHostileRace(RE::TESNPC* npc)
+        {
+            const auto* race = npc ? npc->GetRace() : nullptr;
+            return race && race->data.flags2.all(RE::RACE_DATA::Flag2::kNonHostile);
+        }
     }
 
     bool IsFreeSpell(RE::SpellItem* spell)
@@ -195,7 +204,7 @@ namespace SpellScanner
         if (cost < kFreeSpellCost) out("free");
 
         std::set<RE::EffectArchetype> archetypes;
-        bool longSummon = false, horse = false, unique = false;
+        bool longSummon = false, horse = false, unique = false, nonHostile = false;
         for (const auto* effect : spell->effects) {
             const auto* base = effect ? effect->baseEffect : nullptr;
             if (!base) continue;
@@ -209,6 +218,7 @@ namespace SpellScanner
             for (auto* npc : npcs) {
                 if (IsHorse(npc)) horse = true;
                 if (npc->IsUnique()) unique = true;
+                if (IsNonHostileRace(npc)) nonHostile = true;
             }
         }
         // A mount or companion that stays - or a real summon a mod lets last (2026-10-06:
@@ -235,6 +245,7 @@ namespace SpellScanner
         if (verdict.band != "out") {
             if (horse) review("horseSummon");
             if (unique) review("uniqueSummon");
+            if (nonHostile) review("nonHostileSummon");
             if (!archetypes.empty() && archetypes.size() == 1 && archetypes.contains(RE::EffectArchetype::kScript) &&
                 cost < kCheapScriptCost) {
                 review("cheapScript");

@@ -84,6 +84,8 @@ var GateReviewTest = {
             } finally {
                 g.settings = oldSettings;
             }
+            this.check(['free', 'banishOnly', 'longSummon', 'horseSummon', 'uniqueSummon', 'nonHostileSummon', 'cheapScript']
+                .every(function(r) { return R.reasonText(r) !== r; }), 'every reason the DLL gives has words');
             this.check(R.reasonText('rule:adultFramework').length > 0 && R.reasonText('somethingNew') === 'somethingNew',
                 'reasons read in words; an unknown one as it is');
         } finally {

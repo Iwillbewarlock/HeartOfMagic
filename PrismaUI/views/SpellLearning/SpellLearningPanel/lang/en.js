@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "Leave out",
     "modals.gateReview.reason.horseSummon": "summons a horse",
     "modals.gateReview.reason.uniqueSummon": "summons one named character",
+    "modals.gateReview.reason.nonHostileSummon": "summons a creature of a non-hostile race (a mount or pet?)",
     "modals.gateReview.reason.cheapScript": "a cheap spell that only runs a script",
     "modals.gateReview.reason.rule": "matches a review rule",
     "modals.buildProgress.done": "Done",

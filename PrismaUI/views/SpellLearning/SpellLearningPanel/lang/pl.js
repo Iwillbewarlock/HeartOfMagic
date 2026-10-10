@@ -241,6 +241,7 @@ window._i18nPreload = {
     "modals.gateReview.exclude": "Pomiń",
     "modals.gateReview.reason.horseSummon": "przyzywa konia",
     "modals.gateReview.reason.uniqueSummon": "przyzywa jedną nazwaną postać",
+    "modals.gateReview.reason.nonHostileSummon": "przyzywa stworzenie nieagresywnej rasy (wierzchowiec lub zwierzak?)",
     "modals.gateReview.reason.cheapScript": "tanie zaklęcie, które tylko uruchamia skrypt",
     "modals.gateReview.reason.rule": "pasuje do reguły przeglądu",
     "modals.buildProgress.done": "Gotowe",

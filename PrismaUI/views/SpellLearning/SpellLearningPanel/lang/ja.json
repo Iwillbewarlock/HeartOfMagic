@@ -253,6 +253,7 @@
     "modals.gateReview.exclude": "外す",
     "modals.gateReview.reason.horseSummon": "馬を召喚する",
     "modals.gateReview.reason.uniqueSummon": "名前のある人物を一人召喚する",
+    "modals.gateReview.reason.nonHostileSummon": "敵対しない種族の生き物を召喚する（乗り物かペット？）",
     "modals.gateReview.reason.cheapScript": "スクリプトを実行するだけの安い呪文",
     "modals.gateReview.reason.rule": "確認ルールに該当",
     "modals.buildProgress.done": "完了",

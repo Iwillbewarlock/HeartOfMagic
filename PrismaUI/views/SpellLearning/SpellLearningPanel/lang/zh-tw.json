@@ -253,6 +253,7 @@
     "modals.gateReview.exclude": "移除",
     "modals.gateReview.reason.horseSummon": "召喚一匹馬",
     "modals.gateReview.reason.uniqueSummon": "召喚一位有名字的人物",
+    "modals.gateReview.reason.nonHostileSummon": "召喚非敵對種族的生物（坐騎或寵物？）",
     "modals.gateReview.reason.cheapScript": "只執行腳本的低價法術",
     "modals.gateReview.reason.rule": "符合審查規則",
     "modals.buildProgress.done": "完成",

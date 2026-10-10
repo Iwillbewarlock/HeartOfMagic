@@ -99,7 +99,8 @@ when the band is not "in". "out" - free, or only dismisses a summon (banish only
 `gate/rules.json` (none ships) - leaves the tree, a saved tree's load (`ValidateAndFixTree`) and Spell Research
 unless the player includes it again from the blacklist window's "Left out by itself" list (`GateLeavesOut`
 with `ReadGateKept`, the panel's `gateReviewed` in config.json); "review" - a summon or reanimation over an
-hour, a horse summon, a unique NPC summon, a script-only spell under 20 Magicka, a rule from
+hour, a horse summon, a unique NPC summon, a summon of a non-hostile race (`nonHostileSummon`, the race's
+RACE_DATA flags2 NonHostile: mounts and pets, 2026-10-10), a script-only spell under 20 Magicka, a rule from
 `gate/rules.json` (plugin masters plus effect archetypes, never spell names; the shipped one is "review") -
 stays and is listed in "Spells to look over" (`modules/gateReview.js`: Leave out blacklists it, Keep stores
 it in `gateReviewed`)),

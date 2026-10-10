@@ -253,6 +253,7 @@
     "modals.gateReview.exclude": "Weglassen",
     "modals.gateReview.reason.horseSummon": "beschwört ein Pferd",
     "modals.gateReview.reason.uniqueSummon": "beschwört eine benannte Person",
+    "modals.gateReview.reason.nonHostileSummon": "beschwört ein Wesen einer nicht feindseligen Rasse (ein Reittier oder Haustier?)",
     "modals.gateReview.reason.cheapScript": "ein billiger Zauber, der nur ein Skript ausführt",
     "modals.gateReview.reason.rule": "trifft eine Prüfregel",
     "modals.buildProgress.done": "Fertig",
