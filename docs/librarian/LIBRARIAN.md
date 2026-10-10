@@ -137,6 +137,17 @@ Bloodmoon 혈의 변이체·혈류의 변이체 소환. **AI 채점의 낡은 �
 없어 0개 주문에 맞았다 — **측정하지 않은 룰이다.** 퍽 어댑터(`adapters/hemomancy.json`·`everdamned.json`)가 다른 혈 주문에
 붙이는 같은 키워드는 스캐너가 빼므로(`SpellScannerJson.cpp`, `IsInjected`) 태그가 제 자신을 다시 먹지 않는다.
 
+**통째로 혈마법인 모드 (2026-10-10, 사용자 결정).** 모드 전체가 혈 마법인 넷은 플러그인 이름으로도 혈을 준다:
+`70_mods.json`(tier `manual`) — `Bloodmoon.esp`, `Sacrilege - Minimalistic Vampires of Skyrim.esp`, `hemomancy.esp`·`hemomancy.esl`
+(`adapters/hemomancy.json` 의 `requires`), `Everdamned.esp`. 룰은 `pluginContains` 에 **적대이고 `primaryAV: Health` 인 이펙트**를
+함께 묻는다(체력 피해·흡수. 같은 모드의 버프·방어·보조 주문은 혈이 아니다). 소환·되살림은 `00_mgef.json` 의 `remove` 가 여전히
+뗀다(빼기는 모든 더하기 뒤). 이름 룰이지 기록 룰이 아니어서 위의 기록·키워드 룰이 1차 근거로 남는다. 고정 덤프에서 프레임워크가
+깔린 채로는 0개 주문이 바뀐다(Bloodmoon 22·Sacrilege 12 가 이미 혈). 쓸모는 KIT·OCF·ADAR 가 **없는** 로드오더다: `10_*.json` 을 뺀
+룰로 재면 Bloodmoon 24개 중 혈 5 → 21, Sacrilege 12개 중 9 → 10(나머지 둘은 Health 를 건드리지 않는 "마력의 소용돌이",
+`10_sacrilege.json` 키워드가 있어야 혈), 전체 혈 57 → 74. Hemomancy·Everdamned 는 덤프에 없어 재지 못했다. **주의:** 파일 이름으로
+가르므로 이름을 바꾸거나 병합한 플러그인에서는 룰이 말없이 꺼진다(기록 룰은 그대로 돈다). `pluginContains` 는 부분 일치라
+확장자까지 적는다. **AncientBlood II 는 넣지 않았다:** 보스의 화염·전격 주문 넷이 Health 피해라서 혈이 되어 버린다.
+
 같은 날 `10_kit.json` 에 주문 레벨 순간이동을 더했다: SPEL 키워드 `KIT_SpellTeleportType_Normal` → `teleport`.
 이펙트 레벨 `KIT_MagicTeleportType_Normal` 은 여전히 쓰지 않는다(모든 소환에 붙는다, `MEASURED.md` 3-1절). **주의:** 이 SPEL
 키워드는 동료를 플레이어 곁으로 부르는 주문(세라노·여우 그레이 소환 등)에도 붙어 있어 그것도 `teleport` 가 된다.
@@ -162,7 +173,7 @@ Bloodmoon 혈의 변이체·혈류의 변이체 소환. **AI 채점의 낡은 �
 | 키 | 대상 | 비고 |
 |---|---|---|
 | `spell` | 주문 자체 | `persistentId` 하나 또는 목록(`"Natura.esp|0x000B2C"`). 수동 룰용 |
-| `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로. 출하 룰은 더 쓰지 않는다(2026-09-30, 이름이 아니라 레코드로 가른다) — 사용자 룰용 |
+| `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로. 출하 룰은 2026-09-30 부터 쓰지 않다가(이름이 아니라 레코드로 가른다), 2026-10-10 사용자 결정으로 통째로 혈마법인 모드 넷에만 다시 쓴다(`70_mods.json`, 위 "통째로 혈마법인 모드") — 그 밖에는 사용자 룰용 |
 | `castByVampires` | 스캐너의 `castByVampires` | 뱀파이어 NPC 가 가진 주문(NPC·종족 주문 목록과 그 안의 레벨드 리스트, Data 의 SPID `*_DISTR.ini` 에서 `Vampire` 필터로 배포되는 주문). 뱀파이어 NPC = NPC 나 그 종족에 `Vampire` 키워드가 있거나, **종족의 에디터 ID 에 `vamp` 가 든 NPC**(대소문자 무시, 2026-10-10). 키워드 없는 흡혈귀 종족(바닐라 `FalmerFrozenVampRace`, CC `ccBGSSSE001_HorkerRaceVampire`, Vigilant 의 `zzzBM*Vamp*Race` 들과 `zzzCHMntrRaceVampire`) 때문이다. 이 이름은 주문이 아니라 **종족 레코드**의 것이고, 엔진이 종족의 에디터 ID 는 po3 Tweaks 없이도 갖고 있다. 특성(Traits)을 템플릿에서 받는 NPC 는 템플릿 NPC 의 종족으로 판정한다(소환수 종족과 같은 `CollectSummonedNPCs`, 템플릿마다 한 번만 걷는다). 주문(Spells)을 템플릿에서 받는 NPC 는 제 주문 목록을 게임에서 쓰지 않으므로 그 목록은 읽지 않는다(템플릿 NPC 들은 따로 읽힌다). 이름으로만 흡혈귀로 본 종족의 에디터 ID 는 debug 로그에, 걸린 시간은 info 한 줄에 남는다. 고정 덤프(2026-09-30)는 이 변경 전 것이라 재지 못했다 — Vigilant 라마에 흡수 6개(`zzzBMLamVampireDrain00-05`)가 혈을 더 받을 것으로 본다 |
 | `noElement` | 다른 룰이 원소를 하나도 주지 않은 주문 (`true` 만 뜻이 있다) | 원소 태그를 받은 집합의 여집합. 모든 룰이 붙이고 뗀 뒤 마지막에 본다. "원소 없음" 을 뜻하는 표식(Bethesda 의 `MagicDamageResist`)이 더 구체적인 증거가 없을 때만 근거가 되게 한다. 처음 맞은 룰이 정하고 다음 룰은 얹지 않으며, `remove` 와 함께 쓴 룰은 로드하지 않는다 (2026-09-30) |
 | `spellKeyword` `spellKeywordPrefix` `spellKeywordSuffix` | SPEL 키워드 | |
@@ -202,7 +213,7 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 |---|---|---:|
 | `mgef` (기본) | MGEF 구조. **모든 로드오더에 있다** | 1.0 |
 | `framework` | KIT · OCF · ADAR · NSV · Hemomancy · Everdamned 키워드. 그 모드가 깔려야 있다 | 0.8 |
-| `manual` | 사람이 주문을 보고 붙인 태그(`spell` 룰). 그 주문이 있는 곳엔 항상 있다 | 1.0 |
+| `manual` | 사람이 정한 태그. 파일 둘: `80_manual.json`(주문을 보고 붙인 `spell` 룰, 그 주문이 있는 곳엔 항상 있다)과 `70_mods.json`(통째로 혈마법인 모드의 플러그인 이름 룰, 그 파일 이름 그대로 깔린 곳에 있다) | 1.0 |
 
 `confidence` 는 **증거가 남의 환경에도 존재할 가능성**이지 태그가 맞을 확률이 아니다.
 정확도 숫자는 `MEASURED.md` 에 있다. 한 항목의 confidence 는 두 축 중 **약한 쪽**을 따른다.
@@ -225,7 +236,9 @@ UTF-8이 아닌 플러그인(시스템 코드 페이지의 한글·일본어 이
   흡혈귀가 아니다): Midnight Sun `_NV_ArkaneFlurry`, Vigilant `zzzCOSpellCrimsonBallLeft`·`zzzCOBloodBall`·
   `zzzCHSpMBloodcurse01`·`02`, King-Priest `KP_RahgotSacrificeSpell`, Lost Grimoire `GRIM_SPELL_RES50_SplitLifeforce`·
   `RES75_ExchangeLifeforce`. 고정 덤프에서 혈 109 → 117. Vigilant 라마에 흡수는 넣지 않았다(종족 이름 판정이 잡는다,
-  위 `castByVampires`). 박쥐 주문과 `_CH_BatsCloak_SP` 는 아직 정하지 않았다
+  위 `castByVampires`). Daughter of Coldharbor 의 박쥐 떼 둘(`_CH_BatAbsorbConc_SP` 체력·지구력 흡수와 그것을 거는 망토
+  `_CH_BatsCloak_SP`, 2026-10-10): 흡혈귀의 박쥐가 피를 빤다. 혈 키워드가 없고 이 스캔은 `castByVampires` 로 잡지 않는다.
+  고정 덤프에서 혈 117 → 119
 - 물: Natura 의 물 튀김(같은 세트에서 혼자 물 키워드가 없다)
 - 흙: Natura 의 돌 던지기(같은 이유)
 - 바람: Lost Grimoire 의 울부짖는 돌풍, 속박 풀린 빙결(차가운 바람)

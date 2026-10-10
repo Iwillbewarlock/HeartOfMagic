@@ -1,0 +1,36 @@
+{
+  "tier": "manual",
+  "_comment": [
+    "Mods that are blood magic as a whole, named by plugin file (user decision,",
+    "2026-10-10). This is a name rule, not a record rule: the record and keyword",
+    "rules (00_mgef.json, 10_kit.json, 10_sacrilege.json, 10_hemomancy.json,",
+    "10_everdamned.json) stay the primary source. With the keyword frameworks",
+    "installed these lines add nothing on the pinned dump; they matter on a load",
+    "order without KIT/OCF/ADAR, where most of Bloodmoon's drains carry no blood",
+    "mark of their own.",
+    "Each line asks for one effect that is hostile and touches Health (damage or",
+    "absorb), so a mod's buffs, wards and utility spells are not blood.",
+    "Summons and reanimations stay out: 00_mgef.json removes blood from every",
+    "SummonCreature and Reanimate spell, and removes run after all adds.",
+    "Full file names with the extension, since pluginContains matches any part",
+    "of the name. A renamed or merged plugin turns its line off without a word.",
+    "AncientBlood II is not here: its boss fire and shock spells would be blood."
+  ],
+  "rules": [
+    { "_": "Bloodmoon",
+      "match": { "pluginContains": "Bloodmoon.esp", "hostile": true, "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Sacrilege - Minimalistic Vampires of Skyrim",
+      "match": { "pluginContains": "Sacrilege - Minimalistic Vampires of Skyrim.esp", "hostile": true, "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Hemomancy (the same files adapters/hemomancy.json requires)",
+      "match": { "pluginContains": ["hemomancy.esp", "hemomancy.esl"], "hostile": true, "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } },
+
+    { "_": "Everdamned (adapters/everdamned.json)",
+      "match": { "pluginContains": "Everdamned.esp", "hostile": true, "primaryAV": "Health" },
+      "add": { "elements": ["blood"] } }
+  ]
+}

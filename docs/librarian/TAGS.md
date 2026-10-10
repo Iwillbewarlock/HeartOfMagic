@@ -33,7 +33,7 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | `apparition` | 유령·혼령 형태의 존재 | Summon Arniel's Shade |
 | `arcane` | 속성 없는 순수 마력 피해 | Freeze / Ignite / Arniel's Convection |
 | `armor` | 방어도 자체를 올리고 내리는 것 | Oakflesh / Stoneflesh / Ironflesh |
-| **`blood`** | 피를 대가로 쓰거나 피로 해치거나 피(생명)를 빨아들이는 마법. 흡혈 포함(2026-09-30). 소환·되살림·방어는 혈이 아니다 — KIT 의 Blood·Vampiric 표시는 같은 이펙트가 체력(Health)에 작용할 때만 혈이다(2026-10-10). **SR 에 없음** — KIT `SpellDamageType_Blood`, `SpellSacrificeType_Blood`, `MagicElement_Vampiric`, OCF `MgefClassBlood`, 바닐라 `MagicVampireDrain` | Vampiric Drain |
+| **`blood`** | 피를 대가로 쓰거나 피로 해치거나 피(생명)를 빨아들이는 마법. 흡혈 포함(2026-09-30). 소환·되살림·방어는 혈이 아니다 — KIT 의 Blood·Vampiric 표시는 같은 이펙트가 체력(Health)에 작용할 때만 혈이다(2026-10-10). **SR 에 없음** — KIT `SpellDamageType_Blood`, `SpellSacrificeType_Blood`, `MagicElement_Vampiric`, OCF `MgefClassBlood`, 바닐라 `MagicVampireDrain`, 통째로 혈마법인 모드(Bloodmoon·Sacrilege·Hemomancy·Everdamned)의 적대 Health 이펙트 — 플러그인 이름 룰 `70_mods.json`(2026-10-10) | Vampiric Drain |
 | `construct` | 세상에 남는 물체를 만든다. 룬·수호진·촛불 | Ash Rune / Conjure Ash Guardian / Candlelight |
 | `creature` | 생물을 대상으로 거는 것(되살리는 시체 포함). 소환에는 붙지 않는다(2026-09-30) | Frenzy Rune / Raise Zombie / Detect Life |
 | `daedra` | 데이드라 존재와 그 권능. 아트로나크·바운드 무기 | Bound Sword / Conjure Seeker / Bound Dagger |

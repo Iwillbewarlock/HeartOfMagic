@@ -44,6 +44,14 @@
       ] },
       "add": { "elements": ["blood"] } },
 
+    { "_": "Daughter of Coldharbor's vampire bat swarms drinking health: _CH_BatAbsorbConc_SP (a health and stamina absorb) and _CH_BatsCloak_SP",
+      "__": "(a cloak that casts it). No blood keyword, and the scan does not mark them castByVampires (2026-10-10)",
+      "match": { "spell": [
+        "Daughter of Coldharbor.esp|0x00080C",
+        "Daughter of Coldharbor.esp|0x000809"
+      ] },
+      "add": { "elements": ["blood"] } },
+
     { "_": "Water: Natura's Water Spray, the one water spell of the set without the water keyword",
       "match": { "spell": "Natura.esp|0x000B2C" },
       "add": { "elements": ["water"] } },
