@@ -230,7 +230,7 @@ UTF-8이 아닌 플러그인(시스템 코드 페이지의 한글·일본어 이
 `80_manual.json` 은 1,440개 주문 로드오더의 스캔(2026-09-21)을 보고 만든 것이다(73개 주문이 바뀐다):
 
 - 혈(주문 직접 지정, 혈 기준 규칙으로는 안 잡히는 예외): Mysticism 의 Blood Lance(피의 창)와 Vampiric 다섯 개(Touch·Bolt·Grasp·Blast·Rune - 한국어 번역에서는
-  "엔트로피"라 헷갈리지만 원문은 Vampiric, 원작자 설명도 산 자의 체력을 흡수하는 흡혈 마법이다). AncientBlood 주문은 이제 이름 규칙이 잡는다. Occult Cradle 의 내면의 힘은
+  "엔트로피"라 헷갈리지만 원문은 Vampiric, 원작자 설명도 산 자의 체력을 흡수하는 흡혈 마법이다). AncientBlood II 주문은 KIT·OCF 혈 키워드가 잡는다(이름 룰은 2026-09-30 에 지웠고, 보스 주문이 섞여 있어 70_mods 에도 넣지 않았다). Occult Cradle 의 내면의 힘은
   새 기준으로 혈이 아니라 뺐다(2026-09-27)
 - 혈(2026-10-10, 스크립트나 설명으로만 혈인 것 8개. 이펙트는 평범한 체력 흡수·바닐라 아트·키워드 없음이고 지닌 NPC 도
   흡혈귀가 아니다): Midnight Sun `_NV_ArkaneFlurry`, Vigilant `zzzCOSpellCrimsonBallLeft`·`zzzCOBloodBall`·
