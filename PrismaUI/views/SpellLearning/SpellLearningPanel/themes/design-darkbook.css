@@ -134,16 +134,6 @@
     letter-spacing: 1.5px;
 }
 
-/* Switches in gold, not the theme's green */
-.toggle-switch input:checked + .toggle-slider {
-    background: rgba(255, 220, 140, 0.2);
-    border-color: var(--book-gold);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    background: var(--book-gold);
-}
-
 /* ------------------------------------------------------------ the tree page */
 
 .tree-container {

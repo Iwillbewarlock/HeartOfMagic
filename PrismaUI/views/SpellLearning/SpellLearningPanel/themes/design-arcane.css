@@ -409,16 +409,6 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     color: var(--accent-gold-hover);
 }
 
-/* Switches in gold, not the theme's green */
-.toggle-switch input:checked + .toggle-slider {
-    background: rgba(201, 162, 90, 0.25);
-    border-color: rgba(201, 162, 90, 0.55);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    background: var(--accent-gold);
-}
-
 /* Thin leather scrollbars; darker ones on the parchment */
 .spell-panel ::-webkit-scrollbar {
     width: 12px;
