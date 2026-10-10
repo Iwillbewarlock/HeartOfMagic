@@ -66,9 +66,8 @@
             if (count < 0) count = nodes.length;
             for (var i = 0; i < count; i++) {
                 var node = nodes[pick ? pick[i] : i];
-                // In edit mode: show ALL labels. Otherwise: only unlocked/learning/available
-                if (!isEditActive && node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') continue;
-                if (!node.name && !isEditActive) continue;
+                var labelText = this._labelTextOf(node, isEditActive);
+                if (labelText === null) continue;
 
                 // Transform node position WITH rotation, but text stays screen-aligned;
                 // off the canvas (and its margin) is ruled out before the lookups below
@@ -80,18 +79,6 @@
 
                 if (filtering && !BridgeView.matchesFilter(node)) continue;
                 if (settings.schoolVisibility && settings.schoolVisibility[node.school] === false) continue;
-
-                // Check if name should be revealed based on XP progress
-                var labelText = node.name || node.formId;
-                if (!isEditActive && node.state !== 'unlocked' && settings.cheatMode !== true) {
-                    var _canonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
-                    var _prog = state.spellProgress ? state.spellProgress[_canonId] : null;
-                    var _pct = _prog && _prog.required > 0 ? (_prog.xp / _prog.required) * 100 : 0;
-                    var _threshold = settings.revealName !== undefined ? settings.revealName : 10;
-                    if (_pct < _threshold && node.state !== 'learning') {
-                        labelText = '???';
-                    }
-                }
 
                 var priority = labelText === '???' ? 0 : this._labelPriority(node);
                 // Zoomed out: keep only selected / hovered / learning / available names
@@ -141,6 +128,28 @@
             // Zoomed out, fewer names: the first MAX_LABELS_FOCUS in that order
             return { candidates: candidates, fontSize: fontSize,
                      maxLabels: focusOnly ? this.MAX_LABELS_FOCUS : this.MAX_LABELS };
+        },
+
+        /**
+         * What a spell's name shows as, or null for no name: in edit mode every
+         * spell's name (its formId when it has none); otherwise only unlocked,
+         * learning and available spells', and one not unlocked shows '???' until
+         * its XP reaches Reveal Name (learning and Cheat Mode show it). Shared by
+         * _labelCandidates and the idle warm-up of the names' letters (LayerBuild.warmIdle).
+         */
+        _labelTextOf: function(node, isEditActive) {
+            if (!isEditActive) {
+                if (node.state !== 'unlocked' && node.state !== 'learning' && node.state !== 'available') return null;
+                if (!node.name) return null;
+                if (node.state === 'available' && settings.cheatMode !== true) {
+                    var canonId = (typeof getCanonicalFormId === 'function') ? getCanonicalFormId(node) : node.formId;
+                    var prog = state.spellProgress ? state.spellProgress[canonId] : null;
+                    var pct = prog && prog.required > 0 ? (prog.xp / prog.required) * 100 : 0;
+                    var threshold = settings.revealName !== undefined ? settings.revealName : 10;
+                    if (pct < threshold) return '???';
+                }
+            }
+            return node.name || node.formId;
         },
 
         /** The names' size, css px: Spell Name Size times the panel's Font Size (labelScale, set by applyFontSizeMultiplier). */

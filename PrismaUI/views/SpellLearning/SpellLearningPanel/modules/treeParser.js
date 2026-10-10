@@ -521,6 +521,7 @@ var TreeParser = {
     updateNodeFromCache: function(node) {
         var spellData = SpellCache.get(node.formId);
         if (spellData) {
+            var oldName = node.name, oldSchool = node.school;
             node.name = spellData.name || spellData.editorId || node.formId;
             var level = spellData.level || spellData.skillLevel || 'Unknown';
             // The level filter counts levels: a new one is counted again when next asked
@@ -539,6 +540,12 @@ var TreeParser = {
             if (spellData.school) node.school = spellData.school;
             // The name may have changed: the card's lists count shared names again
             if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
+            // Every reply from C++ comes through here and changes the nodes in place
+            // (same array, same length), which the renderer's own checks cannot see:
+            // a new name's letters are warmed again (the job starts over, the letters
+            // made stay made), a new school turns its shape another way (_turnsOf)
+            if (node.name !== oldName && typeof LayerBuild !== 'undefined') LayerBuild._glyphs = null;
+            if (node.school !== oldSchool && typeof CanvasRenderer !== 'undefined') CanvasRenderer._cullDirty = true;
         }
     }
 };

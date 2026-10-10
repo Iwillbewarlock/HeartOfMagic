@@ -66,10 +66,12 @@ After updating: to drop spells that only a mod's debug tome teaches, **Scan** an
 - **Zoomed out, spell names lose their outline** (Arcane, Night Grimoire, Chalkboard): below zoom 0.8,
   including the view the tree opens at (0.75), the paper- or board-coloured edge round each name is no
   longer drawn - it cost as much as the name itself.
-- **No hitch on the first zoom-in**: the first time you zoomed in past the opening view after opening the
-  game, the panel stalled for one frame (about 30-40 ms) while it drew the spell names' letters for the first
-  time - most noticeable with Korean, Chinese or Japanese names. The letters of every spell name are now
-  prepared a few at a time while the panel sits still, so that zoom-in is as smooth as the ones after it.
+- **Smaller hitch on the first zoom-in**: the first time you zoomed in past the opening view after opening
+  the game, the panel stalled for one frame while it drew the spell names' letters for the first time - most
+  noticeable with Korean, Chinese or Japanese names. The letters of every spell name are now prepared a
+  few at a time while the panel sits still. In the offline bench (the game's Ultralight engine outside the
+  game, not measured in the game itself) that first zoom-in went from 30-40 ms to about 13 ms; later zoom-ins
+  take 3-6 ms.
 
 ## Heart of Magic Librarian 1.3.0
 

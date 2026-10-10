@@ -383,8 +383,10 @@ var CanvasRenderer = {
                     self._needsRender = false;
                     self._animationOnlyRender = false;
                     self.render();
-                } else if (typeof LayerBuild !== 'undefined' && !self.isPanning) {
-                    // Nothing to draw: a slice of making every name's letters (LayerBuild.warmIdle)
+                } else if (typeof LayerBuild !== 'undefined' && !self.isPanning &&
+                        performance.now() - self._lastPressAt >= self.INPUT_QUIET_MS) {
+                    // Nothing to draw: a slice of making every name's letters (LayerBuild.warmIdle);
+                    // not while a button is held or just after an input (the animation's quiet rule)
                     LayerBuild.warmIdle(self);
                 }
             } catch (e) {

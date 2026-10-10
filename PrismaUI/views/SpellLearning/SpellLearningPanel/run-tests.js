@@ -78,6 +78,8 @@ loadModule('canvasRendererData', './modules/canvasRendererData.js');
 loadModule('canvasRendererEdges', './modules/canvasRendererEdges.js');
 loadModule('canvasRendererFrame', './modules/canvasRendererFrame.js');
 loadModule('canvasRendererLabels', './modules/canvasRendererLabels.js');
+// TreeParser.updateNodeFromCache: canvasCullTest and layerFlowTest change nodes through it
+loadModule('treeParser', './modules/treeParser.js', true);
 loadModule('canvasCullTest', './modules/canvasCullTest.js');
 loadModule('labelCullTest', './modules/labelCullTest.js');
 loadModule('layerFlowTest', './modules/layerFlowTest.js');

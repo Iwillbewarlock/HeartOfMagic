@@ -338,7 +338,7 @@ var LayerBuild = {
      */
     _warmJob: function(r, fontSize, dpr, widths, nodes) {
         var t = TreeStyle.tokens || {}, key = this._glyphFontKey(r, dpr);
-        var w = { widths: widths, i: 0, nodes: nodes, s: 0, chars: '', titles: '', j: 0, k: 0, fontSize: fontSize, dpr: dpr,
+        var w = { widths: widths, i: 0, nodes: nodes, s: 0, chars: [], titles: [], j: 0, k: 0, fontSize: fontSize, dpr: dpr,
                   seen: {}, done: key && key === this._glyphsKey ? this._glyphsDone : null };
         if (t.chapterTitles && r.schools) {
             for (var s in r.schools) if (r.schools.hasOwnProperty(s)) this._warmAdd(w, '— ' + TreeStyle._schoolName(s), 't');
@@ -356,13 +356,18 @@ var LayerBuild = {
         return w;
     },
 
-    /** A text's letters into job w ('n' a name's, 't' a chapter title's), once each, none made already. */
+    /**
+     * A text's letters into job w ('n' a name's, 't' a chapter title's), once each,
+     * none made already; by code point (a letter past U+FFFF is one, not two halves).
+     */
     _warmAdd: function(w, text, into) {
         for (var k = 0; k < text.length; k++) {
-            var c = text.charAt(k), id = into + c;
+            var c = text.charAt(k), u = text.charCodeAt(k);
+            if (u >= 0xD800 && u <= 0xDBFF && k + 1 < text.length) c = text.substr(k++, 2);
+            var id = into + c;
             if (w.seen[id] || (w.done && w.done[id])) continue;
             w.seen[id] = true;
-            if (into === 'n') w.chars += c; else w.titles += c;
+            (into === 'n' ? w.chars : w.titles).push(c);
         }
     },
 
@@ -398,20 +403,26 @@ var LayerBuild = {
                 setUp(0);
                 r._labelWidth(ctx, w.widths[w.i++]);
             } else if (n && w.s < 2 * n.length) {
-                // The names that can be drawn now first (a zoom during the warm-up finds
-                // their letters made), the locked ones on a second pass
+                // First the names as they show now (r._labelTextOf: '???' for one not
+                // revealed yet, none for a locked spell outside edit mode), so a zoom
+                // during the warm-up finds their letters made; then every spell's own
+                // name, since states and reveals change in place after the job has run
+                // (the player's progress arriving, a spell learned): in the lab, with
+                // the locked names left out, the job made 30 letters of 639 and the
+                // first zoom past 0.8 took 37.8 ms again
+                var edit = typeof EditMode !== 'undefined' && EditMode.isActive;
                 for (var e = Math.min(w.s + this.WARM_GATHER, 2 * n.length); w.s < e; w.s++) {
                     var node = n[w.s % n.length];
-                    var shown = node.state === 'unlocked' || node.state === 'learning' || node.state === 'available';
-                    if (node.name && shown === (w.s < n.length)) this._warmAdd(w, TreeStyle.clipLabel(node.name), 'n');
+                    var text = w.s >= n.length ? node.name : r._labelTextOf ? r._labelTextOf(node, edit) : node.name;
+                    if (text) this._warmAdd(w, TreeStyle.clipLabel(text), 'n');
                 }
             } else if (w.j < w.chars.length) {
                 setUp(1);
-                var c = w.chars.charAt(w.j++);
+                var c = w.chars[w.j++];
                 letter(c, 'n' + c);
             } else if (w.k < w.titles.length) {
                 setUp(2);
-                var d = w.titles.charAt(w.k++);
+                var d = w.titles[w.k++];
                 letter(d, 't' + d);
             } else {
                 break;
@@ -436,26 +447,33 @@ var LayerBuild = {
      * drew ~150 names in letters new to the engine: 27-41 ms in one frame in the
      * lab (Korean names: 639 letters, ~0.12 ms each). Made here a few a frame
      * while the panel is open and still, they cost no visible frame. Starts again
-     * for a new font (noteRestyle, the key) or tree; until done it counts as
+     * for a new font (noteRestyle, the key) or tree, or a name changed in place
+     * (TreeParser.updateNodeFromCache drops the job); until done it counts as
      * _textCold (_cold), so a repaint meanwhile still warms its own names first.
+     * Done, an idle frame only compares numbers: the face, outline, titles' size
+     * and name length change with a design, a late font or a language, which all
+     * call noteRestyle (it empties _glyphsKey); the size and scale are the job's.
      */
     warmIdle: function(r) {
         if (!this.ENABLED || !r || !r.nodes || this._build) return;
-        if (typeof settings !== 'undefined' && settings.showNodeNames === false) {
-            // Names off: nothing to warm, and the font not cold for it (names back on
-            // start the job again; the letters made stay made)
+        var dpr = window.devicePixelRatio || 1, q = this._glyphs;
+        var off = typeof settings !== 'undefined' && settings.showNodeNames === false;
+        if (q && !off && !this._glyphsPending && this._glyphsKey && q.tree === r.nodes && q.len === r.nodes.length &&
+                q.dpr === dpr && q.fontSize === r._labelFontSize()) return;
+        var key = off ? '' : this._glyphFontKey(r, dpr);
+        if (!key) {
+            // Names off, or no design yet: nothing to warm, and the font not cold for
+            // it (names back on start the job again; the letters made stay made)
             this._glyphs = null;
             this._glyphsPending = false;
             return;
         }
-        var dpr = window.devicePixelRatio || 1, key = this._glyphFontKey(r, dpr);
-        if (!key) return;
         if (key !== this._glyphsKey) {
             this._glyphsKey = key;
             this._glyphsDone = {};
             this._glyphs = null;
         }
-        var q = this._glyphs;
+        q = this._glyphs;
         if (!q || q.tree !== r.nodes || q.len !== r.nodes.length) {
             q = this._glyphs = this._warmJob(r, r._labelFontSize(), dpr, [], r.nodes);
             q.tree = r.nodes;

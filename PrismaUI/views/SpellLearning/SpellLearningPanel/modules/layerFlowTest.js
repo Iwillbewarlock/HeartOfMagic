@@ -18,7 +18,12 @@
  * - The idle warm-up (warmIdle): every name's letters made a slice a frame,
  *   the names that can show first, each once; until done the font counts as
  *   cold; a build's own warm-up skips the letters made; a new font or tree
- *   starts it again (a new tree: only its new letters); off with names off.
+ *   starts it again (a new tree: only its new letters), and so does a name
+ *   changed in place by a reply from C++ (TreeParser.updateNodeFromCache);
+ *   the names as they show first ('???' for a hidden one; locked ones only in
+ *   edit mode), then every spell's own name; a letter past U+FFFF is one;
+ *   done, an idle frame makes no key;
+ *   off with names off.
  * - CanvasRenderer._drawTree's order: a drag scrolls, a change is built over
  *   frames when that is wanted and drawn at once when not, a stale build is
  *   dropped (its change marked again, the restart count started over), a glide
@@ -310,13 +315,16 @@ var LayerFlowTest = {
     /** The idle warm-up of every name's letters (LayerBuild.warmIdle). */
     _idleWarmTests: function(g, B) {
         var log = [], family = 'serif', savedIdle = B.IDLE_WARM_MS, savedNames = g.settings.showNodeNames;
+        var savedEdit = g.EditMode, savedCache = g.SpellCache, savedKey = B._glyphFontKey, savedState = g.state;
+        g.state = g.state || { spellProgress: {} };          // the reveal rule reads it (r._labelTextOf)
         var wctx = { font: '', setTransform: function() {}, measureText: function(t) { return { width: t.length }; },
                      strokeText: function(c) { log.push('stroke ' + c); }, fillText: function(c) { log.push(c); } };
         B._warmCanvas = { getContext: function() { return wctx; } };
         g.TreeStyle = { tokens: { labelHalo: 'x', labelHaloWidth: 3, labelMaxChars: 20 },
                         beginLabels: function(ctx, size) { ctx.font = size + 'px ' + family; return true; },
                         labelFamily: function() { return family; }, clipLabel: function(t) { return t; } };
-        var r = { nodes: [{ name: 'ab', state: 'locked' }, { name: 'bc', state: 'unlocked' }], schools: null,
+        var r = { nodes: [{ name: 'ab', state: 'locked' }, { name: 'bc', state: 'unlocked', formId: '0x1' }], schools: null,
+                  _labelTextOf: g.CanvasRenderer._labelTextOf,
                   _labelFontSize: function() { return 10; },
                   _labelFontFrom: function() { this._labelWidths = new Map(); },
                   _labelWidth: function(ctx, t) { return t.length; } };
@@ -328,19 +336,41 @@ var LayerFlowTest = {
             B.warmIdle(r);
             this.check(B._glyphsPending && B._cold() && B.wanted(r, layer), 'a tree with letters not made: the font counts as cold, a repaint is spread');
             drain();
-            this.check(log.join() === 'stroke b,b,stroke c,c,stroke a,a', "each letter once, outlined: the names that can show first, then the locked");
+            this.check(log.join() === 'stroke b,b,stroke c,c,stroke a,a', "each letter once, outlined: the names that show first, then the locked");
             this.check(!B._glyphsPending && !B._cold() && !B.wanted(r, layer), 'all made: warm, a quick repaint done at once');
+            var keys = 0;
+            B._glyphFontKey = function() { keys++; return savedKey.apply(B, arguments); };
             log.length = 0; B.warmIdle(r);
-            this.check(log.length === 0, '...and an idle frame after does nothing');
-            var w = B._warmJob(r, 10, 1, ['ab'], null);
-            B._warmAdd(w, 'abd', 'n');
-            this.check(w.chars === 'd', "a build's own warm-up leaves out the letters made");
+            this.check(log.length === 0 && keys === 0, '...and an idle frame after does nothing (no key made)');
+            B._glyphFontKey = savedKey;
+            var w = B._warmJob(r, 10, 1, ['bc'], null);
+            B._warmAdd(w, 'bcd', 'n');
+            this.check(w.chars.join('') === 'd', "a build's own warm-up leaves out the letters made");
             r.nodes = r.nodes.concat([{ name: 'cd', state: 'available' }]);
             B.warmIdle(r); drain();
-            this.check(log.join() === 'stroke d,d', 'a new tree: only its new letters');
-            log.length = 0; family = 'sans';
+            this.check(log.join() === 'stroke ?,?,stroke d,d', "a new tree: only its new letters (a name not revealed yet: '???' first, its own after)");
+            log.length = 0; g.EditMode = { isActive: true }; B.noteRestyle(); B._textCold = false;
             B.warmIdle(r); drain();
-            this.check(log.length === 8, 'a new face: every letter again');
+            this.check(log.join() === 'stroke a,a,stroke b,b,stroke c,c,stroke d,d', 'edit mode: every name as it shows there, in order, no ???');
+            g.EditMode = savedEdit;
+            log.length = 0; family = 'sans'; B.noteRestyle(); B._textCold = false;
+            B.warmIdle(r); drain();
+            this.check(log.length === 10, 'a new face (noteRestyle): every letter again');
+            // A reply from C++ renames a spell in place (same array, same length)
+            var P = g.TreeParser, reply = { name: 'bc' };
+            g.SpellCache = { get: function() { return reply; } };
+            if (!P) this.check(false, 'TreeParser loaded');
+            else {
+                P.updateNodeFromCache(r.nodes[1]);
+                this.check(!!B._glyphs, 'a reply with the same name: the warm-up is not started again');
+                reply = { name: 'b\u00e9\ud835\udd38' };
+                P.updateNodeFromCache(r.nodes[1]);
+                log.length = 0; B.warmIdle(r);
+                this.check(B._glyphsPending, 'a name changed in place: the warm-up starts again');
+                drain();
+                this.check(log.join() === 'stroke \u00e9,\u00e9,stroke \ud835\udd38,\ud835\udd38',
+                    "...and makes the new name's letters only, a letter past U+FFFF as one");
+            }
             log.length = 0; B.noteRestyle(); B._textCold = false;
             B.warmIdle(r);
             this.check(B._glyphsPending, 'a design change (noteRestyle) starts it again');
@@ -355,6 +385,7 @@ var LayerFlowTest = {
             this.check(!B._glyphsPending && log.length > 0, '...on again, the warm-up starts again and ends');
         } finally {
             B.IDLE_WARM_MS = savedIdle; g.settings.showNodeNames = savedNames;
+            g.EditMode = savedEdit; g.SpellCache = savedCache; B._glyphFontKey = savedKey; g.state = savedState;
             B._glyphs = null; B._glyphsKey = ''; B._glyphsDone = {}; B._glyphsPending = false; B._warmCanvas = null;
         }
     },

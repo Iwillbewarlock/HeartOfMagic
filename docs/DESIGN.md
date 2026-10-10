@@ -478,15 +478,25 @@ above makes only the letters of the names its build draws, and at the opening zo
 (4 in the lab with a quarter of the tree known). The first zoom past 0.8 then drew ~150 names whose letters
 the engine had never drawn: 27-41 ms in one frame in the offline Ultralight lab (Korean names, 1452 spells,
 639 distinct letters at ~0.12 ms each outlined and filled), every later visit 3-6 ms. Now an animation frame
-with nothing to draw (the render loop's `!shouldRender` frames, not while a button is held) gives
-`IDLE_WARM_MS` (2 ms; Ultralight's clock is 1 ms coarse, so 2-3) to a warm-up job over the whole tree:
-the names' letters gathered `WARM_GATHER` spells a step (the names that can be drawn - unlocked, learning,
-available - first, the locked ones after), then each letter drawn once on the small canvas (outlined when
-the design has an outline, at any zoom), then the chapter titles'. The lab confirmed Ultralight's glyphs
+with nothing to draw (the render loop's `!shouldRender` frames, not while panning and not within
+`INPUT_QUIET_MS` of a press, wheel or key) gives a slice to a warm-up job over the whole tree: work goes on
+while `IDLE_WARM_MS` (2 ms) is not used up, one item at least (a do-while, so a slice is `IDLE_WARM_MS`
+plus the item that crosses it; Ultralight's clock is 1 ms coarse, so 2-3 ms). The names' letters are gathered
+`WARM_GATHER` spells a step, letter by code point (a letter past U+FFFF is one): first each spell's name as
+it shows now (`CanvasRenderer._labelTextOf`, the rule `_labelCandidates` uses: a locked spell has none
+outside edit mode, an available one under Reveal Name shows `???`), then every spell's own name - states and
+reveals change in place after the job has run (the player's progress arriving after the tree, a spell
+learned), and with the locked names left out the lab's job made 30 of the 639 letters and the first zoom
+past 0.8 was back at 37.8 ms; then each letter drawn once on the small canvas
+(outlined when the design has an outline, at any zoom), then the chapter titles'. The lab confirmed Ultralight's glyphs
 are shared across canvases: letters drawn on that canvas make the tree layer's first names cheap. The job
 starts again for a new font (`_glyphFontKey`: size, face, outline width, scale, title size, name length
 cap; `noteRestyle` too, a late web font keeping its name) and for a new tree (only its letters not made
-yet: `_glyphsDone`). Until it is done the font counts as cold (`LayerBuild._cold()` = `_textCold` or
+yet: `_glyphsDone`), and when a reply from C++ changes a name in place (`TreeParser.updateNodeFromCache`,
+which every spell-info reply goes through, drops the job: the nodes array and its length stay the same, so
+the job's own tree check cannot see it; the letters made stay made). Done, an idle frame only compares the
+job's size, scale and tree with the renderer's - no key string is made - since the face, outline, title size
+and name cap change only with a design, a late font or a language, all of which call `noteRestyle`. Until it is done the font counts as cold (`LayerBuild._cold()` = `_textCold` or
 `_glyphsPending`): repaints are spread and a build still makes its own names' letters first, leaving out
 the ones the job made. Off with spell names off (turned off mid-way, the job is dropped and the font not left
 cold; turned on again, it starts again and draws only the letters not made yet). Measured (`burst`, 3 notches, median of 3 runs; the job

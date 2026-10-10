@@ -5,7 +5,9 @@
  * place and very long lines included, bowed lines allowed for); the index is
  * made again when the lists change, and not used in edit mode; the turns, hand
  * variants and bows it keeps (_turnsOf, _bowsOf) are made on first use, from
- * NodeBatch.turnAt, TreeStyle.handVariant and TreeStyle.edgeBowUnit, and go with it.
+ * NodeBatch.turnAt, TreeStyle.handVariant and TreeStyle.edgeBowUnit, and go with it;
+ * a spell's school changed in place by a reply from C++ (TreeParser.updateNodeFromCache)
+ * marks the index dirty, so its turn is worked out again.
  *
  * Depends on: CanvasRenderer (canvasRendererV2.js, canvasRendererData.js,
  * canvasRendererEdges.js)
@@ -80,7 +82,7 @@ var CanvasCullTest = {
         var r = g.CanvasRenderer;
         if (!r || typeof r._cullIndex !== 'function') { this.check(false, 'CanvasRenderer loaded'); return { passed: this.passed, failed: this.failed }; }
         var saved = { nodes: r.nodes, edges: r.edges, map: r._nodeMap, disc: r._discoveryVisibleIds, edit: g.EditMode,
-                      nb: g.NodeBatch, ts: g.TreeStyle };
+                      nb: g.NodeBatch, ts: g.TreeStyle, cache: g.SpellCache };
         var rand = this._rng(12345);
         try {
             g.EditMode = { isActive: false };
@@ -131,6 +133,18 @@ var CanvasCullTest = {
             this.check(turnOk, "each spell's turn (cos, sin) and hand variant as worked out from its place");
             this.check(bowOk, "each line's bow as worked out from its ends");
 
+            // A reply from C++ gives a spell another school in place (same array, same length)
+            var P = g.TreeParser, n0 = r.nodes[0];
+            g.SpellCache = { get: function() { return { name: 'n0', school: 'A' }; } };
+            if (!P) this.check(false, 'TreeParser loaded');
+            else {
+                r._cullDirty = false;
+                P.updateNodeFromCache(n0);
+                var ix2 = r._turnsOf(r._cullIndex()), rot0 = g.NodeBatch.turnAt('A', n0.x, n0.y);
+                this.check(ix2 !== ix && ix2.turn[0] === Math.cos(rot0) && ix2.turn[1] === Math.sin(rot0),
+                    "a school changed in place: the index made again, the spell's turn from its new school");
+            }
+
             // The lists change: made again
             r.edges.push({ from: 'n2', to: 'n3' });
             ix = r._cullIndex();
@@ -149,7 +163,7 @@ var CanvasCullTest = {
         } finally {
             r.nodes = saved.nodes; r.edges = saved.edges; r._nodeMap = saved.map; r._discoveryVisibleIds = saved.disc;
             r._cull = null; r._cullDirty = true;
-            g.EditMode = saved.edit; g.NodeBatch = saved.nb; g.TreeStyle = saved.ts;
+            g.EditMode = saved.edit; g.NodeBatch = saved.nb; g.TreeStyle = saved.ts; g.SpellCache = saved.cache;
         }
         return { passed: this.passed, failed: this.failed };
     }
