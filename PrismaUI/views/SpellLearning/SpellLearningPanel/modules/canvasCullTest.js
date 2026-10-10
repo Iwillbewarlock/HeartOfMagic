@@ -3,7 +3,9 @@
  * the spells and lines a box's grid cells give, once each and in drawing order,
  * are exactly the ones the full loop's box tests pass (spells off any finite
  * place and very long lines included, bowed lines allowed for); the index is
- * made again when the lists change, and not used in edit mode.
+ * made again when the lists change, and not used in edit mode; the turns, hand
+ * variants and bows it keeps (_turnsOf, _bowsOf) are made on first use, from
+ * NodeBatch.turnAt, TreeStyle.handVariant and TreeStyle.edgeBowUnit, and go with it.
  *
  * Depends on: CanvasRenderer (canvasRendererV2.js, canvasRendererData.js,
  * canvasRendererEdges.js)
@@ -77,7 +79,8 @@ var CanvasCullTest = {
         var g = (typeof global !== 'undefined') ? global : window;
         var r = g.CanvasRenderer;
         if (!r || typeof r._cullIndex !== 'function') { this.check(false, 'CanvasRenderer loaded'); return { passed: this.passed, failed: this.failed }; }
-        var saved = { nodes: r.nodes, edges: r.edges, map: r._nodeMap, disc: r._discoveryVisibleIds, edit: g.EditMode };
+        var saved = { nodes: r.nodes, edges: r.edges, map: r._nodeMap, disc: r._discoveryVisibleIds, edit: g.EditMode,
+                      nb: g.NodeBatch, ts: g.TreeStyle };
         var rand = this._rng(12345);
         try {
             g.EditMode = { isActive: false };
@@ -107,10 +110,32 @@ var CanvasCullTest = {
             this.check(edgeOk, 'lines from the grid = lines the full loop draws, in order, bowed or not');
             this.check(gridUsed > 200 && big >= 6, 'small boxes use the grid, a huge one looks at everything');
 
+            // What it keeps per spell and line: made on first use, the same numbers
+            g.NodeBatch = { turnAt: function(school, x, y) { return school === 'A' ? Math.atan2(y, x) + 1 : 0; } };
+            g.TreeStyle = { handVariant: function(x, y) { return Math.abs(Math.round(x + y)) % 3; },
+                            edgeBowUnit: function(x1, y1, x2, y2) { return Math.sin(x1 + y2 - y1 * x2); } };
+            this.check(!ix.turn && !ix.bow, 'turns and bows not made until asked for');
+            r._turnsOf(ix);
+            var bows = r._bowsOf(ix), turnOk = true, bowOk = true;
+            var same = function(a, b) { return a === b || (a !== a && b !== b); };
+            for (var q = 0; q < r.nodes.length; q++) {
+                var nd = r.nodes[q], rot = g.NodeBatch.turnAt(nd.school, nd.x, nd.y);
+                // (a spell off any finite place: its NaN turn stays NaN, its variant is kept as 0)
+                if (!same(ix.turn[2 * q], Math.cos(rot)) || !same(ix.turn[2 * q + 1], Math.sin(rot)) ||
+                        ix.variant[q] !== (g.TreeStyle.handVariant(nd.x, nd.y) | 0)) turnOk = false;
+            }
+            for (q = 0; q < r.edges.length; q++) {
+                var fa = ix.from[q], fb = ix.to[q];
+                if (fa && fb && !same(bows[q], g.TreeStyle.edgeBowUnit(fa.x, fa.y, fb.x, fb.y))) bowOk = false;
+            }
+            this.check(turnOk, "each spell's turn (cos, sin) and hand variant as worked out from its place");
+            this.check(bowOk, "each line's bow as worked out from its ends");
+
             // The lists change: made again
             r.edges.push({ from: 'n2', to: 'n3' });
             ix = r._cullIndex();
-            this.check(ix.edgeCount === r.edges.length && ix.keys[ix.edgeCount - 1] === 'n2->n3', 'a line added: the index is made again');
+            this.check(ix.edgeCount === r.edges.length && ix.keys[ix.edgeCount - 1] === 'n2->n3' && !ix.turn && !ix.bow,
+                'a line added: the index is made again (its turns and bows with it)');
             r._cullDirty = true;
             this.check(r._cullIndex() !== ix, 'marked dirty (buildSpatialIndex): made again');
 
@@ -124,7 +149,7 @@ var CanvasCullTest = {
         } finally {
             r.nodes = saved.nodes; r.edges = saved.edges; r._nodeMap = saved.map; r._discoveryVisibleIds = saved.disc;
             r._cull = null; r._cullDirty = true;
-            g.EditMode = saved.edit;
+            g.EditMode = saved.edit; g.NodeBatch = saved.nb; g.TreeStyle = saved.ts;
         }
         return { passed: this.passed, failed: this.failed };
     }

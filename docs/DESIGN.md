@@ -538,6 +538,22 @@ wheel zooms stayed where they were (61 before, 64 after, of about 3,400 frames -
 (clear and draw instead of `'copy'`) is 2.6 → 2.4 ms. `modules/canvasCullTest.js` checks the grid
 against the full loop on 300 boxes.
 
+**What a spell's or line's place decides, kept with the index** (2026-10-10). Every repaint worked out
+again, per spell, its shape's turn toward the centre (`atan2`, `cos`, `sin`) and its hand-drawn variant
+(`hash01`, a `sin`), and per straight line its hand-drawn bow (another `hash01`; the known lines up to
+three times, glow, line and engraving) - ~6,000 transcendental calls a whole repaint of 1,452 spells. The
+culling index now keeps them in typed arrays, made on first use and gone with it: `_turnsOf(ix)` (cos and
+sin of `NodeBatch.turnAt`, `rotationAt` without the level-of-detail switch, in `ix.turn`; the variant in
+`ix.variant`), `_bowsOf(ix)` (`TreeStyle.edgeBowUnit`, the bow before the design's amount, in `ix.bow`;
+`edgeBowFrom(unit)` makes the same number `edgeBow` does). `renderNodes` tells `NodeBatch.useTurn` the
+spell it queues next, and `addShape` takes the kept values when the place and school are that spell's
+(not in the simple level of detail, which does not turn shapes); pass 1's batches now hold line indices,
+and passes 1-3 hand `_drawEdgePath` the kept bow. Edit mode's index has no grids, so it uses none of it
+and works them out as before; the hover preview and the lock chains also work theirs out (few lines).
+Lab (Ultralight): the tree layer identical to the byte (Arcane, Classic), a whole repaint 24.0 → 23.1-23.9 ms
+on Arcane and 20.6 → 19.8-19.9 ms on Classic (10 repaints each); the frames of a wheel burst and a drag
+the same within noise (the spread repaint fills frames to its target either way).
+
 **Names from the culling index, and fewer of them at mid zoom** (2026-10-09). `_labelCandidates` looped
 over every spell to find the ones on the canvas and its margin. It now asks `_nodesInBox` for the world
 box holding that screen box (`_labelWorldBox`: rotation, zoom and pan undone, padded by `LABEL_CULL_PAD`

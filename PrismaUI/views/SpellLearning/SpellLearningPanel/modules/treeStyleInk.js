@@ -150,7 +150,18 @@
         edgeBow: function(x1, y1, x2, y2) {
             var a = this.handAmount();
             if (!a) return 0;
-            return (hash01(x1 + y2, y1 - x2) * 2 - 1) * a * BOW_SHARE;
+            return this.edgeBowUnit(x1, y1, x2, y2) * a * BOW_SHARE;
+        },
+
+        /** edgeBow before the design's amount, in [-1, 1): from the ends alone (the culling index keeps it per line). */
+        edgeBowUnit: function(x1, y1, x2, y2) {
+            return hash01(x1 + y2, y1 - x2) * 2 - 1;
+        },
+
+        /** edgeBow from edgeBowUnit's value: the same number. */
+        edgeBowFrom: function(unit) {
+            var a = this.handAmount();
+            return a ? unit * a * BOW_SHARE : 0;
         },
 
         /** A dash token ("on off on off...", screen px) for this repaint, in world units; null = solid. */

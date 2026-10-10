@@ -288,9 +288,11 @@
             // The spells near the box only (_nodesInBox), in node order; the box test below stays
             var nodes = this.nodes, count = this._nodesInBox(viewLeft, viewRight, viewTop, viewBottom);
             var pick = count < 0 ? null : this._cull.nodePick;
+            // Their turns and hand variants as the culling index keeps them (none in edit mode)
+            var turns = pick ? this._turnsOf(this._cull) : null;
             if (count < 0) count = nodes.length;
             for (var ni = 0; ni < count; ni++) {
-                var node = nodes[pick ? pick[ni] : ni];
+                var idx = pick ? pick[ni] : ni, node = nodes[idx];
 
                 // Viewport culling
                 if (node.x < viewLeft || node.x > viewRight || node.y < viewTop || node.y > viewBottom) {
@@ -303,11 +305,11 @@
                 }
 
                 // Discovery mode visibility (disabled in edit mode - show everything)
+                if (discovery && !this._discoveryVisibleIds.has(node.id) && !this._discoveryVisibleIds.has(node.formId)) {
+                    continue;
+                }
+                if (turns) NodeBatch.useTurn(node, turns.turn[2 * idx], turns.turn[2 * idx + 1], turns.variant[idx]);
                 if (discovery) {
-                    if (!this._discoveryVisibleIds.has(node.id) && !this._discoveryVisibleIds.has(node.formId)) {
-                        continue;
-                    }
-
                     // Show locked nodes as mystery
                     if (node.state === 'locked') {
                         this._batchMysteryNode(node);

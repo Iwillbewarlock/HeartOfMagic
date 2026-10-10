@@ -66,12 +66,28 @@ var NodeBatch = {
     _hand: null,               // the design's hand-drawn shapes (TreeStyle.handShapes), or null; kept after
                                // flush so the spells drawn one by one afterwards match the batch
     _handPaths: null,          // unit Path2D per school and variant, for _hand
+    _tNode: null,              // the spell useTurn was told of, and its turn's cos, sin and hand variant
+    _tc: 1, _ts: 0, _tv: 0,
 
     /** The rotation a school's shape gets at (x, y): 0 for circles. */
     rotationAt: function(school, x, y) {
         if (this._unturned) return 0;
+        return this.turnAt(school, x, y);
+    },
+
+    /** rotationAt whatever the level of detail (what the culling index keeps per spell). */
+    turnAt: function(school, x, y) {
         var off = this.ROTATION[school];
         return off ? Math.atan2(y, x) + off : 0;
+    },
+
+    /**
+     * The spell queued next is `node`: cos and sin of its turn and its hand-drawn
+     * variant, kept per spell by the culling index (CanvasRenderer._turnsOf), so
+     * addShape works none of them out again for that spell's shapes.
+     */
+    useTurn: function(node, c, s, v) {
+        this._tNode = node; this._tc = c; this._ts = s; this._tv = v;
     },
 
     /** A Path2D of the school's unit shape (the circle for unknown schools). */
@@ -123,6 +139,7 @@ var NodeBatch = {
         }
         this._marks = {};
         this._markOrder = [];
+        this._tNode = null;
     },
 
     /** Queue a glow sprite (TreeStyle.drawHalo) centred on (x, y). */
@@ -164,10 +181,12 @@ var NodeBatch = {
         }
         var path = b.path;
         var pts = this.SHAPES[school];
+        // The spell useTurn told of, at its own place and school: its turn and variant as kept
+        var t = this._tNode, kept = !!t && !this._unturned && t.x === x && t.y === y && t.school === school;
         if (this._hand && school !== this.RING) {
-            var hr = this.rotationAt(school, x, y);
-            TreeStyle.traceShape(path, this._hand[pts ? school : ''][TreeStyle.handVariant(x, y)], x, y,
-                Math.cos(hr) * size, Math.sin(hr) * size);
+            var hr = kept ? 0 : this.rotationAt(school, x, y);
+            TreeStyle.traceShape(path, this._hand[pts ? school : ''][kept ? this._tv : TreeStyle.handVariant(x, y)], x, y,
+                (kept ? this._tc : Math.cos(hr)) * size, (kept ? this._ts : Math.sin(hr)) * size);
             return;
         }
         if (!pts) {
@@ -175,8 +194,8 @@ var NodeBatch = {
             path.arc(x, y, size, 0, Math.PI * 2);
             return;
         }
-        var rot = this.rotationAt(school, x, y);
-        var c = Math.cos(rot) * size, s = Math.sin(rot) * size;
+        var rot = kept ? 0 : this.rotationAt(school, x, y);
+        var c = (kept ? this._tc : Math.cos(rot)) * size, s = (kept ? this._ts : Math.sin(rot)) * size;
         path.moveTo(x + pts[0][0] * c - pts[0][1] * s, y + pts[0][0] * s + pts[0][1] * c);
         for (var i = 1; i < pts.length; i++) {
             path.lineTo(x + pts[i][0] * c - pts[i][1] * s, y + pts[i][0] * s + pts[i][1] * c);

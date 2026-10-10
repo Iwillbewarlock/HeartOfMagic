@@ -493,6 +493,41 @@
             return this._gridPick(ix.nodeCells, ix.nodeOdd, ix.nodePick, null, ix, ix.nodeCount, l, r, t, b);
         },
 
+        /**
+         * What drawing a spell or line works out from its place alone, kept by the
+         * culling index (made on first use, gone with the index; edit mode, which
+         * has no grids, works them out as before): per spell the cos and sin of its
+         * shape's turn (NodeBatch.turnAt; ix.turn, in pairs) and its hand-drawn
+         * variant (ix.variant); per line its bow before the design's amount
+         * (TreeStyle.edgeBowUnit; ix.bow). The same numbers, not made each repaint.
+         */
+        _turnsOf: function(ix) {
+            if (!ix.turn) {
+                var nodes = ix.nodes, n = ix.nodeCount, turn = new Float64Array(2 * n), variant = new Int8Array(n);
+                for (var i = 0; i < n; i++) {
+                    var nd = nodes[i], rot = NodeBatch.turnAt(nd.school, nd.x, nd.y);
+                    turn[2 * i] = Math.cos(rot);
+                    turn[2 * i + 1] = Math.sin(rot);
+                    variant[i] = TreeStyle.handVariant(nd.x, nd.y);
+                }
+                ix.turn = turn;
+                ix.variant = variant;
+            }
+            return ix;
+        },
+
+        /** The lines' bows before the amount (see _turnsOf). */
+        _bowsOf: function(ix) {
+            if (!ix.bow) {
+                var bow = new Float64Array(ix.edgeCount), from = ix.from, to = ix.to;
+                for (var i = 0; i < ix.edgeCount; i++) {
+                    if (from[i] && to[i]) bow[i] = TreeStyle.edgeBowUnit(from[i].x, from[i].y, to[i].x, to[i].y);
+                }
+                ix.bow = bow;
+            }
+            return ix.bow;
+        },
+
         /** The lines that may reach into the box grown by ext on each side, as _nodesInBox. */
         _edgesInBox: function(ix, l, r, t, b, ext) {
             return this._gridPick(ix.edgeCells, ix.edgeOdd, ix.edgePick, ix.edgeSeen, ix, ix.edgeCount,

@@ -18,7 +18,7 @@
          * Draw an edge path between two points (straight or curved Bezier).
          * Call between ctx.beginPath() and ctx.stroke().
          */
-        _drawEdgePath: function(ctx, x1, y1, x2, y2, curved) {
+        _drawEdgePath: function(ctx, x1, y1, x2, y2, curved, bowUnit) {
             ctx.moveTo(x1, y1);
             if (curved) {
                 var cpx = (x1 + x2) / 2 + (y2 - y1) * 0.15;
@@ -26,7 +26,8 @@
                 ctx.quadraticCurveTo(cpx, cpy, x2, y2);
             } else {
                 // A design that draws by hand bows its straight lines a little (TreeStyle.edgeBow)
-                var bow = TreeStyle.edgeBow(x1, y1, x2, y2);
+                // (bowUnit: the culling index's TreeStyle.edgeBowUnit for this line, the same number)
+                var bow = bowUnit === undefined ? TreeStyle.edgeBow(x1, y1, x2, y2) : TreeStyle.edgeBowFrom(bowUnit);
                 if (bow) ctx.quadraticCurveTo((x1 + x2) / 2 - (y2 - y1) * bow, (y1 + y2) / 2 + (x2 - x1) * bow, x2, y2);
                 else ctx.lineTo(x2, y2);
             }
@@ -162,6 +163,8 @@
             var bend = (curved ? this.CURVE_BULGE : 0) + TreeStyle.bowBulge();
             var nVis = this._visibleEdges(ix, viewLeft, viewRight, viewTop, viewBottom, bend);
             var vis = ix.vis, fromOf = ix.from, toOf = ix.to, keyOf = ix.keys;
+            // Straight lines bowed by hand: their bows as the culling index keeps them (not in edit mode)
+            var bows = (!curved && ix.edgeCells && TreeStyle.handAmount()) ? this._bowsOf(ix) : null;
 
             var S = TreeStyle.tokens;
 
@@ -218,13 +221,14 @@
                 } else {
                     bucket = batches.locked;
                 }
-                bucket.push(fromNode, toNode);
+                bucket.push(ei);
             }
 
             function strokeBatch(list) {
                 ctx.beginPath();
-                for (var b = 0; b < list.length; b += 2) {
-                    self._drawEdgePath(ctx, list[b].x, list[b].y, list[b + 1].x, list[b + 1].y, curved);
+                for (var b = 0; b < list.length; b++) {
+                    var li = list[b];
+                    self._drawEdgePath(ctx, fromOf[li].x, fromOf[li].y, toOf[li].x, toOf[li].y, curved, bows ? bows[li] : undefined);
                 }
                 ctx.stroke();
             }
@@ -289,7 +293,7 @@
                     var hi = vis[hv];
                     if (!this._hoverPathEdges.has(keyOf[hi])) continue;
                     ctx.beginPath();
-                    this._drawEdgePath(ctx, fromOf[hi].x, fromOf[hi].y, toOf[hi].x, toOf[hi].y, curved);
+                    this._drawEdgePath(ctx, fromOf[hi].x, fromOf[hi].y, toOf[hi].x, toOf[hi].y, curved, bows ? bows[hi] : undefined);
                     ctx.stroke();
                 }
             }
@@ -314,7 +318,7 @@
                     ctx.globalAlpha = S.selectedPathAlpha;
 
                     ctx.beginPath();
-                    this._drawEdgePath(ctx, fromOf[si].x, fromOf[si].y, toOf[si].x, toOf[si].y, curved);
+                    this._drawEdgePath(ctx, fromOf[si].x, fromOf[si].y, toOf[si].x, toOf[si].y, curved, bows ? bows[si] : undefined);
                     ctx.stroke();
                 }
             }
@@ -342,7 +346,7 @@
                     ctx.globalAlpha = 0.7;
 
                     ctx.beginPath();
-                    this._drawEdgePath(ctx, fromNode.x, fromNode.y, toNode.x, toNode.y, curved);
+                    this._drawEdgePath(ctx, fromNode.x, fromNode.y, toNode.x, toNode.y, curved, bows ? bows[vis[lv]] : undefined);
                     ctx.stroke();
                 }
             }
