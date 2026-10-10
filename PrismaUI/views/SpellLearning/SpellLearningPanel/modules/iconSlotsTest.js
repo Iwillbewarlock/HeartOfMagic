@@ -33,7 +33,8 @@ var IconSlotsTest = {
         // 30 = 9 action buttons + 4 save/reset/import buttons + 9 settings heads + fullscreen + 7 closes (Steps 4-6)
         this.check(slots.length >= 30 && bad.length === 0, slots.length + ' slots, all known ids' + (bad.length ? ' (unknown: ' + bad.join(', ') + ')' : ''));
 
-        var nested = html.match(/<[^>]+data-i18n(-html)?="[^"]*"[^>]*>(?:(?!<\/button>|<\/h4>|<\/span>).)*hom-icon/);
+        // [\s\S] crosses the markup's line breaks; any closing tag ends the translated element's own text
+        var nested = html.match(/<[^>]+data-i18n(-html)?="[^"]*"[^>]*>(?:(?!<\/[a-z0-9]+>)[\s\S])*hom-icon/);
         this.check(!nested, 'no slot inside a translated element');
 
         var langDir = path.join(panel, 'lang');
@@ -41,7 +42,7 @@ var IconSlotsTest = {
         var dirty = [];
         for (var f = 0; f < files.length; f++) {
             var text = fs.readFileSync(path.join(langDir, files[f]), 'utf8');
-            if (/btn-icon|hom-icon|"\[[A-Za-z*~^+\-v]\] /.test(text)) dirty.push(files[f]);
+            if (/btn-icon|hom-icon|"\[[A-Za-z*~^+\-v]\] |"\(!\) /.test(text)) dirty.push(files[f]);
             var js = files[f].replace(/\.json$/, '.js');
             this.check(fs.existsSync(path.join(langDir, js)), js + ' exists');
         }

@@ -236,7 +236,7 @@
     "howto.tabText": "Comment apprendre",
     "howto.tipCombatXp": "L'usage en combat rapporte plus d'XP que l'entraînement",
     "howto.tipOwnTomes": "Posséder des grimoires augmente passivement l'XP",
-    "howto.tips": "(!) Astuces",
+    "howto.tips": "Astuces",
     "howto.tipSetTargets": "Définissez des objectifs d'apprentissage (un par école)",
     "howto.title": "Comment apprendre des sorts",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "Modifiez directement la progression d'XP (actuel/requis)",
     "settings.devDebug.cheatInfo.seeAll": "Voir tous les noms et détails des sorts (même verrouillés)",
     "settings.devDebug.cheatMode": "Mode triche",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Mode triche actif !</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Mode triche actif !</strong>",
     "settings.devDebug.cheatModeDesc": "Contrôle total sur tous les sorts et la progression",
     "settings.devDebug.debugOptions": "Options de débogage",
     "settings.devDebug.developerMode": "Mode développeur",

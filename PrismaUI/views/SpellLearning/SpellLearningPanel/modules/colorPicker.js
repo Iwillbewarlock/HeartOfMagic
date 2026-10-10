@@ -30,6 +30,7 @@ var ColorPicker = {
         setI18n(header.firstChild, 'settings.colorPicker.title', null, 'Select Color');
         
         var closeBtn = document.createElement('button');
+        closeBtn.className = 'popup-close';
         closeBtn.innerHTML = HomIcons.slot('close');
         closeBtn.style.cssText = 'background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0 4px;';
         closeBtn.onclick = function() { ColorPicker.hide(); };

@@ -236,7 +236,7 @@
     "howto.tabText": "Como Aprender",
     "howto.tipCombatXp": "Uso em combate concede mais XP que prática",
     "howto.tipOwnTomes": "Possua tomos de magia para bônus passivo de XP",
-    "howto.tips": "(!) Dicas",
+    "howto.tips": "Dicas",
     "howto.tipSetTargets": "Defina metas de aprendizado (uma por escola)",
     "howto.title": "Como Aprender Magias",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "Edite o progresso de XP diretamente (atual/necessário)",
     "settings.devDebug.cheatInfo.seeAll": "Veja todos os nomes e detalhes de magias (até bloqueadas)",
     "settings.devDebug.cheatMode": "Modo Trapaça",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Modo trapaça ativo!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Modo trapaça ativo!</strong>",
     "settings.devDebug.cheatModeDesc": "Controle total sobre todas as magias e progressão",
     "settings.devDebug.debugOptions": "Opções de Depuração",
     "settings.devDebug.developerMode": "Modo Desenvolvedor",

@@ -16,14 +16,16 @@
 .modal-close .hom-icon { margin-right: 0; }
 .settings-block-icon.hom-icon { font-size: 1em; }
 
-/* Prereq Master collapse indicator: a small chevron, not [+]/[-]. Down = open, right = collapsed */
+/* Prereq Master collapse indicator: a small chevron, not [+]/[-]. Down = open, right = collapsed.
+   margin-left: auto keeps it at the header's right edge (styles-skyrim.css); padding 0 keeps the box square */
 .prm-collapse-icon {
     display: inline-block;
     width: 0.45em;
     height: 0.45em;
+    padding: 0;
     border-right: 2px solid currentColor;
     border-bottom: 2px solid currentColor;
     transform: rotate(45deg);
-    margin: 0 0.5em 0.15em 0.15em;
+    margin: 0 0.5em 0.15em auto;
 }
 .prm-collapse-icon.collapsed { transform: rotate(-45deg); }

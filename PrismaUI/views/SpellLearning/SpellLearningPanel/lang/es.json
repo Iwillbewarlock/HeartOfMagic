@@ -236,7 +236,7 @@
     "howto.tabText": "Cómo Aprender",
     "howto.tipCombatXp": "El uso en combate otorga más XP que la práctica",
     "howto.tipOwnTomes": "Posee tomos de hechizos para bonificación pasiva de XP",
-    "howto.tips": "(!) Consejos",
+    "howto.tips": "Consejos",
     "howto.tipSetTargets": "Establece objetivos de aprendizaje (uno por escuela)",
     "howto.title": "Cómo Aprender Hechizos",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "Edita el progreso de XP directamente (actual/requerido)",
     "settings.devDebug.cheatInfo.seeAll": "Ve todos los nombres y detalles de hechizos (incluso bloqueados)",
     "settings.devDebug.cheatMode": "Modo Trampa",
-    "settings.devDebug.cheatModeActive": "(!) <strong>¡Modo trampa activo!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>¡Modo trampa activo!</strong>",
     "settings.devDebug.cheatModeDesc": "Control total sobre todos los hechizos y progresión",
     "settings.devDebug.debugOptions": "Opciones de Depuración",
     "settings.devDebug.developerMode": "Modo Desarrollador",

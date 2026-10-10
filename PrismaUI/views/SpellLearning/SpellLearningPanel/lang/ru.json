@@ -236,7 +236,7 @@
     "howto.tabText": "Как изучать",
     "howto.tipCombatXp": "Использование в бою даёт больше XP, чем практика",
     "howto.tipOwnTomes": "Владение фолиантами даёт пассивный бонус к XP",
-    "howto.tips": "(!) Советы",
+    "howto.tips": "Советы",
     "howto.tipSetTargets": "Задайте цели изучения (по одной на школу)",
     "howto.title": "Как изучать заклинания",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "Редактирование прогресса XP напрямую (текущее/требуемое)",
     "settings.devDebug.cheatInfo.seeAll": "Просмотр всех названий и деталей заклинаний (даже заблокированных)",
     "settings.devDebug.cheatMode": "Режим читов",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Режим читов активен!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Режим читов активен!</strong>",
     "settings.devDebug.cheatModeDesc": "Полный контроль над всеми заклинаниями и прогрессом",
     "settings.devDebug.debugOptions": "Параметры отладки",
     "settings.devDebug.developerMode": "Режим разработчика",

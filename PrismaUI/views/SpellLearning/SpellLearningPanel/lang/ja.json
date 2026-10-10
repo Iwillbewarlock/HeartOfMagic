@@ -236,7 +236,7 @@
     "howto.tabText": "学び方",
     "howto.tipCombatXp": "戦闘での使用は練習より多くのXPを獲得",
     "howto.tipOwnTomes": "魔導書を所持するとパッシブXPボーナス",
-    "howto.tips": "(!) ヒント",
+    "howto.tips": "ヒント",
     "howto.tipSetTargets": "学習目標を設定（学派ごとに1つ）",
     "howto.title": "呪文の学び方",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "XP進捗を直接編集（現在/必要）",
     "settings.devDebug.cheatInfo.seeAll": "すべての呪文名と詳細を表示（ロック中も含む）",
     "settings.devDebug.cheatMode": "チートモード",
-    "settings.devDebug.cheatModeActive": "(!) <strong>チートモード有効！</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>チートモード有効！</strong>",
     "settings.devDebug.cheatModeDesc": "すべての呪文と進捗を完全制御",
     "settings.devDebug.debugOptions": "デバッグオプション",
     "settings.devDebug.developerMode": "開発者モード",

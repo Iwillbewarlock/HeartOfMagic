@@ -236,7 +236,7 @@
     "howto.tabText": "如何学习",
     "howto.tipCombatXp": "战斗中使用比练习获得更多经验",
     "howto.tipOwnTomes": "持有魔法书可获得被动经验加成",
-    "howto.tips": "(!) 提示",
+    "howto.tips": "提示",
     "howto.tipSetTargets": "设置学习目标（每个学派一个）",
     "howto.title": "如何学习法术",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "直接编辑经验进度（当前/所需）",
     "settings.devDebug.cheatInfo.seeAll": "查看所有法术名称和详情（包括已锁定的）",
     "settings.devDebug.cheatMode": "作弊模式",
-    "settings.devDebug.cheatModeActive": "(!) <strong>作弊模式已激活！</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>作弊模式已激活！</strong>",
     "settings.devDebug.cheatModeDesc": "完全控制所有法术和进度",
     "settings.devDebug.debugOptions": "调试选项",
     "settings.devDebug.developerMode": "开发者模式",

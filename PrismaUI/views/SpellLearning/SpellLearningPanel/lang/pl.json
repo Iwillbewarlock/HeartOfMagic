@@ -236,7 +236,7 @@
     "howto.tabText": "Jak się uczyć",
     "howto.tipCombatXp": "Użycie w walce daje więcej XP niż ćwiczenie",
     "howto.tipOwnTomes": "Posiadanie tomów zaklęć daje pasywny bonus do XP",
-    "howto.tips": "(!) Wskazówki",
+    "howto.tips": "Wskazówki",
     "howto.tipSetTargets": "Ustaw cele nauki (jeden na szkołę)",
     "howto.title": "Jak uczyć się zaklęć",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "Edytuj postęp XP bezpośrednio (bieżące/wymagane)",
     "settings.devDebug.cheatInfo.seeAll": "Zobacz nazwy i szczegóły wszystkich zaklęć (nawet zablokowanych)",
     "settings.devDebug.cheatMode": "Tryb oszustwa",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Tryb oszustwa aktywny!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Tryb oszustwa aktywny!</strong>",
     "settings.devDebug.cheatModeDesc": "Pełna kontrola nad wszystkimi zaklęciami i progresją",
     "settings.devDebug.debugOptions": "Opcje debugowania",
     "settings.devDebug.developerMode": "Tryb dewelopera",

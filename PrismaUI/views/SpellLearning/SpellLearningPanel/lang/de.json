@@ -236,7 +236,7 @@
     "howto.tabText": "Zauber lernen",
     "howto.tipCombatXp": "Kampfeinsatz gibt mehr EP als Übung",
     "howto.tipOwnTomes": "Besitze Zauberbücher für passiven EP-Bonus",
-    "howto.tips": "(!) Tipps",
+    "howto.tips": "Tipps",
     "howto.tipSetTargets": "Setze Lernziele (eines pro Schule)",
     "howto.title": "Wie man Zauber lernt",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "EP-Fortschritt direkt bearbeiten (aktuell/erforderlich)",
     "settings.devDebug.cheatInfo.seeAll": "Alle Zaubernamen und Details sehen (auch gesperrte)",
     "settings.devDebug.cheatMode": "Cheat-Modus",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Cheat-Modus aktiv!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Cheat-Modus aktiv!</strong>",
     "settings.devDebug.cheatModeDesc": "Volle Kontrolle über alle Zauber und Fortschritt",
     "settings.devDebug.debugOptions": "Debug-Optionen",
     "settings.devDebug.developerMode": "Entwicklermodus",

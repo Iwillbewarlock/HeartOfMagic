@@ -236,7 +236,7 @@
     "howto.tabText": "Nasıl Öğrenilir",
     "howto.tipCombatXp": "Savaşta kullanım, pratikten daha fazla TP verir",
     "howto.tipOwnTomes": "Pasif TP bonusu için büyü kitaplarına sahip olun",
-    "howto.tips": "(!) İpuçları",
+    "howto.tips": "İpuçları",
     "howto.tipSetTargets": "Öğrenme hedefleri belirleyin (okul başına bir tane)",
     "howto.title": "Büyüler Nasıl Öğrenilir",
 
@@ -448,7 +448,7 @@
     "settings.devDebug.cheatInfo.editXp": "TP ilerlemesini doğrudan düzenleyin (mevcut/gerekli)",
     "settings.devDebug.cheatInfo.seeAll": "Tüm büyü adlarını ve detaylarını görün (kilitli olanlar dahil)",
     "settings.devDebug.cheatMode": "Hile Modu",
-    "settings.devDebug.cheatModeActive": "(!) <strong>Hile modu aktif!</strong>",
+    "settings.devDebug.cheatModeActive": "<strong>Hile modu aktif!</strong>",
     "settings.devDebug.cheatModeDesc": "Tüm büyüler ve ilerleme üzerinde tam kontrol",
     "settings.devDebug.debugOptions": "Hata Ayıklama Seçenekleri",
     "settings.devDebug.developerMode": "Geliştirici Modu",
