@@ -488,7 +488,8 @@ starts again for a new font (`_glyphFontKey`: size, face, outline width, scale, 
 cap; `noteRestyle` too, a late web font keeping its name) and for a new tree (only its letters not made
 yet: `_glyphsDone`). Until it is done the font counts as cold (`LayerBuild._cold()` = `_textCold` or
 `_glyphsPending`): repaints are spread and a build still makes its own names' letters first, leaving out
-the ones the job made. Off with spell names off. Measured (`burst`, 3 notches, median of 3 runs; the job
+the ones the job made. Off with spell names off (turned off mid-way, the job is dropped and the font not left
+cold; turned on again, it starts again and draws only the letters not made yet). Measured (`burst`, 3 notches, median of 3 runs; the job
 done ~0.6 s after the tree is drawn, its frames under 8 ms): the first zoom past 0.8 37.5 → 13.4 ms on
 Arcane, 34.9 → 10.8 ms on Classic, no frame over 16.7 ms left in the run. Measuring every name's width too
 gained nothing (13.0 against 12.7 ms), so the job makes letters only.

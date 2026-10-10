@@ -348,6 +348,11 @@ var LayerFlowTest = {
             g.settings.showNodeNames = false; B.noteRestyle(); B._textCold = false;
             B.warmIdle(r);
             this.check(log.length === 0 && !B._glyphs, 'names off: nothing made');
+            g.settings.showNodeNames = true; B.warmIdle(r);
+            g.settings.showNodeNames = false; B.warmIdle(r);
+            this.check(!B._glyphsPending && !B._cold(), '...and names turned off during the warm-up leave the font warm');
+            g.settings.showNodeNames = true; log.length = 0; B.warmIdle(r); drain();
+            this.check(!B._glyphsPending && log.length > 0, '...on again, the warm-up starts again and ends');
         } finally {
             B.IDLE_WARM_MS = savedIdle; g.settings.showNodeNames = savedNames;
             B._glyphs = null; B._glyphsKey = ''; B._glyphsDone = {}; B._glyphsPending = false; B._warmCanvas = null;

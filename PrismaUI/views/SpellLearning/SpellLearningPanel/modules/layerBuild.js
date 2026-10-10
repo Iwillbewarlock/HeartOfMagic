@@ -441,7 +441,13 @@ var LayerBuild = {
      */
     warmIdle: function(r) {
         if (!this.ENABLED || !r || !r.nodes || this._build) return;
-        if (typeof settings !== 'undefined' && settings.showNodeNames === false) return;
+        if (typeof settings !== 'undefined' && settings.showNodeNames === false) {
+            // Names off: nothing to warm, and the font not cold for it (names back on
+            // start the job again; the letters made stay made)
+            this._glyphs = null;
+            this._glyphsPending = false;
+            return;
+        }
         var dpr = window.devicePixelRatio || 1, key = this._glyphFontKey(r, dpr);
         if (!key) return;
         if (key !== this._glyphsKey) {
