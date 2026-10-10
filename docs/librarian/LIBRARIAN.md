@@ -109,6 +109,19 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
   은신·화술 기술, 재생 속도. 올리면 `strengthen`, 내리면 다른 원소가 없을 때만 `curse`. 능력치마다 룰 하나.
   `MovementNoiseMult`(소리 죽이기)는 일부러 뺐다
 
+**혈 룰이 있는 곳 (2026-10-10).** 기록으로 읽는 혈 룰은 `00_mgef.json` 에 있다: 적대 효과의 `MagicVampireDrain`,
+같은 Dawnguard 키워드 `DLC1VampireDrainEffect`(Vigilant 의 혈 퍽이 둘 중 하나를 묻는다. 이 덤프에서 2개 주문이 더 받는다),
+뱀파이어가 쓰는(`castByVampires`) 체력·지구력 흡수. KIT 흡수 키워드(`KIT_MagicAbsorbType_Health*`/`Stamina*`)에
+`castByVampires` 를 건 둘은 `10_kit.json`. 전에는 `80_manual.json`(tier `manual`)에 있어서 `-t mgef` 로 재면 혈이
+0개였다. 옮겨도 전체 룰의 태그는 같다(하네스로 전후 카탈로그 비교, 위 2개만 다름). 구조 등급 숫자는 이 룰들이
+들어와 바뀌었다(`MEASURED.md` 2-1절).
+
+혈 마법 모드의 **자체 키워드**는 프레임워크 등급 파일 둘이 받는다. `10_hemomancy.json`: `Kata_BloodMagicPower*` → `blood`,
+`Kata_BloodCost*` → `blood` + `sacrifice`. `10_everdamned.json`: `ED_Mechanics_Keyword_Hemomancy` → `blood`,
+`ED_Mechanics_Keyword_BloodCost*` · `DeductBloodCost` → `blood` + `sacrifice`(피로 값을 치르는 주문). 고정 덤프에 두 모드가
+없어 0개 주문에 맞았다 — **측정하지 않은 룰이다.** 퍽 어댑터(`adapters/hemomancy.json`·`everdamned.json`)가 다른 혈 주문에
+붙이는 같은 키워드는 스캐너가 빼므로(`SpellScannerJson.cpp`, `IsInjected`) 태그가 제 자신을 다시 먹지 않는다.
+
 같은 날 `10_kit.json` 에 주문 레벨 순간이동을 더했다: SPEL 키워드 `KIT_SpellTeleportType_Normal` → `teleport`.
 이펙트 레벨 `KIT_MagicTeleportType_Normal` 은 여전히 쓰지 않는다(모든 소환에 붙는다, `MEASURED.md` 3-1절). **주의:** 이 SPEL
 키워드는 동료를 플레이어 곁으로 부르는 주문(세라노·여우 그레이 소환 등)에도 붙어 있어 그것도 `teleport` 가 된다.
@@ -173,7 +186,7 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 | tier | 뜻 | confidence |
 |---|---|---:|
 | `mgef` (기본) | MGEF 구조. **모든 로드오더에 있다** | 1.0 |
-| `framework` | KIT · OCF · ADAR · NSV 키워드. 그 모드가 깔려야 있다 | 0.8 |
+| `framework` | KIT · OCF · ADAR · NSV · Hemomancy · Everdamned 키워드. 그 모드가 깔려야 있다 | 0.8 |
 | `manual` | 사람이 주문을 보고 붙인 태그(`spell` 룰). 그 주문이 있는 곳엔 항상 있다 | 1.0 |
 
 `confidence` 는 **증거가 남의 환경에도 존재할 가능성**이지 태그가 맞을 확률이 아니다.
@@ -199,7 +212,8 @@ UTF-8이 아닌 플러그인(시스템 코드 페이지의 한글·일본어 이
 - 원소 없던 파괴 마법: 혼돈의 용광로(화염·냉기·전격), Lost Grimoire 의 극지 요새·서리 장막(냉기),
   폭풍 균열·전기장(전격), 살라맨더 비늘(화염), 죽음의 손길(영혼)
 - 괴저: Necromancer's Magic 의 해골 무덤과 부정한 저주 둘(양들의 침묵, 어둠의 무게)
-- 혈 기준(구조 룰, 2026-09-30 개정): 흡혈은 혈에 든다. **(1)** 흡혈 표시 — 적대 효과의
+- 혈 기준(구조 룰, 2026-09-30 개정. 2026-10-10 부터 이 파일이 아니라 `00_mgef.json`, KIT 키워드 둘은 `10_kit.json` —
+  아래 "혈 룰이 있는 곳"): 흡혈은 혈에 든다. **(1)** 흡혈 표시 — 적대 효과의
   `MagicVampireDrain`(시전자와 무관. Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다)와
   `KIT_MagicElement_Vampiric`, **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수(체력·지구력 Absorb,
   `KIT_MagicAbsorbType_Health*`/`Stamina*`), 그리고 피 속성 키워드(10_kit, 10_ocf). 뱀파이어가 쓰는 얼음

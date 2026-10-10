@@ -15,7 +15,7 @@
   ],
   "rules": [
 
-    { "_": "Blood magic the rules below cannot see: Mysticism's Blood Lance",
+    { "_": "Blood magic the record rules (vampire drain, absorbs vampires cast: 00_mgef.json, 10_kit.json) cannot see: Mysticism's Blood Lance",
       "match": { "spell": "MysticismMagic.esp|0x1B8A09" },
       "add": { "elements": ["blood"] } },
 
@@ -114,18 +114,6 @@
                   "techniques": ["cloak", "infuse", "sense", "siphon", "transform"] } },
     { "match": { "spell": "MysticismMagic.esp|0x4E3127" },
       "remove": { "elements": ["fire", "frost", "shock", "undead", "daedra", "soul"] } },
-
-    { "_": "Blood magic takes in vampiric magic (2026-09-30): the vampire drain mark on any hostile effect, whoever casts it, and the absorbs and drains vampires cast (castByVampires: a vampire NPC carries it, in its records or through an SPID ini). A mage's absorb health is not blood magic; a vampire's ice spike is not either. The rule that tagged every spell of a mod named for blood or vampires (2026-09-27) is gone: it made their lightning bolts blood",
-      "match": { "mgefKeyword": "MagicVampireDrain", "hostile": true },
-      "add": { "elements": ["blood"] } },
-    { "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Health" },
-      "add": { "elements": ["blood"] } },
-    { "match": { "castByVampires": true, "archetype": "Absorb", "primaryAV": "Stamina" },
-      "add": { "elements": ["blood"] } },
-    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Health" },
-      "add": { "elements": ["blood"] } },
-    { "match": { "castByVampires": true, "mgefKeywordPrefix": "KIT_MagicAbsorbType_Stamina" },
-      "add": { "elements": ["blood"] } },
 
     { "_": "Absorbing magicka is arcane",
       "match": { "archetype": "Absorb", "primaryAV": "Magicka" },

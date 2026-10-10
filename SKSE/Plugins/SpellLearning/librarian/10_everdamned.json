@@ -1,0 +1,21 @@
+{
+  "tier": "framework",
+  "_comment": [
+    "Everdamned keywords. Evidence tier 2: present only when Everdamned.esp is",
+    "installed. Not on the pinned dump (2026-09-30), so these rules matched",
+    "nothing there and are unmeasured.",
+    "These are the mod's own keywords on its own effects. The perk adapter",
+    "(adapters/everdamned.json) puts ED_Mechanics_Keyword_Hemomancy on other",
+    "blood spells too, but the scanner leaves out keywords an adapter injected",
+    "(SpellScannerJson.cpp, IsInjected), so tags never feed back on themselves.",
+    "ED_Mechanics_Keyword_BloodCost* and DeductBloodCost make a spell cost",
+    "Vitae: paying in blood is a sacrifice."
+  ],
+  "rules": [
+    { "match": { "mgefKeyword": "ED_Mechanics_Keyword_Hemomancy" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeywordPrefix": "ED_Mechanics_Keyword_BloodCost" },
+      "add": { "elements": ["blood"], "techniques": ["sacrifice"] } },
+    { "match": { "mgefKeyword": "DeductBloodCost" },
+      "add": { "elements": ["blood"], "techniques": ["sacrifice"] } }
+  ]
+}

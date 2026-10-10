@@ -1,0 +1,20 @@
+{
+  "tier": "framework",
+  "_comment": [
+    "Hemomancy - Blood Magic keywords. Evidence tier 2: present only when",
+    "hemomancy.esp is installed. Not on the pinned dump (2026-09-30), so these",
+    "rules matched nothing there and are unmeasured.",
+    "These are the mod's own keywords on its own effects. The perk adapter",
+    "(adapters/hemomancy.json) puts Kata_BloodMagicPower on other blood spells",
+    "too, but the scanner leaves out keywords an adapter injected",
+    "(SpellScannerJson.cpp, IsInjected), so tags never feed back on themselves.",
+    "Kata_BloodCost* sits on the hidden effect that takes health instead of",
+    "magicka: paying in blood is a sacrifice."
+  ],
+  "rules": [
+    { "_": "Kata_BloodMagicPower and Kata_BloodMagicPowerConc",
+      "match": { "mgefKeywordPrefix": "Kata_BloodMagicPower" }, "add": { "elements": ["blood"] } },
+    { "match": { "mgefKeywordPrefix": "Kata_BloodCost" },
+      "add": { "elements": ["blood"], "techniques": ["sacrifice"] } }
+  ]
+}
