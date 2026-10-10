@@ -479,3 +479,12 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     border-color: #6b4a1c;
     color: #f0dca8;
 }
+
+/* Close on the parchment surfaces (spell card, how-to, modals): the gold set is
+   ~1.5:1 on parchment, so these take the ink-brown close tile. !important
+   because HomIcons.paint writes the gold tile as an inline style. */
+.details-panel .hom-icon[data-icon="close"],
+.howto-panel .hom-icon[data-icon="close"],
+.modal-content .hom-icon[data-icon="close"] {
+    background-image: url("arcane/icons-ink/close.png") !important;
+}
