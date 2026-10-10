@@ -18,6 +18,31 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
+[size=5][b]New in 1.4.0[/b][/size]
+
+[size=4][b]Fixes from your reports[/b][/size]
+[list]
+[*][b]A tome that teaches a power, lesser power or ability teaches it at full strength at once[/b] (a mod's teleport power, for one, was learned at 20% and did not work). Such spells are never in the tree, so their tomes work the vanilla way now, also with the ISL patch. A save that already holds one learned weakened gets it back at full strength with its own name when it loads. The same goes for a tome spell with no magic school.
+[*][b]Less work behind the game while the panel is closed[/b] (a report of lower FPS with it closed), and [b]scanning freezes the game for much less time[/b]: the scan's text work and classification run in the background.
+[*]A spell that only a mod's [b]debug tome[/b] teaches (a test cell reached by console) stays out of the tree.
+[/list]
+
+[size=4][b]Perks and tags[/b][/size]
+[list]
+[*][b]More perk trees work with every spell mod:[/b] Hydromancy, Atromancy, Hemomancy, Venomancy and Everdamned give their perks only to the spells their own patches name; Heart of Magic now adds their keywords to every spell with that element, whatever mod it comes from. Subclasses of Skyrim 2 turns on the Adamant and Ascension adapters too.
+[*][b]Cost perks reach more modded spells:[/b] a tome spell whose plugin left its half-cost perk empty never got cheaper with the Novice/Apprentice/... perks. It now gets the vanilla one for its school and tier (in memory only; the tree still reads the spell as its plugin wrote it).
+[*][b]Better spell tags, so the tree groups more spells together:[/b] stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage are recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are no longer curses, daedra summons no longer soul magic, paralysis no longer creature or human magic, and vampire summons and blood-named defences no longer blood magic.
+[/list]
+
+[size=4][b]Panel[/b][/size]
+[list]
+[*][b]No hotkey, if you like:[/b] Settings > Hotkey has a [b]None[/b] button (to get a key back: console [i]cgf "SpellLearning.ToggleMenu"[/i], or [i]hotkeyCode[/i] in config.json). Picking a letter key warns that typing it in a search box closes the panel.
+[*][b]Smoother:[/b] zoomed out (the opening view included) at most 50 spell names are drawn, without outline - the selected and learning ones always, the rest nearest the middle of the screen; the names' letters are prepared while the panel sits still, so the first zoom-in no longer stalls (most noticeable with Korean, Chinese or Japanese names); the idle panel repaints about half as much.
+[/list]
+[b]After updating:[/b] open the panel, [b]Scan[/b], and [b]build the tree again[/b].
+
+[spoiler]
+
 [size=5][b]New in 1.3.0[/b][/size]
 
 [size=4][b]Spell Research compatibility[/b][/size]
@@ -51,7 +76,6 @@ A spell gate keeps out what a tome teaches but a player never casts as magic.
 [/list]
 [b]After updating:[/b] open the panel, [b]Scan[/b], and [b]build the tree again[/b]. With Spell Research, press its [i]Import Spells[/i] once.
 
-[spoiler]
 [size=5][b]New in 1.2.0[/b][/size]
 
 [size=4][b]Perk overhauls understand your spell mods[/b][/size]
@@ -211,7 +235,7 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 
 [b]Coming from Heart of Magic v2.5:[/b]
 [list=1]
-[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.3.0 at the time of writing).
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.4.0 at the time of writing).
 [*]Your saves, settings and saved tree carry over.
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
@@ -227,7 +251,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.3.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.4.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 

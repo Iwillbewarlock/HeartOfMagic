@@ -1,0 +1,52 @@
+Heart of Magic Librarian 1.4.0 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.4.0" section. Full list: CHANGELOG.md.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.4.0
+
+Description:
+Main file. Run the installer (it offers the ISL / DEST compatibility patch). After updating: Scan and build the tree again (new spell tags, and spells that only a debug tome teaches leave the tree).
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+Source file description:
+The complete source of 1.4.0 (git tag v1.4.0).
+
+
+=====================================================================
+2. Changelogs tab - version 1.4.0 (one line per entry)
+=====================================================================
+
+Fixed: a tome that teaches a power, lesser power or ability (a mod's teleport power, for one) now teaches it at full strength at once; a save that holds one learned weakened gets it back at full strength on load. Same for a tome spell with no magic school.
+Fixed: a spell that only a mod's debug tome teaches (a test cell reached by console) stays out of the tree. Scan and build again.
+Fixed: less work behind the game while the panel is closed (reported lower FPS with it closed).
+Fixed: scanning freezes the game for much less time - the text work and classification run in the background.
+No hotkey, if you like: Settings > Hotkey has a None button, and a warning when you pick a letter key.
+More perk trees work with every spell mod: Hydromancy, Atromancy, Hemomancy, Venomancy and Everdamned give their perks to every spell with that element, whatever mod it comes from; Subclasses of Skyrim 2 turns on the Adamant and Ascension adapters.
+Cost perks work on more modded tome spells: a spell whose plugin left its half-cost perk empty gets the vanilla one for its school and tier.
+Better spell tags: stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are not curses, daedra summons not soul, paralysis not creature or human, vampire summons and blood-named defences not blood.
+Zoomed out (the opening view included), at most 50 spell names are drawn and they have no outline; the selected and learning ones always show, the rest nearest the middle of the screen.
+Smaller hitch on the first zoom-in: the spell names' letters are prepared while the panel sits still (most noticeable with Korean, Chinese or Japanese names).
+A lighter idle panel: the stars move every second frame, the heart no longer repaints the whole tree, and a tree change is painted once, not twice.
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.4.0 is up.
+
+Thank you for the reports - two of them are fixed here:
+- A tome that teaches a power (Homeward Bound from Mirele Bismath Reborn, for one) now teaches it at full strength at once instead of a weakened 20% that never grew. If your save already holds such a power, loading it with this version gives it back at full strength with its own name.
+- Lower FPS with the panel closed: the panel now does much less behind the game, and scanning freezes the game for much less time.
+
+Also: more perk trees (Hydromancy, Atromancy, Hemomancy, Venomancy, Everdamned) now give their perks to every spell mod, cost perks reach modded spells whose plugin forgot the half-cost perk, better spell tags so the tree groups more spells together, a None hotkey, and a smoother first zoom-in.
+
+After updating: Scan and build the tree again.
+
+If a spell is tagged or grouped wrongly, tell me the mod and the spell name here.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Heart of Magic Librarian 1.4.0 (unreleased)
+## Heart of Magic Librarian 1.4.0
 
 After updating: to drop spells that only a mod's debug tome teaches, **Scan** and **build the tree again**.
 
