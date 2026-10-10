@@ -653,7 +653,9 @@ it changes on the page, not what our drawing costs: in game the loop turned ever
 drawing, and clicks waited behind it. The heart (with its runes and globe), each spell's sigil or learning
 glow, and the travelling particles are now drawn on small canvases laid over the tree canvas
 (`FxLayer.draw(key, box, dpr, drawFn)`; drawn in the tree canvas's own coordinates, reused by key, hidden
-when not drawn in a frame). The tree canvas is not touched on a frame whose picture it already shows
+when not drawn in a frame; where the tree canvas sits, `offsetLeft`/`offsetTop`, is read once in
+`FxLayer.begin`, 2026-10-10 - read per spot after the last spot's style writes, each read laid the page out
+again). The tree canvas is not touched on a frame whose picture it already shows
 (`CanvasRenderer._mainShownKey`, the `StaticBase` key), so an idle frame changes a few small boxes instead
 of most of the panel. In the bench the tree canvas gets 0 paint calls per idle frame and the picture is
 the same as before. `USE_FX_LAYER = false` draws everything on the tree canvas as before; a spot that

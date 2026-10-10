@@ -41,6 +41,8 @@ var FxLayer = {
     _count: 0,
     _used: null,
     _main: null,
+    _mainLeft: 0,          // the main canvas's offsetLeft / offsetTop, read at begin()
+    _mainTop: 0,
     _failed: false,
     _lastMade: null,
 
@@ -52,6 +54,10 @@ var FxLayer = {
     begin: function(main) {
         this._main = main;
         this._used = {};
+        // Where the main canvas sits, read once a frame: read per spot, after the
+        // last spot's style writes, each read made the browser lay the page out again
+        this._mainLeft = main ? main.offsetLeft : 0;
+        this._mainTop = main ? main.offsetTop : 0;
         this.lastDrawn = false;
     },
 
@@ -101,7 +107,7 @@ var FxLayer = {
             spot.canvas.style.height = sh + 'px';
             spot.w = sw; spot.h = sh; spot.dpr = dpr;
         }
-        var left = main.offsetLeft + x0, top = main.offsetTop + y0;
+        var left = this._mainLeft + x0, top = this._mainTop + y0;
         if (spot.x !== left) { spot.canvas.style.left = left + 'px'; spot.x = left; }
         if (spot.y !== top) { spot.canvas.style.top = top + 'px'; spot.y = top; }
         if (!spot.shown) { spot.canvas.style.display = 'block'; spot.shown = true; spot.version = undefined; }
