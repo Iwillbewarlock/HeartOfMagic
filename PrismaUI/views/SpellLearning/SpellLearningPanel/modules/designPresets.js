@@ -17,7 +17,7 @@
  * every preset folder (UIManager::OnLoadPresets), so one file per design, no
  * shared list to fight over between add-ons. See docs/DESIGN.md.
  *
- * Depends on: settings, TreeStyle, t() (optional), UI_THEMES/applyTheme (optional)
+ * Depends on: settings, TreeStyle, t() (optional), UI_THEMES/applyTheme (optional), homIcons.js (optional)
  */
 
 var DesignPresets = {

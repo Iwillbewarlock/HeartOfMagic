@@ -7,7 +7,7 @@
 var IconSlotsTest = {
     passed: 0,
     failed: 0,
-    GLYPH: /<span class="(btn-icon|settings-block-icon|prm-collapse-icon)[^"]*"[^>]*>[^<]+<\/span>|>\s*(\[[A-Za-z*~^+\-v ]\]|X|×)\s*</,
+    GLYPH: /<span class="(btn-icon|settings-block-icon|prm-collapse-icon)[^"]*"[^>]*>[^<]+<\/span>|>\s*(\[[A-Za-z*~^+\-v ]\]|X|×|&times;|&#215;)\s*</,
 
     check: function(ok, name) {
         if (ok) { this.passed++; console.log('  [PASS] ' + name); }
@@ -30,8 +30,8 @@ var IconSlotsTest = {
             var id = slots[i].replace(/.*data-icon="([^"]+)".*/, '$1');
             if (HomIcons.IDS.indexOf(id) === -1) bad.push(id);
         }
-        // 30 = 9 action buttons + 4 save/reset/import buttons + 9 settings heads + fullscreen + 7 closes (Steps 4-6)
-        this.check(slots.length >= 30 && bad.length === 0, slots.length + ' slots, all known ids' + (bad.length ? ' (unknown: ' + bad.join(', ') + ')' : ''));
+        // 33 = 9 action buttons + 4 save/reset/import buttons + 9 settings heads + fullscreen + 10 closes
+        this.check(slots.length >= 33 && bad.length === 0, slots.length + ' slots, all known ids' + (bad.length ? ' (unknown: ' + bad.join(', ') + ')' : ''));
 
         // [\s\S] crosses the markup's line breaks; any closing tag ends the translated element's own text
         var nested = html.match(/<[^>]+data-i18n(-html)?="[^"]*"[^>]*>(?:(?!<\/[a-z0-9]+>)[\s\S])*hom-icon/);

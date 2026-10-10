@@ -43,6 +43,12 @@ var HomIconsTest = {
         this.check(c.style.backgroundImage === 'url("themes/icons-line/save.png")', 'design without icons falls back to the line set');
         HomIcons.setPath('themes/x');
         this.check(HomIcons._set === HomIcons.DEFAULT_SET, 'path without trailing slash falls back');
+        HomIcons.setPath('themes/arcane/icons/');
+        HomIcons.setPath('themes/a"b/');
+        var q = HomIcons._set;
+        HomIcons.setPath('themes/arcane/icons/');
+        HomIcons.setPath('themes/<x/');
+        this.check(q === HomIcons.DEFAULT_SET && HomIcons._set === HomIcons.DEFAULT_SET, 'path with a quote or < falls back');
         global.document = savedDoc;
 
         var html = HomIcons.slot('close');

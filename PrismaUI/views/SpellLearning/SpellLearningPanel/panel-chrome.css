@@ -63,6 +63,16 @@
     border-bottom-color: var(--accent-gold, #c9a227);
 }
 .btn-danger { color: var(--accent-red, #b5523b); }
+/* styles-skyrim.css refills these on hover and when disabled at (0,2,0)/(0,3,0), above .btn: the same
+   selectors here, background only, so a design sheet using them (loaded later) still wins */
+.btn-primary:hover:not(:disabled),
+.btn-primary:disabled,
+.btn-secondary:hover:not(:disabled),
+.btn-success:hover:not(:disabled),
+.btn-success:hover,
+.btn-danger:hover { background: transparent; }
+/* The Easy page's action column reads down its left edge; .btn-primary centres its label */
+.easy-action-btn { justify-content: flex-start; }
 /* :not() keeps the hover line off the spell card buttons below */
 .btn:hover:not(:disabled):not(.btn-learn):not(.btn-unlock) { border-bottom-color: currentColor; }
 
@@ -93,9 +103,24 @@
     padding: 3px;
 }
 .toggle-switch .toggle-slider:before { display: none; }
+/* Pre Req Master's mini switches: the same square check */
+.toggle-slider-mini {
+    width: 14px;
+    height: 14px;
+    border-radius: 0;
+    background: transparent;
+    border: 1px solid var(--accent-gold, #c9a227);
+    padding: 2px;
+}
+.toggle-slider-mini::after { display: none; }
 .toggle-switch input:checked + .toggle-slider {
     background: var(--accent-gold, #c9a227);
     background-clip: content-box;   /* the 3px padding stays empty: a filled square inside the frame */
+    border-color: var(--accent-gold, #c9a227);   /* same (0,3,1) selector as styles-skyrim's green frame; later wins */
+}
+.prm-constraint-toggle input:checked + .toggle-slider-mini {
+    background: var(--accent-gold, #c9a227);
+    background-clip: content-box;
 }
 
 /* Settings: groups divided by a rule, not boxed cards */

@@ -8,6 +8,7 @@
  * - modules/wheelRenderer.js (WheelRenderer)
  * - modules/uiHelpers.js (updateStatus, setStatusIcon)
  * - modules/spellCache.js (SpellCache)
+ * - modules/homIcons.js (HomIcons.setLabel)
  * 
  * Exports (global):
  * - initializeButtonHandlers()

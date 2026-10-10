@@ -118,12 +118,14 @@
     color: var(--book-gold-bright);
 }
 
-.settings-block {
+/* Settings groups are rules, not boxes (panel-chrome.css #contentSettings .settings-block*);
+   these reach only the Pre Req Master box on the Scan page */
+.prm-block {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--book-edge);
 }
 
-.settings-block-header {
+.prm-header {
     background: rgba(255, 240, 200, 0.04);
     border-bottom: 1px solid var(--book-edge);
 }

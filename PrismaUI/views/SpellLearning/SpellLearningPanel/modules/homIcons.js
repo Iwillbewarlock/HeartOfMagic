@@ -3,7 +3,7 @@
  * <span class="hom-icon" data-icon="<id>">; this paints its background from the
  * active design's icon folder (design.icons, e.g. "themes/arcane/icons/"), one
  * 48px PNG per id. A design without icons, or with a path that does not end in
- * "/", gets the line set. DesignPresets.apply calls setPath.
+ * "/" or holding a quote or "<" (it goes into style and slot() markup), gets the line set. DesignPresets.apply calls setPath.
  *
  * Limit: one file per icon (19 per set) instead of an atlas, because
  * background-position on a sprite is unproven in Ultralight. Upgrade path: an
@@ -18,7 +18,8 @@ var HomIcons = {
     _set: 'themes/icons-line/',
 
     setPath: function(path) {
-        var ok = typeof path === 'string' && path.length > 1 && path.charAt(path.length - 1) === '/';
+        var ok = typeof path === 'string' && path.length > 1 && path.charAt(path.length - 1) === '/' &&
+            !/["<]/.test(path);
         this._set = ok ? path : this.DEFAULT_SET;
         if (typeof document !== 'undefined' && document) this.paint(document);
     },

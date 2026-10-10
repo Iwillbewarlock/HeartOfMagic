@@ -131,12 +131,14 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     color: var(--accent-gold-hover);
 }
 
-.settings-block {
+/* Settings groups are rules, not boxes (panel-chrome.css #contentSettings .settings-block*);
+   these reach only the Pre Req Master box on the Scan page */
+.prm-block {
     background: rgba(20, 12, 6, 0.55);
     border: 1px solid rgba(201, 162, 90, 0.22);
 }
 
-.settings-block-header {
+.prm-header {
     background: rgba(48, 32, 16, 0.7);
     border-bottom: 1px solid rgba(201, 162, 90, 0.3);
 }
