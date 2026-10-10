@@ -218,7 +218,7 @@ HeartOfMagic/
 - **Dinkel Zombie** - [Heart of Magic](https://www.nexusmods.com/skyrimspecialedition/mods/171146), the mod this is rebuilt from
 - **langfod** - the move from Python to native C++ and the thread-safety work in Heart of Magic
 - Fonts in the designs: SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS); licence texts ship beside them in `themes/`
-- Panel icons (19): shapes from [game-icons.net](https://game-icons.net) by **Delapouite** and **Lorc**, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic (Arcane, Night Grimoire, Chalkboard); the Classic and Modern designs use the original shapes as line icons. `THIRD-PARTY-NOTICES.md.in` lists each icon's source
+- Panel icons (19): shapes from [game-icons.net](https://game-icons.net) by **Delapouite** and **Lorc**, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic (Arcane, Night Grimoire, Chalkboard); the Classic and Modern designs use recoloured line versions of the original shapes. `THIRD-PARTY-NOTICES.md.in` lists each icon's source
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64
 - [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718) developers
 - [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) by Exit-9B - the spell tome hook is based on it (MIT)

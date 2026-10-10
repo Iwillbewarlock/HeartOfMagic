@@ -1278,6 +1278,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 **Core Files:**
 - `index.html` - UI structure, module load order
 - `styles-skyrim.css` - Styling (Skyrim Edge, the one UI theme); designs lay `themes/design-*.css` over it
+- `panel-chrome.css` - Chrome every design shares, loaded after `patch-ui.css` and before a design's sheet: the `.hom-icon` slots, line buttons instead of boxes, square switches, settings groups divided by rules (`#contentSettings .settings-block*`). Its rules use the same or low specificity so a design sheet can still restyle them
 - `script.js` - Main initialization, tabs, button wiring, early learning helpers
 
 **JavaScript Modules (`modules/`) – key ones:**
@@ -1309,6 +1310,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `spellCache.js` | Spell data caching |
 | `colorUtils.js` | Color manipulation utilities |
 | `colorPicker.js` | Color picker UI component |
+| `homIcons.js` | The panel's drawn icons: paints every empty `<span class="hom-icon" data-icon="<id>">` from the active design's icon folder (`icons` in a design preset, else `themes/icons-line/`), 19 ids; `slot()` for icons built in JS, `setLabel()` to change a button's text without losing its icon. Loaded before `uiHelpers.js` |
 | `uiHelpers.js` | Shared UI helper functions, `saveTreeToFile` |
 | `starfield.js` | Starfield background effect |
 | `globe3D.js` | 3D globe visualization (experimental) |
@@ -1316,7 +1318,7 @@ CommonLib's logger flushes on every info line (`flush_on(info)`), which made eac
 | `unificationTest.js` | Shape profile / WheelRenderer tests (run by `run-tests.js` and `test-runner.html`, not loaded in game) |
 | `main.js` | Entry point, initialization |
 
-**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/uiHelpers → treeParser/orphanRepair/spellNames → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth/treeGrowthStatus → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
+**Module load order:** See `index.html`. Order is: constants/state/config → shapeProfiles → spellCache/colorUtils/homIcons/uiHelpers → treeParser/orphanRepair/spellNames → wheel/starfield/globe/canvas/editMode → colorPicker/settingsPanel/treeViewerUI/… → treeCore/classic/treeGrowth/treeGrowthStatus → cppCallbacks/buildProgress/proceduralTreeBuilder → prereqMaster/treeAnimation → script.js → main.js. (The JS tree builders, generationModeUI, autoTest and the WebGL renderer were removed on 2026-09-27, llmIntegration, llmApiSettings and growthDSL on 2026-09-28; unificationTest is no longer loaded in game.)
 
 **Tabs:**
 1. **Spell Scan** - Scan spells, tree building, PreReq Master
