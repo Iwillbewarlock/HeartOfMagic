@@ -2,22 +2,36 @@
 
 ## Heart of Magic Librarian 1.4.0 (unreleased)
 
+After updating: to drop spells that only a mod's debug tome teaches, **Scan** and **build the tree again**.
+
 ### New
 
 - **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then. Picking a
   letter key now warns that typing that letter in a search box also closes the panel.
-- **Magic menu switches.** Settings > Hotkey has **Magic Menu Bookmark** and **Tags and XP in the Magic Menu**,
-  both on, for the bookmark that is coming to the magic menu. Without a hotkey the bookmark cannot be turned
-  off, and with the bookmark off None cannot be picked, so the panel can always be opened. Settings presets
-  leave all of these alone.
+- **More perk trees work with every spell mod.** Custom Skills magic trees (Hydromancy, Atromancy),
+  Hemomancy, Venomancy and Everdamned give their perks only to the spells of the mods their patches name;
+  Heart of Magic now adds their keywords to every spell the librarian tagged with that element - water damage
+  and water atronachs for Hydromancy; earth, water, air, shadow and sun damage and atronachs for Atromancy;
+  blood damage and drains for Hemomancy's power perks (not its health-cost perks); poison damage and Blight
+  summons for Venomancy; blood damage and drains for Everdamned's Vitae and Blood Resonance (not its Vitae
+  costs). Subclasses of Skyrim 2 now turns on the Adamant and Ascension adapters too. Electromancy,
+  Cryomancy, Pyromancy, Constellations, Sets of Skills, Vigilant and the College of Winterhold tree read only
+  vanilla keywords and need nothing new.
+- **Cost perks work on more modded tome spells.** A tome spell whose plugin left its half-cost perk empty
+  never got cheaper with the Novice/Apprentice/... perks (or the College of Winterhold tree). It now gets the
+  vanilla one for its school and tier, in memory only and only while it has none; the scan, the spell's tier
+  and the tree still read the spell as its plugin wrote it.
 
 ### Fixed
 
 - **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's
-  teleport power, for one, was learned at 20% and did not work). Such spells are never in the tree, so their
-  tomes now work the vanilla way, with no learning target, XP or weakening, also with the Immersive Spell
-  Learning patch. A save that already holds a power learned weakened gets it back at full strength with its
-  own name when it loads.
+  teleport power, for one, was learned at 20% and did not work). The same goes for a tome spell with no magic
+  school. Neither is ever in the tree, so their tomes now work the vanilla way, with no learning target, XP or
+  weakening, also with the Immersive Spell Learning patch. A save that already holds one learned weakened
+  gets it back at full strength with its own name when it loads.
+- **A spell that only a mod's debug tome teaches stays out of the tree.** Mods keep such tomes in a test cell
+  you can reach only with the console (Sa'chil's follower-home tome, for one), so the tree no longer shows a
+  spell you cannot find.
 - **Less work behind the game while the panel is closed** (a report of lower FPS with it closed): loading a
   save or reading a tome no longer redraws the hidden tree (opening repaints it only if something changed),
   the fallback tree's frame loop stops while hidden, and the panel's endless animations stay paused from
