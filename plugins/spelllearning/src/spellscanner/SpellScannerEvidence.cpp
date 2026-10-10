@@ -277,7 +277,16 @@ namespace SpellScanner
         if (!form || depth > kMaxLeveledDepth) return;
 
         if (auto* npc = form->As<RE::TESNPC>()) {
-            npcs.push_back(npc);
+            // A summon's NPC often holds a placeholder race (Mysticism's Dremora Lord
+            // is FoxRace) and takes its traits, race among them, from its template: a
+            // leveled list of the real NPCs. The actors are those, as the game sees them
+            const bool traitsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
+                npc->actorData.templateUseFlags.any(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kTraits);
+            if (traitsFromTemplate) {
+                CollectSummonedNPCs(npc->baseTemplateForm, npcs, depth + 1);
+            } else {
+                npcs.push_back(npc);
+            }
             return;
         }
         if (auto* leveled = form->As<RE::TESLevCharacter>()) {

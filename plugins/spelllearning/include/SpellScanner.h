@@ -156,7 +156,8 @@ namespace SpellScanner
     bool IsFreeSpell(RE::SpellItem* spell);
 
     // The actors a summon brings: the NPC itself, or every NPC in its leveled
-    // list and the lists inside it (SpellScannerEvidence.cpp)
+    // list and the lists inside it; an NPC whose traits (race) come from its
+    // template counts as that template's NPCs (SpellScannerEvidence.cpp)
     void CollectSummonedNPCs(RE::TESForm* form, std::vector<RE::TESNPC*>& npcs, int depth = 0);
 
     // The spell gate (SpellScannerGate.cpp, docs/librarian/ToDo.md M9): whether a tome

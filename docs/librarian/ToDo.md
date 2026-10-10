@@ -243,10 +243,12 @@
       (`src/librarian/LibrarianAdapters.cpp` 90-103행), 분류 룰의 `kMatchKeys`(`src/librarian/LibrarianRules.cpp`
       97-103행)에는 없다. 그래서 2026-10-10 의 능력치 룰은 `primaryAVAny` 하나 대신 능력치마다 두 줄씩 36줄이 됐다.
       같은 판정 코드를 함께 쓰게 하면 룰이 짧아지고 두 문법이 갈라지지 않는다
-- [ ] **스캐너의 소환수 종족 키워드가 틀려 보인다** (2026-10-10 조사에서 나옴). 바닐라 ConjureDremoraLord 의
-      `summonedKeywords` 가 `ActorTypeAnimal`·`ActorTypeCreature` 로 읽힌다. 드레모라는 데이드라라 `summonedAny:
-      ActorTypeDaedra` 룰이 `soul` 을 떼야 하는데 못 뗀다(그래서 KIT·OCF 키워드로 두 번째 길을 냈다). DremoraRace
-      레코드의 키워드와 소환 NPC 의 템플릿 체인을 대 보고 확인할 것
+- [x] **스캐너의 소환수 종족 키워드가 틀렸다** (2026-10-10, 고침). 바닐라 ConjureDremoraLord 의
+      `summonedKeywords` 가 `ActorTypeAnimal`·`ActorTypeCreature` 로 읽혔다. houseCARL 로 확인: DremoraRace 는
+      `ActorTypeNPC`·`ActorTypeDaedra` 이고, Mysticism 의 소환 NPC 는 자기 종족이 자리표시 FoxRace 이며 실제
+      종족은 템플릿(LCharDremoraMelee)에서 Traits 로 받는다. `CollectSummonedNPCs` 가 Traits 를 템플릿에서 받는 NPC 는
+      템플릿의 NPC 들로 바꿔 읽는다. 다음 덤프에서 `summonedAny: ActorTypeDaedra` 가 `soul` 을 떼는지, KIT·OCF
+      키워드의 두 번째 길이 아직 필요한지 확인할 것
 - 산출: `docs/librarian/MEASURED.md` (숫자·근거·주의사항 전문)
 - 의존: M1
 - 테스트: `librarian-test` 가 같은 입력에 같은 숫자를 낸다. 숫자를 Concept.md 2-2절에 반영
