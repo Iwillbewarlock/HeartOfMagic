@@ -45,9 +45,6 @@ What are you doing?
 │
 ├─► Working with BookXP addon?
 │   └─► plugins/BookXP/README.md
-│
-└─► Working with the combat addon (SL_Combat: spell counter, chains)?
-    └─► docs/COMBAT.md
 ```
 
 ## Critical Rules (MUST Follow)
@@ -150,8 +147,6 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 ```powershell
 .\DeployDev.ps1              # plugin + UI panel
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
-.\DeployDev.ps1 -NoCombat    # without the SL_Combat addon (otherwise deployed when built)
-.\DeployDev.ps1 -CombatOnly  # only SL_Combat.dll (+ its settings file once); nothing else in the install changes
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
 ```
@@ -328,7 +323,6 @@ This project does not have a C++ test framework. Validation is done through:
 | Public C++ API | `plugins/spelllearning/src/SpellLearningAPI.h` |
 | DEST compatibility shim | `plugins/DummyDEST/` |
 | BookXP addon | `plugins/BookXP/` |
-| Combat addon (SL_Combat) | `plugins/Combat/` (needs SkyPrompt; its API header in `plugins/Combat/include/`), settings `SKSE/Plugins/SL_Combat.json` |
 | Shared CMake modules | `plugins/cmake/` |
 | CommonLibSSE-NG | `plugins/external/commonlibsse-ng/` |
 | PrismaUI frontend | `PrismaUI/views/SpellLearning/SpellLearningPanel/` |
@@ -463,4 +457,3 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |
-| [docs/COMBAT.md](docs/COMBAT.md) | SL_Combat combat addon: spell counter (M1), settings, log lines, test checklist |

@@ -26,7 +26,7 @@
 
 **Game Versions:** one set of DLLs for SE 1.5.97, AE 1.6.x and AE 1.7.x (1.7.99, 1.7.104), built on
 CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All the DLLs
-(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`, and the dev-only combat addon `SL_Combat`, docs/COMBAT.md)
+(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`)
 use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
 with the default struct compatibility, so their `SKSEPlugin_Version` declares Address Library
 independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndependenceEx` = NoStructUse |
@@ -1711,10 +1711,6 @@ HeartOfMagic/
 │   │   ├── CMakeLists.txt
 │   │   └── src/
 │   │       └── Main.cpp           ✅ BookMenu watcher + API integration
-│   └── Combat/                    # SL_Combat combat addon (docs/COMBAT.md; dev install only)
-│       ├── CMakeLists.txt
-│       └── src/                   ✅ M1 spell counter (needs SkyPrompt): incoming-spell prompt,
-│                                     MissileProjectile 0xAB/0xBE hooks, ward raise, slow motion, XP via the API
 ├── Scripts/Source/
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler
