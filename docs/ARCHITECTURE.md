@@ -346,8 +346,12 @@ SR's next Import clears them with its own; tome pairs only while a tier's two to
 Report: `spell_research_report.json`; switch: `config.json` `spellResearch.enabled` (default on).
 docs/librarian/SPELL_RESEARCH.md.
 
-`castByVampires: true` marks a spell a vampire NPC carries - an NPC whose race or record has the
-`Vampire` keyword, through its own or its race's spell list and the leveled spell lists in them, plus
+`castByVampires: true` marks a spell a vampire NPC carries - an NPC whose record has the `Vampire`
+keyword, or whose race has it or has an editor id holding "vamp" (case-insensitive: vanilla
+FalmerFrozenVampRace, CC's HorkerRaceVampire and Vigilant's vampire races lack the keyword; the engine
+keeps race editor ids without po3 Tweaks). An NPC that takes its traits from a template is judged by the
+template NPCs' races (`CollectSummonedNPCs`, as for summons). The log line gives the count of vampire
+races found each way. The spells come through its own or its (vampire) race's spell list and the leveled spell lists in them, plus
 spells SPID hands to `Vampire` in any `Data/*_DISTR.ini` (SpellScannerCasters.cpp, read once). The tag
 librarian's blood rules use it; it is absent, not false, for every other spell.
 

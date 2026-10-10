@@ -8,6 +8,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -19,8 +20,13 @@
 // the scan marks the spells a vampire NPC carries (castByVampires) and the tag
 // librarian's rules decide what that means.
 //
-// A vampire is an NPC whose race or own record has the Vampire keyword (every
-// vanilla vampire race has it). Its spells are its own spell list and its
+// A vampire is an NPC whose own record has the Vampire keyword, or whose race
+// has it or is named a vampire race: the race's editor id holds "vamp". Not
+// every vampire race carries the keyword (vanilla FalmerFrozenVampRace, CC's
+// HorkerRaceVampire and Vigilant's vampire races do not); races keep their
+// editor ids in the engine, po3 Tweaks or not. An NPC that takes its traits
+// from a template is judged by the template's race (CollectSummonedNPCs, as
+// for summons). Its spells are its own spell list and its
 // race's, with leveled spell lists opened all the way down - and the spells
 // Spell Distribution Framework ini files hand to vampires (a mod that adds
 // its spells to vampires that way leaves no trace in the records). Read once,
@@ -32,6 +38,7 @@ namespace SpellScanner
     namespace
     {
         constexpr std::string_view kVampireKeyword = "Vampire";
+        constexpr std::string_view kVampireRaceName = "vamp";  // lower case: matched against the lowered editor id
         constexpr const char* kDataDir = "Data";
         constexpr std::string_view kDistrSuffix = "_distr.ini";
         constexpr std::string_view kSpellLine = "spell";
@@ -162,30 +169,57 @@ namespace SpellScanner
             }
         }
 
+        enum class VampireRace { kNo, kKeyword, kName };
+
+        VampireRace JudgeRace(const RE::TESRace* race)
+        {
+            if (!race) return VampireRace::kNo;
+            if (race->HasKeywordString(kVampireKeyword)) return VampireRace::kKeyword;
+            const char* editorId = race->GetFormEditorID();
+            if (editorId && Lower(editorId).contains(kVampireRaceName)) return VampireRace::kName;
+            return VampireRace::kNo;
+        }
+
         void CollectVampireSpellsImpl()
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
             if (!dataHandler) return;
 
+            std::unordered_map<RE::FormID, VampireRace> races;  // each race judged once
             std::unordered_set<RE::FormID> seenLists;
             std::unordered_set<RE::FormID> seenRaces;
+            std::vector<RE::TESNPC*> traitNPCs;
+            std::vector<RE::TESRace*> vampireRaces;
             std::size_t vampires = 0;
             for (auto* npc : dataHandler->GetFormArray<RE::TESNPC>()) {
                 if (!npc) continue;
-                auto* race = npc->GetRace();
-                const bool vampire = npc->HasKeywordString(kVampireKeyword) ||
-                                     (race && race->HasKeywordString(kVampireKeyword));
-                if (!vampire) continue;
+                // The NPCs its race comes from: itself, or its template's NPCs
+                traitNPCs.clear();
+                CollectSummonedNPCs(npc, traitNPCs);
+                if (traitNPCs.empty()) traitNPCs.push_back(npc);  // a template chain that leads nowhere
+
+                vampireRaces.clear();
+                for (auto* source : traitNPCs) {
+                    auto* race = source->GetRace();
+                    if (!race) continue;
+                    const auto [it, added] = races.try_emplace(race->GetFormID(), VampireRace::kNo);
+                    if (added) it->second = JudgeRace(race);
+                    if (it->second != VampireRace::kNo) vampireRaces.push_back(race);
+                }
+                if (vampireRaces.empty() && !npc->HasKeywordString(kVampireKeyword)) continue;
 
                 ++vampires;
                 AddSpellList(npc->actorEffects, seenLists);
-                if (race && seenRaces.insert(race->GetFormID()).second) {
-                    AddSpellList(race->actorEffects, seenLists);
+                for (auto* race : vampireRaces) {
+                    if (seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, seenLists);
                 }
             }
+            const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });
+            const auto byName = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kName; });
             const std::size_t distributed = ReadDistrFiles();
-            logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files)",
-                vampires, g_vampireSpells.size(), distributed);
+            logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files); "
+                         "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"",
+                vampires, g_vampireSpells.size(), distributed, byKeyword, byName);
         }
     }
 

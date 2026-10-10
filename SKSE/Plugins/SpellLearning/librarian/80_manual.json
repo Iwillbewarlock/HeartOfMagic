@@ -29,6 +29,21 @@
       ] },
       "add": { "elements": ["blood"] } },
 
+    { "_": "Blood magic only a script or the description says is blood: the effects are a plain health absorb, vanilla art, no keyword,",
+      "__": "and nobody who carries them is a vampire. Midnight Sun's Arkane Flurry (a werewolf's), Vigilant's Crimson Ball, Blood Ball",
+      "___": "and the two Bloodcurses (on the Nightingale Strife effect), King-Priest's Rahgot sacrifice, Lost Grimoire's Split and Exchange Lifeforce",
+      "match": { "spell": [
+        "Midnight Sun.esm|0x3E28B2",
+        "Vigilant.esm|0x05DBE2",
+        "Vigilant.esm|0x446856",
+        "Vigilant.esm|0x3CCFAD",
+        "Vigilant.esm|0x3E091C",
+        "King-Priest.esp|0x00C389",
+        "LostGrimoire.esp|0x154B6D",
+        "LostGrimoire.esp|0x154B77"
+      ] },
+      "add": { "elements": ["blood"] } },
+
     { "_": "Water: Natura's Water Spray, the one water spell of the set without the water keyword",
       "match": { "spell": "Natura.esp|0x000B2C" },
       "add": { "elements": ["water"] } },

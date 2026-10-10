@@ -249,6 +249,12 @@
       종족은 템플릿(LCharDremoraMelee)에서 Traits 로 받는다. `CollectSummonedNPCs` 가 Traits 를 템플릿에서 받는 NPC 는
       템플릿의 NPC 들로 바꿔 읽는다. 다음 덤프에서 `summonedAny: ActorTypeDaedra` 가 `soul` 을 떼는지, KIT·OCF
       키워드의 두 번째 길이 아직 필요한지 확인할 것
+- [ ] **`castByVampires` 의 종족 이름 판정을 새 덤프로 재기** (2026-10-10 구현). 키워드 없는 흡혈귀 종족(에디터 ID 에
+      `vamp`)과 템플릿 종족을 읽게 했다(LIBRARIAN.md 3절 `castByVampires`). 고정 덤프 `takealook-2026-09-30.json` 은
+      이 변경 전 것이라 숫자에 들지 않는다. 다시 덤프하면 혈 +6(Vigilant 라마에 흡수 `zzzBMLamVampireDrain00-05`)을
+      기대한다. 그 밖에 늘어난 혈이 있는지, 로그의 "vampire races: N by the Vampire keyword, M by an editor id" 의 M 이
+      바라는 종족들(zzzBMFalVampRace, zzzBMLichVampireRace, zzzBMTrollVampireRace, zzzBMWereVampireRace*,
+      zzzCHMntrRaceVampire, FalmerFrozenVampRace, ccBGSSSE001_HorkerRaceVampire)인지 확인하고 기준선을 새 덤프로 옮길 것
 - 산출: `docs/librarian/MEASURED.md` (숫자·근거·주의사항 전문)
 - 의존: M1
 - 테스트: `librarian-test` 가 같은 입력에 같은 숫자를 낸다. 숫자를 Concept.md 2-2절에 반영

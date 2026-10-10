@@ -127,6 +127,11 @@
     { "_": "a reanimation is not blood magic, whatever a mod marks it (2026-10-10): Sacrilege's IsBloodMagic sits on the vampire lord's Raise Dead",
       "match": { "archetype": "Reanimate" },
       "remove": { "elements": ["blood"] } },
+    { "_": "a summon is not blood magic either (2026-10-10 decision, first applied only to the KIT rules): OCF_MgefClassBlood and",
+      "__": "ADAR_SPEL_Blood_ also sit on the vampire gargoyles, death hounds and blood anomalies. Like the Reanimate line it takes blood off",
+      "___": "any spell with a summon effect, whichever rule gave it",
+      "match": { "archetype": "SummonCreature" },
+      "remove": { "elements": ["blood"] } },
 
     { "_": "what a summon IS, by the race keywords of what it calls up (the scan's summonedKeywords).",
       "__": "A daedra or a dwarven machine is not a bound soul, so those summons lose soul.",
