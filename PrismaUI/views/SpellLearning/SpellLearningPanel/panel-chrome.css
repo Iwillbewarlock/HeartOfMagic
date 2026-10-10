@@ -1,0 +1,29 @@
+/* Panel chrome shared by every design (docs/superpowers/specs/2026-10-10-hand-drawn-icons-ui-design.md).
+   Loaded after patch-ui.css; a design's own sheet comes later and can override colours. */
+
+/* Icon slots: HomIcons sets background-image; one 48px PNG shown at 1.5em */
+.hom-icon {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    flex: none;
+    vertical-align: -0.38em;
+    margin-right: 0.45em;
+    background: center / contain no-repeat;
+}
+.header-btn .hom-icon,
+.popup-close .hom-icon,
+.modal-close .hom-icon { margin-right: 0; }
+.settings-block-icon.hom-icon { font-size: 1em; }
+
+/* Prereq Master collapse indicator: a small chevron, not [+]/[-]. Down = open, right = collapsed */
+.prm-collapse-icon {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    margin: 0 0.5em 0.15em 0.15em;
+}
+.prm-collapse-icon.collapsed { transform: rotate(-45deg); }

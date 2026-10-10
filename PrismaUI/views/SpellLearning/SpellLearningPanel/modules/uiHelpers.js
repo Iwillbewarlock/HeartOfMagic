@@ -54,7 +54,7 @@ function restoreScanButton() {
     var scanBtn = document.getElementById('scanBtn');
     if (scanBtn) {
         scanBtn.disabled = false;
-        scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
+        HomIcons.setLabel(scanBtn, t('buttons.scanSpells'));
     }
 }
 

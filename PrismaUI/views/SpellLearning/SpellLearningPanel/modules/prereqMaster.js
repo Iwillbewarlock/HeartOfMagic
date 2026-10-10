@@ -2177,7 +2177,8 @@
             header.addEventListener('click', function() {
                 content.classList.toggle('collapsed');
                 if (collapseIcon) {
-                    collapseIcon.textContent = content.classList.contains('collapsed') ? '[+]' : '[-]';
+                    if (content.classList.contains('collapsed')) collapseIcon.classList.add('collapsed');
+                    else collapseIcon.classList.remove('collapsed');
                 }
             });
         }
