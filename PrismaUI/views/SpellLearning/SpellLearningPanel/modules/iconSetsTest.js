@@ -7,7 +7,7 @@
 var IconSetsTest = {
     passed: 0,
     failed: 0,
-    SETS: ['themes/icons-line/', 'themes/icons-line-gold/', 'themes/arcane/icons/', 'themes/nightgrimoire/icons/'],
+    SETS: ['themes/icons-line/', 'themes/icons-line-gold/', 'themes/arcane/icons/', 'themes/nightgrimoire/icons/', 'themes/chalkboard/icons/'],
 
     check: function(ok, name) {
         if (ok) { this.passed++; console.log('  [PASS] ' + name); }

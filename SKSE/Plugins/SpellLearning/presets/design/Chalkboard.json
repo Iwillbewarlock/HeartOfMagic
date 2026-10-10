@@ -19,7 +19,7 @@
         "zh-tw": "黑板上的一課：木框裡的石板，粉彩粉筆畫的法術樹，中心的魔法陣，角落裡半擦去的舊課。"
     },
     "cssFile": "themes/design-darkbook.css",
-    "icons": "themes/icons-line-gold/",
+    "icons": "themes/chalkboard/icons/",
     "css": [
         ":root {",
         "    --book-cover-top: #2e3a35;",
