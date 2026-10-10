@@ -1612,7 +1612,7 @@ var EditMode = {
             item.dataset.formId = spell.formId;
 
             var badge = isOnTree ? '<span class="spawn-on-tree-badge">' +
-                escapeHtml(tOr('modals.spawnSpell.onTree', null, 'ON TREE')) + '</span>' : '';
+                escapeHtml(tOr('modals.spawnSpell.onTree', null, 'On tree')) + '</span>' : '';
             item.innerHTML =
                 '<div class="spawn-spell-name">' + escapeHtml(spell.name || spell.formId) + badge + '</div>' +
                 '<div class="spawn-spell-info">' +

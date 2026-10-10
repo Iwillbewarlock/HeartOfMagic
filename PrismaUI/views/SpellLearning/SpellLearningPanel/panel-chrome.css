@@ -46,26 +46,41 @@
     letter-spacing: 0.06em;
 }
 
-/* Buttons: a line, not a box. Primary = accent text over an underline; danger = red text.
-   :not(.btn-learn):not(.btn-unlock) leaves the spell card's Learn/Unlock buttons as they were (spec §10);
-   it also lifts these rules over a design sheet's .btn-primary box, so every design gets the line */
-.btn:not(.btn-learn):not(.btn-unlock) {
+/* Buttons: a line, not a box. Primary = accent text over an accent underline; danger = red text;
+   the rest rest on a faint underline. Plain (0,1,0) selectors so a design sheet (loaded later) can restyle them */
+.btn {
     text-transform: none;
     letter-spacing: 0.02em;
     background: transparent;
     background-image: none;
     border: 0;
-    border-bottom: 1px solid transparent;
+    border-bottom: 1px solid var(--divider, rgba(200, 190, 170, 0.25));
     border-radius: 0;
     box-shadow: none;
 }
-.btn-primary:not(.btn-learn):not(.btn-unlock),
-.btn-success:not(.btn-learn):not(.btn-unlock) {
+.btn-primary, .btn-success {
     color: var(--accent-gold, #c9a227);
     border-bottom-color: var(--accent-gold, #c9a227);
 }
-.btn-danger:not(.btn-learn):not(.btn-unlock) { color: var(--accent-red, #b5523b); }
-.btn:not(.btn-learn):not(.btn-unlock):hover:not(:disabled) { border-bottom-color: currentColor; }
+.btn-danger { color: var(--accent-red, #b5523b); }
+/* :not() keeps the hover line off the spell card buttons below */
+.btn:hover:not(:disabled):not(.btn-learn):not(.btn-unlock) { border-bottom-color: currentColor; }
+
+/* The spell card keeps its Learn/Unlock boxes in capitals (spec §10): the styles-skyrim.css values again,
+   after .btn above; design sheets still override them as before */
+.btn-learn, .btn-unlock {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 0;
+}
+.btn-unlock {
+    background: rgba(136, 168, 120, 0.2);
+    border: 1px solid rgba(136, 168, 120, 0.3);
+}
+.btn-learn {
+    background: rgba(120, 144, 168, 0.2);
+    border: 1px solid rgba(120, 144, 168, 0.3);
+}
 
 /* Switches: a square check like SkyUI's MCM */
 .toggle-switch,
@@ -75,11 +90,12 @@
     background: transparent;
     border: 1px solid var(--accent-gold, #c9a227);
     box-shadow: none;
+    padding: 3px;
 }
 .toggle-switch .toggle-slider:before { display: none; }
 .toggle-switch input:checked + .toggle-slider {
     background: var(--accent-gold, #c9a227);
-    box-shadow: inset 0 0 0 3px var(--panel-bg-solid, #14100a);
+    background-clip: content-box;   /* the 3px padding stays empty: a filled square inside the frame */
 }
 
 /* Settings: groups divided by a rule, not boxed cards */
@@ -95,3 +111,9 @@
 
 /* "Advanced options" is a note, not a red pill */
 .cheat-warning { background: transparent; border: 0; padding: 0; }
+
+/* Settings Save/Reset bar: solid, so the rows scrolling under it (the Presets row) are hidden, not faded through */
+.settings-actions-sticky { background: var(--panel-bg-solid, #0a0a0a); }
+.settings-actions-sticky::before { display: none; }
+/* A sticky bar stops at the scroller's padding edge: with no bottom padding it meets the panel edge and nothing shows below it */
+#contentSettings.active { padding-bottom: 0; }

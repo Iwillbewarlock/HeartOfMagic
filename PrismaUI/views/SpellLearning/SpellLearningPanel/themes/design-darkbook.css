@@ -114,7 +114,6 @@
 }
 
 .btn-primary {
-    background: rgba(255, 220, 140, 0.14);
     border-color: var(--book-gold);
     color: var(--book-gold-bright);
 }

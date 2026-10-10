@@ -606,7 +606,7 @@ window._i18nPreload = {
     "settings.ui.designPreset": "設計",
     "design.arcane.desc": "展開的魔法書：羊皮紙頁面、墨線、章節標題，打開時法術樹如墨水般暈染開來。",
     "design.classic.desc": "原始外觀：樸素，繪製負擔最低。",
-    "design.modern.desc": "原始法術樹，搭配帶漸層與光效的現代暗色介面。",
+    "design.modern.desc": "原始法術樹，搭配帶扁平金色點綴的現代暗色介面。",
     "details.effect": "效果",
     "details.fullPower": "完整威力：{{value}}",
     "details.lock": "鎖定",

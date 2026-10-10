@@ -606,7 +606,7 @@ window._i18nPreload = {
     "settings.ui.designPreset": "デザイン",
     "design.arcane.desc": "開いた魔法書：羊皮紙のページ、インクの線、章題、そして開くとインクのように広がるツリー。",
     "design.classic.desc": "元の見た目：シンプルで描画が最も軽い。",
-    "design.modern.desc": "元のツリーに、グラデーションと光彩のあるモダンなダークUI。",
+    "design.modern.desc": "元のツリーに、フラットな金色のアクセントを添えたモダンなダークUI。",
     "details.effect": "効果",
     "details.fullPower": "最大威力: {{value}}",
     "details.lock": "ロック",

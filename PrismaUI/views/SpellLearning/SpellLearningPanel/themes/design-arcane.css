@@ -127,7 +127,6 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 }
 
 .btn-primary {
-    background: rgba(201, 162, 90, 0.2);
     border-color: rgba(201, 162, 90, 0.45);
     color: var(--accent-gold-hover);
 }

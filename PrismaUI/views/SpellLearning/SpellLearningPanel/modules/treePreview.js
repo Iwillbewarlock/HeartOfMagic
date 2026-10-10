@@ -690,7 +690,7 @@ var TreePreview = {
             item.dataset.formId = spell.formId;
 
             var badge = isSelected ? '<span class="spawn-on-tree-badge">' +
-                escapeHtml(tOr('preview.currentRoot', null, 'CURRENT')) + '</span>' : '';
+                escapeHtml(tOr('preview.currentRoot', null, 'Current')) + '</span>' : '';
             item.innerHTML =
                 '<div class="spawn-spell-name">' + escapeHtml(spell.name || spell.formId) + badge + '</div>' +
                 '<div class="spawn-spell-info">' +

@@ -335,7 +335,7 @@ var PerfMeter = {
             lines.push(this._label('perf.press', 'press') + '  ' + p.heldMs + ' ms, ' +
                 p.travelPx + ' px, ' + p.moves + ' ' + this._label('perf.moves', 'moves') + ', ' +
                 this._label('perf.lag', 'late') + ' ' + p.lagMs + ' ms  >  ' +
-                (p.wasDrag ? this._label('perf.drag', 'DRAG') : this._label('perf.click', 'click')));
+                (p.wasDrag ? this._label('perf.drag', 'drag') : this._label('perf.click', 'click')));
         }
 
         // Writing the same text again costs a layout for nothing

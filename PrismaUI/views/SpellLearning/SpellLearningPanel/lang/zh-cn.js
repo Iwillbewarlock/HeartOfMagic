@@ -606,7 +606,7 @@ window._i18nPreload = {
     "settings.ui.designPreset": "设计",
     "design.arcane.desc": "展开的魔法书：羊皮纸页面、墨线、章节标题，打开时法术树如墨水般晕染开来。",
     "design.classic.desc": "原始外观：朴素，绘制开销最低。",
-    "design.modern.desc": "原始法术树，搭配带渐变和光效的现代暗色界面。",
+    "design.modern.desc": "原始法术树，搭配带扁平金色点缀的现代暗色界面。",
     "details.effect": "效果",
     "details.fullPower": "完整威力：{{value}}",
     "details.lock": "锁定",

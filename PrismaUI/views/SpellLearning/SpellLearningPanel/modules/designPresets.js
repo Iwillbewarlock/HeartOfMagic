@@ -37,7 +37,7 @@ var DesignPresets = {
         },
         modern: {
             name: 'Modern Dark',
-            description: 'The original tree on the modern dark UI, with gradients and glow.',
+            description: 'The original tree on the modern dark UI, with flat gold accents.',
             descriptionKey: 'design.modern.desc',
             author: 'Heart of Magic',
             // Colours and shapes over the Skyrim theme, like Arcane (the old
