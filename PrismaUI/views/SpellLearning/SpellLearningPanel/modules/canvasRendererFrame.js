@@ -306,7 +306,7 @@
                 this._layerZoom = this.zoom;
                 this._layerRotation = this.rotation;
                 this._treeLayerDraws = (this._treeLayerDraws || 0) + 1;
-                if (typeof LayerBuild !== 'undefined') LayerBuild.noteSync(performance.now() - syncStart);
+                if (typeof LayerBuild !== 'undefined') LayerBuild.noteSync(performance.now() - syncStart, this.zoom);
                 dx = 0;
                 dy = 0;
             }

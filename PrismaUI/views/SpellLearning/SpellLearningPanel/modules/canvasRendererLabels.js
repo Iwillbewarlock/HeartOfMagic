@@ -29,7 +29,8 @@
 
         /**
          * The names that could be drawn at the current pan, in the order they are
-         * placed (the selected spell, then in view, then priority), and how many
+         * placed (the selected spell, then in view, then priority, then nearest the
+         * middle of the screen), and how many
          * may be placed (MAX_LABELS, MAX_LABELS_FOCUS below LABEL_FOCUS_ZOOM; the
          * selected spell's name is placed past the cap). Null when names
          * are off or the tree is zoomed out too far for them. Shared by renderLabels and
@@ -56,6 +57,7 @@
 
             var edgeX0 = -50 - margin, edgeX1 = this._width + 50 + margin;
             var edgeY0 = -50 - margin, edgeY1 = this._height + 50 + margin;
+            var midX = this._width / 2, midY = this._height / 2;
             // The spells near that screen box only (_nodesInBox, ascending = node
             // order); the screen test below stays, so the candidates and their order
             // are the same as the full loop's
@@ -124,13 +126,18 @@
                     priority: priority,
                     x: screenX,
                     y: screenY + (fontSize + 4) * this.zoom,
-                    color: color
+                    color: color,
+                    // Squared distance from the screen's middle: the order within a priority
+                    dist: (screenX - midX) * (screenX - midX) + (screenY - midY) * (screenY - midY)
                 });
             }
 
             // The selected spell first (even in the margin), then in view before the
-            // margin, then high priority first; stable on index so results don't
-            // flicker between frames
+            // margin, then high priority first, then nearest the screen's middle (a
+            // spell coming in at the edge while panning or zooming does not push a
+            // name in the middle past the cap); equal distances keep node order (a
+            // stable sort), so results don't flicker between frames. LayerScroll
+            // places a drag's strips from this same order
             candidates.sort(this._byLabelOrder);
             // Zoomed out, fewer names: the first MAX_LABELS_FOCUS in that order
             return { candidates: candidates, fontSize: fontSize,
@@ -168,9 +175,12 @@
             return { l: cand.x - halfW, r: cand.x + halfW, t: cand.y - pad, b: cand.y + fontSize + pad };
         },
 
-        /** A placed name as the layer keeps it (_layerLabels): its box, what and how it was drawn. */
+        /**
+         * A placed name as the layer keeps it (_layerLabels): its box, what and how
+         * it was drawn, and whether it is the selected spell's (not counted against the cap).
+         */
         _keepLabel: function(cand, rect) {
-            return { node: cand.node, text: cand.text, x: cand.x, y: cand.y, color: cand.color,
+            return { node: cand.node, text: cand.text, x: cand.x, y: cand.y, color: cand.color, selected: cand.priority === 5,
                      alpha: this._contextFactor(cand.node), l: rect.l, r: rect.r, t: rect.t, b: rect.b };
         },
 
@@ -227,7 +237,8 @@
             var as = a.priority === 5, bs = b.priority === 5;
             if (as !== bs) return as ? -1 : 1;
             if (a.inView !== b.inView) return a.inView ? -1 : 1;
-            return b.priority - a.priority;
+            if (a.priority !== b.priority) return b.priority - a.priority;
+            return a.dist - b.dist;
         },
 
         /**

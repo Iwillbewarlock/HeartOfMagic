@@ -127,6 +127,7 @@ var LabelCullTest = {
             this.check(placed.length === 50, 'zoom 0.6: 50 of 120 names placed (' + placed.length + ')');
             this.check(learning === 20, 'zoom 0.6: every name being learned among them (' + learning + ' of 20)');
             this._selectedPastCap(r, ctx, g);
+            this._centreKept(r, ctx, spread);
             r.zoom = 1.0;
             spread(200, 120, 6);
             r.renderLabels(ctx, 1500, 1000, 1, 0, 0);
@@ -185,6 +186,38 @@ var LabelCullTest = {
             g.TreeStyle.tokens.labelHaloWidth = savedHalo;
         }
         r.selectedNode = null;
+    },
+
+    /**
+     * Zoom 0.6, 120 names of one priority in view (more than the cap of 50): a
+     * spell of that priority coming in at the screen's edge - first in node
+     * order, the old tie-break's worst case - does not push a name nearer the
+     * middle out. The same candidate order feeds LayerScroll's strips.
+     */
+    _centreKept: function(r, ctx, spread) {
+        var ids = function(list) {
+            var out = {};
+            for (var i = 0; i < list.length; i++) out[list[i].node.id] = true;
+            return out;
+        };
+        r.zoom = 0.6; r.selectedNode = null;
+        spread(120, 280, 1e9);                  // all 'available' but the first (learning: placed anyway)
+        r.renderLabels(ctx, 1500, 1000, 1, 0, 0);
+        var before = ids(r._layerLabels), count = r._layerLabels.length;
+        var edge = { id: 'edge', formId: '0xedge', name: 'Edge', school: 'Destruction', state: 'available',
+                     x: (30 - 1500) / 0.6, y: 0 };  // screen x 30: in view, at the left edge
+        r.nodes.unshift(edge); r._cullDirty = true;
+        r.renderLabels(ctx, 1500, 1000, 1, 0, 0);
+        var after = ids(r._layerLabels), same = r._layerLabels.length === count;
+        for (var id in before) if (before.hasOwnProperty(id) && !after[id]) same = false;
+        this.check(count === 50 && same && !after.edge,
+            'zoom 0.6: a spell coming in at the edge keeps the same 50 names nearest the middle (' + count + ')');
+        var cands = r._labelCandidates(1500, 1000, 1, 0, 0).candidates, ordered = true;
+        for (var c = 1; c < cands.length; c++) {
+            if (cands[c].priority === cands[c - 1].priority && cands[c].dist < cands[c - 1].dist) ordered = false;
+        }
+        this.check(ordered && cands[cands.length - 1].node === edge,
+            'within a priority the candidates go nearest the middle first (the edge spell last)');
     }
 };
 

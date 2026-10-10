@@ -314,7 +314,7 @@ screen-aligned and must not overlap, so a name cut by a strip edge would show as
 keeps the names it placed (`_layerLabels`, from `renderLabels`), moves them with the picture, draws the
 ones reaching into a strip (outline and descenders counted) again clipped to it, and places new names
 only inside strips, against the kept ones; the name cap (150, 50 below zoom 0.8 since 2026-10-09) counts the names on screen, not those left
-in the margin behind the drag (with twice that kept on the layer at most) (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
+in the margin behind the drag nor the selected spell's (as `renderLabels` counts; since 2026-10-10) (with twice that kept on the layer at most) (`renderLabels` was split into `_labelCandidates`, `_labelRect` and
 `_keepLabel`, which both use). Chapter titles are drawn through the layer's margin (`renderChapters`'
 `margin`): culled at the screen edge, a strip in the margin never got the title a drag then brought into
 view. In a strip they go on after its names (`LayerScroll._chapters`, clipped to the strip), as a whole
@@ -461,7 +461,10 @@ left, one at least; the names follow when they fit. The widths are ours and alwa
 glyphs are the engine's cache, which Chrome shares across canvases (the bench shows it) - not measured in
 the game's engine. Even a quick tree's repaint after a design switch is now spread while the font is cold
 (it was one repaint at once of 40-54 ms with a page design, 8-16 of it the names); a repaint at once or a
-finished build clears the flag. An uncounted build that was slow puts `_lastMs` just past `SYNC_MAX_MS`,
+finished build clears the flag - unless it drew its names below `TreeStyle.LABEL_HALO_MIN_ZOOM` in a design
+with an outline without warming first (`LayerBuild._outlinesMadeAt`, 2026-10-10): no outline was stroked, so
+the flag stays and the next build makes the outlines (a repaint at once at the opening zoom 0.75 used to
+clear it, and the first zoom-in past 0.8 then made them in one frame). An uncounted build that was slow puts `_lastMs` just past `SYNC_MAX_MS`,
 as `noteSync` does for an uncounted repaint at once (the new design may be heavier); the time spent on the
 letters is left out of that estimate (it is the font's, not the tree's). The small canvas is sized to two
 letters at the build's scale, so no letter falls off it (one off a canvas may not be drawn, and so not
@@ -521,21 +524,28 @@ box holding that screen box (`_labelWorldBox`: rotation, zoom and pan undone, pa
 world units against rounding) and keeps its own screen test, so the candidates and their order are the
 full loop's (`_gridPick` gives indices ascending, the old loop's order, which placement depends on).
 The candidates are worked out once a frame (`LayerScroll._found`) and once per build (`LayerBuild._warmText`,
-`renderLabels`), not per strip or piece. A canvas-sized box zoomed out covers more cells than `CULL_MAX_CELL_SHARE`
+`renderLabels`; twice in a build after a design change, which runs both), not per strip or piece. A canvas-sized box zoomed out covers more cells than `CULL_MAX_CELL_SHARE`
 allows (in the measurement below at zoom 0.9 and under) and looks at every spell as before, so the gain is at higher zoom: JavaScript
 cost of one `_labelCandidates` (`node --jitless`, 1,400 spells over a 6,000-unit radius, 1600x1000, margin
 150) 0.26 → 0.15 ms at zoom 1.3, unchanged at 0.6 and 0.9; with JIT 0.05 → 0.04 ms. The ~1.7 ms of a piece above is not this loop (about 0.1 ms
 with JIT in node); what the rest of it is was not measured here. Between `LABEL_MIN_ZOOM` (0.5) and
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
 `MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (the selected spell,
-then in view, then priority), so the selected, hovered and learning names stay; each name left out saves a
+then in view, then priority, then nearest the middle of the screen), so the selected, hovered and learning
+names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75); the threshold stays
+0.8. Within one priority the names nearest the screen's middle come first (`_byLabelOrder` on the squared
+screen distance each candidate carries, `dist`; 2026-10-10): ordered by node index, a spell coming in at the
+screen's edge while panning or wheel-zooming could push a name in the middle past the cap. A drag's strips
+(`LayerScroll._labels`) place from the same candidate order, so a drag's repaint picks the same set; each name left out saves a
 `fillText` (no outline below 0.8, see *Names without their outline zoomed out*; not measured in game). The
 selected spell sorts first even in the layer's margin and is not held to the cap there or in a dragged
-strip (`LayerScroll._labels` places it past a full cap), so a drag brings it in named; a hovered spell
+strip (`LayerScroll._labels` places it past a full cap, and neither path counts it), so a drag brings it
+in named - except, as before, a selected spell that gets no name at all: locked, nameless, filtered out
+(the trait filter), in a hidden school, or shown as `???` (below the reveal threshold); a hovered spell
 (priority 4, like the spells on the hovered path, which can be many) stays under the cap.
 `modules/labelCullTest.js` checks the index's candidates against the full loop's on 140 views (zooms
-0.5-2.2, turned, with margins), both caps, and the selected spell in the margin with 120 learnable names
-in view at zoom 0.6.
+0.5-2.2, turned, with margins), both caps, the selected spell in the margin with 120 learnable names
+in view at zoom 0.6, and the same 50 names kept when a spell comes in at the screen's edge.
 
 Also in that pass: learnable spells without an XP ring are batched in `NodeBatch` like locked and known
 ones (they were drawn one by one, some nine paint calls each; a tree has hundreds), with their thin ring
@@ -755,7 +765,8 @@ panel closed and in use:
   (spells 25-45 ms, lines 15-30 ms of it).
 - **Names without their outline zoomed out** (2026-10-09): a design's `labelHalo` (the outline round each
   name, a `strokeText` before the `fillText`, as costly as it in the CPU-drawn view) is left out below
-  `TreeStyle.LABEL_HALO_MIN_ZOOM` (0.8). `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
+  `TreeStyle.LABEL_HALO_MIN_ZOOM` (0.8) - which includes the view the tree opens at (zoom 0.75); the threshold
+stays 0.8. `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
   of names and returns it; `drawLabel` follows it; the layer's names (`renderLabels`) and the names in a
   dragged strip (`LayerScroll._labels`, the layer's zoom) pass their zoom. The warm-up
   (`LayerBuild._warmText`) passes none: it makes the names' outlined letters at any zoom when the design has
@@ -1185,7 +1196,8 @@ What it costs, with the tree layer in mind (see *Performance* above):
   frames, in the CPU-drawn view, right when the panel was busiest. A design's `reveal`, `revealMs` and
   `inkColor` are ignored.
 - Label outlines cost one `strokeText` per label (at most 150), at zoom 0.8 and above only
-  (`TreeStyle.LABEL_HALO_MIN_ZOOM`); below it the names (at most 50) have none.
+  (`TreeStyle.LABEL_HALO_MIN_ZOOM`); below it, the opening view (0.75) included, the names (at most 50) have
+  none.
 
 Not measured in the game yet; `perfMeter.js` is how to. The first draft of Arcane - glowing sprites
 behind every learned spell and a wide glow stroke under every learned edge - doubled node and edge

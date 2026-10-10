@@ -462,8 +462,9 @@ var LayerScroll = {
      * The names in a strip: kept ones reaching into it drawn again (clipped to
      * it, their outline and descenders counted), new ones placed in it against
      * the kept ones. The cap counts the names on screen, not the ones left in
-     * the margin behind the drag; the selected spell's name is placed past
-     * it. Returns the new names that reach past the
+     * the margin behind the drag, nor the selected spell's, which is placed past
+     * it (the same count as renderLabels'). New names come in the candidates'
+     * order (_byLabelOrder: nearest the screen's middle within a priority). Returns the new names that reach past the
      * strip (none with keptOnly, which places no new ones).
      */
     _labels: function(r, g, rect, dpr, margin, view, viewCss, keptOnly) {
@@ -508,7 +509,8 @@ var LayerScroll = {
         var shown = 0, have = {};
         for (i = 0; i < kept.length; i++) {
             have[kept[i].node.id] = true;
-            if (!viewCss || this._meets(kept[i], viewCss)) shown++;
+            // The selected name is not counted, as in renderLabels
+            if (!kept[i].selected && (!viewCss || this._meets(kept[i], viewCss))) shown++;
         }
         var cands = found.candidates;
         var keptMax = found.maxLabels * this.KEPT_MAX_SHARE;
@@ -533,7 +535,7 @@ var LayerScroll = {
             lab = r._keepLabel(cand, box);
             kept.push(lab);
             have[cand.node.id] = true;
-            if (!viewCss || this._meets(lab, viewCss)) shown++;
+            if (!lab.selected && (!viewCss || this._meets(lab, viewCss))) shown++;
             g.globalAlpha = lab.alpha;
             TreeStyle.drawLabel(g, lab.text, lab.x, lab.y, lab.color);
             if (lab.l - reach < st.l || lab.r + reach > st.r || lab.t - reach < st.t || lab.b + reach > st.b) spilled.push(lab);

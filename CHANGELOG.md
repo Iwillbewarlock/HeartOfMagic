@@ -51,12 +51,14 @@ After updating: to drop spells that only a mod's debug tome teaches, **Scan** an
   about half as much while you look at it without touching anything.
 - After any change to the tree picture (a repaint, a hover preview, a star move) the panel repainted the
   whole tree twice; once is enough now.
-- Zoomed out to the middle range (where only important spell names show), at most 50 names are drawn
-  instead of 150, the selected and learning ones first; zoomed in, the names are found among the nearby
-  spells only. The names shown are otherwise the same.
-- **Zoomed out, spell names lose their outline** (Arcane, Night Grimoire, Chalkboard): below zoom 0.8, where
-  only the important names show, the paper- or board-coloured edge round each name is no longer drawn - it
-  cost as much as the name itself - and a design switch no longer prepares outlines that will not be drawn.
+- **Fewer spell names zoomed out**: below zoom 0.8 (where only important spell names show), including the
+  view the tree opens at (0.75), at most 50 names are drawn instead of 150 - the selected one always, then
+  the ones being learned, then the rest nearest the middle of the screen, so a spell coming into view at the
+  edge while you pan or zoom does not take the place of a name in the middle. Zoomed in, the names are found
+  among the nearby spells only.
+- **Zoomed out, spell names lose their outline** (Arcane, Night Grimoire, Chalkboard): below zoom 0.8,
+  including the view the tree opens at (0.75), the paper- or board-coloured edge round each name is no
+  longer drawn - it cost as much as the name itself.
 
 ## Heart of Magic Librarian 1.3.0
 

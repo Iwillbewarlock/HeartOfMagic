@@ -131,8 +131,19 @@ var LayerBuild = {
         this._textCold = true;
     },
 
-    /** A whole repaint was just done at once; it took `ms`. */
-    noteSync: function(ms) {
+    /**
+     * Did names drawn at `zoom` make the new font's outlines? Not below
+     * TreeStyle.LABEL_HALO_MIN_ZOOM in a design with labelHalo (no outline is
+     * drawn there): _textCold then stays, so the next build makes them (_warmText)
+     * and a later zoom-in does not make them in one frame. No zoom = yes.
+     */
+    _outlinesMadeAt: function(zoom) {
+        var t = (typeof TreeStyle !== 'undefined' && TreeStyle.tokens) || {};
+        return !t.labelHalo || !(zoom < TreeStyle.LABEL_HALO_MIN_ZOOM);
+    },
+
+    /** A whole repaint was just done at once, at `zoom`; it took `ms`. */
+    noteSync: function(ms, zoom) {
         if (!this._unmeasured || !(this._lastMs > 0)) {
             this._lastMs = ms;
         } else if (ms > this.SYNC_MAX_MS) {
@@ -144,7 +155,7 @@ var LayerBuild = {
             this._lastMs = Math.max(this._lastMs, this.SYNC_MAX_MS + 1);
         }
         this._unmeasured = false;
-        this._textCold = false;                 // the names were drawn with it
+        if (this._outlinesMadeAt(zoom)) this._textCold = false;    // the names were drawn with it
         this._build = null;
         this._restarts = 0;
     },
@@ -259,7 +270,7 @@ var LayerBuild = {
                     var f0 = now();
                     self._finish(r, g, b);
                     self._finishMs = self._finishMs * 0.7 + (now() - f0) * 0.3;
-                    self._textCold = false;
+                    if (b.warmed || self._outlinesMadeAt(b.zoom)) self._textCold = false;
                     done = true;
                 }
                 drew = true;
@@ -423,7 +434,9 @@ var LayerBuild = {
         // build) it would switch a slow tree back to a long frame
         // A build after a design change (noteRestyle) is not counted, swapped in
         // whole or early (its pieces on screen and the names made the caches)
-        this._textCold = false;                 // its names were drawn (the finish comes before any swap)
+        // Its names were drawn (the finish comes before any swap), their outlines
+        // made by _warmText or by the names themselves
+        if (b.warmed || this._outlinesMadeAt(b.zoom)) this._textCold = false;
         if (this._unmeasured) {
             this._unmeasured = false;
             // Not counted, but slow: as noteSync, the figure goes just past SYNC_MAX_MS

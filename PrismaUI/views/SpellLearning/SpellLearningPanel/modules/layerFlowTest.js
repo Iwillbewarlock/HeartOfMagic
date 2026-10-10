@@ -231,6 +231,23 @@ var LayerFlowTest = {
         this.check(B.wanted(r, r._treeLayer), "after a design change (the names' font new) even a quick tree's repaint is spread");
         B.noteSync(4);
         this.check(!B._textCold && !B.wanted(r, r._treeLayer), '...but not after a repaint at once drew the names');
+        // Below LABEL_HALO_MIN_ZOOM a repaint at once draws no outlines: the font stays cold
+        g.TreeStyle.LABEL_HALO_MIN_ZOOM = 0.8;
+        B.noteRestyle(); B.noteSync(4, 0.75);
+        this.check(B._textCold && B.wanted(r, r._treeLayer), "a repaint at once at zoom 0.75 (no outlines drawn): the next build still makes the font's outlines");
+        B.noteSync(4, 0.8);
+        this.check(!B._textCold, '...one at 0.8 (outlined) makes them');
+        g.TreeStyle.tokens.labelHalo = '';
+        B.noteRestyle(); B.noteSync(4, 0.75);
+        this.check(!B._textCold, '...and a design with no outline is warm after any repaint at once');
+        g.TreeStyle.tokens.labelHalo = 'x';
+        B._build = null; B._restarts = 0;
+        // A build at 0.75 that made the letters (_warmText) leaves the font warm
+        B.noteRestyle(); B.start(r, 1, 128, view); B._build.zoom = 0.75; B._build.tiles = []; B._build.warmed = true; B._swapIn(r, B._build);
+        this.check(!B._textCold, '...a build at 0.75 that made the outlines (warmed) leaves the font warm');
+        B.noteRestyle(); B.start(r, 1, 128, view); B._build.zoom = 0.75; B._build.tiles = []; B._swapIn(r, B._build);
+        this.check(B._textCold, '...one at 0.75 that did not leaves it cold');
+        B._build = null; B._restarts = 0; B._lastMs = 3; B._unmeasured = false; B._textCold = false;
 
         B.noteRestyle();
         B.start(r, 1, 128, view);
