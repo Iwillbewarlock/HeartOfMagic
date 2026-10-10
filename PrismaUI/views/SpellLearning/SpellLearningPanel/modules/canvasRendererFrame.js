@@ -130,9 +130,12 @@
             ctx.globalAlpha = 1.0;
             ctx.globalCompositeOperation = 'source-over';
 
-            // Clear the ENTIRE canvas buffer (including offscreen areas)
-            ctx.fillStyle = this._bgColor || '#000000';
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            // Clear the ENTIRE canvas buffer (including offscreen areas) - unless an
+            // opaque page is drawn over all of it below (the same pixels, one fill less)
+            if (!TreeStyle.pageCovers(width, height, dpr, ctx.canvas.width, ctx.canvas.height)) {
+                ctx.fillStyle = this._bgColor || '#000000';
+                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            }
 
             // Scale for DPR
             ctx.scale(dpr, dpr);

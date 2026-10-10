@@ -36,7 +36,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeToolsScale.js` | 158 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale`; a lost release (no button held, focus lost) ends the drag |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 502 | `TreeStyle`: tree look as design-preset tokens; halos, labels (no name outline below `LABEL_HALO_MIN_ZOOM` 0.8; the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 515 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
+| `treeStyleBook.js` | 527 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 248 | Drawn lines added to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
 | `designPresets.js` | 390 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `notificationSetting.js` | 166 | Settings > Early Learning > Show Notifications (every corner message of the mod), Notification Language (the panel's or English) and the weakened spell alerts under it (greyed out while it is off); saves/loads/resets `config.notifications` |
@@ -60,7 +60,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `canvasRendererInput.js` | 464 | Mouse and wheel events, screen to world, hit testing (`findNodeAt`), hover, tooltip |
 | `canvasRendererSelect.js` | 177 | Selecting a spell and focusing on it, the dependency path sets, turning the wheel |
 | `canvasRendererData.js` | 506 | `setData`: lookup maps, school angles, fallback spiral layout, discovery set, spatial index; level of detail and node buckets; the culling index (`_cullIndex`: spell and line grids, each line's spells and key) so a strip or piece looks only at what is near it |
-| `canvasRendererFrame.js` | 505 | `render()`, the stars' settings and moves (`_syncStarfield`), background (the page's texture painted after the tree, `TreeStyle.stepPage`), the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
+| `canvasRendererFrame.js` | 508 | `render()`, the stars' settings and moves (`_syncStarfield`), background (the page's texture painted after the tree, `TreeStyle.stepPage`), the tree layer (`_drawTree`: paste, slide, stretch, LayerScroll, LayerBuild, whole repaint) and what goes into it (`_renderTreeInto`) |
 | `canvasRendererMoving.js` | 384 | What moves every frame over the layer: learning path animation, particles, sigil spots (FxLayer), the heart and its beat, particle core |
 | `canvasRendererDividers.js` | 130 | School dividers, debug grid |
 | `canvasRendererEdges.js` | 439 | The lines: root lines, batched passes bottom to top, hover, selected and learning paths, lock chains |

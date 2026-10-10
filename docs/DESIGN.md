@@ -629,6 +629,13 @@ zoom 0.9); in game a whole tree in cheat mode was about 7,800 paint calls before
   stars (a picture would last a frame or two; in the lab building it raised Modern Dark's worst frame on
   opening) - between their moves the tree canvas is left alone anyway (`_mainShownKey`).
   `TreeStyle._pageBuilds` tells it the page was rebuilt.
+- **No colour under an opaque page** (2026-10-10). `_drawBackground` fills the whole buffer with the
+  background colour and then, with a page design, draws the page over all of it; when the page hides every
+  pixel (`TreeStyle.pageCovers`: `pageColor` is `#rgb`/`#rrggbb`, the texture starts with a fill of it, and
+  the css size times the frame's scale is exactly the buffer's size - the LOD-lowered scale, as `render`
+  passes it) the fill is left out. The same pixels (lab: 0 bytes differ on Arcane over a half-red buffer);
+  one full-canvas fill fewer per straight-drawn frame (a drag or glide, a StaticBase rebuild). The lab puts a
+  full fill of the 846x581 tree canvas at ~0.04 ms, so no frame time to see.
 - **The stars move at their own pace** (2026-10-08). `CanvasRenderer._syncStarfield` (each frame, before
   the key) applies the star settings and moves the stars (`Starfield.advance`: drift, twinkle) only when
   `STAR_FRAME_MS` (160) has passed - every second animation frame; drawing them no longer moves them. A

@@ -82,6 +82,18 @@
         },
 
         /**
+         * Does renderPage(ctx, w, h) at scale dpr hide every pixel of a cw x ch
+         * buffer? An opaque colour (#rgb or #rrggbb: the texture starts with a fill
+         * of it, and the plain colour stands in for it) drawn over w x h css px that
+         * are exactly the buffer's device px. A fractional size (w * dpr not whole)
+         * or a colour with alpha: no.
+         */
+        pageCovers: function(w, h, dpr, cw, ch) {
+            var c = this.tokens.pageColor;
+            return !!c && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(c) && w * dpr === cw && h * dpr === ch;
+        },
+
+        /**
          * Paint the texture on for w x h: steps until `budget` ms past `since` (one
          * at least). Returns 'none' (no page, or it is ready), 'pending' or 'done'
          * (swapped in just now). Called by a frame after its tree (CanvasRenderer.render)
