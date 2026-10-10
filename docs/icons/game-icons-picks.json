@@ -4,11 +4,6 @@
     "name": "archive-research",
     "url": "https://game-icons.net/1x1/delapouite/archive-research.html"
   },
-  "export": {
-    "author": "delapouite",
-    "name": "scroll-quill",
-    "url": "https://game-icons.net/1x1/delapouite/scroll-quill.html"
-  },
   "build": {
     "author": "delapouite",
     "name": "mesh-network",
@@ -29,11 +24,6 @@
     "name": "anticlockwise-rotation",
     "url": "https://game-icons.net/1x1/delapouite/anticlockwise-rotation.html"
   },
-  "locks": {
-    "author": "lorc",
-    "name": "padlock",
-    "url": "https://game-icons.net/1x1/lorc/padlock.html"
-  },
   "save": {
     "author": "lorc",
     "name": "wax-seal",
@@ -49,76 +39,6 @@
     "name": "scroll-unfurled",
     "url": "https://game-icons.net/1x1/lorc/scroll-unfurled.html"
   },
-  "blacklist": {
-    "author": "lorc",
-    "name": "death-note",
-    "url": "https://game-icons.net/1x1/lorc/death-note.html"
-  },
-  "whitelist": {
-    "author": "delapouite",
-    "name": "checklist",
-    "url": "https://game-icons.net/1x1/delapouite/checklist.html"
-  },
-  "preset-save": {
-    "author": "lorc",
-    "name": "bookmarklet",
-    "url": "https://game-icons.net/1x1/lorc/bookmarklet.html"
-  },
-  "hotkey": {
-    "author": "lorc",
-    "name": "skeleton-key",
-    "url": "https://game-icons.net/1x1/lorc/skeleton-key.html"
-  },
-  "tree-view": {
-    "author": "delapouite",
-    "name": "family-tree",
-    "url": "https://game-icons.net/1x1/delapouite/family-tree.html"
-  },
-  "display": {
-    "author": "delapouite",
-    "name": "eye-target",
-    "url": "https://game-icons.net/1x1/delapouite/eye-target.html"
-  },
-  "debug": {
-    "author": "lorc",
-    "name": "scarab-beetle",
-    "url": "https://game-icons.net/1x1/lorc/scarab-beetle.html"
-  },
-  "progression": {
-    "author": "delapouite",
-    "name": "stairs",
-    "url": "https://game-icons.net/1x1/delapouite/stairs.html"
-  },
-  "early": {
-    "author": "lorc",
-    "name": "sunrise",
-    "url": "https://game-icons.net/1x1/lorc/sunrise.html"
-  },
-  "tome": {
-    "author": "delapouite",
-    "name": "spell-book",
-    "url": "https://game-icons.net/1x1/delapouite/spell-book.html"
-  },
-  "tree-gen": {
-    "author": "delapouite",
-    "name": "galaxy",
-    "url": "https://game-icons.net/1x1/delapouite/galaxy.html"
-  },
-  "prereq": {
-    "author": "lorc",
-    "name": "linked-rings",
-    "url": "https://game-icons.net/1x1/lorc/linked-rings.html"
-  },
-  "howto-settings": {
-    "author": "delapouite",
-    "name": "info",
-    "url": "https://game-icons.net/1x1/delapouite/info.html"
-  },
-  "howto-xp": {
-    "author": "delapouite",
-    "name": "sparkles",
-    "url": "https://game-icons.net/1x1/delapouite/sparkles.html"
-  },
   "fullscreen": {
     "author": "delapouite",
     "name": "resize",
@@ -129,14 +49,49 @@
     "name": "cross-mark",
     "url": "https://game-icons.net/1x1/lorc/cross-mark.html"
   },
-  "collapse": {
-    "author": "badges",
-    "name": "minus",
-    "url": "https://game-icons.net/1x1/badges/minus.html"
+  "hotkey": {
+    "author": "lorc",
+    "name": "three-keys",
+    "url": "https://game-icons.net/1x1/lorc/three-keys.html"
   },
-  "expand": {
-    "author": "badges",
-    "name": "plus",
-    "url": "https://game-icons.net/1x1/badges/plus.html"
+  "tree-view": {
+    "author": "lorc",
+    "name": "spyglass",
+    "url": "https://game-icons.net/1x1/lorc/spyglass.html"
+  },
+  "display": {
+    "author": "delapouite",
+    "name": "old-lantern",
+    "url": "https://game-icons.net/1x1/delapouite/old-lantern.html"
+  },
+  "debug": {
+    "author": "lorc",
+    "name": "spanner",
+    "url": "https://game-icons.net/1x1/lorc/spanner.html"
+  },
+  "progression": {
+    "author": "delapouite",
+    "name": "stairs",
+    "url": "https://game-icons.net/1x1/delapouite/stairs.html"
+  },
+  "early": {
+    "author": "lorc",
+    "name": "fast-arrow",
+    "url": "https://game-icons.net/1x1/lorc/fast-arrow.html"
+  },
+  "tome": {
+    "author": "delapouite",
+    "name": "spell-book",
+    "url": "https://game-icons.net/1x1/delapouite/spell-book.html"
+  },
+  "tree-gen": {
+    "author": "lorc",
+    "name": "star-swirl",
+    "url": "https://game-icons.net/1x1/lorc/star-swirl.html"
+  },
+  "prereq": {
+    "author": "delapouite",
+    "name": "knot",
+    "url": "https://game-icons.net/1x1/delapouite/knot.html"
   }
 }
