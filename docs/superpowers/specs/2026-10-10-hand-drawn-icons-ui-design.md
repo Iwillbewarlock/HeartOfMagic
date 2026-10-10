@@ -169,3 +169,15 @@ Gemini 가 그리는 양은 52장이다.
    나머지 대문자 규칙은 보통 글자로, `.settings-block-title` 은 작은 대문자로. 바꾸는 규칙은 공통 파일 `panel-chrome.css`
    (patch-ui.css 다음에 연결) 한 곳에 모은다.
 10. **순서**: 모양 고르기(사용자 선택) → 칸·선 세트 → 틀 정리 → 잉크 → 금박 → 분필. Gemini 결과가 나쁘면 선 세트가 그대로 남는다.
+11. **아이콘 수 19개 (2026-10-11 사용자 결정, 6번의 28개를 대신함)**: 10개 / 19개 / 28개 견본을 비교한 뒤, 작거나 개발자용인
+    자리에 붙은 아이콘은 화면만 어지럽힌다고 보고 줄였다. 남는 id(이 순서): `scan build apply clear replay save reset import
+    fullscreen close hotkey tree-view display debug progression early tome tree-gen prereq`.
+    빠진 id: `export blacklist whitelist locks preset-save howto-settings howto-xp collapse expand`. 이 자리들도 대괄호는 지우지만
+    아이콘 없이 글자만 둔다:
+    - 버튼 `#saveBtn`(내보내기), `#blacklistBtn`, `#whitelistBtn`, `#prmApplyBtn`(잠금): `hom-icon` 칸 없이 글자를
+      `<span class="hom-label" data-i18n-html="…">` 로 옮긴다(다른 동작 버튼과 같음). 13개 언어 문구의 `<span class="btn-icon">[X]</span>` 는 그대로 지운다.
+    - `#saveScannerPresetBtn` / `#saveSettingsPresetBtn`: `presets.save` / `settings.presets.save` 의 `[+] ` 를 지우고, 칸 없이 글자 칸만.
+    - 배우는 법 머리 `howto.currentSettings` / `howto.gainingXp`: `[i] ` / `[^] ` 를 지우고, 칸 없는 평범한 `<h4 data-i18n=…>`.
+    - 선행 마스터 접기 표시 `.prm-collapse-icon`: 빈 span 을 CSS 가 작은 꺾쇠(오른쪽·아래 2px 테두리, 0.45em 정사각형,
+      펼침 `rotate(45deg)`, 접힘은 `collapsed` 클래스로 `rotate(-45deg)`)로 그린다. `prereqMaster.js` 는 글자 대신 이 클래스를 켜고 끈다.
+    Gemini 가 그리는 양: 잉크 19장 + 분필 19장 = **38장** (§4·§7·§11 의 26장/52장을 대신함). 선 세트·금박 세트도 19장씩.

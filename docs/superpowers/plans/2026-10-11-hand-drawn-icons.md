@@ -21,29 +21,29 @@
 - Never put a CSS variable inside `url()`.
 - UI must work in all five designs: Classic, Modern Dark, Arcane, Night Grimoire, Chalkboard. Add-on designs without `icons` get the line set.
 - Never show raw codes or bracket text to the player.
-- The 28 icon ids, exactly: `scan export build apply clear replay locks save reset import blacklist whitelist preset-save hotkey tree-view display debug progression early tome tree-gen prereq howto-settings howto-xp fullscreen close collapse expand`.
+- The 19 icon ids, exactly: `scan build apply clear replay save reset import fullscreen close hotkey tree-view display debug progression early tome tree-gen prereq`. The spots of the dropped ids (`export blacklist whitelist locks preset-save howto-settings howto-xp collapse expand`) lose their glyph but get no icon: text only (spec §12.11).
 - Every task that edits `PANEL/index.html` ends by running `node tools/make-dev-harness.js` (repo root) — `run-tests.js` fails on a stale harness.
 - Every task that edits `PANEL/lang/*.json` ends by running `node PANEL/lang/build-preloads.js`.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Review Focus
 
-1. **A language switch rewrites a button's HTML.** After `switchLocale`, every action button must still show its icon (the icon slot must sit outside any element carrying `data-i18n`/`data-i18n-html`). Test: `IconSlotsTest` asserts no `data-i18n*` element contains a `hom-icon`, and no lang value contains `hom-icon`/`btn-icon`.
+1. **A language switch rewrites a button's HTML.** After `switchLocale`, every action button that has an icon must still show it (the icon slot must sit outside any element carrying `data-i18n`/`data-i18n-html`). Test: `IconSlotsTest` asserts no `data-i18n*` element contains a `hom-icon`, and no lang value contains `hom-icon`/`btn-icon`.
 2. **Script-written labels wipe the slot.** The Scan button's "Scanning…" / restore path and the fullscreen toggle write text into buttons. Expected: icon stays. Test: `HomIconsTest` covers `HomIcons.setLabel` keeping the slot; Task 4 replaces the three writers with it.
-3. **An add-on design without `icons`, or with a wrong path.** Expected: the line set, never a blank or broken image box. Test: `HomIconsTest` "unknown set falls back"; `IconSetsTest` checks every set a shipped design names has all 28 PNGs.
+3. **An add-on design without `icons`, or with a wrong path.** Expected: the line set, never a blank or broken image box. Test: `HomIconsTest` "unknown set falls back"; `IconSetsTest` checks every set a shipped design names has all 19 PNGs.
 4. **Night Grimoire / Chalkboard are JSON designs the harness does not load by itself.** Expected: screenshots of all five designs. Covered by the screenshot wrapper in Task 6 seeding both JSONs with `DesignPresets.onLoaded`.
 5. **Korean and long translations in the new label spans.** Expected: label and icon on one line, no clipping. Covered by the Korean screenshot pass in Task 6 and Task 10.
 
 ---
 
-### Task 1: Pick the 28 shapes (user gate)
+### Task 1: Pick the 19 shapes (user gate)
 
 **Files:**
 - Create: `docs/icons/game-icons-picks.json`
-- Create: `docs/icons/svg/<id>.svg` (28 files, copied from github.com/game-icons/icons)
+- Create: `docs/icons/svg/<id>.svg` (19 files, copied from github.com/game-icons/icons)
 
 **Interfaces:**
-- Produces: `docs/icons/game-icons-picks.json` = `{ "<id>": { "author": "<folder>", "name": "<file stem>", "url": "https://game-icons.net/1x1/<author>/<name>.html" }, ... }` for all 28 ids; `docs/icons/svg/<id>.svg` for each.
+- Produces: `docs/icons/game-icons-picks.json` = `{ "<id>": { "author": "<folder>", "name": "<file stem>", "url": "https://game-icons.net/1x1/<author>/<name>.html" }, ... }` for all 19 ids; `docs/icons/svg/<id>.svg` for each.
 
 - [ ] **Step 1: Fetch the icon index**
 
@@ -52,21 +52,21 @@ Expected: several thousand `author/name.svg` lines.
 
 - [ ] **Step 2: Choose 2–3 candidates per id**
 
-Search `index.txt` by meaning, e.g. `scan`: `magnifying-glass`, `spell-book`, `crystal-ball`; `build`: `tree-branch`, `vine-flower`; `apply`: `quill-ink`, `stamper`; `clear`: `trash-can`, `broom`; `save`: `scroll-unfurled`, `wax-seal`; `close`: `cancel`, `cross-mark`; `collapse`/`expand`: a matched pair (`contract`/`expand` or arrow pairs by the same author). Prefer one or two authors overall (lorc, delapouite) so line weight matches. Download candidates with `curl -sL https://raw.githubusercontent.com/game-icons/icons/master/<author>/<name>.svg -o E:/Users/qtuna/hom-icons/cand/<id>--<author>--<name>.svg`.
+Search `index.txt` by meaning, e.g. `scan`: `magnifying-glass`, `spell-book`, `crystal-ball`; `build`: `tree-branch`, `vine-flower`; `apply`: `quill-ink`, `stamper`; `clear`: `trash-can`, `broom`; `save`: `scroll-unfurled`, `wax-seal`; `close`: `cancel`, `cross-mark`. Prefer one or two authors overall (lorc, delapouite) so line weight matches. Download candidates with `curl -sL https://raw.githubusercontent.com/game-icons/icons/master/<author>/<name>.svg -o E:/Users/qtuna/hom-icons/cand/<id>--<author>--<name>.svg`.
 
 - [ ] **Step 3: Contact sheet artifact**
 
-Build one HTML page: a row per id (Korean meaning + id), each candidate drawn inline at 48px and 24px on the Arcane parchment colour `#e3d4ae` and on dark `#1e1812`, with `author/name` under it. Publish it with the Artifact tool (quickstart first, intent `other`). Ask the user to pick per row (AskUserQuestion is too small for 28 rows; ask them to reply with `id: number` lines or "all first").
+Build one HTML page: a row per id (Korean meaning + id), each candidate drawn inline at 48px and 24px on the Arcane parchment colour `#e3d4ae` and on dark `#1e1812`, with `author/name` under it. Publish it with the Artifact tool (quickstart first, intent `other`). Ask the user to pick per row (AskUserQuestion is too small for 19 rows; ask them to reply with `id: number` lines or "all first").
 
 - [ ] **Step 4: Save the picks**
 
-Copy each chosen SVG to `docs/icons/svg/<id>.svg` unchanged. Write `docs/icons/game-icons-picks.json` with author, name, url for all 28.
+Copy each chosen SVG to `docs/icons/svg/<id>.svg` unchanged. Write `docs/icons/game-icons-picks.json` with author, name, url for all 19.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add docs/icons
-git commit -m "Icons: the 28 game-icons.net shapes picked for the panel (CC BY 3.0 sources)"
+git commit -m "Icons: the 19 game-icons.net shapes picked for the panel (CC BY 3.0 sources)"
 ```
 
 ---
@@ -80,7 +80,7 @@ git commit -m "Icons: the 28 game-icons.net shapes picked for the panel (CC BY 3
 
 **Interfaces:**
 - Produces (global `HomIcons`):
-  - `HomIcons.IDS` — the 28 ids (array of strings, order as in Global Constraints)
+  - `HomIcons.IDS` — the 19 ids (array of strings, order as in Global Constraints)
   - `HomIcons.DEFAULT_SET` = `'themes/icons-line/'`
   - `HomIcons.setPath(path)` — path string ending in `/`; anything else → `DEFAULT_SET`; then `paint(document)`
   - `HomIcons.paint(root)` — sets `style.backgroundImage = 'url("' + set + id + '.png")'` on every `.hom-icon` under `root` whose `data-icon` is in `IDS`
@@ -117,8 +117,8 @@ var HomIconsTest = {
         this.passed = 0; this.failed = 0;
         console.log('HomIcons');
 
-        this.check(HomIcons.IDS.length === 28, '28 icon ids');
-        this.check(HomIcons.IDS.indexOf('scan') !== -1 && HomIcons.IDS.indexOf('expand') !== -1, 'ids include scan and expand');
+        this.check(HomIcons.IDS.length === 19, '19 icon ids');
+        this.check(HomIcons.IDS.indexOf('scan') !== -1 && HomIcons.IDS.indexOf('prereq') !== -1, 'ids include scan and prereq');
 
         var a = this._slot('scan'), b = this._slot('nope');
         HomIcons._set = HomIcons.DEFAULT_SET;
@@ -178,17 +178,15 @@ Expected: `✗ Failed to load homIcons` and the HomIcons suite counted as failed
  * 48px PNG per id. A design without icons, or with a path that does not end in
  * "/", gets the line set. DesignPresets.apply calls setPath.
  *
- * Limit: one file per icon (28 per set) instead of an atlas, because
+ * Limit: one file per icon (19 per set) instead of an atlas, because
  * background-position on a sprite is unproven in Ultralight. Upgrade path: an
  * atlas once that is measured in game.
  *
  * Depends on: nothing.
  */
 var HomIcons = {
-    IDS: ['scan', 'export', 'build', 'apply', 'clear', 'replay', 'locks', 'save', 'reset', 'import',
-          'blacklist', 'whitelist', 'preset-save', 'hotkey', 'tree-view', 'display', 'debug',
-          'progression', 'early', 'tome', 'tree-gen', 'prereq', 'howto-settings', 'howto-xp',
-          'fullscreen', 'close', 'collapse', 'expand'],
+    IDS: ['scan', 'build', 'apply', 'clear', 'replay', 'save', 'reset', 'import', 'fullscreen', 'close',
+          'hotkey', 'tree-view', 'display', 'debug', 'progression', 'early', 'tome', 'tree-gen', 'prereq'],
     DEFAULT_SET: 'themes/icons-line/',
     _set: 'themes/icons-line/',
 
@@ -244,8 +242,8 @@ git commit -m "HomIcons: paint icon slots from the design's icon folder, line se
 ### Task 3: The two line sets (PNG)
 
 **Files:**
-- Create: `PANEL/themes/icons-line/<id>.png` (28, neutral `#c8c2b4`)
-- Create: `PANEL/themes/icons-line-gold/<id>.png` (28, dull gold `#b89a5a`)
+- Create: `PANEL/themes/icons-line/<id>.png` (19, neutral `#c8c2b4`)
+- Create: `PANEL/themes/icons-line-gold/<id>.png` (19, dull gold `#b89a5a`)
 - Create: `PANEL/modules/iconSetsTest.js`; Modify: `PANEL/run-tests.js`
 
 **Interfaces:**
@@ -257,7 +255,7 @@ git commit -m "HomIcons: paint icon slots from the design's icon folder, line se
 ```js
 /**
  * IconSetsTest - every icon folder a shipped design names (plus the line set
- * and the gold line set) has a PNG for each of the 28 ids.
+ * and the gold line set) has a PNG for each of the 19 ids.
  * Depends on: homIcons.js, node fs.
  */
 var IconSetsTest = {
@@ -280,7 +278,7 @@ var IconSetsTest = {
             for (var i = 0; i < HomIcons.IDS.length; i++) {
                 if (!fs.existsSync(path.join(panel, this.SETS[s], HomIcons.IDS[i] + '.png'))) missing.push(HomIcons.IDS[i]);
             }
-            this.check(missing.length === 0, this.SETS[s] + ' has all 28' + (missing.length ? ' (missing: ' + missing.join(', ') + ')' : ''));
+            this.check(missing.length === 0, this.SETS[s] + ' has all 19' + (missing.length ? ' (missing: ' + missing.join(', ') + ')' : ''));
         }
         return { passed: this.passed, failed: this.failed };
     }
@@ -291,7 +289,7 @@ if (typeof global !== 'undefined') global.IconSetsTest = IconSetsTest;
 
 Add `loadModule('iconSetsTest', './modules/iconSetsTest.js');` after the homIconsTest line.
 
-- [ ] **Step 2: Run to verify it fails** — `node run-tests.js` → `IconSets` two `[FAIL]` lines listing all 28 missing.
+- [ ] **Step 2: Run to verify it fails** — `node run-tests.js` → `IconSets` two `[FAIL]` lines listing all 19 missing.
 
 - [ ] **Step 3: Rasterise** — write `E:\Users\qtuna\hom-icons\line\sheet.html` (outside the repo):
 
@@ -301,7 +299,7 @@ Add `loadModule('iconSetsTest', './modules/iconSetsTest.js');` after the homIcon
 #g div{display:flex;align-items:center;justify-content:center}#g svg{width:176px;height:176px}</style>
 <div id="g"></div>
 <script>
-var IDS=['scan','export','build','apply','clear','replay','locks','save','reset','import','blacklist','whitelist','preset-save','hotkey','tree-view','display','debug','progression','early','tome','tree-gen','prereq','howto-settings','howto-xp','fullscreen','close','collapse','expand'];
+var IDS=['scan','build','apply','clear','replay','save','reset','import','fullscreen','close','hotkey','tree-view','display','debug','progression','early','tome','tree-gen','prereq'];
 var colour=(location.hash||'#c8c2b4');
 var root='file:///D:/DEV/HeartOfMagic/.claude/worktrees/hand-drawn-icons/docs/icons/svg/';
 IDS.forEach(function(id){var d=document.createElement('div');document.getElementById('g').appendChild(d);
@@ -314,17 +312,17 @@ IDS.forEach(function(id){var d=document.createElement('div');document.getElement
 Run (Bash), once per colour:
 ```bash
 C="/c/Program Files/Google/Chrome/Application/chrome.exe"
-"$C" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files --default-background-color=00000000 --window-size=1344,768 --virtual-time-budget=5000 --screenshot="E:/Users/qtuna/hom-icons/line/neutral.png" "file:///E:/Users/qtuna/hom-icons/line/sheet.html#%23c8c2b4"
-"$C" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files --default-background-color=00000000 --window-size=1344,768 --virtual-time-budget=5000 --screenshot="E:/Users/qtuna/hom-icons/line/gold.png" "file:///E:/Users/qtuna/hom-icons/line/sheet.html#%23b89a5a"
+"$C" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files --default-background-color=00000000 --window-size=1344,576 --virtual-time-budget=5000 --screenshot="E:/Users/qtuna/hom-icons/line/neutral.png" "file:///E:/Users/qtuna/hom-icons/line/sheet.html#%23c8c2b4"
+"$C" --headless=new --disable-gpu --hide-scrollbars --allow-file-access-from-files --default-background-color=00000000 --window-size=1344,576 --virtual-time-budget=5000 --screenshot="E:/Users/qtuna/hom-icons/line/gold.png" "file:///E:/Users/qtuna/hom-icons/line/sheet.html#%23b89a5a"
 ```
-Open both PNGs with Read: 28 icons in a 7×4 grid, transparent background, no black squares (if a black square shows, the SVG's background path differs — adjust the `replace` regex to that file's first `<path>`).
+Open both PNGs with Read: 19 icons in a 7×3 grid, transparent background, no black squares (if a black square shows, the SVG's background path differs — adjust the `replace` regex to that file's first `<path>`).
 
 - [ ] **Step 4: Slice and shrink** — `E:\Users\qtuna\hom-icons\slice.ps1`:
 
 ```powershell
 param([string]$Sheet, [string]$OutDir, [int]$Cell = 192, [int]$Cols = 7, [int]$Size = 48)
 Add-Type -AssemblyName System.Drawing
-$ids = 'scan','export','build','apply','clear','replay','locks','save','reset','import','blacklist','whitelist','preset-save','hotkey','tree-view','display','debug','progression','early','tome','tree-gen','prereq','howto-settings','howto-xp','fullscreen','close','collapse','expand'
+$ids = 'scan','build','apply','clear','replay','save','reset','import','fullscreen','close','hotkey','tree-view','display','debug','progression','early','tome','tree-gen','prereq'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $src = [System.Drawing.Bitmap]::FromFile($Sheet)
 for ($i = 0; $i -lt $ids.Count; $i++) {
@@ -344,13 +342,13 @@ Run:
 & E:\Users\qtuna\hom-icons\slice.ps1 -Sheet E:\Users\qtuna\hom-icons\line\gold.png -OutDir D:\DEV\HeartOfMagic\.claude\worktrees\hand-drawn-icons\PrismaUI\views\SpellLearning\SpellLearningPanel\themes\icons-line-gold
 ```
 
-- [ ] **Step 5: Run to verify it passes** — `node run-tests.js` → `IconSets` both `[PASS]`. Open 3 PNGs (`scan`, `close`, `expand`) with Read: centred, transparent, recognisable at 48px.
+- [ ] **Step 5: Run to verify it passes** — `node run-tests.js` → `IconSets` both `[PASS]`. Open 3 PNGs (`scan`, `close`, `prereq`) with Read: centred, transparent, recognisable at 48px.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add PANEL/themes/icons-line PANEL/themes/icons-line-gold PANEL/modules/iconSetsTest.js PANEL/run-tests.js
-git commit -m "Icons: neutral and gold line sets, 28 PNGs each, from the picked game-icons shapes"
+git commit -m "Icons: neutral and gold line sets, 19 PNGs each, from the picked game-icons shapes"
 ```
 
 ---
@@ -359,7 +357,7 @@ git commit -m "Icons: neutral and gold line sets, 28 PNGs each, from the picked 
 
 **Files:**
 - Modify: `PANEL/index.html` (glyph spans, header buttons, close buttons, collapse icon, preset-save buttons, how-to headings, `<link>` and `<script>` tags)
-- Create: `PANEL/panel-chrome.css` (slot sizing only in this task)
+- Create: `PANEL/panel-chrome.css` (slot sizing and the collapse chevron only in this task)
 - Modify: `PANEL/lang/*.json` (13 files, 14 keys), regenerate `PANEL/lang/*.js`
 - Modify: `PANEL/modules/uiHelpers.js` (`restoreScanButton`), `PANEL/modules/buttonHandlers.js` (scan "Scanning" text), `PANEL/script.js` (`toggleFullscreen`), `PANEL/modules/prereqMaster.js` (collapse icon), `PANEL/modules/colorPicker.js` (close button), `PANEL/modules/designPresets.js` (`apply`, built-in `icons`)
 - Modify: `SKSE/Plugins/SpellLearning/presets/design/NightGrimoire.json`, `Chalkboard.json` (`"icons"`)
@@ -368,7 +366,7 @@ git commit -m "Icons: neutral and gold line sets, 28 PNGs each, from the picked 
 
 **Interfaces:**
 - Consumes: `HomIcons.slot/paint/setPath/setLabel` (Task 2), line sets (Task 3)
-- Produces: markup contract — every icon is `<span class="hom-icon" data-icon="<id>" aria-hidden="true"></span>`; every button label that a script or translation rewrites is `<span class="hom-label" …>`; designs carry `icons` (built-ins: Classic `themes/icons-line/`, Modern `themes/icons-line-gold/`, Arcane `themes/icons-line-gold/` until Task 7; JSON designs `themes/icons-line-gold/` until Tasks 8–9)
+- Produces: markup contract — every icon is `<span class="hom-icon" data-icon="<id>" aria-hidden="true"></span>`; every button label that a script or translation rewrites is `<span class="hom-label" …>`; the text-only spots (export, blacklist, whitelist and apply-locks buttons, the two preset-save buttons) have a label span and no slot, the two how-to headings are plain `<h4 data-i18n=…>`, and the Prereq Master collapse indicator is an empty `.prm-collapse-icon` drawn by CSS as a chevron (`collapsed` class when closed); designs carry `icons` (built-ins: Classic `themes/icons-line/`, Modern `themes/icons-line-gold/`, Arcane `themes/icons-line-gold/` until Task 7; JSON designs `themes/icons-line-gold/` until Tasks 8–9)
 
 - [ ] **Step 1: Write the failing test** — `PANEL/modules/iconSlotsTest.js`
 
@@ -382,7 +380,7 @@ git commit -m "Icons: neutral and gold line sets, 28 PNGs each, from the picked 
 var IconSlotsTest = {
     passed: 0,
     failed: 0,
-    GLYPH: /<span class="(btn-icon|settings-block-icon|prm-collapse-icon)">[^<]*<\/span>|>\s*(\[[A-Za-z*~^+\-v ]\]|X|×)\s*</,
+    GLYPH: /<span class="(btn-icon|settings-block-icon|prm-collapse-icon)[^"]*"[^>]*>[^<]+<\/span>|>\s*(\[[A-Za-z*~^+\-v ]\]|X|×)\s*</,
 
     check: function(ok, name) {
         if (ok) { this.passed++; console.log('  [PASS] ' + name); }
@@ -405,6 +403,7 @@ var IconSlotsTest = {
             var id = slots[i].replace(/.*data-icon="([^"]+)".*/, '$1');
             if (HomIcons.IDS.indexOf(id) === -1) bad.push(id);
         }
+        // 30 = 9 action buttons + 4 save/reset/import buttons + 9 settings heads + fullscreen + 7 closes (Steps 4-6)
         this.check(slots.length >= 30 && bad.length === 0, slots.length + ' slots, all known ids' + (bad.length ? ' (unknown: ' + bad.join(', ') + ')' : ''));
 
         var nested = html.match(/<[^>]+data-i18n(-html)?="[^"]*"[^>]*>(?:(?!<\/button>|<\/h4>|<\/span>).)*hom-icon/);
@@ -463,7 +462,7 @@ Then `grep -c "btn-icon\|\"\[[i^+]\] " *.json` → every file `0`. Spot-check `e
 
 - [ ] **Step 4: Markup — action buttons with `data-i18n-html`**
 
-For each button id `scanBtn, saveBtn, blacklistBtn, whitelistBtn, easyBuildBtn, easyApplyBtn, easyClearBtn, easyReplayBtn, prmApplyBtn, prmClearBtn, tgBuildBtn, tgApplyBtn, tgClearBtn`: move `data-i18n-html="<key>"` off the `<button>` onto an inner label span and replace the glyph span with a slot. Example (`scanBtn`):
+For each button id `scanBtn, saveBtn, blacklistBtn, whitelistBtn, easyBuildBtn, easyApplyBtn, easyClearBtn, easyReplayBtn, prmApplyBtn, prmClearBtn, tgBuildBtn, tgApplyBtn, tgClearBtn`: move `data-i18n-html="<key>"` off the `<button>` onto an inner label span and replace the glyph span with a slot (text-only buttons below: drop it). Example (`scanBtn`):
 
 Before:
 ```html
@@ -477,7 +476,15 @@ After:
     <span class="hom-icon" data-icon="scan" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.scanSpells">Scan Spells</span>
 </button>
 ```
-Ids: scanBtn→`scan`, saveBtn→`export`, blacklistBtn→`blacklist`, whitelistBtn→`whitelist`, easyBuildBtn/tgBuildBtn→`build`, easyApplyBtn/tgApplyBtn→`apply`, easyClearBtn/tgClearBtn/prmClearBtn→`clear`, easyReplayBtn→`replay`, prmApplyBtn→`locks`.
+Ids: scanBtn→`scan`, easyBuildBtn/tgBuildBtn→`build`, easyApplyBtn/tgApplyBtn→`apply`, easyClearBtn/tgClearBtn/prmClearBtn→`clear`, easyReplayBtn→`replay`.
+
+Text only (no slot, label span only): `saveBtn` (export), `blacklistBtn`, `whitelistBtn`, `prmApplyBtn` (locks). Example (`saveBtn`):
+```html
+<button id="saveBtn" class="btn btn-secondary dev-only hidden" style="display:none;" disabled>
+    <span class="hom-label" data-i18n-html="buttons.exportScan">Export Scan</span>
+</button>
+```
+(keep each button's own id, classes, attributes and key).
 
 - [ ] **Step 5: Markup — buttons with a sibling label span**
 
@@ -486,10 +493,10 @@ Ids: scanBtn→`scan`, saveBtn→`export`, blacklistBtn→`blacklist`, whitelist
 - [ ] **Step 6: Markup — settings block heads, how-to, preset save, header, closes, collapse**
 
 - Each `<span class="settings-block-icon">…</span>` → `<span class="hom-icon settings-block-icon" data-icon="<id>" aria-hidden="true"></span>` with: Hotkey→`hotkey`, Tree View→`tree-view`, UI Display→`display`, Developer & Debug→`debug`, Progression→`progression`, Early Spell Learning→`early`, Spell Tome Learning→`tome`, Tree Generation→`tree-gen`, Pre Req Master→`prereq`. Identify each block by its `settings-block-title` `data-i18n` key, not by the glyph.
-- How-to `<h4 data-i18n="howto.currentSettings">[i] Current Settings</h4>` → `<h4><span class="hom-icon" data-icon="howto-settings" aria-hidden="true"></span><span data-i18n="howto.currentSettings">Current Settings</span></h4>`; same for `howto.gainingXp`→`howto-xp`.
-- `#saveScannerPresetBtn` / `#saveSettingsPresetBtn`: `<button …><span class="hom-icon" data-icon="preset-save" aria-hidden="true"></span><span class="hom-label" data-i18n="presets.save">Save</span></button>` (keep each button's own key).
+- How-to `<h4 data-i18n="howto.currentSettings">[i] Current Settings</h4>` → `<h4 data-i18n="howto.currentSettings">Current Settings</h4>` (text only, no slot); same for `howto.gainingXp`.
+- `#saveScannerPresetBtn` / `#saveSettingsPresetBtn`: move `data-i18n` off the button → `<button …><span class="hom-label" data-i18n="presets.save">Save</span></button>` (text only, no slot; keep each button's own key).
 - `#fullscreenBtn` text `[ ]` → slot `fullscreen`; `#closeBtn` `X`, `#close-details`, `#close-howto`, `#heart-settings-close`, `#color-picker-close`, `#modal-close-btn`, `#spawn-modal-close` `×` → slot `close`. Keep ids, classes and `title`/`data-i18n-title`.
-- `<span class="prm-collapse-icon">[-]</span>` → `<span class="hom-icon prm-collapse-icon" data-icon="collapse" aria-hidden="true"></span>`.
+- `<span class="prm-collapse-icon">[-]</span>` → `<span class="prm-collapse-icon" aria-hidden="true"></span>` (no icon; Step 9 CSS draws a chevron, open = no `collapsed` class).
 - Add `<link rel="stylesheet" href="panel-chrome.css">` right after the `patch-ui.css` link, and `<script src="modules/homIcons.js"></script>` right before `modules/uiHelpers.js`.
 
 - [ ] **Step 7: Script writers**
@@ -502,9 +509,10 @@ Ids: scanBtn→`scan`, saveBtn→`export`, blacklistBtn→`blacklist`, whitelist
 - `script.js` `toggleFullscreen`: delete `btn.textContent = state.isFullscreen ? '[ ]' : '[ ]';` (keep the `title` line).
 - `prereqMaster.js`: replace `collapseIcon.textContent = content.classList.contains('collapsed') ? '[+]' : '[-]';` with
   ```js
-  collapseIcon.setAttribute('data-icon', content.classList.contains('collapsed') ? 'expand' : 'collapse');
-  HomIcons.paint(collapseIcon.parentNode);
+  if (content.classList.contains('collapsed')) collapseIcon.classList.add('collapsed');
+  else collapseIcon.classList.remove('collapsed');
   ```
+  (the chevron is CSS, Step 9; no text is written).
 - `colorPicker.js`: replace `closeBtn.textContent = '×';` with `closeBtn.innerHTML = HomIcons.slot('close');`
 - `grep -rn "\[\*\]\|\[S\]\|\[X\]\|'×'\|\"×\"" PANEL/modules PANEL/script.js` → only `spellCardView.js` (spell card, out of scope) may remain.
 
@@ -515,10 +523,10 @@ Ids: scanBtn→`scan`, saveBtn→`export`, blacklistBtn→`blacklist`, whitelist
         // The design's icon folder (design.icons); none or a bad path -> the line set
         if (typeof HomIcons !== 'undefined') HomIcons.setPath(preset.icons);
 ```
-Add one line to the header comment's field list: ` *   icons    - folder of the 28 icon PNGs (modules/homIcons.js), ending in "/"`.
+Add one line to the header comment's field list: ` *   icons    - folder of the 19 icon PNGs (modules/homIcons.js), ending in "/"`.
 In both JSON designs add `"icons": "themes/icons-line-gold/",` next to `"cssFile"`.
 
-- [ ] **Step 9: Slot sizing** — create `PANEL/panel-chrome.css`
+- [ ] **Step 9: Slot sizing and collapse chevron** — create `PANEL/panel-chrome.css`
 
 ```css
 /* Panel chrome shared by every design (docs/superpowers/specs/2026-10-10-hand-drawn-icons-ui-design.md).
@@ -538,6 +546,18 @@ In both JSON designs add `"icons": "themes/icons-line-gold/",` next to `"cssFile
 .popup-close .hom-icon,
 .modal-close .hom-icon { margin-right: 0; }
 .settings-block-icon.hom-icon { font-size: 1em; }
+
+/* Prereq Master collapse indicator: a small chevron, not [+]/[-]. Down = open, right = collapsed */
+.prm-collapse-icon {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    margin: 0 0.5em 0.15em 0.15em;
+}
+.prm-collapse-icon.collapsed { transform: rotate(-45deg); }
 ```
 
 - [ ] **Step 10: Regenerate harness and run tests**
@@ -545,7 +565,7 @@ In both JSON designs add `"icons": "themes/icons-line-gold/",` next to `"cssFile
 Run: `node tools/make-dev-harness.js` (repo root) then `cd PANEL && node run-tests.js`
 Expected: all suites pass, including `IconSlots`.
 
-- [ ] **Step 11: Screenshot check** — run the Task 6 Step 1 wrapper for `arcane~SCAN`, `modern~SETTINGS`, `classic~SETTINGS`, then Korean (`arcane~SETTINGS~ko`, see wrapper) and open the PNGs: every former bracket spot shows an icon, no `[` text, no empty boxes.
+- [ ] **Step 11: Screenshot check** — run the Task 6 Step 1 wrapper for `arcane~SCAN`, `modern~SETTINGS`, `classic~SETTINGS`, then Korean (`arcane~SETTINGS~ko`, see wrapper) and open the PNGs: every slot shows an icon, the text-only spots show just their label, the Prereq Master head shows a chevron, no `[` text, no empty boxes.
 
 - [ ] **Step 12: Commit**
 
@@ -708,7 +728,7 @@ git commit -am "Panel chrome: capitals only for name, menu and tabs; line button
 ### Task 7: Ink set for Arcane (Gemini)
 
 **Files:**
-- Create: `PANEL/themes/arcane/icons/<id>.png` (28)
+- Create: `PANEL/themes/arcane/icons/<id>.png` (19)
 - Modify: `PANEL/modules/designPresets.js` (Arcane `icons`), `PANEL/modules/iconSetsTest.js` (`SETS` + `'themes/arcane/icons/'`)
 
 - [ ] **Step 1: Test first** — add `'themes/arcane/icons/'` to `IconSetsTest.SETS`; `node run-tests.js` → that line fails.
@@ -719,7 +739,7 @@ git commit -am "Panel chrome: capitals only for name, menu and tabs; line button
 
 > Redraw this icon as a small pen-and-ink illustration from an old spellbook. Same silhouette and composition as the reference. Dark brown-black ink (#2a1c10) on a plain flat white background (#ffffff), no paper texture, no shadow, no glow, no colour, no text or letters. Hand-inked line with slight pressure variation and a little cross-hatching for shade, like a woodcut-era grimoire marginal drawing. Square 1:1, the drawing centred, filling about 80% of the frame. One icon only.
 
-Judge it (Read): silhouette matches the reference; line weight readable at 24px (shrink a copy to 24px and look); no text, glow, colour, texture. Reroll with the specific fault named until it passes. Then for the other 27, attach the reference AND the approved `scan` drawing: "Same ink style, line weight and hatching density as the second image."
+Judge it (Read): silhouette matches the reference; line weight readable at 24px (shrink a copy to 24px and look); no text, glow, colour, texture. Reroll with the specific fault named until it passes. Then for the other 18, attach the reference AND the approved `scan` drawing: "Same ink style, line weight and hatching density as the second image."
 
 - [ ] **Step 4: Ink to alpha** — `E:\Users\qtuna\hom-icons\ink.ps1`: for each `<id>.png` from Gemini, shrink to 48px (HighQualityBicubic, as `slice.ps1`), then per pixel `alpha = 255 - luminance`, colour = fixed ink `#2a1c10`; save to `PANEL/themes/arcane/icons/<id>.png`.
 
@@ -751,7 +771,7 @@ Run: `& E:\Users\qtuna\hom-icons\ink.ps1 -InDir E:\Users\qtuna\hom-icons\ink-raw
 
 ### Task 8: Gold set for Night Grimoire
 
-**Files:** Create `PANEL/themes/nightgrimoire/icons/<id>.png`; Modify `NightGrimoire.json` (`"icons"`), `iconSetsTest.js` (`SETS`).
+**Files:** Create `PANEL/themes/nightgrimoire/icons/<id>.png` (19); Modify `NightGrimoire.json` (`"icons"`), `iconSetsTest.js` (`SETS`).
 
 - [ ] **Step 1:** Add `'themes/nightgrimoire/icons/'` to `SETS`; tests fail.
 - [ ] **Step 2:** `& E:\Users\qtuna\hom-icons\ink.ps1 -InDir E:\Users\qtuna\hom-icons\ink-raw -OutDir <worktree>\…\themes\nightgrimoire\icons -Hex d8b86c`
@@ -762,7 +782,7 @@ Run: `& E:\Users\qtuna\hom-icons\ink.ps1 -InDir E:\Users\qtuna\hom-icons\ink-raw
 
 ### Task 9: Chalk set for Chalkboard (Gemini)
 
-**Files:** Create `PANEL/themes/chalkboard/icons/<id>.png`; Modify `Chalkboard.json`, `iconSetsTest.js`.
+**Files:** Create `PANEL/themes/chalkboard/icons/<id>.png` (19); Modify `Chalkboard.json`, `iconSetsTest.js`.
 
 - [ ] **Step 1:** Add `'themes/chalkboard/icons/'` to `SETS`; tests fail.
 - [ ] **Step 2: Gemini** (same skill, references from Task 7 Step 2): 
@@ -780,7 +800,7 @@ Same judging and "match the second image" rule as Task 7, first approved icon as
 
 **Files:** Modify `README.md` (## Credits), `THIRD-PARTY-NOTICES.md.in` (new section after the fonts section), `docs/NEXUS_PAGE.bbcode` (Credits block).
 
-- [ ] **Step 1:** From `docs/icons/game-icons-picks.json`, list the distinct authors. Add to all three files: "Panel icons: shapes from game-icons.net by <authors>, licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic." In `THIRD-PARTY-NOTICES.md.in` also list each `id → author/name`.
+- [ ] **Step 1:** From `docs/icons/game-icons-picks.json`, list the distinct authors. Add to all three files: "Panel icons (19): shapes from game-icons.net by <authors>, licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic." In `THIRD-PARTY-NOTICES.md.in` also list each of the 19 `id → author/name`.
 - [ ] **Step 2:** `bash shoot.sh final`; build one comparison page (before vs final, 5 designs × 3 screens) and send it to the user.
 - [ ] **Step 3:** `node run-tests.js` passes; `node tools/make-dev-harness.js --check` exits 0.
 - [ ] **Step 4: Commit** — `git commit -am "Credits: game-icons.net authors for the panel icons (CC BY 3.0)"`
