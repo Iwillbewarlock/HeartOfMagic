@@ -143,6 +143,11 @@ var CanvasCullTest = {
                 var ix2 = r._turnsOf(r._cullIndex()), rot0 = g.NodeBatch.turnAt('A', n0.x, n0.y);
                 this.check(ix2 !== ix && ix2.turn[0] === Math.cos(rot0) && ix2.turn[1] === Math.sin(rot0),
                     "a school changed in place: the index made again, the spell's turn from its new school");
+                // The same school again (every batch reply): nothing made again
+                r._cullDirty = false;
+                P.updateNodeFromCache(n0);
+                this.check(r._cullDirty === false && r._turnsOf(r._cullIndex()) === ix2,
+                    'a reply with the same school: the index kept');
             }
 
             // The lists change: made again

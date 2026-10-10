@@ -70,7 +70,7 @@
                 if (labelText === null) continue;
 
                 // Transform node position WITH rotation, but text stays screen-aligned;
-                // off the canvas (and its margin) is ruled out before the lookups below
+                // off the canvas (and its margin) is ruled out before the filter and width lookups
                 var rotatedX = node.x * cos - node.y * sin;
                 var rotatedY = node.x * sin + node.y * cos;
                 var screenX = rotatedX * this.zoom + this.panX + cx;
