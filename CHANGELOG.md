@@ -6,8 +6,10 @@ After updating: to drop spells that only a mod's debug tome teaches, **Scan** an
 
 ### New
 
-- **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then. Picking a
-  letter key now warns that typing that letter in a search box also closes the panel.
+- **No hotkey, if you like.** Settings > Hotkey has a **None** button: no key opens the panel then (to get a
+  key back, open it from the console with `cgf "SpellLearning.ToggleMenu"`, or set `hotkeyCode` in
+  `SKSE/Plugins/SpellLearning/config.json`). Picking a letter key now warns that typing that letter in a
+  search box also closes the panel.
 - **More perk trees work with every spell mod.** Custom Skills magic trees (Hydromancy, Atromancy),
   Hemomancy, Venomancy and Everdamned give their perks only to the spells of the mods their patches name;
   Heart of Magic now adds their keywords to every spell the librarian tagged with that element - water damage

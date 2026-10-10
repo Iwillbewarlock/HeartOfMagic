@@ -3,21 +3,16 @@
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "ThreadUtils.h"
-#include "SpellScanner.h"
 
 // =============================================================================
 // SPELL GRANTING
 // =============================================================================
 
-bool SpellEffectivenessHook::CanLearnEarly(const RE::SpellItem* spell)
+bool SpellEffectivenessHook::CanLearnEarly(RE::SpellItem* spell)
 {
-    if (!spell || spell->GetSpellType() != RE::MagicSystem::SpellType::kSpell) {
-        return false;
-    }
-    // The costliest effect's school, as the learning target and cast XP read it
-    const auto* effect = spell->GetCostliestEffectItem();
-    return effect && effect->baseEffect &&
-        SpellScanner::GetSchoolName(effect->baseEffect->GetMagickSkill()) != "Unknown";
+    // The school the learning target and cast XP use (first effect, else the costliest)
+    return spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell &&
+        !ProgressionManager::TargetSchoolOf(spell).empty();
 }
 
 void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)

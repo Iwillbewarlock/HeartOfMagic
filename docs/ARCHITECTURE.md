@@ -121,7 +121,7 @@ and has neither mark.
   at once, no learning target, early learning, weakening or ISL study. A tome that teaches a power, lesser power
   or ability (a mod's teleport power, for one) gets the same handling: the scan keeps only `kSpell`, so the tree
   never has it, and the progression path would learn it weakened with no way to raise it (2026-10-07).
-  A spell with no school (its costliest effect has none of the five) is the same case: the tree builder keeps
+  A spell with no school (neither its first effect nor its costliest has one of the five: `ProgressionManager::TargetSchoolOf`) is the same case: the tree builder keeps
   only the five schools, it can never be a learning target and casting it earns no XP.
   `SpellEffectivenessHook::CanLearnEarly` (kSpell of one of the five schools) guards every way into early learning - `GrantEarlySpell`,
   `RegisterISLPendingSpell`, `AddXP`'s threshold grant (so the public API and Papyrus cannot weaken a power
@@ -217,7 +217,9 @@ game the placed references of cells that are not loaded are not in memory:
   `SU04SpellTomeDebug` ("사'칠 배치", which moves the follower home) sits in the `SachilDebug` cell. On the
   author's load order 3 BOOK records match and all 3 are debug books; the pass leaves out 1 tome
   (`byDebug`, in the `TomeReach:` log line and `tome-reach-test`'s first line). Spell editor ids are not
-  used: the engine keeps none for spells, while the pass reads the BOOK's from the plugin file.
+  used: the engine keeps none for spells, while the pass reads the BOOK's from the plugin file. Limit: it
+  goes by the name, so a real tome whose editor id happens to contain `debug` is left out too; its spell
+  stays in the tree only if another reached tome teaches it.
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
   the perk adapters.

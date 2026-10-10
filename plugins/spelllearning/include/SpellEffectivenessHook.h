@@ -97,7 +97,7 @@ public:
     // A power, lesser power or ability, or a spell with no school, is never in the tree,
     // never a learning target and earns no cast XP (SpellCastHandler), so once
     // weakened it would stay weakened for good
-    static bool CanLearnEarly(const RE::SpellItem* spell);
+    static bool CanLearnEarly(RE::SpellItem* spell);
 
     // Grant spell to player when unlock threshold reached
     static void GrantEarlySpell(RE::SpellItem* spell);
