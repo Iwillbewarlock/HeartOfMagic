@@ -110,20 +110,6 @@ the KERIS font), and the `README.txt` in each folder names every file's source f
 `plugins/PrismaUI_API.h` is the API header the PrismaUI framework
 (<https://www.nexusmods.com/skyrimspecialedition/mods/148718>) provides for other mods to copy into their projects.
 
-### SkyPrompt API header - MIT
-
-`plugins/Combat/include/SkyPrompt/API.hpp` is the API header of SkyPrompt by A. Ege Yilmaz (QTR-Modding,
-<https://github.com/QTR-Modding/SkyPromptAPI>, copied at commit `cb4e551`), MIT licensed:
-Copyright (c) 2025-2026 A. Ege Yilmaz. It is used by the combat addon `SL_Combat` (docs/COMBAT.md), which
-needs SkyPrompt installed; the addon is not in the release archive yet.
-
-### SKSE Menu Framework API header - MIT
-
-`plugins/Combat/include/SKSEMenuFramework/SKSEMenuFramework.h` is the API header of SKSE Menu Framework by
-Thiago099 (<https://github.com/Thiago099/SKSE-Menu-Framework-2-Example>, copied at commit `cd1f277`), MIT
-licensed. One change: the framework's DLL is looked up when a function is first used, not at static
-initialisation. Used by the `SL_Combat` settings page.
-
 ### Immersive Spell Learning - DESTified patch script (`optional/ISLPatch`)
 
 `optional/ISLPatch/Scripts/Source/DEST_ISL_PlayerSpellLearningScript.psc` and its compiled `.pex` are a

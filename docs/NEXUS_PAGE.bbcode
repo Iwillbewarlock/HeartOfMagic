@@ -31,13 +31,13 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [list]
 [*][b]More perk trees work with every spell mod:[/b] Hydromancy, Atromancy, Hemomancy, Venomancy and Everdamned give their perks only to the spells their own patches name; Heart of Magic now adds their keywords to every spell with that element, whatever mod it comes from. Subclasses of Skyrim 2 turns on the Adamant and Ascension adapters too.
 [*][b]Cost perks reach more modded spells:[/b] a tome spell whose plugin left its half-cost perk empty never got cheaper with the Novice/Apprentice/... perks. It now gets the vanilla one for its school and tier (in memory only; the tree still reads the spell as its plugin wrote it).
-[*][b]Better spell tags, so the tree groups more spells together:[/b] stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage are recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are no longer curses, daedra summons no longer soul magic, paralysis no longer creature or human magic, and vampire summons and blood-named defences no longer blood magic.
+[*][b]Better spell tags, so the tree groups more spells together:[/b] stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage are recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are no longer curses, daedra summons no longer soul magic, paralysis no longer creature or human magic, and summons, reanimations and blood-named defences no longer blood magic.
 [/list]
 
 [size=4][b]Panel[/b][/size]
 [list]
 [*][b]No hotkey, if you like:[/b] Settings > Hotkey has a [b]None[/b] button (to get a key back: console [i]cgf "SpellLearning.ToggleMenu"[/i], or [i]hotkeyCode[/i] in config.json). Picking a letter key warns that typing it in a search box closes the panel.
-[*][b]Smoother:[/b] zoomed out (the opening view included) at most 50 spell names are drawn, without outline - the selected and learning ones always, the rest nearest the middle of the screen; the names' letters are prepared while the panel sits still, so the first zoom-in no longer stalls (most noticeable with Korean, Chinese or Japanese names); the idle panel repaints about half as much.
+[*][b]Smoother:[/b] zoomed out (the opening view included) at most 50 spell names are drawn, without outline - the selected and learning ones always, the rest nearest the middle of the screen; the names' letters are prepared while the panel sits still, so the first zoom-in stalls much less (most noticeable with Korean, Chinese or Japanese names); the idle panel repaints about half as much.
 [/list]
 [b]After updating:[/b] open the panel, [b]Scan[/b], and [b]build the tree again[/b].
 

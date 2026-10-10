@@ -6,7 +6,7 @@ Project instructions for Claude Code when working with Heart of Magic.
 
 Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP-based progression system for Skyrim SE/AE. It scans all spells in the player's load order, generates prerequisite trees with a native C++ Classic (tier-first) builder using NLP algorithms (TF-IDF, cosine similarity, fuzzy matching), and tracks learning progress through casting, tome study, and other XP sources.
 
-**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three release DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon), plus `SL_Combat.dll` (combat addon, dev install only until its release milestone - docs/COMBAT.md). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
+**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three release DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
 
 ## Documentation Decision Tree
 

@@ -121,10 +121,10 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 `primaryAV: Health` 일 때만 혈을 준다(이펙트 조건은 한 이펙트에서 함께 성립해야 하므로, 키워드는 소환 이펙트에, Health 는
 다른 이펙트에 있는 주문은 맞지 않는다). Sacrilege 가 제 혈 마법에 붙이는 `SQL_VampireLord_Keyword_IsBloodMagic` 은
 `10_sacrilege.json` 이 받는다(Health 를 건드리지 않는 "마력의 소용돌이" 둘이 이것으로 혈에 남는다). Sacrilege 는 이 키워드를
-흡혈귀 군주의 시체 되살림에도 붙이므로, `00_mgef.json` 이 모든 `Reanimate` 이펙트 주문에서 혈을 뗀다(`remove`).
+흡혈귀 군주의 시체 되살림에도 붙이므로, `00_mgef.json` 이 모든 `Reanimate` 이펙트 주문에서 혈을 뗀다(`remove`, 어느 룰이 준 혈이든: 체력 비용 이펙트와 되살림을 함께 가진 혈마법 모드의 주문도 `sacrifice` 만 남는다. 사용자 결정의 범위).
 고정 덤프에서 혈 136 → 115, 빠진 21개는 `MEASURED.md` 2-1절.
 
-혈 마법 모드의 **자체 키워드**는 프레임워크 등급 파일 둘이 받는다. `10_hemomancy.json`: `Kata_BloodMagicPower*` → `blood`,
+혈 마법 모드의 **자체 키워드**는 프레임워크 등급 파일 셋이 받는다(Sacrilege 는 위). `10_hemomancy.json`: `Kata_BloodMagicPower*` → `blood`,
 `Kata_BloodCost*` → `blood` + `sacrifice`. `10_everdamned.json`: `ED_Mechanics_Keyword_Hemomancy` → `blood`,
 `ED_Mechanics_Keyword_BloodCost*` · `DeductBloodCost` → `blood` + `sacrifice`(피로 값을 치르는 주문). 고정 덤프에 두 모드가
 없어 0개 주문에 맞았다 — **측정하지 않은 룰이다.** 퍽 어댑터(`adapters/hemomancy.json`·`everdamned.json`)가 다른 혈 주문에

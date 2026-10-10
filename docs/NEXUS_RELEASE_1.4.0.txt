@@ -29,7 +29,7 @@ Fixed: scanning freezes the game for much less time - the text work and classifi
 No hotkey, if you like: Settings > Hotkey has a None button, and a warning when you pick a letter key.
 More perk trees work with every spell mod: Hydromancy, Atromancy, Hemomancy, Venomancy and Everdamned give their perks to every spell with that element, whatever mod it comes from; Subclasses of Skyrim 2 turns on the Adamant and Ascension adapters.
 Cost perks work on more modded tome spells: a spell whose plugin left its half-cost perk empty gets the vanilla one for its school and tier.
-Better spell tags: stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are not curses, daedra summons not soul, paralysis not creature or human, vampire summons and blood-named defences not blood.
+Better spell tags: stagger and knockback spells are force; modded poison, sun, necrotic, disease and wind damage recognised; speed, carry weight and skill buffs are strengthen or curse; mod teleports are teleport. Absorbs are not curses, daedra summons not soul, paralysis not creature or human, summons, reanimations and blood-named defences not blood.
 Zoomed out (the opening view included), at most 50 spell names are drawn and they have no outline; the selected and learning ones always show, the rest nearest the middle of the screen.
 Smaller hitch on the first zoom-in: the spell names' letters are prepared while the panel sits still (most noticeable with Korean, Chinese or Japanese names).
 A lighter idle panel: the stars move every second frame, the heart no longer repaints the whole tree, and a tree change is painted once, not twice.
