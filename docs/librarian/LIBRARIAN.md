@@ -83,12 +83,36 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 
 `creature`·`human` 은 **주문을 거는 대상**이다. 정신계와 되살리기(시체에 건다)는 대상이 산 것이나
 시체라 둘을 받는다. 언데드 퇴치는 대상이 언데드라 둘을 떼고, 광분·마비에 부품으로 든 고무·진정
-이펙트는 그 주문이 하는 일이 아니라 `courage`·`pacify` 를 뗀다(`00_mgef.json`). 대상 없는 소환은
+이펙트는 그 주문이 하는 일이 아니라 `courage`·`pacify` 를 뗀다(`00_mgef.json`). 마비는 그 부품이 가져온
+`creature`·`human` 도 뗀다 — 마비는 몸을 붙드는 것(`flesh`)이다(2026-10-10). 대상 없는 소환은
 둘을 받지 않는다. 이펙트 조건이 대상을 좁히면 그대로 따른다(`targetRequires`): 언데드만(`undead`, 둘 없음),
 데이드라만(`daedra`), 사람만(`human` 만), 동물만(`creature` 만), 드워프 기계만(`construct`·`metal`).
 
 소환은 **불러낸 것의 종족**을 따른다(`summonedAny`): 데이드라면 `daedra`, 언데드면 `undead`, 유령이면
 `apparition`, 드워프 기계면 `construct`·`metal`. 데이드라와 기계는 묶인 영혼이 아니라 `soul` 을 뗀다.
+데이드라는 두 번째 길로도 뗀다(2026-10-10, 프레임워크 등급): 소환 이펙트에 KIT `KIT_MagicSummonType_Daedric*`·
+`KIT_MagicElement_Daedric` 이나 OCF `OCF_MgefSpellSummon_Daedra` 가 있으면 `soul` 을 뗀다. 스캔이 읽는 소환수 종족
+키워드가 데이드라를 데이드라로 말하지 않는 경우가 있어서다(`ToDo.md` 참조). 아트로나크 퍽 고리
+`MagicSummonFire/Frost/Shock` 로는 넓히지 않는다 — 모드가 온갖 소환에 따라 붙인다.
+
+**2026-10-10 에 더한 구조 룰** (`00_mgef.json`, 같은 덤프에서 정답셋 F1 82.5 → 83.2, 숫자는 `MEASURED.md`):
+
+- **흡수는 저주가 아니다.** 매지카·지구력 `detrimental` 룰이 흡수(`Absorb`)에 붙인 `curse` 를 뗀다. 흡수는 `siphon`
+- **비틀거림은 `force`.** `Stagger` archetype 이고 다른 원소가 없을 때만(`noElement`). `noElement` 없이 붙이면 원소를
+  가진 비틀거림 주문에까지 붙어 정답셋 정밀도가 80.8 로 떨어진다. `noElement` 룰은 처음 맞은 것이 정하므로
+  파일 맨 끝에 둔다
+- **모드의 `MagicDamage<원소>` 키워드** (`mgefKeywordSuffix`): `MagicDamagePoison` → `poison`, `MagicDamageSun` →
+  `sun`, `MagicDamageNecro` → `necrotic`, `MagicDamageKinetic` → `force`, `MagicDamageDisease` → `disease`,
+  `MagicDamageWind` → `air`. **엔진 구조가 아니라 이름 관례다**: 모드 제작자가 바닐라 `MagicDamageFire` 를 본떠
+  접두어만 붙인 키워드를 잡는다. 관례를 따르지 않은 키워드는 놓친다
+- **체력 밖의 능력치** (`PeakValueModifier`): 이동 속도, 소지 무게, 점프, 무기 속도, 공격·맨손 피해, 무기·방어구·
+  은신·화술 기술, 재생 속도. 올리면 `strengthen`, 내리면 다른 원소가 없을 때만 `curse`. 능력치마다 룰 하나.
+  `MovementNoiseMult`(소리 죽이기)는 일부러 뺐다
+
+같은 날 `10_kit.json` 에 주문 레벨 순간이동을 더했다: SPEL 키워드 `KIT_SpellTeleportType_Normal` → `teleport`.
+이펙트 레벨 `KIT_MagicTeleportType_Normal` 은 여전히 쓰지 않는다(모든 소환에 붙는다, `MEASURED.md` 3-1절). **주의:** 이 SPEL
+키워드는 동료를 플레이어 곁으로 부르는 주문(세라노·여우 그레이 소환 등)에도 붙어 있어 그것도 `teleport` 가 된다.
+기록만으로는 "내가 가는 것" 과 "그가 오는 것" 을 가를 수 없다. 이 덤프에서 12개 주문이 받는다.
 
 **키워드는 붙인 제작자의 의도로 읽는다.** 키워드 하나를 태그로 옮기기 전에, 그 키워드가 실제로 어느
 주문들에 붙어 있는지 보고 제작자가 무엇을 표시하려 했는지부터 정한다. `MagicSummonFamiliar` 는 이름과
@@ -307,7 +331,7 @@ Spell Research 라벨(`librarian-test --spellresearch -a`)의 정답셋 점수�
 
 ## 7. 아직 없는 것
 
-- **텍스트 룰 · LLM 폴백 (M7)** — 태그 0개가 (a) 18.6% / (b) 6.9%. Stoneflesh 와 Ironflesh 는
+- **텍스트 룰 · LLM 폴백 (M7)** — 태그 0개가 (a) 14.9% / (b) 6.7% (3,155 주문 덤프, 2026-10-10). Stoneflesh 와 Ironflesh 는
   MGEF 구조가 완전히 같아 `earth` 와 `metal` 을 구조로는 가릴 수 없다
 - **손님 어댑터 (M5 트리)** — 트리는 카탈로그의 원소를 받는다(4절). 퍽 모드 손님은 6절
 - 룰은 스캔마다 다시 읽는다. 스캔이 드물어 문제가 없지만 캐시할 여지는 있다

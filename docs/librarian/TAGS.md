@@ -42,7 +42,7 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | **`eldritch`** | 데이드라도 아에드라도 아닌 바깥의 것. **SR 에 없음** — KIT `SpellDamageType_Eldritch`, `SpellSummonType_Eldritch`, OCF `MgefClassEldritch` | (모드 전용) |
 | `fire` | 불꽃과 열 | Flames / Firebolt / Fire Rune |
 | `flesh` | 육신 자체를 다루는 것. 마법 갑옷, 시체, 마비 | Oakflesh / Raise Zombie / Paralyze |
-| `force` | 물리적 밀어냄·충격 | Lesser Ward / Steadfast Ward |
+| `force` | 물리적 밀어냄·충격. 다른 원소가 없는 비틀거림·밀쳐내기(`Stagger`)도 여기다 (2026-10-10) | Lesser Ward / Steadfast Ward |
 | `frost` | 냉기와 서리 | Frostbite / Ice Spike / Frost Rune |
 | `health` | 체력 자원 자체를 주고받는 것. **피해 주문 전반이 아니다** (2절 주의) | Healing / Equilibrium / Courage |
 | **`holy`** | 신성·축성된 힘. `sun` 보다 넓다. **SR 에 없음** — OCF `MgefClassHoly`, `SpellDamage_Holy` | (모드 전용) |
@@ -75,7 +75,7 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | `control` | 대상의 행동을 지배한다. 소환수 명령, 마비, 되살린 시체 | Conjure Boneman / Raise Zombie |
 | `courage` | 사기를 올린다 | Courage / Rally |
 | `curing` | 해로운 것을 없애거나 되돌린다 | Healing / Fast Healing / Healing Hands |
-| `curse` | 대상을 약화시키는 지속 효과 | Freeze / Ignite / Spectral Arrow |
+| `curse` | 대상을 약화시키는 지속 효과. 흡수는 `siphon` 이지 저주가 아니다 (2026-10-10) | Freeze / Ignite / Spectral Arrow |
 | **`dispel`** | 걸린 마법을 걷어낸다. **SR 에 없음** — KIT `SpellAADispel`, OCF `MgefSpellDispel` | (모드 전용) |
 | `fear` | 겁을 주어 달아나게 한다 | Fear / Turn Lesser Undead |
 | `frenzy` | 광란시켜 아무나 공격하게 한다 | Fury / Frenzy / Frenzy Rune |
@@ -87,7 +87,7 @@ M2 측정에서 MGEF 구조만으로 실제 붙은 것은 원소 24종 / 기법 
 | `strengthen` | 능력치를 끌어올린다 | Courage / Rally / Call to Arms |
 | `summoning` | 존재를 불러낸다 | Conjure Boneman / Conjure Familiar |
 | `telekinesis` | 물리적으로 붙든다. 마비도 여기다 (정답셋이 그렇게 라벨링한다) | Telekinesis / Paralyze / Ash Shell |
-| **`teleport`** | 공간을 건너뛴다. **SR 에 없음** — KIT `SpellTeleportType`, NSV `Magic_Teleport`, OCF `MgefSpellSpace_Teleport` | (모드 전용) |
+| **`teleport`** | 공간을 건너뛴다. **SR 에 없음** — KIT `SpellTeleportType`, NSV `Magic_Teleport`, OCF `MgefSpellSpace_Teleport`. 주문 레벨 `KIT_SpellTeleportType_Normal` 은 동료를 플레이어 곁으로 부르는 주문(세라노 소환)에도 붙어, 그것도 `teleport` 가 된다 | (모드 전용) |
 | `transform` | 형태를 바꾼다 | Bound Sword / Equilibrium |
 
 ---
@@ -104,10 +104,12 @@ M2 에서 실제로 틀렸던 지점들이다. 룰을 쓸 때 여기를 먼저 �
 `{infuse}` 다. `strengthen` 은 Courage 처럼 능력치를 직접 올릴 때다.
 
 **마비는 `control` 이 아니라 `telekinesis` 다.** Paralyze 가 `{flesh}` + `{telekinesis}` 다.
-붙들어두는 것이지 조종하는 게 아니라는 해석이다.
+붙들어두는 것이지 조종하는 게 아니라는 해석이다. 마비에 부품으로 든 진정·고무 이펙트가 가져온
+`creature`·`human` 은 뗀다(2026-10-10).
 
 **소환은 `soul` 을 동반한다.** 영혼을 묶어 형체를 준다는 관점. Bound Sword 조차
-`{daedra, soul, weapon}` 이다.
+`{daedra, soul, weapon}` 이다. 다만 불러낸 것이 데이드라나 드워프 기계인 소환은 묶인 영혼이 아니라
+`soul` 을 뗀다(소환수 종족, 또는 KIT·OCF 의 데이드라 소환 키워드, 2026-10-10).
 
 **`creature` 와 `human` 은 대상을 말한다.** 살아있는 것에게 거는 주문이면 붙는다. Calm, Fury,
 Detect Life, Heal Other, 그리고 시체에 거는 되살리기. 거는 대상이 없는 소환에는 붙지 않는다

@@ -1,29 +1,29 @@
 {
   "_comment": "Written by tools/librarian-check.js --update. Accuracy may not drop; budgets only warn.",
   "dump": "takealook-2026-09-30.json",
-  "updated": "2026-10-02",
+  "updated": "2026-10-10",
   "accuracy": {
-    "noTagsPct": 9.1,
+    "noTagsPct": 6.7,
     "all": {
-      "p": 82.5,
+      "p": 83.9,
       "r": 82.5,
-      "f1": 82.5
+      "f1": 83.2
     },
     "mgef": {
-      "p": 85.4,
-      "r": 74.8,
-      "f1": 79.8
+      "p": 86.9,
+      "r": 75.6,
+      "f1": 80.9
     },
-    "mgefNoTagsPct": 20.2,
+    "mgefNoTagsPct": 14.9,
     "spellResearch": {
-      "p": 84.8,
+      "p": 86.3,
       "r": 81.7,
-      "f1": 83.2
+      "f1": 83.9
     }
   },
   "judge": {
-    "2026-09-30": 87.7,
-    "2026-09-30b": 91.6
+    "2026-09-30": 88.8,
+    "2026-09-30b": 92.2
   },
   "budgets": {
     "classifyMs": 15000,

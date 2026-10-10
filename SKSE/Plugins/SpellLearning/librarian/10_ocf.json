@@ -63,6 +63,9 @@
       "add": { "elements": ["apparition"], "techniques": ["summoning"] } },
     { "match": { "mgefKeyword": "OCF_MgefSpellSummon_Undead" },
       "add": { "elements": ["undead"], "techniques": ["summoning"] } },
+    { "_": "a daedra is not a bound soul: the summon rule in 00_mgef.json gave it soul",
+      "match": { "archetype": "SummonCreature", "mgefKeyword": "OCF_MgefSpellSummon_Daedra" },
+      "remove": { "elements": ["soul"] } },
 
     { "_": "conjured gear",
       "match": { "mgefKeyword": "OCF_MgefSpellBound_Weapon" },

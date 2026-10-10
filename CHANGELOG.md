@@ -23,6 +23,13 @@ After updating: to drop spells that only a mod's debug tome teaches, **Scan** an
   never got cheaper with the Novice/Apprentice/... perks (or the College of Winterhold tree). It now gets the
   vanilla one for its school and tier, in memory only and only while it has none; the scan, the spell's tier
   and the tree still read the spell as its plugin wrote it.
+- **Better spell tags, so the tree groups more spells together.** Stagger and knockback spells with no other
+  element are now force spells and sit with them; modded poison, sun, necrotic, disease and wind damage
+  effects that follow vanilla's keyword naming are recognised; spells that raise or lower speed, carry weight,
+  weapon skills and the like get strengthen or curse; mod spells that move you somewhere are teleport spells
+  (a spell that calls a follower to you counts too). Absorb spells are no longer marked as curses, daedra
+  summons no longer as soul magic, and paralysis no longer as creature or human magic. **Scan** and
+  **build the tree again** to see it.
 
 ### Fixed
 

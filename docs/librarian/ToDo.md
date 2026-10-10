@@ -238,6 +238,15 @@
       `librarian-test -t mgef` 로 (a) 만 골라 잴 수 있다
 - [ ] (c) 이펙트명 — 여기부터 **언어 의존**이라 한글 로드오더에서 안 먹는다. 영어 환경 보너스로만
 - [x] 태그 0개 비율 = (a) **18.6% (268/1440)** / (b) **6.9% (99/1440)** — LLM 폴백이 감당할 크기
+- [ ] **분류 룰 문법에 퍽 어댑터 매처의 키가 없다** (2026-10-10 조사에서 나옴). 어댑터의 이펙트 조건은
+      `delivery`·`archetypeAny`·`archetypeNone`·`primaryAVAny`·`minDuration`·`noDuration` 등을 읽는데
+      (`src/librarian/LibrarianAdapters.cpp` 90-103행), 분류 룰의 `kMatchKeys`(`src/librarian/LibrarianRules.cpp`
+      97-103행)에는 없다. 그래서 2026-10-10 의 능력치 룰은 `primaryAVAny` 하나 대신 능력치마다 두 줄씩 36줄이 됐다.
+      같은 판정 코드를 함께 쓰게 하면 룰이 짧아지고 두 문법이 갈라지지 않는다
+- [ ] **스캐너의 소환수 종족 키워드가 틀려 보인다** (2026-10-10 조사에서 나옴). 바닐라 ConjureDremoraLord 의
+      `summonedKeywords` 가 `ActorTypeAnimal`·`ActorTypeCreature` 로 읽힌다. 드레모라는 데이드라라 `summonedAny:
+      ActorTypeDaedra` 룰이 `soul` 을 떼야 하는데 못 뗀다(그래서 KIT·OCF 키워드로 두 번째 길을 냈다). DremoraRace
+      레코드의 키워드와 소환 NPC 의 템플릿 체인을 대 보고 확인할 것
 - 산출: `docs/librarian/MEASURED.md` (숫자·근거·주의사항 전문)
 - 의존: M1
 - 테스트: `librarian-test` 가 같은 입력에 같은 숫자를 낸다. 숫자를 Concept.md 2-2절에 반영
