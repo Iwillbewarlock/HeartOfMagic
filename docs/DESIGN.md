@@ -861,6 +861,21 @@ stays 0.8. `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
   in front. **A leaking 300 ms poll** in Oracle settings (a new one per visit to Oracle mode) is gone (and
   the Oracle mode itself since 2026-09-27).
 
+**Measured and not done (2026-10-10, offline Ultralight lab, D:/DEV/prismaui-lab/results/hom-lens-2026-10-10.md):**
+- **A lens** (full detail - names, outlines, glow - only in a circle round the cursor, a cheap base layer
+  elsewhere, as in foveated renderers). The worst zoom-step frames (9-10 ms) are the stretched paste of the
+  layer while the wheel turns and the piece build after it settles, and neither draws a name; names are in
+  the last frame of a rebuild only (3-6 ms of 7-9). With every name turned off the settled worst went 9.7 to
+  9.2-9.7 ms (noise); glow is under 0.1 ms a frame, the outline under 1 ms. At zoom 1.141 a 15%-area lens
+  holds 15 of the 82 names on screen, and a lens that follows the cursor would repaint its inside on every
+  mouse move, which the baked layer never does today. The one real stall - the first zoom past 0.8 - was
+  the letters' first rasterisation, fixed by the idle warm-up above, not by where the names are.
+- **Batching the selected-path (pass 2) and learning-path (pass 3) lines** as pass 1 is batched. With a
+  school root selected (332 path lines) a whole repaint went 21.6 to 21.4 ms (Arcane) and 19.3 to 19.4
+  (Classic) - nothing - while 2.7% (Arcane) and 2.0% (Classic) of the pixels changed where the lines meet
+  (a seam stroked once instead of twice). Reverted. The lab inject that selects a root is
+  `targets/hom/lens/_lab_select_root.js`.
+
 ### Chalkboard design (2026-09-27)
 
 Replaced Candlelit Tome. A lesson on the board: `presets/design/Chalkboard.json` reuses
