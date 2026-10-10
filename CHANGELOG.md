@@ -33,6 +33,8 @@ After updating: to drop spells that only a mod's debug tome teaches, **Scan** an
 
 ### Fixed
 
+- Vampire summons, reanimations and blood-named defensive spells no longer count as blood magic in the tree's
+  grouping.
 - **A tome that teaches a power, lesser power or ability teaches it at full strength at once** (a mod's
   teleport power, for one, was learned at 20% and did not work). The same goes for a tome spell with no magic
   school. Neither is ever in the tree, so their tomes now work the vanilla way, with no learning target, XP or

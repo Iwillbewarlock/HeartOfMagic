@@ -116,6 +116,14 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 0개였다. 옮겨도 전체 룰의 태그는 같다(하네스로 전후 카탈로그 비교, 위 2개만 다름). 구조 등급 숫자는 이 룰들이
 들어와 바뀌었다(`MEASURED.md` 2-1절).
 
+**소환·되살림·방어는 혈이 아니다 (2026-10-10, 사용자 결정).** KIT 는 `KIT_MagicElement_Blood`·`Vampiric` 을 흡혈귀
+군주의 시체 되살림, 가고일·사냥개·거머리 소환, 용혈 같은 방어 주문에도 붙인다. 그래서 두 룰은 **같은 이펙트**가
+`primaryAV: Health` 일 때만 혈을 준다(이펙트 조건은 한 이펙트에서 함께 성립해야 하므로, 키워드는 소환 이펙트에, Health 는
+다른 이펙트에 있는 주문은 맞지 않는다). Sacrilege 가 제 혈 마법에 붙이는 `SQL_VampireLord_Keyword_IsBloodMagic` 은
+`10_sacrilege.json` 이 받는다(Health 를 건드리지 않는 "마력의 소용돌이" 둘이 이것으로 혈에 남는다). Sacrilege 는 이 키워드를
+흡혈귀 군주의 시체 되살림에도 붙이므로, `00_mgef.json` 이 모든 `Reanimate` 이펙트 주문에서 혈을 뗀다(`remove`).
+고정 덤프에서 혈 136 → 115, 빠진 21개는 `MEASURED.md` 2-1절.
+
 혈 마법 모드의 **자체 키워드**는 프레임워크 등급 파일 둘이 받는다. `10_hemomancy.json`: `Kata_BloodMagicPower*` → `blood`,
 `Kata_BloodCost*` → `blood` + `sacrifice`. `10_everdamned.json`: `ED_Mechanics_Keyword_Hemomancy` → `blood`,
 `ED_Mechanics_Keyword_BloodCost*` · `DeductBloodCost` → `blood` + `sacrifice`(피로 값을 치르는 주문). 고정 덤프에 두 모드가
@@ -215,7 +223,7 @@ UTF-8이 아닌 플러그인(시스템 코드 페이지의 한글·일본어 이
 - 혈 기준(구조 룰, 2026-09-30 개정. 2026-10-10 부터 이 파일이 아니라 `00_mgef.json`, KIT 키워드 둘은 `10_kit.json` —
   아래 "혈 룰이 있는 곳"): 흡혈은 혈에 든다. **(1)** 흡혈 표시 — 적대 효과의
   `MagicVampireDrain`(시전자와 무관. Mysticism 의 해제 주문에도 이 키워드가 붙어 있어 적대로 좁혔다)와
-  `KIT_MagicElement_Vampiric`, **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수(체력·지구력 Absorb,
+  `KIT_MagicElement_Vampiric`(2026-10-10 부터 같은 이펙트가 Health 일 때만, 위 "소환·되살림·방어는 혈이 아니다"), **(2)** 뱀파이어가 쓰는(`castByVampires`) 흡수(체력·지구력 Absorb,
   `KIT_MagicAbsorbType_Health*`/`Stamina*`), 그리고 피 속성 키워드(10_kit, 10_ocf). 뱀파이어가 쓰는 얼음
   가시 같은 일반 마법은 혈이 아니고, 마법사의 체력 흡수도 혈이 아니다. 매지카 흡수는 비전(키워드·망토 변형
   포함). 2026-09-27 의 "이름에 blood·vampir·sanguin 이 든 모드의 주문 전부" 룰은 지웠다 — 흡혈 모드의 번개

@@ -1,0 +1,13 @@
+{
+  "tier": "framework",
+  "_comment": [
+    "Sacrilege - Minimalistic Vampires of Skyrim keywords. Evidence tier 2: present",
+    "only when the mod is installed.",
+    "SQL_VampireLord_Keyword_IsBloodMagic is the mod's own mark for its blood",
+    "magic. It also sits on the vampire lord's Raise Dead; reanimations are not",
+    "blood (2026-10-10), and 00_mgef.json removes blood from every Reanimate."
+  ],
+  "rules": [
+    { "match": { "mgefKeyword": "SQL_VampireLord_Keyword_IsBloodMagic" }, "add": { "elements": ["blood"] } }
+  ]
+}
