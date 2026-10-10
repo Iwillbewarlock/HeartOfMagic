@@ -1,6 +1,7 @@
 /**
- * IconSetsTest - every icon folder a shipped design names (plus the line set
- * and the gold line set) has a PNG for each of the 19 ids.
+ * IconSetsTest - each icon folder in SETS has a PNG for each of the 19 ids.
+ * SETS holds the two line folders (neutral and gold); later tasks add the
+ * folders the shipped designs name.
  * Depends on: homIcons.js, node fs.
  */
 var IconSetsTest = {
