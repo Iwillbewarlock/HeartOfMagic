@@ -125,7 +125,7 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 고정 덤프에서 혈 136 → 115, 빠진 21개는 `MEASURED.md` 2-1절.
 처음에는 이 결정이 KIT 룰에만 들어갔다. OCF `OCF_MgefClassBlood`(`10_ocf.json`)와 Arcanum `ADAR_SPEL_Blood_`(`10_adar.json`)는
 여전히 소환에 혈을 줘서, 같은 날 `00_mgef.json` 이 `Reanimate` 와 똑같이 모든 `SummonCreature` 이펙트 주문에서도 혈을 뗀다
-(`remove`, 어느 룰이 준 혈이든). 고정 덤프에서 115 → 109: Mysticism 가고일·가고일 브루트·죽음의 사냥개·볼키하 사냥개,
+(`remove`, 어느 룰이 준 혈이든: 되살림과 같이, 체력 비용 이펙트와 소환을 함께 가진 혈마법 모드의 주문도 `sacrifice` 만 남는다). 고정 덤프에서 115 → 109: Mysticism 가고일·가고일 브루트·죽음의 사냥개·볼키하 사냥개,
 Bloodmoon 혈의 변이체·혈류의 변이체 소환. **AI 채점의 낡은 판정 둘:** 1회차(`2026-09-30`)는 혈류의 변이체 소환
 (`Bloodmoon.esp|0x000944`), 2회차(`2026-09-30b`)는 볼키하 사냥개 소환(`MysticismMagic.esp|0xE7FECB`)의 `blood` 를 이 결정 전에
 "맞음"으로 매겼다. 이제 그 태그가 없어 회차마다 맞은 태그가 하나씩 준다(247 → 246, 273 → 272. 89.49 → 89.46%,
@@ -163,7 +163,7 @@ Bloodmoon 혈의 변이체·혈류의 변이체 소환. **AI 채점의 낡은 �
 |---|---|---|
 | `spell` | 주문 자체 | `persistentId` 하나 또는 목록(`"Natura.esp|0x000B2C"`). 수동 룰용 |
 | `pluginContains` | 주문이 온 플러그인 파일 이름 | 문자열 하나 또는 목록, 대소문자 무시 부분 일치(`"blood"`). 테마 모드를 이름으로. 출하 룰은 더 쓰지 않는다(2026-09-30, 이름이 아니라 레코드로 가른다) — 사용자 룰용 |
-| `castByVampires` | 스캐너의 `castByVampires` | 뱀파이어 NPC 가 가진 주문(NPC·종족 주문 목록과 그 안의 레벨드 리스트, Data 의 SPID `*_DISTR.ini` 에서 `Vampire` 필터로 배포되는 주문). 뱀파이어 NPC = NPC 나 그 종족에 `Vampire` 키워드가 있거나, **종족의 에디터 ID 에 `vamp` 가 든 NPC**(대소문자 무시, 2026-10-10). 키워드 없는 흡혈귀 종족(바닐라 `FalmerFrozenVampRace`, CC `ccBGSSSE001_HorkerRaceVampire`, Vigilant 의 `zzzBM*Vamp*Race` 들) 때문이다. 이 이름은 주문이 아니라 **종족 레코드**의 것이고, 엔진이 종족의 에디터 ID 는 po3 Tweaks 없이도 갖고 있다. 특성(Traits)을 템플릿에서 받는 NPC 는 템플릿 NPC 의 종족으로 판정한다(소환수 종족과 같은 `CollectSummonedNPCs`). 고정 덤프(2026-09-30)는 이 변경 전 것이라 재지 못했다 — Vigilant 라마에 흡수 6개(`zzzBMLamVampireDrain00-05`)가 혈을 더 받을 것으로 본다 |
+| `castByVampires` | 스캐너의 `castByVampires` | 뱀파이어 NPC 가 가진 주문(NPC·종족 주문 목록과 그 안의 레벨드 리스트, Data 의 SPID `*_DISTR.ini` 에서 `Vampire` 필터로 배포되는 주문). 뱀파이어 NPC = NPC 나 그 종족에 `Vampire` 키워드가 있거나, **종족의 에디터 ID 에 `vamp` 가 든 NPC**(대소문자 무시, 2026-10-10). 키워드 없는 흡혈귀 종족(바닐라 `FalmerFrozenVampRace`, CC `ccBGSSSE001_HorkerRaceVampire`, Vigilant 의 `zzzBM*Vamp*Race` 들과 `zzzCHMntrRaceVampire`) 때문이다. 이 이름은 주문이 아니라 **종족 레코드**의 것이고, 엔진이 종족의 에디터 ID 는 po3 Tweaks 없이도 갖고 있다. 특성(Traits)을 템플릿에서 받는 NPC 는 템플릿 NPC 의 종족으로 판정한다(소환수 종족과 같은 `CollectSummonedNPCs`, 템플릿마다 한 번만 걷는다). 주문(Spells)을 템플릿에서 받는 NPC 는 제 주문 목록을 게임에서 쓰지 않으므로 그 목록은 읽지 않는다(템플릿 NPC 들은 따로 읽힌다). 이름으로만 흡혈귀로 본 종족의 에디터 ID 는 debug 로그에, 걸린 시간은 info 한 줄에 남는다. 고정 덤프(2026-09-30)는 이 변경 전 것이라 재지 못했다 — Vigilant 라마에 흡수 6개(`zzzBMLamVampireDrain00-05`)가 혈을 더 받을 것으로 본다 |
 | `noElement` | 다른 룰이 원소를 하나도 주지 않은 주문 (`true` 만 뜻이 있다) | 원소 태그를 받은 집합의 여집합. 모든 룰이 붙이고 뗀 뒤 마지막에 본다. "원소 없음" 을 뜻하는 표식(Bethesda 의 `MagicDamageResist`)이 더 구체적인 증거가 없을 때만 근거가 되게 한다. 처음 맞은 룰이 정하고 다음 룰은 얹지 않으며, `remove` 와 함께 쓴 룰은 로드하지 않는다 (2026-09-30) |
 | `spellKeyword` `spellKeywordPrefix` `spellKeywordSuffix` | SPEL 키워드 | |
 | `mgefKeyword` `mgefKeywordPrefix` `mgefKeywordSuffix` | MGEF 키워드 | |

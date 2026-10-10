@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -26,11 +27,12 @@
 // HorkerRaceVampire and Vigilant's vampire races do not); races keep their
 // editor ids in the engine, po3 Tweaks or not. An NPC that takes its traits
 // from a template is judged by the template's race (CollectSummonedNPCs, as
-// for summons). Its spells are its own spell list and its
-// race's, with leveled spell lists opened all the way down - and the spells
-// Spell Distribution Framework ini files hand to vampires (a mod that adds
-// its spells to vampires that way leaves no trace in the records). Read once,
-// on the first scan: none of it changes after the game has loaded its data.
+// for summons). Its spells are its own spell list (unless it takes its spells
+// from the template) and its race's, with leveled spell lists opened all the
+// way down - and the spells Spell Distribution Framework ini files hand to
+// vampires (a mod that adds its spells to vampires that way leaves no trace in
+// the records). Read once, on the first scan: none of it changes after the
+// game has loaded its data.
 // =============================================================================
 
 namespace SpellScanner
@@ -180,36 +182,70 @@ namespace SpellScanner
             return VampireRace::kNo;
         }
 
+        // The races an NPC's traits come from: its own, or those of the NPCs its template leads to.
+        // Many NPCs share one template (a leveled list of bandits, draugr...), so each template's walk is
+        // kept by its FormID and done once per collection. Memory grows with the distinct templates
+        // (one short list of race pointers each); the whole collection's time is logged.
+        const std::vector<RE::TESRace*>& TraitRaces(RE::TESNPC* npc,
+            std::unordered_map<RE::FormID, std::vector<RE::TESRace*>>& templateRaces,
+            std::vector<RE::TESRace*>& own)
+        {
+            using Flag = RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG;
+            own.clear();
+            const bool traitsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
+                npc->actorData.templateUseFlags.any(Flag::kTraits);
+            if (traitsFromTemplate) {
+                const auto [it, added] = templateRaces.try_emplace(npc->baseTemplateForm->GetFormID());
+                if (added) {
+                    std::vector<RE::TESNPC*> npcs;
+                    // depth 1: the same walk CollectSummonedNPCs(npc) makes below a template NPC
+                    CollectSummonedNPCs(npc->baseTemplateForm, npcs, 1);
+                    for (auto* source : npcs) {
+                        auto* race = source->GetRace();
+                        if (race && std::ranges::find(it->second, race) == it->second.end()) it->second.push_back(race);
+                    }
+                }
+                if (!it->second.empty()) return it->second;
+                // a template chain that leads nowhere: the NPC's own race
+            }
+            if (auto* race = npc->GetRace()) own.push_back(race);
+            return own;
+        }
+
         void CollectVampireSpellsImpl()
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
             if (!dataHandler) return;
+            const auto started = std::chrono::steady_clock::now();
 
             std::unordered_map<RE::FormID, VampireRace> races;  // each race judged once
+            std::unordered_map<RE::FormID, std::vector<RE::TESRace*>> templateRaces;  // each template walked once
             std::unordered_set<RE::FormID> seenLists;
             std::unordered_set<RE::FormID> seenRaces;
-            std::vector<RE::TESNPC*> traitNPCs;
+            std::vector<RE::TESRace*> ownRace;
             std::vector<RE::TESRace*> vampireRaces;
             std::size_t vampires = 0;
             for (auto* npc : dataHandler->GetFormArray<RE::TESNPC>()) {
                 if (!npc) continue;
-                // The NPCs its race comes from: itself, or its template's NPCs
-                traitNPCs.clear();
-                CollectSummonedNPCs(npc, traitNPCs);
-                if (traitNPCs.empty()) traitNPCs.push_back(npc);  // a template chain that leads nowhere
-
                 vampireRaces.clear();
-                for (auto* source : traitNPCs) {
-                    auto* race = source->GetRace();
-                    if (!race) continue;
+                for (auto* race : TraitRaces(npc, templateRaces, ownRace)) {
                     const auto [it, added] = races.try_emplace(race->GetFormID(), VampireRace::kNo);
-                    if (added) it->second = JudgeRace(race);
+                    if (added) {
+                        it->second = JudgeRace(race);
+                        if (it->second == VampireRace::kName) {
+                            logger::debug("SpellScanner: vampire race by its editor id only: {}", race->GetFormEditorID());
+                        }
+                    }
                     if (it->second != VampireRace::kNo) vampireRaces.push_back(race);
                 }
                 if (vampireRaces.empty() && !npc->HasKeywordString(kVampireKeyword)) continue;
 
                 ++vampires;
-                AddSpellList(npc->actorEffects, seenLists);
+                // An NPC that takes its spells from its template does not use its own list in game; the
+                // template's NPCs are in this loop themselves, so their spells are not lost
+                const bool spellsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
+                    npc->actorData.templateUseFlags.any(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kSpells);
+                if (!spellsFromTemplate) AddSpellList(npc->actorEffects, seenLists);
                 for (auto* race : vampireRaces) {
                     if (seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, seenLists);
                 }
@@ -217,9 +253,11 @@ namespace SpellScanner
             const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });
             const auto byName = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kName; });
             const std::size_t distributed = ReadDistrFiles();
+            const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started).count();
             logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files); "
-                         "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"",
-                vampires, g_vampireSpells.size(), distributed, byKeyword, byName);
+                         "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"; {} ms",
+                vampires, g_vampireSpells.size(), distributed, byKeyword, byName, elapsedMs);
         }
     }
 
