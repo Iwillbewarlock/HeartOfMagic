@@ -135,3 +135,37 @@ Gemini 가 그리는 양은 52장이다.
 - Gemini 그림 26장의 화풍이 흔들릴 수 있음 → 첫 합격작을 기준 그림으로 고정, 검수에서 다시 그리기.
 - game-icons 모양이 다른 인디 게임과 겹쳐 낯익을 수 있음 → 다시 그리는 과정에서 질감이 바뀌어 덜함.
 - 24px 에서 잉크 질감이 뭉개질 수 있음 → 검수에 "24px 로 줄여 보기"를 넣음.
+
+## 12. 조사 후 바뀐 점 (2026-10-11, master 기준 코드 조사)
+
+아래가 위 절들보다 우선한다.
+
+1. **작업 브랜치**: `feature/spell-card` 는 10-09 이후 멈춰 있고 master 와 갈라졌다(95/25). 작업은 master 에서 딴
+   `feature/hand-drawn-icons` (worktree `.claude/worktrees/hand-drawn-icons`) 에서 한다. 줄 번호 대신 id·선택자로 찾는다.
+2. **§5 아이콘 칸**: 동작 버튼 10개(`buttons.scanSpells`, `exportScan`, `buildTree`, `applyTree`, `clearTree`, `replay`,
+   `filter.blacklist`, `filter.whitelist`, `prm.applyLocks`, `prm.clearLocks`)는 `data-i18n-html` 이 버튼 innerHTML 을 번역 문구로
+   통째로 바꾸고, 그 문구 안에 `<span class="btn-icon">[X]</span>` 가 들어 있다. 그래서 13개 언어 문구에서 이 span 을 지워
+   **평문으로 만들고**, 번역 속성은 버튼 안 글자 칸(`<span class="hom-label">`)으로 옮긴다. 아이콘 칸은 마크업에만 둔다.
+   번역자는 아이콘을 다시 보지 않는다.
+3. **§5 클래스**: `.btn-icon` 은 재사용하지 않는다. `styles-skyrim.css` 의 `.btn-icon` 규칙이 테두리 상자를 그려 "상자 반복"의 원인이었다.
+   새 칸은 `<span class="hom-icon" data-icon="<id>" aria-hidden="true">` 이다.
+4. **§5 그림 형식**: 아틀라스 대신 **아이콘마다 48px PNG 한 장** (`themes/<세트>/<id>.png`). Ultralight 에서 스프라이트의
+   `background-position` 은 확인되지 않았고, `url() center/contain no-repeat` 는 이미 쓰고 있어 확인된 방식이다.
+   선 세트도 SVG 를 그대로 쓰지 않고 PNG 로 굽는다.
+5. **§5 세트 선택**: 디자인 데이터에 `icons` 경로(예 `"themes/arcane/icons/"`)를 두고, 새 모듈 `modules/homIcons.js` 가
+   디자인 적용 때 모든 칸의 배경 그림을 정한다. `icons` 가 없는 디자인(애드온 포함)은 기본 선 세트를 받는다.
+6. **§3 아이콘 수 28개**: `collapse`·`expand` (선행 마스터 접기, `prereqMaster.js` 가 `[+]`/`[-]` 를 씀) 추가.
+   `close` 는 머리 막대 `X`, 상세·도움말 `×`, `.popup-close`·`.modal-close` 의 `×`, `colorPicker.js` 의 `×` 를 모두 덮는다.
+   일찍 배우기의 "기본값으로" 도 `reset`. 주문 카드 안의 `×`(spellCardView 삭제 버튼)는 §10 대로 범위 밖.
+   글자를 바꾸는 JS: `uiHelpers.js` `restoreScanButton`, `buttonHandlers.js` 스캔 중 글자, `script.js` 전체화면 글자,
+   `prereqMaster.js` 접기 표시, `colorPicker.js` 닫기. 모두 글자 칸만 쓰도록 고친다.
+7. **§9 버그**: 플레이어 화면이 아니라 개발 하네스의 "Load Test Data" 가 배열만 넘겨서 생긴다(`dev-harness-toolbar.js`).
+   한 줄 수정으로 하네스만 고친다.
+8. **§7.5 크레딧**: `CREDITS.md` 를 새로 만들지 않고 글꼴이 이미 적힌 세 곳에 적는다: `README.md` Credits,
+   `THIRD-PARTY-NOTICES.md.in`, `docs/NEXUS_PAGE.bbcode`.
+9. **§6.1 대문자**: 그대로 두는 것 = 앱 이름·메뉴·탭(`.panel-title`, `.header-btn-wide`, `.howto-tab-text`, `.scanner-mode-btn`)과
+   나무·주문 카드 규칙(`.school-label`, `.center-hub-text`, `.school-badge`, `.state-badge`, `.btn-unlock`, `.btn-learn`,
+   `.learning-status-badge`, `.detail-label`, `.prereq-type-label`, `.tooltip-state`, `.renderer-badge`, `.find-spell-state`).
+   나머지 대문자 규칙은 보통 글자로, `.settings-block-title` 은 작은 대문자로. 바꾸는 규칙은 공통 파일 `panel-chrome.css`
+   (patch-ui.css 다음에 연결) 한 곳에 모은다.
+10. **순서**: 모양 고르기(사용자 선택) → 칸·선 세트 → 틀 정리 → 잉크 → 금박 → 분필. Gemini 결과가 나쁘면 선 세트가 그대로 남는다.
