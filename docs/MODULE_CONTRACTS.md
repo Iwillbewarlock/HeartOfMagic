@@ -676,7 +676,12 @@ Optional config field that lets users override automatic root selection per scho
 - Stored in `settings.selectedRoots` (persistent, auto-saved)
 - Set via TreePreview root node click → spawn-style spell search modal
 - Filtered to primed spells (post-blacklist/whitelist/tome) for the selected school
-- Passed in config dict to C++: `config.selected_roots = settings.selectedRoots || {}`
+- Passed in config dict to C++ by `TreePreview._flattenSelectedRoots()` (classicBuildRequest.js). A saved `formId`
+  is the spell's id in the load order of the day it was chosen; an entry with `plugin` + `localFormId` is sent with
+  the `formId` its spell has in the current scan (`findScanSpellForEntry`, uiHelpers.js), and left out when that
+  spell is not in the scan (the builder then auto-picks), so a plugin inserted before it cannot make the builder
+  start the school from another spell. The saved entry is not changed. An old entry with only a `formId`, or any
+  entry while there is no scan, is sent as saved
 
 ### C++ Side
 

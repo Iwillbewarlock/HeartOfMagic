@@ -106,6 +106,7 @@ loadModule('learningTargetKeysTest', './modules/learningTargetKeysTest.js');
 loadModule('findSpellDismissTest', './modules/findSpellDismissTest.js');
 loadModule('gateReviewTest', './modules/gateReviewTest.js');
 loadModule('i18nRelabelTest', './modules/i18nRelabelTest.js');
+loadModule('stableIdsTest', './modules/stableIdsTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

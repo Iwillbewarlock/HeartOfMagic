@@ -79,7 +79,7 @@ Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp
 - `GetSystemInstructions()` - LLM output format spec
 - `GetPersistentFormId(formId)` - Convert runtime FormID to `PluginName.esp|0x00123456` format (plugin name in UTF-8, see below)
 - `ResolvePersistentFormId(persistentId)` - Resolve persistent ID back to runtime FormID
-- `ValidateAndFixTree(treeData)` - Validate all FormIDs in tree, resolve from persistentId if stale
+- `ValidateAndFixTree(treeData)` - Give every tree node its FormID in this load order (persistentId first), drop nodes that are no player's spell now, fix the links and locks (see "FormID Validation Flow")
 - `IsFormIdValid(formId)` - Check if a FormID resolves to a valid form
 - `SpellsTaughtByTomes()` - The spells some tome teaches; the scan marks each spell `taughtByTome` from it
 - `IsEquippedInVoiceSlot(spell)` - The spell is equipped in the voice slot (the default object `kVoiceEquip`); the scan marks `voiceSlot` from it and the tome hook hands such a spell to the vanilla path, as it does a power, lesser power or ability (`GetSpellType() != kSpell`, which the scan never keeps; 2026-10-07)
@@ -1510,10 +1510,21 @@ Load spell_tree.json → For each node:
   → persistentId field ("Plugin.esp|0x001234")? ResolvePersistentFormId() → the node takes that FormID
     (whether or not the saved one is still a valid form); none resolved → the node goes
   → No persistentId: the saved FormID stays if it is valid
-  → Then every node's link lists follow the new FormIDs
-  → Auto-save corrected tree
-  → Report validation results to UI
+  → Then, after every school: every node's link lists (children, prerequisites, hardPrereqs,
+    softPrereqs), its Pre Req Master locks[].nodeId, the school root and the tree's bridges
+    follow the new FormIDs; an entry naming a dropped node goes (softNeeded is held to the
+    soft list by treeParser.clampSoftNeeded and UIManagerProgression, not here)
+  → OnLoadSpellTree sends the fixed tree to the panel whenever a node moved or was dropped
+    (resolvedFromPersistent or invalidNodes > 0); the file on disk is not rewritten, so this
+    runs again on every load
 ```
+Saved panel settings that name a spell follow the same idea: the blacklist matches by `plugin` + `localFormId`
+(`filterBlacklistedSpells`), chosen roots go to the builder with the formId their spell has in the current scan
+(`findScanSpellForEntry`, uiHelpers.js; docs/MODULE_CONTRACTS.md "selected_roots"), and `xpOverrides` are keyed
+by the node's `persistentId` (`getXPOverride` / `setXPOverride`, uiHelpers.js). An override saved before that,
+keyed by the runtime formId, is still read while the spell has none under its persistentId and is replaced by
+the persistentId key the next time the player sets it; if the spell's formId moved before then, the old key
+cannot be told apart from the spell that took that formId.
 
 ### ISL/DEST Integration Flow (Legacy)
 ```
@@ -1905,7 +1916,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **Persistent FormID format:** `PluginName.esp|0x00123456` survives load order changes
 - **Auto-validation on tree load:** Stale FormIDs resolved from persistentId field
 - **ESL/light plugin support:** Correct handling of 0xFE prefix with 12-bit local IDs
-- **Auto-save after fix:** Corrected tree saved immediately
+- **No save after fix:** the corrected tree goes to the panel; the file keeps the old ids and is fixed again on every load
 
 #### SkyrimNet → LLM Rename
 - All callback names updated (C++ RegisterJSListener + InteropCall)

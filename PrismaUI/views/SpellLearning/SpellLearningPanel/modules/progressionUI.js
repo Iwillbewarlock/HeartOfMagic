@@ -270,9 +270,8 @@ function calculateCurrentEffectiveness(progressPercent, el) {
  */
 function getRequiredXPForNode(node) {
     if (!node) return settings.xpNovice;
-    var required = (typeof xpOverrides !== 'undefined' && xpOverrides[node.formId] !== undefined)
-        ? xpOverrides[node.formId]
-        : getXPForTier(node.level);
+    var override = getXPOverride(node);  // uiHelpers.js: by persistentId, legacy formId key too
+    var required = override !== undefined ? override : getXPForTier(node.level);
     if (node.openedByKnownChild && settings.reverseUnlock !== false && node.state !== 'unlocked') {
         required = Math.max(1, Math.round(required * getReverseUnlockXPShare(node.level)));
     }

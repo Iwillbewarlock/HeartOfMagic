@@ -1,5 +1,15 @@
 # Changelog
 
+## Heart of Magic Librarian 1.4.1 (unreleased)
+
+### Fixed
+
+- **A plugin added in the middle of the load order no longer mixes up saved spells.** Your chosen tree roots
+  are sent to the tree builder as the spell they named (a root whose mod is gone is left out and the builder
+  picks one), custom XP set on a spell stays with that spell (XP set before this version is still read), Pre
+  Req Master locks follow their spells, and the panel shows the corrected tree whenever spells had to be
+  dropped from it.
+
 ## Heart of Magic Librarian 1.4.0
 
 After updating: to drop spells that only a mod's debug tome teaches, **Scan** and **build the tree again**.

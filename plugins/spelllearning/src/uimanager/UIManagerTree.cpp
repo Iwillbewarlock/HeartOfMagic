@@ -51,12 +51,15 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                     if (validationResult.resolvedFromPersistent > 0) {
                         logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)",
                             validationResult.resolvedFromPersistent);
-                        // Update tree content with resolved form IDs
-                        treeContent = JsonText::Dump(treeData);
                     }
                     if (validationResult.invalidNodes > 0) {
                         logger::warn("UIManager: {} spells could not be resolved (plugins may be missing)",
                             validationResult.invalidNodes);
+                    }
+                    // The panel gets the fixed tree: new ids, and without the dropped nodes
+                    // and the links to them (the file on disk keeps the old one)
+                    if (validationResult.resolvedFromPersistent > 0 || validationResult.invalidNodes > 0) {
+                        treeContent = JsonText::Dump(treeData);
                     }
 
                     // Send validated tree data to viewer
