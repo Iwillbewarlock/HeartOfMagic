@@ -31,6 +31,12 @@ namespace Librarian::PerkAdapters
     // the feature is switched off, no catalog exists yet, or no file applies.
     void Apply(std::string_view reason);
 
+    // Puts back the keywords Apply added that are gone from their effects -
+    // taken off by something that ran after kDataLoaded (KID, SkyPatcher and
+    // FEC run before it: their DLLs load first). Called at kNewGame and
+    // kPostLoadGame. Adds nothing new and leaves keywords plugins wrote alone.
+    void Reassert(std::string_view reason);
+
     // Whether this keyword on this effect was added here rather than written in
     // a plugin. The scanner leaves those out, so a scan records the load order
     // as the plugins wrote it and the librarian never classifies from its own

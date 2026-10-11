@@ -421,6 +421,29 @@ namespace Librarian::PerkAdapters
         return spell->data.castingPerk;
     }
 
+    void Reassert(std::string_view reason)
+    {
+        std::size_t restored = 0;
+        std::size_t failed = 0;
+        for (const auto& [effectId, keywordId] : g_injected) {
+            auto* effect = RE::TESForm::LookupByID<RE::EffectSetting>(effectId);
+            auto* keyword = RE::TESForm::LookupByID<RE::BGSKeyword>(keywordId);
+            if (!effect || !keyword || effect->HasKeyword(keyword)) continue;
+            // AddKeywords reports success whatever happens, so count instead.
+            const std::uint32_t before = effect->GetNumKeywords();
+            effect->AddKeywords({ keyword });
+            if (effect->GetNumKeywords() > before) {
+                ++restored;
+            } else {
+                ++failed;
+            }
+        }
+        if (restored || failed) {
+            logger::info("PerkAdapters: {} - {} keywords another mod took off put back ({} did not take)",
+                reason, restored, failed);
+        }
+    }
+
     void Apply(std::string_view reason)
     {
         // Runs right after a scan and at load; a failure here must not take

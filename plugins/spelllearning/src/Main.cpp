@@ -446,6 +446,7 @@ void OnNewGame()
 {
     logger::info("New game started - progression will be cleared");
     Librarian::SpellResearchPatch::OnNewGame();
+    Librarian::PerkAdapters::Reassert("new game");
     // Progress is automatically cleared by OnRevert callback
 
     // Fix input lock if UI was open in main menu
@@ -468,6 +469,7 @@ void OnPostLoadGame()
 
     // Spell Research's lists are the loaded save's: register what they lack
     Librarian::SpellResearchPatch::OnGameLoaded();
+    Librarian::PerkAdapters::Reassert("save loaded");
 
     // Fix input/focus state that may be left bad by other mods or previous session
     if (UIManager::GetSingleton()->IsInitialized()) {

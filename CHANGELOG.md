@@ -9,6 +9,8 @@
   keywords; now spells the librarian tagged sun get FEC's sun death (FEC itself only marks spells with the
   vanilla Dawnguard sun visuals), and air damage spells get its air death where a mod in the load order defines
   `MagicDamageWind`. In memory only, and only while `FEC.esp` is loaded.
+- **Perk and FEC keywords stay on.** Heart of Magic already adds its keywords after KID, SkyPatcher and FEC
+  have added theirs; if something takes one off later, starting a new game or loading a save puts it back.
 
 ## Heart of Magic Librarian 1.4.0
 

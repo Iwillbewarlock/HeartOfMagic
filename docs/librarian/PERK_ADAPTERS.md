@@ -132,6 +132,13 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 `config.json` 을 읽지 못하면 켜진 것으로 본다. 붙여 둔 키워드를 다른 모드가 키워드 목록을 새로 만들며
 지웠으면 다음 실행이 다시 붙인다.
 
+**다른 배분기보다 나중 (2026-10-11).** KID·SkyPatcher·FEC 도 `kDataLoaded` 에 키워드를 붙이고, SKSE 는 DLL 을
+이름순으로 읽어(`po3_…`, `SkyPatcher` 가 `SpellLearning` 앞) 그 순서로 메시지를 돌린다. TAKEALOOK 로그로 확인한 순서:
+KID 배분 16:05:30 → SkyPatcher 적용 16:06:31 → 어댑터 16:06:34. 그래서 어댑터는 그들이 붙인 키워드를 보고
+(이미 있으면 agree) 마지막에 붙인다. 그 뒤에 무엇이 떼어 가면 새 게임·세이브 로드 때 `PerkAdapters::Reassert`
+가 이 파일이 붙였던 쌍 중 빠진 것만 다시 붙인다(새로 판정하지 않고, 플러그인이 적은 키워드는 건드리지 않는다).
+다른 패치가 붙인 키워드를 떼지는 않는다 — 퍽 조건이 같은 키워드를 읽기 때문이다.
+
 ## 6. 측정 (2026-09-30, TAKEALOOK 스캔 3546 주문)
 
 오프라인 평가: `librarian-test -i <dump> --catalog <catalog> --adapters <dir> [-o report.json]` —
