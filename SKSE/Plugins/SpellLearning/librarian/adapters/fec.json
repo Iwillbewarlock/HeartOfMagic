@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Adapter: Frozen Electrocuted Combustion 6.1.3 (powerofthree). Not a perk mod - FEC picks the",
+    "death effect of an actor killed by magic from keywords on the killing effect, and reads them",
+    "the way the perk mods do (github.com/powerof3/FEC: src/Papyrus.cpp GetCauseOfDeath,",
+    "Scripts/Source fec_deatheffectsnpctemp.psc). Its gate: the effect is hostile and detrimental",
+    "and not a constant effect.",
+    "Fire, frost and shock are the vanilla keywords, which vanilla.json already adds; this file",
+    "carries the two FEC reads that no other file gives:",
+    "  PO3_MagicDamageSun - sun death (burst into flames, disintegrate). FEC.esp defines it, and",
+    "    FEC's own DLL adds it only to effects that use the vanilla Dawnguard sun visuals, so sun",
+    "    spells from other mods get no sun death without this line",
+    "  MagicDamageWind - air death (suffocation; FEC's temporary-effect path). FEC compares the",
+    "    editor id as text and does not define the keyword: it comes with spell mods (Mihail's",
+    "    High Fantasy Pack, Elemental Destruction Magic Redux). Where no plugin defines it the line",
+    "    rests, like any line whose keyword is not in the load order",
+    "Not added, with the reason:",
+    "  holy - FEC has no holy death; sun's fire-and-ash look is not what holy damage reads as",
+    "  drain, poison, fear - FEC reads these from the archetype and resist value, not keywords"
+  ],
+  "perkMod": "Frozen Electrocuted Combustion 6.1.3 (death effects)",
+  "measured": "2026-10-11",
+  "requires": { "any": ["FEC.esp"] },
+  "adapters": [
+    { "keyword": "PO3_MagicDamageSun", "why": "sun damage: FEC sun death",
+      "tags": { "all": ["sun"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } },
+    { "keyword": "MagicDamageWind", "why": "air damage: FEC air death. Not on spells that are also fire, frost or shock (FEC reads those first)",
+      "tags": { "all": ["air"], "none": ["fire", "frost", "shock"] },
+      "effect": { "detrimental": true, "primaryAV": "Health" } }
+  ]
+}

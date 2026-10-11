@@ -253,6 +253,28 @@ Mysticism·Odin·Triumvirate 의 태양 주문을, Air 애드온도 Skyrim.esm �
 제작자 뜻과 같다. Natura 물 공격 주문 중 물의 벽은 피해 이펙트가 Script·AV 없음이라 빠진다.
 게임에서는 확인하지 않았다.
 
+## 6-3. Frozen Electrocuted Combustion (2026-10-11)
+
+퍽 모드가 아니지만 읽는 방식이 같다. FEC 6.1.3(넥서스 3532)은 마법으로 죽은 액터의 사망 효과를 죽인
+이펙트의 키워드로 고른다(github.com/powerof3/FEC, `src/Papyrus.cpp` GetCauseOfDeath — 적대·해로움·상시 아님이 조건,
+판정 순서 Sun → Fire → Frost → Shock). 불·냉기·번개는 바닐라 키워드라 `vanilla.json` 이 이미 맡는다. `fec.json` 은
+FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
+
+| 줄 | 태그 | writes / gain | 예 |
+|---|---|---:|---|
+| `PO3_MagicDamageSun` (FEC.esp 가 정의) | `sun` | 64 / 76 | Lightpower 태양의 파편, Stellaris 천체의 물기, Lunaris 달의 특이점, Mysticism 태양빛의 손길 |
+| `MagicDamageWind` (FEC 는 정의하지 않음) | `air`, 불·냉기·번개 아님 | 21 / 25 (agree 3) | Natura 돌풍·바람의 칼날, Vigilant 카인의 바람의 칼날 |
+
+- FEC 의 DLL 도 게임 시작 때 `PO3_MagicDamageSun` 을 붙이지만, 바닐라 Dawnguard 태양 이펙트(타격 셰이더·아트·시전 아트)를
+  쓰는 이펙트에만 붙인다(`src/Patches.cpp` SunKeyword). 다른 모드의 태양 주문은 이 줄로만 태양 사망을 얻는다. Dawnguard
+  주문이 gain 에 잡히는 것은 오프라인 평가에 FEC DLL 이 없어서다 — 게임에서는 FEC 가 먼저 붙여 agree 가 된다.
+- `MagicDamageWind` 는 FEC 가 EditorID 문자열로 비교하고 정의하지 않는다. Mihail High Fantasy Pack·Elemental Destruction Magic
+  Redux 같은 주문 모드가 정의하며, 없는 로드오더에서는 줄이 쉰다. 공기 사망은 FEC 의 임시 효과 경로에서만 나온다.
+- 누출로 막힌 것: 바람 1(Dragonborn 회오리 망토 — 6-2절과 같은 이펙트).
+- `holy` 는 넣지 않았다. FEC 에 신성 사망이 없고, 태양 사망(불붙어 재가 됨)은 신성 피해의 모습이 아니다.
+- 측정: TAKEALOOK 스캔(2026-10-07, 3776 주문), `librarian-test -i <덤프> --catalog <master 룰로 만든 카탈로그> --adapters`.
+  게임에서는 확인하지 않았다.
+
 ## 7. 붙이지 않는 것과 이유
 
 | 키워드 | 이유 |
