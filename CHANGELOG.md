@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Frozen Electrocuted Combustion's sun and air deaths work with spell mods.** FEC picks how an actor killed
+  by magic dies from keywords on the killing effect. Fire, frost and shock already worked through the vanilla
+  keywords; now spells the librarian tagged sun get FEC's sun death (FEC itself only marks spells with the
+  vanilla Dawnguard sun visuals), and air damage spells get its air death where a mod in the load order defines
+  `MagicDamageWind`. In memory only, and only while `FEC.esp` is loaded.
+
 ## Heart of Magic Librarian 1.4.0
 
 After updating: to drop spells that only a mod's debug tome teaches, **Scan** and **build the tree again**.
