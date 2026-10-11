@@ -764,7 +764,8 @@ var TreePreview = {
             name: spell.name || spell.formId,
             school: school,
             rootIndex: this._rootSelectionIndex,
-            plugin: spell.plugin || '',
+            // persistentId's plugin when the scan left `plugin` out (scan fields setting)
+            plugin: typeof spellPluginName === 'function' ? spellPluginName(spell) : (spell.plugin || ''),
             localFormId: typeof getLocalFormId === 'function' ? getLocalFormId(spell.formId) : spell.formId
         };
 
@@ -852,6 +853,20 @@ var TreePreview = {
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i];
             var entry = roots[key];
+            // The builder gets the spell's formId in this load order (by plugin +
+            // localFormId); a root whose spell is not in the scan is left out (the
+            // builder picks one) rather than sent with an id that may be another spell.
+            // A legacy entry, or no scan yet, goes as saved. The saved entry is not changed.
+            var current = typeof findScanSpellForEntry === 'function' ? findScanSpellForEntry(entry) : undefined;
+            if (current === null) continue;
+            if (current && current.formId !== entry.formId) {
+                var copy = {};
+                for (var field in entry) {
+                    if (Object.prototype.hasOwnProperty.call(entry, field)) copy[field] = entry[field];
+                }
+                copy.formId = current.formId;
+                entry = copy;
+            }
             var school = entry.school || key.split(':')[0];
             if (!allRoots[school]) allRoots[school] = [];
             allRoots[school].push(entry);

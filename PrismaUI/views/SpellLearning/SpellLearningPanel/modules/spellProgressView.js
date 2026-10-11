@@ -103,7 +103,7 @@ function updateDetailsProgression(node, opts) {
             if (xpRequiredInput) {
                 xpRequiredInput.value = Math.floor(requiredXP);
                 // Show if this is an override
-                var hasOverride = xpOverrides[node.formId] !== undefined;
+                var hasOverride = getXPOverride(node) !== undefined;
                 xpRequiredInput.classList.toggle('has-override', hasOverride);
                 if (hasOverride) setI18n(xpRequiredInput, 'details.xpOverride', { xp: tierXP }, 'Custom (tier default: {{xp}})', 'title');
                 else setI18n(xpRequiredInput, 'details.xpTierDefault', null, 'Tier default', 'title');
@@ -111,8 +111,8 @@ function updateDetailsProgression(node, opts) {
                 xpRequiredInput.onchange = function() {
                     var newRequired = Math.max(1, parseInt(this.value) || tierXP);
                     this.value = newRequired;
-                    // Store as override
-                    xpOverrides[node.formId] = newRequired;
+                    // Store as override (under the spell's persistentId)
+                    setXPOverride(node, newRequired);
                     this.classList.add('has-override');
                     setI18n(this, 'details.xpOverride', { xp: tierXP }, 'Custom (tier default: {{xp}})', 'title');
                     progress.required = newRequired;

@@ -333,6 +333,26 @@ namespace SpellScanner
                     }
                 }
             }
+
+            // Locks ({nodeId, ...}, Pre Req Master) name the node they wait on: the panel
+            // reads nodeId as it loads (treeParser, PrereqEdit.repair, prereqMaster), so a
+            // lock to a removed node goes and one to a moved node takes its new formId
+            for (auto& node : nodes) {
+                if (!node.contains("locks") || !node["locks"].is_array()) continue;
+                auto& locks = node["locks"];
+                locks.erase(
+                    std::remove_if(locks.begin(), locks.end(),
+                        [&invalidFormIdsSet](const json& lock) {
+                            return lock.is_object() && lock.contains("nodeId") && lock["nodeId"].is_string() &&
+                                   invalidFormIdsSet.count(lock["nodeId"].get<std::string>()) > 0;
+                        }),
+                    locks.end());
+                for (auto& lock : locks) {
+                    if (!lock.is_object() || !lock.contains("nodeId") || !lock["nodeId"].is_string()) continue;
+                    auto it = formIdRemapping.find(lock["nodeId"].get<std::string>());
+                    if (it != formIdRemapping.end()) lock["nodeId"] = it->second;
+                }
+            }
         }
 
         // The cross school bridges name spells of any school, so they are fixed after

@@ -180,6 +180,51 @@ function getLocalFormId(formIdStr) {
     return hex.substring(2);
 }
 
+/**
+ * The spell of the current scan a saved entry ({plugin, localFormId}, e.g. a
+ * chosen root) names, matched as filterBlacklistedSpells matches: the saved
+ * formId names another plugin's record once a plugin is inserted before it.
+ * @returns {Object|null|undefined} the spell; null when the entry has a key but
+ *   its spell is not in the scan; undefined when it cannot tell (a legacy entry
+ *   without plugin + localFormId, or no scan yet)
+ */
+function findScanSpellForEntry(entry) {
+    var data = (typeof state !== 'undefined' && state) ? state.lastSpellData : null;
+    if (!entry || !entry.plugin || !entry.localFormId || !data || !data.spells ||
+            typeof spellPluginName !== 'function') return undefined;
+    var key = String(entry.plugin).toLowerCase() + ':' + String(entry.localFormId).toLowerCase();
+    // A linear scan: called once per chosen root (a few per school) per build
+    for (var i = 0; i < data.spells.length; i++) {
+        var spell = data.spells[i];
+        var plugin = spellPluginName(spell);
+        if (plugin && spell.formId && plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) === key) return spell;
+    }
+    return null;
+}
+
+/**
+ * The player's XP override for a tree node, or undefined. Keyed by the node's
+ * persistentId ("Plugin.esp|0x000812"), which survives a load order change; an
+ * override saved before that is keyed by the runtime formId and is still read
+ * when the node has none under its persistentId.
+ */
+function getXPOverride(node) {
+    if (!node || typeof xpOverrides === 'undefined' || !xpOverrides) return undefined;
+    if (node.persistentId && xpOverrides[node.persistentId] !== undefined) return xpOverrides[node.persistentId];
+    return xpOverrides[node.formId];
+}
+
+/** Sets a node's XP override under its persistentId (its formId when it has none), replacing a legacy formId key */
+function setXPOverride(node, value) {
+    if (!node || typeof xpOverrides === 'undefined' || !xpOverrides) return;
+    if (node.persistentId) {
+        xpOverrides[node.persistentId] = value;
+        delete xpOverrides[node.formId];
+    } else {
+        xpOverrides[node.formId] = value;
+    }
+}
+
 // =============================================================================
 // PRIMED SPELL FILTERING (after blacklist/whitelist/tome filters)
 // =============================================================================
