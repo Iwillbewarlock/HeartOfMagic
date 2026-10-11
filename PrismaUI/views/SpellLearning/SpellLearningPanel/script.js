@@ -70,7 +70,6 @@ function toggleFullscreen() {
     // Update fullscreen button icon
     var btn = document.getElementById('fullscreenBtn');
     if (btn) {
-        btn.textContent = state.isFullscreen ? '[ ]' : '[ ]';
         btn.title = state.isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
     }
     

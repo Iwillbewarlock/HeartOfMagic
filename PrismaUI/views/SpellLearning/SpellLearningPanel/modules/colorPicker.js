@@ -1,6 +1,6 @@
 /**
  * Simple HSV Color Picker for Ultralight/PrismaUI
- * Canvas-based, no external dependencies
+ * Canvas-based. Depends on: homIcons.js (close icon), setI18n()
  */
 
 var ColorPicker = {
@@ -30,8 +30,10 @@ var ColorPicker = {
         setI18n(header.firstChild, 'settings.colorPicker.title', null, 'Select Color');
         
         var closeBtn = document.createElement('button');
-        closeBtn.textContent = '×';
-        closeBtn.style.cssText = 'background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0 4px;';
+        closeBtn.className = 'popup-close';
+        closeBtn.innerHTML = HomIcons.slot('close');
+        // 16px like the heart settings popup's close (styles-skyrim.css), so the icon is 24px there and here
+        closeBtn.style.cssText = 'background:none; border:none; color:#888; font-size:16px; cursor:pointer; padding:0 4px;';
         closeBtn.onclick = function() { ColorPicker.hide(); };
         header.appendChild(closeBtn);
         this._popup.appendChild(header);

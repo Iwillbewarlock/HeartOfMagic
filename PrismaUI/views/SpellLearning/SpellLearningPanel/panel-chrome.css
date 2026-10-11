@@ -1,0 +1,144 @@
+/* Panel chrome shared by every design (docs/superpowers/specs/2026-10-10-hand-drawn-icons-ui-design.md).
+   Loaded after patch-ui.css; a design's own sheet comes later and can override colours. */
+
+/* Icon slots: HomIcons sets background-image; one 48px PNG shown at 1.5em */
+.hom-icon {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    flex: none;
+    vertical-align: -0.38em;
+    margin-right: 0.45em;
+    background: center / contain no-repeat;
+}
+.header-btn .hom-icon,
+.popup-close .hom-icon,
+.modal-close .hom-icon { margin-right: 0; }
+.settings-block-icon.hom-icon { font-size: 1em; }
+
+/* Prereq Master collapse indicator: a small chevron, not [+]/[-]. Down = open, right = collapsed.
+   margin-left: auto keeps it at the header's right edge (styles-skyrim.css); padding 0 keeps the box square */
+.prm-collapse-icon {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    padding: 0;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    margin: 0 0.5em 0.15em auto;
+}
+.prm-collapse-icon.collapsed { transform: rotate(-45deg); }
+
+/* Words, not shouting: only the app name, the top menu and the tabs stay in capitals */
+.btn-small, .popup-section-title, .empty-text, .howto-header h3, .howto-section h4,
+.footer-goals-label, .state-legend, .modal-header h3, .blacklist-list-header,
+.whitelist-section-header, .lock-label, .settings-subsection, .subsection-title,
+.tier-xp-item label, .hotkey-input, .cheat-warning, .scanner-presets-label,
+.scan-stats-header, .scan-stat-label, .tree-preview-title, .tree-preview-settings-title,
+.easy-presets-label {
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+.settings-block-title {
+    text-transform: none;
+    font-variant: small-caps;
+    letter-spacing: 0.06em;
+}
+
+/* Buttons: a line, not a box. Primary = accent text over an accent underline; danger = red text;
+   the rest rest on a faint underline. Plain (0,1,0) selectors so a design sheet (loaded later) can restyle them */
+.btn {
+    text-transform: none;
+    letter-spacing: 0.02em;
+    background: transparent;
+    background-image: none;
+    border: 0;
+    border-bottom: 1px solid var(--divider, rgba(200, 190, 170, 0.25));
+    border-radius: 0;
+    box-shadow: none;
+}
+.btn-primary, .btn-success {
+    color: var(--accent-gold, #c9a227);
+    border-bottom-color: var(--accent-gold, #c9a227);
+}
+.btn-danger { color: var(--accent-red, #b5523b); }
+/* styles-skyrim.css refills these on hover and when disabled at (0,2,0)/(0,3,0), above .btn: the same
+   selectors here, background only, so a design sheet using them (loaded later) still wins */
+.btn-primary:hover:not(:disabled),
+.btn-primary:disabled,
+.btn-secondary:hover:not(:disabled),
+.btn-success:hover:not(:disabled),
+.btn-success:hover,
+.btn-danger:hover { background: transparent; }
+/* The Easy page's action column reads down its left edge; .btn-primary centres its label */
+.easy-action-btn { justify-content: flex-start; }
+/* :not() keeps the hover line off the spell card buttons below */
+.btn:hover:not(:disabled):not(.btn-learn):not(.btn-unlock) { border-bottom-color: currentColor; }
+
+/* The spell card keeps its Learn/Unlock boxes in capitals (spec §10): the styles-skyrim.css values again,
+   after .btn above; design sheets still override them as before */
+.btn-learn, .btn-unlock {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 0;
+}
+.btn-unlock {
+    background: rgba(136, 168, 120, 0.2);
+    border: 1px solid rgba(136, 168, 120, 0.3);
+}
+.btn-learn {
+    background: rgba(120, 144, 168, 0.2);
+    border: 1px solid rgba(120, 144, 168, 0.3);
+}
+
+/* Switches: a square check like SkyUI's MCM */
+.toggle-switch,
+.toggle-switch.toggle-sm { width: 18px; height: 18px; }
+.toggle-switch .toggle-slider {
+    border-radius: 0;
+    background: transparent;
+    border: 1px solid var(--accent-gold, #c9a227);
+    box-shadow: none;
+    padding: 3px;
+}
+.toggle-switch .toggle-slider:before { display: none; }
+/* Pre Req Master's mini switches: the same square check */
+.toggle-slider-mini {
+    width: 14px;
+    height: 14px;
+    border-radius: 0;
+    background: transparent;
+    border: 1px solid var(--accent-gold, #c9a227);
+    padding: 2px;
+}
+.toggle-slider-mini::after { display: none; }
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--accent-gold, #c9a227);
+    background-clip: content-box;   /* the 3px padding stays empty: a filled square inside the frame */
+    border-color: var(--accent-gold, #c9a227);   /* same (0,3,1) selector as styles-skyrim's green frame; later wins */
+}
+.prm-constraint-toggle input:checked + .toggle-slider-mini {
+    background: var(--accent-gold, #c9a227);
+    background-clip: content-box;
+}
+
+/* Settings: groups divided by a rule, not boxed cards */
+#contentSettings .settings-block {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--divider, rgba(200, 190, 170, 0.25));
+    border-radius: 0;
+    box-shadow: none;
+}
+#contentSettings .settings-block-header { background: transparent; border: 0; }
+#contentSettings .settings-block-content { background: transparent; }
+
+/* "Advanced options" is a note, not a red pill */
+.cheat-warning { background: transparent; border: 0; padding: 0; }
+
+/* Settings Save/Reset bar: solid, so the rows scrolling under it (the Presets row) are hidden, not faded through */
+.settings-actions-sticky { background: var(--panel-bg-solid, #0a0a0a); }
+.settings-actions-sticky::before { display: none; }
+/* A sticky bar stops at the scroller's padding edge: with no bottom padding it meets the panel edge and nothing shows below it */
+#contentSettings.active { padding-bottom: 0; }

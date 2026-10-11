@@ -3,7 +3,7 @@
  * 
  * Utility functions: the scan status bar, the unlocked count, saving the tree,
  * primed spells, preset naming, local form ids, tier XP and editor id words.
- * Depends on: state.js
+ * Depends on: state.js, homIcons.js
  */
 
 // =============================================================================
@@ -54,7 +54,7 @@ function restoreScanButton() {
     var scanBtn = document.getElementById('scanBtn');
     if (scanBtn) {
         scanBtn.disabled = false;
-        scanBtn.innerHTML = '<span class="btn-icon">[*]</span>' + t('buttons.scanSpells');
+        HomIcons.setLabel(scanBtn, t('buttons.scanSpells'));
     }
 }
 

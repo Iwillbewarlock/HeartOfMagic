@@ -7,6 +7,7 @@
  *   tree     - TreeStyle tokens: how the spell tree is drawn (modules/treeStyle.js)
  *   cssFile  - an extra stylesheet laid over the theme, path relative to the panel
  *   css      - the same, written inline (a string, or an array of lines)
+ *   icons    - folder of the 19 icon PNGs (modules/homIcons.js), ending in "/"
  *
  * Three are built in: Classic and Modern Dark (the two UI themes as they were,
  * with the tree as it was) and Arcane. Every other UI theme listed in
@@ -16,7 +17,7 @@
  * every preset folder (UIManager::OnLoadPresets), so one file per design, no
  * shared list to fight over between add-ons. See docs/DESIGN.md.
  *
- * Depends on: settings, TreeStyle, t() (optional), UI_THEMES/applyTheme (optional)
+ * Depends on: settings, TreeStyle, t() (optional), UI_THEMES/applyTheme (optional), homIcons.js (optional)
  */
 
 var DesignPresets = {
@@ -31,17 +32,19 @@ var DesignPresets = {
             descriptionKey: 'design.classic.desc',
             author: 'Heart of Magic',
             uiTheme: 'skyrim',
+            icons: 'themes/icons-line/',
             tree: {}
         },
         modern: {
             name: 'Modern Dark',
-            description: 'The original tree on the modern dark UI, with gradients and glow.',
+            description: 'The original tree on the modern dark UI, with flat gold accents.',
             descriptionKey: 'design.modern.desc',
             author: 'Heart of Magic',
             // Colours and shapes over the Skyrim theme, like Arcane (the old
             // stand-alone modern stylesheet had fallen far behind it)
             uiTheme: 'skyrim',
             cssFile: 'themes/design-modern.css',
+            icons: 'themes/icons-line-gold/',
             tree: {}
         },
         arcane: {
@@ -53,6 +56,7 @@ var DesignPresets = {
             // leather and gold, the tree, the spell card and the hover card parchment
             uiTheme: 'skyrim',
             cssFile: 'themes/design-arcane.css',
+            icons: 'themes/arcane/icons/',
             tree: {
                 // Page
                 pageColor: '#e6d6b0',
@@ -262,6 +266,8 @@ var DesignPresets = {
 
         TreeStyle.set(preset.tree || {});
         this._applyCss(preset);
+        // The design's icon folder (design.icons); none or a bad path -> the line set
+        if (typeof HomIcons !== 'undefined') HomIcons.setPath(preset.icons);
 
         // The UI theme underneath. settings.uiTheme follows the design; before the
         // themes are loaded the stylesheet stays, and onThemesLoaded applies it.

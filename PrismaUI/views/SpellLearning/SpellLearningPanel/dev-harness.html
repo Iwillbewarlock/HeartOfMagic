@@ -9,6 +9,7 @@
     <link rel="stylesheet" id="ui-theme-css" href="styles-skyrim.css">
     <!-- UI patch (navigation chrome, bottom details bar) - theme-agnostic, survives theme switches -->
     <link rel="stylesheet" href="patch-ui.css">
+    <link rel="stylesheet" href="panel-chrome.css">
     <!-- The tree's top-left tools (tool bar size, Find Spell dropdown): after patch-ui.css, which it continues -->
     <link rel="stylesheet" href="patch-tree-tools.css">
     <style>
@@ -108,8 +109,8 @@
                 <button class="header-btn header-btn-wide" id="tabSpellScan" data-tab="spellScan" title="Spell Scanner" data-i18n="tabs.scan" data-i18n-title="tabs.scanTitle">Scan</button>
                 <button class="header-btn header-btn-wide" id="tabSettings" data-tab="settings" title="Settings" data-i18n="tabs.settings" data-i18n-title="tabs.settingsTitle">Settings</button>
                 <button class="header-btn header-btn-wide header-btn-warn" id="orphanRepairBtn" style="display:none;" title="Orphan nodes detected">0 orphans</button>
-                <button class="header-btn" id="fullscreenBtn" title="Toggle Fullscreen" data-i18n-title="buttons.toggleFullscreen">[ ]</button>
-                <button class="header-btn" id="closeBtn" title="Close (Esc/Tab)" data-i18n-title="buttons.closeTitle">X</button>
+                <button class="header-btn" id="fullscreenBtn" title="Toggle Fullscreen" data-i18n-title="buttons.toggleFullscreen"><span class="hom-icon" data-icon="fullscreen" aria-hidden="true"></span></button>
+                <button class="header-btn" id="closeBtn" title="Close (Esc/Tab)" data-i18n-title="buttons.closeTitle"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
         </div>
 
@@ -138,12 +139,12 @@
                 <!-- SHARED: Scan Actions + Results/Filters (visible in both modes) -->
                 <!-- ============================================================ -->
                 <div class="scan-actions-sticky">
-                    <button id="scanBtn" class="btn btn-primary" data-i18n-html="buttons.scanSpells">
-                        <span class="btn-icon">[*]</span> Scan Spells
+                    <button id="scanBtn" class="btn btn-primary">
+                        <span class="hom-icon" data-icon="scan" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.scanSpells">Scan Spells</span>
                     </button>
                     <!-- Raw scan dump (mod keyword names and all): a modder's tool, so Developer Mode only -->
-                        <button id="saveBtn" class="btn btn-secondary dev-only hidden" style="display:none;" disabled data-i18n-html="buttons.exportScan">
-                        <span class="btn-icon">[S]</span> Export Scan
+                        <button id="saveBtn" class="btn btn-secondary dev-only hidden" style="display:none;" disabled>
+                        <span class="hom-label" data-i18n-html="buttons.exportScan">Export Scan</span>
                     </button>
                 </div>
 
@@ -175,11 +176,11 @@
                     <div class="scan-split-right">
                         <div class="scan-stats-header" data-i18n="filter.title">Filters</div>
                         <div class="scan-filter-controls">
-                            <button id="blacklistBtn" class="btn btn-secondary btn-filter" disabled data-i18n-html="filter.blacklist">
-                                <span class="btn-icon">[-]</span> Blacklist
+                            <button id="blacklistBtn" class="btn btn-secondary btn-filter" disabled>
+                                <span class="hom-label" data-i18n-html="filter.blacklist">Blacklist</span>
                             </button>
-                            <button id="whitelistBtn" class="btn btn-secondary btn-filter" disabled data-i18n-html="filter.whitelist">
-                                <span class="btn-icon">[+]</span> Whitelist
+                            <button id="whitelistBtn" class="btn btn-secondary btn-filter" disabled>
+                                <span class="hom-label" data-i18n-html="filter.whitelist">Whitelist</span>
                             </button>
                         </div>
                     </div>
@@ -196,17 +197,17 @@
                                 <div class="easy-preset-chips" id="easyPresetChips"></div>
                             </div>
                             <div class="easy-actions-section">
-                                <button id="easyBuildBtn" class="btn btn-success easy-action-btn" disabled data-i18n-html="buttons.buildTree">
-                                    <span class="btn-icon">[B]</span> Build Tree
+                                <button id="easyBuildBtn" class="btn btn-success easy-action-btn" disabled>
+                                    <span class="hom-icon" data-icon="build" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.buildTree">Build Tree</span>
                                 </button>
-                                <button id="easyApplyBtn" class="btn btn-primary easy-action-btn" disabled data-i18n-html="buttons.applyTree">
-                                    <span class="btn-icon">[A]</span> Apply Tree
+                                <button id="easyApplyBtn" class="btn btn-primary easy-action-btn" disabled>
+                                    <span class="hom-icon" data-icon="apply" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.applyTree">Apply Tree</span>
                                 </button>
-                                <button id="easyClearBtn" class="btn btn-danger easy-action-btn" disabled data-i18n-html="buttons.clearTree">
-                                    <span class="btn-icon">[X]</span> Clear Tree
+                                <button id="easyClearBtn" class="btn btn-danger easy-action-btn" disabled>
+                                    <span class="hom-icon" data-icon="clear" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.clearTree">Clear Tree</span>
                                 </button>
-                                <button id="easyReplayBtn" class="btn easy-action-btn" style="display:none;" data-i18n-html="buttons.replay">
-                                    <span class="btn-icon">[R]</span> Replay
+                                <button id="easyReplayBtn" class="btn easy-action-btn" style="display:none;">
+                                    <span class="hom-icon" data-icon="replay" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.replay">Replay</span>
                                 </button>
                                 <span class="easy-status-wrap" data-i18n-html="easyMode.statusWrap">Status: <span id="easyStatus">Waiting for scan...</span></span>
                             </div>
@@ -245,9 +246,9 @@
                 <div class="scan-section" id="prereqMasterSection" style="display:none;">
                     <div class="settings-block prm-block">
                         <div class="settings-block-header prm-header" id="prmToggleHeader">
-                            <span class="settings-block-icon">[+]</span>
+                            <span class="hom-icon settings-block-icon" data-icon="prereq" aria-hidden="true"></span>
                             <span class="settings-block-title" data-i18n="prm.extraSettings">Pre Req Master</span>
-                            <span class="prm-collapse-icon">[-]</span>
+                            <span class="prm-collapse-icon" aria-hidden="true"></span>
                         </div>
                         <div class="settings-block-content prm-content" id="prmContent">
 
@@ -274,11 +275,11 @@
 
                                         <!-- Action Buttons (at top for easy access) -->
                                         <div class="prm-actions">
-                                            <button id="prmApplyBtn" class="btn btn-primary" disabled data-i18n-html="prm.applyLocks">
-                                                <span class="btn-icon">[L]</span> Apply Locks
+                                            <button id="prmApplyBtn" class="btn btn-primary" disabled>
+                                                <span class="hom-label" data-i18n-html="prm.applyLocks">Apply Locks</span>
                                             </button>
-                                            <button id="prmClearBtn" class="btn btn-secondary" disabled data-i18n-html="prm.clearLocks">
-                                                <span class="btn-icon">[X]</span> Clear
+                                            <button id="prmClearBtn" class="btn btn-secondary" disabled>
+                                                <span class="hom-icon" data-icon="clear" aria-hidden="true"></span><span class="hom-label" data-i18n-html="prm.clearLocks">Clear</span>
                                             </button>
                                             <span id="prmStatus" class="prm-status" data-i18n="prm.buildTreeFirst">Build a tree first</span>
                                         </div>
@@ -459,21 +460,21 @@
                 <div class="scan-actions-sticky scan-actions-bottom">
                     <!-- Scanner Presets row (hidden when no presets) -->
                     <div id="scannerPresetsRow" class="scanner-presets-row">
-                        <span class="scanner-presets-label" data-i18n="presets.title">PRESETS</span>
-                        <button id="saveScannerPresetBtn" class="btn btn-sm scanner-preset-save-btn" data-i18n="presets.save">[+] Save</button>
+                        <span class="scanner-presets-label" data-i18n="presets.title">Presets</span>
+                        <button id="saveScannerPresetBtn" class="btn btn-sm scanner-preset-save-btn"><span class="hom-label" data-i18n="presets.save">Save</span></button>
                         <div class="scanner-presets-divider"></div>
                         <div id="scannerPresetChips" class="scanner-preset-chips"></div>
                     </div>
                     <!-- Action buttons -->
                     <div class="scan-actions-buttons">
-                        <button id="tgBuildBtn" class="btn btn-success" disabled data-i18n-html="buttons.buildTree">
-                            <span class="btn-icon">[B]</span> Build Tree
+                        <button id="tgBuildBtn" class="btn btn-success" disabled>
+                            <span class="hom-icon" data-icon="build" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.buildTree">Build Tree</span>
                         </button>
-                        <button id="tgApplyBtn" class="btn btn-primary" disabled data-i18n-html="buttons.applyTree">
-                            <span class="btn-icon">[A]</span> Apply Tree
+                        <button id="tgApplyBtn" class="btn btn-primary" disabled>
+                            <span class="hom-icon" data-icon="apply" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.applyTree">Apply Tree</span>
                         </button>
-                        <button id="tgClearBtn" class="btn btn-danger" disabled data-i18n-html="buttons.clearTree">
-                            <span class="btn-icon">[X]</span> Clear Tree
+                        <button id="tgClearBtn" class="btn btn-danger" disabled>
+                            <span class="hom-icon" data-icon="clear" aria-hidden="true"></span><span class="hom-label" data-i18n-html="buttons.clearTree">Clear Tree</span>
                         </button>
                         <span style="margin-left:8px; font-size:0.8em;" data-i18n-html="scanner.complexStatusWrap">Status: <span id="tgStatus">Waiting for scan...</span></span>
                     </div>
@@ -563,7 +564,7 @@
                     <div id="heart-settings-popup" class="heart-settings-popup" style="display: none;">
                         <div class="popup-header">
                             <span data-i18n="settings.render.title">Render</span>
-                            <button id="heart-settings-close" class="popup-close">×</button>
+                            <button id="heart-settings-close" class="popup-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
                         </div>
                         <div class="popup-content">
                             <!-- modules/renderSettings.js: the master switch and the popup's values;
@@ -604,7 +605,7 @@
                         <div class="color-picker-content">
                             <div class="color-picker-header">
                                 <span data-i18n="settings.colorPicker.title">Select Color</span>
-                                <button id="color-picker-close" class="popup-close">×</button>
+                                <button id="color-picker-close" class="popup-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
                             </div>
                             <div class="color-picker-body">
                                 <div class="color-gradient" id="color-gradient">
@@ -654,7 +655,7 @@
                 <!-- Spell Details Sidebar -->
                 <div id="details-panel" class="details-panel hidden">
                     <div class="details-close">
-                        <button id="close-details" class="header-btn">×</button>
+                        <button id="close-details" class="header-btn"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
                     </div>
                     <!-- Nothing selected (hover preview on): the panel keeps its place -->
                     <div id="details-empty" class="details-empty" data-i18n="details.emptyHint">Rest the cursor on a spell to preview it, click to select</div>
@@ -771,25 +772,25 @@
                     <div class="howto-content">
                         <div class="howto-header">
                             <h3 data-i18n="howto.title">How to Learn Spells</h3>
-                            <button id="close-howto" class="header-btn">×</button>
+                            <button id="close-howto" class="header-btn"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
                         </div>
                         
                         <div class="howto-section">
-                            <h4 data-i18n="howto.currentSettings">[i] Current Settings</h4>
+                            <h4 data-i18n="howto.currentSettings">Current Settings</h4>
                             <ul id="howto-settings-list" class="howto-list">
                                 <li data-i18n="howto.loading">Loading...</li>
                             </ul>
                         </div>
                         
                         <div class="howto-section">
-                            <h4 data-i18n="howto.gainingXp">[^] Gaining XP</h4>
+                            <h4 data-i18n="howto.gainingXp">Gaining XP</h4>
                             <ul id="howto-xp-list" class="howto-list">
                                 <li data-i18n="howto.loading">Loading...</li>
                             </ul>
                         </div>
                         
                         <div class="howto-section">
-                            <h4 data-i18n="howto.tips">(!) Tips</h4>
+                            <h4 data-i18n="howto.tips">Tips</h4>
                             <ul id="howto-tips-list" class="howto-list">
                                 <li data-i18n="howto.tipSetTargets">Set learning targets (one per school)</li>
                                 <li data-i18n="howto.tipCombatXp">Combat usage grants more XP than practice</li>
@@ -803,7 +804,7 @@
                 <div class="tree-footer">
                     <div class="footer-left">
                         <button id="import-btn" class="btn btn-secondary btn-sm">
-                            <span class="btn-icon">[v]</span> <span data-i18n="footer.import">Import</span>
+                            <span class="hom-icon" data-icon="import" aria-hidden="true"></span><span class="hom-label" data-i18n="footer.import">Import</span>
                         </button>
                         <span class="spell-count">
                             <span id="total-count">0</span> <span data-i18n="footer.spellsLabel">spells</span> |
@@ -841,7 +842,7 @@
                         <!-- Hotkey Settings -->
                         <div class="settings-block">
                             <div class="settings-block-header">
-                                <span class="settings-block-icon">[K]</span>
+                                <span class="hom-icon settings-block-icon" data-icon="hotkey" aria-hidden="true"></span>
                                 <span class="settings-block-title" data-i18n="settings.hotkey.title">Hotkey</span>
                             </div>
                             <div class="settings-block-content">
@@ -873,7 +874,7 @@
                              (renderSettings.js puts the saved values back; settingsPanel.js wires them) -->
                         <div class="settings-block">
                             <div class="settings-block-header">
-                                <span class="settings-block-icon">[*]</span>
+                                <span class="hom-icon settings-block-icon" data-icon="tree-view" aria-hidden="true"></span>
                                 <span class="settings-block-title" data-i18n="settings.ui.treeTitle">Tree View</span>
                             </div>
                             <div class="settings-block-content">
@@ -956,7 +957,7 @@
                         <!-- UI Display Settings -->
                         <div class="settings-block">
                             <div class="settings-block-header">
-                                <span class="settings-block-icon">[~]</span>
+                                <span class="hom-icon settings-block-icon" data-icon="display" aria-hidden="true"></span>
                                 <span class="settings-block-title" data-i18n="settings.ui.title">UI Display</span>
                             </div>
                             <div class="settings-block-content">
@@ -1019,7 +1020,7 @@
                     <!-- Developer & Debug Settings (under UI Display) -->
                     <div class="settings-block dev-debug-block">
                         <div class="settings-block-header">
-                            <span class="settings-block-icon">[D]</span>
+                            <span class="hom-icon settings-block-icon" data-icon="debug" aria-hidden="true"></span>
                             <span class="settings-block-title" data-i18n="settings.devDebug.title">Developer & Debug</span>
                             <span class="cheat-warning" data-i18n="settings.devDebug.advancedOptions">Advanced options</span>
                         </div>
@@ -1048,7 +1049,7 @@
                                 </label>
                             </div>
                             <div id="cheatModeInfo" class="cheat-info hidden">
-                                <p data-i18n-html="settings.devDebug.cheatModeActive">(!) <strong>Cheat mode active!</strong></p>
+                                <p data-i18n-html="settings.devDebug.cheatModeActive"><strong>Cheat mode active!</strong></p>
                                 <ul>
                                     <li data-i18n="settings.devDebug.cheatInfo.seeAll">See all spell names and details (even locked)</li>
                                     <li data-i18n="settings.devDebug.cheatInfo.clickUnlock">Click any node to unlock instantly</li>
@@ -1089,8 +1090,8 @@
 
                 <!-- Settings Presets - controls Progression, Early Spell, Spell Tome -->
                 <div id="settingsPresetsRow" class="scanner-presets-row settings-presets-header">
-                    <span class="scanner-presets-label" data-i18n="settings.presets.label">PRESETS</span>
-                    <button id="saveSettingsPresetBtn" class="btn btn-sm scanner-preset-save-btn" data-i18n="settings.presets.save">[+] Save</button>
+                    <span class="scanner-presets-label" data-i18n="settings.presets.label">Presets</span>
+                    <button id="saveSettingsPresetBtn" class="btn btn-sm scanner-preset-save-btn"><span class="hom-label" data-i18n="settings.presets.save">Save</span></button>
                     <div class="scanner-presets-divider"></div>
                     <div id="settingsPresetChips" class="scanner-preset-chips"></div>
                 </div>
@@ -1099,7 +1100,7 @@
                 <!-- Progression Settings -->
                 <div class="settings-block">
                     <div class="settings-block-header">
-                        <span class="settings-block-icon">[^]</span>
+                        <span class="hom-icon settings-block-icon" data-icon="progression" aria-hidden="true"></span>
                         <span class="settings-block-title" data-i18n="settings.progression.title">Progression Settings</span>
                     </div>
                     <div class="settings-block-content">
@@ -1507,7 +1508,7 @@
                 <!-- Early Spell Learning (Progressive Effectiveness) -->
                 <div class="settings-block" id="earlyLearningBlock">
                     <div class="settings-block-header">
-                        <span class="settings-block-icon">*</span>
+                        <span class="hom-icon settings-block-icon" data-icon="early" aria-hidden="true"></span>
                         <span class="settings-block-title" data-i18n="settings.earlyLearning.title">Early Spell Learning</span>
                     </div>
                     <div class="settings-block-content">
@@ -1630,7 +1631,7 @@
                         
                         <div class="setting-row power-steps-actions">
                             <button id="resetPowerStepsBtn" class="btn btn-secondary btn-small">
-                                <span class="btn-icon">[R]</span> <span data-i18n="settings.earlyLearning.resetDefaults">Reset to Defaults</span>
+                                <span class="hom-icon" data-icon="reset" aria-hidden="true"></span><span class="hom-label" data-i18n="settings.earlyLearning.resetDefaults">Reset to Defaults</span>
                             </button>
                         </div>
 
@@ -1645,7 +1646,7 @@
 
                 <div class="settings-block" id="spellTomeLearningBlock">
                     <div class="settings-block-header">
-                        <span class="settings-block-icon">[i]</span>
+                        <span class="hom-icon settings-block-icon" data-icon="tome" aria-hidden="true"></span>
                         <span class="settings-block-title" data-i18n="settings.tomeLearning.title">Spell Tome Learning</span>
                     </div>
                     <div class="settings-block-content">
@@ -1762,7 +1763,7 @@
                 <!-- Tree Generation Settings - Developer only -->
                 <div class="settings-block dev-only">
                     <div class="settings-block-header">
-                        <span class="settings-block-icon">[T]</span>
+                        <span class="hom-icon settings-block-icon" data-icon="tree-gen" aria-hidden="true"></span>
                         <span class="settings-block-title" data-i18n="settings.treeGen.title">Tree Generation</span>
                     </div>
                     <div class="settings-block-content">
@@ -1770,7 +1771,7 @@
                         
                         <!-- Validation Settings -->
                         <div class="settings-subsection" style="margin-left: 8px; padding-left: 8px; border-left: 2px solid var(--accent-orange);">
-                            <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-orange); margin-bottom: 8px;" data-i18n="settings.treeGen.validationAutofix">VALIDATION &amp; AUTO-FIX</div>
+                            <div class="settings-sublabel" style="font-size: 0.75em; color: var(--accent-orange); margin-bottom: 8px;" data-i18n="settings.treeGen.validationAutofix">Validation &amp; auto-fix</div>
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.treeGen.aggressivePath">Aggressive Path Validation</span>
@@ -1789,10 +1790,10 @@
                 <!-- Save/Reset - Sticky at bottom of settings panel -->
                 <div class="settings-actions-sticky">
                     <button id="saveSettingsBtn" class="btn btn-primary">
-                        <span class="btn-icon">[S]</span> <span data-i18n="settings.actions.saveSettings">Save Settings</span>
+                        <span class="hom-icon" data-icon="save" aria-hidden="true"></span><span class="hom-label" data-i18n="settings.actions.saveSettings">Save Settings</span>
                     </button>
                     <button id="resetSettingsBtn" class="btn btn-secondary">
-                        <span class="btn-icon">[R]</span> <span data-i18n="settings.actions.resetDefaults">Reset to Defaults</span>
+                        <span class="hom-icon" data-icon="reset" aria-hidden="true"></span><span class="hom-label" data-i18n="settings.actions.resetDefaults">Reset to Defaults</span>
                     </button>
                 </div>
             </div>
@@ -1809,7 +1810,7 @@
         <div class="modal-content modal-content-full">
             <div class="modal-header">
                 <h3 data-i18n="modals.importTree.title">Spell Tree JSON</h3>
-                <button class="modal-close" id="modal-close-btn">×</button>
+                <button class="modal-close" id="modal-close-btn"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
             <div class="modal-body modal-body-full">
                 <textarea id="import-textarea" class="json-editor" spellcheck="false" placeholder='{"version": "1.0", "schools": {...}}'></textarea>
@@ -1829,7 +1830,7 @@
         <div class="modal-content spawn-modal">
             <div class="modal-header">
                 <h3 data-i18n="modals.spawnSpell.title">Spawn Spell Node</h3>
-                <button class="modal-close" id="spawn-modal-close">×</button>
+                <button class="modal-close" id="spawn-modal-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
             <div class="modal-body">
                 <input type="text" id="spawn-search" class="spawn-search" placeholder="Search spells..." data-i18n-placeholder="modals.spawnSpell.searchPlaceholder" autofocus>
@@ -1849,7 +1850,7 @@
         <div class="modal-content" style="width: 320px;">
             <div class="modal-header">
                 <h3 id="preset-name-title" data-i18n="modals.presetName.title">Save Preset</h3>
-                <button class="modal-close" id="preset-name-close">&times;</button>
+                <button class="modal-close" id="preset-name-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
             <div class="modal-body" style="padding: 12px 16px;">
                 <input type="text" id="preset-name-input" class="spawn-search" placeholder="Enter preset name..." data-i18n-placeholder="modals.presetName.placeholder" style="width: 100%; margin-bottom: 0;">
@@ -1867,7 +1868,7 @@
         <div class="modal-content blacklist-modal">
             <div class="modal-header">
                 <h3 data-i18n="modals.blacklist.title">Spell Blacklist</h3>
-                <button class="modal-close" id="blacklist-modal-close">&times;</button>
+                <button class="modal-close" id="blacklist-modal-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
             <div class="modal-body">
                 <div class="blacklist-search-section">
@@ -1910,7 +1911,7 @@
         <div class="modal-content whitelist-modal">
             <div class="modal-header">
                 <h3 data-i18n="modals.whitelist.title">Plugin Whitelist</h3>
-                <button class="modal-close" id="whitelist-modal-close">&times;</button>
+                <button class="modal-close" id="whitelist-modal-close"><span class="hom-icon" data-icon="close" aria-hidden="true"></span></button>
             </div>
             <div class="modal-body">
                 <div class="whitelist-info">
@@ -2039,6 +2040,7 @@
     <!-- 2. Core Utilities -->
     <script src="modules/spellCache.js"></script>
     <script src="modules/colorUtils.js"></script>
+    <script src="modules/homIcons.js"></script>
     <script src="modules/uiHelpers.js"></script>
     <script src="modules/panelSnap.js"></script>
     

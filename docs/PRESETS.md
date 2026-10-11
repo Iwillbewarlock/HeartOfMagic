@@ -298,6 +298,13 @@ a player's old value from before is put back to the shipped default once, so a d
 | `uiTheme` | The UI theme the design is built on: an id from `themes/manifest.json` (`skyrim` = Skyrim Edge, the only one shipped; Modern Dark is Skyrim Edge with `themes/design-modern.css` over it). Left out, `skyrim`. The UI theme has no selector of its own any more - the design sets it. A design's CSS can also set `--preview-bg`, the background of the scan screen's tree previews, and `--status-idle`, `--status-working`, `--status-done`, `--status-error`, the tree builder's status line (kept apart from each other). |
 | `cssFile` | Optional. A stylesheet laid over the theme, path relative to the panel folder (`PrismaUI/views/SpellLearning/SpellLearningPanel/`). Ship it under your own name in `themes/`. |
 | `css` | Optional. The same, written inline: a string or an array of lines. |
+| `icons` | Optional. The design's icon folder, relative to the panel folder and ending in `/` (e.g. `"themes/arcane/icons/"`). It must hold all 19 icons as `<id>.png` (48 px): `scan`, `build`, `apply`, `clear`, `replay`, `save`, `reset`, `import`, `fullscreen`, `close`, `hotkey`, `tree-view`, `display`, `debug`, `progression`, `early`, `tome`, `tree-gen`, `prereq`. Left out (or not ending in `/`, or holding `"` or `<`), the line set `themes/icons-line/`. A well-formed path to a wrong folder is not checked: its icons show blank, so ship all 19. |
+
+The panel chrome every design shares is in `panel-chrome.css`, loaded before a design's stylesheet, so a
+design's rules at the same specificity win. One exception: the settings groups are restyled by
+`#contentSettings .settings-block`, `.settings-block-header` and `.settings-block-content` (an id-level
+selector), so a design that wants to box or colour them needs an id-level selector too
+(e.g. `#contentSettings .settings-block { ... }`).
 
 Colours in `tree` are `#rrggbb` or `rgba(r, g, b, a)`. A token with the wrong type (text where a number
 belongs) is ignored and keeps its Classic value; unknown tokens are ignored, so a preset written for a

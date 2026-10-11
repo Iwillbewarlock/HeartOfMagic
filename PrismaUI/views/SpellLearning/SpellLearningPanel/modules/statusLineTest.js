@@ -86,7 +86,10 @@ var StatusLineTest = {
             document: { getElementById: function(id) { return byId[id] || null; } }
         };
         make('scanStatusBar');
-        make('scanBtn');
+        // The Scan button's label span (index.html); HomIcons.setLabel writes its text
+        var scanBtn = make('scanBtn');
+        scanBtn.label = make(null);
+        scanBtn.querySelector = function(sel) { return sel === '.hom-label' ? this.label : null; };
         var spawn = make('spawn-spell-list');
         spawn.waiting = make(null);
         spawn.querySelector = function(sel) { return sel === '.spawn-loading' ? this.waiting : null; };
@@ -193,11 +196,11 @@ var StatusLineTest = {
     _checkScanFailed: function(g, page, setLang) {
         var btn = page.byId.scanBtn, bar = page.byId.scanStatusText;
         setLang('en');
-        btn.disabled = true; btn.innerHTML = 'Scanning...';
+        btn.disabled = true; btn.label.textContent = 'Scanning...';
         // C++ sends {mode, reason}; a system message can carry non-Latin text
         var reason = 'No mapping for the Unicode character exists in the target multi-byte code page';
         g.onScanFailed(JSON.stringify({ mode: 'all', reason: reason }));
-        this.check(btn.disabled === false && btn.innerHTML.indexOf('Scan Spells') !== -1,
+        this.check(btn.disabled === false && btn.label.textContent === 'Scan Spells',
             'onScanFailed (all): the Scan button is enabled again');
         this.check(bar.textContent === 'Scan failed: ' + reason &&
             page.byId.scanStatusBar.className.indexOf('error') !== -1,

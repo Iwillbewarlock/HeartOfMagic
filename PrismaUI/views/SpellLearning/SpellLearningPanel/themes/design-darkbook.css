@@ -114,17 +114,18 @@
 }
 
 .btn-primary {
-    background: rgba(255, 220, 140, 0.14);
     border-color: var(--book-gold);
     color: var(--book-gold-bright);
 }
 
-.settings-block {
+/* Settings groups are rules, not boxes (panel-chrome.css #contentSettings .settings-block*);
+   these reach only the Pre Req Master box on the Scan page */
+.prm-block {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--book-edge);
 }
 
-.settings-block-header {
+.prm-header {
     background: rgba(255, 240, 200, 0.04);
     border-bottom: 1px solid var(--book-edge);
 }
@@ -132,16 +133,6 @@
 .settings-block-title {
     color: var(--book-gold-bright);
     letter-spacing: 1.5px;
-}
-
-/* Switches in gold, not the theme's green */
-.toggle-switch input:checked + .toggle-slider {
-    background: rgba(255, 220, 140, 0.2);
-    border-color: var(--book-gold);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    background: var(--book-gold);
 }
 
 /* ------------------------------------------------------------ the tree page */

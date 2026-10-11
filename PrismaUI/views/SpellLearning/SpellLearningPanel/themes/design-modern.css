@@ -102,7 +102,6 @@ body,
 
 /* ---------------------------------------------------------------- controls */
 
-.btn,
 .seg-btn,
 .school-tab,
 .zoom-btn,
@@ -122,13 +121,8 @@ textarea {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-hover) 100%);
-    border-color: transparent;
-    color: #111827;
-}
-
-.btn-primary:hover:not(:disabled) {
-    box-shadow: var(--modern-glow);
+    background: transparent;
+    color: var(--accent-gold);
 }
 
 .segmented-toggle {
@@ -141,41 +135,13 @@ textarea {
     color: var(--accent-gold);
 }
 
-/* Pill switches with a round knob, green when on */
-.toggle-slider {
-    border-radius: 999px;
-}
-
-.toggle-slider::before {
-    border-radius: 50%;
-}
-
-.toggle-switch input:checked + .toggle-slider {
-    background: rgba(74, 222, 128, 0.3);
-    border-color: rgba(74, 222, 128, 0.55);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    background: var(--accent-green);
-}
-
 /* ------------------------------------------------------------- the blocks */
 
-.settings-block,
 .modal-content,
 .popup-content,
 .heart-settings-popup {
     border-radius: 10px;
     overflow: hidden;
-}
-
-.settings-block {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid var(--panel-border);
-}
-
-.settings-block-header {
-    background: rgba(0, 0, 0, 0.25);
 }
 
 .settings-block-title {

@@ -105,6 +105,37 @@ SIL Open Font License 1.1 (Google Fonts families, LXGW Xiaolai, and Hakgyoansim 
 Yoon Design). Each font's license sits next to it (`<Family>-OFL.txt`, and `HakgyoansimBunpil-LICENSE.txt` for
 the KERIS font), and the `README.txt` in each folder names every file's source font and license.
 
+### Panel icons from game-icons.net - CC BY 3.0
+
+The 19 panel icons are shapes from game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed
+CC BY 3.0 (<https://creativecommons.org/licenses/by/3.0/>), redrawn as ink and chalk drawings for Heart of Magic.
+The redrawn PNGs are in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/arcane/icons/`,
+`themes/nightgrimoire/icons/` and `themes/chalkboard/icons/`; the Classic and Modern designs use recoloured line versions of
+the original shapes from `themes/icons-line/` and `themes/icons-line-gold/`. Each icon's source
+(icon id - author/name):
+
+- `scan` - delapouite/archive-research
+- `build` - delapouite/mesh-network
+- `apply` - delapouite/stamper
+- `clear` - delapouite/broom
+- `replay` - delapouite/anticlockwise-rotation
+- `save` - lorc/wax-seal
+- `reset` - delapouite/backward-time
+- `import` - lorc/scroll-unfurled
+- `fullscreen` - delapouite/resize
+- `close` - lorc/cross-mark
+- `hotkey` - lorc/three-keys
+- `tree-view` - lorc/spyglass
+- `display` - delapouite/old-lantern
+- `debug` - lorc/spanner
+- `progression` - delapouite/stairs
+- `early` - lorc/sprout
+- `tome` - delapouite/spell-book
+- `tree-gen` - lorc/star-swirl
+- `prereq` - delapouite/knot
+
+Each is at `https://game-icons.net/1x1/<author>/<name>.html`.
+
 ### PrismaUI API header
 
 `plugins/PrismaUI_API.h` is the API header the PrismaUI framework

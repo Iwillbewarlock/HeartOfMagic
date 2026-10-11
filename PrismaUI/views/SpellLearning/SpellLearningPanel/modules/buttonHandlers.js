@@ -8,6 +8,7 @@
  * - modules/wheelRenderer.js (WheelRenderer)
  * - modules/uiHelpers.js (updateStatus, setStatusIcon)
  * - modules/spellCache.js (SpellCache)
+ * - modules/homIcons.js (HomIcons.setLabel)
  * 
  * Exports (global):
  * - initializeButtonHandlers()
@@ -48,7 +49,7 @@ function startScan() {
     var scanBtn = document.getElementById('scanBtn');
     if (scanBtn) {
         scanBtn.disabled = true;
-        scanBtn.textContent = t('status.scanning');
+        HomIcons.setLabel(scanBtn, t('status.scanning'));
     }
 
     // Always include plugin field — needed for whitelist filtering even if user preset doesn't show it

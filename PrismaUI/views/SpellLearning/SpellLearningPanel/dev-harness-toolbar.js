@@ -84,7 +84,7 @@
                             logCppCall('in', 'updateSpellData', allSpells.length + ' spells loaded');
 
                             if (typeof window.updateSpellData === 'function') {
-                                window.updateSpellData(JSON.stringify(allSpells));
+                                window.updateSpellData(JSON.stringify({ scanMode: 'all_spells', spellCount: allSpells.length, spells: allSpells }));
                             }
 
                             updateHarnessStatus();

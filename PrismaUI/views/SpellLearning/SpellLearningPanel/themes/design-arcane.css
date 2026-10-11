@@ -127,17 +127,18 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 }
 
 .btn-primary {
-    background: rgba(201, 162, 90, 0.2);
     border-color: rgba(201, 162, 90, 0.45);
     color: var(--accent-gold-hover);
 }
 
-.settings-block {
+/* Settings groups are rules, not boxes (panel-chrome.css #contentSettings .settings-block*);
+   these reach only the Pre Req Master box on the Scan page */
+.prm-block {
     background: rgba(20, 12, 6, 0.55);
     border: 1px solid rgba(201, 162, 90, 0.22);
 }
 
-.settings-block-header {
+.prm-header {
     background: rgba(48, 32, 16, 0.7);
     border-bottom: 1px solid rgba(201, 162, 90, 0.3);
 }
@@ -409,16 +410,6 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     color: var(--accent-gold-hover);
 }
 
-/* Switches in gold, not the theme's green */
-.toggle-switch input:checked + .toggle-slider {
-    background: rgba(201, 162, 90, 0.25);
-    border-color: rgba(201, 162, 90, 0.55);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    background: var(--accent-gold);
-}
-
 /* Thin leather scrollbars; darker ones on the parchment */
 .spell-panel ::-webkit-scrollbar {
     width: 12px;
@@ -489,4 +480,13 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     background: #3a2610;                     /* the panel's leather, so the button reads on the page */
     border-color: #6b4a1c;
     color: #f0dca8;
+}
+
+/* Close on the parchment surfaces (spell card, how-to, modals): the gold set is
+   ~1.5:1 on parchment, so these take the ink-brown close tile. !important
+   because HomIcons.paint writes the gold tile as an inline style. */
+.details-panel .hom-icon[data-icon="close"],
+.howto-panel .hom-icon[data-icon="close"],
+.modal-content .hom-icon[data-icon="close"] {
+    background-image: url("arcane/icons-ink/close.png") !important;
 }
