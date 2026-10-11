@@ -5,7 +5,7 @@
  * Depends on:
  * - modules/state.js (state, settings, xpOverrides)
  * - modules/wheelRenderer.js (WheelRenderer)
- * - modules/uiHelpers.js (updateUnlockedCount)
+ * - modules/uiHelpers.js (updateUnlockedCount, getXPOverride)
  * 
  * Exports (global):
  * - initializeHowToPanel(), updateHowToContent()

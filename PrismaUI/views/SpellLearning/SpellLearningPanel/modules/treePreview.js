@@ -764,7 +764,8 @@ var TreePreview = {
             name: spell.name || spell.formId,
             school: school,
             rootIndex: this._rootSelectionIndex,
-            plugin: spell.plugin || '',
+            // persistentId's plugin when the scan left `plugin` out (scan fields setting)
+            plugin: typeof spellPluginName === 'function' ? spellPluginName(spell) : (spell.plugin || ''),
             localFormId: typeof getLocalFormId === 'function' ? getLocalFormId(spell.formId) : spell.formId
         };
 
