@@ -1,5 +1,14 @@
 # Changelog
 
+## Heart of Magic Librarian 1.4.1 (unreleased)
+
+### New
+
+- **A button in Risa's All In One Menu.** With Risa's All In One Menu 5.4 or newer installed, Heart of Magic
+  shows up in its launcher; Risa then opens and closes the panel and turns our own hotkey off while it does, so one
+  key does not open it twice. Your hotkey setting is left as it is and works again when you exclude Heart of Magic in
+  Risa or remove Risa.
+
 ## Heart of Magic Librarian 1.4.0
 
 After updating: to drop spells that only a mod's debug tome teaches, **Scan** and **build the tree again**.

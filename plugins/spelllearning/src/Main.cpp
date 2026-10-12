@@ -11,6 +11,7 @@
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "PapyrusAPI.h"
+#include "RisaMenu.h"
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -285,7 +286,7 @@ public:
 
             // PERFORMANCE: Check key code before IsDown (idCode is a simple member access).
             // Hotkey "None" is code 0, which no key has, so it never matches
-            if (buttonEvent->idCode != m_hotkeyCode) {
+            if (buttonEvent->idCode != m_hotkeyCode || !RisaMenu::NativeHotkeyEnabled()) {
                 continue;
             }
             
@@ -318,6 +319,7 @@ private:
 void UpdateInputHandlerHotkey(uint32_t keyCode)
 {
     InputHandler::GetSingleton()->SetHotkeyCode(keyCode);
+    RisaMenu::OnHotkeyChanged(keyCode);
 }
 
 // =============================================================================
@@ -514,6 +516,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             } else {
                 logger::error("SpellTomeHook failed to install - spell tomes will use vanilla behavior");
             }
+            RisaMenu::Register();   // a launcher button when Risa's All In One Menu is installed
             break;
         case SKSE::MessagingInterface::kPostPostLoad: {
             // Broadcast API to all listening plugins
