@@ -13,7 +13,8 @@
 namespace RisaMenu
 {
     // kPostLoad: registers when Risa's DLL and API version 1 are there.
-    void Register();
+    // keyCode: the InputHandler's key now (its default until config loads).
+    void Register(std::uint32_t keyCode);
 
     // Whether our own hotkey opens the panel. False only while Risa owns it.
     [[nodiscard]] bool NativeHotkeyEnabled();

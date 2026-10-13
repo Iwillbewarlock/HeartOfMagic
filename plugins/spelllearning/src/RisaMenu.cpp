@@ -23,7 +23,6 @@ namespace RisaMenu
         constexpr const char* kMenuId = "HeartOfMagic.Librarian";
         constexpr const char* kDisplayName = "Heart of Magic";
         constexpr std::uint32_t kIconHatWizard = 0xF6E8;   // Font Awesome 6 Solid "hat-wizard"
-        constexpr std::uint32_t kDefaultHotkey = 66;        // F8, as InputHandler starts
 
         std::atomic<bool> g_nativeHotkeyEnabled{ true };
         const Api::InterfaceV1* g_api = nullptr;            // set once registered
@@ -49,6 +48,8 @@ namespace RisaMenu
 
         bool Open(void*)
         {
+            // IsInitialized is a plain bool read off the game thread: it goes true
+            // once, before any player could reach Risa's launcher, and never back
             auto* ui = UIManager::GetSingleton();
             if (!ui || !ui->IsInitialized()) return false;   // main menu before data loaded
             AddTaskToGameThread("RisaMenu.Open", []() { UIManager::GetSingleton()->ShowPanel(); });
@@ -91,7 +92,7 @@ namespace RisaMenu
         }
     }
 
-    void Register()
+    void Register(std::uint32_t keyCode)
     {
         const HMODULE module = GetModuleHandleW(L"RisaAllInOneMenu.dll");
         if (!module) return;
@@ -108,7 +109,7 @@ namespace RisaMenu
             return;
         }
 
-        g_hotkeyLabel = KeyLabel(kDefaultHotkey);
+        g_hotkeyLabel = KeyLabel(keyCode);
         const auto result = RegisterWith(api);
         if (result != Api::Registration_Success) {
             logger::warn("RisaMenu: registration refused (result {}) - our own hotkey stays on", static_cast<std::uint32_t>(result));

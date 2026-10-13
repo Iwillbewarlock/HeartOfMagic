@@ -285,7 +285,8 @@ public:
             }
 
             // PERFORMANCE: Check key code before IsDown (idCode is a simple member access).
-            // Hotkey "None" is code 0, which no key has, so it never matches
+            // Hotkey "None" is code 0, which no key has, so it never matches.
+            // While Risa owns the panel our key does nothing, closing included: Risa may bind the same key
             if (buttonEvent->idCode != m_hotkeyCode || !RisaMenu::NativeHotkeyEnabled()) {
                 continue;
             }
@@ -516,7 +517,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             } else {
                 logger::error("SpellTomeHook failed to install - spell tomes will use vanilla behavior");
             }
-            RisaMenu::Register();   // a launcher button when Risa's All In One Menu is installed
+            RisaMenu::Register(InputHandler::GetSingleton()->GetHotkeyCode());   // Risa's All In One Menu button
             break;
         case SKSE::MessagingInterface::kPostPostLoad: {
             // Broadcast API to all listening plugins
