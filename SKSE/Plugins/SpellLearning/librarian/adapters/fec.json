@@ -14,6 +14,11 @@
     "    editor id as text and does not define the keyword: it comes with spell mods (Mihail's",
     "    High Fantasy Pack, Elemental Destruction Magic Redux). Where no plugin defines it the line",
     "    rests, like any line whose keyword is not in the load order",
+    "\"sharedEffects\": \"allow\" on both lines: spell mods give the spell's damage effect to its scroll",
+    "and staff too (Lunaris' Moonfire and Lunar Eclipse do), and the perk files' leak check then keeps",
+    "the keyword off the effect. A kill with the scroll or the staff should get the FEC death as well,",
+    "so these lines write the shared effect (TAKEALOOK 2026-10-13: 35 sun and 16 air effects were held",
+    "back in game, and no Lunaris kill turned to ash).",
     "Not added, with the reason:",
     "  holy - FEC has no holy death; sun's fire-and-ash look is not what holy damage reads as",
     "  drain, poison, fear - FEC reads these from the archetype and resist value, not keywords"
@@ -23,9 +28,11 @@
   "requires": { "any": ["FEC.esp"] },
   "adapters": [
     { "keyword": "PO3_MagicDamageSun", "why": "sun damage: FEC sun death",
+      "sharedEffects": "allow",
       "tags": { "all": ["sun"] },
       "effect": { "detrimental": true, "primaryAV": "Health" } },
     { "keyword": "MagicDamageWind", "why": "air damage: FEC air death. Not on spells that are also fire, frost or shock (FEC reads those first)",
+      "sharedEffects": "allow",
       "tags": { "all": ["air"], "none": ["fire", "frost", "shock"] },
       "effect": { "detrimental": true, "primaryAV": "Health" } }
   ]

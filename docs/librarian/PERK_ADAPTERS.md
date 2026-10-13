@@ -71,6 +71,7 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
 | `castingPerk` | `keyword` 대신: `"vanilla"` 하나. 고른 주문 중 반값 시전 퍽이 **없는** 주문에 카탈로그 학파·등급의 바닐라 퍽(`DestructionNovice00` …)을 준다. 누출 검사는 없다(퍽은 주문 레코드에 붙는다). 이미 퍽이 있는 주문은 agree. 7-2절 |
 | `enabled` | `false` 면 끈다. 이유는 `why` 에 |
+| `sharedEffects` | `keyword` 줄에서 `"allow"` 하나. 누출 검사(5절 4)를 건너뛴다 — 고른 주문의 이펙트에 붙이면 그 이펙트를 같이 쓰는 주문서·지팡이·다른 주문도 키워드를 받는다. 죽인 이펙트를 읽는 FEC 처럼 그쪽이 오히려 맞을 때만 쓴다. 퍽 파일에는 쓰지 않는다(2026-10-13) |
 | `tags` | 카탈로그 태그. `all` / `any` / `none` |
 | `spell` | 스캔 주문 필드: `school`, `notSchool`, `tier`, `casting`, `twoHanded`, `taughtByTome`(마법책이 가르치는 주문) |
 | `effect` | 스캔 이펙트 필드. 맞는 **첫 번째 보이는 이펙트**가 키워드를 받는다(없으면 첫 보이는 이펙트) |
@@ -277,7 +278,10 @@ FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
   주문이 gain 에 잡히는 것은 오프라인 평가에 FEC DLL 이 없어서다 — 게임에서는 FEC 가 먼저 붙여 agree 가 된다.
 - `MagicDamageWind` 는 FEC 가 EditorID 문자열로 비교하고 정의하지 않는다. Mihail High Fantasy Pack·Elemental Destruction Magic
   Redux 같은 주문 모드가 정의하며, 없는 로드오더에서는 줄이 쉰다. 공기 사망은 FEC 의 임시 효과 경로에서만 나온다.
-- 누출로 막힌 것: 바람 1(Dragonborn 회오리 망토 — 6-2절과 같은 이펙트).
+- 누출로 막힌 것: 바람 1(Dragonborn 회오리 망토 — 6-2절과 같은 이펙트). **이 숫자는 하한이었다**: 덤프에 주문서·마법부여가
+  없다. 게임(TAKEALOOK 2026-10-13)에서는 태양 35·바람 16 이펙트가 막혔고(Lunaris 달빛 섬광은 주문서·지팡이, 월식은 주문서가 같은
+  피해 이펙트를 쓴다), Lunaris 로 죽인 해골은 FEC 확률 100 에서도 재가 되지 않았다. 그래서 두 줄 모두 `"sharedEffects": "allow"`
+  — 주문서·지팡이로 죽여도 FEC 사망이 나와야 맞다.
 - `holy` 는 넣지 않았다. FEC 에 신성 사망이 없고, 태양 사망(불붙어 재가 됨)은 신성 피해의 모습이 아니다.
 - 측정: TAKEALOOK 스캔(2026-10-07, 3776 주문), `librarian-test -i <덤프> --catalog <master 룰로 만든 카탈로그> --adapters`.
   게임에서는 확인하지 않았다.

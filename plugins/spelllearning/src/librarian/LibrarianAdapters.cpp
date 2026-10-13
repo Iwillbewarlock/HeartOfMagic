@@ -159,6 +159,13 @@ namespace Librarian::Adapters
             std::optional<bool> enabled;
             read.Optional("enabled", enabled, &json::is_boolean);
             line.enabled = enabled.value_or(true);
+            std::optional<std::string> sharedEffects;
+            read.Optional("sharedEffects", sharedEffects, &json::is_string);
+            line.allowSharedEffects = sharedEffects == "allow";
+            if (sharedEffects && !line.allowSharedEffects) {
+                problems.push_back(where + ": \"sharedEffects\" knows only \"allow\"");
+                return false;
+            }
             read.List("keywordsNone", line.keywordsNone);
             read.List("formListsNone", line.formListsNone);
 
@@ -200,8 +207,8 @@ namespace Librarian::Adapters
             ok = ParseEffectList(object, "spellHas", where, line.spellHas, problems) && ok;
             ok = ParseEffectList(object, "spellLacks", where, line.spellLacks, problems) && ok;
 
-            read.RejectUnknown({ "keyword", "keywordForm", "formList", "castingPerk", "why", "enabled", "tags", "spell", "effect", "spellHas",
-                "spellLacks", "keywordsNone", "formListsNone" });
+            read.RejectUnknown({ "keyword", "keywordForm", "formList", "castingPerk", "why", "enabled", "sharedEffects", "tags", "spell",
+                "effect", "spellHas", "spellLacks", "keywordsNone", "formListsNone" });
             return read.ok && ok;
         }
 
@@ -530,6 +537,7 @@ namespace Librarian::Adapters
                     const EffectUser* blocker = nullptr;
                     bool blockedByItem = false;
                     for (const auto& user : users) {
+                        if (line.allowSharedEffects) break;   // "sharedEffects": "allow"
                         if (Contains(wanters, user.id)) continue;
                         if (!user.spell) {
                             blocker = &user;

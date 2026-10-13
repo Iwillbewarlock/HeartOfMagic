@@ -44,7 +44,10 @@
 //     spell the line picks or that carries the keyword; a spell outside the
 //     catalog that meets every condition except the tags; nothing else (an
 //     enchantment, scroll or potion using it blocks the write). A spell that
-//     uses the effect as a conditioned item (a perk bonus) blocks as well
+//     uses the effect as a conditioned item (a perk bonus) blocks as well.
+//     "sharedEffects": "allow" skips this check: the effect is written for the
+//     spells the line picks, whatever else uses it (a mod that reads the killing
+//     effect - FEC - wants the keyword on the scroll and the staff too)
 //   - a written effect gives the keyword to every spell using it; later lines
 //     see that
 //   - "keywordForm" names a "keyword" line's keyword by FormID: in game the
@@ -121,6 +124,7 @@ namespace Librarian::Adapters
         std::string formList;
         std::string castingPerk;
         bool enabled = true;
+        bool allowSharedEffects = false;   // "sharedEffects": "allow" - no leak check
         TagCondition tags;
         SpellCondition spell;
         std::optional<EffectCondition> effect;
