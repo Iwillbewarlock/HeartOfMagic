@@ -45,9 +45,10 @@
 //     catalog that meets every condition except the tags; nothing else (an
 //     enchantment, scroll or potion using it blocks the write). A spell that
 //     uses the effect as a conditioned item (a perk bonus) blocks as well.
-//     "sharedEffects": "allow" skips this check: the effect is written for the
-//     spells the line picks, whatever else uses it (a mod that reads the killing
-//     effect - FEC - wants the keyword on the scroll and the staff too)
+//     "sharedEffects": "allow" (keyword lines only) skips this check: the effect
+//     is written for the spells the line picks, whatever else uses it - scrolls,
+//     enchantments and spells that use it as a perk bonus included (a mod that
+//     reads the killing effect - FEC - wants the keyword on all of those)
 //   - a written effect gives the keyword to every spell using it; later lines
 //     see that
 //   - "keywordForm" names a "keyword" line's keyword by FormID: in game the

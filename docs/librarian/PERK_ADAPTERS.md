@@ -71,7 +71,7 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
 | `castingPerk` | `keyword` 대신: `"vanilla"` 하나. 고른 주문 중 반값 시전 퍽이 **없는** 주문에 카탈로그 학파·등급의 바닐라 퍽(`DestructionNovice00` …)을 준다. 누출 검사는 없다(퍽은 주문 레코드에 붙는다). 이미 퍽이 있는 주문은 agree. 7-2절 |
 | `enabled` | `false` 면 끈다. 이유는 `why` 에 |
-| `sharedEffects` | `keyword` 줄에서 `"allow"` 하나. 누출 검사(5절 4)를 건너뛴다 — 고른 주문의 이펙트에 붙이면 그 이펙트를 같이 쓰는 주문서·지팡이·다른 주문도 키워드를 받는다. 죽인 이펙트를 읽는 FEC 처럼 그쪽이 오히려 맞을 때만 쓴다. 퍽 파일에는 쓰지 않는다(2026-10-13) |
+| `sharedEffects` | `keyword` 줄에서 `"allow"` 하나. 누출 검사(5절 4)를 건너뛴다 — 고른 주문의 이펙트에 붙이면 그 이펙트를 같이 쓰는 주문서·지팡이·다른 주문(그 이펙트를 퍽 보너스로 쓰는 주문 포함)도 키워드를 받는다. `keyword` 가 아닌 줄에 쓰거나 값이 다르면 그 줄은 꺼진다. 죽인 이펙트를 읽는 FEC 처럼 그쪽이 오히려 맞을 때만 쓴다. 퍽 파일에는 쓰지 않는다(2026-10-13) |
 | `tags` | 카탈로그 태그. `all` / `any` / `none` |
 | `spell` | 스캔 주문 필드: `school`, `notSchool`, `tier`, `casting`, `twoHanded`, `taughtByTome`(마법책이 가르치는 주문) |
 | `effect` | 스캔 이펙트 필드. 맞는 **첫 번째 보이는 이펙트**가 키워드를 받는다(없으면 첫 보이는 이펙트) |
@@ -264,11 +264,11 @@ Mysticism·Odin·Triumvirate 의 태양 주문을, Air 애드온도 Skyrim.esm �
 ## 6-3. Frozen Electrocuted Combustion (2026-10-11)
 
 퍽 모드가 아니지만 읽는 방식이 같다. FEC 6.1.3(넥서스 3532)은 마법으로 죽은 액터의 사망 효과를 죽인
-이펙트의 키워드로 고른다(github.com/powerof3/FEC, `src/Papyrus.cpp` GetCauseOfDeath — 적대·해로움·상시 아님이 조건,
+이펙트의 키워드로 고른다(github.com/powerof3/FEC, `src/Papyrus.cpp` GetCauseOfDeath — 적대·해로움 둘만 본다,
 판정 순서 Sun → Fire → Frost → Shock). 불·냉기·번개는 바닐라 키워드라 `vanilla.json` 이 이미 맡는다. `fec.json` 은
 FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
 
-| 줄 | 태그 | writes / gain | 예 |
+| 줄 | 태그 | writes / gain (allow 이전, 오프라인) | 예 |
 |---|---|---:|---|
 | `PO3_MagicDamageSun` (FEC.esp 가 정의) | `sun` | 64 / 76 | Lightpower 태양의 파편, Stellaris 천체의 물기, Lunaris 달의 특이점, Mysticism 태양빛의 손길 |
 | `MagicDamageWind` (FEC 는 정의하지 않음) | `air`, 불·냉기·번개 아님 | 21 / 25 (agree 3) | Natura 돌풍·바람의 칼날, Vigilant 카인의 바람의 칼날 |
@@ -277,14 +277,16 @@ FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
   쓰는 이펙트에만 붙인다(`src/Patches.cpp` SunKeyword). 다른 모드의 태양 주문은 이 줄로만 태양 사망을 얻는다. Dawnguard
   주문이 gain 에 잡히는 것은 오프라인 평가에 FEC DLL 이 없어서다 — 게임에서는 FEC 가 먼저 붙여 agree 가 된다.
 - `MagicDamageWind` 는 FEC 가 EditorID 문자열로 비교하고 정의하지 않는다. Mihail High Fantasy Pack·Elemental Destruction Magic
-  Redux 같은 주문 모드가 정의하며, 없는 로드오더에서는 줄이 쉰다. 공기 사망은 FEC 의 임시 효과 경로에서만 나온다.
-- 누출로 막힌 것: 바람 1(Dragonborn 회오리 망토 — 6-2절과 같은 이펙트). **이 숫자는 하한이었다**: 덤프에 주문서·마법부여가
+  Redux 같은 주문 모드가 정의하며, 없는 로드오더에서는 줄이 쉰다. FEC 가 이 키워드를 읽는 곳은 `fec_deatheffectsnpctemp.psc` 의 `OnEnterBleedout` 하나뿐이다:
+  대상이 빈사에 들어갈 때(필수·보호 NPC 등) 바람 효과가 걸려 있으면 질식시킨다. 빈사 없이 바로 죽는 대상에게는 아무 일도 없다.
+- 처음(allow 이전) 오프라인에서 누출로 막힌 것은 바람 1(Dragonborn 회오리 망토)뿐이었다. **이 숫자는 하한이었다**: 덤프에 주문서·마법부여가
   없다. 게임(TAKEALOOK 2026-10-13)에서는 태양 35·바람 16 이펙트가 막혔고(Lunaris 달빛 섬광은 주문서·지팡이, 월식은 주문서가 같은
   피해 이펙트를 쓴다), Lunaris 로 죽인 해골은 FEC 확률 100 에서도 재가 되지 않았다. 그래서 두 줄 모두 `"sharedEffects": "allow"`
-  — 주문서·지팡이로 죽여도 FEC 사망이 나와야 맞다.
+  — 주문서·지팡이로 죽여도 FEC 사망이 나와야 맞다. allow 이후에는 막히는 것이 없다(회오리 망토도 받는다). 위 표 수치는
+  allow 이전 값이다. allow 이후 수치는 게임의 `perk_adapters_report.json` 으로 다시 잰다.
 - `holy` 는 넣지 않았다. FEC 에 신성 사망이 없고, 태양 사망(불붙어 재가 됨)은 신성 피해의 모습이 아니다.
 - 측정: TAKEALOOK 스캔(2026-10-07, 3776 주문), `librarian-test -i <덤프> --catalog <master 룰로 만든 카탈로그> --adapters`.
-  게임에서는 확인하지 않았다.
+  게임: 누출 차단은 2026-10-13 에 확인했다. allow 를 넣은 뒤의 사망 효과는 아직 확인하지 않았다.
 
 ## 7. 붙이지 않는 것과 이유
 

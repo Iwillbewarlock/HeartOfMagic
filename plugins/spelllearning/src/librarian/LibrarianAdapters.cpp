@@ -162,8 +162,8 @@ namespace Librarian::Adapters
             std::optional<std::string> sharedEffects;
             read.Optional("sharedEffects", sharedEffects, &json::is_string);
             line.allowSharedEffects = sharedEffects == "allow";
-            if (sharedEffects && !line.allowSharedEffects) {
-                problems.push_back(where + ": \"sharedEffects\" knows only \"allow\"");
+            if (sharedEffects && (!line.allowSharedEffects || line.keyword.empty())) {
+                problems.push_back(where + ": \"sharedEffects\" is \"allow\", on a \"keyword\" line only");
                 return false;
             }
             read.List("keywordsNone", line.keywordsNone);
