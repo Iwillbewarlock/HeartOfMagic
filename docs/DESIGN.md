@@ -1020,6 +1020,11 @@ Buttons, switches and chips are drawn about a fifth larger (`patch-ui.css`, "Big
 buttons 34px, switches 52x26 (small ones 42x22), button and chip text a step up. Sizes only, so every
 design keeps its colours, fonts and corners; none of the designs sets these sizes itself.
 
+**The canvas hint above the footer (1.4.1).** "Drag to pan / Scroll to zoom ..." sat 14 px from the
+tree page's bottom, under the footer (drawn over the page's bottom 44 px), so it lay on the legend
+with the side panel, and in bar mode with the bar closed. `#contentSpellTree .tree-instructions` is now
+52 px up (`patch-ui.css`, every design), inside the canvas; with the bar open it is still hidden.
+
 **Readable dim text (1.4.1).** The presets row's label (*Presets*), its Save button and its chips (here
 and on the Scan page) were the Skyrim gold written out at 45% and 70% (2.2-2.5:1 and 3.2-4.6:1 against
 the five designs' backgrounds, measured in the desktop harness); the tree footer's legend was
@@ -1061,7 +1066,8 @@ builder status line, the scan status bar, the tome learning description, the pow
 lists - and since 1.4.1 the tree's school tabs (`TreeNav.relabelSchoolTabs`: `tree.schoolShort.*`, the
 full name in the tooltip, a modded school with no key keeps its own name), the Scan page's school list
 (`updatePrimedCount`, `chips.school.*` through `schoolText`) and the Scan page's tree previews, whose
-school names are drawn on their canvases. The renderer chip in the tool bar ("Canvas") is written with
+school names are drawn on their canvases, and the tree is asked to repaint so its chapter titles
+(on the tree layer) follow. The renderer chip in the tool bar ("Canvas") is written with
 `setI18n` (`tree.rendererCanvas` / `tree.rendererSvg`), so the re-label covers it. Korean text breaks
 between words only (`html:lang(ko) { word-break: keep-all; overflow-wrap: break-word }` in
 `patch-ui.css`, under every design): the Easy page's status had wrapped "노드" into "노 / 드". Japanese and

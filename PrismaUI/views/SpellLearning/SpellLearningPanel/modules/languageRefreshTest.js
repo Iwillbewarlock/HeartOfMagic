@@ -6,6 +6,7 @@
  *   own name; the tab of the selected spell's school stays marked; no tabs, none built
  * - the Scan page's school list (updatePrimedCount): the full names in the new
  *   language, a modded school as it is
+ * - the tree is asked to repaint, so the chapter titles on its canvas follow
  *
  * Depends on: i18n.js, spellSearch.js, uiHelpers.js, treeNav.js,
  * languageSetting.js - run in a sandbox of their own with stand-in elements.
@@ -78,7 +79,8 @@ var LanguageRefreshTest = {
         box.initI18n('en');
         box.CanvasRenderer = {
             schools: { Alteration: { spokeAngle: -90 }, Destruction: { spokeAngle: 30 }, 'Mystic Arts': { spokeAngle: 150 } },
-            _getSchoolColor: function() { return '#888'; }
+            _getSchoolColor: function() { return '#888'; },
+            canvas: {}, _needsRender: false
         };
         return box;
     },
@@ -131,6 +133,7 @@ var LanguageRefreshTest = {
             this.check(list.innerHTML.indexOf('파괴 마법') !== -1 && list.innerHTML.indexOf('변이 마법') !== -1 &&
                        list.innerHTML.indexOf('Destruction') === -1, 'a switch writes the Scan page\'s school list again');
             this.check(list.innerHTML.indexOf('Mystic Arts') !== -1, 'the list keeps a modded school\'s own name');
+            this.check(box.CanvasRenderer._needsRender === true, 'the tree is asked to repaint (its chapter titles are on the canvas)');
 
             var emptyBar = this._element();
             var box2 = this._sandbox({ 'tree-school-tabs': emptyBar });

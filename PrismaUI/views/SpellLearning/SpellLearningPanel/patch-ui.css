@@ -405,6 +405,13 @@ button.easy-preset-chip {
     text-align: center;
 }
 
+/* The canvas hint goes above the footer, where the tree is, not over the footer's legend (it sat
+   14px from the page bottom, under the footer: seen with the side panel, and in bar mode with the bar
+   closed). 44px is the footer's room, as the bar's bottom: 44px; 8px more keeps it off the edge. */
+#contentSpellTree .tree-instructions {
+    bottom: 52px;
+}
+
 /* The instructions pill sits where the bar goes */
 #contentSpellTree.details-bottom.details-open .tree-instructions {
     display: none;

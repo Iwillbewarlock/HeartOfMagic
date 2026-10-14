@@ -60,6 +60,10 @@ var LANGUAGE_REFRESH_STEPS = [
         // Their school names are drawn on the canvas (TreePreviewSun, TreePreviewFlat)
         if (typeof PreReqMaster !== 'undefined' && PreReqMaster.renderPreview) PreReqMaster.renderPreview();
         if (typeof TreePreview !== 'undefined' && TreePreview._initialized) TreePreview._markDirty();
+    }],
+    ['tree chapter titles', function() {
+        // Drawn on the tree layer: a repaint (now, or when the tree tab is shown again) writes them in the new language
+        if (typeof CanvasRenderer !== 'undefined' && CanvasRenderer.canvas) CanvasRenderer._needsRender = true;
     }]
 ];
 
