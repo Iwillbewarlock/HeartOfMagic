@@ -220,7 +220,7 @@ node run-tests.js
 | `modules/layerFlowTest.js` | How a frame gets its tree layer: LayerScroll's shift and piece queue, and `_drawTree`'s order (scroll, build over frames, draw at once, stale builds dropped, glide builds, the restart cap, the urgent build), a new font's widths and letters made before the names, the font left cold by names drawn without outlines below zoom 0.8, the idle warm-up of every name's letters (`warmIdle`: a slice a frame, the font cold until done, restarted by a new font or tree or a name changed in place; the names as they show first, `???` included, then every name; code points) |
 | `modules/labelHaloTest.js` | The names' outline (`labelHalo`): stroked at `TreeStyle.LABEL_HALO_MIN_ZOOM` (0.8) and above, not below; the warm-up makes the names' and titles' outlined letters at any zoom (ready for a zoom-in) |
 | `modules/pageBuildTest.js` | The design page painted over frames (`TreeStyle.stepPage`): step order, bands, what stands in meanwhile, look changes, the idle timer |
-| `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar), and the spell card's rounded Magicka cost |
+| `modules/statusLineTest.js` | The builder status line and the scan status bar over a language switch (keyed lines come back in the new language, unkeyed ones stay as written, a key the language lacks shows English or the line as written, a cleared tree goes idle), the Easy page copy, `onScanFailed` (full scan: button back, reason in the bar), and the spell card's rounded Magicka cost |
 | `modules/spellNamesTest.js` | Names in the spell card's lists (a shared name gets its plugin, a unique one does not, hidden names `???` with no plugin, SpellCache plugin before persistentId, counts after a new tree or invalidate) and TreeParser dropping self links |
 | `modules/spellResearchStatusTest.js` | Settings > Spell Tome Learning > "Spell Research" line (`SpellResearchStatus`): hidden until the plugin sends a state, each state's text and numbers, English fallback, bad input hides it |
 | `modules/levelFilterTest.js` | The spell card's level as a tree filter (`level.<Level>` lights every spell of that level; pressable only when shown and counted), and bridges to spells the tree does not have left out |
@@ -247,7 +247,7 @@ node run-tests.js
 | `modules/languageRefreshTest.js` | A live language switch (`refreshScriptTexts`): the tree's school tabs (short names, tooltips) and the Scan page's school list come back in the new language, a modded school keeps its name, the selected school stays marked, no tabs built without a tree |
 | `modules/autoBuildTest.js` | The tree built at game start: no tree without spells is saved, `AutoBuild.decide` (no tree: build; load order changed: notice once; setting off: nothing), the run's steps (scan, silent build, apply, done) through save loads, and `TreePreviewHidden` giving the preview's output off screen equal to a drawn frame's (box measured, and box never laid out) |
 | `modules/autoBuildFlowTest.js` | The build at game start against the panel's own code: a save load during the run, the waits on a fake clock, which scan feeds the run, the player's Build, Import or Apply winning over it, trees without spells refused |
-| `modules/autoBuildGuardTest.js` | The guards round the build at game start: no debounce on its scan, a player's build makes it yield, a partly applied config builds nothing, its progress shown when the panel opens, Pre Req Master scores for a stale tree dropped, a tree loaded with the panel closed drawn when it opens |
+| `modules/autoBuildGuardTest.js` | The guards round the build at game start: no debounce on its scan, a player's build makes it yield, a partly applied or unread (`configNotRead`) config builds nothing, its progress shown when the panel opens, Pre Req Master scores for a stale tree dropped, a tree loaded with the panel closed drawn when it opens, a scan that throws fails the run, a run ending in its build step leaves no progress up and drops the late C++ result (a player's queued Build still goes out), the auto build's keys in every language |
 | `test-runner.html` | Browser-based test runner |
 | `dev-harness.html` | Desktop harness (open in a browser, mock C++ bridge in `dev-harness-bridge.js`). Generated: `node tools/make-dev-harness.js` puts the parts of `dev-harness-parts.html` into `index.html`, so it loads exactly the panel's scripts in the panel's order - never edit it by hand, edit `dev-harness-parts.html` and regenerate |
 
@@ -292,7 +292,9 @@ This project does not have a C++ test framework. Validation is done through:
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
-  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save")
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `tree-save-check` (SaveSpellTree's no-spells guard,
+  `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
+  full parse; exit 1 on a disagreement)
 
 ## Code Style
 

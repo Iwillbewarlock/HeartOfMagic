@@ -1467,7 +1467,11 @@ logs it and says so on the tree tab's status line (`status.treeNoSpellsNotSaved`
 their "saved" line only when the tree went out), and Apply says so on the builder's status line
 (`buildProgress.statusNothingPlaced`); C++ `SaveSpellTreeFromPanel` (both save listeners) refuses one as well
 (`UIManager::CheckTreeHasSpells`, "the tree has no spells" in the log; the check's time is in the
-"Saved spell tree to ... (spell check N ms)" line). A `schools` array counts no spells on both sides. Before, a
+"Saved spell tree to ... (spell check N ms)" line). C++ does not parse the tree for it - the check runs on the
+game thread for every save, and the panel checked already: `TreeSaveCheck::HasSpellNodes`
+(`include/uimanager/TreeSaveCheck.h`) scans the text for a `"nodes"` key (its quote not escaped) whose array
+starts with an object, whitespace allowed; offline check `tree-save-check --self-test`, or
+`tree-save-check <tree.json>` against a full parse. A `schools` array counts no spells in the panel. Before, a
 build whose layout had no preview grid to place on (`TreePreview.getOutput()` null) dropped every spell in
 `ClassicTreeOutput.build` and Apply saved the empty tree over the player's file without a word.
 
@@ -1483,7 +1487,9 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
         loadOrder, builtLoadOrder, noticedLoadOrder }                         (UIManagerAutoBuild.cpp)
   config (the value read first in onUnifiedConfigLoaded, noteConfigLoaded in its finally - after the saved
         scan fields) + scanner preset applied (onPresetsLoaded); each waited for 15 s at most
-        (AutoBuild.WAIT_MS): no config → nothing is built (the player's Off is in it), no presets → current settings
+        (AutoBuild.WAIT_MS): no config → nothing is built (the player's Off is in it), no presets → current settings;
+        a config.json C++ could not read (Unreadable, BrokenKept: its defaults sent, marked `configNotRead`)
+        counts as no config
   → AutoBuild.decide(setting, info, saveLoaded)
       off                                   → nothing
       missing, or empty (no spell in it)    → build (also when a save has loaded already)
@@ -1498,8 +1504,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
           → BuildProgress.complete → applyTree({ auto }): declutter, SpellTreeSave (SaveBuiltSpellTree),
             loadTreeData (tree tab only while the panel is closed, no 300 ms tab switch), scan status "Tree applied"
   notice: scan status line `status.loadOrderChanged`; C++ keeps the fingerprint in memory and shows
-          `hud.loadOrderChanged` in the corner at the next save load (kPostLoadGame), and only then records it
-          as told (`noticedLoadOrder`)
+          `hud.loadOrderChanged` in the corner at the next save load (kPostLoadGame), or at once when a save
+          has loaded already (`m_saveLoaded`), and only then records it as told (`noticedLoadOrder`)
 ```
 
 - **When:** at the main menu - onPrismaReady asks for all three inputs - once per game start: only the
@@ -1521,7 +1527,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   modal, or a built tree not yet applied) ends it the same way. The run takes the first full scan that comes
   back after it asked: its own, or - scan results carry no request id, and C++ keeps only the latest queued
   full scan - one the panel had sent just before the run started, which is the same scan. The run's scan is
-  not debounced (`startScan({ auto })`), and a scan that does not go out fails the run at once. A run also
+  not debounced (`startScan({ auto })`), and a scan that does not go out, or `startScan` throwing, fails the run
+  at once. A run also
   ends by finishing, failing or `RUN_TIMEOUT_MS` (10 min). A step that comes back to an ended run is dropped
   (`_current`), an Apply still decluttering then does not save (`applyTree`'s `isCurrent`), and
   `BuildProgress.start` tells a silent build it replaces ("superseded by another build") before taking its
@@ -1536,8 +1543,14 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   `TreeGrowthClassic._treeData` (cleared or built again since): no locks, no progress step, a warning in
   the log. The progress is shown at once when the panel is already open as the run starts building. Every
   way out of the lock step ends the build's progress (a failed C++ scoring included), and a run that ends
-  while building closes its silent progress (`BuildProgress.isSilent`), so neither can hold Apply and Clear
-  back. **Known limit:** neither `ProceduralTreeGenerate` nor `PreReqMasterScore` replies carry a request
+  in its build step never leaves its progress up (`AutoBuild._dropBuild`): a silent one, or a shown one on a
+  yield, is closed; a shown one on a failure (the timeout) is failed with the reason and gets its Close
+  button; one that failed itself is left as it says. So neither can hold Apply and Clear back. A build
+  request still in C++ then is the run's (a player's Build yields first): `_dropBuild` puts a discard in
+  `state._classicGrowthBuildQueued`, so the late result is not loaded, runs no locks and writes no "Tree
+  built" over the failure line; a Build of the player's queued meanwhile replaces the discard and goes out
+  when that result comes. A lock scoring reply after a run ended in its lock step still lands on the tree it
+  was asked for (that tree is built, not saved). **Known limit:** neither `ProceduralTreeGenerate` nor `PreReqMasterScore` replies carry a request
   id. A `busy` reply is told apart only by its flag, and `_prmTree` is one slot: a scoring request turned
   away as busy while another is in flight takes that slot, so the earlier reply is matched against the
   later request's tree. Ids in both replies (C++) would remove this; not reached from the panel today, as
@@ -1569,13 +1582,14 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   repair and an **Import** leave the record as it was - an imported tree's load order is not known, so it keeps
   the notice state of the tree it replaced. A tree built before 1.4.1 has no record: no notice until it is
   built again. The notice is asked for once per session and shown once per load order; a build under the
-  load order clears it. A session that only starts new games (no save load) shows it only on the Scan tab's
+  load order clears it, also a build under the load order the tree was already built for (the record is left
+  alone only when neither field changes). A session that only starts new games (no save load) shows it only on the Scan tab's
   status line: the corner message waits for a kPostLoadGame (nothing shows that a message sent at kNewGame,
   during the loading screen, reaches the screen), and the load order is not recorded as told until it showed.
 - **Log:** every step is one line `AutoBuild: <event> - <detail>` in SpellLearning.log (`AutoBuildEvent`,
   written whatever the developer mode; event and detail are cut at 512 bytes, back to the start of a UTF-8
   character, line breaks made spaces):
-  `config` (a wait ran out, or the config was applied only part way), `presets` (a wait ran out), `decided`,
+  `config` (a wait ran out, the config was applied only part way, or config.json could not be read), `presets` (a wait ran out), `decided`,
   `scan`, `build`, `shown`, `apply`, `done`, `failed`, `yielded`, `save loaded`, `notice`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
   load order ...` and `AutoBuild: load order notice shown for ...` (or `... not shown` / `... dropped`).
 - A failed run says so on the scan status line (`status.autoBuildFailed`) and leaves spell_tree.json as it was.
@@ -1799,6 +1813,7 @@ HeartOfMagic/
 │   │   │   └── uimanager/
 │   │   │       ├── ConfigFile.h             ✅ config.json load: loaded / missing / unreadable / moved aside (no game types)
 │   │   │       ├── PresetFiles.h            ✅ Preset file write/delete (no game types; closes a file before removing it)
+│   │   │       ├── TreeSaveCheck.h          ✅ SaveSpellTree's no-spells guard: a text scan, no parse (no game types)
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers
 │   │   └── src/

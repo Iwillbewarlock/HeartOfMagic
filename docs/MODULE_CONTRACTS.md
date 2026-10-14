@@ -338,12 +338,16 @@ Called when the C++ builder returns tree data. Store it, run layout, update prev
 #### `applyTree()`
 
 Save the positioned tree to `spell_tree.json` via the C++ backend. This is what the game reads at runtime.
+Save through `SpellTreeSave.send(tree, source)` (`spellTreeSave.js`), never `callCpp('SaveSpellTree')`
+yourself: it refuses a tree with no spells (it would replace the player's file), ends a run of the build at
+game start first, and with the source `'apply'` (a build's Apply) sends the tree to `SaveBuiltSpellTree`,
+which also records the load order it was built under. It returns false when nothing was sent.
 
 ```javascript
     applyTree: function() {
         if (!this._layoutData) return;
 
-        window.callCpp('SaveSpellTree', JSON.stringify(this._layoutData));
+        if (!SpellTreeSave.send(this._layoutData, 'apply')) return;   // no spells: not saved, the line says so
         // Text, tone, then the text's language key (and its {{variable}} values, if any),
         // so a language switch writes the line again in the new language
         TreeGrowth.setStatusText(t('mymode.treeSaved'), 'done', 'mymode.treeSaved');

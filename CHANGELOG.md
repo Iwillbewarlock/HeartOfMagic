@@ -21,14 +21,15 @@
 - **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
   scans your spells and builds the tree in the background with your active scanner preset - no need to open
   the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it;
-  if the build finishes in game, the game may pause briefly once or twice. Open the panel while it builds and
-  you see its progress window, as for a build of your own. Pressing Scan, Build, Apply or Clear yourself, or
-  saving or importing a tree, takes over from it. A tree you already have is never rebuilt by
-  itself: when your load order changed since it was built, the Scan tab says so, and the first time you load
-  a save with that load order a corner message does too (once per load order; if you only start new games,
-  only the Scan tab says it until you load a save). Importing a tree keeps the load order the previous tree
+  if the build finishes in game, the game may pause briefly once or twice. Open the panel while it builds the
+  tree and you see its progress window, as for a build of your own (not while it scans or saves). Pressing Scan,
+  Build, Apply or Clear yourself, or saving or importing a tree, takes over from it. A tree you already have is
+  never rebuilt by itself: when your load order changed since it was built, the Scan tab says so, and the first
+  time you load a save with that load order a corner message does too, or at once if a save is loaded already
+  (once per load order; if you only start new games, only the Scan tab says it until you load a save). Importing a tree keeps the load order the previous tree
   was built under (the record is new in this version and only a build sets it). The Scan tab is still there.
-  Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**.
+  Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**. If config.json could not
+  be read at start (your choice is in it), nothing is built that session.
 
 ### Fixed
 
