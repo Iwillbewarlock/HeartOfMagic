@@ -73,7 +73,8 @@ namespace RisaMenu
 
         void SetNativeHotkey(void*, bool enabled)
         {
-            g_nativeHotkeyEnabled = enabled;
+            // Risa repeats this every second during its integration maintenance: log changes only
+            if (g_nativeHotkeyEnabled.exchange(enabled) == enabled) return;
             logger::info("RisaMenu: own hotkey {} by Risa's All In One Menu", enabled ? "given back" : "taken over");
         }
 
