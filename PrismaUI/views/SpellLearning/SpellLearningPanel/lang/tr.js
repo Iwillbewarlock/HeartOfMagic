@@ -156,6 +156,8 @@ window._i18nPreload = {
     "tree.schoolShort.destruction": "Yıkım",
     "tree.schoolShort.illusion": "İllüz.",
     "tree.schoolShort.restoration": "Yenil.",
+    "tree.rendererCanvas": "Tuval",
+    "tree.rendererSvg": "SVG",
     "details.description": "Açıklama",
     "details.effects": "Etkiler",
     "details.learningProgress": "Öğrenme İlerlemesi",

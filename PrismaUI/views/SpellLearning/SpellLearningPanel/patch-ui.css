@@ -6,6 +6,15 @@
    contains "styles").
    ============================================================================= */
 
+/* ---- Korean: lines break between words, never inside one (the scan status's "nodes placed" split mid-word).
+   Korean puts spaces between words, so keep-all only moves the break to a space;
+   Japanese and Chinese do not, and keep their normal breaking. A word longer than
+   its line still breaks rather than run out of its box. ---- */
+html:lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
 /* ---- Toolbar icon buttons (home / search) ---- */
 .zoom-btn svg {
     width: 14px;

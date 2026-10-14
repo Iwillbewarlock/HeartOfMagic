@@ -156,6 +156,8 @@ window._i18nPreload = {
     "tree.schoolShort.destruction": "Destr.",
     "tree.schoolShort.illusion": "Ilus.",
     "tree.schoolShort.restoration": "Rest.",
+    "tree.rendererCanvas": "Lienzo",
+    "tree.rendererSvg": "SVG",
     "details.description": "Descripción",
     "details.effects": "Efectos",
     "details.learningProgress": "Progreso de Aprendizaje",

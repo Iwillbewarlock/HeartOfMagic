@@ -156,6 +156,8 @@ window._i18nPreload = {
     "tree.schoolShort.destruction": "파괴",
     "tree.schoolShort.illusion": "환영",
     "tree.schoolShort.restoration": "회복",
+    "tree.rendererCanvas": "캔버스",
+    "tree.rendererSvg": "SVG",
     "details.description": "설명",
     "details.effects": "효과",
     "details.learningProgress": "학습 진행도",

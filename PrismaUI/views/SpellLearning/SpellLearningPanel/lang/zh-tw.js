@@ -156,6 +156,8 @@ window._i18nPreload = {
     "tree.schoolShort.destruction": "毀滅",
     "tree.schoolShort.illusion": "幻術",
     "tree.schoolShort.restoration": "恢復",
+    "tree.rendererCanvas": "畫布",
+    "tree.rendererSvg": "SVG",
     "details.description": "描述",
     "details.effects": "效果",
     "details.learningProgress": "學習進度",

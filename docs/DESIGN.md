@@ -1042,7 +1042,14 @@ it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, th
 `refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
 and scan pages: the Design row's description, the Easy page's preset chips (the whole preset section is hidden when there are no presets, 2026-09-30), the tree
 builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
-lists. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
+lists - and since 1.4.1 the tree's school tabs (`TreeNav.relabelSchoolTabs`: `tree.schoolShort.*`, the
+full name in the tooltip, a modded school with no key keeps its own name), the Scan page's school list
+(`updatePrimedCount`, `chips.school.*` through `schoolText`) and the Scan page's tree previews, whose
+school names are drawn on their canvases. The renderer chip in the tool bar ("Canvas") is written with
+`setI18n` (`tree.rendererCanvas` / `tree.rendererSvg`), so the re-label covers it. Korean text breaks
+between words only (`html:lang(ko) { word-break: keep-all; overflow-wrap: break-word }` in
+`patch-ui.css`, under every design): the Easy page's status had wrapped "노드" into "노 / 드". Japanese and
+Chinese put no spaces between words and keep normal breaking. Tests: `languageRefreshTest.js`. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
 tone, key, params)`, `updateScanStatus(message, type, key, params)`, and `window.updateStatus(message, key,
 params)`, which C++ also calls with a message alone) and come back in the new language
 (`TreeGrowth.relabelStatus`, `relabelScanStatus`); every message the panel builds with `t()` passes its key.

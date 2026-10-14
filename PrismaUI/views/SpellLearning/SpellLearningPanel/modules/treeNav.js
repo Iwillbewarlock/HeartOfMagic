@@ -131,6 +131,15 @@ var TreeNav = {
         return full.length > 6 ? full.substring(0, 5) + '.' : full;
     },
 
+    /**
+     * The tabs again in the panel's language after a switch (languageSetting.js),
+     * when there are any: their names and tooltips are written by script.
+     */
+    relabelSchoolTabs: function() {
+        var bar = document.getElementById('tree-school-tabs');
+        if (bar && bar.children && bar.children.length) this.buildSchoolTabs();
+    },
+
     clearSchoolTabs: function() {
         var bar = document.getElementById('tree-school-tabs');
         if (bar) bar.innerHTML = '';

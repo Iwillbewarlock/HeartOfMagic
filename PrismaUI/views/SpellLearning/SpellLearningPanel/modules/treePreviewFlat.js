@@ -429,19 +429,19 @@ var TreePreviewFlat = {
                 this._drawArrow(ctx, nx, ny, dirAngle, s.nodeSize, color);
             }
 
-            // School label at center of segment
-            var labelPos = segStart + segSize / 2;
+            // School label at center of segment, in the panel's language
+            var labelPos = segStart + segSize / 2, labelText = (typeof schoolText === 'function') ? schoolText(school) : school;
             ctx.save();
             ctx.font = '10px sans-serif';
             ctx.fillStyle = 'rgba(184, 168, 120, 0.7)';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             if (isHoriz) {
-                ctx.fillText(school, cx + labelPos, cy - 20);
+                ctx.fillText(labelText, cx + labelPos, cy - 20);
             } else {
                 ctx.translate(cx - 20, cy + labelPos);
                 ctx.rotate(-Math.PI / 2);
-                ctx.fillText(school, 0, 0);
+                ctx.fillText(labelText, 0, 0);
             }
             ctx.restore();
 

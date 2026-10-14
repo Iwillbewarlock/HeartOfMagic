@@ -39,6 +39,9 @@
   names sit outside their spells instead of across them.
 - **Chapter titles stay off the spells** in Arcane, Night Grimoire and Chalkboard: each title now sits past the
   outermost spells under it, the long side titles included.
+- **Changing the language changes everything at once.** The school tabs over the tree, the school list in the scan
+  results, the school names in the Scan page's tree preview and the "Canvas" chip in the tree's tool bar used to stay
+  in English until the next start. Korean lines now break between words, not inside them.
 
 ### Good to know
 
