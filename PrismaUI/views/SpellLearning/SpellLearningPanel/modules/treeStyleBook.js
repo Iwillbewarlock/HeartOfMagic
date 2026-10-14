@@ -370,6 +370,7 @@
         _chapterRadii: null,
         _chapterNodes: null,
         _chapterBins: null,
+        _chapterKey: '',
         CHAPTER_HALF_HEIGHT: 0.75,  // of chapterSize, above and below the middle baseline (accents, descenders)
         CHAPTER_BOX_PAD: 1,         // css px round a title's box for antialiasing
         CHAPTER_GAP: 14,            // css px between a title's box and the spells nearest it
@@ -377,13 +378,17 @@
         CHAPTER_NODE_WORLD: 12,     // a spell's largest radius in world units (CanvasRenderer.KNOWN_SIZE)
 
         /** How far out the spells reach from the heart, once per tree: per school (returned), and per CHAPTER_BIN_DEG
-         *  whatever the school (_chapterBins: the outer ring at a school's spoke is often another school's). */
+         *  whatever the school (_chapterBins: the outer ring at a school's spoke is often another school's).
+         *  A hidden school's spells (settings.schoolVisibility) are not drawn, so they push no title out. */
         _schoolReach: function(r, gx, gy) {
-            if (this._chapterNodes === r.nodes && this._chapterRadii) return this._chapterRadii;
+            var hidden = (typeof settings !== 'undefined' && settings.schoolVisibility) || {};
+            var key = gx + ',' + gy + '|' + Object.keys(hidden).filter(function(k) { return hidden[k] === false; }).join('|');
+            if (this._chapterNodes === r.nodes && this._chapterKey === key && this._chapterRadii) return this._chapterRadii;
             var reach = {}, count = Math.ceil(360 / this.CHAPTER_BIN_DEG), bins = [];
             for (var b = 0; b < count; b++) bins.push(0);
             for (var i = 0; i < r.nodes.length; i++) {
                 var n = r.nodes[i];
+                if (hidden[n.school] === false) continue;
                 var dx = n.x - gx, dy = n.y - gy;
                 var d = Math.sqrt(dx * dx + dy * dy);
                 if (!reach[n.school] || d > reach[n.school]) reach[n.school] = d;
@@ -392,6 +397,7 @@
                 if (d > bins[bin]) bins[bin] = d;
             }
             this._chapterNodes = r.nodes;
+            this._chapterKey = key;
             this._chapterRadii = reach;
             this._chapterBins = bins;
             return reach;
@@ -406,26 +412,6 @@
             var m = 0;
             for (var k = from; k <= to; k++) m = Math.max(m, bins[((k % count) + count) % count]);
             return m;
-        },
-
-        /** The room the titles take past the outermost spells, css px {x, y}, kept free by the home view
-         *  (TreeCamera.homeTarget); {0, 0} when the design has no titles. */
-        chapterClearance: function(ctx, r) {
-            var none = { x: 0, y: 0 };
-            if (!this.tokens.chapterTitles || !ctx || !r || !r.schools) return none;
-            var names = Object.keys(r.schools);
-            if (names.length < 2) return none;
-            var widest = 0;
-            ctx.save();
-            this._chapterFont(ctx);
-            for (var i = 0; i < names.length; i++) {
-                if (typeof settings !== 'undefined' && settings.schoolVisibility && settings.schoolVisibility[names[i]] === false) continue;
-                widest = Math.max(widest, ctx.measureText(this._chapterText(names[i])).width);
-            }
-            ctx.restore();
-            var tall = 2 * this.tokens.chapterSize * this.CHAPTER_HALF_HEIGHT;
-            var lead = this.CHAPTER_NODE_WORLD * (r.zoom || 1) + this.CHAPTER_GAP;
-            return { x: Math.round(lead + widest), y: Math.round(lead + tall) };
         },
 
         _chapterText: function(name) { return '—  ' + this._schoolName(name) + '  —'; },
@@ -461,7 +447,8 @@
         /**
          * The boxes renderChapters paints its titles in (screen css px, the halo
          * included), for LayerScroll: a name it draws past its strip must not end
-         * up over a title. [] when the design has none.
+         * up over a title; and for the home view (TreeCamera.homeTarget), which fits
+         * them with the tree at each zoom it tries. [] when the design has none.
          */
         chapterBoxes: function(ctx, r, cx, cy, cos, sin, margin) {
             var places = this._chapterPlaces(ctx, r, cx, cy, cos, sin, margin);

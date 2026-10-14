@@ -231,8 +231,14 @@ titles were under the bar. Now `TreeCamera.homeTarget` fits the tree into the pa
 - `fitTarget` fits the shown schools' spells and the heart (`treeBounds`, rotation 0) into that rect with
   `HOME_PAD` (24 px) round them, centred on the box, never closer than `TreeNav.HOME_ZOOM` (0.75, the old
   home zoom) - a small tree looks as before, a big one opens further out. Designs with chapter titles
-  keep room for them past the outer spells (`TreeStyle.chapterClearance`: the widest title across, two
-  half heights down, plus the gap).
+  fit them with the tree: at each zoom tried, `TreeStyle.chapterBoxes` gives the boxes the titles would be
+  drawn in (no pan, rotation 0, nothing culled), and width and height are fitted apart - a side title
+  takes room across, a top or bottom title room down, each only its own box. The titles are screen-sized
+  while the tree scales, so the zoom is found by halving (`FIT_STEPS`, 30; at most 32 `chapterBoxes` calls
+  on a load or a Home press). In the 1600x1000 harness (540 px of canvas above the bar, 753 spells) the
+  book designs open at 55-56% (53-54% with a uniform clearance from the widest title on all four sides),
+  Classic 65% and Modern Dark 66%: the height above the bar is what limits it, and a title above and
+  below the tree costs about ten points of zoom there.
 - `CanvasRenderer.centerView` (a tree loaded) sets the old view and `_homePending`; the first frame that
   has the tree on screen fits it (`TreeCamera.settleHome`, at the top of `render` before anything reads
   the view), so a tree built on the Scan page fits when its tab is opened. A view asked for before that
@@ -247,8 +253,8 @@ school's farthest spell along the spoke. The outer ring at a spoke is often anot
 title lay on it, and a side title, 150 px wide, reached 35 px inside its ring. A title's middle now sits
 `CHAPTER_GAP` (14 px) plus half the box along the spoke (`|cos| x half width + |sin| x half height` on
 screen) past the farthest spell of any school under it - `_schoolReach` also keeps the farthest spell per
-2 degrees round the heart (`_chapterBins`, once per tree), and `_outerEdge` reads those within the box's
-half diagonal. Classic and Modern Dark have no titles and are unchanged. Tests: `chapterTitlesTest.js`.
+2 degrees round the heart (`_chapterBins`, once per tree and per set of hidden schools: a hidden school's
+spells are not drawn and push no title out), and `_outerEdge` reads those within the box's half diagonal. Classic and Modern Dark have no titles and are unchanged. Tests: `chapterTitlesTest.js`.
 
 ### Performance: the tree layer and the developer read-out (2026-09-22)
 

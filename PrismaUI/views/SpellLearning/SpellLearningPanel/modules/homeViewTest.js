@@ -152,7 +152,7 @@ var HomeViewTest = {
         var nodes = [];
         for (var i = 0; i < 72; i++) {
             var a = i * 5 * Math.PI / 180;
-            nodes.push({ school: i % 2 ? 'A' : 'B', x: Math.cos(a) * 380, y: Math.sin(a) * 380 });
+            nodes.push({ school: 'ABCDE'.charAt(Math.round(((i * 5 + 90) % 360) / 72) % 5), x: Math.cos(a) * 380, y: Math.sin(a) * 380 });
         }
         nodes.push({ school: 'Hidden', x: 3000, y: 3000 });
         var bar200 = this._el(this._rect(0, 600, 1000, 200));
@@ -164,10 +164,51 @@ var HomeViewTest = {
         this.check(home && this._inside(ring, home, { x: 0, y: 0, w: 1000, h: 600 }, { x: 24, y: 24 }, size),
             'homeTarget: the tree fits above the bar, a hidden school left out');
 
-        box.TreeStyle = { chapterClearance: function() { return { x: 150, y: 40 }; } };
+        // Titles as screen boxes past the ring along their spokes (TreeStyle.chapterBoxes at zoom z, no pan)
+        r.ctx = {};
+        var above = { x: 0, y: 0, w: 1000, h: 600 };
+        var sides = function(z) {
+            return [{ l: 380 * z + 20, r: 380 * z + 170, t: -11, b: 11 }, { l: -380 * z - 170, r: -380 * z - 20, t: -11, b: 11 }];
+        };
+        var tops = function(z) {
+            return [{ l: -60, r: 60, t: -380 * z - 60, b: -380 * z - 38 }, { l: -60, r: 60, t: 380 * z + 38, b: 380 * z + 60 }];
+        };
+        var boxesInside = function(cam, boxes) {
+            return boxes(cam.zoom).every(function(b) {
+                return b.l + cam.panX + 500 >= 24 - 0.01 && b.r + cam.panX + 500 <= 976 + 0.01 &&
+                       b.t + cam.panY + 400 >= 24 - 0.01 && b.b + cam.panY + 400 <= 576 + 0.01;
+            });
+        };
+        box.TreeStyle = { chapterBoxes: function(ctx, view) { return sides(view.zoom); } };
         var titled = box.TreeCamera.homeTarget(r, 0.75);
-        this.check(titled.zoom < home.zoom && this._inside(ring, titled, { x: 0, y: 0, w: 1000, h: 600 }, { x: 174, y: 64 }, size),
-            'homeTarget: room for the chapter titles round the tree');
+        this.check(Math.abs(titled.zoom - home.zoom) < 1e-6 && boxesInside(titled, sides) &&
+                   this._inside(ring, titled, above, { x: 24, y: 24 }, size),
+            'homeTarget: side titles take room across only - with room there, the zoom is the one without titles');
+        box.TreeStyle = { chapterBoxes: function(ctx, view) { return tops(view.zoom); } };
+        titled = box.TreeCamera.homeTarget(r, 0.75);
+        this.check(titled.zoom < home.zoom && Math.abs(titled.zoom - (276 - 60) / 380) < 1e-4 && boxesInside(titled, tops),
+            'homeTarget: top and bottom titles take room down, just their own height');
+
+        // The real titles (treeStyle.js + treeStyleBook.js) on five spokes round the ring, as the five vanilla schools
+        var fs = require('fs'), path = require('path'), vm = require('vm');
+        ['treeStyle.js', 'treeStyleBook.js'].forEach(function(f) {
+            vm.runInNewContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), box, { filename: f });
+        });
+        var TS = box.TreeStyle;
+        TS.tokens.chapterTitles = true; TS.tokens.chapterSize = 15; TS.tokens.labelHalo = null;
+        r.ctx = { font: '', save: function() {}, restore: function() {}, measureText: function(t) { return { width: String(t).length * 8 }; } };
+        r.schools = { A: { spokeAngle: -90 }, B: { spokeAngle: -18 }, C: { spokeAngle: 54 }, D: { spokeAngle: 126 }, E: { spokeAngle: 198 } };
+        r.MIN_NODE_SCREEN_RADIUS = 3;
+        var real = box.TreeCamera.homeTarget(r, 0.75);
+        var view = { nodes: r.nodes, schools: r.schools, zoom: real.zoom, panX: real.panX, panY: real.panY, _width: 1000, _height: 800, MIN_NODE_SCREEN_RADIUS: 3 };
+        var drawn = TS.chapterBoxes(r.ctx, view, 500, 400, 1, 0, 0);
+        var allIn = drawn.length === 5 && drawn.every(function(b) { return b.l >= 23.99 && b.r <= 976.01 && b.t >= 23.99 && b.b <= 576.01; });
+        var widest = String('—  A  —').length * 8, lead = 12 * 0.75 + TS.CHAPTER_GAP;
+        var uniform = Math.min((1000 - 2 * (24 + lead + widest)) / 760, (600 - 2 * (24 + lead + 2 * 15 * TS.CHAPTER_HALF_HEIGHT)) / 760);
+        this.check(allIn && this._inside(ring, real, above, { x: 24, y: 24 }, size),
+            'homeTarget: with the real titles, tree and every title in the part above the bar');
+        this.check(real.zoom > uniform + 0.01, 'homeTarget: closer than with the widest title\'s room kept on every side (' +
+            real.zoom.toFixed(3) + ' > ' + uniform.toFixed(3) + ')');
 
         var pendingBox = this._camera({ 'details-panel': bar200 });
         var hiddenR = this._renderer(this._rect(0, 0, 0, 0), nodes);

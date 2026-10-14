@@ -17,7 +17,7 @@
  * the details panel and How-to-Learn panel leave visible (visibleRect).
  *
  * Depends on: settings, state (state.js), CanvasRenderer (canvasRendererV2.js),
- *             TreeStyle.chapterClearance (treeStyleBook.js, optional)
+ *             TreeStyle.chapterBoxes (treeStyleBook.js, optional)
  */
 
 var TreeCamera = {
@@ -124,30 +124,67 @@ var TreeCamera = {
         return { x: x, y: y, w: Math.max(1, w - x - cut.right), h: Math.max(1, h - y - cut.bottom) };
     },
 
+    FIT_STEPS: 30,             // halvings of the zoom range when screen-sized boxes (chapter titles) go with the tree
+
     /**
-     * Pan and zoom that fit a world box into rect (canvas-local css px) with
-     * pad.x / pad.y css px round it, centred; the zoom no closer than maxZoom.
-     * Rotation 0 (the home view's).
+     * What a view at zoom z covers, css px from the world origin (no pan,
+     * rotation 0): the world box scaled, and each of extrasAt(z)'s screen boxes.
+     */
+    _extent: function(bounds, z, extrasAt) {
+        var e = { l: bounds.minX * z, r: bounds.maxX * z, t: bounds.minY * z, b: bounds.maxY * z };
+        var boxes = extrasAt ? extrasAt(z) : [];
+        for (var i = 0; i < boxes.length; i++) {
+            var x = boxes[i];
+            if (x.l < e.l) e.l = x.l;
+            if (x.r > e.r) e.r = x.r;
+            if (x.t < e.t) e.t = x.t;
+            if (x.b > e.b) e.b = x.b;
+        }
+        return e;
+    },
+
+    /**
+     * Pan and zoom that fit a world box - and, when extrasAt is given, the
+     * screen-sized boxes that go with it at each zoom (the chapter titles, past
+     * the outer spells along their spokes) - into rect (canvas-local css px)
+     * with pad.x / pad.y css px round it, centred; the zoom no closer than
+     * maxZoom. Width and height are fitted apart, so a side title takes room
+     * across and a top title room down, each only its own box. Rotation 0.
      * @param {{minX:number, maxX:number, minY:number, maxY:number}} bounds world
      * @param {{x:number, y:number, w:number, h:number}} rect
      * @param {{w:number, h:number}} size the canvas, css px
      * @param {{x:number, y:number}} pad
      * @param {number} maxZoom
+     * @param {function(number): Array<{l:number, r:number, t:number, b:number}>} [extrasAt]
      * @returns {{rotation:number, zoom:number, panX:number, panY:number}}
      */
-    fitTarget: function(bounds, rect, size, pad, maxZoom) {
-        var bw = Math.max(1, bounds.maxX - bounds.minX);
-        var bh = Math.max(1, bounds.maxY - bounds.minY);
-        var zoom = Math.min((rect.w - 2 * pad.x) / bw, (rect.h - 2 * pad.y) / bh);
-        if (!(zoom > 0)) zoom = this.MIN_ZOOM;
-        zoom = Math.max(this.MIN_ZOOM, Math.min(maxZoom, zoom));
-        var mx = (bounds.minX + bounds.maxX) / 2;
-        var my = (bounds.minY + bounds.maxY) / 2;
+    fitTarget: function(bounds, rect, size, pad, maxZoom, extrasAt) {
+        var self = this;
+        var fits = function(z) {
+            var e = self._extent(bounds, z, extrasAt);
+            return e.r - e.l <= rect.w - 2 * pad.x && e.b - e.t <= rect.h - 2 * pad.y;
+        };
+        var zoom;
+        if (fits(maxZoom)) {
+            zoom = maxZoom;
+        } else if (!fits(this.MIN_ZOOM)) {
+            zoom = this.MIN_ZOOM;
+        } else {
+            // Bisection: lo always fits, hi never does. The extents grow with the zoom
+            // (a title's distance from the heart is its spells' reach times the zoom plus fixed px)
+            var lo = this.MIN_ZOOM, hi = maxZoom;
+            for (var i = 0; i < this.FIT_STEPS; i++) {
+                var mid = (lo + hi) / 2;
+                if (fits(mid)) lo = mid; else hi = mid;
+            }
+            zoom = lo;
+        }
+        var e = this._extent(bounds, zoom, extrasAt);
         return {
             rotation: 0,
             zoom: zoom,
-            panX: rect.x + rect.w / 2 - size.w / 2 - mx * zoom,
-            panY: rect.y + rect.h / 2 - size.h / 2 - my * zoom
+            panX: rect.x + rect.w / 2 - size.w / 2 - (e.l + e.r) / 2,
+            panY: rect.y + rect.h / 2 - size.h / 2 - (e.t + e.b) / 2
         };
     },
 
@@ -183,10 +220,20 @@ var TreeCamera = {
             return { rotation: 0, zoom: maxZoom, panX: rect.x + rect.w / 2 - renderer._width / 2,
                      panY: rect.y + rect.h / 2 - renderer._height / 2 };
         }
-        var titles = (typeof TreeStyle !== 'undefined' && TreeStyle.chapterClearance)
-            ? TreeStyle.chapterClearance(renderer.ctx, renderer) : { x: 0, y: 0 };
-        var pad = { x: this.HOME_PAD + titles.x, y: this.HOME_PAD + titles.y };
-        return this.fitTarget(bounds, rect, { w: renderer._width, h: renderer._height }, pad, maxZoom);
+        // The design's chapter titles where they would be drawn at each zoom tried (TreeStyle.chapterBoxes
+        // with no pan, centre 0, rotation 0, nothing culled)
+        var extrasAt = null;
+        if (typeof TreeStyle !== 'undefined' && TreeStyle.chapterBoxes && renderer.ctx) {
+            var view = { nodes: renderer.nodes, schools: renderer.schools, zoom: 1, panX: 0, panY: 0,
+                         _width: renderer._width, _height: renderer._height,
+                         MIN_NODE_SCREEN_RADIUS: renderer.MIN_NODE_SCREEN_RADIUS };
+            extrasAt = function(z) {
+                view.zoom = z;
+                return TreeStyle.chapterBoxes(renderer.ctx, view, 0, 0, 1, 0, Infinity);
+            };
+        }
+        var pad = { x: this.HOME_PAD, y: this.HOME_PAD };
+        return this.fitTarget(bounds, rect, { w: renderer._width, h: renderer._height }, pad, maxZoom, extrasAt);
     },
 
     /**

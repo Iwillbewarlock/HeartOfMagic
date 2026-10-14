@@ -6,7 +6,8 @@
  *   (its long side along the spoke) as at the top, turned and zoomed
  * - the gap to the nearest spell is CHAPTER_GAP and not much more (titles stay
  *   by their school)
- * - a design without titles gets none and no room for them (chapterClearance)
+ * - a hidden school's spells push no title out (and showing it again does)
+ * - a design without titles gets none
  *
  * Depends on: treeStyle.js, treeStyleBook.js - run in a sandbox of their own.
  */
@@ -28,6 +29,7 @@ var ChapterTitlesTest = {
         var quiet = function() {};
         var box = { console: { log: quiet, warn: quiet, error: quiet }, settings: { schoolVisibility: {} }, state: { treeData: null } };
         box.window = box;
+        this._box = box;
         ['treeStyle.js', 'treeStyleBook.js'].forEach(function(f) {
             vm.runInNewContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), box, { filename: f });
         });
@@ -112,13 +114,21 @@ var ChapterTitlesTest = {
         this.check(top && top.y + 15 * TS.CHAPTER_HALF_HEIGHT < 1000 - 320 - this.NODE_R,
             'the top title ends above the outer ring, not on it');
 
-        var room = TS.chapterClearance(ctx, r);
-        this.check(room.x > right.w && room.y > 2 * 15 * TS.CHAPTER_HALF_HEIGHT, 'chapterClearance: room for the widest and the tallest title');
+        // A school far out, hidden in the settings: not drawn, so it moves no title
+        var withGhost = r.nodes.concat([{ school: 'Ghost', x: 0, y: -2000 }]);
+        var rg = { nodes: withGhost, schools: r.schools, zoom: 1, panX: 0, panY: 0, _width: 2000, _height: 2000, MIN_NODE_SCREEN_RADIUS: 3 };
+        var topOf = function() {
+            return TS._chapterPlaces(ctx, rg, 1000, 1000, 1, 0, Infinity).filter(function(p) { return p.text.indexOf('Top') !== -1; })[0];
+        };
+        this._box.settings.schoolVisibility = { Ghost: false };
+        var hiddenTop = topOf();
+        this._box.settings.schoolVisibility = {};
+        var shownTop = topOf();
+        this.check(hiddenTop && Math.abs(hiddenTop.y - top.y) < 1e-9, 'a hidden school\'s spells push no title out');
+        this.check(shownTop && shownTop.y < 1000 - 2000, 'shown again, they do (the outer edge is worked out again)');
 
         TS.tokens.chapterTitles = false;
         this.check(TS.chapterBoxes(ctx, r, 1000, 1000, 1, 0, 0).length === 0, 'no titles in a design without them');
-        var none = TS.chapterClearance(ctx, r);
-        this.check(none.x === 0 && none.y === 0, 'chapterClearance: no room kept without titles');
 
         return { passed: this.passed, failed: this.failed };
     }
