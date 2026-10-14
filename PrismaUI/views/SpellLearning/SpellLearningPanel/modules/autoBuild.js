@@ -24,11 +24,14 @@
  * onStartupTreeInfo counts: a later LoadSpellTree (Load Saved Tree on the tree
  * tab, or a second onPrismaReady if the view were reloaded) never starts a
  * second run. spell_tree.json is one file for every save, so a save load does
- * not stop a run (a new game is not sent to the panel at all) - scan, build and
- * Apply go on and save, and Apply's loadTreeData makes the tree live for the
- * loaded save (SetTreePrerequisites, then GetProgress / GetPlayerKnownSpells).
- * A decision made after a save has loaded still builds; the scan and the build
- * then run in game.
+ * not stop a run, nor does a new game (onNewGameStarted), and Apply's
+ * loadTreeData makes the tree live for the loaded save (SetTreePrerequisites,
+ * then GetProgress / GetPlayerKnownSpells). But no step starts during play: with
+ * a save loaded or a new game started and the panel closed, the next step (scan, build or Apply - each
+ * starts work on the game thread) is held until the panel opens or the main menu
+ * (onMainMenuShown), whichever comes first, and the scan status line says so
+ * (status.autoBuildHeld; C++ shows hud.autoBuildHeld in the corner once). A step
+ * already started finishes. This also holds a decision made in game.
  *
  * The player wins: a Scan that goes out (past startScan's 2 s debounce), a
  * Build, an Apply or Clear with a tree to apply or clear, edit mode's spawn list
@@ -51,7 +54,8 @@
  *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
- * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice.
+ * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice,
+ * new game, held, resumed ("held" also makes C++ show the corner message, once a session).
  *
  * Depends on: autoBuildSetting.js (AutoBuildSetting), buttonHandlers.js (startScan),
  *   treePreviewHidden.js (TreePreviewHidden), classic/classicMain.js
@@ -78,9 +82,9 @@ var AutoBuild = {
     _configMissing: false,    // the config wait ran out, or it was only partly applied: nothing is built
     _presetsReady: false,
     _decided: false,
-    _saveLoaded: false,
+    _saveLoaded: false,       // a game is being played (a save loaded or a new game), until the main menu
     _waitTimers: [],
-    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt, scanAsked }
+    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt, scanAsked, held: { step, fn } | null }
     _runTimer: null,
 
     // =========================================================================
@@ -99,7 +103,7 @@ var AutoBuild = {
         if (!info || typeof info !== 'object') return this._result(this.NONE, 'nothing known about the saved tree');
         if (info.tree === this.TREE_MISSING || info.tree === this.TREE_EMPTY) {
             return this._result(this.BUILD, (info.tree === this.TREE_MISSING ? 'no saved tree' : 'the saved tree has no spells') +
-                (saveLoaded ? ', a save is loaded already - the scan and build run in game' : ''));
+                (saveLoaded ? ', a save is loaded already - its steps wait for the panel or the main menu' : ''));
         }
         if (info.tree !== this.TREE_PRESENT) return this._result(this.NONE, 'the saved tree could not be read - left alone');
         var now = typeof info.loadOrder === 'string' ? info.loadOrder : '';
@@ -159,11 +163,28 @@ var AutoBuild = {
         this.noteConfigLoaded();
     },
 
-    /** onPanelShowing: a build of the run's under way shows its progress modal, as the buttons' does. */
+    /**
+     * onPanelShowing: a build of the run's under way shows its progress modal, as the
+     * buttons' does; a step held during play goes on (the panel pauses the game by
+     * default, "Pause Game on Open"), a tick later - after the panel's own opening work.
+     */
     onPanelShowing: function() {
+        this._reveal();
+        var run = this._run, self = this;
+        if (run && run.held) setTimeout(function() { if (self._current(run)) self._resume(run, 'the panel opened'); }, 0);
+    },
+
+    _reveal: function() {
         if (this._run && this._run.stage === 'build' && typeof BuildProgress !== 'undefined' && BuildProgress.reveal()) {
             this._report('shown', 'the panel opened during the build - its progress is shown');
         }
+    },
+
+    /** C++ (the main menu opened: at start, or the player quit a game): nothing is played, a held step goes on. */
+    onMainMenuShown: function() {
+        this._saveLoaded = false;
+        var run = this._run;
+        if (run && run.held) this._resume(run, 'the main menu');
     },
 
     notePresetsApplied: function() {
@@ -172,8 +193,18 @@ var AutoBuild = {
     },
 
     onSaveGameLoaded: function() {
+        this._inGame('save loaded');
+    },
+
+    /** C++ kNewGame (onNewGameStarted): played as much as a loaded save. */
+    onNewGameStarted: function() {
+        this._inGame('new game');
+    },
+
+    _inGame: function(event) {
         this._saveLoaded = true;
-        this._report('save loaded', this._run ? 'during the ' + this._run.stage + ' step - the run goes on' : 'no run under way');
+        this._report(event, this._run ? 'during the ' + this._run.stage + ' step - a step under way finishes, ' +
+            'the next one waits for the panel or the main menu' : 'no run under way');
     },
 
     /** The run is still the one going (not finished, failed, yielded or timed out). */
@@ -216,19 +247,85 @@ var AutoBuild = {
         this._end();
     },
 
-    _start: function() {
+    // =========================================================================
+    // HELD DURING PLAY
+    // =========================================================================
+    //
+    // Each step starts work on the game thread: the scan (CollectAllSpells, then
+    // FinishScan's perk adapters and the large InteropCall), the build (its request,
+    // then the tree reply and the lock scoring), Apply (SaveSpellTree, then
+    // SetTreePrerequisites over the whole tree). With a save loaded (or a new game)
+    // and the panel closed a step does not start: it waits for the panel to open or the main
+    // menu, whichever comes first. A step already started finishes - C++ cannot be
+    // stopped part way. The timeout does not run while a step waits.
+
+    /** A save is loaded (or a new game started) and the panel is closed: the game is being played. */
+    _mustHold: function() {
+        return this._saveLoaded && typeof window !== 'undefined' && window._panelVisible === false;
+    },
+
+    /** Run the step now, or hold it (and say why) while the game is being played. */
+    _step: function(run, name, fn) {
+        if (!this._mustHold()) {
+            fn();
+            return;
+        }
+        run.held = { step: name, fn: fn };
+        this._clearRunTimer();
+        this._report('held', 'the ' + name + ' step waits for the panel to open or the main menu - a save is loaded');
+        if (typeof updateScanStatus === 'function') {
+            var english = 'The spell tree will finish building when you open this panel.';
+            updateScanStatus(typeof tOr === 'function' ? tOr('status.autoBuildHeld', null, english) : english, '', 'status.autoBuildHeld');
+        }
+    },
+
+    _resume: function(run, why) {
+        var held = run.held;
+        if (!held) return;
+        run.held = null;
+        this._armTimer();   // a whole RUN_TIMEOUT_MS from here
+        this._report('resumed', 'the ' + held.step + ' step - ' + why);
+        if (typeof updateScanStatus === 'function') {
+            updateScanStatus(typeof tOr === 'function' ? tOr('buildProgress.statusBuilding', null, 'Building tree...') : 'Building tree...',
+                'working', 'buildProgress.statusBuilding');
+        }
+        this._step(run, held.step, held.fn);
+    },
+
+    _armTimer: function() {
         var self = this;
-        this._run = { stage: 'scan', startedAt: Date.now() };
+        this._clearRunTimer();
         this._runTimer = setTimeout(function() {
             self._runTimer = null;
             self._fail('not done after ' + (self.RUN_TIMEOUT_MS / 1000) + ' s');
         }, this.RUN_TIMEOUT_MS);
+    },
+
+    _clearRunTimer: function() {
+        if (this._runTimer) {
+            clearTimeout(this._runTimer);
+            this._runTimer = null;
+        }
+    },
+
+    // =========================================================================
+    // THE STEPS
+    // =========================================================================
+
+    _start: function() {
+        var self = this, run = { stage: 'scan', startedAt: Date.now(), held: null };
+        this._run = run;
+        this._armTimer();
         if (typeof startScan !== 'function') {
             this._fail('the panel has no scan function');
             return;
         }
+        this._step(run, 'scan', function() { self._scan(run); });
+    },
+
+    _scan: function(run) {
         this._report('scan', 'scanning all spells');
-        this._run.scanAsked = true;   // the first full scan that comes back is this one's (onSpellData)
+        run.scanAsked = true;   // the first full scan that comes back is this one's (onSpellData)
         var sent = false;
         try {
             sent = startScan({ auto: true });
@@ -251,6 +348,12 @@ var AutoBuild = {
             this._fail('the scan found no spells');
             return;
         }
+        var self = this;
+        this._step(run, 'build', function() { self._build(run); });
+    },
+
+    _build: function(run) {
+        var data = state.lastSpellData;
         // A build of the player's under way (the Build button, or a tree built and not yet
         // applied): theirs wins, this run ends quietly
         if (state._classicGrowthBuildPending || (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) ||
@@ -274,7 +377,7 @@ var AutoBuild = {
             });
             if (!started) this._fail('the build did not start');
             // The panel already open: the progress shows now, not at the next opening
-            else if (typeof window !== 'undefined' && window._panelVisible !== false) this.onPanelShowing();
+            else if (typeof window !== 'undefined' && window._panelVisible !== false) this._reveal();
         } catch (e) {
             this._fail('the build could not start: ' + (e && e.message ? e.message : e));
         }
@@ -289,6 +392,11 @@ var AutoBuild = {
         var run = this._run;
         if (!this._current(run) || run.stage !== 'build') return;
         run.stage = 'apply';
+        var self = this;
+        this._step(run, 'apply', function() { self._apply(run, summary); });
+    },
+
+    _apply: function(run, summary) {
         this._report('apply', 'built' + (summary ? ' (' + summary + ')' : '') + ' - saving');
         var self = this;
         var sent = TreeGrowthClassic.applyTree({
@@ -333,10 +441,7 @@ var AutoBuild = {
      *   yield or a finish: a progress still up is closed)
      */
     _end: function(progress) {
-        if (this._runTimer) {
-            clearTimeout(this._runTimer);
-            this._runTimer = null;
-        }
+        this._clearRunTimer();
         var run = this._run;
         this._run = null;   // first: the progress's callbacks below find no run to report to
         if (run && run.stage === 'build') this._dropBuild(progress);
@@ -408,6 +513,16 @@ window.onStartupTreeInfo = function(json) {
         console.error('[AutoBuild] Startup tree info unreadable: ' + (e && e.message ? e.message : e));
     }
     AutoBuild.onStartupTreeInfo(info);
+};
+
+/** C++ (UIManagerAutoBuild.cpp): the main menu opened. */
+window.onMainMenuShown = function() {
+    AutoBuild.onMainMenuShown();
+};
+
+/** C++ (UIManagerAutoBuild.cpp): kNewGame. */
+window.onNewGameStarted = function() {
+    AutoBuild.onNewGameStarted();
 };
 
 if (typeof window !== 'undefined') window.AutoBuild = AutoBuild;

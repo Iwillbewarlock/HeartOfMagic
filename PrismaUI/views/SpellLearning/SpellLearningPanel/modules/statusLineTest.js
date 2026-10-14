@@ -219,6 +219,10 @@ var StatusLineTest = {
             g.relabelScanStatus();
             this.check(bar.textContent.indexOf('Load order changed since the tree was built.') === 0,
                 'scan bar: status.loadOrderChanged missing in the language - English, not the key');
+            g.updateScanStatus('held', '', 'status.autoBuildHeld');
+            g.relabelScanStatus();
+            this.check(bar.textContent === 'The spell tree will finish building when you open this panel.',
+                'scan bar: status.autoBuildHeld missing in the language - English, not the key');
             switchTo('en');
             grow.setStatusText('The tree is still being built', 'error', 'buildProgress.statusStillBuilding');
             switchTo('ko'); grow.relabelStatus();

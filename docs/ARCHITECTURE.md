@@ -1492,7 +1492,7 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
         counts as no config
   → AutoBuild.decide(setting, info, saveLoaded)
       off                                   → nothing
-      missing, or empty (no spell in it)    → build (also when a save has loaded already)
+      missing, or empty (no spell in it)    → build (also in game: its steps are then held, see below)
       present, built under another load order, not told yet → notice
       present otherwise (same, unknown, told) / unreadable → nothing
   build:  startScan({ auto }) → updateSpellData → AutoBuild.onSpellData (the first full scan after the run
@@ -1511,10 +1511,9 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
 - **When:** at the main menu - onPrismaReady asks for all three inputs - once per game start: only the
   first `onStartupTreeInfo` counts, so a later `LoadSpellTree` (Load Saved Tree on the tree tab, or a
   second onPrismaReady if PrismaUI reloaded the view) never starts a second run. spell_tree.json is one file
-  for every save, so a save load does not stop a run (`save loaded - during the <step> step - the run goes
-  on`), and a decision made after a save has loaded (Continue pressed fast) still builds: the scan (about
-  1.7 s on the game thread) and the build then run in game. New Game is not sent to the panel at all (C++
-  `OnNewGame`). Apply's `loadTreeData` makes the tree live for the loaded save: `SetTreePrerequisites`
+  for every save, so a save load or a new game (C++ `OnNewGame` → `onNewGameStarted`, sent only for this)
+  does not stop a run, and a decision made in game (Continue pressed fast) still builds - but held, see
+  "Held during play". Apply's `loadTreeData` makes the tree live for the loaded save: `SetTreePrerequisites`
   (clears and sets prerequisites only, not progress), then `GetProgress` / `GetPlayerKnownSpells` for that
   save's progress - what a manual Apply after a save load does. The scan may first wait for the tome reach
   pass (up to 30 s) as a Scan button press does; that pass reads the plugin files on a worker thread from
@@ -1533,6 +1532,23 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   (`_current`), an Apply still decluttering then does not save (`applyTree`'s `isCurrent`), and
   `BuildProgress.start` tells a silent build it replaces ("superseded by another build") before taking its
   callbacks.
+- **Held during play:** each step starts work on the game thread - the scan (`CollectAllSpells`, about 1.7 s,
+  after the tome reach wait on its own thread; then `FinishScan` with the perk adapters and the large
+  InteropCall), the build (the `ProceduralTreeGenerate` request; then the tree reply's InteropCall and the
+  lock scoring's request and reply - the build and the scoring themselves run on worker threads), and Apply
+  (declutter's request, `SaveSpellTree`'s check and file write, then `SetTreePrerequisites` over the whole
+  tree). While a game is played - a save loaded or a new game started (`AutoBuild._saveLoaded`), the panel
+  closed - the next step does not start (`_step`): it is held (`held` in the log; the scan status line
+  `status.autoBuildHeld`, relabelled on a language switch; C++ shows `hud.autoBuildHeld` in the corner once
+  per session) until the panel opens (`onPanelShowing`, the resume a tick later, after the panel's own opening
+  work; the panel pauses the game unless "Pause Game on Open" is off) or the main menu opens (C++
+  `WatchMainMenu`: a `MenuOpenCloseEvent` sink for `MainMenu` → `onMainMenuShown`, which also ends "in game"),
+  whichever comes first (`resumed` in the log). Held: before the scan (a decision made in game), before the
+  build (the scan came back in game), before Apply (the build and its locks finished in game). A step already
+  started finishes: C++ cannot stop a queued scan, a build or a lock scoring part way, and Apply's save and
+  prerequisites go out together. The run's timeout is stopped while a step is held and runs a whole
+  `RUN_TIMEOUT_MS` again from the resume. The player's Scan, Build, Apply or Clear while it waits ends the run
+  (`yieldTo`) as at any other time; the held step then never runs. "Off" and the no-tree checks are as before.
 - **The panel opened during the run's build:** `onPanelShowing` → `AutoBuild.onPanelShowing` →
   `BuildProgress.reveal()`: the silent build's progress modal shows from there on (`shown` in the log). The
   modal (`.modal`, styles-skyrim.css: fixed, the whole view, z-index 99999, with a backdrop) covers the panel,
@@ -1590,7 +1606,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   written whatever the developer mode; event and detail are cut at 512 bytes, back to the start of a UTF-8
   character, line breaks made spaces):
   `config` (a wait ran out, the config was applied only part way, or config.json could not be read), `presets` (a wait ran out), `decided`,
-  `scan`, `build`, `shown`, `apply`, `done`, `failed`, `yielded`, `save loaded`, `notice`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
+  `scan`, `build`, `shown`, `apply`, `done`, `failed`, `yielded`, `save loaded`, `new game`, `notice`, `held`,
+  `resumed`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
   load order ...` and `AutoBuild: load order notice shown for ...` (or `... not shown` / `... dropped`).
 - A failed run says so on the scan status line (`status.autoBuildFailed`) and leaves spell_tree.json as it was.
 
@@ -1837,7 +1854,7 @@ HeartOfMagic/
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen)
-│   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice)
+│   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice, held message, main menu watch)
 │   │       │   ├── UIManagerPreReqMaster.cpp    (PRM scoring on a worker thread, request parsed there)
 │   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)

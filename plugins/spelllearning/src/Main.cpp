@@ -395,6 +395,8 @@ void OnDataLoaded()
         
         // Reset tree states on main menu load - all spells start locked
         UIManager::GetSingleton()->NotifyMainMenuLoaded();
+        // The build at game start, held during play, goes on at the main menu (autoBuild.js)
+        UIManager::GetSingleton()->WatchMainMenu();
     } else {
         logger::error("Failed to initialize UIManager - PrismaUI may not be loaded");
     }
@@ -455,6 +457,8 @@ void OnNewGame()
     // Fix input lock if UI was open in main menu
     if (UIManager::GetSingleton()->IsInitialized()) {
         UIManager::GetSingleton()->EnsureFocusReleased();
+        // The build at game start holds its next step until the panel opens (autoBuild.js)
+        UIManager::GetSingleton()->NotifyNewGameStarted();
     }
 
     // Reset passive learning timer

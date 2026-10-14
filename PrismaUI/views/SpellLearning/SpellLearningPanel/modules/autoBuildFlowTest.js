@@ -4,7 +4,8 @@
  * the run's steps with stand-ins.
  *
  *   - a save load during the run: the real onSaveGameLoaded, applyTree and
- *     loadTreeData - reset, then SaveBuiltSpellTree, SetTreePrerequisites and
+ *     loadTreeData - the build held until the main menu, a load during Apply lets
+ *     it finish: reset, then SaveBuiltSpellTree, SetTreePrerequisites and
  *     GetProgress, in that order;
  *   - the waits, with a fake clock: no config (nothing built), no scanner
  *     presets, a run that never ends; the config arriving last;
@@ -146,12 +147,14 @@ var AutoBuildFlowTest = {
             console: this._quiet
         }, function() {
             try {
-                var builtWith = null;
+                var builtWith = null, heldThere = false;
                 self._with(g, { TreeGrowthClassic: Object.create(tgc) }, function() {
                     g.TreeGrowthClassic.buildTree = function(opts) { builtWith = opts; return true; };
                     self._startRun(g);
                     g.onSaveGameLoaded();             // Continue pressed during the scan
-                    A.onSpellData();
+                    A.onSpellData();                  // the build step waits: a save is loaded, the panel closed
+                    heldThere = builtWith === null;
+                    g.onMainMenuShown();              // back to the main menu: the build goes on
                     g.TreeGrowthClassic._treeData = { schools: {} };
                     builtWith.onComplete('ok');       // the real applyTree, declutter pending
                     g.onSaveGameLoaded();             // and again while it declutters
@@ -161,8 +164,9 @@ var AutoBuildFlowTest = {
                 // progress and known spells wait for its opening (onPanelShowing)
                 var want = ['reset', 'reset', 'SaveBuiltSpellTree', 'SetTreePrerequisites', 'SetTreePrerequisites'];
                 var order = log.filter(function(n) { return want.indexOf(n) !== -1; });
-                self.check(order.join(',') === want.join(',') && log.indexOf('GetProgress') === -1 && !A.isRunning(),
-                    'save loads during the run: reset, then the tree saved and made live; progress waits for the panel');
+                self.check(heldThere && order.join(',') === want.join(',') && log.indexOf('GetProgress') === -1 && !A.isRunning(),
+                    'save loads during the run: the build held until the main menu, a load during Apply\x27s declutter lets it finish - ' +
+                    'reset, then the tree saved and made live; progress waits for the panel');
                 g.onPanelShowing();
                 self.check(log.indexOf('GetProgress') !== -1 && log.indexOf('GetPlayerKnownSpells') !== -1 &&
                     log.indexOf('renderLoop') !== -1, 'opening the panel asks for progress and known spells and starts drawing');

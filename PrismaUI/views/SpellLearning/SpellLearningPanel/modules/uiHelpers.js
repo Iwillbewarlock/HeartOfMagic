@@ -37,6 +37,7 @@ var _scanStatusFallback = {
     'status.scanFailedUnknown': 'Scan failed (unknown error)',
     'status.loadOrderChanged': 'Load order changed since the tree was built. Scan and build here to rebuild it; the current tree keeps working.',
     'status.autoBuildFailed': 'Automatic tree build failed: {{error}}. Scan and build here instead.',
+    'status.autoBuildHeld': 'The spell tree will finish building when you open this panel.',
     'buildProgress.statusNothingPlaced': 'No spell could be placed, so the tree was not saved. Open the Scan tab and build again.',
     'buildProgress.statusStillBuilding': 'The tree is still being built (locks are still being applied) - wait until it is done.'
 };

@@ -497,7 +497,8 @@ AutoBuildGuardTest._testLangKeys = function() {
     var dir = path.join(__dirname, '..', 'lang');
     var keys = ['buildProgress.statusNothingPlaced', 'buildProgress.statusStillBuilding', 'hud.loadOrderChanged',
         'settings.autoBuild.label', 'settings.autoBuild.desc', 'settings.autoBuild.whenMissing', 'settings.autoBuild.off',
-        'status.loadOrderChanged', 'status.autoBuildFailed', 'status.treeNoSpellsNotSaved'];
+        'status.loadOrderChanged', 'status.autoBuildFailed', 'status.treeNoSpellsNotSaved',
+        'status.autoBuildHeld', 'hud.autoBuildHeld'];
     var files = fs.readdirSync(dir).filter(function(f) { return /\.json$/.test(f); });
     var bad = [];
     for (var i = 0; i < files.length; i++) {
@@ -514,7 +515,7 @@ AutoBuildGuardTest._testLangKeys = function() {
         }
     }
     this.check(files.length >= 13 && bad.length === 0,
-        'the auto build\'s 10 keys in all ' + files.length + ' languages and their preloads' + (bad.length ? ' - missing: ' + bad.join(', ') : ''));
+        'the auto build\'s ' + keys.length + ' keys in all ' + files.length + ' languages and their preloads' + (bad.length ? ' - missing: ' + bad.join(', ') : ''));
 };
 
 if (typeof window !== 'undefined') window.AutoBuildGuardTest = AutoBuildGuardTest;

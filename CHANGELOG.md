@@ -20,9 +20,11 @@
   Risa or remove Risa. A new hotkey picked in the settings shows on Risa's button once the panel closes.
 - **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
   scans your spells and builds the tree in the background with your active scanner preset - no need to open
-  the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it;
-  if the build finishes in game, the game may pause briefly once or twice. Open the panel while it builds the
-  tree and you see its progress window, as for a build of your own (not while it scans or saves). Pressing Scan,
+  the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it, and
+  it does not slow your game down either: the step under way finishes, and the rest waits until you open the
+  panel (which pauses the game, as set in "Pause Game on Open") or go back to the main menu. The Scan tab says
+  so, and a corner message tells you once. Open the panel while it builds the tree and you see its progress
+  window, as for a build of your own (not while it scans or saves). Pressing Scan,
   Build, Apply or Clear yourself, or saving or importing a tree, takes over from it. A tree you already have is
   never rebuilt by itself: when your load order changed since it was built, the Scan tab says so, and the first
   time you load a save with that load order a corner message does too, or at once if a save is loaded already

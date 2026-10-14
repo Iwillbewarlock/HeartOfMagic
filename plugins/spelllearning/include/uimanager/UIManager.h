@@ -106,6 +106,12 @@ public:
     // The load order notice the panel asked for, in the corner, at kPostLoadGame;
     // recorded as told only once it was shown
     void ShowPendingLoadOrderNotice();
+    // The main menu opening (at start, or the player quitting a game) to the panel
+    // (onMainMenuShown): a run held while a save was loaded goes on there. Once, after Initialize.
+    void WatchMainMenu();
+    void NotifyMainMenuShown();
+    // kNewGame to the panel (onNewGameStarted): a held run waits as for a loaded save
+    void NotifyNewGameStarted();
     // Spells in a saved tree's JSON (every school's nodes), before any validation
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
     // SaveSpellTree's text has spells (a text scan, TreeSaveCheck.h): the check's time in ms,
@@ -257,8 +263,8 @@ private:
     // The load order the panel asked to be told about; shown at the next save
     // load (the main menu has no corner messages), then cleared. Game thread only.
     std::string m_pendingLoadOrderNotice;
-    // A save has loaded this session (NotifySaveGameLoaded, kPostLoadGame): a notice
-    // asked for after that is shown at once. Game thread only.
+    // A save is loaded (NotifySaveGameLoaded, kPostLoadGame; false again when the main
+    // menu opens): a notice asked for meanwhile is shown at once. Game thread only.
     bool m_saveLoaded = false;
 
 };

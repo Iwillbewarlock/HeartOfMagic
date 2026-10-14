@@ -300,6 +300,7 @@ var AutoBuildTest = {
     _testSaveLoadGoesOn: function(g) {
         var self = this, A = g.AutoBuild, calls, events, status, builtWith, appliedWith;
         this._with(g, {
+            _panelVisible: true,   // open: the game is not played, nothing is held (autoBuildHoldTest)
             settings: { autoBuild: 'whenMissing' },
             state: { lastSpellData: { spells: [{ formId: '0x01' }] } },
             startScan: function() { calls.push('scan'); return true; },
@@ -332,10 +333,10 @@ var AutoBuildTest = {
             self.check(current === true && calls.join(',') === 'scan,build,apply' && !A.isRunning() &&
                 events.join(',') === 'decided,scan,save loaded,build,save loaded,apply,save loaded,done' &&
                 status.indexOf('status.autoBuildFailed') === -1,
-                'save loads during scan, build and Apply: the run goes on and saves');
+                'save loads during scan, build and Apply with the panel open: the run goes on and saves');
 
             begin(true);
-            self.check(calls.join(',') === 'scan' && A.isRunning(), 'decided after a save load with no tree: build');
+            self.check(calls.join(',') === 'scan' && A.isRunning(), 'decided after a save load with no tree, the panel open: build');
 
             begin(false);
             g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // LoadSpellTree again (Load Saved Tree, or a view reload)

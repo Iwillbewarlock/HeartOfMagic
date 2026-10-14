@@ -52,6 +52,8 @@ namespace
 
     // The panel's "notice" is handled once per session
     std::atomic<bool> s_noticeAsked{ false };
+    // The corner message for a run held in game ("held"), once per session
+    std::atomic<bool> s_heldTold{ false };
 
     struct LoadOrderFingerprint
     {
@@ -294,4 +296,72 @@ void UIManager::OnAutoBuildEvent(const char* argument)
             }
         });
     }
+
+    // A run held while a save is loaded (autoBuild.js _step): once per session in the
+    // corner, as the notice is, so a player who never opens the panel knows why
+    if (event == "held" && !s_heldTold.exchange(true)) {
+        AddTaskToGameThread("AutoBuildHeld", []() {
+            if (!HudNotify::Show("hud.autoBuildHeld",
+                    "The spell tree will finish building when you open the Heart of Magic panel.")) {
+                logger::info("AutoBuild: held message not shown (notifications off)");
+            }
+        });
+    }
+}
+
+namespace
+{
+    // MainMenu opening: at start and when the player quits a game to it
+    class MainMenuWatch final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+    {
+    public:
+        static MainMenuWatch* GetSingleton()
+        {
+            static MainMenuWatch singleton;
+            return &singleton;
+        }
+
+        RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
+            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+        {
+            if (event && event->opening && event->menuName == RE::MainMenu::MENU_NAME) {
+                AddTaskToGameThread("AutoBuildMainMenu", []() {
+                    if (auto* instance = UIManager::GetSingleton()) instance->NotifyMainMenuShown();
+                });
+            }
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        MainMenuWatch(const MainMenuWatch&) = delete;
+        MainMenuWatch& operator=(const MainMenuWatch&) = delete;
+
+    private:
+        MainMenuWatch() = default;
+    };
+}
+
+void UIManager::WatchMainMenu()
+{
+    static bool s_watching = false;
+    if (s_watching) return;
+    auto* ui = RE::UI::GetSingleton();
+    if (!ui) {
+        logger::warn("AutoBuild: no UI to watch the main menu - a held run goes on only when the panel opens");
+        return;
+    }
+    ui->AddEventSink<RE::MenuOpenCloseEvent>(MainMenuWatch::GetSingleton());
+    s_watching = true;
+}
+
+void UIManager::NotifyNewGameStarted()
+{
+    // Only the build at game start hears of it: a new game is played as a loaded save is
+    // (m_saveLoaded stays false - a corner message at kNewGame may not reach the screen)
+    CallView("onNewGameStarted", "");
+}
+
+void UIManager::NotifyMainMenuShown()
+{
+    m_saveLoaded = false;   // nothing is played at the main menu
+    CallView("onMainMenuShown", "");
 }
