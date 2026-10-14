@@ -787,6 +787,17 @@
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
+                                <!-- Build Spell Tree at Start (modules/autoBuildSetting.js, autoBuild.js) -->
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <span class="setting-label" data-i18n="settings.autoBuild.label">Build Spell Tree at Start</span>
+                                        <span class="setting-desc" data-i18n="settings.autoBuild.desc">With no saved tree, the game start scans your spells and builds one. A changed load order only gets a notice.</span>
+                                    </div>
+                                    <div id="autoBuildToggle" class="segmented-toggle">
+                                        <div class="seg-btn active" data-value="whenMissing" data-i18n="settings.autoBuild.whenMissing">When none</div>
+                                        <div class="seg-btn" data-value="off" data-i18n="settings.autoBuild.off">Off</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <!-- Tree View: the tree's behaviour and look beyond the render popup
@@ -1961,6 +1972,7 @@
     <script src="modules/colorUtils.js"></script>
     <script src="modules/homIcons.js"></script>
     <script src="modules/uiHelpers.js"></script>
+    <script src="modules/spellTreeSave.js"></script>
     <script src="modules/panelSnap.js"></script>
     
     <!-- 3. Parsers -->
@@ -2009,6 +2021,7 @@
     <script src="modules/reverseUnlockSetting.js"></script>
     <script src="modules/notificationSetting.js"></script>
     <script src="modules/panelOpenSetting.js"></script>
+    <script src="modules/autoBuildSetting.js"></script>
     <script src="modules/spellResearchStatus.js"></script>
     <script src="modules/requiredXPSync.js"></script>
     <script src="modules/designEffectsSetting.js"></script>
@@ -2043,6 +2056,7 @@
     <script src="modules/treePreviewSun.js"></script>
     <script src="modules/treePreviewFlat.js"></script>
     <script src="modules/treePreview.js"></script>
+    <script src="modules/treePreviewHidden.js"></script>
     <script src="modules/schoolBridges.js"></script>
     <script src="modules/layoutLineClear.js"></script>
     <script src="modules/layoutLineGrid.js"></script>
@@ -2077,6 +2091,7 @@
 
     <!-- 6.7. Tree Animation (build replay) -->
     <script src="modules/treeAnimation.js"></script>
+    <script src="modules/autoBuild.js"></script>
 
     <!-- 7. Main Application (init, tabs, dragging, early learning settings) -->
     <script src="script.js"></script>

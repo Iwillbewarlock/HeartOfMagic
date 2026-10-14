@@ -419,9 +419,7 @@ function repairOrphans() {
     }
 
     // Save repaired tree
-    if (window.callCpp && state.treeData.rawData) {
-        var treeJson = JSON.stringify(state.treeData.rawData);
-        window.callCpp('SaveSpellTree', treeJson);
+    if (state.treeData.rawData && SpellTreeSave.send(state.treeData.rawData, 'orphan repair')) {
         console.log('[OrphanRepair] Saved repaired tree');
     }
 

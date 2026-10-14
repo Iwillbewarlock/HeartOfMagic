@@ -283,15 +283,20 @@ var TreeGrowthClassic = {
      * Build tree from scanned spells via C++ (ProceduralTreeGenerate). The
      * modal, status and pending flag are set here; ClassicBuildRequest puts the
      * request together, sends it and undoes them if it cannot be sent.
+     *
+     * @param {Object} [options] - { auto: true, onComplete(summary), onFail(error) }:
+     *   the build at game start (AutoBuild) - the progress modal stays hidden and
+     *   says when it is done (BuildProgress silent mode) through the two callbacks
+     * @returns {boolean} whether a build started
      */
-    buildTree: function () {
+    buildTree: function (options) {
         var spellData = (typeof state !== 'undefined' && state.lastSpellData)
             ? state.lastSpellData
             : null;
 
         if (!spellData || !spellData.spells || spellData.spells.length === 0) {
             ClassicSettings.setStatusText(t('buildProgress.statusNoSpells'), 'error', 'buildProgress.statusNoSpells');
-            return;
+            return false;
         }
 
         // Reset _treeBuilt so setTreeBuilt(true) sees wasBuilt=false and PRM runs
@@ -299,10 +304,11 @@ var TreeGrowthClassic = {
             TreeGrowth._treeBuilt = false;
         }
 
-        // Show build progress modal
+        // Show build progress modal (not for the build at game start)
         var hasPRM = typeof PreReqMaster !== 'undefined' && PreReqMaster.isEnabled && PreReqMaster.isEnabled();
         if (typeof BuildProgress !== 'undefined') {
-            BuildProgress.start(hasPRM);
+            BuildProgress.start(hasPRM, options && options.auto ?
+                { silent: true, onComplete: options.onComplete, onFail: options.onFail } : null);
         }
 
         ClassicSettings.setStatusText(t('buildProgress.statusBuilding'), 'working', 'buildProgress.statusBuilding');
@@ -314,6 +320,7 @@ var TreeGrowthClassic = {
         }
 
         ClassicBuildRequest.send(spellData);
+        return true;
     },
 
     /**
@@ -373,9 +380,19 @@ var TreeGrowthClassic = {
      * Save the current tree data to the game via C++ backend.
      * Bakes layout positions from _layoutData into the output JSON
      * so the spell tree viewer can render at exact positions.
+     *
+     * A tree with no spell placed is not saved (SpellTreeSave): the status line
+     * says so and spell_tree.json stays as it was.
+     *
+     * @param {Object} [options] - { auto: true, onSaved(spellCount), isCurrent() }: the
+     *   build at game start (AutoBuild) - no switch to the Spell Tree tab while the panel
+     *   is open (with it closed, the tree tab is where a saved tree opens anyway); not
+     *   saved when isCurrent() says the run was stopped during the declutter pass
+     * @returns {boolean} false when nothing was sent to be saved
      */
-    applyTree: function () {
-        if (!this._treeData) return;
+    applyTree: function (options) {
+        if (!this._treeData) return false;
+        var auto = !!(options && options.auto);
 
         // Get base data for mode and root directions
         var baseData = null;
@@ -386,26 +403,41 @@ var TreeGrowthClassic = {
         var built = ClassicTreeOutput.build(this._treeData, this._layoutData, baseData);
         var output = built.output;
         var posCount = built.posCount;
+        var spellCount = SpellTreeSave.countSpellNodes(output);
+        if (spellCount === 0) {
+            console.error('[ClassicGrowth] Apply: no spell was placed (layout ' +
+                (this._layoutData ? 'empty' : 'missing') + ', preview grid ' + (baseData ? 'present' : 'missing') +
+                ') - not saved');
+            ClassicSettings.setStatusText(t('buildProgress.statusNothingPlaced'), 'error', 'buildProgress.statusNothingPlaced');
+            return false;
+        }
 
         // Cross school bridges: extra soft prerequisites, and the list itself for the viewer
         if (typeof SchoolBridges !== 'undefined') SchoolBridges.applyToOutput(output, this._treeData);
 
         // No spell under another or under a line (LayoutDeclutter): a piece at a
         // time between frames, then saved and shown
-        var self = this;
         LayoutDeclutter.applyAsync(output, function() {
-            // Save to disk via C++
-            window.callCpp('SaveSpellTree', JSON.stringify(output));
+            // A save loaded while the build at game start decluttered: not saved (AutoBuild)
+            if (auto && options.isCurrent && !options.isCurrent()) {
+                console.log('[ClassicGrowth] Apply: the build at game start was stopped - not saved');
+                return;
+            }
+            if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply')) return;
 
             // Load into the spell tree viewer so it displays immediately
             if (typeof loadTreeData === 'function') {
-                loadTreeData(output);
+                loadTreeData(output, auto ? window._panelVisible === false : true);
             }
 
             var appliedSchoolCount = Object.keys(output.schools).length;
             ClassicSettings.setStatusText(t('buildProgress.statusApplied', {count: posCount}), 'done', 'buildProgress.statusApplied', {count: posCount});
             if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: appliedSchoolCount}), 'success', 'status.treeApplied', {schools: appliedSchoolCount});
 
+            if (auto) {
+                if (options.onSaved) options.onSaved(spellCount);
+                return;
+            }
             // Switch to the Spell Tree tab after a brief delay
             if (typeof switchTab === 'function') {
                 setTimeout(function() {
@@ -413,6 +445,7 @@ var TreeGrowthClassic = {
                 }, 300);
             }
         });
+        return true;
     },
 
     /**

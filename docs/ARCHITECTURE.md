@@ -618,7 +618,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerAutoBuild.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -1458,6 +1458,59 @@ User clicks "Scan" → SpellScanner::ScanAllSpells()
 5. `ClassicLayout` places the spells; on Apply `ClassicTreeOutput.build()` (`classic/classicTreeOutput.js`)
    turns result and layout into the tree JSON, `LayoutDeclutter` spaces the spells out, then `SaveSpellTree`.
 
+A tree with no spell in it is never saved (1.4.1): every save in the panel - Apply, edit mode's Save Tree,
+Import, orphan repair - goes through `SpellTreeSave.send()` (`modules/spellTreeSave.js`), which refuses one and
+logs it, and Apply says so on the builder's status line (`buildProgress.statusNothingPlaced`); C++
+`OnSaveSpellTree` refuses one as well (`UIManager::CountTreeNodes`, "the tree has no spells" in the log). Before, a build
+whose layout had no preview grid to place on (`TreePreview.getOutput()` null) dropped every spell in
+`ClassicTreeOutput.build` and Apply saved the empty tree over the player's file without a word.
+
+### Tree Built at Game Start (1.4.1)
+
+Settings > Hotkey > *Build Spell Tree at Start* (`autoBuild` in config.json: `"whenMissing"`, the default, or
+`"off"`; `modules/autoBuildSetting.js`). With no saved tree the game start does what Scan, Build and Apply
+would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebuilt by itself.
+
+```
+onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
+  C++ OnLoadSpellTree, at every exit → onStartupTreeInfo { tree: missing | empty | present | unreadable, nodes,
+        loadOrder, builtLoadOrder, noticedLoadOrder }                         (UIManagerAutoBuild.cpp)
+  config (AutoBuildSetting.loadFrom) + scanner preset applied (onPresetsLoaded; 15 s at most)
+  → AutoBuild.decide(setting, info, saveLoaded)
+      off                                   → nothing
+      missing, or empty (no spell in it)    → build, unless a save has loaded already
+      present, saved under another load order, not told yet → notice
+      present otherwise (same, unknown, told) / unreadable → nothing
+  build:  startScan() → updateSpellData → AutoBuild.onSpellData
+          → TreePreviewHidden.ensure() (the preview grid without the preview on screen, TREE_BUILDING_SYSTEM.md)
+          → TreeGrowthClassic.buildTree({ auto }) - BuildProgress silent: no modal, the same stages (PRM locks)
+          → BuildProgress.complete → applyTree({ auto }): declutter, SpellTreeSave, loadTreeData (tree tab only
+            while the panel is closed, no 300 ms tab switch), scan status "Tree applied"
+  notice: scan status line `status.loadOrderChanged`; C++ records the fingerprint as told and shows
+          `hud.loadOrderChanged` in the corner at the next save load or new game (the main menu has none)
+```
+
+- **When:** at the main menu - onPrismaReady asks for all three inputs. Once a save has loaded
+  (`onSaveGameLoaded`) no build starts: the scan holds the game thread about 1.7 s. A save loaded during a
+  run stops it (`failed - a save loaded during the <step> step`): every save load bumps `AutoBuild._generation`,
+  each step's callback checks its run is still current, and Apply checks again after the declutter pass
+  (`applyTree`'s `isCurrent`) before it saves. spell_tree.json is left as it was; the next game start builds
+  again. The scan may first wait for the tome reach pass (up to 30 s) as a Scan button press does.
+- **The same tree as the buttons:** the active scanner preset is applied first (the start's own
+  `onPresetsLoaded`), the build request, PRM and the save are the panel's own code with `{ auto: true }`.
+  Progress is kept by formId in the co-save; the new tree's `requiredXP` reaches C++ at the next
+  `LoadSpellTree`, as after a manual Apply.
+- **Load order fingerprint:** FNV-1a 64 over the loaded plugin file names in load order (full, then light)
+  and the count of SpellItem forms, 16 hex digits, worked out once per game start on the game thread. Kept in
+  `SKSE/Plugins/SpellLearning/spell_tree_loadorder.json` beside the tree (`loadOrder`, `plugins`, `spells`,
+  `noticedLoadOrder`), written whenever `SaveSpellTree` saves (an edit mode save or an import records the
+  load order too). A tree saved before 1.4.1 has no record: no notice until it is saved again. The notice is
+  shown once per load order (`noticedLoadOrder`); saving a tree clears it.
+- **Log:** every step is one line `AutoBuild: <event> - <detail>` in SpellLearning.log (`AutoBuildEvent`,
+  written whatever the developer mode): `decided`, `scan`, `build`, `apply`, `done` or `failed`, `notice`,
+  `save loaded`; C++ adds `UIManager: startup tree info - ...` and `spell tree saved under load order ...`.
+- A failed run says so on the scan status line (`status.autoBuildFailed`) and leaves spell_tree.json as it was.
+
 The panel's older builds - Simple (`buildProceduralTrees`, JS only), Procedural+ and Visual-First
 (`visualFirstBuilder` / `settingsAwareTreeBuilder`) - were removed on 2026-09-27; none had a button left
 in `index.html`.
@@ -1608,6 +1661,8 @@ All settings stored in single config file, managed through UI:
   "dividerColorMode": "school",
   "dividerCustomColor": "#ffffff",
 
+  "autoBuild": "whenMissing",
+
   "notifications": {
     "weakenedSpellNotifications": true,
     "weakenedSpellInterval": 10,
@@ -1692,11 +1747,12 @@ HeartOfMagic/
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (10 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (11 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen, PRM scoring)
+│   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice)
 │   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
 │   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)

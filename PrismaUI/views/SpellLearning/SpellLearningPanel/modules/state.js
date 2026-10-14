@@ -107,6 +107,7 @@ var settings = {
     aggressivePathValidation: true,   // Strict reachability check (safe but simple trees)
     treeTiersByCost: false,     // Classic builder: tiers by Magicka cost rank instead of level (treeBuilderSetting.js)
     treeTypeGrouping: 1,        // Classic builder: how strongly one kind / element stays on a branch, 0..2 (treeBuilderSetting.js)
+    autoBuild: 'whenMissing',   // Game start: build a tree when there is none, or 'off' (autoBuildSetting.js)
     // Progression settings
     learningMode: 'perSchool',  // 'perSchool' or 'single'
     autoAdvanceLearning: true,  // Auto-select next spell when one is mastered

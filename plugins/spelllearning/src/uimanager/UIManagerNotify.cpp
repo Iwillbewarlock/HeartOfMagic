@@ -305,6 +305,7 @@ void UIManager::NotifySaveGameLoaded()
 
     logger::info("UIManager: Notifying UI - save game loaded, refreshing player data");
     CallView("onSaveGameLoaded", "");
+    ShowPendingLoadOrderNotice();
 }
 
 void UIManager::SendProgressData(const std::string& jsonData)

@@ -95,6 +95,19 @@ public:
     // when it opens and whenever a run changed them. Nothing when SR has no status.
     void NotifySpellResearchStatus();
 
+    // The tree built at game start (UIManagerAutoBuild.cpp; docs/ARCHITECTURE.md,
+    // "Tree built at game start"). Game thread.
+    enum class StartupTreeState { Missing, Empty, Present, Unreadable };
+    // The saved tree's state and the load order fingerprints to the panel
+    // (onStartupTreeInfo), at the end of every LoadSpellTree
+    void SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCount) noexcept;
+    // The load order spell_tree.json was just written under (spell_tree_loadorder.json)
+    void RecordTreeLoadOrder();
+    // The load order notice the panel asked for, in the corner: kPostLoadGame / kNewGame
+    void ShowPendingLoadOrderNotice();
+    // Spells in a saved tree's JSON (every school's nodes), before any validation
+    [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
+
     // Get the PrismaUI API (for SpellScanner to use)
     //PRISMA_UI_API::IVPrismaUI1* GetAPI() const { return m_prismaUI; }
     //PrismaView GetView() const { return m_view; }
@@ -102,6 +115,7 @@ public:
     // File paths
     static std::filesystem::path GetPromptFilePath();
     static std::filesystem::path GetTreeFilePath();
+    static std::filesystem::path GetTreeLoadOrderFilePath();
 
 private:
     UIManager() = default;
@@ -163,6 +177,8 @@ private:
 
     // Panel log lines into the plugin log
     static void OnLogMessage(const char* argument);
+    // The build at game start's steps, always logged; "notice" queues the corner message
+    static void OnAutoBuildEvent(const char* argument);
     
     // Procedural tree generation (C++ native)
     static void OnProceduralTreeGenerate(const char* argument);
@@ -226,5 +242,9 @@ private:
     bool m_scanRunning = false;
     std::optional<std::string> m_queuedFullScan;
     std::optional<std::string> m_queuedTomeScan;
+
+    // The panel asked for the load order notice; shown at the next save load
+    // or new game (the main menu has no corner messages). Game thread only.
+    bool m_loadOrderNoticePending = false;
 
 };

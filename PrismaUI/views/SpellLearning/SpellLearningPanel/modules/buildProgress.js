@@ -9,6 +9,8 @@
  *
  * Usage:
  *   BuildProgress.start(hasPRM)   – open modal, set stages
+ *   BuildProgress.start(hasPRM, { silent: true, onComplete, onFail }) – the same
+ *                                   stages with the modal hidden (AutoBuild)
  *   BuildProgress.setStage(name)  – advance to named stage
  *   BuildProgress.setDetail(text) – update sub-detail for current stage
  *   BuildProgress.complete()      – mark all done, show Done button
@@ -29,6 +31,17 @@ var BuildProgress = (function() {
     var _totalStartTime = 0;
     var _autoCloseTimer = null;     // complete()'s delayed close; a new start() must cancel it
     var STALL_LOG_MS = 20000;       // a stage this long without moving on is written to the log
+    var _silent = false;            // start(..., {silent}): no modal shown
+    var _onComplete = null;         // start(..., {onComplete}), called once by complete()
+    var _onFail = null;             // start(..., {onFail}), called once by fail()
+
+    /** The callback for how this build ended, once; both are dropped. */
+    function _takeCallback(which) {
+        var cb = which === 'complete' ? _onComplete : _onFail;
+        _onComplete = null;
+        _onFail = null;
+        return cb;
+    }
 
     /** Every transition goes to the log, so a modal that stops moving can be traced. */
     function _log(msg) {
@@ -49,8 +62,11 @@ var BuildProgress = (function() {
     /**
      * Start the build progress modal.
      * @param {boolean} hasPRM - Whether Pre Req Master stage is expected
+     * @param {Object} [options] - { silent, onComplete(summary), onFail(error) }:
+     *   silent keeps the modal hidden (the build at game start, AutoBuild) while
+     *   the stages run as usual; complete() and fail() call the callbacks once
      */
-    function start(hasPRM) {
+    function start(hasPRM, options) {
         // The previous build's delayed close would otherwise shut this one's
         // modal 2.5 s in, and every later stage change would be ignored
         if (_autoCloseTimer) {
@@ -61,10 +77,13 @@ var BuildProgress = (function() {
         _hasPRM = hasPRM;
         _currentStage = null;
         _totalStartTime = Date.now();
-        _log('start, prereqs=' + (hasPRM ? 'on' : 'off'));
+        _silent = !!(options && options.silent);
+        _onComplete = options && typeof options.onComplete === 'function' ? options.onComplete : null;
+        _onFail = options && typeof options.onFail === 'function' ? options.onFail : null;
+        _log('start, prereqs=' + (hasPRM ? 'on' : 'off') + (_silent ? ', silent' : ''));
 
         var modal = _getEl('build-progress-modal');
-        if (modal) modal.classList.remove('hidden');
+        if (modal && !_silent) modal.classList.remove('hidden');
 
         // Reset all stages
         _stages.forEach(function(stage) {
@@ -190,12 +209,18 @@ var BuildProgress = (function() {
 
         _currentStage = null;
 
-        // Auto-close after 2.5s (cancelled if another build starts first)
-        if (_autoCloseTimer) clearTimeout(_autoCloseTimer);
-        _autoCloseTimer = setTimeout(function() {
-            _autoCloseTimer = null;
-            if (_active) close();
-        }, 2500);
+        var onComplete = _takeCallback('complete');
+        if (_silent) {
+            close();
+        } else {
+            // Auto-close after 2.5s (cancelled if another build starts first)
+            if (_autoCloseTimer) clearTimeout(_autoCloseTimer);
+            _autoCloseTimer = setTimeout(function() {
+                _autoCloseTimer = null;
+                if (_active) close();
+            }, 2500);
+        }
+        if (onComplete) onComplete(summary || '');
     }
 
     /**
@@ -213,6 +238,14 @@ var BuildProgress = (function() {
 
         _setProgressBar(-1); // Error state
         _setStatus(errorMsg || t('buildProgress.buildFailed'));
+
+        // Nobody sees a silent build's modal: its owner hears of it instead
+        var onFail = _takeCallback('fail');
+        if (_silent) {
+            close();
+            if (onFail) onFail(errorMsg || t('buildProgress.buildFailed'));
+            return;
+        }
 
         // Show done button to close
         var doneBtn = _getEl('build-progress-done-btn');
@@ -246,6 +279,8 @@ var BuildProgress = (function() {
         if (_active && _currentStage) _log('closed while in stage ' + _currentStage);
         _active = false;
         _currentStage = null;
+        _onComplete = null;
+        _onFail = null;
         var modal = _getEl('build-progress-modal');
         if (modal) modal.classList.add('hidden');
     }

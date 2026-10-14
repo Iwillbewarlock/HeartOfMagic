@@ -16,8 +16,16 @@
   shows up in its launcher; Risa then opens and closes the panel and turns our own hotkey off while it does, so one
   key does not open it twice. Your hotkey setting is left as it is and works again when you exclude Heart of Magic in
   Risa or remove Risa.
+- **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
+  scans your spells and builds the tree in the background with your active scanner preset - no need to open
+  the panel and press Scan and Build. A tree you already have is never rebuilt by itself: when your load order
+  changed since it was built, you get a notice once and can rebuild it on the Scan tab, which stays as it was.
+  Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**.
 
 ### Fixed
+
+- **An empty spell tree is no longer saved.** A build that could not place any spell used to save an empty tree
+  over your file without a word; now nothing is saved and the builder says so.
 
 - **The panel's corner shows the right version.** It said 1.2.0 since 1.3 (reported on the Nexus posts tab);
   it now reads the version from the plugin, as Papyrus `SpellLearning.GetVersion()` does (that one said 1.0.0).

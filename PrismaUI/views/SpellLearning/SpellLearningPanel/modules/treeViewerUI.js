@@ -380,10 +380,8 @@ function importTreeFromModal() {
     hideImportModal();
     setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
 
-    // Save to file via C++
-    if (window.callCpp) {
-        window.callCpp('SaveSpellTree', JSON.stringify(data));
-    }
+    // Save to file via C++ (not a tree without spells: SpellTreeSave)
+    SpellTreeSave.send(data, 'import');
 }
 
 /**

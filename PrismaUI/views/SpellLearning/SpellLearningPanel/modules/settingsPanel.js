@@ -368,6 +368,8 @@ function initializeSettings() {
     // NOTIFICATION SETTINGS (XP Alerts, weakened spell alerts)
     // =========================================================================
     if (typeof NotificationSetting !== 'undefined') NotificationSetting.init();
+    // Build Spell Tree at Start (autoBuildSetting.js)
+    if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.init();
     // The tree's tool bar size (its corner grip)
     if (typeof TreeToolsScale !== 'undefined') TreeToolsScale.init();
     
@@ -837,6 +839,7 @@ function saveUnifiedConfig() {
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.saveTo(unifiedConfig);
     if (typeof RenderSettings !== 'undefined') RenderSettings.saveTo(unifiedConfig);
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.saveTo(unifiedConfig);
+    if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.saveTo(unifiedConfig);
 
     // Closing the panel saves, and so do many handlers that change nothing.
     // Each save made C++ read, merge and rewrite config.json and re-apply
@@ -879,6 +882,7 @@ function resetSettings() {
     if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.reset();
     if (typeof RenderSettings !== 'undefined') RenderSettings.reset();
     if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.reset();
+    if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.reset();
     settings.xpGlobalMultiplier = 1;
     settings.xpMultiplierDirect = 100;
     settings.xpMultiplierSchool = 50;
@@ -1040,6 +1044,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.loadFrom(data);
         if (typeof RenderSettings !== 'undefined') RenderSettings.loadFrom(data);
         if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.loadFrom(data);
+        if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.loadFrom(data);
         // One design sets the UI theme too (DesignPresets); older configs are carried over
         settings.designPreset = DesignPresets.savedChoice(data);
         DesignPresets.apply(settings.designPreset);

@@ -87,6 +87,7 @@ window.onScanFailed = function(message) {
         return;
     }
     restoreScanButton();
+    if (typeof AutoBuild !== 'undefined') AutoBuild.onScanFailed(reason);
     // No reason (C++ caught something that is not a std::exception): "unknown error", in the panel's language
     var key = reason ? 'status.scanFailed' : 'status.scanFailedUnknown';
     var params = reason ? { error: reason } : null;
@@ -129,7 +130,7 @@ function setStatusIcon(icon) {
 // =============================================================================
 
 // Write the tree the panel holds to the plugin's tree file (Save Tree in edit
-// mode). Returns false when there is nothing to save.
+// mode). Returns false when there is nothing to save (or no spell in it: SpellTreeSave).
 function saveTreeToFile() {
     if (!state.treeData || !state.treeData.rawData) {
         console.warn('[SpellLearning] No tree data to save');
@@ -145,8 +146,7 @@ function saveTreeToFile() {
     console.log('[SpellLearning] Saving tree to file, size:', treeJson.length, 'chars,',
                 Object.keys(state.treeData.rawData.schools || {}).length, 'schools');
 
-    window.callCpp('SaveSpellTree', treeJson);
-    return true;
+    return SpellTreeSave.send(state.treeData.rawData, 'edit mode save', treeJson);
 }
 
 // =============================================================================
@@ -455,6 +455,8 @@ window.onPresetsLoaded = function(resultStr) {
                 console.log('[Presets] Auto-applying scanner preset: ' + scannerKey);
                 applyScannerPreset(scannerKey);
             }
+            // The build at game start builds with this preset (autoBuild.js)
+            if (typeof AutoBuild !== 'undefined') AutoBuild.notePresetsApplied();
             // Sync Easy Mode chip selection
             if (typeof _easySelectedPreset !== 'undefined' && typeof _activeScannerPreset !== 'undefined') {
                 _easySelectedPreset = _activeScannerPreset || scannerKey || '';

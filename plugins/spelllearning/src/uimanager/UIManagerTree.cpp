@@ -24,10 +24,23 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
 
         auto treePath = GetTreeFilePath();
 
+        // Every way out tells the panel what the game start found (AutoBuild);
+        // a file that is there but fails to read stays Unreadable
+        auto state = StartupTreeState::Unreadable;
+        std::size_t nodeCount = 0;
+        struct ReportOnExit
+        {
+            UIManager* ui;
+            const StartupTreeState& state;
+            const std::size_t& nodes;
+            ~ReportOnExit() { ui->SendStartupTreeInfo(state, nodes); }
+        } reportOnExit{ instance, state, nodeCount };
+
         // Check if saved tree exists
         if (!std::filesystem::exists(treePath)) {
             logger::info("UIManager: No saved spell tree found");
             instance->UpdateTreeStatus("No saved tree - import one");
+            state = StartupTreeState::Missing;
             return;
         }
 
@@ -40,11 +53,20 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
 
                 std::string treeContent = buffer.str();
                 logger::info("UIManager: Loaded spell tree from file ({} bytes)", treeContent.size());
+                constexpr std::string_view kBlank = " \t\r\n";
+                if (treeContent.find_first_not_of(kBlank) == std::string::npos) {
+                    logger::warn("UIManager: spell_tree.json is empty");
+                    instance->UpdateTreeStatus("No saved tree - import one");
+                    state = StartupTreeState::Empty;
+                    return;
+                }
 
                 // Parse and validate tree - this resolves persistentId to current formId
                 // when load order has changed since tree was generated
                 try {
                     json treeData = json::parse(treeContent);
+                    nodeCount = CountTreeNodes(treeData);
+                    state = nodeCount > 0 ? StartupTreeState::Present : StartupTreeState::Empty;
 
                     // Validate and fix form IDs using persistent IDs
                     auto validationResult = SpellScanner::ValidateAndFixTree(treeData);
@@ -271,7 +293,15 @@ void UIManager::OnSaveSpellTree(const char* argument)
         std::error_code existsError;
         if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
             logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
+            instance->RecordTreeLoadOrder();
             instance->UpdateTreeStatus("Tree saved");
+            return;
+        }
+
+        // Never a tree without spells over the player's file (the panel's SpellTreeSave refuses one too)
+        if (UIManager::CountTreeNodes(nlohmann::json::parse(argStr, nullptr, false)) == 0) {
+            logger::error("UIManager: SaveSpellTree - the tree has no spells (or is not JSON); spell_tree.json left as it was");
+            instance->UpdateTreeStatus("Save failed");
             return;
         }
 
@@ -282,6 +312,7 @@ void UIManager::OnSaveSpellTree(const char* argument)
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
                 logger::info("UIManager: Saved spell tree to {}", PathText::Utf8(treePath));
+                instance->RecordTreeLoadOrder();
                 instance->UpdateTreeStatus("Tree saved");
             } else {
                 instance->UpdateTreeStatus("Save failed");

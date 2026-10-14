@@ -28,6 +28,11 @@ std::filesystem::path UIManager::GetTreeFilePath()
     return "Data/SKSE/Plugins/SpellLearning/spell_tree.json";
 }
 
+std::filesystem::path UIManager::GetTreeLoadOrderFilePath()
+{
+    return "Data/SKSE/Plugins/SpellLearning/spell_tree_loadorder.json";
+}
+
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
@@ -101,6 +106,7 @@ bool UIManager::Initialize()
 
     // Register JS callbacks - panel log lines
     m_prismaUI->RegisterJSListener(m_view, "LogMessage", OnLogMessage);
+    m_prismaUI->RegisterJSListener(m_view, "AutoBuildEvent", OnAutoBuildEvent);
 
     // Register JS callbacks - Procedural tree generation (C++ native)
     m_prismaUI->RegisterJSListener(m_view, "ProceduralTreeGenerate", OnProceduralTreeGenerate);

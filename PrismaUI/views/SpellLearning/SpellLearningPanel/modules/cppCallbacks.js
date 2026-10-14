@@ -284,6 +284,9 @@ window.updateSpellData = function(jsonStr) {
     }
 
     restoreScanButton();
+
+    // The build at game start goes on from here when it asked for this scan (autoBuild.js)
+    if (typeof AutoBuild !== 'undefined') AutoBuild.onSpellData();
 };
 
 /**
@@ -663,6 +666,8 @@ window.onSaveGameLoaded = function() {
 
     // First reset tree to clean state
     window.onResetTreeStates();
+    // No build at game start from now on; one under way goes on (autoBuild.js)
+    if (typeof AutoBuild !== 'undefined') AutoBuild.onSaveGameLoaded();
 
     // Then request fresh data from C++ - not with the panel closed: opening it
     // asks for the same (onPanelShowing), and doing it twice cost a load hitch

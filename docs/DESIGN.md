@@ -1429,6 +1429,10 @@ Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) 
 in a search box reaches the game too and closes the panel - but is allowed. The warning is a `.setting-desc
 .hotkey-note` line with its own `.hidden` rule in `patch-ui.css`. Reset to Defaults sets F8; a settings preset
 never holds or changes the hotkey (a personal setting, like the language).
+The same group has **Build Spell Tree at Start** (`modules/autoBuildSetting.js`, 1.4.1): `autoBuild` in
+config.json, `whenMissing` (default, "When none") or `off`. With no saved tree the game start scans and builds one
+in the closed panel; a tree built under another load order only gets a notice (docs/ARCHITECTURE.md, "Tree Built
+at Game Start"). Reset to Defaults sets `whenMissing`; a settings preset never holds it.
 
 **Progression:** How XP is earned and what thresholds unlock spells.
 **Early Learning:** Grants nerfed spells before full mastery. Also holds **XP Alerts** (default on,
