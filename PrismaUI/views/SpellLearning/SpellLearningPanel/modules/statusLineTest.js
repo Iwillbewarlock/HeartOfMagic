@@ -183,6 +183,7 @@ var StatusLineTest = {
             lang = 'en'; g.relabelScanStatus();
             this.check(bar().textContent === 'Saved from C++', 'a scan message with no key is left as written');
             this._checkScanFailed(g, page, function(code) { lang = code; });
+            this._checkMissingKeys(g, page, grow, function(code) { switchTo(code); });
             this._checkCost(g);
         } finally {
             g.document = oldDocument;
@@ -190,6 +191,47 @@ var StatusLineTest = {
             if (typeof g.updateScanStatus === 'function') g._scanStatus = null;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * Keys the language does not have (the auto build's lines in a translation
+     * without them, ko here): a switch shows the English line or the line as
+     * written, never the bare key. tOr as i18n.js has it, over the stand-in t.
+     */
+    _checkMissingKeys: function(g, page, grow, switchTo) {
+        var oldTOr = g.tOr;
+        g.tOr = function(key, params, fallback) {
+            var s = g.t(key, params);
+            if (s !== key) return s;
+            for (var p in (params || {})) fallback = fallback.split('{{' + p + '}}').join(String(params[p]));
+            return fallback;
+        };
+        var bar = page.byId.scanStatusText;
+        try {
+            switchTo('en');
+            var params = { error: 'not done after 600 s' };
+            g.updateScanStatus('Automatic tree build failed: not done after 600 s. Scan and build here instead.', 'error',
+                'status.autoBuildFailed', params);
+            switchTo('ko'); g.relabelScanStatus();
+            this.check(bar.textContent === 'Automatic tree build failed: not done after 600 s. Scan and build here instead.',
+                'scan bar: status.autoBuildFailed missing in the language - English with its value, not the key');
+            g.updateScanStatus('Load order changed', '', 'status.loadOrderChanged');
+            g.relabelScanStatus();
+            this.check(bar.textContent.indexOf('Load order changed since the tree was built.') === 0,
+                'scan bar: status.loadOrderChanged missing in the language - English, not the key');
+            switchTo('en');
+            grow.setStatusText('The tree is still being built', 'error', 'buildProgress.statusStillBuilding');
+            switchTo('ko'); grow.relabelStatus();
+            this.check(page.byId.tgStatus.textContent === 'The tree is still being built',
+                'builder line: buildProgress.statusStillBuilding missing in the language - the line as written, not the key');
+            grow.setStatusText('Nothing placed', 'error', 'buildProgress.statusNothingPlaced');
+            switchTo('en'); grow.relabelStatus();
+            this.check(page.byId.tgStatus.textContent === 'Nothing placed',
+                'builder line: buildProgress.statusNothingPlaced missing - the line as written');
+        } finally {
+            g.tOr = oldTOr;
+            switchTo('en');
+        }
     },
 
     /** A scan that threw: the Scan button comes back and the bar says why, in the current language. */

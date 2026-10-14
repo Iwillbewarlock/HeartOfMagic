@@ -12,7 +12,7 @@
  * Loaded right after treeGrowth.js: the methods below become TreeGrowth's
  * (TreeGrowth.setStatusText, TreeGrowth.STATUS_COLORS, ...).
  *
- * Depends on: treeGrowth.js (TreeGrowth: _nodeCount, _totalPool), i18n.js (t),
+ * Depends on: treeGrowth.js (TreeGrowth: _nodeCount, _totalPool), i18n.js (t, tOr),
  *             easyMode.js (_syncEasyStatus, looked up when called)
  */
 
@@ -82,7 +82,8 @@ var TreeGrowthStatus = {
         }
         var text = s.text;
         if (s.key === this.BUILT_KEY) text = this._builtLabel();
-        else if (s.key) text = t(s.key, s.params);
+        // A key the new language lacks keeps the line as it was written, not the bare key
+        else if (s.key) text = typeof tOr === 'function' ? tOr(s.key, s.params, s.text) : t(s.key, s.params);
         this.setStatusText(text, s.tone, s.key, s.params);
     },
 

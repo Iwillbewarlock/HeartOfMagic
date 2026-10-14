@@ -33,7 +33,13 @@ function updateScanStatus(message, type, i18nKey, params) {
 }
 
 // English for keys newer than some community translations, so a missing key shows this, not the key
-var _scanStatusFallback = { 'status.scanFailedUnknown': 'Scan failed (unknown error)' };
+var _scanStatusFallback = {
+    'status.scanFailedUnknown': 'Scan failed (unknown error)',
+    'status.loadOrderChanged': 'Load order changed since the tree was built. Scan and build here to rebuild it; the current tree keeps working.',
+    'status.autoBuildFailed': 'Automatic tree build failed: {{error}}. Scan and build here instead.',
+    'buildProgress.statusNothingPlaced': 'No spell could be placed, so the tree was not saved. Open the Scan tab and build again.',
+    'buildProgress.statusStillBuilding': 'The tree is still being built (locks are still being applied) - wait until it is done.'
+};
 
 /** A scan bar message in the current language (tOr with the English fallback when there is one). */
 function scanStatusText(key, params) {
