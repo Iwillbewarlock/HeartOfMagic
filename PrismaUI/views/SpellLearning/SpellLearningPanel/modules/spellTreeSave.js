@@ -4,7 +4,7 @@
  * Every save goes through send(): Apply after a build (classicMain.js), Save
  * Tree in edit mode (uiHelpers.js saveTreeToFile), Import (treeViewerUI.js) and
  * orphan repair (orphanRepair.js). A tree with no spell in it is never sent:
- * the tree tab's status line says so (status.treeNoSpellsNotSaved). Until 1.4.1
+ * the tree tab's status line says so (status.treeNoSpellsNotSaved). Until 1.5.0
  * a build whose layout had nothing to place on (no preview grid, the panel never
  * opened) dropped every spell and Apply saved the empty tree over the player's
  * file without a word.

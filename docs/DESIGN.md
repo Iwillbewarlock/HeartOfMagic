@@ -215,7 +215,7 @@ behaviour back. Nothing had to change for the text: `renderLabels` draws every l
 tree transform is undone, whatever the wheel's angle. A caller can still force either way with
 `opts.rotate`.
 
-### The home view fits the part of the tree that shows (1.4.1, 2026-10-14)
+### The home view fits the part of the tree that shows (1.5.0, 2026-10-14)
 
 The spell card bar (bottom layout, about 206 px at Font Size 1.0x) and the side panel are drawn over the
 tree canvas, and with the hover preview on they stay open even when empty (see *Hover preview*). The
@@ -629,7 +629,7 @@ with JIT in node); what the rest of it is was not measured here. Between `LABEL_
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
 `MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (the selected spell,
 then in view, then priority, then nearest the middle of the screen), so the selected, hovered and learning
-names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75 at most since 1.4.1:
+names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75 at most since 1.5.0:
 see *The home view fits the part of the tree that shows*); the threshold stays
 0.8. Within one priority the names nearest the screen's middle come first (`_byLabelOrder` on the squared
 screen distance each candidate carries, `dist`; 2026-10-10): ordered by node index, a spell coming in at the
@@ -1029,12 +1029,12 @@ Buttons, switches and chips are drawn about a fifth larger (`patch-ui.css`, "Big
 buttons 34px, switches 52x26 (small ones 42x22), button and chip text a step up. Sizes only, so every
 design keeps its colours, fonts and corners; none of the designs sets these sizes itself.
 
-**The canvas hint above the footer (1.4.1).** "Drag to pan / Scroll to zoom ..." sat 14 px from the
+**The canvas hint above the footer (1.5.0).** "Drag to pan / Scroll to zoom ..." sat 14 px from the
 tree page's bottom, under the footer (drawn over the page's bottom 44 px), so it lay on the legend
 with the side panel, and in bar mode with the bar closed. `#contentSpellTree .tree-instructions` is now
 52 px up (`patch-ui.css`, every design), inside the canvas; with the bar open it is still hidden.
 
-**Readable dim text (1.4.1).** The presets row's label (*Presets*), its Save button and its chips (here
+**Readable dim text (1.5.0).** The presets row's label (*Presets*), its Save button and its chips (here
 and on the Scan page) were the Skyrim gold written out at 45% and 70% (2.2-2.5:1 and 3.2-4.6:1 against
 the five designs' backgrounds, measured in the desktop harness); the tree footer's legend was
 `--text-muted` (3.8-5.2:1) and its Locked swatch a half-transparent dark square with a 15% white edge.
@@ -1072,7 +1072,7 @@ it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, th
 `refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
 and scan pages: the Design row's description, the Easy page's preset chips (the whole preset section is hidden when there are no presets, 2026-09-30), the tree
 builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
-lists - and since 1.4.1 the tree's school tabs (`TreeNav.relabelSchoolTabs`: `tree.schoolShort.*`, the
+lists - and since 1.5.0 the tree's school tabs (`TreeNav.relabelSchoolTabs`: `tree.schoolShort.*`, the
 full name in the tooltip, a modded school with no key keeps its own name), the Scan page's school list
 (`updatePrimedCount`, `chips.school.*` through `schoolText`) and the Scan page's tree previews, whose
 school names are drawn on their canvases, and the tree is asked to repaint so its chapter titles
@@ -1403,7 +1403,7 @@ The buttons and the preview take what is left of the page under the scan results
 preview box fills `.easy-panel-right` as a flex item as well as by `height: 100%`, so it does not depend on
 the browser treating a stretched flex item's height as definite). A fixed
 500 px used to run past the page's bottom, so the preview's circle sat low and its lower schools were cut
-off (1.4.1).
+off (1.5.0).
 
 **The preview canvases** (the Easy/Pre Req Master preview in `prereqMaster.js`, `TreeGrowth`,
 `TreePreview`) take their size with `TreePreviewUtils.fitCanvas`: a box that is not laid out (the Scan
@@ -1523,7 +1523,7 @@ Choosing a letter key (A-Z) shows a warning in the theme's red (`--accent-red`) 
 in a search box reaches the game too and closes the panel - but is allowed. The warning is a `.setting-desc
 .hotkey-note` line with its own `.hidden` rule in `patch-ui.css`. Reset to Defaults sets F8; a settings preset
 never holds or changes the hotkey (a personal setting, like the language).
-The same group has **Build Spell Tree at Start** (`modules/autoBuildSetting.js`, 1.4.1): `autoBuild` in
+The same group has **Build Spell Tree at Start** (`modules/autoBuildSetting.js`, 1.5.0): `autoBuild` in
 config.json, `whenMissing` (default, "When none") or `off`. With no saved tree the game start scans and builds one
 in the closed panel; a tree built under another load order only gets a notice (docs/ARCHITECTURE.md, "Tree Built
 at Game Start"). Reset to Defaults sets `whenMissing`; a settings preset never holds it.

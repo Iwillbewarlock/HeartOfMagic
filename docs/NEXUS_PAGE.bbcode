@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size]
 [/color][/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.4.1]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.4.1[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.0[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img]{{IMG_02}}[/img][/center]
@@ -22,7 +22,7 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
-[size=5][b]New in 1.4.1[/b][/size]
+[size=5][b]New in 1.5.0[/b][/size]
 
 [list]
 [*][b]The spell tree builds itself on the first start.[/b] With no saved tree, the game scans your spells and builds the tree at the main menu with your active scanner preset - no Scan and Build needed. If you load a save first, the rest waits until you open the panel (which pauses the game) or return to the main menu, so play is never interrupted. A tree you already have is never rebuilt; if your load order changed since it was built, the Scan tab and a one-time corner message tell you. Settings > Hotkey > [b]Build Spell Tree at Start[/b]: [i]When none[/i] (default) or [i]Off[/i].
@@ -30,7 +30,7 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [*][b]Frozen Electrocuted Combustion works with spell mods:[/b] sun-tagged spells get FEC's sun death, air damage spells its suffocation (where a mod defines MagicDamageWind). Scrolls and staffs that share the damage effect get the same death. In memory only, with FEC.esp loaded.
 [*][b]Perk and FEC keywords stay on:[/b] one that something else removes is put back at new game and save load.
 [*][b]A button in Risa's All In One Menu[/b] (5.4 or newer).
-[*][b]Fixed:[/b] adding a plugin in the middle of the load order no longer mixes up chosen roots, Pre Req Master locks or custom XP (custom XP set before 1.4.1: set it again if your load order changes); an empty tree is never saved over your file; the right version in the panel's corner; the tree opens centred above the spell card bar; the Scan page's preview fits its box; chapter titles stay off the spells; a language change updates every label at once.
+[*][b]Fixed:[/b] adding a plugin in the middle of the load order no longer mixes up chosen roots, Pre Req Master locks or custom XP (custom XP set before 1.5.0: set it again if your load order changes); an empty tree is never saved over your file; the right version in the panel's corner; the tree opens centred above the spell card bar; the Scan page's preview fits its box; chapter titles stay off the spells; a language change updates every label at once.
 [/list]
 [b]After updating:[/b] nothing to do - your saved tree keeps working.
 
@@ -251,7 +251,7 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 
 [b]Coming from Heart of Magic v2.5:[/b]
 [list=1]
-[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.4.1 at the time of writing).
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.5.0 at the time of writing).
 [*]Your saves, settings and saved tree carry over.
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
@@ -267,7 +267,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.4.1[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.5.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 

@@ -1461,7 +1461,7 @@ User clicks "Scan" → SpellScanner::ScanAllSpells()
 5. `ClassicLayout` places the spells; on Apply `ClassicTreeOutput.build()` (`classic/classicTreeOutput.js`)
    turns result and layout into the tree JSON, `LayoutDeclutter` spaces the spells out, then `SaveSpellTree`.
 
-A tree with no spell in it is never saved (1.4.1): every save in the panel - Apply, edit mode's Save Tree,
+A tree with no spell in it is never saved (1.5.0): every save in the panel - Apply, edit mode's Save Tree,
 Import, orphan repair - goes through `SpellTreeSave.send()` (`modules/spellTreeSave.js`), which refuses one,
 logs it and says so on the tree tab's status line (`status.treeNoSpellsNotSaved`; Import and edit mode show
 their "saved" line only when the tree went out), and Apply says so on the builder's status line
@@ -1475,7 +1475,7 @@ starts with an object, whitespace allowed; offline check `tree-save-check --self
 build whose layout had no preview grid to place on (`TreePreview.getOutput()` null) dropped every spell in
 `ClassicTreeOutput.build` and Apply saved the empty tree over the player's file without a word.
 
-### Tree Built at Game Start (1.4.1)
+### Tree Built at Game Start (1.5.0)
 
 Settings > Hotkey > *Build Spell Tree at Start* (`autoBuild` in config.json: `"whenMissing"`, the default, or
 `"off"`; `modules/autoBuildSetting.js`). With no saved tree the game start does what Scan, Build and Apply
@@ -1596,7 +1596,7 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   those to the `SaveBuiltSpellTree` listener, the rest to `SaveSpellTree`; both run
   `SaveSpellTreeFromPanel(text, built)`); an edit mode save, an orphan
   repair and an **Import** leave the record as it was - an imported tree's load order is not known, so it keeps
-  the notice state of the tree it replaced. A tree built before 1.4.1 has no record: no notice until it is
+  the notice state of the tree it replaced. A tree built before 1.5.0 has no record: no notice until it is
   built again. The notice is asked for once per session and shown once per load order; a build under the
   load order clears it, also a build under the load order the tree was already built for (the record is left
   alone only when neither field changes). A session that only starts new games (no save load) shows it only on the Scan tab's

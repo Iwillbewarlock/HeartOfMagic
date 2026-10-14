@@ -1,6 +1,6 @@
 # Changelog
 
-## Heart of Magic Librarian 1.4.1
+## Heart of Magic Librarian 1.5.0
 
 ### New
 
@@ -27,7 +27,7 @@
 ### Fixed
 
 - **Adding a plugin in the middle of the load order no longer mixes up saved spells:** chosen tree roots, Pre
-  Req Master locks and custom XP stay with their spells. Custom XP set before 1.4.1 is still read by the old
+  Req Master locks and custom XP stay with their spells. Custom XP set before 1.5.0 is still read by the old
   position, so set it again on the spell card if your load order changes.
 - **An empty tree is never saved** over your file; the status line says why instead.
 - **The panel's corner shows the right version** (it said 1.2.0), and so does Papyrus `GetVersion()`.

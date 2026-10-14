@@ -37,7 +37,7 @@
 // change it on its own and give a notice for a load order that did not change.
 // Written when SaveSpellTree saves a build's Apply (manual or the one at game
 // start: the panel sends those to SaveBuiltSpellTree); an edit mode save, an import or an orphan
-// repair leaves the record as it is. A tree saved before 1.4.1 has no record
+// repair leaves the record as it is. A tree saved before 1.5.0 has no record
 // and gets no notice until it is built again.
 
 namespace
