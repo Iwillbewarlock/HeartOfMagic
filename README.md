@@ -222,6 +222,7 @@ HeartOfMagic/
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64
 - [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718) developers
 - [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) by Exit-9B - the spell tome hook is based on it (MIT)
+- [Risa's All In One Menu](https://www.nexusmods.com/skyrimspecialedition/mods/183829) by **Risa** (risarei) - its integration header `plugins/RisaMenuIntegrationAPI.h`, copied unchanged (MIT)
 - Optional ISL patch script: **Hackfield** - [Immersive Spell Learning - DESTified](https://www.nexusmods.com/skyrimspecialedition/mods/45514), its base script;
   **Ameisenfutter** - the original Immersive Spell Learning; **Parapets** - Don't Eat Spell Tomes;
   **GiraPomba** - [I Just Want to Sit Down and Read](https://www.nexusmods.com/skyrimspecialedition/mods/121282), the sit-down study animations.
@@ -238,7 +239,8 @@ HeartOfMagic/
   release's tag, with the CommonLibSSE-NG submodule at `v10.0.0`) and the license texts in `licenses/`.
 - Some parts come from others and keep their own licenses: the spell tome hook is based on Don't Eat Spell
   Tomes (MIT), the layout's sine/cosine/arctangent are fdlibm's as V8 carries them (fdlibm notice, BSD-3-Clause),
-  the fonts are SIL OFL 1.1, `plugins/PrismaUI_API.h` is PrismaUI's API header, and the optional ISL patch
+  the fonts are SIL OFL 1.1, `plugins/PrismaUI_API.h` is PrismaUI's API header, `plugins/RisaMenuIntegrationAPI.h`
+  is Risa's All In One Menu's integration header (MIT), and the optional ISL patch
   script is based on Immersive Spell Learning - DESTified by Hackfield (with Sit Down and Read code by GiraPomba)
   and is not under this project's MIT license: it belongs to its original authors and is released as a modified
   patch as their Nexus permissions allow, with credit. Its Gate to Sovngarde CE support is compatibility code
