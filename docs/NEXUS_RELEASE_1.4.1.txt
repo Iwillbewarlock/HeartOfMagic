@@ -1,0 +1,46 @@
+Heart of Magic Librarian 1.4.1 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.4.1" section. Full list: CHANGELOG.md.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.4.1
+
+Description:
+Main file. Run the installer (it offers the ISL / DEST compatibility patch). Your saved tree keeps working; with no tree saved, the game builds one by itself at the main menu.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.4.1 (one line per entry)
+=====================================================================
+
+New: the spell tree builds itself at the main menu when none is saved (Settings > Hotkey > Build Spell Tree at Start: When none / Off). After loading a save it finishes when you open the panel, so play is not interrupted. An existing tree is never rebuilt; a changed load order is pointed out once.
+New: hand-drawn icons in place of the bracket glyphs, in each design's own style, and a tidier panel (icon shapes from game-icons.net, CC BY 3.0).
+New: Frozen Electrocuted Combustion's sun and air deaths work with spell mods (sun-tagged spells and air damage; in memory only, with FEC.esp loaded).
+New: perk and FEC keywords removed by something else are put back at new game and save load.
+New: a button in Risa's All In One Menu (5.4 or newer).
+Fixed: adding a plugin mid load order no longer mixes up chosen roots, Pre Req Master locks or custom XP (custom XP set before 1.4.1: set it again if your load order changes).
+Fixed: an empty tree is never saved over your file.
+Fixed: the panel's corner and Papyrus GetVersion() show the right version.
+Fixed: the tree opens centred above the spell card bar; the Scan page preview fits its box; chapter titles no longer sit on spells.
+Fixed: changing the language updates every label at once; Korean lines break between words; easier-to-read legend and presets row.
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.4.1 is up.
+
+- New installs no longer need Scan and Build: with no saved tree, the tree builds itself at the main menu. If you load a save before it is done, it finishes when you open the panel. Turn it off in Settings > Hotkey if you prefer.
+- The panel has hand-drawn icons now, one style per design.
+- Frozen Electrocuted Combustion users: sun spells from spell mods now get FEC's sun death.
+- Risa's All In One Menu users: Heart of Magic has a button there (requested on this tab - thank you, th3toadd).
+- Fixed the version shown in the panel's corner (reported here), and saved spells no longer get mixed up when you add a plugin in the middle of your load order.
+
+Your saved tree keeps working; no rebuild needed.

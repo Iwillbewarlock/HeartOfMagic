@@ -1,76 +1,51 @@
 # Changelog
 
-## Heart of Magic Librarian 1.4.1 (unreleased)
+## Heart of Magic Librarian 1.4.1
 
 ### New
 
-- **Frozen Electrocuted Combustion's sun and air deaths work with spell mods.** FEC picks how an actor killed
-  by magic dies from keywords on the killing effect. Fire, frost and shock already worked through the vanilla
-  keywords; now spells the librarian tagged sun get FEC's sun death (FEC itself only marks spells with the
-  vanilla Dawnguard sun visuals), and air damage spells get its suffocation where a mod in the load order defines
-  `MagicDamageWind` - FEC only does that to someone going into bleedout (essential and protected NPCs). In memory
-  only, and only while `FEC.esp` is loaded. The keyword goes on the damage effect itself, so every spell, scroll
-  and staff that uses that effect gets the same death (Lunaris' Moonfire and Lunar Eclipse, for one).
-- **Perk and FEC keywords stay on.** Heart of Magic already adds its keywords after KID, SkyPatcher and FEC
-  have added theirs; a keyword something takes off after that is put back when a new game starts or a save
-  finishes loading (one taken off during play stays off until the next load).
-- **A button in Risa's All In One Menu.** With Risa's All In One Menu 5.4 or newer installed, Heart of Magic
-  shows up in its launcher; Risa then opens and closes the panel and turns our own hotkey off while it does, so one
-  key does not open it twice. Your hotkey setting is left as it is and works again when you exclude Heart of Magic in
-  Risa or remove Risa. A new hotkey picked in the settings shows on Risa's button once the panel closes.
-- **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
-  scans your spells and builds the tree in the background with your active scanner preset - no need to open
-  the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it, and
-  it does not slow your game down either: the step under way finishes, and the rest waits until you open the
-  panel (which pauses the game, as set in "Pause Game on Open") or go back to the main menu. The Scan tab says
-  so, and a corner message tells you once. Open the panel while it builds the tree and you see its progress
-  window, as for a build of your own (not while it scans or saves). Pressing Scan,
-  Build, Apply or Clear yourself, or saving or importing a tree, takes over from it. A tree you already have is
-  never rebuilt by itself: when your load order changed since it was built, the Scan tab says so, and the first
-  time you load a save with that load order a corner message does too, or at once if a save is loaded already
-  (once per load order; if you only start new games, only the Scan tab says it until you load a save). Importing a tree keeps the load order the previous tree
-  was built under (the record is new in this version and only a build sets it). The Scan tab is still there.
-  Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**. If config.json could not
-  be read at start (your choice is in it), nothing is built that session.
+- **The spell tree builds itself on the first start.** With no saved tree, the game scans your spells and
+  builds the tree at the main menu with your active scanner preset - no Scan and Build needed. If you load a
+  save first, the rest waits until you open the panel (which pauses the game) or return to the main menu, so
+  play is never interrupted; the Scan tab and a corner message say so. Pressing Scan, Build, Apply or Clear
+  yourself takes over. A tree you already have is never rebuilt: if your load order changed since it was built,
+  the Scan tab and a one-time corner message tell you. Settings > Hotkey > **Build Spell Tree at Start**:
+  **When none** (default) or **Off**.
+- **Hand-drawn icons.** The bracket glyphs (`[B]`, `[X]` ...) on the panel's buttons and headings are now 19
+  drawn icons, in each design's own style (line, ink, gold ink, chalk). Tidier panel: capitals only for the
+  title, menu and tabs, plain buttons, square checkboxes, ruled settings groups. Icon shapes from
+  game-icons.net (CC BY 3.0).
+- **Frozen Electrocuted Combustion works with spell mods.** Spells the librarian tags sun get FEC's sun death,
+  and air damage spells its suffocation (where a mod defines `MagicDamageWind`; FEC uses it on bleedout only).
+  The keyword goes on the damage effect, so scrolls and staffs that share it get the same death. In memory only,
+  only with `FEC.esp` loaded.
+- **Perk and FEC keywords stay on:** a keyword something removes after Heart of Magic added it is put back when
+  a new game starts or a save loads.
+- **A button in Risa's All In One Menu** (5.4 or newer): Risa opens and closes the panel and turns our hotkey
+  off meanwhile; your hotkey works again if you exclude Heart of Magic in Risa or remove Risa.
 
 ### Fixed
 
-- **An empty spell tree is no longer saved.** A build that could not place any spell used to save an empty tree
-  over your file without a word; now nothing is saved and the builder's status line says so (as does the tree
-  tab for an import or an edit-mode save of a tree without spells).
-- **The panel's corner shows the right version.** It said 1.2.0 since 1.3 (reported on the Nexus posts tab);
-  it now reads the version from the plugin, as Papyrus `SpellLearning.GetVersion()` does (that one said 1.0.0).
-- **A plugin added in the middle of the load order no longer mixes up saved spells.** Your chosen tree roots
-  are sent to the tree builder as the spell they named (a root whose mod is gone is left out and the builder
-  picks one) and the root picker marks that spell as Current, custom XP set on a spell from now on stays with
-  that spell, Pre Req Master locks follow their spells, and the panel shows the corrected tree whenever spells had
-  to be dropped from it. Custom XP set before this version is still read, but by the spell's old place in the load
-  order, so it stays with the right spell only while the load order is unchanged: set it again on the spell (its
-  required XP on the spell card) to make it follow the spell from now on.
-- **The fullscreen button's tooltip is translated** in both states (it could show in English).
-- **The tree opens in the part of the page you can see.** The first view of a tree and the Home button are centred
-  on the part the spell card bar (or the side panel) leaves free, instead of on the whole page with the lower rings
-  and chapter titles under the bar. A tree that fits there at a readable size is shown whole; a big one opens at
-  the usual size around the heart, as before, and you zoom out to see the rest.
-- **The tree preview on the Scan page fits its box.** It sometimes stayed 300 pixels wide; it now takes the room
-  left under the scan results, so the circle is in the middle and no school at the bottom is cut off, and the school
-  names sit outside their spells instead of across them.
-- **Chapter titles stay off the spells** in Arcane, Night Grimoire and Chalkboard: each title now sits past the
-  outermost spells under it, the long side titles included.
-- **Changing the language changes everything at once.** The school tabs over the tree, the school list in the scan
-  results, the school names in the Scan page's tree preview, the chapter titles and the "Canvas" chip in the tree's tool bar
-  could stay in English until the next start. Korean lines now break between words, not inside them.
-- **The tree's "Drag to pan / Scroll to zoom" hint no longer sits on the legend** under the tree (it did with the side
-  details panel, or with the spell card bar closed).
-- **Easier to read:** the Locked square and the words of the legend under the tree, and the presets row on the
-  Settings page (Presets, Save and the preset chips), in every design.
+- **Adding a plugin in the middle of the load order no longer mixes up saved spells:** chosen tree roots, Pre
+  Req Master locks and custom XP stay with their spells. Custom XP set before 1.4.1 is still read by the old
+  position, so set it again on the spell card if your load order changes.
+- **An empty tree is never saved** over your file; the status line says why instead.
+- **The panel's corner shows the right version** (it said 1.2.0), and so does Papyrus `GetVersion()`.
+- **The tree opens where you can see it:** centred above the spell card bar (or beside the side panel); a small
+  tree is shown whole, a big one at the usual size around the heart.
+- **The Scan page's tree preview fits its box** (it could stay 300 pixels wide or cut off the lower schools), with
+  school names beside their spells instead of over them.
+- **Chapter titles no longer sit on the spells** in Arcane, Night Grimoire and Chalkboard.
+- **Changing the language updates everything at once** (school tabs, scan results, previews, chapter titles,
+  tooltips); Korean lines break between words.
+- **Easier to read:** the tree legend and the Settings presets row; the "Drag to pan" hint no longer covers the
+  legend.
 
 ### Good to know
 
-- The panel shows the tree without the spells of a mod that is turned off. If you save the tree from the editor
-  (or press **Repair unreachable spells**) while that mod is off, the saved tree leaves those spells out too. The
-  tree file from before that save is kept once as `SKSE/Plugins/SpellLearning/spell_tree.json.bak` (the next save
-  replaces it).
+- With a spell mod turned off, the panel shows the tree without its spells, and saving the tree from the editor
+  then leaves them out of the file too. The previous file is kept once as
+  `SKSE/Plugins/SpellLearning/spell_tree.json.bak`.
 
 ## Heart of Magic Librarian 1.4.0
 
