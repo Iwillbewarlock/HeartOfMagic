@@ -4697,10 +4697,21 @@ body {
    EASY MODE
    ============================================================================= */
 
+/* The Easy page's buttons and tree preview take what is left of the Scan page
+   under the results, so the preview's middle is the middle of what shows (a fixed
+   500px ran past the page's bottom and cut the preview's lower half off). A
+   short page scrolls once it is under the floor. */
+#scannerEasyContent {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 320px;
+}
+
 .easy-panel-split {
     display: flex;
-    height: 100%;
-    min-height: 500px;
+    flex: 1 1 auto;
+    min-height: 320px;
 }
 
 .easy-panel-left {

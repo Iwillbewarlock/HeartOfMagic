@@ -261,6 +261,8 @@ function switchTab(tabId) {
 
     if (tabId === 'spellScan') {
         document.getElementById('contentSpellScan').classList.add('active');
+        // The tree preview was measured while the page was hidden: a redraw measures it again
+        if (typeof PreReqMaster !== 'undefined' && PreReqMaster.renderPreview) PreReqMaster.renderPreview();
     } else if (tabId === 'spellTree') {
         document.getElementById('contentSpellTree').classList.add('active');
         // Initialize tree viewer if not done yet

@@ -200,21 +200,11 @@ var TreeGrowth = {
         var wrap = document.getElementById('treeGrowthCanvasWrap');
         if (!wrap || !this.canvas) return;
 
-        var rect = wrap.getBoundingClientRect();
-        var width = rect.width || 400;
-        var height = rect.height || 400;
-        var dpr = window.devicePixelRatio || 1;
-
-        this.canvas.width = width * dpr;
-        this.canvas.height = height * dpr;
-        this.canvas.style.width = width + 'px';
-        this.canvas.style.height = height + 'px';
-
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.scale(dpr, dpr);
-
-        this._width = width;
-        this._height = height;
+        // Not laid out (its page hidden): the size stays, _render measures again
+        var size = TreePreviewUtils.fitCanvas(this.canvas, this.ctx, wrap, this._width, this._height);
+        if (!size) return;
+        this._width = size.w;
+        this._height = size.h;
         this._markDirty();
     },
 
@@ -347,6 +337,11 @@ var TreeGrowth = {
     _render: function() {
         if (!this.ctx || !this.canvas) return;
 
+        // Its box's size now (shown after it was measured hidden, resized with no ResizeObserver)
+        var size = TreePreviewUtils.fitCanvas(this.canvas, this.ctx, document.getElementById('treeGrowthCanvasWrap'),
+                                              this._width, this._height);
+        if (size) { this._width = size.w; this._height = size.h; }
+
         var ctx = this.ctx;
         var w = this._width || 400;
         var h = this._height || 400;
@@ -396,20 +391,7 @@ var TreeGrowth = {
     /** Compute a scale factor that fits root content within the canvas. */
     _computeFitScale: function(baseData, w, h) {
         if (!baseData || !baseData.rootNodes || baseData.rootNodes.length === 0) return 1;
-
-        var contentRadius = 0;
-        for (var i = 0; i < baseData.rootNodes.length; i++) {
-            var n = baseData.rootNodes[i];
-            var d = Math.sqrt(n.x * n.x + n.y * n.y);
-            if (d > contentRadius) contentRadius = d;
-        }
-
-        if (contentRadius <= 0) return 1;
-
-        // Add padding for node decorations (arrows, labels, glow)
-        contentRadius += 45;
-        var availableRadius = Math.min(w, h) / 2 - 10;
-        return Math.min(1, availableRadius / contentRadius);
+        return TreePreviewUtils.fitScale(TreePreviewUtils.contentExtent(baseData), w, h);
     },
 
     // =========================================================================

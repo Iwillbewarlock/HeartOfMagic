@@ -1360,6 +1360,24 @@ Simplified one-click workflow.
 └─────────────────────┴────────────────────────┘
 ```
 
+The buttons and the preview take what is left of the page under the scan results
+(`#scannerEasyContent` and `.easy-panel-split` grow, 320 px at least; a shorter page scrolls). A fixed
+500 px used to run past the page's bottom, so the preview's circle sat low and its lower schools were cut
+off (1.4.1).
+
+**The preview canvases** (the Easy/Pre Req Master preview in `prereqMaster.js`, `TreeGrowth`,
+`TreePreview`) take their size with `TreePreviewUtils.fitCanvas`: a box that is not laid out (the Scan
+page or the mode hidden) leaves the canvas as it is - it used to take a made-up 300 x 400 and keep it
+until a ResizeObserver fired, which the game's browser may not have - and every redraw measures the box
+again (a size set only on a change; setting it clears the canvas). Opening the Scan tab and a window
+resize ask for a redraw. The Sun grid's school names are upright, in the panel's language (`schoolText`),
+past their roots and outward arrows, hanging off the side they point to
+(`TreePreviewUtils.schoolLabelPlace`); they used to be turned along the spoke and centred over the
+root. The Sun mode records how far roots, arrows and names reach (`_lastRenderData.extent`, in
+`TreePreview.getOutput`), and the three previews fit that into the box with `FIT_MARGIN` round it
+(`contentExtent`, `fitScale`; the root ring plus 45 px when a mode gives no extent). Tests:
+`previewFitTest.js`.
+
 ### Complex Mode (`scannerComplexContent`)
 
 Full control over tree generation.
@@ -1649,7 +1667,7 @@ Visual-First builds that used them.
 | `treePreview.js` | Preview orchestrator |
 | `treePreviewSun.js` | Sun grid preview mode |
 | `treePreviewFlat.js` | Flat grid preview mode |
-| `treePreviewUtils.js` | Preview utilities |
+| `treePreviewUtils.js` | Preview utilities: drag inputs, the canvases' size and fit (`fitCanvas`, `contentExtent`, `fitScale`), where a school's name goes (`schoolLabelPlace`) |
 | `sunGridLinear.js` | Linear sun grid layout |
 | `sunGridEqualArea.js` | Equal-area sun grid |
 | `sunGridFibonacci.js` | Fibonacci spiral grid |

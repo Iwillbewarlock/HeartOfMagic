@@ -34,6 +34,9 @@
 - **The whole tree shows when it opens.** The first view of a tree and the Home button fit the whole tree into the
   part of the tree page the spell card bar (or the side panel) leaves free, instead of centring it on the whole
   page with the lower rings and chapter titles under the bar. A big tree opens a little further out.
+- **The tree preview on the Scan page fits its box.** It sometimes stayed 300 pixels wide; it now takes the room
+  left under the scan results, so the circle is in the middle and no school at the bottom is cut off, and the school
+  names sit outside their spells instead of across them.
 - **Chapter titles stay off the spells** in Arcane, Night Grimoire and Chalkboard: each title now sits past the
   outermost spells under it, the long side titles included.
 
