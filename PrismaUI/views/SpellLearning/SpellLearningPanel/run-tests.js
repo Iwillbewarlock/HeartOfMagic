@@ -107,6 +107,8 @@ loadModule('findSpellDismissTest', './modules/findSpellDismissTest.js');
 loadModule('gateReviewTest', './modules/gateReviewTest.js');
 loadModule('i18nRelabelTest', './modules/i18nRelabelTest.js');
 loadModule('stableIdsTest', './modules/stableIdsTest.js');
+loadModule('homeViewTest', './modules/homeViewTest.js');
+loadModule('chapterTitlesTest', './modules/chapterTitlesTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

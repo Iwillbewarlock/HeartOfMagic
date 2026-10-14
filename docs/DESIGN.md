@@ -215,6 +215,41 @@ behaviour back. Nothing had to change for the text: `renderLabels` draws every l
 tree transform is undone, whatever the wheel's angle. A caller can still force either way with
 `opts.rotate`.
 
+### The home view fits the part of the tree that shows (1.4.1, 2026-10-14)
+
+The spell card bar (bottom layout, about 206 px at Font Size 1.0x) and the side panel are drawn over the
+tree canvas, and with the hover preview on they stay open even when empty (see *Hover preview*). The
+first view of a tree and the Home button used to centre the heart on the whole canvas at zoom 0.75, so the
+heart sat about half the bar's height below the middle of what shows and the lower rings and chapter
+titles were under the bar. Now `TreeCamera.homeTarget` fits the tree into the part no panel covers:
+
+- `TreeCamera.visibleRect` is the canvas less each showing panel that overlaps it - the details panel
+  (cut off the bottom when at least half the tree's width, else off the side it sits on) and the open
+  How-to-Learn panel. A panel with no size covers nothing; with the canvas itself unmeasured (another tab
+  in front) it is `null`. `getPanelOffset` (where a focused spell lands) is the middle of the same rect, so
+  click-to-focus and Home agree.
+- `fitTarget` fits the shown schools' spells and the heart (`treeBounds`, rotation 0) into that rect with
+  `HOME_PAD` (24 px) round them, centred on the box, never closer than `TreeNav.HOME_ZOOM` (0.75, the old
+  home zoom) - a small tree looks as before, a big one opens further out. Designs with chapter titles
+  keep room for them past the outer spells (`TreeStyle.chapterClearance`: the widest title across, two
+  half heights down, plus the gap).
+- `CanvasRenderer.centerView` (a tree loaded) sets the old view and `_homePending`; the first frame that
+  has the tree on screen fits it (`TreeCamera.settleHome`, at the top of `render` before anything reads
+  the view), so a tree built on the Scan page fits when its tab is opened. A view asked for before that
+  frame (`animateTo`, an instant focus) wins. Home animates to `homeTarget`.
+
+The bar is not shrunk or collapsed (a bar that grew on hover would move the tree under the cursor). A big
+tree's home zoom can fall under 0.45, the simpler level of detail, as zooming out by hand does. Tests:
+`homeViewTest.js`.
+
+**Chapter titles clear the outer ring** (`TreeStyle._chapterPlaces`). A title used to sit 40 px past its own
+school's farthest spell along the spoke. The outer ring at a spoke is often another school's, so the top
+title lay on it, and a side title, 150 px wide, reached 35 px inside its ring. A title's middle now sits
+`CHAPTER_GAP` (14 px) plus half the box along the spoke (`|cos| x half width + |sin| x half height` on
+screen) past the farthest spell of any school under it - `_schoolReach` also keeps the farthest spell per
+2 degrees round the heart (`_chapterBins`, once per tree), and `_outerEdge` reads those within the box's
+half diagonal. Classic and Modern Dark have no titles and are unchanged. Tests: `chapterTitlesTest.js`.
+
 ### Performance: the tree layer and the developer read-out (2026-09-22)
 
 The panel runs in PrismaUI's CPU-drawn view (`CreateView`; the accelerated call is commented out in
@@ -579,7 +614,8 @@ with JIT in node); what the rest of it is was not measured here. Between `LABEL_
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
 `MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (the selected spell,
 then in view, then priority, then nearest the middle of the screen), so the selected, hovered and learning
-names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75); the threshold stays
+names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75 at most since 1.4.1:
+see *The home view fits the part of the tree that shows*); the threshold stays
 0.8. Within one priority the names nearest the screen's middle come first (`_byLabelOrder` on the squared
 screen distance each candidate carries, `dist`; 2026-10-10): ordered by node index, a spell coming in at the
 screen's edge while panning or wheel-zooming could push a name in the middle past the cap. A drag's strips

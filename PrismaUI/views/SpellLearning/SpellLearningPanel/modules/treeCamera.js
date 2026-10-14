@@ -13,7 +13,11 @@
  * so to put a world point at screen offset `off` from the view center:
  *   pan = off - rotate(world, rotation) * zoom
  *
- * Depends on: settings (state.js), CanvasRenderer (canvasRendererV2.js)
+ * Home view (homeTarget): the whole tree fitted into the part of the canvas
+ * the details panel and How-to-Learn panel leave visible (visibleRect).
+ *
+ * Depends on: settings, state (state.js), CanvasRenderer (canvasRendererV2.js),
+ *             TreeStyle.chapterClearance (treeStyleBook.js, optional)
  */
 
 var TreeCamera = {
@@ -49,28 +53,157 @@ var TreeCamera = {
 
     /**
      * Screen-space offset (from the view center) where a focused node should
-     * land so it is not covered by the details sidebar (right) or the open
-     * How-to-Learn panel (left).
+     * land: the middle of the part of the tree the details panel (bar under the
+     * tree or sidebar) and the open How-to-Learn panel leave visible.
      * @returns {{x:number, y:number}}
      */
     getPanelOffset: function() {
-        var dx = 0;
-        var dy = 0;
+        var renderer = this._getRenderer();
+        var rect = renderer ? this.visibleRect(renderer) : null;
+        if (!rect) return { x: 0, y: 0 };
+        return {
+            x: rect.x + rect.w / 2 - renderer._width / 2,
+            y: rect.y + rect.h / 2 - renderer._height / 2
+        };
+    },
+
+    // =========================================================================
+    // VISIBLE AREA AND HOME VIEW
+    // =========================================================================
+
+    HOME_PAD: 24,              // css px kept clear round the tree in the home view (spell names)
+    WIDE_OVERLAY: 0.5,         // an overlay at least this share of the tree's width is a bar (top/bottom), else a side panel
+
+    /** The panels drawn over the tree that are showing now. */
+    _overlays: function() {
+        var list = [];
         var details = document.getElementById('details-panel');
-        if (details && !details.classList.contains('hidden')) {
-            var page = document.getElementById('contentSpellTree');
-            var bottomBar = page && page.classList.contains('details-bottom');
-            if (bottomBar) {
-                dy -= (details.offsetHeight || 190) / 2;   // Bar covers the lower part of the tree
-            } else {
-                dx -= (details.offsetWidth || 240) / 2;    // Sidebar covers the right side
-            }
-        }
+        if (details && !details.classList.contains('hidden')) list.push(details);
         var howto = document.getElementById('howto-panel');
-        if (howto && !howto.classList.contains('hidden') && howto.classList.contains('open')) {
-            dx += (howto.offsetWidth || 260) / 2;
+        if (howto && !howto.classList.contains('hidden') && howto.classList.contains('open')) list.push(howto);
+        return list;
+    },
+
+    /**
+     * Take an overlay's part of the canvas off the side it sits on. o and c are
+     * client rects; cut holds css px per side and only grows.
+     */
+    _addCut: function(cut, c, o) {
+        var l = Math.max(c.left, o.left), r = Math.min(c.right, o.right);
+        var t = Math.max(c.top, o.top), b = Math.min(c.bottom, o.bottom);
+        if (r <= l || b <= t) return;
+        if (r - l >= c.width * this.WIDE_OVERLAY) {
+            if ((t + b) / 2 > (c.top + c.bottom) / 2) cut.bottom = Math.max(cut.bottom, c.bottom - t);
+            else cut.top = Math.max(cut.top, b - c.top);
+        } else if ((l + r) / 2 > (c.left + c.right) / 2) {
+            cut.right = Math.max(cut.right, c.right - l);
+        } else {
+            cut.left = Math.max(cut.left, r - c.left);
         }
-        return { x: dx, y: dy };
+    },
+
+    /**
+     * The part of the tree canvas no panel covers, canvas-local css px
+     * {x, y, w, h}. null while the canvas has no size (another tab in front):
+     * the caller tries again on a later frame. With the canvas laid out, a
+     * panel with no size covers nothing.
+     */
+    visibleRect: function(renderer) {
+        var canvas = renderer && renderer.canvas;
+        if (!canvas || !canvas.getBoundingClientRect || !renderer._width || !renderer._height) return null;
+        var c = canvas.getBoundingClientRect();
+        if (!c.width || !c.height) return null;
+        var cut = { left: 0, right: 0, top: 0, bottom: 0 };
+        var overlays = this._overlays();
+        for (var i = 0; i < overlays.length; i++) {
+            var o = overlays[i].getBoundingClientRect();
+            if (o.width && o.height) this._addCut(cut, c, o);
+        }
+        var w = renderer._width, h = renderer._height;
+        var x = Math.min(cut.left, w - 1), y = Math.min(cut.top, h - 1);
+        return { x: x, y: y, w: Math.max(1, w - x - cut.right), h: Math.max(1, h - y - cut.bottom) };
+    },
+
+    /**
+     * Pan and zoom that fit a world box into rect (canvas-local css px) with
+     * pad.x / pad.y css px round it, centred; the zoom no closer than maxZoom.
+     * Rotation 0 (the home view's).
+     * @param {{minX:number, maxX:number, minY:number, maxY:number}} bounds world
+     * @param {{x:number, y:number, w:number, h:number}} rect
+     * @param {{w:number, h:number}} size the canvas, css px
+     * @param {{x:number, y:number}} pad
+     * @param {number} maxZoom
+     * @returns {{rotation:number, zoom:number, panX:number, panY:number}}
+     */
+    fitTarget: function(bounds, rect, size, pad, maxZoom) {
+        var bw = Math.max(1, bounds.maxX - bounds.minX);
+        var bh = Math.max(1, bounds.maxY - bounds.minY);
+        var zoom = Math.min((rect.w - 2 * pad.x) / bw, (rect.h - 2 * pad.y) / bh);
+        if (!(zoom > 0)) zoom = this.MIN_ZOOM;
+        zoom = Math.max(this.MIN_ZOOM, Math.min(maxZoom, zoom));
+        var mx = (bounds.minX + bounds.maxX) / 2;
+        var my = (bounds.minY + bounds.maxY) / 2;
+        return {
+            rotation: 0,
+            zoom: zoom,
+            panX: rect.x + rect.w / 2 - size.w / 2 - mx * zoom,
+            panY: rect.y + rect.h / 2 - size.h / 2 - my * zoom
+        };
+    },
+
+    /** World box of the shown schools' spells and the heart, null for no spells. */
+    treeBounds: function(renderer) {
+        var nodes = renderer.nodes || [];
+        var hidden = (typeof settings !== 'undefined' && settings.schoolVisibility) || {};
+        var gd = (typeof state !== 'undefined' && state.treeData && state.treeData.globe) || { x: 0, y: 0 };
+        var b = { minX: gd.x, maxX: gd.x, minY: gd.y, maxY: gd.y };
+        var any = false;
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            if (hidden[n.school] === false || typeof n.x !== 'number' || typeof n.y !== 'number') continue;
+            any = true;
+            if (n.x < b.minX) b.minX = n.x;
+            if (n.x > b.maxX) b.maxX = n.x;
+            if (n.y < b.minY) b.minY = n.y;
+            if (n.y > b.maxY) b.maxY = n.y;
+        }
+        return any ? b : null;
+    },
+
+    /**
+     * The home view: the whole tree fitted into the part no panel covers, no
+     * closer than TreeNav.HOME_ZOOM; the design's chapter titles get their room
+     * past the outer spells. null while that part cannot be measured.
+     */
+    homeTarget: function(renderer, maxZoom) {
+        var rect = this.visibleRect(renderer);
+        if (!rect) return null;
+        var bounds = this.treeBounds(renderer);
+        if (!bounds) {
+            return { rotation: 0, zoom: maxZoom, panX: rect.x + rect.w / 2 - renderer._width / 2,
+                     panY: rect.y + rect.h / 2 - renderer._height / 2 };
+        }
+        var titles = (typeof TreeStyle !== 'undefined' && TreeStyle.chapterClearance)
+            ? TreeStyle.chapterClearance(renderer.ctx, renderer) : { x: 0, y: 0 };
+        var pad = { x: this.HOME_PAD + titles.x, y: this.HOME_PAD + titles.y };
+        return this.fitTarget(bounds, rect, { w: renderer._width, h: renderer._height }, pad, maxZoom);
+    },
+
+    /**
+     * Put the home view a new tree asked for (CanvasRenderer.centerView) in
+     * place; called at the start of a frame, before anything reads the view.
+     * @returns {boolean} false while the tree's visible part cannot be measured
+     */
+    settleHome: function(renderer) {
+        var maxZoom = (typeof TreeNav !== 'undefined' && TreeNav.HOME_ZOOM) || renderer.zoom;
+        var target = this.homeTarget(renderer, maxZoom);
+        if (!target) return false;
+        renderer.rotation = target.rotation;
+        renderer.zoom = target.zoom;
+        renderer.panX = target.panX;
+        renderer.panY = target.panY;
+        if (renderer.showZoom) renderer.showZoom(target.zoom);
+        return true;
     },
 
     /**
@@ -179,6 +312,7 @@ var TreeCamera = {
 
         if (opts.instant) {
             this.cancel();
+            renderer._homePending = false;
             this._apply(renderer, target);
             if (typeof opts.onComplete === 'function') opts.onComplete();
             return true;
@@ -199,6 +333,7 @@ var TreeCamera = {
         if (!renderer) return;
 
         this.cancel();
+        renderer._homePending = false;   // a view asked for after the tree loaded wins over its home view
 
         var self = this;
         var start = {

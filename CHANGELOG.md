@@ -31,6 +31,11 @@
   order, so it stays with the right spell only while the load order is unchanged: set it again on the spell (its
   required XP on the spell card) to make it follow the spell from now on.
 - **The fullscreen button's tooltip is translated** in both states (it could show in English).
+- **The whole tree shows when it opens.** The first view of a tree and the Home button fit the whole tree into the
+  part of the tree page the spell card bar (or the side panel) leaves free, instead of centring it on the whole
+  page with the lower rings and chapter titles under the bar. A big tree opens a little further out.
+- **Chapter titles stay off the spells** in Arcane, Night Grimoire and Chalkboard: each title now sits past the
+  outermost spells under it, the long side titles included.
 
 ### Good to know
 

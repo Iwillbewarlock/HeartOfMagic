@@ -491,8 +491,10 @@ var CanvasRenderer = {
     centerView: function() {
         this.panX = 0;
         this.panY = 0;
-        this.zoom = 0.75;
+        this.zoom = (typeof TreeNav !== 'undefined' && TreeNav.HOME_ZOOM) || 0.75;
         this.rotation = 0;
+        // Fitted into the part no panel covers on the first frame the tree shows (TreeCamera.settleHome)
+        this._homePending = true;
         this._needsRender = true;
         
         this.showZoom(this.zoom);
