@@ -419,10 +419,10 @@ var TreeGrowthClassic = {
         var posCount = built.posCount;
         var spellCount = SpellTreeSave.countSpellNodes(output);
         if (spellCount === 0) {
-            console.error('[ClassicGrowth] Apply: no spell was placed (layout ' +
-                (this._layoutData ? 'empty' : 'missing') + ', preview grid ' + (baseData ? 'present' : 'missing') +
-                ') - not saved');
-            ClassicSettings.setStatusText(t('buildProgress.statusNothingPlaced'), 'error', 'buildProgress.statusNothingPlaced');
+            console.error('[ClassicGrowth] Apply: no spell was placed (layout ' + (this._layoutData ? 'empty' : 'missing') +
+                ', preview grid ' + (baseData ? 'present' : 'missing') + ') - not saved');
+            ClassicSettings.setStatusText(tOr('buildProgress.statusNothingPlaced', null, 'No spell could be placed, so the tree ' +
+                'was not saved. Open the Scan tab and build again.'), 'error', 'buildProgress.statusNothingPlaced');
             return false;
         }
 

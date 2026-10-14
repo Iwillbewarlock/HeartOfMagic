@@ -11,8 +11,8 @@
  * the size the preview would have.
  *
  * The size: the preview canvas's own when it has one, otherwise FALLBACK_SIZE
- * square - the preview box's CSS height (.tree-preview-split, 400px) and
- * TreePreview._updateCanvasSize's fallback for a hidden box. The Sun grid's
+ * square - what TreePreview._render draws at while its box has never been laid
+ * out (TreePreviewUtils.fitCanvas leaves the size at 0 then). The Sun grid's
  * outer points reach to 3x the canvas diagonal (treePreviewSun.js maxExtent),
  * so a build at another canvas size can place far spells a little differently.
  * The Sun mode keeps the points of its first render for the session (its cache

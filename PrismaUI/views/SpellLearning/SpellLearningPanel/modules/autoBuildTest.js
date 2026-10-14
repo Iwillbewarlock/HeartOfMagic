@@ -38,6 +38,7 @@ var AutoBuildTest = {
         ['autoBuildSetting.js', 'AutoBuildSetting'],
         ['autoBuild.js', 'AutoBuild'],
         ['colorUtils.js', 'hexToRgba'],
+        ['treePreviewUtils.js', 'TreePreviewUtils'],
         ['sunGridLinear.js', 'SunGridLinear'],
         ['sunGridEqualArea.js', 'SunGridEqualArea'],
         ['sunGridFibonacci.js', 'SunGridFibonacci'],
@@ -131,6 +132,7 @@ var AutoBuildTest = {
         this._with(g, {
             callCpp: function(name) { calls.push(name); },
             t: function(key) { return key; },
+            tOr: function(key, params, fallback) { return fallback; },
             ClassicSettings: { setStatusText: function(text, tone, key) { status.push(key); } },
             LayoutDeclutter: { applyAsync: function(out, done) { declutters++; done(); } },
             TreePreview: undefined,
@@ -428,12 +430,17 @@ var AutoBuildTest = {
     /**
      * ensure() gives what the preview's own frame (TreePreview._render, the render
      * loop's step, pan/zoom/fit and overlays included) leaves for getOutput, at the
-     * size the hidden panel has (show() falls back to 400 x 400 for a hidden box).
+     * size the hidden panel has: a box measured at 400 x 400 before it was hidden,
+     * and a box never laid out (TreePreviewUtils.fitCanvas leaves the size at 0 and
+     * _render draws at its 400 x 400 fallback, ensure() at FALLBACK_SIZE).
      */
     _testHiddenMatchesVisible: function(g) {
         var self = this;
         var schoolData = { Destruction: 40, Restoration: 30, Alteration: 25, Conjuration: 35, Illusion: 20 };
         var modes = [['sun', g.TreePreviewSun, 'fibonacci'], ['sun', g.TreePreviewSun, 'naive'], ['flat', g.TreePreviewFlat, null]];
+        var sides = [400, 0];   // the box's size: measured, not laid out
+        var boxSide = 0;
+        var box = { getBoundingClientRect: function() { return { width: boxSide, height: boxSide }; } };
         var oldGridType = g.TreePreviewSun.settings.gridType;
         function snapshot(out) {
             return out ? JSON.stringify({ roots: out.rootNodes, points: out.gridPoints, grid: out.grid, mode: out.mode }) : 'none';
@@ -441,16 +448,19 @@ var AutoBuildTest = {
         function clear(mode) { mode._lastRenderData = null; mode._gridPointCache = null; }
         this._with(g, {
             settings: { selectedRoots: {} },
+            document: { getElementById: function(id) { return id === 'treePreviewCanvasWrap' ? box : null; } },
             console: { log: function() {}, warn: function() {}, error: function() {} }
         }, function() {
             try {
-                for (var i = 0; i < modes.length; i++) {
+                for (var n = 0; n < modes.length * sides.length; n++) {
+                    var i = n % modes.length;
+                    boxSide = sides[Math.floor(n / modes.length)];
                     var preview = Object.create(g.TreePreview);
                     preview.modes = { sun: g.TreePreviewSun, flat: g.TreePreviewFlat };
                     preview.schoolData = schoolData;
                     preview.activeMode = modes[i][0];
-                    preview._width = 400;
-                    preview._height = 400;
+                    preview._width = boxSide;
+                    preview._height = boxSide;
                     preview.panX = 0; preview.panY = 0; preview.zoom = 1;
                     if (modes[i][2]) g.TreePreviewSun.settings.gridType = modes[i][2];
 
@@ -458,11 +468,12 @@ var AutoBuildTest = {
                     var hidden = snapshot(g.TreePreviewHidden.ensure(preview));
                     clear(modes[i][1]);
                     preview.ctx = g.TreePreviewHidden.nullContext();
-                    preview.canvas = { width: 400, height: 400 };
+                    preview.canvas = { width: boxSide, height: boxSide, style: {} };
                     preview._render();
                     var visible = snapshot(preview.getOutput());
-                    self.check(hidden !== 'none' && hidden === visible,
-                        modes[i][0] + (modes[i][2] ? ' ' + modes[i][2] : '') + ': the hidden output equals a drawn frame\'s');
+                    self.check(hidden !== 'none' && hidden === visible && preview._width === boxSide,
+                        modes[i][0] + (modes[i][2] ? ' ' + modes[i][2] : '') + (boxSide ? ' (box measured)' : ' (box not laid out)') +
+                        ': the hidden output equals a drawn frame\'s');
                 }
             } finally {
                 g.TreePreviewSun.settings.gridType = oldGridType;
