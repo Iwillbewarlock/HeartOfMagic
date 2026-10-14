@@ -1530,7 +1530,14 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   active (`buildProgress.statusStillBuilding`): saving then would save the tree without its locks. And
   `onPreReqMasterComplete` drops lock scores that `autoApplyLocks` asked for a tree that is no longer
   `TreeGrowthClassic._treeData` (cleared or built again since): no locks, no progress step, a warning in
-  the log.
+  the log. The progress is shown at once when the panel is already open as the run starts building. Every
+  way out of the lock step ends the build's progress (a failed C++ scoring included), and a run that ends
+  while building closes its silent progress (`BuildProgress.isSilent`), so neither can hold Apply and Clear
+  back. **Known limit:** neither `ProceduralTreeGenerate` nor `PreReqMasterScore` replies carry a request
+  id. A `busy` reply is told apart only by its flag, and `_prmTree` is one slot: a scoring request turned
+  away as busy while another is in flight takes that slot, so the earlier reply is matched against the
+  later request's tree. Ids in both replies (C++) would remove this; not reached from the panel today, as
+  the buttons are disabled while a build runs.
 - **One build in C++ at a time (defensive):** C++ turns a second `ProceduralTreeGenerate` away as `busy` and
   answers the first one later. The Build button is disabled while a build runs, so this is not reached from
   the panel today; should a Build come while one is in flight (`state._classicGrowthBuildPending`), it is

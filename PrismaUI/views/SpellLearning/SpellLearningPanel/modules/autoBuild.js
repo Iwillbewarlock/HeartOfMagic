@@ -255,6 +255,8 @@ var AutoBuild = {
                 onFail: function(error) { if (self._current(run)) self._fail('the build failed: ' + error); }
             });
             if (!started) this._fail('the build did not start');
+            // The panel already open: the progress shows now, not at the next opening
+            else if (typeof window !== 'undefined' && window._panelVisible !== false) this.onPanelShowing();
         } catch (e) {
             this._fail('the build could not start: ' + (e && e.message ? e.message : e));
         }
@@ -301,6 +303,12 @@ var AutoBuild = {
         if (this._runTimer) {
             clearTimeout(this._runTimer);
             this._runTimer = null;
+        }
+        // Its silent progress, if the run ends while building: left active it would hold
+        // Apply and Clear back (a progress shown on the panel stays for the player to close)
+        if (this._run && this._run.stage === 'build' && typeof BuildProgress !== 'undefined' &&
+            BuildProgress.isActive() && BuildProgress.isSilent()) {
+            BuildProgress.close();
         }
         this._run = null;
     },

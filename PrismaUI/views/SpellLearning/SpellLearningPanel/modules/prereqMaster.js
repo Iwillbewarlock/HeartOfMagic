@@ -1148,6 +1148,11 @@
                 } else {
                     updateStatus('prm.status.noEligible', null, 'No eligible spells for locks');
                 }
+                // The build's progress ends here too: left active it would hold Apply and Clear back
+                if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
+                    BuildProgress.setStage('finalize');
+                    setTimeout(function() { BuildProgress.complete(); }, 400);
+                }
                 return;
             }
 

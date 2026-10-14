@@ -10,6 +10,9 @@
  *   - Pre Req Master's lock scores for a tree that was cleared or built again
  *     are dropped (prereqMaster.js in a sandbox of its own);
  *   - the dev harness saves a SaveBuiltSpellTree like a SaveSpellTree;
+ *   - the "still building" line has an English fallback (11 languages lack the key);
+ *     a failed C++ lock scoring ends the build's progress; a run that ends while
+ *     building closes its silent progress; the panel already open shows it at once;
  *   - a tree loaded with the panel closed is drawn when it opens, not before.
  *
  * Depends on: autoBuildTest.js / autoBuildFlowTest.js (load the modules,
@@ -104,6 +107,7 @@ var AutoBuildGuardTest = {
         this._testStalePrmResult(g);
         this._testHarness(g);
         this._testHiddenShow(g);
+        this._testRound5(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -248,6 +252,9 @@ var AutoBuildGuardTest = {
         vm.runInContext(fs.readFileSync(path.join(__dirname, 'prereqMaster.js'), 'utf8'), sandbox, { filename: 'prereqMaster.js' });
         sandbox.PreReqMaster.autoApplyLocks();
         var sent = calls.indexOf('PreReqMasterScore') !== -1;
+        this._prmSandbox = sandbox;
+        this._prmProgress = progress;
+        this._prmTree = tree;
         sandbox.TreeGrowthClassic._treeData = { schools: {} };   // cleared or built again meanwhile
         sandbox.onPreReqMasterComplete(JSON.stringify({ success: true, scores: [] }));
         this.check(sent && progress.length === 0 && calls.some(function(c) { return /no longer|cleared or built again/.test(c); }),
@@ -306,6 +313,67 @@ var AutoBuildGuardTest = {
         this.check(/if \(window\._panelVisible !== false\) CanvasRenderer\.forceRender\(\);/.test(src),
             'loadTreeData does not force a frame with the panel closed');
     }
+};
+
+AutoBuildGuardTest._testRound5 = function(g) {
+    var self = this, A = g.AutoBuild, tgc = g.TreeGrowthClassic, oldTree = tgc._treeData, texts = [];
+    var out = this._out();
+    // A language without the key: tOr gives the English fallback, t would give the key
+    this._with(g, this._stubs(out, {
+        ClassicSettings: { setStatusText: function(text) { texts.push(text); }, setTreeBuilt: function() {} }
+    }), function() {
+        try {
+            tgc._treeData = { schools: {} };
+            g.BuildProgress.start(false, { silent: true });
+            tgc.applyTree();
+            self.check(texts.length === 1 && texts[0] !== 'buildProgress.statusStillBuilding' && /still being built/.test(texts[0]),
+                'the still-building line falls back to English where the language has no such key');
+        } finally {
+            g.BuildProgress.close();
+            tgc._treeData = oldTree;
+        }
+    });
+
+    var sb = this._prmSandbox, progress = this._prmProgress;
+    if (sb) {
+        progress.length = 0;
+        sb.TreeGrowthClassic._treeData = this._prmTree;
+        sb.PreReqMaster.autoApplyLocks();
+        sb.onPreReqMasterComplete(JSON.stringify({ success: false, error: 'scorer broke' }));
+        this.check(progress.indexOf('finalize') !== -1 && progress.indexOf('complete') !== -1,
+            'a failed C++ lock scoring still ends the build\'s progress (Apply and Clear are not held back)');
+    }
+
+    out = this._out();
+    this._with(g, this._stubs(out, { _panelVisible: false }), function() {
+        try {
+            g._lastScanTime = 0;
+            self._startRun(g);
+            A.onSpellData();   // silent build under way
+            var wasSilent = g.BuildProgress.isSilent();
+            A._fail('not done after 600 s');
+            self.check(wasSilent && !g.BuildProgress.isActive(), 'a run that ends while building closes its silent progress');
+        } finally {
+            g.BuildProgress.close();
+            g.state._classicGrowthBuildPending = false;
+            A._resetForTest();
+        }
+    });
+
+    out = this._out();
+    this._with(g, this._stubs(out, { _panelVisible: true }), function() {
+        try {
+            g._lastScanTime = 0;
+            self._startRun(g);
+            A.onSpellData();   // the panel is open as the build starts
+            self.check(out.shown === 1 && out.events.indexOf('shown') !== -1 && !g.BuildProgress.isSilent() && g.BuildProgress.isActive(),
+                'the panel already open when the run builds: its progress shows at once');
+        } finally {
+            g.BuildProgress.close();
+            g.state._classicGrowthBuildPending = false;
+            A._resetForTest();
+        }
+    });
 };
 
 if (typeof window !== 'undefined') window.AutoBuildGuardTest = AutoBuildGuardTest;

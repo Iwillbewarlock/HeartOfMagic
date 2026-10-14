@@ -495,7 +495,8 @@ var TreeGrowthClassic = {
      */
     _refuseWhileBuilding: function () {
         if (typeof BuildProgress === 'undefined' || !BuildProgress.isActive()) return false;
-        ClassicSettings.setStatusText(t('buildProgress.statusStillBuilding'), 'error', 'buildProgress.statusStillBuilding');
+        ClassicSettings.setStatusText(tOr('buildProgress.statusStillBuilding', null, 'The tree is still being built (locks are still being applied) - wait until it is done.'),
+            'error', 'buildProgress.statusStillBuilding');
         return true;
     },
 

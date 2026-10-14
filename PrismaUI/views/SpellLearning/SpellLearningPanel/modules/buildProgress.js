@@ -306,6 +306,11 @@ var BuildProgress = (function() {
         return true;
     }
 
+    /** A build under way with the modal hidden (the build at game start, not shown yet). */
+    function isSilent() {
+        return _active && _silent;
+    }
+
     /**
      * Check if the modal is currently active.
      */
@@ -398,6 +403,7 @@ var BuildProgress = (function() {
         fail: fail,
         close: close,
         reveal: reveal,
+        isSilent: isSilent,
         isActive: isActive,
         getCurrentStage: getCurrentStage
     };

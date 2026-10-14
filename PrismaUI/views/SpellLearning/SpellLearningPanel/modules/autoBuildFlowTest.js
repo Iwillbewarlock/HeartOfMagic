@@ -489,6 +489,7 @@ var AutoBuildFlowTest = {
             TreeGrowthClassic: Object.create(tgc),
             ClassicSettings: { setStatusText: function() {} },
             ClassicBuildRequest: { send: function() { sent++; } },
+            _panelVisible: false,
             TreeGrowth: { setBuilding: function() {}, _markDirty: function() {} },
             document: { getElementById: function(id) { return id === 'build-progress-modal' ? modal : null; } },
             PreReqMaster: undefined
