@@ -31,9 +31,10 @@
   order, so it stays with the right spell only while the load order is unchanged: set it again on the spell (its
   required XP on the spell card) to make it follow the spell from now on.
 - **The fullscreen button's tooltip is translated** in both states (it could show in English).
-- **The whole tree shows when it opens.** The first view of a tree and the Home button fit the whole tree into the
-  part of the tree page the spell card bar (or the side panel) leaves free, instead of centring it on the whole
-  page with the lower rings and chapter titles under the bar. A big tree opens a little further out.
+- **The tree opens in the part of the page you can see.** The first view of a tree and the Home button are centred
+  on the part the spell card bar (or the side panel) leaves free, instead of on the whole page with the lower rings
+  and chapter titles under the bar. A tree that fits there at a readable size is shown whole; a big one opens at
+  the usual size around the heart, as before, and you zoom out to see the rest.
 - **The tree preview on the Scan page fits its box.** It sometimes stayed 300 pixels wide; it now takes the room
   left under the scan results, so the circle is in the middle and no school at the bottom is cut off, and the school
   names sit outside their spells instead of across them.

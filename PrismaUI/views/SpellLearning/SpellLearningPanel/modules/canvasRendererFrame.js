@@ -28,9 +28,12 @@
 
             if (width === 0 || height === 0) return;
 
-            // A new tree's home view, once the tree and its panels can be measured
+            // A new tree's home view, once the tree and its panels can be measured. A frame drawn in the
+            // same task that asked for it (a load's forceRender, before the details panel is laid out) is
+            // skipped: it would draw a view about to change; _needsRender stays set for the loop's frame
             if (this._homePending) {
                 if (typeof TreeCamera === 'undefined') this._homePending = false;
+                else if ((this._loopFrame || 0) === this._homeAskedAt) return;
                 else if (TreeCamera.settleHome(this)) this._homePending = false;
             }
 

@@ -209,17 +209,23 @@ var TreeCamera = {
 
     /**
      * The home view: the whole tree fitted into the part no panel covers, no
-     * closer than TreeNav.HOME_ZOOM; the design's chapter titles get their room
-     * past the outer spells. null while that part cannot be measured.
+     * closer than maxZoom (TreeNav.HOME_ZOOM); the design's chapter titles get
+     * their room past the outer spells. A tree that would only fit below minZoom
+     * (TreeNav.HOME_MIN_ZOOM) opens at minZoom with the heart in the middle of
+     * that part instead: the inner tiers readable, the rest a zoom-out away.
+     * null while that part cannot be measured.
      */
-    homeTarget: function(renderer, maxZoom) {
+    homeTarget: function(renderer, maxZoom, minZoom) {
         var rect = this.visibleRect(renderer);
         if (!rect) return null;
         var bounds = this.treeBounds(renderer);
-        if (!bounds) {
-            return { rotation: 0, zoom: maxZoom, panX: rect.x + rect.w / 2 - renderer._width / 2,
-                     panY: rect.y + rect.h / 2 - renderer._height / 2 };
-        }
+        var floor = Math.min(maxZoom, typeof minZoom === 'number' ? minZoom : this.MIN_ZOOM);
+        var heartAt = function(zoom) {
+            var gd = (typeof state !== 'undefined' && state.treeData && state.treeData.globe) || { x: 0, y: 0 };
+            return { rotation: 0, zoom: zoom, panX: rect.x + rect.w / 2 - renderer._width / 2 - gd.x * zoom,
+                     panY: rect.y + rect.h / 2 - renderer._height / 2 - gd.y * zoom };
+        };
+        if (!bounds) return heartAt(maxZoom);
         // The design's chapter titles where they would be drawn at each zoom tried (TreeStyle.chapterBoxes
         // with no pan, centre 0, rotation 0, nothing culled)
         var extrasAt = null;
@@ -233,7 +239,8 @@ var TreeCamera = {
             };
         }
         var pad = { x: this.HOME_PAD, y: this.HOME_PAD };
-        return this.fitTarget(bounds, rect, { w: renderer._width, h: renderer._height }, pad, maxZoom, extrasAt);
+        var fit = this.fitTarget(bounds, rect, { w: renderer._width, h: renderer._height }, pad, maxZoom, extrasAt);
+        return fit.zoom < floor ? heartAt(floor) : fit;
     },
 
     /**
@@ -242,8 +249,8 @@ var TreeCamera = {
      * @returns {boolean} false while the tree's visible part cannot be measured
      */
     settleHome: function(renderer) {
-        var maxZoom = (typeof TreeNav !== 'undefined' && TreeNav.HOME_ZOOM) || renderer.zoom;
-        var target = this.homeTarget(renderer, maxZoom);
+        var nav = (typeof TreeNav !== 'undefined') ? TreeNav : {};
+        var target = this.homeTarget(renderer, nav.HOME_ZOOM || renderer.zoom, nav.HOME_MIN_ZOOM);
         if (!target) return false;
         renderer.rotation = target.rotation;
         renderer.zoom = target.zoom;
@@ -421,11 +428,14 @@ var TreeCamera = {
 
         function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
-        function step(now) {
+        function step() {
             var anim = self._anim;
             if (!anim) return;
 
-            var t = anim.duration > 0 ? Math.min((now - anim.startTime) / anim.duration, 1) : 1;
+            // The start's clock (performance.now), not the frame's timestamp: a timestamp from before the
+            // start gave a t under 0, and the ease then threw the view far past both ends
+            var now = performance.now();
+            var t = anim.duration > 0 ? Math.max(0, Math.min((now - anim.startTime) / anim.duration, 1)) : 1;
             var e = easeOutCubic(t);
             var s = anim.start, d = anim.end;
 

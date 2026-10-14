@@ -12,6 +12,10 @@
 
 var TreeNav = {
     HOME_ZOOM: 0.75,
+    // The home view never opens further out than this: a tree too big to fit above it opens here centred on the
+    // heart. 0.5 is CanvasRenderer.LABEL_MIN_ZOOM (no names below it) and inside the full level of detail
+    // (_computeLODTier: 0.45 and up; under 0.25 the spokes go and spells are dots)
+    HOME_MIN_ZOOM: 0.5,
     _initialized: false,
 
     init: function() {
@@ -61,7 +65,7 @@ var TreeNav = {
     goHome: function() {
         if (typeof TreeCamera !== 'undefined') {
             var renderer = TreeCamera._getRenderer();
-            var target = renderer ? TreeCamera.homeTarget(renderer, this.HOME_ZOOM) : null;
+            var target = renderer ? TreeCamera.homeTarget(renderer, this.HOME_ZOOM, this.HOME_MIN_ZOOM) : null;
             TreeCamera.animateTo(target || { rotation: 0, panX: 0, panY: 0, zoom: this.HOME_ZOOM });
         } else if (typeof SmartRenderer !== 'undefined') {
             SmartRenderer.centerView();
