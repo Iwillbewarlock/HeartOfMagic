@@ -2,6 +2,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "PapyrusAPI.h"
+#include "RisaMenu.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -208,6 +209,9 @@ void UIManager::HidePanel()
 
     // Send ModEvent for other mods listening
     PapyrusAPI::SendMenuClosedEvent();
+
+    // A hotkey changed in the settings re-registers with Risa only now
+    RisaMenu::OnPanelClosed();
 }
 
 void UIManager::EnsureFocusReleased()

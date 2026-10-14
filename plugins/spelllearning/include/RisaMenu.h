@@ -20,6 +20,11 @@ namespace RisaMenu
     [[nodiscard]] bool NativeHotkeyEnabled();
 
     // The panel's hotkey changed (config loaded or saved): Risa shows the key as
-    // text, so a registered menu registers again with the new label.
+    // text, so a registered menu registers again with the new label - at once
+    // when the panel is closed, else when it closes (OnPanelClosed).
     void OnHotkeyChanged(std::uint32_t keyCode);
+
+    // UIManager::HidePanel: a re-register OnHotkeyChanged put off while the
+    // panel was open is posted to the game thread.
+    void OnPanelClosed();
 }

@@ -200,7 +200,7 @@ private:
     std::atomic<bool> m_isPanelVisible{false};  // read by Papyrus off the game thread
     static inline std::atomic<bool> s_panelInfoLogging{false};
     static inline std::atomic<ConfigFile::SaveMode> s_configSaveMode{ConfigFile::SaveMode::Normal};
-    bool m_isInitialized = false;
+    std::atomic<bool> m_isInitialized{false};  // read by Risa's Open callback off the game thread (RisaMenu.cpp)
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists
     
