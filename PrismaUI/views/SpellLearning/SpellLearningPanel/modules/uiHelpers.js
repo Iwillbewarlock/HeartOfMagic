@@ -203,6 +203,18 @@ function findScanSpellForEntry(entry) {
 }
 
 /**
+ * The formId a saved entry's spell has in the current scan (findScanSpellForEntry).
+ * @returns {string|null|undefined} null when there is no entry or its spell is not
+ *   in the scan; the saved formId when the scan cannot tell (a legacy entry, no scan yet)
+ */
+function scanFormIdForEntry(entry) {
+    if (!entry) return null;
+    var spell = findScanSpellForEntry(entry);
+    if (spell === null) return null;
+    return spell ? spell.formId : entry.formId;
+}
+
+/**
  * The player's XP override for a tree node, or undefined. Keyed by the node's
  * persistentId ("Plugin.esp|0x000812"), which survives a load order change; an
  * override saved before that is keyed by the runtime formId and is still read

@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "ツリー編集",
     "buttons.eraserTool": "消しゴムツール - リンク削除",
     "buttons.exportScan": "スキャンをエクスポート",
+    "buttons.exitFullscreen": "全画面を終了",
     "buttons.findSpell": "呪文検索",
     "buttons.heartSettings": "ハートアニメーション設定",
     "buttons.homeView": "ホーム表示（カメラリセット）",

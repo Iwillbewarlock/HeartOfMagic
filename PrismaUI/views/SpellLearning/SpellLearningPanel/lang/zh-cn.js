@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "编辑树",
     "buttons.eraserTool": "橡皮擦工具 - 移除连接",
     "buttons.exportScan": "导出扫描",
+    "buttons.exitFullscreen": "退出全屏",
     "buttons.findSpell": "搜索法术",
     "buttons.heartSettings": "心脏动画设置",
     "buttons.homeView": "主视图（重置镜头）",

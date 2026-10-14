@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Edytuj drzewo",
     "buttons.eraserTool": "Gumka — usuwanie połączeń",
     "buttons.exportScan": "Eksportuj skan",
+    "buttons.exitFullscreen": "Wyłącz pełny ekran",
     "buttons.findSpell": "Szukaj zaklęć",
     "buttons.heartSettings": "Ustawienia animacji serca",
     "buttons.homeView": "Widok główny (resetuj kamerę)",

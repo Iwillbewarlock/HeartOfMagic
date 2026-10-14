@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Ağacı Düzenle",
     "buttons.eraserTool": "Silgi Aracı - Bağlantıları Kaldır",
     "buttons.exportScan": "Taramayı Dışa Aktar",
+    "buttons.exitFullscreen": "Tam Ekrandan Çık",
     "buttons.findSpell": "Büyü ara",
     "buttons.heartSettings": "Kalp Animasyonu Ayarları",
     "buttons.homeView": "Ana görünüm (kamerayı sıfırla)",

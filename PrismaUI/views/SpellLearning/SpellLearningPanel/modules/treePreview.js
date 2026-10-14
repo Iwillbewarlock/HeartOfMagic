@@ -666,8 +666,9 @@ var TreePreview = {
 
         // Check current selection (indexed by school:rootIndex)
         var rootKey = this._rootKey(school, this._rootSelectionIndex);
+        // The saved formId names another spell after a load order change: compare the root's spell in this scan
         var currentRoot = settings.selectedRoots ? settings.selectedRoots[rootKey] : null;
-        var currentFormId = currentRoot ? currentRoot.formId : null;
+        var currentFormId = scanFormIdForEntry(currentRoot);
 
         if (filtered.length === 0 && !searchTerm) {
             spellList.innerHTML = '<div class="spawn-no-results"></div>';

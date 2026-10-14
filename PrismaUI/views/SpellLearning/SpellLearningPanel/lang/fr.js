@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Modifier l'arbre",
     "buttons.eraserTool": "Gomme - Supprimer les liens",
     "buttons.exportScan": "Exporter l'analyse",
+    "buttons.exitFullscreen": "Quitter le plein écran",
     "buttons.findSpell": "Rechercher des sorts",
     "buttons.heartSettings": "Paramètres d'animation du Cœur",
     "buttons.homeView": "Vue d'accueil (réinitialiser la caméra)",

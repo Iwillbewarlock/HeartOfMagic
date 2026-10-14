@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Editar Árvore",
     "buttons.eraserTool": "Borracha - Remover Ligações",
     "buttons.exportScan": "Exportar Varredura",
+    "buttons.exitFullscreen": "Sair da Tela Cheia",
     "buttons.findSpell": "Pesquisar magias",
     "buttons.heartSettings": "Configurações de Animação do Coração",
     "buttons.homeView": "Visão inicial (resetar câmera)",

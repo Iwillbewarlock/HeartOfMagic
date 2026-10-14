@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "編輯樹",
     "buttons.eraserTool": "橡皮擦工具 - 移除連結",
     "buttons.exportScan": "匯出掃描",
+    "buttons.exitFullscreen": "退出全螢幕",
     "buttons.findSpell": "搜尋法術",
     "buttons.heartSettings": "心臟動畫設定",
     "buttons.homeView": "主視圖（重設鏡頭）",

@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "트리 편집",
     "buttons.eraserTool": "지우개 도구 - 연결 제거",
     "buttons.exportScan": "스캔 내보내기",
+    "buttons.exitFullscreen": "전체 화면 종료",
     "buttons.findSpell": "마법 검색",
     "buttons.heartSettings": "하트 애니메이션 설정",
     "buttons.homeView": "처음 보기 (카메라 초기화)",

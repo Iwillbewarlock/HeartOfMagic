@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Modifica Albero",
     "buttons.eraserTool": "Strumento Gomma - Rimuovi Collegamenti",
     "buttons.exportScan": "Esporta Scansione",
+    "buttons.exitFullscreen": "Esci da schermo intero",
     "buttons.findSpell": "Cerca incantesimi",
     "buttons.heartSettings": "Impostazioni Animazione Cuore",
     "buttons.homeView": "Vista iniziale (reimposta camera)",

@@ -29,6 +29,7 @@ window._i18nPreload = {
     "buttons.editTree": "Baum bearbeiten",
     "buttons.eraserTool": "Radierer - Verbindungen entfernen",
     "buttons.exportScan": "Scan exportieren",
+    "buttons.exitFullscreen": "Vollbild beenden",
     "buttons.findSpell": "Zauber suchen",
     "buttons.heartSettings": "Herz-Animationseinstellungen",
     "buttons.homeView": "Startansicht (Kamera zurücksetzen)",
