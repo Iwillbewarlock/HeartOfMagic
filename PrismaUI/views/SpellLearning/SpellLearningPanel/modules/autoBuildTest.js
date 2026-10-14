@@ -7,9 +7,10 @@
  *     changed load order -> notice once, setting off -> nothing;
  *   - the game start: nothing before the tree info, the config and the scanner
  *     presets are all in; then a scan, or the notice, or nothing; the run goes
- *     scan -> build (silent) -> apply (auto) -> done;
+ *     scan -> build (silent) -> apply (auto) -> done, through save loads, and a
+ *     later startup info starts no second run;
  *   - TreePreviewHidden: the preview's output without its render loop, for
- *     every Sun grid and the Flat mode.
+ *     every Sun grid and the Flat mode, equal to a drawn frame's.
  *
  * Depends on: spellTreeSave.js, autoBuildSetting.js, autoBuild.js, colorUtils.js,
  * treePreviewHidden.js, the preview modes (treePreviewSun.js, sunGrid*.js,
@@ -99,7 +100,7 @@ var AutoBuildTest = {
         this._testDecide(g);
         this._testStartup(g);
         this._testRun(g);
-        this._testAbort(g);
+        this._testSaveLoadGoesOn(g);
         this._testApplyStale(g);
         this._testHiddenPreview(g);
         this._testHiddenMatchesVisible(g);
@@ -194,7 +195,9 @@ var AutoBuildTest = {
         this.check(A.decide('nonsense', missing, false).action === A.BUILD, 'an unknown setting value is the default');
         this.check(A.decide('whenMissing', { tree: 'unreadable' }, false).action === A.NONE,
             'a damaged tree file is left alone');
-        this.check(A.decide('whenMissing', missing, true).action === A.NONE, 'no build once a save has loaded');
+        this.check(A.decide('whenMissing', missing, true).action === A.BUILD, 'no saved tree after a save has loaded: build anyway');
+        this.check(A.decide('whenMissing', { tree: 'present', nodes: 9, loadOrder: 'bb' }, false).action === A.NONE,
+            'tree there, no load order record at all (no spell_tree_loadorder.json): no notice');
     },
 
     /** One game start with stubs; returns what reached the panel and C++. */
@@ -287,8 +290,12 @@ var AutoBuildTest = {
         });
     },
 
-    /** A save load at each step stops the run; what comes back after it is dropped. */
-    _testAbort: function(g) {
+    /**
+     * spell_tree.json is one file for every save: a save load at any step does
+     * not stop the run, and a later LoadSpellTree's info starts no second one.
+     * Only the run's own end (done, failed, timed out) drops what comes back.
+     */
+    _testSaveLoadGoesOn: function(g) {
         var self = this, A = g.AutoBuild, calls, events, status, builtWith, appliedWith;
         this._with(g, {
             settings: { autoBuild: 'whenMissing' },
@@ -304,40 +311,52 @@ var AutoBuildTest = {
             },
             console: { log: function() {}, warn: function() {}, error: function() {} }
         }, function() {
-            function begin() {
+            function begin(saveFirst) {
                 calls = []; events = []; status = []; builtWith = null; appliedWith = null;
                 A._resetForTest();
+                if (saveFirst) A.onSaveGameLoaded();
                 g.AutoBuildSetting.loadFrom({});
                 A.notePresetsApplied();
                 g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
             }
-            begin();
+            begin(false);
             A.onSaveGameLoaded();   // during the scan
-            A.onSpellData();        // the scan comes back afterwards
-            self.check(!A.isRunning() && calls.join(',') === 'scan' && events.join(',') === 'decided,scan,failed' &&
-                status.indexOf('status.autoBuildFailed') !== -1, 'save load during the scan: stopped, no build, said so');
-
-            begin();
             A.onSpellData();
             A.onSaveGameLoaded();   // during the build
-            builtWith.onComplete('done late');
-            self.check(!A.isRunning() && calls.join(',') === 'scan,build' && events[events.length - 1] === 'failed',
-                'save load during the build: its result is not applied');
-
-            begin();
-            A.onSpellData();
             builtWith.onComplete('ok');
-            var currentBefore = appliedWith.isCurrent();
             A.onSaveGameLoaded();   // while Apply declutters
-            self.check(currentBefore === true && appliedWith.isCurrent() === false && !A.isRunning() &&
-                events.join(',') === 'decided,scan,build,apply,failed', 'save load during Apply: isCurrent turns false, run stopped');
-            appliedWith.onSaved(5);
-            self.check(events.indexOf('done') === -1, 'a save reported after the stop is not counted as done');
+            var current = appliedWith.isCurrent();
+            appliedWith.onSaved(7);
+            self.check(current === true && calls.join(',') === 'scan,build,apply' && !A.isRunning() &&
+                events.join(',') === 'decided,scan,save loaded,build,save loaded,apply,save loaded,done' &&
+                status.indexOf('status.autoBuildFailed') === -1,
+                'save loads during scan, build and Apply: the run goes on and saves');
+
+            begin(true);
+            self.check(calls.join(',') === 'scan' && A.isRunning(), 'decided after a save load with no tree: build');
+
+            begin(false);
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // LoadSpellTree again (panel opened in game)
+            A.onSpellData();
+            g.onStartupTreeInfo({ tree: 'present', nodes: 5, loadOrder: 'aa', builtLoadOrder: 'aa' });
+            self.check(calls.join(',') === 'scan,build' && events.filter(function(e) { return e === 'decided'; }).length === 1,
+                'a second startup info during a run: no second decision, no second build');
+            builtWith.onComplete('ok');
+            appliedWith.onSaved(3);
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            self.check(calls.join(',') === 'scan,build,apply', 'a startup info after the run: nothing new');
+
+            begin(false);
+            A.onSpellData();
+            A._fail('not done after 600 s');   // what the run timer does
+            builtWith.onComplete('late');
+            self.check(!A.isRunning() && calls.join(',') === 'scan,build' && status.indexOf('status.autoBuildFailed') !== -1,
+                'a timed out run: the late build result is dropped');
             A._resetForTest();
         });
     },
 
-    /** Apply of the build at game start skips the save once the run is stale. */
+    /** Apply of the build at game start skips the save once the run has ended (timed out). */
     _testApplyStale: function(g) {
         var self = this, calls = [];
         var tgc = g.TreeGrowthClassic;

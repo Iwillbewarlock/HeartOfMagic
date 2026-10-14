@@ -18,12 +18,16 @@
  *   - the config (AutoBuildSetting.loadFrom -> noteConfigLoaded),
  *   - the scanner presets applied (onPresetsLoaded -> notePresetsApplied; after
  *     PRESETS_WAIT_MS without them it goes on with what is set).
- * That is at the main menu: onPrismaReady asks for all three. A build is not
- * started once a save has loaded (the scan holds the game thread for ~1.7 s).
- * A save load during a run (onSaveGameLoaded, which also resets the tree's
- * states) stops it: a step that comes back afterwards is dropped, and an Apply
- * still decluttering does not save (applyTree's isCurrent). spell_tree.json is
- * left as it was; the next game start builds again, or the Scan tab does.
+ * That is at the main menu: onPrismaReady asks for all three. Only the first
+ * onStartupTreeInfo counts: a later LoadSpellTree (the panel opened after a save
+ * load) never starts a second run. spell_tree.json is one file for every save,
+ * so a save load or a new game does not stop a run - scan, build and Apply go on
+ * and save, and Apply's loadTreeData makes the tree live for the loaded save
+ * (SetTreePrerequisites, then GetProgress / GetPlayerKnownSpells for its
+ * progress). A decision made after a save has loaded still builds: the scan then
+ * holds the game thread once, about 1.7 s, in game. A run ends only by finishing,
+ * failing or RUN_TIMEOUT_MS; a step that comes back after that is dropped, and
+ * an Apply still decluttering then does not save (applyTree's isCurrent).
  *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode).
@@ -54,8 +58,7 @@ var AutoBuild = {
     _decided: false,
     _saveLoaded: false,
     _presetsTimer: null,
-    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt, generation }
-    _generation: 0,           // +1 at every save load: a run started before one is stale
+    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt }
     _runTimer: null,
 
     // =========================================================================
@@ -73,8 +76,8 @@ var AutoBuild = {
         if (AutoBuildSetting.normalize(mode) === AutoBuildSetting.OFF) return this._result(this.NONE, 'the setting is off');
         if (!info || typeof info !== 'object') return this._result(this.NONE, 'nothing known about the saved tree');
         if (info.tree === this.TREE_MISSING || info.tree === this.TREE_EMPTY) {
-            if (saveLoaded) return this._result(this.NONE, 'no saved tree, but a save is loaded already - build it on the Scan tab');
-            return this._result(this.BUILD, info.tree === this.TREE_MISSING ? 'no saved tree' : 'the saved tree has no spells');
+            return this._result(this.BUILD, (info.tree === this.TREE_MISSING ? 'no saved tree' : 'the saved tree has no spells') +
+                (saveLoaded ? ', a save is loaded already - the scan holds the game once' : ''));
         }
         if (info.tree !== this.TREE_PRESENT) return this._result(this.NONE, 'the saved tree could not be read - left alone');
         var now = typeof info.loadOrder === 'string' ? info.loadOrder : '';
@@ -126,13 +129,12 @@ var AutoBuild = {
 
     onSaveGameLoaded: function() {
         this._saveLoaded = true;
-        this._generation++;
-        if (this._run) this._fail('a save loaded during the ' + this._run.stage + ' step - stopped, nothing saved');
+        if (this._run) this._report('save loaded', 'during the ' + this._run.stage + ' step - the run goes on');
     },
 
-    /** The run is still the one going: not ended, and no save loaded since it started. */
+    /** The run is still the one going (not finished, failed or timed out). */
     _current: function(run) {
-        return !!run && this._run === run && run.generation === this._generation;
+        return !!run && this._run === run;
     },
 
     _maybeDecide: function() {
@@ -154,7 +156,7 @@ var AutoBuild = {
 
     _start: function() {
         var self = this;
-        this._run = { stage: 'scan', startedAt: Date.now(), generation: this._generation };
+        this._run = { stage: 'scan', startedAt: Date.now() };
         this._runTimer = setTimeout(function() {
             self._runTimer = null;
             self._fail('not done after ' + (self.RUN_TIMEOUT_MS / 1000) + ' s');
@@ -264,7 +266,6 @@ var AutoBuild = {
         this._presetsReady = false;
         this._decided = false;
         this._saveLoaded = false;
-        this._generation = 0;
         this._presetsTimer = null;
         this._run = null;
         this._runTimer = null;

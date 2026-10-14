@@ -1478,7 +1478,7 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   config (AutoBuildSetting.loadFrom) + scanner preset applied (onPresetsLoaded; 15 s at most)
   → AutoBuild.decide(setting, info, saveLoaded)
       off                                   → nothing
-      missing, or empty (no spell in it)    → build, unless a save has loaded already
+      missing, or empty (no spell in it)    → build (also when a save has loaded already)
       present, saved under another load order, not told yet → notice
       present otherwise (same, unknown, told) / unreadable → nothing
   build:  startScan() → updateSpellData → AutoBuild.onSpellData
@@ -1490,12 +1490,17 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
           `hud.loadOrderChanged` in the corner at the next save load or new game (the main menu has none)
 ```
 
-- **When:** at the main menu - onPrismaReady asks for all three inputs. Once a save has loaded
-  (`onSaveGameLoaded`) no build starts: the scan holds the game thread about 1.7 s. A save loaded during a
-  run stops it (`failed - a save loaded during the <step> step`): every save load bumps `AutoBuild._generation`,
-  each step's callback checks its run is still current, and Apply checks again after the declutter pass
-  (`applyTree`'s `isCurrent`) before it saves. spell_tree.json is left as it was; the next game start builds
-  again. The scan may first wait for the tome reach pass (up to 30 s) as a Scan button press does.
+- **When:** at the main menu - onPrismaReady asks for all three inputs - once per game start: only the
+  first `onStartupTreeInfo` counts, so a later `LoadSpellTree` (the panel opened in game) never starts a
+  second run. spell_tree.json is one file for every save, so a save load or a new game does not stop a run
+  (`save loaded - during the <step> step - the run goes on`), and a decision made after a save has loaded
+  (Continue pressed fast) still builds: the scan then holds the game thread once, about 1.7 s, in game.
+  Apply's `loadTreeData` makes the tree live for the loaded save: `SetTreePrerequisites` (clears and sets
+  prerequisites only, not progress), then `GetProgress` / `GetPlayerKnownSpells` for that save's progress -
+  what a manual Apply after a save load does. A run ends only by finishing, failing or `RUN_TIMEOUT_MS`
+  (10 min); a step that comes back after that is dropped, and an Apply still decluttering then does not save
+  (`applyTree`'s `isCurrent`). The scan may first wait for the tome reach pass (up to 30 s) as a Scan button
+  press does; that pass reads the plugin files on a worker thread from kDataLoaded and needs no loaded game.
 - **The same tree as the buttons:** the active scanner preset is applied first (the start's own
   `onPresetsLoaded`), the build request, PRM and the save are the panel's own code with `{ auto: true }`.
   Progress is kept by formId in the co-save; the new tree's `requiredXP` reaches C++ at the next

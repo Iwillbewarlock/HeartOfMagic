@@ -387,7 +387,7 @@ var TreeGrowthClassic = {
      * @param {Object} [options] - { auto: true, onSaved(spellCount), isCurrent() }: the
      *   build at game start (AutoBuild) - no switch to the Spell Tree tab while the panel
      *   is open (with it closed, the tree tab is where a saved tree opens anyway); not
-     *   saved when isCurrent() says the run was stopped during the declutter pass
+     *   saved when isCurrent() says the run ended (timed out) during the declutter pass
      * @returns {boolean} false when nothing was sent to be saved
      */
     applyTree: function (options) {
@@ -418,9 +418,9 @@ var TreeGrowthClassic = {
         // No spell under another or under a line (LayoutDeclutter): a piece at a
         // time between frames, then saved and shown
         LayoutDeclutter.applyAsync(output, function() {
-            // A save loaded while the build at game start decluttered: not saved (AutoBuild)
+            // The build at game start ended (timed out) while this decluttered: not saved (AutoBuild)
             if (auto && options.isCurrent && !options.isCurrent()) {
-                console.log('[ClassicGrowth] Apply: the build at game start was stopped - not saved');
+                console.log('[ClassicGrowth] Apply: the build at game start had ended - not saved');
                 return;
             }
             if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply')) return;

@@ -666,7 +666,7 @@ window.onSaveGameLoaded = function() {
 
     // First reset tree to clean state
     window.onResetTreeStates();
-    // No build at game start from now on; one under way goes on (autoBuild.js)
+    // The build at game start notes it; a run under way goes on (autoBuild.js)
     if (typeof AutoBuild !== 'undefined') AutoBuild.onSaveGameLoaded();
 
     // Then request fresh data from C++ - not with the panel closed: opening it
