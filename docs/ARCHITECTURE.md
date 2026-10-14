@@ -1491,7 +1491,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
       present otherwise (same, unknown, told) / unreadable → nothing
   build:  startScan({ auto }) → updateSpellData → AutoBuild.onSpellData (the first full scan after the run
             asked - `scanAsked`; a tome scan's scanMode "spell_tomes" is passed over)
-          → TreePreviewHidden.ensure() (the preview grid without the preview on screen, TREE_BUILDING_SYSTEM.md;
+          → TreePreviewHidden.ensure() (the preview grid without the preview on screen, at the size the preview last measured or 400 x 400
+            when its box was never laid out - what TreePreview._render draws at then, TreePreviewUtils.fitCanvas;
             the Sun grid's point cache is dropped after, so the preview on screen works its own out)
           → TreeGrowthClassic.buildTree({ auto }) - BuildProgress silent: no modal, the same stages (PRM locks)
           → BuildProgress.complete → applyTree({ auto }): declutter, SpellTreeSave (SaveBuiltSpellTree),

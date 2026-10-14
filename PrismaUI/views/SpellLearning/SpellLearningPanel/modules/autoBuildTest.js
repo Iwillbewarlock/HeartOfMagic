@@ -12,7 +12,7 @@
  *   - TreePreviewHidden: the preview's output without its render loop, for
  *     every Sun grid and the Flat mode, equal to a drawn frame's.
  *
- * Depends on: spellTreeSave.js, autoBuildSetting.js, autoBuild.js, colorUtils.js,
+ * Depends on: spellTreeSave.js, autoBuildSetting.js, autoBuild.js, colorUtils.js, treePreviewUtils.js,
  * treePreviewHidden.js, the preview modes (treePreviewSun.js, sunGrid*.js,
  * treePreviewFlat.js, treePreview.js) and classic/classicTreeOutput.js +
  * classic/classicMain.js - run into the global scope the way the page's script
