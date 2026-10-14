@@ -134,3 +134,23 @@ target_link_libraries(declutter-test PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# tree-save-check  -  offline check of SaveSpellTree's no-spells guard
+# =============================================================================
+# The plugin's own TreeSaveCheck.h (header only, no game types): --self-test on
+# made-up trees, or tree files checked against a full parse.
+
+add_executable(tree-save-check
+    tree-save-check.cpp
+)
+
+target_compile_features(tree-save-check PRIVATE cxx_std_23)
+
+target_include_directories(tree-save-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(tree-save-check PRIVATE
+    nlohmann_json::nlohmann_json
+)

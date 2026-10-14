@@ -4,6 +4,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "ThreadUtils.h"
+#include "uimanager/TreeSaveCheck.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 
@@ -203,11 +204,12 @@ void UIManager::SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCoun
 
 std::optional<long long> UIManager::CheckTreeHasSpells(const std::string& treeText)
 {
+    // A text scan, not a parse: this runs on the game thread (TreeSaveCheck.h)
     const auto started = std::chrono::steady_clock::now();
-    const auto spells = CountTreeNodes(nlohmann::json::parse(treeText, nullptr, false));
+    const bool hasSpells = TreeSaveCheck::HasSpellNodes(treeText);
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
-    if (spells == 0) {
-        logger::error("UIManager: SaveSpellTree - the tree has no spells (or is not JSON); spell_tree.json left as it was "
+    if (!hasSpells) {
+        logger::error("UIManager: SaveSpellTree - the tree has no spells; spell_tree.json left as it was "
                       "(checked in {} ms)", ms);
         return std::nullopt;
     }
@@ -229,7 +231,10 @@ void UIManager::RecordTreeLoadOrder()
     const auto& now = CurrentLoadOrder();
     if (now.hash.empty()) return;
     auto record = ReadRecord();
-    if (record.loadOrder == now.hash) return;
+    // Only when nothing changes: a tree built again under the load order it was
+    // built for still clears a notice given meanwhile for another one (A, told
+    // about B, back to A and built: B later must be told again)
+    if (record.loadOrder == now.hash && record.noticedLoadOrder.empty()) return;
     record.loadOrder = now.hash;
     record.plugins = now.plugins;
     record.spells = now.spells;
@@ -274,13 +279,19 @@ void UIManager::OnAutoBuildEvent(const char* argument)
     logger::info("AutoBuild: {} - {}", event, detail);
 
     // The corner message waits for the first save load (the main menu has none);
-    // it is recorded as told only once it was shown (ShowPendingLoadOrderNotice)
+    // it is recorded as told only once it was shown (ShowPendingLoadOrderNotice).
+    // A save loaded before the panel decided (Continue pressed within its wait for
+    // the config and presets) gets it now: kPostLoadGame has gone by.
     if (event == "notice" && !s_noticeAsked.exchange(true)) {
         AddTaskToGameThread("AutoBuildNotice", []() {
             auto* instance = GetSingleton();
             const auto& now = CurrentLoadOrder();
             if (!instance || now.hash.empty()) return;
             instance->m_pendingLoadOrderNotice = now.hash;
+            if (instance->m_saveLoaded) {
+                logger::info("AutoBuild: a save is loaded already - the load order notice is shown now");
+                instance->ShowPendingLoadOrderNotice();
+            }
         });
     }
 }

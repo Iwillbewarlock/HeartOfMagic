@@ -297,6 +297,7 @@ void UIManager::NotifySaveGameLoaded()
 {
     // FIRST: Ensure focus is released (fixes main menu → game input lock)
     EnsureFocusReleased();
+    m_saveLoaded = true;   // a load order notice asked for from now on shows at once (UIManagerAutoBuild.cpp)
 
     if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
         logger::warn("UIManager: Cannot notify save game loaded - PrismaUI not valid");

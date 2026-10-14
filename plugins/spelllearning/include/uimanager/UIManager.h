@@ -108,7 +108,8 @@ public:
     void ShowPendingLoadOrderNotice();
     // Spells in a saved tree's JSON (every school's nodes), before any validation
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
-    // SaveSpellTree's text has spells: the check's time in ms, nothing (logged) when it has none
+    // SaveSpellTree's text has spells (a text scan, TreeSaveCheck.h): the check's time in ms,
+    // nothing (logged) when it has none
     [[nodiscard]] static std::optional<long long> CheckTreeHasSpells(const std::string& treeText);
 
     // Game thread: Pre Req Master scoring is over - its result to the panel, or the error (UIManagerPreReqMaster.cpp)
@@ -256,5 +257,8 @@ private:
     // The load order the panel asked to be told about; shown at the next save
     // load (the main menu has no corner messages), then cleared. Game thread only.
     std::string m_pendingLoadOrderNotice;
+    // A save has loaded this session (NotifySaveGameLoaded, kPostLoadGame): a notice
+    // asked for after that is shown at once. Game thread only.
+    bool m_saveLoaded = false;
 
 };
