@@ -157,7 +157,10 @@ window.updateSpellData = function(jsonStr) {
     console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
 
     try {
+        var parseStarted = Date.now();
         var data = JSON.parse(jsonStr);
+        // A timing line kept in SpellLearning.log whatever the developer mode (console.warn)
+        console.warn('[Timing] updateSpellData: ' + jsonStr.length + ' chars parsed in ' + (Date.now() - parseStarted) + ' ms');
         state.lastSpellData = data;
         ScanRef.reset(data);
         
@@ -1164,6 +1167,8 @@ window.onPanelShowing = function() {
     window._panelVisible = true;
     window._panelShownOnce = true;
     if (document.body) document.body.classList.remove('panel-hidden');   // CSS animations run again (patch-ui.css)
+    // The build at game start, if it is building: its progress modal is shown and covers the panel (autoBuild.js)
+    if (typeof AutoBuild !== 'undefined') AutoBuild.onPanelShowing();
 
     if (typeof PreReqMaster !== 'undefined' && PreReqMaster.resumePreview) PreReqMaster.resumePreview();
     // The fallback tree (no CanvasRenderer), if it is the one in use (not hidden by treeLoad.js)

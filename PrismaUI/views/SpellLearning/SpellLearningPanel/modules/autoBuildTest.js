@@ -206,7 +206,7 @@ var AutoBuildTest = {
         var A = g.AutoBuild;
         this._with(g, {
             settings: { autoBuild: setting },
-            startScan: function() { out.scans++; },
+            startScan: function() { out.scans++; return true; },
             callCpp: function(name, arg) { if (name === 'AutoBuildEvent') out.events.push(JSON.parse(arg).event); },
             updateScanStatus: function(text, type, key) { out.status.push(key); },
             tOr: function(key, params, fallback) { return fallback; },
@@ -251,7 +251,7 @@ var AutoBuildTest = {
         this._with(g, {
             settings: { autoBuild: 'whenMissing' },
             state: { lastSpellData: null },
-            startScan: function() { calls.push('scan'); },
+            startScan: function() { calls.push('scan'); return true; },
             callCpp: function(name, arg) { if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event); },
             updateScanStatus: function() {},
             tOr: function(key, params, fallback) { return fallback; },
@@ -300,7 +300,7 @@ var AutoBuildTest = {
         this._with(g, {
             settings: { autoBuild: 'whenMissing' },
             state: { lastSpellData: { spells: [{ formId: '0x01' }] } },
-            startScan: function() { calls.push('scan'); },
+            startScan: function() { calls.push('scan'); return true; },
             callCpp: function(name, arg) { if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event); },
             updateScanStatus: function(text, type, key) { status.push(key); },
             tOr: function(key, params, fallback) { return fallback; },

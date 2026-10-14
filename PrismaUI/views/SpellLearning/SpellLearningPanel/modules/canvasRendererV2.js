@@ -458,7 +458,10 @@ var CanvasRenderer = {
         // Update canvas size immediately
         this.updateCanvasSize();
         this.startRenderLoop();
-        this.forceRender();
+        // Panel closed (a tree loaded at game start): drawn when it opens - onPanelShowing
+        // starts the loop, which draws a frame marked as needed
+        if (window._panelVisible === false) this._needsRender = true;
+        else this.forceRender();
         
         // Also update after a brief delay to catch layout changes
         var self = this;

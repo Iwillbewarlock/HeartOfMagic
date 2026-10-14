@@ -175,7 +175,7 @@ window.callCpp = function(method, data) {
             console.log('[Bridge] LoadSpellTree - no saved tree');
             break;
 
-        case 'SaveSpellTree':
+        case 'SaveSpellTree': case 'SaveBuiltSpellTree':   // a build's Apply: the same file
             window._lastSavedTree = data;
             // In dev mode, offer the JSON as a download so it can be
             // placed at SKSE/Plugins/SpellLearning/spell_tree.json

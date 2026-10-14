@@ -19,8 +19,9 @@
 - **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
   scans your spells and builds the tree in the background with your active scanner preset - no need to open
   the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it;
-  if the build finishes in game, the game may pause briefly once or twice. Pressing Scan, Build, Apply or Clear
-  yourself, or saving or importing a tree, takes over from it. A tree you already have is never rebuilt by
+  if the build finishes in game, the game may pause briefly once or twice. Open the panel while it builds and
+  you see its progress window, as for a build of your own. Pressing Scan, Build, Apply or Clear yourself, or
+  saving or importing a tree, takes over from it. A tree you already have is never rebuilt by
   itself: when your load order changed since it was built, the Scan tab says so, and the first time you load
   a save with that load order a corner message does too (once per load order; if you only start new games,
   only the Scan tab says it until you load a save). Importing a tree keeps the load order the previous tree
@@ -29,8 +30,6 @@
 
 ### Fixed
 
-- **Build pressed while another build is still running** now waits for it and then builds with your settings,
-  instead of closing your progress window with the earlier build's result.
 - **An empty spell tree is no longer saved.** A build that could not place any spell used to save an empty tree
   over your file without a word; now nothing is saved and the builder's status line says so (as does the tree
   tab for an import or an edit-mode save of a tree without spells).

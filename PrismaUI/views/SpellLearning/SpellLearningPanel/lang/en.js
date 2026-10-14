@@ -8,6 +8,7 @@ window._i18nPreload = {
     "buildProgress.buildFailed": "Build failed",
     "buildProgress.statusNoSpells": "No spells scanned — scan first",
     "buildProgress.statusNothingPlaced": "No spell could be placed, so the tree was not saved. Open the Scan tab and build again.",
+    "buildProgress.statusStillBuilding": "The tree is still being built (locks are still being applied) - wait until it is done.",
     "buildProgress.statusBuilding": "Building tree...",
     "buildProgress.statusApplied": "Tree applied ({{count}} positioned)",
     "buildProgress.statusArranging": "Arranging spells...",

@@ -111,6 +111,9 @@ public:
     // SaveSpellTree's text has spells: the check's time in ms, nothing (logged) when it has none
     [[nodiscard]] static std::optional<long long> CheckTreeHasSpells(const std::string& treeText);
 
+    // Game thread: Pre Req Master scoring is over - its result to the panel, or the error (UIManagerPreReqMaster.cpp)
+    void FinishPRMScore(const nlohmann::json* result, const std::string& error);
+
     // Get the PrismaUI API (for SpellScanner to use)
     //PRISMA_UI_API::IVPrismaUI1* GetAPI() const { return m_prismaUI; }
     //PrismaView GetView() const { return m_view; }
@@ -190,7 +193,7 @@ private:
     // Procedural tree generation (C++ native)
     static void OnProceduralTreeGenerate(const char* argument);
 
-    // Pre Req Master NLP scoring (C++ native)
+    // Pre Req Master NLP scoring (C++ native, UIManagerPreReqMaster.cpp)
     static void OnPreReqMasterScore(const char* argument);
 
     // Tree declutter before save (C++ native, UIManagerDeclutter.cpp)

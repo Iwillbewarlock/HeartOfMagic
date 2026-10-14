@@ -3,6 +3,7 @@
 #include "Common.h"
 #include "ProgressionManager.h"
 
+#include <chrono>
 #include <filesystem>
 #include <mutex>
 
@@ -23,6 +24,12 @@ T SafeJsonValue(const nlohmann::json& j, const std::string& key, const T& defaul
         }
     }
     return defaultValue;
+}
+
+// Milliseconds since `started`, for the timing lines in the log
+inline long long MsSince(std::chrono::steady_clock::time_point started)
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 }
 
 // Forward declaration for InputHandler access (defined in Main.cpp)

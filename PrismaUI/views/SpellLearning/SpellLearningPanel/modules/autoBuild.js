@@ -34,16 +34,21 @@
  * Build, an Apply or Clear with a tree to apply or clear, edit mode's spawn list
  * scan, or any tree save of theirs (Import, edit mode's Save Tree, orphan
  * repair: SpellTreeSave) ends a run first (yieldTo), without a failure on the
- * status line. So the only scan that can come back to a run is its own: the
- * run takes the first full scan after it asked (scanAsked; scan responses carry
- * no request id, and C++ keeps only the latest queued full scan). A run also
- * ends by finishing, failing or RUN_TIMEOUT_MS; a step that comes back after
- * that is dropped (_current), and an Apply still decluttering then does not
- * save (applyTree's isCurrent).
+ * status line; so does a build of the player's found under way when the scan
+ * comes back. The run takes the first full scan that comes back after it asked
+ * (scanAsked): its own, or - scan results carry no request id, and C++ keeps
+ * only the latest queued full scan - one the panel had sent just before the run
+ * started, which is the same scan. The run's own scan is not debounced and the
+ * run fails at once if it does not go out. While the run builds, opening the
+ * panel shows the build's progress modal (BuildProgress.reveal), which covers
+ * the panel as a build from the buttons does. A run also ends by finishing,
+ * failing or RUN_TIMEOUT_MS; a step that comes back after that is dropped
+ * (_current), and an Apply still decluttering then does not save (applyTree's
+ * isCurrent).
  *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
- * decided, scan, build, apply, done, failed, yielded, save loaded, notice.
+ * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice.
  *
  * Depends on: autoBuildSetting.js (AutoBuildSetting), buttonHandlers.js (startScan),
  *   treePreviewHidden.js (TreePreviewHidden), classic/classicMain.js
@@ -67,7 +72,7 @@ var AutoBuild = {
 
     _info: null,
     _configReady: false,
-    _configMissing: false,    // the config wait ran out: nothing is built
+    _configMissing: false,    // the config wait ran out, or it was only partly applied: nothing is built
     _presetsReady: false,
     _decided: false,
     _saveLoaded: false,
@@ -137,6 +142,21 @@ var AutoBuild = {
         this._maybeDecide();
     },
 
+    /** onUnifiedConfigLoaded threw part way: the player's choice may not be what was read. */
+    noteConfigPartial: function() {
+        if (this._configReady) return;
+        this._report('config', 'partly applied - not building');
+        this._configMissing = true;
+        this.noteConfigLoaded();
+    },
+
+    /** onPanelShowing: a build of the run's under way shows its progress modal, as the buttons' does. */
+    onPanelShowing: function() {
+        if (this._run && this._run.stage === 'build' && typeof BuildProgress !== 'undefined' && BuildProgress.reveal()) {
+            this._report('shown', 'the panel opened during the build - its progress is shown');
+        }
+    },
+
     notePresetsApplied: function() {
         this._presetsReady = true;
         this._maybeDecide();
@@ -200,7 +220,7 @@ var AutoBuild = {
         }
         this._report('scan', 'scanning all spells');
         this._run.scanAsked = true;   // the first full scan that comes back is this one's (onSpellData)
-        startScan({ auto: true });
+        if (!startScan({ auto: true })) this._fail('the scan did not go out');
     },
 
     /** updateSpellData finished (cppCallbacks.js): a scan came in. Only a full scan moves the run on. */
@@ -212,6 +232,13 @@ var AutoBuild = {
         run.scanAsked = false;
         if (!data || !data.spells || data.spells.length === 0) {
             this._fail('the scan found no spells');
+            return;
+        }
+        // A build of the player's under way (the Build button, or a tree built and not yet
+        // applied): theirs wins, this run ends quietly
+        if (state._classicGrowthBuildPending || (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) ||
+            (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic._treeData)) {
+            this.yieldTo('a build of the player is under way');
             return;
         }
         run.stage = 'build';

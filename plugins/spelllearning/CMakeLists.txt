@@ -39,6 +39,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerScanner.cpp
     src/uimanager/UIManagerTree.cpp
     src/uimanager/UIManagerAutoBuild.cpp
+    src/uimanager/UIManagerPreReqMaster.cpp
     src/uimanager/UIManagerDeclutter.cpp
     src/uimanager/UIManagerProgression.cpp
     src/uimanager/UIManagerConfig.cpp

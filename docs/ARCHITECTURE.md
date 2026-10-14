@@ -618,7 +618,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerAutoBuild.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerAutoBuild.cpp, UIManagerPreReqMaster.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -1462,7 +1462,7 @@ A tree with no spell in it is never saved (1.4.1): every save in the panel - App
 Import, orphan repair - goes through `SpellTreeSave.send()` (`modules/spellTreeSave.js`), which refuses one,
 logs it and says so on the tree tab's status line (`status.treeNoSpellsNotSaved`; Import and edit mode show
 their "saved" line only when the tree went out), and Apply says so on the builder's status line
-(`buildProgress.statusNothingPlaced`); C++ `OnSaveSpellTree` refuses one as well
+(`buildProgress.statusNothingPlaced`); C++ `SaveSpellTreeFromPanel` (both save listeners) refuses one as well
 (`UIManager::CheckTreeHasSpells`, "the tree has no spells" in the log; the check's time is in the
 "Saved spell tree to ... (spell check N ms)" line). A `schools` array counts no spells on both sides. Before, a
 build whose layout had no preview grid to place on (`TreePreview.getOutput()` null) dropped every spell in
@@ -1513,17 +1513,35 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   spawn list scan), a Build with spells to build, an Apply or Clear with a built tree, and every tree save of
   theirs (Import, edit mode's Save Tree, orphan repair: `SpellTreeSave.send` with another source) end a run
   first, quietly (`AutoBuild.yieldTo`: `yielded - <what>`, no status line); a press that does nothing leaves
-  it. So the only scan that can come back to a run is its own (scan results carry no request id, and C++
-  keeps only the latest queued full scan). A run also ends by finishing, failing or `RUN_TIMEOUT_MS`
-  (10 min). A step that comes back to an ended run is dropped (`_current`), an Apply still decluttering then
-  does not save (`applyTree`'s `isCurrent`), and `BuildProgress.start` tells a silent build it replaces
-  ("superseded by another build") before taking its callbacks.
-- **One build in C++ at a time:** C++ turns a second `ProceduralTreeGenerate` away as `busy` and answers the
-  first one later, so a Build pressed while one is in flight (`state._classicGrowthBuildPending`: the run's,
-  or a second click) is not sent: it waits in `state._classicGrowthBuildQueued`, and when the earlier result
-  comes back `onProceduralTreeComplete` drops it and sends the waiting request - the modal shows the
-  player's build, with the settings at the time it goes out. The run never waits behind another build
-  (`buildTree({ auto })` returns false).
+  it. A build of the player's found under way when the scan comes back (a build request in C++, a progress
+  modal, or a built tree not yet applied) ends it the same way. The run takes the first full scan that comes
+  back after it asked: its own, or - scan results carry no request id, and C++ keeps only the latest queued
+  full scan - one the panel had sent just before the run started, which is the same scan. The run's scan is
+  not debounced (`startScan({ auto })`), and a scan that does not go out fails the run at once. A run also
+  ends by finishing, failing or `RUN_TIMEOUT_MS` (10 min). A step that comes back to an ended run is dropped
+  (`_current`), an Apply still decluttering then does not save (`applyTree`'s `isCurrent`), and
+  `BuildProgress.start` tells a silent build it replaces ("superseded by another build") before taking its
+  callbacks.
+- **The panel opened during the run's build:** `onPanelShowing` → `AutoBuild.onPanelShowing` →
+  `BuildProgress.reveal()`: the silent build's progress modal shows from there on (`shown` in the log). The
+  modal (`.modal`, styles-skyrim.css: fixed, the whole view, z-index 99999, with a backdrop) covers the panel,
+  so Build, Apply and Clear cannot be pressed under it - the same as for a build from the buttons. Behind it,
+  `TreeGrowthClassic.applyTree` and `clearTree` (not the run's own Apply) refuse while `BuildProgress` is
+  active (`buildProgress.statusStillBuilding`): saving then would save the tree without its locks. And
+  `onPreReqMasterComplete` drops lock scores that `autoApplyLocks` asked for a tree that is no longer
+  `TreeGrowthClassic._treeData` (cleared or built again since): no locks, no progress step, a warning in
+  the log.
+- **One build in C++ at a time (defensive):** C++ turns a second `ProceduralTreeGenerate` away as `busy` and
+  answers the first one later. The Build button is disabled while a build runs, so this is not reached from
+  the panel today; should a Build come while one is in flight (`state._classicGrowthBuildPending`), it is
+  not sent: it waits in `state._classicGrowthBuildQueued`, and when the earlier result comes back
+  `onProceduralTreeComplete` drops it and sends the waiting request. The run never waits behind another
+  build (`buildTree({ auto })` returns false).
+- **The closed panel does no drawing for the run:** a tree loaded with the panel closed is not drawn
+  (`CanvasRenderer.show` only marks a frame as needed, `loadTreeData` skips its `forceRender`), and the
+  run's Apply with the panel closed does not ask for progress and known spells (`loadTreeData(..., {
+  skipProgressFetch })`). Opening the panel starts the render loop, which draws the marked frame, and asks
+  for both (`onPanelShowing`, since `state.treeData` is there), as after a save load.
 - **The same tree as the buttons:** the active scanner preset is applied first (the start's own
   `onPresetsLoaded`), the build request, PRM and the save are the panel's own code with `{ auto: true }`.
   Progress is kept by formId in the co-save; the new tree's `requiredXP` reaches C++ at the next
@@ -1546,8 +1564,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
 - **Log:** every step is one line `AutoBuild: <event> - <detail>` in SpellLearning.log (`AutoBuildEvent`,
   written whatever the developer mode; event and detail are cut at 512 bytes, back to the start of a UTF-8
   character, line breaks made spaces):
-  `config` and `presets` (a wait ran out), `decided`, `scan`, `build`, `apply`, `done`, `failed`, `yielded`,
-  `save loaded`, `notice`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
+  `config` (a wait ran out, or the config was applied only part way), `presets` (a wait ran out), `decided`,
+  `scan`, `build`, `shown`, `apply`, `done`, `failed`, `yielded`, `save loaded`, `notice`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
   load order ...` and `AutoBuild: load order notice shown for ...` (or `... not shown` / `... dropped`).
 - A failed run says so on the scan status line (`status.autoBuildFailed`) and leaves spell_tree.json as it was.
 
@@ -1787,12 +1805,13 @@ HeartOfMagic/
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)
 │   │       │   └── SpellScannerEncoding.cpp     (encoding/UTF-8)
-│   │       ├── uimanager/                   ✅ PrismaUI bridge (11 files)
+│   │       ├── uimanager/                   ✅ PrismaUI bridge (12 files)
 │   │       │   ├── UIManagerCore.cpp            (singleton, init, panel visibility, DOM bridge)
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
-│   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen, PRM scoring)
+│   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen)
 │   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice)
+│   │       │   ├── UIManagerPreReqMaster.cpp    (PRM scoring on a worker thread, request parsed there)
 │   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
 │   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)

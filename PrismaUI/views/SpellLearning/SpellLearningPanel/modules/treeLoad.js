@@ -24,7 +24,7 @@ function _rawNodesById(rawData) {
  * from JSON and sends to TrustedRenderer. No TreeParser, no WheelRenderer,
  * no CanvasRenderer, no layout logic, no prereq mutations.
  */
-function _loadTrustedTree(data, switchToTreeTab) {
+function _loadTrustedTree(data, switchToTreeTab, options) {
     _logToSKSE('[_loadTrustedTree] === ENTRY ===');
     _logToSKSE('[_loadTrustedTree] trustPrereqs=' + data.trustPrereqs +
                ', schools=' + Object.keys(data.schools || {}).join(','));
@@ -196,7 +196,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
             CanvasRenderer.setData(nodes, edges, schools);
             CanvasRenderer.show();
             CanvasRenderer.centerView();
-            CanvasRenderer.forceRender();
+            // Panel closed: drawn when it opens (onPanelShowing), not now behind the game
+            if (window._panelVisible !== false) CanvasRenderer.forceRender();
         }
     } else {
         _logToSKSE('[_loadTrustedTree] FALLBACK: No CanvasRenderer, using TrustedRenderer');
@@ -247,8 +248,8 @@ function _loadTrustedTree(data, switchToTreeTab) {
         }
     });
 
-    // Sync progress
-    if (window.callCpp) {
+    // Sync progress (not for options.skipProgressFetch: onPanelShowing asks for both)
+    if (window.callCpp && !(options && options.skipProgressFetch)) {
         window.callCpp('GetProgress', '');
         window.callCpp('GetPlayerKnownSpells', '');
     }
@@ -267,7 +268,11 @@ function _loadTrustedTree(data, switchToTreeTab) {
     setTreeStatusKey('status.loadedTrustedTree', {count: nodes.length});
 }
 
-function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
+/**
+ * @param {Object} [options] - { skipProgressFetch }: no GetProgress / GetPlayerKnownSpells
+ *   now (the build at game start with the panel closed: opening it asks for both)
+ */
+function loadTreeData(jsonData, switchToTreeTab, isManualImport, options) {
     var data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
     // Its list is of the tree being replaced
     if (typeof dismissFindSpell === 'function') dismissFindSpell();
@@ -300,7 +305,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
 
     if (hasTrustFlag || hasNodePositions) {
         _logToSKSE('[loadTreeData] FAST PATH — bypassing TreeParser (trust=' + hasTrustFlag + ', hasPos=' + hasNodePositions + ')');
-        _loadTrustedTree(data, switchToTreeTab);
+        _loadTrustedTree(data, switchToTreeTab, options);
         return;
     }
 
@@ -546,7 +551,7 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport) {
     }
     
     // After tree is loaded, sync with player's known spells and progression data
-    if (window.callCpp) {
+    if (window.callCpp && !(options && options.skipProgressFetch)) {
         console.log('[SpellLearning] Tree loaded - syncing progress and player known spells...');
         window.callCpp('GetProgress', '');  // Reload progress data
         window.callCpp('GetPlayerKnownSpells', '');  // Sync known spells

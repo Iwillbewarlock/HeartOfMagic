@@ -11,6 +11,7 @@
  *   BuildProgress.start(hasPRM)   – open modal, set stages
  *   BuildProgress.start(hasPRM, { silent: true, onComplete, onFail }) – the same
  *                                   stages with the modal hidden (AutoBuild)
+ *   BuildProgress.reveal()        – a silent build shows the modal from here on
  *   BuildProgress.setStage(name)  – advance to named stage
  *   BuildProgress.setDetail(text) – update sub-detail for current stage
  *   BuildProgress.complete()      – mark all done, show Done button
@@ -242,13 +243,15 @@ var BuildProgress = (function() {
         _setProgressBar(-1); // Error state
         _setStatus(errorMsg || t('buildProgress.buildFailed'));
 
-        // Nobody sees a silent build's modal: its owner hears of it instead
+        // Nobody sees a silent build's modal: its owner hears of it instead. One
+        // shown part way (reveal) keeps the modal and tells its owner too.
         var onFail = _takeCallback('fail');
         if (_silent) {
             close();
             if (onFail) onFail(errorMsg || t('buildProgress.buildFailed'));
             return;
         }
+        if (onFail) onFail(errorMsg || t('buildProgress.buildFailed'));
 
         // Show done button to close
         var doneBtn = _getEl('build-progress-done-btn');
@@ -286,6 +289,21 @@ var BuildProgress = (function() {
         _onFail = null;
         var modal = _getEl('build-progress-modal');
         if (modal) modal.classList.add('hidden');
+    }
+
+    /**
+     * A silent build shows the modal from now on (the panel opened during the build
+     * at game start): it covers the panel as a build from the buttons does, so
+     * Build, Apply and Clear cannot be pressed under it.
+     * @returns {boolean} whether a silent build was made visible
+     */
+    function reveal() {
+        if (!_active || !_silent) return false;
+        _silent = false;
+        var modal = _getEl('build-progress-modal');
+        if (modal) modal.classList.remove('hidden');
+        _log('shown (was silent), in stage ' + (_currentStage || '-'));
+        return true;
     }
 
     /**
@@ -379,6 +397,7 @@ var BuildProgress = (function() {
         complete: complete,
         fail: fail,
         close: close,
+        reveal: reveal,
         isActive: isActive,
         getCurrentStage: getCurrentStage
     };

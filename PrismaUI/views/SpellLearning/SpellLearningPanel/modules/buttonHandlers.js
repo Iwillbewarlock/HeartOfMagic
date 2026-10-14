@@ -31,18 +31,21 @@ function onScanClick() {
 
 var _lastScanTime = 0;
 /**
- * @param {Object} [options] - { auto: true }: the build at game start's own scan;
- *   any other scan that goes out ends that build first (autoBuild.js)
+ * @param {Object} [options] - { auto: true }: the build at game start's own scan -
+ *   not debounced (C++ keeps only the latest queued full scan anyway); any other
+ *   scan that goes out ends that build first (autoBuild.js)
+ * @returns {boolean} whether a scan went out
  */
 function startScan(options) {
+    var auto = !!(options && options.auto);
     // Debounce: prevent rapid-fire scans (min 2s between scans)
     var now = Date.now();
-    if (now - _lastScanTime < 2000) {
+    if (!auto && now - _lastScanTime < 2000) {
         console.log('[SpellLearning] Scan debounced - too soon since last scan');
-        return;
+        return false;
     }
     _lastScanTime = now;
-    if (!(options && options.auto) && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
+    if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
 
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
     var statusMsg = t('status.scanningAllSpells');
@@ -87,6 +90,7 @@ function startScan(options) {
             updateSpellData(JSON.stringify(mockData));
         }, 500);
     }
+    return true;
 }
 
 /**

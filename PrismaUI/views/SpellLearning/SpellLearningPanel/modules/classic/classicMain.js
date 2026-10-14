@@ -405,6 +405,7 @@ var TreeGrowthClassic = {
     applyTree: function (options) {
         var auto = !!(options && options.auto);
         if (!this._treeData) return false;
+        if (!auto && this._refuseWhileBuilding()) return false;
         if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('apply');
 
         // Get base data for mode and root directions
@@ -438,9 +439,15 @@ var TreeGrowthClassic = {
             }
             if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply')) return;
 
-            // Load into the spell tree viewer so it displays immediately
+            // Load into the spell tree viewer so it displays immediately. The build at
+            // game start with the panel closed leaves progress and known spells to the
+            // panel's opening (onPanelShowing asks for both), as a save load does.
             if (typeof loadTreeData === 'function') {
-                loadTreeData(output, auto ? window._panelVisible === false : true);
+                var hidden = window._panelVisible === false;
+                var loadStarted = Date.now();
+                loadTreeData(output, auto ? hidden : true, false, { skipProgressFetch: auto && hidden });
+                // A timing line kept in SpellLearning.log whatever the developer mode (console.warn)
+                if (auto) console.warn('[Timing] auto build loadTreeData: ' + spellCount + ' spells in ' + (Date.now() - loadStarted) + ' ms' + (hidden ? ' (panel closed)' : ''));
             }
 
             var appliedSchoolCount = Object.keys(output.schools).length;
@@ -481,9 +488,22 @@ var TreeGrowthClassic = {
     },
 
     /**
+     * Apply or Clear while a build still runs (its locks still to come): refused, as the
+     * modal over the panel refuses them for the buttons' build - saved now, the tree would
+     * have no locks, and they would land on whatever tree is there when they come back.
+     * @returns {boolean} true when refused
+     */
+    _refuseWhileBuilding: function () {
+        if (typeof BuildProgress === 'undefined' || !BuildProgress.isActive()) return false;
+        ClassicSettings.setStatusText(t('buildProgress.statusStillBuilding'), 'error', 'buildProgress.statusStillBuilding');
+        return true;
+    },
+
+    /**
      * Discard the current tree data and clear the preview.
      */
     clearTree: function () {
+        if (this._refuseWhileBuilding()) return false;
         // Clearing a built tree ends the build at game start (nothing to clear: it goes on)
         if (this._treeData && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('clear');
         this._treeData = null;

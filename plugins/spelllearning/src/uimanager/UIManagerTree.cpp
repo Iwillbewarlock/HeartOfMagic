@@ -3,11 +3,11 @@
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "treebuilder/TreeBuilder.h"
-#include "treebuilder/TreeNLP.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -205,6 +205,7 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
         if (!instance || !instance->m_prismaUI) return;
 
         try {
+            const auto started = std::chrono::steady_clock::now();
             // Parse JSON array of formIds
             json formIdArray = json::parse(argStr);
 
@@ -256,6 +257,7 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
 
             // Send batch result
             instance->SendSpellInfoBatch(JsonText::Dump(resultArray));
+            logger::info("UIManager: GetSpellInfoBatch done in {} ms (game thread)", MsSince(started));
 
         } catch (const std::exception& e) {
             logger::error("UIManager: GetSpellInfoBatch exception: {}", e.what());
@@ -309,9 +311,11 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, bool built)
             // Through a temp file and a move, keeping one .bak: this is the
             // player's whole generated tree, and truncating the real file meant
             // a crash partway through lost it with nothing to fall back on.
+            const auto writeStarted = std::chrono::steady_clock::now();
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
-                logger::info("UIManager: Saved spell tree to {} (spell check {} ms)", PathText::Utf8(treePath), *checkMs);
+                logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {} ms)", PathText::Utf8(treePath),
+                    *checkMs, MsSince(writeStarted));
                 if (built) instance->RecordTreeLoadOrder();
                 instance->UpdateTreeStatus("Tree saved");
             } else {
@@ -439,35 +443,40 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                     }
                     auto result = TreeBuilder::Build(command, spells, configJson);
 
-                    // Marshal result back to game thread for UI callback
-                    AddTaskToGameThread("TreeBuildComplete", [result = std::move(result), command]() {
+                    // The reply is put together here on the build thread: the tree moves
+                    // into it and is written out once, and the game thread only sends it.
+                    // The tree goes in as an object, not as a string of JSON. As a string
+                    // it was written out three times (once here, once more for the size
+                    // in the log, once escaped inside the reply) and the panel had to
+                    // parse it twice.
+                    const auto dumpStarted = std::chrono::steady_clock::now();
+                    nlohmann::json response;
+                    if (result.success) {
+                        response["success"] = true;
+                        response["treeData"] = std::move(result.treeData);
+                        response["elapsed"] = result.elapsedMs / 1000.0;
+                    } else {
+                        response["success"] = false;
+                        response["error"] = result.error;
+                        logger::error("UIManager: {} failed: {}", command, result.error);
+                    }
+                    std::string payload = JsonText::Dump(response);
+                    if (result.success) {
+                        logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes, reply written in {} ms "
+                                     "(background thread)", command, result.elapsedMs / 1000.0, payload.size(), MsSince(dumpStarted));
+                    }
+
+                    // Marshal the reply back to the game thread for the UI callback
+                    AddTaskToGameThread("TreeBuildComplete", [payload = std::move(payload)]() {
                         auto* inst = GetSingleton();
                         if (!inst) return;
                         inst->m_treeBuildInProgress = false;
 
                         if (!inst->m_prismaUI) return;
-
-                        nlohmann::json response;
-                        if (result.success) {
-                            response["success"] = true;
-                            // The tree goes in as an object, not as a string of JSON.
-                            // As a string it was written out three times (once here,
-                            // once more for the size in the log, once escaped inside
-                            // the reply) and the panel had to parse it twice.
-                            response["treeData"] = result.treeData;
-                            response["elapsed"] = result.elapsedMs / 1000.0;
-                        } else {
-                            response["success"] = false;
-                            response["error"] = result.error;
-                            logger::error("UIManager: {} failed: {}", command, result.error);
-                        }
-
-                        const std::string payload = JsonText::Dump(response);
-                        if (result.success) {
-                            logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes (background thread)",
-                                command, result.elapsedMs / 1000.0, payload.size());
-                        }
+                        const auto sendStarted = std::chrono::steady_clock::now();
                         inst->CallView("onProceduralTreeComplete", payload.c_str());
+                        logger::info("UIManager: tree build reply ({} bytes) sent to the panel in {} ms", payload.size(),
+                            MsSince(sendStarted));
                     });
                 } catch (const std::exception& e) {
                     logger::error("UIManager: TreeBuilder::Build exception: {}", e.what());
@@ -504,93 +513,6 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
             response["success"] = false;
             response["error"] = e.what();
             instance->CallView("onProceduralTreeComplete", JsonText::Dump(response).c_str());
-        }
-    });
-}
-
-// =============================================================================
-// PRE REQ MASTER NLP SCORING (C++ native)
-// =============================================================================
-
-void UIManager::OnPreReqMasterScore(const char* argument)
-{
-    logger::info("UIManager: PreReqMasterScore callback triggered (C++ native)");
-
-    std::string argStr(argument ? argument : "");
-
-    AddTaskToGameThread("PreReqMasterScore", [argStr]() {
-        auto* instance = GetSingleton();
-        if (!instance || !instance->m_prismaUI) return;
-
-        // Guard against concurrent PRM scoring
-        bool expected = false;
-        if (!instance->m_prmScoreInProgress.compare_exchange_strong(expected, true)) {
-            logger::warn("UIManager: PRM scoring already in progress, ignoring request");
-            nlohmann::json response;
-            response["success"] = false;
-            response["error"] = "PRM scoring already in progress. Please wait.";
-            instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
-            return;
-        }
-
-        try {
-            nlohmann::json request = nlohmann::json::parse(argStr);
-
-            logger::info("UIManager: Dispatching PRM scoring to background thread");
-
-            // Launch background thread — TreeNLP has ZERO RE:: dependencies
-            std::thread([request = std::move(request)]() {
-                try {
-                    auto startTime = std::chrono::high_resolution_clock::now();
-                    auto result = TreeNLP::ProcessPRMRequest(request);
-                    auto endTime = std::chrono::high_resolution_clock::now();
-                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() / 1000.0;
-
-                    logger::info("UIManager: prm_score completed in {:.2f}s (background thread)", elapsed);
-
-                    AddTaskToGameThread("PRMScoreComplete", [result = std::move(result)]() {
-                        auto* inst = GetSingleton();
-                        if (!inst) return;
-                        inst->m_prmScoreInProgress = false;
-
-                        if (!inst->m_prismaUI) return;
-                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
-                    });
-                } catch (const std::exception& e) {
-                    logger::error("UIManager: ProcessPRMRequest exception: {}", e.what());
-                    AddTaskToGameThread("PRMScoreFailed", [error = std::string(e.what())]() {
-                        auto* inst = GetSingleton();
-                        if (!inst) return;
-                        inst->m_prmScoreInProgress = false;
-                        if (!inst->m_prismaUI) return;
-                        nlohmann::json result;
-                        result["success"] = false;
-                        result["error"] = error;
-                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
-                    });
-                } catch (...) {
-                    logger::error("UIManager: ProcessPRMRequest unknown exception");
-                    AddTaskToGameThread("PRMScoreFailed", []() {
-                        auto* inst = GetSingleton();
-                        if (!inst) return;
-                        inst->m_prmScoreInProgress = false;
-                        if (!inst->m_prismaUI) return;
-                        nlohmann::json result;
-                        result["success"] = false;
-                        result["error"] = "Unknown internal error during PRM scoring";
-                        inst->CallView("onPreReqMasterComplete", JsonText::Dump(result).c_str());
-                    });
-                }
-            }).detach();
-
-        } catch (const std::exception& e) {
-            logger::error("UIManager: PRM scoring failed: {}", e.what());
-            instance->m_prmScoreInProgress = false;
-
-            nlohmann::json response;
-            response["success"] = false;
-            response["error"] = e.what();
-            instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
         }
     });
 }

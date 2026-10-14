@@ -1085,7 +1085,12 @@
      * Tries NLPvia C++ bridge first, falls back to JS TF-IDF.
      * @returns {number} Lock count (sync), or -1 if async (C++)
      */
+    // The Classic tree autoApplyLocks asked the C++ scorer about (null for other requests):
+    // a result that comes back after that tree was cleared or built again is dropped
+    var _prmTree = null;
+
     function applyLocksWithScorer(request) {
+        _prmTree = null;
         if (!request || !request.eligible || request.eligible.length === 0) return 0;
 
         // Try NLPvia C++ bridge
@@ -1109,6 +1114,13 @@
      * @param {string} resultStr - JSON string with scored results
      */
     window.onPreReqMasterComplete = function(resultStr) {
+        var forTree = _prmTree;
+        _prmTree = null;
+        if (forTree && typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic._treeData !== forTree) {
+            // console.warn: in SpellLearning.log whatever the developer mode
+            console.warn('[PreReqMaster] Lock scores came back for a tree that was cleared or built again since - ignored');
+            return;
+        }
         try {
             // Respect PRM toggle -- if user disabled PRM while C++ was scoring, bail out
             if (!isEnabled()) {
@@ -2112,6 +2124,7 @@
 
         var result = applyLocksWithScorer(request);
         if (result === -1) {
+            _prmTree = typeof TreeGrowthClassic !== 'undefined' ? TreeGrowthClassic._treeData : null;
             // Async (NLP) - callback will handle status + onLocksChanged + BuildProgress
             updateStatus('prm.status.scoring', null, 'Comparing spells...');
         } else {

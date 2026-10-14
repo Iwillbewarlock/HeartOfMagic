@@ -8,6 +8,7 @@ window._i18nPreload = {
     "buildProgress.buildFailed": "구축 실패",
     "buildProgress.statusNoSpells": "스캔한 주문이 없습니다 — 먼저 스캔하세요",
     "buildProgress.statusNothingPlaced": "배치된 주문이 없어 트리를 저장하지 않았습니다. 스캔 탭을 열고 다시 구축하세요.",
+    "buildProgress.statusStillBuilding": "트리를 아직 만드는 중입니다(잠금 적용 중). 끝날 때까지 기다리세요.",
     "buildProgress.statusBuilding": "트리 만드는 중...",
     "buildProgress.statusApplied": "트리 적용됨 ({{count}}개 배치)",
     "buildProgress.statusArranging": "주문 배치 중...",

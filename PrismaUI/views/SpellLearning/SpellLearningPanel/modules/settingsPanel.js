@@ -1020,6 +1020,7 @@ function resetSettings() {
 // C++ callback for loading unified config
 window.onUnifiedConfigLoaded = function(dataStr) {
     console.log('[SpellLearning] Unified config received');
+    var applied = false;   // the whole config went in (the build at game start, below)
     try {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         if (!data) return;
@@ -1481,13 +1482,15 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             window.callCpp('LoadPresets', JSON.stringify({ type: 'scanner' }));
             DesignPresets.requestFromDisk();
         }
-        
+        applied = true;
     } catch (e) {
         console.error('[SpellLearning] Failed to parse unified config:', e);
     } finally {
-        // Only now may the build at game start scan: with the saved fields (autoBuild.js)
+        // Only now may the build at game start scan: with the saved fields. A config that
+        // threw part way builds nothing - the scan would not have the player's fields (autoBuild.js)
         if (typeof AutoBuild !== 'undefined' && typeof AutoBuildSetting !== 'undefined' && AutoBuildSetting.loaded) {
-            AutoBuild.noteConfigLoaded();
+            if (applied) AutoBuild.noteConfigLoaded();
+            else AutoBuild.noteConfigPartial();
         }
     }
 };

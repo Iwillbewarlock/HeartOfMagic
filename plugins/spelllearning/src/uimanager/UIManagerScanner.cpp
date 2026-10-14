@@ -2,6 +2,7 @@
 #include "JsonText.h"
 #include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
@@ -170,8 +171,10 @@ void UIManager::CollectScan(const std::string& argStr, std::shared_ptr<ScanTicke
         }
 
         UpdateStatus(tomeScan ? "Scanning spell tomes..." : "Scanning all spells...");
+        const auto collectStarted = std::chrono::steady_clock::now();
         auto output = std::make_shared<json>(
             tomeScan ? SpellScanner::CollectSpellTomes(scanConfig) : SpellScanner::CollectAllSpells(scanConfig));
+        logger::info("UIManager: {} scan collected in {} ms (game thread)", tomeScan ? "tome" : "full", MsSince(collectStarted));
 
         // shared_ptrs: std::function (the thread and the task) needs a copyable callable
         const auto finish = [tomeScan](std::shared_ptr<std::string> text, std::shared_ptr<ScanTicket> held) {
@@ -245,8 +248,13 @@ void UIManager::FinishScan(std::string result, bool tomeScan) noexcept
         // the tome scan the panel runs in the background: that leaves the catalog
         // as it was, and the work would land on the frames the panel opens in.
         if (!tomeScan) {
+            auto started = std::chrono::steady_clock::now();
             Librarian::PerkAdapters::Apply("scan");
+            const auto perkMs = MsSince(started);
+            started = std::chrono::steady_clock::now();
             Librarian::SpellResearchPatch::OnCatalogChanged();
+            logger::info("UIManager: after the full scan - perk adapters {} ms, Spell Research {} ms (game thread)", perkMs,
+                MsSince(started));
         }
 
         if (tomeScan) {
@@ -254,7 +262,11 @@ void UIManager::FinishScan(std::string result, bool tomeScan) noexcept
             // so it is sent and not kept.
             SendSpellData(result);
         } else {
+            const auto started = std::chrono::steady_clock::now();
+            const auto bytes = result.size();
             StoreAndSendFullScan(std::move(result));
+            logger::info("UIManager: full scan ({} bytes) kept and sent to the panel in {} ms (game thread)", bytes,
+                MsSince(started));
         }
     } catch (const std::exception& e) {
         ReportScanFailure(e.what(), tomeScan);

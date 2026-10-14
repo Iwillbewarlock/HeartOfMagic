@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "JsonText.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -462,6 +463,7 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
 
     AddTaskToGameThread("SetTreePrerequisites", [argStr]() {
         try {
+            const auto started = std::chrono::steady_clock::now();
             json request = json::parse(argStr);
 
             // Check if this is a clear command
@@ -559,7 +561,7 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
             // The new tree's nodes decide which spell a copy's tome counts for
             // (TreeSpellForTome): answers cached before they arrived start over
             if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
-            logger::info("UIManager: Set tree prerequisites for {} spells", count);
+            logger::info("UIManager: Set tree prerequisites for {} spells in {} ms (game thread)", count, MsSince(started));
 
         } catch (const std::exception& e) {
             logger::error("UIManager: SetTreePrerequisites exception: {}", e.what());
