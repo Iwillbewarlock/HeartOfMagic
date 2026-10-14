@@ -7,8 +7,8 @@
  * way the Scan tab's Scan, Build and Apply buttons would: the same scan, the
  * player's scanner preset (applied at start by onPresetsLoaded), the same build
  * request, PreReq Master's locks when it is on, the declutter pass and the same
- * save (TreeGrowthClassic.applyTree). No progress modal, no tab switch while the
- * panel is open. A saved tree is never rebuilt: when the load order changed
+ * save (TreeGrowthClassic.applyTree). No tab switch, and no progress modal unless
+ * the panel is open during the build step (see below). A saved tree is never rebuilt: when the load order changed
  * since it was built, the player is told once (the scan status line, and a
  * corner message in the game from the plugin) and can rebuild on the Scan tab.
  *
@@ -41,10 +41,13 @@
  * started, which is the same scan. The run's own scan is not debounced and the
  * run fails at once if it does not go out. While the run builds, opening the
  * panel shows the build's progress modal (BuildProgress.reveal), which covers
- * the panel as a build from the buttons does. A run also ends by finishing,
- * failing or RUN_TIMEOUT_MS; a step that comes back after that is dropped
- * (_current), and an Apply still decluttering then does not save (applyTree's
- * isCurrent).
+ * the panel as a build from the buttons does (the scan and Apply steps show none).
+ * A run also ends by finishing, failing or RUN_TIMEOUT_MS; a step that comes back
+ * after that is dropped (_current), an Apply still decluttering then does not save
+ * (applyTree's isCurrent), and a run ending in its build step never leaves the
+ * progress up and drops the C++ build result still to come (_dropBuild).
+ * config.json that C++ could not read (its defaults sent, marked configNotRead)
+ * counts as a config that did not load: nothing is built.
  *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
@@ -138,6 +141,12 @@ var AutoBuild = {
     },
 
     noteConfigLoaded: function() {
+        // C++ could not read config.json and sent its defaults (configNotRead): the
+        // player's choice, "Off" perhaps, is in the file - nothing is built this session
+        if (!this._configReady && !this._configMissing && typeof AutoBuildSetting !== 'undefined' && AutoBuildSetting.notRead) {
+            this._report('config', 'config.json could not be read - the setting is not known, not building');
+            this._configMissing = true;
+        }
         this._configReady = true;
         this._maybeDecide();
     },
@@ -220,7 +229,15 @@ var AutoBuild = {
         }
         this._report('scan', 'scanning all spells');
         this._run.scanAsked = true;   // the first full scan that comes back is this one's (onSpellData)
-        if (!startScan({ auto: true })) this._fail('the scan did not go out');
+        var sent = false;
+        try {
+            sent = startScan({ auto: true });
+        } catch (e) {
+            // Not left in 'scan' until RUN_TIMEOUT_MS
+            this._fail('the scan could not start: ' + (e && e.message ? e.message : e));
+            return;
+        }
+        if (!sent) this._fail('the scan did not go out');
     },
 
     /** updateSpellData finished (cppCallbacks.js): a scan came in. Only a full scan moves the run on. */
@@ -252,7 +269,8 @@ var AutoBuild = {
             var started = TreeGrowthClassic.buildTree({
                 auto: true,
                 onComplete: function(summary) { if (self._current(run)) self._onBuilt(summary); },
-                onFail: function(error) { if (self._current(run)) self._fail('the build failed: ' + error); }
+                // The progress says so itself (closed when silent, the failure on it when shown)
+                onFail: function(error) { if (self._current(run)) self._fail('the build failed: ' + error, true); }
             });
             if (!started) this._fail('the build did not start');
             // The panel already open: the progress shows now, not at the next opening
@@ -288,29 +306,59 @@ var AutoBuild = {
         this._end();
     },
 
-    _fail: function(reason) {
+    /**
+     * @param {string} reason - for the log and the scan status line
+     * @param {boolean} [fromProgress] - the build's progress failed itself (BuildProgress.fail):
+     *   it is closed already when silent, or shows the failure; it is left as it is
+     */
+    _fail: function(reason, fromProgress) {
         if (!this._run) return;
         this._report('failed', reason);
-        if (typeof updateScanStatus === 'function') {
-            var params = { error: reason };
-            updateScanStatus(tOr('status.autoBuildFailed', params, 'Automatic tree build failed: {{error}}. Scan and build here instead.'),
-                'error', 'status.autoBuildFailed', params);
-        }
-        this._end();
+        var params = { error: reason };
+        var english = 'Automatic tree build failed: {{error}}. Scan and build here instead.';
+        var text = typeof tOr === 'function' ? tOr('status.autoBuildFailed', params, english) : english.replace('{{error}}', function() { return reason; });
+        if (typeof updateScanStatus === 'function') updateScanStatus(text, 'error', 'status.autoBuildFailed', params);
+        this._end(fromProgress ? this.PROGRESS_KEEP : text);
     },
 
-    _end: function() {
+    PROGRESS_KEEP: { keep: true },   // _end: the build's progress already says how it ended
+
+    /**
+     * @param {string|Object} [progress] - when the run ends in its build step: the
+     *   failure line for a progress shown on the panel, PROGRESS_KEEP, or nothing (a
+     *   yield or a finish: a progress still up is closed)
+     */
+    _end: function(progress) {
         if (this._runTimer) {
             clearTimeout(this._runTimer);
             this._runTimer = null;
         }
-        // Its silent progress, if the run ends while building: left active it would hold
-        // Apply and Clear back (a progress shown on the panel stays for the player to close)
-        if (this._run && this._run.stage === 'build' && typeof BuildProgress !== 'undefined' &&
-            BuildProgress.isActive() && BuildProgress.isSilent()) {
-            BuildProgress.close();
+        var run = this._run;
+        this._run = null;   // first: the progress's callbacks below find no run to report to
+        if (run && run.stage === 'build') this._dropBuild(progress);
+    },
+
+    /**
+     * The run ended in its build step. Its progress never stays up: a silent one, or a
+     * shown one on a yield, is closed; a shown one on a failure says why and gets its
+     * Close button (BuildProgress.fail). Left active it would also hold Apply and Clear
+     * back. A build still in C++ is the run's (a player's Build yields first, then
+     * queues behind it): its result is dropped when it comes - not loaded as a tree,
+     * no locks, no "Tree built" over the failure line - unless a build of the player's
+     * queued since takes its place (classicMain.js buildTree overwrites the queue).
+     */
+    _dropBuild: function(progress) {
+        if (progress !== this.PROGRESS_KEEP && typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
+            if (typeof progress === 'string' && !BuildProgress.isSilent()) BuildProgress.fail(progress);
+            else BuildProgress.close();
         }
-        this._run = null;
+        if (typeof state !== 'undefined' && state._classicGrowthBuildPending && !state._classicGrowthBuildQueued) {
+            state._classicGrowthBuildQueued = function() {
+                state._classicGrowthBuildPending = false;
+                if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
+                console.warn('[AutoBuild] The tree builder answered after the run ended - its result is dropped');
+            };
+        }
     },
 
     _notice: function() {

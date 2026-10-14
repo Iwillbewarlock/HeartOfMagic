@@ -440,6 +440,15 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
         }
     }
 
+    // The defaults stand in for a file that was not read: the panel must not take
+    // them for the player's choices where acting on them cannot be undone - the
+    // tree built at game start (autoBuild.js) does nothing this session
+    if (saveMode == ConfigFile::SaveMode::Blocked) {
+        unifiedConfig["configNotRead"] = true;
+        logger::warn("UIManager: config sent to the panel marked configNotRead - no automatic tree build this session "
+                     "(the player's \"Build Spell Tree at Start\" choice is in the file that could not be read)");
+    }
+
     // Send to UI
     std::string configStr = JsonText::Dump(unifiedConfig);
     logger::info("UIManager: Sending unified config to UI ({} bytes)", configStr.size());

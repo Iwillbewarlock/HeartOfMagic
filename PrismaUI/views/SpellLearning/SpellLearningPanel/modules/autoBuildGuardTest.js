@@ -13,7 +13,12 @@
  *   - the "still building" line has an English fallback (11 languages lack the key);
  *     a failed C++ lock scoring ends the build's progress; a run that ends while
  *     building closes its silent progress; the panel already open shows it at once;
- *   - a tree loaded with the panel closed is drawn when it opens, not before.
+ *   - a tree loaded with the panel closed is drawn when it opens, not before;
+ *   - a scan that throws fails the run at once; a run ending in its build step
+ *     drops the C++ result still to come (a player's Build queued since still goes
+ *     out) and never leaves the progress up (failed when shown, closed on a yield);
+ *   - a config.json C++ could not read (configNotRead): nothing is built;
+ *   - every language file has the auto build's keys, in lang/*.json and the preloads.
  *
  * Depends on: autoBuildTest.js / autoBuildFlowTest.js (load the modules,
  * buttonHandlers.js among them), canvasRendererV2.js (run-tests.js).
@@ -108,6 +113,9 @@ var AutoBuildGuardTest = {
         this._testHarness(g);
         this._testHiddenShow(g);
         this._testRound5(g);
+        this._testRunEnds(g);
+        this._testConfigNotRead(g);
+        this._testLangKeys();
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -374,6 +382,134 @@ AutoBuildGuardTest._testRound5 = function(g) {
             A._resetForTest();
         }
     });
+};
+
+/** How a run ends: a scan that throws, and a build step cut short (timeout, yield) with C++ still building. */
+AutoBuildGuardTest._testRunEnds = function(g) {
+    var self = this, A = g.AutoBuild, out = this._out();
+    this._with(g, this._stubs(out, { startScan: function() { throw new Error('no scan bridge'); } }), function() {
+        try {
+            self._startRun(g);
+            self.check(!A.isRunning() && out.events[out.events.length - 1] === 'failed' && out.status.indexOf('status.autoBuildFailed') !== -1,
+                'startScan throws: the run fails at once (not left in the scan step until the timeout)');
+        } finally { A._resetForTest(); }
+    });
+
+    // [panel open, how it ends] -> what is left
+    var cases = [[false, 'fail'], [true, 'fail'], [true, 'yield']];
+    for (var i = 0; i < cases.length; i++) {
+        var c = cases[i], loaded = [], sent = 0, doneShown = 0;
+        out = this._out();
+        var doneBtn = { textContent: '', parentNode: null, classList: { remove: function() { doneShown++; }, add: function() {} } };
+        this._with(g, this._stubs(out, {
+            _panelVisible: c[0],
+            TreeGrowthClassic: Object.create(g.TreeGrowthClassic),
+            ClassicBuildRequest: { send: function() { sent++; } },
+            document: { getElementById: function(id) {
+                return id === 'build-progress-modal' ? out.modal : (id === 'build-progress-done-btn' ? doneBtn : null);
+            } }
+        }), function() {
+            var label = (c[0] ? 'shown' : 'silent') + ' build, run ' + (c[1] === 'fail' ? 'timed out' : 'yielded to a Scan');
+            try {
+                g.TreeGrowthClassic.loadTreeData = function(data) { loaded.push(data.tag); };
+                g._lastScanTime = 0;
+                self._startRun(g);
+                A.onSpellData();   // the run's build request goes to C++
+                var revealed = c[0] && g.BuildProgress.isActive() && !g.BuildProgress.isSilent();
+                if (c[1] === 'fail') A._fail('not done after 600 s');
+                else A.yieldTo('scan');
+                var failedOnce = out.events.filter(function(e) { return e === 'failed'; }).length === (c[1] === 'fail' ? 1 : 0);
+                if (c[0] && c[1] === 'fail') {
+                    self.check(revealed && failedOnce && doneShown === 1, label + ': the progress says it failed and can be closed');
+                } else {
+                    self.check((!c[0] || revealed) && failedOnce && !g.BuildProgress.isActive(), label + ': the progress is closed');
+                }
+                self.check(g.state._classicGrowthBuildPending && typeof g.state._classicGrowthBuildQueued === 'function',
+                    label + ': the build still in C++ is marked to be dropped');
+                g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'late', schools: {} } }));
+                self.check(loaded.length === 0 && !g.state._classicGrowthBuildPending && !g.state._classicGrowthBuildQueued &&
+                    out.status.indexOf('status.treeBuildComplete') === -1 && sent === 1,
+                    label + ': its late result is dropped - no tree, no "Tree built", nothing waiting');
+            } finally {
+                g.BuildProgress.close();
+                g.state._classicGrowthBuildPending = false;
+                g.state._classicGrowthBuildQueued = null;
+                A._resetForTest();
+            }
+        });
+    }
+
+    // Timed out with C++ still building, then the player's Build: theirs goes out when C++ answers
+    out = this._out();
+    var loadedP = [], sentP = 0;
+    this._with(g, this._stubs(out, {
+        _panelVisible: false,
+        TreeGrowthClassic: Object.create(g.TreeGrowthClassic),
+        ClassicBuildRequest: { send: function() { sentP++; } }
+    }), function() {
+        try {
+            g.TreeGrowthClassic.loadTreeData = function(data) { loadedP.push(data.tag); };
+            g._lastScanTime = 0;
+            self._startRun(g);
+            A.onSpellData();
+            A._fail('not done after 600 s');
+            g.TreeGrowthClassic.buildTree();   // the player's Build, while C++ still has the run's
+            g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'late', schools: {} } }));
+            self.check(loadedP.length === 0 && sentP === 2 && g.state._classicGrowthBuildPending,
+                'after the run ended: a Build of the player\'s queued meanwhile goes out when the late result comes (not dropped)');
+            g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'player', schools: {} } }));
+            self.check(loadedP.join(',') === 'player', '...and its own result is the tree shown');
+        } finally {
+            g.BuildProgress.close();
+            g.state._classicGrowthBuildPending = false;
+            g.state._classicGrowthBuildQueued = null;
+            A._resetForTest();
+        }
+    });
+};
+
+/** C++ sent its defaults for a config.json it could not read (UIManagerConfig.cpp, configNotRead). */
+AutoBuildGuardTest._testConfigNotRead = function(g) {
+    var self = this, A = g.AutoBuild, out = this._out();
+    this._with(g, this._stubs(out, {}), function() {
+        try {
+            A._resetForTest();
+            A.notePresetsApplied();
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            g.AutoBuildSetting.loadFrom({ autoBuild: 'whenMissing', configNotRead: true });
+            A.noteConfigLoaded();
+            self.check(!A.isRunning() && out.cpp.indexOf('ScanSpells') === -1 && out.events.join(',') === 'config,decided',
+                'config.json not read (defaults marked configNotRead): nothing is built, the log says why');
+            g.AutoBuildSetting.loadFrom({ autoBuild: 'whenMissing' });
+            self.check(g.AutoBuildSetting.notRead === false, 'a config that was read clears the mark');
+        } finally { A._resetForTest(); }
+    });
+};
+
+/** The auto build's keys in every language (11 lacked them; a switch showed the bare key). */
+AutoBuildGuardTest._testLangKeys = function() {
+    var fs = require('fs'), path = require('path');
+    var dir = path.join(__dirname, '..', 'lang');
+    var keys = ['buildProgress.statusNothingPlaced', 'buildProgress.statusStillBuilding', 'hud.loadOrderChanged',
+        'settings.autoBuild.label', 'settings.autoBuild.desc', 'settings.autoBuild.whenMissing', 'settings.autoBuild.off',
+        'status.loadOrderChanged', 'status.autoBuildFailed', 'status.treeNoSpellsNotSaved'];
+    var files = fs.readdirSync(dir).filter(function(f) { return /\.json$/.test(f); });
+    var bad = [];
+    for (var i = 0; i < files.length; i++) {
+        var code = files[i].replace(/\.json$/, '');
+        var json = JSON.parse(fs.readFileSync(path.join(dir, files[i]), 'utf8'));
+        var preload = fs.existsSync(path.join(dir, code + '.js')) ? fs.readFileSync(path.join(dir, code + '.js'), 'utf8') : '';
+        for (var k = 0; k < keys.length; k++) {
+            var v = json[keys[k]];
+            if (typeof v !== 'string' || !v) bad.push(code + ' ' + keys[k]);
+            else if (preload.indexOf(JSON.stringify(keys[k])) === -1) bad.push(code + '.js ' + keys[k]);
+        }
+        if (typeof json['status.autoBuildFailed'] === 'string' && json['status.autoBuildFailed'].indexOf('{{error}}') === -1) {
+            bad.push(code + ' status.autoBuildFailed without {{error}}');
+        }
+    }
+    this.check(files.length >= 13 && bad.length === 0,
+        'the auto build\'s 10 keys in all ' + files.length + ' languages and their preloads' + (bad.length ? ' - missing: ' + bad.join(', ') : ''));
 };
 
 if (typeof window !== 'undefined') window.AutoBuildGuardTest = AutoBuildGuardTest;

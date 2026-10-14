@@ -49,8 +49,16 @@ var AutoBuildSetting = {
         if (typeof setSegmentedToggleValue === 'function') setSegmentedToggleValue(this.CONTROL_ID, this.value());
     },
 
+    /**
+     * The config C++ sent is its defaults standing in for a config.json it could not
+     * read (UIManagerConfig.cpp marks it configNotRead): the value above is not the
+     * player's, and the game start builds nothing (AutoBuild.noteConfigLoaded).
+     */
+    notRead: false,
+
     loadFrom: function(data) {
         settings.autoBuild = this.normalize(data ? data.autoBuild : undefined);
+        this.notRead = !!(data && data.configNotRead === true);
         this.loaded = true;
         this.syncControl();
         // The game start's decision hears of it at the end of onUnifiedConfigLoaded
