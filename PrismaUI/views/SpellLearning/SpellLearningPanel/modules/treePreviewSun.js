@@ -9,11 +9,17 @@
  *
  * Self-registers with TreePreview via registerMode().
  *
- * Depends on: treePreviewUtils.js (drag inputs), treePreview.js (registers into it)
+ * Depends on: treePreviewUtils.js (drag inputs, label place), treePreview.js (registers into it),
+ *             schoolText (uiHelpers.js, optional: the school names in the panel's language)
  * Grid modules: sunGridLinear.js, sunGridEqualArea.js, sunGridFibonacci.js
  */
 
 var TreePreviewSun = {
+
+    LABEL_FONT: '12px sans-serif',   // the school names (the panel's 12px readable floor)
+    LABEL_HEIGHT: 12,                // css px, for the fit
+    LABEL_GAP: 6,                    // css px between an arrow's tip and its school's name
+    ARROW_REACH: 18,                 // css px an outward arrow reaches past its root (_drawArrow: 2 + 16)
 
     settings: {
         ringTier: 3,
@@ -305,6 +311,7 @@ var TreePreviewSun = {
         // --- School divider spokes + root nodes + labels ---
         var arcStart = -Math.PI / 2 - arcSizes[0] / 2;
         var rootNodes = [];
+        var extentX = 0, extentY = 0;
 
         for (var i = 0; i < schoolCount; i++) {
             var school = schools[i];
@@ -364,30 +371,27 @@ var TreePreviewSun = {
                 this._drawArrow(ctx, nx, ny, dirAngle, s.nodeSize, color);
             }
 
-            // School label at center of arc, just outside the root ring
-            var labelAngle = arcStart + arcSize / 2;
-            var labelDist = ringRadius + 25;
-            var lx = cx + Math.cos(labelAngle) * labelDist;
-            var ly = cy + Math.sin(labelAngle) * labelDist;
-
+            // School name in the panel's language, upright, past the roots and their
+            // outward arrows (TreePreviewUtils.schoolLabelPlace); its reach is the extent the fit uses
+            var labelText = (typeof schoolText === 'function') ? schoolText(school) : school;
             ctx.save();
-            ctx.translate(lx, ly);
-            var textAngle = labelAngle;
-            if (textAngle > Math.PI / 2 && textAngle < Math.PI * 1.5) {
-                textAngle += Math.PI;
-            }
-            ctx.rotate(textAngle);
-            ctx.font = '10px sans-serif';
-            ctx.fillStyle = 'rgba(184, 168, 120, 0.7)';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(school, 0, 0);
+            ctx.font = this.LABEL_FONT;
+            var outward = s.nodeSize + (s.invertGrowth ? 3 : this.ARROW_REACH);
+            var place = TreePreviewUtils.schoolLabelPlace(arcStart + arcSize / 2, ringRadius + outward + this.LABEL_GAP,
+                ctx.measureText(labelText).width, this.LABEL_HEIGHT);
+            ctx.fillStyle = 'rgba(184, 168, 120, 0.85)';
+            ctx.textAlign = place.align;
+            ctx.textBaseline = place.baseline;
+            ctx.fillText(labelText, cx + place.x, cy + place.y);
             ctx.restore();
+            extentX = Math.max(extentX, place.reachX, ringRadius + outward);
+            extentY = Math.max(extentY, place.reachY, ringRadius + outward);
 
             arcStart += arcSize;
         }
 
         this._lastRenderData.rootNodes = rootNodes;
+        this._lastRenderData.extent = { x: extentX, y: extentY };
     },
 
     /**

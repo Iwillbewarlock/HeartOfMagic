@@ -220,8 +220,9 @@ var SmartRenderer = {
         if (!badge) return;
 
         badge.classList.remove('svg', 'canvas');
-        var renderer = this.activeRenderer.toUpperCase();
-        badge.textContent = renderer;
+        // In the panel's language, and again after a switch (setI18n)
+        if (this.activeRenderer === 'canvas') setI18n(badge, 'tree.rendererCanvas', null, 'Canvas');
+        else setI18n(badge, 'tree.rendererSvg', null, 'SVG');
         badge.classList.add(this.activeRenderer);
         setI18n(badge, 'buttons.activeRenderer', null, 'Active renderer', 'title');
     }

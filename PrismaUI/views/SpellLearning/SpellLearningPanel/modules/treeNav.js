@@ -57,9 +57,12 @@ var TreeNav = {
     // HOME
     // =========================================================================
 
+    /** The whole tree in the part of the canvas no panel covers (TreeCamera.homeTarget) */
     goHome: function() {
         if (typeof TreeCamera !== 'undefined') {
-            TreeCamera.animateTo({ rotation: 0, panX: 0, panY: 0, zoom: this.HOME_ZOOM });
+            var renderer = TreeCamera._getRenderer();
+            var target = renderer ? TreeCamera.homeTarget(renderer, this.HOME_ZOOM) : null;
+            TreeCamera.animateTo(target || { rotation: 0, panX: 0, panY: 0, zoom: this.HOME_ZOOM });
         } else if (typeof SmartRenderer !== 'undefined') {
             SmartRenderer.centerView();
         }
@@ -126,6 +129,15 @@ var TreeNav = {
         var v = (typeof t === 'function') ? t(key) : key;
         if (v && v !== key) return v;
         return full.length > 6 ? full.substring(0, 5) + '.' : full;
+    },
+
+    /**
+     * The tabs again in the panel's language after a switch (languageSetting.js),
+     * when there are any: their names and tooltips are written by script.
+     */
+    relabelSchoolTabs: function() {
+        var bar = document.getElementById('tree-school-tabs');
+        if (bar && bar.children && bar.children.length) this.buildSchoolTabs();
     },
 
     clearSchoolTabs: function() {

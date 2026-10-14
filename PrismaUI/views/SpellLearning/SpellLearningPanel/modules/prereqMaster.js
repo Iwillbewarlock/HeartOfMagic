@@ -1491,6 +1491,8 @@
                 }, 50);
             }).observe(wrap);
         }
+        // Without a ResizeObserver: a redraw measures the box again (_renderPreview)
+        window.addEventListener('resize', _markPreview);
 
         // Start render loop
         _startPreviewLoop();
@@ -1500,18 +1502,11 @@
         var wrap = document.getElementById('prmPreviewWrap');
         if (!wrap || !_previewCanvas) return;
 
-        var rect = wrap.getBoundingClientRect();
-        var w = rect.width || 300;
-        var h = rect.height || 400;
-        var dpr = window.devicePixelRatio || 1;
-
-        _previewCanvas.width = w * dpr;
-        _previewCanvas.height = h * dpr;
-        _previewCanvas.style.width = w + 'px';
-        _previewCanvas.style.height = h + 'px';
-
-        _previewWidth = w;
-        _previewHeight = h;
+        // Not laid out (the Scan page or this mode hidden): the size stays, _renderPreview measures again
+        var size = TreePreviewUtils.fitCanvas(_previewCanvas, _previewCtx, wrap, _previewWidth, _previewHeight);
+        if (!size) return;
+        _previewWidth = size.w;
+        _previewHeight = size.h;
         _markPreview();
     }
 
@@ -1630,6 +1625,12 @@
     function _renderPreview() {
         if (!_previewCanvas || !_previewCtx) return;
 
+        // Its box's size now: it was 300 px wide when first measured with the Scan page hidden,
+        // until something resized the box (ResizeObserver, which the game's browser may lack)
+        var size = TreePreviewUtils.fitCanvas(_previewCanvas, _previewCtx, document.getElementById('prmPreviewWrap'),
+                                              _previewWidth, _previewHeight);
+        if (size) { _previewWidth = size.w; _previewHeight = size.h; }
+
         var ctx = _previewCtx;
         var w = _previewWidth || 300;
         var h = _previewHeight || 400;
@@ -1668,20 +1669,10 @@
             baseData = TreePreview.getOutput();
         }
 
-        // Compute auto-fit from root nodes
+        // Fit the roots, their arrows and the school names into the box
         var fitScale = 1;
         if (baseData && baseData.rootNodes && baseData.rootNodes.length > 0) {
-            var contentRadius = 0;
-            for (var i = 0; i < baseData.rootNodes.length; i++) {
-                var n = baseData.rootNodes[i];
-                var d = Math.sqrt(n.x * n.x + n.y * n.y);
-                if (d > contentRadius) contentRadius = d;
-            }
-            if (contentRadius > 0) {
-                contentRadius += 45;
-                var availableRadius = Math.min(w, h) / 2 - 10;
-                fitScale = Math.min(1, availableRadius / contentRadius);
-            }
+            fitScale = TreePreviewUtils.fitScale(TreePreviewUtils.contentExtent(baseData), w, h);
         }
 
         // Apply pan + zoom

@@ -278,21 +278,11 @@ var TreePreview = {
         var wrap = document.getElementById('treePreviewCanvasWrap');
         if (!wrap || !this.canvas) return;
 
-        var rect = wrap.getBoundingClientRect();
-        var width = rect.width || 400;
-        var height = rect.height || 400;
-        var dpr = window.devicePixelRatio || 1;
-
-        this.canvas.width = width * dpr;
-        this.canvas.height = height * dpr;
-        this.canvas.style.width = width + 'px';
-        this.canvas.style.height = height + 'px';
-
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.scale(dpr, dpr);
-
-        this._width = width;
-        this._height = height;
+        // Not laid out (its page hidden): the size stays, _render measures again
+        var size = TreePreviewUtils.fitCanvas(this.canvas, this.ctx, wrap, this._width, this._height);
+        if (!size) return;
+        this._width = size.w;
+        this._height = size.h;
         this._markDirty();
     },
 
@@ -443,6 +433,11 @@ var TreePreview = {
     _render: function() {
         if (!this.ctx || !this.canvas) return;
 
+        // Its box's size now (shown after it was measured hidden, resized with no ResizeObserver)
+        var size = TreePreviewUtils.fitCanvas(this.canvas, this.ctx, document.getElementById('treePreviewCanvasWrap'),
+                                              this._width, this._height);
+        if (size) { this._width = size.w; this._height = size.h; }
+
         var ctx = this.ctx;
         var w = this._width || 400;
         var h = this._height || 400;
@@ -489,27 +484,7 @@ var TreePreview = {
     /** Compute a scale factor that fits root content within the canvas. */
     _computeFitScale: function(modeModule, w, h) {
         if (!modeModule || !modeModule._lastRenderData) return 1;
-
-        var ld = modeModule._lastRenderData;
-        var contentRadius = 0;
-
-        // Try rootNodes first (most accurate)
-        if (ld.rootNodes && ld.rootNodes.length > 0) {
-            for (var i = 0; i < ld.rootNodes.length; i++) {
-                var n = ld.rootNodes[i];
-                var d = Math.sqrt(n.x * n.x + n.y * n.y);
-                if (d > contentRadius) contentRadius = d;
-            }
-        } else if (ld.ringRadius) {
-            contentRadius = ld.ringRadius;
-        }
-
-        if (contentRadius <= 0) return 1;
-
-        // Add padding for node decorations (arrows, labels, glow)
-        contentRadius += 45;
-        var availableRadius = Math.min(w, h) / 2 - 10;
-        return Math.min(1, availableRadius / contentRadius);
+        return TreePreviewUtils.fitScale(TreePreviewUtils.contentExtent(modeModule._lastRenderData), w, h);
     },
 
     // =========================================================================
@@ -666,8 +641,9 @@ var TreePreview = {
 
         // Check current selection (indexed by school:rootIndex)
         var rootKey = this._rootKey(school, this._rootSelectionIndex);
+        // The saved formId names another spell after a load order change: compare the root's spell in this scan
         var currentRoot = settings.selectedRoots ? settings.selectedRoots[rootKey] : null;
-        var currentFormId = currentRoot ? currentRoot.formId : null;
+        var currentFormId = scanFormIdForEntry(currentRoot);
 
         if (filtered.length === 0 && !searchTerm) {
             spellList.innerHTML = '<div class="spawn-no-results"></div>';
@@ -899,6 +875,7 @@ var TreePreview = {
             mode: gridData ? gridData.mode : self.activeMode,
             schools: gridData ? gridData.schools : [],
             rootNodes: lastData.rootNodes || [],
+            extent: lastData.extent || null,   // roots, arrows and names round the centre (TreePreviewUtils.contentExtent)
             grid: gridData ? gridData.grid : null,
             gridPoints: gridData ? (gridData.gridPoints || []) : [],
             schoolData: self.schoolData || {},

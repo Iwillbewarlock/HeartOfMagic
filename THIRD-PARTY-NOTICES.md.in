@@ -110,9 +110,9 @@ the KERIS font), and the `README.txt` in each folder names every file's source f
 The 19 panel icons are shapes from game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed
 CC BY 3.0 (<https://creativecommons.org/licenses/by/3.0/>), redrawn as ink and chalk drawings for Heart of Magic.
 The redrawn PNGs are in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/arcane/icons/`,
-`themes/nightgrimoire/icons/` and `themes/chalkboard/icons/`; the Classic and Modern designs use recoloured line versions of
-the original shapes from `themes/icons-line/` and `themes/icons-line-gold/`. Each icon's source
-(icon id - author/name):
+`themes/arcane/icons-ink/` (Arcane's ink-brown close on parchment), `themes/nightgrimoire/icons/` and
+`themes/chalkboard/icons/`; the Classic and Modern designs use recoloured line versions of the original shapes
+from `themes/icons-line/` and `themes/icons-line-gold/`. Each icon's source (icon id - author/name):
 
 - `scan` - delapouite/archive-research
 - `build` - delapouite/mesh-network

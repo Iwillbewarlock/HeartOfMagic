@@ -28,6 +28,12 @@
 
             if (width === 0 || height === 0) return;
 
+            // A new tree's home view, once the tree and its panels can be measured
+            if (this._homePending) {
+                if (typeof TreeCamera === 'undefined') this._homePending = false;
+                else if (TreeCamera.settleHome(this)) this._homePending = false;
+            }
+
             var cx = width / 2;
             var cy = height / 2;
             var dpr = window.devicePixelRatio || 1;

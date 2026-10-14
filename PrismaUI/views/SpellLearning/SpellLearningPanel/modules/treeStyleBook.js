@@ -369,23 +369,52 @@
 
         _chapterRadii: null,
         _chapterNodes: null,
+        _chapterBins: null,
+        _chapterKey: '',
         CHAPTER_HALF_HEIGHT: 0.75,  // of chapterSize, above and below the middle baseline (accents, descenders)
         CHAPTER_BOX_PAD: 1,         // css px round a title's box for antialiasing
+        CHAPTER_GAP: 14,            // css px between a title's box and the spells nearest it
+        CHAPTER_BIN_DEG: 2,         // the outer edge is kept per this many degrees round the heart
+        CHAPTER_NODE_WORLD: 12,     // a spell's largest radius in world units (CanvasRenderer.KNOWN_SIZE)
 
-        /** How far out each school reaches from the heart, worked out once per tree. */
+        /** How far out the spells reach from the heart, once per tree: per school (returned), and per CHAPTER_BIN_DEG
+         *  whatever the school (_chapterBins: the outer ring at a school's spoke is often another school's).
+         *  A hidden school's spells (settings.schoolVisibility) are not drawn, so they push no title out. */
         _schoolReach: function(r, gx, gy) {
-            if (this._chapterNodes === r.nodes && this._chapterRadii) return this._chapterRadii;
-            var reach = {};
+            var hidden = (typeof settings !== 'undefined' && settings.schoolVisibility) || {};
+            var key = gx + ',' + gy + '|' + Object.keys(hidden).filter(function(k) { return hidden[k] === false; }).join('|');
+            if (this._chapterNodes === r.nodes && this._chapterKey === key && this._chapterRadii) return this._chapterRadii;
+            var reach = {}, count = Math.ceil(360 / this.CHAPTER_BIN_DEG), bins = [];
+            for (var b = 0; b < count; b++) bins.push(0);
             for (var i = 0; i < r.nodes.length; i++) {
                 var n = r.nodes[i];
+                if (hidden[n.school] === false) continue;
                 var dx = n.x - gx, dy = n.y - gy;
                 var d = Math.sqrt(dx * dx + dy * dy);
                 if (!reach[n.school] || d > reach[n.school]) reach[n.school] = d;
+                var deg = ((Math.atan2(dy, dx) * 180 / Math.PI) % 360 + 360) % 360;
+                var bin = Math.floor(deg / this.CHAPTER_BIN_DEG) % count;
+                if (d > bins[bin]) bins[bin] = d;
             }
             this._chapterNodes = r.nodes;
+            this._chapterKey = key;
             this._chapterRadii = reach;
+            this._chapterBins = bins;
             return reach;
         },
+
+        /** The farthest spell from the heart within halfDeg of deg (world units; _schoolReach first). */
+        _outerEdge: function(deg, halfDeg) {
+            var bins = this._chapterBins || [], count = bins.length;
+            if (!count) return 0;
+            var from = Math.floor((deg - halfDeg) / this.CHAPTER_BIN_DEG), to = Math.floor((deg + halfDeg) / this.CHAPTER_BIN_DEG);
+            if (to - from >= count) to = from + count - 1;
+            var m = 0;
+            for (var k = from; k <= to; k++) m = Math.max(m, bins[((k % count) + count) % count]);
+            return m;
+        },
+
+        _chapterText: function(name) { return '—  ' + this._schoolName(name) + '  —'; },
 
         /**
          * School names past the outer edge of each school, upright and the same size
@@ -395,7 +424,7 @@
          * title that a drag later brings into view is already on the layer.
          */
         renderChapters: function(ctx, r, cx, cy, cos, sin, margin) {
-            var places = this._chapterPlaces(r, cx, cy, cos, sin, margin);
+            var places = this._chapterPlaces(ctx, r, cx, cy, cos, sin, margin);
             if (!places.length) return;
             var t = this.tokens;
             ctx.save();
@@ -418,23 +447,21 @@
         /**
          * The boxes renderChapters paints its titles in (screen css px, the halo
          * included), for LayerScroll: a name it draws past its strip must not end
-         * up over a title. [] when the design has none.
+         * up over a title; and for the home view (TreeCamera.homeTarget), which fits
+         * them with the tree at each zoom it tries. [] when the design has none.
          */
         chapterBoxes: function(ctx, r, cx, cy, cos, sin, margin) {
-            var places = this._chapterPlaces(r, cx, cy, cos, sin, margin);
+            var places = this._chapterPlaces(ctx, r, cx, cy, cos, sin, margin);
             if (!places.length) return places;
             var t = this.tokens;
             var pad = (t.labelHalo ? (t.labelHaloWidth + 1) / 2 : 0) + this.CHAPTER_BOX_PAD;
             var half = t.chapterSize * this.CHAPTER_HALF_HEIGHT + pad;
             var boxes = [];
-            ctx.save();
-            this._chapterFont(ctx);
             for (var i = 0; i < places.length; i++) {
                 var p = places[i];
-                var w = ctx.measureText(p.text).width / 2 + pad;
+                var w = p.w / 2 + pad;
                 boxes.push({ l: p.x - w, r: p.x + w, t: p.y - half, b: p.y + half });
             }
-            ctx.restore();
             return boxes;
         },
 
@@ -444,8 +471,13 @@
             ctx.textBaseline = 'middle';
         },
 
-        /** Each shown school's title and where it goes: [{ text, x, y }] in screen css px. */
-        _chapterPlaces: function(r, cx, cy, cos, sin, margin) {
+        /**
+         * Each shown school's title and where it goes: [{ text, x, y, w }] in screen
+         * css px (w: the text's width). A title sits on its school's spoke, its box
+         * CHAPTER_GAP past the farthest spell under it - of any school - however the
+         * box lies along the spoke (a side title's long side, a top title's short one).
+         */
+        _chapterPlaces: function(ctx, r, cx, cy, cos, sin, margin) {
             margin = margin || 0;
             var places = [];
             if (!this.tokens.chapterTitles) return places;
@@ -453,21 +485,35 @@
             if (names.length < 2) return places;
             var gd = (typeof state !== 'undefined' && state.treeData && state.treeData.globe) || { x: 0, y: 0 };
             var reach = this._schoolReach(r, gd.x, gd.y);
-            var gap = 40 / (r.zoom || 1);
+            var zoom = r.zoom || 1;
+            var halfH = this.tokens.chapterSize * this.CHAPTER_HALF_HEIGHT;
+            var nodeR = Math.max(this.CHAPTER_NODE_WORLD * zoom, r.MIN_NODE_SCREEN_RADIUS || 0);
+            ctx.save();
+            this._chapterFont(ctx);
             for (var i = 0; i < names.length; i++) {
-                var name = names[i];
-                var school = r.schools[name];
+                var name = names[i], school = r.schools[name];
                 if (!school || school.spokeAngle === undefined || !reach[name]) continue;
                 if (typeof settings !== 'undefined' && settings.schoolVisibility && settings.schoolVisibility[name] === false) continue;
+                var text = this._chapterText(name);
+                var halfW = ctx.measureText(text).width / 2;
                 var a = school.spokeAngle * Math.PI / 180;
-                var wx = gd.x + Math.cos(a) * (reach[name] + gap);
-                var wy = gd.y + Math.sin(a) * (reach[name] + gap);
-                var sx = (wx * cos - wy * sin) * r.zoom + r.panX + cx;
-                var sy = (wx * sin + wy * cos) * r.zoom + r.panY + cy;
+                var ux = Math.cos(a) * cos - Math.sin(a) * sin;   // the spoke on screen
+                var uy = Math.cos(a) * sin + Math.sin(a) * cos;
+                var along = Math.abs(ux) * halfW + Math.abs(uy) * halfH;
+                // The spells the box could cover: within its half diagonal seen from the school's own edge
+                var near = reach[name] * zoom;
+                var halfDiag = Math.sqrt(halfW * halfW + halfH * halfH);
+                var spanDeg = near > halfDiag ? Math.asin(halfDiag / near) * 180 / Math.PI : 180;
+                var edge = Math.max(reach[name], this._outerEdge(school.spokeAngle, spanDeg)) * zoom;
+                var dist = (edge + nodeR + this.CHAPTER_GAP + along) / zoom;
+                var wx = gd.x + Math.cos(a) * dist, wy = gd.y + Math.sin(a) * dist;
+                var sx = (wx * cos - wy * sin) * zoom + r.panX + cx;
+                var sy = (wx * sin + wy * cos) * zoom + r.panY + cy;
                 if (sx < -200 - margin || sx > r._width + 200 + margin ||
                     sy < -50 - margin || sy > r._height + 50 + margin) continue;
-                places.push({ text: '—  ' + this._schoolName(name) + '  —', x: sx, y: sy });
+                places.push({ text: text, x: sx, y: sy, w: halfW * 2 });
             }
+            ctx.restore();
             return places;
         },
 

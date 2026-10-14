@@ -110,6 +110,10 @@ loadModule('stableIdsTest', './modules/stableIdsTest.js');
 loadModule('autoBuildTest', './modules/autoBuildTest.js');
 loadModule('autoBuildFlowTest', './modules/autoBuildFlowTest.js');
 loadModule('autoBuildGuardTest', './modules/autoBuildGuardTest.js');
+loadModule('homeViewTest', './modules/homeViewTest.js');
+loadModule('previewFitTest', './modules/previewFitTest.js');
+loadModule('chapterTitlesTest', './modules/chapterTitlesTest.js');
+loadModule('languageRefreshTest', './modules/languageRefreshTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

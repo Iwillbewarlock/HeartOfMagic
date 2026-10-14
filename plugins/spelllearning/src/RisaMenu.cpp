@@ -27,6 +27,7 @@ namespace RisaMenu
         std::atomic<bool> g_nativeHotkeyEnabled{ true };
         const Api::InterfaceV1* g_api = nullptr;            // set once registered
         std::string g_hotkeyLabel;                         // Risa copies it; kept for re-registering
+        std::atomic<bool> g_reregisterPending{ false };     // the key changed while the panel was open
 
         // DirectInput scan codes to the label a player reads on the key.
         std::string KeyLabel(std::uint32_t code)
@@ -48,8 +49,8 @@ namespace RisaMenu
 
         bool Open(void*)
         {
-            // IsInitialized is a plain bool read off the game thread: it goes true
-            // once, before any player could reach Risa's launcher, and never back
+            // IsInitialized is atomic: it is read here off the game thread. It goes
+            // true once, before any player could reach Risa's launcher, and never back
             auto* ui = UIManager::GetSingleton();
             if (!ui || !ui->IsInitialized()) return false;   // main menu before data loaded
             AddTaskToGameThread("RisaMenu.Open", []() { UIManager::GetSingleton()->ShowPanel(); });
@@ -90,6 +91,19 @@ namespace RisaMenu
             menu.IsMenuOpen = IsOpen;
             menu.SetHotkeyEnabled = SetNativeHotkey;
             return api->RegisterMenu(&menu);
+        }
+
+        // Risa's rule for a changed key: unregister and register again with the same id
+        void Reregister()
+        {
+            if (!g_api) return;
+            if (g_api->UnregisterMenu) g_api->UnregisterMenu(kMenuId);
+            const auto result = RegisterWith(g_api);
+            if (result != Api::Registration_Success) {
+                g_api = nullptr;
+                g_nativeHotkeyEnabled = true;
+                logger::warn("RisaMenu: re-registration refused (result {}) - our own hotkey is back on", static_cast<std::uint32_t>(result));
+            }
         }
     }
 
@@ -132,14 +146,22 @@ namespace RisaMenu
             g_hotkeyLabel = std::move(label);
             return;
         }
-        // Risa's rule for a changed key: unregister and register again with the same id
         g_hotkeyLabel = std::move(label);
-        if (g_api->UnregisterMenu) g_api->UnregisterMenu(kMenuId);
-        const auto result = RegisterWith(g_api);
-        if (result != Api::Registration_Success) {
-            g_api = nullptr;
-            g_nativeHotkeyEnabled = true;
-            logger::warn("RisaMenu: re-registration refused (result {}) - our own hotkey is back on", static_cast<std::uint32_t>(result));
+        // The key is set in the panel's settings, so the panel is usually open
+        // (and may be Risa's open menu): re-register once it has closed
+        auto* ui = UIManager::GetSingleton();
+        if (ui && ui->IsPanelVisible()) {
+            g_reregisterPending = true;
+            logger::info("RisaMenu: hotkey label now '{}' - registering again when the panel closes", g_hotkeyLabel);
+            return;
         }
+        Reregister();
+    }
+
+    void OnPanelClosed()
+    {
+        if (!g_reregisterPending.exchange(false)) return;
+        // Its own task: after the hide has finished, outside whatever callback closed the panel
+        AddTaskToGameThread("RisaMenu.Reregister", []() { Reregister(); });
     }
 }

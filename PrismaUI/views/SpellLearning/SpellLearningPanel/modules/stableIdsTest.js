@@ -7,9 +7,9 @@
  * are keyed by persistentId. Each case here is that shift: GolemMod.esp moved
  * from 0x88 to 0x89, and 0x88 is now NewMod.esp.
  *
- * Depends on: uiHelpers.js (findScanSpellForEntry, getXPOverride, setXPOverride),
+ * Depends on: uiHelpers.js (findScanSpellForEntry, scanFormIdForEntry, getXPOverride, setXPOverride),
  * proceduralTreeBuilder.js (spellPluginName) and treePreview.js
- * (_flattenSelectedRoots) - under node this file runs them into the global
+ * (_flattenSelectedRoots, _renderRootSelectionList) - under node this file runs them into the global
  * scope the way the page's script tags do. Swaps the globals `state`,
  * `settings` and `xpOverrides` while it runs.
  */
@@ -33,6 +33,36 @@ var StableIdsTest = {
             if (typeof g[files[i][1]] !== 'undefined') continue;
             var file = path.join(__dirname, files[i][0]);
             vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
+        }
+    },
+
+    /** The root picker's "Current" badge goes on the root's spell in this scan, not on the spell its old formId names */
+    _checkCurrentBadge: function(g) {
+        var items = [];
+        var list = { innerHTML: '', appendChild: function(item) { items.push(item); } };
+        var oldGet = g.document.getElementById, oldCreate = g.document.createElement, oldTOr = g.tOr;
+        var tp = g.TreePreview;
+        var oldSchool = tp._rootSelectionSchool, oldIndex = tp._rootSelectionIndex, oldSpells = tp._rootSelectionSpells;
+        try {
+            g.document.getElementById = function(id) { return id === 'spawn-spell-list' ? list : null; };
+            g.document.createElement = function() {
+                return { className: '', dataset: {}, innerHTML: '', addEventListener: function() {} };
+            };
+            if (typeof g.tOr !== 'function') g.tOr = function(key, params, fallback) { return fallback; };
+            tp._rootSelectionSchool = 'Conjuration';
+            tp._rootSelectionIndex = 0;
+            tp._rootSelectionSpells = [{ formId: '0x89000812', name: 'Golem' }, { formId: '0x88000812', name: 'Newcomer' }];
+            tp._renderRootSelectionList('');
+            var current = items.filter(function(item) { return item.className.indexOf('on-tree') !== -1; });
+            this.check(items.length === 2 && current.length === 1 && current[0].dataset.formId === '0x89000812',
+                'the root picker marks the root\'s spell in this scan as Current, not the spell its old formId names');
+        } finally {
+            g.document.getElementById = oldGet;
+            g.document.createElement = oldCreate;
+            g.tOr = oldTOr;
+            tp._rootSelectionSchool = oldSchool;
+            tp._rootSelectionIndex = oldIndex;
+            tp._rootSelectionSpells = oldSpells;
         }
     },
 
@@ -81,6 +111,8 @@ var StableIdsTest = {
                 '_allRoots carries the current formId too');
             this.check(g.settings.selectedRoots['Conjuration:0'].formId === '0x88000812',
                 'the saved root entry itself is not changed');
+
+            this._checkCurrentBadge(g);
 
             g.state = { lastSpellData: null };
             flat = g.TreePreview._flattenSelectedRoots();

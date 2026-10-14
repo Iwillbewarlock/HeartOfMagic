@@ -60,6 +60,12 @@ function initializePanel() {
 // FULLSCREEN TOGGLE
 // =============================================================================
 
+/** The fullscreen button's tooltip for the current state, kept through a language switch */
+function setFullscreenTitle(btn) {
+    if (state.isFullscreen) setI18n(btn, 'buttons.exitFullscreen', null, 'Exit Fullscreen', 'title');
+    else setI18n(btn, 'buttons.toggleFullscreen', null, 'Toggle Fullscreen', 'title');
+}
+
 function toggleFullscreen() {
     var panel = document.getElementById('spellPanel');
     if (!panel) return;
@@ -70,7 +76,7 @@ function toggleFullscreen() {
     // Update fullscreen button icon
     var btn = document.getElementById('fullscreenBtn');
     if (btn) {
-        btn.title = state.isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+        setFullscreenTitle(btn);
     }
     
     // Save state
@@ -255,6 +261,8 @@ function switchTab(tabId) {
 
     if (tabId === 'spellScan') {
         document.getElementById('contentSpellScan').classList.add('active');
+        // The tree preview was measured while the page was hidden: a redraw measures it again
+        if (typeof PreReqMaster !== 'undefined' && PreReqMaster.renderPreview) PreReqMaster.renderPreview();
     } else if (tabId === 'spellTree') {
         document.getElementById('contentSpellTree').classList.add('active');
         // Initialize tree viewer if not done yet
@@ -322,7 +330,7 @@ function applyFullscreenState() {
     // Update fullscreen button icon
     var btn = document.getElementById('fullscreenBtn');
     if (btn) {
-        btn.title = state.isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+        setFullscreenTitle(btn);
     }
     if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
 }

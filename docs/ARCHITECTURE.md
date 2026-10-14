@@ -507,8 +507,11 @@ MIT, version 1) as `HeartOfMagic.Librarian` - a fixed id Risa keys the player's 
 never changes. Open/Close post `ShowPanel`/`HidePanel` to the game thread (Open answers false before the panel exists),
 IsMenuOpen reads `IsPanelVisible`. While Risa manages the panel it calls `SetHotkeyEnabled(false)` and the
 InputHandler skips our hotkey; that flag is runtime only, `config.json` keeps the key. A hotkey change
-(`UpdateInputHandlerHotkey`, also at config load) unregisters and registers again so Risa shows the new key label.
-Without Risa, or when Risa refuses, nothing changes. A `magicMenu` object left in a
+(`UpdateInputHandlerHotkey`, also at config load) unregisters and registers again so Risa shows the new key label:
+at once while the panel is closed. The key is set in the panel's settings, so while the panel is open (perhaps as
+Risa's open menu) the re-register waits: `HidePanel` calls `RisaMenu::OnPanelClosed`, which posts it to the game
+thread. Risa's Open callback reads `UIManager::IsInitialized` off the game thread, so `m_isInitialized` is atomic,
+as `m_isPanelVisible` is. Without Risa, or when Risa refuses, nothing changes. A `magicMenu` object left in a
 config.json by a development build is read by nothing and does no harm.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
@@ -1648,7 +1651,8 @@ Load spell_tree.json → For each node:
 ```
 Saved panel settings that name a spell follow the same idea: the blacklist matches by `plugin` + `localFormId`
 (`filterBlacklistedSpells`), chosen roots go to the builder with the formId their spell has in the current scan
-(`findScanSpellForEntry`, uiHelpers.js; docs/MODULE_CONTRACTS.md "selected_roots"), and `xpOverrides` are keyed
+(`findScanSpellForEntry`, uiHelpers.js; docs/MODULE_CONTRACTS.md "selected_roots") and the root picker puts its
+Current badge on that spell (`scanFormIdForEntry`), and `xpOverrides` are keyed
 by the node's `persistentId` (`getXPOverride` / `setXPOverride`, uiHelpers.js). An override saved before that,
 keyed by the runtime formId, is still read while the spell has none under its persistentId and is replaced by
 the persistentId key the next time the player sets it; if the spell's formId moved before then, the old key

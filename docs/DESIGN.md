@@ -215,6 +215,47 @@ behaviour back. Nothing had to change for the text: `renderLabels` draws every l
 tree transform is undone, whatever the wheel's angle. A caller can still force either way with
 `opts.rotate`.
 
+### The home view fits the part of the tree that shows (1.4.1, 2026-10-14)
+
+The spell card bar (bottom layout, about 206 px at Font Size 1.0x) and the side panel are drawn over the
+tree canvas, and with the hover preview on they stay open even when empty (see *Hover preview*). The
+first view of a tree and the Home button used to centre the heart on the whole canvas at zoom 0.75, so the
+heart sat about half the bar's height below the middle of what shows and the lower rings and chapter
+titles were under the bar. Now `TreeCamera.homeTarget` fits the tree into the part no panel covers:
+
+- `TreeCamera.visibleRect` is the canvas less each showing panel that overlaps it - the details panel
+  (cut off the bottom when at least half the tree's width, else off the side it sits on) and the open
+  How-to-Learn panel. A panel with no size covers nothing; with the canvas itself unmeasured (another tab
+  in front) it is `null`. `getPanelOffset` (where a focused spell lands) is the middle of the same rect, so
+  click-to-focus and Home agree.
+- `fitTarget` fits the shown schools' spells and the heart (`treeBounds`, rotation 0) into that rect with
+  `HOME_PAD` (24 px) round them, centred on the box, never closer than `TreeNav.HOME_ZOOM` (0.75, the old
+  home zoom) - a small tree looks as before, a big one opens further out. Designs with chapter titles
+  fit them with the tree: at each zoom tried, `TreeStyle.chapterBoxes` gives the boxes the titles would be
+  drawn in (no pan, rotation 0, nothing culled), and width and height are fitted apart - a side title
+  takes room across, a top or bottom title room down, each only its own box. The titles are screen-sized
+  while the tree scales, so the zoom is found by halving (`FIT_STEPS`, 30; at most 32 `chapterBoxes` calls
+  on a load or a Home press). In the 1600x1000 harness (540 px of canvas above the bar, 753 spells) the
+  book designs open at 55-56% (53-54% with a uniform clearance from the widest title on all four sides),
+  Classic 65% and Modern Dark 66%: the height above the bar is what limits it, and a title above and
+  below the tree costs about ten points of zoom there.
+- `CanvasRenderer.centerView` (a tree loaded) sets the old view and `_homePending`; the first frame that
+  has the tree on screen fits it (`TreeCamera.settleHome`, at the top of `render` before anything reads
+  the view), so a tree built on the Scan page fits when its tab is opened. A view asked for before that
+  frame (`animateTo`, an instant focus) wins. Home animates to `homeTarget`.
+
+The bar is not shrunk or collapsed (a bar that grew on hover would move the tree under the cursor). A big
+tree's home zoom can fall under 0.45, the simpler level of detail, as zooming out by hand does. Tests:
+`homeViewTest.js`.
+
+**Chapter titles clear the outer ring** (`TreeStyle._chapterPlaces`). A title used to sit 40 px past its own
+school's farthest spell along the spoke. The outer ring at a spoke is often another school's, so the top
+title lay on it, and a side title, 150 px wide, reached 35 px inside its ring. A title's middle now sits
+`CHAPTER_GAP` (14 px) plus half the box along the spoke (`|cos| x half width + |sin| x half height` on
+screen) past the farthest spell of any school under it - `_schoolReach` also keeps the farthest spell per
+2 degrees round the heart (`_chapterBins`, once per tree and per set of hidden schools: a hidden school's
+spells are not drawn and push no title out), and `_outerEdge` reads those within the box's half diagonal. Classic and Modern Dark have no titles and are unchanged. Tests: `chapterTitlesTest.js`.
+
 ### Performance: the tree layer and the developer read-out (2026-09-22)
 
 The panel runs in PrismaUI's CPU-drawn view (`CreateView`; the accelerated call is commented out in
@@ -579,7 +620,8 @@ with JIT in node); what the rest of it is was not measured here. Between `LABEL_
 `LABEL_FOCUS_ZOOM` (0.8), where only selected, hovered, learning and learnable names are drawn, at most
 `MAX_LABELS_FOCUS` (50) are placed instead of `MAX_LABELS` (150), in the same order (the selected spell,
 then in view, then priority, then nearest the middle of the screen), so the selected, hovered and learning
-names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75); the threshold stays
+names stay. This range includes the view the tree opens at (`centerView`, zoom 0.75 at most since 1.4.1:
+see *The home view fits the part of the tree that shows*); the threshold stays
 0.8. Within one priority the names nearest the screen's middle come first (`_byLabelOrder` on the squared
 screen distance each candidate carries, `dist`; 2026-10-10): ordered by node index, a spell coming in at the
 screen's edge while panning or wheel-zooming could push a name in the middle past the cap. A drag's strips
@@ -978,6 +1020,21 @@ Buttons, switches and chips are drawn about a fifth larger (`patch-ui.css`, "Big
 buttons 34px, switches 52x26 (small ones 42x22), button and chip text a step up. Sizes only, so every
 design keeps its colours, fonts and corners; none of the designs sets these sizes itself.
 
+**The canvas hint above the footer (1.4.1).** "Drag to pan / Scroll to zoom ..." sat 14 px from the
+tree page's bottom, under the footer (drawn over the page's bottom 44 px), so it lay on the legend
+with the side panel, and in bar mode with the bar closed. `#contentSpellTree .tree-instructions` is now
+52 px up (`patch-ui.css`, every design), inside the canvas; with the bar open it is still hidden.
+
+**Readable dim text (1.4.1).** The presets row's label (*Presets*), its Save button and its chips (here
+and on the Scan page) were the Skyrim gold written out at 45% and 70% (2.2-2.5:1 and 3.2-4.6:1 against
+the five designs' backgrounds, measured in the desktop harness); the tree footer's legend was
+`--text-muted` (3.8-5.2:1) and its Locked swatch a half-transparent dark square with a 15% white edge.
+Now (`styles-skyrim.css`, the shared rules, so every design's own variables apply): the label in
+`--text-secondary` (6.4-8.0:1), Save in `--accent-gold` (6.8-9.8:1), the legend in `--text-secondary`
+(7.4-9.0:1) and the Locked swatch opaque with a `--text-muted` edge (dashed, from `patch-ui.css`). The
+chips take the same colours - not picked `--text-secondary`, picked `--accent-gold` with an edge in it,
+so picked and not picked stay apart (the harness has no presets, so the chips were not measured).
+
 ### Scrolling (2026-09-26)
 
 The game's browser scrolls a short way per wheel notch, so the settings page and long lists took many
@@ -1006,7 +1063,15 @@ it is in `.gitignore`. A live switch re-labels everything marked `data-i18n`, th
 `refreshScriptTexts` (`languageSetting.js`, 2026-09-29) builds again the script-built texts of the Settings
 and scan pages: the Design row's description, the Easy page's preset chips (the whole preset section is hidden when there are no presets, 2026-09-30), the tree
 builder status line, the scan status bar, the tome learning description, the power step rows and the how-to
-lists. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
+lists - and since 1.4.1 the tree's school tabs (`TreeNav.relabelSchoolTabs`: `tree.schoolShort.*`, the
+full name in the tooltip, a modded school with no key keeps its own name), the Scan page's school list
+(`updatePrimedCount`, `chips.school.*` through `schoolText`) and the Scan page's tree previews, whose
+school names are drawn on their canvases, and the tree is asked to repaint so its chapter titles
+(on the tree layer) follow. The renderer chip in the tool bar ("Canvas") is written with
+`setI18n` (`tree.rendererCanvas` / `tree.rendererSvg`), so the re-label covers it. Korean text breaks
+between words only (`html:lang(ko) { word-break: keep-all; overflow-wrap: break-word }` in
+`patch-ui.css`, under every design): the Easy page's status had wrapped "노드" into "노 / 드". Japanese and
+Chinese put no spaces between words and keep normal breaking. Tests: `languageRefreshTest.js`. The two status lines are written with their language key and values (`TreeGrowth.setStatusText(text,
 tone, key, params)`, `updateScanStatus(message, type, key, params)`, and `window.updateStatus(message, key,
 params)`, which C++ also calls with a message alone) and come back in the new language
 (`TreeGrowth.relabelStatus`, `relabelScanStatus`); every message the panel builds with `t()` passes its key.
@@ -1324,6 +1389,26 @@ Simplified one-click workflow.
 └─────────────────────┴────────────────────────┘
 ```
 
+The buttons and the preview take what is left of the page under the scan results
+(`#scannerEasyContent` and `.easy-panel-split` grow, 320 px at least; a shorter page scrolls; the
+preview box fills `.easy-panel-right` as a flex item as well as by `height: 100%`, so it does not depend on
+the browser treating a stretched flex item's height as definite). A fixed
+500 px used to run past the page's bottom, so the preview's circle sat low and its lower schools were cut
+off (1.4.1).
+
+**The preview canvases** (the Easy/Pre Req Master preview in `prereqMaster.js`, `TreeGrowth`,
+`TreePreview`) take their size with `TreePreviewUtils.fitCanvas`: a box that is not laid out (the Scan
+page or the mode hidden) leaves the canvas as it is - it used to take a made-up 300 x 400 and keep it
+until a ResizeObserver fired, which the game's browser may not have - and every redraw measures the box
+again (a size set only on a change; setting it clears the canvas). Opening the Scan tab and a window
+resize ask for a redraw. The Sun grid's school names are upright, in the panel's language (`schoolText`),
+past their roots and outward arrows, hanging off the side they point to
+(`TreePreviewUtils.schoolLabelPlace`); they used to be turned along the spoke and centred over the
+root. The Sun mode records how far roots, arrows and names reach (`_lastRenderData.extent`, in
+`TreePreview.getOutput`), and the three previews fit that into the box with `FIT_MARGIN` round it
+(`contentExtent`, `fitScale`; the root ring plus 45 px when a mode gives no extent). Tests:
+`previewFitTest.js`.
+
 ### Complex Mode (`scannerComplexContent`)
 
 Full control over tree generation.
@@ -1617,7 +1702,7 @@ Visual-First builds that used them.
 | `treePreview.js` | Preview orchestrator |
 | `treePreviewSun.js` | Sun grid preview mode |
 | `treePreviewFlat.js` | Flat grid preview mode |
-| `treePreviewUtils.js` | Preview utilities |
+| `treePreviewUtils.js` | Preview utilities: drag inputs, the canvases' size and fit (`fitCanvas`, `contentExtent`, `fitScale`), where a school's name goes (`schoolLabelPlace`) |
 | `sunGridLinear.js` | Linear sun grid layout |
 | `sunGridEqualArea.js` | Equal-area sun grid |
 | `sunGridFibonacci.js` | Fibonacci spiral grid |

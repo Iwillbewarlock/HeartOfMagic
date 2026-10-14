@@ -6,6 +6,15 @@
    contains "styles").
    ============================================================================= */
 
+/* ---- Korean: lines break between words, never inside one (the scan status's "nodes placed" split mid-word).
+   Korean puts spaces between words, so keep-all only moves the break to a space;
+   Japanese and Chinese do not, and keep their normal breaking. A word longer than
+   its line still breaks rather than run out of its box. ---- */
+html:lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
 /* ---- Toolbar icon buttons (home / search) ---- */
 .zoom-btn svg {
     width: 14px;
@@ -394,6 +403,13 @@ button.easy-preset-chip {
 
 #contentSpellTree.details-bottom .details-footer .state-badge {
     text-align: center;
+}
+
+/* The canvas hint goes above the footer, where the tree is, not over the footer's legend (it sat
+   14px from the page bottom, under the footer: seen with the side panel, and in bar mode with the bar
+   closed). 44px is the footer's room, as the bar's bottom: 44px; 8px more keeps it off the edge. */
+#contentSpellTree .tree-instructions {
+    bottom: 52px;
 }
 
 /* The instructions pill sits where the bar goes */
