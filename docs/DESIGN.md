@@ -1378,7 +1378,9 @@ Simplified one-click workflow.
 ```
 
 The buttons and the preview take what is left of the page under the scan results
-(`#scannerEasyContent` and `.easy-panel-split` grow, 320 px at least; a shorter page scrolls). A fixed
+(`#scannerEasyContent` and `.easy-panel-split` grow, 320 px at least; a shorter page scrolls; the
+preview box fills `.easy-panel-right` as a flex item as well as by `height: 100%`, so it does not depend on
+the browser treating a stretched flex item's height as definite). A fixed
 500 px used to run past the page's bottom, so the preview's circle sat low and its lower schools were cut
 off (1.4.1).
 

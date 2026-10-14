@@ -4728,6 +4728,9 @@ body {
     flex: 1;
     min-width: 0;
     position: relative;
+    /* The preview fills it by flex too, not only by height: 100% of a stretched flex item */
+    display: flex;
+    flex-direction: column;
 }
 
 .easy-presets-section {
@@ -4811,6 +4814,8 @@ body {
 
 .easy-preview-placeholder {
     position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
     height: 100%;
     margin: 0;
     border-radius: 0;
