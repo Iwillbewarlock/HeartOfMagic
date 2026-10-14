@@ -33,6 +33,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     VERSION ${PROJECT_VERSION}
     SOURCES
     src/Main.cpp
+    src/RisaMenu.cpp
     src/uimanager/UIManagerCore.cpp
     src/uimanager/UIManagerNotify.cpp
     src/uimanager/UIManagerScanner.cpp

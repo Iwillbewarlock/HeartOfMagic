@@ -8,10 +8,14 @@
   by magic dies from keywords on the killing effect. Fire, frost and shock already worked through the vanilla
   keywords; now spells the librarian tagged sun get FEC's sun death (FEC itself only marks spells with the
   vanilla Dawnguard sun visuals), and air damage spells get its suffocation where a mod in the load order defines
-  `MagicDamageWind` - FEC only does that to someone going into bleedout (essential and protected NPCs). In memory only, and only while `FEC.esp` is loaded. The scroll and staff that share a spell's
-  damage effect (Lunaris' Moonfire and Lunar Eclipse, for one) get the same death.
+  `MagicDamageWind` - FEC only does that to someone going into bleedout (essential and protected NPCs). In memory only, and only while `FEC.esp` is loaded. The scroll
+  and staff that share a spell's damage effect (Lunaris' Moonfire and Lunar Eclipse, for one) get the same death.
 - **Perk and FEC keywords stay on.** Heart of Magic already adds its keywords after KID, SkyPatcher and FEC
   have added theirs; if something takes one off later, starting a new game or loading a save puts it back.
+- **A button in Risa's All In One Menu.** With Risa's All In One Menu 5.4 or newer installed, Heart of Magic
+  shows up in its launcher; Risa then opens and closes the panel and turns our own hotkey off while it does, so one
+  key does not open it twice. Your hotkey setting is left as it is and works again when you exclude Heart of Magic in
+  Risa or remove Risa.
 
 ### Fixed
 

@@ -500,7 +500,15 @@ from `GenerateDefaultConfig`) - a throw there used to skip every setting after i
 `hotkeyCode` 0 is "no hotkey" (Settings > Hotkey > None): no key has scancode 0, so the InputHandler's
 `idCode != m_hotkeyCode` never matches it; `SafeJsonValue` returns the 0 (only a missing or null key gets
 the default) and the save path's `is_number()` keeps it. With None no key opens the panel (Papyrus
-`ToggleMenu` still does); nothing in the config locks None out. A `magicMenu` object left in a
+`ToggleMenu` still does); nothing in the config locks None out.
+**Risa's All In One Menu** (Nexus 183829, 5.4+): at `kPostLoad`, when `RisaAllInOneMenu.dll` is already loaded,
+`RisaMenu::Register` (`src/RisaMenu.cpp`) registers the panel through Risa's C API (`plugins/RisaMenuIntegrationAPI.h`,
+MIT, version 1) as `HeartOfMagic.Librarian` - a fixed id Risa keys the player's button and its own hotkey by, so it
+never changes. Open/Close post `ShowPanel`/`HidePanel` to the game thread (Open answers false before the panel exists),
+IsMenuOpen reads `IsPanelVisible`. While Risa manages the panel it calls `SetHotkeyEnabled(false)` and the
+InputHandler skips our hotkey; that flag is runtime only, `config.json` keeps the key. A hotkey change
+(`UpdateInputHandlerHotkey`, also at config load) unregisters and registers again so Risa shows the new key label.
+Without Risa, or when Risa refuses, nothing changes. A `magicMenu` object left in a
 config.json by a development build is read by nothing and does no harm.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
