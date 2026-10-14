@@ -15,8 +15,9 @@
  * When it starts: once per game start, after all three of
  *   - onStartupTreeInfo (C++, at the end of LoadSpellTree): the tree file's
  *     state and the load order fingerprints (UIManagerAutoBuild.cpp),
- *   - the config (AutoBuildSetting.loadFrom -> noteConfigLoaded; after
- *     WAIT_MS without it, the default "When none"),
+ *   - the config (the end of onUnifiedConfigLoaded -> noteConfigLoaded, so the
+ *     scan has the saved fields; after WAIT_MS without it nothing is built - the
+ *     player's "Off" is in that config),
  *   - the scanner presets applied (onPresetsLoaded -> notePresetsApplied; after
  *     WAIT_MS without them it goes on with what is set).
  * That is at the main menu: onPrismaReady asks for all three. Only the first
@@ -29,9 +30,13 @@
  * A decision made after a save has loaded still builds; the scan and the build
  * then run in game.
  *
- * The player wins: a Scan, Build, Apply or Clear on the Scan tab, or any tree
- * save of theirs (Import, edit mode's Save Tree, orphan repair: SpellTreeSave),
- * ends a run first (yieldTo), without a failure on the status line. A run also
+ * The player wins: a Scan that goes out (past startScan's 2 s debounce), a
+ * Build, an Apply or Clear with a tree to apply or clear, edit mode's spawn list
+ * scan, or any tree save of theirs (Import, edit mode's Save Tree, orphan
+ * repair: SpellTreeSave) ends a run first (yieldTo), without a failure on the
+ * status line. So the only scan that can come back to a run is its own: the
+ * run takes the first full scan after it asked (scanAsked; scan responses carry
+ * no request id, and C++ keeps only the latest queued full scan). A run also
  * ends by finishing, failing or RUN_TIMEOUT_MS; a step that comes back after
  * that is dropped (_current), and an Apply still decluttering then does not
  * save (applyTree's isCurrent).
@@ -62,11 +67,12 @@ var AutoBuild = {
 
     _info: null,
     _configReady: false,
+    _configMissing: false,    // the config wait ran out: nothing is built
     _presetsReady: false,
     _decided: false,
     _saveLoaded: false,
     _waitTimers: [],
-    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt }
+    _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt, scanAsked }
     _runTimer: null,
 
     // =========================================================================
@@ -108,18 +114,19 @@ var AutoBuild = {
     onStartupTreeInfo: function(info) {
         if (this._info) return;
         this._info = info || {};
-        this._waitFor('_configReady', 'config', 'config not loaded after ' + this.WAIT_MS + ' ms - using the default');
+        this._waitFor('_configReady', 'config', 'not loaded after ' + this.WAIT_MS + ' ms - not building', '_configMissing');
         this._waitFor('_presetsReady', 'presets', 'scanner presets not loaded after ' + this.WAIT_MS + ' ms - going on with the current settings');
         this._maybeDecide();
     },
 
-    /** After WAIT_MS without `flag`, report it and decide without it. */
-    _waitFor: function(flag, event, detail) {
+    /** After WAIT_MS without `flag`, report it, set `missedFlag` if given, and decide without it. */
+    _waitFor: function(flag, event, detail, missedFlag) {
         if (this[flag]) return;
         var self = this;
         this._waitTimers.push(setTimeout(function() {
             if (self[flag]) return;
             self._report(event, detail);
+            if (missedFlag) self[missedFlag] = true;
             self[flag] = true;
             self._maybeDecide();
         }, this.WAIT_MS));
@@ -149,7 +156,8 @@ var AutoBuild = {
         if (this._decided || !this._info || !this._configReady || !this._presetsReady) return;
         this._decided = true;
         this._clearWaits();
-        var d = this.decide(AutoBuildSetting.value(), this._info, this._saveLoaded);
+        var d = this._configMissing ? this._result(this.NONE, 'the config did not load - the setting is not known')
+            : this.decide(AutoBuildSetting.value(), this._info, this._saveLoaded);
         this._report('decided', d.action + ' (' + d.reason + ')');
         if (d.action === this.BUILD) this._start();
         else if (d.action === this.NOTICE) this._notice();
@@ -191,15 +199,17 @@ var AutoBuild = {
             return;
         }
         this._report('scan', 'scanning all spells');
-        startScan();
+        this._run.scanAsked = true;   // the first full scan that comes back is this one's (onSpellData)
+        startScan({ auto: true });
     },
 
     /** updateSpellData finished (cppCallbacks.js): a scan came in. Only a full scan moves the run on. */
     onSpellData: function() {
         var run = this._run;
-        if (!this._current(run) || run.stage !== 'scan') return;
+        if (!this._current(run) || run.stage !== 'scan' || !run.scanAsked) return;
         var data = typeof state !== 'undefined' ? state.lastSpellData : null;
         if (data && data.scanMode === 'spell_tomes') return;   // a tome scan: a filter list, not the tree's spells
+        run.scanAsked = false;
         if (!data || !data.spells || data.spells.length === 0) {
             this._fail('the scan found no spells');
             return;
@@ -293,6 +303,7 @@ var AutoBuild = {
         if (this._runTimer) clearTimeout(this._runTimer);
         this._info = null;
         this._configReady = false;
+        this._configMissing = false;
         this._presetsReady = false;
         this._decided = false;
         this._saveLoaded = false;

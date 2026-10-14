@@ -4,17 +4,22 @@
  * the run's steps with stand-ins.
  *
  *   - a save load during the run: the real onSaveGameLoaded, applyTree and
- *     loadTreeData - reset, then MarkTreeBuilt, SaveSpellTree,
- *     SetTreePrerequisites and GetProgress, in that order;
- *   - the waits, with a fake clock: no config, no scanner presets, a run that
- *     never ends;
+ *     loadTreeData - reset, then SaveBuiltSpellTree, SetTreePrerequisites and
+ *     GetProgress, in that order;
+ *   - the waits, with a fake clock: no config (nothing built), no scanner
+ *     presets, a run that never ends; the config arriving last;
+ *   - which scan feeds the run (its own; not a tome scan, not the player's),
+ *     a throw while the build starts, the Sun grid cache after ensure();
  *   - the player wins: their Build (real TreeGrowthClassic.buildTree and
  *     BuildProgress), an Import, or their Apply while the run's Apply declutters;
+ *     an Apply, Clear or Scan that does nothing does not end the run; the
+ *     player's Build waits for the run's C++ build, whose result is dropped;
  *   - a tree without spells: refused with the tree tab's error, `schools` as an
- *     array counts no spells, only a build's save is marked built.
+ *     array counts no spells, only a build's save goes to SaveBuiltSpellTree.
  *
- * Depends on: autoBuildTest.js (loads the modules), cppCallbacks.js and
- * treeLoad.js (loaded here). Swaps the globals it stubs and puts them back.
+ * Depends on: autoBuildTest.js (loads the modules), cppCallbacks.js, treeLoad.js,
+ * buttonHandlers.js and proceduralTreeBuilder.js (loaded here). Swaps the
+ * globals it stubs and puts them back.
  */
 
 var AutoBuildFlowTest = {
@@ -65,7 +70,7 @@ var AutoBuildFlowTest = {
     _startRun: function(g) {
         var A = g.AutoBuild;
         A._resetForTest();
-        g.AutoBuildSetting.loadFrom({});
+        g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
         A.notePresetsApplied();
         g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
     },
@@ -77,13 +82,16 @@ var AutoBuildFlowTest = {
         if (typeof require !== 'function') return { passed: 0, failed: 0 };   // node only
         try {
             if (typeof g.onSaveGameLoaded !== 'function') require('./cppCallbacks.js');
-            if (typeof g.loadTreeData !== 'function') {
-                var vm = require('vm'), fs = require('fs'), path = require('path');
-                var file = path.join(__dirname, 'treeLoad.js');
+            var vm = require('vm'), fs = require('fs'), path = require('path');
+            var scripts = [['treeLoad.js', 'loadTreeData'], ['buttonHandlers.js', 'startScan'],
+                ['proceduralTreeBuilder.js', 'onProceduralTreeComplete']];
+            for (var i = 0; i < scripts.length; i++) {
+                if (typeof g[scripts[i][1]] === 'function') continue;
+                var file = path.join(__dirname, scripts[i][0]);
                 vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
             }
         } catch (e) {
-            this.check(false, 'cppCallbacks.js and treeLoad.js load (' + e.message + ')');
+            this.check(false, 'cppCallbacks.js, treeLoad.js, buttonHandlers.js, proceduralTreeBuilder.js load (' + e.message + ')');
             return { passed: this.passed, failed: this.failed };
         }
         if (typeof g.AutoBuild === 'undefined' || typeof g.TreeGrowthClassic === 'undefined') {
@@ -94,6 +102,12 @@ var AutoBuildFlowTest = {
         this._testWaits(g);
         this._testYield(g);
         this._testEmptyTree(g);
+        this._testScans(g);
+        this._testStartThrows(g);
+        this._testSunCache(g);
+        this._testConfigLast(g);
+        this._testNoopYield(g);
+        this._testQueuedBuild(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -141,7 +155,7 @@ var AutoBuildFlowTest = {
                     pendingDeclutter();
                 });
                 // SetTreePrerequisites twice: { clear } and then the list
-                var want = ['reset', 'reset', 'MarkTreeBuilt', 'SaveSpellTree', 'SetTreePrerequisites', 'SetTreePrerequisites', 'GetProgress'];
+                var want = ['reset', 'reset', 'SaveBuiltSpellTree', 'SetTreePrerequisites', 'SetTreePrerequisites', 'GetProgress'];
                 var order = log.filter(function(n) { return want.indexOf(n) !== -1; });
                 self.check(order.join(',') === want.join(',') && !A.isRunning(),
                     'save loads during the run: reset, then the tree saved, made live and its progress asked for');
@@ -176,16 +190,20 @@ var AutoBuildFlowTest = {
             g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // no config ever
             self.check(scans === 0, 'no config yet: no decision');
             fire(A.WAIT_MS);
-            self.check(scans === 1 && events[0].event === 'config' && /using the default/.test(events[0].detail) &&
-                events[1].event === 'decided' && /^build/.test(events[1].detail), 'config not loaded in time: decided with the default');
+            self.check(scans === 0 && !A.isRunning() && events[0].event === 'config' && /not building/.test(events[0].detail) &&
+                events[1].event === 'decided' && /^none/.test(events[1].detail), 'config not loaded in time: nothing is built');
 
+            A._resetForTest(); events = []; status = [];
+            g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
+            A.notePresetsApplied();
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
             fire(A.RUN_TIMEOUT_MS);
             var last = events[events.length - 1];
             self.check(!A.isRunning() && last.event === 'failed' && /not done after 600 s/.test(last.detail) &&
                 status.indexOf('status.autoBuildFailed') !== -1, 'a run not done in time fails and says so');
 
             A._resetForTest(); events = []; scans = 0;
-            g.AutoBuildSetting.loadFrom({});
+            g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
             g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // no presets ever
             fire(A.WAIT_MS);
             self.check(scans === 1 && events[0].event === 'presets' && events[1].event === 'decided',
@@ -198,7 +216,10 @@ var AutoBuildFlowTest = {
         var self = this, A = g.AutoBuild, events, status, cpp, shown, sends;
         var tgc = g.TreeGrowthClassic, oldTree = tgc._treeData, pending;
         var modal = { classList: { remove: function() { shown++; }, add: function() {} } };
-        function reset() { events = []; status = []; cpp = []; shown = 0; sends = 0; pending = []; }
+        function reset() {
+            events = []; status = []; cpp = []; shown = 0; sends = 0; pending = [];
+            if (g.state) { g.state._classicGrowthBuildPending = false; g.state._classicGrowthBuildQueued = null; }
+        }
         reset();
         this._with(g, {
             settings: { autoBuild: 'whenMissing' },
@@ -208,7 +229,7 @@ var AutoBuildFlowTest = {
             callCpp: function(name, arg) {
                 if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event);
                 else cpp.push(name);
-                if (name === 'SaveSpellTree') sends++;
+                if (name === 'SaveSpellTree' || name === 'SaveBuiltSpellTree') sends++;
             },
             document: { getElementById: function(id) { return id === 'build-progress-modal' ? modal : null; } },
             updateScanStatus: function(text, type, key) { status.push(key); },
@@ -249,7 +270,7 @@ var AutoBuildFlowTest = {
                 A._onBuilt('ok');                                   // the run's Apply, declutter pending
                 var importSent = g.SpellTreeSave.send(self._output(), 'import');
                 pending[0]();                                       // the run's declutter ends after it
-                self.check(importSent && sends === 1 && cpp.indexOf('MarkTreeBuilt') === -1 && !A.isRunning() &&
+                self.check(importSent && sends === 1 && cpp.indexOf('SaveBuiltSpellTree') === -1 && !A.isRunning() &&
                     events.indexOf('yielded') !== -1, 'an Import during the run: the run\'s Apply saves nothing over it');
 
                 // The player's Apply while the run's Apply declutters
@@ -262,8 +283,8 @@ var AutoBuildFlowTest = {
                     'the player\'s Apply during the run\'s declutter: the run ends, no failure');
                 pending[1]();
                 pending[0]();
-                self.check(sends === 1 && cpp.join(',').indexOf('MarkTreeBuilt,SaveSpellTree') !== -1,
-                    'only the player\'s Apply saves, marked as a build');
+                self.check(sends === 1 && cpp.indexOf('SaveBuiltSpellTree') !== -1,
+                    'only the player\'s Apply saves, as a build');
             } finally {
                 tgc._treeData = oldTree;
                 g.BuildProgress.close();
@@ -289,8 +310,208 @@ var AutoBuildFlowTest = {
             cpp.length = 0;
             S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'import');
             S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'apply');
-            self.check(cpp.join(',') === 'SaveSpellTree,MarkTreeBuilt,SaveSpellTree',
-                'only a build\'s save is marked built (the record of its load order)');
+            S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'auto build');
+            S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'edit mode save');
+            self.check(cpp.join(',') === 'SaveSpellTree,SaveBuiltSpellTree,SaveBuiltSpellTree,SaveSpellTree',
+                'a build\'s save goes to SaveBuiltSpellTree (its load order recorded), any other to SaveSpellTree');
+        });
+    },
+    /** What the real startScan (buttonHandlers.js) needs, with its ScanSpells calls counted in `out`. */
+    _scanStubs: function(out, extra) {
+        var stubs = {
+            settings: { autoBuild: 'whenMissing' },
+            state: { lastSpellData: null, fields: { name: true } },
+            callCpp: function(name, arg) {
+                if (name === 'AutoBuildEvent') out.events.push(JSON.parse(arg).event);
+                else if (name === 'ScanSpells') out.scans.push(JSON.parse(arg));
+            },
+            t: function(key) { return key; },
+            tOr: function(key, params, fallback) { return fallback; },
+            updateStatus: function() {},
+            setStatusIcon: function() {},
+            updateScanStatus: function(text, type, key) { out.status.push(key); },
+            getTreeRulesPrompt: function() { return ''; },
+            HomIcons: { setLabel: function() {} },
+            document: { getElementById: function() { return null; } },
+            TreePreviewHidden: { ensure: function() { return { rootNodes: [], gridPoints: [] }; } },
+            TreeGrowthClassic: { buildTree: function() { out.builds++; return true; } },
+            console: this._quiet
+        };
+        for (var k in extra) if (extra.hasOwnProperty(k)) stubs[k] = extra[k];
+        return stubs;
+    },
+
+    _testScans: function(g) {
+        var self = this, A = g.AutoBuild, out = { events: [], scans: [], status: [], builds: 0 };
+        this._with(g, this._scanStubs(out, {}), function() {
+            g._lastScanTime = 0;
+            self._startRun(g);
+            self.check(out.scans.length === 1 && out.scans[0].scanMode === 'all' && out.events.indexOf('yielded') === -1,
+                'the run\'s own scan goes out through startScan without ending the run');
+
+            g.state.lastSpellData = { scanMode: 'spell_tomes', spells: [{ formId: '0x01' }] };
+            A.onSpellData();
+            self.check(A.isRunning() && out.builds === 0, 'a tome scan does not feed the run');
+
+            g.startScan();   // the player's Scan within 2 s of the run's: debounced, nothing happens
+            self.check(A.isRunning() && out.scans.length === 1 && out.events.indexOf('yielded') === -1,
+                'a debounced Scan press does not end the run');
+
+            g._lastScanTime = 0;
+            g.startScan();   // the player's Scan that goes out
+            g.state.lastSpellData = { spells: [{ formId: '0x01' }] };
+            A.onSpellData();   // whichever full scan comes back now
+            self.check(!A.isRunning() && out.scans.length === 2 && out.events.indexOf('yielded') !== -1 && out.builds === 0 &&
+                out.status.indexOf('status.autoBuildFailed') === -1, 'the player\'s Scan ends the run; its result feeds no build');
+
+            out.builds = 0;
+            g._lastScanTime = 0;
+            self._startRun(g);
+            A.onSpellData();   // the run's scan
+            A._run.stage = 'scan';   // as if a second scan came back to a run still scanning
+            A.onSpellData();
+            self.check(out.builds === 1, 'only the first full scan after the run asked feeds it');
+            A._resetForTest();
+        });
+    },
+
+    _testStartThrows: function(g) {
+        var self = this, A = g.AutoBuild;
+        var cases = [
+            ['ensure()', { ensure: function() { throw new Error('boom'); } }, null],
+            ['buildTree()', null, { buildTree: function() { throw new Error('bang'); } }]
+        ];
+        for (var i = 0; i < cases.length; i++) {
+            var out = { events: [], scans: [], status: [], builds: 0 }, extra = { state: { lastSpellData: { spells: [{ formId: '0x01' }] } } };
+            if (cases[i][1]) extra.TreePreviewHidden = cases[i][1];
+            if (cases[i][2]) extra.TreeGrowthClassic = cases[i][2];
+            this._with(g, this._scanStubs(out, extra), function() {
+                g._lastScanTime = 0;
+                self._startRun(g);
+                A.onSpellData();
+                self.check(!A.isRunning() && out.events[out.events.length - 1] === 'failed' &&
+                    out.status.indexOf('status.autoBuildFailed') !== -1, cases[i][0] + ' throws: the run fails and says so');
+                A._resetForTest();
+            });
+        }
+    },
+
+    _testSunCache: function(g) {
+        var self = this, sun = g.TreePreviewSun;
+        var preview = Object.create(g.TreePreview);
+        preview.modes = { sun: sun };
+        preview.activeMode = 'sun';
+        preview.schoolData = { Destruction: 10, Restoration: 10 };
+        preview._width = 0;
+        preview._height = 0;
+        this._with(g, { settings: { selectedRoots: {} }, console: this._quiet }, function() {
+            try {
+                sun._lastRenderData = null;
+                sun._gridPointCache = null;
+                var out = g.TreePreviewHidden.ensure(preview);
+                self.check(out && out.gridPoints.length > 0 && sun._gridPointCache === null && sun._gridPointCacheKey === '',
+                    'after ensure() the Sun grid point cache is empty (the preview on screen works its own out)');
+            } finally {
+                sun._lastRenderData = null;
+                sun._gridPointCache = null;
+            }
+        });
+    },
+
+    _testConfigLast: function(g) {
+        var self = this, A = g.AutoBuild, fieldsSeen = null;
+        var out = { events: [], scans: [], status: [], builds: 0 };
+        this._with(g, this._scanStubs(out, {
+            startScan: function() { fieldsSeen = JSON.stringify(g.state.fields); }
+        }), function() {
+            A._resetForTest();
+            A.notePresetsApplied();
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            g.AutoBuildSetting.loadFrom({ autoBuild: 'whenMissing' });   // the value, first thing in onUnifiedConfigLoaded
+            var early = fieldsSeen;
+            g.state.fields = { name: true, effects: true };                 // the saved fields, later in it
+            A.noteConfigLoaded();                                            // its finally
+            self.check(early === null && fieldsSeen === JSON.stringify({ name: true, effects: true }),
+                'config arriving last: the scan starts after the saved fields are in');
+            A._resetForTest();
+        });
+        if (typeof require !== 'function') return;
+        var src = require('fs').readFileSync(require('path').join(__dirname, 'settingsPanel.js'), 'utf8');
+        var start = src.indexOf('window.onUnifiedConfigLoaded = function');
+        var fields = src.indexOf('state.fields[savedField] = data.fields[savedField]', start);
+        var fin = src.indexOf('} finally {', fields);
+        var note = src.indexOf('AutoBuild.noteConfigLoaded()', start);
+        self.check(start !== -1 && fields !== -1 && fin !== -1 && note > fin,
+            'onUnifiedConfigLoaded tells the build at game start in its finally, after the saved fields');
+    },
+
+    _testNoopYield: function(g) {
+        var self = this, A = g.AutoBuild, tgc = g.TreeGrowthClassic, oldTree = tgc._treeData;
+        var out = { events: [], scans: [], status: [], builds: 0 };
+        this._with(g, this._scanStubs(out, {
+            TreeGrowthClassic: tgc,
+            ClassicSettings: { setStatusText: function() {}, setTreeBuilt: function() {} },
+            TreeGrowth: { _markDirty: function() {} }
+        }), function() {
+            try {
+                g._lastScanTime = 0;
+                self._startRun(g);
+                tgc._treeData = null;
+                tgc.applyTree();   // nothing built: nothing to apply
+                tgc.clearTree();   // nothing to clear
+                self.check(A.isRunning() && out.events.indexOf('yielded') === -1, 'an Apply or Clear with no tree does not end the run');
+                tgc._treeData = { schools: {} };
+                tgc.clearTree();
+                self.check(!A.isRunning() && out.events.indexOf('yielded') !== -1, 'a Clear of a built tree ends it');
+            } finally {
+                tgc._treeData = oldTree;
+                A._resetForTest();
+            }
+        });
+    },
+
+    /** The player's Build while C++ still builds the run's request (C++ would answer it busy). */
+    _testQueuedBuild: function(g) {
+        var self = this, A = g.AutoBuild, tgc = g.TreeGrowthClassic, sent = 0, loaded = [], shown = 0;
+        var modal = { classList: { remove: function() { shown++; }, add: function() {} } };
+        var out = { events: [], scans: [], status: [], builds: 0 };
+        this._with(g, this._scanStubs(out, {
+            state: { lastSpellData: { spells: [{ formId: '0x01' }] }, fields: {} },
+            TreeGrowthClassic: Object.create(tgc),
+            ClassicSettings: { setStatusText: function() {} },
+            ClassicBuildRequest: { send: function() { sent++; } },
+            TreeGrowth: { setBuilding: function() {}, _markDirty: function() {} },
+            document: { getElementById: function(id) { return id === 'build-progress-modal' ? modal : null; } },
+            PreReqMaster: undefined
+        }), function() {
+            try {
+                g.TreeGrowthClassic.loadTreeData = function(data) { loaded.push(data.tag); };
+                g._lastScanTime = 0;
+                self._startRun(g);
+                A.onSpellData();                       // the run's build goes to C++
+                g.TreeGrowthClassic.buildTree();       // the player's Build
+                self.check(sent === 1 && g.state._classicGrowthBuildPending && typeof g.state._classicGrowthBuildQueued === 'function' &&
+                    !A.isRunning() && shown === 1, 'the player\'s Build waits while C++ builds the run\'s request; its modal shows');
+                g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'run', schools: {} } }));
+                self.check(loaded.length === 0 && sent === 2 && g.state._classicGrowthBuildPending && !g.state._classicGrowthBuildQueued &&
+                    g.BuildProgress.isActive(), 'the run\'s result is dropped and the player\'s request goes out');
+                g.onProceduralTreeComplete(JSON.stringify({ busy: true }));
+                self.check(loaded.length === 0 && g.state._classicGrowthBuildPending, 'a busy answer leaves the waiting build alone');
+                g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'player', schools: {} } }));
+                self.check(loaded.join(',') === 'player' && !g.state._classicGrowthBuildPending,
+                    'the player\'s result is the one shown');
+
+                g.state._classicGrowthBuildPending = true;   // a player's build in C++ ...
+                self._startRun(g);
+                A.onSpellData();                             // ... the run does not queue behind it
+                self.check(sent === 2 && !A.isRunning() && out.events[out.events.length - 1] === 'failed',
+                    'the run does not wait behind the player\'s build');
+            } finally {
+                g.state._classicGrowthBuildPending = false;
+                g.state._classicGrowthBuildQueued = null;
+                g.BuildProgress.close();
+                A._resetForTest();
+            }
         });
     }
 };

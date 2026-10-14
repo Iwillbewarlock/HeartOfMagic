@@ -1549,6 +1549,8 @@ var EditMode = {
             }
             this.spellsLoaded = false;
             if (window.callCpp) {
+                // Its result must not feed the build at game start (autoBuild.js)
+                if (typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('edit mode scan');
                 window.callCpp('ScanSpells', JSON.stringify({
                     fields: state.fields || {},
                     scanMode: 'all'

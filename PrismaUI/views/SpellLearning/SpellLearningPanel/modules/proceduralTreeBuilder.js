@@ -176,6 +176,9 @@ function _handleBuildFailure(error, settingsModule, retryBuild, logPrefix) {
  * A request C++ turned away because another build was still running comes back
  * with busy set: that says nothing about the build in flight, so it leaves the
  * pending flag, the progress modal and the Build button alone.
+ * A build asked for while C++ still worked on an earlier one waits in
+ * state._classicGrowthBuildQueued (classicMain.js buildTree): the earlier one's
+ * result is then dropped and the waiting request goes out, the flag still set.
  */
 window.onProceduralTreeComplete = function(resultStr) {
     console.log('[Procedural] C++ result received');
@@ -190,6 +193,13 @@ window.onProceduralTreeComplete = function(resultStr) {
 
         if (!state._classicGrowthBuildPending) {
             console.warn('[Procedural] C++ result with no build waiting for it - ignored');
+            return;
+        }
+        var queued = state._classicGrowthBuildQueued;
+        if (queued) {
+            state._classicGrowthBuildQueued = null;
+            console.warn('[Procedural] Result of an earlier build dropped - sending the build asked for since');
+            queued();
             return;
         }
         state._classicGrowthBuildPending = false;
@@ -224,6 +234,7 @@ window.onProceduralTreeComplete = function(resultStr) {
         // sends the NEXT build's result down the Classic branch, and a progress
         // modal with nothing left to close it sits over the panel for good.
         state._classicGrowthBuildPending = false;
+        state._classicGrowthBuildQueued = null;
         if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(false);
         if (typeof BuildProgress !== 'undefined' && BuildProgress.isActive()) {
             BuildProgress.fail(tOr('status.buildResultUnreadable', null, "The tree builder's result could not be read"));

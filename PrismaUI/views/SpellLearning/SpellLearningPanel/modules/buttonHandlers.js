@@ -26,13 +26,15 @@
 
 function onScanClick() {
     console.log('[SpellLearning] Scan button clicked');
-    // The player's scan wins over the build at game start (autoBuild.js)
-    if (typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
     startScan();
 }
 
 var _lastScanTime = 0;
-function startScan() {
+/**
+ * @param {Object} [options] - { auto: true }: the build at game start's own scan;
+ *   any other scan that goes out ends that build first (autoBuild.js)
+ */
+function startScan(options) {
     // Debounce: prevent rapid-fire scans (min 2s between scans)
     var now = Date.now();
     if (now - _lastScanTime < 2000) {
@@ -40,6 +42,7 @@ function startScan() {
         return;
     }
     _lastScanTime = now;
+    if (!(options && options.auto) && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
 
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
     var statusMsg = t('status.scanningAllSpells');

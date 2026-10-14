@@ -53,8 +53,8 @@ var AutoBuildSetting = {
         settings.autoBuild = this.normalize(data ? data.autoBuild : undefined);
         this.loaded = true;
         this.syncControl();
-        // The game start's decision waits for the saved value (autoBuild.js)
-        if (typeof AutoBuild !== 'undefined') AutoBuild.noteConfigLoaded();
+        // The game start's decision hears of it at the end of onUnifiedConfigLoaded
+        // (settingsPanel.js), once the rest of the config - the scan fields - is in
     },
 
     saveTo: function(config) {

@@ -1478,19 +1478,20 @@ would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebui
 onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   C++ OnLoadSpellTree, at every exit → onStartupTreeInfo { tree: missing | empty | present | unreadable, nodes,
         loadOrder, builtLoadOrder, noticedLoadOrder }                         (UIManagerAutoBuild.cpp)
-  config (AutoBuildSetting.loadFrom, first thing in onUnifiedConfigLoaded) + scanner preset applied
-        (onPresetsLoaded); each waited for 15 s at most (AutoBuild.WAIT_MS), then the default / current settings
+  config (the value read first in onUnifiedConfigLoaded, noteConfigLoaded in its finally - after the saved
+        scan fields) + scanner preset applied (onPresetsLoaded); each waited for 15 s at most
+        (AutoBuild.WAIT_MS): no config → nothing is built (the player's Off is in it), no presets → current settings
   → AutoBuild.decide(setting, info, saveLoaded)
       off                                   → nothing
       missing, or empty (no spell in it)    → build (also when a save has loaded already)
       present, built under another load order, not told yet → notice
       present otherwise (same, unknown, told) / unreadable → nothing
-  build:  startScan() → updateSpellData → AutoBuild.onSpellData (a full scan only: a tome scan's
-            scanMode "spell_tomes" is passed over)
+  build:  startScan({ auto }) → updateSpellData → AutoBuild.onSpellData (the first full scan after the run
+            asked - `scanAsked`; a tome scan's scanMode "spell_tomes" is passed over)
           → TreePreviewHidden.ensure() (the preview grid without the preview on screen, TREE_BUILDING_SYSTEM.md;
             the Sun grid's point cache is dropped after, so the preview on screen works its own out)
           → TreeGrowthClassic.buildTree({ auto }) - BuildProgress silent: no modal, the same stages (PRM locks)
-          → BuildProgress.complete → applyTree({ auto }): declutter, SpellTreeSave (MarkTreeBuilt, SaveSpellTree),
+          → BuildProgress.complete → applyTree({ auto }): declutter, SpellTreeSave (SaveBuiltSpellTree),
             loadTreeData (tree tab only while the panel is closed, no 300 ms tab switch), scan status "Tree applied"
   notice: scan status line `status.loadOrderChanged`; C++ keeps the fingerprint in memory and shows
           `hud.loadOrderChanged` in the corner at the next save load (kPostLoadGame), and only then records it
@@ -1508,12 +1509,21 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   save's progress - what a manual Apply after a save load does. The scan may first wait for the tome reach
   pass (up to 30 s) as a Scan button press does; that pass reads the plugin files on a worker thread from
   kDataLoaded and needs no loaded game.
-- **The player wins:** the Scan button, Build, Apply or Clear on the Scan tab, and every tree save of theirs
-  (Import, edit mode's Save Tree, orphan repair: `SpellTreeSave.send` with another source) end a run first,
-  quietly (`AutoBuild.yieldTo`: `yielded - <what>`, no status line). A run also ends by finishing, failing or
-  `RUN_TIMEOUT_MS` (10 min). A step that comes back to an ended run is dropped (`_current`), an Apply still
-  decluttering then does not save (`applyTree`'s `isCurrent`), and `BuildProgress.start` tells a silent build
-  it replaces ("superseded by another build") before taking its callbacks.
+- **The player wins:** a scan that goes out (the Scan button past `startScan`'s 2 s debounce, edit mode's
+  spawn list scan), a Build with spells to build, an Apply or Clear with a built tree, and every tree save of
+  theirs (Import, edit mode's Save Tree, orphan repair: `SpellTreeSave.send` with another source) end a run
+  first, quietly (`AutoBuild.yieldTo`: `yielded - <what>`, no status line); a press that does nothing leaves
+  it. So the only scan that can come back to a run is its own (scan results carry no request id, and C++
+  keeps only the latest queued full scan). A run also ends by finishing, failing or `RUN_TIMEOUT_MS`
+  (10 min). A step that comes back to an ended run is dropped (`_current`), an Apply still decluttering then
+  does not save (`applyTree`'s `isCurrent`), and `BuildProgress.start` tells a silent build it replaces
+  ("superseded by another build") before taking its callbacks.
+- **One build in C++ at a time:** C++ turns a second `ProceduralTreeGenerate` away as `busy` and answers the
+  first one later, so a Build pressed while one is in flight (`state._classicGrowthBuildPending`: the run's,
+  or a second click) is not sent: it waits in `state._classicGrowthBuildQueued`, and when the earlier result
+  comes back `onProceduralTreeComplete` drops it and sends the waiting request - the modal shows the
+  player's build, with the settings at the time it goes out. The run never waits behind another build
+  (`buildTree({ auto })` returns false).
 - **The same tree as the buttons:** the active scanner preset is applied first (the start's own
   `onPresetsLoaded`), the build request, PRM and the save are the panel's own code with `{ auto: true }`.
   Progress is kept by formId in the co-save; the new tree's `requiredXP` reaches C++ at the next
@@ -1525,13 +1535,17 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   a notice for a load order that did not change. Kept in `SKSE/Plugins/SpellLearning/spell_tree_loadorder.json`
   beside the tree (`loadOrder` - the load order the tree was **built** under -, `plugins`, `spells`,
   `noticedLoadOrder`). Written only when a build's Apply saves (manual or at game start: `SpellTreeSave` sends
-  `MarkTreeBuilt` before `SaveSpellTree`, C++ takes the mark with the save); an edit mode save, an orphan
+  those to the `SaveBuiltSpellTree` listener, the rest to `SaveSpellTree`; both run
+  `SaveSpellTreeFromPanel(text, built)`); an edit mode save, an orphan
   repair and an **Import** leave the record as it was - an imported tree's load order is not known, so it keeps
   the notice state of the tree it replaced. A tree built before 1.4.1 has no record: no notice until it is
   built again. The notice is asked for once per session and shown once per load order; a build under the
-  load order clears it.
+  load order clears it. A session that only starts new games (no save load) shows it only on the Scan tab's
+  status line: the corner message waits for a kPostLoadGame (nothing shows that a message sent at kNewGame,
+  during the loading screen, reaches the screen), and the load order is not recorded as told until it showed.
 - **Log:** every step is one line `AutoBuild: <event> - <detail>` in SpellLearning.log (`AutoBuildEvent`,
-  written whatever the developer mode; the detail is cut at 512 characters, line breaks made spaces):
+  written whatever the developer mode; event and detail are cut at 512 bytes, back to the start of a UTF-8
+  character, line breaks made spaces):
   `config` and `presets` (a wait ran out), `decided`, `scan`, `build`, `apply`, `done`, `failed`, `yielded`,
   `save loaded`, `notice`. C++ adds `UIManager: startup tree info - ...`, `UIManager: spell tree built under
   load order ...` and `AutoBuild: load order notice shown for ...` (or `... not shown` / `... dropped`).

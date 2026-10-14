@@ -35,7 +35,7 @@
 // menu, normally); a mod that creates SpellItems at run time before that can
 // change it on its own and give a notice for a load order that did not change.
 // Written when SaveSpellTree saves a build's Apply (manual or the one at game
-// start, marked by MarkTreeBuilt); an edit mode save, an import or an orphan
+// start: the panel sends those to SaveBuiltSpellTree); an edit mode save, an import or an orphan
 // repair leaves the record as it is. A tree saved before 1.4.1 has no record
 // and gets no notice until it is built again.
 
@@ -47,10 +47,8 @@ namespace
     constexpr std::string_view kLightPluginsMark = "|light|\n";
     constexpr int kRecordVersion = 1;
     constexpr int kRecordIndent = 2;
-    constexpr std::size_t kEventDetailMax = 512;   // a panel event's detail in the log, at most
+    constexpr std::size_t kEventTextMax = 512;   // bytes of a panel event's text in the log, at most
 
-    // MarkTreeBuilt, taken by the next SaveSpellTree (both JS listeners, one thread)
-    std::atomic<bool> s_treeBuiltMark{ false };
     // The panel's "notice" is handled once per session
     std::atomic<bool> s_noticeAsked{ false };
 
@@ -138,6 +136,21 @@ namespace
         }
     }
 
+    // A panel event's text for the log: at most kEventTextMax bytes, cut back to the
+    // start of a UTF-8 character, line breaks made spaces (one event, one log line)
+    std::string LogText(std::string text)
+    {
+        if (text.size() > kEventTextMax) {
+            std::size_t end = kEventTextMax;
+            while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) --end;
+            text.resize(end);
+        }
+        for (char& c : text) {
+            if (c == '\r' || c == '\n') c = ' ';
+        }
+        return text;
+    }
+
     std::string_view StateName(UIManager::StartupTreeState state)
     {
         switch (state) {
@@ -201,14 +214,14 @@ std::optional<long long> UIManager::CheckTreeHasSpells(const std::string& treeTe
     return ms;
 }
 
-bool UIManager::TakeTreeBuiltMark() noexcept
+void UIManager::OnSaveSpellTree(const char* argument)
 {
-    return s_treeBuiltMark.exchange(false);
+    SaveSpellTreeFromPanel(argument, false);
 }
 
-void UIManager::OnMarkTreeBuilt([[maybe_unused]] const char* argument)
+void UIManager::OnSaveBuiltSpellTree(const char* argument)
 {
-    s_treeBuiltMark = true;
+    SaveSpellTreeFromPanel(argument, true);
 }
 
 void UIManager::RecordTreeLoadOrder()
@@ -256,11 +269,8 @@ void UIManager::OnAutoBuildEvent(const char* argument)
         logger::warn("AutoBuild: unreadable event from the panel");
         return;
     }
-    const auto event = SafeJsonValue<std::string>(data, "event", "").substr(0, kEventDetailMax);
-    auto detail = SafeJsonValue<std::string>(data, "detail", "").substr(0, kEventDetailMax);
-    for (char& c : detail) {
-        if (c == '\r' || c == '\n') c = ' ';
-    }
+    const auto event = LogText(SafeJsonValue<std::string>(data, "event", ""));
+    const auto detail = LogText(SafeJsonValue<std::string>(data, "detail", ""));
     logger::info("AutoBuild: {} - {}", event, detail);
 
     // The corner message waits for the first save load (the main menu has none);

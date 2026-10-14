@@ -263,9 +263,9 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
     });
 }
 
-void UIManager::OnSaveSpellTree(const char* argument)
+void UIManager::SaveSpellTreeFromPanel(const char* argument, bool built)
 {
-    logger::info("UIManager: SaveSpellTree callback triggered");
+    logger::info("UIManager: SaveSpellTree callback triggered{}", built ? " (a build's Apply)" : "");
 
     if (!argument || strlen(argument) == 0) {
         logger::warn("UIManager: SaveSpellTree - no content to save");
@@ -273,7 +273,6 @@ void UIManager::OnSaveSpellTree(const char* argument)
     }
 
     std::string argStr(argument);
-    const bool built = TakeTreeBuiltMark();   // a build's Apply: its load order is recorded (UIManagerAutoBuild.cpp)
 
     AddTaskToGameThread("SaveSpellTree", [argStr, built]() {
         auto* instance = GetSingleton();

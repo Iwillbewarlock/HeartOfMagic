@@ -22,11 +22,15 @@
   if the build finishes in game, the game may pause briefly once or twice. Pressing Scan, Build, Apply or Clear
   yourself, or saving or importing a tree, takes over from it. A tree you already have is never rebuilt by
   itself: when your load order changed since it was built, the Scan tab says so, and the first time you load
-  a save with that load order a corner message does too (once per load order). The Scan tab is still there.
+  a save with that load order a corner message does too (once per load order; if you only start new games,
+  only the Scan tab says it until you load a save). Importing a tree keeps the load order the previous tree
+  was built under (the record is new in this version and only a build sets it). The Scan tab is still there.
   Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**.
 
 ### Fixed
 
+- **Build pressed while another build is still running** now waits for it and then builds with your settings,
+  instead of closing your progress window with the earlier build's result.
 - **An empty spell tree is no longer saved.** A build that could not place any spell used to save an empty tree
   over your file without a word; now nothing is saved and the builder's status line says so (as does the tree
   tab for an import or an edit-mode save of a tree without spells).

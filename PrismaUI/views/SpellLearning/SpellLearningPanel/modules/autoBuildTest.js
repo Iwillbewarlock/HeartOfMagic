@@ -216,7 +216,7 @@ var AutoBuildTest = {
             g.AutoBuildSetting.loaded = false;
             for (var i = 0; i < order.length; i++) {
                 if (order[i] === 'info') g.onStartupTreeInfo(JSON.stringify(info));
-                else if (order[i] === 'config') g.AutoBuildSetting.loadFrom({ autoBuild: setting });
+                else if (order[i] === 'config') { g.AutoBuildSetting.loadFrom({ autoBuild: setting }); A.noteConfigLoaded(); }
                 else if (order[i] === 'presets') A.notePresetsApplied();
                 if (i < order.length - 1) out['before' + i] = out.scans + out.events.length;
             }
@@ -263,7 +263,7 @@ var AutoBuildTest = {
             console: { log: function() {}, warn: function() {}, error: function() {} }
         }, function() {
             A._resetForTest();
-            g.AutoBuildSetting.loadFrom({});
+            g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
             A.notePresetsApplied();
             g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
             A.onSpellData();   // a scan with no spells yet: the run stops
@@ -271,7 +271,7 @@ var AutoBuildTest = {
 
             A._resetForTest();
             events.length = 0; calls.length = 0;
-            g.AutoBuildSetting.loadFrom({});
+            g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
             A.notePresetsApplied();
             g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
             g.state.lastSpellData = { spells: [{ formId: '0x01' }] };
@@ -315,7 +315,7 @@ var AutoBuildTest = {
                 calls = []; events = []; status = []; builtWith = null; appliedWith = null;
                 A._resetForTest();
                 if (saveFirst) A.onSaveGameLoaded();
-                g.AutoBuildSetting.loadFrom({});
+                g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded();
                 A.notePresetsApplied();
                 g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
             }
@@ -377,7 +377,7 @@ var AutoBuildTest = {
                 tgc.applyTree({ auto: true, isCurrent: function() { return false; }, onSaved: function() { saved++; } });
                 self.check(calls.length === 0 && saved === 0, 'a stale automatic Apply neither saves nor loads the tree');
                 tgc.applyTree({ auto: true, isCurrent: function() { return true; }, onSaved: function() { saved++; } });
-                self.check(calls.join(',') === 'MarkTreeBuilt,SaveSpellTree,load' && saved === 1, 'a current automatic Apply marks the tree built, saves and loads');
+                self.check(calls.join(',') === 'SaveBuiltSpellTree,load' && saved === 1, 'a current automatic Apply saves as a build and loads');
             } finally {
                 tgc._treeData = oldTree;
                 tgc._layoutData = oldLayout;

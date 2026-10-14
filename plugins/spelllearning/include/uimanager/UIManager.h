@@ -110,8 +110,6 @@ public:
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
     // SaveSpellTree's text has spells: the check's time in ms, nothing (logged) when it has none
     [[nodiscard]] static std::optional<long long> CheckTreeHasSpells(const std::string& treeText);
-    // The panel marked the next SaveSpellTree as a build's Apply (MarkTreeBuilt): taken once
-    [[nodiscard]] static bool TakeTreeBuiltMark() noexcept;
 
     // Get the PrismaUI API (for SpellScanner to use)
     //PRISMA_UI_API::IVPrismaUI1* GetAPI() const { return m_prismaUI; }
@@ -159,6 +157,10 @@ private:
     static void OnGetSpellInfoBatch(const char* argument);
     static void OnGetSpellIcon(const char* argument);
     static void OnSaveSpellTree(const char* argument);
+    // A build's Apply (UIManagerAutoBuild.cpp): the same save, and the load order it was built under recorded
+    static void OnSaveBuiltSpellTree(const char* argument);
+    // Both saves (UIManagerTree.cpp); built: record the load order (spell_tree_loadorder.json)
+    static void SaveSpellTreeFromPanel(const char* argument, bool built);
     
     // Progression callbacks
     static void OnSetLearningTarget(const char* argument);
@@ -184,8 +186,6 @@ private:
     static void OnLogMessage(const char* argument);
     // The build at game start's steps, always logged; "notice" queues the corner message
     static void OnAutoBuildEvent(const char* argument);
-    // The next SaveSpellTree is a build's Apply: its load order is recorded
-    static void OnMarkTreeBuilt(const char* argument);
 
     // Procedural tree generation (C++ native)
     static void OnProceduralTreeGenerate(const char* argument);

@@ -10,9 +10,10 @@
  * file without a word.
  *
  * A save that is not the build at game start's own ends that run first
- * (AutoBuild.yieldTo). A save from a build (BUILT_SOURCES) is marked first
- * (MarkTreeBuilt), so the plugin records the load order the tree was built
- * under; an edit, an import or a repair leaves that record as it is.
+ * (AutoBuild.yieldTo). A save from a build (BUILT_SOURCES) goes to
+ * SaveBuiltSpellTree, which also records the load order the tree was built
+ * under; an edit, an import or a repair goes to SaveSpellTree and leaves that
+ * record as it is.
  *
  * Usage:
  *   SpellTreeSave.countSpellNodes(tree)        // spells over all schools
@@ -65,8 +66,8 @@ var SpellTreeSave = {
             console.warn('[SpellTreeSave] ' + source + ': no C++ bridge - not saved');
             return false;
         }
-        if (this.BUILT_SOURCES.indexOf(source) !== -1) window.callCpp('MarkTreeBuilt', '');
-        window.callCpp('SaveSpellTree', treeJson !== undefined ? treeJson : JSON.stringify(tree));
+        var listener = this.BUILT_SOURCES.indexOf(source) !== -1 ? 'SaveBuiltSpellTree' : 'SaveSpellTree';
+        window.callCpp(listener, treeJson !== undefined ? treeJson : JSON.stringify(tree));
         return true;
     }
 };

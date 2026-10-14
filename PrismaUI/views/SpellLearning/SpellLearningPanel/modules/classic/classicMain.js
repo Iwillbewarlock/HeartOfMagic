@@ -290,8 +290,7 @@ var TreeGrowthClassic = {
      * @returns {boolean} whether a build started
      */
     buildTree: function (options) {
-        // The player's build wins over the one at game start (autoBuild.js)
-        if (!(options && options.auto) && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('build');
+        var auto = !!(options && options.auto);
         var spellData = (typeof state !== 'undefined' && state.lastSpellData)
             ? state.lastSpellData
             : null;
@@ -300,6 +299,9 @@ var TreeGrowthClassic = {
             ClassicSettings.setStatusText(t('buildProgress.statusNoSpells'), 'error', 'buildProgress.statusNoSpells');
             return false;
         }
+        // The build at game start never waits behind another build; the player's wins over it (autoBuild.js)
+        if (auto && state._classicGrowthBuildPending) return false;
+        if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('build');
 
         // Reset _treeBuilt so setTreeBuilt(true) sees wasBuilt=false and PRM runs
         if (typeof TreeGrowth !== 'undefined') {
@@ -316,10 +318,18 @@ var TreeGrowthClassic = {
         ClassicSettings.setStatusText(t('buildProgress.statusBuilding'), 'working', 'buildProgress.statusBuilding');
         if (typeof TreeGrowth !== 'undefined') TreeGrowth.setBuilding(true);
 
-        // Set pending flag so onProceduralTreeComplete routes result here
-        if (typeof state !== 'undefined') {
-            state._classicGrowthBuildPending = true;
+        // C++ still builds an earlier request (the one at game start, or a second click):
+        // it would turn this one away as busy and its result would close this modal as
+        // if it were this build's. This one goes out when that result comes back, and
+        // that result is dropped (onProceduralTreeComplete).
+        if (state._classicGrowthBuildPending) {
+            state._classicGrowthBuildQueued = function () { ClassicBuildRequest.send(spellData); };
+            console.log('[ClassicGrowth] A build is still running in C++ - this one goes out when it is done');
+            return true;
         }
+
+        // Set pending flag so onProceduralTreeComplete routes result here
+        state._classicGrowthBuildPending = true;
 
         ClassicBuildRequest.send(spellData);
         return true;
@@ -394,8 +404,8 @@ var TreeGrowthClassic = {
      */
     applyTree: function (options) {
         var auto = !!(options && options.auto);
-        if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('apply');
         if (!this._treeData) return false;
+        if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('apply');
 
         // Get base data for mode and root directions
         var baseData = null;
@@ -474,7 +484,8 @@ var TreeGrowthClassic = {
      * Discard the current tree data and clear the preview.
      */
     clearTree: function () {
-        if (typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('clear');
+        // Clearing a built tree ends the build at game start (nothing to clear: it goes on)
+        if (this._treeData && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('clear');
         this._treeData = null;
         this._layoutData = null;
 

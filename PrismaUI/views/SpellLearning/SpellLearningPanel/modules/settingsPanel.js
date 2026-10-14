@@ -1023,7 +1023,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
     try {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         if (!data) return;
-        // First: a throw further down must not keep the build at game start waiting (autoBuild.js)
+        // First: a throw further down must not lose the player's choice; the build at game
+        // start hears of it in the finally below, after the saved fields are in (autoBuild.js)
         if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.loadFrom(data);
 
         // === Panel Settings ===
@@ -1483,6 +1484,11 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         
     } catch (e) {
         console.error('[SpellLearning] Failed to parse unified config:', e);
+    } finally {
+        // Only now may the build at game start scan: with the saved fields (autoBuild.js)
+        if (typeof AutoBuild !== 'undefined' && typeof AutoBuildSetting !== 'undefined' && AutoBuildSetting.loaded) {
+            AutoBuild.noteConfigLoaded();
+        }
     }
 };
 
