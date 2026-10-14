@@ -347,6 +347,7 @@ var CanvasRenderer = {
         var animationThrottleMs = self.ANIMATION_FRAME_MS;
         
         function loop(timestamp) {
+            self._loopFrame = (self._loopFrame || 0) + 1;   // the frame centerView's home view waits for
             if (typeof PerfMeter !== 'undefined') PerfMeter.tick();
             var shouldRender = self._needsRender;
             
@@ -496,8 +497,10 @@ var CanvasRenderer = {
         this.panY = 0;
         this.zoom = (typeof TreeNav !== 'undefined' && TreeNav.HOME_ZOOM) || 0.75;
         this.rotation = 0;
-        // Fitted into the part no panel covers on the first frame the tree shows (TreeCamera.settleHome)
+        // Fitted into the part no panel covers on the first frame the tree shows (TreeCamera.settleHome);
+        // a loop frame, not a forceRender in the same task, which runs before the details panel is laid out
         this._homePending = true;
+        this._homeAskedAt = this._loopFrame || 0;
         this._needsRender = true;
         
         this.showZoom(this.zoom);

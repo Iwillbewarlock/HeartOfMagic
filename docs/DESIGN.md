@@ -230,7 +230,12 @@ titles were under the bar. Now `TreeCamera.homeTarget` fits the tree into the pa
   click-to-focus and Home agree.
 - `fitTarget` fits the shown schools' spells and the heart (`treeBounds`, rotation 0) into that rect with
   `HOME_PAD` (24 px) round them, centred on the box, never closer than `TreeNav.HOME_ZOOM` (0.75, the old
-  home zoom) - a small tree looks as before, a big one opens further out. Designs with chapter titles
+  home zoom) and no further out than `TreeNav.HOME_MIN_ZOOM` (0.5). A tree that only fits below 0.5 opens
+  at 0.5 with the heart (the globe) in the middle of the visible rect: 0.5 is `CanvasRenderer.LABEL_MIN_ZOOM`
+  (no names under it) and inside the full level of detail (`_computeLODTier`: 0.45 and up; 0.25-0.45 simpler,
+  under 0.25 no spokes and spells as dots). A real 1,419-spell tree (about +-2,300 world units) would fit
+  only at 0.11-0.14 in the 1600x1000 harness, an almost empty star field; the 753-spell mock fits at
+  0.55-0.66 and is shown whole. Designs with chapter titles
   fit them with the tree: at each zoom tried, `TreeStyle.chapterBoxes` gives the boxes the titles would be
   drawn in (no pan, rotation 0, nothing culled), and width and height are fitted apart - a side title
   takes room across, a top or bottom title room down, each only its own box. The titles are screen-sized
@@ -242,10 +247,14 @@ titles were under the bar. Now `TreeCamera.homeTarget` fits the tree into the pa
 - `CanvasRenderer.centerView` (a tree loaded) sets the old view and `_homePending`; the first frame that
   has the tree on screen fits it (`TreeCamera.settleHome`, at the top of `render` before anything reads
   the view), so a tree built on the Scan page fits when its tab is opened. A view asked for before that
-  frame (`animateTo`, an instant focus) wins. Home animates to `homeTarget`.
+  frame (`animateTo`, an instant focus) wins. Home animates to `homeTarget`. Only a render-loop frame
+  settles it (`_loopFrame` counts them; `centerView` notes it in `_homeAskedAt`): the loads call
+  `forceRender` in the same task, before `DetailsPeek.applyLayout` has opened the bar, and that frame is
+  skipped (`_needsRender` stays set) rather than drawn at a view about to change.
+- `animateTo` times its glide with `performance.now()` (the start's clock) and keeps t in 0..1: with the
+  frame's timestamp a first step dated before the start gave t < 0, and the ease threw the zoom far out.
 
-The bar is not shrunk or collapsed (a bar that grew on hover would move the tree under the cursor). A big
-tree's home zoom can fall under 0.45, the simpler level of detail, as zooming out by hand does. Tests:
+The bar is not shrunk or collapsed (a bar that grew on hover would move the tree under the cursor). Tests:
 `homeViewTest.js`.
 
 **Chapter titles clear the outer ring** (`TreeStyle._chapterPlaces`). A title used to sit 40 px past its own

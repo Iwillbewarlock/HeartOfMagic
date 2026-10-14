@@ -210,6 +210,26 @@ var HomeViewTest = {
         this.check(real.zoom > uniform + 0.01, 'homeTarget: closer than with the widest title\'s room kept on every side (' +
             real.zoom.toFixed(3) + ' > ' + uniform.toFixed(3) + ')');
 
+        // A real-size tree (1,419 spells over about +-2,300 world units): fitting it whole needs ~0.12, under the
+        // simpler levels of detail; it opens at the floor with the heart in the middle of the part above the bar
+        var big2300 = [];
+        for (var k = 0; k < 360; k += 3) {
+            var ba = k * Math.PI / 180;
+            big2300.push({ school: 'A', x: Math.cos(ba) * 2300, y: Math.sin(ba) * 2300 }, { school: 'B', x: Math.cos(ba) * 300, y: Math.sin(ba) * 300 });
+        }
+        var bigBox = this._camera({ 'details-panel': bar200 }, { state: { treeData: { globe: { x: 40, y: -20 } } } });
+        var bigR = this._renderer(this._rect(0, 0, 1000, 800), big2300);
+        bigBox.CanvasRenderer = bigR;
+        var unfloored = bigBox.TreeCamera.homeTarget(bigR, 0.75);
+        var floored = bigBox.TreeCamera.homeTarget(bigR, 0.75, 0.5);
+        this.check(unfloored.zoom < 0.2, 'a real-size tree fits whole only far out (' + unfloored.zoom.toFixed(3) + ')');
+        this.check(floored.zoom === 0.5 && near(40 * 0.5 + floored.panX + 500, 500) && near(-20 * 0.5 + floored.panY + 400, 300),
+            'homeTarget: below the floor it opens at the floor, the heart in the middle of the part above the bar');
+        var smallFloored = box.TreeCamera.homeTarget(r, 0.75, 0.5);
+        this.check(Math.abs(smallFloored.zoom - real.zoom) < 1e-9 && smallFloored.zoom >= 0.5, 'homeTarget: a tree that fits above the floor still fits whole');
+        bigBox.TreeNav = { HOME_ZOOM: 0.75, HOME_MIN_ZOOM: 0.5 };
+        this.check(bigBox.TreeCamera.settleHome(bigR) && bigR.zoom === 0.5, 'settleHome: the first view uses TreeNav\'s floor');
+
         var pendingBox = this._camera({ 'details-panel': bar200 });
         var hiddenR = this._renderer(this._rect(0, 0, 0, 0), nodes);
         pendingBox.CanvasRenderer = hiddenR;
