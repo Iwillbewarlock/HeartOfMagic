@@ -424,6 +424,11 @@ AutoBuildGuardTest._testRunEnds = function(g) {
                 } else {
                     self.check((!c[0] || revealed) && failedOnce && !g.BuildProgress.isActive(), label + ': the progress is closed');
                 }
+                if (c[1] === 'fail') {
+                    // updateScanStatus and the builder line (ClassicSettings) both record their key in out.status
+                    self.check(out.status.filter(function(k) { return k === 'status.autoBuildFailed'; }).length === 2,
+                        label + ': the builder line says it failed too (not "Building tree...")');
+                }
                 self.check(g.state._classicGrowthBuildPending && typeof g.state._classicGrowthBuildQueued === 'function',
                     label + ': the build still in C++ is marked to be dropped');
                 g.onProceduralTreeComplete(JSON.stringify({ success: true, treeData: { tag: 'late', schools: {} } }));

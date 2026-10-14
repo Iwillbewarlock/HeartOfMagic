@@ -318,6 +318,10 @@ var AutoBuild = {
         var english = 'Automatic tree build failed: {{error}}. Scan and build here instead.';
         var text = typeof tOr === 'function' ? tOr('status.autoBuildFailed', params, english) : english.replace('{{error}}', function() { return reason; });
         if (typeof updateScanStatus === 'function') updateScanStatus(text, 'error', 'status.autoBuildFailed', params);
+        // The builder line still says "Building tree..." (a failed build set its own line already)
+        if (this._run.stage === 'build' && !fromProgress && typeof ClassicSettings !== 'undefined' && ClassicSettings.setStatusText) {
+            ClassicSettings.setStatusText(text, 'error', 'status.autoBuildFailed', params);
+        }
         this._end(fromProgress ? this.PROGRESS_KEEP : text);
     },
 
