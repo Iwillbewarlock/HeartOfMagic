@@ -378,10 +378,9 @@ function importTreeFromModal() {
     // Step 3: Load the validated tree
     loadTreeData(data, true, true);
     hideImportModal();
-    setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
 
-    // Save to file via C++ (not a tree without spells: SpellTreeSave)
-    SpellTreeSave.send(data, 'import');
+    // Save to file via C++; a tree without spells is refused and the status line says so (SpellTreeSave)
+    if (SpellTreeSave.send(data, 'import')) setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
 }
 
 /**

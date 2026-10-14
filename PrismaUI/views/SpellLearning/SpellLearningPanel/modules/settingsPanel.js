@@ -1023,7 +1023,9 @@ window.onUnifiedConfigLoaded = function(dataStr) {
     try {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         if (!data) return;
-        
+        // First: a throw further down must not keep the build at game start waiting (autoBuild.js)
+        if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.loadFrom(data);
+
         // === Panel Settings ===
         // Hotkey (0 = None, panelOpenSetting.js)
         if (typeof PanelOpenSetting !== 'undefined') PanelOpenSetting.loadFrom(data);
@@ -1044,7 +1046,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         if (typeof DesignEffectsSetting !== 'undefined') DesignEffectsSetting.loadFrom(data);
         if (typeof RenderSettings !== 'undefined') RenderSettings.loadFrom(data);
         if (typeof TreeBuilderSetting !== 'undefined') TreeBuilderSetting.loadFrom(data);
-        if (typeof AutoBuildSetting !== 'undefined') AutoBuildSetting.loadFrom(data);
         // One design sets the UI theme too (DesignPresets); older configs are carried over
         settings.designPreset = DesignPresets.savedChoice(data);
         DesignPresets.apply(settings.designPreset);

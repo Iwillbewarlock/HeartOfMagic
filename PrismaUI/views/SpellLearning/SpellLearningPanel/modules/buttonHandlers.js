@@ -26,6 +26,8 @@
 
 function onScanClick() {
     console.log('[SpellLearning] Scan button clicked');
+    // The player's scan wins over the build at game start (autoBuild.js)
+    if (typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
     startScan();
 }
 

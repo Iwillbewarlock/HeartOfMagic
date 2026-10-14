@@ -73,6 +73,9 @@ var BuildProgress = (function() {
             clearTimeout(_autoCloseTimer);
             _autoCloseTimer = null;
         }
+        // A silent build still going hears that it was replaced, before its callbacks are dropped
+        var superseded = _takeCallback('fail');
+        if (superseded) superseded('superseded by another build');
         _active = true;
         _hasPRM = hasPRM;
         _currentStage = null;

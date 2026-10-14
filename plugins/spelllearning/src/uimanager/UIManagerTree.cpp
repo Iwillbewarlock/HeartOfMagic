@@ -273,8 +273,9 @@ void UIManager::OnSaveSpellTree(const char* argument)
     }
 
     std::string argStr(argument);
+    const bool built = TakeTreeBuiltMark();   // a build's Apply: its load order is recorded (UIManagerAutoBuild.cpp)
 
-    AddTaskToGameThread("SaveSpellTree", [argStr]() {
+    AddTaskToGameThread("SaveSpellTree", [argStr, built]() {
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;
 
@@ -293,14 +294,14 @@ void UIManager::OnSaveSpellTree(const char* argument)
         std::error_code existsError;
         if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
             logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
-            instance->RecordTreeLoadOrder();
+            if (built) instance->RecordTreeLoadOrder();
             instance->UpdateTreeStatus("Tree saved");
             return;
         }
 
         // Never a tree without spells over the player's file (the panel's SpellTreeSave refuses one too)
-        if (UIManager::CountTreeNodes(nlohmann::json::parse(argStr, nullptr, false)) == 0) {
-            logger::error("UIManager: SaveSpellTree - the tree has no spells (or is not JSON); spell_tree.json left as it was");
+        const auto checkMs = CheckTreeHasSpells(argStr);
+        if (!checkMs) {
             instance->UpdateTreeStatus("Save failed");
             return;
         }
@@ -311,8 +312,8 @@ void UIManager::OnSaveSpellTree(const char* argument)
             // a crash partway through lost it with nothing to fall back on.
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
-                logger::info("UIManager: Saved spell tree to {}", PathText::Utf8(treePath));
-                instance->RecordTreeLoadOrder();
+                logger::info("UIManager: Saved spell tree to {} (spell check {} ms)", PathText::Utf8(treePath), *checkMs);
+                if (built) instance->RecordTreeLoadOrder();
                 instance->UpdateTreeStatus("Tree saved");
             } else {
                 instance->UpdateTreeStatus("Save failed");

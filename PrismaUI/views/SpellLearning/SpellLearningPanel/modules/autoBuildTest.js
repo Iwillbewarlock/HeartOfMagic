@@ -336,7 +336,7 @@ var AutoBuildTest = {
             self.check(calls.join(',') === 'scan' && A.isRunning(), 'decided after a save load with no tree: build');
 
             begin(false);
-            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // LoadSpellTree again (panel opened in game)
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });   // LoadSpellTree again (Load Saved Tree, or a view reload)
             A.onSpellData();
             g.onStartupTreeInfo({ tree: 'present', nodes: 5, loadOrder: 'aa', builtLoadOrder: 'aa' });
             self.check(calls.join(',') === 'scan,build' && events.filter(function(e) { return e === 'decided'; }).length === 1,
@@ -377,7 +377,7 @@ var AutoBuildTest = {
                 tgc.applyTree({ auto: true, isCurrent: function() { return false; }, onSaved: function() { saved++; } });
                 self.check(calls.length === 0 && saved === 0, 'a stale automatic Apply neither saves nor loads the tree');
                 tgc.applyTree({ auto: true, isCurrent: function() { return true; }, onSaved: function() { saved++; } });
-                self.check(calls.join(',') === 'SaveSpellTree,load' && saved === 1, 'a current automatic Apply saves and loads');
+                self.check(calls.join(',') === 'MarkTreeBuilt,SaveSpellTree,load' && saved === 1, 'a current automatic Apply marks the tree built, saves and loads');
             } finally {
                 tgc._treeData = oldTree;
                 tgc._layoutData = oldLayout;

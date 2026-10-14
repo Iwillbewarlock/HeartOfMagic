@@ -108,6 +108,7 @@ loadModule('gateReviewTest', './modules/gateReviewTest.js');
 loadModule('i18nRelabelTest', './modules/i18nRelabelTest.js');
 loadModule('stableIdsTest', './modules/stableIdsTest.js');
 loadModule('autoBuildTest', './modules/autoBuildTest.js');
+loadModule('autoBuildFlowTest', './modules/autoBuildFlowTest.js');
 
 // Mock WheelRenderer minimally
 global.WheelRenderer = {

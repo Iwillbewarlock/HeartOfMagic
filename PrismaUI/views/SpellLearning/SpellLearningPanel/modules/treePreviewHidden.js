@@ -16,8 +16,8 @@
  * outer points reach to 3x the canvas diagonal (treePreviewSun.js maxExtent),
  * so a build at another canvas size can place far spells a little differently.
  * The Sun mode keeps the points of its first render for the session (its cache
- * key leaves the size out), as it did before: after a build at game start a
- * later build in that session uses this size's points too.
+ * key leaves the size out), so ensure() drops that cache once it has the output:
+ * the preview's first frame on screen works the points out at its own size.
  *
  * Depends on: treePreview.js (TreePreview, its modes and schoolData)
  */
@@ -64,6 +64,10 @@ var TreePreviewHidden = {
         var h = preview._height > 0 ? preview._height : this.FALLBACK_SIZE;
         mode.render(this.nullContext(), w, h, preview.schoolData || {});
         out = preview.getOutput();
+        if ('_gridPointCache' in mode) {
+            mode._gridPointCache = null;
+            mode._gridPointCacheKey = '';
+        }
         console.log('[TreePreviewHidden] Preview data worked out off screen (' + w + 'x' + h + '): ' +
             (out ? out.rootNodes.length + ' roots, ' + out.gridPoints.length + ' grid points' : 'none'));
         return out;

@@ -290,6 +290,8 @@ var TreeGrowthClassic = {
      * @returns {boolean} whether a build started
      */
     buildTree: function (options) {
+        // The player's build wins over the one at game start (autoBuild.js)
+        if (!(options && options.auto) && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('build');
         var spellData = (typeof state !== 'undefined' && state.lastSpellData)
             ? state.lastSpellData
             : null;
@@ -391,8 +393,9 @@ var TreeGrowthClassic = {
      * @returns {boolean} false when nothing was sent to be saved
      */
     applyTree: function (options) {
-        if (!this._treeData) return false;
         var auto = !!(options && options.auto);
+        if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('apply');
+        if (!this._treeData) return false;
 
         // Get base data for mode and root directions
         var baseData = null;
@@ -471,6 +474,7 @@ var TreeGrowthClassic = {
      * Discard the current tree data and clear the preview.
      */
     clearTree: function () {
+        if (typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('clear');
         this._treeData = null;
         this._layoutData = null;
 

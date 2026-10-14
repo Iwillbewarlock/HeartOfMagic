@@ -455,8 +455,6 @@ void OnNewGame()
     // Fix input lock if UI was open in main menu
     if (UIManager::GetSingleton()->IsInitialized()) {
         UIManager::GetSingleton()->EnsureFocusReleased();
-        // A load order notice the panel asked for at the main menu
-        UIManager::GetSingleton()->ShowPendingLoadOrderNotice();
     }
 
     // Reset passive learning timer

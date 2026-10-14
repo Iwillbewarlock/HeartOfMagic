@@ -7,6 +7,8 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <format>
 #include <fstream>
@@ -22,15 +24,20 @@
 // keeps the one record it needs across game starts:
 //
 //   spell_tree_loadorder.json, beside spell_tree.json
-//     { "version": 1, "loadOrder": "<fingerprint the tree was saved under>",
+//     { "version": 1, "loadOrder": "<fingerprint the tree was built under>",
 //       "plugins": n, "spells": n, "noticedLoadOrder": "<fingerprint the player was told about>" }
 //
 // The fingerprint is FNV-1a 64 over the loaded plugin file names in load order
 // (full plugins, then light ones) and the number of SpellItem forms: the same
 // for the same load order on every start, different when a plugin is added,
-// removed or moved. Written whenever SaveSpellTree saves (a build's Apply, an
-// edit mode save, an import); a tree saved before 1.4.1 has no record and
-// gets no notice until its next save.
+// removed or moved, or a mod update adds spells under the same file name.
+// Limit: the count is taken when first asked for (LoadSpellTree at the main
+// menu, normally); a mod that creates SpellItems at run time before that can
+// change it on its own and give a notice for a load order that did not change.
+// Written when SaveSpellTree saves a build's Apply (manual or the one at game
+// start, marked by MarkTreeBuilt); an edit mode save, an import or an orphan
+// repair leaves the record as it is. A tree saved before 1.4.1 has no record
+// and gets no notice until it is built again.
 
 namespace
 {
@@ -40,6 +47,12 @@ namespace
     constexpr std::string_view kLightPluginsMark = "|light|\n";
     constexpr int kRecordVersion = 1;
     constexpr int kRecordIndent = 2;
+    constexpr std::size_t kEventDetailMax = 512;   // a panel event's detail in the log, at most
+
+    // MarkTreeBuilt, taken by the next SaveSpellTree (both JS listeners, one thread)
+    std::atomic<bool> s_treeBuiltMark{ false };
+    // The panel's "notice" is handled once per session
+    std::atomic<bool> s_noticeAsked{ false };
 
     struct LoadOrderFingerprint
     {
@@ -52,6 +65,8 @@ namespace
     {
         std::string loadOrder;
         std::string noticedLoadOrder;
+        std::size_t plugins = 0;   // of the load order the tree was built under
+        std::size_t spells = 0;
     };
 
     void HashBytes(std::uint64_t& hash, std::string_view bytes)
@@ -105,17 +120,18 @@ namespace
         }
         record.loadOrder = SafeJsonValue<std::string>(data, "loadOrder", "");
         record.noticedLoadOrder = SafeJsonValue<std::string>(data, "noticedLoadOrder", "");
+        record.plugins = SafeJsonValue<std::size_t>(data, "plugins", 0);
+        record.spells = SafeJsonValue<std::size_t>(data, "spells", 0);
         return record;
     }
 
     void WriteRecord(const TreeLoadOrderRecord& record)
     {
-        const auto& now = CurrentLoadOrder();
         nlohmann::json data;
         data["version"] = kRecordVersion;
         data["loadOrder"] = record.loadOrder;
-        data["plugins"] = now.plugins;
-        data["spells"] = now.spells;
+        data["plugins"] = record.plugins;
+        data["spells"] = record.spells;
         data["noticedLoadOrder"] = record.noticedLoadOrder;
         if (!FileUtils::WriteAtomically(UIManager::GetTreeLoadOrderFilePath(), JsonText::Dump(data, kRecordIndent), false)) {
             logger::warn("UIManager: could not write {}", PathText::Utf8(UIManager::GetTreeLoadOrderFilePath()));
@@ -161,7 +177,7 @@ void UIManager::SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCoun
         info["noticedLoadOrder"] = record.noticedLoadOrder;
 
         logger::info("UIManager: startup tree info - tree {} ({} spells), load order {} ({} plugins, {} spell forms), "
-                     "tree saved under {}",
+                     "tree built under {}",
             StateName(state), nodeCount, now.hash.empty() ? "unknown" : now.hash, now.plugins, now.spells,
             record.loadOrder.empty() ? "unknown" : record.loadOrder);
         CallView("onStartupTreeInfo", JsonText::Dump(info).c_str());
@@ -172,6 +188,29 @@ void UIManager::SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCoun
     }
 }
 
+std::optional<long long> UIManager::CheckTreeHasSpells(const std::string& treeText)
+{
+    const auto started = std::chrono::steady_clock::now();
+    const auto spells = CountTreeNodes(nlohmann::json::parse(treeText, nullptr, false));
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+    if (spells == 0) {
+        logger::error("UIManager: SaveSpellTree - the tree has no spells (or is not JSON); spell_tree.json left as it was "
+                      "(checked in {} ms)", ms);
+        return std::nullopt;
+    }
+    return ms;
+}
+
+bool UIManager::TakeTreeBuiltMark() noexcept
+{
+    return s_treeBuiltMark.exchange(false);
+}
+
+void UIManager::OnMarkTreeBuilt([[maybe_unused]] const char* argument)
+{
+    s_treeBuiltMark = true;
+}
+
 void UIManager::RecordTreeLoadOrder()
 {
     const auto& now = CurrentLoadOrder();
@@ -179,19 +218,33 @@ void UIManager::RecordTreeLoadOrder()
     auto record = ReadRecord();
     if (record.loadOrder == now.hash) return;
     record.loadOrder = now.hash;
+    record.plugins = now.plugins;
+    record.spells = now.spells;
     record.noticedLoadOrder.clear();   // the tree is this load order's now
     WriteRecord(record);
-    logger::info("UIManager: spell tree saved under load order {} ({} plugins, {} spell forms)",
+    logger::info("UIManager: spell tree built under load order {} ({} plugins, {} spell forms)",
         now.hash, now.plugins, now.spells);
 }
 
 void UIManager::ShowPendingLoadOrderNotice()
 {
-    if (!m_loadOrderNoticePending) return;
-    m_loadOrderNoticePending = false;
-    HudNotify::Show("hud.loadOrderChanged",
-        "Heart of Magic: your load order changed since the spell tree was built. Rebuild it on the Scan tab to add new spells.");
-    logger::info("AutoBuild: load order notice shown");
+    if (m_pendingLoadOrderNotice.empty()) return;
+    const std::string loadOrder = std::move(m_pendingLoadOrderNotice);
+    m_pendingLoadOrderNotice.clear();
+    auto record = ReadRecord();
+    if (record.loadOrder.empty() || record.loadOrder == loadOrder) {
+        logger::info("AutoBuild: load order notice dropped - the tree was built under this load order since");
+        return;
+    }
+    if (!HudNotify::Show("hud.loadOrderChanged",
+            "The load order changed since the spell tree was built. Rebuild it on the Scan tab to include new spells.")) {
+        logger::info("AutoBuild: load order notice not shown - asked again at the next game start");
+        return;
+    }
+    // Told: not again for this load order (a build under it clears this)
+    record.noticedLoadOrder = loadOrder;
+    WriteRecord(record);
+    logger::info("AutoBuild: load order notice shown for {}", loadOrder);
 }
 
 void UIManager::OnAutoBuildEvent(const char* argument)
@@ -203,18 +256,21 @@ void UIManager::OnAutoBuildEvent(const char* argument)
         logger::warn("AutoBuild: unreadable event from the panel");
         return;
     }
-    const auto event = SafeJsonValue<std::string>(data, "event", "");
-    logger::info("AutoBuild: {} - {}", event, SafeJsonValue<std::string>(data, "detail", ""));
+    const auto event = SafeJsonValue<std::string>(data, "event", "").substr(0, kEventDetailMax);
+    auto detail = SafeJsonValue<std::string>(data, "detail", "").substr(0, kEventDetailMax);
+    for (char& c : detail) {
+        if (c == '\r' || c == '\n') c = ' ';
+    }
+    logger::info("AutoBuild: {} - {}", event, detail);
 
-    if (event == "notice") {
+    // The corner message waits for the first save load (the main menu has none);
+    // it is recorded as told only once it was shown (ShowPendingLoadOrderNotice)
+    if (event == "notice" && !s_noticeAsked.exchange(true)) {
         AddTaskToGameThread("AutoBuildNotice", []() {
             auto* instance = GetSingleton();
             const auto& now = CurrentLoadOrder();
             if (!instance || now.hash.empty()) return;
-            auto record = ReadRecord();
-            record.noticedLoadOrder = now.hash;
-            WriteRecord(record);
-            instance->m_loadOrderNoticePending = true;
+            instance->m_pendingLoadOrderNotice = now.hash;
         });
     }
 }

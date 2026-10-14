@@ -101,12 +101,17 @@ public:
     // The saved tree's state and the load order fingerprints to the panel
     // (onStartupTreeInfo), at the end of every LoadSpellTree
     void SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCount) noexcept;
-    // The load order spell_tree.json was just written under (spell_tree_loadorder.json)
+    // The load order spell_tree.json was just built and written under (spell_tree_loadorder.json)
     void RecordTreeLoadOrder();
-    // The load order notice the panel asked for, in the corner: kPostLoadGame / kNewGame
+    // The load order notice the panel asked for, in the corner, at kPostLoadGame;
+    // recorded as told only once it was shown
     void ShowPendingLoadOrderNotice();
     // Spells in a saved tree's JSON (every school's nodes), before any validation
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
+    // SaveSpellTree's text has spells: the check's time in ms, nothing (logged) when it has none
+    [[nodiscard]] static std::optional<long long> CheckTreeHasSpells(const std::string& treeText);
+    // The panel marked the next SaveSpellTree as a build's Apply (MarkTreeBuilt): taken once
+    [[nodiscard]] static bool TakeTreeBuiltMark() noexcept;
 
     // Get the PrismaUI API (for SpellScanner to use)
     //PRISMA_UI_API::IVPrismaUI1* GetAPI() const { return m_prismaUI; }
@@ -179,7 +184,9 @@ private:
     static void OnLogMessage(const char* argument);
     // The build at game start's steps, always logged; "notice" queues the corner message
     static void OnAutoBuildEvent(const char* argument);
-    
+    // The next SaveSpellTree is a build's Apply: its load order is recorded
+    static void OnMarkTreeBuilt(const char* argument);
+
     // Procedural tree generation (C++ native)
     static void OnProceduralTreeGenerate(const char* argument);
 
@@ -243,8 +250,8 @@ private:
     std::optional<std::string> m_queuedFullScan;
     std::optional<std::string> m_queuedTomeScan;
 
-    // The panel asked for the load order notice; shown at the next save load
-    // or new game (the main menu has no corner messages). Game thread only.
-    bool m_loadOrderNoticePending = false;
+    // The load order the panel asked to be told about; shown at the next save
+    // load (the main menu has no corner messages), then cleared. Game thread only.
+    std::string m_pendingLoadOrderNotice;
 
 };

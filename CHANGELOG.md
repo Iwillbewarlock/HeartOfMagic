@@ -18,16 +18,18 @@
   Risa or remove Risa.
 - **The spell tree builds itself on the first start.** With no saved tree, starting the game (at the main menu)
   scans your spells and builds the tree in the background with your active scanner preset - no need to open
-  the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it
-  (if you load very quickly, the scan may pause the game once, for about two seconds). A tree you already have is never rebuilt by itself: when your load order
-  changed since it was built, you get a notice once and can rebuild it on the Scan tab, which stays as it was.
+  the panel and press Scan and Build. Loading a save or starting a new game while it works does not stop it;
+  if the build finishes in game, the game may pause briefly once or twice. Pressing Scan, Build, Apply or Clear
+  yourself, or saving or importing a tree, takes over from it. A tree you already have is never rebuilt by
+  itself: when your load order changed since it was built, the Scan tab says so, and the first time you load
+  a save with that load order a corner message does too (once per load order). The Scan tab is still there.
   Settings > Hotkey > **Build Spell Tree at Start**: **When none** (default) or **Off**.
 
 ### Fixed
 
 - **An empty spell tree is no longer saved.** A build that could not place any spell used to save an empty tree
-  over your file without a word; now nothing is saved and the builder says so.
-
+  over your file without a word; now nothing is saved and the builder's status line says so (as does the tree
+  tab for an import or an edit-mode save of a tree without spells).
 - **The panel's corner shows the right version.** It said 1.2.0 since 1.3 (reported on the Nexus posts tab);
   it now reads the version from the plugin, as Papyrus `SpellLearning.GetVersion()` does (that one said 1.0.0).
 - **A plugin added in the middle of the load order no longer mixes up saved spells.** Your chosen tree roots

@@ -15,22 +15,30 @@
  * When it starts: once per game start, after all three of
  *   - onStartupTreeInfo (C++, at the end of LoadSpellTree): the tree file's
  *     state and the load order fingerprints (UIManagerAutoBuild.cpp),
- *   - the config (AutoBuildSetting.loadFrom -> noteConfigLoaded),
+ *   - the config (AutoBuildSetting.loadFrom -> noteConfigLoaded; after
+ *     WAIT_MS without it, the default "When none"),
  *   - the scanner presets applied (onPresetsLoaded -> notePresetsApplied; after
- *     PRESETS_WAIT_MS without them it goes on with what is set).
+ *     WAIT_MS without them it goes on with what is set).
  * That is at the main menu: onPrismaReady asks for all three. Only the first
- * onStartupTreeInfo counts: a later LoadSpellTree (the panel opened after a save
- * load) never starts a second run. spell_tree.json is one file for every save,
- * so a save load or a new game does not stop a run - scan, build and Apply go on
- * and save, and Apply's loadTreeData makes the tree live for the loaded save
- * (SetTreePrerequisites, then GetProgress / GetPlayerKnownSpells for its
- * progress). A decision made after a save has loaded still builds: the scan then
- * holds the game thread once, about 1.7 s, in game. A run ends only by finishing,
- * failing or RUN_TIMEOUT_MS; a step that comes back after that is dropped, and
- * an Apply still decluttering then does not save (applyTree's isCurrent).
+ * onStartupTreeInfo counts: a later LoadSpellTree (Load Saved Tree on the tree
+ * tab, or a second onPrismaReady if the view were reloaded) never starts a
+ * second run. spell_tree.json is one file for every save, so a save load does
+ * not stop a run (a new game is not sent to the panel at all) - scan, build and
+ * Apply go on and save, and Apply's loadTreeData makes the tree live for the
+ * loaded save (SetTreePrerequisites, then GetProgress / GetPlayerKnownSpells).
+ * A decision made after a save has loaded still builds; the scan and the build
+ * then run in game.
+ *
+ * The player wins: a Scan, Build, Apply or Clear on the Scan tab, or any tree
+ * save of theirs (Import, edit mode's Save Tree, orphan repair: SpellTreeSave),
+ * ends a run first (yieldTo), without a failure on the status line. A run also
+ * ends by finishing, failing or RUN_TIMEOUT_MS; a step that comes back after
+ * that is dropped (_current), and an Apply still decluttering then does not
+ * save (applyTree's isCurrent).
  *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
- * (C++ AutoBuildEvent, written whatever the developer mode).
+ * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
+ * decided, scan, build, apply, done, failed, yielded, save loaded, notice.
  *
  * Depends on: autoBuildSetting.js (AutoBuildSetting), buttonHandlers.js (startScan),
  *   treePreviewHidden.js (TreePreviewHidden), classic/classicMain.js
@@ -49,7 +57,7 @@ var AutoBuild = {
     TREE_EMPTY: 'empty',
     TREE_PRESENT: 'present',
 
-    PRESETS_WAIT_MS: 15000,   // scanner presets not in by then: go on with what is set
+    WAIT_MS: 15000,           // config or scanner presets not in by then: go on without them
     RUN_TIMEOUT_MS: 600000,   // a run not done by then is dropped (scan + tome pass wait + build + locks + save)
 
     _info: null,
@@ -57,7 +65,7 @@ var AutoBuild = {
     _presetsReady: false,
     _decided: false,
     _saveLoaded: false,
-    _presetsTimer: null,
+    _waitTimers: [],
     _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt }
     _runTimer: null,
 
@@ -77,7 +85,7 @@ var AutoBuild = {
         if (!info || typeof info !== 'object') return this._result(this.NONE, 'nothing known about the saved tree');
         if (info.tree === this.TREE_MISSING || info.tree === this.TREE_EMPTY) {
             return this._result(this.BUILD, (info.tree === this.TREE_MISSING ? 'no saved tree' : 'the saved tree has no spells') +
-                (saveLoaded ? ', a save is loaded already - the scan holds the game once' : ''));
+                (saveLoaded ? ', a save is loaded already - the scan and build run in game' : ''));
         }
         if (info.tree !== this.TREE_PRESENT) return this._result(this.NONE, 'the saved tree could not be read - left alone');
         var now = typeof info.loadOrder === 'string' ? info.loadOrder : '';
@@ -100,17 +108,21 @@ var AutoBuild = {
     onStartupTreeInfo: function(info) {
         if (this._info) return;
         this._info = info || {};
-        var self = this;
-        if (!this._presetsReady && !this._presetsTimer) {
-            this._presetsTimer = setTimeout(function() {
-                self._presetsTimer = null;
-                if (self._presetsReady) return;
-                self._report('presets', 'scanner presets not loaded after ' + self.PRESETS_WAIT_MS + ' ms - going on with the current settings');
-                self._presetsReady = true;
-                self._maybeDecide();
-            }, this.PRESETS_WAIT_MS);
-        }
+        this._waitFor('_configReady', 'config', 'config not loaded after ' + this.WAIT_MS + ' ms - using the default');
+        this._waitFor('_presetsReady', 'presets', 'scanner presets not loaded after ' + this.WAIT_MS + ' ms - going on with the current settings');
         this._maybeDecide();
+    },
+
+    /** After WAIT_MS without `flag`, report it and decide without it. */
+    _waitFor: function(flag, event, detail) {
+        if (this[flag]) return;
+        var self = this;
+        this._waitTimers.push(setTimeout(function() {
+            if (self[flag]) return;
+            self._report(event, detail);
+            self[flag] = true;
+            self._maybeDecide();
+        }, this.WAIT_MS));
     },
 
     noteConfigLoaded: function() {
@@ -120,19 +132,15 @@ var AutoBuild = {
 
     notePresetsApplied: function() {
         this._presetsReady = true;
-        if (this._presetsTimer) {
-            clearTimeout(this._presetsTimer);
-            this._presetsTimer = null;
-        }
         this._maybeDecide();
     },
 
     onSaveGameLoaded: function() {
         this._saveLoaded = true;
-        if (this._run) this._report('save loaded', 'during the ' + this._run.stage + ' step - the run goes on');
+        this._report('save loaded', this._run ? 'during the ' + this._run.stage + ' step - the run goes on' : 'no run under way');
     },
 
-    /** The run is still the one going (not finished, failed or timed out). */
+    /** The run is still the one going (not finished, failed, yielded or timed out). */
     _current: function(run) {
         return !!run && this._run === run;
     },
@@ -140,10 +148,16 @@ var AutoBuild = {
     _maybeDecide: function() {
         if (this._decided || !this._info || !this._configReady || !this._presetsReady) return;
         this._decided = true;
+        this._clearWaits();
         var d = this.decide(AutoBuildSetting.value(), this._info, this._saveLoaded);
         this._report('decided', d.action + ' (' + d.reason + ')');
         if (d.action === this.BUILD) this._start();
         else if (d.action === this.NOTICE) this._notice();
+    },
+
+    _clearWaits: function() {
+        for (var i = 0; i < this._waitTimers.length; i++) clearTimeout(this._waitTimers[i]);
+        this._waitTimers = [];
     },
 
     // =========================================================================
@@ -152,6 +166,17 @@ var AutoBuild = {
 
     isRunning: function() {
         return this._run !== null;
+    },
+
+    /**
+     * The player did something to the tree themselves: a run under way ends now,
+     * quietly - what it would still do comes back to a run that is gone.
+     * @param {string} what - what the player did (for the log line)
+     */
+    yieldTo: function(what) {
+        if (!this._run) return;
+        this._report('yielded', what + ' (during the ' + this._run.stage + ' step)');
+        this._end();
     },
 
     _start: function() {
@@ -169,28 +194,33 @@ var AutoBuild = {
         startScan();
     },
 
-    /** updateSpellData finished (cppCallbacks.js): a scan came in. */
+    /** updateSpellData finished (cppCallbacks.js): a scan came in. Only a full scan moves the run on. */
     onSpellData: function() {
         var run = this._run;
         if (!this._current(run) || run.stage !== 'scan') return;
         var data = typeof state !== 'undefined' ? state.lastSpellData : null;
+        if (data && data.scanMode === 'spell_tomes') return;   // a tome scan: a filter list, not the tree's spells
         if (!data || !data.spells || data.spells.length === 0) {
             this._fail('the scan found no spells');
             return;
         }
         run.stage = 'build';
-        if (!TreePreviewHidden.ensure()) {
-            this._fail('no preview grid to place the spells on');
-            return;
-        }
-        this._report('build', data.spells.length + ' spells scanned - building');
         var self = this;
-        var started = TreeGrowthClassic.buildTree({
-            auto: true,
-            onComplete: function(summary) { if (self._current(run)) self._onBuilt(summary); },
-            onFail: function(error) { if (self._current(run)) self._fail('the build failed: ' + error); }
-        });
-        if (!started) this._fail('the build did not start');
+        try {
+            if (!TreePreviewHidden.ensure()) {
+                this._fail('no preview grid to place the spells on');
+                return;
+            }
+            this._report('build', data.spells.length + ' spells scanned - building');
+            var started = TreeGrowthClassic.buildTree({
+                auto: true,
+                onComplete: function(summary) { if (self._current(run)) self._onBuilt(summary); },
+                onFail: function(error) { if (self._current(run)) self._fail('the build failed: ' + error); }
+            });
+            if (!started) this._fail('the build did not start');
+        } catch (e) {
+            this._fail('the build could not start: ' + (e && e.message ? e.message : e));
+        }
     },
 
     /** onScanFailed (uiHelpers.js). */
@@ -244,8 +274,8 @@ var AutoBuild = {
                 'Load order changed since the tree was built. Scan and build here to rebuild it; the current tree keeps working.'),
                 '', 'status.loadOrderChanged');
         }
-        // The plugin keeps the corner message for the first save load (the main
-        // menu has no corner) and remembers that this load order was told
+        // The plugin shows the corner message at the first save load (the main
+        // menu has none) and only then records that this load order was told
         this._report('notice', 'load order ' + this._info.loadOrder + ', tree built for ' + this._info.builtLoadOrder);
     },
 
@@ -259,14 +289,13 @@ var AutoBuild = {
 
     /** Back to a fresh game start (tests). */
     _resetForTest: function() {
-        if (this._presetsTimer) clearTimeout(this._presetsTimer);
+        this._clearWaits();
         if (this._runTimer) clearTimeout(this._runTimer);
         this._info = null;
         this._configReady = false;
         this._presetsReady = false;
         this._decided = false;
         this._saveLoaded = false;
-        this._presetsTimer = null;
         this._run = null;
         this._runTimer = null;
     }
