@@ -1014,6 +1014,16 @@ Buttons, switches and chips are drawn about a fifth larger (`patch-ui.css`, "Big
 buttons 34px, switches 52x26 (small ones 42x22), button and chip text a step up. Sizes only, so every
 design keeps its colours, fonts and corners; none of the designs sets these sizes itself.
 
+**Readable dim text (1.4.1).** The presets row's label (*Presets*), its Save button and its chips (here
+and on the Scan page) were the Skyrim gold written out at 45% and 70% (2.2-2.5:1 and 3.2-4.6:1 against
+the five designs' backgrounds, measured in the desktop harness); the tree footer's legend was
+`--text-muted` (3.8-5.2:1) and its Locked swatch a half-transparent dark square with a 15% white edge.
+Now (`styles-skyrim.css`, the shared rules, so every design's own variables apply): the label in
+`--text-secondary` (6.4-8.0:1), Save in `--accent-gold` (6.8-9.8:1), the legend in `--text-secondary`
+(7.4-9.0:1) and the Locked swatch opaque with a `--text-muted` edge (dashed, from `patch-ui.css`). The
+chips take the same colours - not picked `--text-secondary`, picked `--accent-gold` with an edge in it,
+so picked and not picked stay apart (the harness has no presets, so the chips were not measured).
+
 ### Scrolling (2026-09-26)
 
 The game's browser scrolls a short way per wheel notch, so the settings page and long lists took many

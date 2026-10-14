@@ -42,6 +42,8 @@
 - **Changing the language changes everything at once.** The school tabs over the tree, the school list in the scan
   results, the school names in the Scan page's tree preview and the "Canvas" chip in the tree's tool bar used to stay
   in English until the next start. Korean lines now break between words, not inside them.
+- **Easier to read:** the Locked square and the words of the legend under the tree, and the presets row on the
+  Settings page (Presets, Save and the preset chips), in every design.
 
 ### Good to know
 
