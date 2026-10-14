@@ -1106,8 +1106,11 @@ window.onPlayerKnownSpells = function(dataStr) {
     }
 };
 
-window.onPrismaReady = function() {
+window.onPrismaReady = function(version) {
     console.log('[SpellLearning] Prisma connection established');
+    // The plugin's own version (index.html carries none, so a release cannot leave an old one there)
+    var versionTag = document.querySelector('.version-tag');
+    if (versionTag && version) versionTag.textContent = 'Librarian ' + version;
     // Only the game calls this, and the plugin creates the view hidden without
     // telling the page (onPanelHiding comes only after a first open and close).
     // Left "visible", the tree loaded below would start its render loop and the

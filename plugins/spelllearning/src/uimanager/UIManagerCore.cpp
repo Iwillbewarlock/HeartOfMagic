@@ -261,8 +261,8 @@ void UIManager::OnDomReady(PrismaView view)
 
     instance->m_prismaUI->Invoke(view, setupScript, nullptr);
 
-    // Notify JS that we're ready
-    instance->m_prismaUI->InteropCall(view, "onPrismaReady", "");
+    // Notify JS that we're ready; the argument is the version for the corner tag
+    instance->m_prismaUI->InteropCall(view, "onPrismaReady", PluginVersionText().c_str());
 }
 
 // =============================================================================

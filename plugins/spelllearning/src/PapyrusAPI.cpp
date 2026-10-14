@@ -11,7 +11,6 @@
 namespace PapyrusAPI
 {
     constexpr const char* SCRIPT_NAME = "SpellLearning";
-    constexpr const char* MOD_VERSION = "1.0.0";
 
     // A full-load-order scan takes a few seconds; the ceiling is only there so a
     // dropped game-thread task cannot hang the calling script forever.
@@ -96,7 +95,7 @@ namespace PapyrusAPI
 
     RE::BSFixedString GetVersion(RE::StaticFunctionTag*)
     {
-        return RE::BSFixedString(MOD_VERSION);
+        return RE::BSFixedString(PluginVersionText());
     }
 
     // =========================================================================

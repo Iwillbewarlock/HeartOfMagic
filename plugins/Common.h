@@ -92,3 +92,16 @@ inline void SetupLog(const char* extraLine = nullptr) noexcept
     } catch (...) {
     }
 }
+
+/// The plugin's version as major.minor.patch, from the declaration CMake builds
+/// out of VERSION - the panel's corner tag and Papyrus GetVersion show it, so
+/// neither carries a copy that a release can forget to bump.
+inline std::string PluginVersionText()
+{
+    const auto* declaration = SKSE::PluginDeclaration::GetSingleton();
+    if (!declaration) {
+        return {};
+    }
+    const auto version = declaration->GetVersion();
+    return std::format("{}.{}.{}", version.major(), version.minor(), version.patch());
+}
