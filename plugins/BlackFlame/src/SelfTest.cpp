@@ -4,6 +4,7 @@
 #include "SelfTestCtx.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
+#include "SelfTestWorld.h"
 
 #include <atomic>
 #include <chrono>
@@ -38,10 +39,16 @@ namespace BlackFlame::SelfTest
                    !ui->GameIsPaused();
         }
 
-        // Every exit except an abort for a load ends here (after the cleanup step, which
-        // dispelled the buff and deleted the actors)
-        void Finish()
+        // Every exit ends here. Except for an abort for a load (the world is being torn down, its
+        // handles must not be touched), the buff is dispelled and the actors deleted here too
+        // when the cleanup step did not get to it (a timeout or an exception inside it).
+        void Finish(bool a_forLoad = false)
         {
+            if (!a_forLoad && !g_ctx.cleanedUp) {
+                const int dispelled = SelfTestWorld::DispelStoke();
+                SelfTestLog::Info("CLEANUP", std::format("late cleanup: dispelled {} Stoke effect(s); target: {}; caster: {}",
+                    dispelled, SelfTestWorld::Remove(g_ctx.dummy), SelfTestWorld::Remove(g_ctx.caster)));
+            }
             SelfTestLog::Done();
             SelfTestProbe::SetRecording(false);
             SelfTestProbe::Clear();
@@ -59,9 +66,6 @@ namespace BlackFlame::SelfTest
             }
             if (g_ctx.greySeen) {
                 *g_ctx.greySeen += a_paused;
-            }
-            if (g_ctx.secondHitAt) {
-                *g_ctx.secondHitAt += a_paused;
             }
         }
 
@@ -96,6 +100,19 @@ namespace BlackFlame::SelfTest
             g_entered = false;
             if (++g_index >= steps.size()) {
                 Finish();
+            }
+        }
+
+        void OnStepException(const char* a_what)
+        {
+            SelfTestLog::Fail("ABORT", std::format("exception in step {}: {}", g_index, a_what));
+            if (!g_running) {
+                return;
+            }
+            if (g_index + 1 >= Steps().size()) {
+                Finish();  // the cleanup itself threw: Finish removes what is left
+            } else {
+                JumpToCleanup();
             }
         }
 
@@ -149,7 +166,7 @@ namespace BlackFlame::SelfTest
             // The world is being torn down: the old handles are not touched
             SelfTestLog::Fail("ABORT", std::format("{} - the test stopped; its actors and buff are left to the load",
                 a_reason));
-            Finish();
+            Finish(true);
             return;
         }
         if (g_armed) {
@@ -183,12 +200,9 @@ namespace BlackFlame::SelfTest
             }
             RunStep();
         } catch (const std::exception& e) {
-            SelfTestLog::Fail("ABORT", std::format("exception in step {}: {}", g_index, e.what()));
-            if (g_index + 1 >= Steps().size()) {
-                Finish();  // the cleanup itself threw
-            } else {
-                JumpToCleanup();
-            }
+            OnStepException(e.what());
+        } catch (...) {
+            OnStepException("unknown exception");
         }
     }
 

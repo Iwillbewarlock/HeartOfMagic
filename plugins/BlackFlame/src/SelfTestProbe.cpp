@@ -1,18 +1,15 @@
 #include "SelfTestProbe.h"
 
 #include "Palette.h"
+#include "ParticleColors.h"
 
 #include <atomic>
-#include <cstring>
 #include <mutex>
 
 namespace BlackFlame::SelfTestProbe
 {
     namespace
     {
-        // A BSPSysSimpleColorModifier's three RGBA colour keys at 0x30, by the layout
-        // ParticleColors.cpp assumes; read raw here so the self-test can judge that layout
-        constexpr std::size_t kModifierKeysOffset = 0x30;
         constexpr std::size_t kRgbaFloats = 4;
 
         std::atomic<bool> g_recording{ false };
@@ -22,33 +19,6 @@ namespace BlackFlame::SelfTestProbe
         std::vector<ExplosionRecord> g_explosions;
         std::vector<BurnRecord> g_burns;
 
-        RE::BSEffectShaderProperty* EffectPropertyOf(RE::NiAVObject* a_object)
-        {
-            if (auto* geometry = a_object->AsGeometry()) {
-                return netimmerse_cast<RE::BSEffectShaderProperty*>(geometry->GetGeometryRuntimeData().shaderProperty.get());
-            }
-            if (auto* legacy = netimmerse_cast<RE::NiGeometry*>(a_object)) {
-                auto& data = legacy->GetRuntimeData();
-                if (auto* prop = netimmerse_cast<RE::BSEffectShaderProperty*>(data.spEffectState.get())) {
-                    return prop;
-                }
-                return netimmerse_cast<RE::BSEffectShaderProperty*>(data.spPropertyState.get());
-            }
-            return nullptr;
-        }
-
-        template <class Visit>
-        void ForEachObject(RE::NiAVObject* a_root, Visit&& a_visit)
-        {
-            if (!a_root) {
-                return;
-            }
-            RE::BSVisit::TraverseScenegraphObjects(a_root, [&](RE::NiAVObject* a_object) {
-                a_visit(a_object);
-                return RE::BSVisit::BSVisitControl::kContinue;
-            });
-        }
-
         void AddProperty(RE::BSEffectShaderProperty* a_prop, Snapshot& a_out)
         {
             a_out.properties.push_back(reinterpret_cast<std::uintptr_t>(a_prop));
@@ -56,28 +26,24 @@ namespace BlackFlame::SelfTestProbe
             const auto* material = a_prop->GetMaterial();
             a_out.baseColors.push_back(material ? material->baseColor : RE::NiColorA{});
             a_out.grey.push_back(HasGreyMaterial(a_prop));
+            a_out.colorControlled.push_back(HasColorController(a_prop));
         }
 
         void InspectModifiers(RE::NiParticleSystem* a_particles, Inspection& a_out)
         {
-            static REL::Relocation<const RE::NiRTTI*> simpleColorRTTI{ RE::NiRTTI_BSPSysSimpleColorModifier };
             for (const auto& modifier : a_particles->GetParticleSystemRuntimeData().modifierList) {
-                if (!modifier || modifier->GetRTTI() != simpleColorRTTI.get()) {
+                if (!IsSimpleColorModifier(modifier.get())) {
                     continue;
                 }
-                const auto* bytes = reinterpret_cast<const std::uint8_t*>(modifier.get()) + kModifierKeysOffset;
-                float keys[kColorKeyFloats];
-                std::memcpy(keys, bytes, sizeof(keys));
+                const auto keys = ReadColorKeys(modifier.get());
                 a_out.colorModifiers.push_back(reinterpret_cast<std::uintptr_t>(modifier.get()));
+                a_out.modifierKeys.push_back(keys);
                 bool grey = true;
                 for (std::size_t i = 0; i < kColorKeyFloats; i += kRgbaFloats) {
                     grey = grey && keys[i] == keys[i + 1] && keys[i] == keys[i + 2];
                 }
                 if (grey) {
                     ++a_out.colorModifiersAllGrey;
-                }
-                if (a_out.firstModifierKeys.empty()) {
-                    a_out.firstModifierKeys.assign(keys, keys + kColorKeyFloats);
                 }
             }
         }
@@ -114,7 +80,7 @@ namespace BlackFlame::SelfTestProbe
         g_recording.store(a_on, std::memory_order_release);
     }
 
-    std::uint64_t Mark() noexcept
+    std::uint64_t Mark()
     {
         std::lock_guard lock(g_mutex);
         return g_nextSeq;
@@ -131,10 +97,8 @@ namespace BlackFlame::SelfTestProbe
     Snapshot Capture(RE::NiAVObject* a_root)
     {
         Snapshot out;
-        ForEachObject(a_root, [&](RE::NiAVObject* a_object) {
-            if (auto* prop = EffectPropertyOf(a_object)) {
-                AddProperty(prop, out);
-            }
+        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
+            AddProperty(a_prop, out);
         });
         return out;
     }
@@ -143,14 +107,10 @@ namespace BlackFlame::SelfTestProbe
     {
         Inspection out;
         const auto* palette = GetPalette();
-        ForEachObject(a_root, [&](RE::NiAVObject* a_object) {
-            auto* prop = EffectPropertyOf(a_object);
-            if (!prop) {
-                return;
-            }
+        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
             ++out.effectProperties;
-            AddProperty(prop, out.pointers);
-            if (const auto* material = prop->GetMaterial()) {
+            AddProperty(a_prop, out.pointers);
+            if (const auto* material = a_prop->GetMaterial()) {
                 const bool path = IsPalettePath(material->greyscaleTexturePath);
                 const bool pointer = palette && material->greyscaleTexture.get() == palette;
                 out.withPalettePath += path ? 1 : 0;
@@ -158,7 +118,7 @@ namespace BlackFlame::SelfTestProbe
                 out.withBoth += (path && pointer) ? 1 : 0;
                 out.withGrey += out.pointers.grey.back() ? 1 : 0;
             }
-            if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_object)) {
+            if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
                 InspectModifiers(particles, out);
             }
         });

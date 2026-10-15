@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ParticleColors.h"
 #include "Recolor.h"
 
 #include <cstdint>
@@ -26,7 +27,7 @@ namespace BlackFlame::SelfTestProbe
     void Clear();
 
     /// The sequence number the next record will get: records "since a mark" are newer
-    [[nodiscard]] std::uint64_t Mark() noexcept;
+    [[nodiscard]] std::uint64_t Mark();
 
     // The effect properties of a 3D, in traversal order (read only)
     struct Snapshot
@@ -35,9 +36,8 @@ namespace BlackFlame::SelfTestProbe
         std::vector<std::uintptr_t> materials;
         std::vector<RE::NiColorA> baseColors;  // the material's baseColor
         std::vector<bool> grey;                // Recolor.h HasGreyMaterial
+        std::vector<bool> colorControlled;     // Recolor.h HasColorController
     };
-
-    inline constexpr std::size_t kColorKeyFloats = 12;  // a BSPSysSimpleColorModifier's 3 RGBA keys
 
     struct Inspection
     {
@@ -49,7 +49,7 @@ namespace BlackFlame::SelfTestProbe
         int withGrey = 0;            // HasGreyMaterial: pointer or path (the contamination test)
         std::vector<std::uintptr_t> colorModifiers;  // BSPSysSimpleColorModifier pointers
         int colorModifiersAllGrey = 0;               // of those, every colour key has R == G == B
-        std::vector<float> firstModifierKeys;        // bytes 0x30-0x5F of the first one, as 12 floats
+        std::vector<ColorKeys> modifierKeys;         // each modifier's colour keys (ParticleColors.h), in order
     };
 
     /// Game thread. Read-only walk of a_root (null: empty).

@@ -30,6 +30,7 @@ namespace BlackFlame::SelfTest
         bool haveForms = false;
         RE::ObjectRefHandle dummy;
         RE::ObjectRefHandle caster;
+        bool cleanedUp = false;  // the cleanup step dispelled the buff and deleted the actors
         bool actorsOk = false;  // T2 passed: placed, passive, out of the explosion's reach
         RE::FormID casterId = 0;
         std::uint64_t mark = 0;
@@ -40,8 +41,9 @@ namespace BlackFlame::SelfTest
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
         std::uint64_t extendMark = 0;
+        bool extendAttempted = false;
         bool extendCast = false;
-        std::optional<Clock::time_point> secondHitAt;
+        std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
     };
@@ -66,12 +68,13 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] bool NeedActors(Ctx& a_c, const char* a_id);
 
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
-    inline constexpr auto kRetryGrace = std::chrono::milliseconds(300);  // a second hit's own engine shader, one retry tick
+    // An engine hit shader still unfinished at this age was not finished by the burn layer (its
+    // finishing runs within a retry tick or two); a younger one may be on its way out
+    inline constexpr float kEngineAgeMin = 0.3f;
+    inline constexpr float kRadiusMargin = 100.0f;  // beyond Fireball's explosion radius
+    inline constexpr auto kExtendRecordWait = std::chrono::seconds(1);  // T4 waits for T5-extend's projectile record
     inline constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
     inline constexpr auto kInFlightWait = std::chrono::milliseconds(1500);  // after the last cast, before deleting
-    // A colour-key component outside this range or NaN: the modifier layout does not match
-    inline constexpr float kMinKey = 0.0f;
-    inline constexpr float kMaxKey = 2.0f;
 
     // SelfTestStepsLate.cpp (T5 to T9); T0 to T3 are in SelfTestSteps.cpp with the step table
     bool StepPlayerBurn(Ctx& a_c, bool a_first);

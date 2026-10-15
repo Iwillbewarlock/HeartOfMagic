@@ -37,7 +37,6 @@ namespace BlackFlame::SelfTest
         // all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime)
         constexpr float kTargetForward = 1000.0f;
         constexpr float kCasterRight = 700.0f;
-        constexpr float kRadiusMargin = 100.0f;
         constexpr float kHealthShare = 0.99f;  // the target's health must reach this share of kDummyHealth
 
         constexpr float kColorTolerance = 0.002f;
@@ -145,8 +144,8 @@ namespace BlackFlame::SelfTest
         {
             auto* dummy = ActorOf(a_c.dummy);
             auto* caster = ActorOf(a_c.caster);
-            if (!a_c.dummy || !a_c.caster) {
-                return true;  // T2 already failed
+            if (!a_c.dummy || !a_c.caster || !Player()) {
+                return true;  // T2 already failed (StepSpawn logged it): no second FAIL
             }
             a_c.waitingFor = "both spawned actors' 3D loaded";
             if (!dummy || !caster || !dummy->Is3DLoaded() || !caster->Is3DLoaded()) {
@@ -178,6 +177,7 @@ namespace BlackFlame::SelfTest
             int notGrey = 0;
             int lumChecked = 0;
             int lumOff = 0;
+            int controlled = 0;
             const auto& after = a_r.after.pointers;
             for (std::size_t i = 0; i < after.properties.size(); ++i) {
                 if (!after.grey[i]) {
@@ -195,24 +195,16 @@ namespace BlackFlame::SelfTest
                 if (before.grey[j]) {
                     continue;
                 }
+                if (after.colorControlled[i]) {
+                    ++controlled;  // its controller rewrites the colour per frame: no luminance compare
+                    continue;
+                }
                 ++lumChecked;
                 lumOff += Near(c.red, Luminance(before.baseColors[j]) * GetConfig().tintScale) ? 0 : 1;
             }
-            SelfTestLog::Check("T3-tint", grey > 0 && notGrey == 0 && lumOff == 0, std::format("recoloured base colours: {} "
-                "grey (R=G=B), {} not; luminance x tintScale checked on {}, {} off", grey, notGrey, lumChecked, lumOff));
-        }
-
-        void CheckLight(const SelfTestProbe::ProjectileRecord& a_r)
-        {
-            if (!a_r.hasLight || !GetConfig().light) {
-                SelfTestLog::Info("T3-light", a_r.hasLight ? "light false in the config" : "the projectile has no light");
-                return;
-            }
-            const auto& want = GetConfig().lightColor;
-            const auto& got = a_r.lightDiffuse;
-            SelfTestLog::Check("T3-light", Near(got.red, want.red) && Near(got.green, want.green) && Near(got.blue, want.blue),
-                std::format("light diffuse ({:.3f}, {:.3f}, {:.3f}), lightColor ({:.3f}, {:.3f}, {:.3f})", got.red, got.green,
-                    got.blue, want.red, want.green, want.blue));
+            SelfTestLog::Check("T3-tint", grey > 0 && notGrey == 0 && lumChecked > 0 && lumOff == 0, std::format(
+                "recoloured base colours: {} grey (R=G=B), {} not; luminance x tintScale checked on {}, {} off; {} with "
+                "a colour controller left out of that compare", grey, notGrey, lumChecked, lumOff, controlled));
         }
 
         bool StepPlayerProjectile(Ctx& a_c, bool a_first)
@@ -241,8 +233,8 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Info("T3", std::format("partial: {} of {} effect shapes recoloured", a.withPalettePath,
                     a.effectProperties));
             }
-            CheckTint(*r);
-            CheckLight(*r);
+            CheckTint(*r);  // the light is judged later on a live projectile (T4-light): reading it back here
+                            // right after writing it would prove nothing
             return true;
         }
     }

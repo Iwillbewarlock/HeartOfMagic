@@ -57,11 +57,17 @@ namespace BlackFlame::SelfTestWorld
     {
         RE::FormID effectData = 0;
         bool finished = false;
+        float age = 0.0f;  // BSTempEffect::age, seconds since it started
     };
 
     /// Every ShaderReferenceEffect whose target is a_target (collected inside the
     /// ProcessLists lock, nothing called there)
     [[nodiscard]] std::vector<ShaderOn> ShadersOn(RE::ObjectRefHandle a_target);
+
+    /// Turns a_actor to face a_target (Actor::SetHeading, RE/A/Actor.h:682; heading z has forward
+    /// (sin z, cos z)). Whether CastSpellImmediate with a target aims at it regardless of facing is
+    /// not verifiable from the headers (Papyrus Spell.Cast semantics say it does): insurance.
+    void FaceTarget(RE::Actor* a_actor, const RE::TESObjectREFR* a_target);
 
     /// Disable() and SetDelete(true); returns what was done.
     [[nodiscard]] std::string Remove(RE::ObjectRefHandle a_ref);

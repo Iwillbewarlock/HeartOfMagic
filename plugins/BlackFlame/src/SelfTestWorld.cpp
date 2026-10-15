@@ -129,7 +129,8 @@ namespace BlackFlame::SelfTestWorld
         std::vector<std::uint16_t> ids;
         for (auto* effect : *effects) {
             const auto* base = effect ? effect->GetBaseObject() : nullptr;
-            if (base && base->HasKeyword(keyword)) {
+            if (base && base->HasKeyword(keyword) &&
+                !effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
                 ids.push_back(effect->usUniqueID);
             }
         }
@@ -159,11 +160,22 @@ namespace BlackFlame::SelfTestWorld
         }
         lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
             if (a_effect && a_effect->target == a_target) {
-                out.push_back({ a_effect->effectData ? a_effect->effectData->GetFormID() : 0, a_effect->finished });
+                out.push_back({ a_effect->effectData ? a_effect->effectData->GetFormID() : 0, a_effect->finished,
+                    a_effect->age });
             }
             return RE::BSContainer::ForEachResult::kContinue;
         });
         return out;
+    }
+
+    void FaceTarget(RE::Actor* a_actor, const RE::TESObjectREFR* a_target)
+    {
+        if (!a_actor || !a_target) {
+            return;
+        }
+        const auto from = a_actor->GetPosition();
+        const auto to = a_target->GetPosition();
+        a_actor->SetHeading(std::atan2(to.x - from.x, to.y - from.y));
     }
 
     std::string Remove(RE::ObjectRefHandle a_ref)
