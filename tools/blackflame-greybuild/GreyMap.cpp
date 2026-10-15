@@ -59,10 +59,18 @@ namespace GreyBuild
                 }
                 a_map.addons.emplace(entry.index, std::move(entry));
             }
+            // Two indices may share one MPS (and so one grey copy); two MPS NIFs may not write one copy
+            std::map<std::string, const AddonEntry*> writers;
             for (const auto& [index, entry] : a_map.addons) {
                 if (a_map.addons.count(entry.grey) != 0) {
                     Json::Fail(a_file,
                         fmt::format("grey index {} of index {} is also an original index", entry.grey, index));
+                }
+                const auto [at, added] = writers.emplace(entry.greyModel, &entry);
+                if (!added && at->second->model != entry.model) {
+                    Json::Fail(a_file, fmt::format("greyModel '{}' is written from both '{}' (index {}) and '{}' "
+                                                   "(index {})",
+                        entry.greyModel, at->second->model, at->second->index, entry.model, index));
                 }
             }
         }
