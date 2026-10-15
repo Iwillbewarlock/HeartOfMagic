@@ -54,8 +54,7 @@
 - 투사체 종류별 vtable의 `Handle3DLoaded`(또는 확인된 다른 시점)에 훅. 원본 호출 후, `shooter`가 플레이어 · `spell`이
   불마법 · 버프 중이면 3D를 다시 칠한다.
 - 다시 칠하기: `BSEffectShaderProperty`마다 재질을 **인스턴스 전용으로 복제한 뒤** `greyscaleTexture`를 회색 팔레트로,
-  `baseColor` RGB를 휘도 기준 회색으로(알파 유지). (초안: `BSLightingShaderProperty` emissive와 입자 색 수정자는 구현에서 뺐다, 아래 "구현 시 제외")
-  입자 색 수정자(`BSPSysSimpleColorModifier`)의 RGB도 회색으로(알파 유지). 투사체 조명은 어두운 회색으로.
+  `baseColor` RGB를 휘도 기준 회색으로(알파 유지). 투사체 조명은 어두운 회색으로. (emissive와 입자 색 수정자는 아래 "구현 시 제외")
 - 재질은 풀로 공유되므로 반드시 복제해서 바꾼다. 속성(`BSEffectShaderProperty`)은 인스턴스마다 따로라서 팔레트 플래그
   (`forcePalette`)는 속성에서 제자리로 바꾼다. 둘 다 NPC 투사체로 번지면 안 된다(자가 시험 T4, 로그 material check).
 - (구현 시 제외) `BSLightingShaderProperty` emissive는 건드리지 않는다. 입자 색 수정자는 설정 `particleColors`(기본 끔)일 때만
@@ -167,6 +166,20 @@
   몸통 방향, 엔진 각도 계산을 방향이 맞을 때만)로 쏜다. CastSpellImmediate는 발치를 겨눠 300 유닛 밖에서는 빗나간다.
   T5-npc는 T4 전부터 있던 셰이더와 플레이어 효과의 hit shader(화상 층이 기록)를 빼고 판정하며, 도착 시간을 기다린다.
   T4는 NPC를 먼저 쏘고 다음 틱에 판정한다. 엔진 셰이더 나이 기준은 0.5초.
+
+## 5차 검증 반영 (2026-10-15)
+
+- 자가 시험은 CombatUtilities::GetAngleToProjectedTarget을 부르지 않는다. 사용자는 AE 1.6.1170이고, 그 함수의 AE id(47286)는
+  확인되지 않았으며 CommonLib 자신의 Projectile.cpp:290은 같은 함수의 AE id를 0으로 둔다. 틀린 id는 첫 발사에서 게임을 멈춘다.
+  대신 직선 각도에 중력 낙하 보정: 이 로드 오더에서 MAG_ProjectileFirebolt01 중력 0.25, MAG_FireBallProjectile01 0.15, 속도 둘 다
+  2500(MysticismMagic 덮어쓰기). 비행 시간 = 거리 / 속도, 낙하 = 0.5 x 686(유닛/초^2, 9.8 m/s^2 x 약 70 유닛/m의 근사) x 중력 x
+  시간^2, 1000-1220 유닛이면 약 10-15 유닛. 발사마다 로그.
+- 갓 소환해 경계가 없는 배우의 GetHeight가 20 미만이면 고정 높이(플레이어 100, 사슴 60, 겨냥 +50)를 쓰고 로그.
+- 팔레트 경로만 남고 텍스처가 없는 속성은 종착 상태: 플래그를 끈 채 다시 복사·탈색하지 않는다(매 틱 겹쳐 검게 되던 문제).
+- 즉시형 타격의 바닥(age floor)에 걸린 회색 셰이더는 수명을 그 바닥으로 줄인다. 바닥 수도 살아 있는 화상 수에 넣어 티커를 유지.
+- 로그 제한 맵은 512를 넘으면 초당 한 번 오래된 것을 지우고, 그래도 넘으면 비운다.
+- 자가 시험 T5-npc는 플레이어 hit shader 기록을 기다린 뒤 판정하고, 기록된 포인터는 나이와 시각으로 같은 객체인지 본다.
+  T7은 순서가 보장되지 않으면 판정하지 않고, T3의 탈색 전 키와 비교해 T4 이전의 오염도 잡는다.
 
 ## 알려진 한계 (추가)
 

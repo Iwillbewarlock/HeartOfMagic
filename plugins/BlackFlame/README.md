@@ -116,9 +116,9 @@ The DLL can check most of itself in game, from the engine's own data, and write 
 
 Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789` (its explosion
 radius is read at runtime and logged, 320 units in Skyrim.esm), and `EncDeer 0CF89D` twice: the target, 1000
-units ahead (AI off, health raised to 100000), and the caster, 700 units to the player's right (AI kept: an
-actor without AI may never run its cast). A deer is unaggressive and in no crime faction, so hitting either is
-no crime. Every projectile re-finds its target first and nothing is launched when it is gone. Projectiles are launched with `Projectile::Launch` (LaunchData from the shooter's chest toward the target's torso; the engine's own angle solve when its heading agrees with the straight line) rather than `CastSpellImmediate`, which aims at the target's feet and misses beyond about 300 units (skyrim-headless-mods headless-findings s24); each launch logs origin, aim and angles. Every run ends in the cleanup
+units ahead (AI off, health raised to 100000), and the caster, 700 units to the player's right (AI kept, so it
+behaves like a normal creature; the test turns it to the target and re-checks distances before each launch). A deer is unaggressive and in no crime faction, so hitting either is
+no crime. Every projectile re-finds its target first and nothing is launched when it is gone. Projectiles are launched with `Projectile::Launch` (LaunchData from the shooter's chest straight at the target's torso, aimed higher by the projectile's estimated gravity drop; no engine angle solve, whose AE address is unverified) rather than `CastSpellImmediate`, which aims at the target's feet and misses beyond about 300 units (skyrim-headless-mods headless-findings s24); each launch logs origin, aim, the drop and the angles, and any height fallback for a fresh spawn. Every run ends in the cleanup
 (T9): the Stoke buff dispelled, then, 1.5 s after the last cast, both deer deleted.
 
 | Step | PASS when |
