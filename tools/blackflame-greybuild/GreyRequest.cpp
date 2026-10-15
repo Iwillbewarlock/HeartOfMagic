@@ -56,11 +56,15 @@ namespace GreyBuild
                 a_entry.greyForm = existing->second.source;
                 return;
             }
-            if (a_used.count(preferred) == 0) {
+            if (preferred <= kMaxIndex && a_used.count(preferred) == 0) {
                 a_entry.grey = preferred;
             } else {
-                while (a_used.count(a_nextFree) != 0) {
+                while (a_nextFree <= kMaxIndex && a_used.count(a_nextFree) != 0) {
                     ++a_nextFree;
+                }
+                if (a_nextFree > kMaxIndex) {
+                    throw std::runtime_error(fmt::format(
+                        "no free grey ADDN index for index {}: every index up to {} is taken", a_entry.index, kMaxIndex));
                 }
                 a_entry.grey = a_nextFree;
             }

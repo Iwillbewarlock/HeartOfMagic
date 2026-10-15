@@ -124,17 +124,29 @@ namespace GreyBuild
             std::string m_data;
         };
 
-        [[nodiscard]] EslAddon ReadAddon(const Reader& a_in, std::size_t a_at)
+        /// One ADDN record whose header starts at a_at and which must end by a_limit (its group's end).
+        [[nodiscard]] EslAddon ReadAddon(const Reader& a_in, std::size_t a_at, std::size_t a_limit)
         {
             EslAddon addon;
             const auto size = a_in.Value<std::uint32_t>(a_at + 4);
             addon.formId = a_in.Value<std::uint32_t>(a_at + 12);
             std::size_t pos = a_at + kHeaderSize;
             const std::size_t end = pos + size;
+            if (end > a_limit) {
+                throw std::runtime_error(fmt::format("ADDN record at byte {} (size {}) runs past its group's end", a_at,
+                    size));
+            }
             while (pos < end) {
+                if (pos + kSubHeaderSize > end) {
+                    throw std::runtime_error(fmt::format("subrecord header at byte {} runs past its record's end", pos));
+                }
                 const std::string tag = a_in.Tag(pos);
                 const auto length = a_in.Value<std::uint16_t>(pos + 4);
                 const std::size_t data = pos + kSubHeaderSize;
+                if (data + length > end) {
+                    throw std::runtime_error(fmt::format("subrecord {} at byte {} (size {}) runs past its record's end",
+                        tag, pos, length));
+                }
                 const auto text = [&] { return a_in.Slice(data, length > 0 ? length - 1u : 0u); };
                 if (tag == "EDID") {
                     addon.editorId = text();
@@ -200,18 +212,30 @@ namespace GreyBuild
         a_headerFlags = reader.Value<std::uint32_t>(8);
         std::vector<EslAddon> addons;
         std::size_t pos = kHeaderSize + reader.Value<std::uint32_t>(4);
+        if (pos > reader.Size()) {
+            throw std::runtime_error(fmt::format("'{}': the TES4 record runs past the end of the file", a_file.string()));
+        }
         while (pos < reader.Size()) {
             if (reader.Tag(pos) != "GRUP") {
                 throw std::runtime_error(fmt::format("'{}': expected a GRUP at byte {}", a_file.string(), pos));
             }
-            const auto groupEnd = pos + reader.Value<std::uint32_t>(pos + 4);
+            const auto groupSize = reader.Value<std::uint32_t>(pos + 4);  // header included
+            const std::size_t groupEnd = pos + groupSize;
+            if (groupSize < kHeaderSize || groupEnd > reader.Size()) {
+                throw std::runtime_error(fmt::format("'{}': GRUP at byte {} has size {} (file {} bytes)",
+                    a_file.string(), pos, groupSize, reader.Size()));
+            }
             const bool isAddn = reader.Tag(pos + 8) == "ADDN";
             std::size_t at = pos + kHeaderSize;
             while (isAddn && at < groupEnd) {
                 if (reader.Tag(at) != "ADDN") {
                     throw std::runtime_error(fmt::format("'{}': expected an ADDN record at byte {}", a_file.string(), at));
                 }
-                addons.push_back(ReadAddon(reader, at));
+                try {
+                    addons.push_back(ReadAddon(reader, at, groupEnd));
+                } catch (const std::runtime_error& e) {
+                    throw std::runtime_error(fmt::format("'{}': {}", a_file.string(), e.what()));
+                }
                 at += kHeaderSize + reader.Value<std::uint32_t>(at + 4);
             }
             pos = groupEnd;

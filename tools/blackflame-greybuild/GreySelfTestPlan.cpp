@@ -4,8 +4,10 @@
 
 #include "GreySelfTest.h"
 
+#include <cstring>
 #include <fmt/format.h>
 #include <fstream>
+#include <stdexcept>
 
 namespace GreyBuild::SelfTest
 {
@@ -16,12 +18,67 @@ namespace GreyBuild::SelfTest
         constexpr int kShippedGreyA = 9109;  // a shipped grey record that already names a.nif's copy
         constexpr int kTakenB = 9124;        // the preferred grey index of 24, taken by another mod
         constexpr const char* kModel = "meshes\\effects\\test.nif";
+        constexpr std::size_t kEslHeaderSize = 24;  // record and GRUP headers
 
         [[nodiscard]] std::filesystem::path WriteFile(const std::filesystem::path& a_file, const std::string& a_text)
         {
             std::filesystem::create_directories(a_file.parent_path());
             std::ofstream(a_file, std::ios::binary) << a_text;
             return a_file;
+        }
+
+        [[nodiscard]] std::string ReadBytes(const std::filesystem::path& a_file)
+        {
+            std::ifstream in(a_file, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+
+        template <class T>
+        [[nodiscard]] T At(const std::string& a_bytes, std::size_t a_at)
+        {
+            T value{};
+            if (a_at + sizeof(T) <= a_bytes.size()) {
+                std::memcpy(&value, a_bytes.data() + a_at, sizeof(T));
+            }
+            return value;
+        }
+
+        template <class T>
+        void Put(std::string& a_bytes, std::size_t a_at, T a_value)
+        {
+            if (a_at + sizeof(T) <= a_bytes.size()) {
+                std::memcpy(a_bytes.data() + a_at, &a_value, sizeof(T));
+            }
+        }
+
+        /// ReadAddonEsl must refuse (not loop on) a GRUP with size 0 or under a header, and a
+        /// subrecord running past its record's end. a_good is a written two-record ESL.
+        void CheckEslRefusals(Checker& a_check, const std::filesystem::path& a_dir, const std::string& a_good)
+        {
+            const std::size_t group = kEslHeaderSize + At<std::uint32_t>(a_good, 4);
+            const std::size_t firstRecord = group + kEslHeaderSize;
+            const std::size_t firstSubLength = firstRecord + kEslHeaderSize + 4;
+            const auto refuses = [&](const char* a_name, std::size_t a_at, auto a_value) {
+                std::string bytes = a_good;
+                Put(bytes, a_at, a_value);
+                const auto file = WriteFile(a_dir / a_name, bytes);
+                try {
+                    std::uint32_t flags = 0;
+                    (void)ReadAddonEsl(file, flags);
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            a_check.Check(refuses("grup0.esp", group + 4, std::uint32_t{ 0 }), "ESL reader: a GRUP of size 0 is refused");
+            a_check.Check(refuses("grup10.esp", group + 4, std::uint32_t{ 10 }),
+                "ESL reader: a GRUP smaller than its header is refused");
+            a_check.Check(refuses("grupbig.esp", group + 4, std::uint32_t{ 0x7FFFFFFF }),
+                "ESL reader: a GRUP running past the file is refused");
+            a_check.Check(refuses("sublong.esp", firstSubLength, std::uint16_t{ 0xFFFF }),
+                "ESL reader: a subrecord running past its record's end is refused");
+            a_check.Check(refuses("reclong.esp", firstRecord + 4, std::uint32_t{ 0xFFFF }),
+                "ESL reader: a record running past its group's end is refused");
         }
 
         [[nodiscard]] std::string RequestText(bool a_withB)
@@ -84,6 +141,25 @@ namespace GreyBuild::SelfTest
                             back[0].model == "heartofmagic\\blackflame\\mps\\b.nif" &&
                             back[0].masterParticleCap == 7 && back[1].dnamFlags == kDnamAlwaysLoaded;
             a_check.Check(ok, "ESL: two ADDN records read back (FormIDs, EditorIDs, MODL without meshes\\, DATA, DNAM)");
+            CheckEslRefusals(a_check, a_dir, ReadBytes(file));
+        }
+
+        void CheckIndexCap(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto refuses = [&](const char* a_name, long long a_index) {
+                const std::string text = fmt::format(
+                    R"({{"version":1,"addons":[{{"index":{},"model":"MPS\\A.nif"}}],"models":[]}})", a_index);
+                try {
+                    (void)LoadRequest(WriteFile(a_dir / a_name, text));
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            a_check.Check(!refuses("cap-ok.json", kMaxIndex),
+                fmt::format("request: index {} (INT_MAX - {}) is read", kMaxIndex, kGreyIndexBase));
+            a_check.Check(refuses("cap-over.json", static_cast<long long>(kMaxIndex) + 1),
+                fmt::format("request: index {} is refused (base + it would overflow an int)", kMaxIndex + 1LL));
         }
     }
 
@@ -98,5 +174,6 @@ namespace GreyBuild::SelfTest
         if (!plan.newRecords.empty()) {
             CheckEsl(a_check, a_dir, plan);
         }
+        CheckIndexCap(a_check, a_dir);
     }
 }

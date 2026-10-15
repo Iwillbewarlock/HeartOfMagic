@@ -10,6 +10,7 @@
 // master particle system NIFs (shipped under new ADDN indices) and copies of the
 // impact / hazard NIFs whose AddOnNodes point at the grey indices.
 
+#include <climits>
 #include <cstdint>
 #include <filesystem>
 #include <map>
@@ -135,6 +136,7 @@ namespace GreyBuild
     // The generated plugin for grey ADDN records a setup needs beyond the shipped ones
     inline constexpr const char* kLocalPluginName = "HeartOfMagic_BlackFlame_Local.esp";
     inline constexpr int kGreyIndexBase = 9100;       // preferred grey index = base + original
+    inline constexpr int kMaxIndex = INT_MAX - kGreyIndexBase;  // any ADDN index read or allocated (base + it fits an int)
     inline constexpr std::uint32_t kFirstLightFormId = 0x800;
     inline constexpr std::uint32_t kLastLightFormId = 0xFFF;
 

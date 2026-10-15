@@ -70,7 +70,7 @@ namespace GreyBuild::Json
     [[nodiscard]] inline int ReadIndex(const std::filesystem::path& a_file, const nlohmann::json& a_entry,
         const char* a_key, const std::string& a_where)
     {
-        return static_cast<int>(ReadInteger(a_file, a_entry, a_key, a_where, 0, INT_MAX));
+        return static_cast<int>(ReadInteger(a_file, a_entry, a_key, a_where, 0, kMaxIndex));
     }
 
     /// An optional u16 (DNAM fields); a_default when the key is missing.
