@@ -58,6 +58,7 @@ namespace NpcSpellsGame::SelfTest
         std::string abortReason;               // for the open samples' FAIL line
         std::size_t notReadyTicks = 0;         // ticks without the player's 3D and cell (the player wait)
         std::size_t readyTicks = 0;            // ticks with them since they last came (the start delay)
+        std::size_t mainMenuTicks = 0;         // consecutive ticks with the main menu open
         std::size_t pass = 0, fail = 0, inconclusive = 0;
         std::vector<std::string> lines;        // appended to the report at the end
         std::atomic<int> liveActors{ 0 };      // spawned and not yet cleaned up (read by the save message)

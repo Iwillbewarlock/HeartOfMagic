@@ -254,7 +254,7 @@ What it does, once per session, at the first save load (`kPostLoadGame`):
    `OREO_LSpellBandit01FireFrostShock`) never counts as proof.
 
 Ending early: a load before the spawn starts the wait again in the loaded save. A load after the spawn, a new game
-(`kNewGame`) or the main menu (checked every tick) ends the test: the open samples fail with the reason and no ref is
+(`kNewGame`) or the main menu (open on 10 ticks in a row, about 1 s; nothing is spawned or checked while it is open) ends the test: the open samples fail with the reason and no ref is
 touched. A test that ends before its spawn (the main menu, a new game, no player 3D within 60 s) runs again at the
 next save load in the same session (`SELFTEST ended before the spawn: ...`); one that spawned does not.
 

@@ -118,6 +118,10 @@ namespace
     // source), so the wait is not a self-requeueing task: a worker thread queues one Tick per kSelfTestPollMs, and only
     // when the last one has run (State::queued). Every wait counts executed ticks, so a game window in the background
     // (alt-tab: no task runs) uses up none. The worker only sleeps and queues; every game object is touched inside the tasks, on the main thread.
+    // The main menu must be seen on this many ticks in a row before it ends the test: a menu still closing at the first
+    // tick after the load (not checked in game) does not end every test at once
+    constexpr std::size_t kMainMenuEndTicks = 10;
+
     std::mutex g_currentLock;
     std::weak_ptr<State> g_current;  // the running test, for the load and save messages
     bool g_started = false;          // a test ran (or is running) this session; main thread only (SKSE messages and tasks)
@@ -250,10 +254,14 @@ namespace
             EndWithoutRefs(s, s.abortReason);
             return;
         }
-        if (auto* ui = RE::UI::GetSingleton(); ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {  // RE/U/UI.h:92, RE/M/MainMenu.h:30
-            EndWithoutRefs(s, "the main menu is open: no game is loaded");
-            return;
+        auto* ui = RE::UI::GetSingleton();
+        if (ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {  // RE/U/UI.h:92, RE/M/MainMenu.h:30
+            if (++s.mainMenuTicks >= kMainMenuEndTicks) {
+                EndWithoutRefs(s, "the main menu is open: no game is loaded");
+            }
+            return;  // no spawn and no check while it is open
         }
+        s.mainMenuTicks = 0;
         if (!s.spawned) {
             auto* player = RE::PlayerCharacter::GetSingleton();  // RE/P/PlayerCharacter.h:725
             if (!player || !player->Is3DLoaded() || !player->GetParentCell()) {  // RE/T/TESObjectREFR.h:448, :420
@@ -277,7 +285,7 @@ namespace
             }
             const auto waited = r.waitTicks++;  // 0 on the spawn tick
             const auto ref = std::as_const(r.handle).get();
-            auto* actor = ref ? ref->As<RE::Actor>() : nullptr;
+            auto* actor = ref && ref->GetFormID() == r.spawnedId ? ref->As<RE::Actor>() : nullptr;
             // The leveled spell cache needs the high process (RE/A/Actor.h:587 GetHighProcess; 2026-10-10: before 3D, HasSpell was false)
             if (actor && actor->Is3DLoaded() && actor->GetHighProcess()) {
                 SelfTest::Check(s, r, actor, waited);

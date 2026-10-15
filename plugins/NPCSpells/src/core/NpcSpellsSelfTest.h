@@ -24,7 +24,8 @@ namespace NpcSpells {
     // object or no sample is usable; true otherwise, error naming each dropped sample or reset value ("; " between).
     bool ParseSelfTestConfig(const std::string& jsonText, SelfTestConfig& out, std::string& error);
     // A list's spells that prove the list worked: each once, in list order, without those the NPC can have another way
-    // (excluded: its static spells, its race's, its other leveled lists' entries, the actor's added spells)
+    // (excluded: the static spells and other leveled lists' entries of the sample, its holder, its bases and their template
+    // chains, its race's spells and leveled lists, the actor's added spells)
     std::vector<std::uint32_t> WitnessSpells(const std::vector<std::uint32_t>& listSpells, const std::unordered_set<std::uint32_t>& excluded);
     // How many of a list's distinct spells the excluded set removed from its witnesses
     std::size_t CountExcluded(const std::vector<std::uint32_t>& listSpells, const std::unordered_set<std::uint32_t>& excluded);

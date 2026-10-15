@@ -6,8 +6,9 @@
 // Runs only when Data/SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json exists
 // (the file never ships; the code is in the DLL, idle without it). Once per
 // session, after the first save load, it spawns each sample (an NPC or a
-// leveled NPC) next to the player, waits for its 3D and high process, reads
-// its leveled spell cache and asks Actor::HasSpell for the spells only our
+// leveled NPC) next to the player, waits for its 3D and high process, walks
+// its spells (Actor::VisitSpells builds the leveled spell cache), reads that
+// cache and asks Actor::HasSpell for the spells only our
 // lists give, logs SELFTEST lines, appends them to the report and deletes the
 // spawned actors. Internals: GameSelfTestState.h, GameSelfTestCheck.cpp.
 // =============================================================================
