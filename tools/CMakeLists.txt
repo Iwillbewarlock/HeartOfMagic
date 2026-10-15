@@ -154,3 +154,36 @@ target_include_directories(tree-save-check PRIVATE
 target_link_libraries(tree-save-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# blackflame-greybuild  -  grey duplicates of shared-particle fire meshes
+# =============================================================================
+# Black Flame (plugins/BlackFlame/README.md, "Grey duplicates"): grey copies of
+# master particle system NIFs and impact / hazard NIFs whose AddOnNodes point at
+# the grey ADDN indices. nifly (GPL-3.0) is linked here only - never into a DLL.
+
+find_package(nifly CONFIG REQUIRED)
+
+add_executable(blackflame-greybuild
+    blackflame-greybuild/main.cpp
+    blackflame-greybuild/GreyMap.cpp
+    blackflame-greybuild/GreyNif.cpp
+    blackflame-greybuild/GreyDump.cpp
+    blackflame-greybuild/GreyRoundTrip.cpp
+    blackflame-greybuild/GreyRun.cpp
+    blackflame-greybuild/GreyRequest.cpp
+    blackflame-greybuild/GreyEsl.cpp
+    blackflame-greybuild/GreySelfTest.cpp
+    blackflame-greybuild/GreySelfTestPlan.cpp
+)
+
+# C++17 (std::format via fmt): nifly's Matrix3/Matrix4 declare a non-const operator==, which
+# C++20's reversed comparison candidates make ambiguous for MSVC (error C2666 in Object3d.hpp)
+find_package(fmt CONFIG REQUIRED)
+set_target_properties(blackflame-greybuild PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
+target_link_libraries(blackflame-greybuild PRIVATE
+    nifly
+    fmt::fmt
+    nlohmann_json::nlohmann_json
+)

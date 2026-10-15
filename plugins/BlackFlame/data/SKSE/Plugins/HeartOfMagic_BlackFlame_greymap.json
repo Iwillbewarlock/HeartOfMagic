@@ -1,0 +1,130 @@
+{
+  "_comment": [
+    "Black Flame grey duplicates (plugins/BlackFlame/README.md, \"Grey duplicates\"). Read by tools/blackflame-greybuild and by the DLL.",
+    "Paths are Data-relative, lower case, backslashes; a record Model field holds the same path without the leading meshes\\.",
+    "addons: an original ADDN index, its grey index (9100 + original), the original MPS NIF and its grey copy, and the grey ADDN record in HeartOfMagic_BlackFlame.esp (greyForm, plugin|local id).",
+    "models: impact / hazard NIFs whose AddOnNodes are remapped to the grey indices (nothing else in them changed).",
+    "dnamFlags: the ADDN DNAM flags as stored (1 master particle system, 3 always loaded), copied to the grey record.",
+    "tint: base colour RGB = luminance x tint in the grey MPS copies (the DLL tintScale default).",
+    "Vanilla core only. Replacers (Embers XD, Inferno, ...) use other MPS files and indices: blackflame-greybuild --request makes the grey meshes, a full map and an ESL of extra grey ADDN records for one setup (README, Grey duplicates for any setup)."
+  ],
+  "version": 1,
+  "tint": 0.6,
+  "addons": [
+    {
+      "index": 0,
+      "grey": 9100,
+      "editorId": "MPSFireSmall01",
+      "source": "Skyrim.esm|01A71D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfiresmall01.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfiresmall01.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireSmall01",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000804"
+    },
+    {
+      "index": 3,
+      "grey": 9103,
+      "editorId": "MPSFireWallBase",
+      "source": "Skyrim.esm|01C2B0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfirewallbase.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewallbase.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireWallBase",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000805"
+    },
+    {
+      "index": 4,
+      "grey": 9104,
+      "editorId": "MPSFireWallSparks",
+      "source": "Skyrim.esm|01C2B1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfirewallsparks.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewallsparks.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireWallSparks",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000806"
+    },
+    {
+      "index": 9,
+      "grey": 9109,
+      "editorId": "MPSFireBoltImpact01",
+      "source": "Skyrim.esm|02B95B",
+      "masterParticleCap": 0,
+      "dnamFlags": 3,
+      "model": "meshes\\mps\\mpsfireboltimpact01.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfireboltimpact01.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireBoltImpact01",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000807"
+    },
+    {
+      "index": 12,
+      "grey": 9112,
+      "editorId": "MPSDragonSmoke",
+      "source": "Skyrim.esm|0211D4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsdragonsmoke.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsdragonsmoke.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSDragonSmoke",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000808"
+    },
+    {
+      "index": 23,
+      "grey": 9123,
+      "editorId": "MPSFireSmSmoke01",
+      "source": "Skyrim.esm|03E072",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfiresmsmoke01.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfiresmsmoke01.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireSmSmoke01",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000809"
+    },
+    {
+      "index": 24,
+      "grey": 9124,
+      "editorId": "MPSFireLg01",
+      "source": "Skyrim.esm|03E071",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfirelg01.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirelg01.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireLg01",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080A"
+    },
+    {
+      "index": 25,
+      "grey": 9125,
+      "editorId": "MPSFireLgSmoke01",
+      "source": "Skyrim.esm|03E070",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfirelgsmoke01.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirelgsmoke01.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireLgSmoke01",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080B"
+    },
+    {
+      "index": 64,
+      "grey": 9164,
+      "editorId": "MPSFireWaveFlames",
+      "source": "Skyrim.esm|0647BC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1,
+      "model": "meshes\\mps\\mpsfirewaveflames.nif",
+      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewaveflames.nif",
+      "greyEditorId": "HoMBF_GreyAddon_MPSFireWaveFlames",
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080C"
+    }
+  ],
+  "models": {
+    "meshes\\effects\\impacteffects\\fireballimpact01.nif": "meshes\\heartofmagic\\blackflame\\effects\\impacteffects\\fireballimpact01.nif",
+    "meshes\\effects\\fxfire01new.nif": "meshes\\heartofmagic\\blackflame\\effects\\fxfire01new.nif",
+    "meshes\\effects\\fxfire02new.nif": "meshes\\heartofmagic\\blackflame\\effects\\fxfire02new.nif",
+    "meshes\\magic\\firewallfx01.nif": "meshes\\heartofmagic\\blackflame\\magic\\firewallfx01.nif",
+    "meshes\\effects\\impacteffects\\fxdragonfireimpact.nif": "meshes\\heartofmagic\\blackflame\\effects\\impacteffects\\fxdragonfireimpact.nif"
+  }
+}

@@ -11,6 +11,7 @@
     "directxtk",
     "rapidfuzz-cpp",
     "zlib",
+    "nifly",
     {
       "name": "highway",
       "features": ["contrib"]
