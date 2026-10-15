@@ -126,7 +126,7 @@ keys (direct `NiPoint3Interpolator` only; the build counts any it cannot reach) 
 Lighting-shader shapes are left alone. An impact / hazard copy changes only its AddOnNode values (names kept);
 its own inline particles (e.g. FireWallFX01's flames) stay as they are, for the DLL's per-instance recolour.
 nifly re-saves the rest unchanged: byte-identical, or with the header string table reordered, or (seen on two
-replacer meshes) with unused header strings and empty child references dropped (`--roundtrip` says which).
+replacer meshes) with unused header strings dropped and one node block 4-8 bytes shorter, consistent with nifly removing empty child references (`--roundtrip` lists what changed).
 
 **The builder**, `tools/blackflame-greybuild` (C++, built by `BuildRelease.ps1` into `build/tools/Release/`):
 
