@@ -151,6 +151,7 @@ namespace GreyBuild::SelfTest
             second.grey = 9300;
             second.greyEditorId = "HoMBF_GreyAddon_Second";
             second.dnamFlags = kDnamAlwaysLoaded;
+            second.greyForm = std::string(kLocalPluginName) + "|000801";
             records.push_back(second);
             const auto file = a_dir / kLocalPluginName;
             WriteAddonEsl(records, file);
@@ -175,6 +176,47 @@ namespace GreyBuild::SelfTest
             changed.pop_back();
             a_check.Check(!VerifyAddonEsl(changed, file).empty(), "ESL: VerifyAddonEsl reports a record count mismatch");
             CheckEslRefusals(a_check, a_dir, bytes);
+        }
+
+        /// A second --request run on a load order that has the first run's local ESL: index 24's
+        /// local record (9125, 000800) is kept at its id although 9125 is not its preferred index,
+        /// a stale local record (000803) is dropped, and index 9 (no shipped record this time) gets
+        /// a new record with the id after every local id the request has (000804).
+        void CheckRerun(Checker& a_check, const std::filesystem::path& a_dir, const std::vector<std::filesystem::path>& a_in)
+        {
+            const std::string text =
+                R"({"version":1,"addons":[)"
+                R"({"index":9,"model":"MPS\\A.nif","editorId":"MPSA","source":"Skyrim.esm|000009"},)"
+                R"({"index":24,"model":"MPS\\B.nif","editorId":"MPSB","source":"Skyrim.esm|000024","masterParticleCap":7},)"
+                R"({"index":9124,"model":"Other\\Thing.nif","editorId":"OtherThing","source":"Other.esp|000800"},)"
+                R"({"index":9125,"model":"HeartOfMagic\\BlackFlame\\MPS\\B.nif","editorId":"HoMBF_GreyAddon_MPSB","source":"heartofmagic_blackflame_local.esp|800"},)"
+                R"({"index":9200,"model":"HeartOfMagic\\BlackFlame\\MPS\\Gone.nif","editorId":"Gone","source":"HeartOfMagic_BlackFlame_Local.esp|000803"}],)"
+                R"("models":["Effects\\Test.nif"]})";
+            const Plan plan = PlanFromRequest(LoadRequest(WriteFile(a_dir / "rerun.json", text)), a_in, kDefaultTint);
+            const std::string local = kLocalPluginName;
+            const auto b = plan.map.addons.find(kIndexB);
+            a_check.Check(b != plan.map.addons.end() && b->second.grey == 9125 &&
+                              b->second.greyForm == local + "|000800",
+                "rerun: index 24 reuses its local record 9125 at 000800 (found by model, not preferred index)");
+            const auto a = plan.map.addons.find(kIndexA);
+            a_check.Check(a != plan.map.addons.end() && a->second.grey == kShippedGreyA &&
+                              a->second.greyForm == local + "|000804",
+                "rerun: index 9 gets 9109 and a new local id after every one the request has (000804)");
+            const bool records = plan.newRecords.size() == 2 && plan.newRecords[0].greyForm == local + "|000800" &&
+                                 plan.newRecords[0].grey == 9125 && plan.newRecords[1].greyForm == local + "|000804";
+            a_check.Check(records, fmt::format("rerun: the local ESL holds the kept and the new record by id ({} record(s))",
+                plan.newRecords.size()));
+            if (!records) {
+                return;
+            }
+            const auto file = a_dir / "rerun.esp";
+            WriteAddonEsl(plan.newRecords, file);
+            std::uint32_t flags = 0;
+            const auto back = ReadAddonEsl(file, flags);
+            a_check.Check(back.size() == 2 && back[0].formId == 0x800 && back[1].formId == 0x804 &&
+                              VerifyAddonEsl(plan.newRecords, file).empty(),
+                "rerun: written with FormIDs 000800 and 000804, verified");
+            CheckEslBytes(a_check, ReadBytes(file), 3, 0x805);
         }
 
         void CheckIndexCap(Checker& a_check, const std::filesystem::path& a_dir)
@@ -207,6 +249,7 @@ namespace GreyBuild::SelfTest
         if (!plan.newRecords.empty()) {
             CheckEsl(a_check, a_dir, plan);
         }
+        CheckRerun(a_check, a_dir, { input });
         CheckIndexCap(a_check, a_dir);
     }
 }

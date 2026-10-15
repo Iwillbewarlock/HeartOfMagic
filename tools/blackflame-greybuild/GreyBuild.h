@@ -143,15 +143,16 @@ namespace GreyBuild
     struct Plan
     {
         GreyMap map;
-        std::vector<AddonEntry> newRecords;  // grey ADDN records the shipped ESL does not have
+        std::vector<AddonEntry> newRecords;  // every record kLocalPluginName must hold, by local id (kept and new)
         std::vector<std::string> problems;   // values with no ADDN in the request, and the like
         std::vector<std::string> skipped;    // request models in no --in folder
     };
 
     /// Reads every listed model found in a_inputs (first folder that has it wins), collects
-    /// its AddOnNode values and allocates grey indices: base + original when free, an existing
-    /// ADDN at that index reused when it already names the grey copy (the shipped records),
-    /// otherwise the next free index above every used one.
+    /// its AddOnNode values and allocates grey indices: an existing ADDN that already names the
+    /// grey copy is reused (the shipped records, or kLocalPluginName's from an earlier run, which
+    /// stay in newRecords at their local id), else base + original when free, otherwise the next
+    /// free index above every used one; new local records take ids after every local id the request has.
     [[nodiscard]] Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs,
         float a_tint);
 
@@ -164,11 +165,18 @@ namespace GreyBuild
     // 0x000, AE 1.6.1130+) is not needed, and runtimes or xEdit builds older than it may refuse 1.71
     inline constexpr float kHedrVersion = 1.70f;
 
+    /// The local FormID of a "Plugin|localId" form when Plugin is kLocalPluginName (any case),
+    /// nothing for another plugin. Throws std::runtime_error when it names kLocalPluginName with
+    /// an id that is not hex in 0x800..0xFFF.
+    [[nodiscard]] std::optional<std::uint32_t> LocalFormId(const std::string& a_form);
+
     /// Writes an ESL-flagged plugin with no masters holding one ADDN record per entry
-    /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), FormIDs 0x800 up in order.
+    /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), in the order given; each record's
+    /// FormID is the local id its greyForm names (kLocalPluginName|0008xx).
     void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
 
-    /// The FormIDs WriteAddonEsl gives a_records, in the same order.
+    /// The FormIDs WriteAddonEsl gives a_records, in the same order. Throws std::runtime_error
+    /// when a greyForm does not name kLocalPluginName or two records share an id.
     [[nodiscard]] std::vector<std::uint32_t> EslFormIds(const std::vector<AddonEntry>& a_records);
 
     struct EslAddon

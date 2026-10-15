@@ -16,6 +16,7 @@
 #include <cstring>
 #include <fmt/format.h>
 #include <fstream>
+#include <set>
 #include <stdexcept>
 
 namespace GreyBuild
@@ -28,6 +29,7 @@ namespace GreyBuild
         constexpr std::int16_t kBoundMin = -32768;         // OBND as Skyrim.esm's MPS ADDN records
         constexpr std::int16_t kBoundMax = 32767;
         constexpr const char* kAuthor = "Heart of Magic blackflame-greybuild";
+        constexpr std::size_t kMaxLocalIdDigits = 8;       // "000800" as written; a u32 at most
 
         class Writer
         {
@@ -163,11 +165,37 @@ namespace GreyBuild
         }
     }
 
+    std::optional<std::uint32_t> LocalFormId(const std::string& a_form)
+    {
+        const auto bar = a_form.find('|');
+        if (bar == std::string::npos || NormalizeDataPath(a_form.substr(0, bar)) != NormalizeDataPath(kLocalPluginName)) {
+            return std::nullopt;
+        }
+        const std::string hex = a_form.substr(bar + 1);
+        const bool isHex = !hex.empty() && hex.size() <= kMaxLocalIdDigits &&
+                           hex.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
+        const auto id = isHex ? static_cast<std::uint32_t>(std::stoul(hex, nullptr, 16)) : 0u;
+        if (!isHex || id < kFirstLightFormId || id > kLastLightFormId) {
+            throw std::runtime_error(fmt::format("'{}' names {} but its local id is not hex in {:03X}..{:03X}", a_form,
+                kLocalPluginName, kFirstLightFormId, kLastLightFormId));
+        }
+        return id;
+    }
+
     std::vector<std::uint32_t> EslFormIds(const std::vector<AddonEntry>& a_records)
     {
         std::vector<std::uint32_t> formIds;
-        for (std::size_t i = 0; i < a_records.size(); ++i) {
-            formIds.push_back(kFirstLightFormId + static_cast<std::uint32_t>(i));
+        std::set<std::uint32_t> seen;
+        for (const auto& record : a_records) {
+            const auto id = LocalFormId(record.greyForm);
+            if (!id) {
+                throw std::runtime_error(fmt::format("grey record '{}' has form '{}', not one of {}",
+                    record.greyEditorId, record.greyForm, kLocalPluginName));
+            }
+            if (!seen.insert(*id).second) {
+                throw std::runtime_error(fmt::format("two grey records have the local id {:06X}", *id));
+            }
+            formIds.push_back(*id);
         }
         return formIds;
     }
