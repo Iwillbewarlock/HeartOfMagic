@@ -19,7 +19,8 @@
     .\DeployDev.ps1 -WithISLPatch # also the ISL patch's scripts (otherwise only if the install has them)
     .\DeployDev.ps1 -WithBookXP   # also the BookXP script (otherwise only if the install has BookXP)
     .\DeployDev.ps1 -NoScripts    # plugin and panel without the Papyrus scripts (left as they are)
-    .\DeployDev.ps1 -NpcSpellsOnly   # the NPC Spells addon only: DLL, ESL, rules JSON
+    .\DeployDev.ps1 -NpcSpellsOnly   # the NPC Spells addon only: DLL, ESL, rules JSON (an existing rules JSON is kept)
+    .\DeployDev.ps1 -NpcSpellsOnly -Force   # the same, the install's rules JSON replaced with the shipped one
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -33,7 +34,8 @@ param(
     [switch]$WithBookXP,
     [switch]$NoScripts,
     [string]$NpcSpellsModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev',
-    [switch]$NpcSpellsOnly
+    [switch]$NpcSpellsOnly,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,18 +46,54 @@ if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
 $repo = $PSScriptRoot
 
 if ($NpcSpellsOnly) {
+    # The same order as the main path: every check before the first copy, so a missing or stale build
+    # leaves the install as it was. The mod folder is not created here (a typo would make a stray folder).
+    if (-not (Test-Path $NpcSpellsModPath)) {
+        throw "Mod folder not found: $NpcSpellsModPath - create the mod in MO2 first, or pass -NpcSpellsModPath."
+    }
     $nsDll = Join-Path $repo 'build\plugins\NPCSpells\Release\HeartOfMagic_NPCSpells.dll'
     $nsEsl = Join-Path $repo 'build\npcspells\HeartOfMagic_NPCSpells.esp'
     $nsJson = Join-Path $repo 'plugins\NPCSpells\data\HeartOfMagic_NPCSpells.json'
-    foreach ($f in @($nsDll, $nsEsl, $nsJson)) { if (-not (Test-Path $f)) { throw "Missing $f. Run .\BuildRelease.ps1 -preset Release-2026 first." } }
-    New-Item -ItemType Directory -Force -Path (Join-Path $NpcSpellsModPath 'SKSE\Plugins') | Out-Null
-    Copy-Item $nsDll (Join-Path $NpcSpellsModPath 'SKSE\Plugins\HeartOfMagic_NPCSpells.dll') -Force
-    Copy-Item $nsJson (Join-Path $NpcSpellsModPath 'SKSE\Plugins\HeartOfMagic_NPCSpells.json') -Force
-    Copy-Item $nsEsl (Join-Path $NpcSpellsModPath 'HeartOfMagic_NPCSpells.esp') -Force
-    foreach ($pair in @(@($nsDll, 'SKSE\Plugins\HeartOfMagic_NPCSpells.dll'), @($nsEsl, 'HeartOfMagic_NPCSpells.esp'))) {
-        if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash (Join-Path $NpcSpellsModPath $pair[1])).Hash) { throw "Copy did not take: $($pair[1])" }
+    foreach ($f in @($nsDll, $nsEsl, $nsJson)) {
+        if (-not (Test-Path $f)) { throw "Missing $f - nothing was copied. Run .\BuildRelease.ps1 first." }
     }
-    Write-Host "npcspells  dll, esl, json -> $NpcSpellsModPath (enable HeartOfMagic_NPCSpells.esp in MO2)"
+    # Stale: an output older than a source it is built from. The DLL is built from the addon's src and the
+    # shared files its CMakeLists.txt names; the ESL is written by npcspells-esl from the slot table.
+    $nsSrc = Join-Path $repo 'plugins\NPCSpells\src'
+    $dllSources = @(Get-ChildItem $nsSrc -Recurse -File -Include '*.cpp', '*.h') + @(
+        'plugins\spelllearning\src\EncodingUtils.cpp',
+        'plugins\spelllearning\src\tomereach\TomeReachConfig.cpp', 'plugins\spelllearning\src\tomereach\TomeReachConfig.h',
+        'plugins\spelllearning\src\tomereach\TomeReachRecords.cpp' | ForEach-Object { Get-Item (Join-Path $repo $_) })
+    $eslSources = @('tools\npcspells-esl.cpp', 'plugins\NPCSpells\src\core\NpcSpellsSlots.cpp',
+        'plugins\NPCSpells\src\core\NpcSpellsSlots.h', 'plugins\NPCSpells\src\core\NpcSpellsEsl.cpp',
+        'plugins\NPCSpells\src\core\NpcSpellsEsl.h', 'plugins\NPCSpells\src\core\NpcSpellsTypes.h') |
+        ForEach-Object { Get-Item (Join-Path $repo $_) }
+    foreach ($check in @(@($nsDll, $dllSources), @($nsEsl, $eslSources))) {
+        $built = (Get-Item $check[0]).LastWriteTime
+        $newest = $check[1] | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($newest.LastWriteTime -gt $built) {
+            throw "Stale: $(Split-Path $check[0] -Leaf) is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 first."
+        }
+    }
+
+    # The rules JSON is the player's to edit: an existing one is kept unless -Force
+    $pluginsDst = Join-Path $NpcSpellsModPath 'SKSE\Plugins'
+    $jsonDst = Join-Path $pluginsDst 'HeartOfMagic_NPCSpells.json'
+    $copies = @(@($nsDll, (Join-Path $pluginsDst 'HeartOfMagic_NPCSpells.dll')), @($nsEsl, (Join-Path $NpcSpellsModPath 'HeartOfMagic_NPCSpells.esp')))
+    $jsonKept = (Test-Path $jsonDst) -and -not $Force
+    if (-not $jsonKept) { $copies += , @($nsJson, $jsonDst) }
+
+    New-Item -ItemType Directory -Force -Path $pluginsDst | Out-Null
+    foreach ($pair in $copies) { Copy-Item $pair[0] $pair[1] -Force }
+    foreach ($pair in $copies) {
+        if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash $pair[1]).Hash) { throw "Copy did not take: $($pair[1])" }
+    }
+    Write-Host "npcspells  dll, esl -> $NpcSpellsModPath (enable HeartOfMagic_NPCSpells.esp in MO2)"
+    if ($jsonKept) {
+        Write-Host "npcspells  rules json kept as it is in the install (pass -Force to replace it with the shipped one)"
+    } else {
+        Write-Host "npcspells  rules json -> $jsonDst"
+    }
     return
 }
 

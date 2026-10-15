@@ -152,7 +152,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
-.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev
+.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON (an existing one kept; -Force replaces it) -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (must exist)
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is

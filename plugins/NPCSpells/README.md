@@ -171,7 +171,8 @@ missing record.
 .\build\tools\Release\npcspells-test.exe                 # all suites, exit 1 on a failure
 .\build\tools\Release\npcspells-test.exe --tree <spell_tree.json> --catalog <spell_catalog.json>   # statistics on real files, lowest entry level per variant slot vs its All slot
 .\build\tools\Release\npcspells-esl.exe -o <path>        # write the ESL from the slot table
-.\DeployDev.ps1 -NpcSpellsOnly                           # DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev
+.\DeployDev.ps1 -NpcSpellsOnly                           # DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (folder must exist; stale build refused; an existing rules JSON is kept)
+.\DeployDev.ps1 -NpcSpellsOnly -Force                    # the same, the install's rules JSON replaced with the shipped one
 ```
 
 **FormID stability:** the ESL FormID of a list is `0x800 + slotIndex * kMaxChunks + chunk`. `kMaxChunks` and the slot
