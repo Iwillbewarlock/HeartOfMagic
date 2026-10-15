@@ -101,6 +101,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kNewGame:
             TearDown("a new game started");
+            BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");
             FlushLog();
             break;

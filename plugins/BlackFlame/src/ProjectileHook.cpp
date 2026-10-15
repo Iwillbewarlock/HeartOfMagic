@@ -114,7 +114,7 @@ namespace BlackFlame
                 return;
             }
             const auto shooter = data.shooter.get();
-            const auto link = LinkToPlayer(a_projectile, shooter.get());
+            const auto link = LinkToPlayer("projectile", a_projectile, shooter.get(), NonActorCasterOf(shooter.get()));
             const bool byPlayer = link != PlayerLink::kNone;
             LogLinkOnce("projectile", link);
 

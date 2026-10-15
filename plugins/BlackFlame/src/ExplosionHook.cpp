@@ -7,11 +7,13 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "ScriptTags.h"
 #include "SehGuard.h"
 #include "VtableSlots.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
+#include <chrono>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -124,15 +126,66 @@ namespace BlackFlame
         }
 
         // False when another hook got there first
+        // Undecided explosions (no owner, cause, blame or tag yet), with when they were first seen: past
+        // kUndecidedLimit one is marked processed so the Update route stops looking at it every frame
+        constexpr auto kUndecidedLimit = std::chrono::seconds(2);
+
+        std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point>& FirstSeen()
+        {
+            static auto* seen =
+                std::make_unique<std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point>>().release();
+            return *seen;
+        }
+
+        // Handles whose explosion is gone, looked up outside the lock
+        void EvictGone()
+        {
+            std::vector<RE::ObjectRefHandle> handles;
+            {
+                std::lock_guard lock(g_processedMutex);
+                if (Processed().size() <= kMaxProcessed) {
+                    return;
+                }
+                for (const auto& [value, handle] : Processed()) {
+                    handles.push_back(handle);
+                }
+            }
+            std::vector<std::uint32_t> gone;
+            for (const auto& handle : handles) {
+                if (!handle.get()) {
+                    gone.push_back(handle.native_handle());
+                }
+            }
+            std::lock_guard lock(g_processedMutex);
+            for (const auto value : gone) {
+                Processed().erase(value);
+                FirstSeen().erase(value);
+            }
+        }
+
         bool MarkProcessed(RE::Explosion* a_explosion)
         {
-            std::lock_guard lock(g_processedMutex);
-            auto& processed = Processed();
-            if (processed.size() > kMaxProcessed) {
-                std::erase_if(processed, [](const auto& a_entry) { return !a_entry.second.get(); });
-            }
+            EvictGone();
             const auto handle = a_explosion->GetHandle();
-            return processed.try_emplace(handle.native_handle(), handle).second;
+            std::lock_guard lock(g_processedMutex);
+            FirstSeen().erase(handle.native_handle());
+            return Processed().try_emplace(handle.native_handle(), handle).second;
+        }
+
+        // True when this explosion has stayed undecided too long (then it is marked processed)
+        bool UndecidedTooLong(RE::Explosion* a_explosion)
+        {
+            const auto value = a_explosion->GetHandle().native_handle();
+            const auto now = std::chrono::steady_clock::now();
+            {
+                std::lock_guard lock(g_processedMutex);
+                const auto [it, inserted] = FirstSeen().try_emplace(value, now);
+                if (inserted || now - it->second < kUndecidedLimit) {
+                    return false;
+                }
+            }
+            (void)MarkProcessed(a_explosion);
+            return true;
         }
 
         // The first kMaxDiagnostics hook calls on ANY explosion: does a hook fire at all, and with what
@@ -174,14 +227,17 @@ namespace BlackFlame
             }
             const auto owner = data.actorOwner.get();
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
-            // Attribution not set yet (no owner, no cause): decided by a later hook call instead
-            if (!owner && !cause && !(data.magicCaster && data.magicCaster->blameActor.get())) {
+            // Attribution not set yet (no owner, cause, blame or script tag): decided by a later hook call,
+            // or given up after kUndecidedLimit
+            if (!owner && !cause && !(data.magicCaster && data.magicCaster->blameActor.get()) &&
+                !IsTaggedSource(a_explosion)) {
+                (void)UndecidedTooLong(a_explosion);
                 return;
             }
             if (!MarkProcessed(a_explosion)) {
                 return;  // another hook already handled this explosion
             }
-            const auto link = LinkToPlayer(a_explosion, owner.get(), data.magicCaster);
+            const auto link = LinkToPlayer("explosion", a_explosion, owner.get(), data.magicCaster);
             const bool byPlayer = link != PlayerLink::kNone;
             LogLinkOnce("explosion", link);
             if (!byPlayer && g_otherLogs.fetch_add(1) < kMaxAttributionLogs) {
@@ -335,6 +391,7 @@ namespace BlackFlame
         {
             std::lock_guard lock(g_processedMutex);
             Processed().clear();
+            FirstSeen().clear();
         }
         g_lightMissing.store(0);
         g_recolors.store(0);

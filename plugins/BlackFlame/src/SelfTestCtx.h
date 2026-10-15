@@ -56,8 +56,10 @@ namespace BlackFlame::SelfTest
         bool secondAttempted = false;
         bool secondCast = false;
         std::uintptr_t firstSwapController = 0;           // the controller T5's swap record named
-        RE::ObjectRefHandle remoteMarker;                 // T3-remote's casting marker
+        RE::ObjectRefHandle remoteMarker;                 // T3-remote's tagged casting marker
         RE::FormID remoteMarkerId = 0;
+        RE::ObjectRefHandle blameMarker;                  // T3-blame's casting marker
+        RE::FormID blameMarkerId = 0;
         std::optional<Clock::time_point> secondSwapSeen;  // T5-second's swap record first seen
         std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
         std::vector<SeenShader> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
@@ -102,6 +104,7 @@ namespace BlackFlame::SelfTest
     bool StepPlayerBurn(Ctx& a_c, bool a_first);
     bool StepSecondHit(Ctx& a_c, bool a_first);
     bool StepRemoteCast(Ctx& a_c, bool a_first);
+    void RemoveRemoteMarkers(Ctx& a_c);  // T3-remote's markers, also at cleanup
     bool StepNpcProjectile(Ctx& a_c, bool a_first);
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first);
     bool StepPlayerExplosion(Ctx& a_c, bool a_first);

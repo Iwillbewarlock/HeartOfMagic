@@ -2,6 +2,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
+#include "FireSet.h"
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
@@ -12,7 +13,9 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace BlackFlame
@@ -23,7 +26,7 @@ namespace BlackFlame
 
         constexpr auto kPlacedWindow = std::chrono::seconds(5);  // a placed reference's 3D must show by then
         constexpr auto kSourceWindow = std::chrono::seconds(5);  // a caster's shots count this long
-        constexpr std::size_t kMaxTags = 256;                    // more at once: the oldest are not kept
+        constexpr std::size_t kMaxTags = 256;                    // full: the entry expiring first makes room
 
         struct Tag
         {
@@ -45,7 +48,9 @@ namespace BlackFlame
 
         void Add(RE::TESObjectREFR* a_ref, bool a_placed)
         {
-            if (!a_ref) {
+            // Never an actor: a script's Cast on an NPC would turn that NPC's own fire grey, a placed summon
+            // would be recoloured whole (the player is the owner rule already)
+            if (!a_ref || a_ref->As<RE::Actor>()) {
                 return;
             }
             const auto handle = a_ref->GetHandle();
@@ -54,9 +59,11 @@ namespace BlackFlame
             auto& tags = Tags();
             if (tags.size() >= kMaxTags) {
                 std::erase_if(tags, [&](const auto& a_entry) { return a_entry.second.expires <= now; });
-                if (tags.size() >= kMaxTags) {
-                    return;
-                }
+            }
+            if (tags.size() >= kMaxTags && !tags.contains(handle.native_handle())) {
+                const auto earliest = std::ranges::min_element(tags,
+                    [](const auto& a_lhs, const auto& a_rhs) { return a_lhs.second.expires < a_rhs.second.expires; });
+                tags.erase(earliest);
             }
             auto& tag = tags[handle.native_handle()];
             tag.handle = handle;
@@ -77,8 +84,49 @@ namespace BlackFlame
             return nullptr;
         }
 
+        // What a script of the player's fire effect placed is recoloured only when its base is fire by the
+        // FireSet rules (a fire explosion or hazard), or a visual-only kind (activator, moveable static,
+        // static, art object) whose effect shaders are the fire the effect placed. Anything else (an actor,
+        // an item, a container, a door, a light...) is left and logged once per base type.
+        bool IsRecolourable(RE::TESObjectREFR* a_ref)
+        {
+            const auto* base = a_ref->GetBaseObject();
+            if (!base || a_ref->As<RE::Actor>()) {
+                return false;
+            }
+            switch (base->GetFormType()) {
+            case RE::FormType::Explosion:
+                return IsFireExplosion(base->As<RE::BGSExplosion>());
+            case RE::FormType::Hazard:
+                return IsFireHazard(base->As<RE::BGSHazard>());
+            case RE::FormType::Activator:
+            case RE::FormType::MovableStatic:
+            case RE::FormType::Static:
+            case RE::FormType::ArtObject:
+                return true;
+            default:
+                break;
+            }
+            static std::mutex mutex;
+            static auto* logged = std::make_unique<std::unordered_set<RE::FormType>>().release();
+            bool first = false;
+            {
+                std::lock_guard lock(mutex);
+                first = logged->insert(base->GetFormType()).second;
+            }
+            if (first) {
+                logger::info("BlackFlame: placed by a script of the player's fire effect: {:08X} (base {:08X}, form type "
+                             "{}) is not a fire explosion, hazard or visual-only kind - left",
+                    a_ref->GetFormID(), base->GetFormID(), static_cast<int>(base->GetFormType()));
+            }
+            return false;
+        }
+
         void RecolorPlaced(RE::TESObjectREFR* a_ref)
         {
+            if (!IsRecolourable(a_ref)) {
+                return;
+            }
             RecolorStats stats;
             bool tinted = false;
             (void)Guarded("script-placed recolour", [&]() {

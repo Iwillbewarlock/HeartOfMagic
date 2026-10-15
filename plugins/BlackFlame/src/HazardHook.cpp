@@ -7,6 +7,7 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "ScriptTags.h"
 #include "SehGuard.h"
 #include "VtableSlots.h"
 
@@ -158,19 +159,19 @@ namespace BlackFlame
                 return true;
             }
             const auto owner = hazard->GetHazardRuntimeData().ownerActor.get();
-            if (!owner && !hazard->GetActorCause()) {
+            if (!owner && !IsTaggedSource(hazard)) {
                 if (Clock::now() - a_pending.queuedAt < kOwnerWait) {
                     return false;
                 }
                 int suppressed = 0;
                 if (LogLimit::Allow("hazard no owner", 0, suppressed)) {
-                    logger::info("BlackFlame: hazard {:08X}: no ownerActor or actor cause after {} s - left",
+                    logger::info("BlackFlame: hazard {:08X}: no ownerActor or script tag after {} s - left",
                         hazard->GetFormID(), kOwnerWait.count());
                 }
                 return true;
             }
             const auto* base = BaseOf(hazard);
-            const auto link = LinkToPlayer(hazard, owner.get());
+            const auto link = LinkToPlayer("hazard", hazard, owner.get());
             if (link != PlayerLink::kNone && IsFireHazard(base) && IsStoked()) {
                 LogLinkOnce("hazard", link);
                 if (!RecolorHazard(hazard, base, link)) {

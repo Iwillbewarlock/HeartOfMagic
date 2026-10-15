@@ -474,6 +474,7 @@ namespace BlackFlame::SelfTest
         if (a_c.lastCast && Clock::now() - *a_c.lastCast < kInFlightWait) {
             return false;
         }
+        RemoveRemoteMarkers(a_c);  // left behind when T3-remote timed out
         SelfTestLog::Info("T9", std::format("target: {}; caster: {}", SelfTestWorld::Remove(a_c.dummy),
             SelfTestWorld::Remove(a_c.caster)));
         SelfTestLog::Info("T-hand", "hand art: manual (CastSpellImmediate has no charge animation, so there is no "
