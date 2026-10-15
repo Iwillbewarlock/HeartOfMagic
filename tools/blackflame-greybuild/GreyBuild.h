@@ -1,0 +1,285 @@
+#pragma once
+
+// =============================================================================
+// blackflame-greybuild - grey duplicates of shared-particle fire meshes
+// =============================================================================
+// Black Flame (plugins/BlackFlame/README.md, "Grey duplicates"). Fire impacts and
+// hazards carry AddOnNodes (BSValueNode, value = ADDN index) whose particles the
+// engine emits into ONE shared BSMasterParticleSystem per index, so a single
+// instance cannot be recoloured at runtime. This tool writes grey copies of those
+// master particle system NIFs (shipped under new ADDN indices) and copies of the
+// impact / hazard NIFs whose AddOnNodes point at the grey indices.
+
+#include <cstdint>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace nifly
+{
+    class NifFile;
+}
+
+namespace GreyBuild
+{
+    // =========================================================================
+    // Constants
+    // =========================================================================
+
+    // The palette the DLL loads (plugins/BlackFlame/src/Palette.cpp), as a NIF stores it
+    inline constexpr const char* kPalettePath = "textures\\HeartOfMagic\\BlackFlame\\GradBlackFlame.dds";
+
+    // SLSF1 bit positions (CommonLibSSE-NG RE/B/BSShaderProperty.h EShaderPropertyFlag8,
+    // kGrayscaleToPaletteColor = 4, kGrayscaleToPaletteAlpha = 5)
+    inline constexpr std::uint32_t kSlsf1GreyscaleToPaletteColor = 1u << 4;
+    inline constexpr std::uint32_t kSlsf1GreyscaleToPaletteAlpha = 1u << 5;
+
+    // Rec. 709 luma weights, the DLL's own (plugins/BlackFlame/src/Tint.h)
+    inline constexpr float kLumaRed = 0.2126f;
+    inline constexpr float kLumaGreen = 0.7152f;
+    inline constexpr float kLumaBlue = 0.0722f;
+
+    inline constexpr float kMinTint = 0.0f;
+    inline constexpr float kMaxTint = 2.0f;
+
+    // Every grey output lives here (Data-relative, lower case)
+    inline constexpr const char* kGreyRoot = "meshes\\heartofmagic\\blackflame\\";
+    inline constexpr const char* kMeshesRoot = "meshes\\";
+
+    [[nodiscard]] inline bool StartsWith(std::string_view a_text, std::string_view a_prefix) noexcept
+    {
+        return a_text.substr(0, a_prefix.size()) == a_prefix;
+    }
+
+    [[nodiscard]] inline bool EndsWith(std::string_view a_text, std::string_view a_suffix) noexcept
+    {
+        return a_text.size() >= a_suffix.size() && a_text.substr(a_text.size() - a_suffix.size()) == a_suffix;
+    }
+
+    // =========================================================================
+    // Map file (plugins/BlackFlame/data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json)
+    // =========================================================================
+
+    inline constexpr float kDefaultTint = 0.6f;  // the DLL's tintScale default (plugins/BlackFlame/src/Config.h)
+
+    // ADDN DNAM flags as Skyrim.esm stores them (raw DNAM: MPSFireSmall01 01 00, MPSFireBoltImpact01 03 00)
+    inline constexpr std::uint16_t kDnamMasterParticleSystem = 1;
+    inline constexpr std::uint16_t kDnamAlwaysLoaded = 3;
+
+    struct AddonEntry
+    {
+        int index = 0;      // the original ADDN index
+        int grey = 0;       // the grey ADDN index
+        std::string model;  // the original MPS NIF, Data-relative
+        std::string greyModel;
+        // For the DLL and for people; carried through when a map is written
+        std::string editorId;      // the original ADDN's EditorID
+        std::string source;        // the original ADDN, "Plugin|localId"
+        std::uint16_t masterParticleCap = 0;
+        std::uint16_t dnamFlags = kDnamMasterParticleSystem;
+        std::string greyEditorId;  // the grey ADDN record's EditorID
+        std::string greyForm;      // the grey ADDN record, "Plugin|localId"
+    };
+
+    struct GreyMap
+    {
+        float tint = kDefaultTint;
+        std::map<int, AddonEntry> addons;           // by original index
+        std::map<std::string, std::string> models;  // impact / hazard NIF -> grey copy
+    };
+
+    /// Reads and validates the map. Throws std::runtime_error naming what is wrong.
+    [[nodiscard]] GreyMap LoadMap(const std::filesystem::path& a_file);
+
+    /// Writes a map in the same format LoadMap reads. Throws std::runtime_error on a write failure.
+    void WriteMap(const GreyMap& a_map, const std::filesystem::path& a_file, const std::vector<std::string>& a_comment);
+
+    /// Lower case, forward slashes to backslashes.
+    [[nodiscard]] std::string NormalizeDataPath(std::string a_path);
+
+    /// NormalizeDataPath, with "meshes\" put in front when missing (record Model fields leave it out).
+    [[nodiscard]] std::string MeshDataPath(const std::string& a_path);
+
+    /// The grey copy's path for a Data-relative mesh path: meshes\heartofmagic\blackflame\<rest>.
+    [[nodiscard]] std::string GreyPathFor(const std::string& a_meshDataPath);
+
+    // =========================================================================
+    // Request (GreyRequest.cpp): what one setup needs, for maps made per setup
+    // =========================================================================
+    // Written by hand or by a tool that sees the load order (planned: the DLL at
+    // kDataLoaded). "addons" lists the load order's ADDN records (index, model as the
+    // record stores it, DNAM); "models" the fire impact / hazard NIFs to make grey copies of.
+
+    struct RequestAddon
+    {
+        int index = 0;
+        std::string model;  // Data-relative (meshes\ added when missing)
+        std::string editorId;
+        std::string source;
+        std::uint16_t masterParticleCap = 0;
+        std::uint16_t dnamFlags = kDnamMasterParticleSystem;
+    };
+
+    struct Request
+    {
+        std::map<int, RequestAddon> addons;  // by index (every ADDN of the load order)
+        std::vector<std::string> models;     // Data-relative impact / hazard NIFs
+    };
+
+    /// Reads and validates a request. Throws std::runtime_error naming what is wrong.
+    [[nodiscard]] Request LoadRequest(const std::filesystem::path& a_file);
+
+    // The generated plugin for grey ADDN records a setup needs beyond the shipped ones
+    inline constexpr const char* kLocalPluginName = "HeartOfMagic_BlackFlame_Local.esp";
+    inline constexpr int kGreyIndexBase = 9100;       // preferred grey index = base + original
+    inline constexpr std::uint32_t kFirstLightFormId = 0x800;
+    inline constexpr std::uint32_t kLastLightFormId = 0xFFF;
+
+    struct Plan
+    {
+        GreyMap map;
+        std::vector<AddonEntry> newRecords;  // grey ADDN records the shipped ESL does not have
+        std::vector<std::string> problems;   // values with no ADDN in the request, and the like
+        std::vector<std::string> skipped;    // request models in no --in folder
+    };
+
+    /// Reads every listed model found in a_inputs (first folder that has it wins), collects
+    /// its AddOnNode values and allocates grey indices: base + original when free, an existing
+    /// ADDN at that index reused when it already names the grey copy (the shipped records),
+    /// otherwise the next free index above every used one.
+    [[nodiscard]] Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs,
+        float a_tint);
+
+    // =========================================================================
+    // Generated ESL (GreyEsl.cpp)
+    // =========================================================================
+
+    /// Writes an ESL-flagged plugin with no masters holding one ADDN record per entry
+    /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), FormIDs 0x800 up in order.
+    void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
+
+    struct EslAddon
+    {
+        std::uint32_t formId = 0;
+        std::string editorId;
+        std::string model;
+        int index = 0;
+        std::uint16_t masterParticleCap = 0;
+        std::uint16_t dnamFlags = 0;
+    };
+
+    /// Reads the ADDN records back (only what WriteAddonEsl writes). Throws std::runtime_error.
+    [[nodiscard]] std::vector<EslAddon> ReadAddonEsl(const std::filesystem::path& a_file, std::uint32_t& a_headerFlags);
+
+    // =========================================================================
+    // NIF operations (GreyNif.cpp)
+    // =========================================================================
+
+    struct GreyStats
+    {
+        int effectShaders = 0;     // BSEffectShaderProperty blocks
+        int paletteForced = 0;     // of those, palette colour flag was off and is now on
+        int lightingShaders = 0;   // BSLightingShaderProperty blocks (left alone)
+        int colorModifiers = 0;    // BSPSysSimpleColorModifier blocks desaturated
+        int colorControllers = 0;  // BSEffectShaderPropertyColorController blocks
+        int controllerKeys = 0;    // NiPosData keys of those controllers desaturated
+        int controllersUnreached = 0;  // controllers without a direct NiPoint3Interpolator: keys left
+        int psysColorData = 0;     // NiColorData blocks of NiPSysColorModifier desaturated
+    };
+
+    struct RemapStats
+    {
+        int valueNodes = 0;                     // BSValueNode blocks
+        int remapped = 0;                       // values changed to a grey index
+        int alreadyGrey = 0;                    // values that already are grey indices
+        std::vector<std::string> remapLines;    // "name: 9 -> 9109"
+        std::vector<std::string> unmapped;      // "name: value" (a failure)
+    };
+
+    [[nodiscard]] float Luminance(float a_red, float a_green, float a_blue) noexcept;
+
+    /// Every BSEffectShaderProperty: palette colour flag on, greyscale texture the palette,
+    /// base colour RGB luminance x tint (alpha kept); colour modifier keys and effect colour
+    /// controller keys RGB to luminance (alpha kept). Lighting shaders are left alone.
+    GreyStats GreyEffects(nifly::NifFile& a_nif, float a_tint);
+
+    /// Every BSValueNode value through the map (names and everything else kept).
+    RemapStats RemapAddonValues(nifly::NifFile& a_nif, const GreyMap& a_map);
+
+    /// Loads a NIF; throws std::runtime_error naming the file on failure.
+    void LoadNif(nifly::NifFile& a_nif, const std::filesystem::path& a_file);
+
+    /// Saves without nifly's optimize / block sort (a duplicate keeps the source's block order).
+    void SaveNif(nifly::NifFile& a_nif, const std::filesystem::path& a_file);
+
+    /// The bytes a save would write.
+    [[nodiscard]] std::string SaveToBytes(nifly::NifFile& a_nif);
+
+    /// Count of unknown (raw-kept) blocks.
+    [[nodiscard]] int CountUnknownBlocks(const nifly::NifFile& a_nif);
+
+    /// Checks a written grey MPS / remapped copy against the map; returns the problems.
+    [[nodiscard]] std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects,
+        const GreyMap& a_map);
+
+    // =========================================================================
+    // Round trip (GreyRoundTrip.cpp)
+    // =========================================================================
+
+    enum class RoundTripKind
+    {
+        Identical,    // an unchanged re-save is byte-identical
+        StringOrder,  // only the header string table order differs
+        Different
+    };
+
+    struct RoundTrip
+    {
+        RoundTripKind kind = RoundTripKind::Different;
+        std::string detail;
+    };
+
+    [[nodiscard]] const char* RoundTripName(RoundTripKind a_kind) noexcept;
+
+    /// Loads a NIF, re-saves it unchanged and compares. Throws std::runtime_error on a load failure.
+    [[nodiscard]] RoundTrip CheckRoundTrip(const std::filesystem::path& a_file);
+
+    // =========================================================================
+    // Build run (GreyRun.cpp)
+    // =========================================================================
+
+    struct Totals
+    {
+        int built = 0;
+        int skipped = 0;
+        int failed = 0;
+    };
+
+    /// The first folder in a_inputs that has a_dataPath, or nothing.
+    [[nodiscard]] std::optional<std::filesystem::path> FindSource(const std::vector<std::filesystem::path>& a_inputs,
+        const std::string& a_dataPath);
+
+    /// a_child is a_parent or inside it (case-insensitive, as Windows paths are).
+    [[nodiscard]] bool IsInside(const std::filesystem::path& a_child, const std::filesystem::path& a_parent);
+
+    /// Writes every grey MPS and remapped copy the map lists into a_out, reading each back
+    /// and verifying it. An MPS in no input folder is skipped, or a failure when a_needAll.
+    Totals BuildFromMap(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
+        const std::filesystem::path& a_out, bool a_needAll);
+
+    // =========================================================================
+    // Dump and self-test
+    // =========================================================================
+
+    /// Prints what the builder reads and writes (values, effect shaders, colour keys). Returns 0/1.
+    int DumpNif(const std::filesystem::path& a_file);
+
+    /// Re-saves a NIF unchanged and reports whether the bytes match (and which block sizes moved). Returns 0/1.
+    int RoundTripReport(const std::filesystem::path& a_file);
+
+    /// Builds a tiny NIF in a temp folder, runs both transforms, reloads and checks. Returns 0/1.
+    int RunSelfTest();
+}

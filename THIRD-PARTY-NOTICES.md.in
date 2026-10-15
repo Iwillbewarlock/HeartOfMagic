@@ -223,3 +223,9 @@ texts are in `licenses/`.
 The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.
 `SpellLearning.dll` also uses Microsoft's OpenMP runtime, `vcomp140.dll`, which is not in the zip: it comes
 with the Microsoft Visual C++ Redistributable, which Skyrim and SKSE setups already have.
+
+## Build tools (not in the DLLs or the release)
+
+| Library | Version | License | License text | Used by |
+|---|---|---|---|---|
+| nifly | 1.0.0 (vcpkg port 1.0.0#1) | GPL-3.0 | `licenses/nifly.txt` | `tools/blackflame-greybuild` only: a repository build tool that writes the Black Flame prototype's grey mesh copies. No DLL links it, and the tool is not in this zip |
