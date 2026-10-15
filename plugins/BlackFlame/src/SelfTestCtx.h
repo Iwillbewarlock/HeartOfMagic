@@ -39,6 +39,9 @@ namespace BlackFlame::SelfTest
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
+        std::uint64_t extendMark = 0;
+        bool extendCast = false;
+        std::optional<Clock::time_point> secondHitAt;
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
     };
@@ -63,6 +66,7 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] bool NeedActors(Ctx& a_c, const char* a_id);
 
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
+    inline constexpr auto kRetryGrace = std::chrono::milliseconds(300);  // a second hit's own engine shader, one retry tick
     inline constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
     inline constexpr auto kInFlightWait = std::chrono::milliseconds(1500);  // after the last cast, before deleting
     // A colour-key component outside this range or NaN: the modifier layout does not match

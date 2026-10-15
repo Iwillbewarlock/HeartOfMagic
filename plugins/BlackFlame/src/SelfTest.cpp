@@ -60,6 +60,9 @@ namespace BlackFlame::SelfTest
             if (g_ctx.greySeen) {
                 *g_ctx.greySeen += a_paused;
             }
+            if (g_ctx.secondHitAt) {
+                *g_ctx.secondHitAt += a_paused;
+            }
         }
 
         void JumpToCleanup()

@@ -350,6 +350,7 @@ namespace BlackFlame
                     return RE::BSContainer::ForEachResult::kContinue;
                 });
             }
+            g_liveCount.store(g_live.size() + g_pending.size());
             LogBurn(0, std::format("effect {} on {:08X} removed, no other fire effect of the player there: grey shader "
                 "finished", a_activeEffectId, targetRef->GetFormID()));
         });

@@ -79,6 +79,8 @@ namespace BlackFlame::SelfTest
     {
         if (a_first) {
             a_c.greySeen.reset();
+            a_c.secondHitAt.reset();
+            a_c.extendCast = false;
             a_c.engineLiveAfterGrey = false;
             if (!NeedActors(a_c, "T5")) {
                 return true;
@@ -90,8 +92,18 @@ namespace BlackFlame::SelfTest
         const bool replace = GetConfig().burnMode == BurnMode::kReplace;
         if (!a_c.greySeen && ours && LiveIn(shaders, ours->GetFormID())) {
             a_c.greySeen = Clock::now();
+            // T5-extend's second hit, cast now so it lands while this instant hit's short grey burn
+            // still lives; T5-extend only judges its burn record
+            a_c.extendMark = SelfTestProbe::Mark();
+            a_c.extendCast = CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-extend");
         }
-        if (a_c.greySeen && std::ranges::any_of(engines, [&](RE::FormID e) { return LiveIn(shaders, e); })) {
+        if (a_c.extendCast && !a_c.secondHitAt && !SelfTestProbe::BurnsSince(a_c.extendMark).empty()) {
+            a_c.secondHitAt = Clock::now();
+        }
+        // From the second cast until kRetryGrace after its burn record, its own engine shader may
+        // still be on screen for a tick (the finishing retry runs on the next tick): not counted
+        const bool inGrace = a_c.extendCast && (!a_c.secondHitAt || Clock::now() - *a_c.secondHitAt < kRetryGrace);
+        if (a_c.greySeen && !inGrace && std::ranges::any_of(engines, [&](RE::FormID e) { return LiveIn(shaders, e); })) {
             a_c.engineLiveAfterGrey = true;
         }
         a_c.waitingFor = std::format("a live grey shader on the target, then {} s of watching; shaders seen: {}; burns: {}",
@@ -114,12 +126,12 @@ namespace BlackFlame::SelfTest
     bool StepBurnExtend(Ctx& a_c, bool a_first)
     {
         if (a_first) {
-            if (!NeedActors(a_c, "T5-extend")) {
+            if (!a_c.extendCast) {
+                SelfTestLog::Fail("T5-extend", "skipped: no second hit was cast (T5 never saw the grey shader)");
                 return true;
             }
-            a_c.mark = SelfTestProbe::Mark();
-            a_c.waitingFor = "a burn record for a second Firebolt hit";
-            return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-extend");
+            a_c.mark = a_c.extendMark;  // cast by T5 the moment the grey shader showed
+            a_c.waitingFor = "a burn record for the second Firebolt hit";
         }
         const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
         const auto it = std::ranges::find_if(burns, [](const auto& b) { return b.applied || b.alreadyLive; });

@@ -131,7 +131,7 @@ no crime. Every cast re-finds its target first and casts nothing when it is gone
 | T3-tint | every recoloured base colour is grey (R=G=B) and, where the shape was seen before the recolour, equals its old luminance x tintScale |
 | T3-light | the projectile's light diffuse equals `lightColor` (INFO when it has no light) |
 | T5 | a live grey shader appears on the target, a burn record applied it, and in replace mode no engine hit shader of any of Firebolt's effects is live in the second after |
-| T5-extend | a second Firebolt hit extends the live grey shader (one grey shader live) |
+| T5-extend | a second Firebolt, cast by T5 the moment the grey shader shows (while the first hit's 1.5 s grey still lives), extends it: its burn record says extended and one grey shader is live. T5 does not count that hit's own engine shader for 0.3 s after its burn record (one retry tick) |
 | T4 | the caster's Firebolt (cast in the same frame as a player one, matched by shooter) has effect shapes, none grey, and the player's was recoloured |
 | T4-shared | while both projectiles still exist, inspected then: no effect property shared, none grey on the caster's (INFO "not comparable" when one was gone) |
 | T5-npc | INFO: the target's shaders after T4 |
