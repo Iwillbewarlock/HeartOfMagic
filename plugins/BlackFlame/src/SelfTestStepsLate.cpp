@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Forms.h"
 #include "ParticleColors.h"
+#include "HazardSwap.h"
 #include "ImpactSwap.h"
 #include "ProjectileHook.h"
 #include "SelfTestLog.h"
@@ -91,6 +92,9 @@ namespace BlackFlame::SelfTest
                 }
                 a_c.mark = SelfTestProbe::Mark();
                 (a_byPlayer ? a_c.swapsAtT6 : a_c.swapsAtT6npc) = ImpactSwapCount();
+                if (a_byPlayer) {
+                    a_c.hazardSwapsAtT6 = HazardSwapCount();
+                }
                 RE::Actor* caster = a_byPlayer ? Player() : ActorOf(a_c.caster);
                 return !CastAtTarget(a_c, caster, a_c.forms.fireball, id);
             }

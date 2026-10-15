@@ -83,7 +83,15 @@ namespace BlackFlame
 
     void RunGreyCheck()
     {
-        if (!Results().empty() || GreyModelCount() == 0) {
+        if (!Results().empty()) {
+            return;
+        }
+        // Always one line with the counts; no models while a swap is on is a FAIL (nothing could be swapped)
+        const bool swapsOn = GetConfig().impactSwap || GetConfig().hazardSwap;
+        const auto models = GreyModelCount();
+        Add(!swapsOn || models > 0, std::format("grey map: {} models, {} addons{}", models, GreyAddons().size(),
+            swapsOn && models == 0 ? " - impactSwap/hazardSwap are on but nothing can be swapped" : ""));
+        if (models == 0) {
             return;
         }
         CheckAddons();

@@ -2,6 +2,7 @@
 
 #include "Attribution.h"
 #include "Config.h"
+#include "HazardSwap.h"
 #include "ImpactSwap.h"
 #include "ScriptTags.h"
 #include "SelfTestLog.h"
@@ -178,13 +179,46 @@ namespace BlackFlame::SelfTest
     {
         constexpr auto kSwapSettle = std::chrono::milliseconds(1200);  // the explosion's impact effects spawn in Update
 
+        // The explosion window lives in the Explosion Update hook, installed only with config explosion
         bool SwapExpected(const Ctx& a_c)
         {
             const auto status = GetImpactSwapStatus();
             const auto* explosion = a_c.forms.fireballExplosion;
-            return GetConfig().impactSwap && status.modelHooked && explosion &&
+            return GetConfig().impactSwap && GetConfig().explosion && status.modelHooked && explosion &&
                    ImpactSetHasGreyModel(explosion->data.impactDataSet);
         }
+
+        // The projectile's own impact set: its spell's first effect with an impact data set
+        const RE::BGSImpactDataSet* SpellImpactSet(const RE::SpellItem* a_spell)
+        {
+            if (!a_spell) {
+                return nullptr;
+            }
+            for (const auto* effect : a_spell->effects) {
+                if (effect && effect->baseEffect && effect->baseEffect->data.impactDataSet) {
+                    return effect->baseEffect->data.impactDataSet;
+                }
+            }
+            return nullptr;
+        }
+    }
+
+    // T3-swap: the player's Firebolt impacts (T3 and T5-second) went through the impact call sites; PASS/FAIL
+    // when Firebolt's impact set has a model in the grey map, INFO otherwise
+    bool StepProjectileImpactSwap(Ctx& a_c, bool)
+    {
+        const auto swaps = ImpactSwapCount() - a_c.swapsAtT3;
+        const auto status = GetImpactSwapStatus();
+        const bool expected = GetConfig().impactSwap && status.sitesHooked > 0 && status.modelHooked &&
+                              ImpactSetHasGreyModel(SpellImpactSet(a_c.forms.firebolt));
+        if (!expected) {
+            SelfTestLog::Info("T3-swap", std::format("not judged: impactSwap off, no call site hooked, or Firebolt's impact "
+                "set has no model in the grey map ({} swaps counted)", swaps));
+            return true;
+        }
+        SelfTestLog::Check("T3-swap", swaps > 0, std::format("grey impact models handed out since the player's Firebolt: {}",
+            swaps));
+        return true;
     }
 
     bool StepImpactSwap(Ctx& a_c, bool)
@@ -194,6 +228,9 @@ namespace BlackFlame::SelfTest
             return false;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6;
+        // Hazards: INFO only (no vanilla spell is known to leave a mapped hazard reliably)
+        SelfTestLog::Info("T6-hazard", std::format("grey hazard models handed out since the player's Fireball: {} (hazard "
+            "swap {})", HazardSwapCount() - a_c.hazardSwapsAtT6, HazardSwapHooked() ? "hooked" : "not hooked"));
         if (!SwapExpected(a_c)) {
             SelfTestLog::Info("T6-swap", std::format("not judged: impactSwap off, not hooked, or Fireball's impact set has "
                 "no model in the grey map ({} swaps counted)", swaps));
@@ -211,6 +248,11 @@ namespace BlackFlame::SelfTest
             return false;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6npc;
+        if (!SwapExpected(a_c)) {
+            SelfTestLog::Info("T6-npc-swap", std::format("not judged: the player's side would not swap either ({} swaps "
+                "counted)", swaps));
+            return true;
+        }
         SelfTestLog::Check("T6-npc-swap", swaps == 0, std::format("grey impact models handed out since the caster's "
             "Fireball (no player projectile in flight): {}", swaps));
         return true;

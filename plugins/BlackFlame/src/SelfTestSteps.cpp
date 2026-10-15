@@ -7,6 +7,7 @@
 #include "GameThread.h"
 #include "Palette.h"
 #include "GreyCheck.h"
+#include "ImpactSwap.h"
 #include "PapyrusWrap.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
@@ -30,7 +31,7 @@ namespace BlackFlame::SelfTest
                 return;
             }
             for (const auto& w : CheckNativeWrappers()) {
-                SelfTestLog::Check("T0-wrap", w.bound && w.matches, std::format("{}.{}: bound {}, matches the original {} "
+                SelfTestLog::Check("T0-wrap", w.bound && w.matches, std::format("{}.{}: bound {}, values copied from the original {} "
                     "({} params, latent {})", w.className, w.functionName, w.bound ? "yes" : "NO", w.matches ? "yes" : "NO",
                     w.params, w.latent));
             }
@@ -243,6 +244,7 @@ namespace BlackFlame::SelfTest
                 }
                 a_c.mark = SelfTestProbe::Mark();
                 a_c.t3Mark = a_c.mark;
+                a_c.swapsAtT3 = ImpactSwapCount();
                 a_c.waitingFor = "the player's Firebolt projectile in the hook";
                 return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T3");
             }
@@ -309,6 +311,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T3", kProjectileTimeout, &StepPlayerProjectile },
             StepDef{ "T5", kBurnTimeout, &StepPlayerBurn },
             StepDef{ "T5-second", kProjectileTimeout, &StepSecondHit },
+            StepDef{ "T3-swap", kInfoTimeout, &StepProjectileImpactSwap },
             StepDef{ "T4", kProjectileTimeout, &StepNpcProjectile },
             StepDef{ "T5-npc", kInfoTimeout, &StepNpcBurnInfo },
             StepDef{ "T6", kExplosionTimeout, &StepPlayerExplosion },

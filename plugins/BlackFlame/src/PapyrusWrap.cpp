@@ -12,6 +12,8 @@
 #include <atomic>
 #include <algorithm>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 // Windows.h (pulled in through other headers) maps GetObject to GetObjectW; Variable::GetObject is meant
@@ -271,14 +273,28 @@ namespace BlackFlame
             Wrapped m_kind;
         };
 
-        // Our proxies by target (the VM holds them for the session); recognised by pointer: MSVC RTTI cannot
-        // see our class through skyrim_cast
-        std::array<std::atomic<NativeProxy*>, kTargets.size()> g_proxies{};
+        // Our proxies by target, held by our own smart pointer for as long as we report them (stored only when
+        // the bind took); recognised by pointer: MSVC RTTI cannot see our class through skyrim_cast. Under
+        // g_proxyMutex; heap-held and never freed (no DecRef into the game heap at DLL unload).
+        std::mutex g_proxyMutex;
         std::array<std::atomic<bool>, kTargets.size()> g_reboundWarned{};
+
+        std::array<RE::BSTSmartPointer<NativeProxy>, kTargets.size()>& Proxies()
+        {
+            static auto* proxies = std::make_unique<std::array<RE::BSTSmartPointer<NativeProxy>, kTargets.size()>>().release();
+            return *proxies;
+        }
+
+        RE::BSTSmartPointer<NativeProxy> ProxyOf(std::size_t a_index)
+        {
+            std::lock_guard lock(g_proxyMutex);
+            return Proxies()[a_index];
+        }
 
         bool IsOurProxy(const IFunction* a_fn)
         {
-            return std::ranges::any_of(g_proxies, [&](const auto& a_proxy) { return a_proxy.load() == a_fn; });
+            std::lock_guard lock(g_proxyMutex);
+            return std::ranges::any_of(Proxies(), [&](const auto& a_proxy) { return a_proxy && a_proxy.get() == a_fn; });
         }
 
         bool SameName(const RE::BSFixedString& a_name, const char* a_wanted)
@@ -321,7 +337,10 @@ namespace BlackFlame
             // Replaced only when the type now holds our proxy
             const auto now = FindMember(a_vm, target);
             const bool replaced = now.get() == proxy.get();
-            g_proxies[a_index].store(proxy.get());  // kept alive by the VM once bound
+            if (replaced) {
+                std::lock_guard lock(g_proxyMutex);
+                Proxies()[a_index] = proxy;  // our own reference: valid even after another plugin rebinds
+            }
             g_wrapped[a_index].store(replaced);
             logger::info("BlackFlame: {}.{}: {} (callable from tasklets: {}, latent: {})", target.className,
                 target.functionName, replaced ? "replaced by the wrapper (the original runs inside it)" : "NOT replaced",
@@ -349,7 +368,8 @@ namespace BlackFlame
             }
             // Wrapped before: is it still ours?
             const auto now = FindMember(a_vm, kTargets[i]);
-            if (now && now.get() != g_proxies[i].load() && !g_reboundWarned[i].exchange(true)) {
+            const auto ours = ProxyOf(i);
+            if (now && now.get() != ours.get() && !g_reboundWarned[i].exchange(true)) {
                 logger::warn("BlackFlame: {}.{} was rebound by another plugin after our wrapper - script-placed fire "
                              "from it is no longer tagged", kTargets[i].className, kTargets[i].functionName);
             }
@@ -363,7 +383,8 @@ namespace BlackFlame
         auto* vm = VM();
         for (std::size_t i = 0; i < kTargets.size(); ++i) {
             WrapperStatus status{ kTargets[i].className, kTargets[i].functionName };
-            auto* proxy = g_proxies[i].load();
+            const auto held = ProxyOf(i);
+            const auto* proxy = held.get();
             const auto now = vm ? FindMember(vm, kTargets[i]) : RE::BSTSmartPointer<IFunction>{};
             status.bound = proxy && now.get() == proxy;
             if (proxy) {

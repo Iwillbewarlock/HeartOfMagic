@@ -22,7 +22,8 @@
 
 namespace BlackFlame
 {
-    /// RAII: open while the current call belongs to the player's fire (a_open), on this thread
+    /// RAII: open while the current call belongs to the player's fire (a_open), closed otherwise, on this
+    /// thread; the previous state comes back at the end, so the innermost call decides
     class ImpactWindow
     {
     public:
@@ -32,7 +33,7 @@ namespace BlackFlame
         ImpactWindow& operator=(const ImpactWindow&) = delete;
 
     private:
-        bool m_open;
+        bool m_previous;
     };
 
     /// This thread is inside an open window

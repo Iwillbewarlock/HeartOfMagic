@@ -73,6 +73,23 @@ namespace BlackFlame
         std::atomic<std::uint32_t> g_restoreGeneration{ 0 };  // bumped by every restore, inside g_mutex
         thread_local std::optional<std::uint32_t> t_tickGeneration;  // set while a hand tick runs
 
+        // RAII: the tick generation is set for one hand tick and the previous value comes back however it ends
+        class TickScope
+        {
+        public:
+            explicit TickScope(std::uint32_t a_generation) noexcept :
+                m_previous(t_tickGeneration)
+            {
+                t_tickGeneration = a_generation;
+            }
+            ~TickScope() { t_tickGeneration = m_previous; }
+            TickScope(const TickScope&) = delete;
+            TickScope& operator=(const TickScope&) = delete;
+
+        private:
+            std::optional<std::uint32_t> m_previous;
+        };
+
         HandArtState& State()
         {
             static auto* state = std::make_unique<HandArtState>().release();
@@ -353,7 +370,7 @@ namespace BlackFlame
         for (std::size_t i = 0; i < kHandCount; ++i) {
             HandState hand;
             const auto generation = g_restoreGeneration.load();
-            t_tickGeneration = generation;
+            const TickScope scope(generation);
             {
                 std::lock_guard lock(g_mutex);
                 hand = State().hands[i];
@@ -363,7 +380,6 @@ namespace BlackFlame
             if (generation == g_restoreGeneration.load()) {
                 State().hands[i] = hand;  // a restore in between already reset the hands: nothing stale goes back
             }
-            t_tickGeneration.reset();
         }
     }
 }

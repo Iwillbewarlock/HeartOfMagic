@@ -47,7 +47,9 @@ namespace BlackFlame
         constexpr std::uint8_t kCallOpcode = 0xE8;
         constexpr std::size_t kCallSize = 5;
 
-        thread_local int t_window = 0;
+        // Saved and restored by each ImpactWindow: the innermost decision wins (an NPC impact nested in the
+        // player's explosion Update is closed)
+        thread_local bool t_window = false;
         std::atomic<std::uint64_t> g_swaps{ 0 };
         ImpactSwapStatus g_status;  // written once at kDataLoaded
 
@@ -82,12 +84,23 @@ namespace BlackFlame
             return REL::ID(a_id).address();
         }
 
-        bool InGameImage(std::uintptr_t a_address)
+        // An SKSE / CommonLib trampoline stub (Trampoline.cpp TrampolineAssembly: FF 25 00000000, then the
+        // 8-byte destination) in committed executable memory: another plugin's redirect we may chain onto
+        bool IsTrampolineStub(std::uintptr_t a_address)
         {
-            const auto base = REL::Module::get().base();
-            const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
-            const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-            return a_address >= base && a_address < base + nt->OptionalHeader.SizeOfImage;
+            constexpr std::array<std::uint8_t, 6> kJmpRip{ 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+            constexpr std::size_t kStubSize = 14;
+            constexpr DWORD kExecutable = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+            MEMORY_BASIC_INFORMATION info{};
+            if (VirtualQuery(reinterpret_cast<const void*>(a_address), &info, sizeof(info)) != sizeof(info) ||
+                info.State != MEM_COMMIT || (info.Protect & kExecutable) == 0 || (info.Protect & PAGE_GUARD) != 0) {
+                return false;
+            }
+            const auto regionEnd = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
+            if (a_address + kStubSize > regionEnd) {
+                return false;
+            }
+            return std::memcmp(reinterpret_cast<const void*>(a_address), kJmpRip.data(), kJmpRip.size()) == 0;
         }
 
         std::uintptr_t CallTarget(std::uintptr_t a_site)
@@ -185,10 +198,11 @@ namespace BlackFlame
                 return 0;
             }
             const auto target = CallTarget(site);
-            if (target == a_spawn || !InGameImage(target)) {
-                return site;  // our callee past the scanned chunk, or another plugin's trampoline (chained)
+            if (target == a_spawn || IsTrampolineStub(target)) {
+                return site;  // our callee past the scanned chunk, or another plugin's trampoline stub (chained)
             }
-            logger::warn("BlackFlame: impact swap: caller {} +0x{:X} calls something else - left alone", a_index, offset);
+            logger::warn("BlackFlame: impact swap: caller {} +0x{:X} calls something that is neither "
+                         "SpawnCollisionEffects nor a trampoline stub - left alone", a_index, offset);
             return 0;
         }
 
@@ -197,16 +211,19 @@ namespace BlackFlame
             static const char* thunk(const RE::TESModel* a_this)
             {
                 const char* original = func(a_this);
-                if (t_window <= 0) {
-                    return original;
+                try {
+                    if (!t_window) {
+                        return original;
+                    }
+                    const char* grey = nullptr;
+                    (void)Guarded("impact model swap", [&]() { grey = GreyModelFor(original); });
+                    if (grey) {
+                        g_swaps.fetch_add(1);
+                        return grey;
+                    }
+                } catch (...) {
                 }
-                const char* grey = nullptr;
-                (void)Guarded("impact model swap", [&]() { grey = GreyModelFor(original); });
-                if (!grey) {
-                    return original;
-                }
-                g_swaps.fetch_add(1);
-                return grey;
+                return original;
             }
 
             static inline REL::Relocation<decltype(thunk)> func;
@@ -214,23 +231,19 @@ namespace BlackFlame
     }
 
     ImpactWindow::ImpactWindow(bool a_open) noexcept :
-        m_open(a_open)
+        m_previous(t_window)
     {
-        if (m_open) {
-            ++t_window;
-        }
+        t_window = a_open;
     }
 
     ImpactWindow::~ImpactWindow()
     {
-        if (m_open) {
-            --t_window;
-        }
+        t_window = m_previous;
     }
 
     bool ImpactWindowOpen() noexcept
     {
-        return t_window > 0;
+        return t_window;
     }
 
     void InstallImpactSwap()
@@ -254,7 +267,17 @@ namespace BlackFlame
         }
         logger::info("BlackFlame: impact swap: trampoline {} bytes free", freeBytes);
         const auto spawn = AddressOf(IdFor(kSpawnSe, kSpawnAe));
-        const std::array sites{ FindSite(0, spawn), FindSite(1, spawn), FindSite(2, spawn) };
+        std::array sites{ FindSite(0, spawn), FindSite(1, spawn), FindSite(2, spawn) };
+        // One address is hooked once: a site two callers' scans both found (overlapping windows) is a FAIL
+        for (std::size_t i = 1; i < sites.size(); ++i) {
+            for (std::size_t j = 0; j < i; ++j) {
+                if (sites[i] && sites[i] == sites[j]) {
+                    logger::error("BlackFlame: impact swap FAIL: callers {} and {} found the same call site {:X} - hooked once",
+                        j, i, sites[i] - REL::Module::get().base());
+                    sites[i] = 0;
+                }
+            }
+        }
         g_status.sitesHooked += sites[0] && HookSite<0>(sites[0], spawn) ? 1 : 0;
         g_status.sitesHooked += sites[1] && HookSite<1>(sites[1], spawn) ? 1 : 0;
         g_status.sitesHooked += sites[2] && HookSite<2>(sites[2], spawn) ? 1 : 0;
