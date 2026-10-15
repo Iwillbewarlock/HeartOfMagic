@@ -51,6 +51,28 @@ namespace GreyBuild::SelfTest
             }
         }
 
+        /// The written bytes at fixed offsets: TES4 (light flag @8), HEDR @24 with size 12 @28,
+        /// version @30, record count @34, next object id @38, then "GRUP" right after the TES4
+        /// record, labelled ADDN and running to the end of the file.
+        void CheckEslBytes(Checker& a_check, const std::string& a_bytes, std::int32_t a_count, std::uint32_t a_nextId)
+        {
+            const float version = At<float>(a_bytes, 30);
+            a_check.Check(a_bytes.compare(0, 4, "TES4") == 0 && At<std::uint32_t>(a_bytes, 8) == kEslFlag,
+                "ESL bytes: TES4 @0, light flag 0x200 @8");
+            a_check.Check(a_bytes.compare(24, 4, "HEDR") == 0 && At<std::uint16_t>(a_bytes, 28) == 12,
+                "ESL bytes: HEDR @24, size 12 @28");
+            a_check.Check(std::memcmp(&version, &kHedrVersion, sizeof(float)) == 0,
+                fmt::format("ESL bytes: HEDR version @30 = {} (1.70)", version));
+            a_check.Check(At<std::int32_t>(a_bytes, 34) == a_count,
+                fmt::format("ESL bytes: record count @34 = {} (want {})", At<std::int32_t>(a_bytes, 34), a_count));
+            a_check.Check(At<std::uint32_t>(a_bytes, 38) == a_nextId,
+                fmt::format("ESL bytes: next object id @38 = {:X} (want {:X})", At<std::uint32_t>(a_bytes, 38), a_nextId));
+            const std::size_t group = kEslHeaderSize + At<std::uint32_t>(a_bytes, 4);
+            a_check.Check(a_bytes.compare(group, 4, "GRUP") == 0 && a_bytes.compare(group + 8, 4, "ADDN") == 0 &&
+                              At<std::uint32_t>(a_bytes, group + 4) == a_bytes.size() - group,
+                fmt::format("ESL bytes: GRUP ADDN right after the TES4 record (@{}), to the end of the file", group));
+        }
+
         /// ReadAddonEsl must refuse (not loop on) a GRUP with size 0 or under a header, and a
         /// subrecord running past its record's end. a_good is a written two-record ESL.
         void CheckEslRefusals(Checker& a_check, const std::filesystem::path& a_dir, const std::string& a_good)
@@ -141,7 +163,18 @@ namespace GreyBuild::SelfTest
                             back[0].model == "heartofmagic\\blackflame\\mps\\b.nif" &&
                             back[0].masterParticleCap == 7 && back[1].dnamFlags == kDnamAlwaysLoaded;
             a_check.Check(ok, "ESL: two ADDN records read back (FormIDs, EditorIDs, MODL without meshes\\, DATA, DNAM)");
-            CheckEslRefusals(a_check, a_dir, ReadBytes(file));
+            const std::string bytes = ReadBytes(file);
+            CheckEslBytes(a_check, bytes, static_cast<std::int32_t>(records.size() + 1), 0x802);
+
+            const auto problems = VerifyAddonEsl(records, file);
+            a_check.Check(problems.empty(), fmt::format("ESL: VerifyAddonEsl matches what was written ({} problem(s))",
+                problems.size()));
+            auto changed = records;
+            changed.back().grey += 1;
+            a_check.Check(VerifyAddonEsl(changed, file).size() == 1, "ESL: VerifyAddonEsl reports a changed DATA");
+            changed.pop_back();
+            a_check.Check(!VerifyAddonEsl(changed, file).empty(), "ESL: VerifyAddonEsl reports a record count mismatch");
+            CheckEslRefusals(a_check, a_dir, bytes);
         }
 
         void CheckIndexCap(Checker& a_check, const std::filesystem::path& a_dir)

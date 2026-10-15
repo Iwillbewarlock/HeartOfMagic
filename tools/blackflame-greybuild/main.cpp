@@ -128,7 +128,9 @@ namespace
         return totals.failed == 0 && totals.built > 0 ? kExitOk : kExitFail;
     }
 
-    void WriteLocalEsl(const std::vector<GreyBuild::AddonEntry>& a_records, const std::filesystem::path& a_file)
+    /// Writes the ESL, reads it back and compares; false (problems printed) on a difference.
+    [[nodiscard]] bool WriteLocalEsl(const std::vector<GreyBuild::AddonEntry>& a_records,
+        const std::filesystem::path& a_file)
     {
         GreyBuild::WriteAddonEsl(a_records, a_file);
         std::uint32_t flags = 0;
@@ -139,6 +141,11 @@ namespace
             std::cout << fmt::format("  {:06X} {} index {} model '{}' DNAM cap {} flags {}\n", record.formId,
                 record.editorId, record.index, record.model, record.masterParticleCap, record.dnamFlags);
         }
+        const auto problems = GreyBuild::VerifyAddonEsl(a_records, a_file);
+        for (const auto& problem : problems) {
+            std::cout << "FAIL  " << a_file.string() << ": " << problem << "\n";
+        }
+        return problems.empty();
     }
 
     [[nodiscard]] int RunRequest(const Options& a_options)
@@ -173,8 +180,8 @@ namespace
                 "It replaces the shipped map when this output folder is a mod placed after Heart of Magic - Black "
                 "Flame." });
         std::cout << "wrote " << mapFile.string() << "\n";
-        if (!plan.newRecords.empty()) {
-            WriteLocalEsl(plan.newRecords, a_options.out / GreyBuild::kLocalPluginName);
+        if (!plan.newRecords.empty() && !WriteLocalEsl(plan.newRecords, a_options.out / GreyBuild::kLocalPluginName)) {
+            return kExitFail;
         }
         return kExitOk;
     }

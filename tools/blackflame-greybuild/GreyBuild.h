@@ -159,9 +159,17 @@ namespace GreyBuild
     // Generated ESL (GreyEsl.cpp)
     // =========================================================================
 
+    inline constexpr std::uint32_t kEslFlag = 0x200;  // TES4 record flag: light plugin
+    // HEDR version 1.70: every record is at 0x800 or above, so the 1.71 header (records from
+    // 0x000, AE 1.6.1130+) is not needed, and runtimes or xEdit builds older than it may refuse 1.71
+    inline constexpr float kHedrVersion = 1.70f;
+
     /// Writes an ESL-flagged plugin with no masters holding one ADDN record per entry
     /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), FormIDs 0x800 up in order.
     void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
+
+    /// The FormIDs WriteAddonEsl gives a_records, in the same order.
+    [[nodiscard]] std::vector<std::uint32_t> EslFormIds(const std::vector<AddonEntry>& a_records);
 
     struct EslAddon
     {
@@ -175,6 +183,11 @@ namespace GreyBuild
 
     /// Reads the ADDN records back (only what WriteAddonEsl writes). Throws std::runtime_error.
     [[nodiscard]] std::vector<EslAddon> ReadAddonEsl(const std::filesystem::path& a_file, std::uint32_t& a_headerFlags);
+
+    /// Reads a_file back and compares it with what WriteAddonEsl was given (light flag, and per
+    /// record FormID, EDID, MODL, DATA, DNAM). Returns the differences; empty = it matches.
+    [[nodiscard]] std::vector<std::string> VerifyAddonEsl(const std::vector<AddonEntry>& a_records,
+        const std::filesystem::path& a_file);
 
     // =========================================================================
     // NIF operations (GreyNif.cpp)

@@ -1,7 +1,7 @@
 // =============================================================================
 // GreyEsl - a tiny ESL of grey ADDN records for one setup
 // =============================================================================
-// Skyrim SE plugin layout (form version 44): a TES4 record (HEDR, CNAM), then one
+// Skyrim SE plugin layout (form version 44, HEDR version 1.70): a TES4 record (HEDR, CNAM), then one
 // top-level GRUP labelled ADDN with one record per grey index. Record header: type,
 // data size, flags, FormID, version control, form version, unknown (24 bytes); GRUP
 // header: "GRUP", total size, label, group type 0, stamp, unknown (24 bytes);
@@ -11,6 +11,7 @@
 
 #include "GreyBuild.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fmt/format.h>
@@ -21,9 +22,7 @@ namespace GreyBuild
 {
     namespace
     {
-        constexpr std::uint32_t kEslFlag = 0x200;          // TES4 record flag: light plugin
         constexpr std::uint16_t kFormVersion = 44;         // Skyrim SE
-        constexpr float kHedrVersion = 1.71f;              // HEDR version Skyrim SE plugins carry
         constexpr std::size_t kHeaderSize = 24;            // record and GRUP headers
         constexpr std::size_t kSubHeaderSize = 6;          // subrecord type + u16 size
         constexpr std::int16_t kBoundMin = -32768;         // OBND as Skyrim.esm's MPS ADDN records
@@ -164,19 +163,65 @@ namespace GreyBuild
         }
     }
 
+    std::vector<std::uint32_t> EslFormIds(const std::vector<AddonEntry>& a_records)
+    {
+        std::vector<std::uint32_t> formIds;
+        for (std::size_t i = 0; i < a_records.size(); ++i) {
+            formIds.push_back(kFirstLightFormId + static_cast<std::uint32_t>(i));
+        }
+        return formIds;
+    }
+
+    std::vector<std::string> VerifyAddonEsl(const std::vector<AddonEntry>& a_records,
+        const std::filesystem::path& a_file)
+    {
+        std::vector<std::string> problems;
+        std::uint32_t flags = 0;
+        std::vector<EslAddon> back;
+        try {
+            back = ReadAddonEsl(a_file, flags);
+        } catch (const std::exception& e) {
+            return { fmt::format("cannot read it back: {}", e.what()) };
+        }
+        if ((flags & kEslFlag) == 0) {
+            problems.push_back(fmt::format("header flags 0x{:X} lack the light plugin flag 0x{:X}", flags, kEslFlag));
+        }
+        if (back.size() != a_records.size()) {
+            problems.push_back(fmt::format("{} ADDN record(s) read back, {} written", back.size(), a_records.size()));
+            return problems;
+        }
+        const std::vector<std::uint32_t> formIds = EslFormIds(a_records);
+        for (std::size_t i = 0; i < back.size(); ++i) {
+            const AddonEntry& want = a_records[i];
+            const EslAddon& got = back[i];
+            const std::string model = want.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
+            if (got.formId != formIds[i] || got.editorId != want.greyEditorId || got.model != model ||
+                got.index != want.grey || got.masterParticleCap != want.masterParticleCap ||
+                got.dnamFlags != want.dnamFlags) {
+                problems.push_back(fmt::format(
+                    "record {}: read {:06X} '{}' '{}' index {} DNAM {}/{}, written {:06X} '{}' '{}' index {} DNAM {}/{}",
+                    i, got.formId, got.editorId, got.model, got.index, got.masterParticleCap, got.dnamFlags,
+                    formIds[i], want.greyEditorId, model, want.grey, want.masterParticleCap, want.dnamFlags));
+            }
+        }
+        return problems;
+    }
+
     void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file)
     {
         if (a_records.empty() || a_records.size() > kLastLightFormId - kFirstLightFormId + 1) {
             throw std::runtime_error(fmt::format("an ESL holds 1 to 2048 records, not {}", a_records.size()));
         }
+        const std::vector<std::uint32_t> formIds = EslFormIds(a_records);
         std::string records;
         for (std::size_t i = 0; i < a_records.size(); ++i) {
-            records += AddonRecord(a_records[i], kFirstLightFormId + static_cast<std::uint32_t>(i));
+            records += AddonRecord(a_records[i], formIds[i]);
         }
 
         Writer header;
         const auto count = static_cast<std::int32_t>(a_records.size() + 1);  // records and groups
-        header.Sub("HEDR", Pack(kHedrVersion, count, kFirstLightFormId + static_cast<std::uint32_t>(a_records.size())));
+        const std::uint32_t nextObjectId = *std::max_element(formIds.begin(), formIds.end()) + 1;
+        header.Sub("HEDR", Pack(kHedrVersion, count, nextObjectId));
         header.ZString("CNAM", kAuthor);
 
         Writer file;
