@@ -217,3 +217,22 @@
 - 몸에 붙는 불 (1차 검증 반영에서 첫 시도 즉시 적용으로 바뀜): 적용 시점에 hit shader를 바꿔 끼울 방법은 찾지 못해 사후 교체(+ Flames 깜빡임 한계). `hitEffects`가 비어 있으면
   다음 틱에 한 번 더 찾는다. 지속시간 없는 효과는 -1(영구) 대신 1.5초.
 - 게임 안에서 확인할 것: plugins/BlackFlame/README.md "Self-test"와 "In-game checks the self-test cannot do".
+
+## 회색 복제본 결정 (2026-10-15)
+
+- 문제: 불 충돌(impact)·바닥 불(hazard) NIF의 AddOnNode(BSValueNode, value = ADDN 인덱스) 입자는 인덱스마다 하나뿐인
+  공유 BSMasterParticleSystem으로 나간다. 한 인스턴스만 다시 칠할 수 없어서(모두의 것이 바뀜), 회색 MPS 복사본을 새 ADDN
+  인덱스(9100 + 원래)로 싣고, AddOnNode 값만 바꾼 충돌·바닥 불 복사본을 만든다. 플레이어 것으로 바꿔 끼우는 일은 DLL 몫(별도 작업).
+- 기본 제공은 바닐라 코어만: Skyrim - Meshes0/1.bsa에서 만든 메시 14개, ESL의 ADDN 9개(0x804-0x80C), 맵 파일. Embers XD 같은
+  교체 모드는 MPS 파일과 인덱스(Embers XD.esp 224-242)가 달라서 고정 목록으로는 못 덮는다.
+- 설정마다: `tools/blackflame-greybuild --request`가 요청 파일(로드 오더의 ADDN 목록 + 불 충돌·바닥 불 모델)과 사용자의
+  설치 폴더에서 회색 메시, 전체 맵, 필요한 추가 ADDN만 담은 `HeartOfMagic_BlackFlame_Local.esp`(마스터 없는 ESL)를 만든다.
+  교체 모드 메시는 배포하지 않고 사용자 PC에서 만든다. 요청 파일은 나중에 DLL이 kDataLoaded에 쓰는 것으로 계획(지금은 손이나
+  houseCARL 목록으로 만든다).
+- 런타임 ADDN 생성(DLL이 IFormFactory로 BGSAddonNode를 만들어 TESDataHandler::addonNodes에 넣기)은 보류: CommonLib에 폼 구조
+  (index 0x68, DNAM 0x78, addonNodes NiTPrimitiveArray 0xD20)와 BSParticleSystemManager의 인덱스 레지스트리는 있지만, 엔진이
+  BSValueNode 값을 어떤 표로 ADDN에 잇는지, 그 표를 언제 만드는지, 상시 로드 MPS를 언제 짓는지, NiTPrimitiveArray에 안전하게
+  붙이는 방법(CommonLib에 Add 없음)은 확인되지 않았다. 확인 전에는 생성 ESL이 확실한 길이다.
+- 도구: nifly(GPL-3.0)는 빌더에만 정적 링크, DLL에는 안 들어간다. MSVC가 C++20에서 nifly의 비 const operator==를 모호하다고
+  거부해 빌더만 C++17 + fmt.
+- 게임 안에서 확인 안 된 것: 회색 MPS가 실제로 회색으로 그려지는지, 상시 로드 9109가 9처럼 동작하는지, 생성 ESL의 ADDN이 동작하는지.

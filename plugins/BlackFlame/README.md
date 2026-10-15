@@ -17,7 +17,9 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 
 | File | What |
 |---|---|
-| `data/HeartOfMagic_BlackFlame.esp` | ESL (masters Skyrim.esm, Update.esm): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "흑염 달구기" 0x803 |
+| `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "흑염 달구기" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") |
+| `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` | the grey duplicate map (section "Grey duplicates") |
+| `data/meshes/heartofmagic/blackflame/` | grey master particle systems and remapped impact / hazard copies, made from the vanilla BSAs by `tools/blackflame-greybuild` |
 | `data/textures/HeartOfMagic/BlackFlame/GradBlackFlame.dds` | the grey palette (256x64), made by `tools/make-gradient.js` |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame.json` | config (below) |
 | `build/plugins/BlackFlame/Release/HeartOfMagic_BlackFlame.dll` | the plugin (build output) |
@@ -79,11 +81,114 @@ skipped, so it is safe to repeat.
 | 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick |
 | 4 hand art | ticker task every 100 ms while stoked, and at once when the buff turns on: per hand casting a fire spell OR holding one readied (Actor::GetEquippedObject), the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null or holds no effect geometry (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted. Every recoloured hand-art property is remembered with its original greyscale texture, path, base colour and palette flags, and put back when the buff turns off and on a load (a fresh material copy, SetMaterial(copy, true)) |
 
+## Grey duplicates
+
+**Why.** Fire impacts and hazards (e.g. `Effects\ImpactEffects\FireballImpact01.nif`, `Magic\FireWallFX01.nif`)
+hold AddOnNodes: `BSValueNode` blocks whose integer `value` is an ADDN index. The engine does not draw their
+particles in the impact's own 3D: it emits them into one shared `BSMasterParticleSystem` per index, built from
+the ADDN record's model (`MPS\MPSFireBoltImpact01.nif` for index 9). One emitter serves every caster's impacts,
+so recolouring it for the player's hit would recolour everyone's. Instead the addon ships grey copies of those
+master particle systems under new ADDN indices, and copies of the impact / hazard NIFs whose AddOnNodes name
+the grey indices; the DLL (not done yet, another task) swaps the player's impact and hazard models to the copies
+while stoked. Precedent in the TAKEALOOK order: mihailskeletalrevenants.esp, Desecration.esp and Flames of
+Coldharbour.esp ship recoloured MPS copies under their own ADDN indices.
+
+**What ships (the vanilla core).**
+
+| Original ADDN (Skyrim.esm) | Index | Grey index | Grey record (this ESL) | Used by |
+|---|---|---|---|---|
+| MPSFireSmall01 01A71D | 0 | 9100 | 0x804 | FXFire02New |
+| MPSFireWallBase 01C2B0 | 3 | 9103 | 0x805 | FireWallFX01 |
+| MPSFireWallSparks 01C2B1 | 4 | 9104 | 0x806 | FireWallFX01 |
+| MPSFireBoltImpact01 02B95B (DNAM flags 3, always loaded) | 9 | 9109 | 0x807 (flags 3 too) | FireballImpact01 (20 fire impacts) |
+| MPSDragonSmoke 0211D4 | 12 | 9112 | 0x808 | FXDragonFireImpact |
+| MPSFireSmSmoke01 03E072 | 23 | 9123 | 0x809 | FXFire02New |
+| MPSFireLg01 03E071 | 24 | 9124 | 0x80A | FXFire01New, Embers XD's FireWallFX01 |
+| MPSFireLgSmoke01 03E070 | 25 | 9125 | 0x80B | FXFire01New, Embers XD's FireWallFX01 |
+| MPSFireWaveFlames 0647BC | 64 | 9164 | 0x80C | Embers XD's FireWallFX01 |
+
+Each record: EditorID `HoMBF_GreyAddon_<original>`, DATA the grey index, MODL
+`HeartOfMagic\BlackFlame\MPS\<original>.nif`, DNAM copied (cap 0, flags 1 = master particle system, 3 = always
+loaded, as Skyrim.esm stores them), OBND as Skyrim.esm's. No ADDN index above 8444 is used in the TAKEALOOK
+order (houseCARL scan); the grey range starts at 9100.
+
+**The map**, `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` (version 1): `tint`, `addons` (per
+original index: `grey`, `model` and `greyModel`, `editorId`, `source`, `masterParticleCap`, `dnamFlags`,
+`greyEditorId`, `greyForm` as `Plugin|localId`) and `models` (impact / hazard NIF -> its grey copy). Paths are
+Data-relative, lower case, backslashes (`meshes\mps\mpsfireboltimpact01.nif`); a record's Model field is the same
+path without `meshes\`.
+
+**The grey copies.** In a grey MPS every `BSEffectShaderProperty` gets the greyscale-to-palette colour flag
+(SLSF1 bit 4) on, `textures\HeartOfMagic\BlackFlame\GradBlackFlame.dds` as greyscale texture and base colour RGB =
+luminance x `tint` (Rec. 709 weights and default 0.6, the DLL's `Tint.h` and `tintScale`), alpha kept; the
+palette alpha flag stays as it was. `BSPSysSimpleColorModifier` keys and `BSEffectShaderPropertyColorController`
+keys (direct `NiPoint3Interpolator` only; the build counts any it cannot reach) go to luminance, alpha kept.
+Lighting-shader shapes are left alone. An impact / hazard copy changes only its AddOnNode values (names kept);
+its own inline particles (e.g. FireWallFX01's flames) stay as they are, for the DLL's per-instance recolour.
+nifly re-saves the rest unchanged: byte-identical, or with the header string table reordered, or (seen on two
+replacer meshes) with unused header strings and empty child references dropped (`--roundtrip` says which).
+
+**The builder**, `tools/blackflame-greybuild` (C++, built by `BuildRelease.ps1` into `build/tools/Release/`):
+
+```
+blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
+blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
+blackflame-greybuild --dump <file.nif> [...]        (AddOnNodes, effect shaders, colour keys)
+blackflame-greybuild --roundtrip <file.nif> [...]   (does an unchanged re-save match?)
+blackflame-greybuild --self-test                    (made-up NIF, no game files; exit 0 = pass)
+```
+
+`--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
+a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla
+extraction (the builder reads loose files only; extract BSAs first, e.g. houseCARL `housecarl_bsa_extract`).
+`--out` must not overlap any `--in`. Every output is read back and checked (flag, texture, grey colours,
+no original index left); an AddOnNode value the map does not know fails that file and nothing is written for it.
+The shipped meshes were made with `--map` on Skyrim - Meshes0/1.bsa extracted to a scratch folder.
+
+**Grey duplicates for any setup (`--request`).** VFX replacers (Embers XD, Inferno, Particle Patch, Dragon
+Breath VFX Edit, ...) replace the MPS files and impact meshes and add their own ADDN indices (Embers XD.esp: 18 records,
+224-242 without 226), so a fixed core cannot cover them. A request lists what one load order has:
+
+```json
+{ "version": 1,
+  "addons": [ { "index": 9, "model": "MPS\\MPSFireBoltImpact01.nif", "editorId": "MPSFireBoltImpact01",
+                "source": "Skyrim.esm|02B95B", "masterParticleCap": 0, "dnamFlags": 3 } ],
+  "models": [ "Effects\\ImpactEffects\\FireballImpact01.nif" ] }
+```
+
+`addons` is the winning ADDN record per index (all of them, so taken indices are known; the shipped grey records
+included); `models` the fire impact / hazard NIFs. The builder reads each model's AddOnNodes from the `--in`
+folders, and for each index used picks a grey index: 9100 + original when free, the shipped record at that index
+when it already names the same grey copy, otherwise the next free index above all used ones. It writes the grey
+MPS and copies, the full map (`SKSE\Plugins\HeartOfMagic_BlackFlame_greymap.json`, core entries included) and,
+when indices beyond the shipped records are needed, `HeartOfMagic_BlackFlame_Local.esp`: an ESL with no masters
+holding one ADDN record per extra index (FormIDs 0x800 up). Installed as a mod placed after this one (and the ESL
+enabled), its files win over the shipped map and meshes. Who writes the request: planned, the DLL at kDataLoaded
+(every `BGSAddonNode` with index, model and DNAM, plus the fire set's impact and hazard models); until then it
+can be made by hand or from a houseCARL / xEdit ADDN listing. Embers XD's meshes are never redistributed: the
+patch is made on the user's machine from their installed files.
+
+Tested on the TAKEALOOK order (2026-10-15, request from a houseCARL ADDN dump, 329 indices; 8 indices are
+defined twice there, DragonWar.esp and mihailskeletalrevenants.esp, and the request keeps the later):
+`--in` Dragon Breath VFX Edit, Embers XD - CS, Embers XD, then the Inferno, Particle Patch and CS Particle Patch
+BSAs and the vanilla BSAs extracted to scratch. 13 files built: Embers XD's MPS for 0, 9, 23, 24, 25, 64, 225, CS
+Particle Patch's for 12, Embers XD - CS's FXFire01New / 02New, Dragon Breath VFX Edit's FXDragonFireImpact, Embers
+XD's FireWallFX01 (values 64, 25, 24, 225 to 9164, 9125, 9124, 9325). Every index but 225 reused a shipped
+record; 225 got 9325 in a generated ESL (`HoMBF_GreyAddon_MPSLightGlow02`, read back by the builder and by a
+separate byte reader).
+
+**Licence.** nifly (GPL-3.0) is linked into the builder only, never into a DLL (`THIRD-PARTY-NOTICES.md.in`,
+"Build tools"). The shipped grey meshes are derived from Bethesda's vanilla meshes, as mod meshes normally are.
+
+**Not verified in game:** that a grey MPS draws grey (palette on baked-colour replacer textures included); that
+the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works (none of this can be
+seen before the DLL swaps the models).
+
 ## Known limits
 
 - Grey-black, not pitch black: the blending stays additive.
 - Death flames (an actor burning to death) stay orange: hardcoded in the engine (Black Flame author's note).
-- Scorch decals, impact data sets and hazards placed by spells or explosions (e.g. Flare Storm) are unchanged.
+- Scorch decals, impact data sets and hazards placed by spells or explosions (e.g. Flare Storm) are unchanged (grey copies of the shared-particle impacts and hazards exist, section "Grey duplicates"; the DLL does not swap to them yet).
 - A hit shader or hit art made while stoked stays grey until it ends, also after the buff ends; one made before the buff stays as it was (the engine asks once, when it makes it - see the diagnostic lines).
 - Hit art that is a shared master particle system (`BSMasterParticleSystem`) is not recoloured.
 - Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched: `BSLightingShaderProperty` emissive colour may be shared.
