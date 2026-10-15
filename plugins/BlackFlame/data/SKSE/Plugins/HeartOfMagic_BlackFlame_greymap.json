@@ -6,7 +6,7 @@
     "models: impact / hazard NIFs whose AddOnNodes are remapped to the grey indices (nothing else in them changed).",
     "dnamFlags: the ADDN DNAM flags as stored (1 master particle system, 3 always loaded), copied to the grey record.",
     "tint: base colour RGB = luminance x tint in the grey MPS copies (the DLL tintScale default).",
-    "Index 225 (MPSLightGlow02) is Embers XD only: its grey MPS is not shipped and exists only after the local Embers XD patch."
+    "Vanilla core only. Replacers (Embers XD, Inferno, ...) use other MPS files and indices: blackflame-greybuild --request makes the grey meshes, a full map and an ESL of extra grey ADDN records for one setup (README, Grey duplicates for any setup)."
   ],
   "version": 1,
   "tint": 0.6,
@@ -21,7 +21,7 @@
       "model": "meshes\\mps\\mpsfiresmall01.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfiresmall01.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireSmall01",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000804"
     },
     {
       "index": 3,
@@ -33,7 +33,7 @@
       "model": "meshes\\mps\\mpsfirewallbase.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewallbase.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireWallBase",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000805"
     },
     {
       "index": 4,
@@ -45,7 +45,7 @@
       "model": "meshes\\mps\\mpsfirewallsparks.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewallsparks.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireWallSparks",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000806"
     },
     {
       "index": 9,
@@ -57,7 +57,7 @@
       "model": "meshes\\mps\\mpsfireboltimpact01.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfireboltimpact01.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireBoltImpact01",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000807"
     },
     {
       "index": 12,
@@ -69,7 +69,7 @@
       "model": "meshes\\mps\\mpsdragonsmoke.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsdragonsmoke.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSDragonSmoke",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000808"
     },
     {
       "index": 23,
@@ -81,7 +81,7 @@
       "model": "meshes\\mps\\mpsfiresmsmoke01.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfiresmsmoke01.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireSmSmoke01",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|000809"
     },
     {
       "index": 24,
@@ -93,7 +93,7 @@
       "model": "meshes\\mps\\mpsfirelg01.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirelg01.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireLg01",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080A"
     },
     {
       "index": 25,
@@ -105,7 +105,7 @@
       "model": "meshes\\mps\\mpsfirelgsmoke01.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirelgsmoke01.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireLgSmoke01",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080B"
     },
     {
       "index": 64,
@@ -117,19 +117,7 @@
       "model": "meshes\\mps\\mpsfirewaveflames.nif",
       "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpsfirewaveflames.nif",
       "greyEditorId": "HoMBF_GreyAddon_MPSFireWaveFlames",
-      "greyForm": ""
-    },
-    {
-      "index": 225,
-      "grey": 9325,
-      "editorId": "MPSLightGlow02",
-      "source": "Embers XD.esp|09318C",
-      "masterParticleCap": 0,
-      "dnamFlags": 1,
-      "model": "meshes\\mps\\mpslightglow02.nif",
-      "greyModel": "meshes\\heartofmagic\\blackflame\\mps\\mpslightglow02.nif",
-      "greyEditorId": "HoMBF_GreyAddon_MPSLightGlow02",
-      "greyForm": ""
+      "greyForm": "HeartOfMagic_BlackFlame.esp|00080C"
     }
   ],
   "models": {
