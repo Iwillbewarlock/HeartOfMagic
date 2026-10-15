@@ -45,6 +45,9 @@ What are you doing?
 │
 ├─► Working with BookXP addon?
 │   └─► plugins/BookXP/README.md
+│
+├─► Working with the Black Flame prototype (흑염 달구기, separate DLL + ESL, not in the release)?
+│   └─► plugins/BlackFlame/README.md
 ```
 
 ## Critical Rules (MUST Follow)
@@ -337,6 +340,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Public C++ API | `plugins/spelllearning/src/SpellLearningAPI.h` |
 | DEST compatibility shim | `plugins/DummyDEST/` |
 | BookXP addon | `plugins/BookXP/` |
+| Black Flame prototype (not shipped) | `plugins/BlackFlame/` |
 | Shared CMake modules | `plugins/cmake/` |
 | CommonLibSSE-NG | `plugins/external/commonlibsse-ng/` |
 | PrismaUI frontend | `PrismaUI/views/SpellLearning/SpellLearningPanel/` |
@@ -471,3 +475,4 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |
+| [plugins/BlackFlame/README.md](plugins/BlackFlame/README.md) | Black Flame prototype: grey-black fire for the player's fire spells while stoked; config, limits, in-game test |

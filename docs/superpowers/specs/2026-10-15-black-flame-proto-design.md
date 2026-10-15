@@ -68,9 +68,16 @@
 ## 설정 (HeartOfMagic_BlackFlame.json)
 
 ```json
-{ "burnShader": true, "projectile": true, "explosion": true, "handArt": true, "light": true,
-  "particleColors": false, "tintScale": 0.6, "lightColor": [0.25, 0.22, 0.28] }
+{ "burnShader": true, "burnMode": "replace", "projectile": true, "explosion": true, "handArt": true,
+  "light": true, "forcePalette": true, "particleColors": false, "tintScale": 0.6,
+  "lightColor": [0.25, 0.22, 0.28] }
 ```
+
+- `burnMode`: `"replace"`(원래 hit shader를 끝내고 우리 것) / `"overlay"`(원래 것을 두고 위에 우리 것). 비교 시험용.
+- `forcePalette`: 팔레트 플래그가 없는 이펙트 셰이프에 플래그를 켜서 회색 램프를 거치게 한다(Embers XD처럼
+  플래그를 뺀 교체 모드 대응). 끄면 baseColor 탈색만.
+- `particleColors`: 구현됨(기본 끔). CommonLib에 없는 `BSPSysSimpleColorModifier` 레이아웃(Jonahex 포크, AE 미확인)을
+  써서 플레이어 3D 안의 색 키만 탈색. 공유 여부를 게임에서 확인한 뒤에만 켠다.
 
 ## 알려진 한계
 
@@ -99,10 +106,23 @@
 
 - 바닥에 남는 화염(hazard)은 시제품에서 바꾸지 않는다.
 
-## 확인 필요 (API 조사)
+## 확인 필요 (API 조사) - 정한 것 (2026-10-15 구현)
 
-- 투사체 종류별 vtable과 `Handle3DLoaded` 인덱스, 호출 스레드
-- 폭발 3D 로드 시점과 소유자·주문 정보
-- `BSShaderMaterial` 복제와 `BSShaderProperty::SetMaterial` 사용법, 텍스처 로드 함수
-- 투사체 조명, 플레이어 시전 조명에 접근하는 방법
-- 버프 상태를 스레드 안전하게 확인하는 방법
+- 투사체: `Handle3DLoaded`(SE/AE vfunc 0xC0)를 Missile·Flame·Cone·Beam·Grenade·Barrier vtable마다 따로 훅
+  (클래스별 원본 보관). 호출 스레드는 여전히 모름: 게임 스레드면 바로, 아니면 핸들로 게임 스레드 태스크에 미룬다.
+  처음 3번 스레드 id를 로그에 남긴다.
+- 폭발: 3D 로드 가상함수가 없어 `TESObjectREFR::Set3D`(0x6C)를 Explosion vtable에 훅. 주문 필드가 없어 기본 폼이
+  불 폭발 집합(불마법 MGEF의 explosion, 그 투사체의 explosionType)에 있고 `actorOwner` 또는 `actorCause->actor`가
+  플레이어일 때만 칠한다. 플레이어가 아닌 불 폭발 처음 5개는 소유자·원인을 로그로 남긴다.
+- 재질: `Create()` → `CopyMembers` → 복제본 수정 → `SetMaterial(copy, true)`(속성 전용 비공유 사본을 엔진이 만든다,
+  다른 플러그인 코드 근거) → 임시본은 소멸자 + `RE::free`. 속성이 실제로 무엇을 쥐었는지 한 번 로그. `SetupGeometry`는
+  부르지 않는다(값은 그릴 때 읽힘). 텍스처는 `BSShaderManager::GetTexture`, `textures\` 접두사 경로 먼저.
+- 조명: 투사체 `GetProjectileRuntimeData().light->light`, 폭발 `GetExplosionRuntimeData().light`, 손 `ActorMagicCaster::light->light`의
+  diffuse를 `lightColor`로.
+- 버프 상태: atomic 하나를 게임 스레드에서만 쓴다. 플레이어 대상 효과 적용/제거 이벤트, `kPostLoadGame`/`kNewGame`,
+  티커(켜짐 100 ms, 꺼짐 1 s)에서 플레이어 활성 효과를 직접 훑는다(해제·비활성·만료 효과 제외).
+- 손 이펙트: `ActorMagicCaster::Update` 훅 대신(DMMF가 통째로 교체) 티커가 손마다 `magicNode`, 1·3인칭 골격의 이름으로 찾은
+  마법 노드, 시전 아트 `ModelReferenceEffect`를 칠한다. 어디에 셰이프가 있었는지 시전마다 로그.
+- 몸에 붙는 불: 적용 시점에 hit shader를 바꿔 끼울 방법은 찾지 못해 사후 교체(+ Flames 깜빡임 한계). `hitEffects`가 비어 있으면
+  다음 틱에 한 번 더 찾는다. 지속시간 없는 효과는 -1(영구) 대신 1.5초.
+- 게임 안에서 확인할 것: plugins/BlackFlame/README.md "In-game test checklist".
