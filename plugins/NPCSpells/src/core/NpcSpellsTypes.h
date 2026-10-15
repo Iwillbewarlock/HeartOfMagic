@@ -13,7 +13,10 @@ namespace NpcSpells {
     inline constexpr std::size_t kUndeadPolicyCount = static_cast<std::size_t>(UndeadPolicy::Necromancer) + 1;
     inline constexpr std::size_t kSchoolCount = 5;
     inline constexpr std::size_t kTierCount = 5;
-    inline constexpr std::array<std::uint16_t, kTierCount> kTierFloor{ 0, 25, 50, 75, 100 };
+    // Entry level per tier (the NPC's school skill must reach it). Novice is 1, not 0: in-game run 7 (2026-10-15) no list
+    // whose highest level at or below the skill was 0 gave a spell, and no LVSP in the load order has a level 0 entry
+    // (vanilla starts at 1), so the engine is taken to skip level 0 entries (ledger H7a)
+    inline constexpr std::array<std::uint16_t, kTierCount> kTierFloor{ 1, 25, 50, 75, 100 };
     inline constexpr std::size_t kMaxEntries = 255;   // TESLeveledList::numEntries is uint8
     inline constexpr std::uint8_t kAllLevelsFlag = 1;  // llFlags bit 0: kCalculateFromAllLevelsLTOrEqPCLevel
     inline constexpr std::size_t kRungCount = 5;      // ladder length; the slot table has 5 rungs per (school, group, variant)

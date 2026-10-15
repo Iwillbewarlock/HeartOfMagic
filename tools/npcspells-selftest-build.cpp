@@ -92,6 +92,25 @@ int RunBuildSelfTest()
         }
     }
     Check(invariants, "every list: one school, ascending levels, level per flag, <= 255, tier >= rung start (flag 0), flag per rung");
+    // Levels start at 1 (ledger H7a: no list whose top reachable level was 0 gave a spell in game; vanilla has no level 0)
+    Check(kTierFloor == std::array<std::uint16_t, kTierCount>{ 1, 25, 50, 75, 100 }, "tier floors are 1/25/50/75/100");
+    {   bool noZero = true, belowFrom25 = true; std::size_t novice = 0, noviceAt1 = 0, nonMage = 0, nonMageAt1 = 0;
+        for (const auto& l : lists) {
+            const bool nm = SlotTable()[l.slotIndex].key.nonMage;
+            for (const auto& e : l.entries) {
+                noZero = noZero && e.level >= 1;
+                if (l.flags == kAllLevelsFlag) { belowFrom25 = belowFrom25 && e.level >= kTierFloor[1]; continue; }
+                if (pool2[e.spellIndex].tier != Tier::Novice) continue;
+                ++(nm ? nonMage : novice); (nm ? nonMageAt1 : noviceAt1) += e.level == 1 ? 1 : 0;
+            }
+        }
+        Check(noZero, "no entry of any list has level 0");
+        Check(novice > 0 && novice == noviceAt1 && nonMage > 0 && nonMage == nonMageAt1, "novice entries of flag-0 lists and of the non-mage list sit at level 1");
+        Check(belowFrom25, "a below list's lowest level is 25 (the novice floor never appears there)");
+        const auto r1 = *FindSlot({ School::Destruction, kGroupNone, Variant::All, 0, false });
+        std::size_t atSkill0 = 0, atSkill1 = 0;
+        for (const auto& l : lists) if (l.slotIndex == r1) for (const auto& e : l.entries) { atSkill0 += e.level <= 0 ? 1 : 0; atSkill1 += e.level <= 1 ? 1 : 0; }
+        Check(atSkill0 == 0 && atSkill1 > 0, "an R1 list gives nothing at school skill 0 and its novice spells from skill 1"); }
     Check(bs.emptySlots > 0, "slots without spells are counted (small pool)");
     { const auto small = *FindSlot({ School::Destruction, kGroupNone, Variant::All, 0, false }); std::size_t n = 0; bool chunk0 = true;
       for (const auto& l : lists) if (l.slotIndex == small) { ++n; chunk0 = chunk0 && l.chunk == 0; }
@@ -111,6 +130,7 @@ int RunBuildSelfTest()
     Check(chunks == 3 && cap, "700 spells split into 3 chunks of <= 255");
     Check(coverage, "every chunk holds every tier (round-robin per tier)");
     Check(bigStats.droppedOverCapacity == 0, "nothing dropped at 700");
+    Check(std::ranges::all_of(bigLists, [](const BuiltList& l) { return std::ranges::all_of(l.entries, [](const NpcSpells::Entry& e) { return e.level >= 1; }); }), "a 700-spell pool's lists (every chunk, every rung) have no level 0 entry either");
     for (int i = 700; i < 800; ++i) { SpellFacts f; f.persistentId = std::format("B.esp|0x{:06X}", 0x800 + i); f.school = School::Illusion; f.tier = Tier::Novice; big.push_back(f); }
     BuildStats overStats; BuildLists(big, rules, overStats);
     Check(overStats.droppedOverCapacity > 0, "800 spells: the surplus over 3 x 255 is dropped and counted");

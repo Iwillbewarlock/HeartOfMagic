@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -51,6 +52,8 @@ namespace NpcSpellsGame::SelfTest
         std::size_t waitTicks = 0;             // ticks since the spawn tick
         bool done = false;                     // this run has its RESULT
         bool stopped = false;                  // no further run: a failure (or a plugin not loaded) before the spawn would end every run the same way
+        bool spawnPending = false;             // a leveled sample's placeatme ran and its actor is not found yet (FindLeveledSpawn)
+        std::unordered_set<RE::FormID> actorsBefore;  // the actors near the player just before that placeatme
     };
 
     struct State
@@ -80,6 +83,16 @@ namespace NpcSpellsGame::SelfTest
     void Record(State& s, SampleRun& r, NpcSpells::SelfTestVerdict verdict, std::string_view reason);
     std::string FormText(const RE::TESForm* form);
     std::vector<RE::TESLevSpell*> OurListsOn(const RE::TESSpellList::SpellData* d, const OurLists& ours);
+
+    // A leveled sample's spawn (GameSelfTestSpawn.cpp). TESObjectREFR::PlaceObjectAtMe gives no actor for a TESLevCharacter
+    // (in-game run 6); the console's placeatme does (run 5), so the command runs as a console script on the player. It
+    // returns no ref: PlaceLeveled notes the actors near the player first and sets spawnPending; FindLeveledSpawn, each
+    // tick until it is found, takes the new one (NpcSpells::ChooseLeveledSpawn) and logs the spawn line. false + error:
+    // the command could not be run.
+    bool PlaceLeveled(State& s, SampleRun& r, RE::PlayerCharacter* player, std::string& error);
+    bool FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks);
+    // The FAIL reason when no actor was found within maxWaitMs (also logs the leveled actors that were new, up to five)
+    std::string LeveledSpawnMissing(State& s, SampleRun& r, std::size_t waitedTicks);
 
     // One actor with its 3D and high process: logs its bases, holder, leveled spell cache and lists, adds the run to the
     // sample's tally, then the verdict

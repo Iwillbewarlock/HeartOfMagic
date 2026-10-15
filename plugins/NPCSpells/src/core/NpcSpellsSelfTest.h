@@ -79,6 +79,24 @@ namespace NpcSpells {
     // nothing found where a list could give one, or no list at all. reason: for the RESULT line.
     SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, SelfTestSampleLists where, std::size_t distinctEvidence, std::string& reason);
     const char* VerdictName(SelfTestVerdict v);
+    // A leveled sample (LVLN) is spawned by the console's placeatme run on the player, which returns no ref: the actor is
+    // looked for among the actors that appeared near the player since. One candidate per such actor that has
+    // ExtraLeveledCreature and is no other sample's.
+    struct LeveledSpawnCandidate {
+        std::uint32_t refId = 0;
+        bool originalIsSample = false;   // ExtraLeveledCreature::originalBase is the sample's LVLN record
+        bool templateIsLeaf = false;     // its template base is an NPC entry of the LVLN (nested LVLNs followed)
+    };
+    enum class LeveledSpawnMatch { kNone, kOriginalBase, kLeaf, kOnlyNew };
+    struct LeveledSpawnChoice {
+        std::size_t index = 0;           // into the candidates; meaningful unless match is kNone
+        LeveledSpawnMatch match = LeveledSpawnMatch::kNone;
+        std::size_t matching = 0;        // candidates the chosen rule matched (more than 1: ambiguous, the first is taken)
+    };
+    // The first candidate whose originalBase is the sample; else the first whose template base is one of its entries; else
+    // the only candidate when there is exactly one. kNone with no candidate, or with several of which none matches.
+    LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates);
+    const char* LeveledSpawnMatchName(LeveledSpawnMatch m);
     // The test's last line. DONE (what a watcher reads as "the run finished") only for a test that spawned its samples;
     // one that ended before its spawn checked nothing and runs again at the next save load in the session: RESTART with
     // the reason ("ended before the spawn" when empty).

@@ -159,6 +159,30 @@ std::string SelfTestListsLine(std::string_view sampleText, int runs, const SelfT
     }
     return out;
 }
+LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates)
+{
+    const auto pick = [&](bool LeveledSpawnCandidate::*field, LeveledSpawnMatch match) {
+        LeveledSpawnChoice c;
+        for (std::size_t i = 0; i < candidates.size(); ++i) {
+            if (!(candidates[i].*field)) continue;
+            if (c.matching++ == 0) { c.index = i; c.match = match; }
+        }
+        return c;
+    };
+    if (auto c = pick(&LeveledSpawnCandidate::originalIsSample, LeveledSpawnMatch::kOriginalBase); c.match != LeveledSpawnMatch::kNone) return c;
+    if (auto c = pick(&LeveledSpawnCandidate::templateIsLeaf, LeveledSpawnMatch::kLeaf); c.match != LeveledSpawnMatch::kNone) return c;
+    if (candidates.size() == 1) return { 0, LeveledSpawnMatch::kOnlyNew, 1 };
+    return {};
+}
+const char* LeveledSpawnMatchName(LeveledSpawnMatch m)
+{
+    switch (m) {
+    case LeveledSpawnMatch::kOriginalBase: return "originalBase";
+    case LeveledSpawnMatch::kLeaf: return "templateBaseIsEntry";
+    case LeveledSpawnMatch::kOnlyNew: return "onlyNewLeveledActor";
+    default: return "none";
+    }
+}
 std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive, std::size_t notRun)
 {
     if (spawned) return std::format("SELFTEST DONE pass={} fail={} inconclusive={}{}", pass, fail, inconclusive, notRun > 0 ? std::format(" notRun={}", notRun) : std::string());

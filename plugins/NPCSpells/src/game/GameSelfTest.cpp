@@ -205,9 +205,17 @@ namespace
         return true;
     }
 
-    // One spawn of a prepared sample. A spawn that gives no actor FAILs and stops the sample.
+    // One spawn of a prepared sample. A spawn that gives no actor FAILs and stops the sample. A leveled sample goes through
+    // the console's placeatme (GameSelfTestSpawn.cpp); its actor is found by the ticks (FindLeveledSpawn).
     void Place(State& s, SampleRun& r, RE::PlayerCharacter* player)
     {
+        if (!r.npc) {
+            std::string error;
+            if (!SelfTest::PlaceLeveled(s, r, player, error)) {
+                Stop(s, r, error);
+            }
+            return;
+        }
         // RE/T/TESObjectREFR.h:475: at the player's position, a hostile NPC stands next to the player until it is checked
         const auto ref = player->PlaceObjectAtMe(r.placed, false);
         if (!ref || !ref->As<RE::Actor>()) {
@@ -248,6 +256,7 @@ namespace
         r.waitTicks = 1;
         r.handle = {};
         r.spawnedId = 0;
+        r.spawnPending = false;
         if (!r.resolvedAtPrepare) {  // a holder found after the last spawn is that actor's: this run's actor finds its own
             r.holder = nullptr;
             r.holderStart = nullptr;
@@ -344,6 +353,14 @@ namespace
                 continue;
             }
             const auto waited = r.waitTicks++;  // 0 on run 1's spawn tick, 1 on a later run's first tick (NextRun)
+            if (r.spawnPending && !SelfTest::FindLeveledSpawn(s, r, waited)) {  // a leveled spawn's actor, looked for each tick
+                if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
+                    Stop(s, r, SelfTest::LeveledSpawnMissing(s, r, waited));
+                } else {
+                    open = true;
+                }
+                continue;
+            }
             const auto ref = std::as_const(r.handle).get();
             auto* actor = ref && ref->GetFormID() == r.spawnedId ? ref->As<RE::Actor>() : nullptr;
             // The leveled spell cache needs the high process (RE/A/Actor.h:587 GetHighProcess; 2026-10-10: before 3D, HasSpell was false)

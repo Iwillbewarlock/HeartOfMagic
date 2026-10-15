@@ -25,6 +25,9 @@
   for those who should not have them. Nothing is saved in your game, and a report lists who got what. Needs
   Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built, on Skyrim SE or AE (not VR); see
   `plugins/NPCSpells/README.md`.
+- Spell levels in the lists start at 1 (novice), not 0: in testing, lists whose lowest level was 0 gave no
+  spell at low skill, and no leveled spell list in the game uses level 0. An NPC with skill 0 in a school gets no
+  novice spell of that school.
 
 ## Heart of Magic Librarian 1.5.0
 

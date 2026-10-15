@@ -87,17 +87,21 @@ int RunSelfTestSelfTest()
         Check(SelfTestWaitOver(static_cast<std::size_t>(kSelfTestPlayerWaitMs / kSelfTestPollMs), kSelfTestPlayerWaitMs) && SelfTestWaitOver(std::size_t{ 1 } << 40, kSelfTestMaxMs), "the player wait ends on its tick; a huge tick count does not overflow");
     }
     {   // reach: which entries a roll at the skill can pick (all-levels flag: every entry at or below; flag 0: the highest group)
-        const std::vector<SelfTestEntry> e{ { 0x10, 0 }, { 0x20, 25 }, { 0x30, 25 }, { 0x40, 50 } };
+        const std::vector<SelfTestEntry> e{ { 0x10, 1 }, { 0x20, 25 }, { 0x30, 25 }, { 0x40, 50 } };   // novice at 1, as the addon writes it
         auto r = WitnessReach(e, true, 30.0f, { 0x10, 0x40 });
-        Check(r.witnessReachable && r.minLevel == 0 && r.witnessMinLevel == 0 && r.topLevel == 25, "all levels: a witness below the skill is reachable even under a higher group");
+        Check(r.witnessReachable && r.minLevel == 1 && r.witnessMinLevel == 1 && r.topLevel == 25, "all levels: a witness below the skill is reachable even under a higher group");
         r = WitnessReach(e, false, 30.0f, { 0x10, 0x40 });
         Check(!r.witnessReachable && r.topLevel == 25, "flag 0: a witness only in a lower group than the highest at the skill is not reachable");
         Check(WitnessReach(e, false, 30.0f, { 0x30 }).witnessReachable && WitnessReach(e, false, 50.0f, { 0x40 }).witnessReachable, "flag 0: a witness in the highest group at the skill is reachable (a level equal to the skill counts)");
         r = WitnessReach(e, true, 20.0f, { 0x20, 0x40 });
-        Check(!r.witnessReachable && r.witnessMinLevel == 25 && r.minLevel == 0, "all levels: the skill below every witness (an excluded entry below it does not count)");
+        Check(!r.witnessReachable && r.witnessMinLevel == 25 && r.minLevel == 1, "all levels: the skill below every witness (an excluded entry below it does not count)");
         r = WitnessReach(e, false, -1.0f, { 0x10 });
         Check(!r.witnessReachable && r.topLevel == kSelfTestNoLevel, "a skill below every entry reaches nothing, no top level");
         Check(!WitnessReach({}, true, 100.0f, { 0x10 }).witnessReachable && !WitnessReach(e, true, 100.0f, {}).witnessReachable, "an empty list or no witnesses reaches nothing");
+        r = WitnessReach(e, false, 0.0f, { 0x10 });
+        Check(!r.witnessReachable && r.topLevel == kSelfTestNoLevel && r.minLevel == 1, "skill 0: a list starting at level 1 reaches nothing");
+        r = WitnessReach(e, false, 1.0f, { 0x10 });
+        Check(r.witnessReachable && r.topLevel == 1, "skill 1: the novice entries at level 1 are the highest group");
     }
     {   // verdicts
         std::string why;
@@ -122,6 +126,19 @@ int RunSelfTestSelfTest()
         Check(SelfTestEndLine(false, {}, 0, 0, 0).find("SELFTEST RESTART ended before the spawn:") == 0, "an empty reason still names why");
         Check(SelfTestEndLine(true, {}, 2, 1, 0, 3) == "SELFTEST DONE pass=2 fail=1 inconclusive=0 notRun=3", "runs cut short: DONE names how many never ran");
         Check(SelfTestEndLine(true, {}, 2, 1, 0, 0).find("notRun") == std::string::npos && SelfTestEndLine(false, {}, 0, 0, 0, 4).find("notRun") == std::string::npos, "notRun only on DONE and only when not 0");
+    }
+    {   // the leveled spawn's actor among the new leveled actors near the player: originalBase, then an entry as template base, then the only one
+        using C = LeveledSpawnCandidate;
+        auto c = ChooseLeveledSpawn({ C{ 0xFF000010, false, true }, C{ 0xFF000011, true, false } });
+        Check(c.match == LeveledSpawnMatch::kOriginalBase && c.index == 1 && c.matching == 1, "leveled spawn: originalBase = the sample wins over an entry match");
+        c = ChooseLeveledSpawn({ C{ 0xFF000010, false, false }, C{ 0xFF000011, false, true } });
+        Check(c.match == LeveledSpawnMatch::kLeaf && c.index == 1 && std::string(LeveledSpawnMatchName(c.match)) == "templateBaseIsEntry", "leveled spawn: else the actor whose template base is an entry of the LVLN");
+        c = ChooseLeveledSpawn({ C{ 0xFF000010, false, false } });
+        Check(c.match == LeveledSpawnMatch::kOnlyNew && c.index == 0 && c.matching == 1, "leveled spawn: else the only new leveled actor");
+        c = ChooseLeveledSpawn({ C{ 0xFF000010, true, false }, C{ 0xFF000011, true, false } });
+        Check(c.match == LeveledSpawnMatch::kOriginalBase && c.index == 0 && c.matching == 2, "leveled spawn: two matches take the first and count both (ambiguous)");
+        Check(ChooseLeveledSpawn({}).match == LeveledSpawnMatch::kNone && ChooseLeveledSpawn({ C{ 1, false, false }, C{ 2, false, false } }).match == LeveledSpawnMatch::kNone,
+              "leveled spawn: no candidate, or several none of which matches, gives none");
     }
     {   // a sample object takes only "id" and "repeat": another key is named and ignored, the sample stays
         SelfTestConfig c; std::string e;
