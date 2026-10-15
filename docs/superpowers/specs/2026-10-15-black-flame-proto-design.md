@@ -391,3 +391,15 @@
   사본일 때)와 Explosion::Update(폭발 기본이 사본일 때)에서 연다. 사본이 없는 사슬은 10차의 모델 창이 그대로 맡는다.
   43851은 1.6.1170과 1.7.104의 pdata 크기가 달라(0x135D / 0x139D) 고정 오프셋 대체를 두지 않았다.
 - 장치마다 설정 키(copyLaunch, copyLaunchExplosion, copyExplosionCreate, copyImpacts, 기본 켜짐)와 카운터. 트램펄린 512바이트.
+
+### S3 hit shader (E4)
+
+- 조사 결과(scratchpad research-hitshader/notes.md): 엔진은 MGEF data.effectShader(+0x98, hitVisuals +0x120→+0x28, dual
+  +0x108→+0x40)를 ActiveEffectReferenceEffectController vtable 0x0D(AE 34846 / SE 34049)로만 읽고, effect->flags(+0x7C)
+  bit 1이면 0을 돌려준다(그 비트는 망토 콜백만 쓴다). Start(34761)와 ShaderReferenceEffect 생성자(34910)가 부른다. 그래서
+  기존 0x0D 훅을 그대로 두고 새 교체 지점은 만들지 않았다. 2차 실행의 "20줄"은 우리 진단 상한이 저장 로드 때 "any" 줄로
+  다 쓰인 것이었다(훅 실패의 증거가 아님). 마법 부여 셰이더(ApplyEffectShader 19872)는 범위 밖.
+- 계측: 두 슬롯을 설정과 무관하게 늘 건다(교체·재색칠만 설정이 정함). 플레이어가 시전자인 호출은 결과와 상관없이 60줄,
+  그 밖은 보여줄 것(엔진 답 또는 MGEF 필드)이 있을 때 20줄, 상한이 서로 따로다. 줄마다 flags 원값과 bit 1, MGEF와 그 필드,
+  주문, 시전자, 버프, burnShader 폼, 엔진 답, 결과와 이유, 스레드. 결과별 카운터는 E4가 쓴다. 이 한 번의 실행으로 세 경우
+  (엔진이 null을 줌 / 썽크에 아예 안 옴 / 우리 검사가 거절)가 갈린다.
