@@ -11,6 +11,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "EffectEvents.h"
+#include "ExplosionHook.h"
 #include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
@@ -33,6 +34,9 @@ namespace
         // Installed after the fire sets are built: the hooks read them from any thread
         if (BlackFlame::GetConfig().projectile) {
             BlackFlame::InstallProjectileHooks();
+        }
+        if (BlackFlame::GetConfig().explosion) {
+            BlackFlame::InstallExplosionHook();
         }
     }
 

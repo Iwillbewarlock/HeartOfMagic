@@ -28,6 +28,7 @@ set(BLACKFLAME_SOURCES
     src/Recolor.cpp
     src/CasterArt.cpp
     src/ProjectileHook.cpp
+    src/ExplosionHook.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 
