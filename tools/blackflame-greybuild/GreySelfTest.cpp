@@ -230,6 +230,12 @@ namespace GreyBuild
             a_check.Check(refuses(write("dupgrey.json", R"({"version":1,"tint":0.6,"addons":[)" + entry + "," +
                                                             R"({"index":3,"grey":9109,"model":"meshes\\mps\\c.nif","greyModel":"meshes\\heartofmagic\\blackflame\\mps\\c.nif"}],"models":{}})")),
                 "map: a grey index used twice is refused");
+            a_check.Check(refuses(write("dupcopy.json", R"({"version":1,"tint":0.6,"addons":[)" + entry + "," +
+                                                            R"({"index":3,"grey":9103,"model":"meshes\\mps\\c.nif","greyModel":"meshes\\heartofmagic\\blackflame\\mps\\a.nif"}],"models":{}})")),
+                "map: one greyModel written from two different MPS NIFs is refused");
+            a_check.Check(!refuses(write("sharedmps.json", R"({"version":1,"tint":0.6,"addons":[)" + entry + "," +
+                                                               R"({"index":3,"grey":9103,"model":"meshes\\mps\\a.nif","greyModel":"meshes\\heartofmagic\\blackflame\\mps\\a.nif"}],"models":{}})")),
+                "map: two indices sharing one MPS and its grey copy load");
             a_check.Check(refuses(write("escape.json", R"({"version":1,"tint":0.6,"addons":[],"models":{"meshes\\..\\..\\x.nif":"meshes\\heartofmagic\\blackflame\\x.nif"}})")),
                 "map: a path leaving the Data folder is refused");
             a_check.Check(refuses(write("outside.json", R"({"version":1,"tint":0.6,"addons":[],"models":{"meshes\\x.nif":"meshes\\x2.nif"}})")),
@@ -242,10 +248,20 @@ namespace GreyBuild
     int RunSelfTest()
     {
         Checker check;
-        const auto dir = std::filesystem::temp_directory_path() / "blackflame-greybuild-selftest";
         std::error_code ec;
+        const auto temp = std::filesystem::temp_directory_path(ec);
+        if (ec) {
+            std::cout << fmt::format("FAIL no temp folder: {}\nSELF-TEST pass=0 fail=1\n", ec.message());
+            return 1;
+        }
+        const auto dir = temp / "blackflame-greybuild-selftest";
         std::filesystem::remove_all(dir, ec);
-        std::filesystem::create_directories(dir);
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+            std::cout << fmt::format("FAIL cannot make '{}': {}\nSELF-TEST pass=0 fail=1\n", dir.string(),
+                ec.message());
+            return 1;
+        }
         const auto source = dir / "source.nif";
         const auto grey = dir / "grey.nif";
 

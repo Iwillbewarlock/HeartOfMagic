@@ -44,34 +44,79 @@ namespace GreyBuild
             return nodes;
         }
 
-        /// Grey index for an original one (see PlanFromRequest); marks it used.
-        void Allocate(const Request& a_request, AddonEntry& a_entry, std::set<int>& a_used, int& a_nextFree,
+        struct Allocation
+        {
+            std::set<int> used;    // every index the request has, and every grey index handed out
+            std::set<int> reused;  // request grey records an entry already reuses
+            int nextFree = kGreyIndexBase;
+            std::uint32_t nextLocalId = kFirstLightFormId;  // above every local id the request has
+        };
+
+        [[nodiscard]] std::string GreyEditorId(const AddonEntry& a_entry)
+        {
+            return kGreyEditorIdPrefix + (a_entry.editorId.empty() ? std::to_string(a_entry.index) : a_entry.editorId);
+        }
+
+        /// The request's grey record for a_entry's copy: at the preferred index first, else any
+        /// ADDN naming the copy (a local record that got the next free index) not reused yet.
+        [[nodiscard]] const std::pair<const int, RequestAddon>* FindExisting(const Request& a_request,
+            const AddonEntry& a_entry, const std::set<int>& a_reused)
+        {
+            const auto names = [&](const std::pair<const int, RequestAddon>& a_item) {
+                return a_item.second.model == a_entry.greyModel && a_reused.count(a_item.first) == 0;
+            };
+            const auto preferred = a_request.addons.find(kGreyIndexBase + a_entry.index);
+            if (preferred != a_request.addons.end() && names(*preferred)) {
+                return &*preferred;
+            }
+            for (const auto& item : a_request.addons) {
+                if (names(item)) {
+                    return &item;
+                }
+            }
+            return nullptr;
+        }
+
+        /// Grey index for an original one (see PlanFromRequest); marks it used. A reused record
+        /// of kLocalPluginName goes back into a_newRecords at its own id (the ESL is written again).
+        void Allocate(const Request& a_request, AddonEntry& a_entry, Allocation& a_state,
             std::vector<AddonEntry>& a_newRecords)
         {
-            const int preferred = kGreyIndexBase + a_entry.index;
-            const auto existing = a_request.addons.find(preferred);
-            if (existing != a_request.addons.end() && existing->second.model == a_entry.greyModel) {
-                a_entry.grey = preferred;  // a shipped grey record already names this copy
+            if (const auto* existing = FindExisting(a_request, a_entry, a_state.reused)) {
+                a_state.reused.insert(existing->first);
+                a_entry.grey = existing->first;
                 a_entry.greyEditorId = existing->second.editorId;
                 a_entry.greyForm = existing->second.source;
+                if (const auto localId = LocalFormId(existing->second.source)) {
+                    if (a_entry.greyEditorId.empty()) {
+                        a_entry.greyEditorId = GreyEditorId(a_entry);
+                    }
+                    a_entry.greyForm = fmt::format("{}|{:06X}", kLocalPluginName, *localId);
+                    a_newRecords.push_back(a_entry);
+                }
                 return;
             }
-            if (a_used.count(preferred) == 0) {
+            const int preferred = kGreyIndexBase + a_entry.index;
+            if (preferred <= kMaxIndex && a_state.used.count(preferred) == 0) {
                 a_entry.grey = preferred;
             } else {
-                while (a_used.count(a_nextFree) != 0) {
-                    ++a_nextFree;
+                while (a_state.nextFree <= kMaxIndex && a_state.used.count(a_state.nextFree) != 0) {
+                    ++a_state.nextFree;
                 }
-                a_entry.grey = a_nextFree;
+                if (a_state.nextFree > kMaxIndex) {
+                    throw std::runtime_error(fmt::format(
+                        "no free grey ADDN index for index {}: every index up to {} is taken", a_entry.index, kMaxIndex));
+                }
+                a_entry.grey = a_state.nextFree;
             }
-            a_used.insert(a_entry.grey);
-            const auto formId = kFirstLightFormId + static_cast<std::uint32_t>(a_newRecords.size());
-            if (formId > kLastLightFormId) {
-                throw std::runtime_error("more grey ADDN records than an ESL can hold (2048)");
+            a_state.used.insert(a_entry.grey);
+            if (a_state.nextLocalId > kLastLightFormId) {
+                throw std::runtime_error(fmt::format("{} has no FormID left above {:03X} (an ESL holds 0x800..0xFFF); "
+                                                     "remove it from the load order and make a new request",
+                    kLocalPluginName, kLastLightFormId));
             }
-            a_entry.greyEditorId = kGreyEditorIdPrefix +
-                                   (a_entry.editorId.empty() ? std::to_string(a_entry.index) : a_entry.editorId);
-            a_entry.greyForm = fmt::format("{}|{:06X}", kLocalPluginName, formId);
+            a_entry.greyEditorId = GreyEditorId(a_entry);
+            a_entry.greyForm = fmt::format("{}|{:06X}", kLocalPluginName, a_state.nextLocalId++);
             a_newRecords.push_back(a_entry);
         }
     }
@@ -148,11 +193,15 @@ namespace GreyBuild
             }
         }
 
-        std::set<int> used;
+        Allocation state;
         for (const auto& [index, addon] : a_request.addons) {
-            used.insert(index);
+            state.used.insert(index);
+            // New local records take ids after every one the request has (kept or stale)
+            if (const auto localId = LocalFormId(addon.source)) {
+                state.nextLocalId = std::max(state.nextLocalId, *localId + 1);
+            }
         }
-        int nextFree = used.empty() ? kGreyIndexBase : std::max(kGreyIndexBase, *used.rbegin() + 1);
+        state.nextFree = state.used.empty() ? kGreyIndexBase : std::max(kGreyIndexBase, *state.used.rbegin() + 1);
         for (const int index : needed) {
             const RequestAddon& addon = a_request.addons.at(index);
             AddonEntry entry;
@@ -163,9 +212,12 @@ namespace GreyBuild
             entry.source = addon.source;
             entry.masterParticleCap = addon.masterParticleCap;
             entry.dnamFlags = addon.dnamFlags;
-            Allocate(a_request, entry, used, nextFree, plan.newRecords);
+            Allocate(a_request, entry, state, plan.newRecords);
             plan.map.addons.emplace(index, std::move(entry));
         }
+        std::sort(plan.newRecords.begin(), plan.newRecords.end(), [](const AddonEntry& a_left, const AddonEntry& a_right) {
+            return *LocalFormId(a_left.greyForm) < *LocalFormId(a_right.greyForm);
+        });
         return plan;
     }
 }

@@ -4,8 +4,10 @@
 
 #include "GreySelfTest.h"
 
+#include <cstring>
 #include <fmt/format.h>
 #include <fstream>
+#include <stdexcept>
 
 namespace GreyBuild::SelfTest
 {
@@ -16,12 +18,89 @@ namespace GreyBuild::SelfTest
         constexpr int kShippedGreyA = 9109;  // a shipped grey record that already names a.nif's copy
         constexpr int kTakenB = 9124;        // the preferred grey index of 24, taken by another mod
         constexpr const char* kModel = "meshes\\effects\\test.nif";
+        constexpr std::size_t kEslHeaderSize = 24;  // record and GRUP headers
 
         [[nodiscard]] std::filesystem::path WriteFile(const std::filesystem::path& a_file, const std::string& a_text)
         {
             std::filesystem::create_directories(a_file.parent_path());
             std::ofstream(a_file, std::ios::binary) << a_text;
             return a_file;
+        }
+
+        [[nodiscard]] std::string ReadBytes(const std::filesystem::path& a_file)
+        {
+            std::ifstream in(a_file, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+
+        template <class T>
+        [[nodiscard]] T At(const std::string& a_bytes, std::size_t a_at)
+        {
+            T value{};
+            if (a_at + sizeof(T) <= a_bytes.size()) {
+                std::memcpy(&value, a_bytes.data() + a_at, sizeof(T));
+            }
+            return value;
+        }
+
+        template <class T>
+        void Put(std::string& a_bytes, std::size_t a_at, T a_value)
+        {
+            if (a_at + sizeof(T) <= a_bytes.size()) {
+                std::memcpy(a_bytes.data() + a_at, &a_value, sizeof(T));
+            }
+        }
+
+        /// The written bytes at fixed offsets: TES4 (light flag @8), HEDR @24 with size 12 @28,
+        /// version @30, record count @34, next object id @38, then "GRUP" right after the TES4
+        /// record, labelled ADDN and running to the end of the file.
+        void CheckEslBytes(Checker& a_check, const std::string& a_bytes, std::int32_t a_count, std::uint32_t a_nextId)
+        {
+            const float version = At<float>(a_bytes, 30);
+            a_check.Check(a_bytes.compare(0, 4, "TES4") == 0 && At<std::uint32_t>(a_bytes, 8) == kEslFlag,
+                "ESL bytes: TES4 @0, light flag 0x200 @8");
+            a_check.Check(a_bytes.compare(24, 4, "HEDR") == 0 && At<std::uint16_t>(a_bytes, 28) == 12,
+                "ESL bytes: HEDR @24, size 12 @28");
+            a_check.Check(std::memcmp(&version, &kHedrVersion, sizeof(float)) == 0,
+                fmt::format("ESL bytes: HEDR version @30 = {} (1.70)", version));
+            a_check.Check(At<std::int32_t>(a_bytes, 34) == a_count,
+                fmt::format("ESL bytes: record count @34 = {} (want {})", At<std::int32_t>(a_bytes, 34), a_count));
+            a_check.Check(At<std::uint32_t>(a_bytes, 38) == a_nextId,
+                fmt::format("ESL bytes: next object id @38 = {:X} (want {:X})", At<std::uint32_t>(a_bytes, 38), a_nextId));
+            const std::size_t group = kEslHeaderSize + At<std::uint32_t>(a_bytes, 4);
+            a_check.Check(a_bytes.compare(group, 4, "GRUP") == 0 && a_bytes.compare(group + 8, 4, "ADDN") == 0 &&
+                              At<std::uint32_t>(a_bytes, group + 4) == a_bytes.size() - group,
+                fmt::format("ESL bytes: GRUP ADDN right after the TES4 record (@{}), to the end of the file", group));
+        }
+
+        /// ReadAddonEsl must refuse (not loop on) a GRUP with size 0 or under a header, and a
+        /// subrecord running past its record's end. a_good is a written two-record ESL.
+        void CheckEslRefusals(Checker& a_check, const std::filesystem::path& a_dir, const std::string& a_good)
+        {
+            const std::size_t group = kEslHeaderSize + At<std::uint32_t>(a_good, 4);
+            const std::size_t firstRecord = group + kEslHeaderSize;
+            const std::size_t firstSubLength = firstRecord + kEslHeaderSize + 4;
+            const auto refuses = [&](const char* a_name, std::size_t a_at, auto a_value) {
+                std::string bytes = a_good;
+                Put(bytes, a_at, a_value);
+                const auto file = WriteFile(a_dir / a_name, bytes);
+                try {
+                    std::uint32_t flags = 0;
+                    (void)ReadAddonEsl(file, flags);
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            a_check.Check(refuses("grup0.esp", group + 4, std::uint32_t{ 0 }), "ESL reader: a GRUP of size 0 is refused");
+            a_check.Check(refuses("grup10.esp", group + 4, std::uint32_t{ 10 }),
+                "ESL reader: a GRUP smaller than its header is refused");
+            a_check.Check(refuses("grupbig.esp", group + 4, std::uint32_t{ 0x7FFFFFFF }),
+                "ESL reader: a GRUP running past the file is refused");
+            a_check.Check(refuses("sublong.esp", firstSubLength, std::uint16_t{ 0xFFFF }),
+                "ESL reader: a subrecord running past its record's end is refused");
+            a_check.Check(refuses("reclong.esp", firstRecord + 4, std::uint32_t{ 0xFFFF }),
+                "ESL reader: a record running past its group's end is refused");
         }
 
         [[nodiscard]] std::string RequestText(bool a_withB)
@@ -72,6 +151,7 @@ namespace GreyBuild::SelfTest
             second.grey = 9300;
             second.greyEditorId = "HoMBF_GreyAddon_Second";
             second.dnamFlags = kDnamAlwaysLoaded;
+            second.greyForm = std::string(kLocalPluginName) + "|000801";
             records.push_back(second);
             const auto file = a_dir / kLocalPluginName;
             WriteAddonEsl(records, file);
@@ -84,6 +164,77 @@ namespace GreyBuild::SelfTest
                             back[0].model == "heartofmagic\\blackflame\\mps\\b.nif" &&
                             back[0].masterParticleCap == 7 && back[1].dnamFlags == kDnamAlwaysLoaded;
             a_check.Check(ok, "ESL: two ADDN records read back (FormIDs, EditorIDs, MODL without meshes\\, DATA, DNAM)");
+            const std::string bytes = ReadBytes(file);
+            CheckEslBytes(a_check, bytes, static_cast<std::int32_t>(records.size() + 1), 0x802);
+
+            const auto problems = VerifyAddonEsl(records, file);
+            a_check.Check(problems.empty(), fmt::format("ESL: VerifyAddonEsl matches what was written ({} problem(s))",
+                problems.size()));
+            auto changed = records;
+            changed.back().grey += 1;
+            a_check.Check(VerifyAddonEsl(changed, file).size() == 1, "ESL: VerifyAddonEsl reports a changed DATA");
+            changed.pop_back();
+            a_check.Check(!VerifyAddonEsl(changed, file).empty(), "ESL: VerifyAddonEsl reports a record count mismatch");
+            CheckEslRefusals(a_check, a_dir, bytes);
+        }
+
+        /// A second --request run on a load order that has the first run's local ESL: index 24's
+        /// local record (9125, 000800) is kept at its id although 9125 is not its preferred index,
+        /// a stale local record (000803) is dropped, and index 9 (no shipped record this time) gets
+        /// a new record with the id after every local id the request has (000804).
+        void CheckRerun(Checker& a_check, const std::filesystem::path& a_dir, const std::vector<std::filesystem::path>& a_in)
+        {
+            const std::string text =
+                R"({"version":1,"addons":[)"
+                R"({"index":9,"model":"MPS\\A.nif","editorId":"MPSA","source":"Skyrim.esm|000009"},)"
+                R"({"index":24,"model":"MPS\\B.nif","editorId":"MPSB","source":"Skyrim.esm|000024","masterParticleCap":7},)"
+                R"({"index":9124,"model":"Other\\Thing.nif","editorId":"OtherThing","source":"Other.esp|000800"},)"
+                R"({"index":9125,"model":"HeartOfMagic\\BlackFlame\\MPS\\B.nif","editorId":"HoMBF_GreyAddon_MPSB","source":"heartofmagic_blackflame_local.esp|800"},)"
+                R"({"index":9200,"model":"HeartOfMagic\\BlackFlame\\MPS\\Gone.nif","editorId":"Gone","source":"HeartOfMagic_BlackFlame_Local.esp|000803"}],)"
+                R"("models":["Effects\\Test.nif"]})";
+            const Plan plan = PlanFromRequest(LoadRequest(WriteFile(a_dir / "rerun.json", text)), a_in, kDefaultTint);
+            const std::string local = kLocalPluginName;
+            const auto b = plan.map.addons.find(kIndexB);
+            a_check.Check(b != plan.map.addons.end() && b->second.grey == 9125 &&
+                              b->second.greyForm == local + "|000800",
+                "rerun: index 24 reuses its local record 9125 at 000800 (found by model, not preferred index)");
+            const auto a = plan.map.addons.find(kIndexA);
+            a_check.Check(a != plan.map.addons.end() && a->second.grey == kShippedGreyA &&
+                              a->second.greyForm == local + "|000804",
+                "rerun: index 9 gets 9109 and a new local id after every one the request has (000804)");
+            const bool records = plan.newRecords.size() == 2 && plan.newRecords[0].greyForm == local + "|000800" &&
+                                 plan.newRecords[0].grey == 9125 && plan.newRecords[1].greyForm == local + "|000804";
+            a_check.Check(records, fmt::format("rerun: the local ESL holds the kept and the new record by id ({} record(s))",
+                plan.newRecords.size()));
+            if (!records) {
+                return;
+            }
+            const auto file = a_dir / "rerun.esp";
+            WriteAddonEsl(plan.newRecords, file);
+            std::uint32_t flags = 0;
+            const auto back = ReadAddonEsl(file, flags);
+            a_check.Check(back.size() == 2 && back[0].formId == 0x800 && back[1].formId == 0x804 &&
+                              VerifyAddonEsl(plan.newRecords, file).empty(),
+                "rerun: written with FormIDs 000800 and 000804, verified");
+            CheckEslBytes(a_check, ReadBytes(file), 3, 0x805);
+        }
+
+        void CheckIndexCap(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto refuses = [&](const char* a_name, long long a_index) {
+                const std::string text = fmt::format(
+                    R"({{"version":1,"addons":[{{"index":{},"model":"MPS\\A.nif"}}],"models":[]}})", a_index);
+                try {
+                    (void)LoadRequest(WriteFile(a_dir / a_name, text));
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            a_check.Check(!refuses("cap-ok.json", kMaxIndex),
+                fmt::format("request: index {} (INT_MAX - {}) is read", kMaxIndex, kGreyIndexBase));
+            a_check.Check(refuses("cap-over.json", static_cast<long long>(kMaxIndex) + 1),
+                fmt::format("request: index {} is refused (base + it would overflow an int)", kMaxIndex + 1LL));
         }
     }
 
@@ -98,5 +249,7 @@ namespace GreyBuild::SelfTest
         if (!plan.newRecords.empty()) {
             CheckEsl(a_check, a_dir, plan);
         }
+        CheckRerun(a_check, a_dir, { input });
+        CheckIndexCap(a_check, a_dir);
     }
 }

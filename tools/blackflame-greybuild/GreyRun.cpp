@@ -110,7 +110,16 @@ namespace GreyBuild
     bool IsInside(const std::filesystem::path& a_child, const std::filesystem::path& a_parent)
     {
         const auto folded = [](const std::filesystem::path& a_path) {
-            std::wstring text = std::filesystem::weakly_canonical(a_path).lexically_normal().wstring();
+            // No throwing overloads: a path the OS refuses falls back to its absolute form
+            std::error_code ec;
+            std::filesystem::path full = std::filesystem::weakly_canonical(a_path, ec);
+            if (ec) {
+                full = std::filesystem::absolute(a_path, ec);
+                if (ec) {
+                    full = a_path;
+                }
+            }
+            std::wstring text = full.lexically_normal().wstring();
             std::transform(text.begin(), text.end(), text.begin(),
                 [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
             if (text.empty() || text.back() != L'\\') {
@@ -129,7 +138,7 @@ namespace GreyBuild
         Totals totals;
         std::set<std::string> done;
         for (const auto& [index, entry] : a_map.addons) {
-            if (done.insert(entry.model).second) {
+            if (done.insert(entry.greyModel).second) {  // indices sharing one MPS share its grey copy
                 BuildOne(a_map, a_inputs, a_out, entry.model, entry.greyModel, true, a_needAll, totals);
             }
         }

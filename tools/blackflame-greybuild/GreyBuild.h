@@ -10,6 +10,7 @@
 // master particle system NIFs (shipped under new ADDN indices) and copies of the
 // impact / hazard NIFs whose AddOnNodes point at the grey indices.
 
+#include <climits>
 #include <cstdint>
 #include <filesystem>
 #include <map>
@@ -135,21 +136,23 @@ namespace GreyBuild
     // The generated plugin for grey ADDN records a setup needs beyond the shipped ones
     inline constexpr const char* kLocalPluginName = "HeartOfMagic_BlackFlame_Local.esp";
     inline constexpr int kGreyIndexBase = 9100;       // preferred grey index = base + original
+    inline constexpr int kMaxIndex = INT_MAX - kGreyIndexBase;  // any ADDN index read or allocated (base + it fits an int)
     inline constexpr std::uint32_t kFirstLightFormId = 0x800;
     inline constexpr std::uint32_t kLastLightFormId = 0xFFF;
 
     struct Plan
     {
         GreyMap map;
-        std::vector<AddonEntry> newRecords;  // grey ADDN records the shipped ESL does not have
+        std::vector<AddonEntry> newRecords;  // every record kLocalPluginName must hold, by local id (kept and new)
         std::vector<std::string> problems;   // values with no ADDN in the request, and the like
         std::vector<std::string> skipped;    // request models in no --in folder
     };
 
     /// Reads every listed model found in a_inputs (first folder that has it wins), collects
-    /// its AddOnNode values and allocates grey indices: base + original when free, an existing
-    /// ADDN at that index reused when it already names the grey copy (the shipped records),
-    /// otherwise the next free index above every used one.
+    /// its AddOnNode values and allocates grey indices: an existing ADDN that already names the
+    /// grey copy is reused (the shipped records, or kLocalPluginName's from an earlier run, which
+    /// stay in newRecords at their local id), else base + original when free, otherwise the next
+    /// free index above every used one; new local records take ids after every local id the request has.
     [[nodiscard]] Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs,
         float a_tint);
 
@@ -157,9 +160,24 @@ namespace GreyBuild
     // Generated ESL (GreyEsl.cpp)
     // =========================================================================
 
+    inline constexpr std::uint32_t kEslFlag = 0x200;  // TES4 record flag: light plugin
+    // HEDR version 1.70: every record is at 0x800 or above, so the 1.71 header (records from
+    // 0x000, AE 1.6.1130+) is not needed, and runtimes or xEdit builds older than it may refuse 1.71
+    inline constexpr float kHedrVersion = 1.70f;
+
+    /// The local FormID of a "Plugin|localId" form when Plugin is kLocalPluginName (any case),
+    /// nothing for another plugin. Throws std::runtime_error when it names kLocalPluginName with
+    /// an id that is not hex in 0x800..0xFFF.
+    [[nodiscard]] std::optional<std::uint32_t> LocalFormId(const std::string& a_form);
+
     /// Writes an ESL-flagged plugin with no masters holding one ADDN record per entry
-    /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), FormIDs 0x800 up in order.
+    /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), in the order given; each record's
+    /// FormID is the local id its greyForm names (kLocalPluginName|0008xx).
     void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
+
+    /// The FormIDs WriteAddonEsl gives a_records, in the same order. Throws std::runtime_error
+    /// when a greyForm does not name kLocalPluginName or two records share an id.
+    [[nodiscard]] std::vector<std::uint32_t> EslFormIds(const std::vector<AddonEntry>& a_records);
 
     struct EslAddon
     {
@@ -173,6 +191,11 @@ namespace GreyBuild
 
     /// Reads the ADDN records back (only what WriteAddonEsl writes). Throws std::runtime_error.
     [[nodiscard]] std::vector<EslAddon> ReadAddonEsl(const std::filesystem::path& a_file, std::uint32_t& a_headerFlags);
+
+    /// Reads a_file back and compares it with what WriteAddonEsl was given (light flag, and per
+    /// record FormID, EDID, MODL, DATA, DNAM). Returns the differences; empty = it matches.
+    [[nodiscard]] std::vector<std::string> VerifyAddonEsl(const std::vector<AddonEntry>& a_records,
+        const std::filesystem::path& a_file);
 
     // =========================================================================
     // NIF operations (GreyNif.cpp)
