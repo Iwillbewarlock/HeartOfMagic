@@ -33,10 +33,16 @@ namespace BlackFlame
             static std::unordered_map<std::string, Entry> entries;
             const auto now = std::chrono::steady_clock::now();
             std::lock_guard lock(mutex);
-            // Keys are per target and spell: entries quiet for a while are dropped past a cap, so the
-            // map does not grow for the whole session (a dropped one just logs its next line)
-            if (entries.size() > kMaxEntries) {
+            // Keys are per target and spell: past a cap, entries quiet for a while are dropped (at most
+            // one scan a second), and if that is not enough the map starts over (a dropped key just
+            // logs its next line), so it cannot grow for the whole session
+            static std::chrono::steady_clock::time_point lastPrune{};
+            if (entries.size() >= kMaxEntries && now - lastPrune >= kInterval) {
+                lastPrune = now;
                 std::erase_if(entries, [&](const auto& a_entry) { return now - a_entry.second.last > kStale; });
+                if (entries.size() >= kMaxEntries) {
+                    entries.clear();
+                }
             }
             auto& entry = entries[std::string(a_kind) + ':' + std::to_string(a_spell)];
             if (entry.written && now - entry.last < kInterval) {

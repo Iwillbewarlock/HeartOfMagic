@@ -56,8 +56,8 @@ namespace
     {
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
+            ResetLayers();  // first: the load abort below does not touch the old handles either
             BlackFlame::SelfTest::Abort("a save is being loaded");
-            ResetLayers();
             break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
@@ -68,8 +68,8 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
-            BlackFlame::SelfTest::Abort("a new game started");
             ResetLayers();
+            BlackFlame::SelfTest::Abort("a new game started");
             BlackFlame::RecomputeBuff("new game");
             FlushLog();
             break;

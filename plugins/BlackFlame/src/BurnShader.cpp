@@ -81,7 +81,8 @@ namespace BlackFlame
 
         void UpdateLiveCount()
         {
-            g_liveCount.store(Live().size() + Pending().size());
+            // Floors too: the ticker keeps running (and pruning them) while any exist
+            g_liveCount.store(Live().size() + Pending().size() + AgeFloors().size());
         }
 
         enum class HitList
@@ -137,41 +138,57 @@ namespace BlackFlame
                    !(a_effect->duration > 0.0f && a_effect->elapsedSeconds >= a_effect->duration);
         }
 
-        // Sets `finished` on exactly these shaders, under the ProcessLists lock like every other
-        // writer here (CommonLib's ProcessLists::StopAllMagicEffects writes there too)
-        void FinishUnderLock(const std::unordered_set<RE::ShaderReferenceEffect*>& a_shaders)
+        // One pass over the ProcessLists' shader effects, under their lock like every writer here
+        // (CommonLib's ProcessLists::StopAllMagicEffects writes there too): a_act on each match
+        template <class Match, class Act>
+        void ForEachShaderUnderLock(Match&& a_match, Act&& a_act)
         {
-            auto* lists = RE::ProcessLists::GetSingleton();
-            if (!lists || a_shaders.empty()) {
-                return;
+            if (auto* lists = RE::ProcessLists::GetSingleton()) {
+                lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
+                    if (a_effect && a_match(a_effect)) {
+                        a_act(a_effect);
+                    }
+                    return RE::BSContainer::ForEachResult::kContinue;
+                });
             }
-            lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
-                if (a_shaders.contains(a_effect)) {
-                    a_effect->finished = true;
-                }
-                return RE::BSContainer::ForEachResult::kContinue;
-            });
         }
 
-        // Our grey shaders: finished under the lock, unless an instant hit still claims one (its age
-        // floor); such a shader runs out by its lifetime, which the instant hit already extended
-        void FinishGreyUnderLock(const std::vector<RE::NiPointer<RE::ShaderReferenceEffect>>& a_shaders)
+        // Sets `finished` on exactly these shaders
+        void FinishUnderLock(const std::unordered_set<RE::ShaderReferenceEffect*>& a_shaders)
         {
-            auto* lists = RE::ProcessLists::GetSingleton();
-            if (!lists || a_shaders.empty()) {
+            if (a_shaders.empty()) {
                 return;
             }
+            ForEachShaderUnderLock([&](RE::ShaderReferenceEffect* a_effect) { return a_shaders.contains(a_effect); },
+                [](RE::ShaderReferenceEffect* a_effect) { a_effect->finished = true; });
+        }
+
+        // Our grey shaders: finished, unless an instant hit still claims one (its age floor) - then its
+        // lifetime is cut to that floor, so it ends there instead of at its original lifetime. Returns
+        // how many were held to their floor.
+        int FinishGreyUnderLock(const std::vector<RE::NiPointer<RE::ShaderReferenceEffect>>& a_shaders)
+        {
+            if (a_shaders.empty()) {
+                return 0;
+            }
             auto& floors = AgeFloors();
-            lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
-                if (std::ranges::none_of(a_shaders, [&](const auto& s) { return s.get() == a_effect; })) {
-                    return RE::BSContainer::ForEachResult::kContinue;
-                }
-                const auto floor = floors.find(a_effect);
-                if (floor == floors.end() || a_effect->age >= floor->second) {
-                    a_effect->finished = true;
-                }
-                return RE::BSContainer::ForEachResult::kContinue;
-            });
+            int held = 0;
+            ForEachShaderUnderLock(
+                [&](RE::ShaderReferenceEffect* a_effect) {
+                    return std::ranges::any_of(a_shaders, [&](const auto& s) { return s.get() == a_effect; });
+                },
+                [&](RE::ShaderReferenceEffect* a_effect) {
+                    const auto floor = floors.find(a_effect);
+                    if (floor == floors.end() || a_effect->age >= floor->second) {
+                        a_effect->finished = true;
+                        return;
+                    }
+                    if (a_effect->lifetime >= 0.0f) {
+                        a_effect->lifetime = (std::min)(a_effect->lifetime, floor->second);
+                    }
+                    ++held;
+                });
+            return held;
         }
 
         // Only this effect's own hit shaders: an ally's identical shader on the same target stays
@@ -415,7 +432,7 @@ namespace BlackFlame
                 }
                 return true;
             });
-            FinishGreyUnderLock(toFinish);
+            (void)FinishGreyUnderLock(toFinish);
             auto* lists = RE::ProcessLists::GetSingleton();
             if (!lists) {
                 return;
@@ -487,10 +504,11 @@ namespace BlackFlame
             }
             auto shader = tracked->shader;
             std::erase_if(live, [&](const LiveBurn& a_burn) { return a_burn.shader == shader; });
-            FinishGreyUnderLock({ shader });
+            const int held = FinishGreyUnderLock({ shader });
             UpdateLiveCount();
             LogBurn(0, targetRef->GetFormID(), std::format("effect {} on {:08X} removed, no other fire effect of the "
-                "player there: grey shader finished", a_activeEffectId, targetRef->GetFormID()));
+                "player there: grey shader {}", a_activeEffectId, targetRef->GetFormID(),
+                held ? "held to an instant hit's floor" : "finished"));
         });
     }
 

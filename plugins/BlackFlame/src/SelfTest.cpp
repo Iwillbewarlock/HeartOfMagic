@@ -187,8 +187,12 @@ namespace BlackFlame::SelfTest
     {
         if (g_running) {
             // The world is being torn down: the old handles are not touched
-            SelfTestLog::Fail("ABORT", std::format("{} - the test stopped; its actors and buff are left to the load",
-                a_reason));
+            try {
+                SelfTestLog::Fail("ABORT", std::format("{} - the test stopped; its actors and buff are left to the load",
+                    a_reason));
+            } catch (...) {
+                logger::error("BlackFlame: self-test aborted ({}) and its FAIL line could not be written", a_reason);
+            }
             Finish(true);
             return;
         }

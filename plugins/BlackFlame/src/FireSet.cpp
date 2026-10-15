@@ -197,6 +197,16 @@ namespace BlackFlame
             ForEachExplosion(a_base, [](RE::FormID a_explosion) { g_fireExplosions.insert(a_explosion); });
         }
 
+        // Distinct explosions in both sets (one named by a fire MGEF and a fallback counts once)
+        std::size_t ExplosionCount()
+        {
+            std::size_t count = g_fireExplosions.size();
+            for (const auto& [explosion, spells] : g_fallbackExplosions) {
+                count += g_fireExplosions.contains(explosion) ? 0 : 1;
+            }
+            return count;
+        }
+
         void AddFallbackEffect(const RE::SpellItem* a_spell, const RE::EffectSetting* a_base)
         {
             g_fallbackPairs.insert(PairKey(a_spell->GetFormID(), a_base->GetFormID()));
@@ -269,9 +279,9 @@ namespace BlackFlame
         logger::info("BlackFlame: fire spells: {} from the catalog ({} entries, {} found in this load order), "
                      "{} by fire MGEF, {} total; {} fire effects, {} fire explosions",
             catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(),
-            g_fireEffects.size() + g_fallbackPairs.size(), g_fireExplosions.size() + g_fallbackExplosions.size());
+            g_fireEffects.size() + g_fallbackPairs.size(), ExplosionCount());
         g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(),
-            g_fireEffects.size() + g_fallbackPairs.size(), g_fireExplosions.size() + g_fallbackExplosions.size() };
+            g_fireEffects.size() + g_fallbackPairs.size(), ExplosionCount() };
     }
 
     FireSetCounts GetFireSetCounts() noexcept
