@@ -35,7 +35,11 @@ int RunNpcSelfTest()
     Check(ProviderIndex({ { 0x2, false }, { 0x2, false }, { 0, false } }, Category::Stats) == 2, "chain of two templates");
     Check(!ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Stats).has_value(), "a leveled character provider is unresolvable");
     Check(ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Factions) == 0, "a category without the flag stays on the record even when the template is leveled");
-    Check(SpellListProviderIndex({ { 0x8, false } }) == 0 && !ProviderIndex({ { 0x8, false } }, Category::Spells).has_value(), "spell list: the Spells flag with no template link keeps the record's own list");
+    Check(SpellListProviderIndex({ { 0x8, false } }) == 0 && ProviderIndex({ { 0x8, false } }, Category::Spells) == 0, "spell list: the Spells flag with no template link keeps the record's own list");
+    Check(SpellListProviderIndex({ { 0x8, false, true } }) == 0 && !ProviderIndex({ { 0x8, false, true } }, Category::Spells).has_value(), "spell list: a chain of one cut at its own template (a cycle) is the record for the spell list only");
+    Check(ProviderIndex({ { 0x8, false, true }, { 0x8, false } }, Category::Spells) == 1 && SpellListProviderIndex({ { 0x8, false, true }, { 0x8, false } }) == 1, "spell list: a template at the chain's end with the Spells flag and no template keeps its own list and holds the child's");
+    Check(!ProviderIndex({ { 0x8, false, true }, { 0x8, false, true } }, Category::Spells).has_value() && !SpellListProviderIndex({ { 0x8, false, true }, { 0x8, false, true } }).has_value(), "spell list: a chain cut with the flag on (cycle, depth limit) is unresolvable");
+    Check(!ProviderIndex({ { 0x2, false, true }, { 0x2, false } }, Category::Stats).has_value(), "other categories: the flag at the chain's end stays unresolvable");
     Check(SpellListProviderIndex({ { 0x8, false }, { 0x8, false }, { 0, false } }) == 2 && SpellListProviderIndex({ { 0, false }, { 0, false } }) == 0, "spell list: a template chain is followed as ProviderIndex does; no flag stays on the record");
     Check(!SpellListProviderIndex({ { 0x8, false }, { 0, true } }).has_value(), "spell list: a leveled template before the provider is unresolvable");
 

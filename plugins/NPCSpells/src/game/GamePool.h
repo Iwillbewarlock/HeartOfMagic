@@ -33,6 +33,9 @@ namespace NpcSpellsGame
     // the game's lookup by raw bytes first, then the converted names of non-ASCII files (PluginNames.h)
     using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
 
+    // The plugin file of that name when the game loaded it (a file present in Data but not loaded has compile index 0xFF), else null
+    const RE::TESFile* LookupLoadedPlugin(PluginLookup& lookup, const std::string& plugin);
+
     // The form `local` of `plugin`, or null when the plugin is not loaded or has no such form
     RE::TESForm* LookupLocalForm(PluginLookup& lookup, const std::string& plugin, std::uint32_t local);
 }

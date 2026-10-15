@@ -159,16 +159,28 @@ namespace
         Forget(s, r);
     }
 
-    // A failure no later run could get past: the RESULT of this run, and no further run
-    void Stop(State& s, SampleRun& r, std::string_view reason)
+    // An outcome no later run could get past: the RESULT of this run (FAIL unless said), and no further run
+    void Stop(State& s, SampleRun& r, std::string_view reason, NpcSpells::SelfTestVerdict verdict = NpcSpells::SelfTestVerdict::kFail)
     {
-        Fail(s, r, reason);
+        Record(s, r, verdict, reason);
         r.stopped = true;
     }
 
-    // The sample's record and, for an NPC whose chain resolves, its holder with our lists. false: the sample FAILed and stops.
+    // The plugin name as the config wrote it ("XXXXXX:Plugin.ext" or the object's "id")
+    std::string_view PluginText(std::string_view sampleText)
+    {
+        const auto colon = sampleText.find(':');
+        return colon == std::string_view::npos ? sampleText : sampleText.substr(colon + 1);
+    }
+
+    // The sample's record and, for an NPC whose chain resolves, its holder with our lists. false: the sample stops (FAIL, or
+    // INCONCLUSIVE when its plugin is not in this load order: nothing to check, not a failure of the addon).
     bool Prepare(State& s, SampleRun& r, NpcSpellsGame::PluginLookup& lookup)
     {
+        if (!NpcSpellsGame::LookupLoadedPlugin(lookup, r.ref.pluginLower)) {
+            Stop(s, r, std::format("plugin {} not loaded", PluginText(r.text)), NpcSpells::SelfTestVerdict::kInconclusive);
+            return false;
+        }
         auto* form = NpcSpellsGame::LookupLocalForm(lookup, r.ref.pluginLower, r.ref.local);
         r.npc = form ? form->As<RE::TESNPC>() : nullptr;
         auto* leveled = form ? form->As<RE::TESLevCharacter>() : nullptr;  // RE/T/TESLevCharacter.h:10, a TESBoundObject
@@ -279,7 +291,7 @@ namespace
         if (!s.spawned) {
             g_started = false;
         }
-        std::size_t notRun = 0;  // runs never spawned: a sample stopped, or the test ended during its runs
+        std::size_t notRun = 0;  // runs never started (no RESULT): after a sample's stopped run, or after the run the test ended in
         for (const auto& r : s.samples) {
             if (s.spawned && r.runs > 1) {
                 SelfTest::Log(s, NpcSpells::SelfTestListsLine(r.text, r.runs, r.tally));  // per list: checked runs that picked from it

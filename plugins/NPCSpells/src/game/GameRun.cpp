@@ -135,14 +135,17 @@ namespace
         rd.inheritedLists = ns.inheritedLists;
         rd.inheritedCreated = ns.inheritedCreated;
         rd.inheritedViaShared = ns.inheritedViaShared;
+        rd.viaSharedDespiteOwnSkip = ns.viaSharedDespiteOwnSkip;
         rd.inheriting = ns.inheriting;
         rd.notCopiedLeveledChain = ns.notCopiedLeveledChain;
         rd.notCopiedPlainChain = ns.notCopiedPlainChain;
         rd.beforeHolder = ns.beforeHolder;
         rd.otherProvider = ns.otherProvider;
         rd.sharedSpellData = ns.sharedSpellData;
+        rd.holderFlagNoTemplate = ns.holderFlagNoTemplate;
         rd.sharedLevSpells = ns.sharedLevSpells;
         rd.blockedWrites = ns.blockedWrites;
+        rd.sharedSpellDataOutsideChain = ns.sharedSpellDataOutsideChain;
         rd.unresolvableTemplate = ns.unresolvableTemplate;
         rd.multiGroup = ns.multiGroup;
         rd.unresolvedRefs = ns.unresolvedRefs;
@@ -150,14 +153,15 @@ namespace
         rd.byGroup = ns.byGroup;
         rd.skipped.assign(ns.skipped.begin(), ns.skipped.end());
         logger::info("NPCSpells: NPCs in {:.0f} ms: scanned={} eligible={} attached={} listsAttached={} inheritedAttached={} inheritedLists={} "
-                     "inheritedCreated={} inheritedViaShared={} unresolvableTemplate={} multiGroup={} unresolvedRefs={}",
+                     "inheritedCreated={} inheritedViaShared={} viaSharedDespiteOwnSkip={} unresolvableTemplate={} multiGroup={} unresolvedRefs={}",
             rd.timingsMs.back().second, ns.scanned, ns.eligible, ns.attached, ns.listsAttached, ns.inheritedAttached, ns.inheritedLists,
-            ns.inheritedCreated, ns.inheritedViaShared, ns.unresolvableTemplate, ns.multiGroup, ns.unresolvedRefs);
-        // Read at kDataLoaded, before any write: the template children and the memory audit (sharedLevSpells and blockedWrites expected 0)
+            ns.inheritedCreated, ns.inheritedViaShared, ns.viaSharedDespiteOwnSkip, ns.unresolvableTemplate, ns.multiGroup, ns.unresolvedRefs);
+        // Read at kDataLoaded, before any write: the template children and the memory audit (sharedLevSpells, blockedWrites and
+        // sharedSpellDataOutsideChain expected 0)
         logger::info("NPCSpells: template spell list: inheriting={} notCopiedTemplate leveledChain={} plainChain={} beforeHolder={} "
-                     "otherProvider={} sharedSpellData={} sharedLevSpells={} blockedWrites={}",
+                     "otherProvider={} sharedSpellData={} holderFlagNoTemplate={} sharedLevSpells={} blockedWrites={} sharedSpellDataOutsideChain={}",
             ns.inheriting, ns.notCopiedLeveledChain, ns.notCopiedPlainChain, ns.beforeHolder, ns.otherProvider, ns.sharedSpellData,
-            ns.sharedLevSpells, ns.blockedWrites);
+            ns.holderFlagNoTemplate, ns.sharedLevSpells, ns.blockedWrites, ns.sharedSpellDataOutsideChain);
         logger::info("NPCSpells: attached by tier nonMage/hybrid/mage={}/{}/{} by group None/Forsworn/Vampire/Necromancer/"
                      "Thalmor/Vigilant={}/{}/{}/{}/{}/{}",
             ns.byTier[0], ns.byTier[1], ns.byTier[2], ns.byGroup[0], ns.byGroup[1], ns.byGroup[2], ns.byGroup[3],

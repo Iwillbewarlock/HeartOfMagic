@@ -28,7 +28,7 @@ int RunPlanSelfTest()
         Check(Skipped(s[1], kSkipHolderBlocked) && !s[1].blockedWrite, "its child: 'holder not written (shared leveled-list array)', not 'holder got no lists'");
         auto c = Child(0); c.blocked = true;
         const auto t = PlanWrites({ Holder(), c });
-        Check(Is(t[0], PlanAction::kWriteOwn, 0) && Skipped(t[1], kSkipSharedLevArray) && t[1].blockedWrite, "a blocked child is not written; its holder is");
+        Check(Is(t[0], PlanAction::kWriteOwn, 0) && Skipped(t[1], kSkipInheritedSharedLevArray) && t[1].blockedWrite, "a blocked child is not written, with the child reason, counted as a blocked write; its holder is");
     }
     {   // spell list data shared with the holder: the holder's write reaches the child, nothing is written to it
         auto c = Child(0); c.sharesSpellData = 0;
@@ -38,6 +38,9 @@ int RunPlanSelfTest()
         Check(Skipped(none[1], kSkipHolderGotNone), "SpellData shared with a holder that gets no lists: nothing, 'holder got no lists'");
         auto blocked = Holder(); blocked.blocked = true;
         Check(Skipped(PlanWrites({ blocked, c })[1], kSkipHolderBlocked), "SpellData shared with a blocked holder: 'holder not written'");
+        auto blockedMid = Child(0); blockedMid.blocked = true; auto underMid = Child(0); underMid.sharesSpellData = 1;
+        const auto bm = PlanWrites({ Holder(), blockedMid, underMid });
+        Check(Skipped(bm[1], kSkipInheritedSharedLevArray) && Skipped(bm[2], kSkipSharedSpellDataBlocked) && !bm[2].blockedWrite, "SpellData shared with a blocked chain record that is not its holder: not 'holder not written'");
         // Shared with a middle record of the chain that inherits too: it gets what that record gets
         auto mid = Child(0); auto low = Child(0); low.sharesSpellData = 1;
         const auto m = PlanWrites({ Holder(), mid, low });
@@ -70,6 +73,9 @@ int RunPlanSelfTest()
         auto creature = Child(0); creature.ownSkip = kSkipInheritedCreature;
         const auto s = PlanWrites({ Holder(), beast, creature });
         Check(Skipped(s[1], kSkipInheritedBeast) && Skipped(s[2], kSkipInheritedCreature), "a beast-race child and a non-mage creature child get nothing");
+        auto sharedBeast = beast; sharedBeast.sharesSpellData = 0;
+        const auto sb = PlanWrites({ Holder(), sharedBeast, Child(0) });
+        Check(sb[1].action == PlanAction::kViaShared && sb[1].despiteOwnSkip && !sb[2].despiteOwnSkip, "a beast-race child sharing its holder's spell list data gets its lists through it, counted as despite its own rule");
         const Rules rules = DefaultRules();
         NpcFacts f; f.hasClass = true; f.weights = MageWeights(); f.isBeast = true;
         Check(SameReason(InheritedRaceSkip(f, rules), kSkipInheritedBeast), "InheritedRaceSkip: a beast race, whatever the class");

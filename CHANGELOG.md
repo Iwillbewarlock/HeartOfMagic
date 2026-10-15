@@ -21,7 +21,7 @@
 - First release of an optional addon, a separate download (a DLL, a small ESL-flagged plugin and a rules
   file): at game start it hands the spells of your tree to magic-using NPCs by school and skill, through leveled
   spell lists (NPCs built from a template, such as most bandit and warlock mages, are meant to get the same lists
-  as their template - pending an in-game check; a beast-race or non-mage creature one gets nothing), with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
+  as their template - pending an in-game check; a beast-race or non-mage creature child gets nothing unless it shares its spell list data with its template), with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
   for those who should not have them. Nothing is saved in your game, and a report lists who got what. Needs
   Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built, on Skyrim SE or AE (not VR); see
   `plugins/NPCSpells/README.md`.

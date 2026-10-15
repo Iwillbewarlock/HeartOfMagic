@@ -76,6 +76,7 @@ int RunEslSelfTest()
     {   // inherited rows: their own section, holder named, list count; counters on the NPCs section
         ReportData inh; inh.npcsAttached = 1; inh.inheritedAttached = 1; inh.inheritedLists = 1; inh.inheriting = 3; inh.beforeHolder = 2; inh.notCopiedLeveledChain = 1;
         inh.inheritedCreated = 1; inh.inheritedViaShared = 4; inh.sharedLevSpells = 6; inh.blockedWrites = 5;
+        inh.viaSharedDespiteOwnSkip = 2; inh.holderFlagNoTemplate = 7; inh.sharedSpellDataOutsideChain = 8;
         inh.npcs = { { "Skyrim.esm|0x039D31", "Bandit Wizard", mage }, { "Skyrim.esm|0x039D37", "Bandit Mage", mage, "Skyrim.esm|0x039D31" } };
         const std::string t = RenderReport(inh);
         const auto own = t.find("== NPC lists ==\n"), inherited = t.find("== NPC lists inherited from a template ==\n");
@@ -85,6 +86,8 @@ int RunEslSelfTest()
         Check(t.find("spell list from a template 3: got their holder's lists 1 (1 lists; new spell list data 1), through shared spell list data 4") != std::string::npos &&
               t.find("leveled-list array another record's spell list data shares 6, writes left out for it 5") != std::string::npos && t.find("met before their holder 2") != std::string::npos &&
               t.find("without kCopiedTemplate 1 (leveled link") != std::string::npos, "the NPCs section counts inherited NPCs and lists, and the kDataLoaded template counters");
+        Check(t.find("(of them despite their own race rule 2)") != std::string::npos && t.find("Spells flag and no template 7") != std::string::npos &&
+              t.find("spell list data shared outside one template chain 8 (expected 0)") != std::string::npos, "the report counts via-shared children despite their race rule, end-of-chain holders and spell list data shared outside a chain");
     }
     ReportData stopped; stopped.stopReason = "spell_tree.json not found";
     Check(RenderReport(stopped).find("spell_tree.json not found") != std::string::npos, "a stopped run says why");

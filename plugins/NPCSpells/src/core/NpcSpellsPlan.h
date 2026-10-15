@@ -15,9 +15,14 @@ namespace NpcSpells {
     // our lists, in place of whatever the engine gives it later
     inline constexpr const char* kSkipNoOwnSpellList = "template spell list, no spell list data and no kCopiedTemplate";
     inline constexpr const char* kSkipSharedSpellData = "template spell list, spell list data shared with a chain record that gets no lists";
+    // ...with a chain record other than its holder that is not written for its shared leveled-list array (the holder's case
+    // is kSkipHolderBlocked)
+    inline constexpr const char* kSkipSharedSpellDataBlocked = "template spell list, spell list data shared with a chain record not written (shared leveled-list array)";
     // Adding lists frees the record's old array (RE/T/TESSpellList.cpp CopySpellList): another spell list data pointing at
-    // the same array would be left pointing at freed memory
+    // the same array would be left pointing at freed memory. kSkipSharedLevArray for a record deciding for itself,
+    // kSkipInheritedSharedLevArray for a template child; both are blocked writes.
     inline constexpr const char* kSkipSharedLevArray = "leveled-list array shared with another record's spell list data (not written)";
+    inline constexpr const char* kSkipInheritedSharedLevArray = "template spell list, leveled-list array shared (not written)";
 
     // One NPC record as pass 1 read it: it decides for itself (DecideNpc) or inherits its spell list from a template
     struct PlanRecord {
@@ -43,7 +48,8 @@ namespace NpcSpells {
         const char* skipReason = nullptr;
         std::size_t listsFrom = kNoRecord;  // a write or kViaShared: the record whose decision supplies the lists (itself for kWriteOwn)
         std::size_t via = kNoRecord;        // kViaShared: the record whose write reaches it
-        bool blockedWrite = false;          // it would have been written but its array is shared (kSkipSharedLevArray)
+        bool blockedWrite = false;          // it would have been written but its array is shared (kSkipSharedLevArray, kSkipInheritedSharedLevArray)
+        bool despiteOwnSkip = false;        // kViaShared although its own race rule (ownSkip) would have given it nothing
     };
     // One step per record, in record order. O(n), plus O(n) per round for chains of shared spell list data (at most n rounds).
     std::vector<PlanStep> PlanWrites(const std::vector<PlanRecord>& records);

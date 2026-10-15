@@ -107,8 +107,8 @@ namespace
 
     // Template chain (RE/T/TESActorBaseData.h:136). A link may be a TESLevCharacter, which has no actorData:
     // it is never read as an NPC. npcs[i] is chain[i]'s TESNPC, null for any other link. A record met again (a template
-    // cycle, malformed data) ends the walk: the last link then names a template the chain does not hold, so ProviderIndex
-    // reports a category it would take from there unresolvable.
+    // cycle, malformed data) ends the walk: the last link then names a template the chain does not hold (hasTemplate), so
+    // ProviderIndex reports a category it would take from there unresolvable.
     void WalkChain(RE::TESNPC* npc, std::vector<NpcSpells::ChainLink>& chain, std::vector<RE::TESNPC*>& npcs)
     {
         chain.clear();
@@ -119,7 +119,8 @@ namespace
             if (n && std::ranges::find(npcs, n) != npcs.end()) {
                 break;
             }
-            chain.push_back({ n ? n->actorData.templateUseFlags.underlying() : std::uint16_t{ 0 }, cur->Is(RE::TESLevCharacter::FORMTYPE) });
+            chain.push_back({ n ? n->actorData.templateUseFlags.underlying() : std::uint16_t{ 0 }, cur->Is(RE::TESLevCharacter::FORMTYPE),
+                n && n->baseTemplateForm != nullptr });
             npcs.push_back(n);
             if (!n) {
                 break;
@@ -201,8 +202,11 @@ namespace
 
     // The memory audit, over every NPC record of the form array before anything is written: AddLevSpells frees the record's
     // old leveled-list array (src/RE/T/TESSpellList.cpp:16-28 CopySpellList), so a write to a record whose array another
-    // record's distinct spell list data (RE/T/TESSpellList.h:65 actorEffects, :45 levSpells) also points at would leave
-    // that one pointing at freed memory. Spell list data shared as a whole is safe (one struct, one array).
+    // record's distinct spell list data (RE/T/TESSpellList.h:66 actorEffects, :44 levSpells) also points at would leave
+    // that one pointing at freed memory. Spell list data shared as a whole is memory-safe (one struct, one array): every
+    // record written through it adds its lists to that one struct, so all records sharing it get them all
+    // (CountSharedSpellDataOutsideChain). Only NPC records are read: race spell lists (TESRace is a TESSpellList,
+    // RE/T/TESRace.h:144) are assumed not to share a spell list data or an array with an NPC.
     struct ArrayOwner
     {
         const RE::TESSpellList::SpellData* first = nullptr;  // the first spell list data seen with this array
@@ -258,6 +262,35 @@ namespace
         return first;
     }
 
+    // Spell list data (one struct) two or more NPC records point at, not all on one template chain (expected 0). A record of
+    // such a group explained by its own chain (a record of it shares the struct: a template child with its template's data)
+    // is in-chain; a group with two or more records not explained that way is counted (two sibling children sharing a struct
+    // their template does not have included). O(n) plus one template walk per record of a shared group.
+    std::size_t CountSharedSpellDataOutsideChain(RE::BSTArray<RE::TESNPC*>& forms)
+    {
+        using SpellData = RE::TESSpellList::SpellData;
+        std::unordered_map<const SpellData*, std::size_t> users;
+        users.reserve(forms.size());
+        for (const auto* npc : forms) {
+            if (npc && npc->actorEffects) {
+                ++users[npc->actorEffects];
+            }
+        }
+        std::unordered_map<const SpellData*, std::size_t> unexplained;
+        std::vector<NpcSpells::ChainLink> chain;
+        std::vector<RE::TESNPC*> npcs;
+        for (auto* npc : forms) {
+            if (!npc || !npc->actorEffects || users.find(npc->actorEffects)->second < 2) {
+                continue;
+            }
+            WalkChain(npc, chain, npcs);
+            if (!SpellDataOwnerInChain(npc, npcs, nullptr)) {
+                ++unexplained[npc->actorEffects];
+            }
+        }
+        return static_cast<std::size_t>(std::ranges::count_if(unexplained, [](const auto& e) { return e.second > 1; }));
+    }
+
     // Counts for an NPC that inherits its spell list (logged at kDataLoaded, read without playing). Returns its spell list
     // holder, null when the chain cannot tell it before spawn (a leveled link first, a malformed chain).
     RE::TESNPC* ReadInheriting(const RE::TESNPC* npc, const std::vector<NpcSpells::ChainLink>& chain, const std::vector<RE::TESNPC*>& npcs,
@@ -275,6 +308,9 @@ namespace
             return nullptr;
         }
         auto* holder = npcs[*at];
+        if (*at + 1 == chain.size() && (chain[*at].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0) {
+            ++stats.holderFlagNoTemplate;  // the chain's end has the Spells flag and no template: it keeps its own list (ProviderIndex)
+        }
         if (!seen.contains(holder->GetFormID())) {
             ++stats.beforeHolder;  // GetFormArray is in load order, not template order
         }
@@ -312,6 +348,7 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
     const ResolvedRules rr = ResolveRules(rules, stats.unresolvedRefs);
     auto& forms = dh->GetFormArray<RE::TESNPC>();  // RE/T/TESDataHandler.h:89
     const ArrayOwners arrays = MapLevArrays(forms);
+    stats.sharedSpellDataOutsideChain = CountSharedSpellDataOutsideChain(forms);
 
     // Pass 1 reads and decides every record; nothing is written until the plan (core/NpcSpellsPlan.h) is made
     using Flag = RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG;  // RE/T/TESActorBaseData.h:46-62, the field at :74
@@ -360,7 +397,8 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
 
         WalkChain(npc, chain, npcs);
         // The Spells flag inherits only through a template link: with no TPLT (18 such NPCs in a 2026-10 load order, mod
-        // records and a COTH-overridden vanilla mage) the record's own spell list is the one the game uses
+        // records and a COTH-overridden vanilla mage) the record's own spell list is the one the game uses; the same for a
+        // template at the chain's end (ProviderIndex makes it the holder)
         f.inheritsSpellList = (chain[0].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0 && chain.size() > 1;
         auto* classNpc = Provider(npc, chain, npcs, Category::Stats, f.unresolvableStats);
         auto* raceNpc = Provider(npc, chain, npcs, Category::Traits, f.unresolvableTraits);
@@ -376,7 +414,9 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
             }
             s.sharesWith = SpellDataOwnerInChain(npc, npcs, s.holder);
             stats.sharedSpellData += s.sharesWith ? 1 : 0;
-            if (race) {  // no race to read: the holder's decision stands
+            // Its own race rules only when its class and race are read from its own chain: a leveled link before its Stats or
+            // Traits provider, or no race, leaves the holder's decision as it is (not the record's own class or race)
+            if (race && !f.unresolvableStats && !f.unresolvableTraits) {
                 ReadClass(classNpc, rr, f);
                 ReadRace(race, rr, f);
                 pr.ownSkip = NpcSpells::InheritedRaceSkip(f, rules);
@@ -454,6 +494,7 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
         const auto& step = steps[i];
         if (step.action == NpcSpells::PlanAction::kViaShared) {
             ++stats.inheritedViaShared;
+            stats.viaSharedDespiteOwnSkip += step.despiteOwnSkip ? 1 : 0;  // its own race rule would have given it nothing
             continue;
         }
         if (step.action != NpcSpells::PlanAction::kWriteInherited && step.action != NpcSpells::PlanAction::kCreateInherited) {

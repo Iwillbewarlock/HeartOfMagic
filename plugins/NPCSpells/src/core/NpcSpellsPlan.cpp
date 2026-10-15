@@ -6,7 +6,7 @@ namespace {
     // whose spell list data it shares); target kNoRecord: the holder was skipped before its decision
     const char* NotWrittenReason(const std::vector<PlanStep>& steps, std::size_t target, bool isHolder)
     {
-        if (target < steps.size() && steps[target].blockedWrite) return kSkipHolderBlocked;
+        if (target < steps.size() && steps[target].blockedWrite) return isHolder ? kSkipHolderBlocked : kSkipSharedSpellDataBlocked;
         return isHolder ? kSkipHolderGotNone : kSkipSharedSpellData;
     }
     void Skip(PlanStep& s, const char* reason, bool blockedWrite = false) { s.action = PlanAction::kNone; s.skipReason = reason; s.blockedWrite = blockedWrite; }
@@ -32,7 +32,7 @@ std::vector<PlanStep> PlanWrites(const std::vector<PlanRecord>& records)
         if (r.ownSkip) { Skip(steps[i], r.ownSkip); continue; }
         const auto h = r.holder;
         if (h >= n || steps[h].action != PlanAction::kWriteOwn) { Skip(steps[i], NotWrittenReason(steps, h, true)); continue; }
-        if (r.blocked) { Skip(steps[i], kSkipSharedLevArray, true); continue; }
+        if (r.blocked) { Skip(steps[i], kSkipInheritedSharedLevArray, true); continue; }
         if (!r.hasSpellData && !r.copiedTemplate) { Skip(steps[i], kSkipNoOwnSpellList); continue; }
         steps[i].action = r.hasSpellData ? PlanAction::kWriteInherited : PlanAction::kCreateInherited;
         steps[i].listsFrom = h;
@@ -50,6 +50,7 @@ std::vector<PlanStep> PlanWrites(const std::vector<PlanRecord>& records)
                 steps[i].action = PlanAction::kViaShared;
                 steps[i].listsFrom = steps[t].listsFrom;
                 steps[i].via = t;
+                steps[i].despiteOwnSkip = records[i].ownSkip != nullptr;
             } else {
                 Skip(steps[i], NotWrittenReason(steps, t, t == records[i].holder));
             }

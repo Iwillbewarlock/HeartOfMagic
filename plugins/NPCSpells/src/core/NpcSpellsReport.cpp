@@ -33,12 +33,15 @@ std::string RenderReport(const ReportData& d)
     Section(out, "NPCs");
     out += std::format("scanned {}, eligible {}, got lists {} ({} lists), unresolvable template {}, multi-group {}, unresolved rule refs {}\n",
         d.npcsScanned, d.npcsEligible, d.npcsAttached, d.listsAttached, d.unresolvableTemplate, d.multiGroup, d.unresolvedRefs);
-    out += std::format("spell list from a template {}: got their holder's lists {} ({} lists; new spell list data {}), through shared spell list data {}; "
-                       "without kCopiedTemplate {} (leveled link in the chain) / {} (none); "
-                       "met before their holder {}; class, race or factions from another record {}; spell list data shared with a chain record {}\n"
-                       "memory audit: records whose leveled-list array another record's spell list data shares {}, writes left out for it {} (expected 0)\n",
-        d.inheriting, d.inheritedAttached, d.inheritedLists, d.inheritedCreated, d.inheritedViaShared, d.notCopiedLeveledChain, d.notCopiedPlainChain,
-        d.beforeHolder, d.otherProvider, d.sharedSpellData, d.sharedLevSpells, d.blockedWrites);
+    out += std::format("spell list from a template {}: got their holder's lists {} ({} lists; new spell list data {}), through shared spell list data {} "
+                       "(of them despite their own race rule {}); without kCopiedTemplate {} (leveled link in the chain) / {} (none); "
+                       "met before their holder {}; class, race or factions from another record {}; spell list data shared with a chain record {}; "
+                       "holder at the chain's end with the Spells flag and no template {}\n"
+                       "memory audit: records whose leveled-list array another record's spell list data shares {}, writes left out for it {}, "
+                       "spell list data shared outside one template chain {} (expected 0)\n",
+        d.inheriting, d.inheritedAttached, d.inheritedLists, d.inheritedCreated, d.inheritedViaShared, d.viaSharedDespiteOwnSkip, d.notCopiedLeveledChain,
+        d.notCopiedPlainChain, d.beforeHolder, d.otherProvider, d.sharedSpellData, d.holderFlagNoTemplate, d.sharedLevSpells, d.blockedWrites,
+        d.sharedSpellDataOutsideChain);
     out += std::format("by tier (non-mage/hybrid/mage): {}/{}/{}\nby group:", d.byTier[0], d.byTier[1], d.byTier[2]);
     for (std::size_t g = 0; g < d.byGroup.size(); ++g) out += std::format(" {} {}{}", kGroups[g].name, d.byGroup[g], g + 1 < d.byGroup.size() ? "," : "\n");
     out += "skipped:\n";

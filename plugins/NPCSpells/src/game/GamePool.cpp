@@ -54,23 +54,40 @@ namespace
                   static_cast<int>(NpcSpells::kSchoolCount));
 }
 
+namespace
+{
+    // SpellScannerFormId.cpp FindPlugin: raw-byte lookup, then the UTF-8 names of non-ASCII files. Loaded or not.
+    const RE::TESFile* FindPluginFile(NpcSpellsGame::PluginLookup& lookup, RE::TESDataHandler* dh, const std::string& plugin)
+    {
+        return lookup.Find(
+            plugin,
+            [dh](const std::string& name) { return dh->LookupModByName(name); },
+            [dh](auto&& visit) {
+                for (const auto* f : dh->files) {
+                    if (f) {
+                        visit(f->fileName, f);
+                    }
+                }
+            });
+    }
+
+    constexpr std::uint8_t kNotLoadedCompileIndex = 0xFF;  // src/RE/T/TESDataHandler.cpp:128, LookupFormID's "not loaded" test
+}
+
+const RE::TESFile* NpcSpellsGame::LookupLoadedPlugin(PluginLookup& lookup, const std::string& plugin)
+{
+    auto* dh = RE::TESDataHandler::GetSingleton();
+    const auto* file = dh ? FindPluginFile(lookup, dh, plugin) : nullptr;
+    return file && file->GetCompileIndex() != kNotLoadedCompileIndex ? file : nullptr;  // RE/T/TESFile.h:54
+}
+
 RE::TESForm* NpcSpellsGame::LookupLocalForm(PluginLookup& lookup, const std::string& plugin, std::uint32_t local)
 {
     auto* dh = RE::TESDataHandler::GetSingleton();
     if (!dh) {
         return nullptr;
     }
-    // SpellScannerFormId.cpp FindPlugin: raw-byte lookup, then the UTF-8 names of non-ASCII files
-    const RE::TESFile* file = lookup.Find(
-        plugin,
-        [dh](const std::string& name) { return dh->LookupModByName(name); },
-        [dh](auto&& visit) {
-            for (const auto* f : dh->files) {
-                if (f) {
-                    visit(f->fileName, f);
-                }
-            }
-        });
+    const RE::TESFile* file = FindPluginFile(lookup, dh, plugin);
     // LookupFormID (src/RE/T/TESDataHandler.cpp:125-141) adds the local id to the file's index bits unmasked:
     // a local id too wide for the file would land in another plugin's FormID range
     if (!file || local > (file->IsLight() ? kMaxLightLocalId : kMaxLocalId)) {  // RE/T/TESFile.h:63

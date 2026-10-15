@@ -50,7 +50,7 @@ namespace NpcSpellsGame::SelfTest
         RE::FormID spawnedId = 0;              // the spawned ref's FormID: cleanup touches only a ref that still has it
         std::size_t waitTicks = 0;             // ticks since the spawn tick
         bool done = false;                     // this run has its RESULT
-        bool stopped = false;                  // no further run: a failure before the spawn would fail every run the same way
+        bool stopped = false;                  // no further run: a failure (or a plugin not loaded) before the spawn would end every run the same way
     };
 
     struct State

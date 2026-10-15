@@ -82,6 +82,7 @@ namespace NpcSpells {
     // The test's last line. DONE (what a watcher reads as "the run finished") only for a test that spawned its samples;
     // one that ended before its spawn checked nothing and runs again at the next save load in the session: RESTART with
     // the reason ("ended before the spawn" when empty).
-    // notRun: runs of repeated samples never spawned (a sample stopped, the test ended early); added to DONE as notRun=N when not 0.
+    // notRun: runs that never started and have no RESULT line: a sample that stopped in run k of N (a failure or its plugin not
+    // loaded, before a spawn) or a test that ended in it adds N-k (run k has its RESULT); added to DONE as notRun=N when not 0.
     std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive, std::size_t notRun = 0);
 }

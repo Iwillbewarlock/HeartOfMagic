@@ -85,19 +85,23 @@ ahead of time (at data load) and attaches them to NPC base records.
   hybrid (at least 0.3), non-mage. A non-mage gets, with 5 %, a list of novice curing/armor spells. Beast races get
   nothing; other creatures get lists only with a mage class. The template
   flag for spells counts only with a template set: a record with the flag and no template keeps its own spell list
-  and gets lists like any other. Deleted or
+  and gets lists like any other, and so does such a record at the end of another NPC's template chain (it is that
+  NPC's holder, below). Deleted or
   ignored NPC records, and character-creation face presets, are skipped.
 - **NPCs that inherit their spell list from a template** (most bandit and warlock mages) get exactly the lists decided
   for their spell list holder: the first record of the template chain whose Spells template flag is off, the one that
-  really holds the list (not the end of the chain: a holder can have a template of its own for other things). No dice
+  really holds the list (not the end of the chain: a holder can have a template of its own for other things), or the
+  chain's last record when it has the flag but no template of its own (it keeps its own list; counted as
+  `holderFlagNoTemplate`; a chain cut by a template cycle stays unresolvable). No dice
   of their own, so a template and all its children behave alike, and a holder that gets nothing (skipped, a non-mage
   whose 5 % roll failed) gives its children nothing. Only our lists are copied, never the holder's other entries. The
   engine copies the holder's spell list into each child while loading (`kCopiedTemplate`), before the addon runs, so
   lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). **Pending in-game check:**
   that a child now gets them is still to be confirmed in game (Known limits). The child's own race still counts: a
   child of a beast race gets nothing, and a creature child only with a mage class of its own (its race and class read
-  from its own chain, as for an NPC that decides for itself; a child whose race cannot be read keeps its holder's
-  lists). Every holder is decided first and every record is written only after the whole scan (the form array is in
+  from its own chain, as for an NPC that decides for itself; a child whose race or class cannot be read before spawn,
+  or that has no race, keeps its holder's lists), unless it shares its spell list data with its template (below: the
+  template's write reaches it, counted as `viaSharedDespiteOwnSkip`). Every holder is decided first and every record is written only after the whole scan (the form array is in
   load order, not template order); who is written and how is one plan (`PlanWrites`, `src/core/NpcSpellsPlan.h`,
   tested offline). A child with no spell list data of its own gets one made for it only when it has
   `kCopiedTemplate` (the engine copied an empty holder into it, so the holder's lists go into a new one); without the
@@ -109,7 +113,11 @@ ahead of time (at data load) and attaches them to NPC base records.
   of the load order (deleted ones, face presets and the player included) is read once, and a record whose array another
   record's distinct spell list data also points at is never written (`sharedLevSpells`, `blockedWrites`, expected 0;
   a warning names the first five); its template children are skipped with their own reason. Spell list data shared as
-  a whole is safe and is written once.
+  a whole is memory-safe (one struct, one array), but each record the plan writes adds its lists to that one struct,
+  so every record sharing it gets all of them: within one template chain a child sharing its template's data is not
+  written itself (`inheritedViaShared`); records outside one template chain sharing one (two NPCs deciding for
+  themselves would merge their lists there) are counted as `sharedSpellDataOutsideChain` (structs, expected 0). Race
+  spell lists are not read: they are assumed not to share spell list data or arrays with NPCs.
 - **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
   gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
   school, not a Redguard) in no group gets NoUndeadAll mostly, All otherwise; if its NoUndeadAll list is missing it
@@ -169,10 +177,12 @@ only counted); NPCs (scanned, eligible, got lists, unresolvable template, multi-
 count the NPCs that decided for themselves; an inheriting NPC, its holder resolved or not, is in none of them -,
 skipped with reasons, a line for the template children: how many inherit their spell list (an unresolvable chain
 included), how many got their holder's lists and how many lists, of them how many got new spell list data, how many
-got them through shared spell list data, how many lack `kCopiedTemplate` with and without a leveled link in their
-chain, how many came before their holder in the form array, how many take class, race or factions from another record
-than the holder, how many share spell list data with a chain record; and the memory audit's line: records whose
-leveled-list array another record's spell list data shares, and the writes left out for it, both expected 0);
+got them through shared spell list data (and of those, how many despite their own race rule), how many lack
+`kCopiedTemplate` with and without a leveled link in their chain, how many came before their holder in the form array,
+how many take class, race or factions from another record than the holder, how many share spell list data with a chain
+record, how many have a holder at the chain's end with the Spells flag and no template; and the memory audit's line:
+records whose leveled-list array another record's spell list data shares, the writes left out for it, and spell list
+data shared outside one template chain, all expected 0);
 NPC lists (one row for every NPC that decided for itself and got lists: persistent id `Plugin|0xLocal`, name, group,
 class tier and undead policy, the attached list EditorIDs `HoMNS_...`); NPC lists inherited from a template (one short
 row per child: `Plugin|0xLocal  Name  inherited from Plugin|0xHolder  (N lists)`; the holder's row above names the
@@ -180,13 +190,17 @@ lists); Timing. NPC names are converted to UTF-8 from the system code page.
 Skip reasons for template children: `template spell list, holder not resolvable` (a leveled link before the holder),
 `template spell list, holder got no lists` (skipped, no list, or skipped before its decision), `template spell list,
 holder not written (shared leveled-list array)`, `template spell list, beast race`, `template spell list, creature not
-a mage`, `template spell list, no spell list data and no kCopiedTemplate`, and `template spell list, spell list data
-shared with a chain record that gets no lists`; for a child or a holder, `leveled-list array shared with another
-record's spell list data (not written)`. The log has the same counters on the `NPCs in N ms:` line
-(`inheritedAttached= inheritedLists= inheritedCreated= inheritedViaShared=`) and on `template spell list: inheriting=
-notCopiedTemplate leveledChain= plainChain= beforeHolder= otherProvider= sharedSpellData= sharedLevSpells=
-blockedWrites=`, read at data load with no game needed; a `blockedWrites` warning (`... not given lists: its
-leveled-list array is also another record's spell list data's`) names each of the first five.
+a mage`, `template spell list, no spell list data and no kCopiedTemplate`, `template spell list, spell list data
+shared with a chain record that gets no lists`, `template spell list, spell list data shared with a chain record not
+written (shared leveled-list array)` (a chain record other than the holder), and for a child whose own leveled-list
+array is shared, `template spell list, leveled-list array shared (not written)`; for a record deciding for itself,
+`leveled-list array shared with another record's spell list data (not written)`. The log has the same counters on the
+`NPCs in N ms:` line (`inheritedAttached= inheritedLists= inheritedCreated= inheritedViaShared=
+viaSharedDespiteOwnSkip=`) and on `template spell list: inheriting= notCopiedTemplate leveledChain= plainChain=
+beforeHolder= otherProvider= sharedSpellData= holderFlagNoTemplate= sharedLevSpells= blockedWrites=
+sharedSpellDataOutsideChain=`, read at data load with no game needed; a `blockedWrites` warning (`NPCSpells: <FormID>
+not given lists: its leveled-list array is shared with another record's spell list data`) names each of the first
+five.
 The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry
 count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
 NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
@@ -207,9 +221,11 @@ missing record.
   the empty holder again at spawn is the pending check (`actorBaseLists>0` and `PASS`). A child without the flag and
   without spell list data is skipped (counted).
 - A child that shares its spell list data with a chain record gets whatever that record gets (counted as
-  `inheritedViaShared`, no report row); expected 0 in practice.
-- A child's own race reads its Traits provider; when that is a leveled link (unresolvable before spawn) the record's
-  own race is read instead, and a child with no race at all keeps its holder's lists.
+  `inheritedViaShared`, no report row), even when its own race rule would give it nothing (`viaSharedDespiteOwnSkip`);
+  expected 0 in practice.
+- A child's own race rules read its Traits (race) and Stats (class) providers. When either is behind a leveled link
+  (unresolvable before spawn), or the child has no race, its own rules are not applied and it keeps its holder's
+  decision: the record's own race or class is not read in their place.
 - **The leveled spawn path is checked from outside**, with the console through DevBench: the self test cannot spawn a
   leveled NPC (`PlaceObjectAtMe` gave no actor for `039D5F`, 2026-10-15), so it no longer has a leveled sample.
   Checklist item 10 stays the release condition.
@@ -284,8 +300,11 @@ back to its default, a bad sample is dropped alone, all logged.
 each list gives a spell (the open "some R1 lists give nothing" question). That each new actor rolls its leveled lists
 anew is an assumption the repeated runs check (`pickedRuns` short of all or none). Each run has its own lines and
 `RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name) and counts in `DONE`; a failure before the
-spawn (record not found, holder without lists, no actor from the spawn) ends the sample's runs, and `DONE` then adds
-`notRun=N`, the runs never spawned. A sample whose holder is found only after the spawn (leveled, or a leveled link
+spawn (record not found, holder without lists, no actor from the spawn) ends the sample's runs with a `FAIL` for the
+run it happened in. A sample whose plugin is not loaded ends the same way with `INCONCLUSIVE (plugin <name> not
+loaded)`: nothing could be checked, which is not a failure of the addon. `DONE` then adds `notRun=N`: the runs that
+never started and have no `RESULT` line - a sample stopped in run k of N, or a test that ended in it, adds N - k (run
+k itself has its `RESULT` and is counted in pass, fail or inconclusive). A sample whose holder is found only after the spawn (leveled, or a leveled link
 before the holder) finds it again from each run's actor. After the last run the sample's `SELFTEST lists` line gives
 each list's `pickedRuns=K/C`: in K of the C checked runs the actor's leveled spell cache held one of the list's spells.
 
