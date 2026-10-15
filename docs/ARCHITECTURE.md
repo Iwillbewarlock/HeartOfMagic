@@ -1921,8 +1921,8 @@ HeartOfMagic/
 │       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules); dev/ the self test file (never shipped)
 │       └── src/
 │           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once; kPreLoadGame/kPostLoadGame/kSaveGame/kNewGame: the dev self test (only with its file; never started on a new game, kNewGame ends a running one)
-│           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions (template children copy their holder's), report
-│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records (holders decided and audited before any write, then template children), the run, the dev self test (GameSelfTest: ticks, spawn, load/save messages; GameSelfTestCheck: one spawned actor)
+│           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions (template children copy their holder's, their own race rules apart), the write plan (NpcSpellsPlan: who is written and how, why the others are not), report
+│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records (a memory audit of every record, every record decided, then PlanWrites; holders written, then template children), the run, the dev self test (GameSelfTest: ticks, spawn, load/save messages; GameSelfTestCheck: one spawned actor)
 ├── tools/
 │   └── npcspells-*.cpp            ✅ NPC Spells offline harness (npcspells-test: the RE-free core, `--tree`/`--catalog` statistics on real files) and the ESL writer (npcspells-esl)
 ├── Scripts/Source/

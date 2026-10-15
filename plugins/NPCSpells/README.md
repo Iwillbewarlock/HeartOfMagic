@@ -88,18 +88,28 @@ ahead of time (at data load) and attaches them to NPC base records.
   and gets lists like any other. Deleted or
   ignored NPC records, and character-creation face presets, are skipped.
 - **NPCs that inherit their spell list from a template** (most bandit and warlock mages) get exactly the lists decided
-  for their spell list holder, the record at the end of the template chain that really holds the list: no dice of
-  their own, so a template and all its children behave alike, and a holder that gets nothing (skipped, a non-mage
+  for their spell list holder: the first record of the template chain whose Spells template flag is off, the one that
+  really holds the list (not the end of the chain: a holder can have a template of its own for other things). No dice
+  of their own, so a template and all its children behave alike, and a holder that gets nothing (skipped, a non-mage
   whose 5 % roll failed) gives its children nothing. Only our lists are copied, never the holder's other entries. The
   engine copies the holder's spell list into each child while loading (`kCopiedTemplate`), before the addon runs, so
-  lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). Every holder is decided
-  first and every record is written only after the whole scan (the form array is in load order, not template order).
-  Before anything is written, each child's spell list memory is compared with every record of its chain: a child that
-  shares its spell list data with its template is skipped (the template's write reaches it), and a child sharing only
-  its leveled-list array with one is never written, nor is that record, because adding lists frees the old array.
-  Both are expected to be 0 and are counted. A chain with a leveled link before the holder cannot be resolved before
-  spawn and stays skipped ("template spell list, holder not resolvable"); the leveled NPC's end record is a record
-  like any other and gets its own or its holder's lists.
+  lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). **Pending in-game check:**
+  that a child now gets them is still to be confirmed in game (Known limits). The child's own race still counts: a
+  child of a beast race gets nothing, and a creature child only with a mage class of its own (its race and class read
+  from its own chain, as for an NPC that decides for itself; a child whose race cannot be read keeps its holder's
+  lists). Every holder is decided first and every record is written only after the whole scan (the form array is in
+  load order, not template order); who is written and how is one plan (`PlanWrites`, `src/core/NpcSpellsPlan.h`,
+  tested offline). A child with no spell list data of its own gets one made for it only when it has
+  `kCopiedTemplate` (the engine copied an empty holder into it, so the holder's lists go into a new one); without the
+  flag it is skipped. A child whose spell list data is the same as a chain record's (expected 0) is not written: the
+  write to that record reaches it, and it is counted apart (`inheritedViaShared`). A chain with a leveled link before
+  the holder cannot be resolved before spawn and is skipped ("template spell list, holder not resolvable"); the
+  leveled NPC's end record is a record like any other and gets its own or its holder's lists.
+- **Memory audit:** adding lists frees the record's old leveled-list array. Before anything is written, every NPC record
+  of the load order (deleted ones, face presets and the player included) is read once, and a record whose array another
+  record's distinct spell list data also points at is never written (`sharedLevSpells`, `blockedWrites`, expected 0;
+  a warning names the first five); its template children are skipped with their own reason. Spell list data shared as
+  a whole is safe and is written once.
 - **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
   gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
   school, not a Redguard) in no group gets NoUndeadAll mostly, All otherwise; if its NoUndeadAll list is missing it
@@ -155,21 +165,28 @@ reason; a missing or unreadable `spell_tree.json` or `spell_catalog.json` is nam
 one node, taken once so its weight is not doubled -, excluded by tag, kept...);
 Lists (lists built, empty slots, dropped over capacity, ESL records found/missing/wrong type, per school, every list
 the game got with its entry count and flag - a list skipped for a missing record, a prefilled record or no memory is
-only counted); NPCs (scanned, eligible, got lists, by class tier, by group - these count the NPCs that decided for
-themselves -, skipped with reasons, and a line for the template children: how many inherit their spell list, how many
-got their holder's lists and how many lists, how many lack `kCopiedTemplate` with and without a leveled link in their
+only counted); NPCs (scanned, eligible, got lists, unresolvable template, multi-group, by class tier, by group - these
+count the NPCs that decided for themselves; an inheriting NPC, its holder resolved or not, is in none of them -,
+skipped with reasons, a line for the template children: how many inherit their spell list (an unresolvable chain
+included), how many got their holder's lists and how many lists, of them how many got new spell list data, how many
+got them through shared spell list data, how many lack `kCopiedTemplate` with and without a leveled link in their
 chain, how many came before their holder in the form array, how many take class, race or factions from another record
-than the holder, and the memory audit's shared spell list data and shared leveled-list arrays, both expected 0);
+than the holder, how many share spell list data with a chain record; and the memory audit's line: records whose
+leveled-list array another record's spell list data shares, and the writes left out for it, both expected 0);
 NPC lists (one row for every NPC that decided for itself and got lists: persistent id `Plugin|0xLocal`, name, group,
 class tier and undead policy, the attached list EditorIDs `HoMNS_...`); NPC lists inherited from a template (one short
 row per child: `Plugin|0xLocal  Name  inherited from Plugin|0xHolder  (N lists)`; the holder's row above names the
 lists); Timing. NPC names are converted to UTF-8 from the system code page.
 Skip reasons for template children: `template spell list, holder not resolvable` (a leveled link before the holder),
-`template spell list, holder got no lists`, `template spell list, no spell list data of its own`, `template spell
-list, spell list data shared with its template`, and `leveled-list array shared with a template chain record (not
-written)` (a child or a holder). The log has the same counters on the `NPCs in N ms:` line (`inheritedAttached=`,
-`inheritedLists=`) and on `template spell list: inheriting= notCopiedTemplate leveledChain= plainChain= beforeHolder=
-otherProvider= sharedSpellData= sharedLevSpells=`, read at data load with no game needed.
+`template spell list, holder got no lists` (skipped, no list, or skipped before its decision), `template spell list,
+holder not written (shared leveled-list array)`, `template spell list, beast race`, `template spell list, creature not
+a mage`, `template spell list, no spell list data and no kCopiedTemplate`, and `template spell list, spell list data
+shared with a chain record that gets no lists`; for a child or a holder, `leveled-list array shared with another
+record's spell list data (not written)`. The log has the same counters on the `NPCs in N ms:` line
+(`inheritedAttached= inheritedLists= inheritedCreated= inheritedViaShared=`) and on `template spell list: inheriting=
+notCopiedTemplate leveledChain= plainChain= beforeHolder= otherProvider= sharedSpellData= sharedLevSpells=
+blockedWrites=`, read at data load with no game needed; a `blockedWrites` warning (`... not given lists: its
+leveled-list array is also another record's spell list data's`) names each of the first five.
 The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry
 count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
 NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
@@ -185,6 +202,14 @@ missing record.
   lists themselves. The self test's `039D37` must now show `actorBaseLists>0` and `PASS`. Not known from the headers,
   to be watched: whether the engine copies a template's list again later (a save load, a spawn), which would replace
   ours on the child, and how a leveled spawn's temporary base takes its list.
+- **A child of a holder with no spell list** (`2750FE:3DNPC.esp`, holder `0728AD:Skyrim.esm`, the self test's fourth
+  sample) gets spell list data made for it when it has `kCopiedTemplate`: whether the engine leaves it there or copies
+  the empty holder again at spawn is the pending check (`actorBaseLists>0` and `PASS`). A child without the flag and
+  without spell list data is skipped (counted).
+- A child that shares its spell list data with a chain record gets whatever that record gets (counted as
+  `inheritedViaShared`, no report row); expected 0 in practice.
+- A child's own race reads its Traits provider; when that is a leveled link (unresolvable before spawn) the record's
+  own race is read instead, and a child with no race at all keeps its holder's lists.
 - **The leveled spawn path is checked from outside**, with the console through DevBench: the self test cannot spawn a
   leveled NPC (`PlaceObjectAtMe` gave no actor for `039D5F`, 2026-10-15), so it no longer has a leveled sample.
   Checklist item 10 stays the release condition.
@@ -222,7 +247,9 @@ An in-game check that needs no console work. The run:
 1. `.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest` (it reminds you to take the file out afterwards).
 2. Launch and load a **disposable** save (not a new game: the test never starts on one, it would spawn hostile NPCs
    into the opening scene).
-3. Wait for the log's `SELFTEST DONE` line (about 10 to 20 seconds with the shipped file: repeated samples spawn one after another; a `SELFTEST RESTART ...` line instead
+3. Wait for the log's `SELFTEST DONE` line (about 10 to 20 seconds with the shipped file: repeated samples spawn one
+   after another, the samples side by side; at worst `startDelayMs` plus the most repeated sample's repeat x
+   `maxWaitMs`, 2 + 5 x 8 = 42 seconds of play with the shipped file, counted only while the game runs; a `SELFTEST RESTART ...` line instead
    means the test ended before its spawn and the next save load runs it). Until then **do not save, die,
    reload or start a new game**: a save holds the spawned actors (logged as `SELFTEST WARN save taken while sample
    actors exist`), and a load or a new game ends the test with its open samples failed.
@@ -238,22 +265,29 @@ zip (`DistributionNpcSpells.cmake` copies files by name and does not name it); t
 the file, which costs one file-exists check per load.
 
 ```json
-{ "samples": ["039D37:Skyrim.esm", { "id": "013BBB:Skyrim.esm", "repeat": 5 }, "0551AD:Skyrim.esm"], "startDelayMs": 2000, "maxWaitMs": 8000 }
+{ "samples": ["039D37:Skyrim.esm", { "id": "013BBB:Skyrim.esm", "repeat": 5 }, "0551AD:Skyrim.esm", "2750FE:3DNPC.esp"], "startDelayMs": 2000, "maxWaitMs": 8000 }
 ```
 
 Samples are base NPC records (NPC_) in the rules file's form (`XXXXXX:Plugin.ext`; the report's `Plugin|0x...` form
-is refused and logged), each a string or an object `{"id": "...", "repeat": N}`. The shipped three: `039D37` a bandit
-mage that inherits its spell list from `039D31` (the template fix: it must now `PASS` with `actorBaseLists>0`),
-`013BBB` Farengar (own spell list, the 2026-10-10 control) spawned 5 times, `0551AD` a Necromancer-group mage with
-NecroPrefer lists. `startDelayMs` (wait after the player's 3D and cell are in) and `maxWaitMs` (per spawned actor) are
-0..60000; `repeat` is 1..10 (default 1); a bad value goes back to its default, a bad sample is dropped alone, all logged.
+is refused and logged), each a string or an object `{"id": "...", "repeat": N}` (another key in the object is named in
+the `SELFTEST config:` warning and ignored). The shipped four: `039D37` a bandit mage that inherits its spell list
+from `039D31` (the template fix: it must now `PASS` with `actorBaseLists>0`), `013BBB` Farengar (own spell list, the
+2026-10-10 control) spawned 5 times, `0551AD` a Necromancer-group mage with NecroPrefer lists, and `2750FE:3DNPC.esp`
+(Interesting NPCs' Thalmor wizard, class `072887` ThalmorWizard): it inherits its spell list from
+`0728AD:Skyrim.esm` `EncThalmor00WizardTemplate`, a mage-class Thalmor holder with no spells of its own (no SPLO or
+LVSP; the report gives it Thalmor lists), so the child's copy of the holder's list is empty (the new-spell-list-data
+case above; found with houseCARL on the TAKEALOOK load order, 2026-10-15). `startDelayMs` (wait after the player's 3D
+and cell are in) and `maxWaitMs` (per spawned actor) are 0..60000; `repeat` is 1..10 (default 1); a bad value goes
+back to its default, a bad sample is dropped alone, all logged.
 
-`repeat` spawns the sample again after each run's check and cleanup, one actor of it at a time (each new actor rolls
-its leveled lists anew), to measure how often each list gives a spell (the open "some R1 lists give nothing"
-question). Each run has its own lines and `RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name)
-and counts in `DONE`; a failure before the spawn (record not found, holder without lists, no actor from the spawn)
-ends the sample's runs. After the last run the sample's `SELFTEST lists` line gives each list's `pickedRuns=K/C`: in K
-of the C checked runs the actor's leveled spell cache held one of the list's spells.
+`repeat` spawns the sample again after each run's check and cleanup, one actor of it at a time, to measure how often
+each list gives a spell (the open "some R1 lists give nothing" question). That each new actor rolls its leveled lists
+anew is an assumption the repeated runs check (`pickedRuns` short of all or none). Each run has its own lines and
+`RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name) and counts in `DONE`; a failure before the
+spawn (record not found, holder without lists, no actor from the spawn) ends the sample's runs, and `DONE` then adds
+`notRun=N`, the runs never spawned. A sample whose holder is found only after the spawn (leveled, or a leveled link
+before the holder) finds it again from each run's actor. After the last run the sample's `SELFTEST lists` line gives
+each list's `pickedRuns=K/C`: in K of the C checked runs the actor's leveled spell cache held one of the list's spells.
 
 A leveled NPC record (LVLN) is accepted but cannot be spawned this way: `PlaceObjectAtMe` gave no actor for
 `039D5F` (2026-10-15), so such a sample FAILs as `PlaceObjectAtMe gave no actor`. The leveled spawn path is checked
@@ -307,7 +341,7 @@ Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values b
 warnings and errors included, is also appended to the report under `== Self test ==`:
 
 ```
-SELFTEST start samples=3 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded runs=7
+SELFTEST start samples=4 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded runs=8
 SELFTEST spawn sample 039D37:Skyrim.esm ref 0xFF0012AB
 SELFTEST sample 039D37:Skyrim.esm kind=npc placed Skyrim.esm|0x039D37 actorBase Skyrim.esm|0x039D37 templateBase Skyrim.esm|0x039D37 extraLeveled=no originalBase none copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=record inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
 SELFTEST cache 039D37:Skyrim.esm leveledSpellList=7 spells
@@ -317,7 +351,7 @@ SELFTEST RESULT sample 039D37:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
 SELFTEST spawn sample 013BBB:Skyrim.esm run=1/5 ref 0xFF0012AC
 SELFTEST RESULT sample 013BBB:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 3)
 SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=5 HoMNS_Alteration_None_All_R1_C1 pickedRuns=2/5, HoMNS_Destruction_None_All_R1_C0 pickedRuns=5/5
-SELFTEST DONE pass=7 fail=0 inconclusive=0
+SELFTEST DONE pass=8 fail=0 inconclusive=0
 ```
 
 Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset value), `SELFTEST cache <sample>

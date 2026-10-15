@@ -5,6 +5,8 @@
 #include <iterator>
 namespace NpcSpells {
 namespace {
+    constexpr const char* kSelfTestKeyId = "id";
+    constexpr const char* kSelfTestKeyRepeat = "repeat";
     void AppendError(std::string& error, const std::string& part) { if (!error.empty()) error += "; "; error += part; }
     // A number outside 0..kSelfTestMaxMs, or not an integer, goes back to its default with an error
     void ReadMs(const nlohmann::json& j, const char* key, int& out, int fallback, std::string& error) {
@@ -28,16 +30,20 @@ bool ParseSelfTestConfig(const std::string& jsonText, SelfTestConfig& out, std::
     for (const auto& v : *samples) {
         // A string, or {"id": "...", "repeat": N}
         const nlohmann::json* idValue = &v;
-        if (v.is_object()) { const auto id = v.find("id"); idValue = id != v.end() ? &*id : nullptr; }
+        if (v.is_object()) { const auto id = v.find(kSelfTestKeyId); idValue = id != v.end() ? &*id : nullptr; }
         if (!idValue || !idValue->is_string()) { AppendError(error, std::format("samples: not a FormID (XXXXXX:Plugin.ext) or {{\"id\": ..., \"repeat\": N}}: {}", v.dump())); continue; }
         std::string refError;
         const auto& text = idValue->get_ref<const std::string&>();
         auto ref = ParseFormRef(text, refError);
         if (!ref) { AppendError(error, "samples: " + refError); continue; }
         int repeat = kSelfTestDefaultRepeat;
-        if (const auto r = v.is_object() ? v.find("repeat") : v.end(); r != v.end()) {
+        if (const auto r = v.is_object() ? v.find(kSelfTestKeyRepeat) : v.end(); r != v.end()) {
             if (r->is_number_integer() && r->get<long long>() >= 1 && r->get<long long>() <= kSelfTestMaxRepeat) repeat = static_cast<int>(r->get<long long>());
             else AppendError(error, std::format("samples: {} repeat {} is not a whole number in 1..{}, {} is used", text, r->dump(), kSelfTestMaxRepeat, kSelfTestDefaultRepeat));
+        }
+        if (v.is_object()) {   // a misspelt key ("repaet") would otherwise run the sample once without a word
+            for (const auto& [key, value] : v.items())
+                if (key != kSelfTestKeyId && key != kSelfTestKeyRepeat) AppendError(error, std::format("samples: {} unknown key \"{}\" ignored (only \"{}\" and \"{}\")", text, key, kSelfTestKeyId, kSelfTestKeyRepeat));
         }
         out.samples.push_back(*ref); out.sampleTexts.push_back(text); out.repeats.push_back(repeat);
     }
@@ -153,9 +159,9 @@ std::string SelfTestListsLine(std::string_view sampleText, int runs, const SelfT
     }
     return out;
 }
-std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive)
+std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive, std::size_t notRun)
 {
-    if (spawned) return std::format("SELFTEST DONE pass={} fail={} inconclusive={}", pass, fail, inconclusive);
+    if (spawned) return std::format("SELFTEST DONE pass={} fail={} inconclusive={}{}", pass, fail, inconclusive, notRun > 0 ? std::format(" notRun={}", notRun) : std::string());
     return std::format("SELFTEST RESTART {}: the next save load in this session starts it again", reason.empty() ? "ended before the spawn" : reason);
 }
 }

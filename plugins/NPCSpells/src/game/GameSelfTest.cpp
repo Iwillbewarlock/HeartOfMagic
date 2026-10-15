@@ -11,6 +11,7 @@
 #include "game/GameSelfTestState.h"
 #include "PluginNames.h"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <filesystem>
@@ -182,6 +183,7 @@ namespace
                 r.holder = holder;
                 r.holderStart = r.npc;
                 r.holderFrom = "record";
+                r.resolvedAtPrepare = true;
                 if (OurListsOn(r.holder->actorEffects, s.ours).empty()) {
                     Stop(s, r, std::format("spell list holder {} has no HoMNS list (is it in the report's NPC lists? is the ESL loaded?)", FormText(r.holder)));
                     return false;
@@ -230,9 +232,16 @@ namespace
         ++r.run;
         r.label = NpcSpells::SelfTestRunLabel(r.text, r.run, r.runs);
         r.done = false;
-        r.waitTicks = 0;
+        // Run 1 is spawned in the tick that then reads it (waited 0); this one is read first in the next tick, a poll later
+        r.waitTicks = 1;
         r.handle = {};
         r.spawnedId = 0;
+        if (!r.resolvedAtPrepare) {  // a holder found after the last spawn is that actor's: this run's actor finds its own
+            r.holder = nullptr;
+            r.holderStart = nullptr;
+            r.holderFrom = "none";
+            r.unresolvable = r.npc != nullptr;  // as Prepare left it: an NPC whose chain did not resolve, or a leveled sample
+        }
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player || !player->Is3DLoaded() || !player->GetParentCell()) {
             Stop(s, r, "the player's 3D or cell is gone before this run's spawn");
@@ -270,12 +279,14 @@ namespace
         if (!s.spawned) {
             g_started = false;
         }
+        std::size_t notRun = 0;  // runs never spawned: a sample stopped, or the test ended during its runs
         for (const auto& r : s.samples) {
             if (s.spawned && r.runs > 1) {
                 SelfTest::Log(s, NpcSpells::SelfTestListsLine(r.text, r.runs, r.tally));  // per list: checked runs that picked from it
             }
+            notRun += static_cast<std::size_t>(std::max(r.runs - r.run, 0));
         }
-        SelfTest::Log(s, NpcSpells::SelfTestEndLine(s.spawned, beforeSpawnReason, s.pass, s.fail, s.inconclusive));
+        SelfTest::Log(s, NpcSpells::SelfTestEndLine(s.spawned, beforeSpawnReason, s.pass, s.fail, s.inconclusive, notRun));
         AppendReport(s.lines);
         FlushLog();
         s.finished = true;
@@ -320,7 +331,7 @@ namespace
             if (r.done) {
                 continue;
             }
-            const auto waited = r.waitTicks++;  // 0 on the spawn tick
+            const auto waited = r.waitTicks++;  // 0 on run 1's spawn tick, 1 on a later run's first tick (NextRun)
             const auto ref = std::as_const(r.handle).get();
             auto* actor = ref && ref->GetFormID() == r.spawnedId ? ref->As<RE::Actor>() : nullptr;
             // The leveled spell cache needs the high process (RE/A/Actor.h:587 GetHighProcess; 2026-10-10: before 3D, HasSpell was false)

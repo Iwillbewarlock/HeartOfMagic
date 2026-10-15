@@ -120,6 +120,14 @@ int RunSelfTestSelfTest()
         const auto restart = SelfTestEndLine(false, "the player's 3D or cell never came", 0, 0, 0);
         Check(restart == "SELFTEST RESTART the player's 3D or cell never came: the next save load in this session starts it again" && restart.find("DONE") == std::string::npos, "a test that ended before its spawn writes RESTART with the reason, no DONE");
         Check(SelfTestEndLine(false, {}, 0, 0, 0).find("SELFTEST RESTART ended before the spawn:") == 0, "an empty reason still names why");
+        Check(SelfTestEndLine(true, {}, 2, 1, 0, 3) == "SELFTEST DONE pass=2 fail=1 inconclusive=0 notRun=3", "runs cut short: DONE names how many never ran");
+        Check(SelfTestEndLine(true, {}, 2, 1, 0, 0).find("notRun") == std::string::npos && SelfTestEndLine(false, {}, 0, 0, 0, 4).find("notRun") == std::string::npos, "notRun only on DONE and only when not 0");
+    }
+    {   // a sample object takes only "id" and "repeat": another key is named and ignored, the sample stays
+        SelfTestConfig c; std::string e;
+        const bool ok = ParseSelfTestConfig(R"({"samples": [{"id": "013BBB:Skyrim.esm", "repaet": 5}, {"id": "0551AD:Skyrim.esm", "repeat": 2}]})", c, e);
+        Check(ok && c.samples.size() == 2 && c.repeats == std::vector<int>{ 1, 2 } && e.find("013BBB:Skyrim.esm unknown key \"repaet\"") != std::string::npos && e.find("0551AD") == std::string::npos,
+              "an unknown key in a sample object is an error naming the sample and the key; the sample runs with the default");
     }
     return 0;
 }

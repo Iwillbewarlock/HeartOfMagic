@@ -1,5 +1,5 @@
 {
-    "samples": ["039D37:Skyrim.esm", { "id": "013BBB:Skyrim.esm", "repeat": 5 }, "0551AD:Skyrim.esm"],
+    "samples": ["039D37:Skyrim.esm", { "id": "013BBB:Skyrim.esm", "repeat": 5 }, "0551AD:Skyrim.esm", "2750FE:3DNPC.esp"],
     "startDelayMs": 2000,
     "maxWaitMs": 8000
 }

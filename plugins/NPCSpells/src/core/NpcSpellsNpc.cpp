@@ -1,4 +1,5 @@
 #include "core/NpcSpellsNpc.h"
+#include "core/NpcSpellsPlan.h"
 #include <format>
 // Decision rules: spec sections 5.1-5.2 and 5.4. Every random choice is a Dice roll keyed by (plugin, local id, salt),
 // so one NPC gets the same lists on every load. Deterministic per machine: the plugin name is hashed as the game gives
@@ -81,9 +82,13 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
     NpcDecision d;
     if (npc.isPlayer) { d.skipReason = "player"; return d; }
     if (npc.inheritsSpellList) { d.skipReason = kSkipTemplateUnresolvable; return d; }
-    if (npc.isBeast) { d.skipReason = "beast race"; return d; }
-    d.tier = npc.hasClass ? ClassifyClass(npc.weights, rules) : ClassTier::NonMage;
-    if (npc.isCreature && d.tier != ClassTier::Mage) { d.skipReason = "creature not a mage"; return d; }
+    const auto tier = OwnClassTier(npc, rules);
+    switch (RaceRuleFor(npc, tier)) {
+    case RaceRule::kBeast: d.skipReason = "beast race"; return d;
+    case RaceRule::kCreatureNotMage: d.tier = tier; d.skipReason = "creature not a mage"; return d;
+    default: break;
+    }
+    d.tier = tier;
     // Lowest built-in index wins (Forsworn < Vampire < Necromancer < Thalmor < Vigilant)
     for (std::uint8_t g : npc.groupsMatched)
         if (g != kGroupNone && g < kGroups.size() && (d.group == kGroupNone || g < d.group)) d.group = g;
@@ -124,6 +129,24 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
         if (school && !Attach(d, lists, { *school, d.group, Variant::All, 0, true }, h)) ++d.slotsWithoutList;
     }
     return d;
+}
+ClassTier OwnClassTier(const NpcFacts& npc, const Rules& rules)
+{
+    return npc.hasClass ? ClassifyClass(npc.weights, rules) : ClassTier::NonMage;
+}
+RaceRule RaceRuleFor(const NpcFacts& npc, ClassTier tier)
+{
+    if (npc.isBeast) return RaceRule::kBeast;
+    if (npc.isCreature && tier != ClassTier::Mage) return RaceRule::kCreatureNotMage;
+    return RaceRule::kNone;
+}
+const char* InheritedRaceSkip(const NpcFacts& child, const Rules& rules)
+{
+    switch (RaceRuleFor(child, OwnClassTier(child, rules))) {
+    case RaceRule::kBeast: return kSkipInheritedBeast;
+    case RaceRule::kCreatureNotMage: return kSkipInheritedCreature;
+    default: return nullptr;
+    }
 }
 std::optional<NpcDecision> InheritDecision(const NpcDecision* holder, const char*& skipReason)
 {

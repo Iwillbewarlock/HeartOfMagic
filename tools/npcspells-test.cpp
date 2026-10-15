@@ -71,6 +71,7 @@ int main(int argc, char** argv)
     RunEslSelfTest();
     RunDistrSelfTest();
     RunSelfTestSelfTest();
+    RunPlanSelfTest();
     std::printf("\n%d passed, %d failed\n", NpcSpellsCheck::g_passed, NpcSpellsCheck::g_failed);
     return NpcSpellsCheck::g_failed == 0 ? 0 : 1;
 }

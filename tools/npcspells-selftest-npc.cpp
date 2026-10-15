@@ -52,13 +52,15 @@ int RunNpcSelfTest()
               std::equal(copy->lists.begin(), copy->lists.end(), holder.lists.begin(), [](const Attachment& x, const Attachment& y) { return x.slotIndex == y.slotIndex && x.chunk == y.chunk; }) &&
               copy->tier == holder.tier && copy->group == 4 && copy->undead == holder.undead, "inherited: the holder's lists, tier, group and undead policy, copied");
         // No dice of its own: two children of one holder get the same lists, though their own ids would roll differently
-        Check(InheritDecision(&holder, why)->lists.size() == copy->lists.size(), "inherited: every child of one holder gets the same copy");
+        { const auto again = InheritDecision(&holder, why); const auto same = [](const Attachment& x, const Attachment& y) { return x.slotIndex == y.slotIndex && x.chunk == y.chunk; };
+          Check(again && std::equal(again->lists.begin(), again->lists.end(), copy->lists.begin(), copy->lists.end(), same), "inherited: every child of one holder gets the same copy"); }
         NpcDecision skippedHolder; skippedHolder.skipReason = "beast race";
         Check(!InheritDecision(&skippedHolder, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: a holder skipped (no lists) gives nothing");
         NpcDecision eligibleEmpty; eligibleEmpty.eligible = true; eligibleEmpty.slotsWithoutList = 3;
         Check(!InheritDecision(&eligibleEmpty, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: an eligible holder whose dice gave no list gives nothing");
         Check(!InheritDecision(nullptr, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: a holder with no row (skipped before the decision) gives nothing");
-        // A chain with a leveled link before the holder cannot be resolved: such an NPC reaches DecideNpc and stays skipped
+        // A chain with a leveled link before the holder cannot be resolved: the plan skips such an NPC (npcspells-selftest-plan.cpp), and
+        // DecideNpc gives one that reaches it the same reason
         Check(!SpellListProviderIndex({ { 0x8, false }, { 0x8, true }, { 0, false } }).has_value(), "inherited: a leveled link before the holder is unresolvable");
         NpcFacts unresolvable = Npc(501, Mage()); unresolvable.inheritsSpellList = true;
         const auto u = DecideNpc(unresolvable, rules, all);

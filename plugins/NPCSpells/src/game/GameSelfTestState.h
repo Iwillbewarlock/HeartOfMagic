@@ -45,6 +45,7 @@ namespace NpcSpellsGame::SelfTest
         RE::TESNPC* holderStart = nullptr;     // the record the holder's template walk started from
         const char* holderFrom = "none";       // which record that was: record, templateBase, originalBase, actorBase
         bool unresolvable = false;             // the template chain has a leveled link before the holder
+        bool resolvedAtPrepare = false;        // holder found from the record (Prepare); otherwise each run finds it after its spawn
         RE::ObjectRefHandle handle;            // a handle, not a NiPointer: the state may be freed on the worker thread
         RE::FormID spawnedId = 0;              // the spawned ref's FormID: cleanup touches only a ref that still has it
         std::size_t waitTicks = 0;             // ticks since the spawn tick

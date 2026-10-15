@@ -133,6 +133,8 @@ namespace
         rd.listsAttached = ns.listsAttached;
         rd.inheritedAttached = ns.inheritedAttached;
         rd.inheritedLists = ns.inheritedLists;
+        rd.inheritedCreated = ns.inheritedCreated;
+        rd.inheritedViaShared = ns.inheritedViaShared;
         rd.inheriting = ns.inheriting;
         rd.notCopiedLeveledChain = ns.notCopiedLeveledChain;
         rd.notCopiedPlainChain = ns.notCopiedPlainChain;
@@ -140,6 +142,7 @@ namespace
         rd.otherProvider = ns.otherProvider;
         rd.sharedSpellData = ns.sharedSpellData;
         rd.sharedLevSpells = ns.sharedLevSpells;
+        rd.blockedWrites = ns.blockedWrites;
         rd.unresolvableTemplate = ns.unresolvableTemplate;
         rd.multiGroup = ns.multiGroup;
         rd.unresolvedRefs = ns.unresolvedRefs;
@@ -147,14 +150,14 @@ namespace
         rd.byGroup = ns.byGroup;
         rd.skipped.assign(ns.skipped.begin(), ns.skipped.end());
         logger::info("NPCSpells: NPCs in {:.0f} ms: scanned={} eligible={} attached={} listsAttached={} inheritedAttached={} inheritedLists={} "
-                     "unresolvableTemplate={} multiGroup={} unresolvedRefs={}",
+                     "inheritedCreated={} inheritedViaShared={} unresolvableTemplate={} multiGroup={} unresolvedRefs={}",
             rd.timingsMs.back().second, ns.scanned, ns.eligible, ns.attached, ns.listsAttached, ns.inheritedAttached, ns.inheritedLists,
-            ns.unresolvableTemplate, ns.multiGroup, ns.unresolvedRefs);
-        // Read at kDataLoaded, before any write: the template children and the memory audit (sharedSpellData and sharedLevSpells expected 0)
+            ns.inheritedCreated, ns.inheritedViaShared, ns.unresolvableTemplate, ns.multiGroup, ns.unresolvedRefs);
+        // Read at kDataLoaded, before any write: the template children and the memory audit (sharedLevSpells and blockedWrites expected 0)
         logger::info("NPCSpells: template spell list: inheriting={} notCopiedTemplate leveledChain={} plainChain={} beforeHolder={} "
-                     "otherProvider={} sharedSpellData={} sharedLevSpells={}",
+                     "otherProvider={} sharedSpellData={} sharedLevSpells={} blockedWrites={}",
             ns.inheriting, ns.notCopiedLeveledChain, ns.notCopiedPlainChain, ns.beforeHolder, ns.otherProvider, ns.sharedSpellData,
-            ns.sharedLevSpells);
+            ns.sharedLevSpells, ns.blockedWrites);
         logger::info("NPCSpells: attached by tier nonMage/hybrid/mage={}/{}/{} by group None/Forsworn/Vampire/Necromancer/"
                      "Thalmor/Vigilant={}/{}/{}/{}/{}/{}",
             ns.byTier[0], ns.byTier[1], ns.byTier[2], ns.byGroup[0], ns.byGroup[1], ns.byGroup[2], ns.byGroup[3],
