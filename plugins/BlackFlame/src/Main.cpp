@@ -15,6 +15,7 @@
 #include "Forms.h"
 #include "GameThread.h"
 #include "Palette.h"
+#include "ProjectileHook.h"
 
 namespace
 {
@@ -29,6 +30,10 @@ namespace
         (void)BlackFlame::LoadPalette();
         BlackFlame::EffectEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
+        // Installed after the fire sets are built: the hooks read them from any thread
+        if (BlackFlame::GetConfig().projectile) {
+            BlackFlame::InstallProjectileHooks();
+        }
     }
 
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
