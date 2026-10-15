@@ -1,0 +1,10 @@
+{
+    "burnShader": true,
+    "projectile": true,
+    "explosion": true,
+    "handArt": true,
+    "light": true,
+    "particleColors": false,
+    "tintScale": 0.6,
+    "lightColor": [0.25, 0.22, 0.28]
+}

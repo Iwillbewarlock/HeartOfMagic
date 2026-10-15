@@ -65,6 +65,8 @@ set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
 add_subdirectory(plugins/BookXP)
+# Separate prototype (plugins/BlackFlame/README.md): built here, not shipped in the release
+add_subdirectory(plugins/BlackFlame)
 add_subdirectory(tools)
 
 # Generate fomod/info.xml from template with current version
