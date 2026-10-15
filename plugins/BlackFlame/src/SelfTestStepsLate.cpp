@@ -174,7 +174,6 @@ namespace BlackFlame::SelfTest
         const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
         const auto swap = std::ranges::find_if(burns, [&](const auto& b) { return b.swapped && b.target == target; });
         const bool swapped = swap != burns.end();
-        a_c.firstSwapController = swapped ? swap->controller : 0;
         const bool engineOk = !engines.empty() && !a_c.engineLiveAfterGrey;
         SelfTestLog::Check("T5", swapped && engineOk, std::format("our shader alight on the target; the hook swapped the "
             "player's hit: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in "
@@ -198,11 +197,18 @@ namespace BlackFlame::SelfTest
             a_c.mark = a_c.secondMark;  // cast by T5 the moment our shader showed
             a_c.secondSwapSeen.reset();
         }
-        // A swap of a NEW controller: the first hit's controller asked again must not end the wait
+        // A swap of a NEW controller: none of the controllers recorded before the second cast (asked
+        // again) may end the wait
         const auto target = FormIdOf(a_c.dummy);
+        std::vector<std::uintptr_t> before;
+        for (const auto& b : SelfTestProbe::BurnsSince(a_c.t3Mark)) {
+            if (b.seq < a_c.mark) {
+                before.push_back(b.controller);
+            }
+        }
         const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
         const bool newSwap = std::ranges::any_of(burns, [&](const auto& b) {
-            return b.swapped && b.target == target && b.controller != a_c.firstSwapController;
+            return b.swapped && b.target == target && std::ranges::find(before, b.controller) == before.end();
         });
         if (!newSwap) {
             a_c.waitingFor = std::format("the hook's swap for the second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));

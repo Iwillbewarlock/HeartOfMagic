@@ -55,7 +55,6 @@ namespace BlackFlame::SelfTest
         std::uint64_t secondMark = 0;
         bool secondAttempted = false;
         bool secondCast = false;
-        std::uintptr_t firstSwapController = 0;           // the controller T5's swap record named
         RE::ObjectRefHandle remoteMarker;                 // T3-remote's tagged casting marker
         RE::FormID remoteMarkerId = 0;
         RE::ObjectRefHandle blameMarker;                  // T3-blame's casting marker

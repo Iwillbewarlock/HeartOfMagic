@@ -23,14 +23,29 @@ namespace BlackFlame
 {
     using SehBody = void (*)(void*);
 
+    enum class SehPolicy
+    {
+        kDisableStep,  // the default: a step that faulted is off for the session
+        kKeepStep      // only this call is skipped (per-item restores); faults counted and logged
+    };
+
     /// Runs a_body(a_context) under SEH; false on a fault (logged) and on every call after it.
     /// Not noexcept: a C++ exception from the body must reach the caller's catch.
-    [[nodiscard]] bool RunSehGuarded(const char* a_step, SehBody a_body, void* a_context);
+    [[nodiscard]] bool RunSehGuarded(const char* a_step, SehBody a_body, void* a_context,
+        SehPolicy a_policy = SehPolicy::kDisableStep);
 
     template <class F>
     [[nodiscard]] bool Guarded(const char* a_step, F&& a_work)
     {
         auto body = [](void* a_context) { (*static_cast<std::remove_reference_t<F>*>(a_context))(); };
         return RunSehGuarded(a_step, body, &a_work);
+    }
+
+    /// Guarded, but a fault skips only this call: the step stays on (restores, item by item)
+    template <class F>
+    [[nodiscard]] bool GuardedKeep(const char* a_step, F&& a_work)
+    {
+        auto body = [](void* a_context) { (*static_cast<std::remove_reference_t<F>*>(a_context))(); };
+        return RunSehGuarded(a_step, body, &a_work, SehPolicy::kKeepStep);
     }
 }

@@ -22,7 +22,7 @@ namespace BlackFlame
 
         struct PendingArt
         {
-            std::uintptr_t controller = 0;  // compared only, never dereferenced (it may be freed by now)
+            std::uintptr_t controller = 0;  // an address to find the effect by (the stored value is never dereferenced)
             const RE::BGSArtObject* art = nullptr;
             // Also compared: a freed controller's address reused by an NPC's effect with the same art
             // must not match (its target differs)
@@ -45,13 +45,13 @@ namespace BlackFlame
         struct Found
         {
             RE::NiPointer<RE::ModelReferenceEffect> effect;
-            RE::NiPointer<RE::NiAVObject> root;  // artObject3D, taken inside the lock
-            bool stillPlayers = false;           // the live controller still names the player's fire effect
+            RE::NiPointer<RE::NiAVObject> root;               // artObject3D, taken inside the lock
+            RE::ReferenceEffectController* controller = nullptr;  // read inside, used only after the walk
         };
 
-        // The live ModelReferenceEffect the controller made with this art, inside the ProcessLists lock.
-        // The address match is re-checked through the live controller itself: its effect must still be a
-        // fire effect the player cast, so a reused controller address cannot pass for an ally's art.
+        // The live ModelReferenceEffect the controller made with this art. Inside the engine's
+        // ProcessLists lock only comparisons and NiPointer copies happen (a fault there would unwind with
+        // the lock held and hang the game); the controller is checked after the walk (StillPlayers).
         Found FindEffect(const PendingArt& a_art)
         {
             Found found;
@@ -63,8 +63,7 @@ namespace BlackFlame
                     }
                     found.effect.reset(a_effect);
                     found.root = a_effect->artObject3D;
-                    auto* controller = skyrim_cast<RE::ActiveEffectReferenceEffectController*>(a_effect->controller);
-                    found.stillPlayers = controller && IsPlayerFireEffect(controller->effect);
+                    found.controller = a_effect->controller;
                     return RE::BSContainer::ForEachResult::kStop;
                 });
             }
@@ -101,8 +100,18 @@ namespace BlackFlame
             if (!Guarded("hit art find", [&]() { found = FindEffect(a_art); })) {
                 return true;
             }
-            if (found.effect && !found.stillPlayers) {
-                return true;  // the address now belongs to someone else's effect: dropped
+            // The address match re-checked through the live controller itself, outside the lock: its effect
+            // must still be a fire effect the player cast, so a reused address cannot pass for an ally's art
+            if (found.effect) {
+                bool stillPlayers = false;
+                (void)Guarded("hit art controller check", [&]() {
+                    auto* controller = found.effect->finished ? nullptr :
+                        skyrim_cast<RE::ActiveEffectReferenceEffectController*>(found.controller);
+                    stillPlayers = controller && IsPlayerFireEffect(controller->effect);
+                });
+                if (!stillPlayers) {
+                    return true;  // someone else's effect now, or gone: dropped
+                }
             }
             if (!found.root) {
                 if (++a_art.ticks < kMaxTicks) {

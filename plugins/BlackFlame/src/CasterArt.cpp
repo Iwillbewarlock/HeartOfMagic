@@ -7,6 +7,7 @@
 #include "SehGuard.h"
 
 #include <array>
+#include <atomic>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -68,6 +69,7 @@ namespace BlackFlame
         };
 
         std::mutex g_mutex;
+        std::atomic<std::uint32_t> g_restoreGeneration{ 0 };  // bumped by every restore
 
         HandArtState& State()
         {
@@ -293,15 +295,19 @@ namespace BlackFlame
             taken.lights.swap(State().lights);
             State().hands = {};
         }
+        g_restoreGeneration.fetch_add(1);  // a tick that started before this does not write back
+        // Item by item: one bad property must not leave the rest grey, and a fault never turns restores off
         int restored = 0;
-        (void)Guarded("hand art restore", [&]() {
-            for (auto& [raw, entry] : taken.properties) {
-                restored += RestoreProperty(entry.property.get(), entry.original) ? 1 : 0;
-            }
-            for (auto& [raw, entry] : taken.lights) {
-                entry.light->GetLightRuntimeData().diffuse = entry.original;
-            }
-        });
+        for (auto& [raw, entry] : taken.properties) {
+            bool ok = false;
+            (void)GuardedKeep("hand art restore (property)",
+                [&]() { ok = RestoreProperty(entry.property.get(), entry.original); });
+            restored += ok ? 1 : 0;
+        }
+        for (auto& [raw, entry] : taken.lights) {
+            (void)GuardedKeep("hand art restore (light)",
+                [&]() { entry.light->GetLightRuntimeData().diffuse = entry.original; });
+        }
         if (!taken.properties.empty() || !taken.lights.empty()) {
             logger::info("BlackFlame: hand art restored: {} of {} recoloured properties put back, {} casting light(s) "
                          "back to their colour", restored, taken.properties.size(), taken.lights.size());
@@ -336,13 +342,16 @@ namespace BlackFlame
         PruneDead();
         for (std::size_t i = 0; i < kHandCount; ++i) {
             HandState hand;
+            const auto generation = g_restoreGeneration.load();
             {
                 std::lock_guard lock(g_mutex);
                 hand = State().hands[i];
             }
             TickHand(player, kHands[i], hand);
             std::lock_guard lock(g_mutex);
-            State().hands[i] = hand;
+            if (generation == g_restoreGeneration.load()) {
+                State().hands[i] = hand;  // a restore in between already reset the hands: nothing stale goes back
+            }
         }
     }
 }

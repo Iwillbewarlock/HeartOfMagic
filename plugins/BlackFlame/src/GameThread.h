@@ -58,6 +58,10 @@ namespace BlackFlame
             logger::info("BlackFlame: game thread stamped by the first SKSE task: taskThread={}, loadThread={}, "
                          "Main::threadID={}", current, g_loadThreadNativeId.load(),
                 main ? std::to_string(main->threadID) : std::string("(no Main)"));
+            if (main && main->threadID != 0 && main->threadID != current) {
+                logger::warn("BlackFlame: Main::threadID {} differs from the first SKSE task's thread {} - the task "
+                             "thread stays the game thread; please report this line", main->threadID, current);
+            }
         });
     }
 

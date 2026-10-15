@@ -7,8 +7,10 @@
 // =============================================================================
 // Generic rules, nothing per mod:
 //   - A bound fire weapon: a weapon with the bound flag that an active Bound
-//     Weapon-archetype effect on the player names (EffectSetting associatedForm),
-//     where that effect is a fire effect the player cast. Its arrows (ArrowProjectile,
+//     Weapon-archetype effect the player cast on themselves names (EffectSetting
+//     associatedForm), where that effect is a fire effect of a fire spell or the
+//     weapon's enchantment carries a fire MGEF. The list is refreshed by the ticker
+//     task; the projectile hook only compares FormIDs. Its arrows (ArrowProjectile,
 //     weaponSource) count as the player's fire projectiles, and while stoked its 3D
 //     in the player's bipeds (BIPOBJECT::partClone, 1st and 3rd person) is
 //     recoloured (config boundWeapon).
@@ -18,7 +20,7 @@
 
 namespace BlackFlame
 {
-    /// Any thread (the projectile hook): the arrow's weapon is a bound fire weapon of the player's
+    /// Any thread (the projectile hook): the arrow's weapon is on the cached bound fire weapon list
     [[nodiscard]] bool IsBoundFireArrow(RE::Projectile* a_projectile);
 
     /// Ticker task while stoked: bound fire weapons' 3D and fire light effects on the player

@@ -34,11 +34,11 @@ namespace BlackFlame
         std::mutex g_mutex;
         std::atomic<bool> g_anyFault{ false };  // no lookup at all until some step faulted
 
-        // Guarded by g_mutex; keyed by the step's string literal (its address). Heap-held like the
-        // layers' lists, so nothing runs at DLL unload.
-        std::unordered_map<const char*, StepState>& Steps()
+        // Guarded by g_mutex; keyed by the step name's content (one name at several call sites is one
+        // step). Heap-held like the layers' lists, so nothing runs at DLL unload.
+        std::unordered_map<std::string, StepState>& Steps()
         {
-            static auto* steps = std::make_unique<std::unordered_map<const char*, StepState>>().release();
+            static auto* steps = std::make_unique<std::unordered_map<std::string, StepState>>().release();
             return *steps;
         }
 
@@ -124,30 +124,41 @@ namespace BlackFlame
             return true;
         }
 
-        void Report(const char* a_step, const SehInfo& a_info)
+        // A step that keeps running after a fault (a restore: one bad property must not leave the rest
+        // grey) is counted under its own table, never switched off
+        std::unordered_map<std::string, int>& KeptFaults()
+        {
+            static auto* kept = std::make_unique<std::unordered_map<std::string, int>>().release();
+            return *kept;
+        }
+
+        void Report(const char* a_step, const SehInfo& a_info, SehPolicy a_policy)
         {
             int faults = 0;
             {
                 std::lock_guard lock(g_mutex);
-                faults = ++Steps()[a_step].faults;
+                faults = a_policy == SehPolicy::kDisableStep ? ++Steps()[a_step].faults : ++KeptFaults()[a_step];
             }
-            g_anyFault.store(true);
-            logger::error("BlackFlame: {}: hardware exception 0x{:08X} at {} (faultThread={}), fault {} of this step; the "
-                          "step is off for the rest of the session",
-                a_step, a_info.code, ModuleOffset(a_info.address), GetCurrentThreadId(), faults);
+            if (a_policy == SehPolicy::kDisableStep) {
+                g_anyFault.store(true);
+            }
+            logger::error("BlackFlame: {}: hardware exception 0x{:08X} at {} (faultThread={}), fault {} of this step; {}",
+                a_step, a_info.code, ModuleOffset(a_info.address), GetCurrentThreadId(), faults,
+                a_policy == SehPolicy::kDisableStep ? "the step is off for the rest of the session" :
+                                                      "the step stays on (only this item was skipped)");
         }
     }
 
-    bool RunSehGuarded(const char* a_step, SehBody a_body, void* a_context)
+    bool RunSehGuarded(const char* a_step, SehBody a_body, void* a_context, SehPolicy a_policy)
     {
-        if (SkipDisabled(a_step)) {
+        if (a_policy == SehPolicy::kDisableStep && SkipDisabled(a_step)) {
             return false;
         }
         SehInfo info;
         if (RunRaw(a_body, a_context, &info)) {
             return true;
         }
-        Report(a_step, info);
+        Report(a_step, info, a_policy);
         return false;
     }
 }

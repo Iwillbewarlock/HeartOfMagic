@@ -2,13 +2,18 @@
 
 #include "CasterArt.h"
 #include "Config.h"
+#include "FireSet.h"
 #include "HitEffectHook.h"
 #include "LogLimit.h"
 #include "Recolor.h"
 #include "SehGuard.h"
 
+#include <algorithm>
 #include <array>
 #include <format>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 namespace BlackFlame
 {
@@ -37,20 +42,59 @@ namespace BlackFlame
             }
         }
 
-        // An active Bound Weapon effect on the player naming this weapon, a fire effect the player cast
-        bool IsPlayerBoundFireWeapon(const RE::TESForm* a_weapon)
+        // The player's bound fire weapons, refreshed by the ticker task (the only place the player's
+        // effect list is read); the projectile hook only compares FormIDs under the lock
+        std::mutex g_boundMutex;
+
+        std::vector<RE::FormID>& BoundFire()
         {
-            const auto* weapon = a_weapon ? a_weapon->As<RE::TESObjectWEAP>() : nullptr;
-            if (!weapon || !weapon->IsBound()) {
+            static auto* bound = std::make_unique<std::vector<RE::FormID>>().release();
+            return *bound;
+        }
+
+        bool HasFireEnchantment(const RE::TESObjectWEAP* a_weapon)
+        {
+            const auto* enchantment = a_weapon->formEnchanting;
+            if (!enchantment) {
                 return false;
             }
-            bool found = false;
+            for (const auto* effect : enchantment->effects) {
+                if (effect && IsFireMgefAny(effect->baseEffect)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // A bound weapon named by an active Bound Weapon effect the player cast on themselves, when that
+        // effect is a fire effect of a fire spell or the weapon's own enchantment carries a fire MGEF
+        void RefreshBoundFire(RE::PlayerCharacter* a_player)
+        {
+            std::vector<RE::FormID> found;
             ForEachPlayerEffect([&](RE::ActiveEffect* a_effect) {
                 const auto* base = a_effect->GetBaseObject();
-                found = found || (base && base->HasArchetype(RE::EffectSetting::Archetype::kBoundWeapon) &&
-                                     base->data.associatedForm == weapon && IsPlayerFireEffect(a_effect));
+                if (!base || !base->HasArchetype(RE::EffectSetting::Archetype::kBoundWeapon)) {
+                    return;
+                }
+                const auto* weapon = base->data.associatedForm ? base->data.associatedForm->As<RE::TESObjectWEAP>() : nullptr;
+                if (!weapon || !weapon->IsBound() || a_effect->GetCasterActor().get() != a_player) {
+                    return;
+                }
+                if (IsPlayerFireEffect(a_effect) || HasFireEnchantment(weapon)) {
+                    found.push_back(weapon->GetFormID());
+                }
             });
-            return found;
+            std::lock_guard lock(g_boundMutex);
+            BoundFire().swap(found);
+        }
+
+        bool IsPlayerBoundFireWeapon(const RE::TESForm* a_weapon)
+        {
+            if (!a_weapon) {
+                return false;
+            }
+            std::lock_guard lock(g_boundMutex);
+            return std::ranges::find(BoundFire(), a_weapon->GetFormID()) != BoundFire().end();
         }
 
         void RecolorBoundWeapons(RE::PlayerCharacter* a_player)
@@ -105,6 +149,7 @@ namespace BlackFlame
         if (!player) {
             return;
         }
+        (void)Guarded("bound weapon list", [&]() { RefreshBoundFire(player); });
         if (GetConfig().boundWeapon) {
             (void)Guarded("bound weapon recolour", [&]() { RecolorBoundWeapons(player); });
         }
