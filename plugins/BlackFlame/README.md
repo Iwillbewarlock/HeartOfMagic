@@ -354,6 +354,14 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 - Unverified: the whole spike in game (copies accepted by the engine, the stream holding, the rune across a reload,
   the save/load calls of E3); 1.6.1170 code inside the functions (pdata/unwind equality only); every SE offset and
   layout; whether another plugin's detour of Launch's prologue (IDRC) chains as expected.
+- The explosion creation detour reads its create data under an SEH guard: a caller with another layout (a pointer
+  that is not a form at +0x00 or +0x20) trips the guard once and turns the creation swap off for the session (log
+  `hardware exception` naming `copy explosion create`); `createLayoutRejected` counts checks that failed cleanly.
+- E3 calls `BGSSaveLoadManager::Save` and `Load` from the self-test's ticker task (main thread); their code was not
+  read, so the first run may hang or crash there - it runs only with `selfTest` on, after DONE is written.
+- A re-run of `--forms` with a hand-made ADDN request gives the local ADDN records ids from 0x800 in index order
+  again (the request does not list the local records a DLL-written request would): replace the whole output mod,
+  never layer two outputs (the same greymap and Local ESL names, different ids).
 
 ## Known limits
 
@@ -385,7 +393,7 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 The DLL can check most of itself in game, from the engine's own data, and write the results to a file.
 
 1. Use a **throwaway save** on flat open ground outside (the actors are placed at the player's height): the
-   test casts the Stoke spell on the player (Heart of Magic may count that cast) and launches Firebolt and Fireball projectiles (no cast: no magicka, no cast event, no XP), spawns two vanilla deer and deletes them at
+   test casts the Stoke spell on the player (Heart of Magic may count that cast) and launches Firebolt and Fireball projectiles (no cast: no magicka, no cast event, no XP), spawns three vanilla deer (the third only for E2) and a marker for E3 and deletes them at
    the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
 3. Load the save and wait about 90 s without opening a menu, and **do not save while the test runs yourself**. It

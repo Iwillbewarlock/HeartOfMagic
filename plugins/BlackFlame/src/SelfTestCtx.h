@@ -84,7 +84,7 @@ namespace BlackFlame::SelfTest
         Handler run;
     };
 
-    /// The steps in order; the last is the cleanup every run ends with
+    /// The steps in order; the cleanup (T9) every run ends with comes before E3, which saves and reloads the game
     [[nodiscard]] std::span<const StepDef> Steps();
 
     /// a_caster launches a_spell's projectile at the target (SelfTestWorld::LaunchAt), the target

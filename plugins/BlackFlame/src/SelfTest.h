@@ -5,7 +5,8 @@
 // =============================================================================
 // SELF-TEST - a scripted in-game check of every automatable layer (config selfTest)
 // =============================================================================
-// Armed at kPostLoadGame when config selfTest is true, once per game session. It
+// Armed at kPostLoadGame when config selfTest is true, once per game session (v2 E3 resumes once more after the
+// reload it asks for itself, SelfTestReload.h). It
 // starts when the player is in a loaded cell, the game is not paused and ~3 s
 // have passed, then runs a state machine on the game thread, one step per ticker
 // tick (100 ms; nothing sleeps on the game thread). Every step has a timeout: a

@@ -97,7 +97,9 @@ namespace BlackFlame::SelfTest
             const auto& launch = g_fire.launch;
             const auto& projectile = g_fire.projectile;
             const auto grey = GreyIndices();
-            const bool valuesGrey = std::ranges::all_of(g_fire.values, [&](std::uint32_t v) { return grey.contains(v); });
+            // Judged only on a live 3D: a projectile gone before its tick was not inspected, which is no PASS
+            const bool valuesGrey = g_fire.liveInspected &&
+                                    std::ranges::all_of(g_fire.values, [&](std::uint32_t v) { return grey.contains(v); });
             const bool launchOk = launch && launch->copyBase != 0;
             const bool projectileOk = projectile && projectile->copyBase != 0 && projectile->after.withPalettePath > 0;
             SelfTestLog::Info("E1a", std::format("launch: {}; projectile: {}; AddOnNode values in its live 3D: {} ({}); impact "
