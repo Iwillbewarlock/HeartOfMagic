@@ -112,9 +112,9 @@ namespace BlackFlame
         }
 
         // The casting art: ActorMagicCaster::castingArtData.attachedArt (ActorMagicCaster.h:91,
-        // AttachTechniqueInput.h:24). Only when it is null, the old places: the caster's
-        // magicNode and the hand's magic node by name in both skeletons, and as the last
-        // resort the player's ModelReferenceEffects of the caster's castingArt.
+        // AttachTechniqueInput.h:24). Only when it is null or holds no effect geometry, the old
+        // places: the caster's magicNode and the hand's magic node by name in both skeletons, and
+        // as the last resort the player's ModelReferenceEffects of the caster's castingArt.
         std::string RecolorHandArt(RE::PlayerCharacter* a_player, RE::ActorMagicCaster* a_caster, const Hand& a_hand,
             int& a_recolored)
         {

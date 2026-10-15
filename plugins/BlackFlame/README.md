@@ -59,7 +59,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 `Data/SKSE/Plugins/SpellLearning/spell_catalog.json` lists `"fire"` in its `elements`; a spell the
 catalog does not list is fire when one of its effects has the vanilla `MagicDamageFire` keyword
 (Skyrim.esm 0x01CEAD) or fire resistance as its resist value. Without a catalog only that effect rule decides, with a warning. Only `SpellType::kSpell`
-counts. The burn and explosion layers key on fire EFFECTS, not spells: an MGEF of a fire spell with the `MagicDamageFire` keyword or fire resistance as its resist value; a catalog-fire spell with no such effect contributes only its costliest effect. The fire explosions are those named by fire effects and their projectiles. The log
+counts. The burn and explosion layers key on fire EFFECTS, not spells: an MGEF of a fire spell with the `MagicDamageFire` keyword or fire resistance as its resist value; a catalog-fire spell with no such effect contributes only its costliest effect, and only for that spell (and that effect's explosions only when the explosion's caster spell is that spell). The fire explosions are those named by fire effects and their projectiles. The log
 gives the counts. No mesh, node, mod, plugin or FormID is special-cased: vanilla meshes, VFX replacers,
 legacy NiTriShape meshes and modded spells all go through the same rules.
 
@@ -76,8 +76,8 @@ skipped, so it is safe to repeat.
 |---|---|
 | 1 burn shader | `TESActiveEffectApplyRemoveEvent`: a fire effect cast by a fire spell (scrolls, staffs and enchantments sharing the MGEF do not count). On the game thread the sink reads the effect's MGEF and spell while it is still in the target's list (its thread is logged; off the game thread the task reads it, and an instant effect may then be gone: logged). A game-thread task applies `HoMBF_BurnShader` at once for the remaining time (1.5 s for an instant hit) or extends a live grey shader on that target; replace mode finishes the MGEF's hit shader in that effect's own `hitEffects` (never target-wide), once more after a full tick when the list is not filled yet. An effect with a duration or a concentration cast keeps its grey shader alight; when it is removed or gone and the player has no other fire effect on the target, the grey shader is finished |
 | 2 projectile | `Handle3DLoaded` (vfunc 0xC0) on the Missile, Flame, Cone, Beam, Grenade and Barrier vtables; shooter the player, spell fire |
-| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player; left alone when the explosion's own magicCaster (Explosion.h:87) names a scroll, a staff or a non-fire spell; a light missing at Set3D is tinted on the next tick |
-| 4 hand art | ticker task every 100 ms while stoked: per hand casting a fire spell, the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted |
+| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick |
+| 4 hand art | ticker task every 100 ms while stoked: per hand casting a fire spell, the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null or holds no effect geometry (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted |
 
 ## Known limits
 
@@ -88,7 +88,7 @@ skipped, so it is safe to repeat.
 - Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched: `BSLightingShaderProperty` emissive colour may be shared.
 - Replace mode swaps the burn shader after the engine applied its own: concentration spells (Flames) may flicker orange for a frame.
 - When the effect is already gone at the later retry, its engine hit shader is left to run out (finishing shaders target-wide would also stop an ally's identical shader). An instant hit whose effect is gone before the first task still gets the grey shader (its MGEF is read in the event), but its engine shader stays.
-- Explosions from a staff or scroll are left alone only when the explosion's own magicCaster names that item; with no magicCaster spell (or the explosion's own enchantment), a player-owned fire explosion is recoloured whatever made it.
+- Explosions: a weapon enchantment's explosion cannot be told apart from the explosion's own enchantment, so a player-owned one in the fire explosion set is recoloured; with no magicCaster spell, a player-owned fire explosion is recoloured whatever made it.
 - A `BSEffectShaderPropertyColorController` animates a property's colour every frame and overrides the base colour change; the log counts such shapes. Particle colour modifiers multiply the palette, so some orange can stay unless `particleColors` is on.
 - Shapes without the palette flag, with `forcePalette` off, keep their texture's colour (examples from vanilla paths: `PCoreCircularFlare`, `RedGlowAdd` on bolt/ball projectiles, `pGlow`/`ppLight` on hand effects).
 - Staffs, scrolls, enchantments and powers are excluded (`SpellType::kSpell` only).
@@ -101,7 +101,7 @@ skipped, so it is safe to repeat.
 The DLL can check most of itself in game, from the engine's own data, and write the results to a file.
 
 1. Use a **throwaway save** on flat open ground outside (the actors are placed at the player's height): the
-   test casts spells (Heart of Magic may grant XP for them), spawns two vanilla deer and deletes them at
+   test casts the Stoke spell on the player (Heart of Magic may count that cast) and launches Firebolt and Fireball projectiles (no cast: no magicka, no cast event, no XP), spawns two vanilla deer and deletes them at
    the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
 3. Load the save and wait about 30 s without opening a menu, and **do not save while the test runs**. It
@@ -118,7 +118,7 @@ Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fire
 radius is read at runtime and logged, 320 units in Skyrim.esm), and `EncDeer 0CF89D` twice: the target, 1000
 units ahead (AI off, health raised to 100000), and the caster, 700 units to the player's right (AI kept: an
 actor without AI may never run its cast). A deer is unaggressive and in no crime faction, so hitting either is
-no crime. Every cast re-finds its target first and casts nothing when it is gone. Every run ends in the cleanup
+no crime. Every projectile re-finds its target first and nothing is launched when it is gone. Projectiles are launched with `Projectile::Launch` (LaunchData from the shooter's chest toward the target's torso; the engine's own angle solve when its heading agrees with the straight line) rather than `CastSpellImmediate`, which aims at the target's feet and misses beyond about 300 units (skyrim-headless-mods headless-findings s24); each launch logs origin, aim and angles. Every run ends in the cleanup
 (T9): the Stoke buff dispelled, then, 1.5 s after the last cast, both deer deleted.
 
 | Step | PASS when |
@@ -130,11 +130,11 @@ no crime. Every cast re-finds its target first and casts nothing when it is gone
 | T3-pointer | every palette material also kept our texture pointer (the property holds the engine's copy) |
 | T3-tint | every recoloured base colour is grey (R=G=B) and, for at least one shape seen before the recolour and without a colour controller, equals its old luminance x tintScale |
 | T4-light | read on the live player projectile of T4, a tick or more after the tint: its light diffuse equals `lightColor` (INFO when it has no light or is gone) |
-| T5 | a live grey shader appears on the target and a burn record applied it; in replace mode Firebolt's engine hit shaders are known and none of them is unfinished at 0.3 s or older in the second after (the line says how long it checked) |
-| T5-extend | a second Firebolt, cast by T5 the moment the grey shader shows (while the first hit's 1.5 s grey still lives), extends it: its burn record says extended and one grey shader is live. T5 does not count that hit's own engine shader for 0.3 s after its burn record (one retry tick) |
-| T4 | the caster's Firebolt (cast in the same frame as a player one, matched by shooter; the caster is first turned to the target and its distance re-checked) has effect shapes, none grey, and the player's was recoloured |
+| T5 | a live grey shader appears on the target and a burn record applied it; in replace mode Firebolt's engine hit shaders are known and none of them is unfinished at 0.5 s or older in the second after (the line lists each engine shader with its age and whose hit it was, and how long it checked) |
+| T5-extend | a second Firebolt, launched by T5 the moment the grey shader shows (while the first hit's 1.5 s grey still lives), extends it: its burn record says extended and one grey shader is live |
+| T4 | the caster launches first, then the player, in the same frame (the caster turned to the target and every distance re-checked first; the player's projectile matched after T5-extend's is on record): the caster's has effect shapes, none grey, and the player's was recoloured; judged on the tick after both records |
 | T4-shared | while both projectiles still exist, inspected then: no effect property shared, none grey on the caster's (INFO "not comparable" when one was gone) |
-| T5-npc | after the caster's hit an unfinished engine Firebolt hit shader of 0.3 s or older is on the target within 1.5 s (we never finish an NPC's hit shader) |
+| T5-npc | once the caster's projectile can have arrived (distance / projectile speed), an engine Firebolt hit shader that was not on the target before T4 and is not one of the player's T4 effect's own hit shaders is still unfinished at 0.5 s or older within 1.5 s (we never finish an NPC's hit shader); INFO "cannot judge" when the burn layer recorded no player hit shader |
 | T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
 | T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
 | T7 / T7-player | INFO: the first colour modifier's keys (0x30-0x5F) and whether the layout looks plausible (all in 0..2, one above 0); with `particleColors`: every player modifier desaturated (T7-player), and the caster's modifiers neither shared nor changed between its hook and T4 (T7; INFO when not comparable) |
