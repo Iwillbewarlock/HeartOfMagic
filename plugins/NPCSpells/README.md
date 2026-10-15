@@ -240,7 +240,7 @@ How to read them:
   attached to the template after the engine copied it), so no roll can ever give them. `actorBaseLists` equal to
   `holderLists` with no hit means the lists are there and the roll gave nothing.
 - `hits` per list cannot be read as "this list gave one": lists of one school overlap (`shared` = witnesses another
-  list of ours on the NPC also holds), and the engine merges the picks. The one-spell-per-list check is the
+  list of ours on the NPC also holds - always one of the same school, as a spell has one school), and the engine merges the picks. The one-spell-per-list check is the
   `school` line: `distinctHits` against `lists`.
 - `skill` is the actor's current skill in the list's school (what the engine rolls with); `(skill below every
   entry)` after `minLevel` marks a list that can legitimately give nothing. An R1 list (minLevel 0) giving 0 is not

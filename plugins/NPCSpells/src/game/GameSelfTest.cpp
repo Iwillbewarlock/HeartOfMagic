@@ -246,13 +246,13 @@ namespace
             r.spawnedAt = Clock::now();
             Log(s, std::format("SELFTEST spawn sample {} ref 0x{:08X}", r.text, ref->GetFormID()));
         }
+        FlushLog();  // info lines are buffered (Common.h): a crash while hostile actors stand here keeps these lines
     }
 
     // Every HasSpell call here is one task on one actor: Actor::HasSpell (RE/A/Actor.h:620) goes through Actor::VisitSpells,
     // which reads the actor's leveled spell cache (built once per high process), so every query sees the same roll
     void Check(State& s, SampleRun& r, RE::Actor* actor, long long waitedMs)
     {
-        r.done = true;
         const auto* base = actor->GetActorBase();  // RE/A/Actor.h:556
         IdSet excluded;
         AddOtherSpells(r.holder->actorEffects, s.ours, excluded);
@@ -321,6 +321,7 @@ namespace
             }
         }
         const bool pass = !allHits.empty();
+        r.done = true;  // here, not on entry: a throw above leaves the sample to RunTick's Fail, so DONE counts every sample
         ++(pass ? s.pass : s.fail);
         Log(s, std::format("SELFTEST RESULT sample {} {} (hits on HoMNS-only witnesses: {})", r.text, pass ? "PASS" : "FAIL", allHits.size()));
     }
