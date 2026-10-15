@@ -104,7 +104,7 @@ namespace BlackFlame
             // must still be a fire effect the player cast, so a reused address cannot pass for an ally's art
             if (found.effect) {
                 bool stillPlayers = false;
-                (void)Guarded("hit art controller check", [&]() {
+                (void)GuardedKeep("hit art controller check", [&]() {
                     auto* controller = found.effect->finished ? nullptr :
                         skyrim_cast<RE::ActiveEffectReferenceEffectController*>(found.controller);
                     stillPlayers = controller && IsPlayerFireEffect(controller->effect);

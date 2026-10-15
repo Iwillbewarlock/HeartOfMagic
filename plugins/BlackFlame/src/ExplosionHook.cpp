@@ -179,6 +179,8 @@ namespace BlackFlame
             const auto now = std::chrono::steady_clock::now();
             {
                 std::lock_guard lock(g_processedMutex);
+                // Undecided explosions that died inside the window never reach Processed(): dropped here
+                std::erase_if(FirstSeen(), [&](const auto& a_entry) { return now - a_entry.second > 2 * kUndecidedLimit; });
                 const auto [it, inserted] = FirstSeen().try_emplace(value, now);
                 if (inserted || now - it->second < kUndecidedLimit) {
                     return false;
