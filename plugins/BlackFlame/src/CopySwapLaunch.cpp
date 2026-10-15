@@ -25,7 +25,8 @@ namespace BlackFlame
     namespace
     {
         // Address Library ids (SE, AE): Projectile::Launch (CommonLib Projectile.cpp RELOCATION_ID(42928, 44108)) and the
-        // explosion creation function the projectile explode function 44216 and the self-area cast 34413 call
+        // explosion creation function that the projectile explode function (SE 43025 / AE 44216) and the self-area cast
+        // (SE 33635 / AE 34413) call
         constexpr std::uint64_t kLaunchSe = 42928, kLaunchAe = 44108;
         constexpr std::uint64_t kCreateSe = 42657, kCreateAe = 43829;
 
@@ -45,7 +46,7 @@ namespace BlackFlame
         std::atomic<std::uint64_t> g_launchCalls{ 0 }, g_launchPlayerFire{ 0 }, g_launchSwaps{ 0 }, g_launchNoCopy{ 0 },
             g_launchPostWrites{ 0 };
         std::atomic<std::uint64_t> g_createCalls{ 0 }, g_createAlreadyCopy{ 0 }, g_createSwapsProjectile{ 0 },
-            g_createSwapsSelfArea{ 0 }, g_createRejected{ 0 };
+            g_createSwapsSelfArea{ 0 }, g_createRejected{ 0 }, g_createNotSpell{ 0 };
         std::atomic<bool> g_launchFailure{ false }, g_createFailure{ false };
 
         void ReportOnce(std::atomic<bool>& a_flag, const char* a_what)
@@ -129,7 +130,10 @@ namespace BlackFlame
                         return;
                     }
                     g_launchPlayerFire.fetch_add(1);
-                    copy = GetConfig().copyLaunch ? CopyOfAs(asked) : nullptr;
+                    if (!GetConfig().copyLaunch) {
+                        return;  // the projectile swap is off: nothing is missing
+                    }
+                    copy = CopyOfAs(asked);
                     if (!copy) {
                         g_launchNoCopy.fetch_add(1);
                         LogNoCopyOnce(asked, "projectile");
@@ -207,8 +211,12 @@ namespace BlackFlame
                 return nullptr;  // a NonActorMagicCaster or something else: not the self-area cast
             }
             auto* spell = Read<RE::TESForm*>(a_data, kCreateSpell);
-            if (!spell || spell->GetFormType() != RE::FormType::Spell) {
+            if (!spell) {
                 g_createRejected.fetch_add(1);
+                return nullptr;
+            }
+            if (spell->GetFormType() != RE::FormType::Spell) {
+                g_createNotSpell.fetch_add(1);  // a scroll, enchantment, ingredient...: a valid layout, not a fire spell
                 return nullptr;
             }
             const auto* actor = static_cast<RE::ActorMagicCaster*>(caster)->GetCasterAsActor();
@@ -245,9 +253,16 @@ namespace BlackFlame
             if (swapTo) {
                 *slot = before;  // the caller's create data as it was
             }
-            if (before && SelfTestProbe::Recording()) {
-                SelfTestProbe::RecordExplosionCreate({ 0, before->GetFormID(), swapTo ? swapTo->GetFormID() : before->GetFormID(),
-                    projectileBase, selfArea, REX::W32::GetCurrentThreadId() });
+            try {
+                if (before && SelfTestProbe::Recording()) {
+                    (void)Guarded("copy explosion create (record)", [&]() {
+                        SelfTestProbe::RecordExplosionCreate({ 0, before->GetFormID(),
+                            swapTo ? swapTo->GetFormID() : before->GetFormID(), projectileBase, selfArea,
+                            REX::W32::GetCurrentThreadId() });
+                    });
+                }
+            } catch (...) {
+                ReportOnce(g_createFailure, "the explosion creation record");
             }
             return result;
         }
@@ -277,7 +292,14 @@ namespace BlackFlame
                         a_status.launch.bytes);
                 }
             }
-            if (config.copyExplosionCreate) {
+            // V6: SE off - the creation's signature and create data layout were read on 1.7.104 code and match
+            // 1.6.1170 only by pdata/unwind; nothing of it is verified on 1.5.97. V14: no explosion copy, no detour.
+            if (config.copyExplosionCreate && !REL::Module::IsAE()) {
+                a_status.explosionCreate.note = "off on SE (signature and create data layout unverified there)";
+                logger::info("BlackFlame: copy swap: explosion creation detour {}", a_status.explosionCreate.note);
+            } else if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
+                a_status.explosionCreate.note = "no explosion copies";
+            } else if (config.copyExplosionCreate) {
                 const auto id = Patch::IdFor(kCreateSe, kCreateAe);
                 if (Patch::HasIds({ id }, "copy swap (explosion creation)")) {
                     a_status.explosionCreate = Patch::PrologueDetour("explosion creation (v2 copy swap)",
@@ -302,6 +324,7 @@ namespace BlackFlame
             a_out.createSwapsProjectile = g_createSwapsProjectile.load();
             a_out.createSwapsSelfArea = g_createSwapsSelfArea.load();
             a_out.createLayoutRejected = g_createRejected.load();
+            a_out.createNotSpell = g_createNotSpell.load();
         }
     }
 }

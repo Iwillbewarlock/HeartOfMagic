@@ -101,6 +101,7 @@ namespace
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
             TearDown("a save is being loaded");
+            BlackFlame::SelfTest::OnPreLoadGame();
             break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
@@ -108,11 +109,14 @@ namespace
         case SKSE::MessagingInterface::kPostLoadGame:
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("game loaded");
-            BlackFlame::SelfTest::OnGameLoaded();
+            // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
+            // "data contains a bool"); anything else is read as success
+            BlackFlame::SelfTest::OnGameLoaded(a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0);
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
             TearDown("a new game started");
+            BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");
             FlushLog();

@@ -113,6 +113,7 @@ namespace BlackFlame::SelfTest
             if (g_ctx.npcHitEta) {
                 *g_ctx.npcHitEta += a_paused;
             }
+            ShiftV2Clocks(a_paused);  // the v2 steps' own clocks (V13)
         }
 
         // The cleanup step (T9). v2: E3 runs after it, so the cleanup is no longer the last step
@@ -213,10 +214,23 @@ namespace BlackFlame::SelfTest
         }
     }
 
-    void OnGameLoaded()
+    void OnPreLoadGame()
     {
-        if (Reload::OnGameLoaded()) {
-            return;  // E3's own load: its resume runs from Tick (README "Self-test", E3)
+        Reload::OnPreLoadGame();
+    }
+
+    void OnNewGame()
+    {
+        Reload::OnNewGame();
+    }
+
+    void OnGameLoaded(bool a_success)
+    {
+        if (Reload::OnPostLoadGame(a_success)) {
+            return;  // the reload E3 asked the player for: its resume runs from Tick (README "Self-test", E3)
+        }
+        if (!a_success) {
+            return;
         }
         if (!GetConfig().selfTest || g_ran || g_armed) {
             return;
@@ -230,7 +244,6 @@ namespace BlackFlame::SelfTest
 
     void Abort(const char* a_reason)
     {
-        Reload::Cancel(a_reason);  // keeps E3's own load, drops anything else of E3
         if (g_running) {
             // The world is being torn down: the old handles are not touched
             try {
@@ -251,11 +264,10 @@ namespace BlackFlame::SelfTest
 
     void Tick()
     {
-        // E3 (v2): the resume after its own load, and the load itself once the run has finished
+        // E3 (v2): the resume after the player's reload, or its window running out
         try {
             Reload::Tick();
             if (!g_active.load()) {
-                Reload::LoadIfRequested();
                 return;
             }
         } catch (const std::exception& e) {

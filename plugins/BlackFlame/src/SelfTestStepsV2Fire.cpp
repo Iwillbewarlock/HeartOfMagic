@@ -35,8 +35,6 @@ namespace BlackFlame::SelfTest
             CopySwapCounters at{};
             std::optional<SelfTestProbe::LaunchRecord> launch;
             std::optional<SelfTestProbe::ProjectileRecord> projectile;
-            std::vector<std::uint32_t> values;
-            bool liveInspected = false;
             int phase = 0;
             Clock::time_point phaseStart{};
         };
@@ -97,28 +95,35 @@ namespace BlackFlame::SelfTest
             const auto& launch = g_fire.launch;
             const auto& projectile = g_fire.projectile;
             const auto grey = GreyIndices();
-            // Judged only on a live 3D: a projectile gone before its tick was not inspected, which is no PASS
-            const bool valuesGrey = g_fire.liveInspected &&
-                                    std::ranges::all_of(g_fire.values, [&](std::uint32_t v) { return grey.contains(v); });
+            // From the projectile hook's own walk of the 3D (the record): no 3D then = not inspected = FAIL; no
+            // AddOnNode in it = INFO, not a basis for the PASS
+            const bool inspected = projectile && projectile->inspected3D;
+            const auto& values = projectile ? projectile->valueNodes : std::vector<std::uint32_t>{};
+            const bool valuesGrey = std::ranges::all_of(values, [&](std::uint32_t v) { return grey.contains(v); });
             const bool launchOk = launch && launch->copyBase != 0;
             const bool projectileOk = projectile && projectile->copyBase != 0 && projectile->after.withPalettePath > 0;
-            SelfTestLog::Info("E1a", std::format("launch: {}; projectile: {}; AddOnNode values in its live 3D: {} ({}); impact "
+            SelfTestLog::Info("E1a", std::format("launch: {}; projectile: {}; AddOnNode values in its 3D at the hook: {} ({}); impact "
                 "copies since the launch: {} (GetImpactData calls in a copy window {})",
                 launch ? std::format("base {:08X} -> copy {:08X}, rule matched {}", launch->base, launch->copyBase, launch->playerFire) :
                          std::string("NOT RECORDED"),
-                projectile ? DescribeProjectile(*projectile) : std::string("NOT RECORDED"), Values(g_fire.values),
-                !g_fire.liveInspected ? "not inspected: the projectile was gone" :
-                g_fire.values.empty() ? "this NIF has none" : (valuesGrey ? "all grey indices" : "SOME NOT GREY"),
+                projectile ? DescribeProjectile(*projectile) : std::string("NOT RECORDED"), Values(values),
+                !inspected ? "NOT inspected: no 3D at the hook" :
+                values.empty() ? "this NIF has none: the ADDN part is not judged" : (valuesGrey ? "all grey indices" : "SOME NOT GREY"),
                 impactCopies, now.impactWindowCalls - g_fire.at.impactWindowCalls));
-            SelfTestLog::Check("E1a", launchOk && projectileOk && valuesGrey && impactCopies >= 1, std::format("player Firebolt: "
+            SelfTestLog::Check("E1a", launchOk && projectileOk && inspected && valuesGrey && impactCopies >= 1, std::format("player Firebolt: "
                 "launched with the copy {}, its 3D grey (palette path {} shapes) {}, AddOnNodes on grey ADDNs {}, impact copies {} "
                 "(at least 1)", launchOk ? "yes" : "NO", projectile ? projectile->after.withPalettePath : 0,
-                projectileOk ? "yes" : "NO", valuesGrey ? "yes" : "NO", impactCopies));
+                projectileOk ? "yes" : "NO", !inspected ? "NOT INSPECTED" : (values.empty() ? "none (not judged)" : (valuesGrey ? "yes" : "NO")), impactCopies));
             (void)a_c;
         }
     }
 
-    // E1a: the player's Firebolt launches with its projectile copy, its live 3D carries the grey palette path and
+    void ShiftFireClocks(Clock::duration a_paused)
+    {
+        g_fire.phaseStart += a_paused;
+    }
+
+    // E1a: the player's Firebolt launches with its projectile copy, its 3D at the projectile hook carries the grey palette path and
     // AddOnNodes on grey indices, and its impact took at least one impact copy
     bool StepE1Firebolt(Ctx& a_c, bool a_first)
     {
@@ -134,12 +139,6 @@ namespace BlackFlame::SelfTest
         }
         if (!g_fire.projectile) {
             g_fire.projectile = FindProjectile(g_fire.mark, true, a_c.forms.firebolt);
-            if (g_fire.projectile) {
-                if (const auto ref = g_fire.projectile->projectile.get()) {
-                    g_fire.values = SelfTestProbe::ValueNodeValues(ref->Get3D());
-                    g_fire.liveInspected = true;
-                }
-            }
         }
         a_c.waitingFor = "the player's Firebolt launch and projectile records";
         const bool impactsDone = GetCopySwapCounters().impactCopies > g_fire.at.impactCopies;

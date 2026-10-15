@@ -120,6 +120,11 @@ namespace BlackFlame::SelfTest
         }
     }
 
+    void ShiftFlameClocks(Clock::duration a_paused)
+    {
+        g_flames.phaseStart += a_paused;
+    }
+
     // E2: see the top. PASS: every stoked launch took the copy, launches after the dispel took the original, and the
     // damage path still ran with the copy (a TESHitEvent from the player with that spell while stoked)
     bool StepE2Flames(Ctx& a_c, bool a_first)

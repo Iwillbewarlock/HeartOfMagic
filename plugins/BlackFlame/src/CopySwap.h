@@ -82,6 +82,7 @@ namespace BlackFlame
         std::uint64_t createSwapsProjectile = 0;  // swapped here: the source projectile's base is a copy
         std::uint64_t createSwapsSelfArea = 0;    // swapped here: the player's self-area cast
         std::uint64_t createLayoutRejected = 0;   // a pointer in the create data failed its check
+        std::uint64_t createNotSpell = 0;         // the self-area spell slot held another MagicItem (valid, not judged)
         std::uint64_t impactWindowCalls = 0;  // GetImpactData calls inside a copy window
         std::uint64_t impactCopies = 0;       // of those, the impact copy returned
     };

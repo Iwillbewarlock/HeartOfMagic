@@ -113,7 +113,10 @@ namespace BlackFlame
             record.link = a_link;
             record.hookThread = a_hookThread;
             record.hookOnGameThread = a_hookOnGameThread;
-            record.after = SelfTestProbe::Inspect(a_projectile->Get3D());
+            auto* root = a_projectile->Get3D();
+            record.after = SelfTestProbe::Inspect(root);
+            record.inspected3D = root != nullptr;
+            record.valueNodes = SelfTestProbe::ValueNodeValues(root);
             SelfTestProbe::RecordProjectile(std::move(record));
         }
 

@@ -17,8 +17,14 @@
 
 namespace BlackFlame::SelfTest
 {
-    /// kPostLoadGame, game thread
-    void OnGameLoaded();
+    /// kPostLoadGame, game thread; a_success is the message's flag (a failed load arms nothing and ends a waiting E3)
+    void OnGameLoaded(bool a_success);
+
+    /// kPreLoadGame, after Abort: a waiting E3 notes that a load started (SelfTestReload.h)
+    void OnPreLoadGame();
+
+    /// kNewGame, after Abort: a waiting E3 ends as not run
+    void OnNewGame();
 
     /// kPreLoadGame / kNewGame (the world is torn down): a running test stops without touching
     /// its old handles; an armed one is disarmed

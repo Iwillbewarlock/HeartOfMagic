@@ -16,6 +16,7 @@
 #include "HitEffectHook.h"
 #include "ImpactSwap.h"
 #include "SelfTestLog.h"
+#include "SelfTestReload.h"
 #include "SelfTestText.h"
 #include "ThreadTrace.h"
 
@@ -150,6 +151,13 @@ namespace BlackFlame::SelfTest
                 shader.engineNull > 0 && shader.swapped == 0 ? "the engine answered null" :
                 "our own check kept the engine's shader (see the GetHitEffectShader lines)"));
         return true;
+    }
+
+    void ShiftV2Clocks(Clock::duration a_paused)
+    {
+        ShiftFireClocks(a_paused);
+        ShiftFlameClocks(a_paused);
+        Reload::ShiftClocks(a_paused);
     }
 
     // T-threads (S4): which threads ran our task bodies and v2 hooks, and whether bodies on different

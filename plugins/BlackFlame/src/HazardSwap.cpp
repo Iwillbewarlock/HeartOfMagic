@@ -3,6 +3,8 @@
 #include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
+#include "CopySwap.h"
+#include "FormCopies.h"
 #include "FireSet.h"
 #include "GreyMap.h"
 #include "ImpactSwap.h"
@@ -77,8 +79,8 @@ namespace BlackFlame
                 return nullptr;
             }
             // Made inside the player's impact (SpawnCollisionEffects creates the impact hazard): tagged, so
-            // ownership is known here and for the per-instance layer
-            if (ImpactWindowOpen()) {
+            // ownership is known here and for the per-instance layer (v2: also a copy window or a copy base)
+            if (ImpactWindowOpen() || CopyWindowOpen() || IsCopy(a_base)) {
                 TagSource(a_hazard);
                 if (g_windowLogs.load() < kMaxWindowLogs && g_windowLogs.fetch_add(1) < kMaxWindowLogs) {
                     logger::info("BlackFlame: hazard {:08X} loaded inside the player's impact window: tagged",

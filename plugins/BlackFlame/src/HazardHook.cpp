@@ -3,6 +3,8 @@
 #include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
+#include "CopySwap.h"
+#include "FormCopies.h"
 #include "FireSet.h"
 #include "GameThread.h"
 #include "LogLimit.h"
@@ -96,8 +98,10 @@ namespace BlackFlame
         void Queue(RE::Hazard* a_hazard)
         {
             // Made inside the player's impact (SpawnCollisionEffects creates the impact hazard; its owner is
-            // not set there and the cause is no rule): tagged, so the attribution below knows it
-            if (ImpactWindowOpen()) {
+            // not set there and the cause is no rule): tagged, so the attribution below knows it. v2: also inside
+            // a copy window, and a hazard whose base is a copy (only the player's fire chain reaches a copy)
+            const auto* hazardBase = a_hazard->GetBaseObject();
+            if (ImpactWindowOpen() || CopyWindowOpen() || (hazardBase && IsCopy(hazardBase))) {
                 TagSource(a_hazard);
             }
             if (!IsStoked() || (!GetConfig().hazard && !GetConfig().light) || !a_hazard->Get3D()) {

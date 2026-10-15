@@ -32,13 +32,17 @@ namespace BlackFlame::Patch
 
     bool HasIds(std::initializer_list<std::uint64_t> a_ids, const char* a_what)
     {
-        const REL::Offset2ID table;
-        std::vector<std::uint64_t> ids;
-        ids.reserve(table.size());
-        for (const auto& entry : table) {
-            ids.push_back(entry.id);
-        }
-        std::ranges::sort(ids);
+        // Built once (kDataLoaded thread; every caller runs there): the sorted ids of this game's database
+        static const std::vector<std::uint64_t> ids = [] {
+            const REL::Offset2ID table;
+            std::vector<std::uint64_t> sorted;
+            sorted.reserve(table.size());
+            for (const auto& entry : table) {
+                sorted.push_back(entry.id);
+            }
+            std::ranges::sort(sorted);
+            return sorted;
+        }();
         bool all = true;
         for (const auto id : a_ids) {
             if (!std::ranges::binary_search(ids, id)) {

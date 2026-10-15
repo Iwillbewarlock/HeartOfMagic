@@ -309,7 +309,7 @@ a weapon source (+0x38) on the player's bound fire weapon list counts; an enchan
 |---|---|---|
 | `Projectile::Launch` (SE 42928 / AE 44108) prologue detour | `copyLaunch` | `LaunchData.projectileBase` set to its copy for the call and restored after. A Flame or Beam stream started with the copy is a new stream (Launch reuses a stream only with the same base) |
 | the same detour, after the call | `copyLaunchExplosion` | the new projectile's `GetProjectileRuntimeData().explosion` (Launch takes it from the MGEF when the area is above 0 - Fireball - else from the base) set to its copy |
-| explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | the create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
+| explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | AE only (off on SE, where its signature and create data layout are unverified) and only when explosion copies exist. The create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
 | `GetImpactData` (SE 20408 / AE 20860) calls in `SpawnCollisionEffects` (43022 / 44213) and the explosion's impact function (42679 / 43851) | `copyImpacts` | inside a copy window the impact copy is returned for the impact the set would return (no IPDS copy, no hash map insert). The window opens on the impact call sites (section "Grey swap") when the projectile's base is a copy, and in `Explosion::Update` when the explosion's base is a copy. The round-10 model window (GetModel swap) stays for projectiles and explosions without a copy |
 
 **Detours.** The first 16 bytes are read at runtime. An `E9` there (another plugin's detour, e.g. IDRC hooks
@@ -338,7 +338,6 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 | `Projectile::SpawnCollisionEffects` | 43022 / 44213 | 0x7ecd80 / 0x7531c0 | one E8 to 20860 at +0xBC (1.7.104); 1170 equal (size 0x7DA): the fallback offset is used only on AE and only when the site is an E8 into a trampoline stub |
 | the explosion's impact function | 42679 / 43851 | 0x7d1c40 / 0x739ee0 | one E8 to 20860 at +0x7FC on 1.7.104, but **not** 1170 equal (size 0x135D vs 0x139D, other unwind codes): found by the scan only, no fallback |
 | `VTABLE_ActorMagicCaster[0]` | 257613 / 205828 | 0x187b8b0 / 0x1637490 | CommonLib; compared with the create data's caster vtable |
-| `BGSSaveLoadManager::Save_Impl` / `Load_Impl` / singleton (E3) | 34818, 34819, 516860 / 35727, 35728, 403340 | present | CommonLib only; their code was not read |
 | impact window call sites (round 10, now also the copy window) | 42943 / 44123, 43014 / 44205, 42638 / 43806 | present | 1170 equal: 44123 (0x4B1), 44205 (0x2AE), 43806 (0x49F) |
 | hit shader slot (S3, unchanged hook) | vtable slot 0x0D of `ActiveEffectReferenceEffectController` (function SE 34049 / AE 34846) | - | research 2026-10-16: the slot's only function, 1170 equal |
 
@@ -352,13 +351,14 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
   `--forms` run (a form whose copy is missing stays orange, logged once). The DLL fills copies at kDataLoaded only:
   a source changed later in the session is not followed (the self-test's T0-v2 compare shows it).
 - Unverified: the whole spike in game (copies accepted by the engine, the stream holding, the rune across a reload,
-  the save/load calls of E3); 1.6.1170 code inside the functions (pdata/unwind equality only); every SE offset and
+  E3 needs the player's quicksave and quickload); 1.6.1170 code inside the functions (pdata/unwind equality only); every SE offset and
   layout; whether another plugin's detour of Launch's prologue (IDRC) chains as expected.
 - The explosion creation detour reads its create data under an SEH guard: a caller with another layout (a pointer
   that is not a form at +0x00 or +0x20) trips the guard once and turns the creation swap off for the session (log
   `hardware exception` naming `copy explosion create`); `createLayoutRejected` counts checks that failed cleanly.
-- E3 calls `BGSSaveLoadManager::Save` and `Load` from the self-test's ticker task (main thread); their code was not
-  read, so the first run may hang or crash there - it runs only with `selfTest` on, after DONE is written.
+- E3 is semi-manual: the DLL never saves or loads (MO2 local saves go to another folder, and the engine's save and
+  load functions were not read). It asks for a quicksave and a quickload and judges only a load that matches its
+  marker (same session nonce, same cell, not earlier in game time, within 10 minutes).
 - A re-run of `--forms` with a hand-made ADDN request gives the local ADDN records ids from 0x800 in index order
   again (the request does not list the local records a DLL-written request would): replace the whole output mod,
   never layer two outputs (the same greymap and Local ESL names, different ids).
@@ -404,10 +404,11 @@ The DLL can check most of itself in game, from the engine's own data, and write 
 4. Read `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame_selftest.txt` (the same
    lines are in `HeartOfMagic_BlackFlame.log`): `[SELFTEST] PASS|FAIL|INFO <id> <detail>`, ending with
    `[SELFTEST] DONE pass=N fail=M info=K`. A step that times out is a FAIL that says what it waited for.
-   The last step, E3 (v2), saves the game to the throwaway slot `HoMBF_SelfTest_E3` (in the `Saves` folder next to
-   the `SKSE` log folder; a file of that name from an earlier run is replaced) and, once DONE is written, loads it:
-   the game reloads by itself and the test resumes after the load, adding its E3 lines and `[SELFTEST] DONE E3 ...`
-   to the same file. You are then in that throwaway save, not the one you started from.
+   The last step, E3 (v2), launches a Fire Rune with the buff on and then writes one line: `E3: quicksave now, then
+   quickload that save`. Do that within 10 minutes (F5, then F9; any save and load works): the test resumes after the
+   load, adds its E3 lines and `[SELFTEST] DONE E3 ...` to the same file, and cleans up (buff dispelled, rune
+   removed). Skipping it is fine: the next load, a new game or 10 minutes end E3 as INFO "not run (manual step
+   skipped)" with the same cleanup. The DLL itself never saves or loads.
 5. Set `"selfTest": false` again.
 
 Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789` (its explosion
@@ -455,7 +456,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | E1b | v2: the player's Fireball explosion is the explosion copy with the palette path; INFO which device did it from the counters (Launch post-write, the creation detour seeing a copy already, or the creation detour swapping) |
 | E1c | v2: the caster's Fireball before the player's (A), 2.5 s after it (B) and in the same frame (C): each phase needs the caster's launch, projectile and explosion each seen at least once, with original bases, no palette path and nothing grey; in C the player's explosion is the copy |
 | E2 | v2: a Flames-type spell (MAG_Flames when its projectile is a flamethrower, else the Flame Atronach's Flames `07E881`) launched by the player every tick at a deer 400 units ahead: 1 s stoked, the buff dispelled mid-stream, 0.6 s more, the buff cast again. PASS: every stoked launch took the copy, launches after the flag went off took the original, and a TESHitEvent from the player with that spell came while stoked (the damage path runs with the copy). INFO: distinct streams before and after (one each = the stream held) |
-| E3 | v2, after T9: the buff cast again, a vanilla Fire Rune (`05DB90`) launched at a marker 300 units ahead; before the save its projectile's base and explosion are copies; the game is saved to `HoMBF_SelfTest_E3` and reloaded (see step 3 above); after the load the rune is found again (by FormID, else by its copy base in the player's cell), alive, base the copy and explosion still a copy (PostLoad3D resets it from the copy PROJ's link). E3-esl (INFO, manual): removing the copies ESL with such a save |
+| E3 | v2, after T9, semi-manual: the buff cast again, a vanilla Fire Rune (`05DB90`) launched at a marker 300 units ahead; before the save its projectile's base and explosion must be copies; then a marker file `HeartOfMagic_BlackFlame_e3.json` (rune, copy base, cell, game days, session nonce) next to the self-test file and the line asking for a quicksave and a quickload. Judged only on a kPostLoadGame that succeeded, came after its kPreLoadGame and within 10 minutes, with the marker's nonce, the same cell and a game time not before the request: the rune is found again (by FormID with the copy base, else a projectile of the copy base in the cell), alive, base the copy and explosion still a copy (PostLoad3D resets it from the copy PROJ's link). Every other outcome is INFO "E3 not run (manual step skipped)". Every path cleans up (Stoke dispelled, rune and marker removed where they exist) and deletes the marker file. E3-esl (INFO, manual): removing the copies ESL with such a save |
 
 The log's `material check` lines (first 5 player and NPC fire projectiles, first 5 NPC fire explosions) list per effect property `prop=`, `mat=`, `grey=` and `paletteFlag=`: `prop=` must differ between player and NPC instances; an equal `mat=` is normal (materials are pooled); any `grey=yes` on an NPC line is contamination.
 

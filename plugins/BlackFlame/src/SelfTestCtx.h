@@ -131,4 +131,10 @@ namespace BlackFlame::SelfTest
     bool StepE1Npc(Ctx& a_c, bool a_first);
     bool StepE2Flames(Ctx& a_c, bool a_first);
     bool StepThreads(Ctx& a_c, bool a_first);
+
+    /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,
+    /// SelfTestReload.cpp); SelfTest.cpp ShiftClocks calls it
+    void ShiftV2Clocks(Clock::duration a_paused);
+    void ShiftFireClocks(Clock::duration a_paused);
+    void ShiftFlameClocks(Clock::duration a_paused);
 }

@@ -192,13 +192,20 @@ namespace BlackFlame
         // Pass 1: resolve and fill data members; failures stay out of the lookup
         for (const auto& item : root["copies"]) {
             Entry entry = ResolveEntry(dh, lookup, item);
-            if (entry.ok && !CopyFill::FillData(entry.copy, entry.source)) {
-                entry.ok = false;
-                entry.detail = "the fill refused the type";
-            }
+            // Checked before the fill: a second entry must not overwrite a copy another source already filled,
+            // and the two maps stay one-to-one (the first entry wins, the second is logged and left out)
             if (entry.ok && copies.bySource.contains(entry.source->GetFormID())) {
                 entry.ok = false;
                 entry.detail = "a second copy of the same source";
+            }
+            if (entry.ok && (copies.byCopy.contains(entry.copy->GetFormID()) || copies.bySource.contains(entry.copy->GetFormID()) ||
+                                copies.byCopy.contains(entry.source->GetFormID()))) {
+                entry.ok = false;
+                entry.detail = "the copy form already belongs to another entry (or a copy is named as a source)";
+            }
+            if (entry.ok && !CopyFill::FillData(entry.copy, entry.source)) {
+                entry.ok = false;
+                entry.detail = "the fill refused the type";
             }
             if (entry.ok) {
                 copies.bySource.emplace(entry.source->GetFormID(), entry.copy);

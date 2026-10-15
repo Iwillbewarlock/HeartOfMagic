@@ -86,6 +86,8 @@ namespace BlackFlame::SelfTestProbe
         RE::NiColor lightDiffuse{};  // after the recolour
         Snapshot before;  // taken just before the recolour (or instead of it)
         Inspection after;
+        bool inspected3D = false;              // the 3D existed when the record was taken
+        std::vector<std::uint32_t> valueNodes; // its BSValueNode (AddOnNode) values (v2 E1a)
     };
 
     struct ExplosionRecord

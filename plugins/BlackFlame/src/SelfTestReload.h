@@ -3,37 +3,45 @@
 #include "SelfTestCtx.h"
 
 // =============================================================================
-// SELF-TEST E3 - a grey Fire Rune across a save and a reload (v2 spike)
+// SELF-TEST E3 - a grey Fire Rune across a save and a reload (v2 spike, semi-manual)
 // =============================================================================
 // The last step of a run (after the cleanup T9): the Stoke buff cast again, a vanilla
-// Fire Rune launched at a placed marker 300 units ahead, its projectile checked
-// (base = the copy, explosion = a copy), the game saved to the throwaway slot
-// kSaveName, and once the run has finished (DONE written) that save is loaded. After
-// the load the self-test resumes on its own: the rune found again by its FormID (or
-// by a projectile of the copy base in the player's cell), alive, base = the copy, and
-// its explosion still a copy (PostLoad3D resets a permanent projectile's explosion
-// from base->data.explosionType: the copy PROJ's link to the explosion copy). Results
-// are added to the self-test file with "DONE E3". Game thread only.
+// Fire Rune launched at a marker 300 units ahead, its projectile checked (base = the
+// copy, explosion = a copy), a marker file (HeartOfMagic_BlackFlame_e3.json next to
+// the self-test file: rune FormID, copy base, cell, game days, session nonce) written,
+// and one line asks the player to quicksave and quickload. The DLL never saves or
+// loads by itself (MO2 local saves live elsewhere, and the engine's save/load code was
+// not read). On the next kPostLoadGame that succeeded, came after its kPreLoadGame and
+// within kE3Window of the request, with the marker file matching this session, in the
+// same cell and not earlier in game time: the rune is found again (FormID, else a
+// projectile of the copy base in the cell) and judged - base the copy, explosion a
+// copy (PostLoad3D resets a permanent projectile's explosion from the copy PROJ's
+// link). Any other outcome is INFO "E3 not run (manual step skipped)". Every path ends
+// with the cleanup (Stoke dispelled, rune and marker removed where they exist) and the
+// marker file deleted; results are appended to the self-test file ending "DONE E3".
 
 namespace BlackFlame::SelfTest::Reload
 {
-    inline constexpr const char* kSaveName = "HoMBF_SelfTest_E3";
+    inline constexpr auto kE3Window = std::chrono::minutes(10);
 
     /// The step (registered after T9 in the step table)
     bool StepE3(Ctx& a_c, bool a_first);
 
-    /// Called by SelfTest::Tick after the run finished: loads the save the step wrote, once
-    void LoadIfRequested();
+    /// kPreLoadGame (message handler): the load the player was asked for may be starting
+    void OnPreLoadGame();
 
-    /// kPostLoadGame: true when this load is the one E3 asked for (the resume is then armed)
-    bool OnGameLoaded();
+    /// kNewGame: E3 not run (the world it asked about is gone)
+    void OnNewGame();
 
-    /// While armed: the resume's own state machine (player ready, then judge, then DONE E3)
+    /// kPostLoadGame with the message's success flag: true when E3 takes this load (its resume is armed)
+    bool OnPostLoadGame(bool a_success);
+
+    /// Every self-test tick: the resume after the load, or the window running out without one
     void Tick();
 
-    /// Armed or waiting for its load (the ticker stays fast; Abort stays quiet)
-    [[nodiscard]] bool Active() noexcept;
+    /// Waiting for the player's reload or resuming (the ticker stays fast)
+    [[nodiscard]] bool Active();
 
-    /// kPreLoadGame / kNewGame that is not E3's own load: forgets everything
-    void Cancel(const char* a_reason);
+    /// Shifts E3's step clock by paused time (SelfTest ShiftClocks)
+    void ShiftClocks(Clock::duration a_paused);
 }

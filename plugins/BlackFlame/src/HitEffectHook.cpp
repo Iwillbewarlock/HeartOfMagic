@@ -138,7 +138,8 @@ namespace BlackFlame
             const RE::TESForm* field = !base ? nullptr :
                                        a_slot == kShaderSlot ? static_cast<const RE::TESForm*>(base->data.effectShader) :
                                                                static_cast<const RE::TESForm*>(base->data.hitEffectArt);
-            const bool player = effect && effect->caster.native_handle() == PlayerHandleValue();
+            const auto playerHandle = PlayerHandleValue();
+            const bool player = effect && playerHandle != 0 && effect->caster.native_handle() == playerHandle;
             if (!player && !a_original && !field) {
                 return;
             }
@@ -207,7 +208,9 @@ namespace BlackFlame
         Outcome Decide(Slot a_slot, Controller* a_this, const RE::TESForm* a_original)
         {
             auto* effect = a_this->effect;
-            if (!effect || effect->caster.native_handle() != PlayerHandleValue()) {
+            const auto playerHandle = PlayerHandleValue();
+            // No player handle yet (or none for the effect): never the player's - a caster-less effect would match 0
+            if (!effect || playerHandle == 0 || effect->caster.native_handle() != playerHandle) {
                 return Outcome::kNotPlayer;
             }
             if (!a_original) {
