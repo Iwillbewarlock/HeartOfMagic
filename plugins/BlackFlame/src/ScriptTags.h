@@ -39,6 +39,9 @@ namespace BlackFlame
     /// when it is (now) confirmed
     bool ResolvePending(const RE::TESObjectREFR* a_ref);
 
+    /// The VM handle of a live pending tag's caller on this reference, or 0 (none, or confirmed)
+    [[nodiscard]] RE::VMHandle PendingCallerOf(const RE::TESObjectREFR* a_ref);
+
     /// Once per layer (a string literal): a decision was deferred because only a pending tag matched
     void LogDeferredOnce(const char* a_layer);
 

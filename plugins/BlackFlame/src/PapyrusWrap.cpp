@@ -109,12 +109,35 @@ namespace BlackFlame
             }
         }
 
+        // A pending tag is judged by a task right away (short-lived effects may be gone by the next tick);
+        // what is left: an effect that ended before even that judgement leaves no tag
+        void StorePending(const Decision& a_decision, RE::VMHandle a_caller)
+        {
+            const auto subject = a_decision.subject.get();
+            TagPending(subject.get(), a_decision.kind == Wrapped::kPlaceAtMe, a_caller);
+            const auto handle = a_decision.subject;
+            const auto generation = WorldGeneration();
+            QueueTask("BlackFlameTagJudge", [handle, generation]() {
+                if (generation == WorldGeneration()) {
+                    const auto ref = handle.get();
+                    (void)ResolvePending(ref.get());
+                }
+            });
+        }
+
         void Decide(const Decision& a_decision)
         {
-            // A reference already tagged (confirmed) calling in turn: no ActiveEffect involved
-            if (const auto ref = a_decision.callerRef.get(); ref && IsTaggedSource(ref.get())) {
-                Tag(a_decision);
-                return;
+            // A reference already tagged calling in turn (a placed activator's own script): confirmed - tag at
+            // once; pending - the new tag waits on the same caller's judgement
+            if (const auto ref = a_decision.callerRef.get(); ref) {
+                if (IsTaggedSource(ref.get())) {
+                    Tag(a_decision);
+                    return;
+                }
+                if (const auto pending = PendingCallerOf(ref.get()); pending != 0) {
+                    StorePending(a_decision, pending);
+                    return;
+                }
             }
             if (IsOnGameThread()) {
                 if (CallerIsPlayersFireEffect(a_decision.caller)) {
@@ -130,8 +153,7 @@ namespace BlackFlame
                 logger::info("BlackFlame: native wrapper called off the game thread (callerThread={}): tag stored "
                              "pending, judged on the game thread", REX::W32::GetCurrentThreadId());
             }
-            const auto subject = a_decision.subject.get();
-            TagPending(subject.get(), a_decision.kind == Wrapped::kPlaceAtMe, a_decision.caller);
+            StorePending(a_decision, a_decision.caller);
         }
 
         RE::ObjectRefHandle HandleOf(RE::TESObjectREFR* a_ref)

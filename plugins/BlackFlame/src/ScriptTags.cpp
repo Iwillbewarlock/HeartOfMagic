@@ -70,10 +70,15 @@ namespace BlackFlame
                     [](const auto& a_lhs, const auto& a_rhs) { return a_lhs.second.expires < a_rhs.second.expires; });
                 tags.erase(earliest);
             }
-            // A tag already confirmed in this world stays confirmed when a pending call names it again
+            // A live tag in this world is not touched by a pending call: a confirmed one keeps its expiry (an
+            // unjudged call must not extend it), a pending one keeps its first caller until that is judged
             const auto existing = tags.find(handle.native_handle());
-            const bool wasConfirmed = existing != tags.end() && existing->second.pendingCaller == 0 &&
-                                      existing->second.generation == WorldGeneration() && existing->second.expires > now;
+            const bool live = existing != tags.end() && existing->second.generation == WorldGeneration() &&
+                              existing->second.expires > now;
+            if (live && a_pendingCaller != 0) {
+                return;
+            }
+            const bool wasConfirmed = live && existing->second.pendingCaller == 0;
             auto& tag = tags[handle.native_handle()];
             tag.handle = handle;
             tag.expires = now + (a_placed ? kPlacedWindow : kSourceWindow);
@@ -101,7 +106,7 @@ namespace BlackFlame
             std::lock_guard lock(g_mutex);
             const auto it = Tags().find(a_value);
             if (it == Tags().end() || it->second.pendingCaller != a_caller) {
-                return confirmed && it != Tags().end();  // changed meanwhile
+                return false;  // changed meanwhile: this judgement is not about the tag as it is now
             }
             if (confirmed) {
                 it->second.pendingCaller = 0;
@@ -233,6 +238,20 @@ namespace BlackFlame
             pending = it->second.pendingCaller;
         }
         return pending == 0 || JudgePending(value, pending);
+    }
+
+    RE::VMHandle PendingCallerOf(const RE::TESObjectREFR* a_ref)
+    {
+        if (!a_ref || g_count.load() == 0) {
+            return 0;
+        }
+        const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
+        std::lock_guard lock(g_mutex);
+        const auto it = Tags().find(value);
+        if (it == Tags().end() || it->second.expires <= Clock::now() || it->second.generation != WorldGeneration()) {
+            return 0;
+        }
+        return it->second.pendingCaller;
     }
 
     void LogDeferredOnce(const char* a_layer)

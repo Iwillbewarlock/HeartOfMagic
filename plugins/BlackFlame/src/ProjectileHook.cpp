@@ -129,9 +129,12 @@ namespace BlackFlame
                 (void)ResolvePending(projectile);
                 (void)ResolvePending(shooter.get());
                 const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
-                if (link != PlayerLink::kNone && IsStoked() && GetConfig().projectile) {
-                    LogLinkOnce("projectile", link);
-                    HandleProjectile(projectile, a_kind, true, true, PlayerLinkName(link), false, hookThread, false);
+                const bool byPlayer = link != PlayerLink::kNone;
+                const bool recolor = byPlayer && IsStoked() && GetConfig().projectile;
+                LogLinkOnce("projectile", link);
+                // Not the player's after all: the normal path still runs for the records and logs
+                if (recolor || SelfTestProbe::Recording()) {
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, PlayerLinkName(link), false, hookThread, false);
                 }
             });
         }
