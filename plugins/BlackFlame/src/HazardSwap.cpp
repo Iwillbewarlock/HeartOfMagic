@@ -77,7 +77,6 @@ namespace BlackFlame
                 auto* result = func(a_this, a_backgroundLoading);
                 t_model = nullptr;
                 t_grey = nullptr;
-                g_swaps.fetch_add(1);
                 int suppressed = 0;
                 if (LogLimit::Allow("hazard swap", base->GetFormID(), suppressed)) {
                     logger::info("BlackFlame: hazard {:08X}: grey copy {} loaded{}", base->GetFormID(), grey,
@@ -94,6 +93,7 @@ namespace BlackFlame
             static const char* thunk(const RE::TESModel* a_this)
             {
                 if (t_grey && a_this == t_model) {
+                    g_swaps.fetch_add(1);  // counted where the grey path is really handed out
                     return t_grey;
                 }
                 return func(a_this);

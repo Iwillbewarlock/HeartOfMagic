@@ -24,6 +24,6 @@ namespace BlackFlame
 
     [[nodiscard]] bool HazardSwapHooked() noexcept;
 
-    /// Load3D calls that loaded a grey copy (for the self-test)
+    /// GetModel calls that handed out a grey copy during a hazard's Load3D (for the self-test)
     [[nodiscard]] std::uint64_t HazardSwapCount() noexcept;
 }

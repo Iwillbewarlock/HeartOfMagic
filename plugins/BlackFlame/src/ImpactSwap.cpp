@@ -244,6 +244,15 @@ namespace BlackFlame
         if (!g_status.idsPresent) {
             return;
         }
+        // A write_call on a trampoline without room ends in a fatal report: checked first, logged
+        constexpr std::size_t kBytesPerSite = 14;  // an absolute jump in the trampoline per redirected call
+        const auto freeBytes = SKSE::GetTrampoline().free_size();
+        if (freeBytes < kCallers.size() * kBytesPerSite) {
+            logger::error("BlackFlame: impact swap: the SKSE trampoline has {} free bytes, {} needed - the impact swap "
+                          "stays off", freeBytes, kCallers.size() * kBytesPerSite);
+            return;
+        }
+        logger::info("BlackFlame: impact swap: trampoline {} bytes free", freeBytes);
         const auto spawn = AddressOf(IdFor(kSpawnSe, kSpawnAe));
         const std::array sites{ FindSite(0, spawn), FindSite(1, spawn), FindSite(2, spawn) };
         g_status.sitesHooked += sites[0] && HookSite<0>(sites[0], spawn) ? 1 : 0;
