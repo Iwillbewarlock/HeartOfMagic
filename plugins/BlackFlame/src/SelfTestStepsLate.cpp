@@ -478,6 +478,10 @@ namespace BlackFlame::SelfTest
             SelfTestWorld::Remove(a_c.caster)));
         SelfTestLog::Info("T-hand", "hand art: manual (CastSpellImmediate has no charge animation, so there is no "
             "casting art to inspect)");
+        SelfTestLog::Info("T-bound", "bound fire weapon and its arrows: manual (vanilla has no bound weapon with a fire "
+            "effect)");
+        SelfTestLog::Info("T-placed", "script-placed fire (PlaceAtMe, Cast, RemoteCast from a script of the player's "
+            "fire effect): manual (no test script ships)");
         a_c.cleanedUp = true;
         return true;
     }
