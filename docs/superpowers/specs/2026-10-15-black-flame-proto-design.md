@@ -459,3 +459,6 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   retired) 담으면 거절하고, 새 원본의 id는 맵의 모든 id(retired 포함) 중 가장 큰 것 다음. 빌더 자가 시험 89 → 93(실패한 실행이
   이전 ESL·맵을 바이트 그대로 남김, 중복 거절 2개, retired 최고값 다음 id). TAKEALOOK 출력을 고친 빌더로 다시 만들어 사본 맵이
   바이트 그대로임을 확인했다.
+- V18 README: E3 반자동, 스크립트가 놓은 불은 Launch 때 플레이어 연결(사수, 비난 액터, 확정된 태그)이 보일 때만 사본(발사 때 태그가
+  아직 보류면 그 투사체는 원본으로 남는다), 사본은 순수 시각이 아님(OnHit akProjectile, 해저드 개수 제한)은 "Spike limits"에.
+- 반박: Gemini "HitEffectHook CallNumber 맵에 잠금 없음"은 HitEffectHook.cpp가 뮤텍스를 잡는다(조정자 확인). "T6-remote"는 없는 단계.

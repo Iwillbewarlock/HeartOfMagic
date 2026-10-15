@@ -361,6 +361,9 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 - The explosion creation detour reads its create data under an SEH guard: a caller with another layout (a pointer
   that is not a form at +0x00 or +0x20) trips the guard once and turns the creation swap off for the session (log
   `hardware exception` naming `copy explosion create`); `createLayoutRejected` counts checks that failed cleanly.
+- Script-placed fire takes a copy only when the Launch detour already sees the player link: the shooter, a blame actor,
+  or a confirmed script tag. A projectile launched while its source's tag is still pending (a wrapped call on a VM
+  thread, judged by a later task) keeps the original form and stays orange (the copy cannot be swapped in afterwards).
 - E3 is semi-manual: the DLL never saves or loads (MO2 local saves go to another folder, and the engine's save and
   load functions were not read). It asks for a quicksave and a quickload and judges only a load that matches its
   marker (same session nonce, same cell, not earlier in game time, within 10 minutes).
