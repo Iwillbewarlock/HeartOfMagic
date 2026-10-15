@@ -216,12 +216,12 @@ missing record.
 
 ## Known limits
 
-- **Template children: the fix is not yet confirmed in game.** Lists on the holder alone never reached a spawned
-  child (run 6: `039D37` FAIL, holder `039D31` with 9 lists, the child's base with none); children now get the holder's
-  lists themselves. The self test's `039D37` must now show `actorBaseLists>0` and `PASS`. Not known from the headers,
-  to be watched: whether the engine copies a template's list again later (a save load, a spawn), which would replace
+- **Template children: confirmed in game (runs 7 and 8).** Lists on the holder alone never reached a spawned child
+  (run 6: `039D37` FAIL, holder `039D31` with 9 lists, the child's base with none); children now get the holder's lists
+  themselves, and run 7 showed `039D37` with `actorBaseLists=9` (PASS in run 8 once levels start at 1). Still to be
+  watched: whether the engine copies a template's list again later (a save load of an old save), which would replace
   ours on the child. (A leveled spawn from the console uses the drawn entry NPC record itself as its base, not a
-  temporary copy: in-game run 8.)
+  temporary copy, and that actor held a spell only our lists give: in-game run 8.)
 - **A child of a holder with no spell list** (`2750FE:3DNPC.esp`, holder `0728AD:Skyrim.esm`, the self test's fourth
   sample) gets spell list data made for it when it has `kCopiedTemplate`: whether the engine leaves it there or copies
   the empty holder again at spawn is the pending check (`actorBaseLists>0` and `PASS`). A child without the flag and
