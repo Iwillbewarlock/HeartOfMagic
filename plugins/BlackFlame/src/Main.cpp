@@ -14,6 +14,7 @@
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "Forms.h"
 #include "GameThread.h"
 #include "GreyCheck.h"
@@ -40,6 +41,7 @@ namespace
             logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
             return;
         }
+        BlackFlame::LoadAndFillCopies();  // v2: before any hook reads the copies (FormCopies.h)
         BlackFlame::BuildFireSets();
         BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();

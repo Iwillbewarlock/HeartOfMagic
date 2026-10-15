@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "PlayerArt.h"
@@ -103,6 +104,10 @@ namespace BlackFlame
                 record.lightDiffuse = light->GetLightRuntimeData().diffuse;
             }
             record.spell = spell ? spell->GetFormID() : 0;
+            if (const auto* base = a_projectile->GetBaseObject()) {
+                record.base = SourceOrSelf(base)->GetFormID();
+                record.copyBase = IsCopy(base) ? base->GetFormID() : 0;
+            }
             record.kind = a_kind;
             record.byPlayer = a_byPlayer;
             record.link = a_link;

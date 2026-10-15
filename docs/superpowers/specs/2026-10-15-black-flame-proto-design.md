@@ -356,3 +356,21 @@
 - `ThreadTrace`: QueueTask 본문 전부와 v2 훅 본문이 (종류, 스레드 id, 시작, 끝)을 4096칸 고리 버퍼에 남긴다. 칸마다 seq를
   0으로 두고 채운 뒤 번호를 쓰는 락 없는 방식이라 읽는 쪽은 쓰는 중인 칸을 건너뛴다. 자가 시험 T-threads가 종류별 스레드와
   다른 스레드끼리 겹친 구간 수를 보고한다(기록 0개면 FAIL). IsOnGameThread 관문은 이 데이터를 읽은 뒤에 정한다.
+
+### S1 사본 (빌더 --forms, DLL 채움)
+
+- 요청(version 2)은 원본 폼(정의 플러그인|로컬 id, 종류, 모델, OBND, DATA 스칼라)을 나열한다. 사본 종류는 PROJ, EXPL, IPCT,
+  HAZD만(IPDS 사본 없음: BSTHashMap 삽입이 필요해서, LIGH 사본 없음: 조명 색은 인스턴스별로 유지). 스파이크 요청은 houseCARL
+  읽기로 손으로 만들었다(plugins/BlackFlame/requests/, 33개 폼).
+- 빌더는 마스터 없는 ESL(HeartOfMagic_BlackFlame_Copies.esp)에 자리표시 레코드를 쓴다: 종류별 DATA 크기는 Skyrim.esm과 같고
+  (PROJ 92, HAZD 40, EXPL 52, IPCT 24) 폼 링크는 모두 0, OBND는 IPCT 빼고, FULL·MODT는 쓰지 않는다. MODL은 원본 NIF의 완전 회색
+  사본(효과 셰이더 전부 팔레트 + AddOnNode 회색 인덱스)으로, 경로는 meshes\heartofmagic\blackflame\copies\ 아래(--request의 값만
+  바꾼 충돌 사본과 겹치지 않게). 같은 실행에서 --request 계획을 만들어 사본 모델의 AddOnNode 값도 회색 ADDN을 받는다.
+- 안정 id: 사본 맵(HeartOfMagic_BlackFlame_copies.json)을 다음 실행이 다시 읽는다. 원본은 id를 유지하고, 새 원본은 쓰인 id 전부
+  다음 번호, 빠진 원본은 retired로 남겨 그 id를 다른 원본에 주지 않는다(저장된 투사체·해저드가 다른 폼이 되지 않게).
+- DLL은 kDataLoaded에만 살아 있는 승자에서 데이터 멤버를 복사한다(데이터 구조체는 바이트 복사, BSFixedString은 대입, 머즐
+  플래시 모델은 SetModel). 두 번째 단계에서 사본이 있는 링크만 사본으로 돌린다(PROJ.explosionType, EXPL.impactPlacedObject와
+  spawnProjectile, IPCT.hazard). 실패한 사본은 맵에서 빠지고 로그. 나중의 다시 채우기는 "바뀐 값 비교 후 고치기"로만(재구성 없음),
+  스파이크에는 없다. 자가 시험 T0-v2가 살아 있는 원본과 다시 비교한다.
+- 빌더 자가 시험 27개 추가(62 -> 89): 종류별 DATA 크기, 링크 칸 0, ESL 플래그·마스터 0·HEDR 1.70, 그룹 순서, 스칼라 위치,
+  안정 id와 retired, 잘못된 요청 거절, 만든 NIF로 --forms 전체 실행. 생성 ESL은 별도 node 읽기 도구로도 확인(33개, 크기 일치).

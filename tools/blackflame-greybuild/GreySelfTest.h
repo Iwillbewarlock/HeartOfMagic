@@ -26,4 +26,7 @@ namespace GreyBuild::SelfTest
     /// Request planning (index reuse, collisions, unknown values) and the generated ESL,
     /// on a_sourceNif (AddOnNodes 9 and 24), in a_dir.
     void CheckPlanAndEsl(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+
+    /// The v2 copies (--forms): ESL layout, stable ids, refusals, and a whole run with a_sourceNif as a model.
+    void CheckForms(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
 }

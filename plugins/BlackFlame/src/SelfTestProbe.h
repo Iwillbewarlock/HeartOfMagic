@@ -69,6 +69,8 @@ namespace BlackFlame::SelfTestProbe
         RE::ObjectRefHandle projectile;
         RE::FormID shooter = 0;
         RE::FormID spell = 0;
+        RE::FormID base = 0;      // the projectile's base form (a v2 copy's source when it is a copy)
+        RE::FormID copyBase = 0;  // the copy's own id when the base is a v2 copy, else 0
         const char* kind = "";
         bool byPlayer = false;
         const char* link = "none";  // the attribution rule that matched (PlayerLinkName)
@@ -86,7 +88,8 @@ namespace BlackFlame::SelfTestProbe
     struct ExplosionRecord
     {
         std::uint64_t seq = 0;
-        RE::FormID base = 0;
+        RE::FormID base = 0;      // the explosion's base form (a v2 copy's source when it is a copy)
+        RE::FormID copyBase = 0;  // the copy's own id when the base is a v2 copy, else 0
         bool byPlayer = false;
         bool recolored = false;
         RecolorStats stats;

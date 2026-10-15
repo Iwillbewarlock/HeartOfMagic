@@ -3,6 +3,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "Forms.h"
 #include "GameThread.h"
 #include "Palette.h"
@@ -95,6 +96,10 @@ namespace BlackFlame::SelfTest
             LogWrapperChecks();
             for (const auto& line : GreyCheckResults()) {
                 SelfTestLog::Check("T0-grey", line.pass, line.text);
+            }
+            // v2: every copy against its live source now (fill counts, fields, links); no map read is a FAIL
+            for (const auto& line : CheckCopies()) {
+                SelfTestLog::Check("T0-v2", line.pass, line.text);
             }
             const bool fireOk = a_c.haveForms && IsFireSpell(a_c.forms.firebolt) && IsFireSpell(a_c.forms.fireball);
             const bool ok = PaletteReady() && forms.burnShader && forms.stokeSpell && forms.stokedKeyword && fireOk;

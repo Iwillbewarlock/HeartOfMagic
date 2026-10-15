@@ -9,7 +9,7 @@
 // OBND (min -32768 x3, max 32767 x3), MODL, DATA (i32 index), DNAM (u16 cap, u16 flags).
 // No masters: an ADDN links to nothing, so FormIDs 0x000800 up are the plugin's own.
 
-#include "GreyBuild.h"
+#include "GreyEslIo.h"
 
 #include <algorithm>
 #include <array>
@@ -23,63 +23,11 @@ namespace GreyBuild
 {
     namespace
     {
-        constexpr std::uint16_t kFormVersion = 44;         // Skyrim SE
-        constexpr std::size_t kHeaderSize = 24;            // record and GRUP headers
-        constexpr std::size_t kSubHeaderSize = 6;          // subrecord type + u16 size
+        using namespace EslIo;
+
         constexpr std::int16_t kBoundMin = -32768;         // OBND as Skyrim.esm's MPS ADDN records
         constexpr std::int16_t kBoundMax = 32767;
-        constexpr const char* kAuthor = "Heart of Magic blackflame-greybuild";
         constexpr std::size_t kMaxLocalIdDigits = 8;       // "000800" as written; a u32 at most
-
-        class Writer
-        {
-        public:
-            void Bytes(const void* a_data, std::size_t a_size)
-            {
-                const auto* bytes = static_cast<const char*>(a_data);
-                m_data.insert(m_data.end(), bytes, bytes + a_size);
-            }
-            template <class T>
-            void Value(T a_value)
-            {
-                Bytes(&a_value, sizeof(T));
-            }
-            void Tag(const char* a_tag) { Bytes(a_tag, 4); }
-            void Sub(const char* a_tag, const std::string& a_data)
-            {
-                if (a_data.size() > UINT16_MAX) {
-                    throw std::runtime_error(fmt::format("subrecord {} is too long", a_tag));
-                }
-                Tag(a_tag);
-                Value(static_cast<std::uint16_t>(a_data.size()));
-                Bytes(a_data.data(), a_data.size());
-            }
-            void ZString(const char* a_tag, const std::string& a_text) { Sub(a_tag, a_text + '\0'); }
-            const std::string& Data() const { return m_data; }
-
-        private:
-            std::string m_data;
-        };
-
-        template <class... T>
-        [[nodiscard]] std::string Pack(T... a_values)
-        {
-            Writer writer;
-            (writer.Value(a_values), ...);
-            return writer.Data();
-        }
-
-        void RecordHeader(Writer& a_out, const char* a_type, std::size_t a_dataSize, std::uint32_t a_flags,
-            std::uint32_t a_formId)
-        {
-            a_out.Tag(a_type);
-            a_out.Value(static_cast<std::uint32_t>(a_dataSize));
-            a_out.Value(a_flags);
-            a_out.Value(a_formId);
-            a_out.Value(std::uint32_t{ 0 });  // version control
-            a_out.Value(kFormVersion);
-            a_out.Value(std::uint16_t{ 0 });
-        }
 
         [[nodiscard]] std::string AddonRecord(const AddonEntry& a_entry, std::uint32_t a_formId)
         {
@@ -95,35 +43,6 @@ namespace GreyBuild
             record.Bytes(body.Data().data(), body.Data().size());
             return record.Data();
         }
-
-        class Reader
-        {
-        public:
-            explicit Reader(std::string a_data) : m_data(std::move(a_data)) {}
-
-            template <class T>
-            T Value(std::size_t a_at) const
-            {
-                if (a_at + sizeof(T) > m_data.size()) {
-                    throw std::runtime_error("plugin ends inside a record");
-                }
-                T value{};
-                std::memcpy(&value, m_data.data() + a_at, sizeof(T));
-                return value;
-            }
-            std::string Tag(std::size_t a_at) const
-            {
-                if (a_at + 4 > m_data.size()) {
-                    throw std::runtime_error("plugin ends inside a tag");
-                }
-                return m_data.substr(a_at, 4);
-            }
-            std::string Slice(std::size_t a_at, std::size_t a_size) const { return m_data.substr(a_at, a_size); }
-            std::size_t Size() const { return m_data.size(); }
-
-        private:
-            std::string m_data;
-        };
 
         /// One ADDN record whose header starts at a_at and which must end by a_limit (its group's end).
         [[nodiscard]] EslAddon ReadAddon(const Reader& a_in, std::size_t a_at, std::size_t a_limit)
@@ -255,13 +174,7 @@ namespace GreyBuild
         Writer file;
         RecordHeader(file, "TES4", header.Data().size(), kEslFlag, 0);
         file.Bytes(header.Data().data(), header.Data().size());
-        file.Tag("GRUP");
-        file.Value(static_cast<std::uint32_t>(kHeaderSize + records.size()));
-        file.Tag("ADDN");
-        file.Value(std::int32_t{ 0 });   // group type: top level
-        file.Value(std::uint32_t{ 0 });  // stamp and version control
-        file.Value(std::uint32_t{ 0 });
-        file.Bytes(records.data(), records.size());
+        TopGroup(file, "ADDN", records);
 
         std::filesystem::create_directories(a_file.parent_path());
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);

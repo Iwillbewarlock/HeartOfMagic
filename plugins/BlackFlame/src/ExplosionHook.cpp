@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
@@ -286,7 +287,8 @@ namespace BlackFlame
             }
 
             SelfTestProbe::ExplosionRecord record;
-            record.base = explosion->GetFormID();
+            record.base = SourceOrSelf(explosion)->GetFormID();
+            record.copyBase = IsCopy(explosion) ? explosion->GetFormID() : 0;
             record.byPlayer = byPlayer;
             record.owner = owner ? owner->GetFormID() : 0;
             record.causeActor = cause ? cause->GetFormID() : 0;

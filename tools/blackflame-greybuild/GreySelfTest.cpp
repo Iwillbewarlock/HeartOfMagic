@@ -298,6 +298,7 @@ namespace GreyBuild
                 "a value with no map entry is reported (AddOnNode24: 24)");
 
             SelfTest::CheckPlanAndEsl(check, dir, source);
+            SelfTest::CheckForms(check, dir, source);
             CheckMapRefusals(check, dir);
         } catch (const std::exception& e) {
             check.Check(false, fmt::format("exception: {}", e.what()));

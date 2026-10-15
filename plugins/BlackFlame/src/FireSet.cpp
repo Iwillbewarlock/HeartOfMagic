@@ -1,5 +1,6 @@
 #include "FireSet.h"
 
+#include "FormCopies.h"
 #include "Forms.h"
 #include "PluginNames.h"
 
@@ -291,6 +292,10 @@ namespace BlackFlame
         if (!a_hazard) {
             return false;
         }
+        // A v2 copy counts as its source (FormCopies.h)
+        if (const auto* source = SourceOf(a_hazard)) {
+            a_hazard = source->As<RE::BGSHazard>();
+        }
         const auto* spell = a_hazard->data.spell;
         return g_fireHazards.contains(a_hazard->GetFormID()) ||
                (spell && (IsFireSpell(spell) || HasFireMgef(spell, GetForms().fireKeyword)));
@@ -298,6 +303,7 @@ namespace BlackFlame
 
     bool IsFireExplosion(const RE::BGSExplosion* a_explosion)
     {
-        return a_explosion && g_fireExplosions.contains(a_explosion->GetFormID());
+        // A v2 copy counts as its source (FormCopies.h)
+        return a_explosion && g_fireExplosions.contains(SourceOrSelf(a_explosion)->GetFormID());
     }
 }

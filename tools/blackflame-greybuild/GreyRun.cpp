@@ -37,60 +37,80 @@ namespace GreyBuild
             }
         }
 
-        /// One NIF: grey (MPS) and/or remap, write, read back, verify.
-        void BuildOne(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
-            const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel,
-            bool a_greyEffects, bool a_needed, Totals& a_totals)
+        /// Writes the ESL, reads it back and compares; false (problems printed) on a difference.
+        [[nodiscard]] bool WriteLocalEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file)
         {
-            const auto source = FindSource(a_inputs, a_rel);
-            if (!source) {
-                std::cout << fmt::format("{}  {}: in no --in folder\n", a_needed ? "FAIL" : "SKIP", a_rel);
-                (a_needed ? a_totals.failed : a_totals.skipped) += 1;
-                return;
+            WriteAddonEsl(a_records, a_file);
+            std::uint32_t flags = 0;
+            const auto back = ReadAddonEsl(a_file, flags);
+            std::cout << fmt::format("wrote {} (header flags 0x{:X}), {} ADDN record(s) read back:\n", a_file.string(),
+                flags, back.size());
+            for (const auto& record : back) {
+                std::cout << fmt::format("  {:06X} {} index {} model '{}' DNAM cap {} flags {}\n", record.formId,
+                    record.editorId, record.index, record.model, record.masterParticleCap, record.dnamFlags);
             }
-            const auto target = a_out / std::filesystem::path(a_greyRel);
-            try {
-                nifly::NifFile nif;
-                LoadNif(nif, *source);
-                const int unknown = CountUnknownBlocks(nif);
-                const RoundTrip roundTrip = CheckRoundTrip(*source);
+            const auto problems = VerifyAddonEsl(a_records, a_file);
+            for (const auto& problem : problems) {
+                std::cout << "FAIL  " << a_file.string() << ": " << problem << "\n";
+            }
+            return problems.empty();
+        }
+    }
 
-                GreyStats stats;
-                if (a_greyEffects) {
-                    stats = GreyEffects(nif, a_map.tint);
-                }
-                const RemapStats remap = RemapAddonValues(nif, a_map);
-                if (!remap.unmapped.empty()) {
-                    std::cout << fmt::format("FAIL  {} ({}): AddOnNode value(s) in no map entry, nothing written:\n",
-                        a_rel, source->string());
-                    for (const auto& line : remap.unmapped) {
-                        std::cout << "      " << line << "\n";
-                    }
-                    ++a_totals.failed;
-                    return;
-                }
-                SaveNif(nif, target);
+    bool BuildNif(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
+        const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, bool a_greyEffects,
+        bool a_needed, Totals& a_totals)
+    {
+        const auto source = FindSource(a_inputs, a_rel);
+        if (!source) {
+            std::cout << fmt::format("{}  {}: in no --in folder\n", a_needed ? "FAIL" : "SKIP", a_rel);
+            (a_needed ? a_totals.failed : a_totals.skipped) += 1;
+            return false;
+        }
+        const auto target = a_out / std::filesystem::path(a_greyRel);
+        try {
+            nifly::NifFile nif;
+            LoadNif(nif, *source);
+            const int unknown = CountUnknownBlocks(nif);
+            const RoundTrip roundTrip = CheckRoundTrip(*source);
 
-                nifly::NifFile written;
-                LoadNif(written, target);
-                const auto problems = VerifyGrey(written, a_greyEffects, a_map);
-                PrintResult(a_rel, a_greyRel, *source, unknown, roundTrip, problems);
-                if (a_greyEffects) {
-                    PrintStats(stats);
+            GreyStats stats;
+            if (a_greyEffects) {
+                stats = GreyEffects(nif, a_map.tint);
+            }
+            const RemapStats remap = RemapAddonValues(nif, a_map);
+            if (!remap.unmapped.empty()) {
+                std::cout << fmt::format("FAIL  {} ({}): AddOnNode value(s) in no map entry, nothing written:\n", a_rel,
+                    source->string());
+                for (const auto& line : remap.unmapped) {
+                    std::cout << "      " << line << "\n";
                 }
-                std::cout << fmt::format("      AddOnNodes {}: remapped {}, already grey {}\n", remap.valueNodes,
-                    remap.remapped, remap.alreadyGrey);
-                for (const auto& line : remap.remapLines) {
-                    std::cout << "        " << line << "\n";
-                }
-                for (const auto& problem : problems) {
-                    std::cout << "      problem: " << problem << "\n";
-                }
-                (problems.empty() ? a_totals.built : a_totals.failed) += 1;
-            } catch (const std::exception& e) {
-                std::cout << fmt::format("FAIL  {}: {}\n", a_rel, e.what());
                 ++a_totals.failed;
+                return false;
             }
+            SaveNif(nif, target);
+
+            nifly::NifFile written;
+            LoadNif(written, target);
+            const auto problems = VerifyGrey(written, a_greyEffects, a_map);
+            PrintResult(a_rel, a_greyRel, *source, unknown, roundTrip, problems);
+            if (a_greyEffects) {
+                PrintStats(stats);
+            }
+            std::cout << fmt::format("      AddOnNodes {}: remapped {}, already grey {}\n", remap.valueNodes,
+                remap.remapped, remap.alreadyGrey);
+            for (const auto& line : remap.remapLines) {
+                std::cout << "        " << line << "\n";
+            }
+            for (const auto& problem : problems) {
+                std::cout << "      problem: " << problem << "\n";
+            }
+            (problems.empty() ? a_totals.built : a_totals.failed) += 1;
+            return problems.empty();
+        } catch (const std::exception& e) {
+            std::cout << fmt::format("FAIL  {}: {}\n", a_rel, e.what());
+            ++a_totals.failed;
+            return false;
         }
     }
 
@@ -139,12 +159,35 @@ namespace GreyBuild
         std::set<std::string> done;
         for (const auto& [index, entry] : a_map.addons) {
             if (done.insert(entry.greyModel).second) {  // indices sharing one MPS share its grey copy
-                BuildOne(a_map, a_inputs, a_out, entry.model, entry.greyModel, true, a_needAll, totals);
+                BuildNif(a_map, a_inputs, a_out, entry.model, entry.greyModel, true, a_needAll, totals);
             }
         }
         for (const auto& [source, grey] : a_map.models) {
-            BuildOne(a_map, a_inputs, a_out, source, grey, false, false, totals);
+            BuildNif(a_map, a_inputs, a_out, source, grey, false, false, totals);
         }
         return totals;
+    }
+
+    /// Writes the local ESL, or with no records for it removes one an earlier run left in --out
+    /// (the new map names none of its records). False (reason printed) on a failure.
+    bool SyncLocalEsl(const std::vector<AddonEntry>& a_records,
+        const std::filesystem::path& a_file)
+    {
+        if (!a_records.empty()) {
+            return WriteLocalEsl(a_records, a_file);
+        }
+        std::error_code ec;
+        if (!std::filesystem::exists(a_file, ec) && !ec) {
+            return true;
+        }
+        if (ec || !std::filesystem::remove(a_file, ec) || ec) {
+            std::cout << fmt::format("FAIL  {} is left from an earlier run and could not be removed ({}): this setup "
+                                     "needs no local grey records. Remove it by hand, then run again.\n",
+                a_file.string(), ec ? ec.message() : std::string("not removed"));
+            return false;
+        }
+        std::cout << fmt::format("removed {}: left from an earlier run, this setup needs no local grey records\n",
+            a_file.string());
+        return true;
     }
 }

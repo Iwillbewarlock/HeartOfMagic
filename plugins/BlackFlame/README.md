@@ -240,6 +240,59 @@ The kDataLoaded grey check logs `grey check PASS/FAIL` lines (each grey ADDN rec
 id and sitting in `TESDataHandler::addonNodes` at its grey index, every grey model file opening, the call sites
 and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-swap / T6-npc-swap.
 
+## Black Flame v2 (copy framework spike)
+
+Branch `feature/black-flame-v2`. The runtime material recolour leaked into NPC fire through shared materials and
+relied on a main-thread assumption that run 2 disproved, so v2 makes "the player's only" structural: the player's
+fire launches with **grey copies** of its projectile, explosion, impact and hazard forms, whose NIFs have the grey
+palette baked in. NPC fire keeps the original forms. Runtime recolour is off by default (config keys above); a form
+without a copy stays orange and is logged once. The per-instance light tint stays. Design and decisions:
+[docs/superpowers/specs/2026-10-15-black-flame-proto-design.md](../../docs/superpowers/specs/2026-10-15-black-flame-proto-design.md), "v2 스파이크".
+
+### Copies (S1): `blackflame-greybuild --forms`
+
+```
+blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--in <dir> ...] --out <mod root> [--tint <0..2>]
+```
+
+The forms request (version 2) lists source forms, each with `source` (`Plugin|localId`, the defining plugin), `type`
+(`PROJ`, `EXPL`, `IPCT`, `HAZD`; no IPDS or LIGH copies), `editorId`, `model` (as the record stores it), `bounds`
+(6 integers; not on IPCT) and `data` (the scalar DATA values; unknown keys are refused, missing ones are 0; PROJ
+`projectileType` takes a name or the raw bit, PROJ `soundLevel` goes to VNAM). `--request` is the ADDN request
+of "Grey duplicates": the copies' models count for the AddOnNode values that need a grey ADDN index (no remapped
+copy of them is made), so one run writes everything a setup needs into `--out`:
+
+| Output | What |
+|---|---|
+| `HeartOfMagic_BlackFlame_Copies.esp` | ESL, no masters, HEDR 1.70, form version 44, FormIDs 0x800 up: one placeholder per source - EDID `HoMBF_Copy_<editorId>_<localId>`, OBND (PROJ, HAZD, EXPL), MODL = the grey copy, DATA in Skyrim.esm's size for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24) with the scalars and every form link 0, VNAM on PROJ. Groups PROJ, HAZD, EXPL, IPCT. Read back and compared after writing |
+| `meshes\heartofmagic\blackflame\copies\<model path>` | the full-grey copy of each distinct source NIF: every effect shader on the grey palette (as the grey MPS) and every AddOnNode on its grey ADDN index |
+| `SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json` | the copies map (version 1): source -> copy id, type, models. The next run reads it back from `--out`: a source keeps its id, a new one takes the id after every id used, a source no longer requested is kept as `retired` and its id is never given to another (a saved projectile or hazard of that copy must not turn into another form) |
+| grey MPS, `HeartOfMagic_BlackFlame_greymap.json`, `HeartOfMagic_BlackFlame_Local.esp` | as `--request` writes them (the copies' AddOnNode indices included) |
+
+Install the output folder as a mod after this one and enable both ESLs. The spike's requests are hand-made from
+read-only houseCARL reads of the TAKEALOOK profile: [requests/forms-takealook.json](requests/forms-takealook.json)
+(33 forms: the winning PROJ, EXPL, IPCT and HAZD reached from vanilla Firebolt, Fireball, Flames and Fire Rune) and
+[requests/addons-takealook.json](requests/addons-takealook.json) (the profile's 329 ADDN records). Their NIFs are
+other mods' files (Flame VFX Edit, Embers XD - CS, CS Particle Patch), so the output is built on the user's machine
+and not committed; the spike run used `--in` Flame VFX Edit, Dragon Breath VFX Edit, Embers XD - CS, Embers XD, then
+the CS Particle Patch, Inferno, Particle Patch and vanilla Meshes0/1 BSAs extracted to scratch (33 copies, 9 copy
+NIFs, 7 extra grey ADDN records for indices 5, 6, 34, 35, 80, 81 and Embers XD's 225). Planned: the DLL writes the
+forms request at kDataLoaded from the fire set's closure.
+
+### Fill (S1, DLL): `FormCopies.h`
+
+At kDataLoaded only, before any hook reads them, each copy is filled from the LIVE winning source (so SkyPatcher and
+other runtime edits made before then are included), data members only, never the form header, flags or the copy's
+own model: PROJ `data` (0x80-0x108), `soundLevel`, `fullName`, `muzzleFlashModel` through `TESModel::SetModel`,
+`boundData`; EXPL `data` (0x98-0xE8), the enchantment members, `imageSpaceModifying`, `fullName`, `boundData`; IPCT
+`data`, both decal texture sets, both sounds, `hazard`, `dData`; HAZD `data`, `imageSpaceModifying`, `fullName`,
+`boundData`. Data structs are copied byte for byte (their layouts are asserted by CommonLib). A second pass points
+only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedObject` and `spawnProjectile`, IPCT
+`hazard`; every other link (light, sounds, texture sets, image space, enchantment, hazard spell, impact data sets)
+stays the source's. A copy whose source or copy form is missing, or whose types differ, is left out of the map and
+logged. The fire set treats a copy as its source (`IsFireExplosion`, `IsFireHazard`). Self-test T0-v2 compares every
+copy with its live source again.
+
 ## Known limits
 
 - Grey-black, not pitch black: the blending stays additive.
@@ -295,6 +348,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T0 | the palette loaded (path logged), the ESP's forms and the vanilla forms exist, Firebolt and Fireball count as fire (game thread, fire counts, config and Fireball's explosion radius logged) |
 | T0-wrap | each wrapped native: the script type holds our proxy (the real check, "bound"); the proxy's parameter count and types, static, latent and tasklet flags are the values copied from the original in its constructor (no game script needed) |
 | T0-grey | the kDataLoaded grey check lines (see "Grey swap") |
+| T0-v2 | the copies map read (no map = FAIL), fill counts per type, and per copy: its fields equal its live source's now and its links point to copies where one exists, else to the source's own (`FormCopies.h` CheckCopies) |
 | T1 | after the Stoke cast (`CastSpellImmediate`) the player has one more Stoke effect and the flag is on. A Stoke buff the player already had is dispelled first and not given back |
 | T2 | both deer spawned (`PlaceObjectAtMe`) with 3D; the target's AI is off and its health at least 99% of 100000; target-to-player and target-to-caster distances are beyond the explosion radius + 100 |
 | T3 | the player's Firebolt was recoloured and at least as many effect shapes carry the palette path as were recoloured (ratio logged; INFO "partial" when forcePalette left some out). With `projectile` false (the v2 default) T3, T3-pointer and T3-tint are INFO "not judged": the grey copy is judged by E1a |

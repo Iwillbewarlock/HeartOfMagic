@@ -1,0 +1,2647 @@
+{
+  "version": 1,
+  "_comment": [
+    "Made from a houseCARL ADDN dump of the TAKEALOOK load order (winning records), standing in for the DLL-written request."
+  ],
+  "addons": [
+    {
+      "index": 0,
+      "model": "MPS\\MPSFireSmall01.nif",
+      "editorId": "MPSFireSmall01",
+      "source": "Skyrim.esm|01A71D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1,
+      "model": "MPS\\MPSPushParticles.nif",
+      "editorId": "MPSPushParticles",
+      "source": "Skyrim.esm|01A720",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2,
+      "model": "MPS\\MPSBloodSprayImpact01.nif",
+      "editorId": "MPSBloodSprayImpact01",
+      "source": "Skyrim.esm|01BFEE",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 3,
+      "model": "MPS\\MPSFireWallBase.nif",
+      "editorId": "MPSFireWallBase",
+      "source": "Skyrim.esm|01C2B0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4,
+      "model": "MPS\\MPSFireWallSparks.nif",
+      "editorId": "MPSFireWallSparks",
+      "source": "Skyrim.esm|01C2B1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5,
+      "model": "MPS\\MPSFireBallSparkTrail.nif",
+      "editorId": "MPSFireBallSparkTrail",
+      "source": "Skyrim.esm|01CBB2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6,
+      "model": "MPS\\MPSFireBallSmokeTrail.nif",
+      "editorId": "MPSFireBallSmokeTrail",
+      "source": "Skyrim.esm|01CBB1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 7,
+      "model": "MPS\\MPSTorchEmbers01.nif",
+      "editorId": "MPSTorchEmbers01",
+      "source": "Skyrim.esm|01D634",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8,
+      "model": "MPS\\MPSSpiderSpitLines.nif",
+      "editorId": "MPSSpiderSpitLines",
+      "source": "Skyrim.esm|04BB40",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9,
+      "model": "MPS\\MPSFireBoltImpact01.nif",
+      "editorId": "MPSFireBoltImpact01",
+      "source": "Skyrim.esm|02B95B",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 10,
+      "model": "MPS\\MPSFrostImpact01.nif",
+      "editorId": "MPSFrostImpact01",
+      "source": "Skyrim.esm|01A133",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 11,
+      "model": "MPS\\MPSFrostShardsImpact01.nif",
+      "editorId": "MPSFrostShardsImpact01",
+      "source": "Skyrim.esm|01A2AC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 12,
+      "model": "MPS\\MPSDragonSmoke.nif",
+      "editorId": "MPSDragonSmoke",
+      "source": "Skyrim.esm|0211D4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 13,
+      "model": "MPS\\MPSDragonSteam.nif",
+      "editorId": "MPSDragonSteam",
+      "source": "Skyrim.esm|0247BA",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 14,
+      "model": "MPS\\MPSFrostMist01.nif",
+      "editorId": "MPSFrostMist01",
+      "source": "Skyrim.esm|032DA8",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 15,
+      "model": "MPS\\MPSFrostMistTrail01.nif",
+      "editorId": "MPSFrostMistTrail01",
+      "source": "Skyrim.esm|032DA9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 16,
+      "model": "MPS\\MPSdustPuffSm.nif",
+      "editorId": "MPSdustPuffSm",
+      "source": "Skyrim.esm|033010",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 17,
+      "model": "MPS\\MPSdustTrailDart.nif",
+      "editorId": "MPSdustTrailDart",
+      "source": "Skyrim.esm|0330C9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 18,
+      "model": "MPS\\MPSFrostMAGIceSpray.nif",
+      "editorId": "MPSFrostMAGIceSpray",
+      "source": "Skyrim.esm|037E88",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 19,
+      "model": "MPS\\MPSPushDirtDebris01.nif",
+      "editorId": "MPSPushDirtDebris01",
+      "source": "Skyrim.esm|019520",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 20,
+      "model": "MPS\\MPSSpiderSpitSpray.nif",
+      "editorId": "MPSSpiderSpitSpray",
+      "source": "Skyrim.esm|04BB41",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 21,
+      "model": "MPS\\MPSPushDust01.nif",
+      "editorId": "MPSPushDust01",
+      "source": "Skyrim.esm|01951F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 22,
+      "model": "MPS\\MPSPushGrass01.nif",
+      "editorId": "MPSPushGrass01",
+      "source": "Skyrim.esm|019522",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 23,
+      "model": "MPS\\MPSFireSmSmoke01.nif",
+      "editorId": "MPSFireSmSmoke01",
+      "source": "Skyrim.esm|03E072",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 24,
+      "model": "MPS\\MPSFireLg01.nif",
+      "editorId": "MPSFireLg01",
+      "source": "Skyrim.esm|03E071",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 25,
+      "model": "MPS\\MPSFireLgSmoke01.nif",
+      "editorId": "MPSFireLgSmoke01",
+      "source": "Skyrim.esm|03E070",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 26,
+      "model": "MPS\\MPSFrostHazard.nif",
+      "editorId": "MPSFrostHazard",
+      "source": "Skyrim.esm|03E07A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 27,
+      "model": "MPS\\MPSDragonTakeoffDust.nif",
+      "editorId": "MPSDragonTakeoffDust",
+      "source": "Skyrim.esm|03EE1D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 28,
+      "model": "MPS\\MPSDragonTakeoffSnow.nif",
+      "editorId": "MPSDragonTakeoffSnow",
+      "source": "Skyrim.esm|03F1B7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 29,
+      "model": "MPS\\MPSDragonRockBounce.nif",
+      "editorId": "MPSDragonRockBounce",
+      "source": "Skyrim.esm|03F9D7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 30,
+      "model": "MPS\\MPSDragonSnowBounce01.nif",
+      "editorId": "MPSDragonSnowBounce01",
+      "source": "Skyrim.esm|03F9D8",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 31,
+      "model": "MPS\\MPSSpiderSpitSplash.nif",
+      "editorId": "MPSSpiderSpitSplash",
+      "source": "Skyrim.esm|04BB6A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 32,
+      "model": "MPS\\MPSTurnUndeadProjectile.nif",
+      "editorId": "MPSTurnUndeadProjectile",
+      "source": "Skyrim.esm|04D3F5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 33,
+      "model": "MPS\\MPSShockImpacts01.nif",
+      "editorId": "MPSShockImpacts01",
+      "source": "Skyrim.esm|058E9A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 34,
+      "model": "MPS\\MPSFlamesFire.nif",
+      "editorId": "MPSFlamesFire",
+      "source": "Skyrim.esm|03AC18",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 35,
+      "model": "MPS\\MPSFireBoltFire01.nif",
+      "editorId": "MPSFireBoltFire01",
+      "source": "Skyrim.esm|03AC2C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 36,
+      "model": "MPS\\MPSFlameTrapFire.nif",
+      "editorId": "MPSFlameTrapFire",
+      "source": "Skyrim.esm|056E3B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 37,
+      "model": "MPS\\MPSFlameTrapGlow.nif",
+      "editorId": "MPSFlameTrapGlow",
+      "source": "Skyrim.esm|056E43",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 38,
+      "model": "MPS\\FXDragonMagicLeakMPS.nif",
+      "editorId": "FXDragonMagicLeakMPS",
+      "source": "Skyrim.esm|06CD13",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 39,
+      "model": "MPS\\FXDragonScalesGroupMPS.nif",
+      "editorId": "FXDragonScalesGroupMPS",
+      "source": "Skyrim.esm|06CD14",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 40,
+      "model": "MPS\\FXDragonScalesIndividualMPS.nif",
+      "editorId": "FXDragonScalesIndividualMPS",
+      "source": "Skyrim.esm|06CD15",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 41,
+      "model": "MPS\\MPSBloodSplatImpact02.nif",
+      "editorId": "MPSBloodSplatImpact02",
+      "source": "Skyrim.esm|07B6BD",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 42,
+      "model": "MPS\\MPSBloodSprayTiny03.nif",
+      "editorId": "MPSBloodSprayTiny03",
+      "source": "Skyrim.esm|07B6BE",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 43,
+      "model": "MPS\\MPSFallingDustEffect.nif",
+      "editorId": "MPSFallingDustEffect",
+      "source": "Skyrim.esm|088303",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 44,
+      "model": "MPS\\MPSFireOilBlue01.nif",
+      "editorId": "MPSFireOilBlue01",
+      "source": "Skyrim.esm|0303FE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 45,
+      "model": "MPS\\MPSFireStormAreaFlames.nif",
+      "editorId": "MPSFireStormAreaFlames",
+      "source": "Skyrim.esm|05A661",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 46,
+      "model": "MPS\\MPSTorchFire01.nif",
+      "editorId": "MPSTorchFire01",
+      "source": "Skyrim.esm|08FC1B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 47,
+      "model": "MPS\\MPSAuraWhisperProjectile.nif",
+      "editorId": "MPSAuraWhisperProjectile",
+      "source": "Skyrim.esm|0AD390",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 48,
+      "model": "MPS\\MPSDartSmoke02.nif",
+      "editorId": "MPSDartSmoke02",
+      "source": "Skyrim.esm|0B878D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 49,
+      "model": "MPS\\MPSCandleFlame01.nif",
+      "editorId": "MPSCandleFlame01",
+      "source": "Skyrim.esm|0B9FC5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 50,
+      "model": "MPS\\MPSIllusionAreaRed.nif",
+      "editorId": "MPSIllusionAreaRed",
+      "source": "Skyrim.esm|02239E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 51,
+      "model": "MPS\\MPSIllusionAreaGreen.nif",
+      "editorId": "MPSIllusionAreaGreen",
+      "source": "Skyrim.esm|02518D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 52,
+      "model": "MPS\\MPSMetalSparkImpact.nif",
+      "editorId": "MPSMetalSparkImpact",
+      "source": "Skyrim.esm|048787",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 53,
+      "model": "MPS\\MPSMetalSparkImpactBlunt.nif",
+      "editorId": "MPSMetalSparkImpactBlunt",
+      "source": "Skyrim.esm|04B776",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 54,
+      "model": "MPS\\MPSMetalSparkImpactSlice.nif",
+      "editorId": "MPSMetalSparkImpactSlice",
+      "source": "Skyrim.esm|04B775",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 55,
+      "model": "MPS\\MPSChaurusSpit.nif",
+      "editorId": "MPSChaurusSpit",
+      "source": "Skyrim.esm|051D78",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 56,
+      "model": "MPS\\MPSSmokeChimney01.nif",
+      "editorId": "MPSSmokeChimney01",
+      "source": "Skyrim.esm|06002B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 57,
+      "model": "MPS\\MPSSmokeChimney02.nif",
+      "editorId": "MPSSmokeChimney02",
+      "source": "Skyrim.esm|06002C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 58,
+      "model": "MPS\\MPSMistStreet01.nif",
+      "editorId": "MPSMistStreet01",
+      "source": "Skyrim.esm|06002D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 59,
+      "model": "MPS\\MPSMotesForest01.nif",
+      "editorId": "MPSMotesForest01",
+      "source": "Skyrim.esm|06002E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 60,
+      "model": "MPS\\MPSReanimateProjectile.nif",
+      "editorId": "MPSReanimateProjectile",
+      "source": "Skyrim.esm|0CD152",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 61,
+      "model": "MPS\\MPSAshPile01.nif",
+      "editorId": "MPSAshPile01",
+      "source": "Skyrim.esm|0E7556",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 62,
+      "model": "MPS\\MPSBaneUndead01.nif",
+      "editorId": "MPSBaneUndead01",
+      "source": "Skyrim.esm|0E7558",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 63,
+      "model": "MPS\\MPSGuideParticles.nif",
+      "editorId": "MPSGuideParticles",
+      "source": "Skyrim.esm|03BF7B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 64,
+      "model": "MPS\\MPSFireWaveFlames.nif",
+      "editorId": "MPSFireWaveFlames",
+      "source": "Skyrim.esm|0647BC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 65,
+      "model": "MPS\\MPSFrostWaveProjectile.nif",
+      "editorId": "MPSFrostWaveProjectile",
+      "source": "Skyrim.esm|068BCF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 66,
+      "model": "MPS\\MPSFrostShardStorm.nif",
+      "editorId": "MPSFrostShardStorm01",
+      "source": "Skyrim.esm|068BD3",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 67,
+      "model": "MPS\\MPSClearSkyFogFX512.nif",
+      "editorId": "MPSClearSkyFogFX512",
+      "source": "Skyrim.esm|085FA9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 68,
+      "model": "MPS\\MPSFireLg02.nif",
+      "editorId": "MPSFireLg02",
+      "source": "Skyrim.esm|0CD822",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 69,
+      "model": "MPS\\MPSDragonFrostShoutImpact.nif",
+      "editorId": "MPSDragonFrostShoutImpact",
+      "source": "Skyrim.esm|0D7864",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 70,
+      "model": "MPS\\MPSLargeFrostTail.nif",
+      "editorId": "MPSLargeFrostTail",
+      "source": "Skyrim.esm|0DD608",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 71,
+      "model": "MPS\\MPSDragonFireWave.nif",
+      "editorId": "MPSDragonFireWave",
+      "source": "Skyrim.esm|0E1532",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 72,
+      "model": "MPS\\MPSShockImpacts02.nif",
+      "editorId": "MPSShockImpacts02",
+      "source": "Skyrim.esm|0EAFE2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 73,
+      "model": "MPS\\MPSIceShards.nif",
+      "editorId": "MPSIceShards",
+      "source": "Skyrim.esm|0ED39F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 74,
+      "model": "MPS\\MPSFireBallSmokeTrailBig.nif",
+      "editorId": "MPSFireBallSmokeTrailBig",
+      "source": "Skyrim.esm|0EE9ED",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 75,
+      "model": "MPS\\MPSActorDustSpray01.nif",
+      "editorId": "MPSActorDustSpray01",
+      "source": "Skyrim.esm|0F0EAB",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 76,
+      "model": "MPS\\MPSDrainBlueImpact.nif",
+      "editorId": "MPSDrainBlueImpact",
+      "source": "Skyrim.esm|0F1D00",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 77,
+      "model": "MPS\\MPSDrainGreenImpact.nif",
+      "editorId": "MPSDrainGreenImpact",
+      "source": "Skyrim.esm|0F1D02",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 78,
+      "model": "MPS\\MPSWaterSplashDrops.nif",
+      "editorId": "MPSWaterSplashDrops",
+      "source": "Skyrim.esm|0F3A8F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 79,
+      "model": "MPS\\MPSWaterSplash.nif",
+      "editorId": "MPSWaterSplash",
+      "source": "Skyrim.esm|0F3A90",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 80,
+      "model": "MPS\\MPSWaterBoilBubbles.nif",
+      "editorId": "MPSWaterBoilBubbles",
+      "source": "Skyrim.esm|0F3A91",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 81,
+      "model": "MPS\\MPSWaterBoilSteamBig.nif",
+      "editorId": "MPSWaterBoilSteamBig",
+      "source": "Skyrim.esm|0F3A93",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 82,
+      "model": "MPS\\MPSBloodSprayBigDrops.nif",
+      "editorId": "MPSBloodSprayBigDrops",
+      "source": "Skyrim.esm|0F44C1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 83,
+      "model": "MPS\\MPSBloodSprayBigMist.nif",
+      "editorId": "MPSBloodSprayBigMist",
+      "source": "Skyrim.esm|0F44C2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 84,
+      "model": "MPS\\MPSPoisonSpray01.nif",
+      "editorId": "MPSPoisonSpray01",
+      "source": "Skyrim.esm|0FFF4C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 85,
+      "model": "MPS\\MPSPoisonSpraySplash.nif",
+      "editorId": "MPSPoisonSpraySplash",
+      "source": "Skyrim.esm|0FFF4D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 86,
+      "model": "MPS\\MPSClearSkyLODFog.nif",
+      "editorId": "MPSClearSkyLODFog",
+      "source": "Skyrim.esm|102D69",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 87,
+      "model": "MPS\\MPSClearSkyFogOverHead.nif",
+      "editorId": "MPSClearSkyFogOverHead",
+      "source": "Skyrim.esm|10E43F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 88,
+      "model": "MPS\\MPSFrostMistSpiral.nif",
+      "editorId": "MPSFrostMistSpiral",
+      "source": "Skyrim.esm|10FBEF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 89,
+      "model": "DLC01\\MPS\\DLC01_MPSSoulRendTrail.nif",
+      "editorId": "DLC01SoulRendTrailMPS",
+      "source": "Dawnguard.esm|007CBE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 90,
+      "model": "DLC01\\MPS\\DLC1MPSVampDrainTrail01.nif",
+      "editorId": "DLC1MPSVampDrainTrail01",
+      "source": "Dawnguard.esm|01A3F9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 91,
+      "model": "magus\\mysticism\\mpspoisonspray.nif",
+      "editorId": "OREO_MPSPoisonSpray",
+      "source": "Madmen.esp|025BF0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 92,
+      "model": "magus\\mysticism\\mpspoisonimpact01.nif",
+      "editorId": "OREO_MPSPoisonImpact",
+      "source": "Madmen.esp|025BF1",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 93,
+      "model": "magus\\mysticism\\mpspoisonsmoketrail.nif",
+      "editorId": "OREO_MPSPoisonSmokeTrail",
+      "source": "Madmen.esp|025BF2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 94,
+      "model": "magus\\mysticism\\mpspoisonwave.nif",
+      "editorId": "OREO_MPSPoisonWave",
+      "source": "Madmen.esp|025BF3",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 95,
+      "model": "mps\\MODmpsPoisonWallSparks.nif",
+      "editorId": "OREO_MPSPoisonWallSparks",
+      "source": "Madmen.esp|025BF4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 96,
+      "model": "magus\\mysticism\\mpspoisonboltfire.nif",
+      "editorId": "OREO_MPSPoisonBoltFire",
+      "source": "Madmen.esp|025BF5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 97,
+      "model": "magus\\mysticism\\mpspoisonarea100.nif",
+      "editorId": "OREO_MPSPoisonArea100",
+      "source": "Madmen.esp|025BF6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 98,
+      "model": "madmen\\spells\\Gravesinger_thorns.nif",
+      "editorId": "OREO_ThornsAON",
+      "source": "Madmen.esp|034F5F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 100,
+      "model": "DLC02\\Effects\\AshMps.nif",
+      "editorId": "AshMps",
+      "source": "Dragonborn.esm|027BF8",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 161,
+      "model": "SanguineSymphony\\MPS\\Default\\MPSBloodSprayImpact01.nif",
+      "editorId": "SS_Default_MPSBloodSprayImpact01",
+      "source": "Sanguine Symphony.esp|000828",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 162,
+      "model": "SanguineSymphony\\MPS\\Default\\MPSBloodSplatImpact02.nif",
+      "editorId": "SS_Default_MPSBloodSplatImpact02",
+      "source": "Sanguine Symphony.esp|000827",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 163,
+      "model": "SanguineSymphony\\MPS\\Default\\MPSBloodSprayTiny03.nif",
+      "editorId": "SS_Default_MPSBloodSprayTiny03",
+      "source": "Sanguine Symphony.esp|000826",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 164,
+      "model": "SanguineSymphony\\MPS\\Insect\\MPSBloodSprayImpact01.nif",
+      "editorId": "SS_Insect_MPSBloodSprayImpact01",
+      "source": "Sanguine Symphony.esp|000829",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 165,
+      "model": "SanguineSymphony\\MPS\\Insect\\MPSBloodSplatImpact02.nif",
+      "editorId": "SS_Insect_MPSBloodSplatImpact02",
+      "source": "Sanguine Symphony.esp|00082A",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 166,
+      "model": "SanguineSymphony\\MPS\\Insect\\MPSBloodSprayTiny03.nif",
+      "editorId": "SS_Insect_MPSBloodSprayTiny03",
+      "source": "Sanguine Symphony.esp|00082B",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 167,
+      "model": "SanguineSymphony\\MPS\\Oil\\MPSBloodSprayImpact01.nif",
+      "editorId": "SS_Oil_MPSBloodSprayImpact01",
+      "source": "Sanguine Symphony.esp|000891",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 168,
+      "model": "SanguineSymphony\\MPS\\Oil\\MPSBloodSplatImpact02.nif",
+      "editorId": "SS_Oil_MPSBloodSplatImpact02",
+      "source": "Sanguine Symphony.esp|000892",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 169,
+      "model": "SanguineSymphony\\MPS\\Oil\\MPSBloodSprayTiny03.nif",
+      "editorId": "SS_Oil_MPSBloodSprayTiny03",
+      "source": "Sanguine Symphony.esp|000893",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 200,
+      "model": "bscyrodiil\\mps\\mpsbluecandleflame01.nif",
+      "editorId": "CYRMPSBlueCandleFlame01",
+      "source": "BSHeartland.esm|087698",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 201,
+      "model": "BSTamriel\\mps\\mpsayleidsparklesblue01.nif",
+      "editorId": "BSKMPSAyleidParticles01Blue",
+      "source": "BSAssets.esm|602C12",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 202,
+      "model": "BSTamriel\\mps\\mpsayleidsparklesgreen01.nif",
+      "editorId": "BSKMPSAyleidParticles01Green",
+      "source": "BSAssets.esm|602C13",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 224,
+      "model": "mps\\mpslightglow01.nif",
+      "editorId": "MPSLightGlow01",
+      "source": "Embers XD.esp|088F8B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 225,
+      "model": "mps\\mpslightglow02.nif",
+      "editorId": "MPSLightGlow02",
+      "source": "Embers XD.esp|09318C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 227,
+      "model": "mps\\mpstorchglow01.nif",
+      "editorId": "MPSTorchGlow01",
+      "source": "Embers XD.esp|0CFDB3",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 228,
+      "model": "mps\\mpstorchglow02.nif",
+      "editorId": "MPSTorchGlow02",
+      "source": "Embers XD.esp|0D9FB4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 229,
+      "model": "mps\\mpslightglow03.nif",
+      "editorId": "MPSLightGlow03",
+      "source": "Embers XD.esp|125F0D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 230,
+      "model": "mps\\mpsfirepit01.nif",
+      "editorId": "MPSFirepit01",
+      "source": "Embers XD.esp|14451C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 231,
+      "model": "mps\\mpstorchlight01.nif",
+      "editorId": "MPSTorchLight01",
+      "source": "Embers XD.esp|14E71D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 232,
+      "model": "MPS\\MPSFirePlace01.nif",
+      "editorId": "MPSFirePlace01",
+      "source": "Embers XD.esp|14E71E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 233,
+      "model": "mps\\mpslightglow04.nif",
+      "editorId": "MPSLightGlow04",
+      "source": "Embers XD.esp|14E71F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 234,
+      "model": "mps\\mpslightglow05.nif",
+      "editorId": "MPSLightGlow05",
+      "source": "Embers XD.esp|167C20",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 235,
+      "model": "mps\\mpsforgeglow01.nif",
+      "editorId": "MPSForgeGlow01",
+      "source": "Embers XD.esp|167C21",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 236,
+      "model": "mps\\mpslightglow06.nif",
+      "editorId": "MPSLightGlow06",
+      "source": "Embers XD.esp|167C22",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 237,
+      "model": "MPS\\MPSFlamesFire02.nif",
+      "editorId": "MPSFlamesFire02",
+      "source": "Embers XD - Fire Magick Add-On.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 238,
+      "model": "MPS\\mpsmeteorsmoke01.nif",
+      "editorId": "MPSMeteorSmoke01",
+      "source": "Embers XD - Fire Magick Add-On.esp|000801",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 239,
+      "model": "mps\\mpscampfire01.nif",
+      "editorId": "MPSCampfire01",
+      "source": "Embers XD.esp|181129",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 240,
+      "model": "MPS\\MPSFireBoltFire02.nif",
+      "editorId": "MPSFireBoltFire02",
+      "source": "Embers XD - Fire Magick Add-On.esp|000802",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 241,
+      "model": "MPS\\MPSEmbersSm.nif",
+      "editorId": "MPSEmbersSm",
+      "source": "Embers XD.esp|19F743",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 242,
+      "model": "MPS\\MPSEmbers.nif",
+      "editorId": "MPSEmbers",
+      "source": "Embers XD.esp|19F742",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 401,
+      "model": "HPGoblands\\Effects\\HPGMPS01.nif",
+      "editorId": "HPGMPS01",
+      "source": "Haem Projects Goblands.esp|2778DC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 402,
+      "model": "HPGoblands\\Effects\\HPGMPS02.nif",
+      "editorId": "HPGMPS02",
+      "source": "Haem Projects Goblands.esp|2778DD",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 550,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsfirewallbase_bluepurple.nif",
+      "editorId": "GRIM_MPS_FireBluePurpleBase",
+      "source": "LostGrimoire.esp|024AFD",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 551,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsfirewallsparks_bluepurple.nif",
+      "editorId": "GRIM_MPS_FireBluePurpleSparks",
+      "source": "LostGrimoire.esp|024AFC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 552,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsfirewallbase_golden.nif",
+      "editorId": "GRIM_MPS_FireGoldenBase",
+      "source": "LostGrimoire.esp|14FA4F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 553,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsfirewallsparks_golden.nif",
+      "editorId": "GRIM_MPS_FireGoldenSparks",
+      "source": "LostGrimoire.esp|14FA50",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 554,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mspDiseaseProj.nif",
+      "editorId": "GRIM_MPS_DiseaseProj",
+      "source": "LostGrimoire.esp|1A2A15",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 555,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsfrosthazard_sm.nif",
+      "editorId": "GRIM_MPS_FrostHazardSm",
+      "source": "LostGrimoire.esp|2214E5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 556,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsHellfireImpact01.nif",
+      "editorId": "GRIM_MPS_HellfireImpact",
+      "source": "LostGrimoire.esp|328BD2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 557,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsHellfireSparktrail.nif",
+      "editorId": "GRIM_MPS_HellfireSparktrail",
+      "source": "LostGrimoire.esp|32DCD9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 558,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsHellfireSmoketrail.nif",
+      "editorId": "GRIM_MPS_HellfireSmoketrail",
+      "source": "LostGrimoire.esp|32DCDA",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 559,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsHellfireWallbase.nif",
+      "editorId": "GRIM_MPS_HellfireWallbase",
+      "source": "LostGrimoire.esp|32DCDD",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 560,
+      "model": "Steelfeathers\\LostGrimoire\\MPS\\mpsHellfireWallsparks.nif",
+      "editorId": "GRIM_MPS_HellfireWallSparks",
+      "source": "LostGrimoire.esp|32DCDE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 882,
+      "model": "mps\\windprojectilemps.nif",
+      "editorId": "WindProjectileMps",
+      "source": "mihailhighfantasypack.esp|072A72",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 883,
+      "model": "mps\\windexpertprojectilemps.nif",
+      "editorId": "WindExpertProjectileMps",
+      "source": "mihailhighfantasypack.esp|072A73",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 884,
+      "model": "mps\\windmps.nif",
+      "editorId": "WindMps",
+      "source": "mihailhighfantasypack.esp|009462",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 885,
+      "model": "mps\\mpswindwall01.nif",
+      "editorId": "MPSWindWallBase",
+      "source": "mihailhighfantasypack.esp|009463",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 886,
+      "model": "mps\\windbigmps.nif",
+      "editorId": "WindBigMps",
+      "source": "mihailhighfantasypack.esp|01AD59",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1004,
+      "model": "mps\\MODmpsPoisonWallSparks.nif",
+      "editorId": "MAG_MPSPoisonWallSparks",
+      "source": "MysticismMagic.esp|9471A6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1006,
+      "model": "magus\\mysticism\\mpspoisonsmoketrail.nif",
+      "editorId": "MAG_MPSPoisonSmokeTrail",
+      "source": "MysticismMagic.esp|8E6E79",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1018,
+      "model": "magus\\mysticism\\mpspoisonspray.nif",
+      "editorId": "MAG_MPSPoisonSpray",
+      "source": "MysticismMagic.esp|8C886E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1035,
+      "model": "magus\\mysticism\\mpspoisonboltfire.nif",
+      "editorId": "MAG_MPSPoisonBoltFire",
+      "source": "MysticismMagic.esp|9471A7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1045,
+      "model": "magus\\mysticism\\mpspoisonarea100.nif",
+      "editorId": "MAG_MPSPoisonArea100",
+      "source": "MysticismMagic.esp|9657AF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1064,
+      "model": "magus\\mysticism\\mpspoisonwave.nif",
+      "editorId": "MAG_MPSPoisonWave",
+      "source": "MysticismMagic.esp|9471A5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1091,
+      "model": "HyorkerIsle\\mps\\MPSPlagueWaveProjectile.nif",
+      "editorId": "HYORPlagueBreathProjectile",
+      "source": "Siege at Icemoth.esp|00C7A0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1616,
+      "model": "magus\\mysticism\\mpssunfireimpact01.nif",
+      "editorId": "MAG_MPSSunfireImpact",
+      "source": "MysticismMagic.esp|98DFBE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1617,
+      "model": "magus\\mysticism\\mpsabsorbmagickaprojectile.nif",
+      "editorId": "MAG_MPSMagickaAbsorbProjectile",
+      "source": "MysticismMagic.esp|B97813",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 1618,
+      "model": "magus\\mysticism\\mpsabsorbstaminaprojectile.nif",
+      "editorId": "MAG_MPSStaminaAbsorbProjectile",
+      "source": "MysticismMagic.esp|BABC1C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2274,
+      "model": "magus\\mysticism\\mpspoisonimpact01.nif",
+      "editorId": "AM_MPSPoisonImpact",
+      "source": "Arachnomancy.esp|0A9E67",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 2471,
+      "model": "Natura\\magic\\mpsspriggangreenimpact.nif",
+      "editorId": "NAT_MPSSprigganGreenImpact",
+      "source": "Natura.esp|000909",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2472,
+      "model": "Natura\\magic\\mpsstone01.nif",
+      "editorId": "NAT_MPSStone01",
+      "source": "Natura.esp|000ABA",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2473,
+      "model": "Natura\\magic\\mpswatertrail.nif",
+      "editorId": "NAT_MPSWaterTrail",
+      "source": "Natura.esp|000B1B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2474,
+      "model": "Natura\\magic\\mpswaterdroptrail.nif",
+      "editorId": "NAT_MPSWaterDropTrail",
+      "source": "Natura.esp|000B1C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2475,
+      "model": "Natura\\magic\\mpswater01.nif",
+      "editorId": "NAT_MPSWater01",
+      "source": "Natura.esp|000B31",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2476,
+      "model": "Natura\\magic\\mpswaterwave.nif",
+      "editorId": "NAT_MPSWaterWave",
+      "source": "Natura.esp|000B38",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2477,
+      "model": "Natura\\magic\\mpswind01.nif",
+      "editorId": "NAT_MPSWind01",
+      "source": "Natura.esp|000B61",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2478,
+      "model": "Natura\\magic\\mpswindtrail.nif",
+      "editorId": "NAT_MPSWindTrail",
+      "source": "Natura.esp|000B76",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2479,
+      "model": "Natura\\magic\\mpsgreenhealwave.nif",
+      "editorId": "NAT_MPSGreenHealWave",
+      "source": "Natura.esp|000C14",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2480,
+      "model": "Natura\\magic\\mpsalterationwaveprojectile.nif",
+      "editorId": "NAT_MPSGreenWave",
+      "source": "Natura.esp|000CA5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2481,
+      "model": "Natura\\magic\\mpssprigganpoisonspray01.nif",
+      "editorId": "NAT_MPSSprigganSpray01",
+      "source": "Natura.esp|000D06",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2482,
+      "model": "Natura\\magic\\mpssprigganpoisonspray02.nif",
+      "editorId": "NAT_MPSSprigganSpray02",
+      "source": "Natura.esp|000D07",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2483,
+      "model": "Natura\\magic\\mpssprigganpoisonspray03.nif",
+      "editorId": "NAT_MPSSprigganSpray03",
+      "source": "Natura.esp|000D08",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2484,
+      "model": "Natura\\magic\\mpssprigganbugtrail.nif",
+      "editorId": "NAT_MPSSprigganLocustTrail",
+      "source": "Natura.esp|000D14",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2485,
+      "model": "Natura\\magic\\mpssprigganbugwallfx.nif",
+      "editorId": "NAT_MPSSprigganLocustWallFX",
+      "source": "Natura.esp|000D2D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2486,
+      "model": "Natura\\magic\\mpswaterwallfx.nif",
+      "editorId": "NAT_MPSWaterWallFX",
+      "source": "Natura.esp|000D62",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2487,
+      "model": "Natura\\magic\\mpswindwallfx.nif",
+      "editorId": "NAT_MPSWindWallFX",
+      "source": "Natura.esp|000D63",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2488,
+      "model": "Natura\\magic\\mpswaterspray02.nif",
+      "editorId": "NAT_MPSWaterSpray02",
+      "source": "Natura.esp|000D64",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2489,
+      "model": "Natura\\magic\\mpswindspray01.nif",
+      "editorId": "NAT_MPSWindSpray01",
+      "source": "Natura.esp|000D65",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2490,
+      "model": "Natura\\magic\\mpswindspray02.nif",
+      "editorId": "NAT_MPSWindSpray02",
+      "source": "Natura.esp|000D66",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2491,
+      "model": "Natura\\magic\\mpswindspray03.nif",
+      "editorId": "NAT_MPSWindSpray03",
+      "source": "Natura.esp|000D67",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2492,
+      "model": "Natura\\magic\\mpswaterspray01.nif",
+      "editorId": "NAT_MPSWaterSpray01",
+      "source": "Natura.esp|000D68",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2493,
+      "model": "Natura\\magic\\mpsstonespray01.nif",
+      "editorId": "NAT_MPSStoneSpray01",
+      "source": "Natura.esp|000E3C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2494,
+      "model": "Natura\\magic\\mpsstonespray02.nif",
+      "editorId": "NAT_MPSStoneSpray02",
+      "source": "Natura.esp|000E3D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 2495,
+      "model": "Natura\\magic\\mpsstonespray03.nif",
+      "editorId": "NAT_MPSStoneSpray03",
+      "source": "Natura.esp|000E3E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 3000,
+      "model": "BSCyrodiil\\mps\\mpsayleidlightbeamsmoke01.nif",
+      "editorId": "CYRMPSAyleidLightBeamSmoke01",
+      "source": "BSHeartland.esm|086806",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 3477,
+      "model": "Lunaris\\magic\\mpsmoonspray01.nif",
+      "editorId": "LUN_MPSMoonSpray01",
+      "source": "Lunaris.esp|000811",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 3478,
+      "model": "Lunaris\\magic\\mpsmoonexplosion03.nif",
+      "editorId": "LUN_MPSMoonExplosion",
+      "source": "Lunaris.esp|000845",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 3479,
+      "model": "Lunaris\\magic\\mpsmoonhazard.nif",
+      "editorId": "LUN_MPSMoonHazard",
+      "source": "Lunaris.esp|0008A9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4170,
+      "model": "Abyss\\Magic\\mpsshadowsmoketrail.nif",
+      "editorId": "ABY_MPSShadowSmokeTrail",
+      "source": "Abyss.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4171,
+      "model": "Abyss\\Magic\\mpsshadowwaveprojectile.nif",
+      "editorId": "ABY_MPSShadowWaveProjectile",
+      "source": "Abyss.esp|000833",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4172,
+      "model": "Abyss\\Magic\\mpsshadowparticles.nif",
+      "editorId": "ABY_MPSShadowParticles",
+      "source": "Abyss.esp|000AB6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4173,
+      "model": "Abyss\\Magic\\mpsshadowhazard.nif",
+      "editorId": "ABY_MPSShadowHazard",
+      "source": "Abyss.esp|000BEF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4174,
+      "model": "Abyss\\Magic\\mpsshadowspray01.nif",
+      "editorId": "ABY_MPSShadowSpray01",
+      "source": "Abyss.esp|000C16",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 4175,
+      "model": "Abyss\\Magic\\mpsshadowspray02.nif",
+      "editorId": "ABY_MPSShadowSpray02",
+      "source": "Abyss.esp|000C17",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5170,
+      "model": "Bloodmoon\\magic\\mpsbloodtrail01.nif",
+      "editorId": "BLO_MPSBloodTrail01",
+      "source": "Bloodmoon.esp|000818",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5171,
+      "model": "Bloodmoon\\magic\\mpsbloodspray01.nif",
+      "editorId": "BLO_MPSBloodSpray01",
+      "source": "Bloodmoon.esp|000826",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5172,
+      "model": "Bloodmoon\\magic\\mpsbloodhazard.nif",
+      "editorId": "BLO_MPSBloodHazard",
+      "source": "Bloodmoon.esp|000950",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5173,
+      "model": "Bloodmoon\\magic\\mpsbloodtrail02.nif",
+      "editorId": "BLO_MPSBloodTrail02",
+      "source": "Bloodmoon.esp|000951",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5174,
+      "model": "Bloodmoon\\magic\\mpsbloodspray02.nif",
+      "editorId": "BLO_MPSBloodSpray02",
+      "source": "Bloodmoon.esp|00095E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5175,
+      "model": "Bloodmoon\\magic\\mpsbloodspray03.nif",
+      "editorId": "BLO_MPSBloodSpray03",
+      "source": "Bloodmoon.esp|00095F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5270,
+      "model": "Dareni\\magic\\mpsstartrail.nif",
+      "editorId": "DAR_MPSStarTrail",
+      "source": "Stellaris.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5271,
+      "model": "Dareni\\magic\\mpsstarmisttrail.nif",
+      "editorId": "DAR_MPSStarMistTrail",
+      "source": "Stellaris.esp|000801",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5272,
+      "model": "Dareni\\magic\\mpsstarmistspray.nif",
+      "editorId": "DAR_MPSStarSpray",
+      "source": "Stellaris.esp|000802",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5273,
+      "model": "Dareni\\magic\\mpsstarwaveprojectile01.nif",
+      "editorId": "DAR_MPSStarWaveProjectile",
+      "source": "Stellaris.esp|000803",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5274,
+      "model": "Dareni\\magic\\mpsstarwallsparks.nif",
+      "editorId": "DAR_MPSStarWallSparks",
+      "source": "Stellaris.esp|000806",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5275,
+      "model": "Dareni\\magic\\mpsstarspray01.nif",
+      "editorId": "DAR_MPSStarSpray01",
+      "source": "Stellaris.esp|000967",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5276,
+      "model": "Dareni\\magic\\mpsstarspray02.nif",
+      "editorId": "DAR_MPSStarSpray02",
+      "source": "Stellaris.esp|000968",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5280,
+      "model": "Dareni\\magic\\mpsvulcantrail.nif",
+      "editorId": "DAR_MPSMoltenTrail",
+      "source": "Vulcano.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5281,
+      "model": "Dareni\\magic\\mpsvulcanmisttrail.nif",
+      "editorId": "DAR_MPSMoltenMistTrail",
+      "source": "Vulcano.esp|000801",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5282,
+      "model": "Dareni\\magic\\mpsvulcanmistspray.nif",
+      "editorId": "DAR_MPSMoltenSpray",
+      "source": "Vulcano.esp|000802",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5283,
+      "model": "Dareni\\magic\\mpsvulcanwaveprojectile01.nif",
+      "editorId": "DAR_MPSMoltenBladeProjectile01",
+      "source": "Vulcano.esp|000803",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5284,
+      "model": "Dareni\\magic\\mpsvulcanwallsparks.nif",
+      "editorId": "DAR_MPSMoltenWallSparks",
+      "source": "Vulcano.esp|000806",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5285,
+      "model": "Dareni\\magic\\mpsvulcanwaveprojectile02.nif",
+      "editorId": "DAR_MPSMoltenBladeProjectile02",
+      "source": "Vulcano.esp|000987",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5290,
+      "model": "Dareni\\magic\\mpsarcimpacts01.nif",
+      "editorId": "DAR_MPSArcimpacts01",
+      "source": "Arclight.esp|000803",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5291,
+      "model": "Dareni\\magic\\mpsarcimpacts02.nif",
+      "editorId": "DAR_MPSArcimpacts02",
+      "source": "Arclight.esp|000987",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5292,
+      "model": "Dareni\\magic\\mpsarcwaveprojectile.nif",
+      "editorId": "DAR_MPSArcWave01",
+      "source": "Arclight.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5368,
+      "model": "ColdFire\\MPS\\MPSFireBallSmokeTrail.nif",
+      "editorId": "FLA_MPSColdFireBallSmokeTrail",
+      "source": "Flames of Coldharbour.esp|000863",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5369,
+      "model": "ColdFire\\MPS\\MPSFireBallSmokeTrailBig.nif",
+      "editorId": "FLA_MPSColdFireBallSmokeTrailBig",
+      "source": "Flames of Coldharbour.esp|000864",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5370,
+      "model": "ColdFire\\MPS\\MPSFireBallSparkTrail.nif",
+      "editorId": "FLA_MPSColdFireBallSparkTrail",
+      "source": "Flames of Coldharbour.esp|000865",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5371,
+      "model": "ColdFire\\MPS\\MPSFireBoltFire01.nif",
+      "editorId": "FLA_MPSColdFireBoltFire01",
+      "source": "Flames of Coldharbour.esp|000866",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5372,
+      "model": "ColdFire\\MPS\\MPSFireBoltImpact01.nif",
+      "editorId": "FLA_MPSColdFireBoltImpact01",
+      "source": "Flames of Coldharbour.esp|000867",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 5373,
+      "model": "ColdFire\\MPS\\MPSFireLg01.nif",
+      "editorId": "FLA_MPSColdFireLg01",
+      "source": "Flames of Coldharbour.esp|000868",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5374,
+      "model": "ColdFire\\MPS\\MPSFireLg02.nif",
+      "editorId": "FLA_MPSColdFireLg02",
+      "source": "Flames of Coldharbour.esp|000869",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5375,
+      "model": "ColdFire\\MPS\\MPSFireSmSmoke01.nif",
+      "editorId": "FLA_MPSColdFireSmSmoke01",
+      "source": "Flames of Coldharbour.esp|00086A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5376,
+      "model": "ColdFire\\MPS\\MPSFireStormAreaFlames.nif",
+      "editorId": "FLA_MPSColdFireStormAreaFlames",
+      "source": "Flames of Coldharbour.esp|00086B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5377,
+      "model": "ColdFire\\MPS\\MPSFireWallBase.nif",
+      "editorId": "FLA_MPSColdFireWallBase",
+      "source": "Flames of Coldharbour.esp|00086C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5378,
+      "model": "ColdFire\\MPS\\MPSFireWallSparks.nif",
+      "editorId": "FLA_MPSColdFireWallSparks",
+      "source": "Flames of Coldharbour.esp|00086D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5379,
+      "model": "ColdFire\\MPS\\MPSFlamesFire.nif",
+      "editorId": "FLA_MPSColdFlamesFire",
+      "source": "Flames of Coldharbour.esp|00086E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5380,
+      "model": "ColdFire\\MPS\\MPSFireWaveFlames.nif",
+      "editorId": "FLA_MPSColdFireWaveFlames",
+      "source": "Flames of Coldharbour.esp|00086F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5381,
+      "model": "ColdFire\\MPS\\MPSFireLgSmoke01.nif",
+      "editorId": "FLA_MPSColdFireLgSmoke01",
+      "source": "Flames of Coldharbour.esp|000870",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5382,
+      "model": "ColdFire\\MPS\\MPSFlameTrapFire.nif",
+      "editorId": "FLA_MPSColdFlameTrapFire",
+      "source": "Flames of Coldharbour.esp|000871",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5383,
+      "model": "ColdFire\\MPS\\MPSFireSmall01.nif",
+      "editorId": "FLA_MPSColdFireSmall01",
+      "source": "Flames of Coldharbour.esp|000872",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5460,
+      "model": "dareni\\Magic\\mpsarcansmoketrail.nif",
+      "editorId": "DAR_MPSArcaneSmokeTrail",
+      "source": "Arcane.esp|000800",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5461,
+      "model": "dareni\\Magic\\mpsarcanwaveprojectile.nif",
+      "editorId": "DAR_MPSArcaneWaveProjectile",
+      "source": "Arcane.esp|000833",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5462,
+      "model": "dareni\\Magic\\mpsarcanparticles.nif",
+      "editorId": "DAR_MPSArcaneParticles",
+      "source": "Arcane.esp|000AB6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5463,
+      "model": "dareni\\Magic\\mpsarcanhazard.nif",
+      "editorId": "DAR_MPSArcaneHazard",
+      "source": "Arcane.esp|000BEF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5464,
+      "model": "dareni\\Magic\\mpsarcanespray03.nif",
+      "editorId": "DAR_MPSArcaneSpray03",
+      "source": "Arcane.esp|000FB7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5465,
+      "model": "dareni\\Magic\\mpsarcanespray02.nif",
+      "editorId": "DAR_MPSArcaneSpray02",
+      "source": "Arcane.esp|000FB8",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5468,
+      "model": "dareni\\MPS\\mpslichfireballsmoketrail.nif",
+      "editorId": "DAR_MPSNecroticFireBallSmokeTrail",
+      "source": "Desecration.esp|000863",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5469,
+      "model": "dareni\\MPS\\mpslichfireballsmoketrailbig.nif",
+      "editorId": "DAR_MPSNecroticFireBallSmokeTrailBig",
+      "source": "Desecration.esp|000864",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5470,
+      "model": "Dareni\\MPS\\mpslichfireballsparktrail.nif",
+      "editorId": "DAR_MPSNecroticFireBallSparkTrail",
+      "source": "Desecration.esp|000865",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5471,
+      "model": "Dareni\\MPS\\mpslichfireboltfire01.nif",
+      "editorId": "DAR_MPSNecroticFireBoltFire01",
+      "source": "Desecration.esp|000866",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5472,
+      "model": "Dareni\\MPS\\mpslichfireboltimpact01.nif",
+      "editorId": "DAR_MPSNecroticFireBoltImpact01",
+      "source": "Desecration.esp|000867",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 5473,
+      "model": "Dareni\\MPS\\mpslichfirelg01.nif",
+      "editorId": "DAR_MPSNecroticFireLg01",
+      "source": "Desecration.esp|000868",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5474,
+      "model": "Dareni\\MPS\\mpslichfirelg02.nif",
+      "editorId": "DAR_MPSNecroticFireLg02",
+      "source": "Desecration.esp|000869",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5475,
+      "model": "Dareni\\MPS\\mpslichfiresmsmoke01.nif",
+      "editorId": "DAR_MPSNecroticFireSmSmoke01",
+      "source": "Desecration.esp|00086A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5476,
+      "model": "Dareni\\MPS\\mpslichfirestormareaflames.nif",
+      "editorId": "DAR_MPSNecroticFireStormAreaFlames",
+      "source": "Desecration.esp|00086B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5477,
+      "model": "Dareni\\MPS\\mpslichfirewallbase.nif",
+      "editorId": "DAR_MPSNecroticFireWallBase",
+      "source": "Desecration.esp|00086C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5478,
+      "model": "dareni\\MPS\\mpslichfirewallsparks.nif",
+      "editorId": "DAR_MPSNecroticFireWallSparks",
+      "source": "Desecration.esp|00086D",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5479,
+      "model": "dareni\\MPS\\mpslichflamesfire.nif",
+      "editorId": "DAR_MPSNecroticFlamesFire",
+      "source": "Desecration.esp|00086E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5480,
+      "model": "dareni\\MPS\\mpslichfirewaveflames.nif",
+      "editorId": "DAR_MPSNecroticFireWaveFlames",
+      "source": "Desecration.esp|00086F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5481,
+      "model": "Dareni\\MPS\\mpslichfirelgsmoke01.nif",
+      "editorId": "DAR_MPSNecroticFireLgSmoke01",
+      "source": "Desecration.esp|000870",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5482,
+      "model": "dareni\\MPS\\mpslichflametrapfire.nif",
+      "editorId": "DAR_MPSNecroticFlameTrapFire",
+      "source": "Desecration.esp|000871",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5483,
+      "model": "Dareni\\MPS\\mpslichfiresmall01.nif",
+      "editorId": "DAR_MPSNecroticFireSmall01",
+      "source": "Desecration.esp|000872",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 5492,
+      "model": "magus\\mysticism\\mpspoisontrail01.nif",
+      "editorId": "MAG_MPSPoisonImpact",
+      "source": "MysticismMagic.esp|8D2A70",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 6484,
+      "model": "Dareni\\MPS\\mpslichreanimateprojectile.nif",
+      "editorId": "NEC_MPSNecroticReanimateProjectile01",
+      "source": "Necrotic.esp|000A69",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6485,
+      "model": "Dareni\\MPS\\mpslichfireballsparktrail02.nif",
+      "editorId": "DES_MPSNecroticFireBallSparkTrail",
+      "source": "Necrotic.esp|000B43",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6486,
+      "model": "Dareni\\MPS\\mpslichfireboltfire02.nif",
+      "editorId": "DES_MPSNecroticFireBoltFire01",
+      "source": "Necrotic.esp|000B44",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6487,
+      "model": "Dareni\\MPS\\mpslichfirelg02.nif",
+      "editorId": "DES_MPSNecroticFireLg01",
+      "source": "Necrotic.esp|000B45",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6488,
+      "model": "dareni\\MPS\\mpslichfirewallsparks02.nif",
+      "editorId": "DES_MPSNecroticFireWallSparks",
+      "source": "Necrotic.esp|000B46",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6489,
+      "model": "dareni\\MPS\\mpslichflamesfire02.nif",
+      "editorId": "DES_MPSNecroticFlamesFire",
+      "source": "Necrotic.esp|000B47",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6490,
+      "model": "dareni\\MPS\\mpslichfirewaveflames02.nif",
+      "editorId": "DES_MPSNecroticFireWaveFlames",
+      "source": "Necrotic.esp|000B48",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6491,
+      "model": "Dareni\\MPS\\mpslichfireboltimpact02.nif",
+      "editorId": "DES_MPSNecroticFireBoltImpact01",
+      "source": "Necrotic.esp|000B49",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 6492,
+      "model": "Dareni\\MPS\\mpslichfiresmsmoke02.nif",
+      "editorId": "DES_MPSNecroticFireSmSmoke01",
+      "source": "Necrotic.esp|000B4F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6493,
+      "model": "Dareni\\MPS\\mpslichfirelgsmoke02.nif",
+      "editorId": "DES_MPSNecroticFireLgSmoke01",
+      "source": "Necrotic.esp|000B50",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 6494,
+      "model": "Dareni\\MPS\\mpslichfiresmall02.nif",
+      "editorId": "DES_MPSNecroticFireSmall01",
+      "source": "Necrotic.esp|000B51",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8001,
+      "model": "Dragon War\\MPSDragonFireSmokeTrail01.nif",
+      "editorId": "DW_MPSDragonFireSmokeTrail01",
+      "source": "DragonWar.esp|8176AC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8002,
+      "model": "Dragon War\\MPSDragonFireBoltFire01.nif",
+      "editorId": "DW_MPSDragonFireBoltFire01",
+      "source": "DragonWar.esp|8176AD",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8003,
+      "model": "Dragon War\\MPSDragonFireballSparkTrail01.nif",
+      "editorId": "DW_MPSDragonFireballSparkTrail01",
+      "source": "DragonWar.esp|8176AE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8004,
+      "model": "Dragon War\\MPSDragonPoisonSmokeTrail01.nif",
+      "editorId": "DW_MPSDragonPoisonSmokeTrail01",
+      "source": "DragonWar.esp|81C7B0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8005,
+      "model": "Dragon War\\MPSDragonPoisonSmokeTrail02.nif",
+      "editorId": "DW_MPSDragonPoisonSmokeTrail02",
+      "source": "DragonWar.esp|81C7B1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8006,
+      "model": "Dragon War\\MPSDragonFrostMistSpiral.nif",
+      "editorId": "DW_MPSDragonFrostMistSpiral",
+      "source": "DragonWar.esp|81C7B2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8007,
+      "model": "Dragon War\\MPSDragonFrostMistTrail01.nif",
+      "editorId": "DW_MPSDragonFrostMistTrail01",
+      "source": "DragonWar.esp|81C7B3",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8008,
+      "model": "Dragon War\\MPSDragonFrostMagicSpray.nif",
+      "editorId": "DW_MPSDragonFrostMagicSpray",
+      "source": "DragonWar.esp|81C7B4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8009,
+      "model": "Dragon War\\MPSDragonColdFireballSparkTrail01.nif",
+      "editorId": "DW_MPSDragonColdFireballSparkTrail01",
+      "source": "DragonWar.esp|81C7B5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8010,
+      "model": "Dragon War\\MPSDragonColdBoltFire01.nif",
+      "editorId": "DW_MPSDragonColdFireBoltFire01",
+      "source": "DragonWar.esp|81C7B6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8011,
+      "model": "Dragon War\\MPSDragonFireballSparkTrail02.nif",
+      "editorId": "DW_MPSDragonFireballSparkTrail02",
+      "source": "DragonWar.esp|81C7B7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8012,
+      "model": "Dragon War\\MPSDragonFireWallSparks02.nif",
+      "editorId": "DW_MPSDragonFireWallSparks02",
+      "source": "DragonWar.esp|81C7B8",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8013,
+      "model": "Dragon War\\MPSDragonFireBoltFire02.nif",
+      "editorId": "DW_MPSDragonFireBoltFire02",
+      "source": "DragonWar.esp|81C7B9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8014,
+      "model": "Dragon War\\MPSDragonColdWallSparks02.nif",
+      "editorId": "DW_MPSDragonColdWallSparks02",
+      "source": "DragonWar.esp|81C7BA",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8015,
+      "model": "Dragon War\\MPSDragonColdBoltFire02.nif",
+      "editorId": "DW_MPSDragonColdFireBoltFire02",
+      "source": "DragonWar.esp|81C7BB",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8016,
+      "model": "Dragon War\\MPSDragonSunImpact01.nif",
+      "editorId": "DW_MPSDragonSunImpact01",
+      "source": "DragonWar.esp|81C7BC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8017,
+      "model": "Dragon War\\MPSDragonSunSparkTrail01.nif",
+      "editorId": "DW_MPSDragonSunSparkTrail01",
+      "source": "DragonWar.esp|9D0001",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8018,
+      "model": "Dragon War\\MPSDragonColdSmokeTrail01.nif",
+      "editorId": "DW_MPSDragonColdSmokeTrail01",
+      "source": "DragonWar.esp|81C7BE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8019,
+      "model": "Dragon War\\MPSDragonColdFireballSparkTrail02.nif",
+      "editorId": "DW_MPSDragonColdFireballSparkTrail02",
+      "source": "DragonWar.esp|81C7BF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8020,
+      "model": "Dragon War\\MPSDragonFireSM01.nif",
+      "editorId": "DW_MPSDragonFireSM01",
+      "source": "DragonWar.esp|9D5128",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8021,
+      "model": "Dragon War\\MPSDragonFireWallBase01.nif",
+      "editorId": "DW_MPSDragonFireWallBase01",
+      "source": "DragonWar.esp|81C7C1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8022,
+      "model": "Dragon War\\MPSDragonFireWallSparks01.nif",
+      "editorId": "DW_MPSDragonFireWallSparks01",
+      "source": "DragonWar.esp|81C7C2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8023,
+      "model": "Dragon War\\MPSDragonShockImpact02.nif",
+      "editorId": "DW_MPSDragonShockImpact02",
+      "source": "DragonWar.esp|83ADE6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8024,
+      "model": "Dragon War\\MPSDragonShockImpact01.nif",
+      "editorId": "DW_MPSDragonShockImpact01",
+      "source": "DragonWar.esp|83ADE7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8025,
+      "model": "Dragon War\\MPSDragonSteam01.nif",
+      "editorId": "DW_MPSDragonSteam01",
+      "source": "DragonWar.esp|81C7C5",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8026,
+      "model": "Dragon War\\MPSDragonPushParticles.nif",
+      "editorId": "DW_MPSDragonPushParticles",
+      "source": "DragonWar.esp|85E509",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8027,
+      "model": "Dragon War\\MPSDragonSmoke01.nif",
+      "editorId": "DW_MPSDragonSmoke01",
+      "source": "DragonWar.esp|81C7C7",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8028,
+      "model": "Dragon War\\MPSDragonFireWaveFlames.nif",
+      "editorId": "DW_MPSDragonFireWaveFlames",
+      "source": "DragonWar.esp|8AF546",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8029,
+      "model": "Dragon War\\MPSDragonColdWallBase01.nif",
+      "editorId": "DW_MPSDragonColdWallBase01",
+      "source": "DragonWar.esp|81C7C9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8030,
+      "model": "Dragon War\\MPSDragonColdWaveFlames.nif",
+      "editorId": "DW_MPSDragonColdWaveFlames",
+      "source": "DragonWar.esp|8AF547",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8031,
+      "model": "Dragon War\\MPSDragonColdWallSparks01.nif",
+      "editorId": "DW_MPSDragonColdWallSparks01",
+      "source": "DragonWar.esp|81C7CB",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8032,
+      "model": "Dragon War\\MPSDragonFrostImpact01.nif",
+      "editorId": "DW_MPSDragonFrostImpact01",
+      "source": "DragonWar.esp|9933BB",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8033,
+      "model": "Dragon War\\MPSDragonFireSMSmoke01.nif",
+      "editorId": "DW_MPSDragonFireSMSmoke01",
+      "source": "DragonWar.esp|9D5127",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8034,
+      "model": "mps\\BLUEmpsflamesfire.nif",
+      "editorId": "MPSFlamesFireblue",
+      "source": "mihailskeletalrevenants.esp|00098A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8035,
+      "model": "Dragon War\\MPSDragonColdSMSmoke01.nif",
+      "editorId": "DW_MPSDragonColdSMSmoke01",
+      "source": "DragonWar.esp|9D5129",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8036,
+      "model": "Dragon War\\MPSDragonPoisonSmokeImpact01.nif",
+      "editorId": "DW_MPSDragonPoisonSmokeImpact01",
+      "source": "DragonWar.esp|9A77DE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8037,
+      "model": "Dragon War\\MPSDragonFrostImpact02.nif",
+      "editorId": "DW_MPSDragonFrostImpact02",
+      "source": "DragonWar.esp|9933BC",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8038,
+      "model": "Dragon War\\MPSDragonFrostWaveProjectile01.nif",
+      "editorId": "DW_MPSDragonFrostWaveProjectile",
+      "source": "DragonWar.esp|9933BD",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8039,
+      "model": "Dragon War\\MPSDragonFlamesFire01.nif",
+      "editorId": "DW_MPSDragonFlamesFire01",
+      "source": "DragonWar.esp|99D5BE",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8040,
+      "model": "Dragon War\\MPSDragonFlamesFire02.nif",
+      "editorId": "DW_MPSDragonFlamesFire02",
+      "source": "DragonWar.esp|99D5C0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8041,
+      "model": "Dragon War\\MPSDragonColdFire01.nif",
+      "editorId": "DW_MPSDragonColdFire01",
+      "source": "DragonWar.esp|99D5C1",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8042,
+      "model": "Dragon War\\MPSDragonColdFire02.nif",
+      "editorId": "DW_MPSDragonColdFire02",
+      "source": "DragonWar.esp|99D5C2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8043,
+      "model": "Dragon War\\MPSDragonColdSM01.nif",
+      "editorId": "DW_MPSDragonColdSM01",
+      "source": "DragonWar.esp|9D512A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8044,
+      "model": "Dragon War\\MPSDragonFireLG01.nif",
+      "editorId": "DW_MPSDragonFireLG01",
+      "source": "DragonWar.esp|9A77CF",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8045,
+      "model": "Dragon War\\MPSDragonFireLGSmoke01.nif",
+      "editorId": "DW_MPSDragonFireLGSmoke01",
+      "source": "DragonWar.esp|9A77D0",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8046,
+      "model": "Dragon War\\MPSDragonFrostHazard.nif",
+      "editorId": "DW_MPSDragonFrostHazard",
+      "source": "DragonWar.esp|9A77D6",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8047,
+      "model": "Dragon War\\MPSDragonFrostMistSpiralImpact.nif",
+      "editorId": "DW_MPSDragonFrostMistSpiralImpact",
+      "source": "DragonWar.esp|9D5159",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8049,
+      "model": "Dragon War\\MPSDragonColdLG01.nif",
+      "editorId": "DW_MPSDragonColdLG01",
+      "source": "DragonWar.esp|9A77D9",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8050,
+      "model": "Dragon War\\MPSDragonColdLGSmoke01.nif",
+      "editorId": "DW_MPSDragonColdLGSmoke01",
+      "source": "DragonWar.esp|9A77DA",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8062,
+      "model": "Dragon War\\MPSDragonSteam02.nif",
+      "editorId": "DW_MPSDragonSteam02",
+      "source": "DragonWar.esp|9BBBF2",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8063,
+      "model": "Dragon War\\MPSDragonSmoke02.nif",
+      "editorId": "DW_MPSDragonSmoke02",
+      "source": "DragonWar.esp|9BBBF3",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8064,
+      "model": "Dragon War\\MPSDragonPoisonSmokeImpact02.nif",
+      "editorId": "DW_MPSDragonPoisonSmokeImpact02",
+      "source": "DragonWar.esp|9BBBF4",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8443,
+      "model": "Magus\\Stormcrown\\MPSShockWaveSparks.nif",
+      "editorId": "MAG_MPSShowWaveSparks",
+      "source": "Stormcrown.esp|00083F",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 8444,
+      "model": "Magus\\Stormcrown\\MPSPoisonWaveSlags.nif",
+      "editorId": "MAG_MPSPoisonWaveSlags",
+      "source": "Stormcrown.esp|00083E",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9100,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireSmall01.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireSmall01",
+      "source": "HeartOfMagic_BlackFlame.esp|000804",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9103,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireWallBase.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireWallBase",
+      "source": "HeartOfMagic_BlackFlame.esp|000805",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9104,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireWallSparks.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireWallSparks",
+      "source": "HeartOfMagic_BlackFlame.esp|000806",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9109,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireBoltImpact01.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireBoltImpact01",
+      "source": "HeartOfMagic_BlackFlame.esp|000807",
+      "masterParticleCap": 0,
+      "dnamFlags": 3
+    },
+    {
+      "index": 9112,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSDragonSmoke.nif",
+      "editorId": "HoMBF_GreyAddon_MPSDragonSmoke",
+      "source": "HeartOfMagic_BlackFlame.esp|000808",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9123,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireSmSmoke01.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireSmSmoke01",
+      "source": "HeartOfMagic_BlackFlame.esp|000809",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9124,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireLg01.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireLg01",
+      "source": "HeartOfMagic_BlackFlame.esp|00080A",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9125,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireLgSmoke01.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireLgSmoke01",
+      "source": "HeartOfMagic_BlackFlame.esp|00080B",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    },
+    {
+      "index": 9164,
+      "model": "HeartOfMagic\\BlackFlame\\MPS\\MPSFireWaveFlames.nif",
+      "editorId": "HoMBF_GreyAddon_MPSFireWaveFlames",
+      "source": "HeartOfMagic_BlackFlame.esp|00080C",
+      "masterParticleCap": 0,
+      "dnamFlags": 1
+    }
+  ],
+  "models": [
+    "Effects\\ImpactEffects\\FireballImpact01.nif",
+    "Effects\\FXFire01New.nif",
+    "Effects\\FXFire02New.nif",
+    "Magic\\FireWallFX01.nif",
+    "Effects\\ImpactEffects\\FXDragonFireImpact.nif"
+  ]
+}

@@ -21,6 +21,8 @@ set(BLACKFLAME_SOURCES
     src/Config.cpp
     src/Forms.cpp
     src/FireSet.cpp
+    src/FormCopies.cpp
+    src/FormCopiesFill.cpp
     src/Palette.cpp
     src/ThreadTrace.cpp
     src/BuffState.cpp

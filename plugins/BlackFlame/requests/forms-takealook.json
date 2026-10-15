@@ -1,0 +1,652 @@
+{
+  "version": 2,
+  "_comment": [
+    "Hand-made for the v2 spike (2026-10-16) from read-only houseCARL reads of the TAKEALOOK MO2 profile TKL - MUNG ADDON (epoch e2-7edcad29963e5910): the winning PROJ/EXPL/IPCT/HAZD reached from vanilla Firebolt, Fireball, Flames (MAG_FireDamageConcAimed) and Fire Rune.",
+    "source = the defining plugin and local id; model, bounds and data = the load order winner. The DLL fills each copy from the live winner at kDataLoaded, so the scalars here only make a valid placeholder.",
+    "Planned: the DLL writes this request at kDataLoaded (FireSet closure)."
+  ],
+  "forms": [
+    {
+      "source": "Audio Overhaul Skyrim.esp|00084E",
+      "type": "PROJ",
+      "editorId": "FireboltProjectile01_AOS",
+      "model": "Magic\\FireBoltProjectile.nif",
+      "bounds": [
+        -30,
+        -191,
+        -25,
+        31,
+        40,
+        24
+      ],
+      "data": {
+        "flags": 0,
+        "projectileType": "Missile",
+        "gravity": 0,
+        "speed": 2500,
+        "range": 10000,
+        "tracerChance": 0,
+        "explosionProximity": 0,
+        "explosionTimer": 0,
+        "muzzleFlashDuration": 0,
+        "fadeDuration": 0.5,
+        "impactForce": 1.5,
+        "coneSpread": 0,
+        "collisionRadius": 10,
+        "lifetime": 0,
+        "relaunchInterval": 0.25,
+        "soundLevel": 1
+      }
+    },
+    {
+      "source": "Skyrim.esm|10FBED",
+      "type": "PROJ",
+      "editorId": "MAG_FireBallProjectile01",
+      "model": "Magic\\FireballProjectile01.nif",
+      "bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "data": {
+        "flags": 0,
+        "projectileType": "Missile",
+        "gravity": 0.15,
+        "speed": 2500,
+        "range": 10000,
+        "tracerChance": 0,
+        "explosionProximity": 0,
+        "explosionTimer": 0,
+        "muzzleFlashDuration": 0,
+        "fadeDuration": 0.5,
+        "impactForce": 1.5,
+        "coneSpread": 0,
+        "collisionRadius": 10,
+        "lifetime": 0,
+        "relaunchInterval": 0.25,
+        "soundLevel": 1
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|000851",
+      "type": "PROJ",
+      "editorId": "FlamesProjectile_AOS",
+      "model": "Magic\\FireSprayFX01.nif",
+      "bounds": [
+        -26,
+        -14,
+        -13,
+        26,
+        190,
+        12
+      ],
+      "data": {
+        "flags": 512,
+        "projectileType": "Flame",
+        "gravity": 0,
+        "speed": 1000,
+        "range": 768,
+        "tracerChance": 0,
+        "explosionProximity": 0,
+        "explosionTimer": 0,
+        "muzzleFlashDuration": 0,
+        "fadeDuration": 2,
+        "impactForce": 5,
+        "coneSpread": 0,
+        "collisionRadius": 10,
+        "lifetime": 0,
+        "relaunchInterval": 0.175,
+        "soundLevel": 1
+      }
+    },
+    {
+      "source": "MysticismMagic.esp|EDB0FA",
+      "type": "PROJ",
+      "editorId": "MAG_RuneFireProjectile02",
+      "model": "Magic\\RuneFireProjectile01.nif",
+      "bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "data": {
+        "flags": 6,
+        "projectileType": "Lobber",
+        "gravity": 0,
+        "speed": 1000,
+        "range": 10000,
+        "tracerChance": 0,
+        "explosionProximity": 150,
+        "explosionTimer": 0,
+        "muzzleFlashDuration": 0,
+        "fadeDuration": 0.5,
+        "impactForce": 0,
+        "coneSpread": 0,
+        "collisionRadius": 50,
+        "lifetime": 0,
+        "relaunchInterval": 0.25,
+        "soundLevel": 2
+      }
+    },
+    {
+      "source": "Skyrim.esm|0439C0",
+      "type": "EXPL",
+      "editorId": "FireBallExp01",
+      "model": "Magic\\FireBallExp01.nif",
+      "bounds": [
+        -57,
+        -60,
+        -9,
+        57,
+        60,
+        33
+      ],
+      "data": {
+        "force": 1,
+        "damage": 0,
+        "radius": 320,
+        "imageSpaceRadius": 1024,
+        "verticalOffsetMult": 0,
+        "flags": 65,
+        "soundLevel": 1
+      }
+    },
+    {
+      "source": "MysticismMagic.esp|47DBBD",
+      "type": "EXPL",
+      "editorId": "MAG_ExplosionRuneFlame02",
+      "model": "Magic\\FireBallExp01.nif",
+      "bounds": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "data": {
+        "force": 240,
+        "damage": 2,
+        "radius": 320,
+        "imageSpaceRadius": 1024,
+        "verticalOffsetMult": 0,
+        "flags": 81,
+        "soundLevel": 1
+      }
+    },
+    {
+      "source": "Skyrim.esm|03FA50",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellmpactSS01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03FA4E",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellmpactLS01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03FA4F",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellmpactSL01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Immersive Sounds - Compendium.esp|0DA556",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellImpactMetal",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 16,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Immersive Sounds - Compendium.esp|0DA555",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellImpactFlesh",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 16,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|0F3A92",
+      "type": "IPCT",
+      "editorId": "WaterFireImpact",
+      "model": "Effects\\ImpactEffects\\ImpactWaterSplashFire.nif",
+      "data": {
+        "effectDuration": 0.25,
+        "orientation": 0,
+        "angleThreshold": 15,
+        "placementRadius": 16,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|01C2AE",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellmpactLL01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03172B",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellImpactActor",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "DeadlySpellImpacts.esp|000D66",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellImpactSnow",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Immersive Sounds - Compendium.esp|2A71B4",
+      "type": "IPCT",
+      "editorId": "MAGFireSpellImpactWard",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 16,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E079",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactSS01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E078",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactSL01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03172C",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactActor",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Immersive Sounds - Compendium.esp|0D0350",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactFlesh",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 16,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|026114",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactLL01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "DeadlySpellImpacts.esp|000D65",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactSnow",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E077",
+      "type": "IPCT",
+      "editorId": "MAGFlamesImpactLS01",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 0.01,
+        "soundLevel": 1,
+        "flags": 0,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Skyrim.esm|06051C",
+      "type": "IPCT",
+      "editorId": "MAG_RuneFireImpact",
+      "model": "Effects\\ImpactEffects\\FireballImpact01.nif",
+      "data": {
+        "effectDuration": 1,
+        "orientation": 0,
+        "angleThreshold": 80,
+        "placementRadius": 5,
+        "soundLevel": 2,
+        "flags": 1,
+        "resultOverride": 0
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|018655",
+      "type": "HAZD",
+      "editorId": "FireLgLongHazard_AOS",
+      "model": "Effects\\FXFire01New.nif",
+      "bounds": [
+        -64,
+        -64,
+        0,
+        64,
+        64,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 3,
+        "lifetime": 7,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|018656",
+      "type": "HAZD",
+      "editorId": "FireLgShortHazard_AOS",
+      "model": "Effects\\FXFire01New.nif",
+      "bounds": [
+        -64,
+        -64,
+        0,
+        64,
+        64,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 3,
+        "lifetime": 2,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|018657",
+      "type": "HAZD",
+      "editorId": "FireSmLongHazard_AOS",
+      "model": "Effects\\FXFire02New.nif",
+      "bounds": [
+        -30,
+        -30,
+        0,
+        30,
+        30,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 1.8,
+        "lifetime": 7,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|018658",
+      "type": "HAZD",
+      "editorId": "FireSmShortHazard_AOS",
+      "model": "Effects\\FXFire02New.nif",
+      "bounds": [
+        -30,
+        -30,
+        0,
+        30,
+        30,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 1.8,
+        "lifetime": 1.8,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Audio Overhaul Skyrim.esp|01865B",
+      "type": "HAZD",
+      "editorId": "FireSmSuperShortHazard_AOS",
+      "model": "Effects\\FXFire02New.nif",
+      "bounds": [
+        -30,
+        -30,
+        0,
+        30,
+        30,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 1.8,
+        "lifetime": 1,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E073",
+      "type": "HAZD",
+      "editorId": "FireSmShortHazard",
+      "model": "Effects\\FXFire02New.nif",
+      "bounds": [
+        -30,
+        -30,
+        0,
+        30,
+        30,
+        8
+      ],
+      "data": {
+        "limit": 12,
+        "radius": 1.8,
+        "lifetime": 1.8,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E074",
+      "type": "HAZD",
+      "editorId": "FireSmLongHazard",
+      "model": "Effects\\FXFire02New.nif",
+      "bounds": [
+        -30,
+        -30,
+        0,
+        30,
+        30,
+        8
+      ],
+      "data": {
+        "limit": 0,
+        "radius": 1.8,
+        "lifetime": 7,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E075",
+      "type": "HAZD",
+      "editorId": "FireLgLongHazard",
+      "model": "Effects\\FXFire01New.nif",
+      "bounds": [
+        -64,
+        -64,
+        0,
+        64,
+        64,
+        8
+      ],
+      "data": {
+        "limit": 12,
+        "radius": 3,
+        "lifetime": 7,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    },
+    {
+      "source": "Skyrim.esm|03E076",
+      "type": "HAZD",
+      "editorId": "FireLgShortHazard",
+      "model": "Effects\\FXFire01New.nif",
+      "bounds": [
+        -64,
+        -64,
+        0,
+        64,
+        64,
+        8
+      ],
+      "data": {
+        "limit": 12,
+        "radius": 3,
+        "lifetime": 2,
+        "imageSpaceRadius": 0,
+        "targetInterval": 0.3,
+        "flags": 4
+      }
+    }
+  ]
+}

@@ -153,8 +153,10 @@ namespace GreyBuild
     /// grey copy is reused (the shipped records, or kLocalPluginName's from an earlier run, which
     /// stay in newRecords at their local id), else base + original when free, otherwise the next
     /// free index above every used one; new local records take ids after every local id the request has.
+    /// a_valueOnlyModels (--forms: the copies' models) count for the AddOnNode values a grey index is
+    /// needed for, but get no remapped copy in map.models (their copies are the full-grey forms copies).
     [[nodiscard]] Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs,
-        float a_tint);
+        float a_tint, const std::vector<std::string>& a_valueOnlyModels = {});
 
     // =========================================================================
     // Generated ESL (GreyEsl.cpp)
@@ -292,6 +294,17 @@ namespace GreyBuild
     /// and verifying it. An MPS in no input folder is skipped, or a failure when a_needAll.
     Totals BuildFromMap(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_out, bool a_needAll);
+
+    /// One NIF: a_rel from the first input that has it, effect shaders greyed (a_greyEffects) and AddOnNodes
+    /// remapped through a_map, written to a_out / a_greyRel, read back and verified. False on a failure (or a
+    /// missing source when a_needed); a_totals counts it.
+    bool BuildNif(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
+        const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, bool a_greyEffects,
+        bool a_needed, Totals& a_totals);
+
+    /// Writes kLocalPluginName with a_records (read back and compared), or with none removes one an earlier
+    /// run left in the folder. False (reason printed) on a failure.
+    [[nodiscard]] bool SyncLocalEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
 
     // =========================================================================
     // Dump and self-test

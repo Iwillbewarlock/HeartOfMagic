@@ -162,12 +162,22 @@ namespace GreyBuild
         return request;
     }
 
-    Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs, float a_tint)
+    Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs, float a_tint,
+        const std::vector<std::string>& a_valueOnlyModels)
     {
         Plan plan;
         plan.map.tint = a_tint;
         std::set<int> needed;
-        for (const auto& model : a_request.models) {
+        std::vector<std::string> scanned = a_request.models;
+        std::set<std::string> valueOnly;
+        for (const auto& model : a_valueOnlyModels) {
+            const std::string path = MeshDataPath(model);
+            if (std::find(scanned.begin(), scanned.end(), path) == scanned.end()) {
+                scanned.push_back(path);
+                valueOnly.insert(path);
+            }
+        }
+        for (const auto& model : scanned) {
             const auto source = FindSource(a_inputs, model);
             if (!source) {
                 plan.skipped.push_back(model + ": in no --in folder");
@@ -188,7 +198,7 @@ namespace GreyBuild
                     needed.insert(node.value);
                 }
             }
-            if (known) {
+            if (known && valueOnly.count(model) == 0) {
                 plan.map.models.emplace(model, GreyPathFor(model));
             }
         }

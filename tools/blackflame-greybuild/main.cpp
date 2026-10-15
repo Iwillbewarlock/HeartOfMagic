@@ -3,16 +3,20 @@
 // =============================================================================
 //   blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
 //   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
+//   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
 //   blackflame-greybuild --self-test
 // --in folders hold loose files laid out Data-relative (meshes\...); they are searched in
 // the order given and the first that has a file wins. --map builds what a fixed map lists
 // (the shipped vanilla core); --request finds what one setup needs, builds it and writes
-// the map (and, when needed, a small ESL of grey ADDN records) into --out.
+// the map (and, when needed, a small ESL of grey ADDN records) into --out. --forms adds the v2
+// copies (GreyForms.h): full-grey copies of the listed forms' NIFs, the copies ESL and the copies
+// map, on top of what --request writes (its ADDN list gives the grey indices).
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
+#include "GreyForms.h"
 
 #include <fmt/format.h>
 #include <iostream>
@@ -29,6 +33,7 @@ namespace
     {
         std::filesystem::path map;
         std::filesystem::path request;
+        std::filesystem::path forms;
         std::vector<std::filesystem::path> inputs;
         std::filesystem::path out;
         std::vector<std::filesystem::path> files;  // --dump / --roundtrip
@@ -42,6 +47,8 @@ namespace
         std::cerr << "usage:\n"
                      "  blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>\n"
                      "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]\n"
+                     "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
+                     "[--tint <0..2>]\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test\n";
@@ -67,6 +74,8 @@ namespace
                 a_options.selfTest = true;
             } else if (arg == "--map" && hasValue) {
                 a_options.map = a_argv[++i];
+            } else if (arg == "--forms" && hasValue) {
+                a_options.forms = a_argv[++i];
             } else if (arg == "--request" && hasValue) {
                 a_options.request = a_argv[++i];
             } else if (arg == "--in" && hasValue) {
@@ -128,49 +137,6 @@ namespace
         return totals.failed == 0 && totals.built > 0 ? kExitOk : kExitFail;
     }
 
-    /// Writes the ESL, reads it back and compares; false (problems printed) on a difference.
-    [[nodiscard]] bool WriteLocalEsl(const std::vector<GreyBuild::AddonEntry>& a_records,
-        const std::filesystem::path& a_file)
-    {
-        GreyBuild::WriteAddonEsl(a_records, a_file);
-        std::uint32_t flags = 0;
-        const auto back = GreyBuild::ReadAddonEsl(a_file, flags);
-        std::cout << fmt::format("wrote {} (header flags 0x{:X}), {} ADDN record(s) read back:\n", a_file.string(),
-            flags, back.size());
-        for (const auto& record : back) {
-            std::cout << fmt::format("  {:06X} {} index {} model '{}' DNAM cap {} flags {}\n", record.formId,
-                record.editorId, record.index, record.model, record.masterParticleCap, record.dnamFlags);
-        }
-        const auto problems = GreyBuild::VerifyAddonEsl(a_records, a_file);
-        for (const auto& problem : problems) {
-            std::cout << "FAIL  " << a_file.string() << ": " << problem << "\n";
-        }
-        return problems.empty();
-    }
-
-    /// Writes the local ESL, or with no records for it removes one an earlier run left in --out
-    /// (the new map names none of its records). False (reason printed) on a failure.
-    [[nodiscard]] bool SyncLocalEsl(const std::vector<GreyBuild::AddonEntry>& a_records,
-        const std::filesystem::path& a_file)
-    {
-        if (!a_records.empty()) {
-            return WriteLocalEsl(a_records, a_file);
-        }
-        std::error_code ec;
-        if (!std::filesystem::exists(a_file, ec) && !ec) {
-            return true;
-        }
-        if (ec || !std::filesystem::remove(a_file, ec) || ec) {
-            std::cout << fmt::format("FAIL  {} is left from an earlier run and could not be removed ({}): this setup "
-                                     "needs no local grey records. Remove it by hand, then run again.\n",
-                a_file.string(), ec ? ec.message() : std::string("not removed"));
-            return false;
-        }
-        std::cout << fmt::format("removed {}: left from an earlier run, this setup needs no local grey records\n",
-            a_file.string());
-        return true;
-    }
-
     [[nodiscard]] int RunRequest(const Options& a_options)
     {
         const GreyBuild::Request request = GreyBuild::LoadRequest(a_options.request);
@@ -197,7 +163,7 @@ namespace
             return kExitFail;
         }
         // The ESL before the map: a map is written only when the records it names are in place
-        if (!SyncLocalEsl(plan.newRecords, a_options.out / GreyBuild::kLocalPluginName)) {
+        if (!GreyBuild::SyncLocalEsl(plan.newRecords, a_options.out / GreyBuild::kLocalPluginName)) {
             return kExitFail;
         }
         const auto mapFile = a_options.out / "SKSE" / "Plugins" / "HeartOfMagic_BlackFlame_greymap.json";
@@ -208,6 +174,19 @@ namespace
                 "Flame." });
         std::cout << "wrote " << mapFile.string() << "\n";
         return kExitOk;
+    }
+
+    [[nodiscard]] int RunForms(const Options& a_options)
+    {
+        const auto sources = GreyBuild::LoadFormsRequest(a_options.forms);
+        const GreyBuild::Request addons = GreyBuild::LoadRequest(a_options.request);
+        std::cout << fmt::format("forms {}: {} source form(s); request {}: {} ADDN record(s), {} model(s)\n",
+            a_options.forms.string(), sources.size(), a_options.request.string(), addons.addons.size(),
+            addons.models.size());
+        const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint);
+        std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} failed\n", totals.copies, totals.nifsBuilt,
+            totals.failed);
+        return totals.failed == 0 && totals.copies > 0 ? kExitOk : kExitFail;
     }
 }
 
@@ -229,7 +208,8 @@ int main(int a_argc, char** a_argv)
         }
         return result;
     }
-    const bool oneSource = options.map.empty() != options.request.empty();
+    // --map alone, --request alone, or --forms with --request
+    const bool oneSource = options.map.empty() != options.request.empty() && (options.forms.empty() || options.map.empty());
     if (!oneSource || options.inputs.empty() || options.out.empty()) {
         PrintUsage();
         return kExitUsage;
@@ -237,6 +217,9 @@ int main(int a_argc, char** a_argv)
     try {
         if (!CheckFolders(options)) {
             return kExitUsage;
+        }
+        if (!options.forms.empty()) {
+            return RunForms(options);
         }
         return options.map.empty() ? RunRequest(options) : RunMap(options);
     } catch (const std::exception& e) {
