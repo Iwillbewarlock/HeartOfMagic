@@ -67,3 +67,15 @@
 - 확인됨(사용자, 2026-10-09): `player.placeatme AA034F58`(OREO_EncBandit10TemplateMagic, 직접 목록 12개) 의 주문에 모드 주문(산의 손가락, 혈천) 있음 -> 우리 LVSP 가 엔진에서 풀린다. H2·H3 기각 방향
 - 확인됨: 낮은 레벨 산적 마법사 템플릿(039D31/039D4A/039D58:Skyrim.esm 등)도 보고서상 목록을 받음
 - 가설 H4 (H1 구체화): 템플릿에서 SpellList 를 물려받는 NPC(예: 034F7F)는 로딩 중 템플릿 주문 목록을 미리 복사해 둬서 kDataLoaded 에 템플릿에 붙인 목록이 안 퍼진다 -> AA034F7F 소환으로 확인 중. 맞으면 상속 NPC(14,211)에도 제공자의 목록을 직접 붙인다
+
+## 인게임 6차 - 자가 테스트 (2026-10-15 20:02, TAKEALOOK, dev e432729, 1.6.1170)
+
+DevBench `game loadLast` 로 최신 세이브(Save3, 화이트런 홀드, 레벨 1)를 불러온 뒤 플러그인 자가 테스트가 돌았다. 로그 원문: `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_NPCSpells.log` (같은 실행의 SELFTEST 줄).
+
+확인됨:
+- 목록을 직접 가진 NPC 는 엔진이 우리 목록을 푼다. 파렌가 013BBB PASS (괴저 불씨, 불구 면역, 신성한 방패), 강령마법사 0551AD PASS (냉기 껍질, 감옥장 위글 소환, 새하얀 화염화살, 신성한 정화, 태양빛 방패). 레벨은 학파 스킬 기준 (파렌가 파괴 34 -> 레벨 25 그룹까지).
+- **H4 확인 (출시 차단)**: 템플릿에서 주문 목록을 물려받는 NPC 는 우리가 템플릿에 붙인 목록을 받지 못한다. 039D37 (OREO_EncBandit01MagicNordM): actorBase = 039D37 자신, copiedTemplate=yes, holder 039D31 의 HoMNS 목록 9개, actorBase 의 HoMNS 목록 0개, 캐시 1개(바닐라 목록의 불씨조각). 로드 중 kCopiedTemplate 로 템플릿 주문 목록이 자식에 복사되고, 자식은 따로 배열을 가진다(포인터 공유 아님 -> 자식에 직접 붙여도 안전할 것으로 보임).
+- LVLN 039D5F 는 `TESObjectREFR::PlaceObjectAtMe` 로 소환되지 않는다 ("PlaceObjectAtMe gave no actor"). 레벨드 소환 경로는 아직 미검사.
+
+가설 (확인 전):
+- H7: 일부 학파 R1 목록이 스킬 이하 위트니스가 있는데도 아무것도 안 준다 (파렌가 변이 R1 skill 28, 소환 R1 skill 28, 환영 R1 skill 15 -> picked 0; 강령마법사 환영 R1 skill 20 -> 0). 파괴·회복·변이 Prefer 는 줌. 후보: 엔진이 이미 아는 주문(정적 목록)과 겹치는 뽑기를 버림 / 학파마다 뽑기 횟수 제한 / 비용·매지카 조건. 다음 확인: 자가 테스트에서 같은 액터를 여러 번 소환해 학파별 picked 분포를 본다.
