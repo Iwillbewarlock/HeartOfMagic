@@ -97,3 +97,10 @@ DevBench `game loadLast` 로 최신 세이브(Save3, 화이트런 홀드, 레벨
 - 상속 수치 7차와 같음 (inheritedAttached=3699, inheritedLists=31066, 감사 전부 0), NPCs 단계 119 ms.
 - **레벨드 소환 경로 동작**: DevBench 콘솔 `player.placeatme 39D5F 1` 로 나온 도적단 마법사 0xFF003245 의 베이스는 임시 사본이 아니라 뽑힌 항목 NPC 레코드 039D36 그대로(ExtraLeveledCreature 없음). Papyrus `Actor.HasSpell` 로 우리 목록에만 있는 햇빛조각(0x497388D3) = true. 즉 레벨드 소환 액터는 항목 NPC 레코드의 주문 목록(상속 수정으로 홀더 목록 포함)을 그대로 쓴다.
 - 자가 테스트의 레벨드 샘플(039D5F) 5회 모두 FAIL "no actor found": 플러그인의 RE::Script placeatme 는 액터를 만들었지만(새 액터 1~2개) ExtraLeveledCreature 가 없어 후보 조건에서 빠졌다. -> 후보 조건을 "베이스가 LVLN 항목인 새 동적 액터"로 고쳐야 한다.
+
+## 인게임 9차 - 자가 테스트 전체 PASS (2026-10-16 00:35, dev fabe915, 1.6.1170, Save3 455394AE)
+
+확인됨:
+- `SELFTEST DONE pass=13 fail=0 inconclusive=0`, SELFTEST WARN 0줄.
+- 레벨드 소환 경로를 자가 테스트가 직접 확인: 039D5F 5회 모두 `match=baseIsEntry extraLeveled=no foundAfterMs=0`, 매번 다른 항목 NPC(Bandit War 00AA11, 00AA0E, 0A98B5, 00AA10, 0A98B7), 모두 `actorBaseLists>0` PASS. 그중 0A98B5·0A98B7 은 템플릿 상속 자식(holder 02FE54, inherited=yes)이라 상속 + 레벨드 경로가 함께 확인됨.
+- 039D37, 파렌가 5회, 강령마법사, 2750FE 모두 PASS (8차와 같음).
