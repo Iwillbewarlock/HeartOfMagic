@@ -83,6 +83,10 @@ namespace BlackFlame
     /// NiLight. a_kind names what it was ("BSLight", "NiLight", "null" or neither).
     RE::NiLight* AsNiLight(RE::NiRefObject* a_raw, const char*& a_kind);
 
+    /// AsNiLight, and the first time per a_owner (a string literal: "projectile", "explosion",
+    /// "hazard", "casting") its real type is logged. Every light the layers tint goes through this.
+    RE::NiLight* CheckedLight(RE::NiRefObject* a_raw, const char* a_owner);
+
     /// Sets a light's diffuse colour to config lightColor. False for a null light.
     bool TintLight(RE::NiLight* a_light);
 

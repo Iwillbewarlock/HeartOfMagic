@@ -52,15 +52,16 @@ namespace BlackFlame
             }
         }
 
-        // The player's reference handle, read once (the player reference lives for the whole session)
+        // The player's reference handle, read once per loaded world (cleared by ResetHitEffectState)
+        std::atomic<std::uint32_t> g_playerHandle{ 0 };
+
         std::uint32_t PlayerHandleValue()
         {
-            static std::atomic<std::uint32_t> cached{ 0 };
-            auto value = cached.load();
+            auto value = g_playerHandle.load();
             if (value == 0) {
                 if (auto* player = RE::PlayerCharacter::GetSingleton()) {
                     value = player->GetHandle().native_handle();
-                    cached.store(value);
+                    g_playerHandle.store(value);
                 }
             }
             return value;
@@ -188,6 +189,11 @@ namespace BlackFlame
 
             static inline REL::Relocation<decltype(thunk)> func;
         };
+    }
+
+    void ResetHitEffectState()
+    {
+        g_playerHandle.store(0);
     }
 
     void InstallHitEffectHooks()

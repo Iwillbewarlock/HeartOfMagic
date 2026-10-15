@@ -4,12 +4,14 @@
 #include "FireSet.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "SehGuard.h"
 
 #include <array>
-#include <unordered_map>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace BlackFlame
@@ -40,22 +42,37 @@ namespace BlackFlame
             Hand{ RE::MagicSystem::CastingSource::kRightHand, "right", kRightMagicNodeName },
         };
 
-        std::array<HandState, kHandCount> g_handStates{};  // game thread only
-
-        // Every hand-art property we recoloured, with what it was, for the restore when the buff
-        // ends. Holding the property keeps it alive until then. Heap-held and never freed: these
-        // NiPointers must not DecRef at DLL unload (the list is emptied on the game thread instead).
+        // Every hand-art property we recoloured, with what it was, and every casting light we tinted,
+        // with its old colour, for the restore when the buff ends. Holding them keeps them alive until
+        // then (entries only we still hold are dropped each tick). All of it, and the hand states, under
+        // g_mutex: the ticker task and the message handler (buff off, load) both reach it, and that they
+        // run on one thread is not proven (first in-game run: tasks on six threads). Heap-held and never
+        // freed: these NiPointers must not DecRef at DLL unload. Scene-graph work stays outside the lock.
         struct RecolouredProperty
         {
             RE::NiPointer<RE::BSEffectShaderProperty> property;
             PropertyOriginal original;
         };
 
-        std::unordered_map<RE::BSEffectShaderProperty*, RecolouredProperty>& Recoloured()
+        struct TintedLight
         {
-            static auto* recoloured =
-                std::make_unique<std::unordered_map<RE::BSEffectShaderProperty*, RecolouredProperty>>().release();
-            return *recoloured;
+            RE::NiPointer<RE::NiLight> light;
+            RE::NiColor original;
+        };
+
+        struct HandArtState
+        {
+            std::unordered_map<RE::BSEffectShaderProperty*, RecolouredProperty> properties;
+            std::unordered_map<RE::NiLight*, TintedLight> lights;
+            std::array<HandState, kHandCount> hands{};
+        };
+
+        std::mutex g_mutex;
+
+        HandArtState& State()
+        {
+            static auto* state = std::make_unique<HandArtState>().release();
+            return *state;
         }
 
         // Remembers the first original of each property (a later recolour of the same one is ignored)
@@ -63,10 +80,40 @@ namespace BlackFlame
         {
             static const RecolorObserver* observer = std::make_unique<RecolorObserver>(
                 [](RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original) {
-                    Recoloured().try_emplace(a_prop, RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop),
-                                                         a_original });
+                    std::lock_guard lock(g_mutex);
+                    State().properties.try_emplace(a_prop,
+                        RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop), a_original });
                 }).release();
             return *observer;
+        }
+
+        // The caster's light, through the RTTI check, tinted; its first old colour remembered
+        bool TintCasterLight(RE::ActorMagicCaster* a_caster)
+        {
+            bool tinted = false;
+            (void)Guarded("casting light", [&]() {
+                auto* light = CheckedLight(a_caster->light.get(), "casting");
+                if (!light) {
+                    return;
+                }
+                {
+                    std::lock_guard lock(g_mutex);
+                    State().lights.try_emplace(light,
+                        TintedLight{ RE::NiPointer<RE::NiLight>(light), light->GetLightRuntimeData().diffuse });
+                }
+                tinted = TintLight(light);
+            });
+            return tinted;
+        }
+
+        // Entries only we still hold (the art or light is gone from the scene): restoring them is
+        // pointless, keeping them would grow the lists for the whole buff
+        void PruneDead()
+        {
+            std::lock_guard lock(g_mutex);
+            auto& state = State();
+            std::erase_if(state.properties, [](const auto& a_entry) { return a_entry.second.property->GetRefCount() <= 1; });
+            std::erase_if(state.lights, [](const auto& a_entry) { return a_entry.second.light->GetRefCount() <= 1; });
         }
 
         // The fire spell this hand casts now, or else the one it holds readied
@@ -203,9 +250,12 @@ namespace BlackFlame
             }
 
             int recolored = 0;
-            const std::string places = config.handArt ? RecolorHandArt(a_player, caster, a_hand, recolored) : "hand art off";
-            auto* light = caster->light ? caster->light->light.get() : nullptr;
-            const bool lightTinted = config.light && TintLight(light);
+            std::string places = "hand art off";
+            if (config.handArt &&
+                !Guarded("hand art recolour", [&]() { places = RecolorHandArt(a_player, caster, a_hand, recolored); })) {
+                places = "hand art recolour faulted (step off)";
+            }
+            const bool lightTinted = config.light && TintCasterLight(caster);
 
             if (a_state.logged && recolored == 0) {
                 return;
@@ -224,16 +274,27 @@ namespace BlackFlame
 
     int RestoreHandArt()
     {
-        auto& recoloured = Recoloured();
-        int restored = 0;
-        for (auto& [raw, entry] : recoloured) {
-            restored += RestoreProperty(entry.property.get(), entry.original) ? 1 : 0;
+        // Taken out under the lock, put back outside it; released here (by the caller's thread: the
+        // message handler or a task)
+        HandArtState taken;
+        {
+            std::lock_guard lock(g_mutex);
+            taken.properties.swap(State().properties);
+            taken.lights.swap(State().lights);
+            State().hands = {};
         }
-        const auto total = recoloured.size();
-        recoloured.clear();  // releases the properties, on the game thread
-        g_handStates = {};
-        if (total > 0) {
-            logger::info("BlackFlame: hand art restored: {} of {} recoloured properties put back", restored, total);
+        int restored = 0;
+        (void)Guarded("hand art restore", [&]() {
+            for (auto& [raw, entry] : taken.properties) {
+                restored += RestoreProperty(entry.property.get(), entry.original) ? 1 : 0;
+            }
+            for (auto& [raw, entry] : taken.lights) {
+                entry.light->GetLightRuntimeData().diffuse = entry.original;
+            }
+        });
+        if (!taken.properties.empty() || !taken.lights.empty()) {
+            logger::info("BlackFlame: hand art restored: {} of {} recoloured properties put back, {} casting light(s) "
+                         "back to their colour", restored, taken.properties.size(), taken.lights.size());
         }
         return restored;
     }
@@ -262,8 +323,16 @@ namespace BlackFlame
         if (!player) {
             return;
         }
+        PruneDead();
         for (std::size_t i = 0; i < kHandCount; ++i) {
-            TickHand(player, kHands[i], g_handStates[i]);
+            HandState hand;
+            {
+                std::lock_guard lock(g_mutex);
+                hand = State().hands[i];
+            }
+            TickHand(player, kHands[i], hand);
+            std::lock_guard lock(g_mutex);
+            State().hands[i] = hand;
         }
     }
 }

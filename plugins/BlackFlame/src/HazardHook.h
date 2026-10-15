@@ -18,12 +18,12 @@ namespace BlackFlame
 {
     void InstallHazardHook();
 
-    /// Game thread (ticker and the hook's task): handles the queued hazards
+    /// Ticker and hook tasks (GameThread.h on what that guarantees; the queue is under a mutex)
     void TickHazards();
 
     /// Any thread: hazards are queued (the ticker then stays at 100 ms)
     [[nodiscard]] bool HasPendingHazards() noexcept;
 
-    /// Game thread, at kPreLoadGame / kNewGame: forgets the queue and the handled hazards
+    /// Message handler, at kPreLoadGame / kNewGame: forgets the queue and the handled hazards
     void ResetHazardState();
 }

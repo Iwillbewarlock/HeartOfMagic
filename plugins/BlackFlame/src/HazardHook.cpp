@@ -109,7 +109,7 @@ namespace BlackFlame
             }
             LogHookThread(g_threadLogs, "Hazard Set3D/Initialize", "handled by a game-thread task",
                 "handled by a game-thread task");
-            AddTaskToGameThread("BlackFlameHazard", &TickHazards);
+            QueueTask("BlackFlameHazard", &TickHazards);
         }
 
         void RecolorHazard(RE::Hazard* a_hazard, const RE::BGSHazard* a_base)
@@ -122,7 +122,9 @@ namespace BlackFlame
             bool tinted = false;
             if (GetConfig().light) {
                 (void)Guarded("hazard light", [&]() {
-                    tinted = TintLight(AsNiLight(a_hazard->GetHazardRuntimeData().light.get(), lightKind));
+                    auto* light = CheckedLight(a_hazard->GetHazardRuntimeData().light.get(), "hazard");
+                    lightKind = light ? "" : "none or not an NiLight,";
+                    tinted = TintLight(light);
                 });
             }
             const auto* spell = a_base->data.spell;

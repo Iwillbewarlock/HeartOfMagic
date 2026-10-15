@@ -28,7 +28,7 @@ namespace
 {
     void OnDataLoaded()
     {
-        BlackFlame::StampGameThread();
+        BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
         if (!BlackFlame::LoadForms()) {
             logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
             return;
@@ -54,6 +54,8 @@ namespace
     void ResetLayers()
     {
         BlackFlame::g_worldGeneration.fetch_add(1);  // tasks queued in the old world now do nothing
+        BlackFlame::ResetBuffFlag();
+        BlackFlame::ResetHitEffectState();
         BlackFlame::ResetHitArt();
         BlackFlame::ResetHazardState();
         BlackFlame::ResetExplosionState();
@@ -79,6 +81,8 @@ namespace
 
     void HandleMessage(const SKSE::MessagingInterface::Message& a_msg)
     {
+        constexpr int kMessageThreadLogs = 8;  // kDataLoaded, a load or two, saves
+        BlackFlame::LogThread("SKSE message handler", "message", kMessageThreadLogs);
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
             TearDown("a save is being loaded");
@@ -87,13 +91,13 @@ namespace
             OnDataLoaded();
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
-            BlackFlame::RecomputeBuff("game loaded");
+            BlackFlame::RequestRecomputeBuff("game loaded");
             BlackFlame::SelfTest::OnGameLoaded();
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
             TearDown("a new game started");
-            BlackFlame::RecomputeBuff("new game");
+            BlackFlame::RequestRecomputeBuff("new game");
             FlushLog();
             break;
         case SKSE::MessagingInterface::kSaveGame:
@@ -123,7 +127,7 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, false);
-    BlackFlame::g_loadThreadNativeId.store(REX::W32::GetCurrentThreadId());
+    BlackFlame::StampGameThread();  // this thread is taken as the game thread (GameThread.h)
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
     // and the self-test's end write them out
     SetupLog("Black Flame prototype (grey-black fire for the player's fire spells while stoked)");

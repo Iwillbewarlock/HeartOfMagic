@@ -95,7 +95,8 @@ skipped, so it is safe to repeat.
 - Staffs, scrolls, enchantments and powers are excluded (`SpellType::kSpell` only).
 - Heart of Magic's tree leaves the Stoke spell out (no tome teaches it); the prototype gives it by console.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.
-- Which thread calls `Handle3DLoaded` and `Explosion::Set3D` was not known at build time: off the game thread the recolour is deferred by handle, and the log says which it was.
+- Threads: the first run logged SKSE tasks on several OS threads, `Handle3DLoaded` on the `SKSEPlugin_Load` thread and kDataLoaded on another. The game thread is now stamped at `SKSEPlugin_Load`; the first runs of every task kind (`task 'BlackFlame...' run N on thread ...`) and of the message handler log their thread, and the lists they share are under mutexes.
+- Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset once and switches that step off for the session (later calls counted). A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
 
 ## Self-test
 

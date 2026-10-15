@@ -35,20 +35,16 @@ namespace BlackFlame
         constexpr std::size_t kInitializeIndex = 0xA2;  // RE/E/Explosion.h: Initialize, SE/AE 0xA2
         constexpr std::size_t kUpdateIndex = 0xA3;      // RE/E/Explosion.h: Update(float), SE/AE 0xA3
 
-        // Game thread only: explosions to tint once more next tick. Heap-held and never freed, like
-        // the burn layer's lists, so nothing runs at DLL unload (handles only, but kept uniform)
         // The explosion's light through the RTTI check (the same declared-type trap as the projectile's
         // light); its real type is logged once
         RE::NiLight* ExplosionLight(RE::Explosion* a_explosion)
         {
-            static std::atomic<bool> typeLogged{ false };
-            const char* kind = nullptr;
-            auto* light = AsNiLight(a_explosion->GetExplosionRuntimeData().light.get(), kind);
-            if (light && !typeLogged.exchange(true)) {
-                logger::info("BlackFlame: explosion light object is a {}", kind);
-            }
-            return light;
+            return CheckedLight(a_explosion->GetExplosionRuntimeData().light.get(), "explosion");
         }
+
+        // Explosions to tint once more next tick, under g_lightsMutex (tasks and the message handler
+        // reach it). Heap-held and never freed like the other layers' lists.
+        std::mutex g_lightsMutex;
 
         std::vector<RE::ObjectRefHandle>& PendingLights()
         {
@@ -71,6 +67,7 @@ namespace BlackFlame
                 lightTinted = TintLight(ExplosionLight(a_explosion));
                 if (!data.light) {
                     // Not created yet at Set3D: one more try on the next ticker tick
+                    std::lock_guard lock(g_lightsMutex);
                     PendingLights().push_back(a_explosion->GetHandle());
                     g_lightMissing.fetch_add(1);
                     lightQueued = true;
@@ -205,7 +202,7 @@ namespace BlackFlame
             }
             const auto handle = a_explosion->GetHandle();
             const auto generation = WorldGeneration();
-            AddTaskToGameThread("BlackFlameExplosion",
+            QueueTask("BlackFlameExplosion",
                 [handle, recolor, logMaterials, generation, record = std::move(record)]() mutable {
                     if (generation != WorldGeneration()) {
                         return;  // queued before a load
@@ -300,19 +297,24 @@ namespace BlackFlame
 
     void ResetExplosionState()
     {
-        PendingLights().clear();
+        {
+            std::lock_guard lock(g_lightsMutex);
+            PendingLights().clear();
+        }
         g_lightMissing.store(0);
         g_recolors.store(0);
     }
 
     void TickExplosionLights()
     {
-        auto& pending = PendingLights();
-        if (pending.empty()) {
+        std::vector<RE::ObjectRefHandle> due;
+        {
+            std::lock_guard lock(g_lightsMutex);
+            due.swap(PendingLights());
+        }
+        if (due.empty()) {
             return;
         }
-        std::vector<RE::ObjectRefHandle> due;
-        due.swap(pending);
         if (!IsStoked() || !GetConfig().light) {
             return;  // the buff or the light layer went off meanwhile: dropped
         }

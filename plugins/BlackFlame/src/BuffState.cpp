@@ -93,7 +93,7 @@ namespace BlackFlame
                         g_tickPending.store(false);
                         continue;
                     }
-                    AddTaskToGameThread("BlackFlameTick", &Tick);
+                    QueueTask("BlackFlameTick", &Tick);
                 } catch (...) {
                     g_tickPending.store(false);
                     if (!g_loopFailureReported.exchange(true)) {
@@ -119,6 +119,13 @@ namespace BlackFlame
         }
     }
 
+    void ResetBuffFlag()
+    {
+        if (g_stoked.exchange(false, std::memory_order_acq_rel)) {
+            logger::info("BlackFlame: buff flag off (world torn down; recomputed after the load)");
+        }
+    }
+
     void RequestRecomputeBuff(const char* a_reason)
     {
         if (g_recomputePending.exchange(true)) {
@@ -131,7 +138,7 @@ namespace BlackFlame
         // Called from the effect event sink: a throw (allocation) must neither escape nor leave the
         // flag set, or no recompute would ever be queued again
         try {
-            AddTaskToGameThread("BlackFlameBuff", [a_reason]() {
+            QueueTask("BlackFlameBuff", [a_reason]() {
                 g_recomputePending.store(false);
                 RecomputeBuff(a_reason);
             });

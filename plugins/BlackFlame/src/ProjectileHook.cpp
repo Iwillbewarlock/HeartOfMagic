@@ -130,7 +130,7 @@ namespace BlackFlame
             }
             const auto handle = a_projectile->GetHandle();
             const auto generation = WorldGeneration();
-            AddTaskToGameThread("BlackFlameProjectile",
+            QueueTask("BlackFlameProjectile",
                 [handle, a_kind, recolor, byPlayer, logMaterials, hookThread, generation]() {
                 if (generation != WorldGeneration()) {
                     return;  // queued before a load
@@ -180,18 +180,7 @@ namespace BlackFlame
     // BSLight gives its NiLight, an NiLight is used as is, anything else no light. Logged once.
     RE::NiLight* ProjectileLight(RE::Projectile* a_projectile)
     {
-        static std::atomic<bool> typeLogged{ false };
-        auto* raw = a_projectile->GetProjectileRuntimeData().light.get();
-        if (!raw) {
-            return nullptr;
-        }
-        const char* kind = nullptr;
-        auto* light = AsNiLight(raw, kind);
-        if (!typeLogged.exchange(true)) {
-            logger::info("BlackFlame: projectile light object 0x{:X} is a {}", reinterpret_cast<std::uintptr_t>(raw),
-                kind);
-        }
-        return light;
+        return CheckedLight(a_projectile->GetProjectileRuntimeData().light.get(), "projectile");
     }
 
     void InstallProjectileHooks()

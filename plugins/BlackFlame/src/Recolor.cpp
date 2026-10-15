@@ -9,6 +9,7 @@
 #include <atomic>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <string_view>
 #include <unordered_set>
 
@@ -22,11 +23,30 @@ namespace BlackFlame
 
         // Properties whose recolour lost the palette texture (raw pointers as keys only; a new
         // property at a reused address would be left alone until the next load clears this).
-        // Game thread only; heap-held and never freed, like the burn layer's lists.
+        // Under g_failedMutex: recolours run from tasks whose thread is not proven to be one thread
+        // (first in-game run); heap-held and never freed, like the other layers' lists.
+        std::mutex g_failedMutex;
+
         std::unordered_set<const RE::BSEffectShaderProperty*>& FailedProperties()
         {
             static auto* failed = std::make_unique<std::unordered_set<const RE::BSEffectShaderProperty*>>().release();
             return *failed;
+        }
+
+        bool IsFailed(const RE::BSEffectShaderProperty* a_prop)
+        {
+            std::lock_guard lock(g_failedMutex);
+            return FailedProperties().contains(a_prop);
+        }
+
+        void SetFailed(const RE::BSEffectShaderProperty* a_prop, bool a_failed)
+        {
+            std::lock_guard lock(g_failedMutex);
+            if (a_failed) {
+                FailedProperties().insert(a_prop);
+            } else {
+                FailedProperties().erase(a_prop);
+            }
         }
 
         // BSShaderProperty::SetMaterial(material, true) gives the property its own
@@ -44,6 +64,25 @@ namespace BlackFlame
             }
         };
         using MaterialPtr = std::unique_ptr<RE::BSEffectShaderMaterial, MaterialDeleter>;
+
+        // SetMaterial(copy, true) with the copy already released from its unique_ptr: freed here only
+        // when the property took the engine's own copy; true when the property kept ours
+        bool AdoptMaterial(RE::BSEffectShaderProperty* a_prop, MaterialPtr a_copy)
+        {
+            auto* raw = a_copy.release();
+            a_prop->SetMaterial(raw, true);
+            const auto* held = a_prop->GetBaseMaterial();
+            const bool keptOurs = held == raw;
+            if (!g_ownershipLogged.exchange(true)) {
+                logger::info("BlackFlame: SetMaterial(copy, true): the property holds {} (copy 0x{:X}, now 0x{:X})",
+                    keptOurs ? "OUR copy (kept alive)" : "the engine's own copy (ours freed)",
+                    reinterpret_cast<std::uintptr_t>(raw), reinterpret_cast<std::uintptr_t>(held));
+            }
+            if (!keptOurs) {
+                MaterialDeleter{}(raw);
+            }
+            return keptOurs;
+        }
 
         bool HasColorControllerImpl(const RE::NiObjectNET* a_object)
         {
@@ -80,7 +119,7 @@ namespace BlackFlame
             // with no texture behind it: terminal. Its palette flags stay off, and it is neither copied
             // nor desaturated again (a fresh copy every tick would compound the desaturation to black,
             // also for a copy that lost the path as well as the texture)
-            if (FailedProperties().contains(a_prop) ||
+            if (IsFailed(a_prop) ||
                 (IsPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture)) {
                 if (a_prop->flags.any(Flag::kGrayscaleToPaletteColor, Flag::kGrayscaleToPaletteAlpha)) {
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
@@ -112,18 +151,15 @@ namespace BlackFlame
             copy->greyscaleTexturePath = GetPalettePath();
             (void)Desaturate(copy->baseColor, GetConfig().tintScale);
 
-            a_prop->SetMaterial(copy.get(), true);
-            const bool engineKeptOurs = a_prop->GetBaseMaterial() == copy.get();
-            if (!g_ownershipLogged.exchange(true)) {
-                logger::info("BlackFlame: SetMaterial(copy, true): the property holds {} (copy 0x{:X}, now 0x{:X})",
-                    engineKeptOurs ? "OUR copy (kept alive)" : "the engine's own copy (ours freed)",
-                    reinterpret_cast<std::uintptr_t>(copy.get()), reinterpret_cast<std::uintptr_t>(a_prop->GetBaseMaterial()));
-            }
-            if (engineKeptOurs) {
-                (void)copy.release();  // the property owns it now
-                ++a_stats.keptOurs;
-            } else {
-                ++a_stats.engineCopied;  // `copy` frees ours at scope end
+            // Ownership out of the unique_ptr BEFORE the engine call: should anything fault from here
+            // on (the step is then unwound and switched off), our copy leaks instead of being freed
+            // while the property may hold it
+            const bool engineKeptOurs = AdoptMaterial(a_prop, std::move(copy));
+            ++(engineKeptOurs ? a_stats.keptOurs : a_stats.engineCopied);
+            // The material is replaced: from here the property must be put back on a restore, whatever
+            // happens below (the palette-lost case included)
+            if (a_observer) {
+                a_observer(a_prop, original);
             }
             // No SetupGeometry: effect material values are read live at draw time (Precision
             // changes baseColor every frame without one). If the palette does not show in
@@ -141,7 +177,7 @@ namespace BlackFlame
                     // with the base colour already desaturated); later passes treat it as terminal
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
-                    FailedProperties().insert(a_prop);  // terminal from now on (see the top)
+                    SetFailed(a_prop, true);  // terminal from now on (see the top)
                     ++a_stats.failed;  // counted only here: not also as a palette swap
                     int suppressed = 0;
                     if (LogLimit::Allow("palette lost", 0, suppressed)) {
@@ -164,9 +200,6 @@ namespace BlackFlame
                 ++a_stats.forcedPalette;
             } else {
                 ++a_stats.baseColorOnly;
-            }
-            if (a_observer) {
-                a_observer(a_prop, original);
             }
         }
 
@@ -319,15 +352,12 @@ namespace BlackFlame
         if (!a_original.paletteAlpha) {
             a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
         }
-        a_prop->SetMaterial(copy.get(), true);
-        if (a_prop->GetBaseMaterial() == copy.get()) {
-            (void)copy.release();  // the property kept ours (see RecolorProperty)
-        }
+        (void)AdoptMaterial(a_prop, std::move(copy));
         const auto* now = a_prop->GetMaterial();
         const bool hasTexture = now && now->greyscaleTexture;
         a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, a_original.paletteColor && hasTexture);
         a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, a_original.paletteAlpha && hasTexture);
-        FailedProperties().erase(a_prop);
+        SetFailed(a_prop, false);
         return true;
     }
 
@@ -347,6 +377,26 @@ namespace BlackFlame
             return niLight;
         }
         return nullptr;
+    }
+
+    RE::NiLight* CheckedLight(RE::NiRefObject* a_raw, const char* a_owner)
+    {
+        const char* kind = nullptr;
+        auto* light = AsNiLight(a_raw, kind);
+        if (a_raw) {
+            static std::mutex mutex;
+            static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
+            bool first = false;
+            {
+                std::lock_guard lock(mutex);
+                first = logged->insert(a_owner).second;
+            }
+            if (first) {
+                logger::info("BlackFlame: {} light object 0x{:X} is a {}", a_owner, reinterpret_cast<std::uintptr_t>(a_raw),
+                    kind);
+            }
+        }
+        return light;
     }
 
     bool TintLight(RE::NiLight* a_light)
@@ -383,6 +433,7 @@ namespace BlackFlame
 
     void ResetRecolorState()
     {
+        std::lock_guard lock(g_failedMutex);
         FailedProperties().clear();
     }
 

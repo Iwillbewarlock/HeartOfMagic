@@ -23,4 +23,7 @@ namespace BlackFlame
 {
     /// After the fire sets are built (kDataLoaded): hooks 0x0D when config burnShader, 0x0C when config hitArt
     void InstallHitEffectHooks();
+
+    /// At kPreLoadGame / kNewGame: forgets the cached player handle (read again on the next call)
+    void ResetHitEffectState();
 }

@@ -19,9 +19,9 @@ namespace BlackFlame
 {
     void InstallExplosionHook();
 
-    /// Game thread, every ticker tick: lights missing at Set3D, tinted one tick late.
+    /// Ticker task: lights missing at Set3D, tinted one tick late (list under a mutex).
     void TickExplosionLights();
 
-    /// Game thread, at kPreLoadGame / kNewGame: drops the pending lights and the counters
+    /// Message handler, at kPreLoadGame / kNewGame: drops the pending lights and the counters
     void ResetExplosionState();
 }

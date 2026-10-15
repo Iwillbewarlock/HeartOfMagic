@@ -16,12 +16,12 @@ namespace BlackFlame
     /// Any thread (the GetHitEffectArt hook): remember this controller's art for the next ticks
     void RememberHitArt(const RE::ActiveEffectReferenceEffectController* a_controller, RE::BGSArtObject* a_art);
 
-    /// Game thread, every ticker tick: recolours the remembered arts whose 3D exists now
+    /// Ticker task (GameThread.h on what that guarantees): recolours the remembered arts whose 3D exists now
     void TickHitArt();
 
     /// Any thread: arts are waiting (the ticker then stays at 100 ms)
     [[nodiscard]] bool HasPendingHitArt() noexcept;
 
-    /// Game thread, at kPreLoadGame / kNewGame: forgets every remembered art
+    /// Message handler, at kPreLoadGame / kNewGame: forgets every remembered art
     void ResetHitArt();
 }
