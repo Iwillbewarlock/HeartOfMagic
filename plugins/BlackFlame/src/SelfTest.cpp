@@ -88,6 +88,11 @@ namespace BlackFlame::SelfTest
                 logger::error("BlackFlame: self-test late cleanup threw; the test actors may be left in the world");
             }
             try {
+                Reload::OnRunFinished(a_forLoad);  // E3 ended by its timeout or an exception: its leftovers (W1)
+            } catch (...) {
+                logger::error("BlackFlame: self-test E3 cleanup threw; its rune or marker may be left in the world");
+            }
+            try {
                 SelfTestProbe::Clear();
             } catch (...) {
                 logger::error("BlackFlame: self-test could not clear its records");

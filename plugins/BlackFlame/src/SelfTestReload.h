@@ -16,9 +16,11 @@
 // same cell and not earlier in game time: the rune is found again (FormID, else a
 // projectile of the copy base in the cell) and judged - base the copy, explosion a
 // copy (PostLoad3D resets a permanent projectile's explosion from the copy PROJ's
-// link). Any other outcome is INFO "E3 not run (manual step skipped)". Every path ends
-// with the cleanup (Stoke dispelled, rune and marker removed where they exist) and the
-// marker file deleted; results are appended to the self-test file ending "DONE E3".
+// link). Any other outcome is INFO "E3 not run (manual step skipped)". The cleanup (rune
+// and marker removed; the Stoke buff dispelled only where E3 cast it or its rune was found
+// by FormID in its own save) runs only in the world E3 ran in or in a save shown to be its
+// own (same cell, within a game day after the request); the marker file is always deleted.
+// Results are appended to the self-test file ending "DONE E3".
 
 namespace BlackFlame::SelfTest::Reload
 {
@@ -41,6 +43,10 @@ namespace BlackFlame::SelfTest::Reload
 
     /// Waiting for the player's reload or resuming (the ticker stays fast)
     [[nodiscard]] bool Active();
+
+    /// SelfTest Finish (not for a load): E3's step ended by its timeout or an exception before it armed - its rune,
+    /// marker and buff are cleaned up in this world
+    void OnRunFinished(bool a_forLoad);
 
     /// Shifts E3's step clock by paused time (SelfTest ShiftClocks)
     void ShiftClocks(Clock::duration a_paused);

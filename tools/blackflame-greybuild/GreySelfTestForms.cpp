@@ -247,6 +247,12 @@ namespace GreyBuild::SelfTest
                               first.entries[0].localId == second.entries[0].localId,
                 "forms run: a second run into the same folder keeps the copy's id");
 
+            // W7: --out with a trailing separator stages beside it, not inside it
+            const FormsTotals slash = BuildForms(sources, request, { in }, out / "", kDefaultTint);
+            std::error_code slashEc;
+            a_check.Check(slash.failed == 0 && slash.copies == 1 && !std::filesystem::exists(out / ".staging", slashEc),
+                "forms run: --out with a trailing separator works and stages beside it (no <out>\\.staging inside)");
+
             // V15: a failing run leaves the previous outputs as they were
             const auto mapFile = out / "SKSE/Plugins" / kCopiesMapName;
             const auto eslFile = out / kCopiesPluginName;

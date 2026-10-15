@@ -294,8 +294,13 @@ namespace BlackFlame
             }
             // V6: SE off - the creation's signature and create data layout were read on 1.7.104 code and match
             // 1.6.1170 only by pdata/unwind; nothing of it is verified on 1.5.97. V14: no explosion copy, no detour.
-            if (config.copyExplosionCreate && !REL::Module::IsAE()) {
-                a_status.explosionCreate.note = "off on SE (signature and create data layout unverified there)";
+            // W6: AE only on the versions checked: 1.7.104 (code read) and 1.6.1170 (43829, 44216 and 34413 have the same
+            // pdata size and unwind codes as on 1.7.104). Any other build: off
+            const auto version = REL::Module::get().version();
+            const bool verified = version == REL::Version(1, 6, 1170, 0) || version == REL::Version(1, 7, 104, 0);
+            if (config.copyExplosionCreate && !verified) {
+                a_status.explosionCreate.note = std::format("off on {} (its signature and create data layout were checked on "
+                                                            "1.7.104 and 1.6.1170 only)", version.string());
                 logger::info("BlackFlame: copy swap: explosion creation detour {}", a_status.explosionCreate.note);
             } else if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
                 a_status.explosionCreate.note = "no explosion copies";

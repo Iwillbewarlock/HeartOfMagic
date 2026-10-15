@@ -55,7 +55,7 @@ namespace BlackFlame::SelfTest
         constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
-        constexpr float kE3Timeout = 20.0f;        // buff, rune, save on disk
+        constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
 
         // Placement: the target well ahead, the caster level with the player off to the side,
         // all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime)
@@ -266,6 +266,7 @@ namespace BlackFlame::SelfTest
             if (!GetConfig().projectile) {
                 // v2: runtime recolour off by default; the grey copy is judged by E1a
                 a_c.t3ModifierKeys = r->before.modifierKeys;
+                a_c.t3Copy = r->copyBase != 0;
                 SelfTestLog::Info("T3", std::format("runtime recolour off (projectile false): not judged; {} of {} effect "
                     "shapes carry the palette path | {}", a.withPalettePath, a.effectProperties, DescribeProjectile(*r)));
                 SelfTestLog::Info("T3-pointer", "not judged: runtime recolour off");
@@ -349,7 +350,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
             StepDef{ "T-threads", kEnvTimeout, &StepThreads },
             StepDef{ "T9", kCleanupTimeout, &StepCleanup },
-            StepDef{ "E3", kE3Timeout, &Reload::StepE3 },  // after the cleanup: it saves and reloads the game
+            StepDef{ "E3", kE3Timeout, &Reload::StepE3 },  // after the cleanup: asks the player for a quicksave and quickload
         };
         return kSteps;
     }

@@ -126,7 +126,10 @@ namespace BlackFlame
                     entry.copy->GetFormID(), static_cast<int>(entry.copy->GetFormType()));
                 return entry;
             }
-            if (entry.source == entry.copy) {
+            // W4: a source in the copies plugin itself (or the copy named as its own source) is never filled from
+            const auto* sourceFile = entry.source->GetFile(0);
+            const bool inCopiesPlugin = sourceFile && _stricmp(std::string(sourceFile->GetFilename()).c_str(), kCopiesPluginName) == 0;
+            if (entry.source == entry.copy || inCopiesPlugin) {
                 entry.detail = "the source is in the copies plugin itself";
                 return entry;
             }

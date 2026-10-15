@@ -123,8 +123,10 @@ namespace BlackFlame::SelfTest
         const bool copies = status.copies;
         CheckDevice("Projectile::Launch (copyLaunch / copyLaunchExplosion)", copies && (cfg.copyLaunch || cfg.copyLaunchExplosion),
             status.launch);
-        if (!REL::Module::IsAE()) {
-            SelfTestLog::Info("T0-hooks", "explosion creation: off on SE (" + status.explosionCreate.note + ")");
+        const auto version = REL::Module::get().version();
+        if (version != REL::Version(1, 6, 1170, 0) && version != REL::Version(1, 7, 104, 0)) {
+            SelfTestLog::Info("T0-hooks", "explosion creation: " + (status.explosionCreate.note.empty() ?
+                std::string("off (copyExplosionCreate false)") : status.explosionCreate.note));
         } else {
             CheckDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
                 status.explosionCreate);
@@ -219,10 +221,20 @@ namespace BlackFlame::SelfTest
             onOther += e.thread != game ? 1 : 0;
         }
         // PASS needs every v2 hook kind measured at least once; otherwise INFO naming the kinds with no entry
-        constexpr std::array<std::string_view, 3> kKinds{ "Launch (v2 detour)", "explosion create (v2 detour)",
-            "GetImpactData in a copy window" };
-        std::string missing;
-        for (const auto kind : kKinds) {
+        // Only the kinds whose hook is installed are expected (the creation detour is off on unverified versions)
+        const auto& status = GetCopySwapStatus();
+        std::vector<std::string_view> kinds;
+        if (status.launch.hooked) {
+            kinds.emplace_back("Launch (v2 detour)");
+        }
+        if (status.explosionCreate.hooked) {
+            kinds.emplace_back("explosion create (v2 detour)");
+        }
+        if (status.impactSites > 0) {
+            kinds.emplace_back("GetImpactData in a copy window");
+        }
+        std::string missing = kinds.empty() ? std::string("(no v2 hook installed)") : std::string();
+        for (const auto kind : kinds) {
             const bool seen = std::ranges::any_of(entries, [&](const auto& a_e) { return kind == a_e.kind; });
             if (!seen) {
                 missing += std::format("{}'{}'", missing.empty() ? "" : ", ", kind);

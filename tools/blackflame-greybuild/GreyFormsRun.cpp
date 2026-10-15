@@ -48,38 +48,45 @@ namespace GreyBuild
             return models;
         }
 
-        void RemoveAll(const std::filesystem::path& a_dir)
+        // True when a_dir is gone afterwards
+        bool RemoveAll(const std::filesystem::path& a_dir)
         {
             std::error_code ec;
             std::filesystem::remove_all(a_dir, ec);
             if (ec) {
                 std::cout << fmt::format("note: could not remove {} ({})\n", a_dir.string(), ec.message());
             }
+            std::error_code exists;
+            return !std::filesystem::exists(a_dir, exists) && !exists;
         }
 
         // Moves every staged file into --out, replacing old copies; false (printed) on the first failure
         [[nodiscard]] bool Commit(const std::filesystem::path& a_staging, const std::filesystem::path& a_out)
         {
+            // W7: every staged file is listed first (no renames while the folder is walked), then moved
             std::error_code ec;
+            std::vector<std::filesystem::path> files;
             for (auto it = std::filesystem::recursive_directory_iterator(a_staging, ec);
                  !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-                if (!it->is_regular_file()) {
-                    continue;
+                if (it->is_regular_file()) {
+                    files.push_back(it->path());
                 }
-                const auto target = a_out / std::filesystem::relative(it->path(), a_staging);
+            }
+            if (ec) {
+                std::cout << fmt::format("FAIL  reading the staging folder failed ({}): nothing moved\n", ec.message());
+                return false;
+            }
+            for (const auto& file : files) {
+                const auto target = a_out / std::filesystem::relative(file, a_staging);
                 std::filesystem::create_directories(target.parent_path(), ec);
                 if (!ec) {
-                    std::filesystem::rename(it->path(), target, ec);
+                    std::filesystem::rename(file, target, ec);
                 }
                 if (ec) {
                     std::cout << fmt::format("FAIL  moving {} into place failed ({}): --out may hold a mix of old and new "
                                              "files; run again\n", target.string(), ec.message());
                     return false;
                 }
-            }
-            if (ec) {
-                std::cout << fmt::format("FAIL  reading the staging folder failed ({})\n", ec.message());
-                return false;
             }
             return true;
         }
@@ -135,7 +142,12 @@ namespace GreyBuild
         const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_out, float a_tint)
     {
         FormsTotals totals;
-        const std::filesystem::path staging = a_out.string() + kStagingSuffix;
+        // W7: --out normalised (no trailing separator) before the staging path is made beside it
+        std::filesystem::path out = a_out.lexically_normal();
+        if (!out.has_filename()) {
+            out = out.parent_path();
+        }
+        const std::filesystem::path staging = out.string() + kStagingSuffix;
         for (const auto& input : a_inputs) {
             if (IsInside(staging, input) || IsInside(input, staging)) {
                 std::cout << fmt::format("FAIL  the staging folder {} overlaps --in {}\n", staging.string(), input.string());
@@ -154,9 +166,14 @@ namespace GreyBuild
             std::cout << "nothing written\n";
             return totals;
         }
-        const CopiesMap copies = AssignCopyIds(a_sources, PreviousCopies(a_out));
+        const CopiesMap copies = AssignCopyIds(a_sources, PreviousCopies(out));
 
-        RemoveAll(staging);
+        if (!RemoveAll(staging)) {
+            std::cout << fmt::format("FAIL  the staging folder {} left by an earlier run cannot be cleared: nothing written\n",
+                staging.string());
+            ++totals.failed;
+            return totals;
+        }
         bool staged = false;
         try {
             staged = Stage(a_sources, plan, copies, a_inputs, staging, totals);
@@ -165,17 +182,17 @@ namespace GreyBuild
             ++totals.failed;
         }
         if (!staged) {
-            RemoveAll(staging);
-            std::cout << "nothing written into " << a_out.string() << " (its previous outputs are unchanged)\n";
+            (void)RemoveAll(staging);
+            std::cout << "nothing written into " << out.string() << " (its previous outputs are unchanged)\n";
             return totals;
         }
-        if (!Commit(staging, a_out)) {
+        if (!Commit(staging, out)) {
             ++totals.failed;
             return totals;
         }
-        RemoveAll(staging);
+        (void)RemoveAll(staging);
         // A local ESL an earlier run left that this plan no longer needs (as --request does)
-        if (plan.newRecords.empty() && !SyncLocalEsl(plan.newRecords, a_out / kLocalPluginName)) {
+        if (plan.newRecords.empty() && !SyncLocalEsl(plan.newRecords, out / kLocalPluginName)) {
             ++totals.failed;
             return totals;
         }
@@ -187,8 +204,8 @@ namespace GreyBuild
             std::cout << fmt::format("retired  {} keeps {:06X} (not given to another source)\n", source, id);
         }
         totals.copies = static_cast<int>(copies.entries.size());
-        std::cout << fmt::format("wrote {} ({} copies) and {}\n", (a_out / kCopiesPluginName).string(), totals.copies,
-            (PluginsDir(a_out) / kCopiesMapName).string());
+        std::cout << fmt::format("wrote {} ({} copies) and {}\n", (out / kCopiesPluginName).string(), totals.copies,
+            (PluginsDir(out) / kCopiesMapName).string());
         return totals;
     }
 }

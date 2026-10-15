@@ -133,9 +133,15 @@ namespace BlackFlame::SelfTest
                     return false;  // the step's timeout ends it (logged as a timeout)
                 }
                 const bool byTag = std::string_view(tagged->link) == PlayerLinkName(PlayerLink::kTagged);
+                // W5: recolour off and no copy expected: the attribution alone cannot pass this step
+                if (!GetConfig().projectile && !CopyLaunchExpected(a_c.forms.firebolt)) {
+                    SelfTestLog::Info("T3-remote", std::format("not judged: recolour off and no projectile copy expected; "
+                        "the player's through its {}: {}", tagged->link, DescribeProjectile(*tagged)));
+                    a_c.phase = kCastBlamed;
+                    return false;
+                }
                 SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag &&
-                    (GetConfig().projectile ? tagged->recolored :
-                                              (!CopyLaunchExpected(a_c.forms.firebolt) || tagged->copyBase != 0)),
+                    (GetConfig().projectile ? tagged->recolored : tagged->copyBase != 0),
                     std::format("projectile shot by the tagged marker {:08X}, the player's through its {}: {}",
                         a_c.remoteMarkerId, tagged->link, DescribeProjectile(*tagged)));
                 a_c.phase = kCastBlamed;

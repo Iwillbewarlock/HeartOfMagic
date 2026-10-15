@@ -5,6 +5,7 @@
 #include "Forms.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
+#include "SehGuard.h"
 #include "SelfTestText.h"
 
 #include <nlohmann/json.hpp>
@@ -26,6 +27,9 @@ namespace BlackFlame::SelfTest::Reload
         constexpr auto kReadyDelay = std::chrono::seconds(3);
         constexpr int kMaxRefScan = 4096;
         constexpr float kGameDaysSlack = 0.0001f;  // ~9 game seconds at the default timescale
+        constexpr float kGameDaysWindow = 1.0f;     // W2: a save more than a game day after the request is not E3's
+        constexpr auto kLoadWait = std::chrono::minutes(5);    // W3: a started load must finish by then
+        constexpr auto kResumeWait = std::chrono::minutes(5);  // W3: the player must be ready by then
         constexpr const char* kMarkerFile = "HeartOfMagic_BlackFlame_e3.json";
 
         enum class State
@@ -46,6 +50,8 @@ namespace BlackFlame::SelfTest::Reload
             std::uint64_t nonce = 0;
             Clock::time_point askedAt{};
             bool preloadSeen = false;
+            Clock::time_point preloadAt{};
+            Clock::time_point resumeAt{};
             std::optional<Clock::time_point> readySince;
             RE::ObjectRefHandle runeHandle;  // valid only in the world E3 asked in
         };
@@ -59,6 +65,7 @@ namespace BlackFlame::SelfTest::Reload
             RE::ObjectRefHandle marker;
             std::uint64_t mark = 0;
             Clock::time_point phaseStart{};
+            bool active = false;  // W1: the step started and has not ended itself (timeout / exception ends it)
         };
         StepState g_step;
 
@@ -163,10 +170,12 @@ namespace BlackFlame::SelfTest::Reload
             return found;
         }
 
-        // The cleanup every E3 path ends with, in the world that is live now
-        void CleanUp(RE::Projectile* a_rune, RE::ObjectRefHandle a_marker)
+        // The cleanup, only in the world E3 ran in or in a save shown to be its own; the Stoke buff only when a_dispel
+        // (E3 cast it here, or its rune was found by FormID in its own save)
+        void CleanUp(RE::Projectile* a_rune, RE::ObjectRefHandle a_marker, bool a_dispel)
         {
-            SelfTestLog::Info("E3", std::format("cleanup: dispelled {} Stoke effect(s){}{}", SelfTestWorld::DispelStoke(),
+            SelfTestLog::Info("E3", std::format("cleanup: {}{}{}",
+                a_dispel ? std::format("dispelled {} Stoke effect(s)", SelfTestWorld::DispelStoke()) : std::string("buff left"),
                 a_rune ? "; rune: " + SelfTestWorld::Remove(a_rune->GetHandle()) : std::string(),
                 a_marker.get() ? "; marker: " + SelfTestWorld::Remove(a_marker) : std::string()));
         }
@@ -194,10 +203,12 @@ namespace BlackFlame::SelfTest::Reload
             auto* cell = Player() ? Player()->GetParentCell() : nullptr;
             const float days = RE::Calendar::GetSingleton() ? RE::Calendar::GetSingleton()->GetDaysPassed() : 0.0f;
             const bool sameSave = MarkerMatches(a_e3.nonce) && cell && cell->GetFormID() == a_e3.cell &&
-                                  days + kGameDaysSlack >= a_e3.gameDays;
+                                  days + kGameDaysSlack >= a_e3.gameDays && days <= a_e3.gameDays + kGameDaysWindow;
             if (!sameSave) {
-                Close(std::format("E3 not run (manual step skipped): the loaded save is not one made after E3's request "
-                                  "(marker {}, cell {:08X} vs {:08X}, game days {:.5f} vs {:.5f})",
+                Close(std::format("E3 not run (manual step skipped): the loaded save is not one made in E3's cell within a "
+                                  "game day after its request (marker {}, cell {:08X} vs {:08X}, game days {:.5f} vs {:.5f}); nothing "
+                                  "was cleaned up here - a save made after the request still holds the Stoke buff and the copy rune",
+
                           MarkerMatches(a_e3.nonce) ? "ok" : "missing or of another request", cell ? cell->GetFormID() : 0,
                           a_e3.cell, days, a_e3.gameDays),
                     true);
@@ -211,7 +222,7 @@ namespace BlackFlame::SelfTest::Reload
             } else {
                 SelfTestLog::Check("E3", RuneOk(rune), std::format("after the reload, found {}: {}", how, DescribeRune(rune)));
             }
-            CleanUp(rune, {});
+            CleanUp(rune, {}, rune && how == "by its FormID");
             Close({}, true);
         }
 
@@ -232,15 +243,45 @@ namespace BlackFlame::SelfTest::Reload
                     rune = ref ? skyrim_cast<RE::Projectile*>(ref.get()) : rune;
                 }
             }
-            CleanUp(rune, g_step.marker);
+            CleanUp(rune, g_step.marker, true);  // the world E3 ran in: it cast the buff
+            g_step = {};
             return true;
         }
     }
 
+    namespace
+    {
+        bool StepE3Body(Ctx& a_c, bool a_first);
+    }
+
     bool StepE3(Ctx& a_c, bool a_first)
+    {
+        try {
+            const bool done = StepE3Body(a_c, a_first);
+            g_step.active = g_step.active && !done;
+            return done;
+        } catch (const std::exception& e) {
+            return FailStep(std::format("the step threw: {}", e.what()));
+        }
+    }
+
+    void OnRunFinished(bool a_forLoad)
+    {
+        // W1: E3 ended by its step timeout or an exception before it armed: clean up in this world
+        if (!g_step.active || a_forLoad) {
+            g_step = {};
+            return;
+        }
+        (void)FailStep("ended before the request (timeout or exception): cleaned up");
+    }
+
+    namespace
+    {
+    bool StepE3Body(Ctx& a_c, bool a_first)
     {
         if (a_first) {
             g_step = {};
+            g_step.active = true;
             g_step.phaseStart = Clock::now();
             g_step.mark = SelfTestProbe::Mark();
             Disarm();
@@ -301,7 +342,8 @@ namespace BlackFlame::SelfTest::Reload
                 (void)SelfTestWorld::Remove(g_step.marker);
                 g_step.marker = {};
                 if (!ok) {
-                    CleanUp(rune, {});
+                    CleanUp(rune, {}, true);
+                    g_step = {};
                     return true;  // nothing worth reloading
                 }
                 auto* cell = Player()->GetParentCell();
@@ -321,18 +363,31 @@ namespace BlackFlame::SelfTest::Reload
                     std::lock_guard lock(g_mutex);
                     g_e3 = armed;
                 }
-                SelfTestLog::Info("E3", std::format("E3: quicksave now, then quickload that save (within {} minutes; the "
-                    "test resumes after the load and ends with DONE E3)", kE3Window.count()));
+                SelfTestLog::Info("E3", std::format("E3: quicksave now, then quickload that save (within {} minutes, in this "
+                    "cell; the test resumes after the load and ends with DONE E3; do not keep playing from that quicksave: it "
+                    "holds the test rune and buff)", kE3Window.count()));
+                g_step = {};
                 return true;
             }
         }
     }
+    }
 
     void OnPreLoadGame()
     {
-        std::lock_guard lock(g_mutex);
-        if (g_e3.state == State::kWaiting) {
-            g_e3.preloadSeen = true;
+        bool ended = false;
+        {
+            std::lock_guard lock(g_mutex);
+            if (g_e3.state == State::kWaiting) {
+                g_e3.preloadSeen = true;
+                g_e3.preloadAt = Clock::now();
+            } else if (g_e3.state == State::kResume) {
+                g_e3 = {};  // W2: a newer load before the judgement: that load is not judged
+                ended = true;
+            }
+        }
+        if (ended) {
+            Close("E3 not run (manual step skipped): another load started before the judgement");
         }
     }
 
@@ -361,6 +416,7 @@ namespace BlackFlame::SelfTest::Reload
             if (a_success && g_e3.preloadSeen && inTime) {
                 g_e3.state = State::kResume;
                 g_e3.readySince.reset();
+                g_e3.resumeAt = Clock::now();
                 return true;
             }
             skipped = std::format("E3 not run (manual step skipped): load {}, its preload {}, {} the {} minute window",
@@ -381,18 +437,41 @@ namespace BlackFlame::SelfTest::Reload
         }
         const auto now = Clock::now();
         if (e3.state == State::kWaiting) {
-            if (now - e3.askedAt <= kE3Window || e3.preloadSeen) {
+            if (e3.preloadSeen) {
+                if (now - e3.preloadAt > kLoadWait) {  // W3: a load that never finished
+                    Disarm();
+                    Close(std::format("E3 not run (manual step skipped): a load started but did not finish within {} minutes",
+                        kLoadWait.count()));
+                }
                 return;
             }
-            // The player never reloaded: the cleanup in this world
+            if (now - e3.askedAt <= kE3Window) {
+                return;
+            }
+            // The player never reloaded: cleaned up only while E3's world is the live one (player in its cell, the rune
+            // still there); otherwise nothing is touched
             Disarm();
+            auto* player = Player();
+            auto* cell = player ? player->GetParentCell() : nullptr;
             const auto ref = e3.runeHandle.get();
+            auto* rune = ref ? skyrim_cast<RE::Projectile*>(ref.get()) : nullptr;
             SelfTestLog::Open(true);
-            CleanUp(ref ? skyrim_cast<RE::Projectile*>(ref.get()) : nullptr, {});
+            if (rune && cell && cell->GetFormID() == e3.cell) {
+                CleanUp(rune, {}, true);
+            } else {
+                SelfTestLog::Info("E3", "no cleanup: E3's cell or rune is not loaded any more (a Stoke buff the test cast may "
+                    "still be on the player)");
+            }
             Close(std::format("E3 not run (manual step skipped): no load within {} minutes", kE3Window.count()), true);
             return;
         }
         if (e3.state != State::kResume) {
+            return;
+        }
+        if (now - e3.resumeAt > kResumeWait) {  // W3: the player never became ready after the load
+            Disarm();
+            Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes of the load",
+                kResumeWait.count()));
             return;
         }
         auto* player = Player();
@@ -415,7 +494,11 @@ namespace BlackFlame::SelfTest::Reload
             Judge(e3);
         } catch (const std::exception& e) {
             SelfTestLog::Fail("E3", std::format("the judgement threw: {}", e.what()));
-            CleanUp(nullptr, {});
+            // W1: the rune looked for once more (guarded) so the cleanup can remove it
+            std::string how;
+            RE::Projectile* rune = nullptr;
+            (void)Guarded("E3 rune lookup after a throw", [&]() { rune = FindRune(e3.rune, e3.runeBase, how); });
+            CleanUp(rune, {}, rune && how == "by its FormID");
             Close({}, true);
         }
     }

@@ -50,6 +50,7 @@ namespace BlackFlame::SelfTest
         std::uint64_t t3Mark = 0;
         bool buffWasTurnedOn = false;
         bool t3Recolored = false;
+        bool t3Copy = false;  // W5: T3's Firebolt launched with the projectile copy (recolour off)
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
