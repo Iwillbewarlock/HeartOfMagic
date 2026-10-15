@@ -64,11 +64,11 @@ int RunSelfTestSelfTest()
     }
     {   // verdicts
         std::string why;
-        Check(JudgeSample({ { 5, false, 0 }, { 3, true, 0 } }, 1, why) == SelfTestVerdict::kPass && why.find("1") != std::string::npos, "PASS: one witness found");
-        Check(JudgeSample({ { 5, true, 0 } }, 2, why) == SelfTestVerdict::kPass, "PASS: a found witness counts even on a list below every entry");
-        Check(JudgeSample({ { 5, true, 0 }, { 0, false, 0 } }, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 with the skill below") != std::string::npos && why.find("1 without") != std::string::npos, "INCONCLUSIVE: every list below every entry or without witnesses, each counted");
-        Check(JudgeSample({ { 0, false, 0 } }, 0, why) == SelfTestVerdict::kInconclusive, "INCONCLUSIVE: lists with no witness at all");
-        Check(JudgeSample({ { 5, true, 0 }, { 4, false, 0 } }, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: a list that could give a witness gave none");
+        Check(JudgeSample({ { 5, false }, { 3, true } }, 1, why) == SelfTestVerdict::kPass && why.find("1") != std::string::npos, "PASS: one witness found");
+        Check(JudgeSample({ { 5, true } }, 2, why) == SelfTestVerdict::kPass, "PASS: a found witness counts even on a list below every entry");
+        Check(JudgeSample({ { 5, true }, { 0, false } }, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 with the skill below") != std::string::npos && why.find("1 without") != std::string::npos, "INCONCLUSIVE: every list below every entry or without witnesses, each counted");
+        Check(JudgeSample({ { 0, false } }, 0, why) == SelfTestVerdict::kInconclusive, "INCONCLUSIVE: lists with no witness at all");
+        Check(JudgeSample({ { 5, true }, { 4, false } }, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: a list that could give a witness gave none");
         Check(JudgeSample({}, 0, why) == SelfTestVerdict::kFail && why.find("no HoMNS list") != std::string::npos, "FAIL: no list to check");
         Check(std::string(VerdictName(SelfTestVerdict::kInconclusive)) == "INCONCLUSIVE" && std::string(VerdictName(SelfTestVerdict::kPass)) == "PASS" && std::string(VerdictName(SelfTestVerdict::kFail)) == "FAIL", "verdict names");
     }

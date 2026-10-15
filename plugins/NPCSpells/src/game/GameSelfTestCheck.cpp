@@ -280,7 +280,7 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
         }
         ++schoolLists[school];
         const bool belowEvery = list.minLevel != kNoEntryLevel && skill < static_cast<float>(list.minLevel);
-        outcomes.push_back({ witnesses.size(), belowEvery, hits.size() + pickedWitnesses });
+        outcomes.push_back({ witnesses.size(), belowEvery });
         Log(s, std::format("SELFTEST list {} {} school={} skill={:.0f} entries={} minLevel={}{} excluded={} witnesses={} shared={} hits={} picked={} pickedWitnesses={}{}{}",
             r.text, list.editorId, NpcSpells::kSchoolNames[school], skill, list.spells.size(), list.minLevel,
             belowEvery ? " (skill below every entry)" : "", NpcSpells::CountExcluded(list.spells, excluded), witnesses.size(),

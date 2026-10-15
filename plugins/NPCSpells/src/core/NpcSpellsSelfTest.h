@@ -39,7 +39,6 @@ namespace NpcSpells {
     struct SelfTestListOutcome {
         std::size_t witnesses = 0;   // spells only this list (of ours) can have given the NPC
         bool belowEvery = false;     // the actor's skill is below every entry: the list legitimately gives nothing
-        std::size_t evidence = 0;    // witnesses found (HasSpell true, or in the leveled spell cache)
     };
     // PASS: a witness found on any list. INCONCLUSIVE: none found and no list could give one (each below every entry or
     // without witnesses). FAIL: none found where a list could give one, or no list at all. reason: for the RESULT line.
