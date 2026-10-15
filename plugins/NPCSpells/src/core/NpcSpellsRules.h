@@ -27,7 +27,8 @@ namespace NpcSpells {
     };
     Rules DefaultRules();
     // Parses the user JSON (section 5.3 shape). Returns false and fills error on malformed JSON or a ladder that is not kRungCount rungs;
-    // unknown keys are ignored; an entry that is not a FormID (or not a string) drops that entry only, and a chance, share or scale
+    // unknown keys are ignored; a section or FormID list that is not the object or array it should be keeps that part's defaults
+    // (named in error), tier names are read in any case; an entry that is not a FormID (or not a string) drops that entry only, and a chance, share or scale
     // outside 0..1 (or hybridMinMagicShare above mageMinMagicShare) goes back to its default: true, error names each one ("; " between, section 7).
     bool ParseRules(const std::string& jsonText, Rules& out, std::string& error);
     // "0C969F:Skyrim.esm" -> FormRef; anything else (a bare EditorID, "EditorID:Plugin.esp", more than 6 hex digits, no plugin) -> nullopt + error.

@@ -8,7 +8,7 @@
 namespace NpcSpells {
     struct NpcFacts {
         std::string pluginLower; std::uint32_t localId = 0;   // dice key
-        bool inheritsSpellList = false;   // own kSpells flag
+        bool inheritsSpellList = false;   // own kSpells flag and a template link (the flag without TPLT inherits nothing)
         bool unresolvableTraits = false, unresolvableStats = false, unresolvableFactions = false;
         bool isPlayer = false, isBeast = false, isCreature = false, isRedguard = false, isUndeadException = false, isNecromancerClass = false;
         bool hasClass = false; ClassWeights weights;

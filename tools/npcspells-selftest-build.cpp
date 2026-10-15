@@ -131,6 +131,31 @@ int RunBuildSelfTest()
       const auto is = *FindSlot({ School::Illusion, kGroupNone, Variant::All, 0, false });
       std::size_t n = 0, withMaster = 0; for (const auto& l : tl) if (l.slotIndex == is) { ++n; for (const auto& e : l.entries) if (p[e.spellIndex].tier == Tier::Master) ++withMaster; }
       Check(n == 3 && withMaster == 3, "a 1-spell tier is copied into every chunk of a 3-chunk slot"); }
+    // Thin tiers go in first and the chunk count leaves room for their copies (a 255-full chunk 0 used to drop the only master spell).
+    // missing: spells of the R1 All slot in none of its chunks; dropped: droppedOverCapacity over every slot (the variant and
+    // below lists of the same spells are split too)
+    { struct Split { std::size_t chunkLists = 0, withMaster = 0, missing = 0, dropped = 0; };
+      auto split = [&](std::array<int, kTierCount> sizes) {
+          std::vector<SpellFacts> p; int id = 0;
+          for (std::size_t t = 0; t < kTierCount; ++t)
+              for (int i = 0; i < sizes[t]; ++i) { SpellFacts f; f.persistentId = std::format("F.esp|0x{:06X}", 0x800 + id++); f.school = School::Illusion; f.tier = static_cast<Tier>(t); p.push_back(f); }
+          BuildStats ts; const auto tl = BuildLists(p, rules, ts);
+          const auto is = *FindSlot({ School::Illusion, kGroupNone, Variant::All, 0, false });
+          Split r; r.dropped = ts.droppedOverCapacity; std::vector<bool> seen(p.size(), false);
+          for (const auto& l : tl) if (l.slotIndex == is) {
+              ++r.chunkLists;
+              r.withMaster += std::any_of(l.entries.begin(), l.entries.end(), [&](const auto& e) { return p[e.spellIndex].tier == Tier::Master; }) ? 1 : 0;
+              for (const auto& e : l.entries) seen[e.spellIndex] = true;
+          }
+          r.missing = static_cast<std::size_t>(std::count(seen.begin(), seen.end(), false));
+          return r;
+      };
+      const Split a = split({ 128, 127, 127, 127, 1 });   // 2 chunks: 509 round-robin + 1 copy = 256 in chunk 0; 3 fit
+      Check(a.dropped == 0 && a.missing == 0 && a.chunkLists == 3 && a.withMaster == 3, "{128,127,127,127,1}: 3 chunks (2 cannot hold the copies), nothing dropped, every chunk has the master spell");
+      const Split b = split({ 100, 100, 100, 100, 1 });
+      Check(b.dropped == 0 && b.missing == 0 && b.chunkLists == 2 && b.withMaster == 2, "{100,100,100,100,1}: 2 chunks still hold the copies, so the count stays 2");
+      const Split c = split({ 200, 200, 200, 163, 1 });   // 763 + 3 copies = 766 > 3 x 255: one over in this slot, whatever the layout
+      Check(c.missing == 1 && c.dropped > 0 && c.chunkLists == 3 && c.withMaster == 3, "{200,200,200,163,1}: one spell over 3 x 255 left out (the least possible) and counted, every chunk keeps the master spell"); }
     // A variant list missing a tier its All list holds takes that tier's All spells (no rung starves an NPC the All list would serve)
     { auto spell = [](const char* id, School school, Tier tier, std::vector<std::string> el, std::vector<std::string> te, bool undeadRule) {
           SpellFacts f; f.persistentId = id; f.school = school; f.tier = tier; f.elements = std::move(el); f.techniques = std::move(te); f.undeadRule = undeadRule; return f; };

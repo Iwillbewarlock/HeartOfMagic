@@ -47,7 +47,10 @@ ahead of time (at data load) and attaches them to NPC base records.
 - **Lists:** one per school x group x variant x rung (a "slot", 307 in all); the ESL has room for 3 chunks per slot.
   A list holds one school only, entries sorted by level; a spell's level is the skill floor of its tier (novice 0,
   apprentice 25, adept 50, expert 75, master 100). A list is split into chunks only past 255 entries (the engine's
-  limit); a tier with fewer spells than there are chunks is copied into every chunk. An NPC draws one chunk.
+  limit); a tier with fewer spells than there are chunks is copied into every chunk first, and the other spells are
+  dealt round-robin. The chunk count is the smallest from ceil(spells / 255) that holds those copies too (so 510
+  spells with one master spell take 3 chunks, not 2); when even 3 chunks cannot hold them, the surplus is left out
+  and counted as dropped over capacity. An NPC draws one chunk.
 - **One spell per attached list.** More spells for a higher skill therefore means more lists. The ladder, per school,
   for a mage-class NPC:
 
@@ -81,7 +84,9 @@ ahead of time (at data load) and attaches them to NPC base records.
 - **Who gets what:** the NPC's class (from its skill weights) decides: mage (magic weights at least 0.6 of all),
   hybrid (at least 0.3), non-mage. A non-mage gets, with 5 %, a list of novice curing/armor spells. Beast races get
   nothing; other creatures get lists only with a mage class. NPCs that inherit their spell list from a template are
-  skipped (the lists go on the record that really uses it); leveled NPCs resolve to their end record. Deleted or
+  skipped (the lists go on the record that really uses it); leveled NPCs resolve to their end record. The template
+  flag for spells counts only with a template set: a record with the flag and no template keeps its own spell list
+  and gets lists like any other. Deleted or
   ignored NPC records, and character-creation face presets, are skipped.
 - **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
   gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
@@ -117,9 +122,12 @@ with `startTier`, `below`, `chance`; the expected spells per tier follow from it
   0.1 (0.64 reads as 0.6), then the class's magic weight sum x 10 is compared with its total weight x that many tenths.
 - `excludeSpells` uses the catalog's exact form `Plugin.esp|0xNNNN` (exact string match).
 - Group names are fixed (Forsworn, Vampire, Necromancer, Thalmor, Vigilant); a group with another name is ignored.
-- A broken file (bad JSON, wrong types, not 5 rungs) falls back to the built-in defaults; the report header says so.
-- Smaller problems keep the rest of the file: an entry of a FormID list that is not a string or not a FormID drops
-  that entry only; a `chance`, `share`, `preferShare`, `hybridScale`, `nonMageChance` or class share outside 0..1
+- A broken file (bad JSON, a wrong-typed value such as a string where a number or a tag list belongs, a rung that is
+  not an object, an unknown `startTier`, not 5 rungs) falls back to the built-in defaults; the report header says so.
+  Tier names are read in any case (`"Novice"` is novice).
+- Smaller problems keep the rest of the file: a section or list that is there but not the array or object it should
+  be (`"keywords": [...]`, `"beastRaces": "..."`) keeps that part's defaults; an entry of a FormID list that is not a
+  string or not a FormID drops that entry only; a `chance`, `share`, `preferShare`, `hybridScale`, `nonMageChance` or class share outside 0..1
   goes back to its default (not clamped), and so do both class shares when `hybridMinMagicShare` is above
   `mageMinMagicShare`. Every such problem is named, `; ` between them, in the log (a warning) and on the report's
   `Rules error:` line.
@@ -134,7 +142,8 @@ reason; a missing or unreadable `spell_tree.json` or `spell_catalog.json` is nam
 (version, time, rules source); Spells (pool counts: tree nodes, duplicate persistentId - a spell named by more than
 one node, taken once so its weight is not doubled -, excluded by tag, kept...);
 Lists (lists built, empty slots, dropped over capacity, ESL records found/missing/wrong type, per school, every list
-with its entry count and flag); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
+the game got with its entry count and flag - a list skipped for a missing record, a prefilled record or no memory is
+only counted); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
 NPC lists (one row for every NPC that got lists: persistent id `Plugin|0xLocal`, name, group, class tier and undead
 policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are converted to UTF-8 from the system code page.
 The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry

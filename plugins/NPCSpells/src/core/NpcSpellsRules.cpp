@@ -14,11 +14,19 @@ namespace {
     template <class T> void Read(const nlohmann::json& j, const char* key, T& out) { if (auto it = j.find(key); it != j.end()) out = it->get<T>(); }
     // Every problem the file has is kept, "; " between them (one bad entry does not hide the next)
     void AppendError(std::string& error, const std::string& part) { if (!error.empty()) error += "; "; error += part; }
+    // A key whose value is not the array or object the file format names is an error, not a silent skip: that part keeps its
+    // defaults and the rest of the file is read. Null when the key is absent or the value has the wrong type.
+    const nlohmann::json* Container(const nlohmann::json& j, const char* key, bool array, std::string& error) {
+        const auto it = j.find(key); if (it == j.end()) return nullptr;
+        if (array ? it->is_array() : it->is_object()) return &*it;
+        AppendError(error, std::format("{}: expected {}, found {}; the defaults are kept", key, array ? "an array" : "an object", it->type_name()));
+        return nullptr;
+    }
     // A bad entry drops that entry only (section 7); the rest of the list stays
     void ReadRefs(const nlohmann::json& j, const char* key, std::vector<FormRef>& out, std::string& error) {
-        auto it = j.find(key); if (it == j.end() || !it->is_array()) return;
+        const auto* list = Container(j, key, true, error); if (!list) return;
         out.clear();
-        for (const auto& v : *it) {
+        for (const auto& v : *list) {
             if (!v.is_string()) { AppendError(error, std::format("{}: not a FormID (XXXXXX:Plugin.ext): {}", key, v.dump())); continue; }
             std::string refError;
             if (auto ref = ParseFormRef(v.get<std::string>(), refError)) out.push_back(*ref); else AppendError(error, std::format("{}: {}", key, refError));
@@ -86,11 +94,12 @@ bool ParseRulesImpl(const std::string& jsonText, Rules& out, std::string& error)
     if (j.is_discarded() || !j.is_object()) { error = "rules JSON is not an object"; return false; }
     out = DefaultRules();
     const Rules defaults = DefaultRules();
-    if (auto l = j.find("ladder"); l != j.end() && l->is_array()) {
+    if (const auto* l = Container(j, "ladder", true, error)) {
         out.ladder.clear();
         for (const auto& rung : *l) {
-            const auto tier = TierFromName(rung.value("startTier", "novice"));
-            if (!tier) { error = "ladder: unknown tier"; return false; }
+            const std::string tierName = rung.value("startTier", std::string(kTierNames[0]));
+            const auto tier = TierFromName(Lower(tierName));   // "Novice" reads as novice
+            if (!tier) { AppendError(error, std::format("ladder: unknown startTier \"{}\" (novice, apprentice, adept, expert or master)", tierName)); return false; }
             out.ladder.push_back({ *tier, rung.value("below", false), rung.value("chance", 1.0) });
         }
         // The slot table has kRungCount rungs; InSlot/BuildLists index rules.ladder[rung] for each
@@ -99,14 +108,14 @@ bool ParseRulesImpl(const std::string& jsonText, Rules& out, std::string& error)
     }
     Read(j, "hybridScale", out.hybridScale); Read(j, "nonMageChance", out.nonMageChance); Read(j, "nonMageTags", out.nonMageTags);
     CheckShare(out.hybridScale, defaults.hybridScale, "hybridScale", error); CheckShare(out.nonMageChance, defaults.nonMageChance, "nonMageChance", error);
-    if (auto c = j.find("classTiers"); c != j.end()) ReadClassTiers(*c, out, error);
-    if (auto c = j.find("conjuration"); c != j.end()) {
+    if (const auto* c = Container(j, "classTiers", false, error)) ReadClassTiers(*c, out, error);
+    if (const auto* c = Container(j, "conjuration", false, error)) {
         ReadRefs(*c, "necromancerClasses", out.necromancerClasses, error); Read(*c, "share", out.conjurationShare);
         CheckShare(out.conjurationShare, defaults.conjurationShare, "conjuration.share", error);
     }
     Read(j, "excludeTags", out.excludeTags); Read(j, "excludeSpells", out.excludeSpells);
     ReadRefs(j, "beastRaces", out.beastRaces, error);
-    if (auto g = j.find("groups"); g != j.end() && g->is_array()) {
+    if (const auto* g = Container(j, "groups", true, error)) {
         for (const auto& gj : *g) {
             const std::string name = gj.value("name", "");
             auto it = std::find_if(out.groups.begin(), out.groups.end(), [&](const GroupRule& r) { return r.name == name; });
@@ -116,9 +125,9 @@ bool ParseRulesImpl(const std::string& jsonText, Rules& out, std::string& error)
             CheckShare(it->preferShare, defaultPreferShare, "groups." + name + ".preferShare", error);
         }
     }
-    if (auto u = j.find("undead"); u != j.end()) ReadRefs(*u, "exceptNpcs", out.undeadExceptNpcs, error);
-    if (auto rg = j.find("redguard"); rg != j.end()) ReadRef(*rg, "race", out.redguardRace, error);
-    if (auto k = j.find("keywords"); k != j.end()) { ReadRef(*k, "npc", out.keywordNpc, error); ReadRef(*k, "creature", out.keywordCreature, error); ReadRef(*k, "animal", out.keywordAnimal, error); }
+    if (const auto* u = Container(j, "undead", false, error)) ReadRefs(*u, "exceptNpcs", out.undeadExceptNpcs, error);
+    if (const auto* rg = Container(j, "redguard", false, error)) ReadRef(*rg, "race", out.redguardRace, error);
+    if (const auto* k = Container(j, "keywords", false, error)) { ReadRef(*k, "npc", out.keywordNpc, error); ReadRef(*k, "creature", out.keywordCreature, error); ReadRef(*k, "animal", out.keywordAnimal, error); }
     return true;
 }
 }

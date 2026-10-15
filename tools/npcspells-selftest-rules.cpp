@@ -100,6 +100,34 @@ int RunRulesSelfTest()
     Rules shortLadder; err.clear();
     Check(!ParseRules(R"({ "ladder": [ { "startTier": "novice", "below": false, "chance": 1.0 } ] })", shortLadder, err) && !err.empty(),
           "a ladder that is not five rungs is rejected");
+    Rules mixedCase; err.clear();
+    Check(ParseRules(R"({ "ladder": [ { "startTier": "Novice", "below": false, "chance": 1.0 }, { "startTier": "APPRENTICE", "below": true, "chance": 0.25 },
+                          { "startTier": "Adept", "below": true, "chance": 0.25 }, { "startTier": "expert", "below": true, "chance": 0.5 }, { "startTier": "Master", "below": false, "chance": 0.5 } ] })", mixedCase, err) &&
+          err.empty() && mixedCase.ladder[0].startTier == Tier::Novice && mixedCase.ladder[1].startTier == Tier::Apprentice && mixedCase.ladder[4].startTier == Tier::Master,
+          "ladder tier names are read in any case (\"Novice\", \"APPRENTICE\")");
+    Rules badTier; err.clear();
+    Check(!ParseRules(R"({ "ladder": [ { "startTier": "Grandmaster" } ] })", badTier, err) && err.find("Grandmaster") != std::string::npos,
+          "an unknown ladder tier is rejected and named in the error");
+    // A key present with the wrong container type is named in the error; that part keeps its defaults, the rest of the file is read
+    struct WrongContainer { const char* text; const char* key; bool (*kept)(const Rules&, const Rules&); };
+    const WrongContainer wrongContainers[] = {
+        { R"({ "ladder": { "startTier": "novice" }, "hybridScale": 0.4 })", "ladder", [](const Rules& r, const Rules& d) { return r.ladder.size() == d.ladder.size() && r.ladder[1].chance == d.ladder[1].chance && r.hybridScale == 0.4; } },
+        { R"({ "beastRaces": "0CDD84:Skyrim.esm" })", "beastRaces", [](const Rules& r, const Rules& d) { return SameRefs(r.beastRaces, d.beastRaces); } },
+        { R"({ "classTiers": [0.5, 0.2] })", "classTiers", [](const Rules& r, const Rules& d) { return r.mageMinMagicShareTenths == d.mageMinMagicShareTenths && r.hybridMinMagicShareTenths == d.hybridMinMagicShareTenths; } },
+        { R"({ "conjuration": 0.5 })", "conjuration", [](const Rules& r, const Rules& d) { return r.conjurationShare == d.conjurationShare && SameRefs(r.necromancerClasses, d.necromancerClasses); } },
+        { R"({ "conjuration": { "necromancerClasses": { "a": "0C969F:Skyrim.esm" } } })", "necromancerClasses", [](const Rules& r, const Rules& d) { return SameRefs(r.necromancerClasses, d.necromancerClasses); } },
+        { R"({ "groups": { "name": "Thalmor" } })", "groups", [](const Rules& r, const Rules& d) { return r.groups.size() == d.groups.size() && SameRefs(r.groups[3].factions, d.groups[3].factions); } },
+        { R"({ "groups": [ { "name": "Thalmor", "factions": "039F26:Skyrim.esm" } ] })", "factions", [](const Rules& r, const Rules& d) { return SameRefs(r.groups[3].factions, d.groups[3].factions); } },
+        { R"({ "undead": ["0135E9:Skyrim.esm"] })", "undead", [](const Rules& r, const Rules& d) { return SameRefs(r.undeadExceptNpcs, d.undeadExceptNpcs); } },
+        { R"({ "undead": { "exceptNpcs": "0135E9:Skyrim.esm" } })", "exceptNpcs", [](const Rules& r, const Rules& d) { return SameRefs(r.undeadExceptNpcs, d.undeadExceptNpcs); } },
+        { R"({ "redguard": "013748:Skyrim.esm" })", "redguard", [](const Rules& r, const Rules& d) { return SameRef(r.redguardRace, d.redguardRace); } },
+        { R"({ "keywords": ["013794:Skyrim.esm"] })", "keywords", [](const Rules& r, const Rules& d) { return SameRef(r.keywordNpc, d.keywordNpc) && SameRef(r.keywordAnimal, d.keywordAnimal); } },
+    };
+    for (const auto& w : wrongContainers) {
+        Rules r; err.clear(); bool ok = false;
+        try { ok = ParseRules(w.text, r, err); } catch (...) { ok = false; err = "threw"; }
+        Check(ok && err.find(w.key) != std::string::npos && err.find("expected") != std::string::npos && w.kept(r, defaults), w.text);
+    }
     Rules broken; err.clear();
     Check(!ParseRules("{ not json", broken, err) && !err.empty(), "malformed JSON reports an error");
     const char* wrongTyped[] = { R"({ "hybridScale": "x" })", R"({ "nonMageTags": 3 })", R"({ "ladder": [5,5,5,5,5] })", R"({ "groups": [5] })" };

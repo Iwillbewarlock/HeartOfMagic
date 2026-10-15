@@ -129,21 +129,41 @@ namespace TomeReach
             }
         }
 
+        // Every entry `Iterator` (directory_iterator or recursive_directory_iterator) gives for `dir`, through `visit`.
+        // A folder that cannot be opened (a missing one) lists nothing and is not counted; a failed step to the next
+        // entry counts one skipped entry and ends the listing there (the iterator is unusable after it).
+        template <class Iterator, class Visit>
+        void ForEachEntry(const std::filesystem::path& dir, std::filesystem::directory_options options, std::size_t& skipped,
+            Visit&& visit)
+        {
+            std::error_code ec;
+            Iterator it(dir, options, ec);
+            if (ec) return;
+            for (const Iterator end{}; it != end;) {
+                visit(*it);
+                it.increment(ec);
+                if (ec) {
+                    ++skipped;
+                    return;
+                }
+            }
+        }
+
         // Every entry of a folder through AddIfConfig, or only names ending in one of `suffixes`
         void ListFolder(const std::filesystem::path& dir, std::span<const std::string_view> suffixes, bool every,
             std::vector<std::filesystem::path>& out, std::size_t& skipped)
         {
-            std::error_code ec;
-            for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
-                try {
-                    const auto name = LowerUtf8(it->path().filename());
-                    if (every || std::ranges::any_of(suffixes, [&](auto s) { return name.ends_with(s); })) {
-                        AddIfConfig(*it, out, skipped);
+            ForEachEntry<std::filesystem::directory_iterator>(dir, std::filesystem::directory_options::none, skipped,
+                [&](const std::filesystem::directory_entry& entry) {
+                    try {
+                        const auto name = LowerUtf8(entry.path().filename());
+                        if (every || std::ranges::any_of(suffixes, [&](auto s) { return name.ends_with(s); })) {
+                            AddIfConfig(entry, out, skipped);
+                        }
+                    } catch (const std::system_error&) {
+                        ++skipped;
                     }
-                } catch (const std::system_error&) {
-                    ++skipped;
-                }
-            }
+                });
         }
 
 #ifdef _WIN32
@@ -161,6 +181,12 @@ namespace TomeReach
             const HANDLE handle = FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch,
                 nullptr, FIND_FIRST_EX_LARGE_FETCH);
             return FindHandle(handle == INVALID_HANDLE_VALUE ? nullptr : handle);
+        }
+
+        // Called right after FindNextFileW returned false: anything but the normal end means entries were not listed
+        void CountFindEnd(std::size_t& skipped)
+        {
+            if (GetLastError() != ERROR_NO_MORE_FILES) ++skipped;
         }
 
         // Only the names "*<suffix>" (the OS match is case-insensitive, like IsDistributionConfig): under
@@ -184,6 +210,7 @@ namespace TomeReach
                     }
                 }
             } while (FindNextFileW(find.get(), &found));
+            CountFindEnd(skipped);
         }
 #endif
 
@@ -214,13 +241,14 @@ namespace TomeReach
                         add(plugins / std::filesystem::path(found.cFileName));
                     }
                 } while (FindNextFileW(find.get(), &found));
+                CountFindEnd(skipped);
             }
 #else
-            std::error_code ec;
-            for (std::filesystem::directory_iterator it(plugins, ec), end; !ec && it != end; it.increment(ec)) {
-                std::error_code dirEc;
-                if (it->is_directory(dirEc) && !dirEc) add(it->path());
-            }
+            ForEachEntry<std::filesystem::directory_iterator>(plugins, std::filesystem::directory_options::none, skipped,
+                [&](const std::filesystem::directory_entry& entry) {
+                    std::error_code dirEc;
+                    if (entry.is_directory(dirEc) && !dirEc) add(entry.path());
+                });
 #endif
             return out;
         }
@@ -267,11 +295,8 @@ namespace TomeReach
         // full recursive walk that found them took 1.4 s under MO2's USVFS on a big load order and found
         // none there; if a framework turns out to read such files, the upgrade is that full walk again.
         for (const auto& folder : ConfigFolders(dataDir / "SKSE" / "Plugins", skipped)) {
-            std::error_code ec;
-            for (fs::recursive_directory_iterator it(folder, fs::directory_options::skip_permission_denied, ec), end;
-                 !ec && it != end; it.increment(ec)) {
-                AddIfConfig(*it, out, skipped);
-            }
+            ForEachEntry<fs::recursive_directory_iterator>(folder, fs::directory_options::skip_permission_denied, skipped,
+                [&](const fs::directory_entry& entry) { AddIfConfig(entry, out, skipped); });
         }
         ReportSkipped(skippedEntries, skipped);
         return out;

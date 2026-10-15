@@ -44,6 +44,23 @@ namespace {
         return k.variant == Variant::NoUndeadAll || (k.variant == Variant::Prefer && k.school == School::Conjuration && kGroups[k.group].policy == UndeadGroupPolicy::Mixed);
     }
 }
+namespace {
+    using TierSpells = std::array<std::vector<std::uint32_t>, kTierCount>;   // pool indices per tier
+    // A tier with fewer spells than there are chunks goes into every chunk, so each chunk keeps every tier the slot holds
+    bool IsThin(std::size_t tierSize, std::size_t chunkCount) { return chunkCount > 1 && tierSize < chunkCount; }
+    // Split only over 255 (§5.4): a small slot stays one list, so a flag-0 list never misses a tier it holds. The smallest count
+    // from ceil(total / 255) whose chunks hold the thin tiers' copies plus a round-robin share of the rest; when none up to
+    // kMaxChunks does, kMaxChunks (the surplus is dropped and counted)
+    std::size_t ChunkCount(const TierSpells& byTier, std::size_t total)
+    {
+        for (std::size_t c = (total + kMaxEntries - 1) / kMaxEntries; c < kMaxChunks; ++c) {
+            std::size_t thin = 0;
+            for (const auto& v : byTier) if (IsThin(v.size(), c)) thin += v.size();
+            if ((total - thin + c - 1) / c + thin <= kMaxEntries) return c;
+        }
+        return kMaxChunks;
+    }
+}
 bool InSlot(const SpellFacts& s, const SlotKey& k, const Rules& rules)
 {
     return InBase(s, k, rules) && VariantRequires(s, k, rules) && !VariantExcludes(s, k);
@@ -55,7 +72,7 @@ std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rul
     for (std::size_t slot = 0; slot < table.size(); ++slot) {
         const SlotKey& key = table[slot].key;
         // spare: the All list's spells of this (school, group, rung) that the variant does not ask for but allows
-        std::array<std::vector<std::uint32_t>, kTierCount> byTier, spare;
+        TierSpells byTier, spare;
         for (std::uint32_t i = 0; i < pool.size(); ++i) {
             if (!InBase(pool[i], key, rules) || VariantExcludes(pool[i], key)) continue;
             (VariantRequires(pool[i], key, rules) ? byTier : spare)[static_cast<std::size_t>(pool[i].tier)].push_back(i);
@@ -68,22 +85,21 @@ std::vector<BuiltList> BuildLists(const std::vector<SpellFacts>& pool, const Rul
         if (toppedUp) ++stats.variantsToppedUp;
         std::size_t total = 0; for (const auto& v : byTier) total += v.size();
         if (total == 0) { ++stats.emptySlots; continue; }
-        // Split only over 255 (§5.4): a small slot stays one list, so a flag-0 list never misses a tier it holds
-        const std::size_t chunkCount = std::min<std::size_t>(kMaxChunks, (total + kMaxEntries - 1) / kMaxEntries);
+        const std::size_t chunkCount = ChunkCount(byTier, total);
         const Rung* belowRung = (!key.nonMage && rules.ladder[key.rung].below) ? &rules.ladder[key.rung] : nullptr;
         std::array<std::vector<Entry>, kMaxChunks> chunks;
         const auto add = [&](std::vector<Entry>& target, std::uint32_t spell, std::size_t t) {
             if (target.size() >= kMaxEntries) { ++stats.droppedOverCapacity; return; }
             target.push_back({ spell, EntryLevel(static_cast<Tier>(t), belowRung) });
         };
-        std::size_t next = 0;
-        for (std::size_t t = 0; t < kTierCount; ++t) {
-            if (chunkCount > 1 && byTier[t].size() < chunkCount) {   // a thin tier goes into every chunk so each chunk keeps every tier the slot holds
+        // Thin tiers first, into every chunk: a chunk the round-robin fills to 255 never drops a thin tier's only copy
+        for (std::size_t t = 0; t < kTierCount; ++t)
+            if (IsThin(byTier[t].size(), chunkCount))
                 for (std::uint32_t spell : byTier[t]) for (std::size_t c = 0; c < chunkCount; ++c) add(chunks[c], spell, t);
-                continue;
-            }
-            for (std::uint32_t spell : byTier[t]) add(chunks[next++ % chunkCount], spell, t);
-        }
+        std::size_t next = 0;
+        for (std::size_t t = 0; t < kTierCount; ++t)
+            if (!IsThin(byTier[t].size(), chunkCount))
+                for (std::uint32_t spell : byTier[t]) add(chunks[next++ % chunkCount], spell, t);
         const std::uint8_t flags = belowRung ? kAllLevelsFlag : 0;
         for (std::uint8_t c = 0; c < kMaxChunks; ++c) {
             if (chunks[c].empty()) continue;

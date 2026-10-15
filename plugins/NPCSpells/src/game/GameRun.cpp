@@ -49,6 +49,7 @@ namespace
             }
             std::ofstream file(path, std::ios::binary | std::ios::trunc);
             file << NpcSpells::RenderReport(rd);
+            file.close();  // close() flushes: a failed final write sets failbit here, after the << above looked fine
             if (!file) {
                 logger::error("NPCSpells: could not write the report {}", NpcSpellsGame::kReportPath);
             }
@@ -106,6 +107,10 @@ namespace
         const auto lists = NpcSpells::BuildLists(pool.facts, inputs.rules, bs);
         const auto index = NpcSpellsGame::FillLists(lists, pool, esl, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled, rd.listsSkippedNoMemory);
         for (const auto& l : lists) {
+            // Only the lists the game has: a skipped one (no record, prefilled, no memory) is counted in listsSkipped*, not listed
+            if (l.slotIndex >= index.present.size() || !index.present[l.slotIndex][l.chunk]) {
+                continue;
+            }
             rd.listSizes.emplace_back(NpcSpells::EditorIdFor(NpcSpells::SlotTable()[l.slotIndex].key, l.chunk), l.entries.size(), l.flags);
         }
         rd.timingsMs.emplace_back("lists", MsSince(stageStart));

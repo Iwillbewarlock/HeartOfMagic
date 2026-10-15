@@ -210,7 +210,9 @@ game the placed references of cells that are not loaded are not in memory:
 - The config scan (`TomeReachConfig.cpp`) is shared with the NPC Spells addon (its `*_DISTR.ini` exclusion). It
   compares file and folder names as UTF-8 (`u8string`), and a bad entry (an error code or an exception on one
   path) skips that entry alone instead of stopping the pass, so a load order with non-ANSI file names (Korean ones)
-  no longer loses the whole scan. The number skipped comes back to the caller (`FindDistributionConfigs` /
+  no longer loses the whole scan. A listing that breaks off part way (a failed `increment(ec)` of a directory
+  iterator, or `FindNextFileW` ending with anything but `ERROR_NO_MORE_FILES`) counts one skipped entry; a folder
+  that is not there (the iterator's constructor failing) is not counted. The number skipped comes back to the caller (`FindDistributionConfigs` /
   `TopLevelConfigs` out-param; the file has no logger), and `SpellLearning.log` warns with it when it is not 0
   ("TomeReach: N entries in the distribution config search could not be read"). Only `std::system_error`
   (which `filesystem_error` derives from) is caught per entry; anything else ends the pass as before. The Win32

@@ -207,7 +207,9 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
         f.isPlayer = npc->IsPlayer();
 
         WalkChain(npc, chain, npcs);
-        f.inheritsSpellList = (chain[0].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0;
+        // The Spells flag inherits only through a template link: with no TPLT (18 such NPCs in a 2026-10 load order, mod
+        // records and a COTH-overridden vanilla mage) the record's own spell list is the one the game uses
+        f.inheritsSpellList = (chain[0].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0 && chain.size() > 1;
         auto* classNpc = Provider(npc, chain, npcs, Category::Stats, f.unresolvableStats);
         auto* raceNpc = Provider(npc, chain, npcs, Category::Traits, f.unresolvableTraits);
         auto* factionNpc = Provider(npc, chain, npcs, Category::Factions, f.unresolvableFactions);

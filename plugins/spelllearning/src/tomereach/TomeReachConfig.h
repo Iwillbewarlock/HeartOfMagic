@@ -32,7 +32,7 @@ namespace TomeReach
     // matched case-insensitively) and that IsDistributionConfig accepts. Lists only the matching names
     // (an OS wildcard), not the whole folder: under MO2's USVFS that holds every mod's files.
     // skippedEntries, when given, is set to the number of entries skipped alone because their status or
-    // name could not be read (this file has no logger: the caller logs it).
+    // name could not be read, plus one for each listing that broke off part way (this file has no logger: the caller logs it).
     std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
         std::span<const std::string_view> suffixes, std::size_t* skippedEntries = nullptr);
 

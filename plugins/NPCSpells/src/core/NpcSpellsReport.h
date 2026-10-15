@@ -13,7 +13,7 @@ namespace NpcSpells {
     struct ReportData {
         std::string version, generatedUtc; bool rulesFromDefaults = false; std::string rulesError; std::string stopReason;
         PoolStats pool; BuildStats build; std::size_t eslRecords = 0, eslMissing = 0, eslWrongType = 0, listsSkippedNoRecord = 0, listsSkippedPrefilled = 0, listsSkippedNoMemory = 0;   // prefilled: the record already held entries (left as it was); no memory: the game heap gave no entry array
-        std::vector<std::tuple<std::string, std::size_t, std::uint8_t>> listSizes;   // editorId, entries, flags
+        std::vector<std::tuple<std::string, std::size_t, std::uint8_t>> listSizes;   // editorId, entries, flags: the filled lists only (a skipped one is only counted)
         std::size_t npcsScanned = 0, npcsEligible = 0, npcsAttached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0, unresolvedRefs = 0;
         std::vector<std::pair<std::string, std::size_t>> skipped;                     // reason, count (copied from NpcStats::skipped)
         std::array<std::size_t, kClassTierCount> byTier{}; std::array<std::size_t, kGroupCount> byGroup{};
