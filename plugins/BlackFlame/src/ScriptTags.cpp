@@ -80,6 +80,9 @@ namespace BlackFlame
             }
             const bool wasConfirmed = live && existing->second.pendingCaller == 0;
             auto& tag = tags[handle.native_handle()];
+            if (!live) {
+                tag = Tag{};  // an expired or old-world entry passes nothing on (a stale placed flag included)
+            }
             tag.handle = handle;
             tag.expires = now + (a_placed ? kPlacedWindow : kSourceWindow);
             tag.placed = tag.placed || a_placed;
@@ -203,18 +206,24 @@ namespace BlackFlame
         Add(a_ref, a_placed, a_caller);
     }
 
-    TagState TagStateOf(const RE::TESObjectREFR* a_ref)
+    TagInfo TagInfoOf(const RE::TESObjectREFR* a_ref)
     {
         if (!a_ref || g_count.load() == 0) {
-            return TagState::kNone;
+            return {};
         }
         const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
         std::lock_guard lock(g_mutex);
         const auto it = Tags().find(value);
         if (it == Tags().end() || it->second.expires <= Clock::now() || it->second.generation != WorldGeneration()) {
-            return TagState::kNone;
+            return {};
         }
-        return it->second.pendingCaller == 0 ? TagState::kConfirmed : TagState::kPending;
+        const auto caller = it->second.pendingCaller;
+        return { caller == 0 ? TagState::kConfirmed : TagState::kPending, caller };
+    }
+
+    TagState TagStateOf(const RE::TESObjectREFR* a_ref)
+    {
+        return TagInfoOf(a_ref).state;
     }
 
     bool IsTaggedSource(const RE::TESObjectREFR* a_ref)

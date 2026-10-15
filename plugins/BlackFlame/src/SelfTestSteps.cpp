@@ -245,6 +245,7 @@ namespace BlackFlame::SelfTest
                 a_c.mark = SelfTestProbe::Mark();
                 a_c.t3Mark = a_c.mark;
                 a_c.swapsAtT3 = ImpactSwapCount();
+                a_c.mappedAtT3 = ImpactMappedSeenCount();
                 a_c.waitingFor = "the player's Firebolt projectile in the hook";
                 return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T3");
             }

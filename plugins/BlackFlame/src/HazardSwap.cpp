@@ -23,33 +23,46 @@ namespace BlackFlame
         // Set only during the original Load3D of a hazard that gets its grey copy: which base, which path
         thread_local const RE::TESModel* t_model = nullptr;
         thread_local const char* t_grey = nullptr;
+        thread_local bool t_handed = false;  // the GetModel thunk handed out t_grey in the current scope
 
         // RAII for the two thread_locals: the previous values come back however the scope ends
         class SwapScope
         {
         public:
             SwapScope(const RE::TESModel* a_model, const char* a_grey) noexcept :
-                m_model(t_model), m_grey(t_grey)
+                m_model(t_model), m_grey(t_grey), m_handed(t_handed)
             {
                 t_model = a_model;
                 t_grey = a_grey;
+                t_handed = false;
             }
             ~SwapScope()
             {
                 t_model = m_model;
                 t_grey = m_grey;
+                t_handed = m_handed;
             }
+            [[nodiscard]] bool Handed() const noexcept { return t_handed; }
             SwapScope(const SwapScope&) = delete;
             SwapScope& operator=(const SwapScope&) = delete;
 
         private:
             const RE::TESModel* m_model;
             const char* m_grey;
+            bool m_handed;
         };
 
         std::atomic<std::uint64_t> g_swaps{ 0 };
         std::atomic<bool> g_hooked{ false };
         std::atomic<int> g_windowLogs{ 0 };
+        std::atomic<bool> g_failureReported{ false };
+
+        void ReportFailure()
+        {
+            if (!g_failureReported.exchange(true)) {
+                logger::error("BlackFlame: hazard swap thunk threw; the original was used; further failures are not logged");
+            }
+        }
         constexpr int kMaxWindowLogs = 3;
 
         // The grey path for this hazard, or null (cheap checks first)
@@ -91,25 +104,30 @@ namespace BlackFlame
                     }
                 } catch (...) {
                     grey = nullptr;
+                    ReportFailure();
                 }
                 if (!grey) {
+                    // Closed for this load, so an outer hazard's grey path cannot leak into a nested load
+                    const SwapScope closed(nullptr, nullptr);
                     return func(a_this, a_backgroundLoading);
                 }
-                const auto before = g_swaps.load();
                 RE::NiAVObject* result = nullptr;
+                bool handed = false;
                 {
                     // Restored however the original Load3D returns (an exception included), nesting safe
                     const SwapScope scope(base, grey);
                     result = func(a_this, a_backgroundLoading);
+                    handed = scope.Handed();
                 }
                 try {
-                    // Logged only when the engine really asked for the model during this load
+                    // Logged only when GetModel handed out the grey path during this very load
                     int suppressed = 0;
-                    if (g_swaps.load() != before && LogLimit::Allow("hazard swap", base->GetFormID(), suppressed)) {
+                    if (handed && LogLimit::Allow("hazard swap", base->GetFormID(), suppressed)) {
                         logger::info("BlackFlame: hazard {:08X}: grey copy {} loaded{}", base->GetFormID(), grey,
                             suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
                     }
                 } catch (...) {
+                    ReportFailure();
                 }
                 return result;
             }
@@ -124,9 +142,11 @@ namespace BlackFlame
                 try {
                     if (t_grey && a_this == t_model) {
                         g_swaps.fetch_add(1);  // counted where the grey path is really handed out
+                        t_handed = true;
                         return t_grey;
                     }
                 } catch (...) {
+                    ReportFailure();
                 }
                 return func(a_this);
             }

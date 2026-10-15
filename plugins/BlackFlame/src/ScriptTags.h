@@ -35,6 +35,15 @@ namespace BlackFlame
     /// Any thread, never judges
     [[nodiscard]] TagState TagStateOf(const RE::TESObjectREFR* a_ref);
 
+    struct TagInfo
+    {
+        TagState state = TagState::kNone;
+        RE::VMHandle pendingCaller = 0;  // set when pending
+    };
+
+    /// State and pending caller read under one lock (any thread, never judges)
+    [[nodiscard]] TagInfo TagInfoOf(const RE::TESObjectREFR* a_ref);
+
     /// From a task or the ticker only (never a hook): judges a pending tag on this reference now; true
     /// when it is (now) confirmed
     bool ResolvePending(const RE::TESObjectREFR* a_ref);

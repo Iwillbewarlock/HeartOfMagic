@@ -58,6 +58,8 @@ namespace BlackFlame::SelfTest
         RE::ObjectRefHandle remoteMarker;                 // T3-remote's tagged casting marker
         RE::FormID remoteMarkerId = 0;
         std::uint64_t swapsAtT3 = 0;     // ImpactSwapCount when T3 cast (T3-swap: the Firebolt impacts)
+        std::uint64_t mappedAtT3 = 0;    // ImpactMappedSeenCount then
+        std::uint64_t mappedAtT6 = 0;    // and when T6 cast
         std::uint64_t swapsAtT6 = 0;     // ImpactSwapCount when T6 cast
         std::uint64_t hazardSwapsAtT6 = 0;  // HazardSwapCount when T6 cast
         std::uint64_t swapsAtT6npc = 0;  // and when T6-npc cast

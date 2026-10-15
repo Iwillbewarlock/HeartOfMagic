@@ -51,6 +51,15 @@ namespace BlackFlame
         // player's explosion Update is closed)
         thread_local bool t_window = false;
         std::atomic<std::uint64_t> g_swaps{ 0 };
+        std::atomic<std::uint64_t> g_mappedSeen{ 0 };  // GetModel inside an open window with the original in the map
+        std::atomic<bool> g_failureReported{ false };
+
+        void ReportFailure()
+        {
+            if (!g_failureReported.exchange(true)) {
+                logger::error("BlackFlame: impact swap thunk threw; the original was used; further failures are not logged");
+            }
+        }
         ImpactSwapStatus g_status;  // written once at kDataLoaded
 
         // Whether the running game's Address Library has these ids, without the fatal lookup
@@ -152,6 +161,7 @@ namespace BlackFlame
                     (void)Guarded("impact window", [&]() { open = OpensWindow(a_this); });
                 } catch (...) {
                     open = false;
+                    ReportFailure();
                 }
                 const ImpactWindow window(open);
                 return func(a_this, a_collidee, a_point, a_normal, a_material, a_flag);
@@ -218,10 +228,12 @@ namespace BlackFlame
                     const char* grey = nullptr;
                     (void)Guarded("impact model swap", [&]() { grey = GreyModelFor(original); });
                     if (grey) {
+                        g_mappedSeen.fetch_add(1);
                         g_swaps.fetch_add(1);
                         return grey;
                     }
                 } catch (...) {
+                    ReportFailure();
                 }
                 return original;
             }
@@ -291,6 +303,11 @@ namespace BlackFlame
     ImpactSwapStatus GetImpactSwapStatus() noexcept
     {
         return g_status;
+    }
+
+    std::uint64_t ImpactMappedSeenCount() noexcept
+    {
+        return g_mappedSeen.load();
     }
 
     std::uint64_t ImpactSwapCount() noexcept

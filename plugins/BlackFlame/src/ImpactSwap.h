@@ -55,6 +55,9 @@ namespace BlackFlame
     /// GetModel calls that returned a grey copy (for the self-test)
     [[nodiscard]] std::uint64_t ImpactSwapCount() noexcept;
 
+    /// GetModel calls inside an open window whose original path is in the map (for the self-test)
+    [[nodiscard]] std::uint64_t ImpactMappedSeenCount() noexcept;
+
     /// True when one of the set's impact models has a grey copy in the map (window closed: original paths)
     [[nodiscard]] bool ImpactSetHasGreyModel(const RE::BGSImpactDataSet* a_set);
 }

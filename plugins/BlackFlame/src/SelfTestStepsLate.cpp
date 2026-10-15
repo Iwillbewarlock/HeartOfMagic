@@ -87,13 +87,28 @@ namespace BlackFlame::SelfTest
             const char* id = a_byPlayer ? "T6" : "T6-npc";
             const auto* expected = a_c.forms.fireballExplosion;
             if (a_first) {
-                if (!NeedActors(a_c, id) || (!a_byPlayer && !PrepareCaster(a_c, id))) {
+                if (!NeedActors(a_c, id)) {
                     return true;
                 }
+                a_c.phase = 0;
+            }
+            if (a_c.phase == 0) {
+                // T6-npc: the player's Fireball explosion must have ended first, so its impact swaps cannot land in
+                // the caster's count (T6-npc-swap)
+                constexpr auto kPlayerExplosionSettle = std::chrono::milliseconds(2500);
+                if (!a_byPlayer && a_c.lastCast && Clock::now() - *a_c.lastCast < kPlayerExplosionSettle) {
+                    a_c.waitingFor = "the player's Fireball explosion to end";
+                    return false;
+                }
+                if (!a_byPlayer && !PrepareCaster(a_c, id)) {
+                    return true;
+                }
+                a_c.phase = 1;
                 a_c.mark = SelfTestProbe::Mark();
                 (a_byPlayer ? a_c.swapsAtT6 : a_c.swapsAtT6npc) = ImpactSwapCount();
                 if (a_byPlayer) {
                     a_c.hazardSwapsAtT6 = HazardSwapCount();
+                    a_c.mappedAtT6 = ImpactMappedSeenCount();
                 }
                 RE::Actor* caster = a_byPlayer ? Player() : ActorOf(a_c.caster);
                 return !CastAtTarget(a_c, caster, a_c.forms.fireball, id);

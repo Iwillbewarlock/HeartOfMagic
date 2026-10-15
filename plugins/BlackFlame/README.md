@@ -108,8 +108,8 @@ particles in the impact's own 3D: it emits them into one shared `BSMasterParticl
 the ADDN record's model (`MPS\MPSFireBoltImpact01.nif` for index 9). One emitter serves every caster's impacts,
 so recolouring it for the player's hit would recolour everyone's. Instead the addon ships grey copies of those
 master particle systems under new ADDN indices, and copies of the impact / hazard NIFs whose AddOnNodes name
-the grey indices; the DLL (not done yet, another task) swaps the player's impact and hazard models to the copies
-while stoked. Precedent in the TAKEALOOK order: mihailskeletalrevenants.esp, Desecration.esp and Flames of
+the grey indices; the DLL swaps the player's impact and hazard models to the copies while stoked (section
+"Grey swap"). Precedent in the TAKEALOOK order: mihailskeletalrevenants.esp, Desecration.esp and Flames of
 Coldharbour.esp ship recoloured MPS copies under their own ADDN indices.
 
 **What ships (the vanilla core).**
@@ -242,7 +242,7 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 
 - Grey-black, not pitch black: the blending stays additive.
 - Death flames (an actor burning to death) stay orange: hardcoded in the engine (Black Flame author's note).
-- Scorch decals and impact data sets are unchanged. Of hazards (ground fire) only geometry that is not a shared master particle system and the light change; vanilla flames that emit into a shared `BSMasterParticleSystem` (MPSFireWallBase and the like) stay orange, because recolouring them would turn every NPC's fire of that kind grey. Grey copies of the shared-particle impacts and hazards exist (section "Grey duplicates"); the DLL does not swap to them yet.
+- Scorch decals and impact data sets are unchanged. Of hazards (ground fire) only geometry that is not a shared master particle system and the light change; vanilla flames that emit into a shared `BSMasterParticleSystem` (MPSFireWallBase and the like) stay orange, because recolouring them would turn every NPC's fire of that kind grey. Grey copies of the shared-particle impacts and hazards exist (section "Grey duplicates"), and the DLL swaps the player's to them while stoked (section "Grey swap").
 - A hit shader or hit art made while stoked stays grey until it ends, also after the buff ends; one made before the buff stays as it was (expected: the engine asks when it makes it; the `GetHitEffectShader` lines show the call count per controller).
 - Hit art that is a shared master particle system (`BSMasterParticleSystem`) is not recoloured.
 - A fire effect whose MGEF names no hit shader gets none (the engine is asked, we only swap what it would show; the old layer applied grey anyway).
@@ -259,7 +259,7 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 - Heart of Magic's tree leaves the Stoke spell out (no tome teaches it); the prototype gives it by console.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.
 - Threads: SKSE tasks run in the SKSE task phase of Main::Update (main thread, per SKSE 2.2.8 Hooks_Threads.cpp); kDataLoaded runs on an init thread. The game thread is stamped by the first SKSE task (queued at `SKSEPlugin_Load`), which logs `taskThread=`, `loadThread=` and `Main::threadID=` in one line. Log lines that print a stored thread label it (`hookThread=`, `callerThread=`, `gameThread=`), so the log prefix's own thread id is not confused with it. Lists shared between tasks, the message handler and hooks are under mutexes.
-- A pending script tag (a wrapped call on a VM thread) is judged by a task right after the call; if the calling effect has already ended by then, it leaves no tag. The explosion side of the impact swap needs `explosion` on (its window lives in the Explosion Update hook). The hazard swap has no PASS/FAIL step: T6-hazard counts, the log lines tell.
+- A pending script tag (a wrapped call on a VM thread) is judged by a task right after the call; if the calling effect has already ended by then, it leaves no tag. A second pending caller on a live pending tag is dropped (the first is kept until judged), so the player's tag can be lost when another effect's pending call on the same reference came first. A projectile decided by the deferred path (only a pending tag matched at its hook) does not log the material check. The explosion side of the impact swap needs `explosion` on (its window lives in the Explosion Update hook). The hazard swap has no PASS/FAIL step: T6-hazard counts, the log lines tell.
 - The grey swap is not run in game yet: whether the grey copies draw grey, whether an impact hazard is created inside the impact window (log `loaded inside the player's impact window`), and the 1.6.1170 code offsets are open.
 - Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset and switches that step off for the session (later calls counted); restores are the exception, guarded item by item and never switched off. A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
 
@@ -306,10 +306,10 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T5-npc | once the caster's projectile can have arrived (distance / projectile speed): the hook recorded a KEPT call (a fire effect someone else cast) for the target, and an engine Firebolt hit shader unfinished at 0.5 s or older that was not already on the target before T4 shows within 1.5 s (a sighting is the same shader only if its age grew with the unpaused clock, and a shader recorded finished never matches an unfinished one); INFO "cannot judge" without a kept record |
 | T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
 | T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
-| T3-swap | after T3 and T5-second: grey impact models were handed out for the player's Firebolts (INFO when `impactSwap` is off, no call site is hooked, or Firebolt's impact set has no model in the map) |
-| T6-swap | 1.2 s after the player's Fireball: grey impact models were handed out (INFO when `impactSwap` or `explosion` is off, or Fireball's impact set has no model in the map) |
+| T3-swap | after T3 and T5-second, for the player's Firebolts: every mapped impact model requested inside an open window was handed out grey; INFO "no mapped model requested inside the window" (with the call sites hooked and chained) when none was asked for, or when `impactSwap` is off, no call site is hooked, or Firebolt's impact set has no model in the map |
+| T6-swap | 1.2 s after the player's Fireball: the same judgement for the explosion's impacts (INFO also when `explosion` is off) |
 | T6-hazard | INFO: grey hazard models handed out since the player's Fireball (no vanilla spell is known to leave a mapped hazard reliably, so the hazard swap is judged by this count and the log lines) |
-| T6-npc-swap | 1.2 s after the caster's Fireball, with no player projectile in flight: no grey impact model handed out (INFO when the player's side would not swap either) |
+| T6-npc-swap | the caster casts only 2.5 s after the player's Fireball (its explosion has ended); 1.2 s after the caster's Fireball: no grey impact model handed out (INFO when the player's side would not swap either) |
 | T3-remote | the script-tag rule: a placed vanilla XMarker (a non-actor reference, only the test's prop), tagged as the native wrapper tags a Cast's akSource, casts Firebolt at the target with no blame actor; PASS only when the projectile it shot was the player's through the script tag and recoloured. It tags the marker itself: the wrapper is not exercised here (T0-wrap checks it). Also logs each explosion's caster object reference |
 | T3-blame | INFO: a second marker casts with the player as blame actor and no tag; reports whether the engine kept that blame on the marker's NonActorMagicCaster (the blame rule matched) |
 | T-bound / T-placed | INFO "manual": vanilla has no bound weapon with a fire effect; no test script ships for script-placed fire |

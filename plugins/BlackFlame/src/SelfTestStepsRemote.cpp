@@ -205,8 +205,26 @@ namespace BlackFlame::SelfTest
 
     // T3-swap: the player's Firebolt impacts (T3 and T5-second) went through the impact call sites; PASS/FAIL
     // when Firebolt's impact set has a model in the grey map, INFO otherwise
+    namespace
+    {
+        // Judged only when the window saw a mapped model asked for (swaps must then equal those requests);
+        // with none, INFO with the call-site state, since nothing inside a window asked for a mapped model
+        void JudgeSwaps(const char* a_id, const char* a_what, std::uint64_t a_swaps, std::uint64_t a_mapped)
+        {
+            if (a_mapped == 0) {
+                const auto status = GetImpactSwapStatus();
+                SelfTestLog::Info(a_id, std::format("no mapped model requested inside the window since {} ({} call sites "
+                    "hooked, {} chained; {} swaps)", a_what, status.sitesHooked, status.sitesChained, a_swaps));
+                return;
+            }
+            SelfTestLog::Check(a_id, a_swaps == a_mapped, std::format("since {}: {} mapped models requested inside the "
+                "window, {} handed out grey", a_what, a_mapped, a_swaps));
+        }
+    }
+
     bool StepProjectileImpactSwap(Ctx& a_c, bool)
     {
+        const auto mapped = ImpactMappedSeenCount() - a_c.mappedAtT3;
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT3;
         const auto status = GetImpactSwapStatus();
         const bool expected = GetConfig().impactSwap && status.sitesHooked > 0 && status.modelHooked &&
@@ -216,8 +234,7 @@ namespace BlackFlame::SelfTest
                 "set has no model in the grey map ({} swaps counted)", swaps));
             return true;
         }
-        SelfTestLog::Check("T3-swap", swaps > 0, std::format("grey impact models handed out since the player's Firebolt: {}",
-            swaps));
+        JudgeSwaps("T3-swap", "the player's Firebolt", swaps, mapped);
         return true;
     }
 
@@ -228,6 +245,7 @@ namespace BlackFlame::SelfTest
             return false;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6;
+        const auto mapped = ImpactMappedSeenCount() - a_c.mappedAtT6;
         // Hazards: INFO only (no vanilla spell is known to leave a mapped hazard reliably)
         SelfTestLog::Info("T6-hazard", std::format("grey hazard models handed out since the player's Fireball: {} (hazard "
             "swap {})", HazardSwapCount() - a_c.hazardSwapsAtT6, HazardSwapHooked() ? "hooked" : "not hooked"));
@@ -236,8 +254,7 @@ namespace BlackFlame::SelfTest
                 "no model in the grey map ({} swaps counted)", swaps));
             return true;
         }
-        SelfTestLog::Check("T6-swap", swaps > 0, std::format("grey impact models handed out since the player's Fireball: "
-            "{}", swaps));
+        JudgeSwaps("T6-swap", "the player's Fireball", swaps, mapped);
         return true;
     }
 

@@ -130,12 +130,13 @@ namespace BlackFlame
             // A reference already tagged calling in turn (a placed activator's own script): confirmed - tag at
             // once; pending - the new tag waits on the same caller's judgement
             if (const auto ref = a_decision.callerRef.get(); ref) {
-                if (IsTaggedSource(ref.get())) {
+                const auto info = TagInfoOf(ref.get());  // one lock: state and caller agree
+                if (info.state == TagState::kConfirmed) {
                     Tag(a_decision);
                     return;
                 }
-                if (const auto pending = PendingCallerOf(ref.get()); pending != 0) {
-                    StorePending(a_decision, pending);
+                if (info.state == TagState::kPending) {
+                    StorePending(a_decision, info.pendingCaller);
                     return;
                 }
             }
