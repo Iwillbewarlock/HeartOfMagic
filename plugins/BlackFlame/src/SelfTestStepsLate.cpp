@@ -509,6 +509,9 @@ namespace BlackFlame::SelfTest
             return false;
         }
         RemoveRemoteMarkers(a_c);  // left behind when T3-remote timed out
+        if (a_c.extraTarget.get()) {
+            SelfTestLog::Info("T9", "E2 target: " + SelfTestWorld::Remove(a_c.extraTarget));  // E2 timed out
+        }
         SelfTestLog::Info("T9", std::format("target: {}; caster: {}", SelfTestWorld::Remove(a_c.dummy),
             SelfTestWorld::Remove(a_c.caster)));
         SelfTestLog::Info("T-hand", "hand art: manual (CastSpellImmediate has no charge animation, so there is no "

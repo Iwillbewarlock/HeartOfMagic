@@ -137,7 +137,7 @@ namespace BlackFlame::SelfTestWorld
         return launched;
     }
 
-    RE::ObjectRefHandle Spawn(RE::TESNPC* a_base, float a_forward, float a_right)
+    RE::ObjectRefHandle Spawn(RE::TESBoundObject* a_base, float a_forward, float a_right)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player || !a_base) {
@@ -154,6 +154,32 @@ namespace BlackFlame::SelfTestWorld
         pos.y += std::cos(heading) * a_forward - std::sin(heading) * a_right;
         ref->SetPosition(pos);
         return ref->GetHandle();
+    }
+
+    V2Forms LookupV2(std::string& a_detail)
+    {
+        V2Forms out;
+        auto* dh = RE::TESDataHandler::GetSingleton();
+        if (!dh) {
+            a_detail = "no TESDataHandler";
+            return out;
+        }
+        out.sparks = dh->LookupForm<RE::SpellItem>(kSparksLocalId, kSkyrimMaster);
+        out.fireRune = dh->LookupForm<RE::SpellItem>(kFireRuneLocalId, kSkyrimMaster);
+        out.marker = RE::TESForm::LookupByID<RE::TESBoundObject>(kXMarkerFormId);
+        for (const auto id : { kFlamesLocalId, kAtronachFlamesLocalId }) {
+            auto* spell = dh->LookupForm<RE::SpellItem>(id, kSkyrimMaster);
+            const auto* effect = spell ? spell->GetAVEffect() : nullptr;
+            const auto* projectile = effect ? effect->data.projectileBase : nullptr;
+            if (projectile && projectile->IsFlamethrower()) {
+                out.flames = spell;
+                break;
+            }
+        }
+        a_detail = std::format("Sparks {:08X}, Flames-type spell {:08X}, Fire Rune {:08X}, XMarker {:08X}",
+            out.sparks ? out.sparks->GetFormID() : 0, out.flames ? out.flames->GetFormID() : 0,
+            out.fireRune ? out.fireRune->GetFormID() : 0, out.marker ? out.marker->GetFormID() : 0);
+        return out;
     }
 
     std::string MakeTarget(RE::Actor* a_actor)

@@ -4,12 +4,14 @@
 #include "SelfTestCtx.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
+#include "SelfTestReload.h"
 #include "SelfTestWorld.h"
 
 #include <atomic>
 #include <chrono>
 #include <format>
 #include <string>
+#include <string_view>
 
 namespace BlackFlame::SelfTest
 {
@@ -49,6 +51,7 @@ namespace BlackFlame::SelfTest
             // step index past the table; each later part has its own guard
             const auto dummy = g_ctx.dummy;
             const auto caster = g_ctx.caster;
+            const auto extra = g_ctx.extraTarget;  // E2's target
             const bool lateCleanup = !a_forLoad && !g_ctx.cleanedUp;
             g_running = false;
             g_active.store(false);
@@ -72,6 +75,9 @@ namespace BlackFlame::SelfTest
                     }
                     try {
                         casterDone = SelfTestWorld::Remove(caster);
+                        if (extra.get()) {
+                            casterDone += "; E2 target: " + SelfTestWorld::Remove(extra);
+                        }
                     } catch (...) {
                         logger::error("BlackFlame: self-test late cleanup: removing the caster threw");
                     }
@@ -109,9 +115,21 @@ namespace BlackFlame::SelfTest
             }
         }
 
+        // The cleanup step (T9). v2: E3 runs after it, so the cleanup is no longer the last step
+        std::size_t CleanupIndex()
+        {
+            const auto steps = Steps();
+            for (std::size_t i = 0; i < steps.size(); ++i) {
+                if (std::string_view(steps[i].id) == "T9") {
+                    return i;
+                }
+            }
+            return steps.size() - 1;
+        }
+
         void JumpToCleanup()
         {
-            g_index = Steps().size() - 1;
+            g_index = CleanupIndex();
             g_entered = false;
         }
 
@@ -156,7 +174,7 @@ namespace BlackFlame::SelfTest
             if (!g_running) {
                 return;
             }
-            if (g_index + 1 >= Steps().size()) {
+            if (g_index >= CleanupIndex()) {
                 Finish();  // the cleanup itself threw: Finish removes what is left
             } else {
                 JumpToCleanup();
@@ -197,6 +215,9 @@ namespace BlackFlame::SelfTest
 
     void OnGameLoaded()
     {
+        if (Reload::OnGameLoaded()) {
+            return;  // E3's own load: its resume runs from Tick (README "Self-test", E3)
+        }
         if (!GetConfig().selfTest || g_ran || g_armed) {
             return;
         }
@@ -209,6 +230,7 @@ namespace BlackFlame::SelfTest
 
     void Abort(const char* a_reason)
     {
+        Reload::Cancel(a_reason);  // keeps E3's own load, drops anything else of E3
         if (g_running) {
             // The world is being torn down: the old handles are not touched
             try {
@@ -229,7 +251,15 @@ namespace BlackFlame::SelfTest
 
     void Tick()
     {
-        if (!g_active.load()) {
+        // E3 (v2): the resume after its own load, and the load itself once the run has finished
+        try {
+            Reload::Tick();
+            if (!g_active.load()) {
+                Reload::LoadIfRequested();
+                return;
+            }
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: self-test E3 threw: {}", e.what());
             return;
         }
         // Entered from a game-thread task: a throw would only be logged there, so finish cleanly here
@@ -259,6 +289,6 @@ namespace BlackFlame::SelfTest
 
     bool WantsFastTicks() noexcept
     {
-        return g_active.load();
+        return g_active.load() || Reload::Active();
     }
 }

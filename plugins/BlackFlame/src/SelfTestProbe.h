@@ -63,6 +63,9 @@ namespace BlackFlame::SelfTestProbe
     [[nodiscard]] Snapshot Capture(RE::NiAVObject* a_root);
     [[nodiscard]] Inspection Inspect(RE::NiAVObject* a_root);
 
+    /// Game thread. The value of every BSValueNode (AddOnNode) under a_root, in traversal order (v2 E1a)
+    [[nodiscard]] std::vector<std::uint32_t> ValueNodeValues(RE::NiAVObject* a_root);
+
     struct ProjectileRecord
     {
         std::uint64_t seq = 0;

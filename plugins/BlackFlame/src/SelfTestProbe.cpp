@@ -153,6 +153,33 @@ namespace BlackFlame::SelfTestProbe
         return out;
     }
 
+    namespace
+    {
+        constexpr int kMaxNodeDepth = 64;
+
+        void CollectValues(RE::NiAVObject* a_object, std::vector<std::uint32_t>& a_out, int a_depth)
+        {
+            if (!a_object || a_depth > kMaxNodeDepth) {
+                return;
+            }
+            if (auto* value = netimmerse_cast<RE::BSValueNode*>(a_object)) {
+                a_out.push_back(value->value);  // flat build (SE/AE): the runtime data members are BSValueNode's own (BSValueNode.h)
+            }
+            if (auto* node = a_object->AsNode()) {
+                for (auto& child : node->GetChildren()) {
+                    CollectValues(child.get(), a_out, a_depth + 1);
+                }
+            }
+        }
+    }
+
+    std::vector<std::uint32_t> ValueNodeValues(RE::NiAVObject* a_root)
+    {
+        std::vector<std::uint32_t> out;
+        CollectValues(a_root, out, 0);
+        return out;
+    }
+
     void RecordProjectile(ProjectileRecord a_record)
     {
         Add(g_projectiles, std::move(a_record));

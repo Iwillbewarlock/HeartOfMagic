@@ -21,6 +21,26 @@ namespace BlackFlame::SelfTestWorld
     inline constexpr RE::FormID kDeerNpcLocalId = 0x0CF89D;
     inline constexpr float kDummyHealth = 100000.0f;  // the target survives every test cast
 
+    // v2 props (Skyrim.esm, houseCARL 2026-10-16): Sparks (a non-fire spell for the launch predicate), Flames and
+    // the Flame Atronach's Flames (concentration; the first whose projectile is a flamethrower in this load order),
+    // Fire Rune, and the XMarker (a target for the rune)
+    inline constexpr RE::FormID kSparksLocalId = 0x02DD2A;          // SPEL MAG_Sparks
+    inline constexpr RE::FormID kFlamesLocalId = 0x012FCD;          // SPEL MAG_Flames
+    inline constexpr RE::FormID kAtronachFlamesLocalId = 0x07E881;  // SPEL crAtronachFlameFlames
+    inline constexpr RE::FormID kFireRuneLocalId = 0x05DB90;        // SPEL FireRune
+    inline constexpr RE::FormID kXMarkerFormId = 0x0000003B;        // STAT XMarker
+
+    struct V2Forms
+    {
+        RE::SpellItem* sparks = nullptr;
+        RE::SpellItem* flames = nullptr;  // a concentration spell whose projectile is a flamethrower
+        RE::SpellItem* fireRune = nullptr;
+        RE::TESBoundObject* marker = nullptr;
+    };
+
+    /// The v2 props; a_detail says which were found and which Flames spell was taken
+    [[nodiscard]] V2Forms LookupV2(std::string& a_detail);
+
     struct VanillaForms
     {
         RE::SpellItem* firebolt = nullptr;
@@ -53,7 +73,7 @@ namespace BlackFlame::SelfTestWorld
 
     /// PlaceObjectAtMe at the player, then moved a_forward units ahead and a_right
     /// units to the right of where the player faces. Null handle on failure.
-    [[nodiscard]] RE::ObjectRefHandle Spawn(RE::TESNPC* a_base, float a_forward, float a_right);
+    [[nodiscard]] RE::ObjectRefHandle Spawn(RE::TESBoundObject* a_base, float a_forward, float a_right);
 
     /// AI off (EnableAI(false)) and health base raised to kDummyHealth; returns what was done.
     [[nodiscard]] std::string MakeTarget(RE::Actor* a_actor);

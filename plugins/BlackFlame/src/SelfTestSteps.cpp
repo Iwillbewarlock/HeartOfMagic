@@ -12,6 +12,7 @@
 #include "PapyrusWrap.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
+#include "SelfTestReload.h"
 #include "Tint.h"
 
 #include <algorithm>
@@ -52,6 +53,9 @@ namespace BlackFlame::SelfTest
         constexpr float kBuffOffTimeout = 1.0f;
         constexpr float kCleanupTimeout = 5.0f;
         constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
+        constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
+        constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
+        constexpr float kE3Timeout = 20.0f;        // buff, rune, save on disk
 
         // Placement: the target well ahead, the caster level with the player off to the side,
         // all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime)
@@ -320,11 +324,13 @@ namespace BlackFlame::SelfTest
         // T5 runs right after T3 (before the NPC casts) so the target carries only the player's hit shader
         static constexpr std::array kSteps{
             StepDef{ "T0", kEnvTimeout, &StepEnvironment },
+            StepDef{ "T0-hooks", kEnvTimeout, &StepV2Static },
             StepDef{ "T1", kBuffOnTimeout, &StepBuffOn },
             StepDef{ "T2", kSpawnTimeout, &StepSpawn },
             StepDef{ "T2", kActorsTimeout, &StepActorsReady },
             StepDef{ "T3", kProjectileTimeout, &StepPlayerProjectile },
             StepDef{ "T5", kBurnTimeout, &StepPlayerBurn },
+            StepDef{ "E4", kInfoTimeout, &StepHitShader },
             StepDef{ "T5-second", kProjectileTimeout, &StepSecondHit },
             StepDef{ "T3-swap", kInfoTimeout, &StepProjectileImpactSwap },
             StepDef{ "T4", kProjectileTimeout, &StepNpcProjectile },
@@ -335,10 +341,15 @@ namespace BlackFlame::SelfTest
             StepDef{ "T6-npc-swap", kInfoTimeout, &StepNpcImpactSwap },
             StepDef{ "T3-remote", kRemoteTimeout, &StepRemoteCast },
             StepDef{ "T7", kEnvTimeout, &StepModifiers },
+            StepDef{ "E1a", kProjectileTimeout, &StepE1Firebolt },
+            StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
+            StepDef{ "E1c", kE1cTimeout, &StepE1Npc },
+            StepDef{ "E2", kE2Timeout, &StepE2Flames },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
             StepDef{ "T-threads", kEnvTimeout, &StepThreads },
             StepDef{ "T9", kCleanupTimeout, &StepCleanup },
+            StepDef{ "E3", kE3Timeout, &Reload::StepE3 },  // after the cleanup: it saves and reloads the game
         };
         return kSteps;
     }

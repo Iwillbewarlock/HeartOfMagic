@@ -366,9 +366,10 @@ This project does not have a C++ test framework. Validation is done through:
 - Git (for submodules; CommonLibSSE-NG is pinned at tag `v10.0.0`, the release that knows 1.7.99 / 1.7.104 -
   after pulling a submodule change run `git submodule update --init --recursive`)
 - `plugins/cmake/commonlibsse.cmake` turns CommonLibSSE-NG 10's `SKSE_SUPPORT_PATCH_SAFETY` off: it only checks
-  `SKSE::Trampoline` branch/call writes. SpellLearning makes none; the Black Flame prototype makes three
-  `write_call<5>`, and keeping the check off is also what lets it chain onto a call site another plugin
-  (MuImpactFramework) already rewrote. When on, every fresh configure fetches MinHook's `hde64` from GitHub with
+  `SKSE::Trampoline` branch/call writes. SpellLearning makes none; the Black Flame prototype makes five
+  `write_call<5>` (three impact call sites, two GetImpactData sites) and two `write_branch<5>` prologue detours (v2:
+  Projectile::Launch and explosion creation), and keeping the check off is also what lets it chain onto a call site
+  or prologue another plugin (MuImpactFramework, IDRC) already rewrote. When on, every fresh configure fetches MinHook's `hde64` from GitHub with
   `FetchContent`; with it off a configure needs no network (vcpkg aside)
 
 ### First-Time Setup

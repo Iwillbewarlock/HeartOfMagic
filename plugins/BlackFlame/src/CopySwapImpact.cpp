@@ -42,6 +42,7 @@ namespace BlackFlame
         std::atomic<std::uint64_t> g_windowCalls{ 0 }, g_copies{ 0 };
         std::atomic<bool> g_failureReported{ false };
         CopySwapStatus g_status;  // written once at kDataLoaded
+        std::array<bool, 2> g_siteHooked{};  // which GetImpactDataHook<I> has its func set
 
         template <std::size_t I>
         struct GetImpactDataHook
@@ -113,6 +114,7 @@ namespace BlackFlame
             chained = chained || Patch::Rel32Target(site) != a_callee;
             GetImpactDataHook<I>::func = SKSE::GetTrampoline().write_call<5>(site, GetImpactDataHook<I>::thunk);
             ++g_status.impactSites;
+            g_siteHooked[I] = true;
             g_status.impactChained += chained ? 1 : 0;
             logger::info("BlackFlame: copy impacts: the GetImpactData call in {} at {:X} hooked{}", kCallers[I].name,
                 site - REL::Module::get().base(), chained ? " (chained onto another plugin's redirect)" : "");
@@ -182,6 +184,45 @@ namespace BlackFlame
             g_status.launch.hooked ? (g_status.launch.chained ? "chained" : "detoured") : "off",
             g_status.explosionCreate.hooked ? (g_status.explosionCreate.chained ? "chained" : "detoured") : "off",
             g_status.impactNote, SKSE::GetTrampoline().free_size());
+    }
+
+    SyntheticImpact RunSyntheticImpactCheck(const RE::BGSImpactDataSet* a_set)
+    {
+        SyntheticImpact out;
+        using Thunk = RE::BGSImpactData* (*)(RE::BGSImpactDataSet*, RE::BGSMaterialType*);
+        const Thunk thunk = g_siteHooked[0] ? &GetImpactDataHook<0>::thunk :
+                            g_siteHooked[1] ? &GetImpactDataHook<1>::thunk : nullptr;
+        if (!thunk || !a_set) {
+            out.detail = !thunk ? "no GetImpactData call site is hooked" : "no impact data set";
+            return out;
+        }
+        for (const auto& [material, impact] : a_set->impactMap) {
+            auto* copy = CopyOfAs(impact);
+            if (!copy) {
+                continue;
+            }
+            auto* set = const_cast<RE::BGSImpactDataSet*>(a_set);
+            auto* key = const_cast<RE::BGSMaterialType*>(material);
+            RE::BGSImpactData* closed = nullptr;
+            RE::BGSImpactData* open = nullptr;
+            {
+                const CopyWindow window(false);
+                closed = thunk(set, key);
+            }
+            {
+                const CopyWindow window(true);
+                open = thunk(set, key);
+            }
+            out.ran = true;
+            out.closedOriginal = closed == impact;
+            out.openCopy = open == copy;
+            out.detail = std::format("set {:08X}, material {:08X}: closed window -> {:08X} (engine's {:08X}), open window -> "
+                                     "{:08X} (copy {:08X})", a_set->GetFormID(), material ? material->GetFormID() : 0,
+                closed ? closed->GetFormID() : 0, impact->GetFormID(), open ? open->GetFormID() : 0, copy->GetFormID());
+            return out;
+        }
+        out.detail = std::format("set {:08X} has no impact with a copy", a_set->GetFormID());
+        return out;
     }
 
     const CopySwapStatus& GetCopySwapStatus() noexcept

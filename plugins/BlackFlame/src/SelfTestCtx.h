@@ -42,6 +42,7 @@ namespace BlackFlame::SelfTest
         bool haveForms = false;
         RE::ObjectRefHandle dummy;
         RE::ObjectRefHandle caster;
+        RE::ObjectRefHandle extraTarget;  // E2's flame target (removed by E2, else by the cleanup)
         bool cleanedUp = false;  // the cleanup step dispelled the buff and deleted the actors
         bool actorsOk = false;  // T2 passed: placed, passive, out of the explosion's reach
         RE::FormID casterId = 0;
@@ -122,6 +123,12 @@ namespace BlackFlame::SelfTest
     bool StepCastUnstoked(Ctx& a_c, bool a_first);
     bool StepCleanup(Ctx& a_c, bool a_first);
 
-    // SelfTestStepsV2.cpp (the v2 copy framework spike)
+    // The v2 copy framework spike: SelfTestStepsV2.cpp, SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp
+    bool StepV2Static(Ctx& a_c, bool a_first);
+    bool StepHitShader(Ctx& a_c, bool a_first);
+    bool StepE1Firebolt(Ctx& a_c, bool a_first);
+    bool StepE1Fireball(Ctx& a_c, bool a_first);
+    bool StepE1Npc(Ctx& a_c, bool a_first);
+    bool StepE2Flames(Ctx& a_c, bool a_first);
     bool StepThreads(Ctx& a_c, bool a_first);
 }

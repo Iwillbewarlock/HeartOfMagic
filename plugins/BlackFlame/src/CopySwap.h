@@ -88,6 +88,19 @@ namespace BlackFlame
 
     [[nodiscard]] CopySwapCounters GetCopySwapCounters() noexcept;
 
+    struct SyntheticImpact
+    {
+        bool ran = false;            // a hooked site and an impact with a copy in the set were there
+        bool closedOriginal = false; // window closed: the engine's impact came back
+        bool openCopy = false;       // window open: its copy came back
+        std::string detail;
+    };
+
+    /// Self-test T0-v2: calls the GetImpactData thunk of a hooked site directly (through the engine's own lookup)
+    /// with the copy window closed, then open, for the first impact of a_set that has a copy. Counted once in the
+    /// impact counters. Game thread.
+    [[nodiscard]] SyntheticImpact RunSyntheticImpactCheck(const RE::BGSImpactDataSet* a_set);
+
     // Counters and recording for the two detours (CopySwapLaunch.cpp) and the impact sites (CopySwapImpact.cpp)
     namespace CopySwapDetail
     {

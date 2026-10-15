@@ -322,6 +322,39 @@ caller's function-table range for its one `E8`; only SpawnCollisionEffects has a
 call another plugin rewrote): the explosion function differs between 1.7.104 and 1.6.1170 (see the ids table).
 Trampoline: 512 bytes (158 at most used). Counters per device are in `GetCopySwapCounters` and the self-test.
 
+### Ids and how each was checked (v2)
+
+Every id below is present in CommonLib's `tests/REL/versionlib-1-6-1170-0.bin` and `version-1-5-97-0.bin` (id
+reader `iddb.js`, 2026-10-16) and is checked again in the running game's database before use. 1.6.1170's code is
+encrypted on disk, so code facts come from the readable 1.7.104 exe; "1170 equal" means the function has the same
+pdata size and the same UNWIND_INFO bytes in 1.6.1170 and 1.7.104 (strong evidence that the code matches, not
+proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
+
+| What | SE / AE | 1170 / 1597 offset | Checked |
+|---|---|---|---|
+| `Projectile::Launch` | 42928 / 44108 | 0x7e46c0 / 0x74b170 | CommonLib `RELOCATION_ID(42928, 44108)`; 1.7.104 prologue `48 89 4C 24 08`; 1170 equal (size 0x7DA). The detour reads the bytes at runtime |
+| explosion creation | 42657 / 43829 | 0x7cf6a0 / 0x737bf0 | 1.7.104: `(createData*)`, data[0] BGSExplosion (flags read at +0xDC), prologue `40 53 55 56 57`; 1170 equal (size 0x2FA). Create data layout from its callers 44216 / 43025 (+0x00 explosion, +0x08 cell, +0x20 projectile, +0x28 spell, +0x30 effect; 1170 equal, size 0x632) and 34413 / 33635 (+0x38 MagicCaster; 1170 equal, size 0x7AE); SE layout unverified (checked per pointer at runtime) |
+| `BGSImpactDataSet` GetImpactData | 20408 / 20860 | 0x318020 / 0x2c3490 | 1.7.104: `(BGSImpactDataSet*, BGSMaterialType*) -> BGSImpactData*` (CRC32 of the key, impactMap walk); 1170 equal (size 0x80). Called through its E8 sites only |
+| `Projectile::SpawnCollisionEffects` | 43022 / 44213 | 0x7ecd80 / 0x7531c0 | one E8 to 20860 at +0xBC (1.7.104); 1170 equal (size 0x7DA): the fallback offset is used only on AE and only when the site is an E8 into a trampoline stub |
+| the explosion's impact function | 42679 / 43851 | 0x7d1c40 / 0x739ee0 | one E8 to 20860 at +0x7FC on 1.7.104, but **not** 1170 equal (size 0x135D vs 0x139D, other unwind codes): found by the scan only, no fallback |
+| `VTABLE_ActorMagicCaster[0]` | 257613 / 205828 | 0x187b8b0 / 0x1637490 | CommonLib; compared with the create data's caster vtable |
+| `BGSSaveLoadManager::Save_Impl` / `Load_Impl` / singleton (E3) | 34818, 34819, 516860 / 35727, 35728, 403340 | present | CommonLib only; their code was not read |
+| impact window call sites (round 10, now also the copy window) | 42943 / 44123, 43014 / 44205, 42638 / 43806 | present | 1170 equal: 44123 (0x4B1), 44205 (0x2AE), 43806 (0x49F) |
+| hit shader slot (S3, unchanged hook) | vtable slot 0x0D of `ActiveEffectReferenceEffectController` (function SE 34049 / AE 34846) | - | research 2026-10-16: the slot's only function, 1170 equal |
+
+### Spike limits and costs (v2)
+
+- Copies are not purely visual: a script's OnHit `akProjectile` is the copy's FormID while stoked (a script comparing
+  projectile ids sees another form); hazard count limits may count copy hazards apart from the originals'.
+- Hand art and hit art stay orange in the spike (runtime recolour off; ARTO copies come with the full build). Impacts
+  of a copy hazard (`HAZD.impactDataSet`) and every impact data set stay the originals (no IPDS copies).
+- The grey NIFs are built from the user's winning files; a replacer installed or updated later needs a new
+  `--forms` run (a form whose copy is missing stays orange, logged once). The DLL fills copies at kDataLoaded only:
+  a source changed later in the session is not followed (the self-test's T0-v2 compare shows it).
+- Unverified: the whole spike in game (copies accepted by the engine, the stream holding, the rune across a reload,
+  the save/load calls of E3); 1.6.1170 code inside the functions (pdata/unwind equality only); every SE offset and
+  layout; whether another plugin's detour of Launch's prologue (IDRC) chains as expected.
+
 ## Known limits
 
 - Grey-black, not pitch black: the blending stays additive.
@@ -355,7 +388,7 @@ The DLL can check most of itself in game, from the engine's own data, and write 
    test casts the Stoke spell on the player (Heart of Magic may count that cast) and launches Firebolt and Fireball projectiles (no cast: no magicka, no cast event, no XP), spawns two vanilla deer and deletes them at
    the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
-3. Load the save and wait about 30 s without opening a menu, and **do not save while the test runs**. It
+3. Load the save and wait about 90 s without opening a menu, and **do not save while the test runs yourself**. It
    starts 3 s after the player is in a loaded cell with the game unpaused, runs once per game session, and is
    disarmed if it could not start within 5 minutes. Time in menus or with the game paused does not count
    against a step's timeout. Loading another save or starting a new game stops it (`ABORT`), leaving its
@@ -363,6 +396,10 @@ The DLL can check most of itself in game, from the engine's own data, and write 
 4. Read `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame_selftest.txt` (the same
    lines are in `HeartOfMagic_BlackFlame.log`): `[SELFTEST] PASS|FAIL|INFO <id> <detail>`, ending with
    `[SELFTEST] DONE pass=N fail=M info=K`. A step that times out is a FAIL that says what it waited for.
+   The last step, E3 (v2), saves the game to the throwaway slot `HoMBF_SelfTest_E3` (in the `Saves` folder next to
+   the `SKSE` log folder; a file of that name from an earlier run is replaced) and, once DONE is written, loads it:
+   the game reloads by itself and the test resumes after the load, adding its E3 lines and `[SELFTEST] DONE E3 ...`
+   to the same file. You are then in that throwaway save, not the one you started from.
 5. Set `"selfTest": false` again.
 
 Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789` (its explosion
@@ -402,6 +439,15 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T8 / T8-cast | after T1 turned the buff on, dispelling it turns the flag off within 1 s; then (skipped if the buff never came on or is still on) the next Firebolt has effect shapes, none grey, not recoloured, and T3 had recoloured (not required with `projectile` false) |
 | T-threads | v2 S4, measurement only: every QueueTask body and every v2 hook body records (kind, thread, start, end) in a 4096-entry ring (`ThreadTrace.h`); the step lists per kind the threads seen (and how many on the stamped game thread) and the overlapping intervals of different threads per kind pair. PASS when at least one body was recorded (0 = FAIL: nothing was measured). No gate depends on it |
 | T9 | cleanup (INFO) |
+| T0-hooks | v2: the Launch and explosion creation detours hooked (or chained) with the bytes they found, and both GetImpactData call sites hooked; FAIL for a device that is wanted (config on, copies of that kind filled) but not hooked; INFO otherwise. Also the round-10 impact call sites |
+| T0-pred | v2: `IsFireLaunch` on vanilla props: Firebolt true, no spell/enchantment/weapon false, Sparks (`02DD2A`) false (INFO instead when Sparks counts as fire in the load order) |
+| T0-v2 | (also) the synthetic GetImpactData call: the thunk of a hooked site called through the engine's lookup for the first impact of Firebolt's impact set that has a copy - the engine's impact with the window closed, the copy with it open |
+| E4 | v2 S3: PASS only when our EFSH was alight on the target after the player's Firebolt (T5's sighting). INFO lines: how often the Firebolt hit the target (TESHitEvent) and the 0x0D outcome counters for the player's effects (calls, swapped, engine answered null and with flags bit 1, not stoked, not a fire effect); the FAIL names which of the three cases it was (no hit, the thunk never reached, the engine answered null, or our own check kept the engine's shader) |
+| E1a | v2: the player's Firebolt was launched with its projectile copy (launch record), its 3D at the hook carries the grey palette path, every AddOnNode value in its live 3D is a grey ADDN index (none: noted), and its impact took at least one impact copy (counter) within 1.5 s. A missing record is a FAIL |
+| E1b | v2: the player's Fireball explosion is the explosion copy with the palette path; INFO which device did it from the counters (Launch post-write, the creation detour seeing a copy already, or the creation detour swapping) |
+| E1c | v2: the caster's Fireball before the player's (A), 2.5 s after it (B) and in the same frame (C): each phase needs the caster's launch, projectile and explosion each seen at least once, with original bases, no palette path and nothing grey; in C the player's explosion is the copy |
+| E2 | v2: a Flames-type spell (MAG_Flames when its projectile is a flamethrower, else the Flame Atronach's Flames `07E881`) launched by the player every tick at a deer 400 units ahead: 1 s stoked, the buff dispelled mid-stream, 0.6 s more, the buff cast again. PASS: every stoked launch took the copy, launches after the flag went off took the original, and a TESHitEvent from the player with that spell came while stoked (the damage path runs with the copy). INFO: distinct streams before and after (one each = the stream held) |
+| E3 | v2, after T9: the buff cast again, a vanilla Fire Rune (`05DB90`) launched at a marker 300 units ahead; before the save its projectile's base and explosion are copies; the game is saved to `HoMBF_SelfTest_E3` and reloaded (see step 3 above); after the load the rune is found again (by FormID, else by its copy base in the player's cell), alive, base the copy and explosion still a copy (PostLoad3D resets it from the copy PROJ's link). E3-esl (INFO, manual): removing the copies ESL with such a save |
 
 The log's `material check` lines (first 5 player and NPC fire projectiles, first 5 NPC fire explosions) list per effect property `prop=`, `mat=`, `grey=` and `paletteFlag=`: `prop=` must differ between player and NPC instances; an equal `mat=` is normal (materials are pooled); any `grey=yes` on an NPC line is contamination.
 

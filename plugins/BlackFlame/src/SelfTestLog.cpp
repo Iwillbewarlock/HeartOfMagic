@@ -27,7 +27,7 @@ namespace BlackFlame::SelfTestLog
         }
     }
 
-    void Open()
+    void Open(bool a_append)
     {
         g_pass = 0;
         g_fail = 0;
@@ -38,7 +38,7 @@ namespace BlackFlame::SelfTestLog
             return;
         }
         const auto path = *dir / kFileName;
-        g_file.open(path, std::ios::out | std::ios::trunc);
+        g_file.open(path, std::ios::out | (a_append ? std::ios::app : std::ios::trunc));
         if (!g_file) {
             logger::warn("BlackFlame: could not open the self-test file - results go to the main log only");
         }
@@ -71,9 +71,10 @@ namespace BlackFlame::SelfTestLog
         }
     }
 
-    void Done()
+    void Done(const char* a_label)
     {
-        const auto line = std::format("[SELFTEST] DONE pass={} fail={} info={}", g_pass, g_fail, g_info);
+        const auto line = std::format("[SELFTEST] DONE{}{} pass={} fail={} info={}", a_label ? " " : "", a_label ? a_label : "",
+            g_pass, g_fail, g_info);
         logger::info("{}", line);
         if (g_file) {
             g_file << line << '\n';
