@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include <array>
+#include <functional>
 #include <span>
 #include <string>
 
@@ -32,6 +33,10 @@ namespace BlackFlame
     /// layout matches this runtime (0..2 leaves room for HDR-ish keys above 1 while catching
     /// floats that are really pointers or counts; all zero would be an empty or wrong read)
     [[nodiscard]] bool KeysPlausible(std::span<const float> a_keys);
+
+    /// a_visit(modifier, its colour keys) for every BSPSysSimpleColorModifier on a_particles
+    void ForEachSimpleColorModifier(RE::NiParticleSystem* a_particles,
+        const std::function<void(RE::NiPSysModifier*, const ColorKeys&)>& a_visit);
 
     /// The 12 key values as text, for the log
     [[nodiscard]] std::string DescribeColorKeys(const ColorKeys& a_keys);

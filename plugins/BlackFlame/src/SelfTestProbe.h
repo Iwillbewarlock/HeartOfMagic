@@ -24,8 +24,13 @@ namespace BlackFlame::SelfTestProbe
     [[nodiscard]] bool Recording() noexcept;
     void SetRecording(bool a_on) noexcept;
 
-    /// Drops every record (the self-test's end)
+    /// Drops every record and the paused total (the self-test's end)
     void Clear();
+
+    /// The game time the self-test spent paused (menus, load screens): shader ages do not grow then,
+    /// so identity checks take it out of the wall clock. Game thread only.
+    void AddPausedSeconds(float a_seconds);
+    [[nodiscard]] float PausedSeconds();
 
     /// The sequence number the next record will get: records "since a mark" are newer
     [[nodiscard]] std::uint64_t Mark();
@@ -98,6 +103,7 @@ namespace BlackFlame::SelfTestProbe
     {
         std::uintptr_t ptr = 0;
         float age = 0.0f;
+        bool finished = false;  // after the burn layer's finishing
     };
 
     struct BurnRecord
@@ -113,6 +119,7 @@ namespace BlackFlame::SelfTestProbe
         bool alreadyLive = false;
         std::vector<HitShader> hitShaders;  // the effect's own engine hit shaders seen in hitEffects (finished or not)
         std::chrono::steady_clock::time_point recordedAt{};  // set by RecordBurn
+        float recordedPaused = 0.0f;                         // PausedSeconds() then, set by RecordBurn
     };
 
     void RecordProjectile(ProjectileRecord a_record);

@@ -18,6 +18,7 @@ namespace BlackFlame::SelfTestProbe
         std::vector<ProjectileRecord> g_projectiles;
         std::vector<ExplosionRecord> g_explosions;
         std::vector<BurnRecord> g_burns;
+        float g_pausedSeconds = 0.0f;  // guarded by g_mutex
 
         void AddProperty(RE::BSEffectShaderProperty* a_prop, Snapshot& a_out)
         {
@@ -31,12 +32,8 @@ namespace BlackFlame::SelfTestProbe
 
         void InspectModifiers(RE::NiParticleSystem* a_particles, Inspection& a_out)
         {
-            for (const auto& modifier : a_particles->GetParticleSystemRuntimeData().modifierList) {
-                if (!IsSimpleColorModifier(modifier.get())) {
-                    continue;
-                }
-                const auto keys = ReadColorKeys(modifier.get());
-                a_out.colorModifiers.push_back(reinterpret_cast<std::uintptr_t>(modifier.get()));
+            ForEachSimpleColorModifier(a_particles, [&](RE::NiPSysModifier* a_modifier, const ColorKeys& keys) {
+                a_out.colorModifiers.push_back(reinterpret_cast<std::uintptr_t>(a_modifier));
                 a_out.modifierKeys.push_back(keys);
                 bool grey = true;
                 for (std::size_t i = 0; i < kColorKeyFloats; i += kRgbaFloats) {
@@ -45,7 +42,7 @@ namespace BlackFlame::SelfTestProbe
                 if (grey) {
                     ++a_out.colorModifiersAllGrey;
                 }
-            }
+            });
         }
 
         template <class T>
@@ -92,6 +89,19 @@ namespace BlackFlame::SelfTestProbe
         g_projectiles.clear();
         g_explosions.clear();
         g_burns.clear();
+        g_pausedSeconds = 0.0f;
+    }
+
+    void AddPausedSeconds(float a_seconds)
+    {
+        std::lock_guard lock(g_mutex);
+        g_pausedSeconds += a_seconds;
+    }
+
+    float PausedSeconds()
+    {
+        std::lock_guard lock(g_mutex);
+        return g_pausedSeconds;
     }
 
     Snapshot Capture(RE::NiAVObject* a_root)
@@ -101,11 +111,9 @@ namespace BlackFlame::SelfTestProbe
             AddProperty(a_prop, out);
             // The colour keys as they were before any recolour (the self-test's T7 compares with them)
             if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
-                for (const auto& modifier : particles->GetParticleSystemRuntimeData().modifierList) {
-                    if (IsSimpleColorModifier(modifier.get())) {
-                        out.modifierKeys.push_back(ReadColorKeys(modifier.get()));
-                    }
-                }
+                ForEachSimpleColorModifier(particles, [&](RE::NiPSysModifier*, const ColorKeys& a_keys) {
+                    out.modifierKeys.push_back(a_keys);
+                });
             }
         });
         return out;
@@ -146,6 +154,7 @@ namespace BlackFlame::SelfTestProbe
     void RecordBurn(BurnRecord a_record)
     {
         a_record.recordedAt = std::chrono::steady_clock::now();
+        a_record.recordedPaused = PausedSeconds();
         Add(g_burns, std::move(a_record));
     }
 

@@ -68,9 +68,15 @@ namespace BlackFlame
         // An instant hit's claim on a grey shader: not finished before this age (seconds), even when
         // the duration effect that created it ends (raw pointers as keys only, never dereferenced
         // outside the ProcessLists lock; pruned when the shader is gone). Heap-held like the rest.
-        std::unordered_map<RE::ShaderReferenceEffect*, float>& AgeFloors()
+        struct AgeFloor
         {
-            static auto* floors = std::make_unique<std::unordered_map<RE::ShaderReferenceEffect*, float>>().release();
+            float age = 0.0f;
+            bool finishAtFloor = false;  // a finish was asked for while held: done when the age reaches it
+        };
+
+        std::unordered_map<RE::ShaderReferenceEffect*, AgeFloor>& AgeFloors()
+        {
+            static auto* floors = std::make_unique<std::unordered_map<RE::ShaderReferenceEffect*, AgeFloor>>().release();
             return *floors;
         }
 
@@ -179,13 +185,15 @@ namespace BlackFlame
                 },
                 [&](RE::ShaderReferenceEffect* a_effect) {
                     const auto floor = floors.find(a_effect);
-                    if (floor == floors.end() || a_effect->age >= floor->second) {
+                    if (floor == floors.end() || a_effect->age >= floor->second.age) {
                         a_effect->finished = true;
                         return;
                     }
-                    if (a_effect->lifetime >= 0.0f) {
-                        a_effect->lifetime = (std::min)(a_effect->lifetime, floor->second);
-                    }
+                    // Ends at the floor: an endless lifetime (< 0) is set to it, a longer one cut to it;
+                    // the live-burn tick also finishes it there
+                    a_effect->lifetime = a_effect->lifetime < 0.0f ? floor->second.age :
+                                                                     (std::min)(a_effect->lifetime, floor->second.age);
+                    floor->second.finishAtFloor = true;
                     ++held;
                 });
             return held;
@@ -203,16 +211,20 @@ namespace BlackFlame
                 return HitList::kEmpty;
             }
             std::unordered_set<RE::ShaderReferenceEffect*> found;
+            std::vector<RE::ShaderReferenceEffect*> matching;
             for (auto* hit : *a_effect->hitEffects) {
                 auto* shader = hit ? hit->As<RE::ShaderReferenceEffect>() : nullptr;
                 if (shader && shader->effectData == a_engineShader) {
-                    a_seen.push_back({ reinterpret_cast<std::uintptr_t>(shader), shader->age });  // for the self-test
+                    matching.push_back(shader);
                     if (!shader->finished) {
                         found.insert(shader);
                     }
                 }
             }
             FinishUnderLock(found);
+            for (auto* shader : matching) {  // for the self-test, with the state after the finishing
+                a_seen.push_back({ reinterpret_cast<std::uintptr_t>(shader), shader->age, shader->finished });
+            }
             a_stopped = static_cast<int>(found.size());
             return a_stopped > 0 ? HitList::kStopped : HitList::kNoMatch;
         }
@@ -348,7 +360,7 @@ namespace BlackFlame
             } else if (grey) {
                 // An instant hit: its seconds stand even if a duration effect's burn on the same shader ends
                 auto& floor = AgeFloors()[grey.get()];
-                floor = (std::max)(floor, grey->age + seconds);
+                floor.age = (std::max)(floor.age, grey->age + seconds);
             }
 
             int stopped = 0;
@@ -444,7 +456,11 @@ namespace BlackFlame
                 if (!a_effect || a_effect->finished) {
                     return RE::BSContainer::ForEachResult::kContinue;
                 }
-                if (floors.contains(a_effect)) {
+                if (const auto floor = floors.find(a_effect); floor != floors.end()) {
+                    if (floor->second.finishAtFloor && a_effect->age >= floor->second.age) {
+                        a_effect->finished = true;  // held until its floor, now done
+                        return RE::BSContainer::ForEachResult::kContinue;
+                    }
                     floorSeen.insert(a_effect);
                 }
                 for (const auto& burn : live) {

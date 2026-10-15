@@ -27,6 +27,8 @@ namespace BlackFlame::SelfTest
         std::uintptr_t ptr = 0;
         float age = 0.0f;
         Clock::time_point at{};
+        float paused = 0.0f;  // SelfTestProbe::PausedSeconds() when it was seen
+        bool finished = false;
     };
 
     struct Ctx

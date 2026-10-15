@@ -41,13 +41,18 @@ namespace BlackFlame
         int engineCopied = 0;      // SetMaterial kept its own copy (ours freed)
         int keptOurs = 0;          // SetMaterial kept our copy
         int legacyGeometries = 0;  // NiGeometry (not BSGeometry) nodes with an effect property
-        int failed = 0;            // material missing or Create() returned null
+        // no material or Create() null, the palette lost after SetMaterial, or a property already in
+        // that terminal state
+        int failed = 0;
         int colorModifiers = 0;    // BSPSysSimpleColorModifiers desaturated (config particleColors)
 
         [[nodiscard]] int Recolored() const noexcept { return paletteSwapped + forcedPalette + baseColorOnly; }
         void Add(const RecolorStats& a_other) noexcept;
         [[nodiscard]] std::string Describe() const;
     };
+
+    /// Game thread, at kPreLoadGame / kNewGame: forgets the properties that lost the palette
+    void ResetRecolorState();
 
     /// Recolours every effect material under a_root (null root: nothing).
     RecolorStats RecolorTree(RE::NiAVObject* a_root);

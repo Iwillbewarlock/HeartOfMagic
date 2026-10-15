@@ -32,6 +32,7 @@ set(BLACKFLAME_SOURCES
     src/ExplosionHook.cpp
     src/SelfTest.cpp
     src/SelfTestLog.cpp
+    src/SelfTestJudge.cpp
     src/SelfTestProbe.cpp
     src/SelfTestSteps.cpp
     src/SelfTestStepsLate.cpp

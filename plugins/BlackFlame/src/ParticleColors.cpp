@@ -52,6 +52,19 @@ namespace BlackFlame
         return out;
     }
 
+    void ForEachSimpleColorModifier(RE::NiParticleSystem* a_particles,
+        const std::function<void(RE::NiPSysModifier*, const ColorKeys&)>& a_visit)
+    {
+        if (!a_particles) {
+            return;
+        }
+        for (const auto& modifier : a_particles->GetParticleSystemRuntimeData().modifierList) {
+            if (IsSimpleColorModifier(modifier.get())) {
+                a_visit(modifier.get(), ReadColorKeys(modifier.get()));
+            }
+        }
+    }
+
     bool IsSimpleColorModifier(const RE::NiPSysModifier* a_modifier)
     {
         static REL::Relocation<const RE::NiRTTI*> simpleColorRTTI{ RE::NiRTTI_BSPSysSimpleColorModifier };
@@ -76,22 +89,19 @@ namespace BlackFlame
     int DesaturateColorModifiers(RE::NiParticleSystem* a_particles)
     {
         int changed = 0;
-        for (const auto& modifier : a_particles->GetParticleSystemRuntimeData().modifierList) {
-            if (!IsSimpleColorModifier(modifier.get())) {
-                continue;
-            }
+        ForEachSimpleColorModifier(a_particles, [&](RE::NiPSysModifier* a_modifier, const ColorKeys& a_keys) {
             // Read before any write; the first few are dumped either way
-            const auto keys = ReadColorKeys(modifier.get());
+            const auto& keys = a_keys;
             const bool plausible = KeysPlausible(keys);
             if (g_keyLogs.fetch_add(1) < kMaxKeyLogs) {
                 logger::info("BlackFlame: particle colour modifier 0x{:X} keys: {} ({})",
-                    reinterpret_cast<std::uintptr_t>(modifier.get()), DescribeColorKeys(keys),
+                    reinterpret_cast<std::uintptr_t>(a_modifier), DescribeColorKeys(keys),
                     plausible ? "desaturated" : "do not look like colours - left untouched (layout mismatch?)");
             }
             if (!plausible) {
-                continue;
+                return;
             }
-            auto* layout = reinterpret_cast<SimpleColorModifierLayout*>(modifier.get());
+            auto* layout = reinterpret_cast<SimpleColorModifierLayout*>(a_modifier);
             bool any = false;
             for (auto& color : layout->colors) {
                 any = Desaturate(color) || any;
@@ -99,7 +109,7 @@ namespace BlackFlame
             if (any) {
                 ++changed;
             }
-        }
+        });
         return changed;
     }
 }

@@ -57,16 +57,23 @@ namespace BlackFlame::SelfTest
             try {
                 if (lateCleanup) {
                     // Each removal on its own first, so a throw in one cannot skip the other
-                    const int dispelled = SelfTestWorld::DispelStoke();
-                    std::string target = "not removed";
-                    std::string casterDone = "not removed";
+                    int dispelled = 0;
+                    std::string target = "not removed (threw)";
+                    std::string casterDone = "not removed (threw)";
+                    try {
+                        dispelled = SelfTestWorld::DispelStoke();
+                    } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: DispelStoke threw");
+                    }
                     try {
                         target = SelfTestWorld::Remove(dummy);
                     } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: removing the target threw");
                     }
                     try {
                         casterDone = SelfTestWorld::Remove(caster);
                     } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: removing the caster threw");
                     }
                     SelfTestLog::Info("CLEANUP", std::format("late cleanup: dispelled {} Stoke effect(s); target: {}; "
                         "caster: {}", dispelled, target, casterDone));
@@ -89,6 +96,7 @@ namespace BlackFlame::SelfTest
         // Paused time (a menu, a load screen, a dead player) is not counted against a timeout
         void ShiftClocks(Clock::duration a_paused)
         {
+            SelfTestProbe::AddPausedSeconds(std::chrono::duration<float>(a_paused).count());
             g_ctx.stepStart += a_paused;
             if (g_ctx.lastCast) {
                 *g_ctx.lastCast += a_paused;

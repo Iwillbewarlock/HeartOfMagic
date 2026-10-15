@@ -19,6 +19,7 @@
 #include "GameThread.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
+#include "Recolor.h"
 #include "SelfTest.h"
 
 namespace
@@ -50,14 +51,30 @@ namespace
         BlackFlame::ResetBurnState();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
+        BlackFlame::ResetRecolorState();
+    }
+
+    // Layers first, then the self-test abort (which does not touch the old handles either); each in
+    // its own guard so a throw in one cannot skip the other
+    void TearDown(const char* a_reason)
+    {
+        try {
+            ResetLayers();
+        } catch (...) {
+            logger::error("BlackFlame: resetting the layers threw ({})", a_reason);
+        }
+        try {
+            BlackFlame::SelfTest::Abort(a_reason);
+        } catch (...) {
+            logger::error("BlackFlame: the self-test abort threw ({})", a_reason);
+        }
     }
 
     void HandleMessage(const SKSE::MessagingInterface::Message& a_msg)
     {
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
-            ResetLayers();  // first: the load abort below does not touch the old handles either
-            BlackFlame::SelfTest::Abort("a save is being loaded");
+            TearDown("a save is being loaded");
             break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
@@ -68,8 +85,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
-            ResetLayers();
-            BlackFlame::SelfTest::Abort("a new game started");
+            TearDown("a new game started");
             BlackFlame::RecomputeBuff("new game");
             FlushLog();
             break;

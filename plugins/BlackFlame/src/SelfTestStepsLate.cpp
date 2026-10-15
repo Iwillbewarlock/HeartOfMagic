@@ -5,6 +5,7 @@
 #include "Forms.h"
 #include "ParticleColors.h"
 #include "SelfTestLog.h"
+#include "SelfTestJudge.h"
 #include "SelfTestText.h"
 #include "Tint.h"
 
@@ -24,91 +25,6 @@ namespace BlackFlame::SelfTest
         RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
 
         bool Near(float a_lhs, float a_rhs) { return std::fabs(a_lhs - a_rhs) <= kColorTolerance; }
-
-        using ShaderFilter = std::function<bool(const SelfTestWorld::ShaderOn&)>;
-
-        // An engine hit shader the burn layer did not finish: unfinished and old enough (and not
-        // excluded by a_exclude)
-        bool EngineLive(const std::vector<SelfTestWorld::ShaderOn>& a_shaders, const std::vector<RE::FormID>& a_engines,
-            const ShaderFilter& a_exclude = {})
-        {
-            return std::ranges::any_of(a_shaders, [&](const auto& s) {
-                return !s.finished && s.age >= kEngineAgeMin &&
-                       std::ranges::find(a_engines, s.effectData) != a_engines.end() && !(a_exclude && a_exclude(s));
-            });
-        }
-
-        // The same shader object as one seen before: same address and its age grew with the clock
-        // (minus a little slack); otherwise a new shader at a reused address
-        bool SameObject(const SelfTestWorld::ShaderOn& a_now, std::uintptr_t a_ptr, float a_age, Clock::time_point a_at)
-        {
-            constexpr float kSlackSeconds = 0.2f;
-            const float elapsed = std::chrono::duration<float>(Clock::now() - a_at).count();
-            return a_now.ptr == a_ptr && a_now.age >= a_age + elapsed - kSlackSeconds;
-        }
-
-        bool SeenBefore(const SelfTestWorld::ShaderOn& a_now, const std::vector<SeenShader>& a_seen)
-        {
-            return std::ranges::any_of(a_seen, [&](const auto& s) { return SameObject(a_now, s.ptr, s.age, s.at); });
-        }
-
-        // The hit shaders the burn layer recorded from the player's effects since a mark
-        std::vector<SeenShader> PlayerHitShaders(std::uint64_t a_mark)
-        {
-            std::vector<SeenShader> out;
-            for (const auto& b : SelfTestProbe::BurnsSince(a_mark)) {
-                for (const auto& h : b.hitShaders) {
-                    out.push_back({ h.ptr, h.age, b.recordedAt });
-                }
-            }
-            return out;
-        }
-
-        // Each engine hit shader on the target with its age and whose hit it was (by the pointers
-        // the burn layer recorded from each effect's hitEffects)
-        std::string DescribeEngineShaders(const Ctx& a_c, const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
-            const std::vector<RE::FormID>& a_engines)
-        {
-            const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
-            const auto owner = [&](const SelfTestWorld::ShaderOn& a_shader) {
-                for (const auto& b : burns) {
-                    const bool mine = std::ranges::any_of(b.hitShaders, [&](const auto& h) {
-                        return SameObject(a_shader, h.ptr, h.age, b.recordedAt);
-                    });
-                    if (mine) {
-                        return (a_c.extendCast && b.seq >= a_c.extendMark) ? "T5-extend" : "T3";
-                    }
-                }
-                return "unknown";
-            };
-            std::string out;
-            for (const auto& s : a_shaders) {
-                if (std::ranges::find(a_engines, s.effectData) == a_engines.end()) {
-                    continue;
-                }
-                out += std::format("{}[{:08X} age {:.2f}{} from {}]", out.empty() ? "" : " ", s.effectData, s.age,
-                    s.finished ? " finished" : "", owner(s));
-            }
-            return out.empty() ? "none" : out;
-        }
-
-        // a_keys equals a_original desaturated the way ParticleColors does it (RGB to luminance,
-        // alpha kept), within a small tolerance; an already grey original proves nothing
-        bool MatchesDesaturated(const ColorKeys& a_keys, const ColorKeys& a_original)
-        {
-            constexpr std::size_t kRgba = 4;
-            bool originalHadColour = false;
-            for (std::size_t i = 0; i + kRgba <= a_original.size(); i += kRgba) {
-                RE::NiColorA c{ a_original[i], a_original[i + 1], a_original[i + 2], a_original[i + 3] };
-                originalHadColour = originalHadColour || !(c.red == c.green && c.red == c.blue);
-                (void)Desaturate(c);
-                if (!Near(a_keys[i], c.red) || !Near(a_keys[i + 1], c.green) || !Near(a_keys[i + 2], c.blue) ||
-                    !Near(a_keys[i + 3], c.alpha)) {
-                    return false;
-                }
-            }
-            return originalHadColour;
-        }
 
         // How long the caster's Firebolt needs to reach the target: distance / the projectile's speed,
         // plus a margin (a fixed second when the speed is unknown)
@@ -217,25 +133,6 @@ namespace BlackFlame::SelfTest
                     "{:.3f})", got.red, got.green, got.blue, want.red, want.green, want.blue));
         }
 
-        // The caster's colour keys at its hook vs now, per modifier pointer
-        std::optional<bool> ModifiersChanged(const SelfTestProbe::Inspection& a_atHook, const SelfTestProbe::Inspection& a_now)
-        {
-            if (a_atHook.colorModifiers.empty() || a_now.colorModifiers.empty()) {
-                return std::nullopt;
-            }
-            bool matched = false;
-            for (std::size_t i = 0; i < a_atHook.colorModifiers.size(); ++i) {
-                const auto it = std::ranges::find(a_now.colorModifiers, a_atHook.colorModifiers[i]);
-                if (it == a_now.colorModifiers.end()) {
-                    continue;
-                }
-                matched = true;
-                if (a_now.modifierKeys[static_cast<std::size_t>(it - a_now.colorModifiers.begin())] != a_atHook.modifierKeys[i]) {
-                    return true;
-                }
-            }
-            return matched ? std::optional<bool>(false) : std::nullopt;  // nothing compared: unknown
-        }
     }
 
     // ---------------------------------------------------------------------
@@ -346,7 +243,7 @@ namespace BlackFlame::SelfTest
             const auto engines = EngineShadersOf(a_c.forms.firebolt);
             for (const auto& s : SelfTestWorld::ShadersOn(a_c.dummy)) {
                 if (std::ranges::find(engines, s.effectData) != engines.end()) {
-                    a_c.engineBeforeT4.push_back({ s.ptr, s.age, Clock::now() });
+                    a_c.engineBeforeT4.push_back(SeenNow(s));
                 }
             }
             // The caster first, so its colour keys are on record before the player's projectile
@@ -496,11 +393,12 @@ namespace BlackFlame::SelfTest
                 return MatchesDesaturated(a_keys, a_original);
             });
         });
+        const bool t3Comparable = std::ranges::any_of(a_c.t3ModifierKeys, [](const ColorKeys& a_k) { return HasColour(a_k); });
         const int shared = CommonCount(npc.colorModifiers, player.colorModifiers);
         SelfTestLog::Check("T7", shared == 0 && !*a_c.npcModifiersChanged && !desaturatedAtHook, std::format("caster "
             "modifiers: {}, {} shared with the player's, keys changed between its hook and T4: {}, keys at its hook equal "
             "to the desaturated T3 keys: {}", npc.colorModifiers.size(), shared, *a_c.npcModifiersChanged ? "YES" : "no",
-            desaturatedAtHook ? "YES" : "no"));
+            !t3Comparable ? "not compared (no coloured T3 keys)" : (desaturatedAtHook ? "YES" : "no")));
         return true;
     }
 

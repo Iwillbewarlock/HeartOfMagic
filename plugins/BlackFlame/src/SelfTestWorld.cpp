@@ -87,13 +87,13 @@ namespace BlackFlame::SelfTestWorld
         float targetHeight = a_target->GetHeight();
         std::string fallback;
         if (shooterHeight < kMinHeight) {
+            fallback += std::format(" shooter height {:.1f} -> fallback;", shooterHeight);
             shooterHeight = a_shooter->IsPlayerRef() ? kPlayerFallbackHeight : kCreatureFallbackHeight;
-            fallback += " shooter height fallback;";
         }
         float aimLift = targetHeight * kAimHeightShare;
         if (targetHeight < kMinHeight) {
             aimLift = kTargetFallbackLift;
-            fallback += " target height fallback;";
+            fallback += std::format(" target height {:.1f} -> fallback lift;", targetHeight);
         }
         // Origin: the shooter's chest, nudged toward the target so it starts clear of the shooter
         const auto from = a_shooter->GetPosition();

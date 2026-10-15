@@ -9,6 +9,7 @@
 #include <atomic>
 #include <format>
 #include <memory>
+#include <unordered_set>
 
 namespace BlackFlame
 {
@@ -17,6 +18,15 @@ namespace BlackFlame
         constexpr int kMaxDescribedMaterials = 3;
 
         std::atomic<bool> g_ownershipLogged{ false };
+
+        // Properties whose recolour lost the palette texture (raw pointers as keys only; a new
+        // property at a reused address would be left alone until the next load clears this).
+        // Game thread only; heap-held and never freed, like the burn layer's lists.
+        std::unordered_set<const RE::BSEffectShaderProperty*>& FailedProperties()
+        {
+            static auto* failed = std::make_unique<std::unordered_set<const RE::BSEffectShaderProperty*>>().release();
+            return *failed;
+        }
 
         // BSShaderProperty::SetMaterial(material, true) gives the property its own
         // unshared copy and does not keep the pointer passed in (PapyrusExtenderSSE
@@ -65,10 +75,12 @@ namespace BlackFlame
             }
             using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
             using Flag8 = RE::BSShaderProperty::EShaderPropertyFlag8;
-            // Our path with no texture behind it: an earlier recolour whose engine copy lost the
-            // texture. Terminal: its palette flags stay off, and it is neither copied nor desaturated
-            // again (a fresh copy every tick would compound the desaturation to black)
-            if (IsPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture) {
+            // A property whose recolour lost the palette (remembered below), or one showing our path
+            // with no texture behind it: terminal. Its palette flags stay off, and it is neither copied
+            // nor desaturated again (a fresh copy every tick would compound the desaturation to black,
+            // also for a copy that lost the path as well as the texture)
+            if (FailedProperties().contains(a_prop) ||
+                (IsPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture)) {
                 if (a_prop->flags.any(Flag::kGrayscaleToPaletteColor, Flag::kGrayscaleToPaletteAlpha)) {
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
@@ -78,9 +90,8 @@ namespace BlackFlame
             }
             // The property holds the engine's copy of ours: should it resolve the palette to another
             // texture object, the path still marks it (else the hand-art tick would recolour again);
-            // our path without any texture behind it is a broken state, not a finished one
-            if (source->greyscaleTexture.get() == palette ||
-                (IsPalettePath(source->greyscaleTexturePath) && source->greyscaleTexture)) {
+            // the texture-less case was handled just above
+            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath)) {
                 ++a_stats.alreadyOurs;
                 return;
             }
@@ -124,6 +135,7 @@ namespace BlackFlame
                     // with the base colour already desaturated); later passes treat it as terminal
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
+                    FailedProperties().insert(a_prop);  // terminal from now on (see the top)
                     ++a_stats.failed;  // counted only here: not also as a palette swap
                     int suppressed = 0;
                     if (LogLimit::Allow("palette lost", 0, suppressed)) {
@@ -260,6 +272,11 @@ namespace BlackFlame
             }
         });
         return std::format("{} effect properties, {} grey{}{}", total, grey, total ? ": " : "", out);
+    }
+
+    void ResetRecolorState()
+    {
+        FailedProperties().clear();
     }
 
     void ForEachEffectProperty(RE::NiAVObject* a_root, const EffectPropertyVisitor& a_visit)
