@@ -36,6 +36,10 @@ set(BLACKFLAME_SOURCES
     src/PapyrusWrap.cpp
     src/GreyMap.cpp
     src/ImpactSwap.cpp
+    src/Patch.cpp
+    src/CopySwapLaunch.cpp
+    src/CopySwapImpact.cpp
+    src/HitEvents.cpp
     src/HazardSwap.cpp
     src/GreyCheck.cpp
     src/Recolor.cpp

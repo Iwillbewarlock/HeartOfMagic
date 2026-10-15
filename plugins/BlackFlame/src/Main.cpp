@@ -11,6 +11,7 @@
 #include "BuffState.h"
 #include "CasterArt.h"
 #include "Config.h"
+#include "CopySwap.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
@@ -24,6 +25,7 @@
 #include "PapyrusWrap.h"
 #include "PlayerArt.h"
 #include "HitArt.h"
+#include "HitEvents.h"
 #include "HitEffectHook.h"
 #include "ImpactSwap.h"
 #include "Palette.h"
@@ -46,6 +48,7 @@ namespace
         BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();
         BlackFlame::EffectEventSink::GetSingleton()->Register();
+        BlackFlame::HitEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
         // Installed after the fire sets are built: the hooks read them from any thread. Always installed
         // (v2): besides the runtime recolour (its own config keys, off by default) they tint lights, feed
@@ -55,6 +58,7 @@ namespace
         BlackFlame::InstallHazardHook();
         BlackFlame::InstallHitEffectHooks();
         BlackFlame::InstallImpactSwap();
+        BlackFlame::InstallCopySwaps();  // v2: after the copies are filled and the impact call sites (CopySwap.h)
         BlackFlame::InstallHazardSwap();
         BlackFlame::RunGreyCheck();
     }
@@ -139,8 +143,10 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
-    // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp)
-    constexpr std::size_t kTrampolineSize = 128;
+    // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp, 14 bytes each), the two v2
+    // GetImpactData redirects (14 each) and the two v2 prologue detours (a 14-byte jump plus a gateway of up
+    // to 16 + 14 bytes each, CopySwap.h): 158 bytes at most; the rest is headroom
+    constexpr std::size_t kTrampolineSize = 512;
     SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });
     BlackFlame::StampGameThreadFromTask();  // the first SKSE task stamps the game thread (GameThread.h)
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game

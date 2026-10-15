@@ -19,6 +19,9 @@ namespace BlackFlame::SelfTestProbe
         std::vector<ProjectileRecord> g_projectiles;
         std::vector<ExplosionRecord> g_explosions;
         std::vector<BurnRecord> g_burns;
+        std::vector<LaunchRecord> g_launches;
+        std::vector<ExplosionCreateRecord> g_explosionCreates;
+        std::vector<HitRecord> g_hits;
         float g_pausedSeconds = 0.0f;  // guarded by g_mutex
 
         void AddProperty(RE::BSEffectShaderProperty* a_prop, Snapshot& a_out)
@@ -90,6 +93,9 @@ namespace BlackFlame::SelfTestProbe
         g_projectiles.clear();
         g_explosions.clear();
         g_burns.clear();
+        g_launches.clear();
+        g_explosionCreates.clear();
+        g_hits.clear();
         g_pausedSeconds = 0.0f;
     }
 
@@ -175,5 +181,35 @@ namespace BlackFlame::SelfTestProbe
     std::vector<BurnRecord> BurnsSince(std::uint64_t a_mark)
     {
         return Since(g_burns, a_mark);
+    }
+
+    void RecordLaunch(LaunchRecord a_record)
+    {
+        Add(g_launches, std::move(a_record));
+    }
+
+    void RecordExplosionCreate(ExplosionCreateRecord a_record)
+    {
+        Add(g_explosionCreates, std::move(a_record));
+    }
+
+    void RecordHit(HitRecord a_record)
+    {
+        Add(g_hits, std::move(a_record));
+    }
+
+    std::vector<LaunchRecord> LaunchesSince(std::uint64_t a_mark)
+    {
+        return Since(g_launches, a_mark);
+    }
+
+    std::vector<ExplosionCreateRecord> ExplosionCreatesSince(std::uint64_t a_mark)
+    {
+        return Since(g_explosionCreates, a_mark);
+    }
+
+    std::vector<HitRecord> HitsSince(std::uint64_t a_mark)
+    {
+        return Since(g_hits, a_mark);
     }
 }

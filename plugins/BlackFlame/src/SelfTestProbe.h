@@ -118,6 +118,49 @@ namespace BlackFlame::SelfTestProbe
         bool swapped = false;
     };
 
+    // v2: a Projectile::Launch the detour saw (CopySwapLaunch.cpp), while the self-test records
+    struct LaunchRecord
+    {
+        std::uint64_t seq = 0;
+        RE::FormID shooter = 0;
+        RE::FormID spell = 0;
+        RE::FormID base = 0;       // the base the caller asked for
+        RE::FormID copyBase = 0;   // the copy launched instead, 0 when not swapped
+        RE::FormID explosionBefore = 0;  // the projectile's explosion as Launch set it
+        RE::FormID explosionAfter = 0;   // after the post-write (a copy, or unchanged)
+        RE::ObjectRefHandle projectile;
+        bool playerFire = false;  // the swap rule matched (stoked, the player's, a fire launch)
+        std::uint32_t thread = 0;
+    };
+
+    // v2: an explosion created through the creation function (42657 / 43829) the detour saw
+    struct ExplosionCreateRecord
+    {
+        std::uint64_t seq = 0;
+        RE::FormID baseBefore = 0;
+        RE::FormID baseAfter = 0;      // what the creation was handed (a copy when swapped here)
+        RE::FormID projectileBase = 0; // the source projectile's base at +0x20, 0 when none
+        bool selfArea = false;         // no projectile; the caster at +0x38 decided
+        std::uint32_t thread = 0;
+    };
+
+    // v2: a TESHitEvent (the damage path still runs with a copy)
+    struct HitRecord
+    {
+        std::uint64_t seq = 0;
+        RE::FormID target = 0;
+        RE::FormID cause = 0;
+        RE::FormID source = 0;      // the spell or weapon
+        RE::FormID projectile = 0;  // the projectile base form (a copy's id when it was a copy)
+    };
+
+    void RecordLaunch(LaunchRecord a_record);
+    void RecordExplosionCreate(ExplosionCreateRecord a_record);
+    void RecordHit(HitRecord a_record);
+    [[nodiscard]] std::vector<LaunchRecord> LaunchesSince(std::uint64_t a_mark);
+    [[nodiscard]] std::vector<ExplosionCreateRecord> ExplosionCreatesSince(std::uint64_t a_mark);
+    [[nodiscard]] std::vector<HitRecord> HitsSince(std::uint64_t a_mark);
+
     void RecordProjectile(ProjectileRecord a_record);
     void RecordExplosion(ExplosionRecord a_record);
     void RecordBurn(BurnRecord a_record);

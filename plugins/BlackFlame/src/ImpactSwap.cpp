@@ -5,6 +5,10 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "GreyMap.h"
+#include "CopySwap.h"
+#include "FormCopies.h"
+#include "Patch.h"
+#include "ThreadTrace.h"
 #include "PlayerArt.h"
 #include "SehGuard.h"
 
@@ -15,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <atomic>
 #include <cstring>
 #include <vector>
@@ -43,9 +48,6 @@ namespace BlackFlame
             Caller{ 42638, 43806, 0, 0 },          // from ConeProjectile::UpdateImpl
         };
         constexpr std::size_t kGetModelIndex = 4;              // RE/T/TESModel.h: GetModel, slot 04
-        constexpr std::size_t kFallbackScanBytes = 0x1000;     // when the function table has no entry
-        constexpr std::uint8_t kCallOpcode = 0xE8;
-        constexpr std::size_t kCallSize = 5;
 
         // Saved and restored by each ImpactWindow: the innermost decision wins (an NPC impact nested in the
         // player's explosion Update is closed)
@@ -61,80 +63,6 @@ namespace BlackFlame
             }
         }
         ImpactSwapStatus g_status;  // written once at kDataLoaded
-
-        // Whether the running game's Address Library has these ids, without the fatal lookup
-        bool HasIds(std::initializer_list<std::uint64_t> a_ids)
-        {
-            const REL::Offset2ID table;
-            std::vector<std::uint64_t> ids;
-            ids.reserve(table.size());
-            for (const auto& entry : table) {
-                ids.push_back(entry.id);
-            }
-            std::ranges::sort(ids);
-            bool all = true;
-            for (const auto id : a_ids) {
-                if (!std::ranges::binary_search(ids, id)) {
-                    logger::warn("BlackFlame: impact swap: Address Library id {} is not in this game's database - the "
-                                 "impact swap stays off", id);
-                    all = false;
-                }
-            }
-            return all;
-        }
-
-        std::uint64_t IdFor(std::uint64_t a_se, std::uint64_t a_ae)
-        {
-            return REL::Module::IsAE() ? a_ae : a_se;
-        }
-
-        std::uintptr_t AddressOf(std::uint64_t a_id)
-        {
-            return REL::ID(a_id).address();
-        }
-
-        // An SKSE / CommonLib trampoline stub (Trampoline.cpp TrampolineAssembly: FF 25 00000000, then the
-        // 8-byte destination) in committed executable memory: another plugin's redirect we may chain onto
-        bool IsTrampolineStub(std::uintptr_t a_address)
-        {
-            constexpr std::array<std::uint8_t, 6> kJmpRip{ 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-            constexpr std::size_t kStubSize = 14;
-            constexpr DWORD kExecutable = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
-            MEMORY_BASIC_INFORMATION info{};
-            if (VirtualQuery(reinterpret_cast<const void*>(a_address), &info, sizeof(info)) != sizeof(info) ||
-                info.State != MEM_COMMIT || (info.Protect & kExecutable) == 0 || (info.Protect & PAGE_GUARD) != 0) {
-                return false;
-            }
-            const auto regionEnd = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
-            if (a_address + kStubSize > regionEnd) {
-                return false;
-            }
-            return std::memcmp(reinterpret_cast<const void*>(a_address), kJmpRip.data(), kJmpRip.size()) == 0;
-        }
-
-        std::uintptr_t CallTarget(std::uintptr_t a_site)
-        {
-            std::int32_t rel = 0;
-            std::memcpy(&rel, reinterpret_cast<const void*>(a_site + 1), sizeof(rel));
-            return a_site + kCallSize + rel;
-        }
-
-        // Every E8 in the function's body (its function-table entry, or a fixed window) whose target is a_callee
-        std::vector<std::uintptr_t> FindCalls(std::uintptr_t a_function, std::uintptr_t a_callee)
-        {
-            DWORD64 imageBase = 0;
-            std::uintptr_t end = a_function + kFallbackScanBytes;
-            if (const auto* entry = RtlLookupFunctionEntry(a_function, &imageBase, nullptr)) {
-                end = static_cast<std::uintptr_t>(imageBase + entry->EndAddress);
-            }
-            std::vector<std::uintptr_t> sites;
-            for (auto at = a_function; at + kCallSize <= end; ++at) {
-                if (*reinterpret_cast<const std::uint8_t*>(at) == kCallOpcode && CallTarget(at) == a_callee) {
-                    sites.push_back(at);
-                }
-            }
-            return sites;
-        }
 
         // The player's fire projectile while stoked (cheap checks first)
         bool OpensWindow(RE::Projectile* a_projectile)
@@ -157,12 +85,25 @@ namespace BlackFlame
                 const RE::NiPoint3& a_normal, RE::MATERIAL_ID a_material, bool a_flag)
             {
                 bool open = false;
+                bool copyOpen = false;
                 try {
-                    (void)Guarded("impact window", [&]() { open = OpensWindow(a_this); });
+                    (void)Guarded("impact window", [&]() {
+                        // v2: a projectile whose base is a copy opens the copy window (only the player's fire launches
+                        // with a copy); the round-10 model window is for chains without copies
+                        const auto* base = a_this ? a_this->GetBaseObject() : nullptr;
+                        copyOpen = base && IsCopy(base);
+                        open = !copyOpen && OpensWindow(a_this);
+                    });
                 } catch (...) {
                     open = false;
+                    copyOpen = false;
                     ReportFailure();
                 }
+                std::optional<ThreadTrace::Scope> trace;
+                if (open || copyOpen) {
+                    trace.emplace("SpawnCollisionEffects (window open)");
+                }
+                const CopyWindow copyWindow(copyOpen);
                 const ImpactWindow window(open);
                 return func(a_this, a_collidee, a_point, a_normal, a_material, a_flag);
             }
@@ -173,7 +114,7 @@ namespace BlackFlame
         template <std::size_t I>
         bool HookSite(std::uintptr_t a_site, std::uintptr_t a_spawn)
         {
-            const auto previous = CallTarget(a_site);
+            const auto previous = Patch::Rel32Target(a_site);
             SpawnHook<I>::func = SKSE::GetTrampoline().write_call<5>(a_site, SpawnHook<I>::thunk);
             const bool chained = previous != a_spawn;
             g_status.sitesChained += chained ? 1 : 0;
@@ -187,8 +128,8 @@ namespace BlackFlame
         std::uintptr_t FindSite(std::size_t a_index, std::uintptr_t a_spawn)
         {
             const auto& caller = kCallers[a_index];
-            const auto function = AddressOf(IdFor(caller.se, caller.ae));
-            const auto sites = FindCalls(function, a_spawn);
+            const auto function = Patch::AddressOf(Patch::IdFor(caller.se, caller.ae));
+            const auto sites = Patch::FindCalls(function, a_spawn);
             if (sites.size() == 1) {
                 return sites.front();
             }
@@ -203,12 +144,12 @@ namespace BlackFlame
                 return 0;
             }
             const auto site = function + offset;
-            if (*reinterpret_cast<const std::uint8_t*>(site) != kCallOpcode) {
+            if (*reinterpret_cast<const std::uint8_t*>(site) != Patch::kCallOpcode) {
                 logger::warn("BlackFlame: impact swap: caller {} +0x{:X} is not a call - left alone", a_index, offset);
                 return 0;
             }
-            const auto target = CallTarget(site);
-            if (target == a_spawn || IsTrampolineStub(target)) {
+            const auto target = Patch::Rel32Target(site);
+            if (target == a_spawn || Patch::IsTrampolineStub(target)) {
                 return site;  // our callee past the scanned chunk, or another plugin's trampoline stub (chained)
             }
             logger::warn("BlackFlame: impact swap: caller {} +0x{:X} calls something that is neither "
@@ -260,12 +201,17 @@ namespace BlackFlame
 
     void InstallImpactSwap()
     {
-        if (!GetConfig().impactSwap || GreyModelCount() == 0) {
-            logger::info("BlackFlame: impact swap off ({})", GetConfig().impactSwap ? "no grey models" : "impactSwap false");
+        // The call sites open the round-10 model window and the v2 copy window: needed when either has work
+        const bool modelSwap = GetConfig().impactSwap && GreyModelCount() > 0;
+        const auto copies = GetCopyCounts();
+        const bool copyWindow = GetConfig().copyImpacts && copies.impacts > 0;
+        if (!modelSwap && !copyWindow) {
+            logger::info("BlackFlame: impact call sites not hooked (impactSwap {}, grey models {}, copyImpacts {}, impact "
+                         "copies {})", GetConfig().impactSwap, GreyModelCount(), GetConfig().copyImpacts, copies.impacts);
             return;
         }
-        g_status.idsPresent = HasIds({ IdFor(kSpawnSe, kSpawnAe), IdFor(kCallers[0].se, kCallers[0].ae),
-            IdFor(kCallers[1].se, kCallers[1].ae), IdFor(kCallers[2].se, kCallers[2].ae) });
+        g_status.idsPresent = Patch::HasIds({ Patch::IdFor(kSpawnSe, kSpawnAe), Patch::IdFor(kCallers[0].se, kCallers[0].ae),
+            Patch::IdFor(kCallers[1].se, kCallers[1].ae), Patch::IdFor(kCallers[2].se, kCallers[2].ae) }, "impact swap");
         if (!g_status.idsPresent) {
             return;
         }
@@ -278,7 +224,7 @@ namespace BlackFlame
             return;
         }
         logger::info("BlackFlame: impact swap: trampoline {} bytes free", freeBytes);
-        const auto spawn = AddressOf(IdFor(kSpawnSe, kSpawnAe));
+        const auto spawn = Patch::AddressOf(Patch::IdFor(kSpawnSe, kSpawnAe));
         std::array sites{ FindSite(0, spawn), FindSite(1, spawn), FindSite(2, spawn) };
         // One address is hooked once: a site two callers' scans both found (overlapping windows) is a FAIL
         for (std::size_t i = 1; i < sites.size(); ++i) {
@@ -293,11 +239,14 @@ namespace BlackFlame
         g_status.sitesHooked += sites[0] && HookSite<0>(sites[0], spawn) ? 1 : 0;
         g_status.sitesHooked += sites[1] && HookSite<1>(sites[1], spawn) ? 1 : 0;
         g_status.sitesHooked += sites[2] && HookSite<2>(sites[2], spawn) ? 1 : 0;
-        REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_BGSImpactData[1] };  // the TESModel sub-object's vtable
-        ImpactModelHook::func = vtbl.write_vfunc(kGetModelIndex, ImpactModelHook::thunk);
-        g_status.modelHooked = true;
-        logger::info("BlackFlame: impact swap: {} of 3 call sites hooked ({} chained), BGSImpactData GetModel hooked",
-            g_status.sitesHooked, g_status.sitesChained);
+        if (modelSwap) {
+            REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_BGSImpactData[1] };  // the TESModel sub-object's vtable
+            ImpactModelHook::func = vtbl.write_vfunc(kGetModelIndex, ImpactModelHook::thunk);
+            g_status.modelHooked = true;
+        }
+        logger::info("BlackFlame: impact call sites: {} of 3 hooked ({} chained); BGSImpactData GetModel {} (round-10 model "
+                     "window), copy window {}", g_status.sitesHooked, g_status.sitesChained,
+            g_status.modelHooked ? "hooked" : "not hooked", copyWindow ? "on" : "off");
     }
 
     ImpactSwapStatus GetImpactSwapStatus() noexcept

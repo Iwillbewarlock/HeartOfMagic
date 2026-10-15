@@ -4,7 +4,9 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "CopySwap.h"
 #include "FormCopies.h"
+#include "ThreadTrace.h"
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
@@ -19,6 +21,7 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -396,14 +399,27 @@ namespace BlackFlame
             static void thunk(RE::Explosion* a_this, float a_delta)
             {
                 bool open = false;
+                bool copyOpen = false;
                 try {
                     if (a_this) {
-                        (void)Guarded("explosion impact window", [&]() { open = OpensImpactWindow(a_this); });
+                        (void)Guarded("explosion impact window", [&]() {
+                            // v2: an explosion whose base is a copy opens the copy window (its impacts take the impact
+                            // copies); the round-10 model window is for explosions without a copy
+                            const auto* base = a_this->GetBaseObject();
+                            copyOpen = base && IsCopy(base);
+                            open = !copyOpen && OpensImpactWindow(a_this);
+                        });
                     }
                 } catch (...) {
                     open = false;
+                    copyOpen = false;
                 }
                 {
+                    std::optional<ThreadTrace::Scope> trace;
+                    if (copyOpen) {
+                        trace.emplace("Explosion::Update (copy window)");
+                    }
+                    const CopyWindow copyWindow(copyOpen);
                     const ImpactWindow window(open);
                     func(a_this, a_delta);
                 }

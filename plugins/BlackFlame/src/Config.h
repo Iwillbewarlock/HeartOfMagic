@@ -23,6 +23,11 @@ namespace BlackFlame
         bool impactSwap = true;   // the player's fire impacts load the grey copies of the grey map (ImpactSwap.h)
         bool hazardSwap = true;   // the player's fire hazards load the grey copies of the grey map (HazardSwap.h)
         bool light = true;        // projectile, explosion and casting lights
+        // v2 copy swaps (CopySwap.h), each device on its own switch so the self-test can tell which worked
+        bool copyLaunch = true;           // Projectile::Launch: the player's fire launch takes the projectile copy
+        bool copyLaunchExplosion = true;  // after Launch: the projectile's explosion set to its copy
+        bool copyExplosionCreate = true;  // explosion creation: the base set to its copy (projectile copy or self area)
+        bool copyImpacts = true;          // GetImpactData inside a copy window returns the impact copy
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)

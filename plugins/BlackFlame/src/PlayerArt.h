@@ -23,6 +23,9 @@ namespace BlackFlame
     /// Any thread (the projectile hook): the arrow's weapon is on the cached bound fire weapon list
     [[nodiscard]] bool IsBoundFireArrow(RE::Projectile* a_projectile);
 
+    /// Any thread: the weapon is on the cached bound fire weapon list (v2: the Launch fire check)
+    [[nodiscard]] bool IsBoundFireWeapon(const RE::TESForm* a_weapon);
+
     /// Ticker task while stoked: bound fire weapons' 3D and fire light effects on the player
     void TickPlayerArt();
 

@@ -138,6 +138,11 @@ namespace BlackFlame
         }
     }
 
+    bool IsBoundFireWeapon(const RE::TESForm* a_weapon)
+    {
+        return IsPlayerBoundFireWeapon(a_weapon);
+    }
+
     bool IsBoundFireArrow(RE::Projectile* a_projectile)
     {
         return IsPlayerBoundFireWeapon(a_projectile->GetProjectileRuntimeData().weaponSource);

@@ -54,6 +54,10 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `impactSwap` | `true` | The player's fire impacts load the grey copies named by the grey map (section "Grey swap") |
 | `hazardSwap` | `true` | The player's fire hazards load the grey copies named by the grey map |
 | `light` | `true` | Tint projectile, explosion, hazard, casting and light-effect lights to `lightColor` (independent of the recolour keys above: the per-instance light tint stays in v2) |
+| `copyLaunch` | `true` | v2: the player's fire launch takes its projectile copy (`Projectile::Launch` detour, section "Black Flame v2") |
+| `copyLaunchExplosion` | `true` | v2: after that launch the projectile's explosion is set to its copy |
+| `copyExplosionCreate` | `true` | v2: explosion creation hands the explosion copy when the source projectile is a copy or the player's self-area fire cast made it |
+| `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
 | `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
@@ -292,6 +296,31 @@ only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedO
 stays the source's. A copy whose source or copy form is missing, or whose types differ, is left out of the map and
 logged. The fire set treats a copy as its source (`IsFireExplosion`, `IsFireHazard`). Self-test T0-v2 compares every
 copy with its live source again.
+
+### Swap points (S2, DLL): `CopySwap.h`
+
+Only while stoked, only for a launch that is the player's (shooter, blame actor or confirmed script tag, as
+"Whose it is") and fire, and only where a copy exists. **Fire at Launch** (`IsFireLaunch`): `LaunchData.spell`
+(+0x70) decides alone by the fire rule (so a non-fire spell sharing a copied PROJ is never swapped); with no spell,
+a weapon source (+0x38) on the player's bound fire weapon list counts; an enchantment (+0x80) alone does not
+(staffs, scrolls and enchantments are excluded by the kSpell rule). NPC launches keep their forms.
+
+| Device | Config key | What |
+|---|---|---|
+| `Projectile::Launch` (SE 42928 / AE 44108) prologue detour | `copyLaunch` | `LaunchData.projectileBase` set to its copy for the call and restored after. A Flame or Beam stream started with the copy is a new stream (Launch reuses a stream only with the same base) |
+| the same detour, after the call | `copyLaunchExplosion` | the new projectile's `GetProjectileRuntimeData().explosion` (Launch takes it from the MGEF when the area is above 0 - Fireball - else from the base) set to its copy |
+| explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | the create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
+| `GetImpactData` (SE 20408 / AE 20860) calls in `SpawnCollisionEffects` (43022 / 44213) and the explosion's impact function (42679 / 43851) | `copyImpacts` | inside a copy window the impact copy is returned for the impact the set would return (no IPDS copy, no hash map insert). The window opens on the impact call sites (section "Grey swap") when the projectile's base is a copy, and in `Explosion::Update` when the explosion's base is a copy. The round-10 model window (GetModel swap) stays for projectiles and explosions without a copy |
+
+**Detours.** The first 16 bytes are read at runtime. An `E9` there (another plugin's detour, e.g. IDRC hooks
+Launch's prologue) or an `FF 25` absolute jump is chained onto: our thunk calls its target. Otherwise the leading
+instructions are replayed in a gateway only when every one is a position-independent form the decoder knows (push,
+REX push, `mov [rsp+disp8], r64`, `sub rsp, imm`, `mov rax/r11, rsp`) covering 5 bytes or more; anything else is
+left alone and logged with its bytes. 1.7.104 code (readable): Launch starts `48 89 4C 24 08` (one 5-byte
+instruction), explosion creation `40 53 55 56 57` (four pushes). The GetImpactData sites are found by scanning each
+caller's function-table range for its one `E8`; only SpawnCollisionEffects has a fallback offset (+0xBC, AE, for a
+call another plugin rewrote): the explosion function differs between 1.7.104 and 1.6.1170 (see the ids table).
+Trampoline: 512 bytes (158 at most used). Counters per device are in `GetCopySwapCounters` and the self-test.
 
 ## Known limits
 
