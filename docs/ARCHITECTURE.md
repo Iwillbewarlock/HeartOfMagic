@@ -1978,7 +1978,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 └── (ESP if applicable)
 ```
 
-The NPC Spells addon ships as its own archive under its own version (`plugins/NPCSpells/VERSION`), `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip`: `HeartOfMagic_NPCSpells.esp` (ESL flag) at the root, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, `LICENSE`, `licenses/` and its own `THIRD-PARTY-NOTICES.md` (source tag `npcspells-v<version>`). See `plugins/NPCSpells/README.md`.
+The NPC Spells addon ships as its own archive under its own version (`plugins/NPCSpells/VERSION`), `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` (`plugins/cmake/DistributionNpcSpells.cmake`). It has no FOMOD, so the zip's root is the Data folder (no wrapping folder): `HeartOfMagic_NPCSpells.esp` (ESL flag), `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, and `SKSE/Plugins/HeartOfMagic_NPCSpells/` with `LICENSE`, its own `THIRD-PARTY-NOTICES.md` (from `plugins/NPCSpells/THIRD-PARTY-NOTICES.md.in`, source tag `npcspells-v<version>`) and `licenses/` holding only the licences of what that DLL links (CommonLibSSE-NG, fmt, spdlog, nlohmann-json, zlib, Xbyak, DirectXMath, DirectXTK). The main mod's notice does not mention the addon. The PDB zip is rooted at Data the same way. See `plugins/NPCSpells/README.md`.
 
 ---
 

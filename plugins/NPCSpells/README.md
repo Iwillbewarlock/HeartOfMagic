@@ -31,7 +31,8 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 | `SKSE/Plugins/HeartOfMagic_NPCSpells.json` | The rules file (editable, see below) |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells_report.txt` | Written on each run: counts, every list, every NPC that got lists, timings. Not in the archive |
 | `HeartOfMagic_NPCSpells.log` (SKSE log folder) | The addon's log |
-| `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` | The release archive (separate from the Heart of Magic zip): the ESL, the DLL, the rules JSON, `LICENSE`, its own `THIRD-PARTY-NOTICES.md` (source tag `npcspells-v<version>`) and `licenses/`. The PDB goes to `..._DebugSymbols.zip` |
+| `SKSE/Plugins/HeartOfMagic_NPCSpells/` | `LICENSE`, `THIRD-PARTY-NOTICES.md` (the addon's own, from `plugins/NPCSpells/THIRD-PARTY-NOTICES.md.in`; source tag `npcspells-v<version>`) and `licenses/` (only the libraries this DLL links: CommonLibSSE-NG with its GPL and exceptions, fmt, spdlog, nlohmann-json, zlib, Xbyak, DirectXMath, DirectXTK). Kept out of Data's top level; nothing reads this folder |
+| `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` | The release archive (separate from the Heart of Magic zip, `plugins/cmake/DistributionNpcSpells.cmake`). No FOMOD: the zip's root is the Data folder (the rows above, no wrapping folder), so a mod manager installs it as it is. The PDB goes to `..._DebugSymbols.zip`, rooted at Data the same way (`SKSE/Plugins/HeartOfMagic_NPCSpells.pdb`) |
 | `plugins/NPCSpells/VERSION` | The addon's own version (1.0.0), apart from Heart of Magic's `VERSION`: the DLL's version, the report's `Version:` line and the zip name |
 
 ## How lists are made

@@ -113,11 +113,6 @@ set(_vcpkg_share "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share")
 set(_vcpkg_license_ports
     fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway zlib)
 
-# The notice names the archive it ships in and the git tag that holds its source
-# (DistributionNpcSpells.cmake makes the NPC Spells addon's from the same template)
-set(NOTICES_PRODUCT "Heart of Magic Librarian")
-set(NOTICES_VERSION "${PROJECT_VERSION}")
-set(NOTICES_TAG "v${PROJECT_VERSION}")
 configure_file(
     "${CMAKE_SOURCE_DIR}/THIRD-PARTY-NOTICES.md.in"
     "${CMAKE_BINARY_DIR}/THIRD-PARTY-NOTICES.md"

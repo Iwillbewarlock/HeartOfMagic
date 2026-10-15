@@ -1,9 +1,9 @@
-# Third-party notices - @NOTICES_PRODUCT@ @NOTICES_VERSION@
+# Third-party notices - Heart of Magic Librarian @PROJECT_VERSION@
 
 ## Licenses
 
 - **The plugin DLLs are a GPL-3.0-or-later combined work.** `SKSE/Plugins/SpellLearning.dll`,
-  `SKSE/Plugins/SL_BookXP.dll`, `optional/ISLPatch/SKSE/Plugins/DontEatSpellTomes.dll` and `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` (the last shipped in the separate NPC Spells archive) statically link
+  `SKSE/Plugins/SL_BookXP.dll` and `optional/ISLPatch/SKSE/Plugins/DontEatSpellTomes.dll` statically link
   **CommonLibSSE-NG 10.0.0**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
   **GPL-3.0 Linking Exception**. The DLLs are distributed under those terms:
   `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md`
@@ -194,7 +194,7 @@ patch as their Nexus permissions allow, with the credit above.
 ## Corresponding Source
 
 The complete Corresponding Source for the DLLs is public at
-<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `@NOTICES_TAG@` (the tag of this release).
+<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `v@PROJECT_VERSION@` (the tag of this release).
 CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
 (<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
 fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
