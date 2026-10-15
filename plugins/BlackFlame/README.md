@@ -51,6 +51,8 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `handArt` | `true` | Layer 4: recolour the casting art in the player's hands |
 | `boundWeapon` | `true` | Layer 4: recolour the player's bound fire weapons (their arrows count as fire projectiles whatever this says) |
 | `scriptPlaced` | `true` | Wrap the Papyrus natives `ObjectReference.PlaceAtMe`, `Spell.Cast` and `Spell.RemoteCast` so what scripts of the player's fire effects place or cast from is recoloured (section "Script-placed fire"). `false`: the natives are left untouched |
+| `impactSwap` | `true` | The player's fire impacts load the grey copies named by the grey map (section "Grey swap") |
+| `hazardSwap` | `true` | The player's fire hazards load the grey copies named by the grey map |
 | `light` | `true` | Tint projectile, explosion, hazard, casting and light-effect lights to `lightColor` |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
@@ -93,8 +95,8 @@ skipped, so it is safe to repeat.
 |---|---|
 | 1 hit shader and hit art | `ActiveEffectReferenceEffectController` vtable: `GetHitEffectShader` (0x0D) and `GetHitEffectArt` (0x0C), where the engine asks an active effect which hit shader and art to put on its target. While stoked, for an effect the player cast (caster handle) whose MGEF is a fire effect of a fire spell (scrolls, staffs and enchantments sharing the MGEF do not count): the shader call returns `HoMBF_BurnShader` instead of the engine's, so the engine makes the hit shader from ours (instant hits, concentration and cloaks alike; no event, no record changed, nothing to finish); the art call returns the engine's art, and the art's 3D (`ModelReferenceEffect::artObject3D`) is recoloured on a later tick once it exists (up to 2 s). The first 20 calls of each slot, on any effect and on a stoked player's fire effect, are logged with the controller, how many times it was asked, the effect, the target and the thread |
 | 2 projectile | `Handle3DLoaded` (vfunc 0xC0) on the Missile, Flame, Cone, Beam, Grenade, Barrier and Arrow vtables; the player's (see "Whose it is") and a fire spell's, or an arrow of the player's bound fire weapon |
-| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, the player's (see "Whose it is"), decided only once owner, cause or blame is set; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick. Initialize (0xA2) and Update (0xA3) are hooked as a second route (Update does nothing unless stoked or the self-test records); each explosion is decided once, and the first 20 hook calls on any explosion are logged |
-| 3 hazard | `Set3D` (0x6C) and `Initialize` (0xA2) on the Hazard vtable: while stoked (and `hazard` on), a hazard with 3D is queued once (by handle) and handled by a task: the player's (owner or cause waited for up to 2 s when neither is set yet) and a fire hazard (see above); its 3D recoloured and its light tinted (light type checked through RTTI); a pass that changed nothing lets a later Set3D queue it again. Geometry under a `BSMasterParticleSystem` is skipped: vanilla fire hazards are mostly AddOn nodes emitting into such a shared system, so expect `0 effect geometries ... N AddOn nodes` on them. The first 20 hook calls on any hazard are logged |
+| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, the player's (see "Whose it is"), decided only once owner, blame or a script tag (also on the explosion caster's object reference, `GetCasterObjectReference`) is there, given up after 2 s; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick. Initialize (0xA2) and Update (0xA3) are hooked as a second route (Update does nothing unless stoked or the self-test records); each explosion is decided once, and the first 20 hook calls on any explosion are logged |
+| 3 hazard | `Set3D` (0x6C) and `Initialize` (0xA2) on the Hazard vtable: while stoked (and `hazard` on), a hazard with 3D is queued once (by handle) and handled by a task: the player's (owner or script tag waited for up to 2 s; a hazard made inside the player's impact window is tagged) and a fire hazard (see above); its 3D recoloured and its light tinted (light type checked through RTTI); a pass that changed nothing lets a later Set3D queue it again. Geometry under a `BSMasterParticleSystem` is skipped: vanilla fire hazards are mostly AddOn nodes emitting into such a shared system, so expect `0 effect geometries ... N AddOn nodes` on them. The first 20 hook calls on any hazard are logged |
 | 4 hand art | ticker task every 100 ms while stoked, and at once when the buff turns on: per hand casting a fire spell OR holding one readied (Actor::GetEquippedObject), the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null or holds no effect geometry (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted. Every recoloured hand-art property is remembered with its original greyscale texture, path, base colour and palette flags, and put back when the buff turns off and on a load (a fresh material copy, SetMaterial(copy, true)); the casting light's old colour too. Entries only we still hold are dropped each tick |
 | 4 bound weapon, light effect | ticker while stoked: a bound fire weapon (bound flag, named by an active Bound Weapon-archetype effect the player cast on themselves, that effect a fire effect of a fire spell or the weapon's own enchantment carrying a fire MGEF; the list is kept by the ticker and the arrow hook only compares FormIDs) is recoloured in the player's 1st and 3rd person bipeds (`BIPOBJECT::partClone`); a Light-archetype fire effect the player cast on themselves has its light tinted (`LightEffect::light`). Both are put back with the hand art |
 
@@ -198,8 +200,43 @@ separate byte reader).
 "Build tools"). The shipped grey meshes are derived from Bethesda's vanilla meshes, as mod meshes normally are.
 
 **Not verified in game:** that a grey MPS draws grey (palette on baked-colour replacer textures included); that
-the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works (none of this can be
-seen before the DLL swaps the models).
+the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works.
+
+## Grey swap (the DLL side)
+
+Only for the player's fire while stoked, the engine loads the grey copy instead of the original impact or hazard
+mesh. No form is changed and no form is made; NPC fire never takes the swap.
+
+- **Map**: `Data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` (version 1) read once at kDataLoaded. One
+  file name only: `blackflame-greybuild --request` writes its full map under the same name, so a generated map in a
+  later mod replaces the shipped one. Keys and values are normalised (lower case, backslashes, no leading
+  `meshes\`) so they match `TESModel::GetModel` paths; entries outside `meshes\heartofmagic\blackflame\` or not
+  `.nif` are skipped and logged. The strings live for the session (the engine keeps the returned pointer for an
+  async clone).
+- **Impacts**: the three calls of `Projectile::SpawnCollisionEffects` (found by scanning their callers for an E8 to
+  it; chained when another plugin redirected one first) go through the SKSE trampoline; around each call a
+  thread-local window opens when the projectile is the player's fire and the buff is on. The explosion side opens
+  the same window around `Explosion::Update` for the player's fire explosions (needs `explosion` on). While a
+  window is open, BGSImpactData's `GetModel` returns the grey copy when the map has one.
+- **Hazards**: `Load3D` on the Hazard vtable: the player's fire hazard (owner, blame or script tag; one made inside
+  an impact window is tagged first) whose base model has a grey copy gets it through BGSHazard's `GetModel` during
+  that load only.
+- **Address Library**: every function id is checked in the running game's database first (`REL::Offset2ID`); a
+  missing id turns the impact swap off with a log line instead of a failed lookup.
+
+| What | SE / AE | Status |
+|---|---|---|
+| `Projectile::SpawnCollisionEffects` | 43022 / 44213 | AE: 1.7.104 code, 1.6.1170 by id alignment; SE matched by algorithm (po3 uses the pair) |
+| `Projectile::ProcessImpacts` (caller 1) | 42943 / 44123 | AE: 1.7.104 code and 1.6.1170 vtable slot 0xAC; call offset +0x407 AE / +0x410 SE from MuIF only (fallback) |
+| caller 2 (from `HandleHits`) | 43014 / 44205 | AE: 1.7.104 code; SE matched by algorithm |
+| caller 3 (from `ConeProjectile::UpdateImpl`) | 42638 / 43806 | AE: 1.7.104 code; SE matched by algorithm |
+| `VTABLE_BGSImpactData[1]` slot 4, `VTABLE_BGSHazard[2]` slot 4 (`TESModel::GetModel`) | CommonLib ids | verified on 1.6.1170 .rdata (research notes) |
+| Hazard vtable slot 0x6A (`TESObjectREFR::Load3D`) | CommonLib id | verified on 1.6.1170 .rdata; not overridden by Hazard |
+| Explosion vtable slot 0xA3 (`Update`) | CommonLib id | verified on 1.6.1170 .rdata |
+
+The kDataLoaded grey check logs `grey check PASS/FAIL` lines (each grey ADDN record found by its plugin and local
+id and sitting in `TESDataHandler::addonNodes` at its grey index, every grey model file opening, the call sites
+and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-swap / T6-npc-swap.
 
 ## Known limits
 
@@ -222,6 +259,7 @@ seen before the DLL swaps the models).
 - Heart of Magic's tree leaves the Stoke spell out (no tome teaches it); the prototype gives it by console.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.
 - Threads: SKSE tasks run in the SKSE task phase of Main::Update (main thread, per SKSE 2.2.8 Hooks_Threads.cpp); kDataLoaded runs on an init thread. The game thread is stamped by the first SKSE task (queued at `SKSEPlugin_Load`), which logs `taskThread=`, `loadThread=` and `Main::threadID=` in one line. Log lines that print a stored thread label it (`hookThread=`, `callerThread=`, `gameThread=`), so the log prefix's own thread id is not confused with it. Lists shared between tasks, the message handler and hooks are under mutexes.
+- The grey swap is not run in game yet: whether the grey copies draw grey, whether an impact hazard is created inside the impact window (log `loaded inside the player's impact window`), and the 1.6.1170 code offsets are open.
 - Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset and switches that step off for the session (later calls counted); restores are the exception, guarded item by item and never switched off. A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
 
 ## Self-test
@@ -252,6 +290,8 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | Step | PASS when |
 |---|---|
 | T0 | the palette loaded (path logged), the ESP's forms and the vanilla forms exist, Firebolt and Fireball count as fire (game thread, fire counts, config and Fireball's explosion radius logged) |
+| T0-wrap | each wrapped native: the script type holds our proxy and the proxy answers the original's parameter count and types, static, latent and tasklet flags (no game script needed) |
+| T0-grey | the kDataLoaded grey check lines (see "Grey swap") |
 | T1 | after the Stoke cast (`CastSpellImmediate`) the player has one more Stoke effect and the flag is on. A Stoke buff the player already had is dispelled first and not given back |
 | T2 | both deer spawned (`PlaceObjectAtMe`) with 3D; the target's AI is off and its health at least 99% of 100000; target-to-player and target-to-caster distances are beyond the explosion radius + 100 |
 | T3 | the player's Firebolt was recoloured and at least as many effect shapes carry the palette path as were recoloured (ratio logged; INFO "partial" when forcePalette left some out) |
@@ -265,7 +305,9 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T5-npc | once the caster's projectile can have arrived (distance / projectile speed): the hook recorded a KEPT call (a fire effect someone else cast) for the target, and an engine Firebolt hit shader unfinished at 0.5 s or older that was not already on the target before T4 shows within 1.5 s (a sighting is the same shader only if its age grew with the unpaused clock, and a shader recorded finished never matches an unfinished one); INFO "cannot judge" without a kept record |
 | T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
 | T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
-| T3-remote | the script-tag rule: a placed vanilla XMarker (a non-actor reference, only the test's prop), tagged as the native wrapper tags a Cast's akSource, casts Firebolt at the target with no blame actor; the projectile it shot counts as the player's and is recoloured |
+| T6-swap | 1.2 s after the player's Fireball: grey impact models were handed out (INFO when `impactSwap` is off or Fireball's impact set has no model in the map) |
+| T6-npc-swap | 1.2 s after the caster's Fireball, with no player projectile in flight: no grey impact model handed out |
+| T3-remote | the script-tag rule: a placed vanilla XMarker (a non-actor reference, only the test's prop), tagged as the native wrapper tags a Cast's akSource, casts Firebolt at the target with no blame actor; PASS only when the projectile it shot was the player's through the script tag and recoloured. It tags the marker itself: the wrapper is not exercised here (T0-wrap checks it). Also logs each explosion's caster object reference |
 | T3-blame | INFO: a second marker casts with the player as blame actor and no tag; reports whether the engine kept that blame on the marker's NonActorMagicCaster (the blame rule matched) |
 | T-bound / T-placed | INFO "manual": vanilla has no bound weapon with a fire effect; no test script ships for script-placed fire |
 | T7 / T7-player | INFO: the first colour modifier's keys (0x30-0x5F) and whether the layout looks plausible (all in 0..2, one above 0); with `particleColors`: every player modifier desaturated (T7-player); and, only when the caster's projectile was recorded before the player's, its modifiers neither shared, nor changed between its hook and T4, nor already equal to the desaturated keys of the player's T3 projectile before its recolour (T7; "not compared" when those had no colour, INFO when not comparable) |
