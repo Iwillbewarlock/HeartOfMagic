@@ -170,7 +170,8 @@ LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& 
         return c;
     };
     if (auto c = pick(&LeveledSpawnCandidate::originalIsSample, LeveledSpawnMatch::kOriginalBase); c.match != LeveledSpawnMatch::kNone) return c;
-    if (auto c = pick(&LeveledSpawnCandidate::templateIsLeaf, LeveledSpawnMatch::kLeaf); c.match != LeveledSpawnMatch::kNone) return c;
+    if (auto c = pick(&LeveledSpawnCandidate::originalIsEntry, LeveledSpawnMatch::kOriginalBaseIsEntry); c.match != LeveledSpawnMatch::kNone) return c;
+    if (auto c = pick(&LeveledSpawnCandidate::templateIsEntry, LeveledSpawnMatch::kTemplateBaseIsEntry); c.match != LeveledSpawnMatch::kNone) return c;
     if (candidates.size() == 1) return { 0, LeveledSpawnMatch::kOnlyNew, 1 };
     return {};
 }
@@ -178,7 +179,8 @@ const char* LeveledSpawnMatchName(LeveledSpawnMatch m)
 {
     switch (m) {
     case LeveledSpawnMatch::kOriginalBase: return "originalBase";
-    case LeveledSpawnMatch::kLeaf: return "templateBaseIsEntry";
+    case LeveledSpawnMatch::kOriginalBaseIsEntry: return "originalBaseIsEntry";
+    case LeveledSpawnMatch::kTemplateBaseIsEntry: return "templateBaseIsEntry";
     case LeveledSpawnMatch::kOnlyNew: return "onlyNewLeveledActor";
     default: return "none";
     }

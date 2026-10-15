@@ -136,6 +136,7 @@ namespace
     // The world the ref stood in is gone (another save, a new game): the handle is dropped unread
     void Forget(State& s, SampleRun& r)
     {
+        SelfTest::ClearSpawnPending(s, r);
         if (!r.handle) {
             return;
         }
@@ -145,9 +146,14 @@ namespace
 
     // RE/T/TESObjectREFR.h:330 Disable, :218 SetDelete. The const get (RE/B/BSPointerHandle.h:161, the const
     // GetSmartPointer) leaves the handle as it is; the non-const one is the engine's "clears the handle" lookup. Only a
-    // ref that still has the spawned FormID and is an actor is touched.
+    // ref that still has the spawned FormID and is an actor is touched. A leveled placeatme whose actor was not found yet
+    // (an error ends the test) leaves it in the world: counted.
     void Cleanup(State& s, SampleRun& r)
     {
+        if (r.spawnPending) {
+            ++s.leftActors;
+        }
+        SelfTest::ClearSpawnPending(s, r);
         if (!r.handle) {
             return;
         }
@@ -206,7 +212,7 @@ namespace
     }
 
     // One spawn of a prepared sample. A spawn that gives no actor FAILs and stops the sample. A leveled sample goes through
-    // the console's placeatme (GameSelfTestSpawn.cpp); its actor is found by the ticks (FindLeveledSpawn).
+    // the console's placeatme (GameSelfTestSpawn.cpp); its actor is looked for at once, then by the ticks (FindLeveledSpawn).
     void Place(State& s, SampleRun& r, RE::PlayerCharacter* player)
     {
         if (!r.npc) {
@@ -218,16 +224,20 @@ namespace
         }
         // RE/T/TESObjectREFR.h:475: at the player's position, a hostile NPC stands next to the player until it is checked
         const auto ref = player->PlaceObjectAtMe(r.placed, false);
-        if (!ref || !ref->As<RE::Actor>()) {
-            if (ref) {
-                ref->Disable();
-                ref->SetDelete(true);
-            }
-            Stop(s, r, "PlaceObjectAtMe gave no actor");
+        if (!ref) {
+            Stop(s, r, "PlaceObjectAtMe gave no ref");
+            return;
+        }
+        if (!ref->As<RE::Actor>()) {
+            const auto type = RE::FormTypeToString(ref->GetFormType());  // RE/F/FormTypes.h:282
+            ref->Disable();
+            ref->SetDelete(true);
+            Stop(s, r, std::format("PlaceObjectAtMe gave a ref that is not an actor (form type {}, deleted)", type));
             return;
         }
         r.handle = ref->GetHandle();  // RE/T/TESObjectREFR.h:402
         r.spawnedId = ref->GetFormID();
+        s.spawnedIds.insert(r.spawnedId);
         ++s.liveActors;
         Log(s, std::format("SELFTEST spawn sample {} ref 0x{:08X}", r.label, ref->GetFormID()));
     }
@@ -256,7 +266,8 @@ namespace
         r.waitTicks = 1;
         r.handle = {};
         r.spawnedId = 0;
-        r.spawnPending = false;
+        r.onlyNew = false;
+        SelfTest::ClearSpawnPending(s, r);
         if (!r.resolvedAtPrepare) {  // a holder found after the last spawn is that actor's: this run's actor finds its own
             r.holder = nullptr;
             r.holderStart = nullptr;
@@ -296,6 +307,9 @@ namespace
         }
         if (s.savedWithActors) {
             s.lines.emplace_back("SELFTEST WARN save taken while sample actors exist");  // logged when it happened
+        }
+        if (s.leftActors > 0) {
+            SelfTest::Warn(s, std::format("SELFTEST WARN leveled actors left in the world={}", s.leftActors.load()));
         }
         if (!s.spawned) {
             g_started = false;
@@ -352,13 +366,25 @@ namespace
             if (r.done) {
                 continue;
             }
-            const auto waited = r.waitTicks++;  // 0 on run 1's spawn tick, 1 on a later run's first tick (NextRun)
-            if (r.spawnPending && !SelfTest::FindLeveledSpawn(s, r, waited)) {  // a leveled spawn's actor, looked for each tick
-                if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
-                    Stop(s, r, SelfTest::LeveledSpawnMissing(s, r, waited));
-                } else {
-                    open = true;
+            auto waited = r.waitTicks++;  // 0 on run 1's spawn tick, 1 on a later run's first tick (NextRun)
+            if (r.spawnPending) {  // a leveled spawn's actor not found right after its placeatme: looked for each tick
+                if (SelfTest::FindLeveledSpawn(s, r, waited) == NpcSpells::LeveledSpawnMatch::kNone) {
+                    if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
+                        Fail(s, r, SelfTest::LeveledSpawnMissing(s, r, waited));  // this run only: the next run spawns anew
+                        NextRun(s, r);
+                        open = open || !r.done;
+                    } else {
+                        open = true;
+                    }
+                    continue;
                 }
+                waited = 0;  // found in this tick: the 3D wait has its own maxWaitMs from here, as run 1's from its spawn tick
+                r.waitTicks = 1;
+            }
+            if (r.onlyNew) {  // FindLeveledSpawn kept no handle: nothing to check or clean up
+                Record(s, r, NpcSpells::SelfTestVerdict::kInconclusive, "matched only as the one new leveled actor: not checked, left in the world");
+                NextRun(s, r);
+                open = open || !r.done;
                 continue;
             }
             const auto ref = std::as_const(r.handle).get();
@@ -372,7 +398,7 @@ namespace
                 continue;
             }
             if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
-                SelfTest::Fail(s, r, std::format("no 3D or high process after {} ticks of {} ms (actor={} 3D={} high={})", waited, NpcSpells::kSelfTestPollMs,
+                SelfTest::Fail(s, r, std::format("3D wait: no 3D or high process after {} ticks of {} ms (actor={} 3D={} high={})", waited, NpcSpells::kSelfTestPollMs,
                     actor ? "yes" : "no", actor && actor->Is3DLoaded() ? "yes" : "no", actor && actor->GetHighProcess() ? "yes" : "no"));
                 Cleanup(s, r);
                 NextRun(s, r);
@@ -531,9 +557,11 @@ void NpcSpellsGame::OnSelfTestNewGame()
 void NpcSpellsGame::OnSelfTestSave()
 {
     const auto s = Current();
-    if (!s || s->finished || s->liveActors <= 0) {
+    // A leveled placeatme whose actor is not found yet, or one left unmatched, also stands in the world being saved
+    if (!s || s->finished || s->liveActors + s->pendingSpawns + s->leftActors <= 0) {
         return;
     }
     s->savedWithActors = true;
-    logger::warn("SELFTEST WARN save taken while sample actors exist (actors={})", s->liveActors.load());
+    logger::warn("SELFTEST WARN save taken while sample actors exist (actors={} leveledPending={} leveledLeft={})", s->liveActors.load(),
+        s->pendingSpawns.load(), s->leftActors.load());
 }

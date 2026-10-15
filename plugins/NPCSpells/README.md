@@ -46,9 +46,9 @@ ahead of time (at data load) and attaches them to NPC base records.
 
 - **Lists:** one per school x group x variant x rung (a "slot", 307 in all); the ESL has room for 3 chunks per slot.
   A list holds one school only, entries sorted by level; a spell's level is the skill floor of its tier (novice 1,
-  apprentice 25, adept 50, expert 75, master 100). Novice is 1, not 0: in in-game run 7 (2026-10-15) no list whose
-  highest level at or below the NPC's skill was 0 gave a spell, and no leveled spell list in the load order (vanilla
-  included) has a level 0 entry, so the engine is taken to skip level 0 (pending the next in-game run). An NPC whose
+  apprentice 25, adept 50, expert 75, master 100). Novice is 1, not 0: lists whose highest level at or below the skill
+  was 0 gave no spell in testing (in-game run 7, 2026-10-15; pending an in-game check), and no leveled spell list in
+  the load order (vanilla included) has a level 0 entry, so the engine is taken to skip level 0. An NPC whose
   skill in a school is 0 therefore gets no novice spell of that school (practically no caster has 0). A list is split into chunks only past 255 entries (the engine's
   limit); a tier with fewer spells than there are chunks is copied into every chunk first, and the other spells are
   dealt round-robin. The chunk count is the smallest from ceil(spells / 255) that holds those copies too (so 510
@@ -232,8 +232,9 @@ missing record.
   decision: the record's own race or class is not read in their place.
 - **The leveled spawn path is not yet checked in game.** `PlaceObjectAtMe` gives no actor for a leveled NPC (`039D5F`,
   2026-10-15); the self test now spawns its leveled sample (`039D5F`, 5 times) through the console's `placeatme` run
-  as a script on the player, and finds the actor afterwards (see "Self test"). That route itself is untested in game.
-  Checklist item 10 stays the release condition.
+  as a script on the player, and finds the actor right after the command (see "Self test"). That route itself is
+  untested in game. Checklist item 10 stays the release condition; a run whose actor was matched only as the one new
+  leveled actor (`match=onlyNewLeveledActor`) is `INCONCLUSIVE` and does not count toward it.
 - The same spell can be given again when the NPC already knows it; harmless.
 - An NPC in two groups gets the first group's lists (see Group priority).
 - Vigilant `never: undead` also removes Turn Undead (the `undead` tag covers repelling). A spell that commands undead
@@ -307,8 +308,8 @@ back to its default, a bad sample is dropped alone, all logged.
 each list gives a spell (the open "some R1 lists give nothing" question). That each new actor rolls its leveled lists
 anew is an assumption the repeated runs check (`pickedRuns` short of all or none). Each run has its own lines and
 `RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name) and counts in `DONE`; a failure before the
-spawn (record not found, holder without lists, no actor from the spawn) ends the sample's runs with a `FAIL` for the
-run it happened in. A sample whose plugin is not loaded ends the same way with `INCONCLUSIVE (plugin <name> not
+spawn (record not found, holder without lists, no actor from `PlaceObjectAtMe`) ends the sample's runs with a `FAIL`
+for the run it happened in. A leveled run whose actor is not found in time fails alone, and the next run spawns anew. A sample whose plugin is not loaded ends the same way with `INCONCLUSIVE (plugin <name> not
 loaded)`: nothing could be checked, which is not a failure of the addon. `DONE` then adds `notRun=N`: the runs that
 never started and have no `RESULT` line - a sample stopped in run k of N, or a test that ended in it, adds N - k (run
 k itself has its `RESULT` and is counted in pass, fail or inconclusive). A sample whose holder is found only after the spawn (leveled, or a leveled link
@@ -319,16 +320,25 @@ A leveled NPC record (LVLN) cannot be spawned with `PlaceObjectAtMe` (CommonLib'
 CreateReferenceAtLocation`, which gave no actor for `039D5F` on 2026-10-15), while the console's `player.placeatme
 <LVLN>` spawns a leveled actor (2026-10-09). So a leveled sample runs that console command as a script on the player
 (`RE::Script::SetCommand` and `CompileAndRun(player)`, a script form from the game's form factory, deleted after the
-run; `src/game/GameSelfTestSpawn.cpp`). The command returns no ref, so the actors within 2048 units of the player are
-noted before it, and from that tick on (each tick, up to `maxWaitMs`) the actor is the new one: made at runtime
-(`0xFF...`), not there before, no other sample's, with `ExtraLeveledCreature`; among those, the first whose
-`originalBase` is the sample record, else the first whose template base is an NPC entry of the sample (nested leveled
-lists followed), else the only one when there is exactly one (`match=originalBase`, `templateBaseIsEntry`,
-`onlyNewLeveledActor`; `matching` above 1 means the pick was ambiguous). None found in time: `FAIL (leveled spawn: no
-actor of console placeatme ...)`, the new leveled actors are logged (up to five) and left in the world, and the sample
-stops. The spawn line names the actor's base, its template base (the NPC the engine drew) and its original base; the
-holder is then found from the actor as for any leveled sample (step 4). Two samples naming the same leveled record
-spawn at once and may take each other's actor.
+run; `src/game/GameSelfTestSpawn.cpp`). The command returns no ref, so every loaded actor is noted before it (the
+whole loaded area, so an actor that walks up from further away is not new), and the actor is looked for right after
+the command, in the same main-thread call and before the next sample's spawn (run 7 found it there,
+`foundAfterMs=0`); not found then, each tick looks again up to `maxWaitMs`. The actor is a new one: not loaded before,
+made at runtime (`0xFF...`), not disabled or marked for deletion, never spawned or matched by this test, within 512
+units of the player, with `ExtraLeveledCreature`. `ExtraLeveledCreature::originalBase` is declared an actor base, so
+it most likely holds the NPC entry the engine drew rather than the leveled record: among the new actors, the first
+whose `originalBase` is the sample record (`match=originalBase`), else the first whose `originalBase` is an NPC entry of
+the sample (`originalBaseIsEntry`; nested leveled lists followed, the sample and up to 4 lists inside one another, a
+list met again not twice), else the first whose template base is such an entry (`templateBaseIsEntry`); `matching`
+above 1 means the pick was ambiguous. Failing those, the only new leveled actor when there is exactly one
+(`onlyNewLeveledActor`) is no proof that it is the sample's: the run is `INCONCLUSIVE (matched only as the one new
+leveled actor: not checked, left in the world)`, the actor is neither checked nor deleted, and a `SELFTEST WARN ...
+matched only as the one new leveled actor` line names it. None found in time: `FAIL (leveled spawn wait: no actor of
+console placeatme ...)`, the new leveled actors are logged (up to five) and left in the world, and the next run
+spawns anew. The spawn line names the actor's base, its template base (the NPC the engine drew) and its original
+base; the holder is then found from the actor as for any leveled sample (step 4). Leveled actors the test leaves in
+the world (unmatched at a timeout, kept as the only new one, or still looked for when an error ends the test) are
+counted on `SELFTEST WARN leveled actors left in the world=N` before `DONE`.
 
 What it does, once per session, at the first save load (`kPostLoadGame`):
 
@@ -341,7 +351,8 @@ What it does, once per session, at the first save load (`kPostLoadGame`):
    above). **Side effect: for up
    to `maxWaitMs` hostile NPCs (bandits, necromancers) stand next to the player and may attack.** Use a disposable
    save. They are disabled and deleted right after the check (`Disable`, `SetDelete(true)`), also on a timeout or an
-   error; only a ref that still has the FormID it was spawned with and is an actor is touched. After another load, a
+   error; only a ref that still has the FormID it was spawned with and is an actor is touched (a leveled actor not
+   found, or matched only as the one new leveled actor, is left: see above). After another load, a
    new game the refs are left alone (that world is gone with them).
 3. Waits until the actor has its 3D and a high process (the leveled spell cache needs the high process; before 3D
    every `HasSpell` was false on 10-10). A worker thread queues one main-thread tick every 100 ms, and a new one only
@@ -389,18 +400,21 @@ SELFTEST RESULT sample 039D37:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
 SELFTEST spawn sample 013BBB:Skyrim.esm run=1/5 ref 0xFF0012AC
 SELFTEST RESULT sample 013BBB:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 3)
 SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=5 HoMNS_Alteration_None_All_R1_C1 pickedRuns=2/5, HoMNS_Destruction_None_All_R1_C0 pickedRuns=5/5
-SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled console "player.placeatme 00039D5F 1" actorsNearBefore=6
-SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled ref 0xFF0012B0 match=originalBase matching=1 leveledCandidates=1 newActors=1 sampleEntries=4 actorBase 0xFF0012AF templateBase Skyrim.esm|0x039D37 originalBase Skyrim.esm|0x039D5F foundAfterMs=0
+SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled console "player.placeatme 00039D5F 1" actorsLoadedBefore=412 sampleEntries=4
+SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled ref 0xFF0012B0 match=originalBaseIsEntry matching=1 leveledCandidates=1 newActors=1 sampleEntries=4 actorBase 0xFF0012AF templateBase Skyrim.esm|0x039D37 originalBase Skyrim.esm|0x039D37 foundAfterMs=0
 SELFTEST sample 039D5F:Skyrim.esm run=1/5 kind=leveled placed Skyrim.esm|0x039D5F actorBase 0xFF0012AF templateBase Skyrim.esm|0x039D37 extraLeveled=yes ...
 SELFTEST DONE pass=13 fail=0 inconclusive=0
 ```
 
 Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset value), `SELFTEST leveled candidate
-<sample> ref ... actorBase ... templateBase ... originalBase ...` (a new leveled actor near the player when a leveled
-spawn's actor was not found; up to five), `SELFTEST cache <sample>
+<sample> ref ... actorBase ... templateBase ... originalBase ...` (a new leveled actor close to the player when a
+leveled spawn's actor was not found; up to five), `SELFTEST cache <sample>
 leveledSpellList=null` (no cache after the walk), `SELFTEST another save is loading before the spawn: the wait starts
 again`, the warnings `SELFTEST WARN another save is loading during the test: ...`, `SELFTEST WARN a new game was
-started during the test: ...` and `SELFTEST WARN save taken while sample actors exist (actors=N)`, the error `SELFTEST
+started during the test: ...`, `SELFTEST WARN sample <sample> ref 0x... matched only as the one new leveled actor: not
+checked, left in the world`, `SELFTEST WARN leveled actors left in the world=N` (before `DONE`, when N > 0) and
+`SELFTEST WARN save taken while sample actors exist (actors=N leveledPending=P leveledLeft=L)` (spawned actors not
+cleaned up yet, leveled placeatme runs whose actor is not found yet, leveled actors left), the error `SELFTEST
 stopped by an error: ...`, `SELFTEST RESTART <reason>: the next save load in this session starts it again` (the last
 line of a test that ended before its spawn, in place of `DONE`; e.g. `SELFTEST RESTART the player's 3D or cell never
 came: ...`), and `SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: ...)` for a config that cannot be read
@@ -414,8 +428,9 @@ How to read them:
   actor's skill, or the cache shows the list's roll landed on non-witness spells (`picked>0`, `pickedWitnesses=0`);
   counted apart in `DONE`; `FAIL (reason)` - nothing found where a list could give one. Other FAILs mean nothing was
   checked (record not found, no list on the holder nor the actor base, "template chain has a leveled link before the
-  spell list holder", no actor of a leveled spawn found, no 3D or high process in time, another load or a new game
-  after the spawn, an error).
+  spell list holder", `leveled spawn wait: no actor ...` - no actor of a leveled spawn found, `3D wait: ...` - no 3D or
+  high process in time after the spawn or the find, another load or a new game after the spawn, an error). `INCONCLUSIVE
+  (matched only as the one new leveled actor: ...)` also checked nothing: the actor may not be the sample's.
 - `picked` (from the cache) is the primary evidence: the spells the engine rolled from this actor's leveled lists that
   are in this list; `pickedWitnesses` of them are witnesses. `hits` (`HasSpell` on witnesses) is the second line; the
   two should agree. `excluded` is how many of the list's spells were taken out of its witnesses.
@@ -499,7 +514,9 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
        hold (the report's inherited row of the end record names its holder, whose row names the lists); the leveled
        record itself gets no list. Not yet done. The self test's leveled sample `039D5F` (`OREO_SubCharBandit01Magic`)
        is this check: its runs must `PASS` (or be `INCONCLUSIVE` for a reachability reason) with `kind=leveled`,
-       `extraLeveled=yes` and `actorBaseLists>0`. By hand, as before: `player.placeatme` a `LvlBanditWizard...` record
+       `extraLeveled=yes` and `actorBaseLists>0`, each on an actor whose spawn line has `match=originalBase`,
+       `match=originalBaseIsEntry` or `match=templateBaseIsEntry`; a run with `match=onlyNewLeveledActor` is no proof
+       and does not count. By hand, as before: `player.placeatme` a `LvlBanditWizard...` record
        and check `HasSpell` as above. `PASS` on the direct
        sample `039D37` is necessary but not sufficient: placing the end record itself skips the leveled spawn path the
        game uses.

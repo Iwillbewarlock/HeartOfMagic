@@ -53,7 +53,9 @@ namespace NpcSpellsGame::SelfTest
         bool done = false;                     // this run has its RESULT
         bool stopped = false;                  // no further run: a failure (or a plugin not loaded) before the spawn would end every run the same way
         bool spawnPending = false;             // a leveled sample's placeatme ran and its actor is not found yet (FindLeveledSpawn)
-        std::unordered_set<RE::FormID> actorsBefore;  // the actors near the player just before that placeatme
+        bool onlyNew = false;                  // this run's actor was matched only as the one new leveled actor: not checked, left in the world
+        std::unordered_set<RE::FormID> actorsBefore;  // the loaded actors just before that placeatme
+        std::unordered_set<RE::FormID> entries;       // the leveled sample's NPC entries (nested lists followed), read at each run's spawn
     };
 
     struct State
@@ -68,7 +70,10 @@ namespace NpcSpellsGame::SelfTest
         std::size_t readyTicks = 0;            // ticks with them since they last came (the start delay)
         std::size_t pass = 0, fail = 0, inconclusive = 0;
         std::vector<std::string> lines;        // appended to the report at the end
+        std::unordered_set<RE::FormID> spawnedIds;  // every ref this test spawned or matched: never a later leveled spawn's candidate
         std::atomic<int> liveActors{ 0 };      // spawned and not yet cleaned up (read by the save message)
+        std::atomic<int> pendingSpawns{ 0 };   // leveled placeatme runs whose actor is not found yet (read by the save message)
+        std::atomic<int> leftActors{ 0 };      // leveled actors the test placed and leaves in the world unmatched (FindLeveledSpawn, LeveledSpawnMissing)
         std::atomic<bool> savedWithActors{ false };
         std::atomic<bool> queued{ false };     // a Tick is queued and has not finished: the worker queues at most one
         std::atomic<bool> finished{ false };
@@ -86,13 +91,26 @@ namespace NpcSpellsGame::SelfTest
 
     // A leveled sample's spawn (GameSelfTestSpawn.cpp). TESObjectREFR::PlaceObjectAtMe gives no actor for a TESLevCharacter
     // (in-game run 6); the console's placeatme does (run 5), so the command runs as a console script on the player. It
-    // returns no ref: PlaceLeveled notes the actors near the player first and sets spawnPending; FindLeveledSpawn, each
-    // tick until it is found, takes the new one (NpcSpells::ChooseLeveledSpawn) and logs the spawn line. false + error:
-    // the command could not be run.
+    // returns no ref: PlaceLeveled notes the loaded actors first, runs the command and looks for the new actor at once
+    // (FindLeveledSpawn, before any other sample's spawn); not found, it sets spawnPending and the ticks look again.
+    // false + error: the command could not be run.
     bool PlaceLeveled(State& s, SampleRun& r, RE::PlayerCharacter* player, std::string& error);
-    bool FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks);
-    // The FAIL reason when no actor was found within maxWaitMs (also logs the leveled actors that were new, up to five)
+    // The new actor (NpcSpells::ChooseLeveledSpawn) and its spawn line; kNone: not found (yet). A real match sets the
+    // handle; kOnlyNew sets onlyNew instead (the actor is not checked and is left in the world, WARN line).
+    NpcSpells::LeveledSpawnMatch FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks);
+    // The FAIL reason when no actor was found within maxWaitMs (also logs the leveled actors that were new, up to five,
+    // and counts them as left in the world)
     std::string LeveledSpawnMissing(State& s, SampleRun& r, std::size_t waitedTicks);
+
+    // The placeatme's actor is no longer looked for
+    inline void ClearSpawnPending(State& s, SampleRun& r)
+    {
+        if (r.spawnPending) {
+            r.spawnPending = false;
+            --s.pendingSpawns;
+        }
+        r.actorsBefore.clear();
+    }
 
     // One actor with its 3D and high process: logs its bases, holder, leveled spell cache and lists, adds the run to the
     // sample's tally, then the verdict
