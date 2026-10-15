@@ -71,10 +71,12 @@ objects, a spawn-hazard archetype's form) plus any hazard whose own spell carrie
 log gives the counts.
 
 **Whose it is** (projectiles, explosions, hazards): the player's when the owner or shooter is the
-player, OR the reference's ActorCause (`TESObjectREFR::GetActorCause`) names the player, OR its
-NonActorMagicCaster's `blameActor` is the player (the last two cover `Spell.RemoteCast` from an
-activator with the player as blame), OR a script of the player's fire effect placed it or cast from
-it (script tag). Which field matched is logged once per layer. The hit shader and hit art use the
+player, OR a NonActorMagicCaster's `blameActor` is the player (an explosion's own caster, or the
+ExtraMagicCaster of a non-actor shooter: `Spell.RemoteCast` with the player as blame), OR a script
+of the player's fire effect placed it or cast from it (script tag; actors are never tagged). The
+actor cause is NOT a rule: a fire trap the player set off may name the player as its cause, and
+vanilla fire traps are Spell-type spells with fire effects. A cause naming the player with no rule
+matched is logged once per layer. Which rule matched is logged once per layer. The hit shader and hit art use the
 active effect's caster handle. No mesh, node, mod, plugin or FormID is special-cased: vanilla meshes, VFX replacers,
 legacy NiTriShape meshes and modded spells all go through the same rules.
 
@@ -94,7 +96,7 @@ skipped, so it is safe to repeat.
 | 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, the player's (see "Whose it is"), decided only once owner, cause or blame is set; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick. Initialize (0xA2) and Update (0xA3) are hooked as a second route (Update does nothing unless stoked or the self-test records); each explosion is decided once, and the first 20 hook calls on any explosion are logged |
 | 3 hazard | `Set3D` (0x6C) and `Initialize` (0xA2) on the Hazard vtable: while stoked (and `hazard` on), a hazard with 3D is queued once (by handle) and handled by a task: the player's (owner or cause waited for up to 2 s when neither is set yet) and a fire hazard (see above); its 3D recoloured and its light tinted (light type checked through RTTI); a pass that changed nothing lets a later Set3D queue it again. Geometry under a `BSMasterParticleSystem` is skipped: vanilla fire hazards are mostly AddOn nodes emitting into such a shared system, so expect `0 effect geometries ... N AddOn nodes` on them. The first 20 hook calls on any hazard are logged |
 | 4 hand art | ticker task every 100 ms while stoked, and at once when the buff turns on: per hand casting a fire spell OR holding one readied (Actor::GetEquippedObject), the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null or holds no effect geometry (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted. Every recoloured hand-art property is remembered with its original greyscale texture, path, base colour and palette flags, and put back when the buff turns off and on a load (a fresh material copy, SetMaterial(copy, true)); the casting light's old colour too. Entries only we still hold are dropped each tick |
-| 4 bound weapon, light effect | ticker while stoked: a bound fire weapon (bound flag, named by an active Bound Weapon-archetype effect on the player that is a fire effect the player cast) is recoloured in the player's 1st and 3rd person bipeds (`BIPOBJECT::partClone`); a Light-archetype fire effect the player cast on themselves has its light tinted (`LightEffect::light`). Both are put back with the hand art |
+| 4 bound weapon, light effect | ticker while stoked: a bound fire weapon (bound flag, named by an active Bound Weapon-archetype effect the player cast on themselves, that effect a fire effect of a fire spell or the weapon's own enchantment carrying a fire MGEF; the list is kept by the ticker and the arrow hook only compares FormIDs) is recoloured in the player's 1st and 3rd person bipeds (`BIPOBJECT::partClone`); a Light-archetype fire effect the player cast on themselves has its light tinted (`LightEffect::light`). Both are put back with the hand art |
 
 ## Grey duplicates
 
@@ -207,6 +209,7 @@ seen before the DLL swaps the models).
 - A hit shader or hit art made while stoked stays grey until it ends, also after the buff ends; one made before the buff stays as it was (expected: the engine asks when it makes it; the `GetHitEffectShader` lines show the call count per controller).
 - Hit art that is a shared master particle system (`BSMasterParticleSystem`) is not recoloured.
 - A fire effect whose MGEF names no hit shader gets none (the engine is asked, we only swap what it would show; the old layer applied grey anyway).
+- A fire trap the player set off stays orange (the actor cause is not a rule, see "Whose it is"); so does a RemoteCast whose blame the engine does not keep on the caster (T3-blame reports it).
 - Summoned creatures' own fire (a flame atronach's flames and spells) stays as it is: summons are not part of this (user decision).
 - A catalog-fire spell without a fire effect gets nothing (see "Fire spells and fire effects").
 - Explosions of a projectile shot by a script-tagged source are only the player's when the explosion itself carries the cause or blame; light effects cast on others than the player are not tinted.
@@ -219,7 +222,7 @@ seen before the DLL swaps the models).
 - Heart of Magic's tree leaves the Stoke spell out (no tome teaches it); the prototype gives it by console.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.
 - Threads: SKSE tasks run in the SKSE task phase of Main::Update (main thread, per SKSE 2.2.8 Hooks_Threads.cpp); kDataLoaded runs on an init thread. The game thread is stamped by the first SKSE task (queued at `SKSEPlugin_Load`), which logs `taskThread=`, `loadThread=` and `Main::threadID=` in one line. Log lines that print a stored thread label it (`hookThread=`, `callerThread=`, `gameThread=`), so the log prefix's own thread id is not confused with it. Lists shared between tasks, the message handler and hooks are under mutexes.
-- Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset once and switches that step off for the session (later calls counted). A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
+- Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset and switches that step off for the session (later calls counted); restores are the exception, guarded item by item and never switched off. A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
 
 ## Self-test
 
@@ -262,7 +265,8 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T5-npc | once the caster's projectile can have arrived (distance / projectile speed): the hook recorded a KEPT call (a fire effect someone else cast) for the target, and an engine Firebolt hit shader unfinished at 0.5 s or older that was not already on the target before T4 shows within 1.5 s (a sighting is the same shader only if its age grew with the unpaused clock, and a shader recorded finished never matches an unfinished one); INFO "cannot judge" without a kept record |
 | T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
 | T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
-| T3-remote | RemoteCast attribution: a placed vanilla XMarker (a non-actor reference, only the test's prop) casts Firebolt at the target through its NonActorMagicCaster with the player as blame actor; the projectile it shot counts as the player's and is recoloured |
+| T3-remote | the script-tag rule: a placed vanilla XMarker (a non-actor reference, only the test's prop), tagged as the native wrapper tags a Cast's akSource, casts Firebolt at the target with no blame actor; the projectile it shot counts as the player's and is recoloured |
+| T3-blame | INFO: a second marker casts with the player as blame actor and no tag; reports whether the engine kept that blame on the marker's NonActorMagicCaster (the blame rule matched) |
 | T-bound / T-placed | INFO "manual": vanilla has no bound weapon with a fire effect; no test script ships for script-placed fire |
 | T7 / T7-player | INFO: the first colour modifier's keys (0x30-0x5F) and whether the layout looks plausible (all in 0..2, one above 0); with `particleColors`: every player modifier desaturated (T7-player); and, only when the caster's projectile was recorded before the player's, its modifiers neither shared, nor changed between its hook and T4, nor already equal to the desaturated keys of the player's T3 projectile before its recolour (T7; "not compared" when those had no colour, INFO when not comparable) |
 | T8 / T8-cast | after T1 turned the buff on, dispelling it turns the flag off within 1 s; then (skipped if the buff never came on or is still on) the next Firebolt has effect shapes, none grey, not recoloured, and T3 had recoloured |
@@ -272,14 +276,21 @@ The log's `material check` lines (first 5 player and NPC fire projectiles, first
 
 ## Script-placed fire
 
-With `scriptPlaced` on, `ObjectReference.PlaceAtMe`, `Spell.Cast` and `Spell.RemoteCast` are wrapped: a
-proxy function that forwards every call to the game's own native is bound in their place (the log
-says `... wrapped: yes`; a target not found at Papyrus registration is retried after a load). Only
-while the buff is on, when the script that called the native is a fire effect the player cast (its
-ActiveMagicEffect resolves to the active effect) or a reference already tagged: what PlaceAtMe returned
-is recoloured once its 3D exists (within 5 s), and the akSource of Cast/RemoteCast (when the spell
-carries a fire effect) counts as the player's for 5 s, so its projectiles are recoloured. No script,
-mod or FormID is named. The first native calls log the frames they saw (`native wrapper frames`).
+With `scriptPlaced` on, `ObjectReference.PlaceAtMe`, `Spell.Cast` and `Spell.RemoteCast` are wrapped,
+only when the game's own function is an `NF_util::NativeFunctionBase`: a proxy of that class copies
+its name, parameters and flags and is bound in its place; the engine's own `NativeFunctionBase::Call`
+dispatches to the proxy's `MarshallAndDispatch`, which runs the original's and looks around it (the
+log says `replaced by the wrapper` only when the script type then holds the proxy; a target not
+found is retried after a load or new game). Only while the buff is on, when the script that called
+the native (the frame before the native's own) is a fire effect the player cast or a reference
+already tagged: what PlaceAtMe returned is tagged placed, and the akSource of Cast/RemoteCast (when
+the spell carries a fire effect) is tagged a source for 5 s, so its projectiles count as the
+player's. The active effect is read only on the game thread: a call on a VM thread keeps the
+caller's VM handle and a task decides. Actors are never tagged. A placed reference is recoloured
+once its 3D exists (within 5 s) only when its base is a fire explosion or hazard, or a visual-only
+kind (activator, moveable static, static, art object); other kinds are left (logged once per form
+type). No script, mod or FormID is named. The first native calls log the frames they saw
+(`native wrapper frames`).
 
 ## In-game checks the self-test cannot do
 
