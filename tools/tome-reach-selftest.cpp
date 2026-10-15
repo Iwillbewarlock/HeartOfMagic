@@ -207,6 +207,9 @@ namespace
             "a non-ANSI _DISTR.ini is found next to a plain one");
         Check(has(thaiFolder / "a.ini"), "a config in a non-ANSI SkyPatcher subfolder is found");
         Check(found.size() == 3, "a non-config with a non-ANSI name is not");
+        std::size_t skipped = 99;
+        Check(TomeReach::FindDistributionConfigs(data, &skipped).size() == 3 && skipped == 0,
+            "readable entries, non-ANSI ones included, are not counted as skipped (the count is set, not added to)");
         const std::u8string lowered = u8"ไทย_distr.ini";
         Check(TomeReach::LowerUtf8(fs::path(u8"ไทย_DISTR.INI")) == std::string(lowered.begin(), lowered.end()),
             "LowerUtf8 lowers ASCII and keeps UTF-8 bytes");

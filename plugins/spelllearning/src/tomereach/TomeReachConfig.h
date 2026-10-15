@@ -31,12 +31,16 @@ namespace TomeReach
     // The files at a data folder's top level whose name ends in one of `suffixes` (ASCII lower case,
     // matched case-insensitively) and that IsDistributionConfig accepts. Lists only the matching names
     // (an OS wildcard), not the whole folder: under MO2's USVFS that holds every mod's files.
+    // skippedEntries, when given, is set to the number of entries skipped alone because their status or
+    // name could not be read (this file has no logger: the caller logs it).
     std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
-        std::span<const std::string_view> suffixes);
+        std::span<const std::string_view> suffixes, std::size_t* skippedEntries = nullptr);
 
     // The distribution configs under a data folder: its top level, and everything below a direct child
-    // folder of SKSE/Plugins whose name holds a config folder's name (SkyPatcher, LLOS, ...)
-    std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir);
+    // folder of SKSE/Plugins whose name holds a config folder's name (SkyPatcher, LLOS, ...).
+    // skippedEntries as for TopLevelConfigs.
+    std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir,
+        std::size_t* skippedEntries = nullptr);
 
     // Is the plugin name at text[at, at + pluginSize) joined to the id `hex` (lower case, no leading zeros):
     // "<hex> ~ plugin" or "plugin | <hex>" (any of ~ | :), the test ConfigText::Names makes at each mention

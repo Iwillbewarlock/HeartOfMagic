@@ -210,7 +210,18 @@ game the placed references of cells that are not loaded are not in memory:
 - The config scan (`TomeReachConfig.cpp`) is shared with the NPC Spells addon (its `*_DISTR.ini` exclusion). It
   compares file and folder names as UTF-8 (`u8string`), and a bad entry (an error code or an exception on one
   path) skips that entry alone instead of stopping the pass, so a load order with non-ANSI file names (Korean ones)
-  no longer loses the whole scan.
+  no longer loses the whole scan. The number skipped comes back to the caller (`FindDistributionConfigs` /
+  `TopLevelConfigs` out-param; the file has no logger), and `SpellLearning.log` warns with it when it is not 0
+  ("TomeReach: N entries in the distribution config search could not be read"). Only `std::system_error`
+  (which `filesystem_error` derives from) is caught per entry; anything else ends the pass as before. The Win32
+  search handles close through a `unique_ptr` with a `FindClose` deleter.
+- **Not yet checked for SpellLearning.dll (open before the next Heart of Magic release):** the config search
+  changed on the NPC Spells branch (suffix files read only at `Data/`'s top level through an OS wildcard, and
+  under `SKSE/Plugins` only the direct child folders found by a `*<name>*` wildcard) was measured only for the
+  addon's SPID search. For the main plugin under MO2's USVFS compare, on the same load order, the
+  `TomeReach: ... ({N} configs) ...` line of `SpellLearning.log` built from master and from this branch (the
+  spell count with no reachable tome must match, or the difference must be a config the new search rightly
+  leaves out), and run `tome-reach-test` against `lab/tome-reach/expected-*.txt`.
 - A tome no record names can still come from an SKSE distribution framework: the worker reads the configs
   under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id

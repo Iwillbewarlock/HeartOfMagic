@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <system_error>
+#include <type_traits>
 
 #ifdef _WIN32
 #    ifndef WIN32_LEAN_AND_MEAN
@@ -107,62 +109,88 @@ namespace TomeReach
 
     namespace
     {
-        // One directory entry: an entry whose status cannot be read, or whose name
-        // cannot be handled, is skipped alone; the scan goes on. No logger here (the
-        // offline harness builds this file without one).
-        void AddIfConfig(const std::filesystem::directory_entry& entry, std::vector<std::filesystem::path>& out)
+        // One directory entry: an entry whose status cannot be read (an error code), or whose name cannot be
+        // converted (std::system_error, which std::filesystem::filesystem_error derives from), is skipped alone
+        // and counted in `skipped`; the scan goes on. No logger here (the offline harness builds this file
+        // without one): the callers log the count.
+        void AddIfConfig(const std::filesystem::directory_entry& entry, std::vector<std::filesystem::path>& out,
+            std::size_t& skipped)
         {
             try {
                 std::error_code ec;
-                if (entry.is_regular_file(ec) && !ec && IsDistributionConfig(entry.path())) out.push_back(entry.path());
-            } catch (...) {
+                const bool regular = entry.is_regular_file(ec);
+                if (ec) {
+                    ++skipped;
+                } else if (regular && IsDistributionConfig(entry.path())) {
+                    out.push_back(entry.path());
+                }
+            } catch (const std::system_error&) {
+                ++skipped;
             }
         }
 
         // Every entry of a folder through AddIfConfig, or only names ending in one of `suffixes`
         void ListFolder(const std::filesystem::path& dir, std::span<const std::string_view> suffixes, bool every,
-            std::vector<std::filesystem::path>& out)
+            std::vector<std::filesystem::path>& out, std::size_t& skipped)
         {
             std::error_code ec;
             for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
                 try {
                     const auto name = LowerUtf8(it->path().filename());
                     if (every || std::ranges::any_of(suffixes, [&](auto s) { return name.ends_with(s); })) {
-                        AddIfConfig(*it, out);
+                        AddIfConfig(*it, out, skipped);
                     }
-                } catch (...) {
+                } catch (const std::system_error&) {
+                    ++skipped;
                 }
             }
         }
 
 #ifdef _WIN32
+        // A FindFirstFileExW search handle, closed by FindClose on every path out of its scope
+        struct FindCloser
+        {
+            void operator()(HANDLE handle) const noexcept { FindClose(handle); }
+        };
+        using FindHandle = std::unique_ptr<std::remove_pointer_t<HANDLE>, FindCloser>;
+
+        // The search for `pattern`, or an empty handle when nothing matches or the folder does not exist
+        // (INVALID_HANDLE_VALUE is not null, so it is never put in the unique_ptr)
+        FindHandle FindFirst(const std::wstring& pattern, WIN32_FIND_DATAW& found)
+        {
+            const HANDLE handle = FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch,
+                nullptr, FIND_FIRST_EX_LARGE_FETCH);
+            return FindHandle(handle == INVALID_HANDLE_VALUE ? nullptr : handle);
+        }
+
         // Only the names "*<suffix>" (the OS match is case-insensitive, like IsDistributionConfig): under
         // MO2's USVFS the data folder's top level is every mod's files merged, thousands of entries, and
         // listing them all took ~3 s (2026-10-08, ~4,500 mods). Each hit still goes through
         // IsDistributionConfig on its long name, since a wildcard also matches 8.3 short names.
         void AddMatching(const std::filesystem::path& dataDir, std::string_view suffix,
-            std::vector<std::filesystem::path>& out)
+            std::vector<std::filesystem::path>& out, std::size_t& skipped)
         {
-            const auto pattern = (dataDir / ("*" + std::string(suffix))).wstring();
             WIN32_FIND_DATAW found{};
-            const HANDLE find = FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch,
-                nullptr, FIND_FIRST_EX_LARGE_FETCH);
-            if (find == INVALID_HANDLE_VALUE) return;  // no match, or no such folder
+            const auto find = FindFirst((dataDir / ("*" + std::string(suffix))).wstring(), found);
+            if (!find) return;
             do {
                 if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
                     std::error_code ec;  // the entry reads its status here: one stat per match, not per file
                     const std::filesystem::directory_entry entry(dataDir / std::filesystem::path(found.cFileName), ec);
-                    if (!ec) AddIfConfig(entry, out);
+                    if (ec) {
+                        ++skipped;
+                    } else {
+                        AddIfConfig(entry, out, skipped);
+                    }
                 }
-            } while (FindNextFileW(find, &found));
-            FindClose(find);
+            } while (FindNextFileW(find.get(), &found));
         }
 #endif
 
         // The direct child folders of SKSE/Plugins whose name holds a config folder's name. Under
         // _WIN32 one "*<name>*" wildcard per name (USVFS answers it without listing every mod's
         // folder); each hit is checked again on its long name, since a wildcard also matches 8.3 names.
-        std::vector<std::filesystem::path> ConfigFolders(const std::filesystem::path& plugins)
+        std::vector<std::filesystem::path> ConfigFolders(const std::filesystem::path& plugins, std::size_t& skipped)
         {
             std::vector<std::filesystem::path> out;
             const auto add = [&](const std::filesystem::path& dir) {
@@ -172,22 +200,20 @@ namespace TomeReach
                         std::ranges::find(out, dir) == out.end()) {
                         out.push_back(dir);  // a name holding two config names is found twice, kept once
                     }
-                } catch (...) {
+                } catch (const std::system_error&) {
+                    ++skipped;
                 }
             };
 #ifdef _WIN32
             for (auto folder : kConfigFolders) {
-                const auto pattern = (plugins / ("*" + std::string(folder) + "*")).wstring();
                 WIN32_FIND_DATAW found{};
-                const HANDLE find = FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &found,
-                    FindExSearchNameMatch, nullptr, FIND_FIRST_EX_LARGE_FETCH);
-                if (find == INVALID_HANDLE_VALUE) continue;  // no match, or no such folder
+                const auto find = FindFirst((plugins / ("*" + std::string(folder) + "*")).wstring(), found);
+                if (!find) continue;
                 do {
                     if (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                         add(plugins / std::filesystem::path(found.cFileName));
                     }
-                } while (FindNextFileW(find, &found));
-                FindClose(find);
+                } while (FindNextFileW(find.get(), &found));
             }
 #else
             std::error_code ec;
@@ -198,31 +224,41 @@ namespace TomeReach
 #endif
             return out;
         }
+
+        // Writes the count to the caller's out-param when it gave one
+        void ReportSkipped(std::size_t* skippedEntries, std::size_t skipped)
+        {
+            if (skippedEntries) *skippedEntries = skipped;
+        }
     }
 
     std::vector<std::filesystem::path> TopLevelConfigs(const std::filesystem::path& dataDir,
-        std::span<const std::string_view> suffixes)
+        std::span<const std::string_view> suffixes, std::size_t* skippedEntries)
     {
         std::vector<std::filesystem::path> out;
+        std::size_t skipped = 0;
 #ifdef _WIN32
-        for (auto suffix : suffixes) AddMatching(dataDir, suffix, out);
+        for (auto suffix : suffixes) AddMatching(dataDir, suffix, out, skipped);
 #else
-        ListFolder(dataDir, suffixes, false, out);
+        ListFolder(dataDir, suffixes, false, out, skipped);
 #endif
+        ReportSkipped(skippedEntries, skipped);
         return out;
     }
 
-    std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir)
+    std::vector<std::filesystem::path> FindDistributionConfigs(const std::filesystem::path& dataDir,
+        std::size_t* skippedEntries)
     {
         namespace fs = std::filesystem;
         // A data folder whose own path holds a config folder's name (".../LLOS/Data"): there the folder
         // name, not the file name, decides (IsDistributionConfig), and only a full listing is exact
         const auto dataLower = LowerUtf8(dataDir);
         std::vector<fs::path> out;
+        std::size_t skipped = 0;
         if (std::ranges::any_of(kConfigFolders, [&](auto folder) { return Contains(dataLower, folder); })) {
-            ListFolder(dataDir, kConfigSuffixes, true, out);
+            ListFolder(dataDir, kConfigSuffixes, true, out, skipped);
         } else {
-            out = TopLevelConfigs(dataDir, kConfigSuffixes);
+            out = TopLevelConfigs(dataDir, kConfigSuffixes, &skipped);
         }
         // Under SKSE/Plugins only the config folders' files (SkyPatcher, LLOS, ...): the suffix files
         // (_DISTR.ini, _KID.ini, ...) are read by their frameworks from the data folder's top level only.
@@ -230,13 +266,14 @@ namespace TomeReach
         // deeper than a direct child of SKSE/Plugins (SKSE/Plugins/Other/SkyPatcher), are not read. The
         // full recursive walk that found them took 1.4 s under MO2's USVFS on a big load order and found
         // none there; if a framework turns out to read such files, the upgrade is that full walk again.
-        for (const auto& folder : ConfigFolders(dataDir / "SKSE" / "Plugins")) {
+        for (const auto& folder : ConfigFolders(dataDir / "SKSE" / "Plugins", skipped)) {
             std::error_code ec;
             for (fs::recursive_directory_iterator it(folder, fs::directory_options::skip_permission_denied, ec), end;
                  !ec && it != end; it.increment(ec)) {
-                AddIfConfig(*it, out);
+                AddIfConfig(*it, out, skipped);
             }
         }
+        ReportSkipped(skippedEntries, skipped);
         return out;
     }
 

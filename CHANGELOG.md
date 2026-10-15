@@ -9,7 +9,12 @@
   stop the whole config search), and a file entry it cannot read is skipped alone. It no longer walks all of
   SKSE/Plugins (over a second on a large MO2 setup): `_DISTR.ini`, `_KID.ini` and the other suffix files count
   only in Data itself, where their frameworks read them, and under SKSE/Plugins only the files inside a
-  SkyPatcher, LLOS, LeveledList or Container Distribution folder count.
+  SkyPatcher, LLOS, LeveledList or Container Distribution folder count. When entries are skipped,
+  `SpellLearning.log` says how many.
+- To check before this release (not yet done): the new config search has been measured only through the NPC
+  Spells addon. On one load order under MO2, the `TomeReach:` line of `SpellLearning.log` from a master build and
+  from this one must agree (or differ only by configs the new search rightly leaves out), and `tome-reach-test`
+  must still list what `lab/tome-reach/expected-*.txt` lists.
 
 ## Heart of Magic - NPC Spells 1.0.0 (separate addon)
 

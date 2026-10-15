@@ -75,7 +75,12 @@ namespace TomeReach
         {
             const auto started = std::chrono::steady_clock::now();
             try {
-                const auto configs = FindDistributionConfigs(std::filesystem::path(kDataDir));
+                std::size_t skippedEntries = 0;
+                const auto configs = FindDistributionConfigs(std::filesystem::path(kDataDir), &skippedEntries);
+                if (skippedEntries > 0) {
+                    logger::warn("TomeReach: {} entries in the distribution config search could not be read and were "
+                                 "skipped (the rest were searched)", skippedEntries);
+                }
                 const auto pass = FindReachedTomes(job->loadOrder, job->names, job->tomes, configs);
                 const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - started).count();
