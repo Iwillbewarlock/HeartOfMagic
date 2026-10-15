@@ -179,7 +179,7 @@ folders, and for each index used picks a grey index: 9100 + original when free, 
 when it already names the same grey copy, otherwise the next free index above all used ones. It writes the grey
 MPS and copies, the full map (`SKSE\Plugins\HeartOfMagic_BlackFlame_greymap.json`, core entries included) and,
 when indices beyond the shipped records are needed, `HeartOfMagic_BlackFlame_Local.esp`: an ESL with no masters
-holding one ADDN record per extra index (FormIDs 0x800 up). Installed as a mod placed after this one (and the ESL
+holding one ADDN record per extra index (FormIDs 0x800 up, HEDR version 1.70; the written file is read back and compared). A re-run keeps the Local.esp records the request already lists with their FormIDs (new ones take the ids after them, at most 0xFFF), finds an existing grey record by the copy it names at any index, and removes a stale Local.esp in `--out` when no extra index is needed (or stops with exit 1 if it cannot). Two different MPS models writing one grey copy are refused; bad sizes in an ESL it reads are errors. Installed as a mod placed after this one (and the ESL
 enabled), its files win over the shipped map and meshes. Who writes the request: planned, the DLL at kDataLoaded
 (every `BGSAddonNode` with index, model and DNAM, plus the fire set's impact and hazard models); until then it
 can be made by hand or from a houseCARL / xEdit ADDN listing. Embers XD's meshes are never redistributed: the
