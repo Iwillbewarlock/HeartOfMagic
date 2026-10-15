@@ -17,6 +17,7 @@
 #include "GameThread.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
+#include "SelfTest.h"
 
 namespace
 {
@@ -51,6 +52,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             BlackFlame::RecomputeBuff("game loaded");
+            BlackFlame::SelfTest::OnGameLoaded();
             break;
         case SKSE::MessagingInterface::kNewGame:
             BlackFlame::RecomputeBuff("new game");

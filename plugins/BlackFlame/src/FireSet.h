@@ -19,6 +19,18 @@ namespace BlackFlame
 
     void BuildFireSets();
 
+    struct FireSetCounts
+    {
+        bool catalogRead = false;
+        std::size_t catalogFire = 0;
+        std::size_t keywordFire = 0;
+        std::size_t total = 0;
+        std::size_t explosions = 0;
+    };
+
+    /// What BuildFireSets found (for the self-test)
+    [[nodiscard]] FireSetCounts GetFireSetCounts() noexcept;
+
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
 
     /// An explosion named by a fire spell's effect (EffectSetting::data.explosion) or

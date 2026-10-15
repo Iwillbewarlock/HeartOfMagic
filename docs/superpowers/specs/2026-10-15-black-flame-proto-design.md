@@ -71,13 +71,14 @@
 
 ```json
 { "burnShader": true, "burnMode": "replace", "projectile": true, "explosion": true, "handArt": true,
-  "light": true, "forcePalette": true, "particleColors": false, "tintScale": 0.6,
+  "light": true, "forcePalette": true, "particleColors": false, "selfTest": false, "tintScale": 0.6,
   "lightColor": [0.25, 0.22, 0.28] }
 ```
 
 - `burnMode`: `"replace"`(원래 hit shader를 끝내고 우리 것) / `"overlay"`(원래 것을 두고 위에 우리 것). 비교 시험용.
 - `forcePalette`: 팔레트 플래그가 없는 이펙트 셰이프에 플래그를 켜서 회색 램프를 거치게 한다(Embers XD처럼
   플래그를 뺀 교체 모드 대응). 끄면 baseColor 탈색만.
+- `selfTest`: 켜면 세이브 로드 후 한 번 자동 자가 시험(T0-T9)을 돌려 결과를 HeartOfMagic_BlackFlame_selftest.txt에 쓴다. README "Self-test".
 - `particleColors`: 구현됨(기본 끔). CommonLib에 없는 `BSPSysSimpleColorModifier` 레이아웃(Jonahex 포크, AE 미확인)을
   써서 플레이어 3D 안의 색 키만 탈색. 공유 여부를 게임에서 확인한 뒤에만 켠다.
 

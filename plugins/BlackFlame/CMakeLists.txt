@@ -30,6 +30,10 @@ set(BLACKFLAME_SOURCES
     src/CasterArt.cpp
     src/ProjectileHook.cpp
     src/ExplosionHook.cpp
+    src/SelfTest.cpp
+    src/SelfTestLog.cpp
+    src/SelfTestProbe.cpp
+    src/SelfTestWorld.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

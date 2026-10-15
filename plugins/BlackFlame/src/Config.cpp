@@ -33,6 +33,7 @@ namespace BlackFlame
             BoolKey{ "handArt", &Config::handArt },
             BoolKey{ "light", &Config::light },
             BoolKey{ "forcePalette", &Config::forcePalette },
+            BoolKey{ "selfTest", &Config::selfTest },
             BoolKey{ "particleColors", &Config::particleColors },
         };
 
@@ -135,10 +136,10 @@ namespace BlackFlame
         {
             logger::info(
                 "BlackFlame: config burnShader={} burnMode={} projectile={} explosion={} handArt={} light={} "
-                "forcePalette={} particleColors={} tintScale={} lightColor=[{}, {}, {}]",
+                "forcePalette={} selfTest={} particleColors={} tintScale={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, BurnModeName(g_config.burnMode), g_config.projectile, g_config.explosion,
-                g_config.handArt, g_config.light, g_config.forcePalette, g_config.particleColors, g_config.tintScale,
-                g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
+                g_config.handArt, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
+                g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
                 logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "
                              "3D are desaturated through a layout CommonLib does not have (unverified on AE)");

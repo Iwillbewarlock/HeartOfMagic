@@ -5,6 +5,7 @@
 #include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "SelfTestProbe.h"
 
 #include <algorithm>
 #include <vector>
@@ -104,6 +105,13 @@ namespace BlackFlame
             return found;
         }
 
+        void ReportBurn(SelfTestProbe::BurnRecord a_record)
+        {
+            if (SelfTestProbe::Recording()) {
+                SelfTestProbe::RecordBurn(std::move(a_record));
+            }
+        }
+
         float GreyDuration(const RE::ActiveEffect* a_effect)
         {
             if (a_effect->duration <= 0.0f) {
@@ -124,7 +132,13 @@ namespace BlackFlame
                 return;
             }
             auto* effect = FindActiveEffect(targetRef.get(), a_id);
-            if (!effect || !IsFireSpell(effect->spell)) {
+            if (!effect) {
+                // An instant effect can be gone before the task runs (the self-test reports it)
+                ReportBurn({ 0, targetRef->GetFormID(), 0, 0, "active effect gone before the task ran", 0, a_attempt,
+                    false, false });
+                return;
+            }
+            if (!IsFireSpell(effect->spell)) {
                 return;
             }
             const auto* base = effect->GetBaseObject();
@@ -153,10 +167,14 @@ namespace BlackFlame
                 logger::info("BlackFlame: burn shader [{}]: spell {:08X} on {:08X}: {} ({} stopped, attempt {}), grey "
                              "shader already live (not stacked)",
                     mode, spellId, targetRef->GetFormID(), listState, stopped, a_attempt);
+                ReportBurn({ 0, targetRef->GetFormID(), spellId, engineShader->GetFormID(), listState, stopped, a_attempt,
+                    false, true });
                 return;
             }
             const float seconds = GreyDuration(effect);
             const bool applied = targetRef->ApplyEffectShader(ours, seconds) != nullptr;
+            ReportBurn({ 0, targetRef->GetFormID(), spellId, engineShader->GetFormID(), listState, stopped, a_attempt,
+                applied, false });
             logger::info("BlackFlame: burn shader [{}]: spell {:08X} on {:08X}: hit shader {:08X}: {} ({} stopped, "
                          "attempt {}), grey shader {:.1f} s {}",
                 mode, spellId, targetRef->GetFormID(), engineShader->GetFormID(), listState, stopped, a_attempt, seconds,

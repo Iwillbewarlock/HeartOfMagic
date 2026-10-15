@@ -5,8 +5,10 @@
 #include "FireSet.h"
 #include "GameThread.h"
 #include "Recolor.h"
+#include "SelfTestProbe.h"
 
 #include <atomic>
+#include <chrono>
 
 namespace BlackFlame
 {
@@ -20,18 +22,48 @@ namespace BlackFlame
         std::atomic<int> g_playerMaterialLogs{ 0 };
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
-        void RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind)
+        // False when the buff or the layer went off before a deferred recolour ran
+        bool RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind, RecolorStats& a_stats)
         {
             if (!IsStoked() || !GetConfig().projectile) {
-                return;
+                return false;
             }
             auto& data = a_projectile->GetProjectileRuntimeData();
-            const auto stats = RecolorTree(a_projectile->Get3D());
+            a_stats = RecolorTree(a_projectile->Get3D());
             auto* light = data.light ? data.light->light.get() : nullptr;
             const bool lightTinted = GetConfig().light && TintLight(light);
             logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}",
-                data.spell ? data.spell->GetFormID() : 0, a_kind, stats.Describe(),
+                data.spell ? data.spell->GetFormID() : 0, a_kind, a_stats.Describe(),
                 !data.light ? "none" : (lightTinted ? "tinted" : "left"));
+            return true;
+        }
+
+        // Game thread: the recolour (when due) and, while the self-test runs, its record
+        void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_recolor, bool a_byPlayer,
+            std::uint32_t a_hookThread, bool a_hookOnGameThread)
+        {
+            const bool probe = SelfTestProbe::Recording();
+            SelfTestProbe::ProjectileRecord record;
+            if (probe) {
+                record.before = SelfTestProbe::Capture(a_projectile->Get3D());
+            }
+            if (a_recolor) {
+                const auto start = std::chrono::steady_clock::now();
+                record.recolored = RecolorProjectile(a_projectile, a_kind, record.stats);
+                record.recolorMicros = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - start).count();
+            }
+            if (!probe) {
+                return;
+            }
+            const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
+            record.spell = spell ? spell->GetFormID() : 0;
+            record.kind = a_kind;
+            record.byPlayer = a_byPlayer;
+            record.hookThread = a_hookThread;
+            record.hookOnGameThread = a_hookOnGameThread;
+            record.after = SelfTestProbe::Inspect(a_projectile->Get3D());
+            SelfTestProbe::RecordProjectile(std::move(record));
         }
 
         void OnHandle3DLoaded(RE::Projectile* a_projectile, const char* a_kind)
@@ -48,21 +80,25 @@ namespace BlackFlame
                 logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour: {}",
                     byPlayer ? "PLAYER" : "NPC", data.spell->GetFormID(), a_kind, DescribeMaterials(a_projectile->Get3D()));
             }
-            if (!byPlayer || !IsStoked() || !GetConfig().projectile) {
+            const bool recolor = byPlayer && IsStoked() && GetConfig().projectile;
+            if (!recolor && !SelfTestProbe::Recording()) {
                 return;
             }
 
             const bool onGameThread = IsOnGameThread();
-            LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
+            const auto hookThread = REX::W32::GetCurrentThreadId();
+            if (recolor) {
+                LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
+            }
             if (onGameThread) {
-                RecolorProjectile(a_projectile, a_kind);
+                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, hookThread, true);
                 return;
             }
             const auto handle = a_projectile->GetHandle();
-            AddTaskToGameThread("BlackFlameProjectile", [handle, a_kind]() {
+            AddTaskToGameThread("BlackFlameProjectile", [handle, a_kind, recolor, byPlayer, hookThread]() {
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    RecolorProjectile(projectile, a_kind);
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, hookThread, false);
                 }
             });
         }

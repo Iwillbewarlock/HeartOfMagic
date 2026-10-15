@@ -25,6 +25,7 @@ namespace BlackFlame
 
         std::unordered_set<RE::FormID> g_fireSpells;
         std::unordered_set<RE::FormID> g_fireExplosions;
+        FireSetCounts g_counts;
 
         using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
 
@@ -184,7 +185,8 @@ namespace BlackFlame
 
         std::unordered_set<RE::FormID> decided;
         CatalogCounts catalog;
-        if (!ReadCatalog(dh, decided, catalog)) {
+        const bool catalogRead = ReadCatalog(dh, decided, catalog);
+        if (!catalogRead) {
             logger::warn("BlackFlame: no readable '{}' (run a Heart of Magic scan) - fire spells by the "
                          "MagicDamageFire keyword only", kCatalogPath);
         }
@@ -210,6 +212,12 @@ namespace BlackFlame
         logger::info("BlackFlame: fire spells: {} from the catalog ({} entries, {} found in this load order), "
                      "{} by keyword, {} total; {} fire explosions",
             catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(), g_fireExplosions.size());
+        g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(), g_fireExplosions.size() };
+    }
+
+    FireSetCounts GetFireSetCounts() noexcept
+    {
+        return g_counts;
     }
 
     bool IsFireSpell(const RE::MagicItem* a_spell)

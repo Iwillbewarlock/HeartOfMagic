@@ -4,6 +4,7 @@
 #include "CasterArt.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "SelfTest.h"
 
 #include <atomic>
 #include <chrono>
@@ -62,6 +63,7 @@ namespace BlackFlame
             if (IsStoked()) {
                 TickCasterArt();  // layer 4
             }
+            SelfTest::Tick();  // does nothing unless config selfTest armed it
         }
 
         void TickerLoop()
@@ -70,7 +72,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !SelfTest::WantsFastTicks() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // One tick in the queue at most: a paused game (a menu) does not pile them up

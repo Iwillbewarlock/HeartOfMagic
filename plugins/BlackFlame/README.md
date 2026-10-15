@@ -46,7 +46,8 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `handArt` | `true` | Layer 4: recolour the casting art in the player's hands |
 | `light` | `true` | Tint projectile, explosion and casting lights to `lightColor` |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
-| `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the toggle test) |
+| `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
+| `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
 | `tintScale` | `0.6` | Base colour RGB = luminance x tintScale (0..2), alpha kept |
 | `lightColor` | `[0.25, 0.22, 0.28]` | RGB 0..1 for the tinted lights |
 
@@ -91,37 +92,56 @@ skipped, so it is safe to repeat.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.
 - Which thread calls `Handle3DLoaded` and `Explosion::Set3D` was not known at build time: off the game thread the recolour is deferred by handle, and the log says which it was.
 
-## In-game test checklist
+## Self-test
 
-Check the log after each step.
+The DLL can check most of itself in game, from the engine's own data, and write the results to a file.
+
+1. Use a **throwaway save** in an open exterior area: the test casts spells (Heart of Magic may grant XP
+   for them), spawns two vanilla actors in front of the player and deletes them at the end.
+2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
+3. Load the save and wait about 30 s without opening a menu. It starts 3 s after the player is in a loaded
+   cell with the game unpaused, and runs once per game session.
+4. Read `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame_selftest.txt` (the same
+   lines are in `HeartOfMagic_BlackFlame.log`): `[SELFTEST] PASS|FAIL|INFO <id> <detail>`, ending with
+   `[SELFTEST] DONE pass=N fail=M info=K`. A step that times out is a FAIL that says what it waited for.
+5. Set `"selfTest": false` again.
+
+Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789`, target
+`EncDeer 0CF89D` (unaggressive, no crime faction, so hitting it is no crime), NPC caster `WEFarmerFemale
+1034E6` (unaggressive). Both get their AI switched off; the target's health is raised to 100000.
+
+| Step | Checks |
+|---|---|
+| T0 | game thread id, palette loaded (which path), ESP forms, fire spell counts, config; Firebolt and Fireball count as fire |
+| T1 | the player casts the Stoke spell on itself (`CastSpellImmediate`): the buff flag is on within 1 s |
+| T2 | the two actors spawn (`PlaceObjectAtMe`), their 3D loads, AI off, target health raised |
+| T3 | the player's Firebolt: the projectile layer recoloured at least one effect shader and every recoloured material carries the palette pointer and path; counts, hook thread, recolour time in us |
+| T5 | after T3: a live grey shader on the target; in replace mode no live engine hit shader of Firebolt's effect; what the burn layer recorded |
+| T4 | the NPC and the player cast Firebolt in the same frame: the NPC's projectile carries no palette material and shares no effect property with the player's live one; whether their materials were pooled before any recolour (INFO) |
+| T5-npc | the target's shaders after T4 (INFO) |
+| T6 / T6-npc | the player's Fireball explosion is attributed to the player and recoloured (owner, cause actor, runtime magicCaster->currentSpell, light at Set3D reported); the NPC's is not recoloured |
+| T7 | the first BSPSysSimpleColorModifier's raw bytes 0x30-0x7F (layout sanity, INFO); with `particleColors` on, the NPC's modifiers are not the player's and not desaturated |
+| T8 / T8-cast | dispelling the Stoke effect turns the flag off within 1 s; the next Firebolt is not recoloured |
+| T9 | the two actors are disabled and marked deleted |
+
+## In-game checks the self-test cannot do
+
+Only what needs eyes or hands. Steps 1-3 set up a manual session.
 
 1. `help 흑염 4` (or the spell's runtime id from the log line `spell HoMBF_StokeSpell ... = FExxx803`), then
-   `player.addspell <id>`.
-2. Log at start: config line, forms found, `fire spells: ... total`, `palette '...': loaded`, hooks installed.
-3. Cast 흑염 달구기: Active Effects lists it, a black shader plays on the player, log `buff flag ON`.
-4. Flames on a target: grey burn, log `burn shader [replace]: ...` with the hit list state. Watch for an
-   orange flicker on the concentration spell, and whether the engine recreates the orange shader next to
-   the grey one.
-5. `burnMode` `"overlay"`: does the membrane show black (the engine may show only the top-most membrane)?
-   Do orange particles from the original shader stay visible?
-6. Firebolt: grey projectile, log `projectile: spell ... (missile): N effect geometries: ...`, and once
-   `Projectile Handle3DLoaded ran on thread ...`.
-7. Fireball: grey explosion, log `explosion: ...`, and once `Explosion Set3D ran on thread ...`.
-8. Charge a fire spell in 1st and 3rd person: grey hand art, log `hand art: ...` says which places
-   (magicNode, 1st/3rd person magic node, casting art effects) had effect geometry.
-9. With `forcePalette` on, a flame body without the palette flag (e.g. an Embers XD flame) turns grey and
-   keeps its shape; log counts `palette forced`. If a forced shape renders wrong (blank, white box), set
-   `forcePalette` false and report the mesh.
-10. Spawn a vanilla fire mage (`player.placeatme` with a vanilla fire mage NPC's base id) and let it cast
-    while the buff is on: its projectiles, explosions and burn must stay orange. Compare the logged
-    `material check` lines: player vs NPC `prop=` and `mat=` pointers must differ.
-11. `particleColors` true: the player's fire particles lose their orange; the NPC's must stay orange.
-    If they do not, the modifiers are shared and the flag must stay off.
-12. Wait 60 s: log `buff flag off`, new casts are orange.
-13. Save and load with the buff active: log `buff flag ON (game loaded)` or `(tick)`.
-14. While charging, a `hand art ... (more geometry)` line repeating every 100 ms means the "already grey"
-    check does not hold (a new material copy every tick): report it.
-15. Flame edges turning hard or blocky on recoloured shapes: the grey palette's alpha ramp drives those
-    shapes' alpha (the log counts `with palette alpha`); report the mesh.
-16. Casting light: a 10 Hz flicker between orange and the tint means the engine rewrites the light's colour
-    every frame (the tint is set every 100 ms); report it.
+   `player.addspell <id>`, and cast it.
+2. **The on-screen look** of each layer (the self-test sees materials and shaders, not pixels): grey burn,
+   grey Firebolt, grey Fireball explosion; flame bodies forced onto the palette (`forcePalette`) keep their
+   shape (a blank or white-box shape: set `forcePalette` false and report the mesh); flame edges do not turn
+   hard or blocky (the palette's alpha ramp drives shapes counted `with palette alpha`).
+3. **Hand art in 1st and 3rd person**: `CastSpellImmediate` has no charge animation, so only a real charge
+   shows the casting art. The log line `hand art: ...` says which places had effect geometry. A `(more
+   geometry)` line repeating every 100 ms means the "already grey" check does not hold: report it.
+4. **Concentration flicker** (Flames, replace mode): a one-frame orange flash is a look, not data.
+5. **Overlay mode look** (`burnMode` `"overlay"`): does the membrane show black (the engine may draw only
+   the top-most membrane), and do the original shader's orange particles stay visible?
+6. **Casting light**: a 10 Hz orange/tint flicker (the engine rewriting the light every frame) shows only on
+   screen.
+7. **Frame time feel** while casting with the buff on: no hitch on cast or impact.
+8. **Save and load with the buff active**: the self-test runs on load and dispels the buff itself, so this
+   stays manual: log `buff flag ON (game loaded)` or `(tick)`.

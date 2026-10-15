@@ -25,6 +25,7 @@ namespace BlackFlame
         bool handArt = true;      // layer 4: the casting art in the player's hands
         bool light = true;        // projectile, explosion and casting lights
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
+        bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)
         float tintScale = 0.6f;   // baseColor RGB = luminance * tintScale
         RE::NiColor lightColor{ 0.25f, 0.22f, 0.28f };
