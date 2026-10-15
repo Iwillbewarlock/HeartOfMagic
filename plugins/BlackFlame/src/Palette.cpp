@@ -7,9 +7,11 @@ namespace BlackFlame
 {
     namespace
     {
+        // Data-relative with the textures\ prefix first: the form other plugins pass to
+        // BSShaderManager::GetTexture (e.g. Community Shaders' Flowmap.cpp)
         constexpr std::array kPaletteCandidates{
-            "HeartOfMagic\\BlackFlame\\GradBlackFlame.dds",
             "textures\\HeartOfMagic\\BlackFlame\\GradBlackFlame.dds",
+            "HeartOfMagic\\BlackFlame\\GradBlackFlame.dds",
         };
 
         RE::NiPointer<RE::NiSourceTexture> g_palette;

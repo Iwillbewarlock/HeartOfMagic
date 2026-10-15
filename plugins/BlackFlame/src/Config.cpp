@@ -32,12 +32,13 @@ namespace BlackFlame
             BoolKey{ "explosion", &Config::explosion },
             BoolKey{ "handArt", &Config::handArt },
             BoolKey{ "light", &Config::light },
+            BoolKey{ "forcePalette", &Config::forcePalette },
             BoolKey{ "particleColors", &Config::particleColors },
         };
 
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "tintScale" || key == "lightColor") {
+            if (key == "tintScale" || key == "lightColor" || key == "burnMode") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -61,6 +62,23 @@ namespace BlackFlame
                     continue;
                 }
                 out.*b.field = it->get<bool>();
+            }
+        }
+
+        void ReadBurnMode(const nlohmann::json& j, Config& out)
+        {
+            const auto it = j.find("burnMode");
+            if (it == j.end()) {
+                return;
+            }
+            if (it->is_string() && it->get_ref<const std::string&>() == "replace") {
+                out.burnMode = BurnMode::kReplace;
+            } else if (it->is_string() && it->get_ref<const std::string&>() == "overlay") {
+                out.burnMode = BurnMode::kOverlay;
+            } else {
+                logger::warn("BlackFlame: config 'burnMode' {} is not \"replace\" or \"overlay\" - using \"replace\"",
+                    it->dump());
+                out.burnMode = BurnMode::kReplace;
             }
         }
 
@@ -112,6 +130,20 @@ namespace BlackFlame
             }
             out.lightColor = RE::NiColor(rgb[0], rgb[1], rgb[2]);
         }
+
+        void LogConfig()
+        {
+            logger::info(
+                "BlackFlame: config burnShader={} burnMode={} projectile={} explosion={} handArt={} light={} "
+                "forcePalette={} particleColors={} tintScale={} lightColor=[{}, {}, {}]",
+                g_config.burnShader, BurnModeName(g_config.burnMode), g_config.projectile, g_config.explosion,
+                g_config.handArt, g_config.light, g_config.forcePalette, g_config.particleColors, g_config.tintScale,
+                g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
+            if (g_config.particleColors) {
+                logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "
+                             "3D are desaturated through a layout CommonLib does not have (unverified on AE)");
+            }
+        }
     }
 
     void LoadConfig()
@@ -119,6 +151,7 @@ namespace BlackFlame
         std::ifstream file(kConfigPath, std::ios::binary);
         if (!file) {
             logger::warn("BlackFlame: no config at '{}' - using the defaults", kConfigPath);
+            LogConfig();
             return;
         }
         std::stringstream text;
@@ -126,6 +159,7 @@ namespace BlackFlame
         const auto j = nlohmann::json::parse(text.str(), nullptr, false);
         if (j.is_discarded() || !j.is_object()) {
             logger::warn("BlackFlame: '{}' is not a JSON object - using the defaults", kConfigPath);
+            LogConfig();
             return;
         }
         for (const auto& [key, value] : j.items()) {
@@ -136,23 +170,20 @@ namespace BlackFlame
 
         Config next;
         ReadBools(j, next);
+        ReadBurnMode(j, next);
         ReadTintScale(j, next);
         ReadLightColor(j, next);
         g_config = next;
-
-        logger::info(
-            "BlackFlame: config burnShader={} projectile={} explosion={} handArt={} light={} particleColors={} "
-            "tintScale={} lightColor=[{}, {}, {}]",
-            g_config.burnShader, g_config.projectile, g_config.explosion, g_config.handArt, g_config.light,
-            g_config.particleColors, g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green,
-            g_config.lightColor.blue);
-        if (g_config.particleColors) {
-            logger::warn("BlackFlame: 'particleColors' is not implemented in this prototype - it changes nothing");
-        }
+        LogConfig();
     }
 
     const Config& GetConfig() noexcept
     {
         return g_config;
+    }
+
+    const char* BurnModeName(BurnMode a_mode) noexcept
+    {
+        return a_mode == BurnMode::kOverlay ? "overlay" : "replace";
     }
 }

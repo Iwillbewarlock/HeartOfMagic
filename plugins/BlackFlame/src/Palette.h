@@ -9,7 +9,7 @@
 
 namespace BlackFlame
 {
-    /// Tries the palette path without and with the "textures\" prefix (which base
+    /// Tries the palette path with and without the "textures\" prefix (which base
     /// folder BSShaderManager::GetTexture resolves against is not documented in
     /// CommonLib) and logs which one loaded. False when neither did: the recolour
     /// layers (projectile, explosion, hand art) stay off; the burn shader layer does

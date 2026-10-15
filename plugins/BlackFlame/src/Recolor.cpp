@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Palette.h"
+#include "ParticleColors.h"
 
 #include <atomic>
 #include <format>
@@ -19,11 +20,21 @@ namespace BlackFlame
 
         std::atomic<bool> g_ownershipLogged{ false };
 
-        // BSShaderMaterial is BSIntrusiveRefCounted, whose TES_HEAP_REDEFINE_NEW routes
-        // delete to RE::free, and has a virtual destructor (RE/B/BSShaderMaterial.h,
-        // slot 00): `delete` calls the game's own deleting destructor, which frees on the
-        // game heap where Create() allocated. So a unique_ptr frees our copy safely.
-        using MaterialPtr = std::unique_ptr<RE::BSEffectShaderMaterial>;
+        // BSShaderProperty::SetMaterial(material, true) gives the property its own
+        // unshared copy and does not keep the pointer passed in (PapyrusExtenderSSE
+        // ActorGraphics.cpp, Precision AttackTrail.cpp, HorizonFix HorizonBand.cpp); the
+        // caller frees its temporary the way those plugins do: destructor, then RE::free
+        // (Create() allocates on the game heap). Whether the property really holds
+        // another pointer is checked and logged; if it ever held ours, ours is kept.
+        struct MaterialDeleter
+        {
+            void operator()(RE::BSEffectShaderMaterial* a_material) const noexcept
+            {
+                a_material->~BSEffectShaderMaterial();
+                RE::free(a_material);
+            }
+        };
+        using MaterialPtr = std::unique_ptr<RE::BSEffectShaderMaterial, MaterialDeleter>;
 
         bool HasColorController(const RE::NiObjectNET* a_object)
         {
@@ -44,8 +55,7 @@ namespace BlackFlame
             a_color.blue = grey;
         }
 
-        // a_geometry is null for a legacy NiGeometry (no SetupGeometry for it)
-        void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, RecolorStats& a_stats)
+        void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RecolorStats& a_stats)
         {
             ++a_stats.effectGeometries;
             if (HasColorController(a_prop)) {
@@ -53,7 +63,9 @@ namespace BlackFlame
             }
             auto* palette = GetPalette();
             auto* source = a_prop->GetMaterial();
-            if (!palette || !source) {
+            // Both the texture and its path, never one alone: with the greyscale flags on, the
+            // effect technique reads the texture pointer unchecked (HorizonFix notes)
+            if (!palette || !GetPalettePath() || !source) {
                 ++a_stats.failed;
                 return;
             }
@@ -85,15 +97,19 @@ namespace BlackFlame
             } else {
                 ++a_stats.engineCopied;  // `copy` frees ours at scope end
             }
-            // The engine's own setup step for a property on a geometry, as after load; a
-            // property already rendering may still need more to show the new palette
-            // (README "Known limits": the first suspect when a recolour does not show)
-            if (a_geometry) {
-                a_prop->SetupGeometry(a_geometry);
-            }
+            // No SetupGeometry: effect material values are read live at draw time (Precision
+            // changes baseColor every frame without one). If the palette does not show in
+            // game, a missing SetupGeometry/FinishSetupGeometry is the first suspect (README).
 
             if (a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor)) {
                 ++a_stats.paletteSwapped;
+            } else if (GetConfig().forcePalette) {
+                // Set only now, after the material with both palette pointer and path is in
+                // place: the effect technique gates on the path and reads the pointer unchecked.
+                // The property is the instance's own (cloned per instance; the material is the
+                // pooled part), and the material check log shows its pointer per instance.
+                a_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kGrayscaleToPaletteColor, true);
+                ++a_stats.forcedPalette;
             } else {
                 ++a_stats.baseColorOnly;
             }
@@ -137,6 +153,7 @@ namespace BlackFlame
     {
         effectGeometries += a_other.effectGeometries;
         paletteSwapped += a_other.paletteSwapped;
+        forcedPalette += a_other.forcedPalette;
         baseColorOnly += a_other.baseColorOnly;
         alreadyOurs += a_other.alreadyOurs;
         colorControlled += a_other.colorControlled;
@@ -144,15 +161,16 @@ namespace BlackFlame
         keptOurs += a_other.keptOurs;
         legacyGeometries += a_other.legacyGeometries;
         failed += a_other.failed;
+        colorModifiers += a_other.colorModifiers;
     }
 
     std::string RecolorStats::Describe() const
     {
-        return std::format("{} effect geometries: {} palette swapped, {} base colour only (no palette flag), "
-                           "{} already grey, {} with a colour controller, {} legacy NiGeometry, {} failed; "
-                           "material copies: {} engine-copied, {} ours kept",
-            effectGeometries, paletteSwapped, baseColorOnly, alreadyOurs, colorControlled, legacyGeometries, failed,
-            engineCopied, keptOurs);
+        return std::format("{} effect geometries: {} palette swapped, {} palette forced (flag added), "
+                           "{} base colour only (no palette flag), {} already grey, {} with a colour controller, {} legacy NiGeometry, {} failed; "
+                           "material copies: {} engine-copied, {} ours kept; {} particle colour modifiers desaturated{}",
+            effectGeometries, paletteSwapped, forcedPalette, baseColorOnly, alreadyOurs, colorControlled, legacyGeometries, failed,
+            engineCopied, keptOurs, colorModifiers, GetConfig().particleColors ? "" : " (particleColors off)");
     }
 
     RecolorStats RecolorTree(RE::NiAVObject* a_root)
@@ -165,7 +183,12 @@ namespace BlackFlame
             if (a_legacy) {
                 ++stats.legacyGeometries;
             }
-            RecolorProperty(a_prop, a_geometry, stats);
+            RecolorProperty(a_prop, stats);
+            if (GetConfig().particleColors && a_geometry) {
+                if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_geometry)) {
+                    stats.colorModifiers += DesaturateColorModifiers(particles);
+                }
+            }
         });
         return stats;
     }

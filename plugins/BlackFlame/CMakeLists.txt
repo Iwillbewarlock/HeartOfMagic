@@ -26,6 +26,7 @@ set(BLACKFLAME_SOURCES
     src/EffectEvents.cpp
     src/BurnShader.cpp
     src/Recolor.cpp
+    src/ParticleColors.cpp
     src/CasterArt.cpp
     src/ProjectileHook.cpp
     src/ExplosionHook.cpp

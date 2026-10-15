@@ -16,7 +16,7 @@ namespace BlackFlame
         constexpr int kMaxAttributionLogs = 5;
 
         std::atomic<bool> g_failureReported{ false };
-        std::atomic<bool> g_threadLogged{ false };
+        std::atomic<int> g_threadLogs{ 0 };
         std::atomic<int> g_otherLogs{ 0 };
 
         void RecolorExplosion(RE::Explosion* a_explosion)
@@ -57,9 +57,7 @@ namespace BlackFlame
             }
 
             const bool onGameThread = IsOnGameThread();
-            if (!g_threadLogged.exchange(true)) {
-                logger::info("BlackFlame: Explosion Set3D runs on the {} thread", onGameThread ? "game" : "a non-game");
-            }
+            LogHookThread(g_threadLogs, "Explosion Set3D");
             if (onGameThread) {
                 RecolorExplosion(a_explosion);
                 return;

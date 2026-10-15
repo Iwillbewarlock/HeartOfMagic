@@ -1,5 +1,6 @@
 #include "BuffState.h"
 
+#include "BurnShader.h"
 #include "CasterArt.h"
 #include "Forms.h"
 #include "GameThread.h"
@@ -57,6 +58,7 @@ namespace BlackFlame
         {
             g_tickPending.store(false);
             RecomputeBuff("tick");
+            RunPendingBurnSwaps();  // layer 1 (each swap drops itself when the buff is off)
             if (IsStoked()) {
                 TickCasterArt();  // layer 4
             }

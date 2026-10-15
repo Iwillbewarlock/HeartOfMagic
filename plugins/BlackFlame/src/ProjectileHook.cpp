@@ -16,7 +16,7 @@ namespace BlackFlame
         constexpr int kMaxMaterialLogs = 5;
 
         std::atomic<bool> g_failureReported{ false };
-        std::atomic<bool> g_threadLogged{ false };
+        std::atomic<int> g_threadLogs{ 0 };
         std::atomic<int> g_playerMaterialLogs{ 0 };
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
@@ -53,9 +53,7 @@ namespace BlackFlame
             }
 
             const bool onGameThread = IsOnGameThread();
-            if (!g_threadLogged.exchange(true)) {
-                logger::info("BlackFlame: Handle3DLoaded runs on the {} thread", onGameThread ? "game" : "a non-game");
-            }
+            LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
             if (onGameThread) {
                 RecolorProjectile(a_projectile, a_kind);
                 return;
