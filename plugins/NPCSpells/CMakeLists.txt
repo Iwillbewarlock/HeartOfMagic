@@ -7,7 +7,7 @@
 # The core (src/core) is pure C++ shared with tools/npcspells-test.
 # ==========================================================================
 
-project(HeartOfMagic_NPCSpells VERSION ${PROJECT_VERSION} DESCRIPTION "Heart of Magic - NPC Spells" LANGUAGES CXX)
+project(HeartOfMagic_NPCSpells VERSION ${NPCSPELLS_VERSION} DESCRIPTION "Heart of Magic - NPC Spells" LANGUAGES CXX)
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds not allowed. Use: cmake -B build")

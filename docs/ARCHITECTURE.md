@@ -1967,7 +1967,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 └── (ESP if applicable)
 ```
 
-The NPC Spells addon ships as its own archive, `dist/HeartOfMagic-NPCSpells_<VERSION>.zip`: `HeartOfMagic_NPCSpells.esp` (ESL flag) at the root, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, and the licence files. See `plugins/NPCSpells/README.md`.
+The NPC Spells addon ships as its own archive under its own version (`plugins/NPCSpells/VERSION`), `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip`: `HeartOfMagic_NPCSpells.esp` (ESL flag) at the root, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, `LICENSE`, `licenses/` and its own `THIRD-PARTY-NOTICES.md` (source tag `npcspells-v<version>`). See `plugins/NPCSpells/README.md`.
 
 ---
 

@@ -61,6 +61,8 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
 # The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
 set(DIST_NAME "HeartOfMagic-Librarian")
 set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
+# The NPC Spells addon is released on its own (own Nexus page), with its own version
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/NPCSpells/VERSION" NPCSPELLS_VERSION)
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)

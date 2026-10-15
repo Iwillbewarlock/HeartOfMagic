@@ -1,4 +1,4 @@
-# Third-party notices - Heart of Magic Librarian @PROJECT_VERSION@
+# Third-party notices - @NOTICES_PRODUCT@ @NOTICES_VERSION@
 
 ## Licenses
 
@@ -194,7 +194,7 @@ patch as their Nexus permissions allow, with the credit above.
 ## Corresponding Source
 
 The complete Corresponding Source for the DLLs is public at
-<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `v@PROJECT_VERSION@` (the tag of this release).
+<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `@NOTICES_TAG@` (the tag of this release).
 CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
 (<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
 fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
