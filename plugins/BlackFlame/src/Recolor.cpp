@@ -64,7 +64,7 @@ namespace BlackFlame
             }
             // The property holds the engine's copy of ours: should it resolve the palette to another
             // texture object, the path still marks it (else the hand-art tick would recolour again)
-            if (source->greyscaleTexture.get() == palette || source->greyscaleTexturePath == GetPalettePath()) {
+            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath)) {
                 ++a_stats.alreadyOurs;
                 return;
             }
@@ -234,8 +234,7 @@ namespace BlackFlame
     {
         const auto* material = a_prop ? a_prop->GetMaterial() : nullptr;
         const auto* palette = GetPalette();
-        const char* path = GetPalettePath();
         return material && ((palette && material->greyscaleTexture.get() == palette) ||
-                               (path && material->greyscaleTexturePath == path));
+                               IsPalettePath(material->greyscaleTexturePath));
     }
 }

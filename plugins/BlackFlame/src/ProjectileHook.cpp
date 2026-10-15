@@ -70,6 +70,15 @@ namespace BlackFlame
             if (!probe) {
                 return;
             }
+            auto& data = a_projectile->GetProjectileRuntimeData();
+            const auto shooter = data.shooter.get();
+            record.projectile = a_projectile->GetHandle();
+            record.shooter = shooter ? shooter->GetFormID() : 0;
+            auto* light = data.light ? data.light->light.get() : nullptr;
+            record.hasLight = light != nullptr;
+            if (light) {
+                record.lightDiffuse = light->GetLightRuntimeData().diffuse;
+            }
             record.spell = spell ? spell->GetFormID() : 0;
             record.kind = a_kind;
             record.byPlayer = a_byPlayer;

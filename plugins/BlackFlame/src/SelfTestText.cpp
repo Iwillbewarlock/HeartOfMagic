@@ -16,17 +16,18 @@ namespace BlackFlame::SelfTestText
         return count;
     }
 
-    RE::TESEffectShader* EngineShaderOf(const RE::SpellItem* a_spell)
+    std::vector<RE::FormID> EngineShadersOf(const RE::SpellItem* a_spell)
     {
+        std::vector<RE::FormID> out;
         if (!a_spell) {
-            return nullptr;
+            return out;
         }
         for (const auto* effect : a_spell->effects) {
             if (effect && effect->baseEffect && effect->baseEffect->data.effectShader) {
-                return effect->baseEffect->data.effectShader;
+                out.push_back(effect->baseEffect->data.effectShader->GetFormID());
             }
         }
-        return nullptr;
+        return out;
     }
 
     RE::Actor* ActorOf(RE::ObjectRefHandle a_handle)
@@ -44,6 +45,17 @@ namespace BlackFlame::SelfTestText
     {
         for (auto& r : SelfTestProbe::ProjectilesSince(a_mark)) {
             if (r.byPlayer == a_byPlayer && a_spell && r.spell == a_spell->GetFormID()) {
+                return r;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<SelfTestProbe::ProjectileRecord> FindProjectileFrom(std::uint64_t a_mark, RE::FormID a_shooter,
+        const RE::SpellItem* a_spell)
+    {
+        for (auto& r : SelfTestProbe::ProjectilesSince(a_mark)) {
+            if (a_shooter && r.shooter == a_shooter && a_spell && r.spell == a_spell->GetFormID()) {
                 return r;
             }
         }

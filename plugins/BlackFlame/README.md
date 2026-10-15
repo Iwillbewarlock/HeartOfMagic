@@ -100,33 +100,46 @@ skipped, so it is safe to repeat.
 
 The DLL can check most of itself in game, from the engine's own data, and write the results to a file.
 
-1. Use a **throwaway save** on flat open ground outside (the actors are placed at the player's height): the test casts spells (Heart of Magic may grant XP
-   for them), spawns two vanilla actors in front of the player and deletes them at the end.
+1. Use a **throwaway save** on flat open ground outside (the actors are placed at the player's height): the
+   test casts spells (Heart of Magic may grant XP for them), spawns two vanilla deer and deletes them at
+   the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
-3. Load the save and wait about 30 s without opening a menu. It starts 3 s after the player is in a loaded
-   cell with the game unpaused, and runs once per game session.
+3. Load the save and wait about 30 s without opening a menu, and **do not save while the test runs**. It
+   starts 3 s after the player is in a loaded cell with the game unpaused, runs once per game session, and is
+   disarmed if it could not start within 5 minutes. Time in menus or with the game paused does not count
+   against a step's timeout. Loading another save or starting a new game stops it (`ABORT`), leaving its
+   actors and buff to the load.
 4. Read `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame_selftest.txt` (the same
    lines are in `HeartOfMagic_BlackFlame.log`): `[SELFTEST] PASS|FAIL|INFO <id> <detail>`, ending with
    `[SELFTEST] DONE pass=N fail=M info=K`. A step that times out is a FAIL that says what it waited for.
 5. Set `"selfTest": false` again.
 
-Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789`, target
-`EncDeer 0CF89D` (unaggressive, no crime faction, so hitting it is no crime), NPC caster `WEFarmerFemale
-1034E6` (unaggressive, cowardly; she is only ever the caster, so her crime faction never matters). The target's AI is switched off and its health raised to 100000; the caster keeps her AI (an actor without AI may never run its cast) and may flee once the target is hit.
+Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789` (its explosion
+radius is read at runtime and logged, 320 units in Skyrim.esm), and `EncDeer 0CF89D` twice: the target, 1000
+units ahead (AI off, health raised to 100000), and the caster, 700 units to the player's right (AI kept: an
+actor without AI may never run its cast). A deer is unaggressive and in no crime faction, so hitting either is
+no crime. Every cast re-finds its target first and casts nothing when it is gone. Every run ends in the cleanup
+(T9): the Stoke buff dispelled, then, 1.5 s after the last cast, both deer deleted.
 
-| Step | Checks |
+| Step | PASS when |
 |---|---|
-| T0 | game thread id, palette loaded (which path), ESP forms, fire spell counts, config; Firebolt and Fireball count as fire |
-| T1 | the player casts the Stoke spell on itself (`CastSpellImmediate`): the buff flag is on within 1 s |
-| T2 | the two actors spawn (`PlaceObjectAtMe`) and their 3D loads; target AI off and health raised (caster keeps its AI); positions logged |
-| T3 / T3-pointer | the player's Firebolt: the projectile layer recoloured at least one effect shader and every recoloured one carries the palette path; counts, hook thread, recolour time in us. T3-pointer: whether the property's (engine-made) material copy also kept our texture pointer |
-| T5 | after T3: a live grey shader on the target; in replace mode no live engine hit shader of Firebolt's effect; what the burn layer recorded |
-| T4 | the NPC and the player cast Firebolt in the same frame: the NPC's projectile carries no palette material and shares no effect property with the player's live one; whether their materials were pooled before any recolour (INFO) |
-| T5-npc | the target's shaders after T4 (INFO) |
-| T6 / T6-npc | the player's Fireball explosion is attributed to the player and recoloured (owner, cause actor, runtime magicCaster->currentSpell, light at Set3D reported); the NPC's is not recoloured |
-| T7 | the first BSPSysSimpleColorModifier's raw bytes 0x30-0x7F (layout sanity, INFO); with `particleColors` on, the NPC's modifiers are not the player's and not desaturated |
-| T8 / T8-cast | dispelling the Stoke effect turns the flag off within 1 s; the next Firebolt is not recoloured |
-| T9 | the two actors are disabled and marked deleted |
+| T0 | the palette loaded (path logged), the ESP's forms and the vanilla forms exist, Firebolt and Fireball count as fire (game thread, fire counts, config and Fireball's explosion radius logged) |
+| T1 | after the Stoke cast (`CastSpellImmediate`; an already active buff is dispelled first) the player has one more Stoke effect and the flag is on |
+| T2 | both deer spawned (`PlaceObjectAtMe`) with 3D; the target's AI is off and its health at least 99% of 100000; target-to-player and target-to-caster distances are beyond the explosion radius + 100 |
+| T3 | the player's Firebolt was recoloured and at least as many effect shapes carry the palette path as were recoloured (ratio logged; INFO "partial" when forcePalette left some out) |
+| T3-pointer | every palette material also kept our texture pointer (the property holds the engine's copy) |
+| T3-tint | every recoloured base colour is grey (R=G=B) and, where the shape was seen before the recolour, equals its old luminance x tintScale |
+| T3-light | the projectile's light diffuse equals `lightColor` (INFO when it has no light) |
+| T5 | a live grey shader appears on the target, a burn record applied it, and in replace mode no engine hit shader of any of Firebolt's effects is live in the second after |
+| T5-extend | a second Firebolt hit extends the live grey shader (one grey shader live) |
+| T4 | the caster's Firebolt (cast in the same frame as a player one, matched by shooter) has effect shapes, none grey, and the player's was recoloured |
+| T4-shared | while both projectiles still exist, inspected then: no effect property shared, none grey on the caster's (INFO "not comparable" when one was gone) |
+| T5-npc | INFO: the target's shaders after T4 |
+| T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
+| T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
+| T7 | INFO: the first colour modifier's keys (0x30-0x5F) and whether that layout looks plausible; with `particleColors`, when both sides have modifiers and the player's are all grey: none of the caster's is grey or shared |
+| T8 / T8-cast | after T1 turned the buff on, dispelling it turns the flag off within 1 s; the next Firebolt has effect shapes, none grey, not recoloured (and T3 had recoloured) |
+| T9 | cleanup (INFO) |
 
 The log's `material check` lines (first 5 player and NPC fire projectiles, first 5 NPC fire explosions) list per effect property `prop=`, `mat=`, `grey=` and `paletteFlag=`: `prop=` must differ between player and NPC instances; an equal `mat=` is normal (materials are pooled); any `grey=yes` on an NPC line is contamination.
 

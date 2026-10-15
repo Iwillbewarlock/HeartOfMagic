@@ -44,6 +44,9 @@ namespace
     void HandleMessage(const SKSE::MessagingInterface::Message& a_msg)
     {
         switch (a_msg.type) {
+        case SKSE::MessagingInterface::kPreLoadGame:
+            BlackFlame::SelfTest::Abort("a save is being loaded");
+            break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
             break;
@@ -53,6 +56,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
+            BlackFlame::SelfTest::Abort("a new game started");
             BlackFlame::RecomputeBuff("new game");
             FlushLog();
             break;

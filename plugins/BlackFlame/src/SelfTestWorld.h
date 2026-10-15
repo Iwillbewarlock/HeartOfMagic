@@ -16,31 +16,41 @@ namespace BlackFlame::SelfTestWorld
     inline constexpr const char* kSkyrimMaster = "Skyrim.esm";
     inline constexpr RE::FormID kFireboltLocalId = 0x012FD0;   // SPEL "Firebolt" (MGEF FireDamageFFAimed)
     inline constexpr RE::FormID kFireballLocalId = 0x01C789;   // SPEL "Fireball" (MGEF FireDamageFFAimedArea)
-    inline constexpr RE::FormID kDummyNpcLocalId = 0x0CF89D;   // NPC_ EncDeer: unaggressive, cowardly, no crime faction
-    inline constexpr RE::FormID kCasterNpcLocalId = 0x1034E6;  // NPC_ WEFarmerFemale: unaggressive, cowardly
+    // NPC_ EncDeer: unaggressive, cowardly, no crime faction - both the target and the caster
+    // (hitting either is no crime; CastSpellImmediate works from any actor's caster)
+    inline constexpr RE::FormID kDeerNpcLocalId = 0x0CF89D;
+    inline constexpr float kDummyHealth = 100000.0f;  // the target survives every test cast
 
     struct VanillaForms
     {
         RE::SpellItem* firebolt = nullptr;
         RE::SpellItem* fireball = nullptr;
-        RE::TESNPC* dummy = nullptr;
-        RE::TESNPC* caster = nullptr;
+        RE::TESNPC* deer = nullptr;
+        RE::BGSExplosion* fireballExplosion = nullptr;  // from Fireball's effects (load order winner)
     };
 
     /// False with a_missing naming what was not found.
     [[nodiscard]] bool LookupVanilla(VanillaForms& a_out, std::string& a_missing);
 
     /// a_caster's instant caster: MagicCaster::CastSpellImmediate (RE/M/MagicCaster.h:62).
+    /// Casts nothing and returns false without a live target.
     [[nodiscard]] bool Cast(RE::Actor* a_caster, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target);
 
     /// PlaceObjectAtMe at the player, then moved a_forward units ahead and a_right
     /// units to the right of where the player faces. Null handle on failure.
     [[nodiscard]] RE::ObjectRefHandle Spawn(RE::TESNPC* a_base, float a_forward, float a_right);
 
-    /// AI off (EnableAI(false)) and, for the target, health raised; returns what was done.
-    [[nodiscard]] std::string MakePassive(RE::Actor* a_actor, bool a_raiseHealth);
+    /// AI off (EnableAI(false)) and health base raised to kDummyHealth; returns what was done.
+    [[nodiscard]] std::string MakeTarget(RE::Actor* a_actor);
 
-    /// ActiveEffect::Dispel(true) on every player effect carrying the Stoke keyword; how many.
+    /// The actor's current health (0 without one)
+    [[nodiscard]] float HealthOf(RE::Actor* a_actor);
+
+    /// The player's live (not dispelled or inactive) effects carrying the Stoke keyword
+    [[nodiscard]] int StokeEffectCount();
+
+    /// ActiveEffect::Dispel(true) on every player effect carrying the Stoke keyword, each found
+    /// again by its unique id right before its Dispel; how many.
     [[nodiscard]] int DispelStoke();
 
     struct ShaderOn

@@ -12,36 +12,44 @@
 // =============================================================================
 // Off unless the self-test is running (Recording()): the layers then report each
 // fire projectile, fire explosion and burn swap here, with a read-only look at the
-// 3D taken on the game thread. The self-test reads the records back by sequence
-// number. Every function is safe from any thread (one mutex); the 3D reads
-// (Capture, Inspect) are game thread only.
+// 3D taken on the game thread (the hooks defer to a game-thread task when they
+// run elsewhere, and only then capture or inspect). The self-test reads the
+// records back by sequence number. The record functions are safe from any thread
+// (one mutex); Capture and Inspect are game thread only.
 
 namespace BlackFlame::SelfTestProbe
 {
     [[nodiscard]] bool Recording() noexcept;
     void SetRecording(bool a_on) noexcept;
 
+    /// Drops every record (the self-test's end)
+    void Clear();
+
     /// The sequence number the next record will get: records "since a mark" are newer
     [[nodiscard]] std::uint64_t Mark() noexcept;
 
-    // Pointers of a 3D's effect properties and their materials (read only)
+    // The effect properties of a 3D, in traversal order (read only)
     struct Snapshot
     {
         std::vector<std::uintptr_t> properties;
         std::vector<std::uintptr_t> materials;
+        std::vector<RE::NiColorA> baseColors;  // the material's baseColor
+        std::vector<bool> grey;                // Recolor.h HasGreyMaterial
     };
+
+    inline constexpr std::size_t kColorKeyFloats = 12;  // a BSPSysSimpleColorModifier's 3 RGBA keys
 
     struct Inspection
     {
         Snapshot pointers;
         int effectProperties = 0;
-        int withPalettePath = 0;     // material's greyscaleTexturePath is our palette path
-        int withPalettePointer = 0;  // material's greyscaleTexture is our palette texture
+        int withPalettePath = 0;     // the material's greyscale path names our palette (Palette.h IsPalettePath)
+        int withPalettePointer = 0;  // the material's greyscaleTexture is our palette texture
         int withBoth = 0;
-        int withGrey = 0;            // Recolor.h HasGreyMaterial: pointer or path (the contamination test)
+        int withGrey = 0;            // HasGreyMaterial: pointer or path (the contamination test)
         std::vector<std::uintptr_t> colorModifiers;  // BSPSysSimpleColorModifier pointers
         int colorModifiersAllGrey = 0;               // of those, every colour key has R == G == B
-        std::vector<float> firstModifierRaw;         // bytes 0x30-0x7F of the first one, as floats
+        std::vector<float> firstModifierKeys;        // bytes 0x30-0x5F of the first one, as 12 floats
     };
 
     /// Game thread. Read-only walk of a_root (null: empty).
@@ -51,6 +59,8 @@ namespace BlackFlame::SelfTestProbe
     struct ProjectileRecord
     {
         std::uint64_t seq = 0;
+        RE::ObjectRefHandle projectile;
+        RE::FormID shooter = 0;
         RE::FormID spell = 0;
         const char* kind = "";
         bool byPlayer = false;
@@ -59,6 +69,8 @@ namespace BlackFlame::SelfTestProbe
         long long recolorMicros = 0;
         std::uint32_t hookThread = 0;
         bool hookOnGameThread = false;
+        bool hasLight = false;
+        RE::NiColor lightDiffuse{};  // after the recolour
         Snapshot before;  // taken just before the recolour (or instead of it)
         Inspection after;
     };

@@ -19,6 +19,10 @@ namespace BlackFlame::SelfTest
     /// kPostLoadGame, game thread
     void OnGameLoaded();
 
+    /// kPreLoadGame / kNewGame (the world is torn down): a running test stops without touching
+    /// its old handles; an armed one is disarmed
+    void Abort(const char* a_reason);
+
     /// The ticker's game-thread task, every tick
     void Tick();
 

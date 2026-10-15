@@ -2,6 +2,9 @@
 
 #include <array>
 #include <atomic>
+#include <cctype>
+#include <string>
+#include <string_view>
 
 namespace BlackFlame
 {
@@ -21,6 +24,23 @@ namespace BlackFlame
         const char* g_palettePath = nullptr;
         // Set after g_palette and g_palettePath are written; hooks on other threads read it first
         std::atomic<bool> g_ready{ false };
+
+        constexpr std::array<std::string_view, 2> kIgnoredPathPrefixes{ "data\\", "textures\\" };
+
+        std::string NormalizePath(std::string_view a_path)
+        {
+            std::string out;
+            out.reserve(a_path.size());
+            for (const char c : a_path) {
+                out.push_back(c == '/' ? '\\' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+            }
+            for (const std::string_view prefix : kIgnoredPathPrefixes) {
+                if (out.starts_with(prefix)) {
+                    out.erase(0, prefix.size());
+                }
+            }
+            return out;
+        }
     }
 
     bool LoadPalette()
@@ -57,5 +77,11 @@ namespace BlackFlame
     const char* GetPalettePath() noexcept
     {
         return PaletteReady() ? g_palettePath : nullptr;
+    }
+
+    bool IsPalettePath(const RE::BSFixedString& a_path)
+    {
+        const char* ours = GetPalettePath();
+        return ours && !a_path.empty() && NormalizePath(a_path.c_str()) == NormalizePath(ours);
     }
 }

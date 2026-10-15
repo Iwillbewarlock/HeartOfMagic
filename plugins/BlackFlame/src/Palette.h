@@ -23,4 +23,8 @@ namespace BlackFlame
 
     /// The path that loaded, for BSEffectShaderMaterial::greyscaleTexturePath
     [[nodiscard]] const char* GetPalettePath() noexcept;
+
+    /// A material's greyscale texture path names our palette: compared case-blind with / and \n    /// alike and any leading "data\" or "textures\" ignored (BSFixedString's operator== is
+    /// case-sensitive, while the game's string pool may hand back the path in another case)
+    [[nodiscard]] bool IsPalettePath(const RE::BSFixedString& a_path);
 }

@@ -11,7 +11,6 @@ namespace BlackFlame::SelfTestWorld
     {
         constexpr float kFullEffectiveness = 1.0f;
         constexpr float kNoMagnitudeOverride = 0.0f;
-        constexpr float kDummyHealth = 100000.0f;  // survives every test cast
     }
 
     bool LookupVanilla(VanillaForms& a_out, std::string& a_missing)
@@ -23,8 +22,17 @@ namespace BlackFlame::SelfTestWorld
         }
         a_out.firebolt = dh->LookupForm<RE::SpellItem>(kFireboltLocalId, kSkyrimMaster);
         a_out.fireball = dh->LookupForm<RE::SpellItem>(kFireballLocalId, kSkyrimMaster);
-        a_out.dummy = dh->LookupForm<RE::TESNPC>(kDummyNpcLocalId, kSkyrimMaster);
-        a_out.caster = dh->LookupForm<RE::TESNPC>(kCasterNpcLocalId, kSkyrimMaster);
+        a_out.deer = dh->LookupForm<RE::TESNPC>(kDeerNpcLocalId, kSkyrimMaster);
+        if (a_out.fireball) {
+            for (const auto* effect : a_out.fireball->effects) {
+                const auto* base = effect ? effect->baseEffect : nullptr;
+                if (!base || a_out.fireballExplosion) {
+                    continue;
+                }
+                a_out.fireballExplosion = base->data.explosion ? base->data.explosion :
+                    (base->data.projectileBase ? base->data.projectileBase->data.explosionType : nullptr);
+            }
+        }
         const auto add = [&](bool a_ok, const char* a_name) {
             if (!a_ok) {
                 a_missing += a_missing.empty() ? a_name : std::format(", {}", a_name);
@@ -32,14 +40,14 @@ namespace BlackFlame::SelfTestWorld
         };
         add(a_out.firebolt, "Firebolt 012FD0");
         add(a_out.fireball, "Fireball 01C789");
-        add(a_out.dummy, "EncDeer 0CF89D");
-        add(a_out.caster, "WEFarmerFemale 1034E6");
+        add(a_out.deer, "EncDeer 0CF89D");
+        add(a_out.fireballExplosion, "Fireball's explosion");
         return a_missing.empty();
     }
 
     bool Cast(RE::Actor* a_caster, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target)
     {
-        if (!a_caster || !a_spell) {
+        if (!a_caster || !a_spell || !a_target) {
             return false;
         }
         auto* caster = a_caster->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
@@ -69,20 +77,43 @@ namespace BlackFlame::SelfTestWorld
         return ref->GetHandle();
     }
 
-    std::string MakePassive(RE::Actor* a_actor, bool a_raiseHealth)
+    std::string MakeTarget(RE::Actor* a_actor)
     {
         if (!a_actor) {
             return "no actor";
         }
         a_actor->EnableAI(false);
-        std::string done = std::format("AI {}", a_actor->IsAIEnabled() ? "still ON" : "off");
-        if (a_raiseHealth) {
-            if (auto* values = a_actor->AsActorValueOwner()) {
-                values->SetBaseActorValue(RE::ActorValue::kHealth, kDummyHealth);
-                done += std::format(", health base {} (now {:.0f})", kDummyHealth, values->GetActorValue(RE::ActorValue::kHealth));
+        if (auto* values = a_actor->AsActorValueOwner()) {
+            values->SetBaseActorValue(RE::ActorValue::kHealth, kDummyHealth);
+        }
+        return std::format("AI {}, health base {} (now {:.0f})", a_actor->IsAIEnabled() ? "still ON" : "off",
+            kDummyHealth, HealthOf(a_actor));
+    }
+
+    float HealthOf(RE::Actor* a_actor)
+    {
+        auto* values = a_actor ? a_actor->AsActorValueOwner() : nullptr;
+        return values ? values->GetActorValue(RE::ActorValue::kHealth) : 0.0f;
+    }
+
+    int StokeEffectCount()
+    {
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        const auto* keyword = GetForms().stokedKeyword;
+        auto* target = player ? player->AsMagicTarget() : nullptr;
+        auto* effects = target ? target->GetActiveEffectList() : nullptr;
+        if (!effects || !keyword) {
+            return 0;
+        }
+        int count = 0;
+        for (const auto* effect : *effects) {
+            const auto* base = effect ? effect->GetBaseObject() : nullptr;
+            if (base && base->HasKeyword(keyword) &&
+                !effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
+                ++count;
             }
         }
-        return done;
+        return count;
     }
 
     int DispelStoke()
@@ -94,18 +125,29 @@ namespace BlackFlame::SelfTestWorld
         if (!effects || !keyword) {
             return 0;
         }
-        // Collected first: Dispel may change the list being walked
-        std::vector<RE::ActiveEffect*> found;
+        // Ids first, no ActiveEffect pointer kept across a Dispel (it may change the list)
+        std::vector<std::uint16_t> ids;
         for (auto* effect : *effects) {
             const auto* base = effect ? effect->GetBaseObject() : nullptr;
             if (base && base->HasKeyword(keyword)) {
-                found.push_back(effect);
+                ids.push_back(effect->usUniqueID);
             }
         }
-        for (auto* effect : found) {
-            effect->Dispel(true);  // RE/A/ActiveEffect.h:92
+        int dispelled = 0;
+        for (const auto id : ids) {
+            auto* list = target->GetActiveEffectList();
+            if (!list) {
+                break;
+            }
+            for (auto* effect : *list) {
+                if (effect && effect->usUniqueID == id) {
+                    effect->Dispel(true);  // RE/A/ActiveEffect.h:92
+                    ++dispelled;
+                    break;
+                }
+            }
         }
-        return static_cast<int>(found.size());
+        return dispelled;
     }
 
     std::vector<ShaderOn> ShadersOn(RE::ObjectRefHandle a_target)

@@ -10,11 +10,9 @@ namespace BlackFlame::SelfTestProbe
 {
     namespace
     {
-        // Bytes 0x30-0x7F of a BSPSysSimpleColorModifier: three NiColorA keys at 0x30 by the
-        // layout ParticleColors.cpp assumes; read raw here so the dump checks that layout
-        constexpr std::size_t kModifierDumpOffset = 0x30;
-        constexpr std::size_t kModifierDumpFloats = (0x80 - 0x30) / sizeof(float);
-        constexpr std::size_t kColorKeyFloats = 12;  // 3 keys x RGBA
+        // A BSPSysSimpleColorModifier's three RGBA colour keys at 0x30, by the layout
+        // ParticleColors.cpp assumes; read raw here so the self-test can judge that layout
+        constexpr std::size_t kModifierKeysOffset = 0x30;
         constexpr std::size_t kRgbaFloats = 4;
 
         std::atomic<bool> g_recording{ false };
@@ -51,6 +49,15 @@ namespace BlackFlame::SelfTestProbe
             });
         }
 
+        void AddProperty(RE::BSEffectShaderProperty* a_prop, Snapshot& a_out)
+        {
+            a_out.properties.push_back(reinterpret_cast<std::uintptr_t>(a_prop));
+            a_out.materials.push_back(reinterpret_cast<std::uintptr_t>(a_prop->GetBaseMaterial()));
+            const auto* material = a_prop->GetMaterial();
+            a_out.baseColors.push_back(material ? material->baseColor : RE::NiColorA{});
+            a_out.grey.push_back(HasGreyMaterial(a_prop));
+        }
+
         void InspectModifiers(RE::NiParticleSystem* a_particles, Inspection& a_out)
         {
             static REL::Relocation<const RE::NiRTTI*> simpleColorRTTI{ RE::NiRTTI_BSPSysSimpleColorModifier };
@@ -58,19 +65,19 @@ namespace BlackFlame::SelfTestProbe
                 if (!modifier || modifier->GetRTTI() != simpleColorRTTI.get()) {
                     continue;
                 }
-                const auto* bytes = reinterpret_cast<const std::uint8_t*>(modifier.get()) + kModifierDumpOffset;
-                float raw[kModifierDumpFloats];
-                std::memcpy(raw, bytes, sizeof(raw));
+                const auto* bytes = reinterpret_cast<const std::uint8_t*>(modifier.get()) + kModifierKeysOffset;
+                float keys[kColorKeyFloats];
+                std::memcpy(keys, bytes, sizeof(keys));
                 a_out.colorModifiers.push_back(reinterpret_cast<std::uintptr_t>(modifier.get()));
                 bool grey = true;
                 for (std::size_t i = 0; i < kColorKeyFloats; i += kRgbaFloats) {
-                    grey = grey && raw[i] == raw[i + 1] && raw[i] == raw[i + 2];
+                    grey = grey && keys[i] == keys[i + 1] && keys[i] == keys[i + 2];
                 }
                 if (grey) {
                     ++a_out.colorModifiersAllGrey;
                 }
-                if (a_out.firstModifierRaw.empty()) {
-                    a_out.firstModifierRaw.assign(raw, raw + kModifierDumpFloats);
+                if (a_out.firstModifierKeys.empty()) {
+                    a_out.firstModifierKeys.assign(keys, keys + kColorKeyFloats);
                 }
             }
         }
@@ -113,13 +120,20 @@ namespace BlackFlame::SelfTestProbe
         return g_nextSeq;
     }
 
+    void Clear()
+    {
+        std::lock_guard lock(g_mutex);
+        g_projectiles.clear();
+        g_explosions.clear();
+        g_burns.clear();
+    }
+
     Snapshot Capture(RE::NiAVObject* a_root)
     {
         Snapshot out;
         ForEachObject(a_root, [&](RE::NiAVObject* a_object) {
             if (auto* prop = EffectPropertyOf(a_object)) {
-                out.properties.push_back(reinterpret_cast<std::uintptr_t>(prop));
-                out.materials.push_back(reinterpret_cast<std::uintptr_t>(prop->GetBaseMaterial()));
+                AddProperty(prop, out);
             }
         });
         return out;
@@ -129,22 +143,20 @@ namespace BlackFlame::SelfTestProbe
     {
         Inspection out;
         const auto* palette = GetPalette();
-        const char* palettePath = GetPalettePath();
         ForEachObject(a_root, [&](RE::NiAVObject* a_object) {
             auto* prop = EffectPropertyOf(a_object);
             if (!prop) {
                 return;
             }
             ++out.effectProperties;
-            out.pointers.properties.push_back(reinterpret_cast<std::uintptr_t>(prop));
-            out.pointers.materials.push_back(reinterpret_cast<std::uintptr_t>(prop->GetBaseMaterial()));
+            AddProperty(prop, out.pointers);
             if (const auto* material = prop->GetMaterial()) {
-                const bool path = palettePath && material->greyscaleTexturePath == palettePath;
+                const bool path = IsPalettePath(material->greyscaleTexturePath);
                 const bool pointer = palette && material->greyscaleTexture.get() == palette;
                 out.withPalettePath += path ? 1 : 0;
                 out.withPalettePointer += pointer ? 1 : 0;
                 out.withBoth += (path && pointer) ? 1 : 0;
-                out.withGrey += HasGreyMaterial(prop) ? 1 : 0;
+                out.withGrey += out.pointers.grey.back() ? 1 : 0;
             }
             if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_object)) {
                 InspectModifiers(particles, out);
