@@ -317,8 +317,11 @@ namespace BlackFlame::SelfTest
         }
         const auto& npc = *a_c.npcT4;
         const auto& player = *a_c.playerT4;
+        // V9: with the recolour off the copies are judged instead: the caster's original, the player's a copy when one exists
+        const bool copyOk = GetConfig().projectile ||
+                            (npc.copyBase == 0 && (!CopyLaunchExpected(a_c.forms.firebolt) || player.copyBase != 0));
         const bool ok = !npc.recolored && npc.after.effectProperties > 0 && npc.after.withGrey == 0 &&
-                        player.after.effectProperties > 0 && (player.recolored || !GetConfig().projectile);
+                        player.after.effectProperties > 0 && (player.recolored || !GetConfig().projectile) && copyOk;
         SelfTestLog::Check("T4", ok, std::format("caster: {} | player: recoloured={}, {} effect properties",
             DescribeProjectile(npc), player.recolored, player.after.effectProperties));
 
@@ -488,8 +491,9 @@ namespace BlackFlame::SelfTest
         if (!r) {
             return false;
         }
+        // V9: with the recolour off, the unbuffed launch must keep the original base
         const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 &&
-                        (a_c.t3Recolored || !GetConfig().projectile);
+                        (GetConfig().projectile ? a_c.t3Recolored : r->copyBase == 0);
         SelfTestLog::Check("T8-cast", ok, std::format("T3 recoloured: {} | {}", a_c.t3Recolored ? "yes" : "NO",
             DescribeProjectile(*r)));
         return true;

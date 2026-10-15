@@ -192,6 +192,10 @@ namespace BlackFlame::SelfTest
             if (!IsStoked() && since < kOnWait) {
                 return false;
             }
+            if (!IsStoked()) {
+                SelfTestLog::Info("E2", std::format("the buff did not come back within {} ms of the Stoke cast: later steps "
+                    "that need it may skip", kOnWait.count()));
+            }
             Next(a_c.phase, kSettleHits);
             return false;
         default:

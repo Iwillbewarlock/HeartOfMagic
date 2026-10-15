@@ -175,9 +175,12 @@ namespace BlackFlame::SelfTest
                              postWrites > 0                  ? "the Launch post-write (the creation detour saw nothing)" :
                                                                "neither device counted it";
         SelfTestLog::Info("E1b", std::format("launch: {}; counters since the cast: Launch post-writes {}, creations given a copy "
-            "already {}, swapped by the creation detour {}", launch ? std::format("base {:08X} -> copy {:08X}, explosion {:08X} -> "
+            "already {}, swapped by the creation detour {} (self area {}), create data rejected {}, self-area slot not a spell {}, "
+            "player launches without a copy {}", launch ? std::format("base {:08X} -> copy {:08X}, explosion {:08X} -> "
             "{:08X}", launch->base, launch->copyBase, launch->explosionBefore, launch->explosionAfter) : std::string("NOT RECORDED"),
-            postWrites, alreadyCopy, createSwaps));
+            postWrites, alreadyCopy, createSwaps, now.createSwapsSelfArea - g_fire.at.createSwapsSelfArea,
+            now.createLayoutRejected - g_fire.at.createLayoutRejected, now.createNotSpell - g_fire.at.createNotSpell,
+            now.launchNoCopy - g_fire.at.launchNoCopy));
         SelfTestLog::Check("E1b", record->copyBase != 0 && record->after.withPalettePath > 0, std::format("player Fireball "
             "explosion: base {:08X} copy {:08X}, palette path on {} of {} shapes; made by {} | {}", record->base, record->copyBase,
             record->after.withPalettePath, record->after.effectProperties, device, DescribeExplosion(*record)));

@@ -135,6 +135,10 @@ namespace BlackFlame::SelfTest
     /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,
     /// SelfTestReload.cpp); SelfTest.cpp ShiftClocks calls it
     void ShiftV2Clocks(Clock::duration a_paused);
+
+    /// V9: the player's launch of a_spell should take a copy (copyLaunch on, the Launch detour hooked, its projectile
+    /// has a copy); recolour-off steps judge copies with it
+    [[nodiscard]] bool CopyLaunchExpected(const RE::SpellItem* a_spell);
     void ShiftFireClocks(Clock::duration a_paused);
     void ShiftFlameClocks(Clock::duration a_paused);
 }

@@ -20,7 +20,10 @@
 #include "SelfTestText.h"
 #include "ThreadTrace.h"
 
+#include <algorithm>
+#include <array>
 #include <format>
+#include <string_view>
 
 namespace BlackFlame::SelfTest
 {
@@ -61,6 +64,36 @@ namespace BlackFlame::SelfTest
             return nullptr;
         }
 
+        // V12: the prologue replay decoder on fixed byte cases (Patch::ReplayLength)
+        void CheckReplayCases()
+        {
+            struct Case
+            {
+                const char* name;
+                std::array<std::uint8_t, 8> bytes;
+                std::size_t want;
+            };
+            constexpr std::array kCases{
+                Case{ "mov [rsp+8], rcx (Launch, 1.7.104)", { 0x48, 0x89, 0x4C, 0x24, 0x08, 0x55, 0x53, 0x56 }, 5 },
+                Case{ "push rbx (REX), rbp, rsi, rdi (creation, 1.7.104)", { 0x40, 0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x90 }, 5 },
+                Case{ "sub rsp, imm8; push rbx", { 0x48, 0x83, 0xEC, 0x28, 0x53, 0x90, 0x90, 0x90 }, 5 },
+                Case{ "sub rsp, imm32", { 0x48, 0x81, 0xEC, 0x00, 0x01, 0x00, 0x00, 0x90 }, 7 },
+                Case{ "mov rax, rsp; push rbp; push rsi", { 0x48, 0x8B, 0xC4, 0x55, 0x56, 0x90, 0x90, 0x90 }, 5 },
+                Case{ "mov r11, rsp; push rbp; push rsi", { 0x4C, 0x8B, 0xDC, 0x55, 0x56, 0x90, 0x90, 0x90 }, 5 },
+                Case{ "mov rax, rsp; mov [rax+8], rbx (refused: not rsp-based)", { 0x48, 0x8B, 0xC4, 0x48, 0x89, 0x58, 0x08, 0x90 }, 0 },
+                Case{ "jmp rel32 (refused: not replayed)", { 0xE9, 0x00, 0x00, 0x00, 0x00, 0x90, 0x90, 0x90 }, 0 },
+            };
+            std::string bad;
+            for (const auto& c : kCases) {
+                const auto got = Patch::ReplayLength(c.bytes.data(), c.bytes.size());
+                if (got != c.want) {
+                    bad += std::format("{}{}: {} (want {})", bad.empty() ? "" : "; ", c.name, got, c.want);
+                }
+            }
+            SelfTestLog::Check("T0-hooks", bad.empty(), bad.empty() ? std::format("replay decoder: all {} byte cases right",
+                kCases.size()) : "replay decoder: " + bad);
+        }
+
         void CheckPredicate(const SelfTestWorld::VanillaForms& a_forms, const SelfTestWorld::V2Forms& a_v2)
         {
             const bool fireOk = IsFireLaunch(a_forms.firebolt, nullptr, nullptr);
@@ -90,8 +123,13 @@ namespace BlackFlame::SelfTest
         const bool copies = status.copies;
         CheckDevice("Projectile::Launch (copyLaunch / copyLaunchExplosion)", copies && (cfg.copyLaunch || cfg.copyLaunchExplosion),
             status.launch);
-        CheckDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
-            status.explosionCreate);
+        if (!REL::Module::IsAE()) {
+            SelfTestLog::Info("T0-hooks", "explosion creation: off on SE (" + status.explosionCreate.note + ")");
+        } else {
+            CheckDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
+                status.explosionCreate);
+        }
+        CheckReplayCases();
         if (copies && cfg.copyImpacts && counts.impacts > 0) {
             SelfTestLog::Check("T0-hooks", status.impactSites == 2, std::format("GetImpactData call sites: {} of 2 hooked ({} "
                 "chained): {}", status.impactSites, status.impactChained, status.impactNote));
@@ -153,6 +191,13 @@ namespace BlackFlame::SelfTest
         return true;
     }
 
+    bool CopyLaunchExpected(const RE::SpellItem* a_spell)
+    {
+        const auto* effect = a_spell ? a_spell->GetAVEffect() : nullptr;
+        return GetConfig().copyLaunch && GetCopySwapStatus().launch.hooked && effect &&
+               CopyOf(effect->data.projectileBase) != nullptr;
+    }
+
     void ShiftV2Clocks(Clock::duration a_paused)
     {
         ShiftFireClocks(a_paused);
@@ -173,9 +218,24 @@ namespace BlackFlame::SelfTest
         for (const auto& e : entries) {
             onOther += e.thread != game ? 1 : 0;
         }
-        SelfTestLog::Check("T-threads", !entries.empty(), std::format("{} traced bodies, {} not on the stamped game thread, "
-            "{} overlapping pairs on different threads (measurement: the thread gates stay as they are)", entries.size(),
-            onOther, ThreadTrace::CountCrossThreadOverlaps(entries)));
+        // PASS needs every v2 hook kind measured at least once; otherwise INFO naming the kinds with no entry
+        constexpr std::array<std::string_view, 3> kKinds{ "Launch (v2 detour)", "explosion create (v2 detour)",
+            "GetImpactData in a copy window" };
+        std::string missing;
+        for (const auto kind : kKinds) {
+            const bool seen = std::ranges::any_of(entries, [&](const auto& a_e) { return kind == a_e.kind; });
+            if (!seen) {
+                missing += std::format("{}'{}'", missing.empty() ? "" : ", ", kind);
+            }
+        }
+        const auto detail = std::format("{} traced bodies, {} not on the stamped game thread, {} overlapping pairs on different "
+            "threads (measurement: the thread gates stay as they are)", entries.size(), onOther,
+            ThreadTrace::CountCrossThreadOverlaps(entries));
+        if (!missing.empty()) {
+            SelfTestLog::Info("T-threads", detail + "; not measured (no entry): " + missing);
+        } else {
+            SelfTestLog::Pass("T-threads", detail + "; every v2 hook kind measured");
+        }
         return true;
     }
 }
