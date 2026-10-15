@@ -13,8 +13,10 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 
 ## Requirements
 
-- Heart of Magic, with a scan done and a tree built (the addon reads `spell_catalog.json` and `spell_tree.json`
-  from `Data/SKSE/Plugins/SpellLearning/`; with either missing it gives nothing and the report says why).
+- Heart of Magic Librarian 1.5.0 or later, with a scan done and a tree built (the addon reads `spell_catalog.json`
+  and `spell_tree.json` from `Data/SKSE/Plugins/SpellLearning/`; with either missing, or a catalog whose `version`
+  is not 1, it gives nothing and the report says why). The addon does not check Heart of Magic's version itself:
+  1.5.0 is the release its file reading was checked against.
 - `HeartOfMagic_NPCSpells.esp` enabled (an ESL-flagged plugin that only holds empty leveled spell lists).
 - Not needed: SPID, SkyPatcher. Heart of Magic itself is not changed.
 
@@ -27,7 +29,8 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 | `SKSE/Plugins/HeartOfMagic_NPCSpells.json` | The rules file (editable, see below) |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells_report.txt` | Written on each run: counts, every list, every NPC that got lists, timings. Not in the archive |
 | `HeartOfMagic_NPCSpells.log` (SKSE log folder) | The addon's log |
-| `dist/HeartOfMagic-NPCSpells_<VERSION>.zip` | The release archive (separate from the Heart of Magic zip) |
+| `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` | The release archive (separate from the Heart of Magic zip): the ESL, the DLL, the rules JSON, `LICENSE`, its own `THIRD-PARTY-NOTICES.md` (source tag `npcspells-v<version>`) and `licenses/`. The PDB goes to `..._DebugSymbols.zip` |
+| `plugins/NPCSpells/VERSION` | The addon's own version (1.0.0), apart from Heart of Magic's `VERSION`: the DLL's version, the report's `Version:` line and the zip name |
 
 ## How lists are made
 
@@ -137,13 +140,14 @@ array of plain entries) and never frees or reads the old pointer.
   but is an Illusion spell is treated as an ordinary Illusion spell (undead-rule spells are `undead` with
   summoning or control).
 - A spell another mod's `*_DISTR.ini` names is left out wherever the name appears in the file, also in a filter, so a
-  few too many are skipped. Only files named `*_DISTR.ini` are read, found anywhere the shared tome-reach scan looks;
-  names are read as UTF-8 and a bad entry is skipped alone.
+  few too many are skipped. Only files named `*_DISTR.ini` at Data's top level are read (where SPID reads them;
+  `TomeReach::TopLevelConfigs`, the shared tome-reach config code); names are read as UTF-8 and a bad entry is
+  skipped alone.
 - Another plugin that overrides this ESL's leveled lists is not supported.
 - Each filled list leaves the small block the engine had pointed it at (about 338 blocks, once per game start): its
   origin is unknown, so freeing it could damage the game heap.
 - The engine re-rolls each time an actor enters high process, so the same NPC can show different spells over a session.
-- Not yet measured in the game: see the spec, section 8.
+- Measured numbers (offline on the 1.5.0 files, and the game's report): the spec, section 8. The in-game checklist below is only partly done.
 
 ## Development
 
@@ -161,7 +165,12 @@ the ESL and the DLL ship together and nothing saved refers to the lists.
 
 ## In-game check (TAKEALOOK dev install, More Informative Console installed)
 
-Not done yet. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu, then:
+Partly done (2026-10-10, the pre-1.5.0 build of the addon on TAKEALOOK): 338 lists filled, 2,468 NPCs given lists,
+`skippedPrefilled 0`; Farengar's `Actor.HasSpell` was true for spells only our lists hold, so the engine does resolve
+them (the console and MIC spell lists do not show leveled results). Still open: an Alteration R1 list on Farengar
+gave no `HasSpell` hit in two sweeps (107 of 118 spells checked), and one spell per list is not pinned (step 4).
+The offline pool on the 1.5.0 files gives Alteration lists normally (`npcspells-test --tree`), so that doubt is on
+the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu, then:
 
 1. Open `HeartOfMagic_NPCSpells.log`: expect "ESL records loaded=true found=921 missing=0 wrongType=0", the pool
    line, the list count, the NPC counts and "done in N ms total" (expected well under 500 ms).
