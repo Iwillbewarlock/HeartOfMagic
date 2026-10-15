@@ -1,5 +1,6 @@
 #include "HazardHook.h"
 
+#include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
@@ -90,7 +91,7 @@ namespace BlackFlame
         // Any thread: queue a hazard with 3D once, and have it handled on the next game-thread task
         void Queue(RE::Hazard* a_hazard)
         {
-            if (!IsStoked() || !a_hazard->Get3D()) {
+            if (!IsStoked() || !GetConfig().hazard || !a_hazard->Get3D()) {
                 return;
             }
             const auto handle = a_hazard->GetHandle();
@@ -112,11 +113,19 @@ namespace BlackFlame
             QueueTask("BlackFlameHazard", &TickHazards);
         }
 
-        void RecolorHazard(RE::Hazard* a_hazard, const RE::BGSHazard* a_base)
+        // Back into the queue on a later Set3D/Initialize (an early call may have had placeholder 3D)
+        void Unqueue(const RE::ObjectRefHandle& a_handle)
+        {
+            std::lock_guard lock(g_mutex);
+            Queued().erase(a_handle.native_handle());
+        }
+
+        // True when something changed (a shape recoloured or already grey, or the light tinted)
+        bool RecolorHazard(RE::Hazard* a_hazard, const RE::BGSHazard* a_base, PlayerLink a_link)
         {
             RecolorStats stats;
             if (!Guarded("hazard recolour", [&]() { stats = RecolorTree(a_hazard->Get3D()); })) {
-                return;
+                return true;  // faulted: not again
             }
             const char* lightKind = "not touched (light false)";
             bool tinted = false;
@@ -130,14 +139,16 @@ namespace BlackFlame
             const auto* spell = a_base->data.spell;
             int suppressed = 0;
             if (LogLimit::Allow("hazard", a_base->GetFormID(), suppressed)) {
-                logger::info("BlackFlame: hazard {:08X} (spell {:08X}): {}; light {} {}{}", a_base->GetFormID(),
-                    spell ? spell->GetFormID() : 0, stats.Describe(), lightKind, tinted ? "tinted" : "left",
+                logger::info("BlackFlame: hazard {:08X} (spell {:08X}, the player's through its {}): {}; light {} {}{}",
+                    a_base->GetFormID(), spell ? spell->GetFormID() : 0, PlayerLinkName(a_link), stats.Describe(),
+                    lightKind, tinted ? "tinted" : "left",
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
+            return stats.Recolored() + stats.alreadyOurs > 0 || tinted;
         }
 
         // One queued hazard: handled or dropped (true), or its owner still unset (false: wait)
-        bool Handle(const PendingHazard& a_pending, RE::PlayerCharacter* a_player)
+        bool Handle(const PendingHazard& a_pending)
         {
             if (a_pending.generation != WorldGeneration()) {
                 return true;
@@ -148,20 +159,24 @@ namespace BlackFlame
                 return true;
             }
             const auto owner = hazard->GetHazardRuntimeData().ownerActor.get();
-            if (!owner) {
+            if (!owner && !hazard->GetActorCause()) {
                 if (Clock::now() - a_pending.queuedAt < kOwnerWait) {
                     return false;
                 }
                 int suppressed = 0;
                 if (LogLimit::Allow("hazard no owner", 0, suppressed)) {
-                    logger::info("BlackFlame: hazard {:08X}: no ownerActor after {} s - left", hazard->GetFormID(),
-                        kOwnerWait.count());
+                    logger::info("BlackFlame: hazard {:08X}: no ownerActor or actor cause after {} s - left",
+                        hazard->GetFormID(), kOwnerWait.count());
                 }
                 return true;
             }
             const auto* base = BaseOf(hazard);
-            if (owner.get() == a_player && IsFireHazard(base) && IsStoked()) {
-                RecolorHazard(hazard, base);
+            const auto link = LinkToPlayer(hazard, owner.get());
+            if (link != PlayerLink::kNone && IsFireHazard(base) && IsStoked()) {
+                LogLinkOnce("hazard", link);
+                if (!RecolorHazard(hazard, base, link)) {
+                    Unqueue(a_pending.handle);
+                }
             }
             return true;
         }
@@ -227,10 +242,9 @@ namespace BlackFlame
             std::lock_guard lock(g_mutex);
             due.swap(Pending());
         }
-        auto* player = RE::PlayerCharacter::GetSingleton();
         std::vector<PendingHazard> again;
         for (const auto& pending : due) {
-            if (!Handle(pending, player)) {
+            if (!Handle(pending)) {
                 again.push_back(pending);
             }
         }

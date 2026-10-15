@@ -1,5 +1,6 @@
 #include "ProjectileHook.h"
 
+#include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
@@ -109,7 +110,9 @@ namespace BlackFlame
                 return;
             }
             const auto shooter = data.shooter.get();
-            const bool byPlayer = shooter && shooter.get() == RE::PlayerCharacter::GetSingleton();
+            const auto link = LinkToPlayer(a_projectile, shooter.get());
+            const bool byPlayer = link != PlayerLink::kNone;
+            LogLinkOnce("projectile", link);
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
             const bool logMaterials = counter.fetch_add(1) < kMaxMaterialLogs;

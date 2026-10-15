@@ -62,9 +62,10 @@ namespace BlackFlame::SelfTest
                 forms.burnShader ? forms.burnShader->GetFormID() : 0,
                 forms.stokedKeyword ? forms.stokedKeyword->GetFormID() : 0,
                 forms.stokeSpell ? forms.stokeSpell->GetFormID() : 0));
-            SelfTestLog::Info("T0", std::format("fire spells: catalog {} ({}), keyword {}, total {}; fire effects {}, "
-                "fire explosions {}", counts.catalogFire, counts.catalogRead ? "read" : "NOT read", counts.keywordFire,
-                counts.total, counts.effects, counts.explosions));
+            SelfTestLog::Info("T0", std::format("fire spells (a fire MGEF) {}; fire effects {}, fire explosions {}, fire "
+                "hazards {}; catalog {}: {} tagged fire, {} of them without a fire effect (left)", counts.total,
+                counts.effects, counts.explosions, counts.hazards, counts.catalogRead ? "read" : "NOT read",
+                counts.catalogFire, counts.catalogOnly));
             SelfTestLog::Info("T0", std::format("config: burnShader={} hitArt={} projectile={} explosion={} hazard={} "
                 "handArt={} light={} forcePalette={} particleColors={} tintScale={}", cfg.burnShader, cfg.hitArt,
                 cfg.projectile, cfg.explosion, cfg.hazard, cfg.handArt, cfg.light, cfg.forcePalette, cfg.particleColors, cfg.tintScale));

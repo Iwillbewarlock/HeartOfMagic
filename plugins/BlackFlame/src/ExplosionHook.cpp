@@ -1,5 +1,6 @@
 #include "ExplosionHook.h"
 
+#include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
@@ -13,6 +14,7 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -104,18 +106,34 @@ namespace BlackFlame
             }
         }
 
-        // Every explosion is handled once, whichever hook sees its 3D first (Set3D, Initialize or Update).
-        // Keyed by its reference handle, whose age bits differ when an address or slot is reused.
+        // Every explosion is decided once, whichever hook sees its 3D first with its attribution known
+        // (Set3D, Initialize or Update). Keyed by its reference handle, whose age bits differ when a
+        // slot is reused. Past the cap only handles whose explosion is gone are dropped.
+        std::mutex g_processedMutex;
+        constexpr std::size_t kMaxProcessed = 512;
+
+        std::unordered_map<std::uint32_t, RE::ObjectRefHandle>& Processed()
+        {
+            static auto* processed = std::make_unique<std::unordered_map<std::uint32_t, RE::ObjectRefHandle>>().release();
+            return *processed;
+        }
+
+        bool IsProcessed(RE::Explosion* a_explosion)
+        {
+            std::lock_guard lock(g_processedMutex);
+            return Processed().contains(a_explosion->GetHandle().native_handle());
+        }
+
+        // False when another hook got there first
         bool MarkProcessed(RE::Explosion* a_explosion)
         {
-            static std::mutex mutex;
-            static auto* processed = std::make_unique<std::unordered_set<std::uint32_t>>().release();
-            constexpr std::size_t kMaxProcessed = 512;  // explosions live about a second: start over past this
-            std::lock_guard lock(mutex);
-            if (processed->size() > kMaxProcessed) {
-                processed->clear();
+            std::lock_guard lock(g_processedMutex);
+            auto& processed = Processed();
+            if (processed.size() > kMaxProcessed) {
+                std::erase_if(processed, [](const auto& a_entry) { return !a_entry.second.get(); });
             }
-            return processed->insert(a_explosion->GetHandle().native_handle()).second;
+            const auto handle = a_explosion->GetHandle();
+            return processed.try_emplace(handle.native_handle(), handle).second;
         }
 
         // The first kMaxDiagnostics hook calls on ANY explosion: does a hook fire at all, and with what
@@ -132,27 +150,41 @@ namespace BlackFlame
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
             logger::info("BlackFlame: explosion diagnostics [{}]: base {:08X} (fire set: {}), owner {:08X}, cause actor "
                          "{:08X}, magicCaster {} currentSpell {:08X}, 3D {}, thread {}",
-                a_hook, explosion ? explosion->GetFormID() : 0, IsFireExplosion(explosion, casterSpell) ? "yes" : "no",
+                a_hook, explosion ? explosion->GetFormID() : 0, IsFireExplosion(explosion) ? "yes" : "no",
                 owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0, data.magicCaster ? "set" : "null",
                 casterSpell ? casterSpell->GetFormID() : 0, a_has3D ? "present" : "null", REX::W32::GetCurrentThreadId());
         }
 
-        void OnSet3D(RE::Explosion* a_explosion)
+        // a_everyFrame: the Update route, which runs every frame on every explosion - nothing is done
+        // there unless the buff is on or the self-test records
+        void OnSet3D(RE::Explosion* a_explosion, bool a_everyFrame = false)
         {
-            if (!MarkProcessed(a_explosion)) {
-                return;  // another hook already handled this explosion
+            if (a_everyFrame && !IsStoked() && !SelfTestProbe::Recording()) {
+                return;
+            }
+            if (IsProcessed(a_explosion)) {
+                return;
             }
             auto* base = a_explosion->GetBaseObject();
             const auto* explosion = base ? base->As<RE::BGSExplosion>() : nullptr;
             auto& data = a_explosion->GetExplosionRuntimeData();
             const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
-            if (!IsFireExplosion(explosion, casterSpell)) {
+            if (!IsFireExplosion(explosion)) {
+                (void)MarkProcessed(a_explosion);
                 return;
             }
             const auto owner = data.actorOwner.get();
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
-            auto* player = RE::PlayerCharacter::GetSingleton();
-            const bool byPlayer = player && (owner.get() == player || cause.get() == player);
+            // Attribution not set yet (no owner, no cause): decided by a later hook call instead
+            if (!owner && !cause && !(data.magicCaster && data.magicCaster->blameActor.get())) {
+                return;
+            }
+            if (!MarkProcessed(a_explosion)) {
+                return;  // another hook already handled this explosion
+            }
+            const auto link = LinkToPlayer(a_explosion, owner.get(), data.magicCaster);
+            const bool byPlayer = link != PlayerLink::kNone;
+            LogLinkOnce("explosion", link);
             if (!byPlayer && g_otherLogs.fetch_add(1) < kMaxAttributionLogs) {
                 // Shows whether attribution works at all (an explosion with neither field set stays orange)
                 logger::info("BlackFlame: fire explosion {:08X} not the player's: owner {:08X}, cause actor {:08X}",
@@ -272,7 +304,7 @@ namespace BlackFlame
                 func(a_this, a_delta);
                 try {
                     if (a_this && a_this->Get3D()) {
-                        (void)Guarded("explosion Update", [&]() { OnSet3D(a_this); });
+                        (void)Guarded("explosion Update", [&]() { OnSet3D(a_this, true); });
                     }
                 } catch (...) {
                     if (!g_failureReported.exchange(true)) {
@@ -300,6 +332,10 @@ namespace BlackFlame
         {
             std::lock_guard lock(g_lightsMutex);
             PendingLights().clear();
+        }
+        {
+            std::lock_guard lock(g_processedMutex);
+            Processed().clear();
         }
         g_lightMissing.store(0);
         g_recolors.store(0);
