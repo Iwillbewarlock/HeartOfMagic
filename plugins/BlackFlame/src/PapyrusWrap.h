@@ -20,8 +20,8 @@
 // ActiveEffect, VMTypeID 142), or a reference already tagged, PlaceAtMe's result
 // (the result value) is tagged placed, and Cast/RemoteCast's akSource is tagged a
 // source when the spell carries a fire MGEF (ScriptTags.h). The ActiveEffect is
-// read only on the game thread: a call on a VM thread keeps the caller's VM
-// handle and a task decides. Actors are never tagged. A reference placed
+// read only on the game thread: a call on a VM thread stores the tag as pending
+// with the caller's VM handle, judged by a task or the ticker, never a hook. Actors are never tagged. A reference placed
 // initially disabled has no 3D within the tag's window and stays as it is. No
 // script, mod or FormID is named anywhere.
 

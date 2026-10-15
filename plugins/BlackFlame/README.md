@@ -221,16 +221,16 @@ mesh. No form is changed and no form is made; NPC fire never takes the swap.
 - **Hazards**: `Load3D` on the Hazard vtable: the player's fire hazard (owner, blame or script tag; one made inside
   an impact window is tagged first) whose base model has a grey copy gets it through BGSHazard's `GetModel` during
   that load only.
-- **Address Library**: every function id is checked in the running game's database first (`REL::Offset2ID`); a
+- **Address Library**: all eight function ids are present in the 1.6.1170 and 1.5.97 Address Library (checked with the id audit reader, 2026-10-16). Every function id is also checked in the running game's database first (`REL::Offset2ID`); a
   missing id turns the impact swap off with a log line instead of a failed lookup.
 
 | What | SE / AE | Status |
 |---|---|---|
-| `Projectile::SpawnCollisionEffects` | 43022 / 44213 | AE: 1.7.104 code, 1.6.1170 by id alignment; SE matched by algorithm (po3 uses the pair) |
-| `Projectile::ProcessImpacts` (caller 1) | 42943 / 44123 | AE: 1.7.104 code and 1.6.1170 vtable slot 0xAC; call offset +0x407 AE / +0x410 SE from MuIF only (fallback) |
-| caller 2 (from `HandleHits`) | 43014 / 44205 | AE: 1.7.104 code; SE matched by algorithm |
-| caller 3 (from `ConeProjectile::UpdateImpl`) | 42638 / 43806 | AE: 1.7.104 code; SE matched by algorithm |
-| `VTABLE_BGSImpactData[1]` slot 4, `VTABLE_BGSHazard[2]` slot 4 (`TESModel::GetModel`) | CommonLib ids | verified on 1.6.1170 .rdata (research notes) |
+| `Projectile::SpawnCollisionEffects` | 43022 / 44213 | present in the 1.6.1170 and 1.5.97 Address Library (AE 0x7ecd80, SE 0x7531c0); code: 1.7.104, 1.6.1170 by id alignment, SE matched by algorithm (po3 uses the pair) |
+| `Projectile::ProcessImpacts` (caller 1) | 42943 / 44123 | present in the 1.6.1170 and 1.5.97 Address Library (AE 0x7e5cd0, SE 0x74c710); code: 1.7.104 and 1.6.1170 vtable slot 0xAC; call offset +0x407 AE / +0x410 SE from MuIF only (fallback) |
+| caller 2 (from `HandleHits`) | 43014 / 44205 | present in the 1.6.1170 and 1.5.97 Address Library (AE 0x7ec130, SE 0x752620); code: 1.7.104, SE matched by algorithm |
+| caller 3 (from `ConeProjectile::UpdateImpl`) | 42638 / 43806 | present in the 1.6.1170 and 1.5.97 Address Library (AE 0x7ce260, SE 0x7369b0); code: 1.7.104, SE matched by algorithm |
+| `VTABLE_BGSImpactData[1]` slot 4, `VTABLE_BGSHazard[2]` slot 4 (`TESModel::GetModel`) | CommonLib ids (AE 190905 / 189083) | present in the 1.6.1170 Address Library (0x17b7e18 / 0x1793ca8); slots verified on 1.6.1170 .rdata (research notes) |
 | Hazard vtable slot 0x6A (`TESObjectREFR::Load3D`) | CommonLib id | verified on 1.6.1170 .rdata; not overridden by Hazard |
 | Explosion vtable slot 0xA3 (`Update`) | CommonLib id | verified on 1.6.1170 .rdata |
 
@@ -327,8 +327,11 @@ found is retried after a load or new game). Only while the buff is on, when the 
 the native (the frame before the native's own) is a fire effect the player cast or a reference
 already tagged: what PlaceAtMe returned is tagged placed, and the akSource of Cast/RemoteCast (when
 the spell carries a fire effect) is tagged a source for 5 s, so its projectiles count as the
-player's. The active effect is read only on the game thread: a call on a VM thread keeps the
-caller's VM handle and a task decides. Actors are never tagged. A placed reference is recoloured
+player's. The active effect is read only on the game thread: a call on a VM thread stores the tag
+at once as pending with the caller's VM handle, and a task or the ticker judges it - never a hook
+(hooks count confirmed tags only; a projectile matched only by a pending tag is decided by a task
+after the judgement, an explosion waits, the impact window and the hazard model swap treat it as not
+the player's). Actors are never tagged. A placed reference is recoloured
 once its 3D exists (within 5 s) only when its base is a fire explosion or hazard, or a visual-only
 kind (activator, moveable static, static, art object); other kinds are left (logged once per form
 type). No script, mod or FormID is named. The first native calls log the frames they saw

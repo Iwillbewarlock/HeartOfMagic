@@ -20,12 +20,30 @@ namespace BlackFlame
     void TagSource(RE::TESObjectREFR* a_ref);
 
     /// From a VM thread: the tag is stored at once (no ordering race with the cast it belongs to) with
-    /// the calling script's VM handle; it counts only once the game thread judged that caller a fire
-    /// effect the player cast (at the first IsTaggedSource there, or the next tick), else it is dropped
+    /// the calling script's VM handle; it counts only once a task or the ticker judged that caller a fire
+    /// effect the player cast (ResolvePending, TickScriptTags), else it is dropped. Hooks never judge:
+    /// that needs the VM handle policy and a hook may hold engine locks.
     void TagPending(RE::TESObjectREFR* a_ref, bool a_placed, RE::VMHandle a_caller);
 
-    /// Any thread: a live, confirmed source tag (or placed tag) names this reference; a pending one is
-    /// judged here on the game thread and does not count elsewhere
+    enum class TagState
+    {
+        kNone,
+        kPending,
+        kConfirmed
+    };
+
+    /// Any thread, never judges
+    [[nodiscard]] TagState TagStateOf(const RE::TESObjectREFR* a_ref);
+
+    /// From a task or the ticker only (never a hook): judges a pending tag on this reference now; true
+    /// when it is (now) confirmed
+    bool ResolvePending(const RE::TESObjectREFR* a_ref);
+
+    /// Once per layer (a string literal): a decision was deferred because only a pending tag matched
+    void LogDeferredOnce(const char* a_layer);
+
+    /// Any thread, never judges: a live, confirmed source tag (or placed tag) names this reference; a
+    /// pending one does not count (yet)
     [[nodiscard]] bool IsTaggedSource(const RE::TESObjectREFR* a_ref);
 
     /// Ticker task: recolours placed references whose 3D exists, drops expired tags

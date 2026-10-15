@@ -167,6 +167,7 @@ namespace BlackFlame
             if (!hazard || !hazard->Get3D()) {
                 return true;
             }
+            (void)ResolvePending(hazard);  // a task, not a hook: a pending script tag may be judged here
             const auto owner = hazard->GetHazardRuntimeData().ownerActor.get();
             if (!owner && !IsTaggedSource(hazard)) {
                 if (Clock::now() - a_pending.queuedAt < kOwnerWait) {

@@ -8,6 +8,7 @@
 #include "LogLimit.h"
 #include "PlayerArt.h"
 #include "Recolor.h"
+#include "ScriptTags.h"
 #include "SehGuard.h"
 #include "SelfTestProbe.h"
 
@@ -107,6 +108,34 @@ namespace BlackFlame
             SelfTestProbe::RecordProjectile(std::move(record));
         }
 
+        // Only a pending script tag names this projectile or its shooter: a task judges it (never this
+        // hook) and decides the projectile then
+        void DeferForPendingTag(RE::Projectile* a_projectile, const char* a_kind)
+        {
+            LogDeferredOnce("projectile");
+            const auto handle = a_projectile->GetHandle();
+            const auto generation = WorldGeneration();
+            const auto hookThread = REX::W32::GetCurrentThreadId();
+            QueueTask("BlackFlameProjectileTag", [handle, a_kind, generation, hookThread]() {
+                if (generation != WorldGeneration()) {
+                    return;
+                }
+                const auto ref = handle.get();
+                auto* projectile = skyrim_cast<RE::Projectile*>(ref.get());
+                if (!projectile) {
+                    return;
+                }
+                const auto shooter = projectile->GetProjectileRuntimeData().shooter.get();
+                (void)ResolvePending(projectile);
+                (void)ResolvePending(shooter.get());
+                const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
+                if (link != PlayerLink::kNone && IsStoked() && GetConfig().projectile) {
+                    LogLinkOnce("projectile", link);
+                    HandleProjectile(projectile, a_kind, true, true, PlayerLinkName(link), false, hookThread, false);
+                }
+            });
+        }
+
         void OnHandle3DLoaded(RE::Projectile* a_projectile, const char* a_kind)
         {
             auto& data = a_projectile->GetProjectileRuntimeData();
@@ -117,6 +146,11 @@ namespace BlackFlame
             }
             const auto shooter = data.shooter.get();
             const auto link = LinkToPlayer("projectile", a_projectile, shooter.get(), NonActorCasterOf(shooter.get()));
+            if (link == PlayerLink::kNone && (TagStateOf(a_projectile) == TagState::kPending ||
+                                                 TagStateOf(shooter.get()) == TagState::kPending)) {
+                DeferForPendingTag(a_projectile, a_kind);
+                return;
+            }
             const bool byPlayer = link != PlayerLink::kNone;
             LogLinkOnce("projectile", link);
             const char* linkName = PlayerLinkName(link);

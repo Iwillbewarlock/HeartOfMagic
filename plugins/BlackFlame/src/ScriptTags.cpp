@@ -198,10 +198,29 @@ namespace BlackFlame
         Add(a_ref, a_placed, a_caller);
     }
 
-    bool IsTaggedSource(const RE::TESObjectREFR* a_ref)
+    TagState TagStateOf(const RE::TESObjectREFR* a_ref)
     {
         if (!a_ref || g_count.load() == 0) {
-            return false;
+            return TagState::kNone;
+        }
+        const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
+        std::lock_guard lock(g_mutex);
+        const auto it = Tags().find(value);
+        if (it == Tags().end() || it->second.expires <= Clock::now() || it->second.generation != WorldGeneration()) {
+            return TagState::kNone;
+        }
+        return it->second.pendingCaller == 0 ? TagState::kConfirmed : TagState::kPending;
+    }
+
+    bool IsTaggedSource(const RE::TESObjectREFR* a_ref)
+    {
+        return TagStateOf(a_ref) == TagState::kConfirmed;  // never judges: hooks call this
+    }
+
+    bool ResolvePending(const RE::TESObjectREFR* a_ref)
+    {
+        if (!a_ref || !IsOnGameThread()) {
+            return IsTaggedSource(a_ref);
         }
         const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
         RE::VMHandle pending = 0;
@@ -213,8 +232,21 @@ namespace BlackFlame
             }
             pending = it->second.pendingCaller;
         }
-        // A pending tag is judged here, on the game thread only; elsewhere it does not count yet
-        return pending == 0 || (IsOnGameThread() && JudgePending(value, pending));
+        return pending == 0 || JudgePending(value, pending);
+    }
+
+    void LogDeferredOnce(const char* a_layer)
+    {
+        static std::mutex mutex;
+        static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
+        {
+            std::lock_guard lock(mutex);
+            if (!logged->insert(a_layer).second) {
+                return;
+            }
+        }
+        logger::info("BlackFlame: {}: decision deferred - only a pending script tag matched (judged by a task or the "
+                     "ticker, never inside a hook)", a_layer);
     }
 
     void TickScriptTags()

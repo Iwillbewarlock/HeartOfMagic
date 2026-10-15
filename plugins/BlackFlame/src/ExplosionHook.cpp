@@ -236,6 +236,11 @@ namespace BlackFlame
             auto* casterRef = data.magicCaster ? data.magicCaster->GetCasterObjectReference(&casterActor) : nullptr;
             // Attribution not set yet (no owner, blame or script tag; the cause is no rule): decided by a
             // later hook call, or given up after kUndecidedLimit
+            const bool pendingTag = TagStateOf(a_explosion) == TagState::kPending || TagStateOf(casterRef) == TagState::kPending;
+            if (pendingTag) {
+                LogDeferredOnce("explosion");  // the ticker judges it; a later hook call decides then
+            }
+            // A pending tag is not confirmed: such an explosion waits here like an undecided one
             if (!owner && !(data.magicCaster && data.magicCaster->blameActor.get()) && !IsTaggedSource(a_explosion) &&
                 !IsTaggedSource(casterRef)) {
                 (void)UndecidedTooLong(a_explosion);
