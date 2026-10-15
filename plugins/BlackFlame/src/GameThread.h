@@ -18,6 +18,15 @@ namespace BlackFlame
     inline std::atomic<std::uint32_t> g_gameThreadNativeId{ 0 };
     inline constexpr int kMaxThreadLogs = 3;
 
+    // Bumped when a save loads or a new game starts (Main.cpp ResetLayers): a task queued in the
+    // old world captures the value it was queued with and does nothing when it no longer matches
+    inline std::atomic<std::uint32_t> g_worldGeneration{ 0 };
+
+    [[nodiscard]] inline std::uint32_t WorldGeneration() noexcept
+    {
+        return g_worldGeneration.load();
+    }
+
     /// Call where ::MarkGameThread() is called (the SKSE messaging handler)
     inline void StampGameThread()
     {
@@ -26,7 +35,8 @@ namespace BlackFlame
     }
 
     /// The first kMaxThreadLogs calls per counter: which thread a hook ran on
-    inline void LogHookThread(std::atomic<int>& a_counter, const char* a_hook)
+    inline void LogHookThread(std::atomic<int>& a_counter, const char* a_hook,
+        const char* a_onGame = "recolour at once", const char* a_elsewhere = "deferred to a game-thread task")
     {
         if (a_counter.fetch_add(1) >= kMaxThreadLogs) {
             return;
@@ -34,6 +44,6 @@ namespace BlackFlame
         const auto current = REX::W32::GetCurrentThreadId();
         const auto game = g_gameThreadNativeId.load();
         logger::info("BlackFlame: {} ran on thread {} (game thread {}): {}", a_hook, current, game,
-            current == game ? "recolour at once" : "deferred to a game-thread task");
+            current == game ? a_onGame : a_elsewhere);
     }
 }

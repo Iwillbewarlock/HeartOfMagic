@@ -91,10 +91,11 @@ namespace BlackFlame
         {
             auto* base = a_explosion->GetBaseObject();
             const auto* explosion = base ? base->As<RE::BGSExplosion>() : nullptr;
-            if (!IsFireExplosion(explosion)) {
+            auto& data = a_explosion->GetExplosionRuntimeData();
+            const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
+            if (!IsFireExplosion(explosion, casterSpell)) {
                 return;
             }
-            auto& data = a_explosion->GetExplosionRuntimeData();
             const auto owner = data.actorOwner.get();
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
             auto* player = RE::PlayerCharacter::GetSingleton();
@@ -106,21 +107,20 @@ namespace BlackFlame
             }
             // Explosion.h:87 magicCaster is the explosion's OWN NonActorMagicCaster (it applies the
             // explosion's effect in its radius), not the player's caster, so it cannot name a spell the
-            // player cast later. Its currentSpell (MagicCaster.h:105) may be the projectile's spell or
-            // the explosion's own enchantment: only a staff, a scroll or a non-fire spell excludes; an
-            // enchantment or none leaves the base form and the attribution to decide (README limit).
-            const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
-            const auto casterType = casterSpell ? casterSpell->GetSpellType() : RE::MagicSystem::SpellType::kEnchantment;
-            const bool notFireCast = casterSpell && (casterType == RE::MagicSystem::SpellType::kScroll ||
-                                                        casterType == RE::MagicSystem::SpellType::kStaffEnchantment ||
-                                                        (casterType == RE::MagicSystem::SpellType::kSpell &&
-                                                            !IsFireSpell(casterSpell)));
+            // player cast later. A whitelist on its currentSpell (MagicCaster.h:105): none, a fire spell
+            // (kSpell), or an enchantment - the explosion's own, which cannot be told apart from a weapon
+            // enchantment here (README limit). Anything else (scroll, staff, power, potion...) is left.
+            using SpellType = RE::MagicSystem::SpellType;
+            const bool fireCast = !casterSpell ||
+                                  (casterSpell->GetSpellType() == SpellType::kSpell && IsFireSpell(casterSpell)) ||
+                                  casterSpell->GetSpellType() == SpellType::kEnchantment;
+            const bool notFireCast = !fireCast;
             if (byPlayer && notFireCast) {
                 int suppressed = 0;
                 if (LogLimit::Allow("explosion skipped", casterSpell->GetFormID(), suppressed)) {
                     logger::info("BlackFlame: explosion {:08X} left: its magicCaster's current spell {:08X} is not a fire "
                                  "spell (type {})", explosion->GetFormID(), casterSpell->GetFormID(),
-                        static_cast<int>(casterType));
+                        static_cast<int>(casterSpell->GetSpellType()));
                 }
             }
             const bool recolor = byPlayer && !notFireCast && IsStoked() && GetConfig().explosion;
@@ -148,8 +148,12 @@ namespace BlackFlame
                 return;
             }
             const auto handle = a_explosion->GetHandle();
+            const auto generation = WorldGeneration();
             AddTaskToGameThread("BlackFlameExplosion",
-                [handle, recolor, logMaterials, record = std::move(record)]() mutable {
+                [handle, recolor, logMaterials, generation, record = std::move(record)]() mutable {
+                    if (generation != WorldGeneration()) {
+                        return;  // queued before a load
+                    }
                     const auto ref = handle.get();
                     if (auto* explosion = ref ? ref->AsExplosion() : nullptr) {
                         HandleExplosion(explosion, recolor, logMaterials, std::move(record));

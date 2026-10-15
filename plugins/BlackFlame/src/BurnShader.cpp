@@ -13,6 +13,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -64,6 +65,15 @@ namespace BlackFlame
             return *pending;
         }
 
+        // An instant hit's claim on a grey shader: not finished before this age (seconds), even when
+        // the duration effect that created it ends (raw pointers as keys only, never dereferenced
+        // outside the ProcessLists lock; pruned when the shader is gone). Heap-held like the rest.
+        std::unordered_map<RE::ShaderReferenceEffect*, float>& AgeFloors()
+        {
+            static auto* floors = std::make_unique<std::unordered_map<RE::ShaderReferenceEffect*, float>>().release();
+            return *floors;
+        }
+
         std::uint64_t g_tick = 0;  // game thread only
         std::atomic<bool> g_lifetimeLogged{ false };
         std::atomic<std::size_t> g_liveCount{ 0 };  // for the ticker thread: keep ticking fast while > 0
@@ -111,22 +121,20 @@ namespace BlackFlame
             return nullptr;
         }
 
-        // Still running: not dispelled or inactive, not past its duration (BuffState's rule)
-        bool IsLive(const RE::ActiveEffect* a_effect)
-        {
-            return a_effect && !a_effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive) &&
-                   !(a_effect->duration > 0.0f && a_effect->elapsedSeconds >= a_effect->duration);
-        }
-
-        // A fire effect cast by a fire spell (a scroll, staff or enchantment sharing the MGEF is not)
-        bool IsBurnable(const RE::EffectSetting* a_base, const RE::MagicItem* a_spell)
-        {
-            return IsFireSpell(a_spell) && IsFireEffect(a_base);
-        }
-
         bool IsConcentration(const RE::EffectSetting* a_base)
         {
             return a_base && a_base->data.castingType == RE::MagicSystem::CastingType::kConcentration;
+        }
+
+        // Still running: not dispelled or inactive, not past its duration (BuffState's rule) - except
+        // a concentration effect, which the engine refreshes while the cast is held
+        bool IsLive(const RE::ActiveEffect* a_effect)
+        {
+            if (!a_effect || a_effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
+                return false;
+            }
+            return IsConcentration(a_effect->GetBaseObject()) ||
+                   !(a_effect->duration > 0.0f && a_effect->elapsedSeconds >= a_effect->duration);
         }
 
         // Sets `finished` on exactly these shaders, under the ProcessLists lock like every other
@@ -139,6 +147,27 @@ namespace BlackFlame
             }
             lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
                 if (a_shaders.contains(a_effect)) {
+                    a_effect->finished = true;
+                }
+                return RE::BSContainer::ForEachResult::kContinue;
+            });
+        }
+
+        // Our grey shaders: finished under the lock, unless an instant hit still claims one (its age
+        // floor); such a shader runs out by its lifetime, which the instant hit already extended
+        void FinishGreyUnderLock(const std::vector<RE::NiPointer<RE::ShaderReferenceEffect>>& a_shaders)
+        {
+            auto* lists = RE::ProcessLists::GetSingleton();
+            if (!lists || a_shaders.empty()) {
+                return;
+            }
+            auto& floors = AgeFloors();
+            lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
+                if (std::ranges::none_of(a_shaders, [&](const auto& s) { return s.get() == a_effect; })) {
+                    return RE::BSContainer::ForEachResult::kContinue;
+                }
+                const auto floor = floors.find(a_effect);
+                if (floor == floors.end() || a_effect->age >= floor->second) {
                     a_effect->finished = true;
                 }
                 return RE::BSContainer::ForEachResult::kContinue;
@@ -273,8 +302,8 @@ namespace BlackFlame
             const auto* spell = effect ? effect->spell : a_facts.spell;
             if (!base && !effect) {
                 // Read off the game thread: no facts, and the effect is already gone
-                LogBurn(0, targetRef->GetFormID(), std::format("effect {} on {:08X} gone before the task ran and the "
-                    "event was not on the game thread: nothing known, nothing applied", a_id, targetRef->GetFormID()));
+                LogBurn(0, targetRef->GetFormID(), std::format("effect {} on {:08X} gone before the task ran and no "
+                    "facts from the event (sink off the game thread, or the effect not found there): nothing applied", a_id, targetRef->GetFormID()));
                 ReportBurn({ 0, targetRef->GetFormID(), 0, 0, "active effect gone, no event facts", 0, kFirstAttempt,
                     false, false });
                 return;
@@ -292,8 +321,13 @@ namespace BlackFlame
                                            (a_facts.duration > 0.0f ? a_facts.duration : kInstantBurnSeconds);
             bool extended = false;
             auto grey = ApplyOrExtendGrey(targetRef.get(), a_target, ours, seconds, extended);
-            if (grey && effect && (effect->duration > 0.0f || IsConcentration(base))) {
+            const bool tracked = effect && (effect->duration > 0.0f || IsConcentration(base));
+            if (grey && tracked) {
                 Live().push_back({ a_target, a_id, grey });  // kept alight while the effect lasts (TickBurns)
+            } else if (grey) {
+                // An instant hit: its seconds stand even if a duration effect's burn on the same shader ends
+                auto& floor = AgeFloors()[grey.get()];
+                floor = (std::max)(floor, grey->age + seconds);
             }
 
             int stopped = 0;
@@ -357,10 +391,11 @@ namespace BlackFlame
         void KeepLiveBurns()
         {
             auto& live = Live();
-            if (live.empty()) {
+            auto& floors = AgeFloors();
+            if (live.empty() && floors.empty()) {
                 return;
             }
-            std::unordered_set<RE::ShaderReferenceEffect*> toFinish;
+            std::vector<RE::NiPointer<RE::ShaderReferenceEffect>> toFinish;
             std::erase_if(live, [&](const LiveBurn& a_burn) {
                 const auto targetRef = a_burn.target.get();
                 if (!targetRef || !a_burn.shader || a_burn.shader->finished) {
@@ -370,19 +405,24 @@ namespace BlackFlame
                     return false;
                 }
                 if (!PlayerHasOtherFireEffect(targetRef.get(), a_burn.activeEffectId)) {
-                    toFinish.insert(a_burn.shader.get());
+                    toFinish.push_back(a_burn.shader);
                 }
                 return true;
             });
+            FinishGreyUnderLock(toFinish);
             auto* lists = RE::ProcessLists::GetSingleton();
             if (!lists) {
                 return;
             }
+            // Finished entries stay in the ProcessLists for a while: they count as gone here
             std::unordered_set<RE::ShaderReferenceEffect*> seen;
+            std::unordered_set<RE::ShaderReferenceEffect*> floorSeen;
             lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
-                if (toFinish.contains(a_effect)) {
-                    a_effect->finished = true;
+                if (!a_effect || a_effect->finished) {
                     return RE::BSContainer::ForEachResult::kContinue;
+                }
+                if (floors.contains(a_effect)) {
+                    floorSeen.insert(a_effect);
                 }
                 for (const auto& burn : live) {
                     if (burn.shader.get() == a_effect) {
@@ -394,12 +434,14 @@ namespace BlackFlame
                 return RE::BSContainer::ForEachResult::kContinue;
             });
             std::erase_if(live, [&](const LiveBurn& a_burn) { return !seen.contains(a_burn.shader.get()); });
+            std::erase_if(floors, [&](const auto& a_entry) { return !floorSeen.contains(a_entry.first); });
         }
     }
 
     void OnPlayerEffectApplied(RE::TESObjectREFR* a_target, std::uint16_t a_activeEffectId)
     {
-        LogHookThread(g_sinkThreadLogs, "Active effect event sink");
+        LogHookThread(g_sinkThreadLogs, "Active effect event sink", "effect read in the sink, burn in a task",
+            "effect read in the task (no facts from the event)");
         EffectFacts facts;
         // The target's effect list is read here only on the game thread; elsewhere the task reads
         // it (an instant effect may then be gone: StartBurn logs and records that)
@@ -412,13 +454,21 @@ namespace BlackFlame
             }
         }
         const auto handle = a_target->GetHandle();
-        AddTaskToGameThread("BlackFlameBurn",
-            [handle, a_activeEffectId, facts]() { StartBurn(handle, a_activeEffectId, facts); });
+        const auto generation = WorldGeneration();
+        AddTaskToGameThread("BlackFlameBurn", [handle, a_activeEffectId, facts, generation]() {
+            if (generation == WorldGeneration()) {
+                StartBurn(handle, a_activeEffectId, facts);
+            }
+        });
     }
 
     void QueueBurnEnd(RE::ObjectRefHandle a_target, std::uint16_t a_activeEffectId)
     {
-        AddTaskToGameThread("BlackFlameBurnEnd", [a_target, a_activeEffectId]() {
+        const auto generation = WorldGeneration();
+        AddTaskToGameThread("BlackFlameBurnEnd", [a_target, a_activeEffectId, generation]() {
+            if (generation != WorldGeneration()) {
+                return;  // queued before a load
+            }
             auto& live = Live();
             const auto targetRef = a_target.get();
             const auto tracked = std::ranges::find_if(live, [&](const LiveBurn& a_burn) {
@@ -431,7 +481,7 @@ namespace BlackFlame
             }
             auto shader = tracked->shader;
             std::erase_if(live, [&](const LiveBurn& a_burn) { return a_burn.shader == shader; });
-            FinishUnderLock({ shader.get() });
+            FinishGreyUnderLock({ shader });
             UpdateLiveCount();
             LogBurn(0, targetRef->GetFormID(), std::format("effect {} on {:08X} removed, no other fire effect of the "
                 "player there: grey shader finished", a_activeEffectId, targetRef->GetFormID()));
@@ -466,6 +516,7 @@ namespace BlackFlame
     {
         Live().clear();  // on the game thread at kPreLoadGame / kNewGame: the engine is still up
         Pending().clear();
+        AgeFloors().clear();
         UpdateLiveCount();
     }
 }

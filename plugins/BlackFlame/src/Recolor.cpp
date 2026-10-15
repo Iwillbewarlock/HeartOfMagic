@@ -63,8 +63,10 @@ namespace BlackFlame
                 return;
             }
             // The property holds the engine's copy of ours: should it resolve the palette to another
-            // texture object, the path still marks it (else the hand-art tick would recolour again)
-            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath)) {
+            // texture object, the path still marks it (else the hand-art tick would recolour again);
+            // our path without any texture behind it is a broken state, not a finished one
+            if (source->greyscaleTexture.get() == palette ||
+                (IsPalettePath(source->greyscaleTexturePath) && source->greyscaleTexture)) {
                 ++a_stats.alreadyOurs;
                 return;
             }
@@ -96,16 +98,22 @@ namespace BlackFlame
             // changes baseColor every frame without one). If the palette does not show in
             // game, a missing SetupGeometry/FinishSetupGeometry is the first suspect (README).
 
-            const bool hasFlag = a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor);
-            if (hasFlag || GetConfig().forcePalette) {
-                // Re-read: the property holds the engine's copy now, and the palette flag (already
-                // on, or about to be) must never be on without a palette texture behind it
+            using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
+            using Flag8 = RE::BSShaderProperty::EShaderPropertyFlag8;
+            const bool hasFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteColor);
+            const bool hasAlphaFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteAlpha);
+            if (hasFlag || hasAlphaFlag || GetConfig().forcePalette) {
+                // Re-read: the property holds the engine's copy now, and no palette flag (already
+                // on, or about to be) may stay on without a palette texture behind it
                 const auto* now = a_prop->GetMaterial();
                 if (!now || !now->greyscaleTexture) {
+                    // The property is the instance's own: its palette flags go off, so the effect
+                    // technique never reads the missing texture (the shape keeps its own colours)
+                    a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
+                    a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
                     ++a_stats.failed;  // counted only here: not also as a palette swap
                     logger::warn("BlackFlame: property 0x{:X}: the engine's material copy has no greyscale texture "
-                                 "after SetMaterial{}", reinterpret_cast<std::uintptr_t>(a_prop),
-                        hasFlag ? " (its palette flag was already on)" : " - palette flag not added");
+                                 "after SetMaterial - its palette flags were turned off", reinterpret_cast<std::uintptr_t>(a_prop));
                     return;
                 }
             }
@@ -116,7 +124,7 @@ namespace BlackFlame
                 // place: the effect technique gates on the path and reads the pointer unchecked.
                 // The property is the instance's own (cloned per instance; the material is the
                 // pooled part), and the material check log shows its pointer per instance.
-                a_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kGrayscaleToPaletteColor, true);
+                a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, true);
                 ++a_stats.forcedPalette;
             } else {
                 ++a_stats.baseColorOnly;
@@ -252,7 +260,8 @@ namespace BlackFlame
     {
         const auto* material = a_prop ? a_prop->GetMaterial() : nullptr;
         const auto* palette = GetPalette();
+        // Our path counts only with a texture behind it (a broken copy is not "grey")
         return material && ((palette && material->greyscaleTexture.get() == palette) ||
-                               IsPalettePath(material->greyscaleTexturePath));
+                               (IsPalettePath(material->greyscaleTexturePath) && material->greyscaleTexture));
     }
 }

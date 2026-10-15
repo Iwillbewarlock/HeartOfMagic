@@ -35,13 +35,14 @@ namespace BlackFlame
 
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
 
-    /// A fire MGEF of a fire spell: MagicDamageFire keyword or fire resistance as its resist
-    /// value; a catalog-fire spell with none of those contributes its costliest effect. Not a
-    /// verdict alone: a scroll, staff or enchantment can carry the same MGEF, so every caller
-    /// also requires IsFireSpell of the item that cast it.
-    [[nodiscard]] bool IsFireEffect(const RE::EffectSetting* a_effect);
+    /// The effect burns grey: a_spell is a fire spell and a_effect is one of the fire MGEFs
+    /// (MagicDamageFire keyword or fire resistance) - or, for a catalog-fire spell with none of
+    /// those, its costliest effect, for THAT spell only. A scroll, staff or enchantment carrying
+    /// the same MGEF does not count (not a fire spell).
+    [[nodiscard]] bool IsBurnable(const RE::EffectSetting* a_effect, const RE::MagicItem* a_spell);
 
-    /// An explosion named by a fire effect (EffectSetting::data.explosion) or by that
-    /// effect's projectile (BGSProjectile::data.explosionType).
-    [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion);
+    /// An explosion named by a fire MGEF (EffectSetting::data.explosion) or by its projectile
+    /// (BGSProjectile::data.explosionType); one named only by a fallback (costliest) effect counts
+    /// only when a_casterSpell is the spell that contributed it.
+    [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion, const RE::MagicItem* a_casterSpell);
 }

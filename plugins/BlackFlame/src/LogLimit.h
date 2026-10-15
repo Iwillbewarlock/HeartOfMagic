@@ -22,6 +22,8 @@ namespace BlackFlame
     {
     public:
         static constexpr auto kInterval = std::chrono::seconds(1);
+        static constexpr std::size_t kMaxEntries = 512;
+        static constexpr auto kStale = std::chrono::seconds(10);
 
         /// True when a line of this kind for this spell may be written now; a_suppressed
         /// gets the number held back since the last one written (then reset).
@@ -31,6 +33,11 @@ namespace BlackFlame
             static std::unordered_map<std::string, Entry> entries;
             const auto now = std::chrono::steady_clock::now();
             std::lock_guard lock(mutex);
+            // Keys are per target and spell: entries quiet for a while are dropped past a cap, so the
+            // map does not grow for the whole session (a dropped one just logs its next line)
+            if (entries.size() > kMaxEntries) {
+                std::erase_if(entries, [&](const auto& a_entry) { return now - a_entry.second.last > kStale; });
+            }
             auto& entry = entries[std::string(a_kind) + ':' + std::to_string(a_spell)];
             if (entry.written && now - entry.last < kInterval) {
                 ++entry.suppressed;

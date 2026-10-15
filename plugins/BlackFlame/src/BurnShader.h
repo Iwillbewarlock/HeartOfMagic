@@ -5,7 +5,7 @@
 // =============================================================================
 // LAYER 1 - BURN SHADER
 // =============================================================================
-// A fire spell's fire effect (FireSet IsFireSpell and IsFireEffect: a scroll, staff or
+// A fire spell's fire effect (FireSet IsBurnable: a scroll, staff or
 // enchantment sharing the MGEF does not count) the player applied while stoked gets the
 // grey HoMBF_BurnShader at once, on the first attempt, for the effect's remaining
 // time (1.5 s for an instant hit); a grey shader already live on that target is

@@ -46,6 +46,7 @@ namespace
     // The world is torn down: nothing tracked from it may be touched again
     void ResetLayers()
     {
+        BlackFlame::g_worldGeneration.fetch_add(1);  // tasks queued in the old world now do nothing
         BlackFlame::ResetBurnState();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();

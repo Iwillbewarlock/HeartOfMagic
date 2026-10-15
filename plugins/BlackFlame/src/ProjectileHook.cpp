@@ -115,7 +115,12 @@ namespace BlackFlame
                 return;
             }
             const auto handle = a_projectile->GetHandle();
-            AddTaskToGameThread("BlackFlameProjectile", [handle, a_kind, recolor, byPlayer, logMaterials, hookThread]() {
+            const auto generation = WorldGeneration();
+            AddTaskToGameThread("BlackFlameProjectile",
+                [handle, a_kind, recolor, byPlayer, logMaterials, hookThread, generation]() {
+                if (generation != WorldGeneration()) {
+                    return;  // queued before a load
+                }
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
                     HandleProjectile(projectile, a_kind, recolor, byPlayer, logMaterials, hookThread, false);
