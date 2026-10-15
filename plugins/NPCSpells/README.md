@@ -6,15 +6,18 @@ An optional addon to Heart of Magic. At game start it takes the spells that are 
 them to magic-using NPCs, by school and by skill: a novice bandit mage gets a novice spell, a master-level court mage
 gets a spread of everything up to master. Factions have tastes (Thalmor lean to shock and fire and never get undead
 spells, necromancers lean to undead conjuration, Vigilants lean to sun and light), warriors almost never get any
-spell, beasts get none. Nothing is removed from an NPC and nothing is saved in your game: disable the addon and the
-spells are gone at the next start. A report file says who got what.
+spell, beasts get none. Nothing is removed from an NPC. By design the addon writes nothing to the save: the lists are
+put on the base records in memory at every start and no change flag is set (code reading: CommonLib's `AddLevSpells`
+sets none and the addon calls no `AddChange`), so with the addon disabled the spells should be gone at the next start. That
+uninstall case (In-game check, item 12) has not been checked in game yet. A report file says who got what.
 
 The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md` (Korean).
 
 ## Requirements
 
 - Skyrim SE 1.5.97 and AE (1.6.x / 1.7.x) through Address Library, with SKSE; VR is not supported (the DLL is
-  built without VR support, like Heart of Magic's).
+  built without VR support, like Heart of Magic's). Tested in game on 1.6.1170 (AE) only; SE 1.5.97 and 1.7.x are
+  supported through Address Library but untested.
 - Heart of Magic Librarian 1.5.0 or later, with a scan done and a tree built (the addon reads `spell_catalog.json`
   and `spell_tree.json` from `Data/SKSE/Plugins/SpellLearning/`; with either missing, or a catalog whose `version`
   is not 1, it gives nothing and the report says why). The addon does not check Heart of Magic's version itself:
@@ -31,7 +34,7 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 | `SKSE/Plugins/HeartOfMagic_NPCSpells.json` | The rules file (editable, see below) |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells_report.txt` | Written on each run: counts, every list, every NPC that got lists, timings. Not in the archive |
 | `HeartOfMagic_NPCSpells.log` (SKSE log folder) | The addon's log |
-| `SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json` | Dev only, never in the archive, deployed only with `DeployDev.ps1 -NpcSpellsOnly -WithSelfTest`: turns on the in-game self test (see "Self test") |
+| `SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json` | A developer test, not in the download: the in-game self test runs only if you put this file there yourself (`DeployDev.ps1 -NpcSpellsOnly -WithSelfTest` does it for the dev install; see "Self test") |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells/` | `LICENSE`, `THIRD-PARTY-NOTICES.md` (the addon's own, from `plugins/NPCSpells/THIRD-PARTY-NOTICES.md.in`; source tag `npcspells-v<version>`) and `licenses/` (only the libraries this DLL links: CommonLibSSE-NG with its GPL and exceptions, fmt, spdlog, nlohmann-json, zlib, Xbyak, DirectXMath, DirectXTK). Kept out of Data's top level; nothing reads this folder |
 | `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` | The release archive (separate from the Heart of Magic zip, `plugins/cmake/DistributionNpcSpells.cmake`). No FOMOD: the zip's root is the Data folder (the rows above, no wrapping folder), so a mod manager installs it as it is. The PDB goes to `..._DebugSymbols.zip`, rooted at Data the same way (`SKSE/Plugins/HeartOfMagic_NPCSpells.pdb`) |
 | `plugins/NPCSpells/VERSION` | The addon's own version (1.0.0), apart from Heart of Magic's `VERSION`: the DLL's version, the report's `Version:` line and the zip name |
@@ -41,8 +44,11 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 The engine, not the addon, picks the spells. A leveled spell list (LVSP) on an NPC's spell list is resolved when the
 actor enters the high process: for each of the five schools the engine takes the NPC's current skill in that school as
 the "level" and picks one spell among the entries whose level is at most that skill (the highest level group). The
-result is not saved; the engine rolls again when the actor enters high process again. So the addon builds the lists
-ahead of time (at data load) and attaches them to NPC base records.
+result goes into the actor's high-process cache (disassembly; that it is not saved is circumstantial, the save code
+was not read). Observed in game: within one session the same NPC base gets the same spells on each spawn (Farengar
+spawned 5 times, the same picks each time, in-game run 7), and a new session rolls differently; the mechanism behind
+that is not read from code. So the addon builds the lists ahead of time (at data load) and attaches them to NPC base
+records.
 
 - **Lists:** one per school x group x variant x rung (a "slot", 307 in all); the ESL has room for 3 chunks per slot.
   A list holds one school only, entries sorted by level; a spell's level is the skill floor of its tier (novice 1,
@@ -100,8 +106,8 @@ ahead of time (at data load) and attaches them to NPC base records.
   of their own, so a template and all its children behave alike, and a holder that gets nothing (skipped, a non-mage
   whose 5 % roll failed) gives its children nothing. Only our lists are copied, never the holder's other entries. The
   engine copies the holder's spell list into each child while loading (`kCopiedTemplate`), before the addon runs, so
-  lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). **Pending in-game check:**
-  that a child now gets them is still to be confirmed in game (Known limits). The child's own race still counts: a
+  lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). Children now get them: confirmed
+  in game in runs 7 to 9 (Known limits). The child's own race still counts: a
   child of a beast race gets nothing, and a creature child only with a mage class of its own (its race and class read
   from its own chain, as for an NPC that decides for itself; a child whose race or class cannot be read before spawn,
   or that has no race, keeps its holder's lists), unless it shares its spell list data with its template (below: the
@@ -216,31 +222,48 @@ missing record.
 
 ## Known limits
 
-- **Template children: confirmed in game (runs 7 and 8).** Lists on the holder alone never reached a spawned child
+- **Template children: confirmed in game (runs 7 to 9).** Lists on the holder alone never reached a spawned child
   (run 6: `039D37` FAIL, holder `039D31` with 9 lists, the child's base with none); children now get the holder's lists
-  themselves, and run 7 showed `039D37` with `actorBaseLists=9` (PASS in run 8 once levels start at 1). Still to be
-  watched: whether the engine copies a template's list again later (a save load of an old save), which would replace
-  ours on the child. (A leveled spawn from the console uses the drawn entry NPC record itself as its base, not a
-  temporary copy, and that actor held a spell only our lists give: in-game run 8.)
+  themselves, and run 7 showed `039D37` with `actorBaseLists=9` (PASS in runs 8 and 9 once levels start at 1). (A
+  leveled spawn from the console uses the drawn entry NPC record itself as its base, not a temporary copy, and that
+  actor held a spell only our lists give: in-game run 8.)
+- **Save reload, narrow evidence.** A save made with this build reloads with the child's 9 lists intact (Save3,
+  made after the inheritance build was installed, loaded in runs 8 and 9: `039D37` `actorBaseLists=9`, neither reset
+  nor doubled). The holder and the child carry the same lists, so this does not tell a re-copy from the holder apart
+  from no re-copy. Saves made before installing the addon, and saves holding an NPC change record with the spell-list
+  change flag, are untested.
 - **A child of a holder with no spell list** (`2750FE:3DNPC.esp`, holder `0728AD:Skyrim.esm`, the self test's fourth
-  sample) gets spell list data made for it when it has `kCopiedTemplate`: whether the engine leaves it there or copies
-  the empty holder again at spawn is the pending check (`actorBaseLists>0` and `PASS`). A child without the flag and
-  without spell list data is skipped (counted).
+  sample) gets spell list data made for it when it has `kCopiedTemplate`, and the engine leaves it there: `PASS` in
+  runs 7 to 9 (run 9: `actorBaseLists=15`, the holder's 15). A child without the flag and without spell list data is
+  skipped (counted).
 - A child that shares its spell list data with a chain record gets whatever that record gets (counted as
   `inheritedViaShared`, no report row), even when its own race rule would give it nothing (`viaSharedDespiteOwnSkip`);
   expected 0 in practice.
 - A child's own race rules read its Traits (race) and Stats (class) providers. When either is behind a leveled link
   (unresolvable before spawn), or the child has no race, its own rules are not applied and it keeps its holder's
   decision: the record's own race or class is not read in their place.
-- **The leveled spawn path works in game; the self test's own leveled check is pending its next run.** In-game run 8
-  (2026-10-16, ledger `lab/addon-research/npc-spells-ledger.md`, "인게임 8차"): a bandit mage spawned with the
-  console's `player.placeatme 39D5F 1` had the drawn entry NPC record (`039D36:Skyrim.esm`) as its base, with no
+- **The leveled spawn path works in game, checked by hand and by the self test.** In-game run 8 (2026-10-16, ledger
+  `lab/addon-research/npc-spells-ledger.md`, "인게임 8차"): a bandit mage spawned by hand with the console's
+  `player.placeatme 39D5F 1` had the drawn entry NPC record (`039D36:Skyrim.esm`) as its base, with no
   `ExtraLeveledCreature`, and Papyrus `Actor.HasSpell` (DevBench) was true for a spell only our lists hold. In the same
   run all five of the self test's leveled runs failed to find their actor, because its finder then required
   `ExtraLeveledCreature`; it now takes the new actor whose base is an entry of the sample (`match=baseIsEntry`, see
-  "Self test"), which no run has tried yet. `PlaceObjectAtMe` gives no actor for a leveled NPC (`039D5F`, 2026-10-15),
-  so the self test runs the console's `placeatme` as a script on the player. A run whose actor was matched only as the
-  one new actor (`match=onlyNewActor`) is `INCONCLUSIVE` and does not count toward checklist item 10.
+  "Self test"). In-game run 9 (2026-10-16, "인게임 9차") the self test's leveled sample `039D5F` passed 5 of 5, every run
+  `match=baseIsEntry extraLeveled=no`, each a different entry NPC (all from `Bandit War.esp` on that load order:
+  `00AA11`, `00AA0E`, `0A98B5`, `00AA10`, `0A98B7`), every one with `actorBaseLists>0`; two of them (`0A98B5`,
+  `0A98B7`) are template children (`inherited=yes`, holder `02FE54`), so the inheritance and the leveled path were
+  checked together. Release condition 10 (In-game check) is met. `PlaceObjectAtMe` gives no actor for a leveled NPC
+  (`039D5F`, 2026-10-15), so the self test runs the console's `placeatme` as a script on the player. A run whose actor
+  was matched only as the one new actor (`match=onlyNewActor`) is `INCONCLUSIVE` and does not count toward checklist
+  item 10.
+- **Self test, two leveled samples at once (dev only).** With two or more leveled samples waiting for their actors at
+  the same time, one sample's finder can take another's actor (both look for new actors near the player). The shipped
+  dev file has one leveled sample (repeated runs of one sample wait one after another), so it does not happen there;
+  results from a dev file with several leveled samples cannot be trusted for this reason.
+- **An access violation inside the run is caught.** The DLL is built with `/EHa`, as Heart of Magic is, so a structured
+  exception (an access violation) inside the distribution is caught by the run's `catch (...)` and logged and reported
+  as `stopped by an unknown error` instead of ending the game; what was already written by then is not rolled back.
+  Same design as the main plugin.
 - The same spell can be given again when the NPC already knows it; harmless.
 - An NPC in two groups gets the first group's lists (see Group priority).
 - Vigilant `never: undead` also removes Turn Undead (the `undead` tag covers repelling). A spell that commands undead
@@ -253,7 +276,9 @@ missing record.
 - Another plugin that overrides this ESL's leveled lists is not supported.
 - Each filled list leaves the small block the engine had pointed it at (about 338 blocks, once per game start): its
   origin is unknown, so freeing it could damage the game heap.
-- The engine re-rolls each time an actor enters high process, so the same NPC can show different spells over a session.
+- Re-rolls, as observed: within one session the same NPC base gets the same spells on each spawn (Farengar 5 of 5
+  identical, in-game run 7), and a new session rolls differently. The mechanism is not read from code, so whether a
+  long session ever re-rolls an NPC is not known.
 - Measured numbers (offline on the 1.5.0 files, and the game's report): the spec, section 8. The in-game checklist below is only partly done.
 
 ## Development
@@ -285,7 +310,8 @@ An in-game check that needs no console work. The run:
 4. Quit, read the log (or the report's `== Self test ==` section).
 5. `.\DeployDev.ps1 -NpcSpellsOnly` without the switch removes the file from the install.
 
-It runs only when `Data/SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json` exists. That file is
+This is a developer test: it runs only if you put `HeartOfMagic_NPCSpells_selftest.json` into `Data/SKSE/Plugins`
+yourself; it is not in the download. That file is
 `plugins/NPCSpells/data/dev/HeartOfMagic_NPCSpells_selftest.json` in the repo. It is opt-in: only `DeployDev.ps1
 -NpcSpellsOnly -WithSelfTest` copies it into the dev install; every other deploy (`-NpcSpellsOnly` without the switch,
 or the plain one) removes it from the NPC Spells install and says so, because the dev mod is enabled in a profile used
@@ -312,8 +338,10 @@ and cell are in) and `maxWaitMs` (per spawned actor) are 0..60000; `repeat` is 1
 back to its default, a bad sample is dropped alone, all logged.
 
 `repeat` spawns the sample again after each run's check and cleanup, one actor of it at a time, to measure how often
-each list gives a spell (the open "some R1 lists give nothing" question). That each new actor rolls its leveled lists
-anew is an assumption the repeated runs check (`pickedRuns` short of all or none). Each run has its own lines and
+each list gives a spell (it answered the "some R1 lists give nothing" question: those lists' highest reachable entry
+was level 0, which the engine never picks; with novice at level 1 they picked in 5 of 5 runs, in-game run 8). Within
+one session the repeats of one NPC base came out the same (run 7: Farengar's picked spells identical 5 of 5; run 9:
+`pickedRuns` 5/5 or 0/5 for every list of Farengar), so a repeat shows that lists are picked, not how often a fresh roll would pick them. Each run has its own lines and
 `RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name) and counts in `DONE`; a failure before the
 spawn (record not found, holder without lists, no actor from `PlaceObjectAtMe`) ends the sample's runs with a `FAIL`
 for the run it happened in. A leveled run whose actor is not found in time fails alone, and the next run spawns anew. A sample whose plugin is not loaded ends the same way with `INCONCLUSIVE (plugin <name> not
@@ -339,7 +367,9 @@ What such a spawn looks like is known from in-game run 8 (2026-10-16, ledger `la
 (`039D36:Skyrim.esm`), with no `ExtraLeveledCreature`; the plugin's own command made new actors too, but the finder of
 that build required the extra and found none. So among the candidates the first whose base (`GetActorBase`) is an NPC
 entry of the sample is taken (`match=baseIsEntry`; nested leveled lists followed, the sample and up to 4 lists inside
-one another, a list met again not twice). For an actor that does have `ExtraLeveledCreature` (not seen yet), the
+one another, a list met again not twice). In-game run 9 took every one of its five leveled actors this way
+(`match=baseIsEntry matching=1 candidates=1 extraLeveled=no foundAfterMs=0`, entry NPCs of that load order's
+`Bandit War.esp`). For an actor that does have `ExtraLeveledCreature` (not seen yet), the
 earlier rules follow in this order: the first whose `originalBase` is the sample record (`originalBase`), else whose
 `originalBase` is an entry (`originalBaseIsEntry`), else whose template base is one (`templateBaseIsEntry`).
 `matching` above 1 means the pick was ambiguous: one `placeatme` places one actor, so the first is checked and the
@@ -405,26 +435,32 @@ with an AI process, `GetLeveledSpells` (39443) - the high process's leveled spel
 **actor's own base record's** leveled lists (schools rolled by current skill). Disassembly notes: `lab/addon-research/
 npc-spells-ledger.md` and the 10-10 Case 161 check.
 
-Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values below are an example). Every line,
-warnings and errors included, is also appended to the report under `== Self test ==`. The three `039D5F` lines are
-illustrative only: no self test run has matched a leveled actor yet; their `match=baseIsEntry`, `extraLeveled=no` and
-entry base `039D36` follow what the console spawn gave in in-game run 8 (ledger, "인게임 8차"), and their refs and
-counts are made up:
+Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`). Every line, warnings and errors included, is also
+appended to the report under `== Self test ==`. The lines below are a selection, in log order, copied from in-game run
+9 (2026-10-16, ledger "인게임 9차", the report's `== Self test ==` section; the log's time and thread prefix left out).
+Spell names come in the game's language (a Korean install here), and the leveled sample's entries are those of that
+load order (`Bandit War.esp`):
 
 ```
 SELFTEST start samples=5 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded runs=13
-SELFTEST spawn sample 039D37:Skyrim.esm ref 0xFF0012AB
-SELFTEST sample 039D37:Skyrim.esm kind=npc placed Skyrim.esm|0x039D37 actorBase Skyrim.esm|0x039D37 templateBase Skyrim.esm|0x039D37 extraLeveled=no originalBase none copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=record inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
-SELFTEST cache 039D37:Skyrim.esm leveledSpellList=7 spells
-SELFTEST list 039D37:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 levels=highest minLevel=1 witnessMinLevel=1 topLevel=25 witnessReachable=yes excluded=2 witnesses=118 shared=90 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x... Name picked: 0x... Name
-SELFTEST school 039D37:Skyrim.esm destruction lists=2 distinctHits=1 distinctPicked=1
-SELFTEST RESULT sample 039D37:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
-SELFTEST spawn sample 013BBB:Skyrim.esm run=1/5 ref 0xFF0012AC
-SELFTEST RESULT sample 013BBB:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 3)
-SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=5 HoMNS_Alteration_None_All_R1_C1 pickedRuns=2/5, HoMNS_Destruction_None_All_R1_C0 pickedRuns=5/5
-SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled console "player.placeatme 00039D5F 1" actorsLoadedBefore=412 sampleEntries=4
-SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled ref 0xFF0012B0 match=baseIsEntry matching=1 candidates=1 withExtraLeveled=0 sampleEntries=4 actorBase Skyrim.esm|0x039D36 extraLeveled=no foundAfterMs=0
-SELFTEST sample 039D5F:Skyrim.esm run=1/5 kind=leveled placed Skyrim.esm|0x039D5F actorBase Skyrim.esm|0x039D36 templateBase Skyrim.esm|0x039D36 extraLeveled=no originalBase none ... holderFrom=actorBase ...
+SELFTEST spawn sample 039D37:Skyrim.esm ref 0xFF003544
+SELFTEST spawn sample 013BBB:Skyrim.esm run=1/5 ref 0xFF003545
+SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled console "player.placeatme 00039D5F 1" actorsLoadedBefore=63 sampleEntries=28
+SELFTEST spawn sample 039D5F:Skyrim.esm run=1/5 kind=leveled ref 0xFF00364C match=baseIsEntry matching=1 candidates=1 withExtraLeveled=0 sampleEntries=28 actorBase Bandit War.esp|0x00AA11 extraLeveled=no foundAfterMs=0
+SELFTEST sample 039D37:Skyrim.esm kind=npc placed Skyrim.esm|0x039D37 actorBase Skyrim.esm|0x039D37 templateBase Skyrim.esm|0x039D37 extraLeveled=no originalBase none copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=record inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=500
+SELFTEST cache 039D37:Skyrim.esm leveledSpellList=6 spells
+SELFTEST list 039D37:Skyrim.esm HoMNS_Restoration_None_All_R1_C0 school=restoration skill=15 entries=140 levels=highest minLevel=1 witnessMinLevel=1 topLevel=1 witnessReachable=yes excluded=2 witnesses=138 shared=102 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x497388D3 햇빛조각 picked: 0x497388D3 햇빛조각
+SELFTEST school 039D37:Skyrim.esm restoration lists=2 distinctHits=1 distinctPicked=1
+SELFTEST RESULT sample 039D37:Skyrim.esm PASS (HoMNS-only witnesses found: 5)
+SELFTEST RESULT sample 013BBB:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 6)
+SELFTEST sample 039D5F:Skyrim.esm run=1/5 kind=leveled placed Skyrim.esm|0x039D5F actorBase Bandit War.esp|0x00AA11 templateBase Bandit War.esp|0x00AA11 extraLeveled=no originalBase none copiedTemplate=yes holder Bandit War.esp|0x00AA11 holderFrom=actorBase inherited=no chain=resolved holderLists=4 actorBaseLists=4 listsFrom=actorBase 3D=loaded high=yes waitedMs=800
+SELFTEST cache 039D5F:Skyrim.esm run=1/5 leveledSpellList=2 spells
+SELFTEST list 039D5F:Skyrim.esm run=1/5 HoMNS_Conjuration_None_NoUndeadAll_R5_C0 school=conjuration skill=15 entries=68 levels=highest minLevel=100 witnessMinLevel=100 topLevel=none witnessReachable=no excluded=0 witnesses=68 shared=0 hits=0 picked=0 pickedWitnesses=0
+SELFTEST list 039D5F:Skyrim.esm run=1/5 HoMNS_Destruction_None_All_R1_C0 school=destruction skill=25 entries=206 levels=highest minLevel=1 witnessMinLevel=1 topLevel=25 witnessReachable=yes excluded=0 witnesses=206 shared=151 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0xFE90A817 괴저 불씨 picked: 0xFE90A817 괴저 불씨
+SELFTEST school 039D5F:Skyrim.esm run=1/5 destruction lists=2 distinctHits=1 distinctPicked=1
+SELFTEST RESULT sample 039D5F:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 2)
+SELFTEST sample 039D5F:Skyrim.esm run=3/5 kind=leveled placed Skyrim.esm|0x039D5F actorBase Bandit War.esp|0x0A98B5 templateBase Bandit War.esp|0x0A98B5 extraLeveled=no originalBase none copiedTemplate=yes holder Bandit War.esp|0x02FE54 holderFrom=actorBase inherited=yes chain=resolved holderLists=11 actorBaseLists=11 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
+SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=5 HoMNS_Alteration_None_All_R1_C0 pickedRuns=5/5, HoMNS_Alteration_None_All_R3_C0 pickedRuns=5/5, HoMNS_Conjuration_None_NoUndeadAll_R1_C0 pickedRuns=5/5, HoMNS_Conjuration_None_NoUndeadAll_R4_C1 pickedRuns=0/5, HoMNS_Conjuration_None_NoUndeadAll_R5_C0 pickedRuns=0/5, HoMNS_Destruction_None_All_R1_C0 pickedRuns=5/5, HoMNS_Destruction_None_All_R2_C0 pickedRuns=5/5, HoMNS_Destruction_None_All_R5_C0 pickedRuns=0/5, HoMNS_Illusion_None_All_R1_C0 pickedRuns=5/5, HoMNS_Illusion_None_All_R2_C0 pickedRuns=5/5, HoMNS_Illusion_None_All_R4_C0 pickedRuns=5/5, HoMNS_Restoration_None_All_R1_C0 pickedRuns=5/5
 SELFTEST DONE pass=13 fail=0 inconclusive=0
 ```
 
@@ -492,10 +528,13 @@ the ESL and the DLL ship together and nothing saved refers to the lists.
 
 Partly done (2026-10-10, the pre-1.5.0 build of the addon on TAKEALOOK): 338 lists filled, 2,468 NPCs given lists,
 `skippedPrefilled 0`; Farengar's `Actor.HasSpell` was true for spells only our lists hold, so the engine does resolve
-them (the console and MIC spell lists do not show leveled results). Still open: an Alteration R1 list on Farengar
-gave no `HasSpell` hit in two sweeps (107 of 118 spells checked), and one spell per list is not pinned (step 4).
-The offline pool on the 1.5.0 files gives Alteration lists normally (`npcspells-test --tree`), so that doubt is on
-the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu, then:
+them (the console and MIC spell lists do not show leveled results). Then an Alteration R1 list on Farengar gave no
+`HasSpell` hit in two sweeps (107 of 118 spells checked); the cause was found later: novice entries sat at level 0,
+which the engine never picks (in-game run 7), and with novice at level 1 Farengar's R1 lists, Alteration included,
+picked in 5 of 5 runs (runs 8 and 9). Still open: one spell per list is not pinned (step 4). Self test runs 6 to 9
+(2026-10-15 and 16, 1.6.1170, ledger "인게임 6차" to "9차") answered the "does a list give spells" part of step 1,
+item 10 and part of item 12 (below). Enable
+`HeartOfMagic_NPCSpells.esp` in MO2, start to the main menu, then:
 
 1. Open `HeartOfMagic_NPCSpells.log`: expect "ESL records loaded=true found=921 missing=0 wrongType=0", the pool
    line, the list count, the NPC counts and "done in N ms total" (expected well under 500 ms).
@@ -541,18 +580,22 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
        hold (the report's inherited row of the end record names its holder, whose row names the lists); the leveled
        record itself gets no list. Done by hand in in-game run 8 (2026-10-16, ledger "인게임 8차"): `player.placeatme
        39D5F 1` gave a bandit mage whose base is the entry NPC `039D36:Skyrim.esm` (no `ExtraLeveledCreature`), and
-       Papyrus `Actor.HasSpell` (DevBench) was true for a spell only our lists hold. The self test's own leveled check is
-       pending its next run: its leveled sample `039D5F` (`OREO_SubCharBandit01Magic`) must `PASS` (or be
-       `INCONCLUSIVE` for a reachability reason) with `kind=leveled` and `actorBaseLists>0` (`extraLeveled` either way),
-       each on an actor whose spawn line has `match=baseIsEntry` (what run 8's spawn would give), `match=originalBase`,
-       `match=originalBaseIsEntry` or `match=templateBaseIsEntry`; a run with `match=onlyNewActor` is no proof and does
-       not count. By hand, as before: `player.placeatme` a `LvlBanditWizard...` record and check `HasSpell` as above. `PASS` on the direct
+       Papyrus `Actor.HasSpell` (DevBench) was true for a spell only our lists hold. **Met** by the self test in in-game
+       run 9 (2026-10-16, ledger "인게임 9차"): its leveled sample `039D5F` (`OREO_SubCharBandit01Magic`) passed 5 of 5,
+       `kind=leveled`, every run `match=baseIsEntry extraLeveled=no` with `actorBaseLists>0`, each a different entry NPC
+       (from `Bandit War.esp` on that load order), two of them template children (`inherited=yes`). The rule for a
+       rerun: the sample must `PASS` (or be `INCONCLUSIVE` for a reachability reason) with `kind=leveled` and
+       `actorBaseLists>0` (`extraLeveled` either way), each on an actor whose spawn line has `match=baseIsEntry`,
+       `match=originalBase`, `match=originalBaseIsEntry` or `match=templateBaseIsEntry`; a run with
+       `match=onlyNewActor` is no proof and does not count. By hand, as before: `player.placeatme` a `LvlBanditWizard...` record and check `HasSpell` as above. `PASS` on the direct
        sample `039D37` is necessary but not sufficient: placing the end record itself skips the leveled spawn path the
        game uses.
    11. Non-mage sanity: among about 20 guards or bandits (`player.placeatme` a few `EncBandit01Melee...`), about one
        has a `..._NonMage_...` list.
    12. Save and reload: the lists are still on the base records (re-added at load), no crash. Disable the addon and
        load the same save: no leftover spells on NPCs you did not meet, no missing-form warnings beyond the ESL itself.
+       Status: the reload half only, on one save (Save3, made with this build, loaded in runs 8 and 9 with no crash
+       and `039D37` keeping its 9 lists; see Known limits, "Save reload"). The disable half is not done.
 4. Pin the one-spell-per-list assumption: a bandit mage with N attached lists in a school should show at most N spells
    of that school after entering high process. The self test's `SELFTEST school ... lists=N distinctHits=D distinctPicked=P` lines
    give this per school and sample (P and D at most N), with the actor's skill on each list line.

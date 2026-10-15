@@ -20,10 +20,13 @@
 
 - First release of an optional addon, a separate download (a DLL, a small ESL-flagged plugin and a rules
   file): at game start it hands the spells of your tree to magic-using NPCs by school and skill, through leveled
-  spell lists (NPCs built from a template, such as most bandit and warlock mages, are meant to get the same lists
-  as their template, checked in game; a beast-race or non-mage creature child gets nothing unless it shares its spell list data with its template), with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
-  for those who should not have them. Nothing is saved in your game, and a report lists who got what. Needs
-  Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built, on Skyrim SE or AE (not VR); see
+  spell lists (NPCs built from a template, such as most bandit and warlock mages, get the same lists as their
+  template, and NPCs spawned from leveled lists get the lists of the NPC drawn: both confirmed in game; a beast-race
+  or non-mage creature child gets nothing unless it shares its spell list data with its template), with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
+  for those who should not have them. A report lists who got what. By design the addon writes nothing to your save
+  (the lists are rebuilt in memory at every start and no change flag is set); removing it from a game in progress
+  has not been checked in game yet. Needs Heart of Magic Librarian 1.5.0 or later with a scan done and a tree
+  built, on Skyrim SE or AE through Address Library (not VR); tested in game on 1.6.1170 only. See
   `plugins/NPCSpells/README.md`.
 - Spell levels in the lists start at 1 (novice), not 0: lists whose highest level at or below the skill was 0
   gave no spell in testing (level 1 confirmed in game), and no leveled spell list in the game uses level 0. An NPC
