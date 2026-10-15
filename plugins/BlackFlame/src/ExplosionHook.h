@@ -21,4 +21,7 @@ namespace BlackFlame
 
     /// Game thread, every ticker tick: lights missing at Set3D, tinted one tick late.
     void TickExplosionLights();
+
+    /// Game thread, at kPreLoadGame / kNewGame: drops the pending lights and the counters
+    void ResetExplosionState();
 }

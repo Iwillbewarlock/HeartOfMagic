@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 // =============================================================================
@@ -24,7 +25,7 @@ namespace BlackFlame
 
         /// True when a line of this kind for this spell may be written now; a_suppressed
         /// gets the number held back since the last one written (then reset).
-        [[nodiscard]] static bool Allow(const char* a_kind, RE::FormID a_spell, int& a_suppressed)
+        [[nodiscard]] static bool Allow(std::string_view a_kind, RE::FormID a_spell, int& a_suppressed)
         {
             static std::mutex mutex;
             static std::unordered_map<std::string, Entry> entries;

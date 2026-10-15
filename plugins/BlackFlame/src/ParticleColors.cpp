@@ -2,8 +2,10 @@
 
 #include "Tint.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstring>
 #include <format>
 #include <string>
 
@@ -12,14 +14,11 @@ namespace BlackFlame
     namespace
     {
         constexpr std::size_t kColorKeys = 3;
-        // A colour key component outside this range (or NaN) means the layout below does not
-        // match this runtime: the bytes are not colours, so nothing is written. 0..2 leaves room
-        // for HDR-ish keys above 1 while catching floats that are really pointers or counts.
         constexpr float kMinPlausibleColor = 0.0f;
         constexpr float kMaxPlausibleColor = 2.0f;
-        constexpr int kMaxImplausibleLogs = 5;
+        constexpr int kMaxKeyLogs = 5;
 
-        std::atomic<int> g_implausibleLogs{ 0 };
+        std::atomic<int> g_keyLogs{ 0 };
 
         // Layout from Jonahex/CommonLibSSE include/RE/B/BSPSysSimpleColorModifier.h
         // (commit 2bc2543c), not in this CommonLib, unverified on AE. Never
@@ -38,53 +37,60 @@ namespace BlackFlame
             std::uint8_t pad79[7];            // 79
         };
         static_assert(sizeof(RE::NiPSysModifier) == 0x30);
-        static_assert(offsetof(SimpleColorModifierLayout, colors) == 0x30);
+        static_assert(offsetof(SimpleColorModifierLayout, colors) == kColorKeysOffset);
+        static_assert(sizeof(RE::NiColorA) * kColorKeys == sizeof(float) * kColorKeyFloats);
         static_assert(sizeof(SimpleColorModifierLayout) == 0x80);
 
-        bool Plausible(float a_value)
-        {
-            return !std::isnan(a_value) && a_value >= kMinPlausibleColor && a_value <= kMaxPlausibleColor;
-        }
-
-        bool LooksLikeColors(const SimpleColorModifierLayout& a_layout)
-        {
-            for (const auto& c : a_layout.colors) {
-                if (!Plausible(c.red) || !Plausible(c.green) || !Plausible(c.blue) || !Plausible(c.alpha)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        std::string Dump(const SimpleColorModifierLayout& a_layout)
+        std::string Dump(const ColorKeys& a_keys)
         {
             std::string out;
-            for (const auto& c : a_layout.colors) {
-                out += std::format("{}({:.3f} {:.3f} {:.3f} {:.3f})", out.empty() ? "" : " ", c.red, c.green, c.blue,
-                    c.alpha);
+            for (const float f : a_keys) {
+                out += std::format("{}{:.3f}", out.empty() ? "" : " ", f);
             }
             return out;
         }
     }
 
-    int DesaturateColorModifiers(RE::NiParticleSystem* a_particles)
+    bool IsSimpleColorModifier(const RE::NiPSysModifier* a_modifier)
     {
         static REL::Relocation<const RE::NiRTTI*> simpleColorRTTI{ RE::NiRTTI_BSPSysSimpleColorModifier };
+        return a_modifier && a_modifier->GetRTTI() == simpleColorRTTI.get();
+    }
+
+    ColorKeys ReadColorKeys(const RE::NiPSysModifier* a_modifier)
+    {
+        ColorKeys keys{};
+        std::memcpy(keys.data(), reinterpret_cast<const std::uint8_t*>(a_modifier) + kColorKeysOffset, sizeof(keys));
+        return keys;
+    }
+
+    bool KeysPlausible(std::span<const float> a_keys)
+    {
+        const bool inRange = !a_keys.empty() && std::ranges::all_of(a_keys, [](float a_v) {
+            return !std::isnan(a_v) && a_v >= kMinPlausibleColor && a_v <= kMaxPlausibleColor;
+        });
+        return inRange && std::ranges::any_of(a_keys, [](float a_v) { return a_v > 0.0f; });
+    }
+
+    int DesaturateColorModifiers(RE::NiParticleSystem* a_particles)
+    {
         int changed = 0;
         for (const auto& modifier : a_particles->GetParticleSystemRuntimeData().modifierList) {
-            if (!modifier || modifier->GetRTTI() != simpleColorRTTI.get()) {
+            if (!IsSimpleColorModifier(modifier.get())) {
+                continue;
+            }
+            // Read before any write; the first few are dumped either way
+            const auto keys = ReadColorKeys(modifier.get());
+            const bool plausible = KeysPlausible(keys);
+            if (g_keyLogs.fetch_add(1) < kMaxKeyLogs) {
+                logger::info("BlackFlame: particle colour modifier 0x{:X} keys: {} ({})",
+                    reinterpret_cast<std::uintptr_t>(modifier.get()), Dump(keys),
+                    plausible ? "desaturated" : "do not look like colours - left untouched (layout mismatch?)");
+            }
+            if (!plausible) {
                 continue;
             }
             auto* layout = reinterpret_cast<SimpleColorModifierLayout*>(modifier.get());
-            // Read before any write: skip a modifier whose keys do not read as colours
-            if (!LooksLikeColors(*layout)) {
-                if (g_implausibleLogs.fetch_add(1) < kMaxImplausibleLogs) {
-                    logger::warn("BlackFlame: particle colour modifier 0x{:X} keys do not look like colours, left "
-                                 "untouched (layout mismatch?): {}",
-                        reinterpret_cast<std::uintptr_t>(layout), Dump(*layout));
-                }
-                continue;
-            }
             bool any = false;
             for (auto& color : layout->colors) {
                 any = Desaturate(color) || any;

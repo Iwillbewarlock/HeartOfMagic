@@ -26,7 +26,10 @@ namespace BlackFlame
 
         std::unordered_set<RE::FormID> g_fireSpells;
         std::unordered_set<RE::FormID> g_fireExplosions;
-        std::unordered_set<RE::FormID> g_fireEffects;  // MGEFs: what the burn and explosion layers key on
+        std::unordered_set<RE::FormID> g_fireEffects;      // fire MGEFs (keyword or fire resistance) of fire spells
+        // The costliest effect of a catalog-fire spell without a fire MGEF: fire only together with
+        // that spell (IsFireEffect callers also require IsFireSpell)
+        std::unordered_set<RE::FormID> g_fallbackEffects;
         FireSetCounts g_counts;
 
         using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
@@ -97,13 +100,18 @@ namespace BlackFlame
                    spell != GetForms().stokeSpell;
         }
 
-        bool HasFireKeyword(const RE::SpellItem* spell, const RE::BGSKeyword* fireKeyword)
+        // A fire MGEF: the vanilla fire keyword, or fire resistance as its resist value
+        bool IsFireMgef(const RE::EffectSetting* a_base, const RE::BGSKeyword* a_fireKeyword)
         {
-            if (!fireKeyword) {
-                return false;
-            }
-            for (const auto* effect : spell->effects) {
-                if (effect && effect->baseEffect && effect->baseEffect->HasKeyword(fireKeyword)) {
+            return a_base && ((a_fireKeyword && a_base->HasKeyword(a_fireKeyword)) ||
+                                 a_base->data.resistVariable == RE::ActorValue::kResistFire);
+        }
+
+        // A spell the catalog does not decide is fire when one of its effects is a fire MGEF
+        bool HasFireMgef(const RE::SpellItem* a_spell, const RE::BGSKeyword* a_fireKeyword)
+        {
+            for (const auto* effect : a_spell->effects) {
+                if (effect && IsFireMgef(effect->baseEffect, a_fireKeyword)) {
                     return true;
                 }
             }
@@ -163,16 +171,9 @@ namespace BlackFlame
             return true;
         }
 
-        // A fire MGEF: the vanilla fire keyword, or fire resistance as its resist value
-        bool IsFireMgef(const RE::EffectSetting* a_base, const RE::BGSKeyword* a_fireKeyword)
+        void AddFireEffect(const RE::EffectSetting* a_base, std::unordered_set<RE::FormID>& a_set)
         {
-            return a_base && ((a_fireKeyword && a_base->HasKeyword(a_fireKeyword)) ||
-                                 a_base->data.resistVariable == RE::ActorValue::kResistFire);
-        }
-
-        void AddFireEffect(const RE::EffectSetting* a_base)
-        {
-            g_fireEffects.insert(a_base->GetFormID());
+            a_set.insert(a_base->GetFormID());
             if (a_base->data.explosion) {
                 g_fireExplosions.insert(a_base->data.explosion->GetFormID());
             }
@@ -189,7 +190,7 @@ namespace BlackFlame
             for (const auto* effect : a_spell->effects) {
                 const auto* base = effect ? effect->baseEffect : nullptr;
                 if (IsFireMgef(base, a_fireKeyword)) {
-                    AddFireEffect(base);
+                    AddFireEffect(base, g_fireEffects);
                     added = true;
                 }
             }
@@ -198,7 +199,7 @@ namespace BlackFlame
             }
             const auto* costliest = a_spell->GetCostliestEffectItem();
             if (costliest && costliest->baseEffect) {
-                AddFireEffect(costliest->baseEffect);
+                AddFireEffect(costliest->baseEffect, g_fallbackEffects);
             }
         }
     }
@@ -208,6 +209,7 @@ namespace BlackFlame
         g_fireSpells.clear();
         g_fireExplosions.clear();
         g_fireEffects.clear();
+        g_fallbackEffects.clear();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) {
             logger::error("BlackFlame: TESDataHandler unavailable - no spell counts as fire");
@@ -219,7 +221,7 @@ namespace BlackFlame
         const bool catalogRead = ReadCatalog(dh, decided, catalog);
         if (!catalogRead) {
             logger::warn("BlackFlame: no readable '{}' (run a Heart of Magic scan) - fire spells by the "
-                         "MagicDamageFire keyword only", kCatalogPath);
+                         "fire MGEF rule only (MagicDamageFire keyword or fire resistance)", kCatalogPath);
         }
 
         const auto* fireKeyword = GetForms().fireKeyword;
@@ -228,7 +230,7 @@ namespace BlackFlame
             if (!IsCountedSpell(spell) || decided.contains(spell->GetFormID())) {
                 continue;
             }
-            if (HasFireKeyword(spell, fireKeyword)) {
+            if (HasFireMgef(spell, fireKeyword)) {
                 g_fireSpells.insert(spell->GetFormID());
                 ++keywordFire;
             }
@@ -241,11 +243,11 @@ namespace BlackFlame
         }
 
         logger::info("BlackFlame: fire spells: {} from the catalog ({} entries, {} found in this load order), "
-                     "{} by keyword, {} total; {} fire effects, {} fire explosions",
-            catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(), g_fireEffects.size(),
-            g_fireExplosions.size());
-        g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(), g_fireEffects.size(),
-            g_fireExplosions.size() };
+                     "{} by fire MGEF, {} total; {} fire effects, {} fire explosions",
+            catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(),
+            g_fireEffects.size() + g_fallbackEffects.size(), g_fireExplosions.size());
+        g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(),
+            g_fireEffects.size() + g_fallbackEffects.size(), g_fireExplosions.size() };
     }
 
     FireSetCounts GetFireSetCounts() noexcept
@@ -255,7 +257,8 @@ namespace BlackFlame
 
     bool IsFireEffect(const RE::EffectSetting* a_effect)
     {
-        return a_effect && g_fireEffects.contains(a_effect->GetFormID());
+        return a_effect && (g_fireEffects.contains(a_effect->GetFormID()) ||
+                                g_fallbackEffects.contains(a_effect->GetFormID()));
     }
 
     bool IsFireSpell(const RE::MagicItem* a_spell)

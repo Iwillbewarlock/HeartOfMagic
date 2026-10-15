@@ -118,12 +118,16 @@ namespace BlackFlame
         std::string RecolorHandArt(RE::PlayerCharacter* a_player, RE::ActorMagicCaster* a_caster, const Hand& a_hand,
             int& a_recolored)
         {
+            std::string attachedNote = "attachedArt: null";
             if (auto* attached = a_caster->castingArtData.attachedArt.get()) {
                 Place art;
                 art.found = true;
                 art.stats = RecolorTree(attached);
-                a_recolored = art.stats.Recolored();
-                return DescribePlace("attachedArt", art);
+                if (art.stats.effectGeometries > 0) {
+                    a_recolored = art.stats.Recolored();
+                    return DescribePlace("attachedArt", art);
+                }
+                attachedNote = "attachedArt: no effect geometry";  // fall through to the old places
             }
             Place magicNode;
             magicNode.found = a_caster->magicNode != nullptr;
@@ -139,7 +143,7 @@ namespace BlackFlame
             }
             a_recolored = magicNode.stats.Recolored() + firstPerson.stats.Recolored() + thirdPerson.stats.Recolored() +
                           artEffects.stats.Recolored();
-            return std::format("attachedArt: null, FALLBACK {} | {} | {} | {}", DescribePlace("magicNode", magicNode),
+            return std::format("{}, FALLBACK {} | {} | {} | {}", attachedNote, DescribePlace("magicNode", magicNode),
                 DescribePlace(std::format("1st person '{}'", a_hand.nodeName).c_str(), firstPerson),
                 DescribePlace(std::format("3rd person '{}'", a_hand.nodeName).c_str(), thirdPerson),
                 seen == 0 ? DescribePlace("casting art effects", artEffects) : "casting art effects: not searched");
@@ -176,6 +180,11 @@ namespace BlackFlame
                 suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             a_state.logged = true;
         }
+    }
+
+    void ResetCasterArt()
+    {
+        g_handStates = {};
     }
 
     void TickCasterArt()

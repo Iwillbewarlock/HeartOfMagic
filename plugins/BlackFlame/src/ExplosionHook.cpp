@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <format>
+#include <memory>
 #include <vector>
 
 namespace BlackFlame
@@ -26,7 +27,14 @@ namespace BlackFlame
         std::atomic<int> g_npcMaterialLogs{ 0 };
         std::atomic<int> g_recolors{ 0 };
         std::atomic<int> g_lightMissing{ 0 };
-        std::vector<RE::ObjectRefHandle> g_pendingLights;  // game thread only: tint once more next tick
+
+        // Game thread only: explosions to tint once more next tick. Heap-held and never freed, like
+        // the burn layer's lists, so nothing runs at DLL unload (handles only, but kept uniform)
+        std::vector<RE::ObjectRefHandle>& PendingLights()
+        {
+            static auto* lights = std::make_unique<std::vector<RE::ObjectRefHandle>>().release();
+            return *lights;
+        }
 
         // False when the buff or the layer went off before a deferred recolour ran
         bool RecolorExplosion(RE::Explosion* a_explosion, RecolorStats& a_stats)
@@ -38,12 +46,14 @@ namespace BlackFlame
             a_stats = RecolorTree(a_explosion->Get3D());
             const int recolors = g_recolors.fetch_add(1) + 1;
             bool lightTinted = false;
+            bool lightQueued = false;
             if (GetConfig().light) {
                 lightTinted = TintLight(data.light.get());
                 if (!data.light) {
                     // Not created yet at Set3D: one more try on the next ticker tick
-                    g_pendingLights.push_back(a_explosion->GetHandle());
+                    PendingLights().push_back(a_explosion->GetHandle());
                     g_lightMissing.fetch_add(1);
+                    lightQueued = true;
                 }
             }
             const auto* base = a_explosion->GetBaseObject();
@@ -51,7 +61,8 @@ namespace BlackFlame
             int suppressed = 0;
             if (LogLimit::Allow("explosion", baseId, suppressed)) {
                 logger::info("BlackFlame: explosion: {:08X}: {}; light {} (missing at recolour {} of {} times){}", baseId,
-                    a_stats.Describe(), !data.light ? "not there yet, retried next tick" : (lightTinted ? "tinted" : "left"),
+                    a_stats.Describe(),
+                    lightQueued ? "not there yet, retried next tick" : (!data.light ? "none" : (lightTinted ? "tinted" : "left")),
                     g_lightMissing.load(), recolors,
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
@@ -93,16 +104,23 @@ namespace BlackFlame
                 logger::info("BlackFlame: fire explosion {:08X} not the player's: owner {:08X}, cause actor {:08X}",
                     explosion->GetFormID(), owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0);
             }
-            // Explosion.h:87 magicCaster -> MagicCaster.h:105 currentSpell: when set it names what
-            // made the explosion; a staff, scroll or non-fire spell then keeps its own colours.
-            // When null the base form and the attribution decide (README: staffs/scrolls limit).
+            // Explosion.h:87 magicCaster is the explosion's OWN NonActorMagicCaster (it applies the
+            // explosion's effect in its radius), not the player's caster, so it cannot name a spell the
+            // player cast later. Its currentSpell (MagicCaster.h:105) may be the projectile's spell or
+            // the explosion's own enchantment: only a staff, a scroll or a non-fire spell excludes; an
+            // enchantment or none leaves the base form and the attribution to decide (README limit).
             const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
-            const bool notFireCast = casterSpell && !IsFireSpell(casterSpell);
+            const auto casterType = casterSpell ? casterSpell->GetSpellType() : RE::MagicSystem::SpellType::kEnchantment;
+            const bool notFireCast = casterSpell && (casterType == RE::MagicSystem::SpellType::kScroll ||
+                                                        casterType == RE::MagicSystem::SpellType::kStaffEnchantment ||
+                                                        (casterType == RE::MagicSystem::SpellType::kSpell &&
+                                                            !IsFireSpell(casterSpell)));
             if (byPlayer && notFireCast) {
                 int suppressed = 0;
                 if (LogLimit::Allow("explosion skipped", casterSpell->GetFormID(), suppressed)) {
                     logger::info("BlackFlame: explosion {:08X} left: its magicCaster's current spell {:08X} is not a fire "
-                                 "spell", explosion->GetFormID(), casterSpell->GetFormID());
+                                 "spell (type {})", explosion->GetFormID(), casterSpell->GetFormID(),
+                        static_cast<int>(casterType));
                 }
             }
             const bool recolor = byPlayer && !notFireCast && IsStoked() && GetConfig().explosion;
@@ -167,13 +185,24 @@ namespace BlackFlame
         logger::info("BlackFlame: hooked Set3D (0x{:X}) on the Explosion vtable", kSet3DIndex);
     }
 
+    void ResetExplosionState()
+    {
+        PendingLights().clear();
+        g_lightMissing.store(0);
+        g_recolors.store(0);
+    }
+
     void TickExplosionLights()
     {
-        if (g_pendingLights.empty()) {
+        auto& pending = PendingLights();
+        if (pending.empty()) {
             return;
         }
         std::vector<RE::ObjectRefHandle> due;
-        due.swap(g_pendingLights);
+        due.swap(pending);
+        if (!IsStoked() || !GetConfig().light) {
+            return;  // the buff or the light layer went off meanwhile: dropped
+        }
         int tinted = 0;
         for (const auto& handle : due) {
             const auto ref = handle.get();

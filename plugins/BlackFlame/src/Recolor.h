@@ -2,6 +2,7 @@
 
 #include "Common.h"
 
+#include <functional>
 #include <string>
 
 // =============================================================================
@@ -57,6 +58,16 @@ namespace BlackFlame
     /// "prop=0x... mat=0x... grey=yes/no paletteFlag=yes/no" for the first few effect properties
     /// under a_root, and how many are grey (read only; any grey on an NPC instance = contamination)
     [[nodiscard]] std::string DescribeMaterials(RE::NiAVObject* a_root);
+
+    /// (property, geometry or null for a legacy NiGeometry, legacy)
+    using EffectPropertyVisitor = std::function<void(RE::BSEffectShaderProperty*, RE::BSGeometry*, bool)>;
+
+    /// Every BSEffectShaderProperty under a_root: on BSGeometry (particle systems included) and on
+    /// legacy NiGeometry, which BSVisit::TraverseScenegraphGeometries skips (read only by itself)
+    void ForEachEffectProperty(RE::NiAVObject* a_root, const EffectPropertyVisitor& a_visit);
+
+    /// The property has a BSEffectShaderPropertyColorController (it rewrites the colour per frame)
+    [[nodiscard]] bool HasColorController(const RE::BSEffectShaderProperty* a_prop);
 
     /// The property's material carries our palette (texture pointer or path)
     [[nodiscard]] bool HasGreyMaterial(RE::BSEffectShaderProperty* a_prop);

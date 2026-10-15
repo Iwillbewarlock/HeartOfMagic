@@ -33,7 +33,7 @@ namespace BlackFlame
         };
         using MaterialPtr = std::unique_ptr<RE::BSEffectShaderMaterial, MaterialDeleter>;
 
-        bool HasColorController(const RE::NiObjectNET* a_object)
+        bool HasColorControllerImpl(const RE::NiObjectNET* a_object)
         {
             static REL::Relocation<const RE::NiRTTI*> colorControllerRTTI{ RE::NiRTTI_BSEffectShaderPropertyColorController };
             for (auto* ctrl = a_object->GetControllers(); ctrl; ctrl = ctrl->GetNext()) {
@@ -47,7 +47,7 @@ namespace BlackFlame
         void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RecolorStats& a_stats)
         {
             ++a_stats.effectGeometries;
-            if (HasColorController(a_prop)) {
+            if (HasColorControllerImpl(a_prop)) {
                 ++a_stats.colorControlled;
             }
             // The palette's alpha ramp then also drives the shape's alpha (README test item)
@@ -96,16 +96,22 @@ namespace BlackFlame
             // changes baseColor every frame without one). If the palette does not show in
             // game, a missing SetupGeometry/FinishSetupGeometry is the first suspect (README).
 
-            if (a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor)) {
-                ++a_stats.paletteSwapped;
-            } else if (GetConfig().forcePalette) {
-                // Re-read: the property holds the engine's copy now, and the flag must never be on
-                // without a palette texture behind it
+            const bool hasFlag = a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor);
+            if (hasFlag || GetConfig().forcePalette) {
+                // Re-read: the property holds the engine's copy now, and the palette flag (already
+                // on, or about to be) must never be on without a palette texture behind it
                 const auto* now = a_prop->GetMaterial();
                 if (!now || !now->greyscaleTexture) {
-                    ++a_stats.failed;
+                    ++a_stats.failed;  // counted only here: not also as a palette swap
+                    logger::warn("BlackFlame: property 0x{:X}: the engine's material copy has no greyscale texture "
+                                 "after SetMaterial{}", reinterpret_cast<std::uintptr_t>(a_prop),
+                        hasFlag ? " (its palette flag was already on)" : " - palette flag not added");
                     return;
                 }
+            }
+            if (hasFlag) {
+                ++a_stats.paletteSwapped;
+            } else if (GetConfig().forcePalette) {
                 // Set only now, after the material with both palette pointer and path is in
                 // place: the effect technique gates on the path and reads the pointer unchecked.
                 // The property is the instance's own (cloned per instance; the material is the
@@ -134,7 +140,7 @@ namespace BlackFlame
         }
 
         template <class Visit>
-        void ForEachEffectProperty(RE::NiAVObject* a_root, Visit&& a_visit)
+        void ForEachEffectPropertyImpl(RE::NiAVObject* a_root, Visit&& a_visit)
         {
             RE::BSVisit::TraverseScenegraphObjects(a_root, [&](RE::NiAVObject* a_object) {
                 if (auto* geometry = a_object->AsGeometry()) {
@@ -184,7 +190,7 @@ namespace BlackFlame
         if (!a_root || !PaletteReady()) {
             return stats;
         }
-        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool a_legacy) {
+        ForEachEffectPropertyImpl(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool a_legacy) {
             if (a_legacy) {
                 ++stats.legacyGeometries;
             }
@@ -216,7 +222,7 @@ namespace BlackFlame
             return "no 3D";
         }
         int grey = 0;
-        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
+        ForEachEffectPropertyImpl(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
             ++total;
             const bool isGrey = HasGreyMaterial(a_prop);
             grey += isGrey ? 1 : 0;
@@ -228,6 +234,18 @@ namespace BlackFlame
             }
         });
         return std::format("{} effect properties, {} grey{}{}", total, grey, total ? ": " : "", out);
+    }
+
+    void ForEachEffectProperty(RE::NiAVObject* a_root, const EffectPropertyVisitor& a_visit)
+    {
+        if (a_root) {
+            ForEachEffectPropertyImpl(a_root, a_visit);
+        }
+    }
+
+    bool HasColorController(const RE::BSEffectShaderProperty* a_prop)
+    {
+        return a_prop && HasColorControllerImpl(a_prop);
     }
 
     bool HasGreyMaterial(RE::BSEffectShaderProperty* a_prop)

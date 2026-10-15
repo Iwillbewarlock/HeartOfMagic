@@ -125,10 +125,17 @@ namespace BlackFlame
             g_recomputePending.store(false);  // the task would be dropped
             return;
         }
-        AddTaskToGameThread("BlackFlameBuff", [a_reason]() {
+        // Called from the effect event sink: a throw (allocation) must neither escape nor leave the
+        // flag set, or no recompute would ever be queued again
+        try {
+            AddTaskToGameThread("BlackFlameBuff", [a_reason]() {
+                g_recomputePending.store(false);
+                RecomputeBuff(a_reason);
+            });
+        } catch (...) {
             g_recomputePending.store(false);
-            RecomputeBuff(a_reason);
-        });
+            logger::error("BlackFlame: could not queue the buff recompute ({})", a_reason);
+        }
     }
 
     void StartTicker()

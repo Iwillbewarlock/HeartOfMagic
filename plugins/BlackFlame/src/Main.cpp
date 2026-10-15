@@ -9,6 +9,8 @@
 #include "Common.h"
 
 #include "BuffState.h"
+#include "BurnShader.h"
+#include "CasterArt.h"
 #include "Config.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
@@ -41,11 +43,20 @@ namespace
         }
     }
 
+    // The world is torn down: nothing tracked from it may be touched again
+    void ResetLayers()
+    {
+        BlackFlame::ResetBurnState();
+        BlackFlame::ResetExplosionState();
+        BlackFlame::ResetCasterArt();
+    }
+
     void HandleMessage(const SKSE::MessagingInterface::Message& a_msg)
     {
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
             BlackFlame::SelfTest::Abort("a save is being loaded");
+            ResetLayers();
             break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
@@ -57,6 +68,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kNewGame:
             BlackFlame::SelfTest::Abort("a new game started");
+            ResetLayers();
             BlackFlame::RecomputeBuff("new game");
             FlushLog();
             break;

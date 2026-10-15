@@ -133,7 +133,7 @@ namespace BlackFlame
                 // Entered from the engine's vtable: nothing may throw out of here
                 try {
                     if (a_this) {
-                        OnHandle3DLoaded(a_this, m_kind);
+                        OnHandle3DLoaded(a_this, s_kind);
                     }
                 } catch (...) {
                     if (!g_failureReported.exchange(true)) {
@@ -144,13 +144,13 @@ namespace BlackFlame
 
             static void Install(const char* a_name)
             {
-                m_kind = a_name;
+                s_kind = a_name;
                 REL::Relocation<std::uintptr_t> vtbl{ T::VTABLE[0] };
                 func = vtbl.write_vfunc(kHandle3DLoadedIndex, thunk);
             }
 
             static inline REL::Relocation<decltype(thunk)> func;
-            static inline const char* m_kind = "";
+            static inline const char* s_kind = "";
         };
     }
 

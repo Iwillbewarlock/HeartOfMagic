@@ -19,4 +19,7 @@ namespace BlackFlame
 {
     /// Game thread only (called by the buff ticker while stoked).
     void TickCasterArt();
+
+    /// Game thread, at kPreLoadGame / kNewGame: forgets the per-hand cast state
+    void ResetCasterArt();
 }
