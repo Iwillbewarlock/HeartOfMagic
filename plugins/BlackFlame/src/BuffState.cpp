@@ -1,5 +1,6 @@
 #include "BuffState.h"
 
+#include "CasterArt.h"
 #include "Forms.h"
 #include "GameThread.h"
 
@@ -56,6 +57,9 @@ namespace BlackFlame
         {
             g_tickPending.store(false);
             RecomputeBuff("tick");
+            if (IsStoked()) {
+                TickCasterArt();  // layer 4
+            }
         }
 
         void TickerLoop()
