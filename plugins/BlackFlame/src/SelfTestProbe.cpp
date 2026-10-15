@@ -97,8 +97,16 @@ namespace BlackFlame::SelfTestProbe
     Snapshot Capture(RE::NiAVObject* a_root)
     {
         Snapshot out;
-        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
+        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
             AddProperty(a_prop, out);
+            // The colour keys as they were before any recolour (the self-test's T7 compares with them)
+            if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
+                for (const auto& modifier : particles->GetParticleSystemRuntimeData().modifierList) {
+                    if (IsSimpleColorModifier(modifier.get())) {
+                        out.modifierKeys.push_back(ReadColorKeys(modifier.get()));
+                    }
+                }
+            }
         });
         return out;
     }
@@ -137,6 +145,7 @@ namespace BlackFlame::SelfTestProbe
 
     void RecordBurn(BurnRecord a_record)
     {
+        a_record.recordedAt = std::chrono::steady_clock::now();
         Add(g_burns, std::move(a_record));
     }
 

@@ -205,7 +205,7 @@ namespace BlackFlame::SelfTest
             const auto detail = std::format("recoloured base colours: {} grey (R=G=B), {} not; luminance x tintScale "
                 "checked on {}, {} off; {} with a colour controller left out of that compare", grey, notGrey, lumChecked,
                 lumOff, controlled);
-            if (lumChecked == 0 && controlled > 0 && notGrey == 0) {
+            if (grey > 0 && lumChecked == 0 && controlled > 0 && notGrey == 0) {
                 SelfTestLog::Info("T3-tint", "every comparable shape has a colour controller, nothing to compare: " + detail);
                 return;
             }
@@ -230,6 +230,7 @@ namespace BlackFlame::SelfTest
             const auto& a = r->after;
             const bool ok = r->recolored && r->stats.Recolored() > 0 && a.withPalettePath >= r->stats.Recolored();
             a_c.t3Recolored = ok;
+            a_c.t3ModifierKeys = r->before.modifierKeys;  // T7: contamination before T4 would show against these
             SelfTestLog::Check("T3", ok, std::format("{} effect shapes with the palette path of {} | {}", a.withPalettePath,
                 a.effectProperties, DescribeProjectile(*r)));
             SelfTestLog::Check("T3-pointer", a.withPalettePath > 0 && a.withBoth == a.withPalettePath, std::format(

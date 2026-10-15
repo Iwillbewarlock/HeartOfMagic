@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <format>
+#include <string>
 
 namespace BlackFlame::SelfTest
 {
@@ -55,15 +56,30 @@ namespace BlackFlame::SelfTest
             SelfTestProbe::SetRecording(false);
             try {
                 if (lateCleanup) {
+                    // Each removal on its own first, so a throw in one cannot skip the other
                     const int dispelled = SelfTestWorld::DispelStoke();
+                    std::string target = "not removed";
+                    std::string casterDone = "not removed";
+                    try {
+                        target = SelfTestWorld::Remove(dummy);
+                    } catch (...) {
+                    }
+                    try {
+                        casterDone = SelfTestWorld::Remove(caster);
+                    } catch (...) {
+                    }
                     SelfTestLog::Info("CLEANUP", std::format("late cleanup: dispelled {} Stoke effect(s); target: {}; "
-                        "caster: {}", dispelled, SelfTestWorld::Remove(dummy), SelfTestWorld::Remove(caster)));
+                        "caster: {}", dispelled, target, casterDone));
                 }
             } catch (...) {
                 logger::error("BlackFlame: self-test late cleanup threw; the test actors may be left in the world");
             }
             try {
                 SelfTestProbe::Clear();
+            } catch (...) {
+                logger::error("BlackFlame: self-test could not clear its records");
+            }
+            try {
                 SelfTestLog::Done();
             } catch (...) {
                 logger::error("BlackFlame: self-test could not write its summary");

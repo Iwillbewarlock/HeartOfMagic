@@ -4,6 +4,7 @@
 #include "ParticleColors.h"
 #include "Recolor.h"
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -35,6 +36,7 @@ namespace BlackFlame::SelfTestProbe
         std::vector<std::uintptr_t> properties;
         std::vector<std::uintptr_t> materials;
         std::vector<RE::NiColorA> baseColors;  // the material's baseColor
+        std::vector<ColorKeys> modifierKeys;   // every simple colour modifier's keys (Capture only)
         std::vector<bool> grey;                // Recolor.h HasGreyMaterial
         std::vector<bool> colorControlled;     // Recolor.h HasColorController
     };
@@ -91,6 +93,13 @@ namespace BlackFlame::SelfTestProbe
         Inspection after;
     };
 
+    // An engine hit shader the burn layer saw in an effect's hitEffects, with its age then
+    struct HitShader
+    {
+        std::uintptr_t ptr = 0;
+        float age = 0.0f;
+    };
+
     struct BurnRecord
     {
         std::uint64_t seq = 0;
@@ -102,7 +111,8 @@ namespace BlackFlame::SelfTestProbe
         int attempt = 0;
         bool applied = false;
         bool alreadyLive = false;
-        std::vector<std::uintptr_t> hitShaders;  // the effect's own engine hit shaders seen in hitEffects (finished or not)
+        std::vector<HitShader> hitShaders;  // the effect's own engine hit shaders seen in hitEffects (finished or not)
+        std::chrono::steady_clock::time_point recordedAt{};  // set by RecordBurn
     };
 
     void RecordProjectile(ProjectileRecord a_record);

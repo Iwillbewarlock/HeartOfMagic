@@ -193,7 +193,7 @@ namespace BlackFlame
 
         // Only this effect's own hit shaders: an ally's identical shader on the same target stays
         HitList FinishEngineShaders(RE::ActiveEffect* a_effect, const RE::TESEffectShader* a_engineShader, int& a_stopped,
-            std::vector<std::uintptr_t>& a_seen)
+            std::vector<SelfTestProbe::HitShader>& a_seen)
         {
             a_stopped = 0;
             if (!a_effect->hitEffects) {
@@ -206,7 +206,7 @@ namespace BlackFlame
             for (auto* hit : *a_effect->hitEffects) {
                 auto* shader = hit ? hit->As<RE::ShaderReferenceEffect>() : nullptr;
                 if (shader && shader->effectData == a_engineShader) {
-                    a_seen.push_back(reinterpret_cast<std::uintptr_t>(shader));  // for the self-test
+                    a_seen.push_back({ reinterpret_cast<std::uintptr_t>(shader), shader->age });  // for the self-test
                     if (!shader->finished) {
                         found.insert(shader);
                     }
@@ -352,7 +352,7 @@ namespace BlackFlame
             }
 
             int stopped = 0;
-            std::vector<std::uintptr_t> hitShaders;
+            std::vector<SelfTestProbe::HitShader> hitShaders;
             const char* listState = "original left (overlay)";
             if (!effect) {
                 // Applied from the event's facts; the engine shader cannot be found without the effect
@@ -400,7 +400,7 @@ namespace BlackFlame
                 return;
             }
             int stopped = 0;
-            std::vector<std::uintptr_t> hitShaders;
+            std::vector<SelfTestProbe::HitShader> hitShaders;
             const HitList state = FinishEngineShaders(effect, engineShader, stopped, hitShaders);
             ReportBurn({ 0, targetId, spellId, engineShader->GetFormID(), HitListName(state), stopped, kRetryAttempt,
                 false, false, std::move(hitShaders) });

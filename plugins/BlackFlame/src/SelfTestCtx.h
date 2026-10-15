@@ -20,6 +20,15 @@ namespace BlackFlame::SelfTest
 {
     using Clock = std::chrono::steady_clock;
 
+    // A shader pointer seen at a time with an age: a later sighting is the same object only if its
+    // age grew with the clock (an address can be reused by a new shader)
+    struct SeenShader
+    {
+        std::uintptr_t ptr = 0;
+        float age = 0.0f;
+        Clock::time_point at{};
+    };
+
     struct Ctx
     {
         Clock::time_point stepStart;
@@ -44,9 +53,10 @@ namespace BlackFlame::SelfTest
         std::uint64_t extendMark = 0;
         bool extendAttempted = false;
         bool extendCast = false;
-        std::optional<bool> npcModifiersChanged;
-        std::vector<std::uintptr_t> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
-        std::optional<Clock::time_point> npcHitEta;    // when the caster's T4 projectile can have arrived  // the caster's colour keys moved between its hook and T4
+        std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
+        std::vector<SeenShader> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
+        std::optional<Clock::time_point> npcHitEta;  // when the caster's T4 projectile can have arrived
+        std::vector<ColorKeys> t3ModifierKeys;     // the player's T3 projectile's colour keys before its recolour
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
     };
