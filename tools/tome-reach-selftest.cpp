@@ -16,6 +16,7 @@
 #include <zlib.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -178,6 +179,120 @@ namespace
         Check(text.Names("other.esm", 0x999, "ConfigTome"), "an editor id names its tome");
         Check(!text.Names("other.esm", 0x999, "ConfigTom"), "a shorter editor id does not");
     }
+
+    // File and folder names outside the ANSI code page (Thai is outside CP949 and CP1252 alike):
+    // path::string() throws on them, so the scan must read names as UTF-8 and keep going.
+    void NonAnsiNames(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-scan";
+        const auto thaiFolder = data / "SKSE" / "Plugins" / fs::path(u8"SkyPatcher") / fs::path(u8"ไทย");
+        std::error_code ec;
+        fs::create_directories(thaiFolder, ec);
+        Write(data, "Plain_DISTR.ini", Bytes{});
+        std::ofstream(data / fs::path(u8"ไทย_DISTR.ini")) << "Spell = 0x800~Master.esm\n";
+        std::ofstream(data / fs::path(u8"ไทย.txt")) << "not a config\n";
+        std::ofstream(thaiFolder / fs::path(u8"a.ini")) << "x\n";
+
+        std::vector<fs::path> found;
+        bool threw = false;
+        try {
+            found = TomeReach::FindDistributionConfigs(data);
+        } catch (...) {
+            threw = true;
+        }
+        auto has = [&](const fs::path& p) { return std::ranges::find(found, p) != found.end(); };
+        Check(!threw, "a non-ANSI file name does not throw out of the scan");
+        Check(has(data / "Plain_DISTR.ini") && has(data / fs::path(u8"ไทย_DISTR.ini")),
+            "a non-ANSI _DISTR.ini is found next to a plain one");
+        Check(has(thaiFolder / "a.ini"), "a config in a non-ANSI SkyPatcher subfolder is found");
+        Check(found.size() == 3, "a non-config with a non-ANSI name is not");
+        const std::u8string lowered = u8"ไทย_distr.ini";
+        Check(TomeReach::LowerUtf8(fs::path(u8"ไทย_DISTR.INI")) == std::string(lowered.begin(), lowered.end()),
+            "LowerUtf8 lowers ASCII and keeps UTF-8 bytes");
+    }
+
+    // The top level is read by an OS wildcard per suffix, not a full listing: it must keep exactly the
+    // files the full listing kept (every entry through IsDistributionConfig), case and near-misses included
+    void WildcardMatchesFullListing(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-wildcard";
+        std::error_code ec;
+        fs::remove_all(data, ec);
+        fs::create_directories(data / "Dir_DISTR.ini", ec);  // a folder with a config's name
+        for (const char* name : { "A_DISTR.ini", "b_kid.INI", "C_FLM.ini", "D_Swap.ini", "E_CID.ini", "F_CDF.ini",
+                 "G_LLI.ini", "H_distr.ini.bak", "I_distr.txt", "j.json", "k.ini", "meta.ini", "LongName_DISTR_x.ini",
+                 "Mod_DISTRini", "Some Long Name With Spaces_DISTR.ini" }) {
+            std::ofstream(data / name) << "x\n";
+        }
+        std::ofstream(data / fs::path(u8"ไทย_KID.ini")) << "x\n";
+
+        std::vector<fs::path> full;
+        for (fs::directory_iterator it(data, ec), end; !ec && it != end; it.increment(ec)) {
+            if (it->is_regular_file() && TomeReach::IsDistributionConfig(it->path())) full.push_back(it->path());
+        }
+        auto found = TomeReach::FindDistributionConfigs(data);
+        std::ranges::sort(full);
+        std::ranges::sort(found);
+        Check(full.size() == 9, "the full listing keeps the nine configs (seven suffixes, spaces, Thai)");
+        Check(found == full, "the wildcard search keeps the same files as the full listing");
+
+        constexpr std::array kSpid = { std::string_view("_distr.ini") };
+        Check(TomeReach::TopLevelConfigs(data, kSpid).size() == 2, "a single suffix keeps only its own files");
+    }
+
+    // Under SKSE/Plugins only the files below a direct child folder whose name holds a config folder's
+    // name are read (found by wildcard, not a full walk). The answer is a full recursive walk with that
+    // rule written out here; decoys: suffix files and config folders nested deeper are not read.
+    void PluginsSearchMatchesRule(const std::filesystem::path& root)
+    {
+        namespace fs = std::filesystem;
+        const auto data = root / "distr-plugins";
+        const auto plugins = data / "SKSE" / "Plugins";
+        std::error_code ec;
+        fs::remove_all(data, ec);
+        const fs::path files[] = {
+            plugins / "SkyPatcher" / "leveledList" / "a.ini",       // kept: nested inside a config folder
+            plugins / "SkyPatcher" / "npc" / "deep" / "b.ini",      // kept: deeper still
+            plugins / "SkyPatcher" / "readme.txt",                  // not a config extension
+            plugins / "SkyPatcher" / "meta.ini",                    // MO2's meta file
+            plugins / "My_LLOS_Patch" / "c.json",                   // kept: the name holds "llos"
+            plugins / "SkyPatcher_LLOS" / "d.ini",                  // kept once (two names in one)
+            plugins / "ContainerDistributionFramework" / "e.yaml",  // kept
+            plugins / "x_DISTR.ini",                                // decoy: a suffix file under SKSE/Plugins
+            plugins / "Other" / "y.ini",                            // decoy: not a config folder
+            plugins / "Other" / "z_KID.ini",                        // decoy: a suffix file deeper down
+            plugins / "Other" / "SkyPatcher" / "z.ini",             // decoy: a config folder not a direct child
+            plugins / "DynamicStringDistributor" / "SkyPatcher" / "w.ini",  // decoy: translation folder
+            data / "Top_DISTR.ini",                                 // kept: the top level
+        };
+        for (const auto& f : files) {
+            fs::create_directories(f.parent_path(), ec);
+            std::ofstream(f) << "x\n";
+        }
+        fs::create_directories(plugins / "LeveledList_folder.ini", ec);  // a folder with a config's name
+
+        constexpr std::array kFolders = { "skypatcher", "containerdistributionframework", "llos", "leveledlist",
+            "containeritemdistributor" };
+        std::vector<fs::path> want;
+        for (fs::directory_iterator it(data, ec), end; !ec && it != end; it.increment(ec)) {
+            if (it->is_regular_file() && TomeReach::IsDistributionConfig(it->path())) want.push_back(it->path());
+        }
+        for (fs::recursive_directory_iterator it(plugins, ec), end; !ec && it != end; it.increment(ec)) {
+            if (!it->is_regular_file() || !TomeReach::IsDistributionConfig(it->path())) continue;
+            const auto rel = fs::relative(it->path(), plugins);
+            const auto first = TomeReach::LowerUtf8(*rel.begin());
+            const bool inFolder = std::distance(rel.begin(), rel.end()) >= 2 &&
+                std::ranges::any_of(kFolders, [&](const char* f) { return first.find(f) != std::string::npos; });
+            if (inFolder) want.push_back(it->path());
+        }
+        auto found = TomeReach::FindDistributionConfigs(data);
+        std::ranges::sort(want);
+        std::ranges::sort(found);
+        Check(want.size() == 6, "the rule keeps six files (top level, nested config folders, two names once)");
+        Check(found == want, "the SKSE/Plugins folder search keeps the same files as a full walk with the rule");
+    }
 }
 
 int RunSelfTest()
@@ -307,6 +422,9 @@ int RunSelfTest()
             "a plugin that cannot be opened, or whose header is cut, is unreadable");
     }
     ConfigRules();
+    NonAnsiNames(dir);
+    WildcardMatchesFullListing(dir);
+    PluginsSearchMatchesRule(dir);
 
     std::printf("self-test: %d passed, %d failed\n", g_passed, g_failed);
     std::error_code ec;

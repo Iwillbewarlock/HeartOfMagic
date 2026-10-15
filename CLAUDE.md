@@ -6,7 +6,7 @@ Project instructions for Claude Code when working with Heart of Magic.
 
 Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP-based progression system for Skyrim SE/AE. It scans all spells in the player's load order, generates prerequisite trees with a native C++ Classic (tier-first) builder using NLP algorithms (TF-IDF, cosine similarity, fuzzy matching), and tracks learning progress through casting, tome study, and other XP sources.
 
-**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three release DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
+**Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three release DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon), plus `HeartOfMagic_NPCSpells.dll` (NPC Spells addon, own version, ESL and zip). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
 
 ## Documentation Decision Tree
 
@@ -45,6 +45,9 @@ What are you doing?
 │
 ├─► Working with BookXP addon?
 │   └─► plugins/BookXP/README.md
+│
+└─► Working with the NPC Spells addon (spells handed to NPCs through leveled lists)?
+    └─► plugins/NPCSpells/README.md (design: docs/superpowers/specs/2026-10-07-npc-spells-addon-design.md)
 ```
 
 ## Critical Rules (MUST Follow)
@@ -132,7 +135,7 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
-The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
+The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). The NPC Spells addon (`HeartOfMagic_NPCSpells.dll`, which stays out of that archive) gets its own: `dist/HeartOfMagic-NPCSpells_<VERSION>.zip` (the ESL, the DLL, the rules JSON and the licence files above; `plugins/cmake/DistributionNpcSpells.cmake`) and its `_DebugSymbols.zip`.
 
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
@@ -149,6 +152,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
+.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -290,12 +294,13 @@ This project does not have a C++ test framework. Validation is done through:
   Spell Research registrations and scores their labels), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
-  it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
+  it must list what `lab/tome-reach/expected-*.txt` lists on the same load order), `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
-  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `tree-save-check` (SaveSpellTree's no-spells guard,
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save"), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
-  full parse; exit 1 on a disagreement)
+  full parse; exit 1 on a disagreement), `npcspells-test` (the NPC Spells addon's RE-free core: `npcspells-test`
+  runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; `--tree <spell_tree.json> --catalog <spell_catalog.json>` prints slot statistics on real files) and `npcspells-esl` (writes `HeartOfMagic_NPCSpells.esp` from the slot table at build time into `build/npcspells/`; `npcspells-esl -o <path>`)
 
 ## Code Style
 
@@ -337,6 +342,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Public C++ API | `plugins/spelllearning/src/SpellLearningAPI.h` |
 | DEST compatibility shim | `plugins/DummyDEST/` |
 | BookXP addon | `plugins/BookXP/` |
+| NPC Spells addon | `plugins/NPCSpells/` |
 | Shared CMake modules | `plugins/cmake/` |
 | CommonLibSSE-NG | `plugins/external/commonlibsse-ng/` |
 | PrismaUI frontend | `PrismaUI/views/SpellLearning/SpellLearningPanel/` |
@@ -471,3 +477,4 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |
+| [plugins/NPCSpells/README.md](plugins/NPCSpells/README.md) | NPC Spells addon: how its leveled lists are made, rules file, report, known limits, in-game check |

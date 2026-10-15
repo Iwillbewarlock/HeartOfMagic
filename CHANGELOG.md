@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased (next Heart of Magic Librarian release)
+
+### Fixed
+
+- The tome reach scan (which keeps spells whose tomes nothing hands out out of the tree) now also finds
+  distribution config files whose name or folder is not in the system code page (a Korean or Chinese name could
+  stop the whole config search), and a file entry it cannot read is skipped alone. It no longer walks all of
+  SKSE/Plugins (over a second on a large MO2 setup): `_DISTR.ini`, `_KID.ini` and the other suffix files count
+  only in Data itself, where their frameworks read them, and under SKSE/Plugins only the files inside a
+  SkyPatcher, LLOS, LeveledList or Container Distribution folder count.
+
+## Heart of Magic - NPC Spells 1.0.0 (separate addon)
+
+- First release of an optional addon, a separate download (a DLL, a small ESL-flagged plugin and a rules
+  file): at game start it hands the spells of your tree to magic-using NPCs by school and skill, through leveled
+  spell lists, with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
+  for those who should not have them. Nothing is saved in your game, and a report lists who got what. Needs
+  Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built; see `plugins/NPCSpells/README.md`.
+
 ## Heart of Magic Librarian 1.5.0
 
 ### New

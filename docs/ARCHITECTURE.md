@@ -26,8 +26,7 @@
 
 **Game Versions:** one set of DLLs for SE 1.5.97, AE 1.6.x and AE 1.7.x (1.7.99, 1.7.104), built on
 CommonLibSSE-NG v10.0.0 (`plugins/external/commonlibsse-ng`, tag `v10.0.0`). All the DLLs
-(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`)
-use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
+(`SpellLearning`, `DontEatSpellTomes`, `SL_BookXP`, and the NPC Spells addon's `HeartOfMagic_NPCSpells`) use `add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`
 with the default struct compatibility, so their `SKSEPlugin_Version` declares Address Library
 independence (`versionIndependence` = AddressLibraryPostAE) and `versionIndependenceEx` = NoStructUse |
 AddressLibraryV5 (0x3). NoStructUse is right because the plugin reads no struct whose layout moved without
@@ -208,11 +207,19 @@ game the placed references of cells that are not loaded are not in memory:
   this way; every one of them is named by its own mod (a Creation Club pet quest's summon tome, Inigo's,
   spell packs whose scripts put their tomes on vendors), so the loose reading is kept (`tome-reach-test -v`
   lists them).
+- The config scan (`TomeReachConfig.cpp`) is shared with the NPC Spells addon (its `*_DISTR.ini` exclusion). It
+  compares file and folder names as UTF-8 (`u8string`), and a bad entry (an error code or an exception on one
+  path) skips that entry alone instead of stopping the pass, so a load order with non-ANSI file names (Korean ones)
+  no longer loses the whole scan.
 - A tome no record names can still come from an SKSE distribution framework: the worker reads the configs
   under `Data/` and `Data/SKSE/Plugins/` (`IsDistributionConfig`, TomeReachConfig.cpp: SPID `_DISTR.ini`, KID,
   FLM, BOS `_SWAP.ini`, CID, CDF, LLI, SkyPatcher and LLOS folders) and counts a tome they name by editor id
   (from the BOOK record) or as plugin and id (`0x800~Plugin.esp`, `Plugin.esp|0x800`). Only these files:
-  inventory layout lists (GridInventory) and icon lists name every book.
+  inventory layout lists (GridInventory) and icon lists name every book. The suffix files count only at
+  `Data/`'s top level, where their frameworks read them; under `SKSE/Plugins` only the files below a direct
+  child folder whose name holds a config folder's name, found by wildcard instead of a full walk (1.4 s under
+  MO2's USVFS). A suffix file elsewhere under `SKSE/Plugins` or a config folder nested deeper is not read (a
+  known limit; the upgrade is the full walk again).
 - A debug tome counts as unreached wherever it is placed (2026-10-09): a BOOK whose winning editor id
   contains `debug` (case ignored). Mods keep these in a test cell reached only by `coc`: Sa'chil's
   `SU04SpellTomeDebug` ("사'칠 배치", which moves the follower home) sits in the `SachilDebug` cell. On the
@@ -519,7 +526,7 @@ an exception is logged and the caller gets `0`/`false`, it never crosses into th
 calls in `OnExternalPluginMessage` (the AddXP and RegisterSource messages) are guarded the same way; that
 handler is not registered as a listener at present.
 
-`SetupLog` (`plugins/Common.h`, all three DLLs) never throws. CommonLib's `logger::init()` builds its file sink
+`SetupLog` (`plugins/Common.h`, all four DLLs (SpellLearning, DontEatSpellTomes, SL_BookXP, HeartOfMagic_NPCSpells)) never throws. CommonLib's `logger::init()` builds its file sink
 from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
 not load at all. On that throw the same log file is opened by its wide path (`WideFileSink`,
 `plugins/WideFileSink.h`, `_wfsopen`; spdlog here has no `SPDLOG_WCHAR_FILENAMES`), and if that fails too the
@@ -1252,7 +1259,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 ### Logging (2026-09-25)
 
-CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all three DLLs) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
+CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all four DLLs (SpellLearning, DontEatSpellTomes, SL_BookXP, HeartOfMagic_NPCSpells)) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
 
 ### Tree load (2026-09-25)
 - `GetSpellInfoBatch` keeps each spell's info as JSON (`SpellScanner::GetSpellInfoJsonByFormId`) instead of building text and parsing it back once per spell; `GetSpellInfoByFormId` is the serialized wrapper for the single-spell path
@@ -1896,6 +1903,15 @@ HeartOfMagic/
 │   │   ├── CMakeLists.txt
 │   │   └── src/
 │   │       └── Main.cpp           ✅ BookMenu watcher + API integration
+│   └── NPCSpells/                 # NPC Spells addon (own DLL, ESL and zip; see its README.md)
+│       ├── CMakeLists.txt
+│       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules)
+│       └── src/
+│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once
+│           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions, report
+│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records, the run
+├── tools/
+│   └── npcspells-*.cpp            ✅ NPC Spells offline harness (npcspells-test: the RE-free core, `--tree`/`--catalog` statistics on real files) and the ESL writer (npcspells-esl)
 ├── Scripts/Source/
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler
@@ -1950,6 +1966,8 @@ MO2/mods/HeartOfMagic_RELEASE/
 │           └── presets/
 └── (ESP if applicable)
 ```
+
+The NPC Spells addon ships as its own archive, `dist/HeartOfMagic-NPCSpells_<VERSION>.zip`: `HeartOfMagic_NPCSpells.esp` (ESL flag) at the root, `SKSE/Plugins/HeartOfMagic_NPCSpells.dll` and `.json`, and the licence files. See `plugins/NPCSpells/README.md`.
 
 ---
 

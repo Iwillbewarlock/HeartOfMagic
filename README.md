@@ -185,10 +185,11 @@ cmake --preset Release-2022
 cmake --build --preset Release-2022
 ```
 
-This builds all three targets from a single super-build:
+This builds all four targets from a single super-build:
 - `SpellLearning.dll` - Main plugin
 - `DontEatSpellTomes.dll` - DEST compatibility shim
 - `SL_BookXP.dll` - BookXP addon
+- `HeartOfMagic_NPCSpells.dll` - NPC Spells addon (own ESL and zip; see `plugins/NPCSpells/README.md`)
 
 Output is in `build/`.
 
