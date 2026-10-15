@@ -149,7 +149,7 @@ namespace BlackFlame
             const auto owner = data.actorOwner.get();
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
             logger::info("BlackFlame: explosion diagnostics [{}]: base {:08X} (fire set: {}), owner {:08X}, cause actor "
-                         "{:08X}, magicCaster {} currentSpell {:08X}, 3D {}, thread {}",
+                         "{:08X}, magicCaster {} currentSpell {:08X}, 3D {}, callerThread={}",
                 a_hook, explosion ? explosion->GetFormID() : 0, IsFireExplosion(explosion) ? "yes" : "no",
                 owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0, data.magicCaster ? "set" : "null",
                 casterSpell ? casterSpell->GetFormID() : 0, a_has3D ? "present" : "null", REX::W32::GetCurrentThreadId());

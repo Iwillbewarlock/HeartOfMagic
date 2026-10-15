@@ -93,7 +93,7 @@ namespace BlackFlame
             const auto* base = effect ? effect->GetBaseObject() : nullptr;
             const auto target = a_this->target.get();
             logger::info("BlackFlame: {} [{} {}]: controller 0x{:X} (call {} for it), effect {} MGEF {:08X} spell {:08X} "
-                         "elapsed {:.2f} s, target {:08X}, caster {}, original {:08X} -> {}, thread {}",
+                         "elapsed {:.2f} s, target {:08X}, caster {}, original {:08X} -> {}, callerThread={}",
                 kSlotNames[a_slot], a_player ? "player" : "any", line, reinterpret_cast<std::uintptr_t>(a_this),
                 CallNumber(a_this), effect ? effect->usUniqueID : 0, base ? base->GetFormID() : 0,
                 effect && effect->spell ? effect->spell->GetFormID() : 0, effect ? effect->elapsedSeconds : 0.0f,

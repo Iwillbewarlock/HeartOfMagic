@@ -56,7 +56,7 @@ namespace BlackFlame::SelfTest
             const auto counts = GetFireSetCounts();
             std::string missing;
             a_c.haveForms = SelfTestWorld::LookupVanilla(a_c.forms, missing);
-            SelfTestLog::Info("T0", std::format("game thread {}, palette {} ({})", g_gameThreadNativeId.load(),
+            SelfTestLog::Info("T0", std::format("gameThread={}, palette {} ({})", g_gameThreadNativeId.load(),
                 PaletteReady() ? "loaded" : "NOT loaded", GetPalettePath() ? GetPalettePath() : "-"));
             SelfTestLog::Info("T0", std::format("forms: burn shader {:08X}, keyword {:08X}, stoke spell {:08X}",
                 forms.burnShader ? forms.burnShader->GetFormID() : 0,

@@ -82,7 +82,7 @@ namespace BlackFlame
             auto& data = a_hazard->GetHazardRuntimeData();
             const auto owner = data.ownerActor.get();
             logger::info("BlackFlame: hazard diagnostics [{}] {}: base {:08X}, spell {:08X} (fire: {}), owner {:08X}, light "
-                         "{}, 3D {}, thread {}",
+                         "{}, 3D {}, callerThread={}",
                 a_hook, line, base ? base->GetFormID() : 0, spell ? spell->GetFormID() : 0, IsFireHazard(base) ? "yes" : "no",
                 owner ? owner->GetFormID() : 0, data.light ? "set" : "null", a_has3D ? "present" : "null",
                 REX::W32::GetCurrentThreadId());

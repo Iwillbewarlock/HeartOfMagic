@@ -127,7 +127,7 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, false);
-    BlackFlame::StampGameThread();  // this thread is taken as the game thread (GameThread.h)
+    BlackFlame::StampGameThreadFromTask();  // the first SKSE task stamps the game thread (GameThread.h)
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
     // and the self-test's end write them out
     SetupLog("Black Flame prototype (grey-black fire for the player's fire spells while stoked)");

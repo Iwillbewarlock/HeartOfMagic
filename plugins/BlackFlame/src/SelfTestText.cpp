@@ -65,7 +65,7 @@ namespace BlackFlame::SelfTestText
     std::string DescribeProjectile(const SelfTestProbe::ProjectileRecord& a_r)
     {
         return std::format("spell {:08X} ({}) recoloured={} [{}] in {} us; 3D after: {} effect properties, {} with "
-                           "palette path, {} with palette pointer, {} both, {} grey; hook thread {} ({}), game thread {}",
+                           "palette path, {} with palette pointer, {} both, {} grey; hookThread={} ({}), gameThread={}",
             a_r.spell, a_r.kind, a_r.recolored, a_r.stats.Describe(), a_r.recolorMicros, a_r.after.effectProperties,
             a_r.after.withPalettePath, a_r.after.withPalettePointer, a_r.after.withBoth, a_r.after.withGrey, a_r.hookThread,
             a_r.hookOnGameThread ? "game thread" : "other thread", g_gameThreadNativeId.load());
@@ -75,7 +75,7 @@ namespace BlackFlame::SelfTestText
     {
         return std::format("explosion {:08X} byPlayer={} recoloured={} [{}]; owner {:08X}, cause actor {:08X}, "
                            "magicCaster {} currentSpell {:08X}, light at Set3D {}; 3D after: {} with palette path; "
-                           "hook thread {} (game {})",
+                           "hookThread={} (gameThread={})",
             a_r.base, a_r.byPlayer, a_r.recolored, a_r.stats.Describe(), a_r.owner, a_r.causeActor,
             a_r.hasMagicCaster ? "set" : "null", a_r.casterSpell, a_r.lightAtSet3D ? "yes" : "no",
             a_r.after.withPalettePath, a_r.hookThread, g_gameThreadNativeId.load());
@@ -94,7 +94,7 @@ namespace BlackFlame::SelfTestText
     {
         std::string out;
         for (const auto& b : SelfTestProbe::BurnsSince(a_mark)) {
-            out += std::format("{}[spell {:08X} on {:08X}: engine {:08X} {}, controller 0x{:X}, thread {}]",
+            out += std::format("{}[spell {:08X} on {:08X}: engine {:08X} {}, controller 0x{:X}, hookThread={}]",
                 out.empty() ? "" : " ", b.spell, b.target, b.engineShader, b.swapped ? "swapped" : "kept", b.controller,
                 b.thread);
         }

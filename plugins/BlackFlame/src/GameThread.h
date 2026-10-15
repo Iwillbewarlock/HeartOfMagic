@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 // =============================================================================
@@ -17,19 +18,19 @@
 // (header only, global namespace). Only the native id stamps, the thread logs and
 // QueueTask are this addon's.
 //
-// What "game thread" means in this addon: an SKSE task (QueueTask) or the SKSE
-// message handler. That those run on the engine's main thread is NOT proven: the
-// first in-game run (AE 1.6.1170) logged tasks on six different OS threads,
-// Handle3DLoaded on the SKSEPlugin_Load thread and kDataLoaded on another. The
-// game thread is stamped at SKSEPlugin_Load, the kDataLoaded thread is kept
-// beside it, and the first runs of every task kind and of the message handler log
-// their thread, so the second run settles it. Containers shared between tasks,
-// the message handler and hooks are under mutexes either way.
+// SKSE tasks (QueueTask) run in the SKSE task phase of Main::Update (main thread,
+// per SKSE 2.2.8 Hooks_Threads.cpp: s_tasks drained in BSTaskPool::ProcessTasks).
+// Heart of Magic's own log showed its task bodies on the SKSEPlugin_Load thread.
+// kDataLoaded runs on another (init) thread, which is why the old stamp there
+// never matched. So the game thread is stamped by the first task itself (queued
+// at SKSEPlugin_Load), which logs the load thread, its own and Main::threadID; the
+// kDataLoaded thread is only logged. The first runs of every task kind and of the
+// message handler still log their thread. Containers shared between tasks, the
+// message handler and hooks are under mutexes (cheap, harmless).
 
 namespace BlackFlame
 {
-    // Stamped at SKSEPlugin_Load (round 8; it was kDataLoaded's thread before, which matched nothing
-    // in the first run)
+    // Stamped by the first SKSE task (StampGameThreadFromTask)
     inline std::atomic<std::uint32_t> g_gameThreadNativeId{ 0 };
     inline std::atomic<std::uint32_t> g_loadThreadNativeId{ 0 };        // SKSEPlugin_Load's thread
     inline std::atomic<std::uint32_t> g_dataLoadedThreadNativeId{ 0 };  // kDataLoaded's thread
@@ -44,12 +45,20 @@ namespace BlackFlame
         return g_worldGeneration.load();
     }
 
-    /// SKSEPlugin_Load: this thread is taken as the game thread (IsOnGameThread compares with it)
-    inline void StampGameThread()
+    /// SKSEPlugin_Load: notes the load thread and queues the task that stamps the game thread
+    /// (IsOnGameThread compares with it) and logs one line: load thread, its own, Main::threadID
+    inline void StampGameThreadFromTask()
     {
-        ::MarkGameThread();
-        g_gameThreadNativeId.store(REX::W32::GetCurrentThreadId());
         g_loadThreadNativeId.store(REX::W32::GetCurrentThreadId());
+        AddTaskToGameThread("BlackFlameStamp", []() {
+            ::MarkGameThread();
+            const auto current = REX::W32::GetCurrentThreadId();
+            g_gameThreadNativeId.store(current);
+            const auto* main = RE::Main::GetSingleton();
+            logger::info("BlackFlame: game thread stamped by the first SKSE task: taskThread={}, loadThread={}, "
+                         "Main::threadID={}", current, g_loadThreadNativeId.load(),
+                main ? std::to_string(main->threadID) : std::string("(no Main)"));
+        });
     }
 
     /// The first a_max runs per a_what (a string literal): which thread it ran on
@@ -66,8 +75,8 @@ namespace BlackFlame
             return;
         }
         const auto current = REX::W32::GetCurrentThreadId();
-        logger::info("BlackFlame: {} '{}' run {} on thread {} ({}; stamped game thread {} = SKSEPlugin_Load, "
-                     "kDataLoaded thread {})", a_kind, a_what, run, current,
+        logger::info("BlackFlame: {} '{}' run {}: currentThread={} ({}; gameThread={} stamped by the first task, "
+                     "dataLoadedThread={})", a_kind, a_what, run, current,
             current == g_gameThreadNativeId.load() ? "the stamped game thread" : "NOT the stamped game thread",
             g_gameThreadNativeId.load(), g_dataLoadedThreadNativeId.load());
     }
@@ -90,7 +99,7 @@ namespace BlackFlame
         }
         const auto current = REX::W32::GetCurrentThreadId();
         const auto game = g_gameThreadNativeId.load();
-        logger::info("BlackFlame: {} ran on thread {} (stamped game thread {} = SKSEPlugin_Load, kDataLoaded thread "
+        logger::info("BlackFlame: {} ran with callerThread={} (gameThread={} stamped by the first task, dataLoadedThread="
                      "{}): {}", a_hook, current, game, g_dataLoadedThreadNativeId.load(),
             current == game ? a_onGame : a_elsewhere);
     }

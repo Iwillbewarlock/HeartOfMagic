@@ -132,7 +132,7 @@ namespace BlackFlame
                 faults = ++Steps()[a_step].faults;
             }
             g_anyFault.store(true);
-            logger::error("BlackFlame: {}: hardware exception 0x{:08X} at {} (thread {}), fault {} of this step; the "
+            logger::error("BlackFlame: {}: hardware exception 0x{:08X} at {} (faultThread={}), fault {} of this step; the "
                           "step is off for the rest of the session",
                 a_step, a_info.code, ModuleOffset(a_info.address), GetCurrentThreadId(), faults);
         }
