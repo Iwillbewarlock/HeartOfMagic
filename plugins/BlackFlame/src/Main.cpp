@@ -17,11 +17,13 @@
 #include "Forms.h"
 #include "GameThread.h"
 #include "HazardHook.h"
+#include "PapyrusWrap.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
 #include "Recolor.h"
+#include "ScriptTags.h"
 #include "SelfTest.h"
 
 namespace
@@ -58,6 +60,7 @@ namespace
         BlackFlame::ResetHitEffectState();
         BlackFlame::ResetHitArt();
         BlackFlame::ResetHazardState();
+        BlackFlame::ResetScriptTags();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetRecolorState();
@@ -138,6 +141,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     if (!messaging || !messaging->RegisterListener(OnSKSEMessage)) {
         logger::error("BlackFlame: could not register the SKSE message listener - the addon stays off");
         return true;
+    }
+    // Native wrappers bound when SKSE registers Papyrus functions (after the game's own natives)
+    if (auto* papyrus = SKSE::GetPapyrusInterface(); !papyrus || !papyrus->Register(BlackFlame::InstallNativeWrappers)) {
+        logger::warn("BlackFlame: could not register with the SKSE Papyrus interface - script-placed fire is not tagged");
     }
     logger::info("BlackFlame: loaded");
     return true;

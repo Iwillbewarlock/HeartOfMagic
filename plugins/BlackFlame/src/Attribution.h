@@ -10,8 +10,9 @@
 // Projectile, Explosion and Hazard keep one) names the player, OR the magic caster
 // that made it is a NonActorMagicCaster whose blameActor is the player. The last
 // two cover Spell.RemoteCast(source = an activator, blame = the player): the
-// activator is the shooter/owner, the player only the cause or blame. Which field
-// matched is logged once per layer and field.
+// activator is the shooter/owner, the player only the cause or blame. Last, the
+// reference or its owner is tagged by a script of the player's fire effect
+// (ScriptTags.h). Which field matched is logged once per layer and field.
 
 namespace BlackFlame
 {
@@ -20,7 +21,8 @@ namespace BlackFlame
         kNone,
         kOwner,  // owner / shooter actor
         kCause,  // ActorCause::actor
-        kBlame   // NonActorMagicCaster::blameActor
+        kBlame,  // NonActorMagicCaster::blameActor
+        kTagged  // placed by, or the akSource of a cast from, a script of the player's fire effect
     };
 
     /// a_owner: the reference's owner or shooter (may be null or a non-actor); a_caster: the magic

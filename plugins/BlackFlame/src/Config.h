@@ -19,6 +19,7 @@ namespace BlackFlame
         bool hazard = true;       // layer 3: the player's fire hazards (ground fire): non-shared geometry and light
         bool handArt = true;      // layer 4: the casting art in the player's hands
         bool boundWeapon = true;  // layer 4: the player's bound fire weapons' 3D (their arrows are layer 2)
+        bool scriptPlaced = true; // what scripts of the player's fire effects place or cast from (PapyrusWrap.h)
         bool light = true;        // projectile, explosion and casting lights
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)

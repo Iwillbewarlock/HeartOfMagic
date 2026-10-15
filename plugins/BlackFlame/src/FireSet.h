@@ -47,6 +47,9 @@ namespace BlackFlame
     /// A fire MGEF of some fire spell
     [[nodiscard]] bool IsFireEffect(const RE::EffectSetting* a_effect);
 
+    /// A fire MGEF by the rule alone (keyword or fire resistance), whatever spell carries it
+    [[nodiscard]] bool IsFireMgefAny(const RE::EffectSetting* a_effect);
+
     /// An explosion named by a fire MGEF (EffectSetting::data.explosion) or by its projectile
     /// (BGSProjectile::data.explosionType)
     [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion);

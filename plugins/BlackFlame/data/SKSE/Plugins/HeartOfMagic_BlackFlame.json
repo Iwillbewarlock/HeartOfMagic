@@ -6,6 +6,7 @@
     "hazard": true,
     "handArt": true,
     "boundWeapon": true,
+    "scriptPlaced": true,
     "light": true,
     "forcePalette": true,
     "particleColors": false,

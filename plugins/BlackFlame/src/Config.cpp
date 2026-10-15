@@ -34,6 +34,7 @@ namespace BlackFlame
             BoolKey{ "explosion", &Config::explosion },
             BoolKey{ "handArt", &Config::handArt },
             BoolKey{ "boundWeapon", &Config::boundWeapon },
+            BoolKey{ "scriptPlaced", &Config::scriptPlaced },
             BoolKey{ "light", &Config::light },
             BoolKey{ "forcePalette", &Config::forcePalette },
             BoolKey{ "selfTest", &Config::selfTest },
@@ -132,10 +133,10 @@ namespace BlackFlame
         void LogConfig()
         {
             logger::info(
-                "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} light={} "
+                "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} scriptPlaced={} light={} "
                 "forcePalette={} selfTest={} particleColors={} tintScale={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
-                g_config.handArt, g_config.boundWeapon, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
+                g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
                 g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
                 logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "

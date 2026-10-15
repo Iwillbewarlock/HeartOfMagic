@@ -263,6 +263,11 @@ namespace BlackFlame
         return a_effect && IsFireSpell(a_spell) && g_fireEffects.contains(a_effect->GetFormID());
     }
 
+    bool IsFireMgefAny(const RE::EffectSetting* a_effect)
+    {
+        return IsFireMgef(a_effect, GetForms().fireKeyword);
+    }
+
     bool IsFireEffect(const RE::EffectSetting* a_effect)
     {
         return a_effect && g_fireEffects.contains(a_effect->GetFormID());

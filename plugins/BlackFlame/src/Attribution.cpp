@@ -1,5 +1,7 @@
 #include "Attribution.h"
 
+#include "ScriptTags.h"
+
 #include <memory>
 #include <mutex>
 #include <set>
@@ -24,6 +26,9 @@ namespace BlackFlame
         if (a_caster && a_caster->blameActor.get().get() == player) {
             return PlayerLink::kBlame;
         }
+        if (IsTaggedSource(a_ref) || IsTaggedSource(a_owner)) {
+            return PlayerLink::kTagged;
+        }
         return PlayerLink::kNone;
     }
 
@@ -36,6 +41,8 @@ namespace BlackFlame
             return "actor cause";
         case PlayerLink::kBlame:
             return "caster's blame actor";
+        case PlayerLink::kTagged:
+            return "script tag";
         default:
             return "none";
         }

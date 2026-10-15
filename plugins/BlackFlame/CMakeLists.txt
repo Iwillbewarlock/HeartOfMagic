@@ -29,6 +29,8 @@ set(BLACKFLAME_SOURCES
     src/HazardHook.cpp
     src/Attribution.cpp
     src/PlayerArt.cpp
+    src/ScriptTags.cpp
+    src/PapyrusWrap.cpp
     src/Recolor.cpp
     src/SehGuard.cpp
     src/ParticleColors.cpp
