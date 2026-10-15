@@ -13,3 +13,4 @@ int RunBuildSelfTest();
 int RunNpcSelfTest();
 int RunEslSelfTest();
 int RunDistrSelfTest();
+int RunSelfTestSelfTest();

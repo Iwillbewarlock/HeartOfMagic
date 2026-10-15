@@ -70,6 +70,7 @@ int main(int argc, char** argv)
     RunNpcSelfTest();
     RunEslSelfTest();
     RunDistrSelfTest();
+    RunSelfTestSelfTest();
     std::printf("\n%d passed, %d failed\n", NpcSpellsCheck::g_passed, NpcSpellsCheck::g_failed);
     return NpcSpellsCheck::g_failed == 0 ? 0 : 1;
 }

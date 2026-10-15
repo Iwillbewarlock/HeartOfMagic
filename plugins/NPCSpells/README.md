@@ -31,6 +31,7 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 | `SKSE/Plugins/HeartOfMagic_NPCSpells.json` | The rules file (editable, see below) |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells_report.txt` | Written on each run: counts, every list, every NPC that got lists, timings. Not in the archive |
 | `HeartOfMagic_NPCSpells.log` (SKSE log folder) | The addon's log |
+| `SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json` | Dev only, never in the archive: turns on the in-game self test (see "Self test") |
 | `SKSE/Plugins/HeartOfMagic_NPCSpells/` | `LICENSE`, `THIRD-PARTY-NOTICES.md` (the addon's own, from `plugins/NPCSpells/THIRD-PARTY-NOTICES.md.in`; source tag `npcspells-v<version>`) and `licenses/` (only the libraries this DLL links: CommonLibSSE-NG with its GPL and exceptions, fmt, spdlog, nlohmann-json, zlib, Xbyak, DirectXMath, DirectXTK). Kept out of Data's top level; nothing reads this folder |
 | `dist/HeartOfMagic-NPCSpells_<NPCSPELLS_VERSION>.zip` | The release archive (separate from the Heart of Magic zip, `plugins/cmake/DistributionNpcSpells.cmake`). No FOMOD: the zip's root is the Data folder (the rows above, no wrapping folder), so a mod manager installs it as it is. The PDB goes to `..._DebugSymbols.zip`, rooted at Data the same way (`SKSE/Plugins/HeartOfMagic_NPCSpells.pdb`) |
 | `plugins/NPCSpells/VERSION` | The addon's own version (1.0.0), apart from Heart of Magic's `VERSION`: the DLL's version, the report's `Version:` line and the zip name |
@@ -148,8 +149,9 @@ missing record.
 
 - **Not yet checked in game: NPCs that inherit their spell list from a template**, which is most leveled bandit
   mages. The addon puts the lists on the record that really holds the spell list (the template's end), never on
-  the inheriting NPC; whether the spawned actor then has the spells is not confirmed. Checklist item 10 below
-  (spawn a `LvlBanditWizard`-type NPC, `Actor.HasSpell` on a spell only our lists hold) must pass before release.
+  the inheriting NPC; whether the spawned actor then has the spells is not confirmed. The dev self test below
+  checks it on `039D37:Skyrim.esm` (a bandit mage inheriting from `039D31`); it, or checklist item 10, must pass
+  before release.
 - The same spell can be given again when the NPC already knows it; harmless.
 - An NPC in two groups gets the first group's lists (see Group priority).
 - Vigilant `never: undead` also removes Turn Undead (the `undead` tag covers repelling). A spell that commands undead
@@ -174,7 +176,75 @@ missing record.
 .\build\tools\Release\npcspells-esl.exe -o <path>        # write the ESL from the slot table
 .\DeployDev.ps1 -NpcSpellsOnly                           # DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (folder must exist; stale build refused; an existing rules JSON is kept)
 .\DeployDev.ps1 -NpcSpellsOnly -Force                    # the same, the install's rules JSON replaced with the shipped one
+.\DeployDev.ps1 -NpcSpellsOnly -NoSelfTest               # the same without the dev self test (its file removed from the install)
 ```
+
+## Self test (dev only)
+
+An in-game check that needs no console work: launch, load a **disposable** save (or start a new game), wait about
+10 seconds, quit, then read the log. It runs only when `Data/SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json`
+exists. That file is `plugins/NPCSpells/data/dev/HeartOfMagic_NPCSpells_selftest.json` in the repo; `DeployDev.ps1
+-NpcSpellsOnly` copies it into the dev install (and says so), `-NoSelfTest` removes it. It is never in the release
+zip (`DistributionNpcSpells.cmake` copies files by name and does not name it). Without the file the DLL does one
+file-exists check per load and nothing else.
+
+```json
+{ "samples": ["039D37:Skyrim.esm", "013BBB:Skyrim.esm", "0551AD:Skyrim.esm"], "startDelayMs": 2000, "maxWaitMs": 8000 }
+```
+
+Samples are base NPC records in the rules file's form (`XXXXXX:Plugin.ext`; the report's `Plugin|0x...` form is
+refused and logged). The shipped three: `039D37` a bandit mage that inherits its spell list from `039D31` (the ship
+gate), `013BBB` Farengar (own spell list, the 2026-10-10 control), `0551AD` a Necromancer-group mage with
+NecroPrefer lists. `startDelayMs` (wait after the player's 3D and cell are in) and `maxWaitMs` (per spawned actor)
+are 0..60000; a bad value goes back to its default, a bad sample is dropped alone, both logged.
+
+What it does, once per session, at the first save load or new game (`kPostLoadGame` / `kNewGame`):
+
+1. Finds each sample's record and the record that really holds its spell list (`SpellListHolder`, the template
+   walk `AttachToNpcs` uses). A sample whose holder has none of our lists fails without a spawn.
+2. Spawns each sample at the player (`PlaceObjectAtMe`). **Side effect: for about a second hostile NPCs (bandits,
+   necromancers) stand next to the player and may attack.** Use a disposable save. They are disabled and deleted
+   right after the check (`Disable`, `SetDelete(true)`), also on a timeout or an error.
+3. Waits until the actor has its 3D and a high process (the leveled spell cache needs the high process; before 3D
+   every `HasSpell` was false on 10-10), polled every 100 ms by queued main-thread tasks.
+4. Per list of ours on the holder: the witness spells are the list's spells minus every spell the NPC can have
+   another way: the static spells and the other (vanilla) leveled lists' entries of the sample, its holder and the
+   spawned actor's base, the race's spells and the actor's added spells. So a spell vanilla also hands out (Flames in
+   `OREO_LSpellBandit01FireFrostShock`) never counts as proof. It asks `Actor::HasSpell` for each witness.
+
+`Actor::HasSpell` covers leveled results: on 1.6.1170 it (ID 38782) is a visitor over `Actor::VisitSpells` (38781),
+which walks the added spells, the actor's base record's spells, the race's spells and then, for a non-player actor
+with an AI process, `GetLeveledSpells` (39443) - the high process's leveled spell cache, built once from the
+**actor's own base record's** leveled lists (schools rolled by current skill). Disassembly notes: `lab/addon-research/
+npc-spells-ledger.md` (main checkout, not in git) and the 10-10 Case 161 check.
+
+Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values below are an example; the same lines are appended to the report under
+`== Self test ==`):
+
+```
+SELFTEST start samples=3 startDelayMs=2000 maxWaitMs=8000 esl=loaded
+SELFTEST spawn sample 039D37:Skyrim.esm ref 0xFF0012AB
+SELFTEST sample 039D37:Skyrim.esm base Skyrim.esm|0x039D37 holder Skyrim.esm|0x039D31 inherited=yes actorBase 0xFF0012AC holderLists=9 actorBaseLists=9 3D=loaded high=yes waitedMs=300
+SELFTEST list 039D37:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 minLevel=0 witnesses=118 shared=90 hits=1 hitSpells: 0x... Name
+SELFTEST school 039D37:Skyrim.esm destruction lists=2 distinctHits=1
+SELFTEST RESULT sample 039D37:Skyrim.esm PASS (hits on HoMNS-only witnesses: 4)
+SELFTEST DONE pass=3 fail=0
+```
+
+How to read them:
+
+- `RESULT ... PASS` needs at least one hit on a witness spell. `FAIL (reason)` names why when nothing was checked
+  (record not found, no list on the holder, no 3D or high process in time, an error).
+- `actorBaseLists` is the discriminator for the ship gate: the engine reads the leveled lists of the spawned actor's
+  own base. `holderLists>0` with `actorBaseLists=0` means the inheriting NPC's copy did not get our lists (they were
+  attached to the template after the engine copied it), so no roll can ever give them. `actorBaseLists` equal to
+  `holderLists` with no hit means the lists are there and the roll gave nothing.
+- `hits` per list cannot be read as "this list gave one": lists of one school overlap (`shared` = witnesses another
+  list of ours on the NPC also holds), and the engine merges the picks. The one-spell-per-list check is the
+  `school` line: `distinctHits` against `lists`.
+- `skill` is the actor's current skill in the list's school (what the engine rolls with); `(skill below every
+  entry)` after `minLevel` marks a list that can legitimately give nothing. An R1 list (minLevel 0) giving 0 is not
+  such a case (it is the open "Alteration lists give nothing" question when it is an Alteration list).
 
 **FormID stability:** the ESL FormID of a list is `0x800 + slotIndex * kMaxChunks + chunk`. `kMaxChunks` and the slot
 order are frozen: a new slot may only be appended. Changing them renumbers every list; that is harmless only because
@@ -199,7 +269,8 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
    the next line splits the search into "Data top level" and "SKSE/Plugins" times. SKSE/Plugins is no longer
    searched (SPID reads `_DISTR.ini` only from Data's top level; the walk took 1400 ms under USVFS and found none),
    so its figure is always "0 ms (skipped)" and "0 under SKSE/Plugins".
-   Then confirm that a `HoMNS_` list really gives spells: after loading a save (step 3), select a bandit mage and
+   Then confirm that a `HoMNS_` list really gives spells. With the dev self test on (above) this is its
+   `SELFTEST RESULT` lines and needs no console; by hand: after loading a save (step 3), select a bandit mage and
    check `Actor.HasSpell` (as the 2026-10-10 Farengar check did) for a spell only our lists hold (one
    the report lists for that NPC's lists and its vanilla spell list lacks). The console's and MIC's spell lists do
    not show what a leveled list gave, so they are not the check; a false result for every such spell means the
@@ -230,11 +301,14 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
    10. **Release condition.** A `LvlBanditWizard...` leveled NPC placed with `player.placeatme` (its end record
        inherits its spell list from a template, as most leveled bandit mages do): `HasSpell` on the spawned actor must
        be true for at least one spell only our lists hold (the report row of the template record that holds the
-       lists names them); the leveled record itself gets no list. Not yet done.
+       lists names them); the leveled record itself gets no list. Not yet done. The self test's `039D37` sample
+       checks the same thing on the end record a `LvlBanditWizard` draws (`PASS` there, with `actorBaseLists` above
+       0, closes this item).
    11. Non-mage sanity: among about 20 guards or bandits (`player.placeatme` a few `EncBandit01Melee...`), about one
        has a `..._NonMage_...` list.
    12. Save and reload: the lists are still on the base records (re-added at load), no crash. Disable the addon and
        load the same save: no leftover spells on NPCs you did not meet, no missing-form warnings beyond the ESL itself.
 4. Pin the one-spell-per-list assumption: a bandit mage with N attached lists in a school should show at most N spells
-   of that school after entering high process.
+   of that school after entering high process. The self test's `SELFTEST school ... lists=N distinctHits=D` lines
+   give this per school and sample (D at most N), with the actor's skill on each list line.
 5. Write the numbers (NPCs given lists, lists, biggest list, ms) into spec sections 8 and 9.

@@ -170,6 +170,7 @@ set(NPCSPELLS_CORE_SOURCES
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsNpc.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsReport.cpp
     ${NPCSPELLS_CORE_DIR}/core/NpcSpellsDistr.cpp
+    ${NPCSPELLS_CORE_DIR}/core/NpcSpellsSelfTest.cpp
 )
 add_executable(npcspells-test
     npcspells-test.cpp
@@ -178,6 +179,7 @@ add_executable(npcspells-test
     npcspells-selftest-npc.cpp
     npcspells-selftest-esl.cpp
     npcspells-selftest-distr.cpp
+    npcspells-selftest-selftest.cpp
     ${SL_SRC_DIR}/tomereach/TomeReachConfig.cpp
     ${SL_SRC_DIR}/tomereach/TomeReachRecords.cpp
     ${NPCSPELLS_CORE_SOURCES}

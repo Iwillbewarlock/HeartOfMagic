@@ -20,8 +20,8 @@ set(NPCSPELLS_SOURCES
     src/Main.cpp
     src/core/NpcSpellsRules.cpp src/core/NpcSpellsClassTier.cpp src/core/NpcSpellsPool.cpp src/core/NpcSpellsSlots.cpp
     src/core/NpcSpellsBuild.cpp src/core/NpcSpellsEsl.cpp src/core/NpcSpellsTemplate.cpp src/core/NpcSpellsNpc.cpp
-    src/core/NpcSpellsReport.cpp src/core/NpcSpellsDistr.cpp
-    src/game/GameFiles.cpp src/game/GameLists.cpp src/game/GamePool.cpp src/game/GameNpcs.cpp src/game/GameRun.cpp
+    src/core/NpcSpellsReport.cpp src/core/NpcSpellsDistr.cpp src/core/NpcSpellsSelfTest.cpp
+    src/game/GameFiles.cpp src/game/GameLists.cpp src/game/GamePool.cpp src/game/GameNpcs.cpp src/game/GameRun.cpp src/game/GameSelfTest.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachConfig.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/tomereach/TomeReachRecords.cpp

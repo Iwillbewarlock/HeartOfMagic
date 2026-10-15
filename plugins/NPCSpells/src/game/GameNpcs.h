@@ -30,4 +30,9 @@ namespace NpcSpellsGame
     // lines: one row per NPC that got at least one list (every one, no cap; the report lists them all)
     NpcStats AttachToNpcs(const NpcSpells::Rules& rules, const NpcSpells::ListIndex& index, const EslRecords& records,
         std::vector<NpcSpells::NpcLine>& lines);
+
+    // The record whose spell list `npc` really uses: its template chain's Spells provider, the same walk AttachToNpcs reads
+    // classes, races and factions with (AttachToNpcs gives lists only to NPCs that are their own provider). When a leveled
+    // link comes first the chain cannot tell before spawn: `unresolvable` is set and `npc` itself is returned.
+    RE::TESNPC* SpellListHolder(RE::TESNPC* npc, bool& unresolvable);
 }

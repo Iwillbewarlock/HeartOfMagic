@@ -261,3 +261,11 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
     }
     return stats;
 }
+
+RE::TESNPC* NpcSpellsGame::SpellListHolder(RE::TESNPC* npc, bool& unresolvable)
+{
+    std::vector<NpcSpells::ChainLink> chain;
+    std::vector<RE::TESNPC*> npcs;
+    WalkChain(npc, chain, npcs);
+    return Provider(npc, chain, npcs, Category::Spells, unresolvable);
+}

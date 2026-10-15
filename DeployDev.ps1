@@ -21,6 +21,7 @@
     .\DeployDev.ps1 -NoScripts    # plugin and panel without the Papyrus scripts (left as they are)
     .\DeployDev.ps1 -NpcSpellsOnly   # the NPC Spells addon only: DLL, ESL, rules JSON (an existing rules JSON is kept)
     .\DeployDev.ps1 -NpcSpellsOnly -Force   # the same, the install's rules JSON replaced with the shipped one
+    .\DeployDev.ps1 -NpcSpellsOnly -NoSelfTest   # the same without the dev self test (its file removed from the install)
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -35,6 +36,7 @@ param(
     [switch]$NoScripts,
     [string]$NpcSpellsModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev',
     [switch]$NpcSpellsOnly,
+    [switch]$NoSelfTest,
     [switch]$Force
 )
 
@@ -54,7 +56,10 @@ if ($NpcSpellsOnly) {
     $nsDll = Join-Path $repo 'build\plugins\NPCSpells\Release\HeartOfMagic_NPCSpells.dll'
     $nsEsl = Join-Path $repo 'build\npcspells\HeartOfMagic_NPCSpells.esp'
     $nsJson = Join-Path $repo 'plugins\NPCSpells\data\HeartOfMagic_NPCSpells.json'
-    foreach ($f in @($nsDll, $nsEsl, $nsJson)) {
+    # Dev only, never in the release zip: in the install it makes the DLL run its in-game self test after a load
+    # (plugins\NPCSpells\src\game\GameSelfTest.h)
+    $nsSelfTest = Join-Path $repo 'plugins\NPCSpells\data\dev\HeartOfMagic_NPCSpells_selftest.json'
+    foreach ($f in @($nsDll, $nsEsl, $nsJson, $nsSelfTest)) {
         if (-not (Test-Path $f)) { throw "Missing $f - nothing was copied. Run .\BuildRelease.ps1 first." }
     }
     # Stale: an output older than a source it is built from. The DLL is built from the addon's src and the
@@ -82,9 +87,12 @@ if ($NpcSpellsOnly) {
     $copies = @(@($nsDll, (Join-Path $pluginsDst 'HeartOfMagic_NPCSpells.dll')), @($nsEsl, (Join-Path $NpcSpellsModPath 'HeartOfMagic_NPCSpells.esp')))
     $jsonKept = (Test-Path $jsonDst) -and -not $Force
     if (-not $jsonKept) { $copies += , @($nsJson, $jsonDst) }
+    $selfTestDst = Join-Path $pluginsDst 'HeartOfMagic_NPCSpells_selftest.json'
+    if (-not $NoSelfTest) { $copies += , @($nsSelfTest, $selfTestDst) }
 
     New-Item -ItemType Directory -Force -Path $pluginsDst | Out-Null
     foreach ($pair in $copies) { Copy-Item $pair[0] $pair[1] -Force }
+    if ($NoSelfTest -and (Test-Path $selfTestDst)) { Remove-Item $selfTestDst -Force }
     foreach ($pair in $copies) {
         if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash $pair[1]).Hash) { throw "Copy did not take: $($pair[1])" }
     }
@@ -93,6 +101,11 @@ if ($NpcSpellsOnly) {
         Write-Host "npcspells  rules json kept as it is in the install (pass -Force to replace it with the shipped one)"
     } else {
         Write-Host "npcspells  rules json -> $jsonDst"
+    }
+    if ($NoSelfTest) {
+        Write-Host "npcspells  self test off: no HeartOfMagic_NPCSpells_selftest.json in the install"
+    } else {
+        Write-Host "npcspells  self test ON -> $selfTestDst (runs once per session after a load, spawns its sample NPCs next to the player; SELFTEST lines in HeartOfMagic_NPCSpells.log; -NoSelfTest removes it)"
     }
     return
 }

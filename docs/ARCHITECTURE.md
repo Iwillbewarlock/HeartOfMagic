@@ -1916,11 +1916,11 @@ HeartOfMagic/
 │   │       └── Main.cpp           ✅ BookMenu watcher + API integration
 │   └── NPCSpells/                 # NPC Spells addon (own DLL, ESL and zip; see its README.md)
 │       ├── CMakeLists.txt
-│       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules)
+│       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules); dev/ the self test file (never shipped)
 │       └── src/
-│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once
+│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once; kPostLoadGame/kNewGame: the dev self test (only with its file)
 │           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions, report
-│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records, the run
+│           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records, the run, the dev self test (GameSelfTest)
 ├── tools/
 │   └── npcspells-*.cpp            ✅ NPC Spells offline harness (npcspells-test: the RE-free core, `--tree`/`--catalog` statistics on real files) and the ESL writer (npcspells-esl)
 ├── Scripts/Source/

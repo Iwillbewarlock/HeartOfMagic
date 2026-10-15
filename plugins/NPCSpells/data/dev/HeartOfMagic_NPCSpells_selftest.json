@@ -1,0 +1,5 @@
+{
+    "samples": ["039D37:Skyrim.esm", "013BBB:Skyrim.esm", "0551AD:Skyrim.esm"],
+    "startDelayMs": 2000,
+    "maxWaitMs": 8000
+}

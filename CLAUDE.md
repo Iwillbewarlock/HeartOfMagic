@@ -152,7 +152,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
-.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON (an existing one kept; -Force replaces it) -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (must exist)
+.\DeployDev.ps1 -NpcSpellsOnly   # NPC Spells addon: DLL, ESL, rules JSON (an existing one kept; -Force replaces it) and the dev self test file (-NoSelfTest removes it; see the addon README) -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (must exist)
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -300,7 +300,7 @@ This project does not have a C++ test framework. Validation is done through:
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save"), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
   full parse; exit 1 on a disagreement), `npcspells-test` (the NPC Spells addon's RE-free core: `npcspells-test`
-  runs every suite, exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; `--tree <spell_tree.json> --catalog <spell_catalog.json>` prints slot statistics on real files) and `npcspells-esl` (writes `HeartOfMagic_NPCSpells.esp` from the slot table at build time into `build/npcspells/`; `npcspells-esl -o <path>`)
+  runs every suite (the in-game self test's config parser and witness sets too), exit 1 on a failure; the shipped rules JSON is read from `plugins/NPCSpells/data/`; `--tree <spell_tree.json> --catalog <spell_catalog.json>` prints slot statistics on real files) and `npcspells-esl` (writes `HeartOfMagic_NPCSpells.esp` from the slot table at build time into `build/npcspells/`; `npcspells-esl -o <path>`)
 
 ## Code Style
 
