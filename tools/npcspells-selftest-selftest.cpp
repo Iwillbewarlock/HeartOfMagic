@@ -1,4 +1,4 @@
-// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file, witness, excluded and picked sets, tick-counted waits, reach, verdicts
+// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file, witness, excluded and picked sets, tick-counted waits, reach, verdicts, the last line (DONE or RESTART)
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsSelfTest.h"
 #include <cstdio>
@@ -89,6 +89,13 @@ int RunSelfTestSelfTest()
         Check(JudgeSample({ { 5, true } }, { 9, 0 }, 3, why) == SelfTestVerdict::kPass, "PASS: a witness found wins over the missing base lists");
         Check(JudgeSample({}, { 0, 0 }, 0, why) == SelfTestVerdict::kFail && why.find("no HoMNS list") != std::string::npos, "FAIL: no list to check");
         Check(std::string(VerdictName(SelfTestVerdict::kInconclusive)) == "INCONCLUSIVE" && std::string(VerdictName(SelfTestVerdict::kPass)) == "PASS" && std::string(VerdictName(SelfTestVerdict::kFail)) == "FAIL", "verdict names");
+    }
+    {   // the last line: DONE only after a spawn (a watcher greps it), RESTART with the reason before one
+        Check(SelfTestEndLine(true, {}, 4, 0, 0) == "SELFTEST DONE pass=4 fail=0 inconclusive=0", "a test that spawned ends with DONE and its counts");
+        Check(SelfTestEndLine(true, "ignored", 0, 3, 1) == "SELFTEST DONE pass=0 fail=3 inconclusive=1", "a test that failed after its spawn still ends with DONE; the reason is not used");
+        const auto restart = SelfTestEndLine(false, "the player's 3D or cell never came", 0, 0, 0);
+        Check(restart == "SELFTEST RESTART the player's 3D or cell never came: the next save load in this session starts it again" && restart.find("DONE") == std::string::npos, "a test that ended before its spawn writes RESTART with the reason, no DONE");
+        Check(SelfTestEndLine(false, {}, 0, 0, 0).find("SELFTEST RESTART ended before the spawn:") == 0, "an empty reason still names why");
     }
     return 0;
 }

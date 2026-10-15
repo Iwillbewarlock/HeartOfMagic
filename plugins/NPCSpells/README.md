@@ -195,7 +195,8 @@ An in-game check that needs no console work. The run:
 1. `.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest` (it reminds you to take the file out afterwards).
 2. Launch and load a **disposable** save (not a new game: the test never starts on one, it would spawn hostile NPCs
    into the opening scene).
-3. Wait for the log's `SELFTEST DONE` line (about 10 seconds with the defaults). Until then **do not save, die,
+3. Wait for the log's `SELFTEST DONE` line (about 10 seconds with the defaults; a `SELFTEST RESTART ...` line instead
+   means the test ended before its spawn and the next save load runs it). Until then **do not save, die,
    reload or start a new game**: a save holds the spawned actors (logged as `SELFTEST WARN save taken while sample
    actors exist`), and a load or a new game ends the test with its open samples failed.
 4. Quit, read the log (or the report's `== Self test ==` section).
@@ -234,7 +235,7 @@ What it does, once per session, at the first save load (`kPostLoadGame`):
    to `maxWaitMs` hostile NPCs (bandits, necromancers) stand next to the player and may attack.** Use a disposable
    save. They are disabled and deleted right after the check (`Disable`, `SetDelete(true)`), also on a timeout or an
    error; only a ref that still has the FormID it was spawned with and is an actor is touched. After another load, a
-   new game or the main menu the refs are left alone (that world is gone with them).
+   new game the refs are left alone (that world is gone with them).
 3. Waits until the actor has its 3D and a high process (the leveled spell cache needs the high process; before 3D
    every `HasSpell` was false on 10-10). A worker thread queues one main-thread tick every 100 ms, and a new one only
    after the last has run; every wait (the player's 3D and cell: 60 s, `startDelayMs`, `maxWaitMs`) counts ticks that
@@ -253,10 +254,13 @@ What it does, once per session, at the first save load (`kPostLoadGame`):
    race's spells and leveled lists, and the actor's added spells). So a spell vanilla also hands out (Flames in
    `OREO_LSpellBandit01FireFrostShock`) never counts as proof.
 
-Ending early: a load before the spawn starts the wait again in the loaded save. A load after the spawn, a new game
-(`kNewGame`) or the main menu (open on 10 ticks in a row, about 1 s; nothing is spawned or checked while it is open) ends the test: the open samples fail with the reason and no ref is
-touched. A test that ends before its spawn (the main menu, a new game, no player 3D within 60 s) runs again at the
-next save load in the same session (`SELFTEST ended before the spawn: ...`); one that spawned does not.
+Ending early: a load before the spawn starts the wait again in the loaded save. A load after the spawn or a new game
+(`kNewGame`) ends the test: the open samples fail with the reason and no ref is touched. A test that ends before its
+spawn (a new game, no player 3D within 60 s, an error) checked nothing: no `RESULT` line and no `DONE` line, only
+`SELFTEST RESTART <reason>: the next save load in this session starts it again`, and the next save load in the same
+session runs it again; one that spawned ends with `DONE` and does not. There is no main menu check: the test starts
+only on `kPostLoadGame`, and on 1.6.1170 `UI::IsMenuOpen(MainMenu)` stayed true for at least 10 ticks (about 1 s)
+after a load from the main menu (2026-10-15), so such a check ended every test.
 
 `Actor::HasSpell` covers leveled results: on 1.6.1170 it (ID 38782) is a visitor over `Actor::VisitSpells` (38781),
 which walks the added spells, the actor's base record's spells, the race's spells and then, for a non-player actor
@@ -282,8 +286,10 @@ Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset valu
 leveledSpellList=null` (no cache after the walk), `SELFTEST another save is loading before the spawn: the wait starts
 again`, the warnings `SELFTEST WARN another save is loading during the test: ...`, `SELFTEST WARN a new game was
 started during the test: ...` and `SELFTEST WARN save taken while sample actors exist (actors=N)`, the error `SELFTEST
-stopped by an error: ...`, `SELFTEST ended before the spawn: the next save load in this session starts it again`, and
-`SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: ...)` for a config that cannot be read.
+stopped by an error: ...`, `SELFTEST RESTART <reason>: the next save load in this session starts it again` (the last
+line of a test that ended before its spawn, in place of `DONE`; e.g. `SELFTEST RESTART the player's 3D or cell never
+came: ...`), and `SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: ...)` for a config that cannot be read
+(that one is final: nothing starts it again in the session). A watcher waits for `SELFTEST DONE`.
 
 How to read them:
 
@@ -293,7 +299,7 @@ How to read them:
   actor's skill, or the cache shows the list's roll landed on non-witness spells (`picked>0`, `pickedWitnesses=0`);
   counted apart in `DONE`; `FAIL (reason)` - nothing found where a list could give one. Other FAILs mean nothing was
   checked (record not found, no list on the holder nor the actor base, "template chain has a leveled link before the
-  spell list holder", no 3D or high process in time, another load, a new game, the main menu, an error).
+  spell list holder", no 3D or high process in time, another load or a new game after the spawn, an error).
 - `picked` (from the cache) is the primary evidence: the spells the engine rolled from this actor's leveled lists that
   are in this list; `pickedWitnesses` of them are witnesses. `hits` (`HasSpell` on witnesses) is the second line; the
   two should agree. `excluded` is how many of the list's spells were taken out of its witnesses.

@@ -118,9 +118,9 @@ namespace
     // source), so the wait is not a self-requeueing task: a worker thread queues one Tick per kSelfTestPollMs, and only
     // when the last one has run (State::queued). Every wait counts executed ticks, so a game window in the background
     // (alt-tab: no task runs) uses up none. The worker only sleeps and queues; every game object is touched inside the tasks, on the main thread.
-    // The main menu must be seen on this many ticks in a row before it ends the test: a menu still closing at the first
-    // tick after the load (not checked in game) does not end every test at once
-    constexpr std::size_t kMainMenuEndTicks = 10;
+    // No main menu check: the test starts only on kPostLoadGame, and IsMenuOpen(MainMenu) stayed true for 10 ticks
+    // after a load from the main menu (1.6.1170, 2026-10-15), so it ended every test; kPreLoadGame, kNewGame and the
+    // finite player wait cover the other cases.
 
     std::mutex g_currentLock;
     std::weak_ptr<State> g_current;  // the running test, for the load and save messages
@@ -132,7 +132,7 @@ namespace
         return g_current.lock();
     }
 
-    // The world the ref stood in is gone (another save, a new game, the main menu): the handle is dropped unread
+    // The world the ref stood in is gone (another save, a new game): the handle is dropped unread
     void Forget(State& s, SampleRun& r)
     {
         if (!r.handle) {
@@ -212,7 +212,9 @@ namespace
         }
     }
 
-    void Finish(State& s)
+    // The last line (NpcSpells::SelfTestEndLine): DONE for a test that spawned; RESTART for one that ended before its
+    // spawn, which checked nothing and runs again at a later load in this session (beforeSpawnReason names why)
+    void Finish(State& s, std::string_view beforeSpawnReason = {})
     {
         if (s.finished) {
             return;
@@ -223,52 +225,40 @@ namespace
         if (s.savedWithActors) {
             s.lines.emplace_back("SELFTEST WARN save taken while sample actors exist");  // logged when it happened
         }
-        if (!s.spawned) {  // nothing was spawned: a later load in this session runs the test
+        if (!s.spawned) {
             g_started = false;
-            SelfTest::Log(s, "SELFTEST ended before the spawn: the next save load in this session starts it again");
         }
-        SelfTest::Log(s, std::format("SELFTEST DONE pass={} fail={} inconclusive={}", s.pass, s.fail, s.inconclusive));
+        SelfTest::Log(s, NpcSpells::SelfTestEndLine(s.spawned, beforeSpawnReason, s.pass, s.fail, s.inconclusive));
         AppendReport(s.lines);
         FlushLog();
         s.finished = true;
     }
 
-    // touchRefs false: the world the samples stood in is gone, their handles are dropped unread
-    void FailOpen(State& s, std::string_view reason, bool touchRefs)
+    // Ends the test early. After the spawn the open samples FAIL with the reason (touchRefs false: the world they stood
+    // in is gone, their handles are dropped unread); before it no sample was checked, so no RESULT line, only RESTART.
+    void End(State& s, std::string_view reason, bool touchRefs)
     {
-        for (auto& r : s.samples) {
-            touchRefs ? Cleanup(s, r) : Forget(s, r);
-            SelfTest::Fail(s, r, reason);
+        if (s.spawned) {
+            for (auto& r : s.samples) {
+                touchRefs ? Cleanup(s, r) : Forget(s, r);
+                SelfTest::Fail(s, r, reason);
+            }
         }
-    }
-
-    void EndWithoutRefs(State& s, std::string_view reason)
-    {
-        FailOpen(s, reason, false);
-        Finish(s);
+        Finish(s, reason);
     }
 
     void Tick(State& s)
     {
         if (s.aborted) {
-            EndWithoutRefs(s, s.abortReason);
+            End(s, s.abortReason, false);
             return;
         }
-        auto* ui = RE::UI::GetSingleton();
-        if (ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {  // RE/U/UI.h:92, RE/M/MainMenu.h:30
-            if (++s.mainMenuTicks >= kMainMenuEndTicks) {
-                EndWithoutRefs(s, "the main menu is open: no game is loaded");
-            }
-            return;  // no spawn and no check while it is open
-        }
-        s.mainMenuTicks = 0;
         if (!s.spawned) {
             auto* player = RE::PlayerCharacter::GetSingleton();  // RE/P/PlayerCharacter.h:725
             if (!player || !player->Is3DLoaded() || !player->GetParentCell()) {  // RE/T/TESObjectREFR.h:448, :420
                 s.readyTicks = 0;  // the start delay counts from the last time the player came in
                 if (NpcSpells::SelfTestWaitOver(++s.notReadyTicks, NpcSpells::kSelfTestPlayerWaitMs)) {
-                    FailOpen(s, "the player's 3D or cell never came", false);
-                    Finish(s);
+                    End(s, "the player's 3D or cell never came", false);
                 }
                 return;
             }
@@ -305,13 +295,12 @@ namespace
         }
     }
 
-    // Nothing leaves an SKSE task: an error ends the test with every sample cleaned up and failed
+    // Nothing leaves an SKSE task: an error ends the test with every sample cleaned up and failed (RESTART before the spawn)
     void StopOnError(State& s, std::string_view what) noexcept
     {
         try {
             SelfTest::Error(s, std::format("SELFTEST stopped by an error: {}", what));
-            FailOpen(s, std::format("stopped by an error: {}", what), true);
-            Finish(s);
+            End(s, std::format("stopped by an error: {}", what), true);
         } catch (...) {
         }
         s.finished = true;

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 // The dev-only in-game self test's pure parts (game/GameSelfTest.cpp does the spawning): its config file, the witness
@@ -62,4 +63,8 @@ namespace NpcSpells {
     // nothing found where a list could give one, or no list at all. reason: for the RESULT line.
     SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, SelfTestSampleLists where, std::size_t distinctEvidence, std::string& reason);
     const char* VerdictName(SelfTestVerdict v);
+    // The test's last line. DONE (what a watcher reads as "the run finished") only for a test that spawned its samples;
+    // one that ended before its spawn checked nothing and runs again at the next save load in the session: RESTART with
+    // the reason ("ended before the spawn" when empty).
+    std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive);
 }

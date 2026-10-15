@@ -118,4 +118,9 @@ std::size_t CountShared(const std::vector<std::uint32_t>& witnesses, const std::
     for (const auto id : witnesses) n += otherLists.contains(id) ? 1 : 0;
     return n;
 }
+std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive)
+{
+    if (spawned) return std::format("SELFTEST DONE pass={} fail={} inconclusive={}", pass, fail, inconclusive);
+    return std::format("SELFTEST RESTART {}: the next save load in this session starts it again", reason.empty() ? "ended before the spawn" : reason);
+}
 }
