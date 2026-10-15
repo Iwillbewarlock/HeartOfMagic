@@ -6,6 +6,7 @@
 #include "Recolor.h"
 
 #include <array>
+#include <unordered_map>
 #include <format>
 #include <memory>
 #include <string>
@@ -41,6 +42,44 @@ namespace BlackFlame
 
         std::array<HandState, kHandCount> g_handStates{};  // game thread only
 
+        // Every hand-art property we recoloured, with what it was, for the restore when the buff
+        // ends. Holding the property keeps it alive until then. Heap-held and never freed: these
+        // NiPointers must not DecRef at DLL unload (the list is emptied on the game thread instead).
+        struct RecolouredProperty
+        {
+            RE::NiPointer<RE::BSEffectShaderProperty> property;
+            PropertyOriginal original;
+        };
+
+        std::unordered_map<RE::BSEffectShaderProperty*, RecolouredProperty>& Recoloured()
+        {
+            static auto* recoloured =
+                std::make_unique<std::unordered_map<RE::BSEffectShaderProperty*, RecolouredProperty>>().release();
+            return *recoloured;
+        }
+
+        // Remembers the first original of each property (a later recolour of the same one is ignored)
+        const RecolorObserver& Remember()
+        {
+            static const RecolorObserver* observer = std::make_unique<RecolorObserver>(
+                [](RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original) {
+                    Recoloured().try_emplace(a_prop, RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop),
+                                                         a_original });
+                }).release();
+            return *observer;
+        }
+
+        // The fire spell this hand casts now, or else the one it holds readied
+        RE::MagicItem* FireSpellOfHand(RE::PlayerCharacter* a_player, RE::ActorMagicCaster* a_caster, const Hand& a_hand)
+        {
+            if (a_caster && IsFireSpell(a_caster->currentSpell)) {
+                return a_caster->currentSpell;
+            }
+            auto* equipped = a_player->GetEquippedObject(a_hand.source == RE::MagicSystem::CastingSource::kLeftHand);
+            auto* spell = equipped ? equipped->As<RE::SpellItem>() : nullptr;
+            return IsFireSpell(spell) ? spell : nullptr;
+        }
+
         // What one place gave: whether it existed and what recolouring it did
         struct Place
         {
@@ -63,7 +102,7 @@ namespace BlackFlame
                 place.sameAsMagicNode = true;  // already done through magicNode
                 return place;
             }
-            place.stats = RecolorTree(node);
+            place.stats = RecolorTree(node, Remember());
             return place;
         }
 
@@ -85,7 +124,7 @@ namespace BlackFlame
             });
             place.found = !found.empty();
             for (const auto& effect : found) {
-                place.stats.Add(RecolorTree(effect->Get3D()));
+                place.stats.Add(RecolorTree(effect->Get3D(), Remember()));
             }
             return place;
         }
@@ -122,7 +161,7 @@ namespace BlackFlame
             if (auto* attached = a_caster->castingArtData.attachedArt.get()) {
                 Place art;
                 art.found = true;
-                art.stats = RecolorTree(attached);
+                art.stats = RecolorTree(attached, Remember());
                 if (art.stats.effectGeometries > 0) {
                     a_recolored = art.stats.Recolored();
                     return DescribePlace("attachedArt", art);
@@ -131,7 +170,7 @@ namespace BlackFlame
             }
             Place magicNode;
             magicNode.found = a_caster->magicNode != nullptr;
-            magicNode.stats = RecolorTree(a_caster->magicNode);
+            magicNode.stats = RecolorTree(a_caster->magicNode, Remember());
             const auto& name = MagicNodeName(a_hand.source);
             const Place firstPerson = RecolorNamedNode(a_player, true, name, a_caster->magicNode);
             const Place thirdPerson = RecolorNamedNode(a_player, false, name, a_caster->magicNode);
@@ -153,8 +192,9 @@ namespace BlackFlame
         {
             const auto& config = GetConfig();
             auto* caster = skyrim_cast<RE::ActorMagicCaster*>(a_player->GetMagicCaster(a_hand.source));
-            auto* spell = caster ? caster->currentSpell : nullptr;
-            if (!spell || !IsFireSpell(spell)) {
+            // Casting or only readied: the hand flames of a held fire spell turn grey too
+            auto* spell = FireSpellOfHand(a_player, caster, a_hand);
+            if (!spell || !caster) {
                 a_state = {};
                 return;
             }
@@ -182,9 +222,34 @@ namespace BlackFlame
         }
     }
 
+    int RestoreHandArt()
+    {
+        auto& recoloured = Recoloured();
+        int restored = 0;
+        for (auto& [raw, entry] : recoloured) {
+            restored += RestoreProperty(entry.property.get(), entry.original) ? 1 : 0;
+        }
+        const auto total = recoloured.size();
+        recoloured.clear();  // releases the properties, on the game thread
+        g_handStates = {};
+        if (total > 0) {
+            logger::info("BlackFlame: hand art restored: {} of {} recoloured properties put back", restored, total);
+        }
+        return restored;
+    }
+
+    void OnBuffChanged(bool a_on)
+    {
+        if (a_on) {
+            TickCasterArt();  // the readied hand flames turn grey at once, not at the next tick
+        } else {
+            (void)RestoreHandArt();
+        }
+    }
+
     void ResetCasterArt()
     {
-        g_handStates = {};
+        (void)RestoreHandArt();
     }
 
     void TickCasterArt()

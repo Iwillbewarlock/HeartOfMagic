@@ -54,8 +54,27 @@ namespace BlackFlame
     /// Game thread, at kPreLoadGame / kNewGame: forgets the properties that lost the palette
     void ResetRecolorState();
 
+    /// A property's material values and palette flags before a recolour
+    struct PropertyOriginal
+    {
+        RE::NiPointer<RE::NiSourceTexture> greyscaleTexture;
+        RE::BSFixedString greyscaleTexturePath;
+        RE::NiColorA baseColor;
+        bool paletteColor = false;
+        bool paletteAlpha = false;
+    };
+
+    /// Told about every property a recolour changed, with what it was before
+    using RecolorObserver = std::function<void(RE::BSEffectShaderProperty*, const PropertyOriginal&)>;
+
     /// Recolours every effect material under a_root (null root: nothing).
     RecolorStats RecolorTree(RE::NiAVObject* a_root);
+    RecolorStats RecolorTree(RE::NiAVObject* a_root, const RecolorObserver& a_observer);
+
+    /// Puts a recoloured property back: a fresh copy of its current material with the original
+    /// greyscale texture, path and base colour (SetMaterial(copy, true)), and its palette flags as
+    /// they were (never on without a texture). Game thread only. False without a material.
+    bool RestoreProperty(RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original);
 
     /// Sets a light's diffuse colour to config lightColor. False for a null light.
     bool TintLight(RE::NiLight* a_light);

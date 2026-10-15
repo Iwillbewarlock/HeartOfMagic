@@ -113,6 +113,7 @@ namespace BlackFlame
         const bool before = g_stoked.exchange(now, std::memory_order_acq_rel);
         if (now != before) {
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
+            OnBuffChanged(now);  // the hand flames: grey at once, or put back
         }
     }
 

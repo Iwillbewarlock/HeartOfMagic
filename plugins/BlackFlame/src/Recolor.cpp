@@ -55,7 +55,7 @@ namespace BlackFlame
             return false;
         }
 
-        void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RecolorStats& a_stats)
+        void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RecolorStats& a_stats, const RecolorObserver& a_observer)
         {
             ++a_stats.effectGeometries;
             if (HasColorControllerImpl(a_prop)) {
@@ -95,6 +95,11 @@ namespace BlackFlame
                 ++a_stats.alreadyOurs;
                 return;
             }
+
+            // What it was before (for a caller that will put it back, e.g. the readied hand flames)
+            const PropertyOriginal original{ source->greyscaleTexture, source->greyscaleTexturePath, source->baseColor,
+                a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor),
+                a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteAlpha) };
 
             MaterialPtr copy{ static_cast<RE::BSEffectShaderMaterial*>(source->Create()) };
             if (!copy) {
@@ -158,6 +163,9 @@ namespace BlackFlame
                 ++a_stats.forcedPalette;
             } else {
                 ++a_stats.baseColorOnly;
+            }
+            if (a_observer) {
+                a_observer(a_prop, original);
             }
         }
 
@@ -224,6 +232,11 @@ namespace BlackFlame
 
     RecolorStats RecolorTree(RE::NiAVObject* a_root)
     {
+        return RecolorTree(a_root, {});
+    }
+
+    RecolorStats RecolorTree(RE::NiAVObject* a_root, const RecolorObserver& a_observer)
+    {
         RecolorStats stats;
         if (!a_root || !PaletteReady()) {
             return stats;
@@ -232,7 +245,7 @@ namespace BlackFlame
             if (a_legacy) {
                 ++stats.legacyGeometries;
             }
-            RecolorProperty(a_prop, stats);
+            RecolorProperty(a_prop, stats, a_observer);
             if (GetConfig().particleColors && a_geometry) {
                 if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_geometry)) {
                     stats.colorModifiers += DesaturateColorModifiers(particles);
@@ -240,6 +253,40 @@ namespace BlackFlame
             }
         });
         return stats;
+    }
+
+    bool RestoreProperty(RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original)
+    {
+        auto* current = a_prop ? a_prop->GetMaterial() : nullptr;
+        if (!current) {
+            return false;
+        }
+        using Flag8 = RE::BSShaderProperty::EShaderPropertyFlag8;
+        MaterialPtr copy{ static_cast<RE::BSEffectShaderMaterial*>(current->Create()) };
+        if (!copy) {
+            return false;
+        }
+        copy->CopyMembers(current);
+        copy->greyscaleTexture = a_original.greyscaleTexture;
+        copy->greyscaleTexturePath = a_original.greyscaleTexturePath;
+        copy->baseColor = a_original.baseColor;
+        // Flags off before a texture may go (a flag never stands without its texture), back on after
+        if (!a_original.paletteColor) {
+            a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
+        }
+        if (!a_original.paletteAlpha) {
+            a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
+        }
+        a_prop->SetMaterial(copy.get(), true);
+        if (a_prop->GetBaseMaterial() == copy.get()) {
+            (void)copy.release();  // the property kept ours (see RecolorProperty)
+        }
+        const auto* now = a_prop->GetMaterial();
+        const bool hasTexture = now && now->greyscaleTexture;
+        a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, a_original.paletteColor && hasTexture);
+        a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, a_original.paletteAlpha && hasTexture);
+        FailedProperties().erase(a_prop);
+        return true;
     }
 
     bool TintLight(RE::NiLight* a_light)
