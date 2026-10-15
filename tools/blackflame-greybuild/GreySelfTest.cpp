@@ -242,10 +242,20 @@ namespace GreyBuild
     int RunSelfTest()
     {
         Checker check;
-        const auto dir = std::filesystem::temp_directory_path() / "blackflame-greybuild-selftest";
         std::error_code ec;
+        const auto temp = std::filesystem::temp_directory_path(ec);
+        if (ec) {
+            std::cout << fmt::format("FAIL no temp folder: {}\nSELF-TEST pass=0 fail=1\n", ec.message());
+            return 1;
+        }
+        const auto dir = temp / "blackflame-greybuild-selftest";
         std::filesystem::remove_all(dir, ec);
-        std::filesystem::create_directories(dir);
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+            std::cout << fmt::format("FAIL cannot make '{}': {}\nSELF-TEST pass=0 fail=1\n", dir.string(),
+                ec.message());
+            return 1;
+        }
         const auto source = dir / "source.nif";
         const auto grey = dir / "grey.nif";
 

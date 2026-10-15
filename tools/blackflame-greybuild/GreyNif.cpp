@@ -226,6 +226,7 @@ namespace GreyBuild
             throw std::runtime_error(fmt::format("cannot open '{}' for writing", a_file.string()));
         }
         out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        out.close();  // the last buffer is flushed here; a full disk shows only now
         if (!out) {
             throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
         }

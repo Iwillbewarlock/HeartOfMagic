@@ -96,8 +96,10 @@ namespace
     [[nodiscard]] bool CheckFolders(const Options& a_options)
     {
         for (const auto& dir : a_options.inputs) {
-            if (!std::filesystem::is_directory(dir)) {
-                std::cerr << fmt::format("--in '{}' is not a folder\n", dir.string());
+            std::error_code ec;
+            if (!std::filesystem::is_directory(dir, ec)) {
+                std::cerr << fmt::format("--in '{}' is not a folder{}\n", dir.string(),
+                    ec ? fmt::format(" ({})", ec.message()) : std::string());
                 return false;
             }
             if (GreyBuild::IsInside(a_options.out, dir) || GreyBuild::IsInside(dir, a_options.out)) {
@@ -201,10 +203,10 @@ int main(int a_argc, char** a_argv)
         PrintUsage();
         return kExitUsage;
     }
-    if (!CheckFolders(options)) {
-        return kExitUsage;
-    }
     try {
+        if (!CheckFolders(options)) {
+            return kExitUsage;
+        }
         return options.map.empty() ? RunRequest(options) : RunMap(options);
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

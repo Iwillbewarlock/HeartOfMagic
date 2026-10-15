@@ -181,6 +181,7 @@ namespace GreyBuild
         std::filesystem::create_directories(a_file.parent_path());
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
         out.write(file.Data().data(), static_cast<std::streamsize>(file.Data().size()));
+        out.close();  // the last buffer is flushed here; a full disk shows only now
         if (!out) {
             throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
         }
