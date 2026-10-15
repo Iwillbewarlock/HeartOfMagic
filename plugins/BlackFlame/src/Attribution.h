@@ -30,9 +30,10 @@ namespace BlackFlame
     };
 
     /// a_layer: a string literal for the logs; a_owner: the reference's owner or shooter (may be null
-    /// or a non-actor); a_caster: the magic caster that made it, when known (an explosion's own)
+    /// or a non-actor); a_caster: the magic caster that made it, when known (an explosion's own);
+    /// a_source: one more reference checked only against the script tags (an explosion caster's object)
     [[nodiscard]] PlayerLink LinkToPlayer(const char* a_layer, RE::TESObjectREFR* a_ref, RE::TESObjectREFR* a_owner,
-        RE::NonActorMagicCaster* a_caster = nullptr);
+        RE::NonActorMagicCaster* a_caster = nullptr, RE::TESObjectREFR* a_source = nullptr);
 
     /// The NonActorMagicCaster on a non-actor reference (its ExtraMagicCaster), or null
     [[nodiscard]] RE::NonActorMagicCaster* NonActorCasterOf(RE::TESObjectREFR* a_ref);

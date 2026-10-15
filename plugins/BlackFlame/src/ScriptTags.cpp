@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "GameThread.h"
+#include "HitEffectHook.h"
 #include "LogLimit.h"
 #include "Recolor.h"
 #include "SehGuard.h"
@@ -34,6 +35,10 @@ namespace BlackFlame
             Clock::time_point expires{};
             bool placed = false;  // waiting for its 3D to be recoloured
             std::uint32_t generation = 0;
+            // Set by a call on a VM thread: the calling script's VM handle, not judged yet. Judged on the
+            // game thread (the ActiveEffect is read only there) when the tag is first asked about or at
+            // the next tick: confirmed (0) or the tag dropped.
+            RE::VMHandle pendingCaller = 0;
         };
 
         std::mutex g_mutex;
@@ -46,7 +51,7 @@ namespace BlackFlame
             return *tags;
         }
 
-        void Add(RE::TESObjectREFR* a_ref, bool a_placed)
+        void Add(RE::TESObjectREFR* a_ref, bool a_placed, RE::VMHandle a_pendingCaller = 0)
         {
             // Never an actor: a script's Cast on an NPC would turn that NPC's own fire grey, a placed summon
             // would be recoloured whole (the player is the owner rule already)
@@ -65,12 +70,46 @@ namespace BlackFlame
                     [](const auto& a_lhs, const auto& a_rhs) { return a_lhs.second.expires < a_rhs.second.expires; });
                 tags.erase(earliest);
             }
+            // A tag already confirmed in this world stays confirmed when a pending call names it again
+            const auto existing = tags.find(handle.native_handle());
+            const bool wasConfirmed = existing != tags.end() && existing->second.pendingCaller == 0 &&
+                                      existing->second.generation == WorldGeneration() && existing->second.expires > now;
             auto& tag = tags[handle.native_handle()];
             tag.handle = handle;
             tag.expires = now + (a_placed ? kPlacedWindow : kSourceWindow);
             tag.placed = tag.placed || a_placed;
             tag.generation = WorldGeneration();
+            tag.pendingCaller = wasConfirmed ? 0 : a_pendingCaller;
             g_count.store(tags.size());
+        }
+
+        // Game thread only: the caller's VM handle resolved through the handle policy (type and
+        // availability checked first, as Object::Resolve does) to an ActiveEffect that is a fire effect the
+        // player cast. Confirms the tag (true) or drops it.
+        bool JudgePending(std::uint32_t a_value, RE::VMHandle a_caller)
+        {
+            bool confirmed = false;
+            (void)Guarded("script tag judge", [&]() {
+                auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
+                auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
+                if (policy && policy->HandleIsType(RE::ActiveEffect::VMTYPEID, a_caller) &&
+                    policy->IsHandleObjectAvailable(a_caller)) {
+                    confirmed = IsPlayerFireEffect(
+                        static_cast<RE::ActiveEffect*>(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID, a_caller)));
+                }
+            });
+            std::lock_guard lock(g_mutex);
+            const auto it = Tags().find(a_value);
+            if (it == Tags().end() || it->second.pendingCaller != a_caller) {
+                return confirmed && it != Tags().end();  // changed meanwhile
+            }
+            if (confirmed) {
+                it->second.pendingCaller = 0;
+            } else {
+                Tags().erase(it);
+                g_count.store(Tags().size());
+            }
+            return confirmed;
         }
 
         RE::NiLight* LightOf(RE::TESObjectREFR* a_ref)
@@ -154,15 +193,28 @@ namespace BlackFlame
         Add(a_ref, false);
     }
 
+    void TagPending(RE::TESObjectREFR* a_ref, bool a_placed, RE::VMHandle a_caller)
+    {
+        Add(a_ref, a_placed, a_caller);
+    }
+
     bool IsTaggedSource(const RE::TESObjectREFR* a_ref)
     {
         if (!a_ref || g_count.load() == 0) {
             return false;
         }
-        const auto handle = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle();
-        std::lock_guard lock(g_mutex);
-        const auto it = Tags().find(handle.native_handle());
-        return it != Tags().end() && it->second.expires > Clock::now() && it->second.generation == WorldGeneration();
+        const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
+        RE::VMHandle pending = 0;
+        {
+            std::lock_guard lock(g_mutex);
+            const auto it = Tags().find(value);
+            if (it == Tags().end() || it->second.expires <= Clock::now() || it->second.generation != WorldGeneration()) {
+                return false;
+            }
+            pending = it->second.pendingCaller;
+        }
+        // A pending tag is judged here, on the game thread only; elsewhere it does not count yet
+        return pending == 0 || (IsOnGameThread() && JudgePending(value, pending));
     }
 
     void TickScriptTags()
@@ -172,6 +224,7 @@ namespace BlackFlame
         }
         const auto now = Clock::now();
         std::vector<RE::ObjectRefHandle> due;
+        std::vector<std::pair<std::uint32_t, RE::VMHandle>> pending;
         {
             std::lock_guard lock(g_mutex);
             auto& tags = Tags();
@@ -179,11 +232,16 @@ namespace BlackFlame
                 return a_entry.second.expires <= now || a_entry.second.generation != WorldGeneration();
             });
             for (auto& [value, tag] : tags) {
-                if (tag.placed) {
+                if (tag.pendingCaller != 0) {
+                    pending.emplace_back(value, tag.pendingCaller);
+                } else if (tag.placed) {
                     due.push_back(tag.handle);
                 }
             }
             g_count.store(tags.size());
+        }
+        for (const auto& [value, caller] : pending) {
+            (void)JudgePending(value, caller);  // a confirmed placed tag is recoloured on the next tick
         }
         for (const auto& handle : due) {
             const auto ref = handle.get();

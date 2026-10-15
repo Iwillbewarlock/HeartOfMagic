@@ -29,7 +29,8 @@ namespace BlackFlame
         kKeepStep      // only this call is skipped (per-item restores); faults counted and logged
     };
 
-    /// Runs a_body(a_context) under SEH; false on a fault (logged) and on every call after it.
+    /// Runs a_body(a_context) under SEH; false on a fault (logged). kDisableStep: false on every call after
+    /// it too; kKeepStep: only this call is skipped, faults counted and logged at 1, 10, 100...
     /// Not noexcept: a C++ exception from the body must reach the caller's catch.
     [[nodiscard]] bool RunSehGuarded(const char* a_step, SehBody a_body, void* a_context,
         SehPolicy a_policy = SehPolicy::kDisableStep);

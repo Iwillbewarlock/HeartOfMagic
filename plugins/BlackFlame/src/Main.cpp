@@ -18,6 +18,7 @@
 #include "GameThread.h"
 #include "HazardHook.h"
 #include "PapyrusWrap.h"
+#include "PlayerArt.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
 #include "Palette.h"
@@ -61,6 +62,7 @@ namespace
         BlackFlame::ResetHitArt();
         BlackFlame::ResetHazardState();
         BlackFlame::ResetScriptTags();
+        BlackFlame::ResetPlayerArt();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetRecolorState();

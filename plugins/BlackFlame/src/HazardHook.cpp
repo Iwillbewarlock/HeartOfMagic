@@ -81,10 +81,13 @@ namespace BlackFlame
             const auto* spell = base ? base->data.spell : nullptr;
             auto& data = a_hazard->GetHazardRuntimeData();
             const auto owner = data.ownerActor.get();
-            logger::info("BlackFlame: hazard diagnostics [{}] {}: base {:08X}, spell {:08X} (fire: {}), owner {:08X}, light "
-                         "{}, 3D {}, callerThread={}",
+            // Hazard overrides only SetActorCause (0x50); what the base GetActorCause returns is logged here
+            const auto* cause = a_hazard->GetActorCause();
+            const auto causeActor = cause ? cause->actor.get() : RE::NiPointer<RE::Actor>{};
+            logger::info("BlackFlame: hazard diagnostics [{}] {}: base {:08X}, spell {:08X} (fire: {}), owner {:08X}, cause "
+                         "{} {:08X}, light {}, 3D {}, callerThread={}",
                 a_hook, line, base ? base->GetFormID() : 0, spell ? spell->GetFormID() : 0, IsFireHazard(base) ? "yes" : "no",
-                owner ? owner->GetFormID() : 0, data.light ? "set" : "null", a_has3D ? "present" : "null",
+                owner ? owner->GetFormID() : 0, cause ? "set" : "null", causeActor ? causeActor->GetFormID() : 0, data.light ? "set" : "null", a_has3D ? "present" : "null",
                 REX::W32::GetCurrentThreadId());
         }
 

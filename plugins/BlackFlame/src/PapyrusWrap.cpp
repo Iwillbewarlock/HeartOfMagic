@@ -10,7 +10,9 @@
 
 #include <array>
 #include <atomic>
+#include <algorithm>
 #include <cstring>
+#include <vector>
 
 // Windows.h (pulled in through other headers) maps GetObject to GetObjectW; Variable::GetObject is meant
 #ifdef GetObject
@@ -63,15 +65,9 @@ namespace BlackFlame
             return RE::BSScript::Internal::VirtualMachine::GetSingleton();
         }
 
-        // On the stamped game thread an ActiveEffect may be read; the call is decided at once
-        bool IsPlayerFireEffectObject(void* a_effect)
-        {
-            return IsPlayerFireEffect(static_cast<RE::ActiveEffect*>(a_effect));
-        }
-
-        // The decision for one wrapped call, made on the game thread. Off it (a VM thread) the caller is
-        // only resolved to its VM handle there and then; a task resolves the handle again on the game
-        // thread and reads the ActiveEffect only there (no ActiveEffect is read on a VM thread).
+        // The decision for one wrapped call. On the game thread it is made at once; on a VM thread the
+        // tag is stored at once as pending with the caller's VM handle (ScriptTags::TagPending) and judged
+        // on the game thread, so no ActiveEffect is read on a VM thread and no cast runs ahead of its tag.
         struct Decision
         {
             RE::VMHandle caller = 0;
@@ -80,31 +76,60 @@ namespace BlackFlame
             Wrapped kind = Wrapped::kPlaceAtMe;
         };
 
-        bool CallerIsPlayersFire(const Decision& a_decision)
+        // The caller's handle names an ActiveEffect (type and availability checked first, as
+        // Object::Resolve does); safe on any thread (the handle policy only)
+        bool IsActiveEffectHandle(RE::VMHandle a_handle)
         {
-            if (a_decision.caller != 0) {
-                auto* vm = VM();
-                auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
-                if (policy && IsPlayerFireEffectObject(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID,
-                                  a_decision.caller))) {
-                    return true;
-                }
-            }
-            const auto ref = a_decision.callerRef.get();
-            return ref && IsTaggedSource(ref.get());
+            auto* vm = VM();
+            auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
+            return a_handle != 0 && policy && policy->HandleIsType(RE::ActiveEffect::VMTYPEID, a_handle) &&
+                   policy->IsHandleObjectAvailable(a_handle);
         }
 
-        void Apply(const Decision& a_decision)
+        // Game thread only: reads the ActiveEffect
+        bool CallerIsPlayersFireEffect(RE::VMHandle a_handle)
         {
-            if (!CallerIsPlayersFire(a_decision)) {
-                return;
+            if (!IsActiveEffectHandle(a_handle)) {
+                return false;
             }
+            auto* policy = VM()->GetObjectHandlePolicy();
+            return IsPlayerFireEffect(static_cast<RE::ActiveEffect*>(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID,
+                a_handle)));
+        }
+
+        void Tag(const Decision& a_decision)
+        {
             const auto subject = a_decision.subject.get();
             if (a_decision.kind == Wrapped::kPlaceAtMe) {
                 TagPlaced(subject.get());
             } else {
                 TagSource(subject.get());
             }
+        }
+
+        void Decide(const Decision& a_decision)
+        {
+            // A reference already tagged (confirmed) calling in turn: no ActiveEffect involved
+            if (const auto ref = a_decision.callerRef.get(); ref && IsTaggedSource(ref.get())) {
+                Tag(a_decision);
+                return;
+            }
+            if (IsOnGameThread()) {
+                if (CallerIsPlayersFireEffect(a_decision.caller)) {
+                    Tag(a_decision);
+                }
+                return;
+            }
+            // Only ActiveMagicEffect callers go further (trap scripts, quests and the like stop here)
+            if (!IsActiveEffectHandle(a_decision.caller)) {
+                return;
+            }
+            if (g_deferLogs.load() < kMaxThreadLogs && g_deferLogs.fetch_add(1) < kMaxThreadLogs) {
+                logger::info("BlackFlame: native wrapper called off the game thread (callerThread={}): tag stored "
+                             "pending, judged on the game thread", REX::W32::GetCurrentThreadId());
+            }
+            const auto subject = a_decision.subject.get();
+            TagPending(subject.get(), a_decision.kind == Wrapped::kPlaceAtMe, a_decision.caller);
         }
 
         RE::ObjectRefHandle HandleOf(RE::TESObjectREFR* a_ref)
@@ -148,19 +173,6 @@ namespace BlackFlame
                 }
             }
             return false;
-        }
-
-        void Decide(Decision a_decision)
-        {
-            if (IsOnGameThread()) {
-                Apply(a_decision);
-                return;
-            }
-            if (g_deferLogs.load() < kMaxThreadLogs && g_deferLogs.fetch_add(1) < kMaxThreadLogs) {
-                logger::info("BlackFlame: native wrapper called off the game thread (callerThread={}): decided by a task",
-                    REX::W32::GetCurrentThreadId());
-            }
-            QueueTask("BlackFlameNativeTag", [a_decision]() { Apply(a_decision); });
         }
 
         // The engine's own NativeFunctionBase::Call (RELOCATION_ID 97923/104651) runs for this object and
@@ -234,17 +246,40 @@ namespace BlackFlame
                 return true;
             }
 
-            // PlaceAtMe completed: its result is the result value passed to MarshallAndDispatch
+            // PlaceAtMe completed: its result is the result value passed to MarshallAndDispatch - unless the
+            // native is latent, when the result comes later and is not read (logged once)
             void After(RE::BSScript::Variable& a_resultValue, Decision& a_decision) const
             {
+                if (m_native->GetIsLatent()) {
+                    static std::atomic<bool> logged{ false };
+                    if (!logged.exchange(true)) {
+                        logger::info("BlackFlame: {} is latent: its result is not read, so what it places is not tagged",
+                            GetName().c_str());
+                    }
+                    return;
+                }
                 a_decision.subject = HandleOf(a_resultValue.Unpack<RE::TESObjectREFR*>());
                 Decide(a_decision);
             }
 
+        public:
+            [[nodiscard]] const NativeFunctionBase* Original() const noexcept { return m_native; }
+
+        private:
             RE::BSTSmartPointer<IFunction> m_holder;  // keeps the original alive
             NativeFunctionBase* m_native;
             Wrapped m_kind;
         };
+
+        // Our proxies by target (the VM holds them for the session); recognised by pointer: MSVC RTTI cannot
+        // see our class through skyrim_cast
+        std::array<std::atomic<NativeProxy*>, kTargets.size()> g_proxies{};
+        std::array<std::atomic<bool>, kTargets.size()> g_reboundWarned{};
+
+        bool IsOurProxy(const IFunction* a_fn)
+        {
+            return std::ranges::any_of(g_proxies, [&](const auto& a_proxy) { return a_proxy.load() == a_fn; });
+        }
 
         bool SameName(const RE::BSFixedString& a_name, const char* a_wanted)
         {
@@ -271,6 +306,10 @@ namespace BlackFlame
         {
             const auto& target = kTargets[a_index];
             auto original = FindMember(a_vm, target);
+            if (original && IsOurProxy(original.get())) {
+                g_wrapped[a_index].store(true);  // bound earlier, confirmed now
+                return;
+            }
             auto* native = original ? skyrim_cast<NativeFunctionBase*>(original.get()) : nullptr;
             if (!native) {
                 logger::warn("BlackFlame: {}.{}: {} - not wrapped (retried after a load)", target.className,
@@ -282,6 +321,7 @@ namespace BlackFlame
             // Replaced only when the type now holds our proxy
             const auto now = FindMember(a_vm, target);
             const bool replaced = now.get() == proxy.get();
+            g_proxies[a_index].store(proxy.get());  // kept alive by the VM once bound
             g_wrapped[a_index].store(replaced);
             logger::info("BlackFlame: {}.{}: {} (callable from tasklets: {}, latent: {})", target.className,
                 target.functionName, replaced ? "replaced by the wrapper (the original runs inside it)" : "NOT replaced",
@@ -304,9 +344,47 @@ namespace BlackFlame
         }
         for (std::size_t i = 0; i < kTargets.size(); ++i) {
             if (!g_wrapped[i].load()) {
-                Wrap(a_vm, i);  // a second lookup after a success would find our proxy: never wrapped twice
+                Wrap(a_vm, i);  // our own proxy is recognised by pointer: never wrapped twice
+                continue;
+            }
+            // Wrapped before: is it still ours?
+            const auto now = FindMember(a_vm, kTargets[i]);
+            if (now && now.get() != g_proxies[i].load() && !g_reboundWarned[i].exchange(true)) {
+                logger::warn("BlackFlame: {}.{} was rebound by another plugin after our wrapper - script-placed fire "
+                             "from it is no longer tagged", kTargets[i].className, kTargets[i].functionName);
             }
         }
         return true;
+    }
+
+    std::vector<WrapperStatus> CheckNativeWrappers()
+    {
+        std::vector<WrapperStatus> out;
+        auto* vm = VM();
+        for (std::size_t i = 0; i < kTargets.size(); ++i) {
+            WrapperStatus status{ kTargets[i].className, kTargets[i].functionName };
+            auto* proxy = g_proxies[i].load();
+            const auto now = vm ? FindMember(vm, kTargets[i]) : RE::BSTSmartPointer<IFunction>{};
+            status.bound = proxy && now.get() == proxy;
+            if (proxy) {
+                const auto* original = proxy->Original();
+                status.matches = proxy->GetParamCount() == original->GetParamCount() &&
+                                 proxy->GetIsStatic() == original->GetIsStatic() &&
+                                 proxy->GetIsLatent() == original->GetIsLatent() &&
+                                 proxy->CanBeCalledFromTasklets() == original->CanBeCalledFromTasklets() &&
+                                 proxy->GetReturnType().GetRawType() == original->GetReturnType().GetRawType();
+                for (std::uint32_t p = 0; status.matches && p < original->GetParamCount(); ++p) {
+                    RE::BSFixedString proxyName, originalName;
+                    RE::BSScript::TypeInfo proxyType, originalType;
+                    proxy->GetParam(p, proxyName, proxyType);
+                    original->GetParam(p, originalName, originalType);
+                    status.matches = proxyType.GetRawType() == originalType.GetRawType();
+                }
+                status.params = original->GetParamCount();
+                status.latent = original->GetIsLatent();
+            }
+            out.push_back(status);
+        }
+        return out;
     }
 }

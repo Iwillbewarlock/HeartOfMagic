@@ -120,7 +120,7 @@ namespace BlackFlame
             auto* effect = a_this->effect;
             SelfTestProbe::RecordBurn({ 0, TargetIdOf(a_this), effect && effect->spell ? effect->spell->GetFormID() : 0,
                 a_original->GetFormID(), REX::W32::GetCurrentThreadId(), reinterpret_cast<std::uintptr_t>(a_this),
-                a_swapped });
+                effect ? effect->usUniqueID : std::uint16_t{ 0 }, a_swapped });
         }
 
         void LogSwap(Controller* a_this, const RE::TESEffectShader* a_original)

@@ -62,6 +62,7 @@ namespace BlackFlame
         // Game thread: the material check (a scene-graph walk), the recolour (when due) and,
         // while the self-test runs, its record
         void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_recolor, bool a_byPlayer,
+            const char* a_link,
             bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread)
         {
             const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
@@ -99,6 +100,7 @@ namespace BlackFlame
             record.spell = spell ? spell->GetFormID() : 0;
             record.kind = a_kind;
             record.byPlayer = a_byPlayer;
+            record.link = a_link;
             record.hookThread = a_hookThread;
             record.hookOnGameThread = a_hookOnGameThread;
             record.after = SelfTestProbe::Inspect(a_projectile->Get3D());
@@ -117,6 +119,7 @@ namespace BlackFlame
             const auto link = LinkToPlayer("projectile", a_projectile, shooter.get(), NonActorCasterOf(shooter.get()));
             const bool byPlayer = link != PlayerLink::kNone;
             LogLinkOnce("projectile", link);
+            const char* linkName = PlayerLinkName(link);
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
             const bool logMaterials = counter.fetch_add(1) < kMaxMaterialLogs;
@@ -132,19 +135,19 @@ namespace BlackFlame
                 LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
             }
             if (onGameThread) {
-                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, logMaterials, hookThread, true);
+                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, true);
                 return;
             }
             const auto handle = a_projectile->GetHandle();
             const auto generation = WorldGeneration();
             QueueTask("BlackFlameProjectile",
-                [handle, a_kind, recolor, byPlayer, logMaterials, hookThread, generation]() {
+                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, generation]() {
                 if (generation != WorldGeneration()) {
                     return;  // queued before a load
                 }
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, logMaterials, hookThread, false);
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, false);
                 }
             });
         }

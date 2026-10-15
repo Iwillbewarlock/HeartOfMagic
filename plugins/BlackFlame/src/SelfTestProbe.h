@@ -71,7 +71,8 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID spell = 0;
         const char* kind = "";
         bool byPlayer = false;
-        bool recolored = false;  // the projectile layer ran on it
+        const char* link = "none";  // the attribution rule that matched (PlayerLinkName)
+        bool recolored = false;     // the projectile layer ran on it
         RecolorStats stats;
         long long recolorMicros = 0;
         std::uint32_t hookThread = 0;
@@ -93,6 +94,8 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID causeActor = 0;
         bool hasMagicCaster = false;
         RE::FormID casterSpell = 0;  // runtime magicCaster->currentSpell, 0 when unset
+        RE::FormID casterRef = 0;    // magicCaster->GetCasterObjectReference, 0 when none
+        const char* link = "none";   // the attribution rule that matched (PlayerLinkName)
         bool lightAtSet3D = false;
         std::uint32_t hookThread = 0;
         Inspection after;
@@ -108,6 +111,7 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID engineShader = 0;  // what the engine asked for
         std::uint32_t thread = 0;     // the hook's thread
         std::uintptr_t controller = 0;
+        std::uint16_t effectId = 0;  // the active effect's usUniqueID (with the controller: one hit)
         bool swapped = false;
     };
 

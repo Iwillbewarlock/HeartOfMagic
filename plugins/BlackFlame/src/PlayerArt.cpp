@@ -143,6 +143,21 @@ namespace BlackFlame
         return IsPlayerBoundFireWeapon(a_projectile->GetProjectileRuntimeData().weaponSource);
     }
 
+    void ResetPlayerArt()
+    {
+        std::lock_guard lock(g_boundMutex);
+        BoundFire().clear();
+    }
+
+    void OnPlayerArtBuffChanged(bool a_on)
+    {
+        if (a_on) {
+            TickPlayerArt();  // the bound fire list (and the weapon's look) at once, not at the next tick
+        } else {
+            ResetPlayerArt();
+        }
+    }
+
     void TickPlayerArt()
     {
         auto* player = RE::PlayerCharacter::GetSingleton();

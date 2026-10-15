@@ -142,6 +142,16 @@ namespace BlackFlame
             if (a_policy == SehPolicy::kDisableStep) {
                 g_anyFault.store(true);
             }
+            // A kept step can fault again and again: its lines are capped like the skip lines (1, 10, 100...)
+            if (a_policy == SehPolicy::kKeepStep) {
+                bool due = false;
+                for (std::uint64_t mark = 1; mark <= static_cast<std::uint64_t>(faults); mark *= kSkipLogFactor) {
+                    due = due || mark == static_cast<std::uint64_t>(faults);
+                }
+                if (!due) {
+                    return;
+                }
+            }
             logger::error("BlackFlame: {}: hardware exception 0x{:08X} at {} (faultThread={}), fault {} of this step; {}",
                 a_step, a_info.code, ModuleOffset(a_info.address), GetCurrentThreadId(), faults,
                 a_policy == SehPolicy::kDisableStep ? "the step is off for the rest of the session" :

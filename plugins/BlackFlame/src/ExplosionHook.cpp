@@ -229,17 +229,21 @@ namespace BlackFlame
             }
             const auto owner = data.actorOwner.get();
             const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
-            // Attribution not set yet (no owner, cause, blame or script tag): decided by a later hook call,
-            // or given up after kUndecidedLimit
-            if (!owner && !cause && !(data.magicCaster && data.magicCaster->blameActor.get()) &&
-                !IsTaggedSource(a_explosion)) {
+            // The caster's object reference (NonActorMagicCaster::GetCasterObjectReference, vfunc 0x0D): checked
+            // against the script tags too (a projectile from a tagged source may leave it there)
+            RE::Actor* casterActor = nullptr;
+            auto* casterRef = data.magicCaster ? data.magicCaster->GetCasterObjectReference(&casterActor) : nullptr;
+            // Attribution not set yet (no owner, blame or script tag; the cause is no rule): decided by a
+            // later hook call, or given up after kUndecidedLimit
+            if (!owner && !(data.magicCaster && data.magicCaster->blameActor.get()) && !IsTaggedSource(a_explosion) &&
+                !IsTaggedSource(casterRef)) {
                 (void)UndecidedTooLong(a_explosion);
                 return;
             }
             if (!MarkProcessed(a_explosion)) {
                 return;  // another hook already handled this explosion
             }
-            const auto link = LinkToPlayer("explosion", a_explosion, owner.get(), data.magicCaster);
+            const auto link = LinkToPlayer("explosion", a_explosion, owner.get(), data.magicCaster, casterRef);
             const bool byPlayer = link != PlayerLink::kNone;
             LogLinkOnce("explosion", link);
             if (!byPlayer && g_otherLogs.fetch_add(1) < kMaxAttributionLogs) {
@@ -278,6 +282,8 @@ namespace BlackFlame
             record.causeActor = cause ? cause->GetFormID() : 0;
             record.hasMagicCaster = data.magicCaster != nullptr;
             record.casterSpell = casterSpell ? casterSpell->GetFormID() : 0;
+            record.casterRef = casterRef ? casterRef->GetFormID() : 0;
+            record.link = PlayerLinkName(link);
             record.lightAtSet3D = data.light != nullptr;
             record.hookThread = REX::W32::GetCurrentThreadId();
 

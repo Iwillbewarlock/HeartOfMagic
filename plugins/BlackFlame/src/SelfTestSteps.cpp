@@ -6,6 +6,7 @@
 #include "Forms.h"
 #include "GameThread.h"
 #include "Palette.h"
+#include "PapyrusWrap.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
 #include "Tint.h"
@@ -19,6 +20,21 @@ namespace BlackFlame::SelfTest
 {
     namespace
     {
+        // T0-wrap: the native wrappers, no game script needed: the script type holds our proxy and the proxy
+        // answers the original's parameter count and types, static, latent and tasklet flags
+        void LogWrapperChecks()
+        {
+            if (!GetConfig().scriptPlaced) {
+                SelfTestLog::Info("T0-wrap", "scriptPlaced false: the natives are not wrapped");
+                return;
+            }
+            for (const auto& w : CheckNativeWrappers()) {
+                SelfTestLog::Check("T0-wrap", w.bound && w.matches, std::format("{}.{}: bound {}, matches the original {} "
+                    "({} params, latent {})", w.className, w.functionName, w.bound ? "yes" : "NO", w.matches ? "yes" : "NO",
+                    w.params, w.latent));
+            }
+        }
+
         using namespace SelfTestText;
 
         // Step timeouts, counted in unpaused play
@@ -32,6 +48,7 @@ namespace BlackFlame::SelfTest
         constexpr float kInfoTimeout = 3.0f;
         constexpr float kBuffOffTimeout = 1.0f;
         constexpr float kCleanupTimeout = 5.0f;
+        constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
 
         // Placement: the target well ahead, the caster level with the player off to the side,
         // all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime)
@@ -73,6 +90,7 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Info("T0", std::format("Fireball explosion {:08X} radius {:.0f}",
                     a_c.forms.fireballExplosion->GetFormID(), a_c.forms.fireballExplosion->data.radius));
             }
+            LogWrapperChecks();
             const bool fireOk = a_c.haveForms && IsFireSpell(a_c.forms.firebolt) && IsFireSpell(a_c.forms.fireball);
             const bool ok = PaletteReady() && forms.burnShader && forms.stokeSpell && forms.stokedKeyword && fireOk;
             SelfTestLog::Check("T0", ok, std::format("palette, ESP forms and vanilla forms{}; Firebolt and Fireball "
@@ -291,7 +309,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T5-npc", kInfoTimeout, &StepNpcBurnInfo },
             StepDef{ "T6", kExplosionTimeout, &StepPlayerExplosion },
             StepDef{ "T6-npc", kExplosionTimeout, &StepNpcExplosion },
-            StepDef{ "T3-remote", kProjectileTimeout, &StepRemoteCast },
+            StepDef{ "T3-remote", kRemoteTimeout, &StepRemoteCast },
             StepDef{ "T7", kEnvTimeout, &StepModifiers },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },

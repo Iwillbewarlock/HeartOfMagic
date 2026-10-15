@@ -25,4 +25,10 @@ namespace BlackFlame
 
     /// Ticker task while stoked: bound fire weapons' 3D and fire light effects on the player
     void TickPlayerArt();
+
+    /// The buff changed: on - refresh at once; off - forget the bound fire list
+    void OnPlayerArtBuffChanged(bool a_on);
+
+    /// At kPreLoadGame / kNewGame: forgets the bound fire list
+    void ResetPlayerArt();
 }

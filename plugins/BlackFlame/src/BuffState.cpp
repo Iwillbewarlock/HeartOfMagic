@@ -120,6 +120,7 @@ namespace BlackFlame
         if (now != before) {
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
+            OnPlayerArtBuffChanged(now);
         }
     }
 

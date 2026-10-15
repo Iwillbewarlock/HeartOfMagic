@@ -40,7 +40,7 @@ namespace BlackFlame
     }
 
     PlayerLink LinkToPlayer(const char* a_layer, RE::TESObjectREFR* a_ref, RE::TESObjectREFR* a_owner,
-        RE::NonActorMagicCaster* a_caster)
+        RE::NonActorMagicCaster* a_caster, RE::TESObjectREFR* a_source)
     {
         const auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player) {
@@ -52,7 +52,7 @@ namespace BlackFlame
         if (a_caster && a_caster->blameActor.get().get() == player) {
             return PlayerLink::kBlame;
         }
-        if (IsTaggedSource(a_ref) || IsTaggedSource(a_owner)) {
+        if (IsTaggedSource(a_ref) || IsTaggedSource(a_owner) || IsTaggedSource(a_source)) {
             return PlayerLink::kTagged;
         }
         if (auto* cause = a_ref ? a_ref->GetActorCause() : nullptr; cause && cause->actor.get().get() == player) {

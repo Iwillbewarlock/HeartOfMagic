@@ -2,6 +2,8 @@
 
 #include "Common.h"
 
+#include <vector>
+
 // =============================================================================
 // PAPYRUS WRAP - script-placed fire of the player's fire effects (config scriptPlaced)
 // =============================================================================
@@ -28,6 +30,20 @@ namespace BlackFlame
     /// SKSE Papyrus registration callback (SKSE::GetPapyrusInterface()->Register)
     bool InstallNativeWrappers(RE::BSScript::IVirtualMachine* a_vm);
 
-    /// kPostLoadGame / kNewGame: binds what the registration callback could not find yet (each once)
+    /// kPostLoadGame / kNewGame: binds what the registration callback could not find yet (each once) and
+    /// warns once when a wrapped target was rebound by another plugin
     void RetryNativeWrappers();
+
+    struct WrapperStatus
+    {
+        const char* className = "";
+        const char* functionName = "";
+        bool bound = false;    // the script type holds our proxy now
+        bool matches = false;  // the proxy's parameters and flags equal the original's
+        std::uint32_t params = 0;
+        bool latent = false;
+    };
+
+    /// For the self-test (T0-wrap): each target's state, read from the VM now
+    [[nodiscard]] std::vector<WrapperStatus> CheckNativeWrappers();
 }

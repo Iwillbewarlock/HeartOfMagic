@@ -11,6 +11,7 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -69,7 +70,8 @@ namespace BlackFlame
         };
 
         std::mutex g_mutex;
-        std::atomic<std::uint32_t> g_restoreGeneration{ 0 };  // bumped by every restore
+        std::atomic<std::uint32_t> g_restoreGeneration{ 0 };  // bumped by every restore, inside g_mutex
+        thread_local std::optional<std::uint32_t> t_tickGeneration;  // set while a hand tick runs
 
         HandArtState& State()
         {
@@ -88,9 +90,17 @@ namespace BlackFlame
     {
         static const RecolorObserver* observer = std::make_unique<RecolorObserver>(
             [](RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original) {
-                std::lock_guard lock(g_mutex);
-                State().properties.try_emplace(a_prop,
-                    RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop), a_original });
+                {
+                    std::lock_guard lock(g_mutex);
+                    // A restore that ran after this tick began: the recolour is put back at once instead of
+                    // being remembered for a restore that already happened
+                    if (!t_tickGeneration || *t_tickGeneration == g_restoreGeneration.load()) {
+                        State().properties.try_emplace(a_prop,
+                            RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop), a_original });
+                        return;
+                    }
+                }
+                (void)GuardedKeep("hand art restore (late)", [&]() { (void)RestoreProperty(a_prop, a_original); });
             }).release();
         return *observer;
     }
@@ -291,11 +301,11 @@ namespace BlackFlame
         HandArtState taken;
         {
             std::lock_guard lock(g_mutex);
+            g_restoreGeneration.fetch_add(1);  // inside the swap: a tick that started before this does not write back
             taken.properties.swap(State().properties);
             taken.lights.swap(State().lights);
             State().hands = {};
         }
-        g_restoreGeneration.fetch_add(1);  // a tick that started before this does not write back
         // Item by item: one bad property must not leave the rest grey, and a fault never turns restores off
         int restored = 0;
         for (auto& [raw, entry] : taken.properties) {
@@ -343,6 +353,7 @@ namespace BlackFlame
         for (std::size_t i = 0; i < kHandCount; ++i) {
             HandState hand;
             const auto generation = g_restoreGeneration.load();
+            t_tickGeneration = generation;
             {
                 std::lock_guard lock(g_mutex);
                 hand = State().hands[i];
@@ -352,6 +363,7 @@ namespace BlackFlame
             if (generation == g_restoreGeneration.load()) {
                 State().hands[i] = hand;  // a restore in between already reset the hands: nothing stale goes back
             }
+            t_tickGeneration.reset();
         }
     }
 }

@@ -200,15 +200,17 @@ namespace BlackFlame::SelfTest
         // A swap of a NEW controller: none of the controllers recorded before the second cast (asked
         // again) may end the wait
         const auto target = FormIdOf(a_c.dummy);
-        std::vector<std::uintptr_t> before;
+        // One hit = (controller, active effect id): an address reused by a later effect is a new hit
+        std::vector<std::pair<std::uintptr_t, std::uint16_t>> before;
         for (const auto& b : SelfTestProbe::BurnsSince(a_c.t3Mark)) {
             if (b.seq < a_c.mark) {
-                before.push_back(b.controller);
+                before.emplace_back(b.controller, b.effectId);
             }
         }
         const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
         const bool newSwap = std::ranges::any_of(burns, [&](const auto& b) {
-            return b.swapped && b.target == target && std::ranges::find(before, b.controller) == before.end();
+            return b.swapped && b.target == target &&
+                   std::ranges::find(before, std::pair{ b.controller, b.effectId }) == before.end();
         });
         if (!newSwap) {
             a_c.waitingFor = std::format("the hook's swap for the second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));
