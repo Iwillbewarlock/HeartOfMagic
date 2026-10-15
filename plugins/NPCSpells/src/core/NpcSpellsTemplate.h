@@ -9,4 +9,7 @@ namespace NpcSpells {
     enum class Category : std::uint16_t { Traits = 1 << 0, Stats = 1 << 1, Factions = 1 << 2, Spells = 1 << 3, Keywords = 1 << 12 };
     // Index of the link that provides the category, or nullopt when a leveled character is met first (unknowable until spawn).
     std::optional<std::size_t> ProviderIndex(const std::vector<ChainLink>& chain, Category category);
+    // The spell list's provider: ProviderIndex for Spells, except that the flag without a template link (chain of one) is
+    // ignored and the record keeps its own list (as AttachToNpcs reads it, GameNpcs.cpp)
+    std::optional<std::size_t> SpellListProviderIndex(const std::vector<ChainLink>& chain);
 }

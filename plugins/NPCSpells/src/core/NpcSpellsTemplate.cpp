@@ -11,3 +11,10 @@ std::optional<std::size_t> ProviderIndex(const std::vector<ChainLink>& chain, Ca
     return std::nullopt;
 }
 }
+namespace NpcSpells {
+std::optional<std::size_t> SpellListProviderIndex(const std::vector<ChainLink>& chain)
+{
+    if (chain.size() == 1) return 0;
+    return ProviderIndex(chain, Category::Spells);
+}
+}

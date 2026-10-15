@@ -32,16 +32,33 @@ namespace NpcSpells {
     std::size_t CountShared(const std::vector<std::uint32_t>& witnesses, const std::unordered_set<std::uint32_t>& otherLists);
     // A list's spells found in the actor's leveled spell cache, each once, in list order
     std::vector<std::uint32_t> PickedFrom(const std::vector<std::uint32_t>& listSpells, const std::unordered_set<std::uint32_t>& cache);
-    // Waits are counted in executed ticks, not wall time: a game paused or in the background (no task runs) does not use
+    // Waits are counted in executed ticks, not wall time: a game window in the background (alt-tab: no task runs) does not use
     // up a wait. true once `ticks` ticks of kSelfTestPollMs cover waitMs (0 ticks cover a wait of 0).
     bool SelfTestWaitOver(std::size_t ticks, int waitMs);
     enum class SelfTestVerdict { kPass, kFail, kInconclusive };
-    struct SelfTestListOutcome {
-        std::size_t witnesses = 0;   // spells only this list (of ours) can have given the NPC
-        bool belowEvery = false;     // the actor's skill is below every entry: the list legitimately gives nothing
+    inline constexpr std::uint16_t kSelfTestNoLevel = 0xFFFF;   // "no such entry" in SelfTestReach
+    struct SelfTestEntry { std::uint32_t spell = 0; std::uint16_t level = 0; };  // one leveled list entry, in list order
+    struct SelfTestReach {
+        bool witnessReachable = false;                  // a roll at this skill can land on a witness
+        std::uint16_t minLevel = kSelfTestNoLevel;      // the lowest entry level
+        std::uint16_t witnessMinLevel = kSelfTestNoLevel;  // the lowest level of a witness entry
+        std::uint16_t topLevel = kSelfTestNoLevel;      // the highest entry level at or below the skill
     };
-    // PASS: a witness found on any list. INCONCLUSIVE: none found and no list could give one (each below every entry or
-    // without witnesses). FAIL: none found where a list could give one, or no list at all. reason: for the RESULT line.
-    SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, std::size_t distinctEvidence, std::string& reason);
+    // Which entries a roll at `skill` can pick: with the all-levels flag (llFlags bit 0) any entry at or below the skill,
+    // without it only the entries of the highest level at or below the skill (README "Lists"). Reachable when one of
+    // those is a witness.
+    SelfTestReach WitnessReach(const std::vector<SelfTestEntry>& entries, bool allLevels, float skill, const std::unordered_set<std::uint32_t>& witnesses);
+    struct SelfTestListOutcome {
+        std::size_t witnesses = 0;        // spells only this list (of ours) can have given the NPC
+        bool witnessReachable = true;     // false: at the actor's skill the list's roll cannot land on a witness
+        std::size_t picked = 0;           // the list's spells in the actor's leveled spell cache
+        std::size_t pickedWitnesses = 0;  // of them, witnesses
+    };
+    struct SelfTestSampleLists { std::size_t holder = 0, actorBase = 0; };  // our lists on the spell list holder and the spawned actor's base
+    // PASS: a witness found on any list. FAIL "holder has N HoMNS lists, the spawned actor's base has none": nothing found
+    // and the lists did not reach the record the engine rolls from. INCONCLUSIVE: nothing found and no list could give a
+    // witness (no witnesses, none reachable at the skill, or the cache shows the roll landed on non-witnesses). FAIL:
+    // nothing found where a list could give one, or no list at all. reason: for the RESULT line.
+    SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, SelfTestSampleLists where, std::size_t distinctEvidence, std::string& reason);
     const char* VerdictName(SelfTestVerdict v);
 }

@@ -23,8 +23,9 @@
     .\DeployDev.ps1 -NpcSpellsOnly -Force   # the same, the install's rules JSON replaced with the shipped one
     .\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest # the same plus the dev self test file (it spawns hostile sample NPCs after a load)
 
-    The NPC Spells self test file is opt-in: a deploy without -WithSelfTest removes it from the install and says so,
-    because the dev mod is enabled in a profile used for real play.
+    The NPC Spells self test file is opt-in: every deploy without -WithSelfTest (-NpcSpellsOnly or the plain one)
+    removes it from the NPC Spells install ($NpcSpellsModPath) and says so, because the dev mod is enabled in a
+    profile used for real play. A deploy that stops before copying says whether the file is still installed.
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -49,8 +50,15 @@ if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
     throw 'SkyrimSE is running. Close the game first: the panel files are open and a copy would leave the mod half written.'
 }
 $repo = $PSScriptRoot
+# The NPC Spells dev self test file in the install (plugins\NPCSpells\src\game\GameSelfTest.h): it makes the DLL
+# spawn hostile sample NPCs after a load, so a deploy that stops says whether it is still there
+$selfTestDst = Join-Path $NpcSpellsModPath 'SKSE\Plugins\HeartOfMagic_NPCSpells_selftest.json'
+function Get-SelfTestNote {
+    if (Test-Path $selfTestDst) { return " The NPC Spells self test file is STILL INSTALLED: $selfTestDst" }
+    return ''
+}
 if ($WithSelfTest -and -not $NpcSpellsOnly) {
-    throw '-WithSelfTest deploys the NPC Spells self test file and goes with -NpcSpellsOnly. Nothing was copied.'
+    throw ('-WithSelfTest deploys the NPC Spells self test file and goes with -NpcSpellsOnly. Nothing was copied.' + (Get-SelfTestNote))
 }
 
 if ($NpcSpellsOnly) {
@@ -68,7 +76,7 @@ if ($NpcSpellsOnly) {
     $required = @($nsDll, $nsEsl, $nsJson)
     if ($WithSelfTest) { $required += $nsSelfTest }
     foreach ($f in $required) {
-        if (-not (Test-Path $f)) { throw "Missing $f - nothing was copied. Run .\BuildRelease.ps1 first." }
+        if (-not (Test-Path $f)) { throw ("Missing $f - nothing was copied. Run .\BuildRelease.ps1 first." + (Get-SelfTestNote)) }
     }
     # Stale: an output older than a source it is built from. The DLL is built from the addon's src and the
     # shared files its CMakeLists.txt names; the ESL is written by npcspells-esl from the slot table.
@@ -85,7 +93,7 @@ if ($NpcSpellsOnly) {
         $built = (Get-Item $check[0]).LastWriteTime
         $newest = $check[1] | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($newest.LastWriteTime -gt $built) {
-            throw "Stale: $(Split-Path $check[0] -Leaf) is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 first."
+            throw ("Stale: $(Split-Path $check[0] -Leaf) is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 first." + (Get-SelfTestNote))
         }
     }
 
@@ -95,13 +103,13 @@ if ($NpcSpellsOnly) {
     $copies = @(@($nsDll, (Join-Path $pluginsDst 'HeartOfMagic_NPCSpells.dll')), @($nsEsl, (Join-Path $NpcSpellsModPath 'HeartOfMagic_NPCSpells.esp')))
     $jsonKept = (Test-Path $jsonDst) -and -not $Force
     if (-not $jsonKept) { $copies += , @($nsJson, $jsonDst) }
-    $selfTestDst = Join-Path $pluginsDst 'HeartOfMagic_NPCSpells_selftest.json'
     if ($WithSelfTest) { $copies += , @($nsSelfTest, $selfTestDst) }
 
-    New-Item -ItemType Directory -Force -Path $pluginsDst | Out-Null
-    foreach ($pair in $copies) { Copy-Item $pair[0] $pair[1] -Force }
+    # The checks passed: the self test file goes first, so a copy that fails below cannot leave it behind
     $selfTestRemoved = (-not $WithSelfTest) -and (Test-Path $selfTestDst)
     if ($selfTestRemoved) { Remove-Item $selfTestDst -Force }
+    New-Item -ItemType Directory -Force -Path $pluginsDst | Out-Null
+    foreach ($pair in $copies) { Copy-Item $pair[0] $pair[1] -Force }
     foreach ($pair in $copies) {
         if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash $pair[1]).Hash) { throw "Copy did not take: $($pair[1])" }
     }
@@ -112,7 +120,8 @@ if ($NpcSpellsOnly) {
         Write-Host "npcspells  rules json -> $jsonDst"
     }
     if ($WithSelfTest) {
-        Write-Host "npcspells  self test ON -> $selfTestDst (runs once per session after the first save load, spawns its sample NPCs next to the player; use a disposable save; SELFTEST lines in HeartOfMagic_NPCSpells.log; a deploy without -WithSelfTest removes it)"
+        Write-Host "npcspells  self test ON -> $selfTestDst (runs once per session after the first save load, spawns its sample NPCs next to the player; use a disposable save; SELFTEST lines in HeartOfMagic_NPCSpells.log)"
+        Write-Host "npcspells  REMINDER: after the run, deploy again without -WithSelfTest to remove it (.\DeployDev.ps1 -NpcSpellsOnly)"
     } elseif ($selfTestRemoved) {
         Write-Host "npcspells  self test file REMOVED from the install: $selfTestDst (pass -WithSelfTest to deploy it)"
     } else {
@@ -174,6 +183,13 @@ if ($deployScripts) {
             throw "Stale: $name.pex is older than $name.psc - nothing was copied. Run .\BuildRelease.ps1 first, or pass -NoScripts."
         }
     }
+}
+
+# The preflight passed. The NPC Spells dev self test file is opt-in (-NpcSpellsOnly -WithSelfTest): this deploy
+# removes it from the NPC Spells install too
+if (Test-Path $selfTestDst) {
+    Remove-Item $selfTestDst -Force
+    Write-Host "npcspells  self test file REMOVED from the install: $selfTestDst (.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest deploys it)"
 }
 
 if (-not $PanelOnly) {

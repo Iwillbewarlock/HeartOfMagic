@@ -24,7 +24,11 @@ namespace
 
     constexpr std::size_t kMaxLevDepth = 4;     // nested leveled spell lists followed in other lists (vanilla nests one level)
     constexpr std::size_t kMaxNames = 5;        // spells named per list line (hits, picks)
-    constexpr std::uint16_t kNoEntryLevel = 0xFFFF;
+
+    std::string LevelText(std::uint16_t level)
+    {
+        return level == NpcSpells::kSelfTestNoLevel ? std::string("none") : std::to_string(level);
+    }
 
     std::string SpellText(const RE::SpellItem* spell)
     {
@@ -63,10 +67,10 @@ namespace
         }
     }
 
-    // What a spell list gives besides our lists: its static spells and its other leveled lists' entries (RE/T/TESSpellList.h:44-49)
-    void AddOtherSpells(const RE::TESNPC* npc, const SelfTest::OurLists& ours, IdSet& out)
+    // What a spell list (an NPC's or a race's) gives besides our lists: its static spells and its other leveled lists'
+    // entries (RE/T/TESSpellList.h:44-49)
+    void AddOtherSpells(const RE::TESSpellList::SpellData* d, const SelfTest::OurLists& ours, IdSet& out)
     {
-        const auto* d = npc ? npc->actorEffects : nullptr;
         if (!d) {
             return;
         }
@@ -86,8 +90,9 @@ namespace
     {
         std::string editorId;
         NpcSpells::School school{};
-        std::vector<std::uint32_t> spells;  // entry order, ids of SpellItem entries (ours hold no nested lists)
-        std::uint16_t minLevel = kNoEntryLevel;
+        std::vector<std::uint32_t> spells;               // entry order, ids of SpellItem entries (ours hold no nested lists)
+        std::vector<NpcSpells::SelfTestEntry> entries;   // the same entries with their levels
+        bool allLevels = false;                          // llFlags kCalculateFromAllLevelsLTOrEqPCLevel (RE/T/TESLeveledList.h:47)
     };
 
     ListInfo ReadOurList(RE::TESLevSpell* lev, const SelfTest::OurLists& ours, SpellById& spellById)
@@ -104,9 +109,11 @@ namespace
                 continue;
             }
             info.spells.push_back(spell->GetFormID());
+            info.entries.push_back({ spell->GetFormID(), entries[i].level });
             spellById.emplace(spell->GetFormID(), spell);
-            info.minLevel = std::min(info.minLevel, entries[i].level);
         }
+        // GameLists.cpp writes 0 or kAllLevelsFlag: both kinds are on NPCs ("below" rungs carry the flag)
+        info.allLevels = (lev->llFlags & RE::TESLeveledList::kCalculateFromAllLevelsLTOrEqPCLevel) != 0;
         return info;
     }
 
@@ -161,6 +168,14 @@ namespace
         r.unresolvable = true;
     }
 
+    // Actor::VisitSpells (RE/A/Actor.h:706, ID 38781) walks every spell the actor has and builds the leveled spell cache
+    // on the way; a visitor that never stops (RE/B/BSContainer.h) lets it reach the leveled part whatever comes first
+    class VisitAllSpells final : public RE::Actor::ForEachSpellVisitor  // RE/A/Actor.h:278-288
+    {
+    public:
+        RE::BSContainer::ForEachResult Visit(RE::SpellItem*) override { return RE::BSContainer::ForEachResult::kContinue; }
+    };
+
     // HighProcessData::leveledSpellList (RE/H/HighProcessData.h:307): the spells the engine rolled from the actor's
     // leveled spell lists. Built on demand by Actor::VisitSpells; null when not built yet.
     bool ReadLeveledCache(RE::Actor* actor, IdSet& out, std::size_t& count)
@@ -189,8 +204,10 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     const auto* base = b.actorBase;
     const auto holderLists = r.holder ? OurListsOn(r.holder->actorEffects, s.ours) : std::vector<RE::TESLevSpell*>{};
     const auto baseLists = base ? OurListsOn(base->actorEffects, s.ours) : std::vector<RE::TESLevSpell*>{};
-    const bool fromHolder = !holderLists.empty();
-    const auto& checked = fromHolder ? holderLists : baseLists;
+    // The engine builds the leveled spell cache from the actor's base: its lists are the ones checked. The holder's count
+    // only for the verdict "not propagated" (JudgeSample), and as the lists checked when the base has none.
+    const bool fromBase = !baseLists.empty();
+    const auto& checked = fromBase ? baseLists : holderLists;
     using Flag = RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG;  // RE/T/TESActorBaseData.h:46-62, the field at :74
     Log(s, std::format("SELFTEST sample {} kind={} placed {} actorBase {} templateBase {} extraLeveled={} originalBase {} copiedTemplate={} "
                        "holder {} holderFrom={} inherited={} chain={} holderLists={} actorBaseLists={} listsFrom={} 3D=loaded high=yes waitedMs={}",
@@ -198,7 +215,7 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
         FormText(b.originalBase), base ? (base->actorData.templateUseFlags.all(Flag::kCopiedTemplate) ? "yes" : "no") : "n/a",
         FormText(r.holder), r.holderFrom, r.holder && r.holder != r.holderStart ? "yes" : "no",
         r.unresolvable ? "leveled-link-before-holder" : "resolved", holderLists.size(), baseLists.size(),
-        fromHolder ? "holder" : (checked.empty() ? "none" : "actorBase"), waitedTicks * NpcSpells::kSelfTestPollMs));
+        fromBase ? "actorBase" : (checked.empty() ? "none" : "holder"), waitedTicks * NpcSpells::kSelfTestPollMs));
     if (checked.empty()) {
         Record(s, r, NpcSpells::SelfTestVerdict::kFail, r.unresolvable
             ? "template chain has a leveled link before the spell list holder, and the spawned actor's base has no HoMNS list"
@@ -207,16 +224,18 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     }
 
     IdSet excluded;
-    for (const auto* npc : { r.holder, r.npc, b.actorBase, b.templateBase, b.originalBase }) {
-        AddOtherSpells(npc, s.ours, excluded);
-    }
-    if (const auto* race = actor->GetRace(); race && race->actorEffects) {  // RE/T/TESRace.h:144, a TESSpellList
-        const auto* d = race->actorEffects;
-        for (std::uint32_t i = 0; d->spells && i < d->numSpells; ++i) {
-            if (d->spells[i]) {
-                excluded.insert(d->spells[i]->GetFormID());
-            }
+    std::vector<RE::TESNPC*> sources{ r.holder, r.npc, b.originalBase };
+    for (auto* start : { b.templateBase, b.actorBase }) {  // each with every record of its template chain
+        if (start) {
+            const auto chain = NpcSpellsGame::TemplateChain(start);
+            sources.insert(sources.end(), chain.begin(), chain.end());
         }
+    }
+    for (const auto* npc : sources) {
+        AddOtherSpells(npc ? npc->actorEffects : nullptr, s.ours, excluded);
+    }
+    if (const auto* race = actor->GetRace()) {  // RE/T/TESRace.h:144, a TESSpellList: static spells and leveled lists
+        AddOtherSpells(race->actorEffects, s.ours, excluded);
     }
     for (auto* spell : actor->GetActorRuntimeData().addedSpells) {  // RE/A/Actor.h:744
         if (spell) {
@@ -229,14 +248,10 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     for (auto* lev : checked) {
         lists.push_back(ReadOurList(lev, s.ours, spellById));
     }
-    // HasSpell (RE/A/Actor.h:620) goes through Actor::VisitSpells, which builds the leveled spell cache when it is
-    // missing: one call first, then the cache is read as it is. Every later query sees the same roll.
-    for (const auto& list : lists) {
-        if (!list.spells.empty()) {
-            (void)actor->HasSpell(spellById.at(list.spells.front()));
-            break;
-        }
-    }
+    // One full walk first (it builds the leveled spell cache when missing), then the cache is read as it is. The HasSpell
+    // calls below (RE/A/Actor.h:620) go through the same walk and see the same roll.
+    VisitAllSpells visitAll;
+    actor->VisitSpells(visitAll);
     IdSet cache;
     std::size_t cacheCount = 0;
     const bool cacheBuilt = ReadLeveledCache(actor, cache, cacheCount);
@@ -269,6 +284,7 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
                 evidence.insert(id);
             }
         }
+        const auto reach = NpcSpells::WitnessReach(list.entries, list.allLevels, skill, witnessSet);
         const auto picked = NpcSpells::PickedFrom(list.spells, cache);
         std::size_t pickedWitnesses = 0;
         for (const auto id : picked) {
@@ -279,11 +295,12 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
             }
         }
         ++schoolLists[school];
-        const bool belowEvery = list.minLevel != kNoEntryLevel && skill < static_cast<float>(list.minLevel);
-        outcomes.push_back({ witnesses.size(), belowEvery });
-        Log(s, std::format("SELFTEST list {} {} school={} skill={:.0f} entries={} minLevel={}{} excluded={} witnesses={} shared={} hits={} picked={} pickedWitnesses={}{}{}",
-            r.text, list.editorId, NpcSpells::kSchoolNames[school], skill, list.spells.size(), list.minLevel,
-            belowEvery ? " (skill below every entry)" : "", NpcSpells::CountExcluded(list.spells, excluded), witnesses.size(),
+        outcomes.push_back({ witnesses.size(), reach.witnessReachable, picked.size(), pickedWitnesses });
+        Log(s, std::format("SELFTEST list {} {} school={} skill={:.0f} entries={} levels={} minLevel={} witnessMinLevel={} topLevel={} witnessReachable={} "
+                           "excluded={} witnesses={} shared={} hits={} picked={} pickedWitnesses={}{}{}",
+            r.text, list.editorId, NpcSpells::kSchoolNames[school], skill, list.spells.size(), list.allLevels ? "all" : "highest",
+            LevelText(reach.minLevel), LevelText(reach.witnessMinLevel), LevelText(reach.topLevel), reach.witnessReachable ? "yes" : "no",
+            NpcSpells::CountExcluded(list.spells, excluded), witnesses.size(),
             NpcSpells::CountShared(witnesses, others), hits.size(), picked.size(), pickedWitnesses,
             Names(hits, spellById, " hitSpells: "), Names(picked, spellById, " picked: ")));
     }
@@ -294,6 +311,6 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
         }
     }
     std::string reason;
-    const auto verdict = NpcSpells::JudgeSample(outcomes, evidence.size(), reason);
+    const auto verdict = NpcSpells::JudgeSample(outcomes, { holderLists.size(), baseLists.size() }, evidence.size(), reason);
     Record(s, r, verdict, reason);  // here, not on entry: a throw above leaves the sample to RunTick's Fail, so DONE counts every sample
 }

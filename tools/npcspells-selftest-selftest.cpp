@@ -1,4 +1,4 @@
-// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file, witness, excluded and picked sets, tick-counted waits, verdicts
+// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file, witness, excluded and picked sets, tick-counted waits, reach, verdicts
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsSelfTest.h"
 #include <cstdio>
@@ -62,14 +62,32 @@ int RunSelfTestSelfTest()
         Check(!SelfTestWaitOver(ticks - 1, kSelfTestDefaultMaxWaitMs) && SelfTestWaitOver(ticks, kSelfTestDefaultMaxWaitMs), "the default per-actor wait ends on its tick, not one before");
         Check(SelfTestWaitOver(static_cast<std::size_t>(kSelfTestPlayerWaitMs / kSelfTestPollMs), kSelfTestPlayerWaitMs) && SelfTestWaitOver(std::size_t{ 1 } << 40, kSelfTestMaxMs), "the player wait ends on its tick; a huge tick count does not overflow");
     }
+    {   // reach: which entries a roll at the skill can pick (all-levels flag: every entry at or below; flag 0: the highest group)
+        const std::vector<SelfTestEntry> e{ { 0x10, 0 }, { 0x20, 25 }, { 0x30, 25 }, { 0x40, 50 } };
+        auto r = WitnessReach(e, true, 30.0f, { 0x10, 0x40 });
+        Check(r.witnessReachable && r.minLevel == 0 && r.witnessMinLevel == 0 && r.topLevel == 25, "all levels: a witness below the skill is reachable even under a higher group");
+        r = WitnessReach(e, false, 30.0f, { 0x10, 0x40 });
+        Check(!r.witnessReachable && r.topLevel == 25, "flag 0: a witness only in a lower group than the highest at the skill is not reachable");
+        Check(WitnessReach(e, false, 30.0f, { 0x30 }).witnessReachable && WitnessReach(e, false, 50.0f, { 0x40 }).witnessReachable, "flag 0: a witness in the highest group at the skill is reachable (a level equal to the skill counts)");
+        r = WitnessReach(e, true, 20.0f, { 0x20, 0x40 });
+        Check(!r.witnessReachable && r.witnessMinLevel == 25 && r.minLevel == 0, "all levels: the skill below every witness (an excluded entry below it does not count)");
+        r = WitnessReach(e, false, -1.0f, { 0x10 });
+        Check(!r.witnessReachable && r.topLevel == kSelfTestNoLevel, "a skill below every entry reaches nothing, no top level");
+        Check(!WitnessReach({}, true, 100.0f, { 0x10 }).witnessReachable && !WitnessReach(e, true, 100.0f, {}).witnessReachable, "an empty list or no witnesses reaches nothing");
+    }
     {   // verdicts
         std::string why;
-        Check(JudgeSample({ { 5, false }, { 3, true } }, 1, why) == SelfTestVerdict::kPass && why.find("1") != std::string::npos, "PASS: one witness found");
-        Check(JudgeSample({ { 5, true } }, 2, why) == SelfTestVerdict::kPass, "PASS: a found witness counts even on a list below every entry");
-        Check(JudgeSample({ { 5, true }, { 0, false } }, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 with the skill below") != std::string::npos && why.find("1 without") != std::string::npos, "INCONCLUSIVE: every list below every entry or without witnesses, each counted");
-        Check(JudgeSample({ { 0, false } }, 0, why) == SelfTestVerdict::kInconclusive, "INCONCLUSIVE: lists with no witness at all");
-        Check(JudgeSample({ { 5, true }, { 4, false } }, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: a list that could give a witness gave none");
-        Check(JudgeSample({}, 0, why) == SelfTestVerdict::kFail && why.find("no HoMNS list") != std::string::npos, "FAIL: no list to check");
+        const SelfTestSampleLists both{ 2, 2 };
+        Check(JudgeSample({ { 5, true }, { 3, false } }, both, 1, why) == SelfTestVerdict::kPass && why.find("1") != std::string::npos, "PASS: one witness found");
+        Check(JudgeSample({ { 5, false } }, both, 2, why) == SelfTestVerdict::kPass, "PASS: a found witness counts even on a list with no reachable witness");
+        Check(JudgeSample({ { 5, false }, { 0, true } }, both, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 with no witness reachable") != std::string::npos && why.find("1 without") != std::string::npos, "INCONCLUSIVE: every list unreachable or without witnesses, each counted");
+        Check(JudgeSample({ { 0, true } }, both, 0, why) == SelfTestVerdict::kInconclusive, "INCONCLUSIVE: lists with no witness at all");
+        Check(JudgeSample({ { 5, true, 1, 0 }, { 4, false } }, both, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 whose roll landed on non-witness") != std::string::npos, "INCONCLUSIVE: the cache shows the roll took a non-witness spell");
+        Check(JudgeSample({ { 5, true, 1, 0 }, { 4, true } }, both, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: another list could give a witness and gave none");
+        Check(JudgeSample({ { 5, false }, { 4, true } }, both, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: a list that could give a witness gave none");
+        Check(JudgeSample({ { 5, false } }, { 9, 0 }, 0, why) == SelfTestVerdict::kFail && why.find("holder has 9 HoMNS lists, the spawned actor's base has none") != std::string::npos, "FAIL: lists on the holder, none on the spawned actor's base (even where nothing was reachable)");
+        Check(JudgeSample({ { 5, true } }, { 9, 0 }, 3, why) == SelfTestVerdict::kPass, "PASS: a witness found wins over the missing base lists");
+        Check(JudgeSample({}, { 0, 0 }, 0, why) == SelfTestVerdict::kFail && why.find("no HoMNS list") != std::string::npos, "FAIL: no list to check");
         Check(std::string(VerdictName(SelfTestVerdict::kInconclusive)) == "INCONCLUSIVE" && std::string(VerdictName(SelfTestVerdict::kPass)) == "PASS" && std::string(VerdictName(SelfTestVerdict::kFail)) == "FAIL", "verdict names");
     }
     return 0;

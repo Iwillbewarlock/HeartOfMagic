@@ -1,5 +1,6 @@
 #include "core/NpcSpellsSelfTest.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <format>
 namespace NpcSpells {
 namespace {
@@ -63,18 +64,41 @@ bool SelfTestWaitOver(std::size_t ticks, int waitMs)
 {
     return static_cast<long long>(ticks) * kSelfTestPollMs >= static_cast<long long>(waitMs);
 }
-SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, std::size_t distinctEvidence, std::string& reason)
+SelfTestReach WitnessReach(const std::vector<SelfTestEntry>& entries, bool allLevels, float skill, const std::unordered_set<std::uint32_t>& witnesses)
+{
+    SelfTestReach r;
+    const auto atSkill = [skill](std::uint16_t level) { return static_cast<float>(level) <= skill; };
+    for (const auto& e : entries) {
+        r.minLevel = std::min(r.minLevel, e.level);
+        if (witnesses.contains(e.spell)) r.witnessMinLevel = std::min(r.witnessMinLevel, e.level);
+        if (atSkill(e.level) && (r.topLevel == kSelfTestNoLevel || e.level > r.topLevel)) r.topLevel = e.level;
+    }
+    if (allLevels) {
+        r.witnessReachable = r.witnessMinLevel != kSelfTestNoLevel && atSkill(r.witnessMinLevel);
+        return r;
+    }
+    for (const auto& e : entries)
+        if (r.topLevel != kSelfTestNoLevel && e.level == r.topLevel && witnesses.contains(e.spell)) r.witnessReachable = true;
+    return r;
+}
+SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, SelfTestSampleLists where, std::size_t distinctEvidence, std::string& reason)
 {
     if (lists.empty()) { reason = "no HoMNS list to check"; return SelfTestVerdict::kFail; }
     if (distinctEvidence > 0) { reason = std::format("HoMNS-only witnesses found: {}", distinctEvidence); return SelfTestVerdict::kPass; }
-    std::size_t below = 0, noWitness = 0, open = 0;
+    if (where.actorBase == 0 && where.holder > 0) {
+        reason = std::format("holder has {} HoMNS lists, the spawned actor's base has none", where.holder);
+        return SelfTestVerdict::kFail;
+    }
+    std::size_t unreachable = 0, noWitness = 0, rolledOther = 0, open = 0;
     for (const auto& l : lists) {
         if (l.witnesses == 0) ++noWitness;
-        else if (l.belowEvery) ++below;
+        else if (!l.witnessReachable) ++unreachable;
+        else if (l.picked > 0 && l.pickedWitnesses == 0) ++rolledOther;
         else ++open;
     }
     if (open == 0) {
-        reason = std::format("no list could give a witness: {} with the skill below every entry, {} without witnesses", below, noWitness);
+        reason = std::format("no list could give a witness: {} with no witness reachable at the skill, {} without witnesses, {} whose roll landed on non-witness spells",
+            unreachable, noWitness, rolledOther);
         return SelfTestVerdict::kInconclusive;
     }
     reason = std::format("no witness found on {} lists that could give one", open);

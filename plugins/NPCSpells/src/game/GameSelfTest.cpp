@@ -81,6 +81,18 @@ void SelfTest::Log(State& s, std::string line)
     s.lines.push_back(std::move(line));
 }
 
+void SelfTest::Warn(State& s, std::string line)
+{
+    logger::warn("{}", line);
+    s.lines.push_back(std::move(line));
+}
+
+void SelfTest::Error(State& s, std::string line)
+{
+    logger::error("{}", line);
+    s.lines.push_back(std::move(line));
+}
+
 void SelfTest::Record(State& s, SampleRun& r, NpcSpells::SelfTestVerdict verdict, std::string_view reason)
 {
     if (r.done) {
@@ -104,10 +116,11 @@ namespace
 {
     // A task that queued itself again might run again in the same drain of SKSE's task queue (not checked in SKSE's
     // source), so the wait is not a self-requeueing task: a worker thread queues one Tick per kSelfTestPollMs, and only
-    // when the last one has run (State::queued). Every wait counts executed ticks, so a paused or backgrounded game
-    // uses up none. The worker only sleeps and queues; every game object is touched inside the tasks, on the main thread.
+    // when the last one has run (State::queued). Every wait counts executed ticks, so a game window in the background
+    // (alt-tab: no task runs) uses up none. The worker only sleeps and queues; every game object is touched inside the tasks, on the main thread.
     std::mutex g_currentLock;
     std::weak_ptr<State> g_current;  // the running test, for the load and save messages
+    bool g_started = false;          // a test ran (or is running) this session; main thread only (SKSE messages and tasks)
 
     std::shared_ptr<State> Current()
     {
@@ -115,18 +128,30 @@ namespace
         return g_current.lock();
     }
 
-    // RE/T/TESObjectREFR.h:330 Disable, :218 SetDelete
+    // The world the ref stood in is gone (another save, a new game, the main menu): the handle is dropped unread
+    void Forget(State& s, SampleRun& r)
+    {
+        if (!r.handle) {
+            return;
+        }
+        r.handle = {};
+        --s.liveActors;
+    }
+
+    // RE/T/TESObjectREFR.h:330 Disable, :218 SetDelete. The const get (RE/B/BSPointerHandle.h:161, the const
+    // GetSmartPointer) leaves the handle as it is; the non-const one is the engine's "clears the handle" lookup. Only a
+    // ref that still has the spawned FormID and is an actor is touched.
     void Cleanup(State& s, SampleRun& r)
     {
         if (!r.handle) {
             return;
         }
-        if (const auto ref = r.handle.get()) {  // RE/B/BSPointerHandle.h:162
+        const auto ref = std::as_const(r.handle).get();
+        if (ref && ref->GetFormID() == r.spawnedId && ref->As<RE::Actor>()) {
             ref->Disable();
             ref->SetDelete(true);
         }
-        r.handle = {};
-        --s.liveActors;
+        Forget(s, r);
     }
 
     void Spawn(State& s, RE::PlayerCharacter* player)
@@ -164,17 +189,18 @@ namespace
                 continue;
             }
             r.handle = ref->GetHandle();  // RE/T/TESObjectREFR.h:402
+            r.spawnedId = ref->GetFormID();
             ++s.liveActors;
             Log(s, std::format("SELFTEST spawn sample {} ref 0x{:08X}", r.text, ref->GetFormID()));
         }
         FlushLog();  // info lines are buffered (Common.h): a crash while hostile actors stand here keeps these lines
     }
 
-    void AppendReport(const State& s)
+    void AppendReport(const std::vector<std::string>& lines)
     {
         std::ofstream file(NpcSpellsGame::kReportPath, std::ios::binary | std::ios::app);
         file << "\n== Self test ==\n";
-        for (const auto& line : s.lines) {
+        for (const auto& line : lines) {
             file << line << '\n';
         }
         if (!file) {
@@ -193,25 +219,39 @@ namespace
         if (s.savedWithActors) {
             s.lines.emplace_back("SELFTEST WARN save taken while sample actors exist");  // logged when it happened
         }
+        if (!s.spawned) {  // nothing was spawned: a later load in this session runs the test
+            g_started = false;
+            SelfTest::Log(s, "SELFTEST ended before the spawn: the next save load in this session starts it again");
+        }
         SelfTest::Log(s, std::format("SELFTEST DONE pass={} fail={} inconclusive={}", s.pass, s.fail, s.inconclusive));
-        AppendReport(s);
+        AppendReport(s.lines);
         FlushLog();
         s.finished = true;
     }
 
-    void FailOpen(State& s, std::string_view reason)
+    // touchRefs false: the world the samples stood in is gone, their handles are dropped unread
+    void FailOpen(State& s, std::string_view reason, bool touchRefs)
     {
         for (auto& r : s.samples) {
-            Cleanup(s, r);
+            touchRefs ? Cleanup(s, r) : Forget(s, r);
             SelfTest::Fail(s, r, reason);
         }
+    }
+
+    void EndWithoutRefs(State& s, std::string_view reason)
+    {
+        FailOpen(s, reason, false);
+        Finish(s);
     }
 
     void Tick(State& s)
     {
         if (s.aborted) {
-            FailOpen(s, "another save was loaded during the test");
-            Finish(s);
+            EndWithoutRefs(s, s.abortReason);
+            return;
+        }
+        if (auto* ui = RE::UI::GetSingleton(); ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {  // RE/U/UI.h:92, RE/M/MainMenu.h:30
+            EndWithoutRefs(s, "the main menu is open: no game is loaded");
             return;
         }
         if (!s.spawned) {
@@ -219,7 +259,7 @@ namespace
             if (!player || !player->Is3DLoaded() || !player->GetParentCell()) {  // RE/T/TESObjectREFR.h:448, :420
                 s.readyTicks = 0;  // the start delay counts from the last time the player came in
                 if (NpcSpells::SelfTestWaitOver(++s.notReadyTicks, NpcSpells::kSelfTestPlayerWaitMs)) {
-                    FailOpen(s, "the player's 3D or cell never came");
+                    FailOpen(s, "the player's 3D or cell never came", false);
                     Finish(s);
                 }
                 return;
@@ -236,7 +276,7 @@ namespace
                 continue;
             }
             const auto waited = r.waitTicks++;  // 0 on the spawn tick
-            const auto ref = r.handle.get();
+            const auto ref = std::as_const(r.handle).get();
             auto* actor = ref ? ref->As<RE::Actor>() : nullptr;
             // The leveled spell cache needs the high process (RE/A/Actor.h:587 GetHighProcess; 2026-10-10: before 3D, HasSpell was false)
             if (actor && actor->Is3DLoaded() && actor->GetHighProcess()) {
@@ -261,8 +301,8 @@ namespace
     void StopOnError(State& s, std::string_view what) noexcept
     {
         try {
-            logger::error("SELFTEST stopped by an error: {}", what);
-            FailOpen(s, std::format("stopped by an error: {}", what));
+            SelfTest::Error(s, std::format("SELFTEST stopped by an error: {}", what));
+            FailOpen(s, std::format("stopped by an error: {}", what), true);
             Finish(s);
         } catch (...) {
         }
@@ -283,6 +323,17 @@ namespace
         }
     }
 
+    // A test that could not start: its one line in the log and in the report
+    void ReportNotStarted(std::string_view why) noexcept
+    {
+        try {
+            const auto line = std::format("SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: {})", why);
+            logger::error("{}", line);
+            AppendReport({ line });
+        } catch (...) {
+        }
+    }
+
     void Start()
     {
         std::ifstream file(NpcSpellsGame::kSelfTestPath, std::ios::binary);
@@ -291,11 +342,11 @@ namespace
         auto state = std::make_shared<State>();
         std::string error;
         if (!file || !NpcSpells::ParseSelfTestConfig(text.str(), state->config, error)) {
-            logger::error("SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: {} - {})", NpcSpellsGame::kSelfTestPath, error.empty() ? "unreadable" : error);
+            ReportNotStarted(std::format("{} - {}", NpcSpellsGame::kSelfTestPath, error.empty() ? "unreadable" : error));
             return;
         }
         if (!error.empty()) {
-            logger::warn("SELFTEST config: {}", error);
+            SelfTest::Warn(*state, std::format("SELFTEST config: {}", error));
         }
         for (std::size_t i = 0; i < state->config.samples.size(); ++i) {
             auto& r = state->samples.emplace_back();
@@ -305,29 +356,34 @@ namespace
         if (auto* dh = RE::TESDataHandler::GetSingleton()) {
             state->ours.file = dh->LookupLoadedLightModByName(NpcSpells::kEslFileName);  // RE/T/TESDataHandler.h:78
         }
-        logger::info("SELFTEST start samples={} startDelayMs={} maxWaitMs={} pollMs={} esl={}", state->samples.size(), state->config.startDelayMs,
-            state->config.maxWaitMs, NpcSpells::kSelfTestPollMs, state->ours.file ? "loaded" : "not loaded");
+        SelfTest::Log(*state, std::format("SELFTEST start samples={} startDelayMs={} maxWaitMs={} pollMs={} esl={}", state->samples.size(), state->config.startDelayMs,
+            state->config.maxWaitMs, NpcSpells::kSelfTestPollMs, state->ours.file ? "loaded" : "not loaded"));
         {
             std::lock_guard lock(g_currentLock);
             g_current = state;
         }
         // Runs until the test finishes: every wait is a finite number of ticks, so the ticks end it. A tick that never
         // runs (the game quit) leaves this thread asleep in its loop until the process ends; it writes no result.
+        // Nothing escapes the thread (std::terminate): a throw (no memory) frees the queue slot and the loop goes on.
         std::thread([state] {
             while (!state->finished) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(NpcSpells::kSelfTestPollMs));
-                if (state->queued.exchange(true)) {
-                    continue;  // the last tick has not run yet
-                }
-                const auto* tasks = SKSE::GetTaskInterface();  // SKSE/API.h:58
-                if (!tasks) {
+                try {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(NpcSpells::kSelfTestPollMs));
+                    if (state->queued.exchange(true)) {
+                        continue;  // the last tick has not run yet
+                    }
+                    const auto* tasks = SKSE::GetTaskInterface();  // SKSE/API.h:58
+                    if (!tasks) {
+                        state->queued = false;
+                        continue;
+                    }
+                    tasks->AddTask([state] {  // SKSE/Interfaces.h:394, runs on the main thread
+                        RunTick(*state);
+                        state->queued = false;
+                    });
+                } catch (...) {
                     state->queued = false;
-                    continue;
                 }
-                tasks->AddTask([state] {  // SKSE/Interfaces.h:394, runs on the main thread
-                    RunTick(*state);
-                    state->queued = false;
-                });
             }
         }).detach();
     }
@@ -335,21 +391,20 @@ namespace
 
 void NpcSpellsGame::MaybeStartSelfTest()
 {
-    static bool started = false;  // SKSE sends the load messages on the main thread
-    if (started) {
+    if (g_started) {  // SKSE sends the load messages on the main thread
         return;
     }
     std::error_code ec;
     if (!std::filesystem::exists(kSelfTestPath, ec)) {
         return;
     }
-    started = true;
+    g_started = true;
     try {
         Start();
     } catch (const std::exception& e) {
-        logger::error("SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: {})", e.what());
+        ReportNotStarted(e.what());
     } catch (...) {
-        logger::error("SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: unknown error)");
+        ReportNotStarted("unknown error");
     }
 }
 
@@ -366,7 +421,19 @@ void NpcSpellsGame::OnSelfTestPreLoad()
         return;
     }
     s->aborted = true;
-    logger::warn("SELFTEST WARN another save is loading during the test: the next tick cleans up and ends it");
+    s->abortReason = "another save was loaded during the test";
+    SelfTest::Warn(*s, "SELFTEST WARN another save is loading during the test: the next tick ends it (the spawned refs go with the old world)");
+}
+
+void NpcSpellsGame::OnSelfTestNewGame()
+{
+    const auto s = Current();
+    if (!s || s->finished) {
+        return;
+    }
+    s->aborted = true;
+    s->abortReason = "a new game was started during the test";
+    SelfTest::Warn(*s, "SELFTEST WARN a new game was started during the test: the next tick ends it, nothing is spawned");
 }
 
 void NpcSpellsGame::OnSelfTestSave()

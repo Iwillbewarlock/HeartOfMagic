@@ -185,22 +185,29 @@ missing record.
 .\build\tools\Release\npcspells-esl.exe -o <path>        # write the ESL from the slot table
 .\DeployDev.ps1 -NpcSpellsOnly                           # DLL, ESL, rules JSON -> D:\TAKEALOOK\mods\HeartOfMagic-NPCSpells-Dev (folder must exist; stale build refused; an existing rules JSON is kept)
 .\DeployDev.ps1 -NpcSpellsOnly -Force                    # the same, the install's rules JSON replaced with the shipped one
-.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest             # the same plus the dev self test file (without the switch a deploy removes it from the install)
+.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest             # the same plus the dev self test file (every deploy without the switch removes it from the install)
 ```
 
 ## Self test (dev only)
 
-An in-game check that needs no console work: launch, load a **disposable** save (not a new game: the test does not
-run on one, it would spawn hostile NPCs into the opening scene), wait for the log's `SELFTEST DONE` line (about
-10 seconds with the defaults), quit, then read the log. **Do not save between the spawn and `SELFTEST DONE`**: a
-save then holds the spawned actors (logged as `SELFTEST WARN save taken while sample actors exist`).
+An in-game check that needs no console work. The run:
+
+1. `.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest` (it reminds you to take the file out afterwards).
+2. Launch and load a **disposable** save (not a new game: the test never starts on one, it would spawn hostile NPCs
+   into the opening scene).
+3. Wait for the log's `SELFTEST DONE` line (about 10 seconds with the defaults). Until then **do not save, die,
+   reload or start a new game**: a save holds the spawned actors (logged as `SELFTEST WARN save taken while sample
+   actors exist`), and a load or a new game ends the test with its open samples failed.
+4. Quit, read the log (or the report's `== Self test ==` section).
+5. `.\DeployDev.ps1 -NpcSpellsOnly` without the switch removes the file from the install.
 
 It runs only when `Data/SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json` exists. That file is
 `plugins/NPCSpells/data/dev/HeartOfMagic_NPCSpells_selftest.json` in the repo. It is opt-in: only `DeployDev.ps1
--NpcSpellsOnly -WithSelfTest` copies it into the dev install; any other `-NpcSpellsOnly` deploy removes it and says
-so, because the dev mod is enabled in a profile used for real play. It is never in the release zip
-(`DistributionNpcSpells.cmake` copies files by name and does not name it); the code is in the DLL but idle without the
-file, which costs one file-exists check per load.
+-NpcSpellsOnly -WithSelfTest` copies it into the dev install; every other deploy (`-NpcSpellsOnly` without the switch,
+or the plain one) removes it from the NPC Spells install and says so, because the dev mod is enabled in a profile used
+for real play; a deploy that stops before copying says whether the file is still installed. It is never in the release
+zip (`DistributionNpcSpells.cmake` copies files by name and does not name it); the code is in the DLL but idle without
+the file, which costs one file-exists check per load.
 
 ```json
 { "samples": ["039D37:Skyrim.esm", "039D5F:Skyrim.esm", "013BBB:Skyrim.esm", "0551AD:Skyrim.esm"], "startDelayMs": 2000, "maxWaitMs": 8000 }
@@ -213,35 +220,43 @@ list from `039D31`, `039D5F` `OREO_SubCharBandit01Magic`, the leveled bandit-mag
 `startDelayMs` (wait after the player's 3D and cell are in) and `maxWaitMs` (per spawned actor) are 0..60000; a bad
 value goes back to its default, a bad sample is dropped alone, both logged.
 
+The leveled sample relies on `PlaceObjectAtMe` resolving a `TESLevCharacter` to an actor. If it does not, the sample
+FAILs as `PlaceObjectAtMe gave no actor`: read that as a problem of the spawn method, not of the lists.
+
 What it does, once per session, at the first save load (`kPostLoadGame`):
 
 1. Finds each sample's record. For an NPC whose template chain resolves, the record that really holds its spell list
-   (`SpellListHolder`, the template walk `AttachToNpcs` uses); a holder with none of our lists fails without a spawn.
-   A leveled sample, or an NPC whose chain has a leveled link before its holder, is spawned first: its holder is
-   found from the spawned actor's real records (step 4).
+   (`SpellListHolder`, the template walk `AttachToNpcs` uses; the Spells flag without a template link is the record
+   itself, as `AttachToNpcs` reads it); a holder with none of our lists fails without a spawn. A leveled sample, or an
+   NPC whose chain has a leveled link before its holder, is spawned first: its holder is found from the spawned
+   actor's real records (step 4).
 2. Spawns each sample at the player (`PlaceObjectAtMe`, which takes an NPC or a leveled NPC). **Side effect: for up
    to `maxWaitMs` hostile NPCs (bandits, necromancers) stand next to the player and may attack.** Use a disposable
-   save. They are disabled and deleted right after the check (`Disable`, `SetDelete(true)`), also on a timeout, an
-   error or another load.
+   save. They are disabled and deleted right after the check (`Disable`, `SetDelete(true)`), also on a timeout or an
+   error; only a ref that still has the FormID it was spawned with and is an actor is touched. After another load, a
+   new game or the main menu the refs are left alone (that world is gone with them).
 3. Waits until the actor has its 3D and a high process (the leveled spell cache needs the high process; before 3D
    every `HasSpell` was false on 10-10). A worker thread queues one main-thread tick every 100 ms, and a new one only
    after the last has run; every wait (the player's 3D and cell: 60 s, `startDelayMs`, `maxWaitMs`) counts ticks that
-   ran, not wall time, so a paused or alt-tabbed game uses none of it.
+   ran, not wall time. Ticks stop only while the game window is in the background (alt-tab).
 4. Logs the spawned actor's records: its base (`0xFF...` when the engine made one at the spawn), `GetTemplateBase()`
    (the `ExtraLeveledCreature` template when the actor has that extra, else the base), whether it has
    `ExtraLeveledCreature` and its original base, and the base's `kCopiedTemplate` flag. For a leveled or unresolvable
    sample the holder is the first of template base, original base and actor base (records from a plugin) whose
-   template walk resolves. The lists checked are the holder's, or the actor base's when the holder has none.
-5. Calls `HasSpell` once (it builds the leveled spell cache when missing), then reads the cache itself,
-   `HighProcessData::leveledSpellList` (`picked`: the list's spells in it). Per list it also asks `Actor::HasSpell`
-   for each witness spell: the list's spells minus every spell the NPC can have another way (the static spells and
-   the other, vanilla, leveled lists' entries of the sample, its holder and the spawned actor's base records, the
-   race's spells and the actor's added spells). So a spell vanilla also hands out (Flames in
+   template walk resolves. The lists checked are the actor base's (the engine builds the leveled spell cache from
+   it), or the holder's when the base has none.
+5. Walks the actor's spells once with `Actor::VisitSpells` and a visitor that never stops (it builds the leveled
+   spell cache when missing), then reads the cache itself, `HighProcessData::leveledSpellList` (`picked`: the list's
+   spells in it). Per list it also asks `Actor::HasSpell` for each witness spell: the list's spells minus every spell
+   the NPC can have another way (the static spells and the other, vanilla, leveled lists' entries of the sample, its
+   holder, its original base and every record of the template chains of the template base and the actor base, the
+   race's spells and leveled lists, and the actor's added spells). So a spell vanilla also hands out (Flames in
    `OREO_LSpellBandit01FireFrostShock`) never counts as proof.
 
-A load during the test: before the spawn the wait starts again in the loaded save; after it the next tick cleans up
-what is left, fails the open samples ("another save was loaded during the test") and ends the test, which does not
-run again that session.
+Ending early: a load before the spawn starts the wait again in the loaded save. A load after the spawn, a new game
+(`kNewGame`) or the main menu (checked every tick) ends the test: the open samples fail with the reason and no ref is
+touched. A test that ends before its spawn (the main menu, a new game, no player 3D within 60 s) runs again at the
+next save load in the same session (`SELFTEST ended before the spawn: ...`); one that spawned does not.
 
 `Actor::HasSpell` covers leveled results: on 1.6.1170 it (ID 38782) is a visitor over `Actor::VisitSpells` (38781),
 which walks the added spells, the actor's base record's spells, the race's spells and then, for a non-player actor
@@ -249,47 +264,54 @@ with an AI process, `GetLeveledSpells` (39443) - the high process's leveled spel
 **actor's own base record's** leveled lists (schools rolled by current skill). Disassembly notes: `lab/addon-research/
 npc-spells-ledger.md` (main checkout, not in git) and the 10-10 Case 161 check.
 
-Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values below are an example; the same lines
-are appended to the report under `== Self test ==`):
+Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values below are an example). Every line,
+warnings and errors included, is also appended to the report under `== Self test ==`:
 
 ```
 SELFTEST start samples=4 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded
 SELFTEST spawn sample 039D5F:Skyrim.esm ref 0xFF0012AB
-SELFTEST sample 039D5F:Skyrim.esm kind=leveled placed Skyrim.esm|0x039D5F actorBase 0xFF0012AC templateBase Skyrim.esm|0x039D37 extraLeveled=yes originalBase Skyrim.esm|0x039D37 copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=templateBase inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=holder 3D=loaded high=yes waitedMs=300
+SELFTEST sample 039D5F:Skyrim.esm kind=leveled placed Skyrim.esm|0x039D5F actorBase 0xFF0012AC templateBase Skyrim.esm|0x039D37 extraLeveled=yes originalBase Skyrim.esm|0x039D37 copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=templateBase inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
 SELFTEST cache 039D5F:Skyrim.esm leveledSpellList=7 spells
-SELFTEST list 039D5F:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 minLevel=0 excluded=2 witnesses=118 shared=90 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x... Name picked: 0x... Name
+SELFTEST list 039D5F:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 levels=highest minLevel=0 witnessMinLevel=0 topLevel=25 witnessReachable=yes excluded=2 witnesses=118 shared=90 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x... Name picked: 0x... Name
 SELFTEST school 039D5F:Skyrim.esm destruction lists=2 distinctHits=1 distinctPicked=1
 SELFTEST RESULT sample 039D5F:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
 SELFTEST DONE pass=4 fail=0 inconclusive=0
 ```
 
-Other lines: `SELFTEST cache <sample> leveledSpellList=null` (no cache after the `HasSpell` call), `SELFTEST another
-save is loading before the spawn: the wait starts again`, the warnings `SELFTEST WARN another save is loading during
-the test: ...` and `SELFTEST WARN save taken while sample actors exist (actors=N)`, and `SELFTEST DONE pass=0 fail=0
-inconclusive=0 (not started: ...)` for a config that cannot be read.
+Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset value), `SELFTEST cache <sample>
+leveledSpellList=null` (no cache after the walk), `SELFTEST another save is loading before the spawn: the wait starts
+again`, the warnings `SELFTEST WARN another save is loading during the test: ...`, `SELFTEST WARN a new game was
+started during the test: ...` and `SELFTEST WARN save taken while sample actors exist (actors=N)`, the error `SELFTEST
+stopped by an error: ...`, `SELFTEST ended before the spawn: the next save load in this session starts it again`, and
+`SELFTEST DONE pass=0 fail=0 inconclusive=0 (not started: ...)` for a config that cannot be read.
 
 How to read them:
 
-- `RESULT ... PASS` needs at least one witness spell found, by `HasSpell` or in the cache. `INCONCLUSIVE (reason)`:
-  nothing found and no list could give a witness (each list's `skill` below every entry, or no witnesses); it is
-  counted apart in `DONE`. `FAIL (reason)`: nothing found where a list could give one, or nothing was checked
-  (record not found, no list on the holder nor the actor base, "template chain has a leveled link before the spell
-  list holder", no 3D or high process in time, another load, an error).
+- `RESULT ... PASS` needs at least one witness spell found, by `HasSpell` or in the cache. Otherwise, in this order:
+  `FAIL (holder has N HoMNS lists, the spawned actor's base has none)` - the lists did not reach the record the engine
+  rolls from; `INCONCLUSIVE (reason)` - no list could give a witness: no witnesses, no witness reachable at the
+  actor's skill, or the cache shows the list's roll landed on non-witness spells (`picked>0`, `pickedWitnesses=0`);
+  counted apart in `DONE`; `FAIL (reason)` - nothing found where a list could give one. Other FAILs mean nothing was
+  checked (record not found, no list on the holder nor the actor base, "template chain has a leveled link before the
+  spell list holder", no 3D or high process in time, another load, a new game, the main menu, an error).
 - `picked` (from the cache) is the primary evidence: the spells the engine rolled from this actor's leveled lists that
   are in this list; `pickedWitnesses` of them are witnesses. `hits` (`HasSpell` on witnesses) is the second line; the
   two should agree. `excluded` is how many of the list's spells were taken out of its witnesses.
 - `actorBaseLists` is the discriminator for the template question: the engine reads the leveled lists of the spawned
   actor's own base. `holderLists>0` with `actorBaseLists=0` means the inheriting NPC's copy did not get our lists
-  (they were attached to the template after the engine copied it), so no roll can ever give them. `actorBaseLists`
-  equal to `holderLists` with no pick means the lists are there and the roll gave nothing. `actorBase`,
-  `templateBase`, `extraLeveled`, `originalBase` and `copiedTemplate` say which records the engine used.
+  (they were attached to the template after the engine copied it), so no roll can ever give them (the FAIL above).
+  `actorBaseLists` equal to `holderLists` with no pick means the lists are there and the roll gave nothing.
+  `actorBase`, `templateBase`, `extraLeveled`, `originalBase` and `copiedTemplate` say which records the engine used.
 - `hits` and `picked` per list cannot be read as "this list gave one": lists of one school overlap (`shared` =
   witnesses another list of ours on the NPC also holds - always one of the same school, as a spell has one school),
   and the engine merges the picks. The one-spell-per-list check is the `school` line: `distinctPicked` (and
   `distinctHits`) against `lists`.
-- `skill` is the actor's current skill in the list's school (what the engine rolls with); `(skill below every
-  entry)` after `minLevel` marks a list that can legitimately give nothing. An R1 list (minLevel 0) giving 0 is not
-  such a case (it is the open "Alteration lists give nothing" question when it is an Alteration list).
+- `skill` is the actor's current skill in the list's school (what the engine rolls with). `levels=all` is a list with
+  the all-levels flag (any entry at or below the skill can be picked), `levels=highest` one without it (only the
+  entries of `topLevel`, the highest level at or below the skill). `witnessMinLevel` is the lowest level of a witness
+  entry; `witnessReachable=no` marks a list whose roll at this skill cannot land on a witness, so it can legitimately
+  give no proof. An R1 list (minLevel 0) giving 0 is not such a case (it is the open "Alteration lists give nothing"
+  question when it is an Alteration list).
 
 **FormID stability:** the ESL FormID of a list is `0x800 + slotIndex * kMaxChunks + chunk`. `kMaxChunks` and the slot
 order are frozen: a new slot may only be appended. Changing them renumbers every list; that is harmless only because

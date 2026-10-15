@@ -33,6 +33,10 @@ namespace NpcSpellsGame
 
     // The record whose spell list `npc` really uses: its template chain's Spells provider, the same walk AttachToNpcs reads
     // classes, races and factions with (AttachToNpcs gives lists only to NPCs that are their own provider). When a leveled
-    // link comes first the chain cannot tell before spawn: `unresolvable` is set and `npc` itself is returned.
+    // link comes first the chain cannot tell before spawn: `unresolvable` is set and `npc` itself is returned. The Spells
+    // flag without a template link is `npc` itself (resolved), as AttachToNpcs reads it.
     RE::TESNPC* SpellListHolder(RE::TESNPC* npc, bool& unresolvable);
+
+    // `npc` and the NPC records of its template chain, in order, up to the first link that is not an NPC (the walk SpellListHolder uses)
+    std::vector<RE::TESNPC*> TemplateChain(RE::TESNPC* npc);
 }

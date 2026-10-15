@@ -43,6 +43,7 @@ namespace NpcSpellsGame::SelfTest
         const char* holderFrom = "none";       // which record that was: record, templateBase, originalBase, actorBase
         bool unresolvable = false;             // the template chain has a leveled link before the holder
         RE::ObjectRefHandle handle;            // a handle, not a NiPointer: the state may be freed on the worker thread
+        RE::FormID spawnedId = 0;              // the spawned ref's FormID: cleanup touches only a ref that still has it
         std::size_t waitTicks = 0;             // ticks since the spawn tick
         bool done = false;
     };
@@ -53,7 +54,8 @@ namespace NpcSpellsGame::SelfTest
         std::vector<SampleRun> samples;
         OurLists ours;
         bool spawned = false;
-        bool aborted = false;                  // another save is loading: the next tick ends the test
+        bool aborted = false;                  // the world the samples stood in is gone: the next tick ends the test
+        std::string abortReason;               // for the open samples' FAIL line
         std::size_t notReadyTicks = 0;         // ticks without the player's 3D and cell (the player wait)
         std::size_t readyTicks = 0;            // ticks with them since they last came (the start delay)
         std::size_t pass = 0, fail = 0, inconclusive = 0;
@@ -64,7 +66,10 @@ namespace NpcSpellsGame::SelfTest
         std::atomic<bool> finished{ false };
     };
 
+    // Each line goes to the log at its level and to the report's "== Self test ==" section
     void Log(State& s, std::string line);
+    void Warn(State& s, std::string line);
+    void Error(State& s, std::string line);
     void Fail(State& s, SampleRun& r, std::string_view reason);
     // RESULT line and the count of its verdict; marks the sample done
     void Record(State& s, SampleRun& r, NpcSpells::SelfTestVerdict verdict, std::string_view reason);

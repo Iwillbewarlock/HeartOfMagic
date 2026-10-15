@@ -269,5 +269,20 @@ RE::TESNPC* NpcSpellsGame::SpellListHolder(RE::TESNPC* npc, bool& unresolvable)
     std::vector<NpcSpells::ChainLink> chain;
     std::vector<RE::TESNPC*> npcs;
     WalkChain(npc, chain, npcs);
-    return Provider(npc, chain, npcs, Category::Spells, unresolvable);
+    // The Spells flag with no template link keeps the record's own list, as AttachToNpcs reads it (inheritsSpellList)
+    const auto at = NpcSpells::SpellListProviderIndex(chain);
+    if (at && *at < npcs.size() && npcs[*at]) {
+        return npcs[*at];
+    }
+    unresolvable = true;
+    return npc;
+}
+
+std::vector<RE::TESNPC*> NpcSpellsGame::TemplateChain(RE::TESNPC* npc)
+{
+    std::vector<NpcSpells::ChainLink> chain;
+    std::vector<RE::TESNPC*> npcs;
+    WalkChain(npc, chain, npcs);
+    std::erase(npcs, nullptr);
+    return npcs;
 }

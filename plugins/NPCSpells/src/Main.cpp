@@ -12,9 +12,9 @@
 
 namespace
 {
-    // SKSE/Interfaces.h:453-459 (MessagingInterface::kPreLoadGame, kPostLoadGame, kSaveGame, kDataLoaded). Not on kNewGame:
-    // the self test would spawn hostile NPCs into the opening scene. kPostLoadGame's data is not read (its meaning is
-    // not documented in CommonLibSSE-NG's headers).
+    // SKSE/Interfaces.h:453-459 (MessagingInterface::kPreLoadGame, kPostLoadGame, kSaveGame, kNewGame, kDataLoaded). The
+    // self test never starts on kNewGame (it would spawn hostile NPCs into the opening scene); kNewGame ends a running one.
+    // kPostLoadGame's data is not read (its meaning is not documented in CommonLibSSE-NG's headers).
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg) {
@@ -30,6 +30,9 @@ namespace
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             NpcSpellsGame::MaybeStartSelfTest();
+            break;
+        case SKSE::MessagingInterface::kNewGame:
+            NpcSpellsGame::OnSelfTestNewGame();
             break;
         case SKSE::MessagingInterface::kSaveGame:
             NpcSpellsGame::OnSelfTestSave();

@@ -16,13 +16,19 @@ namespace NpcSpellsGame
 {
     inline constexpr const char* kSelfTestPath = "Data/SKSE/Plugins/HeartOfMagic_NPCSpells_selftest.json";
 
-    // kPostLoadGame. Without the file: one file-exists check, nothing else. Starts the test at most once per session
-    // (not again after a load ended it).
+    // kPostLoadGame. Without the file: one file-exists check, nothing else. Starts the test at most once per session: a
+    // test that ended before its spawn (no player 3D in time, the main menu, a new game) lets the next load start it again;
+    // one that spawned does not run again.
     void MaybeStartSelfTest();
 
-    // kPreLoadGame: before the spawn the wait starts again; after it the next tick cleans up, fails the open samples
-    // ("another save was loaded during the test") and ends the test. Nothing without a running test.
+    // kPreLoadGame: before the spawn the wait starts again; after it the next tick fails the open samples ("another save
+    // was loaded during the test") and ends the test without touching the spawned refs (the load discards them).
+    // Nothing without a running test.
     void OnSelfTestPreLoad();
+
+    // kNewGame: the next tick ends a running test ("a new game was started during the test") with no spawn, and without
+    // touching refs spawned before it
+    void OnSelfTestNewGame();
 
     // kSaveGame: a save while spawned actors stand in the world logs "SELFTEST WARN save taken while sample actors exist"
     void OnSelfTestSave();

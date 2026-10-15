@@ -1920,7 +1920,7 @@ HeartOfMagic/
 │       ├── CMakeLists.txt
 │       ├── data/                  # HeartOfMagic_NPCSpells.json (the shipped rules); dev/ the self test file (never shipped)
 │       └── src/
-│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once; kPreLoadGame/kPostLoadGame/kSaveGame: the dev self test (only with its file; never on a new game)
+│           ├── Main.cpp           ✅ kDataLoaded: runs the distribution once; kPreLoadGame/kPostLoadGame/kSaveGame/kNewGame: the dev self test (only with its file; never started on a new game, kNewGame ends a running one)
 │           ├── core/              ✅ RE-free: rules, pool, slot table, ESL writer, lists, NPC decisions, report
 │           └── game/              ✅ CommonLib side: files, spell pool, LVSP fill, NPC records, the run, the dev self test (GameSelfTest: ticks, spawn, load/save messages; GameSelfTestCheck: one spawned actor)
 ├── tools/

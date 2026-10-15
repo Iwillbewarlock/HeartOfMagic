@@ -35,6 +35,9 @@ int RunNpcSelfTest()
     Check(ProviderIndex({ { 0x2, false }, { 0x2, false }, { 0, false } }, Category::Stats) == 2, "chain of two templates");
     Check(!ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Stats).has_value(), "a leveled character provider is unresolvable");
     Check(ProviderIndex({ { 0x2, false }, { 0, true } }, Category::Factions) == 0, "a category without the flag stays on the record even when the template is leveled");
+    Check(SpellListProviderIndex({ { 0x8, false } }) == 0 && !ProviderIndex({ { 0x8, false } }, Category::Spells).has_value(), "spell list: the Spells flag with no template link keeps the record's own list");
+    Check(SpellListProviderIndex({ { 0x8, false }, { 0x8, false }, { 0, false } }) == 2 && SpellListProviderIndex({ { 0, false }, { 0, false } }) == 0, "spell list: a template chain is followed as ProviderIndex does; no flag stays on the record");
+    Check(!SpellListProviderIndex({ { 0x8, false }, { 0, true } }).has_value(), "spell list: a leveled template before the provider is unresolvable");
 
     std::printf("npc\n");
     const Rules rules = DefaultRules(); const ListIndex all = AllPresent();
