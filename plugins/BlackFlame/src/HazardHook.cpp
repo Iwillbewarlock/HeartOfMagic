@@ -8,6 +8,7 @@
 #include "LogLimit.h"
 #include "Recolor.h"
 #include "SehGuard.h"
+#include "VtableSlots.h"
 
 #include <atomic>
 #include <chrono>
@@ -23,8 +24,6 @@ namespace BlackFlame
     {
         using Clock = std::chrono::steady_clock;
 
-        constexpr std::size_t kSet3DIndex = 0x6C;       // RE/T/TESObjectREFR.h: Set3D (Hazard does not override it)
-        constexpr std::size_t kInitializeIndex = 0xA2;  // RE/H/Hazard.h: Initialize
         constexpr int kMaxDiagnostics = 20;             // the first hook calls on any hazard
         constexpr auto kOwnerWait = std::chrono::seconds(2);
         constexpr std::size_t kMaxQueued = 512;  // hazards live seconds: the once-only set starts over past this

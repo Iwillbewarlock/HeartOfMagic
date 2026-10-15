@@ -12,7 +12,7 @@
 // =============================================================================
 // LOG LIMIT - at most one info line per kind and spell per second
 // =============================================================================
-// The per-recolour and per-burn lines would flood the log on Flames or a staff of
+// The per-recolour and per-swap lines would flood the log on Flames or a staff of
 // projectiles. Allow() says whether to write this one, and how many were held
 // back since the last written line. Self-test lines do not go through it.
 

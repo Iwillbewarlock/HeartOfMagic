@@ -8,6 +8,7 @@
 #include "LogLimit.h"
 #include "Recolor.h"
 #include "SehGuard.h"
+#include "VtableSlots.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
@@ -22,7 +23,6 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr std::size_t kSet3DIndex = 0x6C;  // RE/T/TESObjectREFR.h: Set3D, slot 6C (Explosion does not override it)
         constexpr int kMaxAttributionLogs = 5;
         constexpr int kMaxNpcMaterialLogs = 5;
 
@@ -34,7 +34,6 @@ namespace BlackFlame
         std::atomic<int> g_lightMissing{ 0 };
         std::atomic<int> g_diagnostics{ 0 };
         constexpr int kMaxDiagnostics = 20;
-        constexpr std::size_t kInitializeIndex = 0xA2;  // RE/E/Explosion.h: Initialize, SE/AE 0xA2
         constexpr std::size_t kUpdateIndex = 0xA3;      // RE/E/Explosion.h: Update(float), SE/AE 0xA3
 
         // The explosion's light through the RTTI check (the same declared-type trap as the projectile's

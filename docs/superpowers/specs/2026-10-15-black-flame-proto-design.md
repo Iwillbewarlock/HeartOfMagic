@@ -216,9 +216,30 @@
   explosionType으로 불 폭발 집합에 들어간다(houseCARL 읽기로 확인). 게임에서는 미확인.
 - 손에 든(준비된) 불마법도 버프가 켜지는 순간 회색, 꺼지면·로드하면 칠한 속성을 원래대로 되돌린다.
 
+## 8차 반영 (2026-10-15, 리뷰 3곳 + 사용자 결정, 두 번째 게임 실행 전)
+
+- SEH: `RunSehGuarded`는 noexcept가 아니다(C++ 예외가 호출자의 catch로 가야 한다). 접근 위반 등 결함 코드만 잡고, 한 번 결함이
+  난 단계는 세션 동안 꺼진다(이후 호출은 세어 로그). 재질은 SetMaterial 전에 unique_ptr에서 소유권을 빼서, 결함이 나면 해제
+  대신 누수가 된다. 복원 관찰자는 SetMaterial 바로 뒤에 부른다.
+- 스레드: SKSE 태스크는 Main::Update의 SKSE 태스크 단계(메인 스레드, SKSE 2.2.8 Hooks_Threads.cpp)에서 돈다. 게임 스레드는
+  SKSEPlugin_Load에서 넣은 첫 태스크가 찍는다(kDataLoaded는 초기화 스레드라 예전 도장이 아무것과도 맞지 않았다). 저장된
+  스레드를 찍는 로그는 이름표를 단다(hookThread= 등). 공유 목록은 뮤텍스로 감싼다.
+- 로드 때 버프 플래그와 플레이어 핸들 캐시를 지운다. 손 이펙트 목록은 우리만 쥔 항목을 매 틱 버리고, 시전 조명도 되돌린다.
+- 귀속(공통 규칙): 소유자·발사자가 플레이어, 또는 ActorCause가 플레이어, 또는 NonActorMagicCaster의 blameActor가 플레이어
+  (RemoteCast), 또는 스크립트 태그. 폭발은 소유자·원인이 정해진 뒤에 한 번만 판정한다.
+- 불 판정(사용자 결정): 실제 불 효과(MagicDamageFire 또는 ResistFire)만 바꾼다. 카탈로그의 fire 태그만으로는 아무것도 바뀌지
+  않는다(빨간 이펙트의 소환 등 오탐 제거). 불 해저드는 불 효과의 충돌 데이터·폭발·해저드 생성 원형에서 모은다.
+- 결속 불 무기(활)와 그 화살(ArrowProjectile 훅), 빛 원형 불 효과의 조명. 스크립트가 놓은 불: PlaceAtMe·Cast·RemoteCast
+  네이티브를 원본을 그대로 부르는 대리 함수로 바꿔 끼우고(BindNativeMethod), 부른 스크립트가 플레이어의 불 효과면 결과를
+  태그한다. 특정 스크립트·모드·FormID 이름은 어디에도 없다. Vigilant 조사는 시험 사례로만 썼다.
+- 소환수의 불은 포함하지 않는다(사용자 결정, 알려진 한계).
+- 자가 시험: T5-second는 새 컨트롤러의 교체 기록을 기다린 뒤 800 ms 후 판정, T5-npc는 훅의 "유지" 기록을 직접 증거로,
+  T3-remote는 XMarker의 RemoteCast(blame = 플레이어)를 본다.
+- ESP는 이 브랜치에서 바꾸지 않았다(회색 복제 브랜치의 ESP를 병합 때 쓴다).
+
 ## 알려진 한계 (추가)
 
-- 바닥 불(hazard)의 공유 입자(`BSMasterParticleSystem`)는 바꾸지 않는다. 버프 중 만들어진 hit shader·art는 버프가 끝나도 그
+- 바닥 불(hazard)의 공유 입자(`BSMasterParticleSystem`)는 바꾸지 않는다. 소환수 자신의 불은 바꾸지 않는다. 버프 중 만들어진 hit shader·art는 버프가 끝나도 그
   효과가 끝날 때까지 회색이다.
 
 ## 확인 필요 (API 조사) - 정한 것 (2026-10-15 구현)
