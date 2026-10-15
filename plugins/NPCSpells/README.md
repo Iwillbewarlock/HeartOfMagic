@@ -314,9 +314,9 @@ from outside, with the console through DevBench.
 
 What it does, once per session, at the first save load (`kPostLoadGame`):
 
-1. Finds each sample's record. For an NPC whose template chain resolves, the record that really holds its spell list
+1. Finds each sample's record (a sample whose plugin is not loaded ends `INCONCLUSIVE`, nothing spawned). For an NPC whose template chain resolves, the record that really holds its spell list
    (`SpellListHolder`, the template walk `AttachToNpcs` uses; the Spells flag without a template link is the record
-   itself, as `AttachToNpcs` reads it); a holder with none of our lists fails without a spawn. A leveled sample, or an
+   itself, and on a template at the chain's end with no template of its own, that template, as `AttachToNpcs` reads it); a holder with none of our lists fails without a spawn. A leveled sample, or an
    NPC whose chain has a leveled link before its holder, is spawned first: its holder is found from the spawned
    actor's real records (step 4).
 2. Spawns each sample at the player (`PlaceObjectAtMe`, which takes an NPC or a leveled NPC). **Side effect: for up
