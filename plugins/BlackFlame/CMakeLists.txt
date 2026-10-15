@@ -24,6 +24,7 @@ set(BLACKFLAME_SOURCES
     src/Palette.cpp
     src/BuffState.cpp
     src/EffectEvents.cpp
+    src/BurnShader.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

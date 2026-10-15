@@ -1,6 +1,8 @@
 #include "EffectEvents.h"
 
 #include "BuffState.h"
+#include "BurnShader.h"
+#include "Config.h"
 #include "GameThread.h"
 
 #include <atomic>
@@ -45,6 +47,12 @@ namespace BlackFlame
             if (a_event->target.get() == player) {
                 const char* reason = a_event->isApplied ? "effect applied to the player" : "effect removed from the player";
                 AddTaskToGameThread("BlackFlameBuff", [reason]() { RecomputeBuff(reason); });
+            }
+            // Layer 1: a fire effect the player put on anyone while stoked (the task checks the spell)
+            auto* target = a_event->target.get();
+            if (a_event->isApplied && target && a_event->caster.get() == player && IsStoked() &&
+                GetConfig().burnShader) {
+                QueueBurnShaderSwap(target->GetHandle(), a_event->activeEffectUniqueID);
             }
         } catch (...) {
             if (!g_sinkFailureReported.exchange(true)) {
