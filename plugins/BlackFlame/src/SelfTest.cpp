@@ -29,9 +29,9 @@ namespace BlackFlame::SelfTest
 
         constexpr auto kReadyDelay = std::chrono::seconds(3);
         constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
-        constexpr float kDummyForward = 500.0f;  // units ahead of the player
-        constexpr float kCasterForward = 250.0f;
-        constexpr float kCasterRight = 250.0f;
+        constexpr float kDummyForward = 350.0f;  // units ahead of the player (player Z kept: flat ground)
+        constexpr float kCasterForward = 150.0f;
+        constexpr float kCasterRight = 200.0f;
 
         std::atomic<bool> g_active{ false };  // armed or running
         bool g_armed = false;                 // game thread only, from here on
@@ -51,6 +51,7 @@ namespace BlackFlame::SelfTest
             RE::ObjectRefHandle dummy;
             RE::ObjectRefHandle caster;
             bool actorsReady = false;
+            bool npcCastCalled = false;
             std::uint64_t mark = 0;
             std::optional<ProjectileRecord> playerT4;
             std::optional<ProjectileRecord> npcT4;
@@ -227,10 +228,15 @@ namespace BlackFlame::SelfTest
             if (!dummy || !caster || !dummy->Is3DLoaded() || !caster->Is3DLoaded()) {
                 return false;
             }
+            // The caster keeps its AI (an actor without it may never run its cast); it is
+            // unaggressive and cowardly from Skyrim.esm and may flee once the target is hit
             const auto dummyDone = SelfTestWorld::MakePassive(dummy, true);
-            const auto casterDone = SelfTestWorld::MakePassive(caster, false);
+            const auto dummyPos = dummy->GetPosition();
+            const auto playerPos = RE::PlayerCharacter::GetSingleton()->GetPosition();
             a_c.actorsReady = true;
-            SelfTestLog::Pass("T2", std::format("actors ready: dummy {}; caster {}", dummyDone, casterDone));
+            SelfTestLog::Pass("T2", std::format("actors ready: dummy {} at ({:.0f}, {:.0f}, {:.0f}), player at ({:.0f}, "
+                "{:.0f}, {:.0f}); caster AI {}", dummyDone, dummyPos.x, dummyPos.y, dummyPos.z, playerPos.x, playerPos.y,
+                playerPos.z, caster->IsAIEnabled() ? "on" : "off"));
             return true;
         }
 
@@ -249,9 +255,15 @@ namespace BlackFlame::SelfTest
             if (!r) {
                 return false;
             }
-            const bool ok = r->recolored && r->stats.Recolored() > 0 && r->after.withBoth >= r->stats.Recolored() &&
-                            r->after.withPalettePath == r->after.withBoth;
+            // The palette path marks a recoloured material; whether the property's (engine-made)
+            // copy also kept our texture pointer is a separate question, checked apart
+            const bool ok = r->recolored && r->stats.Recolored() > 0 && r->after.withPalettePath >= r->stats.Recolored();
             SelfTestLog::Check("T3", ok, DescribeProjectile(*r));
+            if (r->after.withPalettePath > 0) {
+                SelfTestLog::Check("T3-pointer", r->after.withBoth == r->after.withPalettePath, std::format(
+                    "engine copy kept our texture pointer: {} of {} palette materials", r->after.withBoth,
+                    r->after.withPalettePath));
+            }
             return true;
         }
 
@@ -293,14 +305,18 @@ namespace BlackFlame::SelfTest
                 a_c.waitingFor = "the NPC's and the player's Firebolt projectiles in the hook";
                 a_c.mark = SelfTestProbe::Mark();
                 (void)SelfTestWorld::Cast(RE::PlayerCharacter::GetSingleton(), a_c.forms.firebolt, RefOf(a_c.dummy));
-                (void)SelfTestWorld::Cast(ActorOf(a_c.caster), a_c.forms.firebolt, RefOf(a_c.dummy));
+                a_c.npcCastCalled = SelfTestWorld::Cast(ActorOf(a_c.caster), a_c.forms.firebolt, RefOf(a_c.dummy));
                 return false;
             }
             a_c.playerT4 = FindProjectile(a_c.mark, true, a_c.forms.firebolt);
             a_c.npcT4 = FindProjectile(a_c.mark, false, a_c.forms.firebolt);
             if (!a_c.playerT4 || !a_c.npcT4) {
-                a_c.waitingFor = std::format("the NPC's and the player's Firebolt projectiles in the hook (player {}, NPC {})",
-                    a_c.playerT4 ? "seen" : "not seen", a_c.npcT4 ? "seen" : "not seen");
+                // Tells "the NPC did not cast" apart from "it cast but no projectile reached the hook"
+                auto* caster = ActorOf(a_c.caster);
+                a_c.waitingFor = std::format("the NPC's and the player's Firebolt projectiles in the hook (player {}, NPC "
+                    "{}; NPC cast call {}, NPC {}, NPC AI {})", a_c.playerT4 ? "seen" : "not seen",
+                    a_c.npcT4 ? "seen" : "not seen", a_c.npcCastCalled ? "made" : "NOT made (no caster)",
+                    caster ? (caster->IsDead() ? "dead" : "alive") : "gone", caster && caster->IsAIEnabled() ? "on" : "off");
                 return false;
             }
             const auto& npc = *a_c.npcT4;
@@ -486,7 +502,8 @@ namespace BlackFlame::SelfTest
             bool done = step.run(g_ctx, first);
             const auto elapsed = std::chrono::duration<float>(Clock::now() - g_ctx.stepStart).count();
             if (!done && elapsed > step.timeoutSeconds) {
-                SelfTestLog::Fail(step.id, std::format("timeout after {:.1f} s waiting for {}", step.timeoutSeconds,
+                SelfTestLog::Fail(step.id, std::format("timeout: {:.2f} s passed (limit {:.1f} s) waiting for {}",
+                    elapsed, step.timeoutSeconds,
                     g_ctx.waitingFor.empty() ? "the step" : g_ctx.waitingFor));
                 done = true;
             }

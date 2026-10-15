@@ -96,7 +96,7 @@ skipped, so it is safe to repeat.
 
 The DLL can check most of itself in game, from the engine's own data, and write the results to a file.
 
-1. Use a **throwaway save** in an open exterior area: the test casts spells (Heart of Magic may grant XP
+1. Use a **throwaway save** on flat open ground outside (the actors are placed at the player's height): the test casts spells (Heart of Magic may grant XP
    for them), spawns two vanilla actors in front of the player and deletes them at the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
 3. Load the save and wait about 30 s without opening a menu. It starts 3 s after the player is in a loaded
@@ -108,14 +108,14 @@ The DLL can check most of itself in game, from the engine's own data, and write 
 
 Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fireball `01C789`, target
 `EncDeer 0CF89D` (unaggressive, no crime faction, so hitting it is no crime), NPC caster `WEFarmerFemale
-1034E6` (unaggressive). Both get their AI switched off; the target's health is raised to 100000.
+1034E6` (unaggressive, cowardly; she is only ever the caster, so her crime faction never matters). The target's AI is switched off and its health raised to 100000; the caster keeps her AI (an actor without AI may never run its cast) and may flee once the target is hit.
 
 | Step | Checks |
 |---|---|
 | T0 | game thread id, palette loaded (which path), ESP forms, fire spell counts, config; Firebolt and Fireball count as fire |
 | T1 | the player casts the Stoke spell on itself (`CastSpellImmediate`): the buff flag is on within 1 s |
-| T2 | the two actors spawn (`PlaceObjectAtMe`), their 3D loads, AI off, target health raised |
-| T3 | the player's Firebolt: the projectile layer recoloured at least one effect shader and every recoloured material carries the palette pointer and path; counts, hook thread, recolour time in us |
+| T2 | the two actors spawn (`PlaceObjectAtMe`) and their 3D loads; target AI off and health raised (caster keeps its AI); positions logged |
+| T3 / T3-pointer | the player's Firebolt: the projectile layer recoloured at least one effect shader and every recoloured one carries the palette path; counts, hook thread, recolour time in us. T3-pointer: whether the property's (engine-made) material copy also kept our texture pointer |
 | T5 | after T3: a live grey shader on the target; in replace mode no live engine hit shader of Firebolt's effect; what the burn layer recorded |
 | T4 | the NPC and the player cast Firebolt in the same frame: the NPC's projectile carries no palette material and shares no effect property with the player's live one; whether their materials were pooled before any recolour (INFO) |
 | T5-npc | the target's shaders after T4 (INFO) |
