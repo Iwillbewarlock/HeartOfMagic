@@ -119,3 +119,9 @@ Check the log after each step.
     If they do not, the modifiers are shared and the flag must stay off.
 12. Wait 60 s: log `buff flag off`, new casts are orange.
 13. Save and load with the buff active: log `buff flag ON (game loaded)` or `(tick)`.
+14. While charging, a `hand art ... (more geometry)` line repeating every 100 ms means the "already grey"
+    check does not hold (a new material copy every tick): report it.
+15. Flame edges turning hard or blocky on recoloured shapes: the grey palette's alpha ramp drives those
+    shapes' alpha (the log counts `with palette alpha`); report the mesh.
+16. Casting light: a 10 Hz flicker between orange and the tint means the engine rewrites the light's colour
+    every frame (the tint is set every 100 ms); report it.

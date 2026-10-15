@@ -61,6 +61,10 @@ namespace BlackFlame
             if (HasColorController(a_prop)) {
                 ++a_stats.colorControlled;
             }
+            // The palette's alpha ramp then also drives the shape's alpha (README test item)
+            if (a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteAlpha)) {
+                ++a_stats.paletteAlpha;
+            }
             auto* palette = GetPalette();
             auto* source = a_prop->GetMaterial();
             // Both the texture and its path, never one alone: with the greyscale flags on, the
@@ -69,7 +73,9 @@ namespace BlackFlame
                 ++a_stats.failed;
                 return;
             }
-            if (source->greyscaleTexture.get() == palette) {
+            // The property holds the engine's copy of ours: should it resolve the palette to another
+            // texture object, the path still marks it (else the hand-art tick would recolour again)
+            if (source->greyscaleTexture.get() == palette || source->greyscaleTexturePath == GetPalettePath()) {
                 ++a_stats.alreadyOurs;
                 return;
             }
@@ -160,6 +166,7 @@ namespace BlackFlame
         engineCopied += a_other.engineCopied;
         keptOurs += a_other.keptOurs;
         legacyGeometries += a_other.legacyGeometries;
+        paletteAlpha += a_other.paletteAlpha;
         failed += a_other.failed;
         colorModifiers += a_other.colorModifiers;
     }
@@ -167,10 +174,12 @@ namespace BlackFlame
     std::string RecolorStats::Describe() const
     {
         return std::format("{} effect geometries: {} palette swapped, {} palette forced (flag added), "
-                           "{} base colour only (no palette flag), {} already grey, {} with a colour controller, {} legacy NiGeometry, {} failed; "
-                           "material copies: {} engine-copied, {} ours kept; {} particle colour modifiers desaturated{}",
-            effectGeometries, paletteSwapped, forcedPalette, baseColorOnly, alreadyOurs, colorControlled, legacyGeometries, failed,
-            engineCopied, keptOurs, colorModifiers, GetConfig().particleColors ? "" : " (particleColors off)");
+                           "{} base colour only (no palette flag), {} already grey, {} with a colour controller, "
+                           "{} with palette alpha, {} legacy NiGeometry, {} failed; material copies: {} engine-copied, "
+                           "{} ours kept; {} particle colour modifiers desaturated{}",
+            effectGeometries, paletteSwapped, forcedPalette, baseColorOnly, alreadyOurs, colorControlled, paletteAlpha,
+            legacyGeometries, failed, engineCopied, keptOurs, colorModifiers,
+            GetConfig().particleColors ? "" : " (particleColors off)");
     }
 
     RecolorStats RecolorTree(RE::NiAVObject* a_root)

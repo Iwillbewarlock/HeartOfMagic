@@ -57,6 +57,8 @@
   `baseColor` RGB를 휘도 기준 회색으로(알파 유지). `BSLightingShaderProperty`는 emissive 색을 회색으로.
   입자 색 수정자(`BSPSysSimpleColorModifier`)의 RGB도 회색으로(알파 유지). 투사체 조명은 어두운 회색으로.
 - 재질·속성이 다른 인스턴스와 공유되면 NPC 투사체까지 바뀐다. 반드시 복제해서 바꾼다.
+- (구현 시 제외) `BSLightingShaderProperty` emissive와 입자 색 수정자는 "검토 반영"대로 건드리지 않는다. 입자 색은
+  설정 `particleColors`(기본 끔)로만.
 
 ### 층 3. 폭발
 - 폭발 레퍼런스의 3D가 로드될 때 같은 방식. 폭발을 일으킨 주체가 플레이어의 불마법인지 확인하는 방법은 API 조사로 정한다.

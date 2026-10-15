@@ -33,6 +33,7 @@ namespace BlackFlame
         int baseColorOnly = 0;     // recoloured, no palette flag: only the base colour changes
         int alreadyOurs = 0;       // skipped, already recoloured
         int colorControlled = 0;   // of those seen, properties with a BSEffectShaderPropertyColorController
+        int paletteAlpha = 0;      // of those seen, properties mapping alpha through the palette too
         int engineCopied = 0;      // SetMaterial kept its own copy (ours freed)
         int keptOurs = 0;          // SetMaterial kept our copy
         int legacyGeometries = 0;  // NiGeometry (not BSGeometry) nodes with an effect property
