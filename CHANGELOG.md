@@ -22,7 +22,8 @@
   file): at game start it hands the spells of your tree to magic-using NPCs by school and skill, through leveled
   spell lists, with faction tastes (Thalmor, Vigilants, necromancers, vampires, Forsworn) and no undead summons
   for those who should not have them. Nothing is saved in your game, and a report lists who got what. Needs
-  Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built; see `plugins/NPCSpells/README.md`.
+  Heart of Magic Librarian 1.5.0 or later with a scan done and a tree built, on Skyrim SE or AE (not VR); see
+  `plugins/NPCSpells/README.md`.
 
 ## Heart of Magic Librarian 1.5.0
 

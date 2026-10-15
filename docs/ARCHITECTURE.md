@@ -537,7 +537,7 @@ an exception is logged and the caller gets `0`/`false`, it never crosses into th
 calls in `OnExternalPluginMessage` (the AddXP and RegisterSource messages) are guarded the same way; that
 handler is not registered as a listener at present.
 
-`SetupLog` (`plugins/Common.h`, all four DLLs (SpellLearning, DontEatSpellTomes, SL_BookXP, HeartOfMagic_NPCSpells)) never throws. CommonLib's `logger::init()` builds its file sink
+`SetupLog` (`plugins/Common.h`, used by all four DLLs: SpellLearning, DontEatSpellTomes, SL_BookXP and HeartOfMagic_NPCSpells) never throws. CommonLib's `logger::init()` builds its file sink
 from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
 not load at all. On that throw the same log file is opened by its wide path (`WideFileSink`,
 `plugins/WideFileSink.h`, `_wfsopen`; spdlog here has no `SPDLOG_WCHAR_FILENAMES`), and if that fails too the
@@ -1270,7 +1270,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 ### Logging (2026-09-25)
 
-CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all four DLLs (SpellLearning, DontEatSpellTomes, SL_BookXP, HeartOfMagic_NPCSpells)) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
+CommonLib's logger flushes on every info line (`flush_on(info)`), which made each info line a synchronous disk write on the thread that logged it - usually the game thread. `SetupLog()` (`plugins/Common.h`, shared by all four DLLs: SpellLearning, DontEatSpellTomes, SL_BookXP and HeartOfMagic_NPCSpells) now sets `spdlog::flush_on(warn)` (`kLogFlushImmediateLevel`). Warnings and errors still reach the file before the call returns, together with everything buffered before them. Info and lower lines wait in the file buffer until then, until `FlushLog()` runs (SpellLearning.dll calls it after every SKSE message - data loaded, new game, game loaded - and after the co-save is written) or until the buffer fills. So `SpellLearning.log` can be a few kilobytes behind while playing, and if the game crashes the last info lines may be missing - the warnings and errors are not. There is deliberately no flusher thread (`spdlog::flush_every`): its destructor runs when the DLL unloads and can hang the game's exit if Windows stopped the thread in the middle of a flush.
 
 ### Tree load (2026-09-25)
 - `GetSpellInfoBatch` keeps each spell's info as JSON (`SpellScanner::GetSpellInfoJsonByFormId`) instead of building text and parsing it back once per spell; `GetSpellInfoByFormId` is the serialized wrapper for the single-spell path

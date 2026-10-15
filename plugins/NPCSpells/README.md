@@ -199,15 +199,17 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
    the next line splits the search into "Data top level" and "SKSE/Plugins" times. SKSE/Plugins is no longer
    searched (SPID reads `_DISTR.ini` only from Data's top level; the walk took 1400 ms under USVFS and found none),
    so its figure is always "0 ms (skipped)" and "0 under SKSE/Plugins".
-   Then confirm with More Informative Console that a `HoMNS_` list
-   really holds entries: after loading a save (step 3), open a bandit mage's base record in MIC, open one of its
-   `HoMNS_` leveled lists (or `help "HoMNS_Destruction_None_All_R1_C0" 4` if the console finds it by EditorID), and
-   the list must show spells. An empty list means the fill did not land.
+   Then confirm that a `HoMNS_` list really gives spells: after loading a save (step 3), select a bandit mage and
+   check `Actor.HasSpell` (as the 2026-10-10 Farengar check did) for a spell only our lists hold (one
+   the report lists for that NPC's lists and its vanilla spell list lacks). The console's and MIC's spell lists do
+   not show what a leveled list gave, so they are not the check; a false result for every such spell means the
+   fill did not land.
 2. Open the report: no `Stopped:` line, dropped over capacity 0, `skippedPrefilled 0`.
 3. Load a save. For each NPC below open the console on the actor and, in More Informative Console, the base record's
-   Spells: it must list leveled lists named `HoMNS_<School>_<Group>_<Variant>_R<n>_C<n>` from our ESL. The spells they
-   resolve to (MIC shows the actor's spells) must be of the NPC's tier in that school or lower (compare with its skills
-   in MIC) and match the group rule.
+   Spells: it must list leveled lists named `HoMNS_<School>_<Group>_<Variant>_R<n>_C<n>` from our ESL (the report's
+   NPC lists row names them too). The spells they resolve to must be of the NPC's tier in that school or lower
+   (compare with its skills in MIC) and match the group rule; check them with `HasSpell` on the selected actor, not
+   with MIC's spell list, which does not show leveled results.
    How to find and inspect actors: `help "<name>" 4` in the console lists the matching records with their base IDs;
    click an actor in the world to select it (its name shows in the console) and inspect its base record in More
    Informative Console; `player.placeatme <baseID>` spawns a test actor next to you. For a leveled NPC (item 10) and for
@@ -225,8 +227,10 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
    7. Falion (Morthal): conjuration NoUndeadAll/All (conjurer), undead allowed.
    8. Hagraven: lists only if its class is a mage tier (the report row says; no row means no lists).
    9. Wolf: no lists.
-   10. A `LvlBanditWizard...` leveled NPC placed with `player.placeatme`: the spawned actor's base is the end record
-       (`EncBandit0xMagic...`) and shows our lists; the leveled record itself has none.
+   10. **Release condition.** A `LvlBanditWizard...` leveled NPC placed with `player.placeatme` (its end record
+       inherits its spell list from a template, as most leveled bandit mages do): `HasSpell` on the spawned actor must
+       be true for at least one spell only our lists hold (the report row of the template record that holds the
+       lists names them); the leveled record itself gets no list. Not yet done.
    11. Non-mage sanity: among about 20 guards or bandits (`player.placeatme` a few `EncBandit01Melee...`), about one
        has a `..._NonMage_...` list.
    12. Save and reload: the lists are still on the base records (re-added at load), no crash. Disable the addon and
