@@ -28,6 +28,7 @@ set(BLACKFLAME_SOURCES
     src/HitArt.cpp
     src/HazardHook.cpp
     src/Attribution.cpp
+    src/PlayerArt.cpp
     src/Recolor.cpp
     src/SehGuard.cpp
     src/ParticleColors.cpp

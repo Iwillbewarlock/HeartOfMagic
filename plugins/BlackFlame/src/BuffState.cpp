@@ -6,6 +6,7 @@
 #include "GameThread.h"
 #include "HazardHook.h"
 #include "HitArt.h"
+#include "PlayerArt.h"
 #include "SelfTest.h"
 
 #include <atomic>
@@ -68,6 +69,7 @@ namespace BlackFlame
             TickHazards();          // layer 3: hazards whose owner was not set yet
             if (IsStoked()) {
                 TickCasterArt();  // layer 4
+                TickPlayerArt();  // layer 4: bound fire weapons, fire light effects
             }
             SelfTest::Tick();  // does nothing unless config selfTest armed it
         }

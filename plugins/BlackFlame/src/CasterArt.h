@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "Recolor.h"
 
 // =============================================================================
 // LAYER 4 - CASTING ART AND CASTING LIGHT IN THE PLAYER'S HANDS
@@ -33,4 +34,10 @@ namespace BlackFlame
 
     /// Puts every recoloured hand-art property and tinted casting light back; how many properties
     int RestoreHandArt();
+
+    /// The observer that remembers recoloured properties for that restore (bound weapons use it too)
+    [[nodiscard]] const RecolorObserver& HandArtObserver();
+
+    /// Tints a light and remembers its old colour for that restore (light effects use it too)
+    bool TintRememberedLight(RE::NiLight* a_light);
 }

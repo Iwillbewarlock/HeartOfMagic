@@ -1,0 +1,115 @@
+#include "PlayerArt.h"
+
+#include "CasterArt.h"
+#include "Config.h"
+#include "HitEffectHook.h"
+#include "LogLimit.h"
+#include "Recolor.h"
+#include "SehGuard.h"
+
+#include <array>
+#include <format>
+
+namespace BlackFlame
+{
+    namespace
+    {
+        constexpr std::array kFirstPersonViews{ false, true };  // 3rd person biped, then 1st person
+
+        bool IsRunning(const RE::ActiveEffect* a_effect)
+        {
+            return !a_effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive);
+        }
+
+        template <class Visit>
+        void ForEachPlayerEffect(Visit&& a_visit)
+        {
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            auto* target = player ? player->AsMagicTarget() : nullptr;
+            auto* effects = target ? target->GetActiveEffectList() : nullptr;
+            if (!effects) {
+                return;
+            }
+            for (auto* effect : *effects) {
+                if (effect && IsRunning(effect)) {
+                    a_visit(effect);
+                }
+            }
+        }
+
+        // An active Bound Weapon effect on the player naming this weapon, a fire effect the player cast
+        bool IsPlayerBoundFireWeapon(const RE::TESForm* a_weapon)
+        {
+            const auto* weapon = a_weapon ? a_weapon->As<RE::TESObjectWEAP>() : nullptr;
+            if (!weapon || !weapon->IsBound()) {
+                return false;
+            }
+            bool found = false;
+            ForEachPlayerEffect([&](RE::ActiveEffect* a_effect) {
+                const auto* base = a_effect->GetBaseObject();
+                found = found || (base && base->HasArchetype(RE::EffectSetting::Archetype::kBoundWeapon) &&
+                                     base->data.associatedForm == weapon && IsPlayerFireEffect(a_effect));
+            });
+            return found;
+        }
+
+        void RecolorBoundWeapons(RE::PlayerCharacter* a_player)
+        {
+            for (const bool firstPerson : kFirstPersonViews) {
+                const auto& biped = a_player->GetBiped(firstPerson);
+                if (!biped) {
+                    continue;
+                }
+                for (auto& object : biped->objects) {
+                    if (!object.partClone || !IsPlayerBoundFireWeapon(object.item)) {
+                        continue;
+                    }
+                    const auto stats = RecolorTree(object.partClone.get(), HandArtObserver());
+                    int suppressed = 0;
+                    if (stats.Recolored() > 0 && LogLimit::Allow("bound weapon", object.item->GetFormID(), suppressed)) {
+                        logger::info("BlackFlame: bound weapon {:08X} ({} person): {}{}", object.item->GetFormID(),
+                            firstPerson ? "1st" : "3rd", stats.Describe(),
+                            suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+                    }
+                }
+            }
+        }
+
+        void TintLightEffects()
+        {
+            ForEachPlayerEffect([](RE::ActiveEffect* a_effect) {
+                auto* lightEffect = skyrim_cast<RE::LightEffect*>(a_effect);
+                if (!lightEffect || !IsPlayerFireEffect(a_effect)) {
+                    return;
+                }
+                const bool tinted = TintRememberedLight(CheckedLight(lightEffect->light.get(), "light effect"));
+                const auto* base = a_effect->GetBaseObject();
+                int suppressed = 0;
+                if (base && LogLimit::Allow("light effect", base->GetFormID(), suppressed)) {
+                    logger::info("BlackFlame: light effect {:08X}: light {}{}", base->GetFormID(),
+                        tinted ? "tinted" : "none or not an NiLight",
+                        suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+                }
+            });
+        }
+    }
+
+    bool IsBoundFireArrow(RE::Projectile* a_projectile)
+    {
+        return IsPlayerBoundFireWeapon(a_projectile->GetProjectileRuntimeData().weaponSource);
+    }
+
+    void TickPlayerArt()
+    {
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player) {
+            return;
+        }
+        if (GetConfig().boundWeapon) {
+            (void)Guarded("bound weapon recolour", [&]() { RecolorBoundWeapons(player); });
+        }
+        if (GetConfig().light) {
+            (void)Guarded("light effect tint", [&]() { TintLightEffects(); });
+        }
+    }
+}

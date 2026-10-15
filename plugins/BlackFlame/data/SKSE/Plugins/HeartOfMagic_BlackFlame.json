@@ -5,6 +5,7 @@
     "explosion": true,
     "hazard": true,
     "handArt": true,
+    "boundWeapon": true,
     "light": true,
     "forcePalette": true,
     "particleColors": false,

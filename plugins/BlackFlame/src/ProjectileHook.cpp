@@ -6,6 +6,7 @@
 #include "FireSet.h"
 #include "GameThread.h"
 #include "LogLimit.h"
+#include "PlayerArt.h"
 #include "Recolor.h"
 #include "SehGuard.h"
 #include "SelfTestProbe.h"
@@ -19,6 +20,7 @@ namespace BlackFlame
     namespace
     {
         constexpr std::size_t kHandle3DLoadedIndex = 0xC0;  // RE/P/Projectile.h: SE/AE 0xC0 (VR 0xC1, not built)
+        constexpr const char* kArrowKind = "arrow";  // compared by pointer: the hook keeps this very literal
         constexpr int kMaxMaterialLogs = 5;
 
         std::atomic<bool> g_failureReported{ false };
@@ -106,7 +108,9 @@ namespace BlackFlame
         void OnHandle3DLoaded(RE::Projectile* a_projectile, const char* a_kind)
         {
             auto& data = a_projectile->GetProjectileRuntimeData();
-            if (!IsFireSpell(data.spell)) {
+            // A fire spell's projectile, or an arrow of the player's bound fire weapon (PlayerArt.h)
+            const bool arrow = a_kind == kArrowKind;
+            if (!IsFireSpell(data.spell) && !(arrow && IsBoundFireArrow(a_projectile))) {
                 return;
             }
             const auto shooter = data.shooter.get();
@@ -194,7 +198,8 @@ namespace BlackFlame
         Handle3DLoadedHook<RE::BeamProjectile>::Install("beam");
         Handle3DLoadedHook<RE::GrenadeProjectile>::Install("grenade");
         Handle3DLoadedHook<RE::BarrierProjectile>::Install("barrier");
+        Handle3DLoadedHook<RE::ArrowProjectile>::Install(kArrowKind);
         logger::info("BlackFlame: hooked Handle3DLoaded (0x{:X}) on the missile, flame, cone, beam, grenade and "
-                     "barrier projectile vtables", kHandle3DLoadedIndex);
+                     "barrier projectile vtables, and the arrow one (bound fire weapons' arrows)", kHandle3DLoadedIndex);
     }
 }

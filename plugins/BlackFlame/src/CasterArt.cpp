@@ -78,31 +78,41 @@ namespace BlackFlame
         // Remembers the first original of each property (a later recolour of the same one is ignored)
         const RecolorObserver& Remember()
         {
-            static const RecolorObserver* observer = std::make_unique<RecolorObserver>(
-                [](RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original) {
-                    std::lock_guard lock(g_mutex);
-                    State().properties.try_emplace(a_prop,
-                        RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop), a_original });
-                }).release();
-            return *observer;
+            return HandArtObserver();
         }
+    }
 
+    const RecolorObserver& HandArtObserver()
+    {
+        static const RecolorObserver* observer = std::make_unique<RecolorObserver>(
+            [](RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original) {
+                std::lock_guard lock(g_mutex);
+                State().properties.try_emplace(a_prop,
+                    RecolouredProperty{ RE::NiPointer<RE::BSEffectShaderProperty>(a_prop), a_original });
+            }).release();
+        return *observer;
+    }
+
+    bool TintRememberedLight(RE::NiLight* a_light)
+    {
+        if (!a_light) {
+            return false;
+        }
+        {
+            std::lock_guard lock(g_mutex);
+            State().lights.try_emplace(a_light,
+                TintedLight{ RE::NiPointer<RE::NiLight>(a_light), a_light->GetLightRuntimeData().diffuse });
+        }
+        return TintLight(a_light);
+    }
+
+    namespace
+    {
         // The caster's light, through the RTTI check, tinted; its first old colour remembered
         bool TintCasterLight(RE::ActorMagicCaster* a_caster)
         {
             bool tinted = false;
-            (void)Guarded("casting light", [&]() {
-                auto* light = CheckedLight(a_caster->light.get(), "casting");
-                if (!light) {
-                    return;
-                }
-                {
-                    std::lock_guard lock(g_mutex);
-                    State().lights.try_emplace(light,
-                        TintedLight{ RE::NiPointer<RE::NiLight>(light), light->GetLightRuntimeData().diffuse });
-                }
-                tinted = TintLight(light);
-            });
+            (void)Guarded("casting light", [&]() { tinted = TintRememberedLight(CheckedLight(a_caster->light.get(), "casting")); });
             return tinted;
         }
 
