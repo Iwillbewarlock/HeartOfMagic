@@ -200,6 +200,7 @@ namespace GreyBuild
         Json::RequireVersion(a_file, root, kCopiesMapVersion);
         CopiesMap map;
         std::set<std::uint32_t> ids;
+        std::set<std::string> sources;  // V16: a source once, across copies and retired
         const auto& copies = Json::RequireArray(a_file, root, "copies");
         for (std::size_t i = 0; i < copies.size(); ++i) {
             const std::string where = fmt::format("copies[{}]", i);
@@ -214,6 +215,9 @@ namespace GreyBuild
             if (!ids.insert(entry.localId).second) {
                 Json::Fail(a_file, fmt::format("{}: copy id {:06X} is used twice", where, entry.localId));
             }
+            if (!sources.insert(entry.source).second) {
+                Json::Fail(a_file, fmt::format("{}: source {} is listed twice", where, entry.source));
+            }
             map.entries.push_back(std::move(entry));
         }
         if (root.contains("retired")) {
@@ -224,7 +228,11 @@ namespace GreyBuild
                 if (!ids.insert(id).second) {
                     Json::Fail(a_file, fmt::format("{}: copy id {:06X} is used twice", where, id));
                 }
-                map.retired[NormalizeSource(Json::ReadString(a_file, retired[i], "source", where))] = id;
+                const auto source = NormalizeSource(Json::ReadString(a_file, retired[i], "source", where));
+                if (!sources.insert(source).second) {
+                    Json::Fail(a_file, fmt::format("{}: source {} is listed twice (copies and retired)", where, source));
+                }
+                map.retired[source] = id;
             }
         }
         return map;
@@ -265,7 +273,11 @@ namespace GreyBuild
         for (const auto& entry : a_previous.entries) {
             known[entry.source] = entry.localId;
         }
-        for (const auto& [source, id] : known) {
+        // V16: from every id the previous map holds (entries and retired alike), not from the merged source map
+        for (const auto& entry : a_previous.entries) {
+            highest = std::max(highest, entry.localId);
+        }
+        for (const auto& [source, id] : a_previous.retired) {
             highest = std::max(highest, id);
         }
         CopiesMap out;

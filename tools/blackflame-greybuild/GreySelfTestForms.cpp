@@ -189,6 +189,30 @@ namespace GreyBuild::SelfTest
                 threw = true;
             }
             a_check.Check(threw, "forms ESL: a fractional integer field (HAZD limit 1.5) is refused");
+
+            // V16: a source once across copies and retired
+            const auto mapRefuses = [&](const char* a_name, const std::string& a_text) {
+                try {
+                    (void)LoadCopiesMap(WriteText(a_dir / a_name, a_text));
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            a_check.Check(mapRefuses("map_dup_retired.json",
+                              R"({"version":1,"copies":[{"source":"A.esp|000801","type":"IPCT","copy":"000800"}],)"
+                              R"("retired":[{"source":"a.esp|801","copy":"000801"}]})"),
+                "copies map: a source both copied and retired is refused");
+            a_check.Check(mapRefuses("map_dup_copies.json",
+                              R"({"version":1,"copies":[{"source":"A.esp|000801","type":"IPCT","copy":"000800"},)"
+                              R"({"source":"A.esp|000801","type":"IPCT","copy":"000801"}]})"),
+                "copies map: a source copied twice is refused");
+            const auto retiredHigh = LoadCopiesMap(WriteText(a_dir / "map_high.json",
+                R"({"version":1,"copies":[{"source":"A.esp|000801","type":"IPCT","copy":"000800"}],)"
+                R"("retired":[{"source":"B.esp|000802","copy":"000900"}]})"));
+            const auto next = AssignCopyIds(LoadFormsRequest(WriteText(a_dir / "forms_high.json", FormsText(kIpct3))), retiredHigh);
+            a_check.Check(next.entries.size() == 1 && next.entries[0].localId == 0x901,
+                "copy ids: a new source takes the id after the highest retired id (0x901)");
         }
 
         // A whole --forms run: the made-up NIF as a projectile model, its AddOnNodes 9 and 24 on grey indices
@@ -222,6 +246,23 @@ namespace GreyBuild::SelfTest
             a_check.Check(again.failed == 0 && first.entries.size() == 1 && second.entries.size() == 1 &&
                               first.entries[0].localId == second.entries[0].localId,
                 "forms run: a second run into the same folder keeps the copy's id");
+
+            // V15: a failing run leaves the previous outputs as they were
+            const auto mapFile = out / "SKSE/Plugins" / kCopiesMapName;
+            const auto eslFile = out / kCopiesPluginName;
+            const auto readAll = [](const std::filesystem::path& a_file) {
+                std::ifstream in(a_file, std::ios::binary);
+                return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            };
+            const std::string mapBefore = readAll(mapFile);
+            const std::string eslBefore = readAll(eslFile);
+            const auto broken = LoadFormsRequest(WriteText(a_dir / "forms_broken.json", FormsText(kProj + "," +
+                R"({"source":"Skyrim.esm|0ABCDE","type":"PROJ","model":"Magic\\Missing.nif"})")));
+            const FormsTotals failedRun = BuildForms(broken, request, { in }, out, kDefaultTint);
+            std::error_code ec;
+            a_check.Check(failedRun.failed > 0 && readAll(mapFile) == mapBefore && readAll(eslFile) == eslBefore &&
+                              !std::filesystem::exists(out.string() + ".staging", ec),
+                "forms run: a run with a missing model fails and leaves the previous ESL and map byte for byte, no staging left");
         }
     }
 

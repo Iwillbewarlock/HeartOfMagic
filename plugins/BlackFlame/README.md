@@ -273,6 +273,11 @@ copy of them is made), so one run writes everything a setup needs into `--out`:
 | `SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json` | the copies map (version 1): source -> copy id, type, models. The next run reads it back from `--out`: a source keeps its id, a new one takes the id after every id used, a source no longer requested is kept as `retired` and its id is never given to another (a saved projectile or hazard of that copy must not turn into another form) |
 | grey MPS, `HeartOfMagic_BlackFlame_greymap.json`, `HeartOfMagic_BlackFlame_Local.esp` | as `--request` writes them (the copies' AddOnNode indices included) |
 
+Ids are assigned and every record value is validated before anything is written; all outputs are then written and
+read back in a staging folder beside `--out` (`<out>.staging`) and only then moved into `--out`, so a failed run
+leaves the previous outputs unchanged. The copies map refuses a source listed twice (in copies, or in copies and
+retired), and a new source takes the id after the highest id the map holds, retired ones included.
+
 Install the output folder as a mod after this one and enable both ESLs. The spike's requests are hand-made from
 read-only houseCARL reads of the TAKEALOOK profile: [requests/forms-takealook.json](requests/forms-takealook.json)
 (33 forms: the winning PROJ, EXPL, IPCT and HAZD reached from vanilla Firebolt, Fireball, Flames and Fire Rune) and
