@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "Palette.h"
 #include "ParticleColors.h"
+#include "LogLimit.h"
 #include "Tint.h"
 
 #include <atomic>
@@ -62,6 +63,19 @@ namespace BlackFlame
                 ++a_stats.failed;
                 return;
             }
+            using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
+            using Flag8 = RE::BSShaderProperty::EShaderPropertyFlag8;
+            // Our path with no texture behind it: an earlier recolour whose engine copy lost the
+            // texture. Terminal: its palette flags stay off, and it is neither copied nor desaturated
+            // again (a fresh copy every tick would compound the desaturation to black)
+            if (IsPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture) {
+                if (a_prop->flags.any(Flag::kGrayscaleToPaletteColor, Flag::kGrayscaleToPaletteAlpha)) {
+                    a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
+                    a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
+                }
+                ++a_stats.failed;
+                return;
+            }
             // The property holds the engine's copy of ours: should it resolve the palette to another
             // texture object, the path still marks it (else the hand-art tick would recolour again);
             // our path without any texture behind it is a broken state, not a finished one
@@ -98,8 +112,6 @@ namespace BlackFlame
             // changes baseColor every frame without one). If the palette does not show in
             // game, a missing SetupGeometry/FinishSetupGeometry is the first suspect (README).
 
-            using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
-            using Flag8 = RE::BSShaderProperty::EShaderPropertyFlag8;
             const bool hasFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteColor);
             const bool hasAlphaFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteAlpha);
             if (hasFlag || hasAlphaFlag || GetConfig().forcePalette) {
@@ -108,17 +120,23 @@ namespace BlackFlame
                 const auto* now = a_prop->GetMaterial();
                 if (!now || !now->greyscaleTexture) {
                     // The property is the instance's own: its palette flags go off, so the effect
-                    // technique never reads the missing texture (the shape keeps its own colours)
+                    // technique never reads the missing texture (the shape keeps its texture's colours
+                    // with the base colour already desaturated); later passes treat it as terminal
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);
                     ++a_stats.failed;  // counted only here: not also as a palette swap
-                    logger::warn("BlackFlame: property 0x{:X}: the engine's material copy has no greyscale texture "
-                                 "after SetMaterial - its palette flags were turned off", reinterpret_cast<std::uintptr_t>(a_prop));
+                    int suppressed = 0;
+                    if (LogLimit::Allow("palette lost", 0, suppressed)) {
+                        logger::warn("BlackFlame: property 0x{:X}: the engine's material copy has no greyscale texture "
+                                     "after SetMaterial - its palette flags were turned off{}",
+                            reinterpret_cast<std::uintptr_t>(a_prop),
+                            suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+                    }
                     return;
                 }
             }
-            if (hasFlag) {
-                ++a_stats.paletteSwapped;
+            if (hasFlag || (hasAlphaFlag && !GetConfig().forcePalette)) {
+                ++a_stats.paletteSwapped;  // an alpha-only shape maps through the palette too
             } else if (GetConfig().forcePalette) {
                 // Set only now, after the material with both palette pointer and path is in
                 // place: the effect technique gates on the path and reads the pointer unchecked.

@@ -41,13 +41,13 @@ namespace BlackFlame::SelfTestWorld
     /// (Projectile.cpp:213-222), so the impact applies the spell and the shooter is attributed -
     /// with castingSource right hand and desiredTarget set, then Projectile::Launch. Needed because
     /// CastSpellImmediate aims at the target's origin, its feet, and misses beyond ~300 units
-    /// (skyrim-headless-mods headless-findings s24). Angles: the engine's own solve
-    /// (CombatUtilities::GetAngleToProjectedTarget, torso, speed and gravity) when its heading agrees
-    /// with the straight line, else the straight line: z heading = atan2(dx, dy) (as
-    /// Actor::SetHeading), x pitch positive DOWN = -atan2(dz, horizontal). No cast happens (no
-    /// magicka, cast event or caster spell). Game thread only. False (nothing launched) without a
-    /// shooter in a cell, spell, projectile or target; a_detail says origin, aim, both angle sets
-    /// and whether a projectile handle came back.
+    /// (skyrim-headless-mods headless-findings s24). Angles: the straight line, z heading =
+    /// atan2(dx, dy) (as Actor::SetHeading), x pitch positive DOWN = -atan2(dz, horizontal), aimed
+    /// above the target by the projectile's estimated gravity drop. No engine solve
+    /// (CombatUtilities::GetAngleToProjectedTarget's AE id is unverified). Heights fall back to
+    /// fixed values on a fresh spawn without bounds. No cast happens (no magicka, cast event or
+    /// caster spell). Game thread only. False (nothing launched) without a shooter in a cell, spell,
+    /// projectile or target; a_detail says origin, aim, drop, angles, fallbacks and the handle.
     [[nodiscard]] bool LaunchAt(RE::Actor* a_shooter, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target,
         std::string& a_detail);
 

@@ -14,8 +14,14 @@ namespace BlackFlame::SelfTestWorld
         constexpr float kOriginHeightShare = 0.65f;  // of the shooter's height: about the chest
         constexpr float kOriginForward = 60.0f;      // units toward the target, clear of the shooter
         constexpr float kAimHeightShare = 0.6f;      // of the target's height: its torso
-        constexpr float kTwoPi = 6.2831853f;
-        constexpr float kHeadingAgreement = 0.5f;    // radians: the engine solve must point the same way
+        constexpr float kMinHeight = 20.0f;              // below this GetHeight has no bounds yet
+        constexpr float kPlayerFallbackHeight = 100.0f;
+        constexpr float kCreatureFallbackHeight = 60.0f;  // a deer
+        constexpr float kTargetFallbackLift = 50.0f;
+        constexpr float kHalf = 0.5f;
+        // An approximation of the engine's gravity in units/s^2: 9.8 m/s^2 at about 70 units/m. Scaled by
+        // the projectile's own gravity value; the launch line logs the drop it computed.
+        constexpr float kWorldGravity = 686.0f;
     }
 
     bool LookupVanilla(VanillaForms& a_out, std::string& a_missing)
@@ -76,37 +82,47 @@ namespace BlackFlame::SelfTestWorld
             a_detail = "the spell has no projectile";
             return false;
         }
-        // Origin: the shooter's chest height (CommonLib's own fallback without a magic node,
-        // Projectile.cpp:275-283), nudged toward the target so it starts clear of the shooter
+        // Heights: a fresh spawn may have no bounds yet (GetHeight near 0): fixed fallbacks then
+        float shooterHeight = a_shooter->GetHeight();
+        float targetHeight = a_target->GetHeight();
+        std::string fallback;
+        if (shooterHeight < kMinHeight) {
+            shooterHeight = a_shooter->IsPlayerRef() ? kPlayerFallbackHeight : kCreatureFallbackHeight;
+            fallback += " shooter height fallback;";
+        }
+        float aimLift = targetHeight * kAimHeightShare;
+        if (targetHeight < kMinHeight) {
+            aimLift = kTargetFallbackLift;
+            fallback += " target height fallback;";
+        }
+        // Origin: the shooter's chest, nudged toward the target so it starts clear of the shooter
         const auto from = a_shooter->GetPosition();
         auto aim = a_target->GetPosition();
-        aim.z += a_target->GetHeight() * kAimHeightShare;
+        aim.z += aimLift;
         const float flatX = aim.x - from.x;
         const float flatY = aim.y - from.y;
         const float flat = std::sqrt(flatX * flatX + flatY * flatY);
         RE::NiPoint3 origin = from;
-        origin.z += a_shooter->GetHeight() * kOriginHeightShare;
+        origin.z += shooterHeight * kOriginHeightShare;
         if (flat > 0.0f) {
             origin.x += flatX / flat * kOriginForward;
             origin.y += flatY / flat * kOriginForward;
         }
-        // The straight line: heading z = atan2(dx, dy) (as Actor::SetHeading), pitch x positive DOWN
+        // Gravity drop over the flight, aimed above to make up for it (an estimate: see kWorldGravity)
+        const float distance = origin.GetDistance(aim);
+        const float speed = projectileBase->data.speed;
+        const float flightSeconds = speed > 0.0f ? distance / speed : 0.0f;
+        const float drop = kHalf * kWorldGravity * projectileBase->data.gravity * flightSeconds * flightSeconds;
+        aim.z += drop;
+        // Straight line: heading z = atan2(dx, dy) (as Actor::SetHeading), pitch x positive DOWN.
+        // No engine solve: CombatUtilities::GetAngleToProjectedTarget's AE id is unverified
+        // (CommonLib's Projectile.cpp:290 marks it 0) and a wrong id would crash on AE.
         const float dx = aim.x - origin.x;
         const float dy = aim.y - origin.y;
         const float dz = aim.z - origin.z;
         RE::Projectile::ProjectileRot angles{};
         angles.z = std::atan2(dx, dy);
         angles.x = -std::atan2(dz, std::sqrt(dx * dx + dy * dy));
-        // The engine's own solve (speed, gravity, aimed at the torso) when it agrees in heading
-        const auto solved = RE::CombatUtilities::GetAngleToProjectedTarget(origin, a_target,
-            projectileBase->data.speed, projectileBase->data.gravity, RE::ACTOR_LOS_LOCATION::kTorso);
-        const bool useSolved = std::isfinite(solved.x) && std::isfinite(solved.z) &&
-                               std::fabs(std::remainder(solved.z - angles.z, kTwoPi)) < kHeadingAgreement;
-        const auto straight = angles;
-        if (useSolved) {
-            angles.x = solved.x;
-            angles.z = solved.z;
-        }
 
         RE::Projectile::LaunchData data(a_shooter, origin, angles, a_spell);
         data.castingSource = RE::MagicSystem::CastingSource::kRightHand;
@@ -114,10 +130,10 @@ namespace BlackFlame::SelfTestWorld
         RE::ProjectileHandle handle;
         RE::Projectile::Launch(&handle, data);
         const bool launched = static_cast<bool>(handle);
-        a_detail = std::format("launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}): pitch {:.3f}, heading "
-            "{:.3f} rad ({}; straight line {:.3f} / {:.3f}, engine solve {:.3f} / {:.3f}): {}", origin.x, origin.y,
-            origin.z, aim.x, aim.y, aim.z, angles.x, angles.z, useSolved ? "engine solve" : "straight line", straight.x,
-            straight.z, solved.x, solved.z, launched ? "projectile handle returned" : "NO projectile handle");
+        a_detail = std::format("launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}) incl. {:.1f} units of "
+            "gravity drop ({:.0f} units at speed {:.0f}, gravity {:.2f}): pitch {:.3f}, heading {:.3f} rad;{} {}", origin.x,
+            origin.y, origin.z, aim.x, aim.y, aim.z, drop, distance, speed, projectileBase->data.gravity, angles.x, angles.z,
+            fallback, launched ? "projectile handle returned" : "NO projectile handle");
         return launched;
     }
 
