@@ -144,6 +144,7 @@ namespace BlackFlame::SelfTestProbe
                 out.withPalettePath += path ? 1 : 0;
                 out.withPalettePointer += pointer ? 1 : 0;
                 out.withBoth += (path && pointer) ? 1 : 0;
+                out.withGrey += HasGreyMaterial(prop) ? 1 : 0;
             }
             if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_object)) {
                 InspectModifiers(particles, out);

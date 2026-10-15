@@ -14,7 +14,10 @@ namespace BlackFlame
             "HeartOfMagic\\BlackFlame\\GradBlackFlame.dds",
         };
 
-        RE::NiPointer<RE::NiSourceTexture> g_palette;
+        // A raw pointer with one reference taken and never given back: an NiPointer in a static
+        // would DecRef at DLL unload, after the renderer and texture manager are gone. The
+        // palette lives for the whole session anyway (an intentional one-texture leak).
+        RE::NiSourceTexture* g_palette = nullptr;
         const char* g_palettePath = nullptr;
         // Set after g_palette and g_palettePath are written; hooks on other threads read it first
         std::atomic<bool> g_ready{ false };
@@ -29,7 +32,8 @@ namespace BlackFlame
             logger::info("BlackFlame: palette '{}': {}", path,
                 source ? "loaded" : (texture ? "loaded but not an NiSourceTexture" : "not loaded"));
             if (source) {
-                g_palette.reset(source);
+                source->IncRefCount();
+                g_palette = source;
                 g_palettePath = path;
                 g_ready.store(true, std::memory_order_release);
                 return true;
@@ -47,7 +51,7 @@ namespace BlackFlame
 
     RE::NiSourceTexture* GetPalette() noexcept
     {
-        return PaletteReady() ? g_palette.get() : nullptr;
+        return PaletteReady() ? g_palette : nullptr;
     }
 
     const char* GetPalettePath() noexcept

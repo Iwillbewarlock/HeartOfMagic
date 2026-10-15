@@ -1,14 +1,25 @@
 #include "ParticleColors.h"
 
+#include "Tint.h"
+
+#include <atomic>
+#include <cmath>
+#include <format>
+#include <string>
+
 namespace BlackFlame
 {
     namespace
     {
-        // Rec. 709 luma weights (as Recolor.cpp)
-        constexpr float kLumaRed = 0.2126f;
-        constexpr float kLumaGreen = 0.7152f;
-        constexpr float kLumaBlue = 0.0722f;
         constexpr std::size_t kColorKeys = 3;
+        // A colour key component outside this range (or NaN) means the layout below does not
+        // match this runtime: the bytes are not colours, so nothing is written. 0..2 leaves room
+        // for HDR-ish keys above 1 while catching floats that are really pointers or counts.
+        constexpr float kMinPlausibleColor = 0.0f;
+        constexpr float kMaxPlausibleColor = 2.0f;
+        constexpr int kMaxImplausibleLogs = 5;
+
+        std::atomic<int> g_implausibleLogs{ 0 };
 
         // Layout from Jonahex/CommonLibSSE include/RE/B/BSPSysSimpleColorModifier.h
         // (commit 2bc2543c), not in this CommonLib, unverified on AE. Never
@@ -30,14 +41,29 @@ namespace BlackFlame
         static_assert(offsetof(SimpleColorModifierLayout, colors) == 0x30);
         static_assert(sizeof(SimpleColorModifierLayout) == 0x80);
 
-        bool Desaturate(RE::NiColorA& a_color)
+        bool Plausible(float a_value)
         {
-            const float grey = a_color.red * kLumaRed + a_color.green * kLumaGreen + a_color.blue * kLumaBlue;
-            const bool changed = a_color.red != grey || a_color.green != grey || a_color.blue != grey;
-            a_color.red = grey;
-            a_color.green = grey;
-            a_color.blue = grey;
-            return changed;
+            return !std::isnan(a_value) && a_value >= kMinPlausibleColor && a_value <= kMaxPlausibleColor;
+        }
+
+        bool LooksLikeColors(const SimpleColorModifierLayout& a_layout)
+        {
+            for (const auto& c : a_layout.colors) {
+                if (!Plausible(c.red) || !Plausible(c.green) || !Plausible(c.blue) || !Plausible(c.alpha)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        std::string Dump(const SimpleColorModifierLayout& a_layout)
+        {
+            std::string out;
+            for (const auto& c : a_layout.colors) {
+                out += std::format("{}({:.3f} {:.3f} {:.3f} {:.3f})", out.empty() ? "" : " ", c.red, c.green, c.blue,
+                    c.alpha);
+            }
+            return out;
         }
     }
 
@@ -50,6 +76,15 @@ namespace BlackFlame
                 continue;
             }
             auto* layout = reinterpret_cast<SimpleColorModifierLayout*>(modifier.get());
+            // Read before any write: skip a modifier whose keys do not read as colours
+            if (!LooksLikeColors(*layout)) {
+                if (g_implausibleLogs.fetch_add(1) < kMaxImplausibleLogs) {
+                    logger::warn("BlackFlame: particle colour modifier 0x{:X} keys do not look like colours, left "
+                                 "untouched (layout mismatch?): {}",
+                        reinterpret_cast<std::uintptr_t>(layout), Dump(*layout));
+                }
+                continue;
+            }
             bool any = false;
             for (auto& color : layout->colors) {
                 any = Desaturate(color) || any;

@@ -23,7 +23,7 @@ namespace
 {
     void OnDataLoaded()
     {
-        BlackFlame::MarkGameThread();
+        BlackFlame::StampGameThread();
         if (!BlackFlame::LoadForms()) {
             logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
             return;
@@ -41,24 +41,41 @@ namespace
         }
     }
 
-    void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
+    void HandleMessage(const SKSE::MessagingInterface::Message& a_msg)
     {
-        if (!a_msg) {
-            return;
-        }
-        switch (a_msg->type) {
+        switch (a_msg.type) {
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             BlackFlame::RecomputeBuff("game loaded");
             BlackFlame::SelfTest::OnGameLoaded();
+            FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
             BlackFlame::RecomputeBuff("new game");
+            FlushLog();
+            break;
+        case SKSE::MessagingInterface::kSaveGame:
+            FlushLog();
             break;
         default:
             break;
+        }
+    }
+
+    void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
+    {
+        if (!a_msg) {
+            return;
+        }
+        // Called from SKSE: nothing may throw out of here
+        try {
+            HandleMessage(*a_msg);
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: SKSE message {} handler threw: {}", a_msg->type, e.what());
+        } catch (...) {
+            logger::error("BlackFlame: SKSE message {} handler threw an unknown exception", a_msg->type);
         }
     }
 }
@@ -66,9 +83,9 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, false);
+    // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
+    // and the self-test's end write them out
     SetupLog("Black Flame prototype (grey-black fire for the player's fire spells while stoked)");
-    // A prototype checked from its log during play: every info line goes to disk at once
-    spdlog::flush_on(spdlog::level::info);
 
     BlackFlame::LoadConfig();
 

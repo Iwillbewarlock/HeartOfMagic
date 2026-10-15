@@ -30,8 +30,10 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
    - `plugins/BlackFlame/data/*` (the ESP, `textures/`, `SKSE/Plugins/HeartOfMagic_BlackFlame.json`)
    - `build/plugins/BlackFlame/Release/HeartOfMagic_BlackFlame.dll` to `SKSE/Plugins/`
 3. Enable the mod and the ESP. Needs SKSE and Address Library (SE 1.5.97 or AE 1.6.x; VR not built).
-4. Log: `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame.log` (every line is
-   written at once).
+4. Log: `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame.log` (info lines are
+   buffered: they reach the file on a warning, a game load, a save, a new game and at the end of the
+   self-test). Per-recolour and per-burn lines are limited to one per spell and kind per second (the next
+   line says how many were held back).
 
 ## Config (`SKSE/Plugins/HeartOfMagic_BlackFlame.json`)
 
@@ -53,11 +55,11 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 
 ## How it works
 
-**Fire spells** (built once at kDataLoaded): a spell is fire when Heart of Magic's
+**Fire spells and fire effects** (built once at kDataLoaded): a spell is fire when Heart of Magic's
 `Data/SKSE/Plugins/SpellLearning/spell_catalog.json` lists `"fire"` in its `elements`; a spell the
 catalog does not list is fire when one of its effects has the vanilla `MagicDamageFire` keyword
 (Skyrim.esm 0x01CEAD). Without a catalog it is keyword only, with a warning. Only `SpellType::kSpell`
-counts. The fire explosions are those named by fire spells' effects and their projectiles. The log
+counts. The burn and explosion layers key on fire EFFECTS, not spells: an MGEF of a fire spell with the `MagicDamageFire` keyword or fire resistance as its resist value; a catalog-fire spell with no such effect contributes only its costliest effect. The fire explosions are those named by fire effects and their projectiles. The log
 gives the counts. No mesh, node, mod, plugin or FormID is special-cased: vanilla meshes, VFX replacers,
 legacy NiTriShape meshes and modded spells all go through the same rules.
 
@@ -72,10 +74,10 @@ skipped, so it is safe to repeat.
 
 | Layer | Where |
 |---|---|
-| 1 burn shader | `TESActiveEffectApplyRemoveEvent` -> game-thread task: finish the MGEF's hit shader in the effect's `hitEffects` (replace mode), apply `HoMBF_BurnShader` for the remaining time (1.5 s for an instant hit), not stacked on a live grey shader |
+| 1 burn shader | `TESActiveEffectApplyRemoveEvent`: the effect's MGEF is read in the event (an instant effect can be gone by the next task), then a game-thread task applies `HoMBF_BurnShader` at once for the remaining time (1.5 s for an instant hit) or extends a live grey shader on that target; replace mode finishes the MGEF's hit shader in that effect's own `hitEffects` (never target-wide), once more on a later tick when the list is not filled yet. An effect with a duration (concentration spells) keeps its grey shader alight; when it is removed and the player has no other fire effect on the target, the grey shader is finished. Only fire MGEFs count (below) |
 | 2 projectile | `Handle3DLoaded` (vfunc 0xC0) on the Missile, Flame, Cone, Beam, Grenade and Barrier vtables; shooter the player, spell fire |
-| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player |
-| 4 hand art | ticker task every 100 ms while stoked: per hand casting a fire spell, the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted |
+| 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player; left alone when its magicCaster's current spell is set and not a fire spell; a light missing at Set3D is tinted on the next tick |
+| 4 hand art | ticker task every 100 ms while stoked: per hand casting a fire spell, the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted |
 
 ## Known limits
 
@@ -85,6 +87,8 @@ skipped, so it is safe to repeat.
 - Hit-effect art (e.g. Flame Cloak's `FXFireCloak01`) is not recoloured; only the hit shader is (layer 1).
 - Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched: `BSLightingShaderProperty` emissive colour may be shared.
 - Replace mode swaps the burn shader after the engine applied its own: concentration spells (Flames) may flicker orange for a frame.
+- When the effect is already gone at the later retry, its engine hit shader is left to run out (finishing shaders target-wide would also stop an ally's identical shader). An instant hit whose effect is gone before the first task still gets the grey shader (its MGEF is read in the event), but its engine shader stays.
+- Explosions from a staff or scroll are left alone only when the explosion's magicCaster names that item; with no magicCaster spell, a player-owned fire explosion is recoloured whatever made it.
 - A `BSEffectShaderPropertyColorController` animates a property's colour every frame and overrides the base colour change; the log counts such shapes. Particle colour modifiers multiply the palette, so some orange can stay unless `particleColors` is on.
 - Shapes without the palette flag, with `forcePalette` off, keep their texture's colour (examples from vanilla paths: `PCoreCircularFlare`, `RedGlowAdd` on bolt/ball projectiles, `pGlow`/`ppLight` on hand effects).
 - Staffs, scrolls, enchantments and powers are excluded (`SpellType::kSpell` only).
@@ -123,6 +127,8 @@ Vanilla forms it uses (Skyrim.esm, read with houseCARL): Firebolt `012FD0`, Fire
 | T7 | the first BSPSysSimpleColorModifier's raw bytes 0x30-0x7F (layout sanity, INFO); with `particleColors` on, the NPC's modifiers are not the player's and not desaturated |
 | T8 / T8-cast | dispelling the Stoke effect turns the flag off within 1 s; the next Firebolt is not recoloured |
 | T9 | the two actors are disabled and marked deleted |
+
+The log's `material check` lines (first 5 player and NPC fire projectiles, first 5 NPC fire explosions) list per effect property `prop=`, `mat=`, `grey=` and `paletteFlag=`: `prop=` must differ between player and NPC instances; an equal `mat=` is normal (materials are pooled); any `grey=yes` on an NPC line is contamination.
 
 ## In-game checks the self-test cannot do
 

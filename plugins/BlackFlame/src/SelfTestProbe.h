@@ -38,6 +38,7 @@ namespace BlackFlame::SelfTestProbe
         int withPalettePath = 0;     // material's greyscaleTexturePath is our palette path
         int withPalettePointer = 0;  // material's greyscaleTexture is our palette texture
         int withBoth = 0;
+        int withGrey = 0;            // Recolor.h HasGreyMaterial: pointer or path (the contamination test)
         std::vector<std::uintptr_t> colorModifiers;  // BSPSysSimpleColorModifier pointers
         int colorModifiersAllGrey = 0;               // of those, every colour key has R == G == B
         std::vector<float> firstModifierRaw;         // bytes 0x30-0x7F of the first one, as floats

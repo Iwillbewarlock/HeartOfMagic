@@ -2,6 +2,7 @@
 
 #include "BurnShader.h"
 #include "CasterArt.h"
+#include "ExplosionHook.h"
 #include "Forms.h"
 #include "GameThread.h"
 #include "SelfTest.h"
@@ -20,6 +21,8 @@ namespace BlackFlame
         std::atomic<bool> g_stoked{ false };
         std::atomic<bool> g_tickerStarted{ false };
         std::atomic<bool> g_tickPending{ false };
+        std::atomic<bool> g_recomputePending{ false };  // one RecomputeBuff task queued at a time
+        std::atomic<bool> g_loopFailureReported{ false };
 
         // MagicTarget::HasMagicEffectWithKeyword would also count an effect that has
         // ended but is still in the list (a remove event can arrive before the engine
@@ -59,7 +62,8 @@ namespace BlackFlame
         {
             g_tickPending.store(false);
             RecomputeBuff("tick");
-            RunPendingBurnSwaps();  // layer 1 (each swap drops itself when the buff is off)
+            TickBurns();  // layer 1: engine shader retries, live burns kept alight
+            TickExplosionLights();  // layer 3: lights that did not exist at Set3D
             if (IsStoked()) {
                 TickCasterArt();  // layer 4
             }
@@ -72,14 +76,28 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !SelfTest::WantsFastTicks() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasLiveBurns() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
-                // One tick in the queue at most: a paused game (a menu) does not pile them up
-                if (g_tickPending.exchange(true)) {
-                    continue;
+                // A throw here would end the thread (and std::terminate the game): keep looping
+                try {
+                    // One tick in the queue at most: a paused game (a menu) does not pile them up
+                    if (g_tickPending.exchange(true)) {
+                        continue;
+                    }
+                    // ThreadUtils' AddTaskToGameThread returns nothing and drops the task only
+                    // without a TaskInterface: checked here so the pending flag is not left set
+                    if (!SKSE::GetTaskInterface()) {
+                        g_tickPending.store(false);
+                        continue;
+                    }
+                    AddTaskToGameThread("BlackFlameTick", &Tick);
+                } catch (...) {
+                    g_tickPending.store(false);
+                    if (!g_loopFailureReported.exchange(true)) {
+                        logger::error("BlackFlame: ticker loop threw; further failures are not logged");
+                    }
                 }
-                AddTaskToGameThread("BlackFlameTick", &Tick);
             }
         }
     }
@@ -96,6 +114,21 @@ namespace BlackFlame
         if (now != before) {
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
         }
+    }
+
+    void RequestRecomputeBuff(const char* a_reason)
+    {
+        if (g_recomputePending.exchange(true)) {
+            return;  // one already queued: it reads the effects as they are when it runs
+        }
+        if (!SKSE::GetTaskInterface()) {
+            g_recomputePending.store(false);  // the task would be dropped
+            return;
+        }
+        AddTaskToGameThread("BlackFlameBuff", [a_reason]() {
+            g_recomputePending.store(false);
+            RecomputeBuff(a_reason);
+        });
     }
 
     void StartTicker()

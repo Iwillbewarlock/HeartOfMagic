@@ -19,6 +19,16 @@
       "path": "tools/**/*.cpp",
       "rule": "Heart of Magic SKSE plugin (C++23, CommonLibSSE-NG). Project rules from CLAUDE.md, in addition to the generic C++ rules:\n- RE::/SKSE:: types and methods must exist in plugins/external/commonlibsse-ng headers (no guessed APIs).\n- No raw new/delete; no manual mutex lock()/unlock() - use lock_guard/unique_lock.\n- Named constants (k-prefixed, static constexpr) instead of magic numbers; files over 600 lines should be split.\n- Naming: PascalCase types and functions, m_ members, g_ globals, k constants.\n- Game state is touched only on the game thread (tasks via the SKSE task interface); worker threads never touch RE:: objects or the UI directly and never let exceptions escape.\n- Code mirrored in JS (the tree declutter pass: treebuilder/Layout*.cpp vs modules/layout*.js) must stay bit-identical in results; flag any change applied to one side only.\n- Documentation (docs/*.md) must be updated with behaviour changes.",
       "merge_system_rule": true
+    },
+    {
+      "path": "plugins/BlackFlame/**/*.cpp",
+      "rule": "Heart of Magic SKSE plugin (C++23, CommonLibSSE-NG). Project rules from CLAUDE.md, in addition to the generic C++ rules:\n- RE::/SKSE:: types and methods must exist in plugins/external/commonlibsse-ng headers (no guessed APIs).\n- No raw new/delete; no manual mutex lock()/unlock() - use lock_guard/unique_lock.\n- Named constants (k-prefixed, static constexpr) instead of magic numbers; files over 600 lines should be split.\n- Naming: PascalCase types and functions, m_ members, g_ globals, k constants.\n- Game state is touched only on the game thread (tasks via the SKSE task interface); worker threads never touch RE:: objects or the UI directly and never let exceptions escape.\n- Documentation (docs/*.md) must be updated with behaviour changes.\n- Vtable hooks (thunks) and event sinks must catch every exception (engine frames have no unwind info).",
+      "merge_system_rule": true
+    },
+    {
+      "path": "plugins/BlackFlame/**/*.h",
+      "rule": "Heart of Magic SKSE plugin (C++23, CommonLibSSE-NG). Project rules from CLAUDE.md, in addition to the generic C++ rules:\n- RE::/SKSE:: types and methods must exist in plugins/external/commonlibsse-ng headers (no guessed APIs).\n- No raw new/delete; no manual mutex lock()/unlock() - use lock_guard/unique_lock.\n- Named constants (k-prefixed, static constexpr) instead of magic numbers; files over 600 lines should be split.\n- Naming: PascalCase types and functions, m_ members, g_ globals, k constants.\n- Game state is touched only on the game thread (tasks via the SKSE task interface); worker threads never touch RE:: objects or the UI directly and never let exceptions escape.\n- Documentation (docs/*.md) must be updated with behaviour changes.\n- Vtable hooks (thunks) and event sinks must catch every exception (engine frames have no unwind info).",
+      "merge_system_rule": true
     }
   ]
 }

@@ -4,11 +4,13 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "GameThread.h"
+#include "LogLimit.h"
 #include "Recolor.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
 #include <chrono>
+#include <format>
 
 namespace BlackFlame
 {
@@ -22,6 +24,7 @@ namespace BlackFlame
         std::atomic<int> g_playerMaterialLogs{ 0 };
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
+
         // False when the buff or the layer went off before a deferred recolour ran
         bool RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind, RecolorStats& a_stats)
         {
@@ -32,16 +35,27 @@ namespace BlackFlame
             a_stats = RecolorTree(a_projectile->Get3D());
             auto* light = data.light ? data.light->light.get() : nullptr;
             const bool lightTinted = GetConfig().light && TintLight(light);
-            logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}",
-                data.spell ? data.spell->GetFormID() : 0, a_kind, a_stats.Describe(),
-                !data.light ? "none" : (lightTinted ? "tinted" : "left"));
+            const auto spellId = data.spell ? data.spell->GetFormID() : 0;
+            int suppressed = 0;
+            if (LogLimit::Allow(a_kind, spellId, suppressed)) {
+                logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}{}", spellId, a_kind,
+                    a_stats.Describe(), !data.light ? "none" : (lightTinted ? "tinted" : "left"),
+                    suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+            }
             return true;
         }
 
-        // Game thread: the recolour (when due) and, while the self-test runs, its record
+        // Game thread: the material check (a scene-graph walk), the recolour (when due) and,
+        // while the self-test runs, its record
         void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_recolor, bool a_byPlayer,
-            std::uint32_t a_hookThread, bool a_hookOnGameThread)
+            bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread)
         {
+            const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
+            if (a_logMaterials) {
+                logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour{}: {}",
+                    a_byPlayer ? "PLAYER" : "NPC", spell ? spell->GetFormID() : 0, a_kind,
+                    a_byPlayer ? "" : " (any grey=yes is contamination)", DescribeMaterials(a_projectile->Get3D()));
+            }
             const bool probe = SelfTestProbe::Recording();
             SelfTestProbe::ProjectileRecord record;
             if (probe) {
@@ -56,7 +70,6 @@ namespace BlackFlame
             if (!probe) {
                 return;
             }
-            const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
             record.spell = spell ? spell->GetFormID() : 0;
             record.kind = a_kind;
             record.byPlayer = a_byPlayer;
@@ -76,29 +89,27 @@ namespace BlackFlame
             const bool byPlayer = shooter && shooter.get() == RE::PlayerCharacter::GetSingleton();
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
-            if (counter.fetch_add(1) < kMaxMaterialLogs) {
-                logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour: {}",
-                    byPlayer ? "PLAYER" : "NPC", data.spell->GetFormID(), a_kind, DescribeMaterials(a_projectile->Get3D()));
-            }
+            const bool logMaterials = counter.fetch_add(1) < kMaxMaterialLogs;
             const bool recolor = byPlayer && IsStoked() && GetConfig().projectile;
-            if (!recolor && !SelfTestProbe::Recording()) {
+            if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;
             }
 
+            // Nothing here walks the scene graph: off the game thread it all goes to a task
             const bool onGameThread = IsOnGameThread();
             const auto hookThread = REX::W32::GetCurrentThreadId();
             if (recolor) {
                 LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
             }
             if (onGameThread) {
-                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, hookThread, true);
+                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, logMaterials, hookThread, true);
                 return;
             }
             const auto handle = a_projectile->GetHandle();
-            AddTaskToGameThread("BlackFlameProjectile", [handle, a_kind, recolor, byPlayer, hookThread]() {
+            AddTaskToGameThread("BlackFlameProjectile", [handle, a_kind, recolor, byPlayer, logMaterials, hookThread]() {
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, hookThread, false);
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, logMaterials, hookThread, false);
                 }
             });
         }
@@ -142,6 +153,7 @@ namespace BlackFlame
         Handle3DLoadedHook<RE::BeamProjectile>::Install("beam");
         Handle3DLoadedHook<RE::GrenadeProjectile>::Install("grenade");
         Handle3DLoadedHook<RE::BarrierProjectile>::Install("barrier");
-        logger::info("BlackFlame: hooked Handle3DLoaded (0x{:X}) on 6 projectile vtables", kHandle3DLoadedIndex);
+        logger::info("BlackFlame: hooked Handle3DLoaded (0x{:X}) on the missile, flame, cone, beam, grenade and "
+                     "barrier projectile vtables", kHandle3DLoadedIndex);
     }
 }

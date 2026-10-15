@@ -18,6 +18,9 @@ namespace BlackFlame
     /// Game thread only. Reads the player's active effects; logs a change of the flag.
     void RecomputeBuff(const char* a_reason);
 
+    /// Any thread: queues one RecomputeBuff task (a second request while one is queued is dropped).
+    void RequestRecomputeBuff(const char* a_reason);
+
     /// Starts the detached ticker thread (once; later calls do nothing).
     void StartTicker();
 }

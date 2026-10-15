@@ -25,6 +25,7 @@ namespace BlackFlame
         std::size_t catalogFire = 0;
         std::size_t keywordFire = 0;
         std::size_t total = 0;
+        std::size_t effects = 0;
         std::size_t explosions = 0;
     };
 
@@ -33,7 +34,11 @@ namespace BlackFlame
 
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
 
-    /// An explosion named by a fire spell's effect (EffectSetting::data.explosion) or
-    /// by that effect's projectile (BGSProjectile::data.explosionType).
+    /// A fire MGEF of a fire spell: MagicDamageFire keyword or fire resistance as its resist
+    /// value; a catalog-fire spell with none of those contributes its costliest effect.
+    [[nodiscard]] bool IsFireEffect(const RE::EffectSetting* a_effect);
+
+    /// An explosion named by a fire effect (EffectSetting::data.explosion) or by that
+    /// effect's projectile (BGSProjectile::data.explosionType).
     [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion);
 }

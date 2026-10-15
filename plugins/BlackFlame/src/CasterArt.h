@@ -8,14 +8,12 @@
 // ActorMagicCaster::Update is not hooked (DMMF replaces it outright). Instead the
 // buff ticker calls TickCasterArt on the game thread every 100 ms while stoked.
 // For each hand whose caster's currentSpell is a fire spell it recolours (same
-// idempotent rules as everywhere, Recolor.h):
-//   - the caster's magicNode subtree,
-//   - the magic node of that hand found by name in the 1st and the 3rd person
-//     skeleton (magicNode may point at only one of the two),
-//   - the 3D of the player's ModelReferenceEffects whose art is the caster's
-//     castingArt,
-// and sets the caster's light to config lightColor. Which of these places held
-// effect geometry is not known before the in-game test: one line per cast says.
+// idempotent rules as everywhere, Recolor.h) the casting art itself:
+// ActorMagicCaster::castingArtData.attachedArt. Only when that is null it falls
+// back, and says so in the log, to the caster's magicNode and the hand's magic
+// node found by name in the 1st and 3rd person skeletons, and as the last resort
+// to the player's ModelReferenceEffects of the caster's castingArt. The caster's
+// light is set to config lightColor.
 
 namespace BlackFlame
 {

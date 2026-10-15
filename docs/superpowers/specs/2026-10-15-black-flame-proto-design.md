@@ -45,10 +45,10 @@
 - 플레이어에게 `HoMBF_StokedKeyword` 효과가 걸려 있는가. 확인 방법과 스레드는 API 조사 결과로 정한다.
 
 ### 층 1. 몸에 붙는 불
-- 플레이어가 쏜 불마법 효과가 대상에게 걸리면, 다음 틱(SKSE 태스크)에 `ProcessLists::ForEachShaderEffect`로
-  그 대상의 `ShaderReferenceEffect` 중 `effectData`가 그 MGEF의 hit shader인 것을 끝내고,
-  `target->ApplyEffectShader(HoMBF_BurnShader, 남은 지속시간)`을 건다. 연속 시전(Flames)은 이미 붙은 우리 셰이더를
-  다시 걸지 않는다.
+- 플레이어가 쏜 불 효과가 대상에게 걸리면, 그 효과 자신의 `hitEffects`에서 `effectData`가 그 MGEF의 hit shader인
+  `ShaderReferenceEffect`를 끝내고(대상 전체를 `ForEachShaderEffect`로 훑어 끝내지 않는다: 같은 셰이더를 쓴 아군 것까지
+  꺼진다) `target->ApplyEffectShader(HoMBF_BurnShader, 남은 지속시간)`을 건다. 이미 붙은 우리 셰이더는 다시 걸지 않고
+  수명을 늘린다. 자세한 규칙은 아래 "1차 검증 반영".
 
 ### 층 2. 투사체
 - 투사체 종류별 vtable의 `Handle3DLoaded`(또는 확인된 다른 시점)에 훅. 원본 호출 후, `shooter`가 플레이어 · `spell`이
@@ -56,7 +56,8 @@
 - 다시 칠하기: `BSEffectShaderProperty`마다 재질을 **인스턴스 전용으로 복제한 뒤** `greyscaleTexture`를 회색 팔레트로,
   `baseColor` RGB를 휘도 기준 회색으로(알파 유지). `BSLightingShaderProperty`는 emissive 색을 회색으로.
   입자 색 수정자(`BSPSysSimpleColorModifier`)의 RGB도 회색으로(알파 유지). 투사체 조명은 어두운 회색으로.
-- 재질·속성이 다른 인스턴스와 공유되면 NPC 투사체까지 바뀐다. 반드시 복제해서 바꾼다.
+- 재질은 풀로 공유되므로 반드시 복제해서 바꾼다. 속성(`BSEffectShaderProperty`)은 인스턴스마다 따로라서 팔레트 플래그
+  (`forcePalette`)는 속성에서 제자리로 바꾼다. 둘 다 NPC 투사체로 번지면 안 된다(자가 시험 T4, 로그 material check).
 - (구현 시 제외) `BSLightingShaderProperty` emissive와 입자 색 수정자는 "검토 반영"대로 건드리지 않는다. 입자 색은
   설정 `particleColors`(기본 끔)로만.
 
@@ -95,7 +96,8 @@
   읽지 않고 이 플래그만 읽는다.
 - 미뤄 실행하는 태스크는 `ObjectRefHandle`/`ActorHandle`만 넘긴다. 생 포인터 금지.
 - 재질은 지오메트리마다 복제한 뒤 바꾼다. `BSPSysSimpleColorModifier`와 색 컨트롤러는 공유된다고 보고 건드리지
-  않는다(설정 `particleColors` 기본 false, 게임에서 공유 여부를 확인한 뒤에만 켠다). 컨트롤러가 붙은 셰이프는 팔레트만 바꾼다.
+  않는다(설정 `particleColors` 기본 false, 게임에서 공유 여부를 확인한 뒤에만 켠다). baseColor 탈색은 모든 셰이프에 하지만,
+  색 컨트롤러가 붙은 셰이프에서는 컨트롤러가 매 프레임 덮어쓸 수 있다(로그가 그런 셰이프 수를 센다).
 - 폭발: `kDataLoaded`에 불마법 MGEF와 불 투사체가 가리키는 `BGSExplosion` 집합을 캐시하고, 그 폭발이면서 원인이
   플레이어일 때만 칠한다. 원인 필드가 없으면 층 3은 시제품에서 뺀다.
 - 대상은 `SpellType::kSpell`만(HoM 시전 처리와 같은 기준). 지팡이·주문서·마법부여는 제외.
@@ -104,6 +106,30 @@
   없음). 알 수 없으면 사후 교체를 쓰고 Flames 깜빡임을 한계로 적는다.
 - 층 순서(확신 높은 것부터, 층마다 커밋): 0 플래그·설정·로그 → 1 몸의 불 → 4 손 이펙트·조명 → 2 투사체 → 3 폭발.
   칠할 때마다 주문 FormID를 담은 info 로그 한 줄.
+
+## 1차 검증 반영 (2026-10-15, 검증 에이전트가 코드·헤더로 확인한 항목만)
+
+- 층 1: 회색 셰이더는 첫 시도에 바로 건다. 효과의 MGEF는 이벤트 안에서(효과가 아직 목록에 있을 때) 읽어 태스크에
+  넘기므로, 즉시형 효과가 태스크 전에 사라져도 회색은 걸린다(그때 엔진 셰이더는 찾을 수 없어 그대로 둔다). replace 모드의
+  엔진 셰이더 끄기는 그 효과의 `hitEffects`에서만, 비어 있으면 큐에 넣은 틱보다 나중 틱에 한 번 더. 다시 볼 때 효과가
+  사라졌으면 엔진 셰이더는 남긴다(한계). 이미 붙은 회색 셰이더는 ProcessLists 잠금 안에서 `lifetime = max(lifetime,
+  age + 초)`로 늘린다(`lifetime` < 0 은 무기한이라 건드리지 않음). ApplyEffectShader가 준 셰이더의 lifetime/age를 한 번 로그.
+- 지속시간이 있는 효과(집중형 포함)는 살아 있는 화상 목록에 넣고, 틱마다 그 효과가 대상에 남아 있는 동안 회색 셰이더 수명을
+  늘린다. 제거 이벤트가 오고 플레이어의 다른 불 효과가 대상에 없으면 그 회색 셰이더를 끝낸다. 즉시형은 자기 1.5초를 간다.
+- 불 판정은 효과(MGEF) 단위: 불 주문의 MGEF 중 MagicDamageFire 키워드 또는 저항값이 화염 저항인 것. 카탈로그만 불이라 하고
+  그런 효과가 없는 주문은 가장 비싼 효과 하나만. 화상과 폭발 집합 모두 이 기준. 카탈로그 항목은 "elements"가 배열일 때만
+  판정에 쓴다.
+- 폭발: `magicCaster->currentSpell`이 있고 불 주문이 아니면(지팡이·주문서 등) 칠하지 않는다. 없으면 기존 규칙(한계 README).
+  Set3D 때 조명이 없으면 다음 틱에 핸들로 한 번 더 칠하고 그런 횟수를 로그.
+- 재칠: SetFlags 직전에 속성의 재질을 다시 읽어 팔레트 텍스처가 없으면 실패로 센다. "이미 회색" 판정은 포인터 또는 경로(멱등성).
+- 손 이펙트: `castingArtData.attachedArt`만 칠하고, 비어 있을 때만 이름으로 찾은 마법 노드, 마지막으로 ModelReferenceEffect.
+- 입자 색 수정자: 쓰기 전에 키 값을 읽어 0..2 밖이거나 NaN이면 레이아웃 불일치로 보고 쓰지 않는다.
+- 스레드: Heart of Magic의 ThreadUtils.h를 그대로 쓰고(복사본 삭제), 게임 스레드의 Windows id만 따로 찍는다. 장면 그래프를
+  훑는 일(material check 포함)은 게임 스레드에서만. SKSE 메시지 처리와 티커 루프 본문은 try/catch. RecomputeBuff 태스크는
+  한 번에 하나만 큐에.
+- 로그: 칠하기·화상 줄은 주문·종류마다 초당 한 줄(생략 수 표시). info는 버퍼(plugins/Common.h 기본), 경고·오류·게임 로드·
+  저장·새 게임·자가 시험 끝에 기록. 팔레트 텍스처와 손 노드 이름 BSFixedString은 의도적으로 해제하지 않는다(DLL 내릴 때 엔진이
+  이미 정리된 뒤 해제되는 것을 피함).
 
 ## 알려진 한계 (추가)
 
@@ -124,8 +150,8 @@
   diffuse를 `lightColor`로.
 - 버프 상태: atomic 하나를 게임 스레드에서만 쓴다. 플레이어 대상 효과 적용/제거 이벤트, `kPostLoadGame`/`kNewGame`,
   티커(켜짐 100 ms, 꺼짐 1 s)에서 플레이어 활성 효과를 직접 훑는다(해제·비활성·만료 효과 제외).
-- 손 이펙트: `ActorMagicCaster::Update` 훅 대신(DMMF가 통째로 교체) 티커가 손마다 `magicNode`, 1·3인칭 골격의 이름으로 찾은
+- 손 이펙트 (1차 검증 반영에서 attachedArt 우선으로 바뀜): `ActorMagicCaster::Update` 훅 대신(DMMF가 통째로 교체) 티커가 손마다 `magicNode`, 1·3인칭 골격의 이름으로 찾은
   마법 노드, 시전 아트 `ModelReferenceEffect`를 칠한다. 어디에 셰이프가 있었는지 시전마다 로그.
-- 몸에 붙는 불: 적용 시점에 hit shader를 바꿔 끼울 방법은 찾지 못해 사후 교체(+ Flames 깜빡임 한계). `hitEffects`가 비어 있으면
+- 몸에 붙는 불 (1차 검증 반영에서 첫 시도 즉시 적용으로 바뀜): 적용 시점에 hit shader를 바꿔 끼울 방법은 찾지 못해 사후 교체(+ Flames 깜빡임 한계). `hitEffects`가 비어 있으면
   다음 틱에 한 번 더 찾는다. 지속시간 없는 효과는 -1(영구) 대신 1.5초.
 - 게임 안에서 확인할 것: plugins/BlackFlame/README.md "In-game test checklist".

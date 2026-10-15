@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "Palette.h"
 #include "ParticleColors.h"
+#include "Tint.h"
 
 #include <atomic>
 #include <format>
@@ -12,10 +13,6 @@ namespace BlackFlame
 {
     namespace
     {
-        // Rec. 709 luma weights
-        constexpr float kLumaRed = 0.2126f;
-        constexpr float kLumaGreen = 0.7152f;
-        constexpr float kLumaBlue = 0.0722f;
         constexpr int kMaxDescribedMaterials = 3;
 
         std::atomic<bool> g_ownershipLogged{ false };
@@ -45,14 +42,6 @@ namespace BlackFlame
                 }
             }
             return false;
-        }
-
-        void Desaturate(RE::NiColorA& a_color, float a_scale)
-        {
-            const float grey = (a_color.red * kLumaRed + a_color.green * kLumaGreen + a_color.blue * kLumaBlue) * a_scale;
-            a_color.red = grey;
-            a_color.green = grey;
-            a_color.blue = grey;
         }
 
         void RecolorProperty(RE::BSEffectShaderProperty* a_prop, RecolorStats& a_stats)
@@ -88,7 +77,7 @@ namespace BlackFlame
             copy->CopyMembers(source);
             copy->greyscaleTexture.reset(palette);
             copy->greyscaleTexturePath = GetPalettePath();
-            Desaturate(copy->baseColor, GetConfig().tintScale);
+            (void)Desaturate(copy->baseColor, GetConfig().tintScale);
 
             a_prop->SetMaterial(copy.get(), true);
             const bool engineKeptOurs = a_prop->GetBaseMaterial() == copy.get();
@@ -110,6 +99,13 @@ namespace BlackFlame
             if (a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor)) {
                 ++a_stats.paletteSwapped;
             } else if (GetConfig().forcePalette) {
+                // Re-read: the property holds the engine's copy now, and the flag must never be on
+                // without a palette texture behind it
+                const auto* now = a_prop->GetMaterial();
+                if (!now || !now->greyscaleTexture) {
+                    ++a_stats.failed;
+                    return;
+                }
                 // Set only now, after the material with both palette pointer and path is in
                 // place: the effect technique gates on the path and reads the pointer unchecked.
                 // The property is the instance's own (cloned per instance; the material is the
@@ -219,13 +215,27 @@ namespace BlackFlame
         if (!a_root) {
             return "no 3D";
         }
+        int grey = 0;
         ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
             ++total;
+            const bool isGrey = HasGreyMaterial(a_prop);
+            grey += isGrey ? 1 : 0;
             if (count++ < kMaxDescribedMaterials) {
-                out += std::format("{}prop=0x{:X} mat=0x{:X}", out.empty() ? "" : ", ",
-                    reinterpret_cast<std::uintptr_t>(a_prop), reinterpret_cast<std::uintptr_t>(a_prop->GetBaseMaterial()));
+                out += std::format("{}prop=0x{:X} mat=0x{:X} grey={} paletteFlag={}", out.empty() ? "" : ", ",
+                    reinterpret_cast<std::uintptr_t>(a_prop), reinterpret_cast<std::uintptr_t>(a_prop->GetBaseMaterial()),
+                    isGrey ? "yes" : "no",
+                    a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor) ? "yes" : "no");
             }
         });
-        return std::format("{} effect properties{}{}", total, total ? ": " : "", out);
+        return std::format("{} effect properties, {} grey{}{}", total, grey, total ? ": " : "", out);
+    }
+
+    bool HasGreyMaterial(RE::BSEffectShaderProperty* a_prop)
+    {
+        const auto* material = a_prop ? a_prop->GetMaterial() : nullptr;
+        const auto* palette = GetPalette();
+        const char* path = GetPalettePath();
+        return material && ((palette && material->greyscaleTexture.get() == palette) ||
+                               (path && material->greyscaleTexturePath == path));
     }
 }

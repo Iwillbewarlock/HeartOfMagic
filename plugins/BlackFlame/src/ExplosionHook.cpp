@@ -4,10 +4,13 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "GameThread.h"
+#include "LogLimit.h"
 #include "Recolor.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
+#include <format>
+#include <vector>
 
 namespace BlackFlame
 {
@@ -15,10 +18,15 @@ namespace BlackFlame
     {
         constexpr std::size_t kSet3DIndex = 0x6C;  // RE/T/TESObjectREFR.h: Set3D, slot 6C (Explosion does not override it)
         constexpr int kMaxAttributionLogs = 5;
+        constexpr int kMaxNpcMaterialLogs = 5;
 
         std::atomic<bool> g_failureReported{ false };
         std::atomic<int> g_threadLogs{ 0 };
         std::atomic<int> g_otherLogs{ 0 };
+        std::atomic<int> g_npcMaterialLogs{ 0 };
+        std::atomic<int> g_recolors{ 0 };
+        std::atomic<int> g_lightMissing{ 0 };
+        std::vector<RE::ObjectRefHandle> g_pendingLights;  // game thread only: tint once more next tick
 
         // False when the buff or the layer went off before a deferred recolour ran
         bool RecolorExplosion(RE::Explosion* a_explosion, RecolorStats& a_stats)
@@ -28,17 +36,37 @@ namespace BlackFlame
             }
             auto& data = a_explosion->GetExplosionRuntimeData();
             a_stats = RecolorTree(a_explosion->Get3D());
-            const bool lightTinted = GetConfig().light && TintLight(data.light.get());
+            const int recolors = g_recolors.fetch_add(1) + 1;
+            bool lightTinted = false;
+            if (GetConfig().light) {
+                lightTinted = TintLight(data.light.get());
+                if (!data.light) {
+                    // Not created yet at Set3D: one more try on the next ticker tick
+                    g_pendingLights.push_back(a_explosion->GetHandle());
+                    g_lightMissing.fetch_add(1);
+                }
+            }
             const auto* base = a_explosion->GetBaseObject();
-            logger::info("BlackFlame: explosion: {:08X}: {}; light {}", base ? base->GetFormID() : 0, a_stats.Describe(),
-                !data.light ? "none (not created yet?)" : (lightTinted ? "tinted" : "left"));
+            const auto baseId = base ? base->GetFormID() : 0;
+            int suppressed = 0;
+            if (LogLimit::Allow("explosion", baseId, suppressed)) {
+                logger::info("BlackFlame: explosion: {:08X}: {}; light {} (missing at recolour {} of {} times){}", baseId,
+                    a_stats.Describe(), !data.light ? "not there yet, retried next tick" : (lightTinted ? "tinted" : "left"),
+                    g_lightMissing.load(), recolors,
+                    suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+            }
             return true;
         }
 
-        // Game thread: the recolour (when due) and, while the self-test runs, its record
-        // (a_record carries what Set3D saw: owner, cause, caster spell, light)
-        void HandleExplosion(RE::Explosion* a_explosion, bool a_recolor, SelfTestProbe::ExplosionRecord a_record)
+        // Game thread: the recolour (when due), the NPC contamination check and, while the
+        // self-test runs, its record (a_record carries what Set3D saw)
+        void HandleExplosion(RE::Explosion* a_explosion, bool a_recolor, bool a_logMaterials,
+            SelfTestProbe::ExplosionRecord a_record)
         {
+            if (a_logMaterials) {
+                logger::info("BlackFlame: material check, NPC fire explosion {:08X} (any grey=yes is contamination): {}",
+                    a_record.base, DescribeMaterials(a_explosion->Get3D()));
+            }
             if (a_recolor) {
                 a_record.recolored = RecolorExplosion(a_explosion, a_record.stats);
             }
@@ -65,8 +93,21 @@ namespace BlackFlame
                 logger::info("BlackFlame: fire explosion {:08X} not the player's: owner {:08X}, cause actor {:08X}",
                     explosion->GetFormID(), owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0);
             }
-            const bool recolor = byPlayer && IsStoked() && GetConfig().explosion;
-            if (!recolor && !SelfTestProbe::Recording()) {
+            // Explosion.h:87 magicCaster -> MagicCaster.h:105 currentSpell: when set it names what
+            // made the explosion; a staff, scroll or non-fire spell then keeps its own colours.
+            // When null the base form and the attribution decide (README: staffs/scrolls limit).
+            const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
+            const bool notFireCast = casterSpell && !IsFireSpell(casterSpell);
+            if (byPlayer && notFireCast) {
+                int suppressed = 0;
+                if (LogLimit::Allow("explosion skipped", casterSpell->GetFormID(), suppressed)) {
+                    logger::info("BlackFlame: explosion {:08X} left: its magicCaster's current spell {:08X} is not a fire "
+                                 "spell", explosion->GetFormID(), casterSpell->GetFormID());
+                }
+            }
+            const bool recolor = byPlayer && !notFireCast && IsStoked() && GetConfig().explosion;
+            const bool logMaterials = !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
+            if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;
             }
 
@@ -76,8 +117,7 @@ namespace BlackFlame
             record.owner = owner ? owner->GetFormID() : 0;
             record.causeActor = cause ? cause->GetFormID() : 0;
             record.hasMagicCaster = data.magicCaster != nullptr;
-            record.casterSpell = data.magicCaster && data.magicCaster->currentSpell ?
-                                     data.magicCaster->currentSpell->GetFormID() : 0;
+            record.casterSpell = casterSpell ? casterSpell->GetFormID() : 0;
             record.lightAtSet3D = data.light != nullptr;
             record.hookThread = REX::W32::GetCurrentThreadId();
 
@@ -86,16 +126,17 @@ namespace BlackFlame
                 LogHookThread(g_threadLogs, "Explosion Set3D");
             }
             if (onGameThread) {
-                HandleExplosion(a_explosion, recolor, std::move(record));
+                HandleExplosion(a_explosion, recolor, logMaterials, std::move(record));
                 return;
             }
             const auto handle = a_explosion->GetHandle();
-            AddTaskToGameThread("BlackFlameExplosion", [handle, recolor, record = std::move(record)]() mutable {
-                const auto ref = handle.get();
-                if (auto* explosion = ref ? ref->AsExplosion() : nullptr) {
-                    HandleExplosion(explosion, recolor, std::move(record));
-                }
-            });
+            AddTaskToGameThread("BlackFlameExplosion",
+                [handle, recolor, logMaterials, record = std::move(record)]() mutable {
+                    const auto ref = handle.get();
+                    if (auto* explosion = ref ? ref->AsExplosion() : nullptr) {
+                        HandleExplosion(explosion, recolor, logMaterials, std::move(record));
+                    }
+                });
         }
 
         struct Set3DHook
@@ -124,5 +165,26 @@ namespace BlackFlame
         REL::Relocation<std::uintptr_t> vtbl{ RE::Explosion::VTABLE[0] };
         Set3DHook::func = vtbl.write_vfunc(kSet3DIndex, Set3DHook::thunk);
         logger::info("BlackFlame: hooked Set3D (0x{:X}) on the Explosion vtable", kSet3DIndex);
+    }
+
+    void TickExplosionLights()
+    {
+        if (g_pendingLights.empty()) {
+            return;
+        }
+        std::vector<RE::ObjectRefHandle> due;
+        due.swap(g_pendingLights);
+        int tinted = 0;
+        for (const auto& handle : due) {
+            const auto ref = handle.get();
+            auto* explosion = ref ? ref->AsExplosion() : nullptr;
+            if (explosion && TintLight(explosion->GetExplosionRuntimeData().light.get())) {
+                ++tinted;
+            }
+        }
+        int suppressed = 0;
+        if (LogLimit::Allow("explosion light retry", 0, suppressed)) {
+            logger::info("BlackFlame: explosion light retry: {} of {} tinted one tick late", tinted, due.size());
+        }
     }
 }

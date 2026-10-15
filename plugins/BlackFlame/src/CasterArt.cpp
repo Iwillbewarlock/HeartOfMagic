@@ -2,10 +2,12 @@
 
 #include "Config.h"
 #include "FireSet.h"
+#include "LogLimit.h"
 #include "Recolor.h"
 
 #include <array>
 #include <format>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -99,6 +101,50 @@ namespace BlackFlame
             return std::format("{}: {}", a_label, a_place.stats.Describe());
         }
 
+        // Vanilla skeleton node names as BSFixedStrings, made once on the game thread and never
+        // freed: a static BSFixedString would release into the string cache at DLL unload,
+        // after the game tore it down (intentional two-string leak)
+        const RE::BSFixedString& MagicNodeName(RE::MagicSystem::CastingSource a_source)
+        {
+            static const RE::BSFixedString* const left = std::make_unique<RE::BSFixedString>(kLeftMagicNodeName).release();
+            static const RE::BSFixedString* const right = std::make_unique<RE::BSFixedString>(kRightMagicNodeName).release();
+            return a_source == RE::MagicSystem::CastingSource::kLeftHand ? *left : *right;
+        }
+
+        // The casting art: ActorMagicCaster::castingArtData.attachedArt (ActorMagicCaster.h:91,
+        // AttachTechniqueInput.h:24). Only when it is null, the old places: the caster's
+        // magicNode and the hand's magic node by name in both skeletons, and as the last
+        // resort the player's ModelReferenceEffects of the caster's castingArt.
+        std::string RecolorHandArt(RE::PlayerCharacter* a_player, RE::ActorMagicCaster* a_caster, const Hand& a_hand,
+            int& a_recolored)
+        {
+            if (auto* attached = a_caster->castingArtData.attachedArt.get()) {
+                Place art;
+                art.found = true;
+                art.stats = RecolorTree(attached);
+                a_recolored = art.stats.Recolored();
+                return DescribePlace("attachedArt", art);
+            }
+            Place magicNode;
+            magicNode.found = a_caster->magicNode != nullptr;
+            magicNode.stats = RecolorTree(a_caster->magicNode);
+            const auto& name = MagicNodeName(a_hand.source);
+            const Place firstPerson = RecolorNamedNode(a_player, true, name, a_caster->magicNode);
+            const Place thirdPerson = RecolorNamedNode(a_player, false, name, a_caster->magicNode);
+            Place artEffects;
+            const int seen = magicNode.stats.effectGeometries + firstPerson.stats.effectGeometries +
+                             thirdPerson.stats.effectGeometries;
+            if (seen == 0) {
+                artEffects = RecolorCastingArtEffects(a_player, a_caster->castingArt);
+            }
+            a_recolored = magicNode.stats.Recolored() + firstPerson.stats.Recolored() + thirdPerson.stats.Recolored() +
+                          artEffects.stats.Recolored();
+            return std::format("attachedArt: null, FALLBACK {} | {} | {} | {}", DescribePlace("magicNode", magicNode),
+                DescribePlace(std::format("1st person '{}'", a_hand.nodeName).c_str(), firstPerson),
+                DescribePlace(std::format("3rd person '{}'", a_hand.nodeName).c_str(), thirdPerson),
+                seen == 0 ? DescribePlace("casting art effects", artEffects) : "casting art effects: not searched");
+        }
+
         void TickHand(RE::PlayerCharacter* a_player, const Hand& a_hand, HandState& a_state)
         {
             const auto& config = GetConfig();
@@ -112,35 +158,22 @@ namespace BlackFlame
                 a_state = { spell->GetFormID(), false };
             }
 
-            Place magicNode;
-            Place firstPerson;
-            Place thirdPerson;
-            Place artEffects;
-            if (config.handArt) {
-                static const RE::BSFixedString leftName{ kLeftMagicNodeName };
-                static const RE::BSFixedString rightName{ kRightMagicNodeName };
-                const auto& name = a_hand.source == RE::MagicSystem::CastingSource::kLeftHand ? leftName : rightName;
-                magicNode.found = caster->magicNode != nullptr;
-                magicNode.stats = RecolorTree(caster->magicNode);
-                firstPerson = RecolorNamedNode(a_player, true, name, caster->magicNode);
-                thirdPerson = RecolorNamedNode(a_player, false, name, caster->magicNode);
-                artEffects = RecolorCastingArtEffects(a_player, caster->castingArt);
-            }
+            int recolored = 0;
+            const std::string places = config.handArt ? RecolorHandArt(a_player, caster, a_hand, recolored) : "hand art off";
             auto* light = caster->light ? caster->light->light.get() : nullptr;
             const bool lightTinted = config.light && TintLight(light);
 
-            const int recolored = magicNode.stats.Recolored() + firstPerson.stats.Recolored() +
-                                  thirdPerson.stats.Recolored() + artEffects.stats.Recolored();
             if (a_state.logged && recolored == 0) {
                 return;
             }
-            logger::info("BlackFlame: hand art: spell {:08X} {} hand{}: {} | {} | {} | {} | casting light {}",
-                spell->GetFormID(), a_hand.label, a_state.logged ? " (more geometry)" : "",
-                DescribePlace("magicNode", magicNode),
-                DescribePlace(std::format("1st person '{}'", a_hand.nodeName).c_str(), firstPerson),
-                DescribePlace(std::format("3rd person '{}'", a_hand.nodeName).c_str(), thirdPerson),
-                DescribePlace("casting art effects", artEffects),
-                !caster->light ? "none" : (lightTinted ? "tinted" : (config.light ? "has no NiLight" : "left (light off)")));
+            int suppressed = 0;
+            if (a_state.logged && !LogLimit::Allow("hand art", spell->GetFormID(), suppressed)) {
+                return;
+            }
+            logger::info("BlackFlame: hand art: spell {:08X} {} hand{}: {} | casting light {}{}", spell->GetFormID(),
+                a_hand.label, a_state.logged ? " (more geometry)" : "", places,
+                !caster->light ? "none" : (lightTinted ? "tinted" : (config.light ? "has no NiLight" : "left (light off)")),
+                suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             a_state.logged = true;
         }
     }

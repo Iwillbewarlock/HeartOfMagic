@@ -8,20 +8,23 @@
 // RECOLOUR - grey palette and desaturated base colour on effect materials
 // =============================================================================
 // Game thread only. Every BSEffectShaderProperty under a root gets its own copy
-// of its material (never the shared one: other instances, NPC projectiles
-// included, may use the same material) with the grey palette as its greyscale
-// texture and its base colour RGB set to luminance * config tintScale (alpha
-// kept). A property without the grey-to-palette colour flag gets the flag too
-// when config forcePalette is on, so its own texture's brightness is mapped
-// through the grey ramp (replacers such as Embers XD drop the flag on flame
-// bodies); with it off only the base colour changes on such a shape. A material whose greyscale texture is already the palette is skipped,
-// so calling it again on the same tree is cheap and changes nothing.
+// of its material (materials are pooled: never edit the shared one, other
+// instances, NPC projectiles included, may use it) with the grey palette as its
+// greyscale texture and its base colour RGB set to luminance * config tintScale
+// (alpha kept). The property itself is the instance's own: its palette flag is
+// edited in place when config forcePalette adds it to a shape without it, so
+// that shape's own texture brightness is mapped through the grey ramp
+// (replacers such as Embers XD drop the flag on flame bodies); with forcePalette
+// off only the base colour changes on such a shape. A material whose greyscale
+// texture or path is already the palette is skipped, so calling it again on the
+// same tree is cheap and changes nothing.
 //
 // Not touched: BSLightingShaderProperty (its emissive colour is a pointer that
-// may be shared) and colour controllers (likely shared). A controller animating
-// the property's colour every frame overrides the base colour change; the stats
-// count such properties. Particle colour modifiers only with config
-// particleColors (ParticleColors.h).
+// may be shared) and colour controllers (likely shared). The base colour is
+// desaturated on every recoloured shape, but a controller animating the
+// property's colour every frame may overwrite it; the stats count such
+// properties. Particle colour modifiers only with config particleColors
+// (ParticleColors.h).
 
 namespace BlackFlame
 {
@@ -51,6 +54,10 @@ namespace BlackFlame
     /// Sets a light's diffuse colour to config lightColor. False for a null light.
     bool TintLight(RE::NiLight* a_light);
 
-    /// "prop=0x... mat=0x..." for the first few effect properties under a_root (read only)
+    /// "prop=0x... mat=0x... grey=yes/no paletteFlag=yes/no" for the first few effect properties
+    /// under a_root, and how many are grey (read only; any grey on an NPC instance = contamination)
     [[nodiscard]] std::string DescribeMaterials(RE::NiAVObject* a_root);
+
+    /// The property's material carries our palette (texture pointer or path)
+    [[nodiscard]] bool HasGreyMaterial(RE::BSEffectShaderProperty* a_prop);
 }

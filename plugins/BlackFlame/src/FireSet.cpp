@@ -19,12 +19,14 @@ namespace BlackFlame
     {
         constexpr std::string_view kFireElement = "fire";
         constexpr std::string_view kHexPrefix = "0x";
+        constexpr std::string_view kHexPrefixUpper = "0X";
         constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;    // a full plugin's local id: 24 bits
         constexpr std::uint32_t kMaxLightLocalId = 0xFFF;  // a light plugin's: 12 bits (SpellScannerFormId.cpp writes the masked id)
         constexpr int kHexBase = 16;
 
         std::unordered_set<RE::FormID> g_fireSpells;
         std::unordered_set<RE::FormID> g_fireExplosions;
+        std::unordered_set<RE::FormID> g_fireEffects;  // MGEFs: what the burn and explosion layers key on
         FireSetCounts g_counts;
 
         using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
@@ -44,7 +46,7 @@ namespace BlackFlame
                 return std::nullopt;
             }
             auto hex = pid.substr(bar + 1);
-            if (hex.starts_with("0x") || hex.starts_with("0X")) {
+            if (hex.starts_with(kHexPrefix) || hex.starts_with(kHexPrefixUpper)) {
                 hex.remove_prefix(kHexPrefix.size());
             }
             PidParts out{ std::string(pid.substr(0, bar)), 0 };
@@ -147,6 +149,11 @@ namespace BlackFlame
                     continue;
                 }
                 ++counts.resolved;
+                // Decided by the catalog only when it says which elements the spell has
+                const auto elements = entry.find("elements");
+                if (elements == entry.end() || !elements->is_array()) {
+                    continue;
+                }
                 decided.insert(spell->GetFormID());
                 if (IsCountedSpell(spell) && HasFireElement(entry)) {
                     g_fireSpells.insert(spell->GetFormID());
@@ -156,19 +163,42 @@ namespace BlackFlame
             return true;
         }
 
-        void AddExplosions(const RE::SpellItem* spell)
+        // A fire MGEF: the vanilla fire keyword, or fire resistance as its resist value
+        bool IsFireMgef(const RE::EffectSetting* a_base, const RE::BGSKeyword* a_fireKeyword)
         {
-            for (const auto* effect : spell->effects) {
+            return a_base && ((a_fireKeyword && a_base->HasKeyword(a_fireKeyword)) ||
+                                 a_base->data.resistVariable == RE::ActorValue::kResistFire);
+        }
+
+        void AddFireEffect(const RE::EffectSetting* a_base)
+        {
+            g_fireEffects.insert(a_base->GetFormID());
+            if (a_base->data.explosion) {
+                g_fireExplosions.insert(a_base->data.explosion->GetFormID());
+            }
+            if (a_base->data.projectileBase && a_base->data.projectileBase->data.explosionType) {
+                g_fireExplosions.insert(a_base->data.projectileBase->data.explosionType->GetFormID());
+            }
+        }
+
+        // A fire spell's fire MGEFs; a spell the catalog calls fire without one (its fire is
+        // in a script or its name) contributes only its costliest effect
+        void AddFireEffects(const RE::SpellItem* a_spell, const RE::BGSKeyword* a_fireKeyword)
+        {
+            bool added = false;
+            for (const auto* effect : a_spell->effects) {
                 const auto* base = effect ? effect->baseEffect : nullptr;
-                if (!base) {
-                    continue;
+                if (IsFireMgef(base, a_fireKeyword)) {
+                    AddFireEffect(base);
+                    added = true;
                 }
-                if (base->data.explosion) {
-                    g_fireExplosions.insert(base->data.explosion->GetFormID());
-                }
-                if (base->data.projectileBase && base->data.projectileBase->data.explosionType) {
-                    g_fireExplosions.insert(base->data.projectileBase->data.explosionType->GetFormID());
-                }
+            }
+            if (added) {
+                return;
+            }
+            const auto* costliest = a_spell->GetCostliestEffectItem();
+            if (costliest && costliest->baseEffect) {
+                AddFireEffect(costliest->baseEffect);
             }
         }
     }
@@ -177,6 +207,7 @@ namespace BlackFlame
     {
         g_fireSpells.clear();
         g_fireExplosions.clear();
+        g_fireEffects.clear();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) {
             logger::error("BlackFlame: TESDataHandler unavailable - no spell counts as fire");
@@ -205,19 +236,26 @@ namespace BlackFlame
 
         for (const auto* spell : dh->GetFormArray<RE::SpellItem>()) {
             if (spell && g_fireSpells.contains(spell->GetFormID())) {
-                AddExplosions(spell);
+                AddFireEffects(spell, fireKeyword);
             }
         }
 
         logger::info("BlackFlame: fire spells: {} from the catalog ({} entries, {} found in this load order), "
-                     "{} by keyword, {} total; {} fire explosions",
-            catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(), g_fireExplosions.size());
-        g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(), g_fireExplosions.size() };
+                     "{} by keyword, {} total; {} fire effects, {} fire explosions",
+            catalog.fire, catalog.entries, catalog.resolved, keywordFire, g_fireSpells.size(), g_fireEffects.size(),
+            g_fireExplosions.size());
+        g_counts = { catalogRead, catalog.fire, keywordFire, g_fireSpells.size(), g_fireEffects.size(),
+            g_fireExplosions.size() };
     }
 
     FireSetCounts GetFireSetCounts() noexcept
     {
         return g_counts;
+    }
+
+    bool IsFireEffect(const RE::EffectSetting* a_effect)
+    {
+        return a_effect && g_fireEffects.contains(a_effect->GetFormID());
     }
 
     bool IsFireSpell(const RE::MagicItem* a_spell)

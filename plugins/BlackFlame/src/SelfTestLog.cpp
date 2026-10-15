@@ -79,5 +79,6 @@ namespace BlackFlame::SelfTestLog
             g_file << line << '\n';
             g_file.close();
         }
+        FlushLog();  // info lines are buffered (plugins/Common.h): the results reach disk now
     }
 }

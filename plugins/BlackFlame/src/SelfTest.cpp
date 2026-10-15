@@ -8,6 +8,7 @@
 #include "Palette.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
+#include "SelfTestText.h"
 #include "SelfTestWorld.h"
 
 #include <algorithm>
@@ -26,6 +27,7 @@ namespace BlackFlame::SelfTest
         using Clock = std::chrono::steady_clock;
         using ProjectileRecord = SelfTestProbe::ProjectileRecord;
         using ExplosionRecord = SelfTestProbe::ExplosionRecord;
+        using namespace SelfTestText;
 
         constexpr auto kReadyDelay = std::chrono::seconds(3);
         constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
@@ -58,88 +60,6 @@ namespace BlackFlame::SelfTest
         };
         Ctx g_ctx;  // game thread only
 
-        int CommonCount(const std::vector<std::uintptr_t>& a_lhs, const std::vector<std::uintptr_t>& a_rhs)
-        {
-            int count = 0;
-            for (const auto value : a_lhs) {
-                count += std::ranges::find(a_rhs, value) != a_rhs.end() ? 1 : 0;
-            }
-            return count;
-        }
-
-        RE::TESEffectShader* EngineShaderOf(const RE::SpellItem* a_spell)
-        {
-            if (!a_spell) {
-                return nullptr;
-            }
-            for (const auto* effect : a_spell->effects) {
-                if (effect && effect->baseEffect && effect->baseEffect->data.effectShader) {
-                    return effect->baseEffect->data.effectShader;
-                }
-            }
-            return nullptr;
-        }
-
-        RE::Actor* ActorOf(RE::ObjectRefHandle a_handle)
-        {
-            const auto ref = a_handle.get();
-            return ref ? ref->As<RE::Actor>() : nullptr;
-        }
-
-        RE::TESObjectREFR* RefOf(RE::ObjectRefHandle a_handle)
-        {
-            return a_handle.get().get();  // the handle's actor stays alive while spawned
-        }
-
-        std::optional<ProjectileRecord> FindProjectile(std::uint64_t a_mark, bool a_byPlayer, const RE::SpellItem* a_spell)
-        {
-            for (auto& r : SelfTestProbe::ProjectilesSince(a_mark)) {
-                if (r.byPlayer == a_byPlayer && a_spell && r.spell == a_spell->GetFormID()) {
-                    return r;
-                }
-            }
-            return std::nullopt;
-        }
-
-        std::string DescribeProjectile(const ProjectileRecord& a_r)
-        {
-            return std::format("spell {:08X} ({}) recoloured={} [{}] in {} us; 3D after: {} effect properties, {} with "
-                               "palette path, {} with palette pointer, {} both; hook thread {} ({}), game thread {}",
-                a_r.spell, a_r.kind, a_r.recolored, a_r.stats.Describe(), a_r.recolorMicros, a_r.after.effectProperties,
-                a_r.after.withPalettePath, a_r.after.withPalettePointer, a_r.after.withBoth, a_r.hookThread,
-                a_r.hookOnGameThread ? "game thread" : "other thread", g_gameThreadNativeId.load());
-        }
-
-        std::string DescribeExplosion(const ExplosionRecord& a_r)
-        {
-            return std::format("explosion {:08X} byPlayer={} recoloured={} [{}]; owner {:08X}, cause actor {:08X}, "
-                               "magicCaster {} currentSpell {:08X}, light at Set3D {}; 3D after: {} with palette path; "
-                               "hook thread {} (game {})",
-                a_r.base, a_r.byPlayer, a_r.recolored, a_r.stats.Describe(), a_r.owner, a_r.causeActor,
-                a_r.hasMagicCaster ? "set" : "null", a_r.casterSpell, a_r.lightAtSet3D ? "yes" : "no",
-                a_r.after.withPalettePath, a_r.hookThread, g_gameThreadNativeId.load());
-        }
-
-        std::string DescribeShaders(const std::vector<SelfTestWorld::ShaderOn>& a_shaders)
-        {
-            std::string out;
-            for (const auto& s : a_shaders) {
-                out += std::format("{}{:08X}{}", out.empty() ? "" : ", ", s.effectData, s.finished ? " (finished)" : "");
-            }
-            return out.empty() ? "none" : out;
-        }
-
-        std::string DescribeBurns(std::uint64_t a_mark)
-        {
-            std::string out;
-            for (const auto& b : SelfTestProbe::BurnsSince(a_mark)) {
-                out += std::format("{}[spell {:08X} on {:08X}: {}, {} stopped, attempt {}, {}]", out.empty() ? "" : " ",
-                    b.spell, b.target, b.listState, b.stopped, b.attempt,
-                    b.alreadyLive ? "already live" : (b.applied ? "applied" : "not applied"));
-            }
-            return out.empty() ? "no burn swap recorded" : out;
-        }
-
         bool NeedActors(Ctx& a_c, const char* a_id)
         {
             if (a_c.actorsReady && a_c.haveForms) {
@@ -165,9 +85,9 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Info("T0", std::format("forms: burn shader {:08X}, keyword {:08X}, stoke spell {:08X}",
                 forms.burnShader ? forms.burnShader->GetFormID() : 0, forms.stokedKeyword ? forms.stokedKeyword->GetFormID() : 0,
                 forms.stokeSpell ? forms.stokeSpell->GetFormID() : 0));
-            SelfTestLog::Info("T0", std::format("fire spells: catalog {} ({}), keyword {}, total {}; fire explosions {}",
+            SelfTestLog::Info("T0", std::format("fire spells: catalog {} ({}), keyword {}, total {}; fire effects {}, fire explosions {}",
                 counts.catalogFire, counts.catalogRead ? "read" : "NOT read", counts.keywordFire, counts.total,
-                counts.explosions));
+                counts.effects, counts.explosions));
             SelfTestLog::Info("T0", std::format("config: burnShader={} burnMode={} projectile={} explosion={} handArt={} "
                 "light={} forcePalette={} particleColors={} tintScale={}", cfg.burnShader, BurnModeName(cfg.burnMode),
                 cfg.projectile, cfg.explosion, cfg.handArt, cfg.light, cfg.forcePalette, cfg.particleColors, cfg.tintScale));
@@ -294,6 +214,35 @@ namespace BlackFlame::SelfTest
             return true;
         }
 
+        // A second hit while the grey shader is live extends it instead of stacking a second one
+        bool StepBurnExtend(Ctx& a_c, bool a_first)
+        {
+            if (a_first) {
+                if (!NeedActors(a_c, "T5-extend")) {
+                    return true;
+                }
+                a_c.waitingFor = "a burn record for a second Firebolt hit";
+                a_c.mark = SelfTestProbe::Mark();
+                (void)SelfTestWorld::Cast(RE::PlayerCharacter::GetSingleton(), a_c.forms.firebolt, RefOf(a_c.dummy));
+                return false;
+            }
+            const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
+            const auto it = std::ranges::find_if(burns, [](const auto& b) { return b.applied || b.alreadyLive; });
+            if (it == burns.end()) {
+                a_c.waitingFor = std::format("a burn record for a second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));
+                return false;
+            }
+            const auto* ours = GetForms().burnShader;
+            const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
+            const auto liveGrey = std::ranges::count_if(shaders, [&](const auto& s) {
+                return ours && !s.finished && s.effectData == ours->GetFormID();
+            });
+            SelfTestLog::Check("T5-extend", it->alreadyLive && liveGrey == 1, std::format("second hit {} the grey shader; "
+                "live grey shaders on the target: {}; burns: {}", it->alreadyLive ? "extended" : "applied a new",
+                liveGrey, DescribeBurns(a_c.mark)));
+            return true;
+        }
+
         bool StepNpcProjectile(Ctx& a_c, bool a_first)
         {
             if (a_first) {
@@ -322,7 +271,7 @@ namespace BlackFlame::SelfTest
             const auto& npc = *a_c.npcT4;
             const auto& player = *a_c.playerT4;
             const int sharedProps = CommonCount(npc.after.pointers.properties, player.after.pointers.properties);
-            const bool ok = !npc.recolored && npc.after.withPalettePath == 0 && sharedProps == 0;
+            const bool ok = !npc.recolored && npc.after.withGrey == 0 && sharedProps == 0;
             SelfTestLog::Check("T4", ok, std::format("NPC: {} | properties shared with the player's live projectile: {}",
                 DescribeProjectile(npc), sharedProps));
             SelfTestLog::Info("T4", std::format("materials before any recolour: NPC {} vs player {}, {} pointer(s) in common "
@@ -363,7 +312,7 @@ namespace BlackFlame::SelfTest
             for (const auto& r : SelfTestProbe::ExplosionsSince(a_c.mark)) {
                 if (r.byPlayer == a_byPlayer) {
                     const bool ok = a_byPlayer ? (r.recolored && r.stats.Recolored() > 0) :
-                                                 (!r.recolored && r.after.withPalettePath == 0);
+                                                 (!r.recolored && r.after.withGrey == 0);
                     SelfTestLog::Check(id, ok, DescribeExplosion(r));
                     return true;
                 }
@@ -436,7 +385,7 @@ namespace BlackFlame::SelfTest
             if (!r) {
                 return false;
             }
-            SelfTestLog::Check("T8-cast", !r->recolored && r->after.withPalettePath == 0, DescribeProjectile(*r));
+            SelfTestLog::Check("T8-cast", !r->recolored && r->after.withGrey == 0, DescribeProjectile(*r));
             return true;
         }
 
@@ -465,6 +414,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T2", 5.0f, &StepActorsReady },
             StepDef{ "T3", 3.0f, &StepPlayerProjectile },
             StepDef{ "T5", 3.0f, &StepPlayerBurn },
+            StepDef{ "T5-extend", 3.0f, &StepBurnExtend },
             StepDef{ "T4", 3.0f, &StepNpcProjectile },
             StepDef{ "T5-npc", 3.0f, &StepNpcBurnInfo },
             StepDef{ "T6", 6.0f, &StepPlayerExplosion },
