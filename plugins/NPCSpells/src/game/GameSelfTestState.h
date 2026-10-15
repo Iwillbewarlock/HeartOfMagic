@@ -53,7 +53,7 @@ namespace NpcSpellsGame::SelfTest
         bool done = false;                     // this run has its RESULT
         bool stopped = false;                  // no further run: a failure (or a plugin not loaded) before the spawn would end every run the same way
         bool spawnPending = false;             // a leveled sample's placeatme ran and its actor is not found yet (FindLeveledSpawn)
-        bool onlyNew = false;                  // this run's actor was matched only as the one new leveled actor: not checked, left in the world
+        bool onlyNew = false;                  // this run's actor was matched only as the one new actor (after the spawn wait): not checked, left in the world
         std::unordered_set<RE::FormID> actorsBefore;  // the loaded actors just before that placeatme
         std::unordered_set<RE::FormID> entries;       // the leveled sample's NPC entries (nested lists followed), read at each run's spawn
     };
@@ -70,10 +70,10 @@ namespace NpcSpellsGame::SelfTest
         std::size_t readyTicks = 0;            // ticks with them since they last came (the start delay)
         std::size_t pass = 0, fail = 0, inconclusive = 0;
         std::vector<std::string> lines;        // appended to the report at the end
-        std::unordered_set<RE::FormID> spawnedIds;  // every ref this test spawned or matched: never a later leveled spawn's candidate
+        std::unordered_set<RE::FormID> spawnedIds;  // every ref this test spawned, matched or counted as left: never a later leveled spawn's candidate
         std::atomic<int> liveActors{ 0 };      // spawned and not yet cleaned up (read by the save message)
         std::atomic<int> pendingSpawns{ 0 };   // leveled placeatme runs whose actor is not found yet (read by the save message)
-        std::atomic<int> leftActors{ 0 };      // leveled actors the test placed and leaves in the world unmatched (FindLeveledSpawn, LeveledSpawnMissing)
+        std::atomic<int> leftActors{ 0 };      // actors the test leaves in the world: a leveled placeatme's actor not found in time, kept as the only new one, or the other matches of an ambiguous pick (FindLeveledSpawn, LeveledSpawnMissing)
         std::atomic<bool> savedWithActors{ false };
         std::atomic<bool> queued{ false };     // a Tick is queued and has not finished: the worker queues at most one
         std::atomic<bool> finished{ false };
@@ -95,11 +95,13 @@ namespace NpcSpellsGame::SelfTest
     // (FindLeveledSpawn, before any other sample's spawn); not found, it sets spawnPending and the ticks look again.
     // false + error: the command could not be run.
     bool PlaceLeveled(State& s, SampleRun& r, RE::PlayerCharacter* player, std::string& error);
-    // The new actor (NpcSpells::ChooseLeveledSpawn) and its spawn line; kNone: not found (yet). A real match sets the
-    // handle; kOnlyNew sets onlyNew instead (the actor is not checked and is left in the world, WARN line).
-    NpcSpells::LeveledSpawnMatch FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks);
-    // The FAIL reason when no actor was found within maxWaitMs (also logs the leveled actors that were new, up to five,
-    // and counts them as left in the world)
+    // The new actor (NpcSpells::ChooseLeveledSpawn) and its spawn line; kNone: not found (yet). waitOver: the spawn wait
+    // is over, so a lone new actor that matches no rule is taken (kOnlyNew); before that it is not. A real match sets the
+    // handle (other actors matching the same rule are left in the world, WARN line); kOnlyNew sets onlyNew instead (the
+    // actor is not checked and is left in the world, WARN line).
+    NpcSpells::LeveledSpawnMatch FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks, bool waitOver);
+    // The FAIL reason when no actor was found within maxWaitMs (also logs the new actors at any distance, up to five, and
+    // counts those within reach as left in the world, at least 1: NpcSpells::LeveledSpawnLeftCount)
     std::string LeveledSpawnMissing(State& s, SampleRun& r, std::size_t waitedTicks);
 
     // The placeatme's actor is no longer looked for

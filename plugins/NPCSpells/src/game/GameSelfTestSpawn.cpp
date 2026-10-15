@@ -16,7 +16,8 @@
 // TESLevCharacter (in-game run 6). CommonLib has no other PlaceAtMe. The
 // console's "player.placeatme <LVLN>" spawns a leveled actor (run 5), so the
 // same command runs here as a console script on the player (RE::Script). It
-// returns no ref: the actor is the new one close to the player (FindLeveledSpawn),
+// returns no ref: the actor is the new one close to the player whose base is an
+// entry of the LVLN (FindLeveledSpawn; in-game run 8: no ExtraLeveledCreature),
 // looked for right after the command, before another sample's spawn.
 // =============================================================================
 
@@ -75,20 +76,21 @@ namespace
         }
     }
 
-    struct NewLeveled
+    struct NewActor
     {
         RE::NiPointer<RE::Actor> actor;
-        const RE::ExtraLeveledCreature* leveled = nullptr;  // RE/E/ExtraLeveledCreature.h:24-25
+        const RE::ExtraLeveledCreature* leveled = nullptr;  // RE/E/ExtraLeveledCreature.h:24-25; null without the extra
         float distance = 0.0f;                              // from the player, game units
     };
 
     // Actors that were not loaded before the placeatme, are made at runtime (0xFF..., RE/T/TESForm.h:334), are not disabled
-    // or marked for deletion (TESObjectREFR.cpp:810, :874; the test's own cleanup does both), were never spawned or matched
-    // by this test, and stand within kSpawnAcceptRadius of the player (any distance with anyDistance: the failure log); of
-    // them, those with ExtraLeveledCreature (RE/T/TESObjectREFR.h:508). newActors: all of them, with or without the extra.
-    std::vector<NewLeveled> NewLeveledActors(const SelfTest::State& s, const SelfTest::SampleRun& r, std::size_t& newActors, bool anyDistance = false)
+    // or marked for deletion (TESObjectREFR.cpp:810, :874; the test's own cleanup does both), were never spawned, matched
+    // or counted as left by this test, and stand within kSpawnAcceptRadius of the player (any distance with anyDistance:
+    // the failure log). With or without ExtraLeveledCreature (RE/T/TESObjectREFR.h:508): the console's placeatme of an
+    // LVLN gave an actor whose base is the drawn entry NPC record, without the extra (in-game run 8, 2026-10-16).
+    std::vector<NewActor> NewActors(const SelfTest::State& s, const SelfTest::SampleRun& r, bool anyDistance = false)
     {
-        std::vector<NewLeveled> out;
+        std::vector<NewActor> out;
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player) {
             return out;
@@ -103,10 +105,8 @@ namespace
             if (!anyDistance && distance > kSpawnAcceptRadius) {
                 continue;
             }
-            ++newActors;
-            if (const auto* leveled = actor->extraList.GetByType<RE::ExtraLeveledCreature>()) {
-                out.push_back({ std::move(actor), leveled, distance });
-            }
+            const auto* leveled = actor->extraList.GetByType<RE::ExtraLeveledCreature>();
+            out.push_back({ std::move(actor), leveled, distance });
         }
         return out;
     }
@@ -116,6 +116,42 @@ namespace
     RE::FormID IdOf(const RE::TESActorBase* base)
     {
         return base ? static_cast<const RE::TESForm*>(base)->GetFormID() : 0;
+    }
+
+    NpcSpells::LeveledSpawnCandidate ToCandidate(const NewActor& a, const SelfTest::SampleRun& r)
+    {
+        NpcSpells::LeveledSpawnCandidate c;
+        c.refId = a.actor->GetFormID();
+        const auto base = IdOf(a.actor->GetActorBase());  // RE/A/Actor.h:556
+        c.baseIsEntry = base != 0 && r.entries.contains(base);
+        if (a.leveled) {
+            const auto original = IdOf(a.leveled->originalBase);
+            const auto templ = IdOf(a.leveled->templateBase);
+            const auto sampleId = r.placed ? r.placed->GetFormID() : 0;
+            c.originalIsSample = original != 0 && original == sampleId;
+            c.originalIsEntry = original != 0 && r.entries.contains(original);
+            c.templateIsEntry = templ != 0 && r.entries.contains(templ);
+        }
+        return c;
+    }
+
+    // "actorBase X extraLeveled=no", or with the extra its template base (the NPC the engine drew, GetTemplateBase,
+    // RE/A/Actor.h:604, Actor.cpp:754) and its original base
+    std::string BasesText(const NewActor& a)
+    {
+        auto out = std::format("actorBase {} extraLeveled={}", SelfTest::FormText(a.actor->GetActorBase()), a.leveled ? "yes" : "no");
+        if (a.leveled) {
+            out += std::format(" templateBase {} originalBase {}", SelfTest::FormText(a.leveled->templateBase), SelfTest::FormText(a.leveled->originalBase));
+        }
+        return out;
+    }
+
+    // An actor the test leaves in the world: counted for the save warning and the WARN before DONE, and never another
+    // leveled spawn's candidate
+    void LeaveInWorld(SelfTest::State& s, RE::FormID id)
+    {
+        s.spawnedIds.insert(id);
+        ++s.leftActors;
     }
 }
 
@@ -138,53 +174,61 @@ bool SelfTest::PlaceLeveled(State& s, SampleRun& r, RE::PlayerCharacter* player,
         return false;
     }
     const auto command = std::format("placeatme {:08X} {}", r.placed->GetFormID(), kPlaceAtMeCount);
+    // Logged and flushed before the command runs: a crash inside it keeps the line naming what ran
+    Log(s, std::format("SELFTEST spawn sample {} kind=leveled console \"player.{}\" actorsLoadedBefore={} sampleEntries={}", r.label, command,
+        r.actorsBefore.size(), r.entries.size()));
+    FlushLog();
     script->SetCommand(command);    // RE/S/Script.h:52, Script.cpp:46 (game heap copy of the text)
     script->CompileAndRun(player);  // RE/S/Script.h:49, Script.cpp:30: compiled and run on the player, as "player.placeatme"
     script->ClearCommand();         // RE/S/Script.h:48, Script.cpp:22: frees the text and nulls it before the form goes
-    Log(s, std::format("SELFTEST spawn sample {} kind=leveled console \"player.{}\" actorsLoadedBefore={} sampleEntries={}", r.label, command,
-        r.actorsBefore.size(), r.entries.size()));
-    // At once: the command placed the actor on this main-thread call (run 7: foundAfterMs=0), and the next sample's
-    // snapshot would count it as already there. Not found: the ticks look again (the fallback).
-    if (FindLeveledSpawn(s, r, 0) == NpcSpells::LeveledSpawnMatch::kNone) {
+    // At once, in this main-thread call: the next sample's snapshot would count an actor placed by now as already there.
+    // Not found: the ticks look again (the fallback). The only new actor is not taken here (the wait is not over).
+    if (FindLeveledSpawn(s, r, 0, false) == NpcSpells::LeveledSpawnMatch::kNone) {
         r.spawnPending = true;
         ++s.pendingSpawns;
     }
     return true;
 }
 
-NpcSpells::LeveledSpawnMatch SelfTest::FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks)
+NpcSpells::LeveledSpawnMatch SelfTest::FindLeveledSpawn(State& s, SampleRun& r, std::size_t waitedTicks, bool waitOver)
 {
-    std::size_t newActors = 0;
-    auto found = NewLeveledActors(s, r, newActors);
+    const auto found = NewActors(s, r);
     std::vector<NpcSpells::LeveledSpawnCandidate> candidates;
-    const auto sampleId = r.placed ? r.placed->GetFormID() : 0;
-    for (const auto& c : found) {
-        const auto original = IdOf(c.leveled->originalBase);
-        const auto templ = IdOf(c.leveled->templateBase);
-        candidates.push_back({ c.actor->GetFormID(), original != 0 && original == sampleId, original != 0 && r.entries.contains(original),
-            templ != 0 && r.entries.contains(templ) });
+    std::size_t withExtra = 0;
+    for (const auto& a : found) {
+        candidates.push_back(ToCandidate(a, r));
+        withExtra += a.leveled ? 1 : 0;
     }
-    const auto choice = NpcSpells::ChooseLeveledSpawn(candidates);
+    const auto choice = NpcSpells::ChooseLeveledSpawn(candidates, waitOver);
     if (choice.match == NpcSpells::LeveledSpawnMatch::kNone) {
         return choice.match;
     }
-    auto* actor = found[choice.index].actor.get();
-    const auto* leveled = found[choice.index].leveled;
+    const auto& chosen = found[choice.index];
+    auto* actor = chosen.actor.get();
     const auto id = actor->GetFormID();
     s.spawnedIds.insert(id);
     ClearSpawnPending(s, r);
-    // templateBase: the NPC the engine drew from the list (GetTemplateBase, RE/A/Actor.h:604, Actor.cpp:754)
-    Log(s, std::format("SELFTEST spawn sample {} kind=leveled ref 0x{:08X} match={} matching={} leveledCandidates={} newActors={} sampleEntries={} "
-                       "actorBase {} templateBase {} originalBase {} foundAfterMs={}",
-        r.label, id, NpcSpells::LeveledSpawnMatchName(choice.match), choice.matching, candidates.size(), newActors, r.entries.size(),
-        FormText(actor->GetActorBase()), FormText(leveled->templateBase), FormText(leveled->originalBase), waitedTicks * NpcSpells::kSelfTestPollMs));
+    Log(s, std::format("SELFTEST spawn sample {} kind=leveled ref 0x{:08X} match={} matching={} candidates={} withExtraLeveled={} sampleEntries={} {} foundAfterMs={}",
+        r.label, id, NpcSpells::LeveledSpawnMatchName(choice.match), choice.matching, candidates.size(), withExtra, r.entries.size(), BasesText(chosen),
+        waitedTicks * NpcSpells::kSelfTestPollMs));
     if (choice.match == NpcSpells::LeveledSpawnMatch::kOnlyNew) {
-        // Neither of its bases is the sample or one of its entries: it may be another spawn's or a walk-in's actor, so it
-        // is not checked and not deleted
+        // Nothing ties it to the sample: it may be a walk-in or another mod's spawn, so it is not checked and not deleted
         r.onlyNew = true;
         ++s.leftActors;
-        Warn(s, std::format("SELFTEST WARN sample {} ref 0x{:08X} matched only as the one new leveled actor: not checked, left in the world", r.label, id));
+        Warn(s, std::format("SELFTEST WARN sample {} ref 0x{:08X} matched only as the one new actor: not checked, left in the world", r.label, id));
         return choice.match;
+    }
+    if (choice.matching > 1) {
+        // One placeatme places one actor: the other matching ones are not this run's, and are left alone
+        std::string others;
+        for (std::size_t i = choice.index + 1; i < found.size(); ++i) {
+            if (NpcSpells::LeveledSpawnMatches(candidates[i], choice.match)) {
+                LeaveInWorld(s, candidates[i].refId);
+                others += std::format(" 0x{:08X}", candidates[i].refId);
+            }
+        }
+        Warn(s, std::format("SELFTEST WARN sample {} {} actors matched {}: the first, 0x{:08X}, is checked; the others are left in the world:{}", r.label,
+            choice.matching, NpcSpells::LeveledSpawnMatchName(choice.match), id, others));
     }
     r.handle = actor->GetHandle();  // RE/T/TESObjectREFR.h:402
     r.spawnedId = id;
@@ -195,20 +239,23 @@ NpcSpells::LeveledSpawnMatch SelfTest::FindLeveledSpawn(State& s, SampleRun& r, 
 std::string SelfTest::LeveledSpawnMissing(State& s, SampleRun& r, std::size_t waitedTicks)
 {
     // At any distance, so the log tells "nothing spawned" from "spawned further than kSpawnAcceptRadius"
-    std::size_t newActors = 0;
-    const auto found = NewLeveledActors(s, r, newActors, true);
-    std::size_t inReach = 0;
+    const auto found = NewActors(s, r, true);
+    std::size_t inReach = 0, withExtra = 0;
     for (std::size_t i = 0; i < found.size(); ++i) {
-        inReach += found[i].distance <= kSpawnAcceptRadius ? 1 : 0;
+        const bool inRadius = found[i].distance <= kSpawnAcceptRadius;
+        inReach += inRadius ? 1 : 0;
+        withExtra += found[i].leveled ? 1 : 0;
         if (i < kMaxLoggedCandidates) {
-            Log(s, std::format("SELFTEST leveled candidate {} ref 0x{:08X} distance={:.0f} actorBase {} templateBase {} originalBase {}", r.label,
-                found[i].actor->GetFormID(), found[i].distance, FormText(found[i].actor->GetActorBase()), FormText(found[i].leveled->templateBase),
-                FormText(found[i].leveled->originalBase)));
+            Log(s, std::format("SELFTEST leveled candidate {} ref 0x{:08X} distance={:.0f} {}", r.label, found[i].actor->GetFormID(), found[i].distance, BasesText(found[i])));
+        }
+        if (inRadius) {
+            s.spawnedIds.insert(found[i].actor->GetFormID());  // counted as left below: no later run or sample takes it
         }
     }
     ClearSpawnPending(s, r);
-    s.leftActors += static_cast<int>(inReach);
+    const auto left = NpcSpells::LeveledSpawnLeftCount(inReach);
+    s.leftActors += static_cast<int>(left);
     return std::format("leveled spawn wait: no actor of console placeatme {:08X} found within {} ms (new actors loaded {}, with ExtraLeveledCreature {}, "
-                       "of them within {} units of the player {}: none, or several and none matching; they are left in the world)",
-        r.placed ? r.placed->GetFormID() : 0, waitedTicks * NpcSpells::kSelfTestPollMs, newActors, found.size(), static_cast<int>(kSpawnAcceptRadius), inReach);
+                       "within {} units of the player {}: none whose base is an entry of the sample, or several and none matching; {} counted as left in the world)",
+        r.placed ? r.placed->GetFormID() : 0, waitedTicks * NpcSpells::kSelfTestPollMs, found.size(), withExtra, static_cast<int>(kSpawnAcceptRadius), inReach, left);
 }

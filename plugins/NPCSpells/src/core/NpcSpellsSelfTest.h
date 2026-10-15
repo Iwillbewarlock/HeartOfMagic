@@ -80,26 +80,34 @@ namespace NpcSpells {
     SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, SelfTestSampleLists where, std::size_t distinctEvidence, std::string& reason);
     const char* VerdictName(SelfTestVerdict v);
     // A leveled sample (LVLN) is spawned by the console's placeatme run on the player, which returns no ref: the actor is
-    // looked for among the actors that appeared close to the player since. One candidate per such actor that has
-    // ExtraLeveledCreature and is not one this test spawned before.
+    // looked for among the actors that appeared close to the player since. One candidate per such actor that is not one
+    // this test spawned or matched before, with or without ExtraLeveledCreature: the console's placeatme of an LVLN gave an
+    // actor whose base is the drawn entry NPC record itself, with no ExtraLeveledCreature (in-game run 8, 2026-10-16).
     struct LeveledSpawnCandidate {
         std::uint32_t refId = 0;
         bool originalIsSample = false;   // ExtraLeveledCreature::originalBase is the sample's LVLN record
         bool originalIsEntry = false;    // its originalBase is an NPC entry of the LVLN (nested LVLNs followed)
         bool templateIsEntry = false;    // its template base is such an entry
+        bool baseIsEntry = false;        // the actor's base (GetActorBase) is such an entry (run 8's spawn)
     };
-    enum class LeveledSpawnMatch { kNone, kOriginalBase, kOriginalBaseIsEntry, kTemplateBaseIsEntry, kOnlyNew };
+    enum class LeveledSpawnMatch { kNone, kBaseIsEntry, kOriginalBase, kOriginalBaseIsEntry, kTemplateBaseIsEntry, kOnlyNew };
     struct LeveledSpawnChoice {
         std::size_t index = 0;           // into the candidates; meaningful unless match is kNone
         LeveledSpawnMatch match = LeveledSpawnMatch::kNone;
         std::size_t matching = 0;        // candidates the chosen rule matched (more than 1: ambiguous, the first is taken)
     };
-    // The first candidate whose originalBase is the sample; else the first whose originalBase is one of its entries; else
-    // the first whose template base is one; else the only candidate when there is exactly one (kOnlyNew: no proof that it
-    // is the sample's actor - the game side gives that run INCONCLUSIVE and leaves the actor alone). kNone with no
-    // candidate, or with several of which none matches.
-    LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates);
+    // Whether a candidate meets one rule (false for kNone and kOnlyNew, which are not a property of the candidate)
+    bool LeveledSpawnMatches(const LeveledSpawnCandidate& c, LeveledSpawnMatch m);
+    // The first candidate whose base is an entry of the sample; else the first whose originalBase is the sample; else the
+    // first whose originalBase is one of its entries; else the first whose template base is one. Failing those, only when
+    // acceptOnlyNew (the spawn wait is over: an actor still loading could match) and there is exactly one candidate, that
+    // one (kOnlyNew: no proof that it is the sample's actor - the game side gives that run INCONCLUSIVE and leaves the
+    // actor alone). kNone otherwise: no candidate, several of which none matches, or one before the wait is over.
+    LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates, bool acceptOnlyNew);
     const char* LeveledSpawnMatchName(LeveledSpawnMatch m);
+    // Leveled actors a placeatme whose actor was not found in time leaves in the world: the new actors within reach, and
+    // at least 1 (the command placed one somewhere, or nothing that can be told apart)
+    std::size_t LeveledSpawnLeftCount(std::size_t newActorsInReach);
     // The test's last line. DONE (what a watcher reads as "the run finished") only for a test that spawned its samples;
     // one that ended before its spawn checked nothing and runs again at the next save load in the session: RESTART with
     // the reason ("ended before the spawn" when empty).

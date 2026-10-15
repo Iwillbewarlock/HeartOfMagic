@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <format>
+#include <initializer_list>
 #include <iterator>
 namespace NpcSpells {
 namespace {
@@ -159,31 +160,42 @@ std::string SelfTestListsLine(std::string_view sampleText, int runs, const SelfT
     }
     return out;
 }
-LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates)
+bool LeveledSpawnMatches(const LeveledSpawnCandidate& c, LeveledSpawnMatch m)
 {
-    const auto pick = [&](bool LeveledSpawnCandidate::*field, LeveledSpawnMatch match) {
+    switch (m) {
+    case LeveledSpawnMatch::kBaseIsEntry: return c.baseIsEntry;
+    case LeveledSpawnMatch::kOriginalBase: return c.originalIsSample;
+    case LeveledSpawnMatch::kOriginalBaseIsEntry: return c.originalIsEntry;
+    case LeveledSpawnMatch::kTemplateBaseIsEntry: return c.templateIsEntry;
+    default: return false;
+    }
+}
+LeveledSpawnChoice ChooseLeveledSpawn(const std::vector<LeveledSpawnCandidate>& candidates, bool acceptOnlyNew)
+{
+    for (const auto rule : { LeveledSpawnMatch::kBaseIsEntry, LeveledSpawnMatch::kOriginalBase, LeveledSpawnMatch::kOriginalBaseIsEntry, LeveledSpawnMatch::kTemplateBaseIsEntry }) {
         LeveledSpawnChoice c;
         for (std::size_t i = 0; i < candidates.size(); ++i) {
-            if (!(candidates[i].*field)) continue;
-            if (c.matching++ == 0) { c.index = i; c.match = match; }
+            if (LeveledSpawnMatches(candidates[i], rule) && c.matching++ == 0) { c.index = i; c.match = rule; }
         }
-        return c;
-    };
-    if (auto c = pick(&LeveledSpawnCandidate::originalIsSample, LeveledSpawnMatch::kOriginalBase); c.match != LeveledSpawnMatch::kNone) return c;
-    if (auto c = pick(&LeveledSpawnCandidate::originalIsEntry, LeveledSpawnMatch::kOriginalBaseIsEntry); c.match != LeveledSpawnMatch::kNone) return c;
-    if (auto c = pick(&LeveledSpawnCandidate::templateIsEntry, LeveledSpawnMatch::kTemplateBaseIsEntry); c.match != LeveledSpawnMatch::kNone) return c;
-    if (candidates.size() == 1) return { 0, LeveledSpawnMatch::kOnlyNew, 1 };
+        if (c.match != LeveledSpawnMatch::kNone) return c;
+    }
+    if (acceptOnlyNew && candidates.size() == 1) return { 0, LeveledSpawnMatch::kOnlyNew, 1 };
     return {};
 }
 const char* LeveledSpawnMatchName(LeveledSpawnMatch m)
 {
     switch (m) {
+    case LeveledSpawnMatch::kBaseIsEntry: return "baseIsEntry";
     case LeveledSpawnMatch::kOriginalBase: return "originalBase";
     case LeveledSpawnMatch::kOriginalBaseIsEntry: return "originalBaseIsEntry";
     case LeveledSpawnMatch::kTemplateBaseIsEntry: return "templateBaseIsEntry";
-    case LeveledSpawnMatch::kOnlyNew: return "onlyNewLeveledActor";
+    case LeveledSpawnMatch::kOnlyNew: return "onlyNewActor";
     default: return "none";
     }
+}
+std::size_t LeveledSpawnLeftCount(std::size_t newActorsInReach)
+{
+    return std::max<std::size_t>(1, newActorsInReach);
 }
 std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive, std::size_t notRun)
 {

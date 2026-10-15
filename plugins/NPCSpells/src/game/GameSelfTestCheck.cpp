@@ -146,11 +146,14 @@ namespace
 
     // A leveled sample, or one whose chain has a leveled link before its holder: the holder from the spawned actor's
     // real records (the concrete template it drew, the record it was placed from, its base), the first whose
-    // template walk resolves
+    // template walk resolves. Without ExtraLeveledCreature the template base is the actor base (in-game run 8: the console's
+    // placeatme of an LVLN gave the drawn entry NPC as the base) and there is no original base: the walk starts from the
+    // actor base, named as such.
     void ResolveHolderAfterSpawn(SelfTest::SampleRun& r, const Bases& b)
     {
         const std::array<std::pair<RE::TESNPC*, const char*>, 3> starts{ {
-            { FileNpc(b.templateBase), "templateBase" }, { FileNpc(b.originalBase), "originalBase" }, { FileNpc(b.actorBase), "actorBase" } } };
+            { b.leveled ? FileNpc(b.templateBase) : nullptr, "templateBase" }, { FileNpc(b.originalBase), "originalBase" },
+            { FileNpc(b.actorBase), "actorBase" } } };
         for (const auto& [start, name] : starts) {
             if (!start) {
                 continue;

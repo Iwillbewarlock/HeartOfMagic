@@ -368,8 +368,11 @@ namespace
             }
             auto waited = r.waitTicks++;  // 0 on run 1's spawn tick, 1 on a later run's first tick (NextRun)
             if (r.spawnPending) {  // a leveled spawn's actor not found right after its placeatme: looked for each tick
-                if (SelfTest::FindLeveledSpawn(s, r, waited) == NpcSpells::LeveledSpawnMatch::kNone) {
-                    if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
+                // The lone new actor that matches no rule is taken only once the wait is over (it may be a walk-in while
+                // the sample's actor still loads)
+                const bool waitOver = NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs);
+                if (SelfTest::FindLeveledSpawn(s, r, waited, waitOver) == NpcSpells::LeveledSpawnMatch::kNone) {
+                    if (waitOver) {
                         Fail(s, r, SelfTest::LeveledSpawnMissing(s, r, waited));  // this run only: the next run spawns anew
                         NextRun(s, r);
                         open = open || !r.done;
@@ -382,7 +385,7 @@ namespace
                 r.waitTicks = 1;
             }
             if (r.onlyNew) {  // FindLeveledSpawn kept no handle: nothing to check or clean up
-                Record(s, r, NpcSpells::SelfTestVerdict::kInconclusive, "matched only as the one new leveled actor: not checked, left in the world");
+                Record(s, r, NpcSpells::SelfTestVerdict::kInconclusive, "matched only as the one new actor: not checked, left in the world");
                 NextRun(s, r);
                 open = open || !r.done;
                 continue;
