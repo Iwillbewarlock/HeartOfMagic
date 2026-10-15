@@ -202,9 +202,14 @@ namespace BlackFlame::SelfTest
                 ++lumChecked;
                 lumOff += Near(c.red, Luminance(before.baseColors[j]) * GetConfig().tintScale) ? 0 : 1;
             }
-            SelfTestLog::Check("T3-tint", grey > 0 && notGrey == 0 && lumChecked > 0 && lumOff == 0, std::format(
-                "recoloured base colours: {} grey (R=G=B), {} not; luminance x tintScale checked on {}, {} off; {} with "
-                "a colour controller left out of that compare", grey, notGrey, lumChecked, lumOff, controlled));
+            const auto detail = std::format("recoloured base colours: {} grey (R=G=B), {} not; luminance x tintScale "
+                "checked on {}, {} off; {} with a colour controller left out of that compare", grey, notGrey, lumChecked,
+                lumOff, controlled);
+            if (lumChecked == 0 && controlled > 0 && notGrey == 0) {
+                SelfTestLog::Info("T3-tint", "every comparable shape has a colour controller, nothing to compare: " + detail);
+                return;
+            }
+            SelfTestLog::Check("T3-tint", grey > 0 && notGrey == 0 && lumChecked > 0 && lumOff == 0, detail);
         }
 
         bool StepPlayerProjectile(Ctx& a_c, bool a_first)
@@ -259,10 +264,12 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Fail(a_id, "the target is gone: nothing cast");
             return false;
         }
-        if (!SelfTestWorld::Cast(a_caster, a_spell, target)) {
-            SelfTestLog::Fail(a_id, "the cast could not be made (no caster or spell): nothing cast");
+        std::string launch;
+        if (!SelfTestWorld::LaunchAt(a_caster, a_spell, target, launch)) {
+            SelfTestLog::Fail(a_id, "the projectile could not be launched: " + launch);
             return false;
         }
+        SelfTestLog::Info(a_id, launch);
         a_c.lastCast = Clock::now();
         return true;
     }

@@ -41,14 +41,15 @@ namespace BlackFlame
         static_assert(sizeof(RE::NiColorA) * kColorKeys == sizeof(float) * kColorKeyFloats);
         static_assert(sizeof(SimpleColorModifierLayout) == 0x80);
 
-        std::string Dump(const ColorKeys& a_keys)
-        {
-            std::string out;
-            for (const float f : a_keys) {
-                out += std::format("{}{:.3f}", out.empty() ? "" : " ", f);
-            }
-            return out;
+    }
+
+    std::string DescribeColorKeys(const ColorKeys& a_keys)
+    {
+        std::string out;
+        for (const float f : a_keys) {
+            out += std::format("{}{:.3f}", out.empty() ? "" : " ", f);
         }
+        return out;
     }
 
     bool IsSimpleColorModifier(const RE::NiPSysModifier* a_modifier)
@@ -84,7 +85,7 @@ namespace BlackFlame
             const bool plausible = KeysPlausible(keys);
             if (g_keyLogs.fetch_add(1) < kMaxKeyLogs) {
                 logger::info("BlackFlame: particle colour modifier 0x{:X} keys: {} ({})",
-                    reinterpret_cast<std::uintptr_t>(modifier.get()), Dump(keys),
+                    reinterpret_cast<std::uintptr_t>(modifier.get()), DescribeColorKeys(keys),
                     plausible ? "desaturated" : "do not look like colours - left untouched (layout mismatch?)");
             }
             if (!plausible) {

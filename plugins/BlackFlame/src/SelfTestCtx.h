@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 // =============================================================================
 // SELF-TEST STATE - shared by the state machine (SelfTest.cpp) and its steps
@@ -43,7 +44,9 @@ namespace BlackFlame::SelfTest
         std::uint64_t extendMark = 0;
         bool extendAttempted = false;
         bool extendCast = false;
-        std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
+        std::optional<bool> npcModifiersChanged;
+        std::vector<std::uintptr_t> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
+        std::optional<Clock::time_point> npcHitEta;    // when the caster's T4 projectile can have arrived  // the caster's colour keys moved between its hook and T4
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
     };
@@ -60,7 +63,8 @@ namespace BlackFlame::SelfTest
     /// The steps in order; the last is the cleanup every run ends with
     [[nodiscard]] std::span<const StepDef> Steps();
 
-    /// a_caster casts a_spell at the target, re-resolved now; a FAIL and false when the target
+    /// a_caster launches a_spell's projectile at the target (SelfTestWorld::LaunchAt), the target
+    /// re-resolved now; a FAIL and false when the target
     /// or the cast is gone (nothing cast)
     [[nodiscard]] bool CastAtTarget(Ctx& a_c, RE::Actor* a_caster, RE::SpellItem* a_spell, const char* a_id);
 
@@ -70,7 +74,7 @@ namespace BlackFlame::SelfTest
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
     // An engine hit shader still unfinished at this age was not finished by the burn layer (its
     // finishing runs within a retry tick or two); a younger one may be on its way out
-    inline constexpr float kEngineAgeMin = 0.3f;
+    inline constexpr float kEngineAgeMin = 0.5f;  // the retry runs 100-200 ms after queueing: ample margin
     inline constexpr float kRadiusMargin = 100.0f;  // beyond Fireball's explosion radius
     inline constexpr auto kExtendRecordWait = std::chrono::seconds(1);  // T4 waits for T5-extend's projectile record
     inline constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);

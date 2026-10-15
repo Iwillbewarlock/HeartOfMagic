@@ -42,19 +42,32 @@ namespace BlackFlame::SelfTest
         // Every exit ends here. Except for an abort for a load (the world is being torn down, its
         // handles must not be touched), the buff is dispelled and the actors deleted here too
         // when the cleanup step did not get to it (a timeout or an exception inside it).
-        void Finish(bool a_forLoad = false)
+        void Finish(bool a_forLoad = false) noexcept
         {
-            if (!a_forLoad && !g_ctx.cleanedUp) {
-                const int dispelled = SelfTestWorld::DispelStoke();
-                SelfTestLog::Info("CLEANUP", std::format("late cleanup: dispelled {} Stoke effect(s); target: {}; caster: {}",
-                    dispelled, SelfTestWorld::Remove(g_ctx.dummy), SelfTestWorld::Remove(g_ctx.caster)));
-            }
-            SelfTestLog::Done();
-            SelfTestProbe::SetRecording(false);
-            SelfTestProbe::Clear();
-            g_ctx = {};
+            // The state is reset first, so a throw below can never leave the machine running on a
+            // step index past the table; each later part has its own guard
+            const auto dummy = g_ctx.dummy;
+            const auto caster = g_ctx.caster;
+            const bool lateCleanup = !a_forLoad && !g_ctx.cleanedUp;
             g_running = false;
             g_active.store(false);
+            g_ctx = {};
+            SelfTestProbe::SetRecording(false);
+            try {
+                if (lateCleanup) {
+                    const int dispelled = SelfTestWorld::DispelStoke();
+                    SelfTestLog::Info("CLEANUP", std::format("late cleanup: dispelled {} Stoke effect(s); target: {}; "
+                        "caster: {}", dispelled, SelfTestWorld::Remove(dummy), SelfTestWorld::Remove(caster)));
+                }
+            } catch (...) {
+                logger::error("BlackFlame: self-test late cleanup threw; the test actors may be left in the world");
+            }
+            try {
+                SelfTestProbe::Clear();
+                SelfTestLog::Done();
+            } catch (...) {
+                logger::error("BlackFlame: self-test could not write its summary");
+            }
         }
 
         // Paused time (a menu, a load screen, a dead player) is not counted against a timeout
@@ -67,6 +80,9 @@ namespace BlackFlame::SelfTest
             if (g_ctx.greySeen) {
                 *g_ctx.greySeen += a_paused;
             }
+            if (g_ctx.npcHitEta) {
+                *g_ctx.npcHitEta += a_paused;
+            }
         }
 
         void JumpToCleanup()
@@ -78,6 +94,9 @@ namespace BlackFlame::SelfTest
         void RunStep()
         {
             const auto steps = Steps();
+            if (g_index >= steps.size()) {
+                return;  // never past the table, whatever ended the run
+            }
             const auto& step = steps[g_index];
             const bool first = !g_entered;
             if (first) {
@@ -103,9 +122,13 @@ namespace BlackFlame::SelfTest
             }
         }
 
-        void OnStepException(const char* a_what)
+        void OnStepException(const char* a_what) noexcept
         {
-            SelfTestLog::Fail("ABORT", std::format("exception in step {}: {}", g_index, a_what));
+            try {
+                SelfTestLog::Fail("ABORT", std::format("exception in step {}: {}", g_index, a_what));
+            } catch (...) {
+                logger::error("BlackFlame: self-test step {} threw and its FAIL line could not be written", g_index);
+            }
             if (!g_running) {
                 return;
             }

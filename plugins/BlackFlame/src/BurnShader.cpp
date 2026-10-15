@@ -175,7 +175,8 @@ namespace BlackFlame
         }
 
         // Only this effect's own hit shaders: an ally's identical shader on the same target stays
-        HitList FinishEngineShaders(RE::ActiveEffect* a_effect, const RE::TESEffectShader* a_engineShader, int& a_stopped)
+        HitList FinishEngineShaders(RE::ActiveEffect* a_effect, const RE::TESEffectShader* a_engineShader, int& a_stopped,
+            std::vector<std::uintptr_t>& a_seen)
         {
             a_stopped = 0;
             if (!a_effect->hitEffects) {
@@ -187,8 +188,11 @@ namespace BlackFlame
             std::unordered_set<RE::ShaderReferenceEffect*> found;
             for (auto* hit : *a_effect->hitEffects) {
                 auto* shader = hit ? hit->As<RE::ShaderReferenceEffect>() : nullptr;
-                if (shader && shader->effectData == a_engineShader && !shader->finished) {
-                    found.insert(shader);
+                if (shader && shader->effectData == a_engineShader) {
+                    a_seen.push_back(reinterpret_cast<std::uintptr_t>(shader));  // for the self-test
+                    if (!shader->finished) {
+                        found.insert(shader);
+                    }
                 }
             }
             FinishUnderLock(found);
@@ -331,12 +335,13 @@ namespace BlackFlame
             }
 
             int stopped = 0;
+            std::vector<std::uintptr_t> hitShaders;
             const char* listState = "original left (overlay)";
             if (!effect) {
                 // Applied from the event's facts; the engine shader cannot be found without the effect
                 listState = "active effect gone before the task ran (grey from the event's data, engine shader left)";
             } else if (config.burnMode == BurnMode::kReplace) {
-                const HitList state = FinishEngineShaders(effect, engineShader, stopped);
+                const HitList state = FinishEngineShaders(effect, engineShader, stopped, hitShaders);
                 listState = HitListName(state);
                 if (state != HitList::kStopped) {
                     Pending().push_back({ a_target, a_id, g_tick });
@@ -345,7 +350,7 @@ namespace BlackFlame
             UpdateLiveCount();
             const auto spellId = spell ? spell->GetFormID() : 0;
             ReportBurn({ 0, targetRef->GetFormID(), spellId, engineShader->GetFormID(), listState, stopped, kFirstAttempt,
-                grey != nullptr && !extended, extended });
+                grey != nullptr && !extended, extended, std::move(hitShaders) });
             LogBurn(spellId, targetRef->GetFormID(), std::format("[{}] spell {:08X} MGEF {:08X} on {:08X}: hit shader "
                 "{:08X}: {} ({} stopped{}), grey shader {} {:.1f} s", BurnModeName(config.burnMode), spellId,
                 base->GetFormID(), targetRef->GetFormID(), engineShader->GetFormID(), listState, stopped,
@@ -378,9 +383,10 @@ namespace BlackFlame
                 return;
             }
             int stopped = 0;
-            const HitList state = FinishEngineShaders(effect, engineShader, stopped);
+            std::vector<std::uintptr_t> hitShaders;
+            const HitList state = FinishEngineShaders(effect, engineShader, stopped, hitShaders);
             ReportBurn({ 0, targetId, spellId, engineShader->GetFormID(), HitListName(state), stopped, kRetryAttempt,
-                false, false });
+                false, false, std::move(hitShaders) });
             LogBurn(spellId, targetId, std::format("retry: spell {:08X} on {:08X}: {} ({} stopped)", spellId, targetId,
                 HitListName(state), stopped));
         }

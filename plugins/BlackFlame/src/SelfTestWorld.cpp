@@ -11,6 +11,11 @@ namespace BlackFlame::SelfTestWorld
     {
         constexpr float kFullEffectiveness = 1.0f;
         constexpr float kNoMagnitudeOverride = 0.0f;
+        constexpr float kOriginHeightShare = 0.65f;  // of the shooter's height: about the chest
+        constexpr float kOriginForward = 60.0f;      // units toward the target, clear of the shooter
+        constexpr float kAimHeightShare = 0.6f;      // of the target's height: its torso
+        constexpr float kTwoPi = 6.2831853f;
+        constexpr float kHeadingAgreement = 0.5f;    // radians: the engine solve must point the same way
     }
 
     bool LookupVanilla(VanillaForms& a_out, std::string& a_missing)
@@ -56,6 +61,64 @@ namespace BlackFlame::SelfTestWorld
         }
         caster->CastSpellImmediate(a_spell, false, a_target, kFullEffectiveness, false, kNoMagnitudeOverride, a_caster);
         return true;
+    }
+
+    bool LaunchAt(RE::Actor* a_shooter, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target, std::string& a_detail)
+    {
+        if (!a_shooter || !a_spell || !a_target || !a_shooter->GetParentCell()) {
+            a_detail = "no shooter (in a cell), spell or target";
+            return false;
+        }
+        // The LaunchData spell constructor dereferences these without a check (Projectile.cpp:213-222)
+        const auto* avEffect = a_spell->GetAVEffect();
+        auto* projectileBase = avEffect ? avEffect->data.projectileBase : nullptr;
+        if (!projectileBase || !a_spell->GetCostliestEffectItem()) {
+            a_detail = "the spell has no projectile";
+            return false;
+        }
+        // Origin: the shooter's chest height (CommonLib's own fallback without a magic node,
+        // Projectile.cpp:275-283), nudged toward the target so it starts clear of the shooter
+        const auto from = a_shooter->GetPosition();
+        auto aim = a_target->GetPosition();
+        aim.z += a_target->GetHeight() * kAimHeightShare;
+        const float flatX = aim.x - from.x;
+        const float flatY = aim.y - from.y;
+        const float flat = std::sqrt(flatX * flatX + flatY * flatY);
+        RE::NiPoint3 origin = from;
+        origin.z += a_shooter->GetHeight() * kOriginHeightShare;
+        if (flat > 0.0f) {
+            origin.x += flatX / flat * kOriginForward;
+            origin.y += flatY / flat * kOriginForward;
+        }
+        // The straight line: heading z = atan2(dx, dy) (as Actor::SetHeading), pitch x positive DOWN
+        const float dx = aim.x - origin.x;
+        const float dy = aim.y - origin.y;
+        const float dz = aim.z - origin.z;
+        RE::Projectile::ProjectileRot angles{};
+        angles.z = std::atan2(dx, dy);
+        angles.x = -std::atan2(dz, std::sqrt(dx * dx + dy * dy));
+        // The engine's own solve (speed, gravity, aimed at the torso) when it agrees in heading
+        const auto solved = RE::CombatUtilities::GetAngleToProjectedTarget(origin, a_target,
+            projectileBase->data.speed, projectileBase->data.gravity, RE::ACTOR_LOS_LOCATION::kTorso);
+        const bool useSolved = std::isfinite(solved.x) && std::isfinite(solved.z) &&
+                               std::fabs(std::remainder(solved.z - angles.z, kTwoPi)) < kHeadingAgreement;
+        const auto straight = angles;
+        if (useSolved) {
+            angles.x = solved.x;
+            angles.z = solved.z;
+        }
+
+        RE::Projectile::LaunchData data(a_shooter, origin, angles, a_spell);
+        data.castingSource = RE::MagicSystem::CastingSource::kRightHand;
+        data.desiredTarget = a_target;
+        RE::ProjectileHandle handle;
+        RE::Projectile::Launch(&handle, data);
+        const bool launched = static_cast<bool>(handle);
+        a_detail = std::format("launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}): pitch {:.3f}, heading "
+            "{:.3f} rad ({}; straight line {:.3f} / {:.3f}, engine solve {:.3f} / {:.3f}): {}", origin.x, origin.y,
+            origin.z, aim.x, aim.y, aim.z, angles.x, angles.z, useSolved ? "engine solve" : "straight line", straight.x,
+            straight.z, solved.x, solved.z, launched ? "projectile handle returned" : "NO projectile handle");
+        return launched;
     }
 
     RE::ObjectRefHandle Spawn(RE::TESNPC* a_base, float a_forward, float a_right)
@@ -161,7 +224,7 @@ namespace BlackFlame::SelfTestWorld
         lists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
             if (a_effect && a_effect->target == a_target) {
                 out.push_back({ a_effect->effectData ? a_effect->effectData->GetFormID() : 0, a_effect->finished,
-                    a_effect->age });
+                    a_effect->age, reinterpret_cast<std::uintptr_t>(a_effect) });
             }
             return RE::BSContainer::ForEachResult::kContinue;
         });

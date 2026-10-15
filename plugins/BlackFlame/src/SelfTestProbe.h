@@ -102,6 +102,7 @@ namespace BlackFlame::SelfTestProbe
         int attempt = 0;
         bool applied = false;
         bool alreadyLive = false;
+        std::vector<std::uintptr_t> hitShaders;  // the effect's own engine hit shaders seen in hitEffects (finished or not)
     };
 
     void RecordProjectile(ProjectileRecord a_record);

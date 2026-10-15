@@ -31,6 +31,49 @@ namespace BlackFlame::SelfTest
             });
         }
 
+        // Each engine hit shader on the target with its age and whose hit it was (by the pointers
+        // the burn layer recorded from each effect's hitEffects)
+        std::string DescribeEngineShaders(const Ctx& a_c, const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
+            const std::vector<RE::FormID>& a_engines)
+        {
+            const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
+            const auto owner = [&](std::uintptr_t a_ptr) {
+                for (const auto& b : burns) {
+                    if (std::ranges::find(b.hitShaders, a_ptr) != b.hitShaders.end()) {
+                        return (a_c.extendCast && b.seq >= a_c.extendMark) ? "T5-extend" : "T3";
+                    }
+                }
+                return "unknown";
+            };
+            std::string out;
+            for (const auto& s : a_shaders) {
+                if (std::ranges::find(a_engines, s.effectData) == a_engines.end()) {
+                    continue;
+                }
+                out += std::format("{}[{:08X} age {:.2f}{} from {}]", out.empty() ? "" : " ", s.effectData, s.age,
+                    s.finished ? " finished" : "", owner(s.ptr));
+            }
+            return out.empty() ? "none" : out;
+        }
+
+        // How long the caster's Firebolt needs to reach the target: distance / the projectile's speed,
+        // plus a margin (a fixed second when the speed is unknown)
+        Clock::duration FlightTime(const Ctx& a_c)
+        {
+            constexpr auto kUnknownFlight = std::chrono::seconds(1);
+            constexpr float kFlightMarginSeconds = 0.3f;
+            const auto* avEffect = a_c.forms.firebolt ? a_c.forms.firebolt->GetAVEffect() : nullptr;
+            const auto* projectile = avEffect ? avEffect->data.projectileBase : nullptr;
+            auto* caster = RefOf(a_c.caster);
+            auto* target = RefOf(a_c.dummy);
+            if (!projectile || projectile->data.speed <= 0.0f || !caster || !target) {
+                return kUnknownFlight;
+            }
+            const float seconds = caster->GetPosition().GetDistance(target->GetPosition()) / projectile->data.speed +
+                                  kFlightMarginSeconds;
+            return std::chrono::duration_cast<Clock::duration>(std::chrono::duration<float>(seconds));
+        }
+
         RE::FormID FormIdOf(RE::ObjectRefHandle a_handle)
         {
             auto* ref = RefOf(a_handle);
@@ -52,10 +95,12 @@ namespace BlackFlame::SelfTest
             const auto pos = caster->GetPosition();
             const float toTarget = pos.GetDistance(target->GetPosition());
             const float toPlayer = target->GetPosition().GetDistance(player->GetPosition());
-            if (toTarget < radius + kRadiusMargin || toPlayer < radius + kRadiusMargin) {
-                SelfTestLog::Fail(a_id, std::format("the caster or the target moved inside the explosion's reach (caster to "
-                    "target {:.0f}, target to player {:.0f}, radius {:.0f} + {:.0f}): nothing cast", toTarget, toPlayer,
-                    radius, kRadiusMargin));
+            const float casterToPlayer = pos.GetDistance(player->GetPosition());
+            const float reach = radius + kRadiusMargin;
+            if (toTarget < reach || toPlayer < reach || casterToPlayer < reach) {
+                SelfTestLog::Fail(a_id, std::format("an actor moved inside the explosion's reach (caster to target {:.0f}, "
+                    "target to player {:.0f}, caster to player {:.0f}, radius {:.0f} + {:.0f}): nothing cast", toTarget,
+                    toPlayer, casterToPlayer, radius, kRadiusMargin));
                 return false;
             }
             SelfTestWorld::FaceTarget(caster, target);
@@ -101,6 +146,10 @@ namespace BlackFlame::SelfTest
         void CheckLiveLight(RE::TESObjectREFR* a_projectileRef)
         {
             auto* projectile = skyrim_cast<RE::Projectile*>(a_projectileRef);
+            if (!projectile) {
+                SelfTestLog::Info("T4-light", "not checked: the reference is not a projectile any more");
+                return;
+            }
             auto& data = projectile->GetProjectileRuntimeData();
             auto* light = data.light ? data.light->light.get() : nullptr;
             if (!light || !GetConfig().light) {
@@ -120,14 +169,18 @@ namespace BlackFlame::SelfTest
             if (a_atHook.colorModifiers.empty() || a_now.colorModifiers.empty()) {
                 return std::nullopt;
             }
+            bool matched = false;
             for (std::size_t i = 0; i < a_atHook.colorModifiers.size(); ++i) {
                 const auto it = std::ranges::find(a_now.colorModifiers, a_atHook.colorModifiers[i]);
-                if (it != a_now.colorModifiers.end() &&
-                    a_now.modifierKeys[static_cast<std::size_t>(it - a_now.colorModifiers.begin())] != a_atHook.modifierKeys[i]) {
+                if (it == a_now.colorModifiers.end()) {
+                    continue;
+                }
+                matched = true;
+                if (a_now.modifierKeys[static_cast<std::size_t>(it - a_now.colorModifiers.begin())] != a_atHook.modifierKeys[i]) {
                     return true;
                 }
             }
-            return false;
+            return matched ? std::optional<bool>(false) : std::nullopt;  // nothing compared: unknown
         }
     }
 
@@ -174,9 +227,9 @@ namespace BlackFlame::SelfTest
         const bool engineOk = !replace || (!engines.empty() && !a_c.engineLiveAfterGrey);
         SelfTestLog::Check("T5", applied && engineOk, std::format("grey shader live on the target [{}]; a burn record "
             "applied it: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in the "
-            "{:.2f} s checked: {}; shaders now: {}; burns: {}", BurnModeName(GetConfig().burnMode), applied ? "yes" : "NO",
-            engines.size(), kEngineAgeMin, window, a_c.engineLiveAfterGrey ? "YES" : "no", DescribeShaders(shaders),
-            DescribeBurns(a_c.t3Mark)));
+            "{:.2f} s checked: {}; engine shaders now: {}; burns: {}", BurnModeName(GetConfig().burnMode),
+            applied ? "yes" : "NO", engines.size(), kEngineAgeMin, window, a_c.engineLiveAfterGrey ? "YES" : "no",
+            DescribeEngineShaders(a_c, shaders, engines), DescribeBurns(a_c.t3Mark)));
         return true;
     }
 
@@ -223,26 +276,46 @@ namespace BlackFlame::SelfTest
         if (a_c.phase == 0) {
             // T5-extend's projectile must be on record first, or it could pass for T4's player one
             const bool extendSeen = !a_c.extendCast || FindProjectile(a_c.extendMark, true, a_c.forms.firebolt);
-            if (!extendSeen && Clock::now() - a_c.stepStart < kExtendRecordWait) {
+            const bool waited = Clock::now() - a_c.stepStart >= kExtendRecordWait;
+            if (!extendSeen && !waited) {
                 a_c.waitingFor = "T5-extend's projectile record before casting";
                 return false;
+            }
+            if (!extendSeen) {
+                SelfTestLog::Info("T4", "T5-extend's projectile never recorded: the player record below may be it");
             }
             if (!PrepareCaster(a_c, "T4")) {
                 return true;
             }
-            // The player casts too, in the same frame: two live projectiles, so equal property
+            // The engine hit shaders already on the target (T3, T5-extend): not the caster's
+            a_c.engineBeforeT4.clear();
+            const auto engines = EngineShadersOf(a_c.forms.firebolt);
+            for (const auto& s : SelfTestWorld::ShadersOn(a_c.dummy)) {
+                if (std::ranges::find(engines, s.effectData) != engines.end()) {
+                    a_c.engineBeforeT4.push_back(s.ptr);
+                }
+            }
+            // The caster first, so its colour keys are on record before the player's projectile
+            // exists; then the player in the same frame: two live projectiles, so equal property
             // pointers would mean sharing, not a freed one's memory reused
             a_c.mark = SelfTestProbe::Mark();
             a_c.phase = 1;
             a_c.waitingFor = "the caster's and the player's Firebolt projectiles in the hook";
-            return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T4") ||
-                   !CastAtTarget(a_c, ActorOf(a_c.caster), a_c.forms.firebolt, "T4");
+            if (!CastAtTarget(a_c, ActorOf(a_c.caster), a_c.forms.firebolt, "T4")) {
+                return true;
+            }
+            a_c.npcHitEta = Clock::now() + FlightTime(a_c);
+            return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T4");
         }
-        a_c.playerT4 = FindProjectile(a_c.mark, true, a_c.forms.firebolt);
-        a_c.npcT4 = FindProjectileFrom(a_c.mark, a_c.casterId, a_c.forms.firebolt);
-        if (!a_c.playerT4 || !a_c.npcT4) {
-            a_c.waitingFor = std::format("the caster's and the player's Firebolt projectiles in the hook (player {}, "
-                "caster {})", a_c.playerT4 ? "seen" : "not seen", a_c.npcT4 ? "seen" : "not seen");
+        if (a_c.phase == 1) {
+            a_c.playerT4 = FindProjectile(a_c.mark, true, a_c.forms.firebolt);
+            a_c.npcT4 = FindProjectileFrom(a_c.mark, a_c.casterId, a_c.forms.firebolt);
+            if (!a_c.playerT4 || !a_c.npcT4) {
+                a_c.waitingFor = std::format("the caster's and the player's Firebolt projectiles in the hook (player {}, "
+                    "caster {})", a_c.playerT4 ? "seen" : "not seen", a_c.npcT4 ? "seen" : "not seen");
+                return false;
+            }
+            a_c.phase = 2;  // judged on a later tick, a tick or more after the recolour
             return false;
         }
         const auto& npc = *a_c.npcT4;
@@ -252,7 +325,7 @@ namespace BlackFlame::SelfTest
         SelfTestLog::Check("T4", ok, std::format("caster: {} | player: recoloured={}, {} effect properties",
             DescribeProjectile(npc), player.recolored, player.after.effectProperties));
 
-        // Compared only while both projectiles still exist, inspected now (a tick or more later)
+        // Compared only while both projectiles still exist, inspected now
         const auto npcRef = npc.projectile.get();
         const auto playerRef = player.projectile.get();
         if (npcRef && playerRef) {
@@ -278,25 +351,47 @@ namespace BlackFlame::SelfTest
         return true;
     }
 
-    // The caster's hit keeps its own engine shader: we never finish an NPC's shared hit shader
+    // The caster's hit keeps its own engine shader: we never finish an NPC's shared hit shader.
+    // Only a shader that was not on the target before T4 and is not one of the player's T4 effect's
+    // own hit shaders (recorded by the burn layer) is the caster's.
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first)
     {
         if (a_first && !NeedActors(a_c, "T5-npc")) {
             return true;
         }
+        if (a_c.npcHitEta && Clock::now() < *a_c.npcHitEta) {
+            a_c.waitingFor = "the caster's projectile to arrive";
+            return false;
+        }
+        std::vector<std::uintptr_t> playerHits;
+        for (const auto& b : SelfTestProbe::BurnsSince(a_c.mark)) {
+            playerHits.insert(playerHits.end(), b.hitShaders.begin(), b.hitShaders.end());
+        }
+        if (playerHits.empty()) {
+            SelfTestLog::Info("T5-npc", "cannot judge: the burn layer saw no hit shader of the player's T4 effect, so "
+                "the caster's cannot be told apart");
+            return true;
+        }
         const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
         a_c.waitingFor = "the caster's engine hit shader on the target";
-        if (EngineLive(shaders, engines)) {
-            SelfTestLog::Pass("T5-npc", std::format("an engine Firebolt hit shader unfinished at {:.1f} s or older on the "
-                "target after the T4 casts: {}", kEngineAgeMin, DescribeShaders(shaders)));
+        const bool casterShader = std::ranges::any_of(shaders, [&](const auto& s) {
+            return !s.finished && s.age >= kEngineAgeMin && std::ranges::find(engines, s.effectData) != engines.end() &&
+                   std::ranges::find(a_c.engineBeforeT4, s.ptr) == a_c.engineBeforeT4.end() &&
+                   std::ranges::find(playerHits, s.ptr) == playerHits.end();
+        });
+        if (casterShader) {
+            SelfTestLog::Pass("T5-npc", std::format("the caster's engine Firebolt hit shader is still unfinished at {:.1f} s "
+                "or older: {}", kEngineAgeMin, DescribeShaders(shaders)));
             return true;
         }
-        if (Clock::now() - a_c.stepStart < kNpcBurnWait) {
+        const auto since = a_c.npcHitEta ? Clock::now() - *a_c.npcHitEta : Clock::now() - a_c.stepStart;
+        if (since < kNpcBurnWait) {
             return false;
         }
-        SelfTestLog::Fail("T5-npc", std::format("no unfinished engine Firebolt hit shader on the target within {} ms of the "
-            "T4 casts (the caster's should stay): {}", kNpcBurnWait.count(), DescribeShaders(shaders)));
+        SelfTestLog::Fail("T5-npc", std::format("no engine Firebolt hit shader of the caster's (new since T4, not the "
+            "player's) unfinished on the target within {} ms of its arrival: {}", kNpcBurnWait.count(),
+            DescribeShaders(shaders)));
         return true;
     }
 
@@ -319,11 +414,8 @@ namespace BlackFlame::SelfTest
         if (keysOf.empty()) {
             SelfTestLog::Info("T7", "no BSPSysSimpleColorModifier found");
         } else {
-            std::string dump;
-            for (const float f : keysOf.front()) {
-                dump += std::format("{}{:.3f}", dump.empty() ? "" : " ", f);
-            }
-            SelfTestLog::Info("T7", std::format("first BSPSysSimpleColorModifier colour keys (0x30-0x5F): {} -> {}", dump,
+            SelfTestLog::Info("T7", std::format("first BSPSysSimpleColorModifier colour keys (0x30-0x5F): {} -> {}",
+                DescribeColorKeys(keysOf.front()),
                 KeysPlausible(keysOf.front()) ? "layout plausible" : "layout mismatch - keep particleColors off"));
         }
         if (!GetConfig().particleColors || player.colorModifiers.empty()) {

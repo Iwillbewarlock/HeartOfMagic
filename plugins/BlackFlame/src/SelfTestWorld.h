@@ -36,6 +36,21 @@ namespace BlackFlame::SelfTestWorld
     /// Casts nothing and returns false without a live target.
     [[nodiscard]] bool Cast(RE::Actor* a_caster, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target);
 
+    /// Launches a_spell's projectile from a_shooter at a_target's torso: Projectile::LaunchData
+    /// (shooter, origin, angles, spell) - its spell constructor sets useOrigin and the spell
+    /// (Projectile.cpp:213-222), so the impact applies the spell and the shooter is attributed -
+    /// with castingSource right hand and desiredTarget set, then Projectile::Launch. Needed because
+    /// CastSpellImmediate aims at the target's origin, its feet, and misses beyond ~300 units
+    /// (skyrim-headless-mods headless-findings s24). Angles: the engine's own solve
+    /// (CombatUtilities::GetAngleToProjectedTarget, torso, speed and gravity) when its heading agrees
+    /// with the straight line, else the straight line: z heading = atan2(dx, dy) (as
+    /// Actor::SetHeading), x pitch positive DOWN = -atan2(dz, horizontal). No cast happens (no
+    /// magicka, cast event or caster spell). Game thread only. False (nothing launched) without a
+    /// shooter in a cell, spell, projectile or target; a_detail says origin, aim, both angle sets
+    /// and whether a projectile handle came back.
+    [[nodiscard]] bool LaunchAt(RE::Actor* a_shooter, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target,
+        std::string& a_detail);
+
     /// PlaceObjectAtMe at the player, then moved a_forward units ahead and a_right
     /// units to the right of where the player faces. Null handle on failure.
     [[nodiscard]] RE::ObjectRefHandle Spawn(RE::TESNPC* a_base, float a_forward, float a_right);
@@ -58,6 +73,7 @@ namespace BlackFlame::SelfTestWorld
         RE::FormID effectData = 0;
         bool finished = false;
         float age = 0.0f;  // BSTempEffect::age, seconds since it started
+        std::uintptr_t ptr = 0;  // the ShaderReferenceEffect itself (identity only)
     };
 
     /// Every ShaderReferenceEffect whose target is a_target (collected inside the

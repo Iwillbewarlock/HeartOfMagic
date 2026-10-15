@@ -4,6 +4,7 @@
 
 #include <array>
 #include <span>
+#include <string>
 
 // =============================================================================
 // PARTICLE COLOURS - BSPSysSimpleColorModifier desaturation (config particleColors)
@@ -31,6 +32,9 @@ namespace BlackFlame
     /// layout matches this runtime (0..2 leaves room for HDR-ish keys above 1 while catching
     /// floats that are really pointers or counts; all zero would be an empty or wrong read)
     [[nodiscard]] bool KeysPlausible(std::span<const float> a_keys);
+
+    /// The 12 key values as text, for the log
+    [[nodiscard]] std::string DescribeColorKeys(const ColorKeys& a_keys);
 
     /// Game thread only. Sets the RGB of every colour key of the simple colour
     /// modifiers on a_particles to its luminance (alpha kept), skipping any whose keys
