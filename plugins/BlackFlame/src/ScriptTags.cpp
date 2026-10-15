@@ -91,7 +91,7 @@ namespace BlackFlame
             g_count.store(tags.size());
         }
 
-        // Game thread only: the caller's VM handle resolved through the handle policy (type and
+        // A task or ticker body only (never a hook): the caller's VM handle resolved through the handle policy (type and
         // availability checked first, as Object::Resolve does) to an ActiveEffect that is a fire effect the
         // player cast. Confirms the tag (true) or drops it.
         bool JudgePending(std::uint32_t a_value, RE::VMHandle a_caller)
@@ -177,7 +177,11 @@ namespace BlackFlame
             RecolorStats stats;
             bool tinted = false;
             (void)Guarded("script-placed recolour", [&]() {
-                stats = RecolorTree(a_ref->Get3D());
+                // Runtime recolour of placed fire only with the explosion or hazard layer on (both off by
+                // default since v2); the light with config light
+                if (GetConfig().explosion || GetConfig().hazard) {
+                    stats = RecolorTree(a_ref->Get3D());
+                }
                 tinted = GetConfig().light && TintLight(LightOf(a_ref));
             });
             const auto* base = a_ref->GetBaseObject();
@@ -233,9 +237,14 @@ namespace BlackFlame
 
     bool ResolvePending(const RE::TESObjectREFR* a_ref)
     {
-        if (!a_ref || !IsOnGameThread()) {
-            return IsTaggedSource(a_ref);
+        if (!a_ref) {
+            return false;
         }
+        // v2 commit 0: judged from any task or ticker body, whatever thread runs it (run 2 showed SKSE task
+        // bodies on several threads, so the stamped-thread refusal dropped real judgements). The handle
+        // policy checks in JudgePending stay; the thread is logged for the S4 measurements.
+        constexpr int kResolveThreadLogs = 8;
+        LogThread("ResolvePending", "pending tag judgement", kResolveThreadLogs);
         const auto value = const_cast<RE::TESObjectREFR*>(a_ref)->GetHandle().native_handle();
         RE::VMHandle pending = 0;
         {

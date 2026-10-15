@@ -30,34 +30,38 @@ namespace BlackFlame
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
 
-        // False when the buff or the layer went off before a deferred recolour ran, or a step hit a
-        // hardware exception (SehGuard names it; the rest of this projectile is skipped)
+        // True when the 3D was recoloured (config projectile, off by default since v2). The light is tinted
+        // with config light whether or not the 3D is. False when the buff went off before a deferred run, or
+        // a step hit a hardware exception (SehGuard names it; the rest of this projectile is skipped)
         bool RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind, RecolorStats& a_stats)
         {
-            if (!IsStoked() || !GetConfig().projectile) {
+            const auto& config = GetConfig();
+            if (!IsStoked() || (!config.projectile && !config.light)) {
                 return false;
             }
             auto& data = a_projectile->GetProjectileRuntimeData();
-            if (!Guarded("projectile recolour 3D", [&]() { a_stats = RecolorTree(a_projectile->Get3D()); })) {
+            const bool recolor3D = config.projectile;
+            if (recolor3D && !Guarded("projectile recolour 3D", [&]() { a_stats = RecolorTree(a_projectile->Get3D()); })) {
                 return false;
             }
             bool hasLight = false;
             bool lightTinted = false;
-            if (GetConfig().light && !Guarded("projectile light", [&]() {
+            if (config.light && !Guarded("projectile light", [&]() {
                     auto* light = ProjectileLight(a_projectile);
                     hasLight = light != nullptr;
                     lightTinted = TintLight(light);
                 })) {
-                return true;  // the 3D was recoloured; the light step failed (logged)
+                return recolor3D;  // the light step failed (logged)
             }
             const auto spellId = data.spell ? data.spell->GetFormID() : 0;
             int suppressed = 0;
             if (LogLimit::Allow(a_kind, spellId, suppressed)) {
                 logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}{}", spellId, a_kind,
-                    a_stats.Describe(), !hasLight ? "none" : (lightTinted ? "tinted" : "left"),
+                    recolor3D ? a_stats.Describe() : std::string("3D not recoloured (projectile false)"),
+                    !hasLight ? "none" : (lightTinted ? "tinted" : "left"),
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
-            return true;
+            return recolor3D;
         }
 
         // Game thread: the material check (a scene-graph walk), the recolour (when due) and,
@@ -130,7 +134,7 @@ namespace BlackFlame
                 (void)ResolvePending(shooter.get());
                 const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
                 const bool byPlayer = link != PlayerLink::kNone;
-                const bool recolor = byPlayer && IsStoked() && GetConfig().projectile;
+                const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
                 LogLinkOnce("projectile", link);
                 // Not the player's after all: the normal path still runs for the records and logs
                 if (recolor || SelfTestProbe::Recording()) {
@@ -160,7 +164,7 @@ namespace BlackFlame
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
             const bool logMaterials = counter.fetch_add(1) < kMaxMaterialLogs;
-            const bool recolor = byPlayer && IsStoked() && GetConfig().projectile;
+            const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
             if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;
             }

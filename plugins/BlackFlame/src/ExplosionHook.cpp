@@ -56,14 +56,18 @@ namespace BlackFlame
             return *lights;
         }
 
-        // False when the buff or the layer went off before a deferred recolour ran
+        // True when the 3D was recoloured (config explosion, off by default since v2); the light is tinted with
+        // config light either way. False when the buff went off before a deferred run
         bool RecolorExplosion(RE::Explosion* a_explosion, RecolorStats& a_stats)
         {
-            if (!IsStoked() || !GetConfig().explosion) {
+            const bool recolor3D = GetConfig().explosion;
+            if (!IsStoked() || (!recolor3D && !GetConfig().light)) {
                 return false;
             }
             auto& data = a_explosion->GetExplosionRuntimeData();
-            a_stats = RecolorTree(a_explosion->Get3D());
+            if (recolor3D) {
+                a_stats = RecolorTree(a_explosion->Get3D());
+            }
             const int recolors = g_recolors.fetch_add(1) + 1;
             bool lightTinted = false;
             bool lightQueued = false;
@@ -82,12 +86,12 @@ namespace BlackFlame
             int suppressed = 0;
             if (LogLimit::Allow("explosion", baseId, suppressed)) {
                 logger::info("BlackFlame: explosion: {:08X}: {}; light {} (missing at recolour {} of {} times){}", baseId,
-                    a_stats.Describe(),
+                    recolor3D ? a_stats.Describe() : std::string("3D not recoloured (explosion false)"),
                     lightQueued ? "not there yet, retried next tick" : (!data.light ? "none" : (lightTinted ? "tinted" : "left")),
                     g_lightMissing.load(), recolors,
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
-            return true;
+            return recolor3D;
         }
 
         // Game thread: the recolour (when due), the NPC contamination check and, while the
@@ -275,7 +279,7 @@ namespace BlackFlame
                         static_cast<int>(casterSpell->GetSpellType()));
                 }
             }
-            const bool recolor = byPlayer && !notFireCast && IsStoked() && GetConfig().explosion;
+            const bool recolor = byPlayer && !notFireCast && IsStoked() && (GetConfig().explosion || GetConfig().light);
             const bool logMaterials = !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
             if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;

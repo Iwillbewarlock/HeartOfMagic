@@ -82,7 +82,7 @@ namespace BlackFlame::SelfTest
                 forms.stokedKeyword ? forms.stokedKeyword->GetFormID() : 0,
                 forms.stokeSpell ? forms.stokeSpell->GetFormID() : 0));
             SelfTestLog::Info("T0", std::format("fire spells (a fire MGEF) {}; fire effects {}, fire explosions {}, fire "
-                "hazards {}; catalog {}: {} tagged fire, {} of them without a fire effect (left)", counts.total,
+                "hazards {}; catalog {}: {} tagged fire, {} of them fire by the tag alone", counts.total,
                 counts.effects, counts.explosions, counts.hazards, counts.catalogRead ? "read" : "NOT read",
                 counts.catalogFire, counts.catalogOnly));
             SelfTestLog::Info("T0", std::format("config: burnShader={} hitArt={} projectile={} explosion={} hazard={} "
@@ -254,6 +254,15 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             const auto& a = r->after;
+            if (!GetConfig().projectile) {
+                // v2: runtime recolour off by default; the grey copy is judged by E1a
+                a_c.t3ModifierKeys = r->before.modifierKeys;
+                SelfTestLog::Info("T3", std::format("runtime recolour off (projectile false): not judged; {} of {} effect "
+                    "shapes carry the palette path | {}", a.withPalettePath, a.effectProperties, DescribeProjectile(*r)));
+                SelfTestLog::Info("T3-pointer", "not judged: runtime recolour off");
+                SelfTestLog::Info("T3-tint", "not judged: runtime recolour off");
+                return true;
+            }
             const bool ok = r->recolored && r->stats.Recolored() > 0 && a.withPalettePath >= r->stats.Recolored();
             a_c.t3Recolored = ok;
             a_c.t3ModifierKeys = r->before.modifierKeys;  // T7: contamination before T4 would show against these

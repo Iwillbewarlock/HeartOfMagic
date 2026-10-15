@@ -100,7 +100,7 @@ namespace BlackFlame
             if (ImpactWindowOpen()) {
                 TagSource(a_hazard);
             }
-            if (!IsStoked() || !GetConfig().hazard || !a_hazard->Get3D()) {
+            if (!IsStoked() || (!GetConfig().hazard && !GetConfig().light) || !a_hazard->Get3D()) {
                 return;
             }
             const auto handle = a_hazard->GetHandle();
@@ -133,7 +133,8 @@ namespace BlackFlame
         bool RecolorHazard(RE::Hazard* a_hazard, const RE::BGSHazard* a_base, PlayerLink a_link)
         {
             RecolorStats stats;
-            if (!Guarded("hazard recolour", [&]() { stats = RecolorTree(a_hazard->Get3D()); })) {
+            // The 3D only with config hazard (off by default since v2); the light with config light
+            if (GetConfig().hazard && !Guarded("hazard recolour", [&]() { stats = RecolorTree(a_hazard->Get3D()); })) {
                 return true;  // faulted: not again
             }
             const char* lightKind = "not touched (light false)";

@@ -20,13 +20,15 @@ namespace BlackFlame
         constexpr int kMaxTicks = 20;            // 2 s of 100 ms ticks for the art's 3D to appear
         constexpr std::size_t kMaxPending = 64;  // more waiting at once are dropped (counted in the log)
 
+        // Matched on (controller, art) only. The target is NOT stored: the engine's first GetHitEffectArt
+        // call comes before SetTarget (target null), so a stored target never matched the live effect
+        // (Vigilant flame ring, run 2). A freed controller's address reused by someone else's effect with
+        // the same art is caught after the walk: the live controller must still name a fire effect the
+        // player cast (TryRecolor). The target is read from the live ModelReferenceEffect for the log.
         struct PendingArt
         {
             std::uintptr_t controller = 0;  // an address to find the effect by (the stored value is never dereferenced)
             const RE::BGSArtObject* art = nullptr;
-            // Also compared: a freed controller's address reused by an NPC's effect with the same art
-            // must not match (its target differs)
-            RE::ObjectRefHandle target;
             std::uint32_t generation = 0;
             int ticks = 0;
         };
@@ -58,7 +60,7 @@ namespace BlackFlame
             if (auto* lists = RE::ProcessLists::GetSingleton()) {
                 lists->ForEachModelEffect([&](RE::ModelReferenceEffect* a_effect) {
                     if (a_effect->finished || reinterpret_cast<std::uintptr_t>(a_effect->controller) != a_art.controller ||
-                        a_effect->artObject != a_art.art || a_effect->target != a_art.target) {
+                        a_effect->artObject != a_art.art) {
                         return RE::BSContainer::ForEachResult::kContinue;
                     }
                     found.effect.reset(a_effect);
@@ -141,7 +143,7 @@ namespace BlackFlame
             g_overflow.fetch_add(1);
             return;
         }
-        pending.push_back({ controller, a_art, a_controller->target, WorldGeneration(), 0 });
+        pending.push_back({ controller, a_art, WorldGeneration(), 0 });
         g_pendingCount.store(pending.size());
     }
 

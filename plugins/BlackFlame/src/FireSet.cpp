@@ -124,8 +124,8 @@ namespace BlackFlame
             std::size_t fire = 0;
         };
 
-        // The catalog is only a hint now (round 8b, user decision): its "fire" tag alone changes no
-        // visuals. Fills a_fire with the counted spells it tags fire, for the log. False without one.
+        // Fills a_fire with the counted spells the catalog tags fire (v2: such a spell is fire, see
+        // BuildFireSets). False without a readable catalog.
         bool ReadCatalog(RE::TESDataHandler* dh, std::unordered_set<RE::FormID>& a_fire, CatalogCounts& counts)
         {
             std::ifstream file(kCatalogPath, std::ios::binary);
@@ -226,27 +226,35 @@ namespace BlackFlame
         CatalogCounts catalog;
         const bool catalogRead = ReadCatalog(dh, catalogFire, catalog);
 
-        // Fire = a fire MGEF (MagicDamageFire keyword or fire resistance), nothing else
+        // Fire (v2, user decision 2026-10-16) = a fire MGEF (MagicDamageFire keyword or fire resistance),
+        // OR the spell is tagged "fire" by Heart of Magic's catalog. A fire-MGEF spell's fire MGEFs are its
+        // fire effects; a catalog-only fire spell has no fire MGEF to pick, so every effect of it is a fire
+        // effect (e.g. Vigilant's Script-archetype Blinding Fire). Copies change only visuals, so a catalog
+        // false positive costs a grey look and nothing else.
         const auto* fireKeyword = GetForms().fireKeyword;
+        std::size_t catalogOnly = 0;
         for (const auto* spell : dh->GetFormArray<RE::SpellItem>()) {
-            if (!IsCountedSpell(spell) || !HasFireMgef(spell, fireKeyword)) {
+            if (!IsCountedSpell(spell)) {
+                continue;
+            }
+            const bool byEffect = HasFireMgef(spell, fireKeyword);
+            const bool byCatalog = !byEffect && catalogFire.contains(spell->GetFormID());
+            if (!byEffect && !byCatalog) {
                 continue;
             }
             g_fireSpells.insert(spell->GetFormID());
+            catalogOnly += byCatalog ? 1 : 0;
             for (const auto* effect : spell->effects) {
                 const auto* base = effect ? effect->baseEffect : nullptr;
-                if (IsFireMgef(base, fireKeyword)) {
+                if (base && (byCatalog || IsFireMgef(base, fireKeyword))) {
                     AddFireEffect(base);
                 }
             }
         }
-        std::size_t catalogOnly = 0;
-        for (const auto id : catalogFire) {
-            catalogOnly += g_fireSpells.contains(id) ? 0 : 1;
-        }
 
-        logger::info("BlackFlame: fire spells (a fire MGEF): {}; {} fire effects, {} fire explosions, {} fire hazards. "
-                     "Catalog {}: {} spells tagged fire, {} of them without a fire effect - their visuals are left",
+        logger::info("BlackFlame: fire spells (a fire MGEF, or the catalog's fire tag): {}; {} fire effects, {} fire "
+                     "explosions, {} fire hazards. Catalog {}: {} spells tagged fire, {} of them fire by the tag alone "
+                     "(every effect of those counts)",
             g_fireSpells.size(), g_fireEffects.size(), g_fireExplosions.size(), g_fireHazards.size(),
             catalogRead ? "read" : "not read", catalog.fire, catalogOnly);
         g_counts = { catalogRead, catalog.fire, catalogOnly, g_fireSpells.size(), g_fireEffects.size(),

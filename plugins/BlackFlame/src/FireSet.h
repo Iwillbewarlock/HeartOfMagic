@@ -8,13 +8,15 @@
 // Built once on the game thread at kDataLoaded, before any hook is installed;
 // immutable afterwards, so the hooks may read it from any thread.
 //
-// Fire is decided by effects only (round 8b, user decision): a fire MGEF has the
-// vanilla MagicDamageFire keyword or fire resistance as its resist value, and a
-// spell is fire when one of its effects is. Heart of Magic's spell_catalog.json
-// "fire" tag alone changes nothing (a summon with red art is not fire); it is read
-// only to log how many catalog-fire spells have no fire effect. Only
+// Fire (v2, user decision 2026-10-16, reversing round 8b): a spell is fire when one
+// of its effects is a fire MGEF (the vanilla MagicDamageFire keyword or fire
+// resistance as its resist value), OR when Heart of Magic's spell_catalog.json tags
+// it "fire". A fire-MGEF spell's fire effects are its fire MGEFs; a catalog-only
+// fire spell's fire effects are all of its effects (it has no fire MGEF to pick).
+// The v2 copies change only visuals, so a catalog false positive costs only a grey
+// look. Only
 // SpellType::kSpell counts (no staffs, scrolls, enchantments, powers), and never
-// the Stoke spell itself. The fire explosions and hazards are those the fire MGEFs
+// the Stoke spell itself. The fire explosions and hazards are those the fire effects
 // name: their explosions (own and projectile's), impact data sets' hazards,
 // explosions' placed hazards and a spawn-hazard archetype's form.
 
@@ -27,8 +29,8 @@ namespace BlackFlame
     struct FireSetCounts
     {
         bool catalogRead = false;
-        std::size_t catalogFire = 0;  // spells the catalog tags fire (a hint only)
-        std::size_t catalogOnly = 0;  // of those, without a fire effect: left alone
+        std::size_t catalogFire = 0;  // spells the catalog tags fire
+        std::size_t catalogOnly = 0;  // of those, without a fire effect: fire by the tag alone (v2)
         std::size_t total = 0;        // fire spells
         std::size_t effects = 0;
         std::size_t explosions = 0;

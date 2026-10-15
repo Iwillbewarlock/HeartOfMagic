@@ -44,7 +44,8 @@ namespace BlackFlame
     /// State and pending caller read under one lock (any thread, never judges)
     [[nodiscard]] TagInfo TagInfoOf(const RE::TESObjectREFR* a_ref);
 
-    /// From a task or the ticker only (never a hook): judges a pending tag on this reference now; true
+    /// From a task or the ticker only (never a hook), on whatever thread runs that body (v2: no stamped-thread
+    /// refusal; the thread is logged): judges a pending tag on this reference now; true
     /// when it is (now) confirmed
     bool ResolvePending(const RE::TESObjectREFR* a_ref);
 

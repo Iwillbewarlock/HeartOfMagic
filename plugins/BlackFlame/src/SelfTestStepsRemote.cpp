@@ -133,7 +133,7 @@ namespace BlackFlame::SelfTest
                     return false;  // the step's timeout ends it (logged as a timeout)
                 }
                 const bool byTag = std::string_view(tagged->link) == PlayerLinkName(PlayerLink::kTagged);
-                SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag && tagged->recolored,
+                SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag && (tagged->recolored || !GetConfig().projectile),
                     std::format("projectile shot by the tagged marker {:08X}, the player's through its {}: {}",
                         a_c.remoteMarkerId, tagged->link, DescribeProjectile(*tagged)));
                 a_c.phase = kCastBlamed;
@@ -184,7 +184,7 @@ namespace BlackFlame::SelfTest
         {
             const auto status = GetImpactSwapStatus();
             const auto* explosion = a_c.forms.fireballExplosion;
-            return GetConfig().impactSwap && GetConfig().explosion && status.modelHooked && explosion &&
+            return GetConfig().impactSwap && status.modelHooked && explosion &&
                    ImpactSetHasGreyModel(explosion->data.impactDataSet);
         }
 

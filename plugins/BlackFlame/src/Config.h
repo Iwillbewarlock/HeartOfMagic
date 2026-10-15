@@ -13,12 +13,12 @@ namespace BlackFlame
     struct Config
     {
         bool burnShader = true;   // layer 1: the hit shader of the player's fire effects swapped for ours
-        bool hitArt = true;       // layer 1: the hit art of the player's fire effects recoloured
-        bool projectile = true;   // layer 2: the projectile's 3D
-        bool explosion = true;    // layer 3: the explosion's 3D
-        bool hazard = true;       // layer 3: the player's fire hazards (ground fire): non-shared geometry and light
-        bool handArt = true;      // layer 4: the casting art in the player's hands
-        bool boundWeapon = true;  // layer 4: the player's bound fire weapons' 3D (their arrows are layer 2)
+        bool hitArt = false;      // layer 1: runtime recolour of the hit art (v2: off by default, retired with the copies)
+        bool projectile = false;  // layer 2: runtime recolour of the projectile's 3D (v2: off by default)
+        bool explosion = false;   // layer 3: runtime recolour of the explosion's 3D (v2: off by default)
+        bool hazard = false;      // layer 3: runtime recolour of the player's fire hazards' non-shared geometry (v2: off)
+        bool handArt = false;     // layer 4: runtime recolour of the casting art in the player's hands (v2: off)
+        bool boundWeapon = false; // layer 4: runtime recolour of the player's bound fire weapons' 3D (v2: off)
         bool scriptPlaced = true; // what scripts of the player's fire effects place or cast from (PapyrusWrap.h)
         bool impactSwap = true;   // the player's fire impacts load the grey copies of the grey map (ImpactSwap.h)
         bool hazardSwap = true;   // the player's fire hazards load the grey copies of the grey map (HazardSwap.h)

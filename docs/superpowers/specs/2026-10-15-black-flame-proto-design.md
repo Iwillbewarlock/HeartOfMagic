@@ -330,3 +330,23 @@
 - 도구: nifly(GPL-3.0)는 빌더에만 정적 링크, DLL에는 안 들어간다. MSVC가 C++20에서 nifly의 비 const operator==를 모호하다고
   거부해 빌더만 C++17 + fmt.
 - 게임 안에서 확인 안 된 것: 회색 MPS가 실제로 회색으로 그려지는지, 상시 로드 9109가 9처럼 동작하는지, 생성 ESL의 ADDN이 동작하는지.
+
+## v2 스파이크 (2026-10-16, 사본 프레임워크, feature/black-flame-v2)
+
+계획: 스크래치 spike-plan.md 개정 2, 설계 design-copyframework.md. 사용자 결정(2026-10-16): 선택 = 불 효과 OR HoM 카탈로그
+"fire", 런타임 재질 재색칠 은퇴(사본이 없는 폼은 주황 그대로 + 한 번 로그, 인스턴스별 조명 색만 유지), 스파이크 먼저.
+
+### 커밋 0 (스파이크와 무관한 수정)
+
+- HitArt: (컨트롤러, 아트)로만 맞춘다. 엔진의 첫 GetHitEffectArt 호출은 SetTarget 전이라 대상이 null이고, 그 null을 저장해
+  두면 살아 있는 ModelReferenceEffect(대상 = 플레이어)와 영영 맞지 않았다(Vigilant 불꽃 고리, 2차 실행). 주소 재사용은
+  걷기 뒤 살아 있는 컨트롤러가 여전히 플레이어의 불 효과인지로 막고, 대상은 살아 있는 효과에서 읽어 로그에 쓴다.
+- 선택 규칙: 불 MGEF가 있는 주문 OR 카탈로그 "fire" 주문(kSpell만). 카탈로그로만 불인 주문은 불 MGEF가 없으므로 그 주문의 모든
+  효과를 불 효과로 친다(Vigilant 눈부신 화염 같은 Script 원형). 8b차 결정(카탈로그만으로는 아무것도 안 함)을 뒤집은 것.
+- 런타임 재색칠 층(hitArt, projectile, explosion, hazard, handArt, boundWeapon)은 기본 꺼짐. 코드는 정식 빌드까지 남긴다.
+  투사체·폭발·해저드 훅은 늘 건다(조명 색, 자가 시험 기록, 폭발 쪽 충격 창). 3D 재색칠만 각 키가 정하고 조명은 `light`가 정한다.
+  자가 시험의 재색칠 판정(T3, T3-pointer, T3-tint, T4의 플레이어 쪽, T6, T3-remote, T8-cast의 T3 조건)은 키가 꺼지면 INFO
+  "not judged"이거나 그 조건을 빼고 판정한다.
+- ResolvePending: 찍어 둔 게임 스레드가 아니면 판정을 거절하던 줄만 지웠다. 태스크·티커 본문이면 어느 스레드든 판정하고,
+  VM 핸들 정책 검사(HandleIsType, IsHandleObjectAvailable)는 그대로이며 처음 8번 스레드를 로그에 남긴다. 다른 게임 스레드
+  관문(Handle3DLoaded, Set3D)은 S4 측정 결과를 본 뒤에 정한다.

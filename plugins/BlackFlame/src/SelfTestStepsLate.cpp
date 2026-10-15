@@ -123,6 +123,10 @@ namespace BlackFlame::SelfTest
                     continue;
                 }
                 const auto& a = r.after;
+                if (a_byPlayer && !GetConfig().explosion) {
+                    SelfTestLog::Info(id, "runtime recolour off (explosion false): not judged | " + DescribeExplosion(r));
+                    return true;
+                }
                 const bool ok = a_byPlayer ?
                                     (r.recolored && r.stats.Recolored() > 0 && a.withPalettePath >= r.stats.Recolored()) :
                                     (!r.recolored && a.effectProperties > 0 && a.withGrey == 0);
@@ -314,7 +318,7 @@ namespace BlackFlame::SelfTest
         const auto& npc = *a_c.npcT4;
         const auto& player = *a_c.playerT4;
         const bool ok = !npc.recolored && npc.after.effectProperties > 0 && npc.after.withGrey == 0 &&
-                        player.after.effectProperties > 0 && player.recolored;
+                        player.after.effectProperties > 0 && (player.recolored || !GetConfig().projectile);
         SelfTestLog::Check("T4", ok, std::format("caster: {} | player: recoloured={}, {} effect properties",
             DescribeProjectile(npc), player.recolored, player.after.effectProperties));
 
@@ -484,7 +488,8 @@ namespace BlackFlame::SelfTest
         if (!r) {
             return false;
         }
-        const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 && a_c.t3Recolored;
+        const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 &&
+                        (a_c.t3Recolored || !GetConfig().projectile);
         SelfTestLog::Check("T8-cast", ok, std::format("T3 recoloured: {} | {}", a_c.t3Recolored ? "yes" : "NO",
             DescribeProjectile(*r)));
         return true;

@@ -45,16 +45,12 @@ namespace
         (void)BlackFlame::LoadPalette();
         BlackFlame::EffectEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
-        // Installed after the fire sets are built: the hooks read them from any thread
-        if (BlackFlame::GetConfig().projectile) {
-            BlackFlame::InstallProjectileHooks();
-        }
-        if (BlackFlame::GetConfig().explosion) {
-            BlackFlame::InstallExplosionHook();
-        }
-        if (BlackFlame::GetConfig().hazard) {
-            BlackFlame::InstallHazardHook();
-        }
+        // Installed after the fire sets are built: the hooks read them from any thread. Always installed
+        // (v2): besides the runtime recolour (its own config keys, off by default) they tint lights, feed
+        // the self-test records and open the explosion side of the impact window
+        BlackFlame::InstallProjectileHooks();
+        BlackFlame::InstallExplosionHook();
+        BlackFlame::InstallHazardHook();
         BlackFlame::InstallHitEffectHooks();
         BlackFlame::InstallImpactSwap();
         BlackFlame::InstallHazardSwap();
