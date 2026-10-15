@@ -381,7 +381,7 @@ What it does, once per session, at the first save load (`kPostLoadGame`):
    (the `ExtraLeveledCreature` template when the actor has that extra, else the base), whether it has
    `ExtraLeveledCreature` and its original base, and the base's `kCopiedTemplate` flag. For a leveled or unresolvable
    sample the holder is the first of template base, original base and actor base (records from a plugin) whose
-   template walk resolves. The lists checked are the actor base's (the engine builds the leveled spell cache from
+   template walk resolves; without `ExtraLeveledCreature` the walk starts from the actor base (`holderFrom=actorBase`). The lists checked are the actor base's (the engine builds the leveled spell cache from
    it), or the holder's when the base has none.
 5. Walks the actor's spells once with `Actor::VisitSpells` and a visitor that never stops (it builds the leveled
    spell cache when missing), then reads the cache itself, `HighProcessData::leveledSpellList` (`picked`: the list's
