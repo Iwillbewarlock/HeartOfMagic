@@ -17,4 +17,8 @@
 namespace BlackFlame
 {
     void InstallProjectileHooks();
+
+    /// The projectile's light as an NiLight, its stored object's real type checked through MSVC RTTI
+    /// (BSLight or NiLight; null otherwise). Game thread.
+    [[nodiscard]] RE::NiLight* ProjectileLight(RE::Projectile* a_projectile);
 }

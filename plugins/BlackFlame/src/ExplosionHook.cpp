@@ -6,11 +6,14 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "SehGuard.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
 #include <format>
 #include <memory>
+#include <mutex>
+#include <unordered_set>
 #include <vector>
 
 namespace BlackFlame
@@ -27,6 +30,10 @@ namespace BlackFlame
         std::atomic<int> g_npcMaterialLogs{ 0 };
         std::atomic<int> g_recolors{ 0 };
         std::atomic<int> g_lightMissing{ 0 };
+        std::atomic<int> g_diagnostics{ 0 };
+        constexpr int kMaxDiagnostics = 20;
+        constexpr std::size_t kInitializeIndex = 0xA2;  // RE/E/Explosion.h: Initialize, SE/AE 0xA2
+        constexpr std::size_t kUpdateIndex = 0xA3;      // RE/E/Explosion.h: Update(float), SE/AE 0xA3
 
         // Game thread only: explosions to tint once more next tick. Heap-held and never freed, like
         // the burn layer's lists, so nothing runs at DLL unload (handles only, but kept uniform)
@@ -87,8 +94,44 @@ namespace BlackFlame
             }
         }
 
+        // Every explosion is handled once, whichever hook sees its 3D first (Set3D, Initialize or Update).
+        // Keyed by its reference handle, whose age bits differ when an address or slot is reused.
+        bool MarkProcessed(RE::Explosion* a_explosion)
+        {
+            static std::mutex mutex;
+            static auto* processed = std::make_unique<std::unordered_set<std::uint32_t>>().release();
+            constexpr std::size_t kMaxProcessed = 512;  // explosions live about a second: start over past this
+            std::lock_guard lock(mutex);
+            if (processed->size() > kMaxProcessed) {
+                processed->clear();
+            }
+            return processed->insert(a_explosion->GetHandle().native_handle()).second;
+        }
+
+        // The first kMaxDiagnostics hook calls on ANY explosion: does a hook fire at all, and with what
+        void Diagnose(const char* a_hook, RE::Explosion* a_explosion, bool a_has3D)
+        {
+            if (g_diagnostics.fetch_add(1) >= kMaxDiagnostics) {
+                return;
+            }
+            auto* base = a_explosion->GetBaseObject();
+            const auto* explosion = base ? base->As<RE::BGSExplosion>() : nullptr;
+            auto& data = a_explosion->GetExplosionRuntimeData();
+            const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
+            const auto owner = data.actorOwner.get();
+            const auto cause = data.actorCause ? data.actorCause->actor.get() : RE::NiPointer<RE::Actor>{};
+            logger::info("BlackFlame: explosion diagnostics [{}]: base {:08X} (fire set: {}), owner {:08X}, cause actor "
+                         "{:08X}, magicCaster {} currentSpell {:08X}, 3D {}, thread {}",
+                a_hook, explosion ? explosion->GetFormID() : 0, IsFireExplosion(explosion, casterSpell) ? "yes" : "no",
+                owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0, data.magicCaster ? "set" : "null",
+                casterSpell ? casterSpell->GetFormID() : 0, a_has3D ? "present" : "null", REX::W32::GetCurrentThreadId());
+        }
+
         void OnSet3D(RE::Explosion* a_explosion)
         {
+            if (!MarkProcessed(a_explosion)) {
+                return;  // another hook already handled this explosion
+            }
             auto* base = a_explosion->GetBaseObject();
             const auto* explosion = base ? base->As<RE::BGSExplosion>() : nullptr;
             auto& data = a_explosion->GetExplosionRuntimeData();
@@ -156,7 +199,8 @@ namespace BlackFlame
                     }
                     const auto ref = handle.get();
                     if (auto* explosion = ref ? ref->AsExplosion() : nullptr) {
-                        HandleExplosion(explosion, recolor, logMaterials, std::move(record));
+                        (void)Guarded("explosion recolour (task)",
+                            [&]() { HandleExplosion(explosion, recolor, logMaterials, std::move(record)); });
                     }
                 });
         }
@@ -168,8 +212,57 @@ namespace BlackFlame
                 func(a_this, a_object, a_queue3DTasks);
                 // Entered from the engine's vtable: nothing may throw out of here
                 try {
-                    if (a_this && a_object) {
-                        OnSet3D(a_this);
+                    if (!a_this) {
+                        return;
+                    }
+                    (void)Guarded("explosion diagnostics (Set3D)", [&]() { Diagnose("Set3D", a_this, a_object != nullptr); });
+                    if (a_object) {
+                        (void)Guarded("explosion Set3D", [&]() { OnSet3D(a_this); });
+                    }
+                } catch (...) {
+                    if (!g_failureReported.exchange(true)) {
+                        logger::error("BlackFlame: explosion hook threw; further failures are not logged");
+                    }
+                }
+            }
+
+            static inline REL::Relocation<decltype(thunk)> func;
+        };
+
+        // A second route in case Set3D is not how an explosion gets its 3D: after Initialize, and on
+        // every Update until the 3D exists (cheap checks first; each explosion handled once)
+        struct InitializeHook
+        {
+            static void thunk(RE::Explosion* a_this)
+            {
+                func(a_this);
+                try {
+                    if (a_this) {
+                        (void)Guarded("explosion Initialize", [&]() {
+                            Diagnose("Initialize", a_this, a_this->Get3D() != nullptr);
+                            if (a_this->Get3D()) {
+                                OnSet3D(a_this);
+                            }
+                        });
+                    }
+                } catch (...) {
+                    if (!g_failureReported.exchange(true)) {
+                        logger::error("BlackFlame: explosion hook threw; further failures are not logged");
+                    }
+                }
+            }
+
+            static inline REL::Relocation<decltype(thunk)> func;
+        };
+
+        struct UpdateHook
+        {
+            static void thunk(RE::Explosion* a_this, float a_delta)
+            {
+                func(a_this, a_delta);
+                try {
+                    if (a_this && a_this->Get3D()) {
+                        (void)Guarded("explosion Update", [&]() { OnSet3D(a_this); });
                     }
                 } catch (...) {
                     if (!g_failureReported.exchange(true)) {
@@ -186,7 +279,10 @@ namespace BlackFlame
     {
         REL::Relocation<std::uintptr_t> vtbl{ RE::Explosion::VTABLE[0] };
         Set3DHook::func = vtbl.write_vfunc(kSet3DIndex, Set3DHook::thunk);
-        logger::info("BlackFlame: hooked Set3D (0x{:X}) on the Explosion vtable", kSet3DIndex);
+        InitializeHook::func = vtbl.write_vfunc(kInitializeIndex, InitializeHook::thunk);
+        UpdateHook::func = vtbl.write_vfunc(kUpdateIndex, UpdateHook::thunk);
+        logger::info("BlackFlame: hooked Set3D (0x{:X}), Initialize (0x{:X}) and Update (0x{:X}) on the Explosion vtable",
+            kSet3DIndex, kInitializeIndex, kUpdateIndex);
     }
 
     void ResetExplosionState()

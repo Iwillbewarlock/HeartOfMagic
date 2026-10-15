@@ -6,6 +6,7 @@
 #include "Forms.h"
 #include "GameThread.h"
 #include "LogLimit.h"
+#include "SehGuard.h"
 #include "SelfTestProbe.h"
 
 #include <algorithm>
@@ -32,6 +33,7 @@ namespace BlackFlame
         // (an instant hit) gets this many seconds of grey burn instead
         constexpr float kInstantBurnSeconds = 1.5f;
         constexpr float kMinBurnSeconds = 0.5f;
+        constexpr float kFreshHitSeconds = 0.5f;  // a hit shader this young on the target came from this hit
         // A live burn's grey shader is kept this far ahead of its age on every tick while the
         // effect lasts (more than one 100 ms tick, so it never lapses between ticks)
         constexpr float kKeepAliveSeconds = 0.5f;
@@ -319,6 +321,58 @@ namespace BlackFlame
             float duration = 0.0f;
         };
 
+        // An instant effect gone before its task: its hit is found as a fresh (younger than
+        // kFreshHitSeconds), unfinished hit shader of some fire effect on the target. The event said the
+        // caster is the player, but not which spell; trade-off: an NPC's identical fire hit on the same
+        // target within that half second would be swapped too. Effects that left no such shader (the
+        // player's auras, non-fire spells) end here quietly, one rate-limited line for all of them.
+        void FallbackBurn(RE::TESObjectREFR* a_targetRef, RE::ObjectRefHandle a_target, std::uint16_t a_id,
+            RE::TESEffectShader* a_ours)
+        {
+            RE::NiPointer<RE::ShaderReferenceEffect> fresh;
+            ForEachShaderUnderLock(
+                [&](RE::ShaderReferenceEffect* a_effect) {
+                    return !a_effect->finished && a_effect->target == a_target && a_effect->effectData != a_ours &&
+                           a_effect->age < kFreshHitSeconds && IsFireHitShader(a_effect->effectData);
+                },
+                [&](RE::ShaderReferenceEffect* a_effect) {
+                    if (!fresh || a_effect->age < fresh->age) {
+                        fresh.reset(a_effect);
+                    }
+                });
+            const auto targetId = a_targetRef->GetFormID();
+            if (!fresh) {
+                int suppressed = 0;
+                if (LogLimit::Allow("burn gone, no fresh hit shader", 0, suppressed)) {
+                    logger::info("BlackFlame: burn shader: effect {} on {:08X} gone before the task ran, no fresh fire hit "
+                                 "shader on the target: nothing applied{}", a_id, targetId,
+                        suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+                }
+                ReportBurn({ 0, targetId, 0, 0, "active effect gone, no fresh fire hit shader", 0, kFirstAttempt, false,
+                    false });
+                return;
+            }
+            const auto engineId = fresh->effectData ? fresh->effectData->GetFormID() : 0;
+            const bool replace = GetConfig().burnMode == BurnMode::kReplace;
+            if (replace) {
+                FinishUnderLock({ fresh.get() });
+            }
+            bool extended = false;
+            auto grey = ApplyOrExtendGrey(a_targetRef, a_target, a_ours, kInstantBurnSeconds, extended);
+            if (grey) {
+                auto& floor = AgeFloors()[grey.get()];
+                floor.age = (std::max)(floor.age, grey->age + kInstantBurnSeconds);
+            }
+            UpdateLiveCount();
+            ReportBurn({ 0, targetId, 0, engineId, "active effect gone: fresh fire hit shader on the target used",
+                replace ? 1 : 0, kFirstAttempt, grey != nullptr && !extended, extended,
+                { { reinterpret_cast<std::uintptr_t>(fresh.get()), fresh->age, fresh->finished } } });
+            LogBurn(0, targetId, std::format("[{}] effect {} on {:08X} gone before the task ran: fresh fire hit shader "
+                "{:08X} (age {:.2f}) {}, grey shader {} {:.1f} s", BurnModeName(GetConfig().burnMode), a_id, targetId,
+                engineId, fresh->age, replace ? "finished" : "left (overlay)",
+                extended ? "extended to" : (grey ? "applied for" : "NOT applied (null) for"), kInstantBurnSeconds));
+        }
+
         void StartBurn(RE::ObjectRefHandle a_target, std::uint16_t a_id, EffectFacts a_facts)
         {
             const auto& config = GetConfig();
@@ -334,11 +388,9 @@ namespace BlackFlame
             const auto* base = effect ? effect->GetBaseObject() : a_facts.base;
             const auto* spell = effect ? effect->spell : a_facts.spell;
             if (!base && !effect) {
-                // Read off the game thread: no facts, and the effect is already gone
-                LogBurn(0, targetRef->GetFormID(), std::format("effect {} on {:08X} gone before the task ran and no "
-                    "facts from the event (sink off the game thread, or the effect not found there): nothing applied", a_id, targetRef->GetFormID()));
-                ReportBurn({ 0, targetRef->GetFormID(), 0, 0, "active effect gone, no event facts", 0, kFirstAttempt,
-                    false, false });
+                // The sink runs off the game thread (first in-game run, AE 1.6.1170), so there are no facts
+                // and an instant effect is gone by now: look for the hit shader it left instead
+                FallbackBurn(targetRef.get(), a_target, a_id, ours);
                 return;
             }
             if (!IsBurnable(base, spell)) {
@@ -496,7 +548,7 @@ namespace BlackFlame
         const auto generation = WorldGeneration();
         AddTaskToGameThread("BlackFlameBurn", [handle, a_activeEffectId, facts, generation]() {
             if (generation == WorldGeneration()) {
-                StartBurn(handle, a_activeEffectId, facts);
+                (void)Guarded("burn start", [&]() { StartBurn(handle, a_activeEffectId, facts); });
             }
         });
     }

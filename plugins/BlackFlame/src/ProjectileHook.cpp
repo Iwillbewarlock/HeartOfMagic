@@ -6,6 +6,7 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "SehGuard.h"
 #include "SelfTestProbe.h"
 
 #include <atomic>
@@ -25,21 +26,31 @@ namespace BlackFlame
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
 
-        // False when the buff or the layer went off before a deferred recolour ran
+        // False when the buff or the layer went off before a deferred recolour ran, or a step hit a
+        // hardware exception (SehGuard names it; the rest of this projectile is skipped)
         bool RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind, RecolorStats& a_stats)
         {
             if (!IsStoked() || !GetConfig().projectile) {
                 return false;
             }
             auto& data = a_projectile->GetProjectileRuntimeData();
-            a_stats = RecolorTree(a_projectile->Get3D());
-            auto* light = data.light ? data.light->light.get() : nullptr;
-            const bool lightTinted = GetConfig().light && TintLight(light);
+            if (!Guarded("projectile recolour 3D", [&]() { a_stats = RecolorTree(a_projectile->Get3D()); })) {
+                return false;
+            }
+            bool hasLight = false;
+            bool lightTinted = false;
+            if (GetConfig().light && !Guarded("projectile light", [&]() {
+                    auto* light = ProjectileLight(a_projectile);
+                    hasLight = light != nullptr;
+                    lightTinted = TintLight(light);
+                })) {
+                return true;  // the 3D was recoloured; the light step failed (logged)
+            }
             const auto spellId = data.spell ? data.spell->GetFormID() : 0;
             int suppressed = 0;
             if (LogLimit::Allow(a_kind, spellId, suppressed)) {
                 logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}{}", spellId, a_kind,
-                    a_stats.Describe(), !data.light ? "none" : (lightTinted ? "tinted" : "left"),
+                    a_stats.Describe(), !hasLight ? "none" : (lightTinted ? "tinted" : "left"),
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
             return true;
@@ -51,10 +62,12 @@ namespace BlackFlame
             bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread)
         {
             const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
-            if (a_logMaterials) {
-                logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour{}: {}",
-                    a_byPlayer ? "PLAYER" : "NPC", spell ? spell->GetFormID() : 0, a_kind,
-                    a_byPlayer ? "" : " (any grey=yes is contamination)", DescribeMaterials(a_projectile->Get3D()));
+            if (a_logMaterials && !Guarded("projectile material check", [&]() {
+                    logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour{}: {}",
+                        a_byPlayer ? "PLAYER" : "NPC", spell ? spell->GetFormID() : 0, a_kind,
+                        a_byPlayer ? "" : " (any grey=yes is contamination)", DescribeMaterials(a_projectile->Get3D()));
+                })) {
+                return;
             }
             const bool probe = SelfTestProbe::Recording();
             SelfTestProbe::ProjectileRecord record;
@@ -74,7 +87,8 @@ namespace BlackFlame
             const auto shooter = data.shooter.get();
             record.projectile = a_projectile->GetHandle();
             record.shooter = shooter ? shooter->GetFormID() : 0;
-            auto* light = data.light ? data.light->light.get() : nullptr;
+            RE::NiLight* light = nullptr;
+            (void)Guarded("projectile light (self-test)", [&]() { light = ProjectileLight(a_projectile); });
             record.hasLight = light != nullptr;
             if (light) {
                 record.lightDiffuse = light->GetLightRuntimeData().diffuse;
@@ -157,6 +171,34 @@ namespace BlackFlame
             static inline REL::Relocation<decltype(thunk)> func;
             static inline const char* s_kind = "";
         };
+    }
+
+    // The projectile's light. PROJECTILE_RUNTIME_DATA declares NiPointer<BSLight> (Projectile.h:256,
+    // "smart ptr"), but nothing in the headers proves the object there is a BSLight on AE 1.6.1170 -
+    // an explosion keeps an NiPointLight in the same role (Explosion.h:80). So its real type is
+    // asked through MSVC RTTI (skyrim_cast, a dynamic cast from the object's own type info): a
+    // BSLight gives its NiLight, an NiLight is used as is, anything else no light. Logged once.
+    RE::NiLight* ProjectileLight(RE::Projectile* a_projectile)
+    {
+        static std::atomic<bool> typeLogged{ false };
+        auto* raw = a_projectile->GetProjectileRuntimeData().light.get();
+        if (!raw) {
+            return nullptr;
+        }
+        RE::NiLight* light = nullptr;
+        const char* kind = "neither BSLight nor NiLight";
+        if (auto* bsLight = skyrim_cast<RE::BSLight*>(raw)) {
+            light = bsLight->light.get();
+            kind = "BSLight";
+        } else if (auto* niLight = skyrim_cast<RE::NiLight*>(raw)) {
+            light = niLight;
+            kind = "NiLight";
+        }
+        if (!typeLogged.exchange(true)) {
+            logger::info("BlackFlame: projectile light object 0x{:X} is a {}", reinterpret_cast<std::uintptr_t>(raw),
+                kind);
+        }
+        return light;
     }
 
     void InstallProjectileHooks()

@@ -16,6 +16,10 @@
 namespace BlackFlame
 {
     inline std::atomic<std::uint32_t> g_gameThreadNativeId{ 0 };
+    // The thread SKSE loaded the plugin on: the first in-game run on AE 1.6.1170 showed kDataLoaded
+    // (the stamp above) on another thread than the one projectile 3D loads on, which matched this
+    // one, and SKSE tasks on yet others - logged side by side until that is settled
+    inline std::atomic<std::uint32_t> g_loadThreadNativeId{ 0 };
     inline constexpr int kMaxThreadLogs = 3;
 
     // Bumped when a save loads or a new game starts (Main.cpp ResetLayers): a task queued in the
@@ -43,7 +47,8 @@ namespace BlackFlame
         }
         const auto current = REX::W32::GetCurrentThreadId();
         const auto game = g_gameThreadNativeId.load();
-        logger::info("BlackFlame: {} ran on thread {} (game thread {}): {}", a_hook, current, game,
+        logger::info("BlackFlame: {} ran on thread {} (kDataLoaded thread {}, plugin-load thread {}): {}", a_hook, current,
+            game, g_loadThreadNativeId.load(),
             current == game ? a_onGame : a_elsewhere);
     }
 }

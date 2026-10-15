@@ -116,6 +116,7 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, false);
+    BlackFlame::g_loadThreadNativeId.store(REX::W32::GetCurrentThreadId());
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
     // and the self-test's end write them out
     SetupLog("Black Flame prototype (grey-black fire for the player's fire spells while stoked)");

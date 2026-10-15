@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Forms.h"
 #include "ParticleColors.h"
+#include "ProjectileHook.h"
 #include "SelfTestLog.h"
 #include "SelfTestJudge.h"
 #include "SelfTestText.h"
@@ -120,8 +121,7 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Info("T4-light", "not checked: the reference is not a projectile any more");
                 return;
             }
-            auto& data = projectile->GetProjectileRuntimeData();
-            auto* light = data.light ? data.light->light.get() : nullptr;
+            auto* light = ProjectileLight(projectile);
             if (!light || !GetConfig().light) {
                 SelfTestLog::Info("T4-light", light ? "light false in the config" : "the projectile has no light");
                 return;
