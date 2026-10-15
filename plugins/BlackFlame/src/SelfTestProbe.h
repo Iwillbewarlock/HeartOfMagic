@@ -98,28 +98,14 @@ namespace BlackFlame::SelfTestProbe
         Inspection after;
     };
 
-    // An engine hit shader the burn layer saw in an effect's hitEffects, with its age then
-    struct HitShader
-    {
-        std::uintptr_t ptr = 0;
-        float age = 0.0f;
-        bool finished = false;  // after the burn layer's finishing
-    };
-
+    // A hit shader the GetHitEffectShader hook swapped for ours (HitEffectHook.cpp)
     struct BurnRecord
     {
         std::uint64_t seq = 0;
         RE::FormID target = 0;
         RE::FormID spell = 0;
-        RE::FormID engineShader = 0;
-        std::string listState;
-        int stopped = 0;
-        int attempt = 0;
-        bool applied = false;
-        bool alreadyLive = false;
-        std::vector<HitShader> hitShaders;  // the effect's own engine hit shaders seen in hitEffects (finished or not)
-        std::chrono::steady_clock::time_point recordedAt{};  // set by RecordBurn
-        float recordedPaused = 0.0f;                         // PausedSeconds() then, set by RecordBurn
+        RE::FormID engineShader = 0;  // what the engine asked for
+        std::uint32_t thread = 0;     // the hook's thread
     };
 
     void RecordProjectile(ProjectileRecord a_record);

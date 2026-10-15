@@ -48,44 +48,21 @@ namespace BlackFlame::SelfTest
         return std::ranges::any_of(a_seen, [&](const auto& s) { return SameObject(a_now, s); });
     }
 
-    std::vector<SeenShader> PlayerHitShaders(std::uint64_t a_mark)
-    {
-        std::vector<SeenShader> out;
-        for (const auto& b : SelfTestProbe::BurnsSince(a_mark)) {
-            for (const auto& h : b.hitShaders) {
-                out.push_back({ h.ptr, h.age, b.recordedAt, b.recordedPaused, h.finished });
-            }
-        }
-        return out;
-    }
-
     SeenShader SeenNow(const SelfTestWorld::ShaderOn& a_shader)
     {
         return { a_shader.ptr, a_shader.age, Clock::now(), SelfTestProbe::PausedSeconds(), a_shader.finished };
     }
 
-    std::string DescribeEngineShaders(const Ctx& a_c, const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
+    std::string DescribeEngineShaders(const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
         const std::vector<RE::FormID>& a_engines)
     {
-        const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
-        const auto owner = [&](const SelfTestWorld::ShaderOn& a_shader) {
-            for (const auto& b : burns) {
-                const bool mine = std::ranges::any_of(b.hitShaders, [&](const auto& h) {
-                    return SameObject(a_shader, { h.ptr, h.age, b.recordedAt, b.recordedPaused, h.finished });
-                });
-                if (mine) {
-                    return (a_c.extendCast && b.seq >= a_c.extendMark) ? "T5-extend" : "T3";
-                }
-            }
-            return "unknown";
-        };
         std::string out;
         for (const auto& s : a_shaders) {
             if (std::ranges::find(a_engines, s.effectData) == a_engines.end()) {
                 continue;
             }
-            out += std::format("{}[{:08X} age {:.2f}{} from {}]", out.empty() ? "" : " ", s.effectData, s.age,
-                s.finished ? " finished" : "", owner(s));
+            out += std::format("{}[{:08X} age {:.2f}{}]", out.empty() ? "" : " ", s.effectData, s.age,
+                s.finished ? " finished" : "");
         }
         return out.empty() ? "none" : out;
     }

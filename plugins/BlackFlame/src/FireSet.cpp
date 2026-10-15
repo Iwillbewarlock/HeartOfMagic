@@ -31,7 +31,6 @@ namespace BlackFlame
         // The costliest effect of a catalog-fire spell without a fire MGEF: fire only together with
         // THAT spell, so it is kept as (spell, MGEF) pairs, and its explosions only for that spell
         std::unordered_set<std::uint64_t> g_fallbackPairs;
-        std::unordered_set<RE::FormID> g_fireHitShaders;  // EffectSetting::data.effectShader of every fire effect
         std::unordered_map<RE::FormID, std::unordered_set<RE::FormID>> g_fallbackExplosions;  // explosion -> spells
 
         std::uint64_t PairKey(RE::FormID a_spell, RE::FormID a_effect)
@@ -192,17 +191,9 @@ namespace BlackFlame
             }
         }
 
-        void AddHitShader(const RE::EffectSetting* a_base)
-        {
-            if (a_base->data.effectShader) {
-                g_fireHitShaders.insert(a_base->data.effectShader->GetFormID());
-            }
-        }
-
         void AddFireEffect(const RE::EffectSetting* a_base)
         {
             g_fireEffects.insert(a_base->GetFormID());
-            AddHitShader(a_base);
             ForEachExplosion(a_base, [](RE::FormID a_explosion) { g_fireExplosions.insert(a_explosion); });
         }
 
@@ -219,7 +210,6 @@ namespace BlackFlame
         void AddFallbackEffect(const RE::SpellItem* a_spell, const RE::EffectSetting* a_base)
         {
             g_fallbackPairs.insert(PairKey(a_spell->GetFormID(), a_base->GetFormID()));
-            AddHitShader(a_base);
             ForEachExplosion(a_base, [&](RE::FormID a_explosion) {
                 g_fallbackExplosions[a_explosion].insert(a_spell->GetFormID());
             });
@@ -254,7 +244,6 @@ namespace BlackFlame
         g_fireEffects.clear();
         g_fallbackPairs.clear();
         g_fallbackExplosions.clear();
-        g_fireHitShaders.clear();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) {
             logger::error("BlackFlame: TESDataHandler unavailable - no spell counts as fire");
@@ -312,11 +301,6 @@ namespace BlackFlame
     bool IsFireSpell(const RE::MagicItem* a_spell)
     {
         return a_spell && g_fireSpells.contains(a_spell->GetFormID());
-    }
-
-    bool IsFireHitShader(const RE::TESEffectShader* a_shader)
-    {
-        return a_shader && g_fireHitShaders.contains(a_shader->GetFormID());
     }
 
     bool IsFireExplosion(const RE::BGSExplosion* a_explosion, const RE::MagicItem* a_casterSpell)

@@ -15,8 +15,8 @@ namespace BlackFlame::SelfTest
 {
     using ShaderFilter = std::function<bool(const SelfTestWorld::ShaderOn&)>;
 
-    /// An engine hit shader the burn layer did not finish: unfinished, at least kEngineAgeMin old,
-    /// one of a_engines, and not excluded by a_exclude
+    /// An engine hit shader still alight: unfinished, at least kEngineAgeMin old, one of a_engines,
+    /// and not excluded by a_exclude
     [[nodiscard]] bool EngineLive(const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
         const std::vector<RE::FormID>& a_engines, const ShaderFilter& a_exclude = {});
 
@@ -25,14 +25,11 @@ namespace BlackFlame::SelfTest
 
     [[nodiscard]] bool SeenBefore(const SelfTestWorld::ShaderOn& a_now, const std::vector<SeenShader>& a_seen);
 
-    /// The hit shaders the burn layer recorded from the player's effects since a mark
-    [[nodiscard]] std::vector<SeenShader> PlayerHitShaders(std::uint64_t a_mark);
-
     /// A shader seen now on the target, as a record to compare later sightings with
     [[nodiscard]] SeenShader SeenNow(const SelfTestWorld::ShaderOn& a_shader);
 
-    /// Each engine hit shader on the target with its age and whose hit it was (T3, T5-extend)
-    [[nodiscard]] std::string DescribeEngineShaders(const Ctx& a_c, const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
+    /// Each engine hit shader on the target with its age
+    [[nodiscard]] std::string DescribeEngineShaders(const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
         const std::vector<RE::FormID>& a_engines);
 
     /// Some RGB key is not grey: desaturating these keys would change them

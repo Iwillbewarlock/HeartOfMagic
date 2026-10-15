@@ -24,7 +24,8 @@ set(BLACKFLAME_SOURCES
     src/Palette.cpp
     src/BuffState.cpp
     src/EffectEvents.cpp
-    src/BurnShader.cpp
+    src/HitEffectHook.cpp
+    src/HitArt.cpp
     src/Recolor.cpp
     src/SehGuard.cpp
     src/ParticleColors.cpp

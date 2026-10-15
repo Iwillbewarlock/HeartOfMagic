@@ -45,6 +45,8 @@ namespace BlackFlame
         // that terminal state
         int failed = 0;
         int colorModifiers = 0;    // BSPSysSimpleColorModifiers desaturated (config particleColors)
+        int masterSkipped = 0;     // effect geometries under a BSMasterParticleSystem: shared, left alone
+        int addOnNodes = 0;        // "AddOnNode" nodes: they emit into a shared master particle system elsewhere
 
         [[nodiscard]] int Recolored() const noexcept { return paletteSwapped + forcedPalette + baseColorOnly; }
         void Add(const RecolorStats& a_other) noexcept;
@@ -75,6 +77,11 @@ namespace BlackFlame
     /// greyscale texture, path and base colour (SetMaterial(copy, true)), and its palette flags as
     /// they were (never on without a texture). Game thread only. False without a material.
     bool RestoreProperty(RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original);
+
+    /// The NiLight behind a light slot whose declared type may not be what it holds (a projectile's
+    /// BSLight slot was the prime suspect for the AE fault): asked through MSVC RTTI, a BSLight gives its
+    /// NiLight. a_kind names what it was ("BSLight", "NiLight", "null" or neither).
+    RE::NiLight* AsNiLight(RE::NiRefObject* a_raw, const char*& a_kind);
 
     /// Sets a light's diffuse colour to config lightColor. False for a null light.
     bool TintLight(RE::NiLight* a_light);

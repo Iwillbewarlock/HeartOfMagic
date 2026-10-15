@@ -70,12 +70,15 @@
 ## 설정 (HeartOfMagic_BlackFlame.json)
 
 ```json
-{ "burnShader": true, "burnMode": "replace", "projectile": true, "explosion": true, "handArt": true,
+{ "burnShader": true, "hitArt": true, "projectile": true, "explosion": true, "hazard": true, "handArt": true,
   "light": true, "forcePalette": true, "particleColors": false, "selfTest": false, "tintScale": 0.6,
   "lightColor": [0.25, 0.22, 0.28] }
 ```
 
-- `burnMode`: `"replace"`(원래 hit shader를 끝내고 우리 것) / `"overlay"`(원래 것을 두고 위에 우리 것). 비교 시험용.
+- `burnMode`: 없어짐(7차). 엔진이 hit shader를 만들 때 컨트롤러에게 묻는 자리에서 우리 것을 돌려주므로 맞은 자리마다
+  셰이더가 하나뿐이고 덧씌울 것이 없다. 옛 설정 파일의 키는 무시하고 로그에 한 줄 남긴다.
+- `hitArt`: 플레이어 불 효과의 hit art(예: 화염 망토의 불꽃) 3D를 칠한다(7차).
+- `hazard`: 플레이어 불 해저드(바닥 불)의 공유되지 않는 지오메트리와 조명을 칠한다(7차).
 - `forcePalette`: 팔레트 플래그가 없는 이펙트 셰이프에 플래그를 켜서 회색 램프를 거치게 한다(Embers XD처럼
   플래그를 뺀 교체 모드 대응). 끄면 baseColor 탈색만.
 - `selfTest`: 켜면 세이브 로드 후 한 번 자동 자가 시험(T0-T9)을 돌려 결과를 HeartOfMagic_BlackFlame_selftest.txt에 쓴다. README "Self-test".

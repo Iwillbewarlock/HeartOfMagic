@@ -9,6 +9,7 @@
 #include <atomic>
 #include <format>
 #include <memory>
+#include <string_view>
 #include <unordered_set>
 
 namespace BlackFlame
@@ -185,10 +186,46 @@ namespace BlackFlame
             return netimmerse_cast<RE::BSEffectShaderProperty*>(data.spPropertyState.get());
         }
 
+        constexpr std::string_view kAddOnNodePrefix = "AddOnNode";
+
+        // Below a BSMasterParticleSystem: its particles are shared by every emitter of that kind in the
+        // cell (an NPC's fire too), so no recolour touches them
+        bool UnderMasterParticleSystem(RE::NiAVObject* a_object, const RE::NiAVObject* a_root)
+        {
+            for (RE::NiAVObject* node = a_object; node; node = node->parent) {
+                if (netimmerse_cast<RE::BSMasterParticleSystem*>(node)) {
+                    return true;
+                }
+                if (node == a_root) {
+                    break;
+                }
+            }
+            return false;
+        }
+
+        // An "AddOnNode" names an addon (BGSAddonNode) that emits into a shared master particle system
+        // elsewhere in the cell: nothing of it is under this root to recolour (counted for the log)
+        bool IsAddOnNode(const RE::NiAVObject* a_object)
+        {
+            const char* name = a_object->name.c_str();
+            return name && std::string_view(name).starts_with(kAddOnNodePrefix);
+        }
+
+        // a_shared (recolours only): master particle subtrees are skipped and they and AddOn nodes counted
         template <class Visit>
-        void ForEachEffectPropertyImpl(RE::NiAVObject* a_root, Visit&& a_visit)
+        void ForEachEffectPropertyImpl(RE::NiAVObject* a_root, Visit&& a_visit, RecolorStats* a_shared = nullptr)
         {
             RE::BSVisit::TraverseScenegraphObjects(a_root, [&](RE::NiAVObject* a_object) {
+                if (a_shared) {
+                    const bool geometryLike = a_object->AsGeometry() || netimmerse_cast<RE::NiGeometry*>(a_object);
+                    if (!geometryLike && IsAddOnNode(a_object)) {
+                        ++a_shared->addOnNodes;
+                    }
+                    if (geometryLike && UnderMasterParticleSystem(a_object, a_root)) {
+                        ++a_shared->masterSkipped;
+                        return RE::BSVisit::BSVisitControl::kContinue;
+                    }
+                }
                 if (auto* geometry = a_object->AsGeometry()) {
                     if (auto* prop = EffectPropertyOf(geometry)) {
                         a_visit(prop, geometry, false);
@@ -217,6 +254,8 @@ namespace BlackFlame
         paletteAlpha += a_other.paletteAlpha;
         failed += a_other.failed;
         colorModifiers += a_other.colorModifiers;
+        masterSkipped += a_other.masterSkipped;
+        addOnNodes += a_other.addOnNodes;
     }
 
     std::string RecolorStats::Describe() const
@@ -224,10 +263,13 @@ namespace BlackFlame
         return std::format("{} effect geometries: {} palette swapped, {} palette forced (flag added), "
                            "{} base colour only (no palette flag), {} already grey, {} with a colour controller, "
                            "{} with palette alpha, {} legacy NiGeometry, {} failed; material copies: {} engine-copied, "
-                           "{} ours kept; {} particle colour modifiers desaturated{}",
+                           "{} ours kept; {} particle colour modifiers desaturated{}{}",
             effectGeometries, paletteSwapped, forcedPalette, baseColorOnly, alreadyOurs, colorControlled, paletteAlpha,
             legacyGeometries, failed, engineCopied, keptOurs, colorModifiers,
-            GetConfig().particleColors ? "" : " (particleColors off)");
+            GetConfig().particleColors ? "" : " (particleColors off)",
+            masterSkipped + addOnNodes == 0 ? "" :
+                std::format("; shared particles left alone: {} geometries under a BSMasterParticleSystem, {} AddOn "
+                            "nodes", masterSkipped, addOnNodes));
     }
 
     RecolorStats RecolorTree(RE::NiAVObject* a_root)
@@ -251,7 +293,7 @@ namespace BlackFlame
                     stats.colorModifiers += DesaturateColorModifiers(particles);
                 }
             }
-        });
+        }, &stats);
         return stats;
     }
 
@@ -287,6 +329,24 @@ namespace BlackFlame
         a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, a_original.paletteAlpha && hasTexture);
         FailedProperties().erase(a_prop);
         return true;
+    }
+
+    RE::NiLight* AsNiLight(RE::NiRefObject* a_raw, const char*& a_kind)
+    {
+        a_kind = "neither BSLight nor NiLight";
+        if (!a_raw) {
+            a_kind = "null";
+            return nullptr;
+        }
+        if (auto* bsLight = skyrim_cast<RE::BSLight*>(a_raw)) {
+            a_kind = "BSLight";
+            return bsLight->light.get();
+        }
+        if (auto* niLight = skyrim_cast<RE::NiLight*>(a_raw)) {
+            a_kind = "NiLight";
+            return niLight;
+        }
+        return nullptr;
     }
 
     bool TintLight(RE::NiLight* a_light)

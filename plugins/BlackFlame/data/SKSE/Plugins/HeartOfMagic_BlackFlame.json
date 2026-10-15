@@ -1,8 +1,9 @@
 {
     "burnShader": true,
-    "burnMode": "replace",
+    "hitArt": true,
     "projectile": true,
     "explosion": true,
+    "hazard": true,
     "handArt": true,
     "light": true,
     "forcePalette": true,

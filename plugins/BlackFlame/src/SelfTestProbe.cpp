@@ -153,8 +153,6 @@ namespace BlackFlame::SelfTestProbe
 
     void RecordBurn(BurnRecord a_record)
     {
-        a_record.recordedAt = std::chrono::steady_clock::now();
-        a_record.recordedPaused = PausedSeconds();
         Add(g_burns, std::move(a_record));
     }
 

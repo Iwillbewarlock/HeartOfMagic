@@ -185,15 +185,8 @@ namespace BlackFlame
         if (!raw) {
             return nullptr;
         }
-        RE::NiLight* light = nullptr;
-        const char* kind = "neither BSLight nor NiLight";
-        if (auto* bsLight = skyrim_cast<RE::BSLight*>(raw)) {
-            light = bsLight->light.get();
-            kind = "BSLight";
-        } else if (auto* niLight = skyrim_cast<RE::NiLight*>(raw)) {
-            light = niLight;
-            kind = "NiLight";
-        }
+        const char* kind = nullptr;
+        auto* light = AsNiLight(raw, kind);
         if (!typeLogged.exchange(true)) {
             logger::info("BlackFlame: projectile light object 0x{:X} is a {}", reinterpret_cast<std::uintptr_t>(raw),
                 kind);

@@ -5,10 +5,10 @@
 // =============================================================================
 // EFFECT EVENTS - TESActiveEffectApplyRemoveEvent
 // =============================================================================
-// An effect applied to or removed from the player: recompute the buff flag. An
-// effect the player applied to anyone while the flag is on: hand it to the burn
-// shader layer. Everything is deferred to a game-thread task carrying handles and
-// the effect's unique id, never raw pointers.
+// An effect applied to or removed from the player: recompute the buff flag (on a
+// game-thread task; the sink itself runs off the game thread on AE). The burn
+// shader no longer listens here: it is swapped where the engine asks for it
+// (HitEffectHook.h).
 
 namespace BlackFlame
 {

@@ -37,6 +37,19 @@ namespace BlackFlame
 
         // Game thread only: explosions to tint once more next tick. Heap-held and never freed, like
         // the burn layer's lists, so nothing runs at DLL unload (handles only, but kept uniform)
+        // The explosion's light through the RTTI check (the same declared-type trap as the projectile's
+        // light); its real type is logged once
+        RE::NiLight* ExplosionLight(RE::Explosion* a_explosion)
+        {
+            static std::atomic<bool> typeLogged{ false };
+            const char* kind = nullptr;
+            auto* light = AsNiLight(a_explosion->GetExplosionRuntimeData().light.get(), kind);
+            if (light && !typeLogged.exchange(true)) {
+                logger::info("BlackFlame: explosion light object is a {}", kind);
+            }
+            return light;
+        }
+
         std::vector<RE::ObjectRefHandle>& PendingLights()
         {
             static auto* lights = std::make_unique<std::vector<RE::ObjectRefHandle>>().release();
@@ -55,7 +68,7 @@ namespace BlackFlame
             bool lightTinted = false;
             bool lightQueued = false;
             if (GetConfig().light) {
-                lightTinted = TintLight(data.light.get());
+                lightTinted = TintLight(ExplosionLight(a_explosion));
                 if (!data.light) {
                     // Not created yet at Set3D: one more try on the next ticker tick
                     PendingLights().push_back(a_explosion->GetHandle());
@@ -307,7 +320,7 @@ namespace BlackFlame
         for (const auto& handle : due) {
             const auto ref = handle.get();
             auto* explosion = ref ? ref->AsExplosion() : nullptr;
-            if (explosion && TintLight(explosion->GetExplosionRuntimeData().light.get())) {
+            if (explosion && TintLight(ExplosionLight(explosion))) {
                 ++tinted;
             }
         }

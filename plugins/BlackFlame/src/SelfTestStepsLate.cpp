@@ -136,7 +136,7 @@ namespace BlackFlame::SelfTest
     }
 
     // ---------------------------------------------------------------------
-    // T5: the player's burn, watched for a second after the grey shows
+    // T5: the player's hit gets our shader from the engine, watched for a second after it shows
     // ---------------------------------------------------------------------
 
     bool StepPlayerBurn(Ctx& a_c, bool a_first)
@@ -153,20 +153,18 @@ namespace BlackFlame::SelfTest
         const auto* ours = GetForms().burnShader;
         const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
-        const bool replace = GetConfig().burnMode == BurnMode::kReplace;
         if (!a_c.greySeen && ours &&
             std::ranges::any_of(shaders, [&](const auto& s) { return !s.finished && s.effectData == ours->GetFormID(); })) {
             a_c.greySeen = Clock::now();
-            // T5-extend's second hit, cast now so it lands while this instant hit's short grey burn
-            // still lives; T5-extend only judges its burn record
+            // T5-second's hit, cast now; T5-second judges its swap
             a_c.extendAttempted = true;
             a_c.extendMark = SelfTestProbe::Mark();
-            a_c.extendCast = CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-extend");
+            a_c.extendCast = CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-second");
         }
         if (a_c.greySeen && EngineLive(shaders, engines)) {
             a_c.engineLiveAfterGrey = true;
         }
-        a_c.waitingFor = std::format("a live grey shader on the target, then {} s of watching; shaders seen: {}; burns: {}",
+        a_c.waitingFor = std::format("our shader alight on the target, then {} s of watching; shaders seen: {}; swaps: {}",
             kBurnWatch.count(), DescribeShaders(shaders), DescribeBurns(a_c.t3Mark));
         if (!a_c.greySeen || Clock::now() - *a_c.greySeen < kBurnWatch) {
             return false;
@@ -174,43 +172,43 @@ namespace BlackFlame::SelfTest
         const auto window = std::chrono::duration<float>(Clock::now() - *a_c.greySeen).count();
         const auto target = FormIdOf(a_c.dummy);
         const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
-        const bool applied = std::ranges::any_of(burns, [&](const auto& b) { return b.target == target && b.applied; });
-        const bool engineOk = !replace || (!engines.empty() && !a_c.engineLiveAfterGrey);
-        SelfTestLog::Check("T5", applied && engineOk, std::format("grey shader live on the target [{}]; a burn record "
-            "applied it: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in the "
-            "{:.2f} s checked: {}; engine shaders now: {}; burns: {}", BurnModeName(GetConfig().burnMode),
-            applied ? "yes" : "NO", engines.size(), kEngineAgeMin, window, a_c.engineLiveAfterGrey ? "YES" : "no",
-            DescribeEngineShaders(a_c, shaders, engines), DescribeBurns(a_c.t3Mark)));
+        const bool swapped = std::ranges::any_of(burns, [&](const auto& b) { return b.target == target; });
+        const bool engineOk = !engines.empty() && !a_c.engineLiveAfterGrey;
+        SelfTestLog::Check("T5", swapped && engineOk, std::format("our shader alight on the target; the hook swapped the "
+            "player's hit: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in "
+            "the {:.2f} s checked: {}; engine shaders now: {}; swaps: {}", swapped ? "yes" : "NO", engines.size(),
+            kEngineAgeMin, window, a_c.engineLiveAfterGrey ? "YES" : "no", DescribeEngineShaders(shaders, engines),
+            DescribeBurns(a_c.t3Mark)));
         return true;
     }
 
-    // A second hit while the grey shader is live extends it instead of stacking a second one
+    // A second hit while ours is alight is swapped too, and no engine hit shader comes up
     bool StepBurnExtend(Ctx& a_c, bool a_first)
     {
         if (a_first) {
             if (!a_c.extendAttempted) {
-                SelfTestLog::Fail("T5-extend", "skipped: no second hit (T5 never saw the grey shader)");
+                SelfTestLog::Fail("T5-second", "skipped: no second hit (T5 never saw our shader)");
                 return true;
             }
             if (!a_c.extendCast) {
                 return true;  // CastAtTarget already logged this step's FAIL
             }
-            a_c.mark = a_c.extendMark;  // cast by T5 the moment the grey shader showed
-            a_c.waitingFor = "a burn record for the second Firebolt hit";
+            a_c.mark = a_c.extendMark;  // cast by T5 the moment our shader showed
         }
+        const auto target = FormIdOf(a_c.dummy);
         const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
-        const auto it = std::ranges::find_if(burns, [](const auto& b) { return b.applied || b.alreadyLive; });
-        if (it == burns.end()) {
-            a_c.waitingFor = std::format("a burn record for the second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));
+        if (std::ranges::none_of(burns, [&](const auto& b) { return b.target == target; })) {
+            a_c.waitingFor = std::format("the hook's swap for the second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));
             return false;
         }
         const auto* ours = GetForms().burnShader;
+        const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
-        const auto liveGrey = std::ranges::count_if(shaders, [&](const auto& s) {
+        const auto liveOurs = std::ranges::count_if(shaders, [&](const auto& s) {
             return ours && !s.finished && s.effectData == ours->GetFormID();
         });
-        SelfTestLog::Check("T5-extend", it->alreadyLive && liveGrey == 1, std::format("second hit {} the grey shader; live "
-            "grey shaders on the target: {}; burns: {}", it->alreadyLive ? "extended" : "applied a new", liveGrey,
+        SelfTestLog::Check("T5-second", !EngineLive(shaders, engines), std::format("second hit swapped too; our shaders "
+            "alight on the target: {}; engine shaders: {}; swaps: {}", liveOurs, DescribeEngineShaders(shaders, engines),
             DescribeBurns(a_c.mark)));
         return true;
     }
@@ -225,20 +223,20 @@ namespace BlackFlame::SelfTest
             return true;
         }
         if (a_c.phase == 0) {
-            // T5-extend's projectile must be on record first, or it could pass for T4's player one
+            // T5-second's projectile must be on record first, or it could pass for T4's player one
             const bool extendSeen = !a_c.extendCast || FindProjectile(a_c.extendMark, true, a_c.forms.firebolt);
             const bool waited = Clock::now() - a_c.stepStart >= kExtendRecordWait;
             if (!extendSeen && !waited) {
-                a_c.waitingFor = "T5-extend's projectile record before casting";
+                a_c.waitingFor = "T5-second's projectile record before casting";
                 return false;
             }
             if (!extendSeen) {
-                SelfTestLog::Info("T4", "T5-extend's projectile never recorded: the player record below may be it");
+                SelfTestLog::Info("T4", "T5-second's projectile never recorded: the player record below may be it");
             }
             if (!PrepareCaster(a_c, "T4")) {
                 return true;
             }
-            // The engine hit shaders already on the target (T3, T5-extend): not the caster's
+            // The engine hit shaders already on the target (T3, T5-second): not the caster's
             a_c.engineBeforeT4.clear();
             const auto engines = EngineShadersOf(a_c.forms.firebolt);
             for (const auto& s : SelfTestWorld::ShadersOn(a_c.dummy)) {
@@ -302,9 +300,8 @@ namespace BlackFlame::SelfTest
         return true;
     }
 
-    // The caster's hit keeps its own engine shader: we never finish an NPC's shared hit shader.
-    // Only a shader that was not on the target before T4 and is not one of the player's T4 effect's
-    // own hit shaders (recorded by the burn layer) is the caster's.
+    // The caster's hit keeps its own engine shader. Every player hit is swapped at the source, so an
+    // engine Firebolt hit shader on the target that was not there before T4 is the caster's.
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first)
     {
         if (a_first && !NeedActors(a_c, "T5-npc")) {
@@ -315,23 +312,11 @@ namespace BlackFlame::SelfTest
             return false;
         }
         const auto since = a_c.npcHitEta ? Clock::now() - *a_c.npcHitEta : Clock::now() - a_c.stepStart;
-        const auto playerHits = PlayerHitShaders(a_c.mark);
-        if (playerHits.empty()) {
-            // The player's record may still come (a retry); only after the wait is it a verdict
-            if (since < kNpcBurnWait) {
-                a_c.waitingFor = "the burn layer's record of the player's T4 hit shader";
-                return false;
-            }
-            SelfTestLog::Info("T5-npc", std::format("cannot judge: the burn layer recorded no hit shader of the player's "
-                "T4 effect{}, so the caster's cannot be told apart", GetConfig().burnMode == BurnMode::kOverlay ?
-                    " (overlay mode leaves hitEffects unread)" : ""));
-            return true;
-        }
         const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
         a_c.waitingFor = "the caster's engine hit shader on the target";
         const bool casterShader = EngineLive(shaders, engines, [&](const SelfTestWorld::ShaderOn& a_shader) {
-            return SeenBefore(a_shader, a_c.engineBeforeT4) || SeenBefore(a_shader, playerHits);
+            return SeenBefore(a_shader, a_c.engineBeforeT4);
         });
         if (casterShader) {
             SelfTestLog::Pass("T5-npc", std::format("the caster's engine Firebolt hit shader is still unfinished at {:.1f} s "
@@ -341,9 +326,8 @@ namespace BlackFlame::SelfTest
         if (since < kNpcBurnWait) {
             return false;
         }
-        SelfTestLog::Fail("T5-npc", std::format("no engine Firebolt hit shader of the caster's (new since T4, not the "
-            "player's) unfinished on the target within {} ms of its arrival: {}", kNpcBurnWait.count(),
-            DescribeShaders(shaders)));
+        SelfTestLog::Fail("T5-npc", std::format("no engine Firebolt hit shader of the caster's (new since T4) unfinished "
+            "on the target within {} ms of its arrival: {}", kNpcBurnWait.count(), DescribeShaders(shaders)));
         return true;
     }
 

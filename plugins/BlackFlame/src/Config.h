@@ -10,18 +10,13 @@
 
 namespace BlackFlame
 {
-    enum class BurnMode
-    {
-        kReplace,  // finish the engine's hit shader, then apply ours
-        kOverlay   // leave the engine's hit shader, apply ours on top
-    };
-
     struct Config
     {
-        bool burnShader = true;   // layer 1: the burn shader on targets
-        BurnMode burnMode = BurnMode::kReplace;
+        bool burnShader = true;   // layer 1: the hit shader of the player's fire effects swapped for ours
+        bool hitArt = true;       // layer 1: the hit art of the player's fire effects recoloured
         bool projectile = true;   // layer 2: the projectile's 3D
         bool explosion = true;    // layer 3: the explosion's 3D
+        bool hazard = true;       // layer 3: the player's fire hazards (ground fire): non-shared geometry and light
         bool handArt = true;      // layer 4: the casting art in the player's hands
         bool light = true;        // projectile, explosion and casting lights
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
@@ -38,6 +33,4 @@ namespace BlackFlame
     void LoadConfig();
 
     [[nodiscard]] const Config& GetConfig() noexcept;
-
-    [[nodiscard]] const char* BurnModeName(BurnMode a_mode) noexcept;
 }

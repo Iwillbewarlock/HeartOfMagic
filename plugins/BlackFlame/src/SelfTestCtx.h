@@ -88,7 +88,7 @@ namespace BlackFlame::SelfTest
     // finishing runs within a retry tick or two); a younger one may be on its way out
     inline constexpr float kEngineAgeMin = 0.5f;  // the retry runs 100-200 ms after queueing: ample margin
     inline constexpr float kRadiusMargin = 100.0f;  // beyond Fireball's explosion radius
-    inline constexpr auto kExtendRecordWait = std::chrono::seconds(1);  // T4 waits for T5-extend's projectile record
+    inline constexpr auto kExtendRecordWait = std::chrono::seconds(1);  // T4 waits for T5-second's projectile record
     inline constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
     inline constexpr auto kInFlightWait = std::chrono::milliseconds(1500);  // after the last cast, before deleting
 

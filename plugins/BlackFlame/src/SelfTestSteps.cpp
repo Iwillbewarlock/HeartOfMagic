@@ -65,9 +65,9 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Info("T0", std::format("fire spells: catalog {} ({}), keyword {}, total {}; fire effects {}, "
                 "fire explosions {}", counts.catalogFire, counts.catalogRead ? "read" : "NOT read", counts.keywordFire,
                 counts.total, counts.effects, counts.explosions));
-            SelfTestLog::Info("T0", std::format("config: burnShader={} burnMode={} projectile={} explosion={} handArt={} "
-                "light={} forcePalette={} particleColors={} tintScale={}", cfg.burnShader, BurnModeName(cfg.burnMode),
-                cfg.projectile, cfg.explosion, cfg.handArt, cfg.light, cfg.forcePalette, cfg.particleColors, cfg.tintScale));
+            SelfTestLog::Info("T0", std::format("config: burnShader={} hitArt={} projectile={} explosion={} hazard={} "
+                "handArt={} light={} forcePalette={} particleColors={} tintScale={}", cfg.burnShader, cfg.hitArt,
+                cfg.projectile, cfg.explosion, cfg.hazard, cfg.handArt, cfg.light, cfg.forcePalette, cfg.particleColors, cfg.tintScale));
             if (a_c.forms.fireballExplosion) {
                 SelfTestLog::Info("T0", std::format("Fireball explosion {:08X} radius {:.0f}",
                     a_c.forms.fireballExplosion->GetFormID(), a_c.forms.fireballExplosion->data.radius));
@@ -277,7 +277,7 @@ namespace BlackFlame::SelfTest
 
     std::span<const StepDef> Steps()
     {
-        // T5 runs right after T3 (before the NPC casts) so the target carries only the player's burn
+        // T5 runs right after T3 (before the NPC casts) so the target carries only the player's hit shader
         static constexpr std::array kSteps{
             StepDef{ "T0", kEnvTimeout, &StepEnvironment },
             StepDef{ "T1", kBuffOnTimeout, &StepBuffOn },
@@ -285,7 +285,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T2", kActorsTimeout, &StepActorsReady },
             StepDef{ "T3", kProjectileTimeout, &StepPlayerProjectile },
             StepDef{ "T5", kBurnTimeout, &StepPlayerBurn },
-            StepDef{ "T5-extend", kProjectileTimeout, &StepBurnExtend },
+            StepDef{ "T5-second", kProjectileTimeout, &StepBurnExtend },
             StepDef{ "T4", kProjectileTimeout, &StepNpcProjectile },
             StepDef{ "T5-npc", kInfoTimeout, &StepNpcBurnInfo },
             StepDef{ "T6", kExplosionTimeout, &StepPlayerExplosion },

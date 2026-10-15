@@ -1,9 +1,6 @@
 #include "EffectEvents.h"
 
 #include "BuffState.h"
-#include "BurnShader.h"
-#include "Config.h"
-#include "GameThread.h"
 
 #include <atomic>
 
@@ -47,16 +44,6 @@ namespace BlackFlame
             if (a_event->target.get() == player) {
                 const char* reason = a_event->isApplied ? "effect applied to the player" : "effect removed from the player";
                 RequestRecomputeBuff(reason);
-            }
-            // Layer 1: a fire effect the player put on anyone while stoked (the task checks the MGEF),
-            // and the end of one the burn layer is tracking
-            auto* target = a_event->target.get();
-            if (target && a_event->caster.get() == player && GetConfig().burnShader) {
-                if (a_event->isApplied && IsStoked()) {
-                    OnPlayerEffectApplied(target, a_event->activeEffectUniqueID);
-                } else if (!a_event->isApplied && HasLiveBurns()) {
-                    QueueBurnEnd(target->GetHandle(), a_event->activeEffectUniqueID);
-                }
             }
         } catch (...) {
             if (!g_sinkFailureReported.exchange(true)) {

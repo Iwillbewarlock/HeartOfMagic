@@ -28,6 +28,8 @@ namespace BlackFlame
 
         constexpr std::array kBoolKeys{
             BoolKey{ "burnShader", &Config::burnShader },
+            BoolKey{ "hitArt", &Config::hitArt },
+            BoolKey{ "hazard", &Config::hazard },
             BoolKey{ "projectile", &Config::projectile },
             BoolKey{ "explosion", &Config::explosion },
             BoolKey{ "handArt", &Config::handArt },
@@ -66,20 +68,14 @@ namespace BlackFlame
             }
         }
 
-        void ReadBurnMode(const nlohmann::json& j, Config& out)
+        // burnMode is gone: the hit shader is swapped where the engine asks for it, so there is one
+        // shader per hit and nothing to lay on top. An old config keeps loading; the key is ignored.
+        void ReadBurnMode(const nlohmann::json& j)
         {
             const auto it = j.find("burnMode");
-            if (it == j.end()) {
-                return;
-            }
-            if (it->is_string() && it->get_ref<const std::string&>() == "replace") {
-                out.burnMode = BurnMode::kReplace;
-            } else if (it->is_string() && it->get_ref<const std::string&>() == "overlay") {
-                out.burnMode = BurnMode::kOverlay;
-            } else {
-                logger::warn("BlackFlame: config 'burnMode' {} is not \"replace\" or \"overlay\" - using \"replace\"",
-                    it->dump());
-                out.burnMode = BurnMode::kReplace;
+            if (it != j.end()) {
+                logger::info("BlackFlame: config 'burnMode' {} is ignored (no longer used: the engine now makes the hit "
+                             "shader from ours, so there is no overlay)", it->dump());
             }
         }
 
@@ -135,9 +131,9 @@ namespace BlackFlame
         void LogConfig()
         {
             logger::info(
-                "BlackFlame: config burnShader={} burnMode={} projectile={} explosion={} handArt={} light={} "
+                "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} light={} "
                 "forcePalette={} selfTest={} particleColors={} tintScale={} lightColor=[{}, {}, {}]",
-                g_config.burnShader, BurnModeName(g_config.burnMode), g_config.projectile, g_config.explosion,
+                g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
                 g_config.handArt, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
                 g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
@@ -171,7 +167,7 @@ namespace BlackFlame
 
         Config next;
         ReadBools(j, next);
-        ReadBurnMode(j, next);
+        ReadBurnMode(j);
         ReadTintScale(j, next);
         ReadLightColor(j, next);
         g_config = next;
@@ -181,10 +177,5 @@ namespace BlackFlame
     const Config& GetConfig() noexcept
     {
         return g_config;
-    }
-
-    const char* BurnModeName(BurnMode a_mode) noexcept
-    {
-        return a_mode == BurnMode::kOverlay ? "overlay" : "replace";
     }
 }

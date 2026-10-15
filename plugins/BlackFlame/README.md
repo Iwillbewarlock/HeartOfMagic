@@ -32,7 +32,7 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 3. Enable the mod and the ESP. Needs SKSE and Address Library (SE 1.5.97 or AE 1.6.x; VR not built).
 4. Log: `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame.log` (info lines are
    buffered: they reach the file on a warning, a game load, a save, a new game and at the end of the
-   self-test). Per-recolour and per-burn lines are limited to one per spell and kind per second (the next
+   self-test). Per-recolour and per-swap lines are limited to one per spell and kind per second (the next
    line says how many were held back).
 
 ## Config (`SKSE/Plugins/HeartOfMagic_BlackFlame.json`)
@@ -41,8 +41,8 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 
 | Key | Default | What |
 |---|---|---|
-| `burnShader` | `true` | Layer 1: grey burn shader on targets of the player's fire spells |
-| `burnMode` | `"replace"` | `"replace"`: finish the engine's hit shader, then apply the grey one. `"overlay"`: leave the engine's hit shader and apply the grey one on top. Anything else: `"replace"` with a warning |
+| `burnShader` | `true` | Layer 1: the hit shader of the player's fire effects is the grey burn shader (on targets, and on the player for cloaks) |
+| `hitArt` | `true` | Layer 1: recolour the hit art of the player's fire effects (e.g. a cloak's flames) |
 | `projectile` | `true` | Layer 2: recolour the player's fire projectiles |
 | `explosion` | `true` | Layer 3: recolour the player's fire explosions |
 | `handArt` | `true` | Layer 4: recolour the casting art in the player's hands |
@@ -74,7 +74,7 @@ skipped, so it is safe to repeat.
 
 | Layer | Where |
 |---|---|
-| 1 burn shader | `TESActiveEffectApplyRemoveEvent`: a fire effect cast by a fire spell (scrolls, staffs and enchantments sharing the MGEF do not count). On the game thread the sink reads the effect's MGEF and spell while it is still in the target's list (its thread is logged; off the game thread the task reads it, and an instant effect may then be gone: logged). A game-thread task applies `HoMBF_BurnShader` at once for the remaining time (1.5 s for an instant hit) or extends a live grey shader on that target; replace mode finishes the MGEF's hit shader in that effect's own `hitEffects` (never target-wide), once more after a full tick when the list is not filled yet. An effect with a duration or a concentration cast keeps its grey shader alight; when it is removed or gone and the player has no other fire effect on the target, the grey shader is finished |
+| 1 hit shader and hit art | `ActiveEffectReferenceEffectController` vtable: `GetHitEffectShader` (0x0D) and `GetHitEffectArt` (0x0C), where the engine asks an active effect which hit shader and art to put on its target. While stoked, for an effect the player cast (caster handle) whose MGEF is a fire effect of a fire spell (scrolls, staffs and enchantments sharing the MGEF do not count): the shader call returns `HoMBF_BurnShader` instead of the engine's, so the engine makes the hit shader from ours (instant hits, concentration and cloaks alike; no event, no record changed, nothing to finish); the art call returns the engine's art, and the art's 3D (`ModelReferenceEffect::artObject3D`) is recoloured on a later tick once it exists (up to 2 s). The first 20 calls of each slot, on any effect and on a stoked player's fire effect, are logged with the controller, how many times it was asked, the effect, the target and the thread |
 | 2 projectile | `Handle3DLoaded` (vfunc 0xC0) on the Missile, Flame, Cone, Beam, Grenade and Barrier vtables; shooter the player, spell fire |
 | 3 explosion | `Set3D` (vfunc 0x6C) on the Explosion vtable; base form in the fire explosion set, owner or cause actor the player; the explosion's own magicCaster (Explosion.h:87) must name nothing, a fire spell, or an enchantment (the explosion's own; a weapon enchantment cannot be told apart) - a scroll, staff, power, potion and so on are left; a light missing at Set3D is tinted on the next tick |
 | 4 hand art | ticker task every 100 ms while stoked, and at once when the buff turns on: per hand casting a fire spell OR holding one readied (Actor::GetEquippedObject), the casting art itself (`ActorMagicCaster::castingArtData.attachedArt`); only when that is null or holds no effect geometry (logged as FALLBACK) the caster's `magicNode`, the hand's magic node by name in the 1st and 3rd person skeletons and, last, the player's casting-art `ModelReferenceEffect`s; the caster's light tinted. Every recoloured hand-art property is remembered with its original greyscale texture, path, base colour and palette flags, and put back when the buff turns off and on a load (a fresh material copy, SetMaterial(copy, true)) |
@@ -84,10 +84,9 @@ skipped, so it is safe to repeat.
 - Grey-black, not pitch black: the blending stays additive.
 - Death flames (an actor burning to death) stay orange: hardcoded in the engine (Black Flame author's note).
 - Scorch decals, impact data sets and hazards placed by spells or explosions (e.g. Flare Storm) are unchanged.
-- Hit-effect art (e.g. Flame Cloak's `FXFireCloak01`) is not recoloured; only the hit shader is (layer 1).
+- A hit shader or hit art made while stoked stays grey until it ends, also after the buff ends; one made before the buff stays as it was (the engine asks once, when it makes it - see the diagnostic lines).
+- Hit art that is a shared master particle system (`BSMasterParticleSystem`) is not recoloured.
 - Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched: `BSLightingShaderProperty` emissive colour may be shared.
-- Replace mode swaps the burn shader after the engine applied its own: concentration spells (Flames) may flicker orange for a frame.
-- When the effect is already gone at the later retry, its engine hit shader is left to run out (finishing shaders target-wide would also stop an ally's identical shader). An instant hit whose effect is gone before the first task still gets the grey shader (its MGEF is read in the event), but its engine shader stays.
 - Explosions: a weapon enchantment's explosion cannot be told apart from the explosion's own enchantment, so a player-owned one in the fire explosion set is recoloured; with no magicCaster spell, a player-owned fire explosion is recoloured whatever made it.
 - A `BSEffectShaderPropertyColorController` animates a property's colour every frame and overrides the base colour change; the log counts such shapes. Particle colour modifiers multiply the palette, so some orange can stay unless `particleColors` is on.
 - Shapes without the palette flag, with `forcePalette` off, keep their texture's colour (examples from vanilla paths: `PCoreCircularFlare`, `RedGlowAdd` on bolt/ball projectiles, `pGlow`/`ppLight` on hand effects).
@@ -130,11 +129,11 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T3-pointer | every palette material also kept our texture pointer (the property holds the engine's copy) |
 | T3-tint | every recoloured base colour is grey (R=G=B) and, for at least one shape seen before the recolour and without a colour controller, equals its old luminance x tintScale; INFO instead when shapes were recoloured but every comparable one has a colour controller |
 | T4-light | read on the live player projectile of T4, a tick or more after the tint: its light diffuse equals `lightColor` (INFO when it has no light or is gone) |
-| T5 | a live grey shader appears on the target and a burn record applied it; in replace mode Firebolt's engine hit shaders are known and none of them is unfinished at 0.5 s or older in the second after (the line lists each engine shader with its age and whose hit it was, and how long it checked) |
-| T5-extend | a second Firebolt, launched by T5 the moment the grey shader shows (while the first hit's 1.5 s grey still lives), extends it: its burn record says extended and one grey shader is live |
-| T4 | the caster launches first, then the player, in the same frame (the caster turned to the target and every distance re-checked first; the player's projectile matched after T5-extend's is on record): the caster's has effect shapes, none grey, and the player's was recoloured; judged on the tick after both records |
+| T5 | our shader appears on the target and the `GetHitEffectShader` hook recorded swapping the player's hit there; Firebolt's engine hit shaders are known and none of them is unfinished at 0.5 s or older in the second after (the line lists each engine shader with its age, and how long it checked) |
+| T5-second | a second Firebolt, launched by T5 the moment our shader shows, is swapped too (a hook record for the target) and no engine Firebolt hit shader is alight; the number of our shaders alight is logged |
+| T4 | the caster launches first, then the player, in the same frame (the caster turned to the target and every distance re-checked first; the player's projectile matched after T5-second's is on record): the caster's has effect shapes, none grey, and the player's was recoloured; judged on the tick after both records |
 | T4-shared | while both projectiles still exist, inspected then: no effect property shared, none grey on the caster's (INFO "not comparable" when one was gone) |
-| T5-npc | once the caster's projectile can have arrived (distance / projectile speed), an engine Firebolt hit shader unfinished at 0.5 s or older that is neither one already on the target before T4 nor one of the player's T4 effect's own hit shaders (a sighting is the same shader only if its age grew with the unpaused clock, and a shader recorded finished never matches an unfinished one) shows within 1.5 s; INFO "cannot judge" when the burn layer recorded no player hit shader by then |
+| T5-npc | once the caster's projectile can have arrived (distance / projectile speed), an engine Firebolt hit shader unfinished at 0.5 s or older that was not already on the target before T4 shows within 1.5 s (every player hit is swapped at the source, so such a shader is the caster's; a sighting is the same shader only if its age grew with the unpaused clock, and a shader recorded finished never matches an unfinished one) |
 | T6 | Fireball's explosion from the player is recoloured with the palette path on the recoloured shapes (owner, cause, magicCaster current spell, light at Set3D logged) |
 | T6-npc | Fireball's explosion from the caster (owner or cause actor) has effect shapes, none grey, not recoloured |
 | T7 / T7-player | INFO: the first colour modifier's keys (0x30-0x5F) and whether the layout looks plausible (all in 0..2, one above 0); with `particleColors`: every player modifier desaturated (T7-player); and, only when the caster's projectile was recorded before the player's, its modifiers neither shared, nor changed between its hook and T4, nor already equal to the desaturated keys of the player's T3 projectile before its recolour (T7; "not compared" when those had no colour, INFO when not comparable) |
@@ -156,9 +155,11 @@ Only what needs eyes or hands. Steps 1-3 set up a manual session.
 3. **Hand art in 1st and 3rd person** (readied flames turn grey when the buff starts and go back when it ends; not automated: equipping and readying a spell from the test is not done): `CastSpellImmediate` has no charge animation, so only a real charge
    shows the casting art. The log line `hand art: ...` says which places had effect geometry. A `(more
    geometry)` line repeating every 100 ms means the "already grey" check does not hold: report it.
-4. **Concentration flicker** (Flames, replace mode): a one-frame orange flash is a look, not data.
-5. **Overlay mode look** (`burnMode` `"overlay"`): does the membrane show black (the engine may draw only
-   the top-most membrane), and do the original shader's orange particles stay visible?
+4. **Concentration and cloaks**: Flames on a target and Flame Cloak on the player show the grey shader with no
+   orange frame, and the cloak's flames (hit art) turn grey; the log's `GetHitEffectShader` /
+   `GetHitEffectArt` lines say whether the engine asks once per effect or again and again.
+5. **Fire Rune**: the resting rune (a grenade projectile) and its explosion turn grey (log `projectile:` with
+   kind grenade, then `explosion:`).
 6. **Casting light**: a 10 Hz orange/tint flicker (the engine rewriting the light every frame) shows only on
    screen.
 7. **Frame time feel** while casting with the buff on: no hitch on cast or impact.

@@ -9,7 +9,6 @@
 #include "Common.h"
 
 #include "BuffState.h"
-#include "BurnShader.h"
 #include "CasterArt.h"
 #include "Config.h"
 #include "EffectEvents.h"
@@ -17,6 +16,8 @@
 #include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "HitArt.h"
+#include "HitEffectHook.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
 #include "Recolor.h"
@@ -42,13 +43,14 @@ namespace
         if (BlackFlame::GetConfig().explosion) {
             BlackFlame::InstallExplosionHook();
         }
+        BlackFlame::InstallHitEffectHooks();
     }
 
     // The world is torn down: nothing tracked from it may be touched again
     void ResetLayers()
     {
         BlackFlame::g_worldGeneration.fetch_add(1);  // tasks queued in the old world now do nothing
-        BlackFlame::ResetBurnState();
+        BlackFlame::ResetHitArt();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetRecolorState();

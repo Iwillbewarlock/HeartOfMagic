@@ -1,10 +1,10 @@
 #include "BuffState.h"
 
-#include "BurnShader.h"
 #include "CasterArt.h"
 #include "ExplosionHook.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "HitArt.h"
 #include "SelfTest.h"
 
 #include <atomic>
@@ -62,7 +62,7 @@ namespace BlackFlame
         {
             g_tickPending.store(false);
             RecomputeBuff("tick");
-            TickBurns();  // layer 1: engine shader retries, live burns kept alight
+            TickHitArt();  // layer 1: hit arts waiting for their 3D
             TickExplosionLights();  // layer 3: lights that did not exist at Set3D
             if (IsStoked()) {
                 TickCasterArt();  // layer 4
@@ -76,7 +76,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasLiveBurns() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // A throw here would end the thread (and std::terminate the game): keep looping

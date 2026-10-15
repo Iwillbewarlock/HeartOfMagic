@@ -94,9 +94,8 @@ namespace BlackFlame::SelfTestText
     {
         std::string out;
         for (const auto& b : SelfTestProbe::BurnsSince(a_mark)) {
-            out += std::format("{}[spell {:08X} on {:08X}: {}, {} stopped, attempt {}, {}]", out.empty() ? "" : " ",
-                b.spell, b.target, b.listState, b.stopped, b.attempt,
-                b.alreadyLive ? "already live" : (b.applied ? "applied" : "not applied"));
+            out += std::format("{}[spell {:08X} on {:08X}: engine {:08X} swapped, thread {}]", out.empty() ? "" : " ",
+                b.spell, b.target, b.engineShader, b.thread);
         }
         return out.empty() ? "no burn swap recorded" : out;
     }

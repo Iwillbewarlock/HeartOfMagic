@@ -45,8 +45,4 @@ namespace BlackFlame
     /// (BGSProjectile::data.explosionType); one named only by a fallback (costliest) effect counts
     /// only when a_casterSpell is the spell that contributed it.
     [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion, const RE::MagicItem* a_casterSpell);
-
-    /// The hit shader (EffectSetting::data.effectShader) of some fire effect - the burn layer's fallback
-    /// when an instant effect is gone before its task runs
-    [[nodiscard]] bool IsFireHitShader(const RE::TESEffectShader* a_shader);
 }
