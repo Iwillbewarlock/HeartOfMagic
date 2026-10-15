@@ -7,6 +7,7 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "ImpactSwap.h"
 #include "ScriptTags.h"
 #include "SehGuard.h"
 #include "VtableSlots.h"
@@ -94,6 +95,11 @@ namespace BlackFlame
         // Any thread: queue a hazard with 3D once, and have it handled on the next game-thread task
         void Queue(RE::Hazard* a_hazard)
         {
+            // Made inside the player's impact (SpawnCollisionEffects creates the impact hazard; its owner is
+            // not set there and the cause is no rule): tagged, so the attribution below knows it
+            if (ImpactWindowOpen()) {
+                TagSource(a_hazard);
+            }
             if (!IsStoked() || !GetConfig().hazard || !a_hazard->Get3D()) {
                 return;
             }

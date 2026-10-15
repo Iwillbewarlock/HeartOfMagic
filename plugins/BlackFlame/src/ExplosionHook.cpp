@@ -7,6 +7,7 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "Recolor.h"
+#include "ImpactSwap.h"
 #include "ScriptTags.h"
 #include "SehGuard.h"
 #include "VtableSlots.h"
@@ -360,11 +361,41 @@ namespace BlackFlame
             static inline REL::Relocation<decltype(thunk)> func;
         };
 
+        // The player's fire explosion while stoked: its impact effects (spawned inside Update) may take
+        // the grey copies (ImpactSwap.h)
+        bool OpensImpactWindow(RE::Explosion* a_explosion)
+        {
+            if (!IsStoked() || !GetConfig().impactSwap) {
+                return false;
+            }
+            auto* base = a_explosion->GetBaseObject();
+            if (!IsFireExplosion(base ? base->As<RE::BGSExplosion>() : nullptr)) {
+                return false;
+            }
+            auto& data = a_explosion->GetExplosionRuntimeData();
+            RE::Actor* casterActor = nullptr;
+            auto* casterRef = data.magicCaster ? data.magicCaster->GetCasterObjectReference(&casterActor) : nullptr;
+            const auto owner = data.actorOwner.get();
+            return LinkToPlayer("explosion impact", a_explosion, owner.get(), data.magicCaster, casterRef) !=
+                   PlayerLink::kNone;
+        }
+
         struct UpdateHook
         {
             static void thunk(RE::Explosion* a_this, float a_delta)
             {
-                func(a_this, a_delta);
+                bool open = false;
+                try {
+                    if (a_this) {
+                        (void)Guarded("explosion impact window", [&]() { open = OpensImpactWindow(a_this); });
+                    }
+                } catch (...) {
+                    open = false;
+                }
+                {
+                    const ImpactWindow window(open);
+                    func(a_this, a_delta);
+                }
                 try {
                     if (a_this && a_this->Get3D()) {
                         (void)Guarded("explosion Update", [&]() { OnSet3D(a_this, true); });

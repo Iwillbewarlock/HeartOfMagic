@@ -31,6 +31,10 @@ set(BLACKFLAME_SOURCES
     src/PlayerArt.cpp
     src/ScriptTags.cpp
     src/PapyrusWrap.cpp
+    src/GreyMap.cpp
+    src/ImpactSwap.cpp
+    src/HazardSwap.cpp
+    src/GreyCheck.cpp
     src/Recolor.cpp
     src/SehGuard.cpp
     src/ParticleColors.cpp

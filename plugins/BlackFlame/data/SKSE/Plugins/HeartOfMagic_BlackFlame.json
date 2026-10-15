@@ -7,6 +7,8 @@
     "handArt": true,
     "boundWeapon": true,
     "scriptPlaced": true,
+    "impactSwap": true,
+    "hazardSwap": true,
     "light": true,
     "forcePalette": true,
     "particleColors": false,

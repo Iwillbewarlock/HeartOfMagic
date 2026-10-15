@@ -1,6 +1,8 @@
 #include "SelfTestCtx.h"
 
 #include "Attribution.h"
+#include "Config.h"
+#include "ImpactSwap.h"
 #include "ScriptTags.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
@@ -166,5 +168,51 @@ namespace BlackFlame::SelfTest
             RemoveRemoteMarkers(a_c);
             return true;
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // T6-swap / T6-npc-swap: the impact swap, counted in BGSImpactData GetModel while a window was open
+    // ---------------------------------------------------------------------
+
+    namespace
+    {
+        constexpr auto kSwapSettle = std::chrono::milliseconds(1200);  // the explosion's impact effects spawn in Update
+
+        bool SwapExpected(const Ctx& a_c)
+        {
+            const auto status = GetImpactSwapStatus();
+            const auto* explosion = a_c.forms.fireballExplosion;
+            return GetConfig().impactSwap && status.modelHooked && explosion &&
+                   ImpactSetHasGreyModel(explosion->data.impactDataSet);
+        }
+    }
+
+    bool StepImpactSwap(Ctx& a_c, bool)
+    {
+        if (Clock::now() - a_c.stepStart < kSwapSettle) {
+            a_c.waitingFor = "the player's Fireball impact effects";
+            return false;
+        }
+        const auto swaps = ImpactSwapCount() - a_c.swapsAtT6;
+        if (!SwapExpected(a_c)) {
+            SelfTestLog::Info("T6-swap", std::format("not judged: impactSwap off, not hooked, or Fireball's impact set has "
+                "no model in the grey map ({} swaps counted)", swaps));
+            return true;
+        }
+        SelfTestLog::Check("T6-swap", swaps > 0, std::format("grey impact models handed out since the player's Fireball: "
+            "{}", swaps));
+        return true;
+    }
+
+    bool StepNpcImpactSwap(Ctx& a_c, bool)
+    {
+        if (Clock::now() - a_c.stepStart < kSwapSettle) {
+            a_c.waitingFor = "the caster's Fireball impact effects";
+            return false;
+        }
+        const auto swaps = ImpactSwapCount() - a_c.swapsAtT6npc;
+        SelfTestLog::Check("T6-npc-swap", swaps == 0, std::format("grey impact models handed out since the caster's "
+            "Fireball (no player projectile in flight): {}", swaps));
+        return true;
     }
 }

@@ -6,6 +6,7 @@
 #include "Forms.h"
 #include "GameThread.h"
 #include "Palette.h"
+#include "GreyCheck.h"
 #include "PapyrusWrap.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
@@ -91,6 +92,9 @@ namespace BlackFlame::SelfTest
                     a_c.forms.fireballExplosion->GetFormID(), a_c.forms.fireballExplosion->data.radius));
             }
             LogWrapperChecks();
+            for (const auto& line : GreyCheckResults()) {
+                SelfTestLog::Check("T0-grey", line.pass, line.text);
+            }
             const bool fireOk = a_c.haveForms && IsFireSpell(a_c.forms.firebolt) && IsFireSpell(a_c.forms.fireball);
             const bool ok = PaletteReady() && forms.burnShader && forms.stokeSpell && forms.stokedKeyword && fireOk;
             SelfTestLog::Check("T0", ok, std::format("palette, ESP forms and vanilla forms{}; Firebolt and Fireball "
@@ -308,7 +312,9 @@ namespace BlackFlame::SelfTest
             StepDef{ "T4", kProjectileTimeout, &StepNpcProjectile },
             StepDef{ "T5-npc", kInfoTimeout, &StepNpcBurnInfo },
             StepDef{ "T6", kExplosionTimeout, &StepPlayerExplosion },
+            StepDef{ "T6-swap", kInfoTimeout, &StepImpactSwap },
             StepDef{ "T6-npc", kExplosionTimeout, &StepNpcExplosion },
+            StepDef{ "T6-npc-swap", kInfoTimeout, &StepNpcImpactSwap },
             StepDef{ "T3-remote", kRemoteTimeout, &StepRemoteCast },
             StepDef{ "T7", kEnvTimeout, &StepModifiers },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },

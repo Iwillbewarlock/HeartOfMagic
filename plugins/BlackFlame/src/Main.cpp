@@ -16,11 +16,15 @@
 #include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "GreyCheck.h"
+#include "GreyMap.h"
 #include "HazardHook.h"
+#include "HazardSwap.h"
 #include "PapyrusWrap.h"
 #include "PlayerArt.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
+#include "ImpactSwap.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
 #include "Recolor.h"
@@ -37,6 +41,7 @@ namespace
             return;
         }
         BlackFlame::BuildFireSets();
+        BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();
         BlackFlame::EffectEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
@@ -51,6 +56,9 @@ namespace
             BlackFlame::InstallHazardHook();
         }
         BlackFlame::InstallHitEffectHooks();
+        BlackFlame::InstallImpactSwap();
+        BlackFlame::InstallHazardSwap();
+        BlackFlame::RunGreyCheck();
     }
 
     // The world is torn down: nothing tracked from it may be touched again
@@ -133,7 +141,9 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
-    SKSE::Init(a_skse, false);
+    // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp)
+    constexpr std::size_t kTrampolineSize = 128;
+    SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });
     BlackFlame::StampGameThreadFromTask();  // the first SKSE task stamps the game thread (GameThread.h)
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
     // and the self-test's end write them out

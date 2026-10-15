@@ -57,6 +57,8 @@ namespace BlackFlame::SelfTest
         bool secondCast = false;
         RE::ObjectRefHandle remoteMarker;                 // T3-remote's tagged casting marker
         RE::FormID remoteMarkerId = 0;
+        std::uint64_t swapsAtT6 = 0;     // ImpactSwapCount when T6 cast
+        std::uint64_t swapsAtT6npc = 0;  // and when T6-npc cast
         RE::ObjectRefHandle blameMarker;                  // T3-blame's casting marker
         RE::FormID blameMarkerId = 0;
         std::optional<Clock::time_point> secondSwapSeen;  // T5-second's swap record first seen
@@ -103,7 +105,9 @@ namespace BlackFlame::SelfTest
     bool StepPlayerBurn(Ctx& a_c, bool a_first);
     bool StepSecondHit(Ctx& a_c, bool a_first);
     bool StepRemoteCast(Ctx& a_c, bool a_first);
-    void RemoveRemoteMarkers(Ctx& a_c);  // T3-remote's markers, also at cleanup
+    void RemoveRemoteMarkers(Ctx& a_c);
+    bool StepImpactSwap(Ctx& a_c, bool a_first);
+    bool StepNpcImpactSwap(Ctx& a_c, bool a_first);  // T3-remote's markers, also at cleanup
     bool StepNpcProjectile(Ctx& a_c, bool a_first);
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first);
     bool StepPlayerExplosion(Ctx& a_c, bool a_first);
