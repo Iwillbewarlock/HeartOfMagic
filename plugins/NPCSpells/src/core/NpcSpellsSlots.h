@@ -16,7 +16,8 @@
 namespace NpcSpells {
     enum class UndeadGroupPolicy : std::uint8_t { Mixed, AlwaysNecro, NeverUndead };
     struct GroupDef { std::string_view name; UndeadGroupPolicy policy; };
-    inline constexpr std::array<GroupDef, 6> kGroups{ { { "None", UndeadGroupPolicy::Mixed }, { "Forsworn", UndeadGroupPolicy::Mixed }, { "Vampire", UndeadGroupPolicy::AlwaysNecro },
+    inline constexpr std::size_t kGroupCount = 6;   // None + the five faction groups
+    inline constexpr std::array<GroupDef, kGroupCount> kGroups{ { { "None", UndeadGroupPolicy::Mixed }, { "Forsworn", UndeadGroupPolicy::Mixed }, { "Vampire", UndeadGroupPolicy::AlwaysNecro },
         { "Necromancer", UndeadGroupPolicy::AlwaysNecro }, { "Thalmor", UndeadGroupPolicy::NeverUndead }, { "Vigilant", UndeadGroupPolicy::NeverUndead } } };
     inline constexpr std::uint8_t kGroupNone = 0;
     enum class Variant : std::uint8_t { All, Prefer, NecroPrefer, NoUndeadAll };

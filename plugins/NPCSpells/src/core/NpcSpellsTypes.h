@@ -9,6 +9,8 @@ namespace NpcSpells {
     enum class Tier : std::uint8_t { Novice = 0, Apprentice, Adept, Expert, Master, Count };
     enum class ClassTier : std::uint8_t { NonMage, Hybrid, Mage };
     enum class UndeadPolicy : std::uint8_t { NoUndead, Conjurer, Necromancer };
+    inline constexpr std::size_t kClassTierCount = static_cast<std::size_t>(ClassTier::Mage) + 1;
+    inline constexpr std::size_t kUndeadPolicyCount = static_cast<std::size_t>(UndeadPolicy::Necromancer) + 1;
     inline constexpr std::size_t kSchoolCount = 5;
     inline constexpr std::size_t kTierCount = 5;
     inline constexpr std::array<std::uint16_t, kTierCount> kTierFloor{ 0, 25, 50, 75, 100 };

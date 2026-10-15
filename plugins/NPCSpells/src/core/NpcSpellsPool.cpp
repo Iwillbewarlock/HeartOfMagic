@@ -1,5 +1,6 @@
 #include "core/NpcSpellsPool.h"
 #include <algorithm>
+#include <unordered_set>
 namespace NpcSpells {
 bool SpellFacts::HasAnyTag(const std::vector<std::string>& tags) const
 {
@@ -13,12 +14,14 @@ std::vector<SpellFacts> BuildPool(const nlohmann::json& tree, const nlohmann::js
     const auto schools = tree.find("schools");
     if (schools == tree.end() || !schools->is_object()) return pool;
     const auto& spells = catalog["spells"];
+    std::unordered_set<std::string> seen;   // persistentIds already taken: one weight per spell however many nodes name it
     for (const auto& [schoolName, schoolData] : schools->items()) {
         const auto nodes = schoolData.find("nodes");
         if (nodes == schoolData.end() || !nodes->is_array()) continue;
         for (const auto& node : *nodes) {
             ++stats.treeNodes;
             const std::string pid = node.value("persistentId", "");
+            if (!pid.empty() && !seen.insert(pid).second) { ++stats.duplicates; continue; }
             const auto entry = spells.find(pid);
             if (pid.empty() || entry == spells.end()) { ++stats.notInCatalog; continue; }
             SpellFacts f; f.persistentId = pid;

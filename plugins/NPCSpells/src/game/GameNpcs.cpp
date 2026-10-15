@@ -26,7 +26,7 @@ namespace
 
     static_assert(sizeof(RE::CLASS_DATA::SkillWeights) == std::tuple_size_v<decltype(NpcSpells::ClassWeights::w)>);
     static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byGroup)> == NpcSpells::kGroups.size());
-    static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byTier)> == static_cast<std::size_t>(NpcSpells::ClassTier::Mage) + 1);
+    static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byTier)> == NpcSpells::kClassTierCount);
 
     // The rules' records as runtime FormIDs, resolved once. Forms are matched by FormID only, never by
     // GetFormEditorID() (empty for most forms without powerofthree's Tweaks).

@@ -8,7 +8,7 @@
 using namespace NpcSpells; using NpcSpellsCheck::Check; using json = nlohmann::json;
 namespace {
     // flag 0: own tier floor; flag 1: floor of max(tier + 1, rung start)
-    std::uint16_t ExpectedLevel(Tier t, bool below, Tier start) { return below ? kTierFloor[std::max(static_cast<std::size_t>(t) + 1, static_cast<std::size_t>(start))] : kTierFloor[static_cast<std::size_t>(t)]; }
+    std::uint16_t ExpectedLevel(Tier t, bool below, Tier start) { return below ? kTierFloor[std::min(std::max(static_cast<std::size_t>(t) + 1, static_cast<std::size_t>(start)), kTierCount - 1)] : kTierFloor[static_cast<std::size_t>(t)]; }
     json Node(const char* pid) { return json{ { "formId", "0x00000000" }, { "persistentId", pid } }; }
     json Entry(const char* school, const char* tier, std::vector<std::string> el, std::vector<std::string> te) {
         return json{ { "school", school }, { "tier", tier }, { "elements", el }, { "techniques", te } }; }
@@ -57,6 +57,14 @@ int RunBuildSelfTest()
     Rules rejecting = rules; rejecting.excludeSpells = { "A.esp|0x000803" }; PoolStats s4;
     BuildPool(SmallTree(), SmallCatalog(), rejecting, nullptr, s4);
     Check(s4.excludedList == 1, "excludeSpells drops a spell by persistentId");
+    // A persistentId in two schools' nodes (and twice in one school) is taken once: its weight is not doubled
+    const json dupTree{ { "schools", { { "Destruction", { { "nodes", json::array({ Node("A.esp|0x000801"), Node("A.esp|0x000803"), Node("A.esp|0x000801") }) } } },
+                                       { "Restoration", { { "nodes", json::array({ Node("A.esp|0x000801"), Node("A.esp|0x000808") }) } } } } } };
+    PoolStats s5;
+    const auto dupPool = BuildPool(dupTree, SmallCatalog(), rules, nullptr, s5);
+    Check(s5.treeNodes == 5 && s5.duplicates == 2 && dupPool.size() == 3 &&
+          std::count_if(dupPool.begin(), dupPool.end(), [](const SpellFacts& s) { return s.persistentId == "A.esp|0x000801"; }) == 1,
+          "a persistentId named by several nodes enters the pool once (duplicates counted)");
     std::printf("build\n");
     // Group rules for the test: group index 1 = Forsworn (prefer fire..., never sun), 4 = Thalmor (never undead)
     auto pool2 = BuildPool(SmallTree(), SmallCatalog(), rules, nullptr, stats);

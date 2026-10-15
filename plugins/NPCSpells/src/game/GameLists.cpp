@@ -100,7 +100,7 @@ NpcSpellsGame::EslRecords NpcSpellsGame::LookupEslRecords()
 }
 
 NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::BuiltList>& lists, const ResolvedPool& pool,
-    const EslRecords& records, std::size_t& skippedNoRecord, std::size_t& skippedPrefilled)
+    const EslRecords& records, std::size_t& skippedNoRecord, std::size_t& skippedPrefilled, std::size_t& skippedNoMemory)
 {
     NpcSpells::ListIndex index;
     index.present.assign(NpcSpells::SlotTable().size(), {});
@@ -128,7 +128,7 @@ NpcSpells::ListIndex NpcSpellsGame::FillLists(const std::vector<NpcSpells::Built
             if (!entries) {
                 logger::error("NPCSpells: the game heap gave no memory for {}; list left empty",
                     NpcSpells::EditorIdFor(NpcSpells::SlotTable()[list.slotIndex].key, list.chunk));
-                ++skippedNoRecord;
+                ++skippedNoMemory;
                 continue;
             }
         }

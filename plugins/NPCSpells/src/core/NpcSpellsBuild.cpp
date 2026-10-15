@@ -14,7 +14,8 @@ namespace {
     std::uint16_t EntryLevel(Tier t, const Rung* below) {
         const auto idx = static_cast<std::size_t>(t);
         if (!below) return kTierFloor[idx];
-        return kTierFloor[std::max(idx + 1, static_cast<std::size_t>(below->startTier))];
+        // InBase keeps master spells out of a below list, so idx + 1 stays inside kTierFloor; the clamp holds that here too
+        return kTierFloor[std::min(std::max(idx + 1, static_cast<std::size_t>(below->startTier)), kTierCount - 1)];
     }
 }
 namespace {

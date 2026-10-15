@@ -91,9 +91,9 @@ namespace
         NpcSpells::PoolStats& ps = rd.pool;
         const auto pool = NpcSpellsGame::ResolvePool(inputs.tree, inputs.catalog, inputs.rules, inputs.distr, ps);
         rd.timingsMs.emplace_back("pool", MsSince(stageStart));
-        logger::info("NPCSpells: pool in {:.0f} ms: treeNodes={} notInCatalog={} noSchoolOrTier={} excludedTag={} excludedList={} "
+        logger::info("NPCSpells: pool in {:.0f} ms: treeNodes={} duplicates={} notInCatalog={} noSchoolOrTier={} excludedTag={} excludedList={} "
                      "excludedDistr={} unresolved={} schoolMismatch={} kept={}",
-            rd.timingsMs.back().second, ps.treeNodes, ps.notInCatalog, ps.noSchoolOrTier, ps.excludedTag, ps.excludedList,
+            rd.timingsMs.back().second, ps.treeNodes, ps.duplicates, ps.notInCatalog, ps.noSchoolOrTier, ps.excludedTag, ps.excludedList,
             ps.excludedDistr, ps.unresolved, ps.schoolMismatch, ps.kept);
         if (pool.facts.empty()) {
             rd.stopReason = "no tree spell left to give (the catalog version, the tree's schools or the pool counts say why); nothing changed";
@@ -104,16 +104,16 @@ namespace
         stageStart = Clock::now();
         NpcSpells::BuildStats& bs = rd.build;
         const auto lists = NpcSpells::BuildLists(pool.facts, inputs.rules, bs);
-        const auto index = NpcSpellsGame::FillLists(lists, pool, esl, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled);
+        const auto index = NpcSpellsGame::FillLists(lists, pool, esl, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled, rd.listsSkippedNoMemory);
         for (const auto& l : lists) {
             rd.listSizes.emplace_back(NpcSpells::EditorIdFor(NpcSpells::SlotTable()[l.slotIndex].key, l.chunk), l.entries.size(), l.flags);
         }
         rd.timingsMs.emplace_back("lists", MsSince(stageStart));
         logger::info("NPCSpells: lists built and filled in {:.0f} ms: lists={} emptySlots={} droppedOverCapacity={} "
-                     "variantsToppedUp={} skippedNoRecord={} skippedPrefilled={} perSchool={}/{}/{}/{}/{}",
-            rd.timingsMs.back().second, bs.lists, bs.emptySlots, bs.droppedOverCapacity, bs.variantsToppedUp, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled,
+                     "variantsToppedUp={} skippedNoRecord={} skippedPrefilled={} skippedNoMemory={} perSchool={}/{}/{}/{}/{}",
+            rd.timingsMs.back().second, bs.lists, bs.emptySlots, bs.droppedOverCapacity, bs.variantsToppedUp, rd.listsSkippedNoRecord, rd.listsSkippedPrefilled, rd.listsSkippedNoMemory,
             bs.perSchool[0], bs.perSchool[1], bs.perSchool[2], bs.perSchool[3], bs.perSchool[4]);
-        if (lists.size() == rd.listsSkippedNoRecord + rd.listsSkippedPrefilled) {
+        if (lists.size() == rd.listsSkippedNoRecord + rd.listsSkippedPrefilled + rd.listsSkippedNoMemory) {
             rd.stopReason = "no leveled list was filled; no NPC changed";
             logger::error("NPCSpells: stopped: {}", rd.stopReason);
             return;

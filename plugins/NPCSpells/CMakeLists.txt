@@ -29,7 +29,7 @@ set(NPCSPELLS_SOURCES
 
 add_commonlibsse_plugin(${PROJECT_NAME}
     NAME ${PROJECT_NAME}
-    AUTHOR "HeartOfMagic"
+    AUTHOR "Iwillbewarlock"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
     VERSION ${PROJECT_VERSION}

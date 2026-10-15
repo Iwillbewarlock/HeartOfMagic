@@ -16,7 +16,7 @@
 namespace
 {
     constexpr std::string_view kSpidSuffix = "_distr.ini";
-    constexpr const char* kInputsMissing = "spell_tree.json or spell_catalog.json not found (run a Heart of Magic scan and tree build first)";
+    constexpr const char* kInputsMissingHint = "run a Heart of Magic scan and tree build first";
     constexpr std::size_t kBytesPerKb = 1024;
 
     // The whole file in one read (its size first), not through a stream buffer
@@ -83,8 +83,8 @@ namespace
             return;
         }
         if (!in.rulesError.empty()) {
-            // Parsed, but an entry that is not a FormID (XXXXXX:Plugin.ext) was dropped
-            logger::warn("NPCSpells: rules: {} (entry ignored)", in.rulesError);
+            // Parsed, but an entry that is not a FormID (XXXXXX:Plugin.ext) was dropped or a value outside its range was reset
+            logger::warn("NPCSpells: rules: {} (bad entries dropped, out-of-range values back to their defaults)", in.rulesError);
         }
         LogUnknownGroups(*text);
     }
@@ -99,10 +99,10 @@ namespace
     // SPID reads *_DISTR.ini only from the data folder's top level, and the exclusion reads only those
     // files, so SKSE/Plugins is not searched at all: its full walk took 1.4 s under MO2's USVFS
     // (2026-10-08, ~4,500 mods) and found none there. The log keeps its "SKSE/Plugins" figure, as 0.
-    std::vector<std::filesystem::path> FindSpidConfigs(const std::filesystem::path& dataDir)
+    std::vector<std::filesystem::path> FindSpidConfigs(const std::filesystem::path& dataDir, std::size_t& skippedEntries)
     {
         constexpr std::array kSuffixes = { kSpidSuffix };
-        return TomeReach::TopLevelConfigs(dataDir, kSuffixes);  // only the *_distr.ini names, not the whole folder
+        return TomeReach::TopLevelConfigs(dataDir, kSuffixes, &skippedEntries);  // only the *_distr.ini names, not the whole folder
     }
 
     // SPID files only: FindDistributionConfigs also returns KID, FLM, SWAP, CID,
@@ -112,11 +112,15 @@ namespace
     void ReadDistr(NpcSpellsGame::Inputs& in, std::string& timings)
     {
         auto start = Clock::now();
-        const auto found = FindSpidConfigs(NpcSpellsGame::kDataDir);
+        std::size_t skippedEntries = 0;
+        const auto found = FindSpidConfigs(NpcSpellsGame::kDataDir, skippedEntries);
         const double searchMs = MsSince(start);
         timings += std::format(", SPID config search {:.0f} ms ({} in Data, 0 under SKSE/Plugins)", searchMs,
             found.size());
         logger::info("NPCSpells: SPID config search: Data top level {:.0f} ms, SKSE/Plugins 0 ms (skipped)", searchMs);
+        if (skippedEntries > 0) {
+            logger::warn("NPCSpells: SPID config search: {} entries could not be read and were skipped (the rest were searched)", skippedEntries);
+        }
         start = Clock::now();
         for (const auto& f : found) {
             in.distr.Add(f);
@@ -135,7 +139,7 @@ NpcSpellsGame::Inputs NpcSpellsGame::ReadInputs()
         const auto text = ReadText(path);
         timings += std::format("{}{} read {:.0f} ms", timings.empty() ? "" : ", ", label, MsSince(start));
         if (!text) {
-            in.stopReason = kInputsMissing;
+            in.stopReason = std::format("{} not found or unreadable ({})", path, kInputsMissingHint);
             return false;
         }
         start = Clock::now();

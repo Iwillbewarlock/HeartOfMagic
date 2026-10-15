@@ -13,6 +13,8 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-07-npc-spells-
 
 ## Requirements
 
+- Skyrim SE 1.5.97 and AE (1.6.x / 1.7.x) through Address Library, with SKSE; VR is not supported (the DLL is
+  built without VR support, like Heart of Magic's).
 - Heart of Magic Librarian 1.5.0 or later, with a scan done and a tree built (the addon reads `spell_catalog.json`
   and `spell_tree.json` from `Data/SKSE/Plugins/SpellLearning/`; with either missing, or a catalog whose `version`
   is not 1, it gives nothing and the report says why). The addon does not check Heart of Magic's version itself:
@@ -114,6 +116,11 @@ with `startTier`, `below`, `chance`; the expected spells per tier follow from it
 - `excludeSpells` uses the catalog's exact form `Plugin.esp|0xNNNN` (exact string match).
 - Group names are fixed (Forsworn, Vampire, Necromancer, Thalmor, Vigilant); a group with another name is ignored.
 - A broken file (bad JSON, wrong types, not 5 rungs) falls back to the built-in defaults; the report header says so.
+- Smaller problems keep the rest of the file: an entry of a FormID list that is not a string or not a FormID drops
+  that entry only; a `chance`, `share`, `preferShare`, `hybridScale`, `nonMageChance` or class share outside 0..1
+  goes back to its default (not clamped), and so do both class shares when `hybridMinMagicShare` is above
+  `mageMinMagicShare`. Every such problem is named, `; ` between them, in the log (a warning) and on the report's
+  `Rules error:` line.
 - Fixed values, not in the file: skill bands 0/25/50/75/100 (the engine's), the own-tier share (it follows from the
   ladder), which groups count as necromancers (Vampire, Necromancer), the conjurer's non-undead preference, the
   conjurer classes (found from class weights), and the Redguard rule.
@@ -121,7 +128,9 @@ with `startTier`, `below`, `chance`; the expected spells per tier follow from it
 ## Report
 
 `HeartOfMagic_NPCSpells_report.txt` is always written, also when the run stops (then with a `Stopped:` line and the
-reason). Sections: header (version, time, rules source); Spells (pool counts: tree nodes, excluded by tag, kept...);
+reason; a missing or unreadable `spell_tree.json` or `spell_catalog.json` is named with its path). Sections: header
+(version, time, rules source); Spells (pool counts: tree nodes, duplicate persistentId - a spell named by more than
+one node, taken once so its weight is not doubled -, excluded by tag, kept...);
 Lists (lists built, empty slots, dropped over capacity, ESL records found/missing/wrong type, per school, every list
 with its entry count and flag); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
 NPC lists (one row for every NPC that got lists: persistent id `Plugin|0xLocal`, name, group, class tier and undead
@@ -130,10 +139,16 @@ The Lists section also counts the variant lists topped up from All and `skippedP
 count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
 NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
 it (it does on these LLCT-0 records): the addon gives it a new entry array (headless, as the engine allocates a
-array of plain entries) and never frees or reads the old pointer.
+array of plain entries) and never frees or reads the old pointer. If the game heap gives no memory for that array the
+list is left empty and counted as `skippedNoMemory` (logged as an error), apart from the lists skipped for a
+missing record.
 
 ## Known limits
 
+- **Not yet checked in game: NPCs that inherit their spell list from a template**, which is most leveled bandit
+  mages. The addon puts the lists on the record that really holds the spell list (the template's end), never on
+  the inheriting NPC; whether the spawned actor then has the spells is not confirmed. Checklist item 10 below
+  (spawn a `LvlBanditWizard`-type NPC, `Actor.HasSpell` on a spell only our lists hold) must pass before release.
 - The same spell can be given again when the NPC already knows it; harmless.
 - An NPC in two groups gets the first group's lists (see Group priority).
 - Vigilant `never: undead` also removes Turn Undead (the `undead` tag covers repelling). A spell that commands undead

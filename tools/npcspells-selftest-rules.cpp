@@ -71,12 +71,38 @@ int RunRulesSelfTest()
     Rules unresolved; err.clear();
     Check(ParseRules(R"({ "beastRaces": ["0CDD84:Skyrim.esm", "SomeRace"] })", unresolved, err) && unresolved.beastRaces.size() == 1 && !err.empty(),
           "a non-FormID entry drops that entry only, the rest of the list stays (section 7)");
+    Rules nonString; err.clear();
+    Check(ParseRules(R"({ "beastRaces": ["0CDD84:Skyrim.esm", 5, "SomeRace", "00283A:Dawnguard.esm"] })", nonString, err) && nonString.beastRaces.size() == 2 &&
+          nonString.beastRaces[1].pluginLower == "dawnguard.esm" && err.find("5") != std::string::npos && err.find("SomeRace") != std::string::npos && err.find("; ") != std::string::npos,
+          "a non-string entry drops that entry only, and every bad entry is named (errors kept, not overwritten)");
+    Rules shippedClean; err.clear();
+    Check(ParseRules(buf.str(), shippedClean, err) && err.empty(), "shipped JSON parses without an error");
+    Rules outOfRange; err.clear();
+    Check(ParseRules(R"({ "ladder": [ { "startTier": "novice", "below": false, "chance": 1.0 }, { "startTier": "apprentice", "below": true, "chance": 1.5 },
+                          { "startTier": "adept", "below": true, "chance": 0.25 }, { "startTier": "expert", "below": true, "chance": 0.5 }, { "startTier": "master", "below": false, "chance": 0.5 } ],
+                          "hybridScale": 1.5, "nonMageChance": -0.1, "conjuration": { "share": 2 }, "groups": [ { "name": "Thalmor", "preferShare": 1.2 } ] })", outOfRange, err) &&
+          outOfRange.ladder[1].chance == defaults.ladder[1].chance && outOfRange.hybridScale == defaults.hybridScale && outOfRange.nonMageChance == defaults.nonMageChance &&
+          outOfRange.conjurationShare == defaults.conjurationShare && outOfRange.groups[3].preferShare == defaults.groups[3].preferShare &&
+          err.find("ladder[1].chance") != std::string::npos && err.find("hybridScale") != std::string::npos && err.find("nonMageChance") != std::string::npos &&
+          err.find("conjuration.share") != std::string::npos && err.find("groups.Thalmor.preferShare") != std::string::npos,
+          "a chance, share or scale outside 0..1 goes back to its default, each one named");
+    Rules edges; err.clear();
+    Check(ParseRules(R"({ "hybridScale": 0, "nonMageChance": 1, "conjuration": { "share": 1.0 } })", edges, err) && err.empty() && edges.hybridScale == 0.0 &&
+          edges.nonMageChance == 1.0 && edges.conjurationShare == 1.0, "0 and 1 are inside the range (no error)");
+    Rules swappedTiers; err.clear();
+    Check(ParseRules(R"({ "classTiers": { "mageMinMagicShare": 0.3, "hybridMinMagicShare": 0.5 } })", swappedTiers, err) &&
+          swappedTiers.mageMinMagicShareTenths == defaults.mageMinMagicShareTenths && swappedTiers.hybridMinMagicShareTenths == defaults.hybridMinMagicShareTenths &&
+          err.find("hybridMinMagicShare") != std::string::npos, "hybridMinMagicShare above mageMinMagicShare puts both back to the defaults");
+    Rules badMage; err.clear();
+    Check(ParseRules(R"({ "classTiers": { "mageMinMagicShare": 1.4, "hybridMinMagicShare": 0.2 } })", badMage, err) &&
+          badMage.mageMinMagicShareTenths == defaults.mageMinMagicShareTenths && badMage.hybridMinMagicShareTenths == 2 && err.find("mageMinMagicShare") != std::string::npos,
+          "a class share outside 0..1 goes back to its default, the other stays");
     Rules shortLadder; err.clear();
     Check(!ParseRules(R"({ "ladder": [ { "startTier": "novice", "below": false, "chance": 1.0 } ] })", shortLadder, err) && !err.empty(),
           "a ladder that is not five rungs is rejected");
     Rules broken; err.clear();
     Check(!ParseRules("{ not json", broken, err) && !err.empty(), "malformed JSON reports an error");
-    const char* wrongTyped[] = { R"({ "hybridScale": "x" })", R"({ "beastRaces": [5] })", R"({ "nonMageTags": 3 })", R"({ "ladder": [5,5,5,5,5] })", R"({ "groups": [5] })" };
+    const char* wrongTyped[] = { R"({ "hybridScale": "x" })", R"({ "nonMageTags": 3 })", R"({ "ladder": [5,5,5,5,5] })", R"({ "groups": [5] })" };
     for (const char* text : wrongTyped) {
         Rules wrong; err.clear(); bool ok = true;
         try { ok = ParseRules(text, wrong, err); } catch (...) { ok = true; err = "threw"; }

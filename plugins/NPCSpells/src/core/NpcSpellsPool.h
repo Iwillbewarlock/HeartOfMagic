@@ -16,7 +16,8 @@ namespace NpcSpells {
         bool undeadRule = false;            // element "undead" and technique "summoning" or "control" (undead rule spells)
         bool HasAnyTag(const std::vector<std::string>& tags) const;
     };
-    struct PoolStats { std::size_t treeNodes = 0, notInCatalog = 0, noSchoolOrTier = 0, excludedTag = 0, excludedList = 0, excludedDistr = 0, unresolved = 0, schoolMismatch = 0, kept = 0; };
+    // duplicates: a persistentId seen again in another node (another school's, or the same school twice) - kept once, so it is never weighted twice
+    struct PoolStats { std::size_t treeNodes = 0, duplicates = 0, notInCatalog = 0, noSchoolOrTier = 0, excludedTag = 0, excludedList = 0, excludedDistr = 0, unresolved = 0, schoolMismatch = 0, kept = 0; };
     using DistributedFn = std::function<bool(const std::string& persistentId)>;   // another *_DISTR.ini (SPID) already names it
     // Stops with an empty pool and stats.treeNodes == 0 when catalog["version"] != 1 or tree has no "schools".
     std::vector<SpellFacts> BuildPool(const nlohmann::json& tree, const nlohmann::json& catalog, const Rules& rules, const DistributedFn& distributed, PoolStats& stats);

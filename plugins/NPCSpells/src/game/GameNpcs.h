@@ -23,8 +23,8 @@ namespace NpcSpellsGame
     {
         std::size_t scanned = 0, eligible = 0, attached = 0, listsAttached = 0, unresolvableTemplate = 0, multiGroup = 0, unresolvedRefs = 0;
         std::map<std::string, std::size_t> skipped;  // DecideNpc's skip reasons, plus "no source file" and "no race"
-        std::array<std::size_t, 3> byTier{};          // ClassTier of the NPCs that got lists
-        std::array<std::size_t, 6> byGroup{};         // kGroups index of the NPCs that got lists
+        std::array<std::size_t, NpcSpells::kClassTierCount> byTier{};  // ClassTier of the NPCs that got lists
+        std::array<std::size_t, NpcSpells::kGroupCount> byGroup{};     // kGroups index of the NPCs that got lists
     };
 
     // lines: one row per NPC that got at least one list (every one, no cap; the report lists them all)

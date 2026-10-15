@@ -19,8 +19,8 @@ namespace {
         const auto pool = BuildPool(ReadJsonFile(treePath), ReadJsonFile(catalogPath), rules, nullptr, ps);
         BuildStats bs;
         const auto lists = BuildLists(pool, rules, bs);
-        std::printf("pool: %zu kept of %zu tree nodes (notInCatalog %zu, noSchoolOrTier %zu, excludedTag %zu, excludedList %zu)\n",
-            pool.size(), ps.treeNodes, ps.notInCatalog, ps.noSchoolOrTier, ps.excludedTag, ps.excludedList);
+        std::printf("pool: %zu kept of %zu tree nodes (duplicates %zu, notInCatalog %zu, noSchoolOrTier %zu, excludedTag %zu, excludedList %zu)\n",
+            pool.size(), ps.treeNodes, ps.duplicates, ps.notInCatalog, ps.noSchoolOrTier, ps.excludedTag, ps.excludedList);
         std::array<std::size_t, kSchoolCount> biggest{};
         for (const auto& l : lists) {
             auto& b = biggest[static_cast<std::size_t>(SlotTable()[l.slotIndex].key.school)];

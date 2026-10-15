@@ -70,6 +70,9 @@ int RunEslSelfTest()
           text.find(EditorIdFor(SlotTable()[thalmorSlot].key, 2)) != std::string::npos, "every NPC row: group and attached list EditorIDs");
     { ReportData pre; pre.listsSkippedPrefilled = 7; pre.build.variantsToppedUp = 31; const std::string t = RenderReport(pre);
       Check(t.find("skippedPrefilled 7") != std::string::npos && t.find("topped up from All 31") != std::string::npos, "report shows skippedPrefilled and topped-up variant lists"); }
+    { ReportData heap; heap.listsSkippedNoRecord = 2; heap.listsSkippedNoMemory = 5; heap.pool.duplicates = 4; const std::string t = RenderReport(heap);
+      Check(t.find("missing record 2") != std::string::npos && t.find("skippedNoMemory 5") != std::string::npos && t.find("duplicate persistentId 4") != std::string::npos,
+            "report counts a game heap failure apart from a missing record, and duplicate tree nodes"); }
     ReportData stopped; stopped.stopReason = "spell_tree.json not found";
     Check(RenderReport(stopped).find("spell_tree.json not found") != std::string::npos, "a stopped run says why");
     return NpcSpellsCheck::g_failed;
