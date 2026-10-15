@@ -94,6 +94,7 @@ namespace
             OnDataLoaded();
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
+            BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("game loaded");
             BlackFlame::SelfTest::OnGameLoaded();
             FlushLog();

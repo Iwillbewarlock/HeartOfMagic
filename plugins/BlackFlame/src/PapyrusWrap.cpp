@@ -41,12 +41,16 @@ namespace BlackFlame
             Target{ "Spell", "RemoteCast", Wrapped::kCast },
         };
 
+        std::array<std::atomic<bool>, kTargets.size()> g_wrapped{};  // per target: bound already
+
         constexpr int kMaxFrameLogs = 3;
         std::atomic<int> g_frameLogs{ 0 };
 
         // The script that called the native: the native's own frame is the stack's top, its caller
-        // the frame before it. Its self resolves to an ActiveEffect for an ActiveMagicEffect script.
-        RE::ActiveEffect* CallingEffect(const RE::BSScript::Stack& a_stack)
+        // the frame before it. True when its self is a fire effect the player cast (an ActiveMagicEffect
+        // script resolves to an ActiveEffect), or a reference already tagged (a placed activator's own
+        // script placing or casting in turn).
+        bool IsPlayerFireCaller(const RE::BSScript::Stack& a_stack)
         {
             const auto* own = a_stack.top;
             const auto* caller = own ? own->previousFrame : nullptr;
@@ -57,10 +61,17 @@ namespace BlackFlame
                     caller && caller->self.IsObject() ? "yes" : "no");
             }
             if (!caller || !caller->self.IsObject()) {
-                return nullptr;
+                return false;
             }
             const auto object = caller->self.GetObject();
-            return object ? static_cast<RE::ActiveEffect*>(object->Resolve(RE::ActiveEffect::VMTYPEID)) : nullptr;
+            if (!object) {
+                return false;
+            }
+            if (IsPlayerFireEffect(static_cast<RE::ActiveEffect*>(object->Resolve(RE::ActiveEffect::VMTYPEID)))) {
+                return true;
+            }
+            const auto refType = static_cast<RE::VMTypeID>(RE::TESObjectREFR::FORMTYPE);
+            return IsTaggedSource(static_cast<RE::TESObjectREFR*>(object->Resolve(refType)));
         }
 
         // A spell with any fire MGEF (script-cast spells need not be counted kSpell spells)
@@ -138,7 +149,7 @@ namespace BlackFlame
             // True when the caller is the player's fire effect; Cast/RemoteCast tag their source here
             bool Before(RE::BSScript::Stack& a_stack)
             {
-                if (!IsPlayerFireEffect(CallingEffect(a_stack))) {
+                if (!IsPlayerFireCaller(a_stack)) {
                     return false;
                 }
                 if (m_kind == Wrapped::kCast) {
@@ -180,20 +191,33 @@ namespace BlackFlame
         }
     }
 
+    void RetryNativeWrappers()
+    {
+        auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
+        if (vm && GetConfig().scriptPlaced) {
+            (void)InstallNativeWrappers(vm);
+        }
+    }
+
     bool InstallNativeWrappers(RE::BSScript::IVirtualMachine* a_vm)
     {
         if (!a_vm || !GetConfig().scriptPlaced) {
             return true;
         }
-        for (const auto& target : kTargets) {
+        for (std::size_t i = 0; i < kTargets.size(); ++i) {
+            const auto& target = kTargets[i];
+            if (g_wrapped[i].load()) {
+                continue;  // a second FindMember would find our proxy (it answers native too)
+            }
             auto original = FindMember(a_vm, target);
             if (!original || !original->GetIsNative()) {
-                logger::warn("BlackFlame: {}.{}: no native function found - not wrapped", target.className,
-                    target.functionName);
+                logger::warn("BlackFlame: {}.{}: no native function found yet - not wrapped (retried after a load)",
+                    target.className, target.functionName);
                 continue;
             }
             const auto proxy = RE::make_smart<NativeProxy>(original, target.kind);
             const bool bound = a_vm->BindNativeMethod(proxy.get());
+            g_wrapped[i].store(bound);
             logger::info("BlackFlame: {}.{} wrapped: {}", target.className, target.functionName,
                 bound ? "yes (the original runs inside the wrapper)" : "NO (BindNativeMethod refused)");
         }
