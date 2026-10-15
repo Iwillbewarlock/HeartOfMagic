@@ -334,10 +334,10 @@ above 1 means the pick was ambiguous. Failing those, the only new leveled actor 
 (`onlyNewLeveledActor`) is no proof that it is the sample's: the run is `INCONCLUSIVE (matched only as the one new
 leveled actor: not checked, left in the world)`, the actor is neither checked nor deleted, and a `SELFTEST WARN ...
 matched only as the one new leveled actor` line names it. None found in time: `FAIL (leveled spawn wait: no actor of
-console placeatme ...)`, the new leveled actors are logged (up to five) and left in the world, and the next run
+console placeatme ...)`, the new leveled actors at any distance are logged (up to five, with `distance=`, so a spawn further than 512 units shows) and left in the world, and the next run
 spawns anew. The spawn line names the actor's base, its template base (the NPC the engine drew) and its original
 base; the holder is then found from the actor as for any leveled sample (step 4). Leveled actors the test leaves in
-the world (unmatched at a timeout, kept as the only new one, or still looked for when an error ends the test) are
+the world (unmatched at a timeout within 512 units, kept as the only new one, or still looked for when an error ends the test) are
 counted on `SELFTEST WARN leveled actors left in the world=N` before `DONE`.
 
 What it does, once per session, at the first save load (`kPostLoadGame`):
@@ -407,7 +407,7 @@ SELFTEST DONE pass=13 fail=0 inconclusive=0
 ```
 
 Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset value), `SELFTEST leveled candidate
-<sample> ref ... actorBase ... templateBase ... originalBase ...` (a new leveled actor close to the player when a
+<sample> ref ... distance=D actorBase ... templateBase ... originalBase ...` (a new leveled actor, at any distance, when a
 leveled spawn's actor was not found; up to five), `SELFTEST cache <sample>
 leveledSpellList=null` (no cache after the walk), `SELFTEST another save is loading before the spawn: the wait starts
 again`, the warnings `SELFTEST WARN another save is loading during the test: ...`, `SELFTEST WARN a new game was

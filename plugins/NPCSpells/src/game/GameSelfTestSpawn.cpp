@@ -79,13 +79,14 @@ namespace
     {
         RE::NiPointer<RE::Actor> actor;
         const RE::ExtraLeveledCreature* leveled = nullptr;  // RE/E/ExtraLeveledCreature.h:24-25
+        float distance = 0.0f;                              // from the player, game units
     };
 
     // Actors that were not loaded before the placeatme, are made at runtime (0xFF..., RE/T/TESForm.h:334), are not disabled
     // or marked for deletion (TESObjectREFR.cpp:810, :874; the test's own cleanup does both), were never spawned or matched
-    // by this test, and stand within kSpawnAcceptRadius of the player; of them, those with ExtraLeveledCreature
-    // (RE/T/TESObjectREFR.h:508). newActors: all of them, with or without the extra.
-    std::vector<NewLeveled> NewLeveledActors(const SelfTest::State& s, const SelfTest::SampleRun& r, std::size_t& newActors)
+    // by this test, and stand within kSpawnAcceptRadius of the player (any distance with anyDistance: the failure log); of
+    // them, those with ExtraLeveledCreature (RE/T/TESObjectREFR.h:508). newActors: all of them, with or without the extra.
+    std::vector<NewLeveled> NewLeveledActors(const SelfTest::State& s, const SelfTest::SampleRun& r, std::size_t& newActors, bool anyDistance = false)
     {
         std::vector<NewLeveled> out;
         auto* player = RE::PlayerCharacter::GetSingleton();
@@ -95,13 +96,16 @@ namespace
         const auto origin = player->GetPosition();  // RE/T/TESObjectREFR.h:421
         for (auto& actor : LoadedActors()) {
             const auto id = actor->GetFormID();
-            if (r.actorsBefore.contains(id) || s.spawnedIds.contains(id) || !actor->IsDynamicForm() || actor->IsDisabled() ||
-                actor->IsMarkedForDeletion() || origin.GetSquaredDistance(actor->GetPosition()) > kSpawnAcceptRadius * kSpawnAcceptRadius) {
+            if (r.actorsBefore.contains(id) || s.spawnedIds.contains(id) || !actor->IsDynamicForm() || actor->IsDisabled() || actor->IsMarkedForDeletion()) {
+                continue;
+            }
+            const auto distance = origin.GetDistance(actor->GetPosition());  // RE/N/NiPoint3.h:45
+            if (!anyDistance && distance > kSpawnAcceptRadius) {
                 continue;
             }
             ++newActors;
             if (const auto* leveled = actor->extraList.GetByType<RE::ExtraLeveledCreature>()) {
-                out.push_back({ std::move(actor), leveled });
+                out.push_back({ std::move(actor), leveled, distance });
             }
         }
         return out;
@@ -190,15 +194,21 @@ NpcSpells::LeveledSpawnMatch SelfTest::FindLeveledSpawn(State& s, SampleRun& r, 
 
 std::string SelfTest::LeveledSpawnMissing(State& s, SampleRun& r, std::size_t waitedTicks)
 {
+    // At any distance, so the log tells "nothing spawned" from "spawned further than kSpawnAcceptRadius"
     std::size_t newActors = 0;
-    const auto found = NewLeveledActors(s, r, newActors);
-    for (std::size_t i = 0; i < found.size() && i < kMaxLoggedCandidates; ++i) {
-        Log(s, std::format("SELFTEST leveled candidate {} ref 0x{:08X} actorBase {} templateBase {} originalBase {}", r.label, found[i].actor->GetFormID(),
-            FormText(found[i].actor->GetActorBase()), FormText(found[i].leveled->templateBase), FormText(found[i].leveled->originalBase)));
+    const auto found = NewLeveledActors(s, r, newActors, true);
+    std::size_t inReach = 0;
+    for (std::size_t i = 0; i < found.size(); ++i) {
+        inReach += found[i].distance <= kSpawnAcceptRadius ? 1 : 0;
+        if (i < kMaxLoggedCandidates) {
+            Log(s, std::format("SELFTEST leveled candidate {} ref 0x{:08X} distance={:.0f} actorBase {} templateBase {} originalBase {}", r.label,
+                found[i].actor->GetFormID(), found[i].distance, FormText(found[i].actor->GetActorBase()), FormText(found[i].leveled->templateBase),
+                FormText(found[i].leveled->originalBase)));
+        }
     }
     ClearSpawnPending(s, r);
-    s.leftActors += static_cast<int>(found.size());
-    return std::format("leveled spawn wait: no actor of console placeatme {:08X} found within {} ms (new actors within {} units of the player {}, with "
-                       "ExtraLeveledCreature {}: none, or several and none matching; they are left in the world)",
-        r.placed ? r.placed->GetFormID() : 0, waitedTicks * NpcSpells::kSelfTestPollMs, static_cast<int>(kSpawnAcceptRadius), newActors, found.size());
+    s.leftActors += static_cast<int>(inReach);
+    return std::format("leveled spawn wait: no actor of console placeatme {:08X} found within {} ms (new actors loaded {}, with ExtraLeveledCreature {}, "
+                       "of them within {} units of the player {}: none, or several and none matching; they are left in the world)",
+        r.placed ? r.placed->GetFormID() : 0, waitedTicks * NpcSpells::kSelfTestPollMs, newActors, found.size(), static_cast<int>(kSpawnAcceptRadius), inReach);
 }
