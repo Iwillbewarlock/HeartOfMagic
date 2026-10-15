@@ -67,15 +67,6 @@ namespace BlackFlame
             return value;
         }
 
-        // A fire effect of a fire spell the player cast (compared by handle: no lookup in a hot call)
-        bool IsPlayerFireEffect(RE::ActiveEffect* a_effect)
-        {
-            const auto player = PlayerHandleValue();
-            if (!a_effect || player == 0 || a_effect->caster.native_handle() != player) {
-                return false;
-            }
-            return IsBurnable(a_effect->GetBaseObject(), a_effect->spell);
-        }
 
         // How often the engine asks one controller: counted while the diagnostic lines last (bounded
         // by them), so the log shows whether a call comes once per effect or again and again
@@ -111,14 +102,34 @@ namespace BlackFlame
                 a_original ? a_original->GetFormID() : 0, a_changed ? "ours" : "kept", REX::W32::GetCurrentThreadId());
         }
 
+        // The controller's target, or else the effect's own target (its MagicTarget's reference)
+        RE::FormID TargetIdOf(Controller* a_this)
+        {
+            if (const auto target = a_this->target.get()) {
+                return target->GetFormID();
+            }
+            auto* magicTarget = a_this->effect ? a_this->effect->target : nullptr;
+            auto* ref = magicTarget ? magicTarget->GetTargetStatsObject() : nullptr;
+            return ref ? ref->GetFormID() : 0;
+        }
+
+        // While the self-test records: every swap, and every fire effect left to the engine because
+        // someone else cast it (the direct evidence for T5-npc)
+        void Record(Controller* a_this, const RE::TESEffectShader* a_original, bool a_swapped)
+        {
+            auto* effect = a_this->effect;
+            SelfTestProbe::RecordBurn({ 0, TargetIdOf(a_this), effect && effect->spell ? effect->spell->GetFormID() : 0,
+                a_original->GetFormID(), REX::W32::GetCurrentThreadId(), reinterpret_cast<std::uintptr_t>(a_this),
+                a_swapped });
+        }
+
         void LogSwap(Controller* a_this, const RE::TESEffectShader* a_original)
         {
             auto* effect = a_this->effect;
             const auto spellId = effect && effect->spell ? effect->spell->GetFormID() : 0;
-            const auto target = a_this->target.get();
-            const auto targetId = target ? target->GetFormID() : 0;
+            const auto targetId = TargetIdOf(a_this);
             if (SelfTestProbe::Recording()) {
-                SelfTestProbe::RecordBurn({ 0, targetId, spellId, a_original->GetFormID(), REX::W32::GetCurrentThreadId() });
+                Record(a_this, a_original, true);
             }
             int suppressed = 0;
             if (LogLimit::Allow("hit shader swap", spellId, suppressed)) {
@@ -135,6 +146,10 @@ namespace BlackFlame
             const bool player = a_original && ours && a_original != ours && IsStoked() && IsPlayerFireEffect(a_this->effect);
             Diagnose(kShaderSlot, a_this, a_original, player, player);
             if (!player) {
+                if (a_original && SelfTestProbe::Recording() && a_this->effect &&
+                    IsBurnable(a_this->effect->GetBaseObject(), a_this->effect->spell)) {
+                    Record(a_this, a_original, false);
+                }
                 return a_original;
             }
             LogSwap(a_this, a_original);
@@ -189,6 +204,15 @@ namespace BlackFlame
 
             static inline REL::Relocation<decltype(thunk)> func;
         };
+    }
+
+    bool IsPlayerFireEffect(RE::ActiveEffect* a_effect)
+    {
+        const auto player = PlayerHandleValue();
+        if (!a_effect || player == 0 || a_effect->caster.native_handle() != player) {
+            return false;
+        }
+        return IsBurnable(a_effect->GetBaseObject(), a_effect->spell);
     }
 
     void ResetHitEffectState()

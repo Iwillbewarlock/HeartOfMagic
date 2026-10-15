@@ -98,7 +98,8 @@ namespace BlackFlame::SelfTestProbe
         Inspection after;
     };
 
-    // A hit shader the GetHitEffectShader hook swapped for ours (HitEffectHook.cpp)
+    // A GetHitEffectShader call on a fire effect (HitEffectHook.cpp): swapped for ours (the player's),
+    // or kept (someone else cast it)
     struct BurnRecord
     {
         std::uint64_t seq = 0;
@@ -106,6 +107,8 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID spell = 0;
         RE::FormID engineShader = 0;  // what the engine asked for
         std::uint32_t thread = 0;     // the hook's thread
+        std::uintptr_t controller = 0;
+        bool swapped = false;
     };
 
     void RecordProjectile(ProjectileRecord a_record);

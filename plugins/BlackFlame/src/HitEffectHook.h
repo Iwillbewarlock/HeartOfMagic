@@ -24,6 +24,9 @@ namespace BlackFlame
     /// After the fire sets are built (kDataLoaded): hooks 0x0D when config burnShader, 0x0C when config hitArt
     void InstallHitEffectHooks();
 
+    /// Any thread: a fire effect of a fire spell the player cast (caster compared by handle, cheap)
+    [[nodiscard]] bool IsPlayerFireEffect(RE::ActiveEffect* a_effect);
+
     /// At kPreLoadGame / kNewGame: forgets the cached player handle (read again on the next call)
     void ResetHitEffectState();
 }

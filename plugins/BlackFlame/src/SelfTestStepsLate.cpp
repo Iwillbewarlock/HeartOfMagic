@@ -143,8 +143,8 @@ namespace BlackFlame::SelfTest
     {
         if (a_first) {
             a_c.greySeen.reset();
-            a_c.extendAttempted = false;
-            a_c.extendCast = false;
+            a_c.secondAttempted = false;
+            a_c.secondCast = false;
             a_c.engineLiveAfterGrey = false;
             if (!NeedActors(a_c, "T5")) {
                 return true;
@@ -157,9 +157,9 @@ namespace BlackFlame::SelfTest
             std::ranges::any_of(shaders, [&](const auto& s) { return !s.finished && s.effectData == ours->GetFormID(); })) {
             a_c.greySeen = Clock::now();
             // T5-second's hit, cast now; T5-second judges its swap
-            a_c.extendAttempted = true;
-            a_c.extendMark = SelfTestProbe::Mark();
-            a_c.extendCast = CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-second");
+            a_c.secondAttempted = true;
+            a_c.secondMark = SelfTestProbe::Mark();
+            a_c.secondCast = CastAtTarget(a_c, Player(), a_c.forms.firebolt, "T5-second");
         }
         if (a_c.greySeen && EngineLive(shaders, engines)) {
             a_c.engineLiveAfterGrey = true;
@@ -172,7 +172,9 @@ namespace BlackFlame::SelfTest
         const auto window = std::chrono::duration<float>(Clock::now() - *a_c.greySeen).count();
         const auto target = FormIdOf(a_c.dummy);
         const auto burns = SelfTestProbe::BurnsSince(a_c.t3Mark);
-        const bool swapped = std::ranges::any_of(burns, [&](const auto& b) { return b.target == target; });
+        const auto swap = std::ranges::find_if(burns, [&](const auto& b) { return b.swapped && b.target == target; });
+        const bool swapped = swap != burns.end();
+        a_c.firstSwapController = swapped ? swap->controller : 0;
         const bool engineOk = !engines.empty() && !a_c.engineLiveAfterGrey;
         SelfTestLog::Check("T5", swapped && engineOk, std::format("our shader alight on the target; the hook swapped the "
             "player's hit: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in "
@@ -183,22 +185,34 @@ namespace BlackFlame::SelfTest
     }
 
     // A second hit while ours is alight is swapped too, and no engine hit shader comes up
-    bool StepBurnExtend(Ctx& a_c, bool a_first)
+    bool StepSecondHit(Ctx& a_c, bool a_first)
     {
         if (a_first) {
-            if (!a_c.extendAttempted) {
+            if (!a_c.secondAttempted) {
                 SelfTestLog::Fail("T5-second", "skipped: no second hit (T5 never saw our shader)");
                 return true;
             }
-            if (!a_c.extendCast) {
+            if (!a_c.secondCast) {
                 return true;  // CastAtTarget already logged this step's FAIL
             }
-            a_c.mark = a_c.extendMark;  // cast by T5 the moment our shader showed
+            a_c.mark = a_c.secondMark;  // cast by T5 the moment our shader showed
+            a_c.secondSwapSeen.reset();
         }
+        // A swap of a NEW controller: the first hit's controller asked again must not end the wait
         const auto target = FormIdOf(a_c.dummy);
         const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
-        if (std::ranges::none_of(burns, [&](const auto& b) { return b.target == target; })) {
+        const bool newSwap = std::ranges::any_of(burns, [&](const auto& b) {
+            return b.swapped && b.target == target && b.controller != a_c.firstSwapController;
+        });
+        if (!newSwap) {
             a_c.waitingFor = std::format("the hook's swap for the second Firebolt hit (seen: {})", DescribeBurns(a_c.mark));
+            return false;
+        }
+        if (!a_c.secondSwapSeen) {
+            a_c.secondSwapSeen = Clock::now();
+        }
+        if (Clock::now() - *a_c.secondSwapSeen < kSecondJudgeDelay) {
+            a_c.waitingFor = "the judging delay after the second swap";
             return false;
         }
         const auto* ours = GetForms().burnShader;
@@ -207,9 +221,10 @@ namespace BlackFlame::SelfTest
         const auto liveOurs = std::ranges::count_if(shaders, [&](const auto& s) {
             return ours && !s.finished && s.effectData == ours->GetFormID();
         });
-        SelfTestLog::Check("T5-second", !EngineLive(shaders, engines), std::format("second hit swapped too; our shaders "
-            "alight on the target: {}; engine shaders: {}; swaps: {}", liveOurs, DescribeEngineShaders(shaders, engines),
-            DescribeBurns(a_c.mark)));
+        SelfTestLog::Check("T5-second", liveOurs >= 1 && !engines.empty() && !EngineLive(shaders, engines),
+            std::format("second hit swapped (a new controller); our shaders alight on the target: {}; Firebolt's engine "
+                "shaders known: {}; engine shaders: {}; calls: {}", liveOurs, engines.size(),
+                DescribeEngineShaders(shaders, engines), DescribeBurns(a_c.mark)));
         return true;
     }
 
@@ -224,13 +239,13 @@ namespace BlackFlame::SelfTest
         }
         if (a_c.phase == 0) {
             // T5-second's projectile must be on record first, or it could pass for T4's player one
-            const bool extendSeen = !a_c.extendCast || FindProjectile(a_c.extendMark, true, a_c.forms.firebolt);
-            const bool waited = Clock::now() - a_c.stepStart >= kExtendRecordWait;
-            if (!extendSeen && !waited) {
+            const bool secondSeen = !a_c.secondCast || FindProjectile(a_c.secondMark, true, a_c.forms.firebolt);
+            const bool waited = Clock::now() - a_c.stepStart >= kSecondRecordWait;
+            if (!secondSeen && !waited) {
                 a_c.waitingFor = "T5-second's projectile record before casting";
                 return false;
             }
-            if (!extendSeen) {
+            if (!secondSeen) {
                 SelfTestLog::Info("T4", "T5-second's projectile never recorded: the player record below may be it");
             }
             if (!PrepareCaster(a_c, "T4")) {
@@ -300,8 +315,8 @@ namespace BlackFlame::SelfTest
         return true;
     }
 
-    // The caster's hit keeps its own engine shader. Every player hit is swapped at the source, so an
-    // engine Firebolt hit shader on the target that was not there before T4 is the caster's.
+    // The caster's hit keeps its own engine shader: the hook recorded it KEPT (a fire effect someone
+    // else cast) for the target, and an engine Firebolt shader that was not there before T4 is alight.
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first)
     {
         if (a_first && !NeedActors(a_c, "T5-npc")) {
@@ -314,10 +329,21 @@ namespace BlackFlame::SelfTest
         const auto since = a_c.npcHitEta ? Clock::now() - *a_c.npcHitEta : Clock::now() - a_c.stepStart;
         const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
-        a_c.waitingFor = "the caster's engine hit shader on the target";
+        const auto target = FormIdOf(a_c.dummy);
+        const auto burns = SelfTestProbe::BurnsSince(a_c.mark);
+        const bool kept = std::ranges::any_of(burns, [&](const auto& b) { return !b.swapped && b.target == target; });
+        a_c.waitingFor = "the hook's KEPT record for the caster's hit and its engine hit shader on the target";
         const bool casterShader = EngineLive(shaders, engines, [&](const SelfTestWorld::ShaderOn& a_shader) {
             return SeenBefore(a_shader, a_c.engineBeforeT4);
         });
+        if (!kept) {
+            if (since < kNpcBurnWait) {
+                return false;
+            }
+            SelfTestLog::Info("T5-npc", std::format("cannot judge: the hook recorded no kept call for the caster's hit "
+                "within {} ms (calls: {})", kNpcBurnWait.count(), DescribeBurns(a_c.mark)));
+            return true;
+        }
         if (casterShader) {
             SelfTestLog::Pass("T5-npc", std::format("the caster's engine Firebolt hit shader is still unfinished at {:.1f} s "
                 "or older: {}", kEngineAgeMin, DescribeShaders(shaders)));

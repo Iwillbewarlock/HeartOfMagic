@@ -52,9 +52,11 @@ namespace BlackFlame::SelfTest
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
-        std::uint64_t extendMark = 0;
-        bool extendAttempted = false;
-        bool extendCast = false;
+        std::uint64_t secondMark = 0;
+        bool secondAttempted = false;
+        bool secondCast = false;
+        std::uintptr_t firstSwapController = 0;           // the controller T5's swap record named
+        std::optional<Clock::time_point> secondSwapSeen;  // T5-second's swap record first seen
         std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
         std::vector<SeenShader> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
         std::optional<Clock::time_point> npcHitEta;  // when the caster's T4 projectile can have arrived
@@ -84,17 +86,19 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] bool NeedActors(Ctx& a_c, const char* a_id);
 
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
-    // An engine hit shader still unfinished at this age was not finished by the burn layer (its
-    // finishing runs within a retry tick or two); a younger one may be on its way out
-    inline constexpr float kEngineAgeMin = 0.5f;  // the retry runs 100-200 ms after queueing: ample margin
+    // An engine hit shader counts as alight from this age on (a younger one may be a frame's flash)
+    inline constexpr float kEngineAgeMin = 0.5f;
+    // T5-second judges this long after its swap record, so an engine shader made by that hit would
+    // be old enough to count
+    inline constexpr auto kSecondJudgeDelay = std::chrono::milliseconds(800);
     inline constexpr float kRadiusMargin = 100.0f;  // beyond Fireball's explosion radius
-    inline constexpr auto kExtendRecordWait = std::chrono::seconds(1);  // T4 waits for T5-second's projectile record
+    inline constexpr auto kSecondRecordWait = std::chrono::seconds(1);  // T4 waits for T5-second's projectile record
     inline constexpr auto kNpcBurnWait = std::chrono::milliseconds(1500);
     inline constexpr auto kInFlightWait = std::chrono::milliseconds(1500);  // after the last cast, before deleting
 
     // SelfTestStepsLate.cpp (T5 to T9); T0 to T3 are in SelfTestSteps.cpp with the step table
     bool StepPlayerBurn(Ctx& a_c, bool a_first);
-    bool StepBurnExtend(Ctx& a_c, bool a_first);
+    bool StepSecondHit(Ctx& a_c, bool a_first);
     bool StepNpcProjectile(Ctx& a_c, bool a_first);
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first);
     bool StepPlayerExplosion(Ctx& a_c, bool a_first);

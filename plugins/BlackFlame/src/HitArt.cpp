@@ -1,6 +1,7 @@
 #include "HitArt.h"
 
 #include "GameThread.h"
+#include "HitEffectHook.h"
 #include "LogLimit.h"
 #include "Recolor.h"
 #include "SehGuard.h"
@@ -41,18 +42,30 @@ namespace BlackFlame
             return *pending;
         }
 
-        // The live ModelReferenceEffect the controller made with this art (inside the ProcessLists lock)
-        RE::NiPointer<RE::ModelReferenceEffect> FindEffect(const PendingArt& a_art)
+        struct Found
         {
-            RE::NiPointer<RE::ModelReferenceEffect> found;
+            RE::NiPointer<RE::ModelReferenceEffect> effect;
+            RE::NiPointer<RE::NiAVObject> root;  // artObject3D, taken inside the lock
+            bool stillPlayers = false;           // the live controller still names the player's fire effect
+        };
+
+        // The live ModelReferenceEffect the controller made with this art, inside the ProcessLists lock.
+        // The address match is re-checked through the live controller itself: its effect must still be a
+        // fire effect the player cast, so a reused controller address cannot pass for an ally's art.
+        Found FindEffect(const PendingArt& a_art)
+        {
+            Found found;
             if (auto* lists = RE::ProcessLists::GetSingleton()) {
                 lists->ForEachModelEffect([&](RE::ModelReferenceEffect* a_effect) {
-                    if (!a_effect->finished && reinterpret_cast<std::uintptr_t>(a_effect->controller) == a_art.controller &&
-                        a_effect->artObject == a_art.art && a_effect->target == a_art.target) {
-                        found.reset(a_effect);
-                        return RE::BSContainer::ForEachResult::kStop;
+                    if (a_effect->finished || reinterpret_cast<std::uintptr_t>(a_effect->controller) != a_art.controller ||
+                        a_effect->artObject != a_art.art || a_effect->target != a_art.target) {
+                        return RE::BSContainer::ForEachResult::kContinue;
                     }
-                    return RE::BSContainer::ForEachResult::kContinue;
+                    found.effect.reset(a_effect);
+                    found.root = a_effect->artObject3D;
+                    auto* controller = skyrim_cast<RE::ActiveEffectReferenceEffectController*>(a_effect->controller);
+                    found.stillPlayers = controller && IsPlayerFireEffect(controller->effect);
+                    return RE::BSContainer::ForEachResult::kStop;
                 });
             }
             return found;
@@ -84,18 +97,23 @@ namespace BlackFlame
         // One remembered art: recoloured (true, done), or kept for the next tick (false)
         bool TryRecolor(PendingArt& a_art)
         {
-            auto effect = FindEffect(a_art);
-            auto* root = effect ? effect->artObject3D.get() : nullptr;
-            if (!root) {
+            Found found;
+            if (!Guarded("hit art find", [&]() { found = FindEffect(a_art); })) {
+                return true;
+            }
+            if (found.effect && !found.stillPlayers) {
+                return true;  // the address now belongs to someone else's effect: dropped
+            }
+            if (!found.root) {
                 if (++a_art.ticks < kMaxTicks) {
                     return false;
                 }
-                LogDropped(a_art, effect != nullptr);
+                LogDropped(a_art, found.effect != nullptr);
                 return true;
             }
             RecolorStats stats;
-            if (Guarded("hit art recolour", [&]() { stats = RecolorTree(root); })) {
-                LogRecolor(*effect, a_art, stats);
+            if (Guarded("hit art recolour", [&]() { stats = RecolorTree(found.root.get()); })) {
+                LogRecolor(*found.effect, a_art, stats);
             }
             return true;
         }

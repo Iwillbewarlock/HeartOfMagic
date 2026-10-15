@@ -2,6 +2,7 @@
 
 #include "Palette.h"
 #include "ParticleColors.h"
+#include "SehGuard.h"
 
 #include <atomic>
 #include <mutex>
@@ -107,6 +108,8 @@ namespace BlackFlame::SelfTestProbe
     Snapshot Capture(RE::NiAVObject* a_root)
     {
         Snapshot out;
+        // Guarded like the layers: a fault leaves what was read so far
+        (void)Guarded("self-test capture", [&]() {
         ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
             AddProperty(a_prop, out);
             // The colour keys as they were before any recolour (the self-test's T7 compares with them)
@@ -116,6 +119,7 @@ namespace BlackFlame::SelfTestProbe
                 });
             }
         });
+        });
         return out;
     }
 
@@ -123,6 +127,7 @@ namespace BlackFlame::SelfTestProbe
     {
         Inspection out;
         const auto* palette = GetPalette();
+        (void)Guarded("self-test inspect", [&]() {
         ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
             ++out.effectProperties;
             AddProperty(a_prop, out.pointers);
@@ -137,6 +142,7 @@ namespace BlackFlame::SelfTestProbe
             if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
                 InspectModifiers(particles, out);
             }
+        });
         });
         return out;
     }

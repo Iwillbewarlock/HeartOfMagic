@@ -286,7 +286,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T2", kActorsTimeout, &StepActorsReady },
             StepDef{ "T3", kProjectileTimeout, &StepPlayerProjectile },
             StepDef{ "T5", kBurnTimeout, &StepPlayerBurn },
-            StepDef{ "T5-second", kProjectileTimeout, &StepBurnExtend },
+            StepDef{ "T5-second", kProjectileTimeout, &StepSecondHit },
             StepDef{ "T4", kProjectileTimeout, &StepNpcProjectile },
             StepDef{ "T5-npc", kInfoTimeout, &StepNpcBurnInfo },
             StepDef{ "T6", kExplosionTimeout, &StepPlayerExplosion },
