@@ -26,6 +26,7 @@ set(BLACKFLAME_SOURCES
     src/EffectEvents.cpp
     src/HitEffectHook.cpp
     src/HitArt.cpp
+    src/HazardHook.cpp
     src/Recolor.cpp
     src/SehGuard.cpp
     src/ParticleColors.cpp

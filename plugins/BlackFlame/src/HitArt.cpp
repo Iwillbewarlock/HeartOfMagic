@@ -5,6 +5,7 @@
 #include "Recolor.h"
 #include "SehGuard.h"
 
+#include <algorithm>
 #include <atomic>
 #include <format>
 #include <memory>
@@ -22,6 +23,9 @@ namespace BlackFlame
         {
             std::uintptr_t controller = 0;  // compared only, never dereferenced (it may be freed by now)
             const RE::BGSArtObject* art = nullptr;
+            // Also compared: a freed controller's address reused by an NPC's effect with the same art
+            // must not match (its target differs)
+            RE::ObjectRefHandle target;
             std::uint32_t generation = 0;
             int ticks = 0;
         };
@@ -44,7 +48,7 @@ namespace BlackFlame
             if (auto* lists = RE::ProcessLists::GetSingleton()) {
                 lists->ForEachModelEffect([&](RE::ModelReferenceEffect* a_effect) {
                     if (!a_effect->finished && reinterpret_cast<std::uintptr_t>(a_effect->controller) == a_art.controller &&
-                        a_effect->artObject == a_art.art) {
+                        a_effect->artObject == a_art.art && a_effect->target == a_art.target) {
                         found.reset(a_effect);
                         return RE::BSContainer::ForEachResult::kStop;
                     }
@@ -99,13 +103,18 @@ namespace BlackFlame
 
     void RememberHitArt(const RE::ActiveEffectReferenceEffectController* a_controller, RE::BGSArtObject* a_art)
     {
+        const auto controller = reinterpret_cast<std::uintptr_t>(a_controller);
         std::lock_guard lock(g_mutex);
         auto& pending = Pending();
+        // Asked again for the same art (a concentration effect may ask every frame): one entry is enough
+        if (std::ranges::any_of(pending, [&](const auto& a_p) { return a_p.controller == controller && a_p.art == a_art; })) {
+            return;
+        }
         if (pending.size() >= kMaxPending) {
             g_overflow.fetch_add(1);
             return;
         }
-        pending.push_back({ reinterpret_cast<std::uintptr_t>(a_controller), a_art, WorldGeneration(), 0 });
+        pending.push_back({ controller, a_art, a_controller->target, WorldGeneration(), 0 });
         g_pendingCount.store(pending.size());
     }
 

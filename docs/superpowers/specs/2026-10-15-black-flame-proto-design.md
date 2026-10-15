@@ -193,9 +193,33 @@
 - 바닥에 걸린 회색 셰이더는 바닥에서 끝난다(무기한 수명은 바닥으로). 팔레트를 잃은 속성은 다음 로드까지 기억해 다시 칠하지 않는다.
 - Main의 레이어 초기화와 자가 시험 중단, Finish의 해제·삭제는 각각 따로 감싼다.
 
+## 7차 반영 (2026-10-15, 첫 게임 실행 AE 1.6.1170 이후)
+
+- 투사체 층의 접근 위반: 재질 확인(주문 id를 맞게 읽음)과 손 이펙트가 동작했으므로 순회와 runtime data 오프셋은 정상으로
+  본다. 남은 차이는 조명이다. `PROJECTILE_RUNTIME_DATA::light`는 `NiPointer<BSLight>`로 선언됐지만 폭발은 같은 자리에
+  `NiPointLight`를 둔다. 투사체도 NiLight를 쥐고 있으면 `light->light`가 NiAVObject+0x48을 포인터로 읽는다(가장 유력한 원인,
+  게임에서 미확인). 조명은 MSVC RTTI로 실제 형을 물어 읽고(`AsNiLight`, 투사체·폭발·해저드 공통), 각 단계를 SEH로 감싸
+  처음 한 번 예외 코드와 모듈+오프셋을 남긴다(`SehGuard`).
+- 스레드: `Handle3DLoaded`는 플러그인 로드 스레드(메인으로 추정)에서, kDataLoaded와 SKSE 태스크는 다른 스레드에서 돌았다.
+  로그에 나란히 남기고 논리는 바꾸지 않았다.
+- 화상 셰이더와 hit art는 `ActiveEffectReferenceEffectController`의 `GetHitEffectShader`(0x0D)·`GetHitEffectArt`(0x0C)에서
+  처리한다(엔진이 hit shader·art를 만들 때 묻는 자리). 셰이더는 우리 EFSH를 돌려주고, art는 그대로 두고 3D가 생기면 칠한다.
+  이벤트 경로(적용 태스크, 재시도, 살아 있는 화상, 나이 바닥, 새 hit shader로 찾는 대체 경로)는 지웠다. `burnMode` overlay는
+  맞은 자리마다 셰이더가 하나뿐이라 뜻이 없어 없앴다. 엔진이 언제·몇 번 묻는지는 진단 줄(슬롯별 처음 20번)로 확인한다.
+- hit art 대기 목록은 컨트롤러 주소, art, 대상 핸들을 함께 비교한다(해제된 컨트롤러 주소를 NPC 효과가 다시 쓰는 경우 대비).
+- 해저드: Hazard vtable의 `Set3D`·`Initialize`. `ownerActor`가 플레이어이고 BGSHazard의 주문이 불이면 공유되지 않는
+  지오메트리와 조명만 칠한다. `BSMasterParticleSystem` 아래는 모든 재칠에서 건너뛴다(같은 종류의 모든 이미터가 공유, NPC
+  불까지 회색이 됨). 바닐라 바닥 불은 대부분 그런 공유 시스템으로 내보내는 AddOn 노드라 거의 바뀌지 않는다(로그가 셈).
+  공유 입자를 어떻게 할지는 사용자 결정 대기.
+- 룬: 이 로드 순서의 Fire Rune MGEF(`MAG_RuneFireFFLocation`, MysticismMagic이 덮어씀)는 `MagicDamageFire`·ResistFire라 불 효과다.
+  투사체 `MAG_RuneFireProjectile02`는 Lobber(GrenadeProjectile, 훅 있음)이고 그 폭발 `MAG_ExplosionRuneFlame02`는 투사체의
+  explosionType으로 불 폭발 집합에 들어간다(houseCARL 읽기로 확인). 게임에서는 미확인.
+- 손에 든(준비된) 불마법도 버프가 켜지는 순간 회색, 꺼지면·로드하면 칠한 속성을 원래대로 되돌린다.
+
 ## 알려진 한계 (추가)
 
-- 바닥에 남는 화염(hazard)은 시제품에서 바꾸지 않는다.
+- 바닥 불(hazard)의 공유 입자(`BSMasterParticleSystem`)는 바꾸지 않는다. 버프 중 만들어진 hit shader·art는 버프가 끝나도 그
+  효과가 끝날 때까지 회색이다.
 
 ## 확인 필요 (API 조사) - 정한 것 (2026-10-15 구현)
 

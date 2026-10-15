@@ -16,6 +16,7 @@
 #include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "HazardHook.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
 #include "Palette.h"
@@ -43,6 +44,9 @@ namespace
         if (BlackFlame::GetConfig().explosion) {
             BlackFlame::InstallExplosionHook();
         }
+        if (BlackFlame::GetConfig().hazard) {
+            BlackFlame::InstallHazardHook();
+        }
         BlackFlame::InstallHitEffectHooks();
     }
 
@@ -51,6 +55,7 @@ namespace
     {
         BlackFlame::g_worldGeneration.fetch_add(1);  // tasks queued in the old world now do nothing
         BlackFlame::ResetHitArt();
+        BlackFlame::ResetHazardState();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetRecolorState();

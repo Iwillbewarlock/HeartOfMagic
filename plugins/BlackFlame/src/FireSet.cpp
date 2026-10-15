@@ -303,6 +303,12 @@ namespace BlackFlame
         return a_spell && g_fireSpells.contains(a_spell->GetFormID());
     }
 
+    bool IsFireHazard(const RE::BGSHazard* a_hazard)
+    {
+        const auto* spell = a_hazard ? a_hazard->data.spell : nullptr;
+        return spell && (IsFireSpell(spell) || HasFireMgef(spell, GetForms().fireKeyword));
+    }
+
     bool IsFireExplosion(const RE::BGSExplosion* a_explosion, const RE::MagicItem* a_casterSpell)
     {
         if (!a_explosion) {

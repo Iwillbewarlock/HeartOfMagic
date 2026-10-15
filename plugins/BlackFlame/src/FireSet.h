@@ -45,4 +45,8 @@ namespace BlackFlame
     /// (BGSProjectile::data.explosionType); one named only by a fallback (costliest) effect counts
     /// only when a_casterSpell is the spell that contributed it.
     [[nodiscard]] bool IsFireExplosion(const RE::BGSExplosion* a_explosion, const RE::MagicItem* a_casterSpell);
+
+    /// A hazard whose spell (BGSHazardData::spell) is a fire spell or carries a fire MGEF (hazard
+    /// spells need not be of the counted kSpell type)
+    [[nodiscard]] bool IsFireHazard(const RE::BGSHazard* a_hazard);
 }
