@@ -43,6 +43,51 @@ std::vector<std::uint32_t> WitnessSpells(const std::vector<std::uint32_t>& listS
         if (id != 0 && !excluded.contains(id) && seen.insert(id).second) out.push_back(id);
     return out;
 }
+std::size_t CountExcluded(const std::vector<std::uint32_t>& listSpells, const std::unordered_set<std::uint32_t>& excluded)
+{
+    std::unordered_set<std::uint32_t> seen;
+    std::size_t n = 0;
+    for (const auto id : listSpells)
+        if (id != 0 && seen.insert(id).second && excluded.contains(id)) ++n;
+    return n;
+}
+std::vector<std::uint32_t> PickedFrom(const std::vector<std::uint32_t>& listSpells, const std::unordered_set<std::uint32_t>& cache)
+{
+    std::vector<std::uint32_t> out;
+    std::unordered_set<std::uint32_t> seen;
+    for (const auto id : listSpells)
+        if (id != 0 && cache.contains(id) && seen.insert(id).second) out.push_back(id);
+    return out;
+}
+bool SelfTestWaitOver(std::size_t ticks, int waitMs)
+{
+    return static_cast<long long>(ticks) * kSelfTestPollMs >= static_cast<long long>(waitMs);
+}
+SelfTestVerdict JudgeSample(const std::vector<SelfTestListOutcome>& lists, std::size_t distinctEvidence, std::string& reason)
+{
+    if (lists.empty()) { reason = "no HoMNS list to check"; return SelfTestVerdict::kFail; }
+    if (distinctEvidence > 0) { reason = std::format("HoMNS-only witnesses found: {}", distinctEvidence); return SelfTestVerdict::kPass; }
+    std::size_t below = 0, noWitness = 0, open = 0;
+    for (const auto& l : lists) {
+        if (l.witnesses == 0) ++noWitness;
+        else if (l.belowEvery) ++below;
+        else ++open;
+    }
+    if (open == 0) {
+        reason = std::format("no list could give a witness: {} with the skill below every entry, {} without witnesses", below, noWitness);
+        return SelfTestVerdict::kInconclusive;
+    }
+    reason = std::format("no witness found on {} lists that could give one", open);
+    return SelfTestVerdict::kFail;
+}
+const char* VerdictName(SelfTestVerdict v)
+{
+    switch (v) {
+    case SelfTestVerdict::kPass: return "PASS";
+    case SelfTestVerdict::kInconclusive: return "INCONCLUSIVE";
+    default: return "FAIL";
+    }
+}
 std::size_t CountShared(const std::vector<std::uint32_t>& witnesses, const std::unordered_set<std::uint32_t>& otherLists)
 {
     std::size_t n = 0;

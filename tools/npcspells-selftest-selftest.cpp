@@ -1,4 +1,4 @@
-// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file and the witness spells of a list
+// The in-game self test's pure parts (core/NpcSpellsSelfTest.h): its config file, witness, excluded and picked sets, tick-counted waits, verdicts
 #include "NpcSpellsCheck.h"
 #include "core/NpcSpellsSelfTest.h"
 #include <cstdio>
@@ -44,6 +44,33 @@ int RunSelfTestSelfTest()
         Check(WitnessSpells({ 0x10, 0x20 }, { 0x10, 0x20 }).empty(), "witnesses: a list the NPC already has every spell of gives none");
         Check(WitnessSpells({}, { 0x10 }).empty(), "witnesses: an empty list gives none");
         Check(CountShared(w, { 0x30, 0x40, 0x77 }) == 2 && CountShared(w, {}) == 0, "shared counts witnesses another list holds");
+        Check(CountExcluded(list, { 0x20, 0x99 }) == 1 && CountExcluded(list, {}) == 0, "excluded counts the list's distinct spells the set removed (not ids outside the list)");
+        Check(CountExcluded({ 0x20, 0x20, 0 }, { 0x20, 0 }) == 1, "excluded counts a repeated spell once and never the null id");
+    }
+    {   // a leveled sample (LVLN) is written like any other record; the parser cannot tell the record type
+        SelfTestConfig c; std::string e;
+        const bool ok = ParseSelfTestConfig(R"({"samples": ["039D37:Skyrim.esm", "039D5F:Skyrim.esm"]})", c, e);
+        Check(ok && e.empty() && c.samples.size() == 2 && c.samples[1].local == 0x039D5F && c.sampleTexts[1] == "039D5F:Skyrim.esm", "a leveled sample id parses like an NPC one");
+    }
+    {   // picked: the list's spells in the leveled spell cache, once, in list order
+        Check(PickedFrom({ 0x10, 0x20, 0x10, 0x30 }, { 0x30, 0x10, 0x99 }) == std::vector<std::uint32_t>{ 0x10, 0x30 }, "picked: cache hits in list order, each once");
+        Check(PickedFrom({ 0x10, 0x20 }, {}).empty() && PickedFrom({}, { 0x10 }).empty(), "picked: an empty cache or list picks nothing");
+    }
+    {   // tick-counted waits: ticks x kSelfTestPollMs against the wait
+        Check(SelfTestWaitOver(0, 0) && !SelfTestWaitOver(0, 1), "a wait of 0 is over at once, any other is not");
+        const auto ticks = static_cast<std::size_t>(kSelfTestDefaultMaxWaitMs / kSelfTestPollMs);
+        Check(!SelfTestWaitOver(ticks - 1, kSelfTestDefaultMaxWaitMs) && SelfTestWaitOver(ticks, kSelfTestDefaultMaxWaitMs), "the default per-actor wait ends on its tick, not one before");
+        Check(SelfTestWaitOver(static_cast<std::size_t>(kSelfTestPlayerWaitMs / kSelfTestPollMs), kSelfTestPlayerWaitMs) && SelfTestWaitOver(std::size_t{ 1 } << 40, kSelfTestMaxMs), "the player wait ends on its tick; a huge tick count does not overflow");
+    }
+    {   // verdicts
+        std::string why;
+        Check(JudgeSample({ { 5, false, 0 }, { 3, true, 0 } }, 1, why) == SelfTestVerdict::kPass && why.find("1") != std::string::npos, "PASS: one witness found");
+        Check(JudgeSample({ { 5, true, 0 } }, 2, why) == SelfTestVerdict::kPass, "PASS: a found witness counts even on a list below every entry");
+        Check(JudgeSample({ { 5, true, 0 }, { 0, false, 0 } }, 0, why) == SelfTestVerdict::kInconclusive && why.find("1 with the skill below") != std::string::npos && why.find("1 without") != std::string::npos, "INCONCLUSIVE: every list below every entry or without witnesses, each counted");
+        Check(JudgeSample({ { 0, false, 0 } }, 0, why) == SelfTestVerdict::kInconclusive, "INCONCLUSIVE: lists with no witness at all");
+        Check(JudgeSample({ { 5, true, 0 }, { 4, false, 0 } }, 0, why) == SelfTestVerdict::kFail && why.find("1 lists") != std::string::npos, "FAIL: a list that could give a witness gave none");
+        Check(JudgeSample({}, 0, why) == SelfTestVerdict::kFail && why.find("no HoMNS list") != std::string::npos, "FAIL: no list to check");
+        Check(std::string(VerdictName(SelfTestVerdict::kInconclusive)) == "INCONCLUSIVE" && std::string(VerdictName(SelfTestVerdict::kPass)) == "PASS" && std::string(VerdictName(SelfTestVerdict::kFail)) == "FAIL", "verdict names");
     }
     return 0;
 }
