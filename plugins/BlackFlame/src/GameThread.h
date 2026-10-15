@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ThreadTrace.h"
 #include "ThreadUtils.h"  // plugins/spelllearning/include: MarkGameThread, IsOnGameThread, AddTaskToGameThread
 
 #include <atomic>
@@ -85,10 +86,12 @@ namespace BlackFlame
             g_gameThreadNativeId.load(), g_dataLoadedThreadNativeId.load());
     }
 
-    /// AddTaskToGameThread, with the thread of the first runs of each task kind logged
+    /// AddTaskToGameThread, with the thread of the first runs of each task kind logged, and every body
+    /// traced (ThreadTrace.h, v2 S4: thread and interval, measurement only)
     inline void QueueTask(const char* a_name, std::function<void()> a_task)
     {
         AddTaskToGameThread(a_name, [a_name, task = std::move(a_task)]() {
+            const ThreadTrace::Scope trace(a_name);
             LogThread(a_name, "task");
             task();
         });

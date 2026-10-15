@@ -22,6 +22,7 @@ set(BLACKFLAME_SOURCES
     src/Forms.cpp
     src/FireSet.cpp
     src/Palette.cpp
+    src/ThreadTrace.cpp
     src/BuffState.cpp
     src/EffectEvents.cpp
     src/HitEffectHook.cpp
@@ -48,6 +49,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestSteps.cpp
     src/SelfTestStepsLate.cpp
     src/SelfTestStepsRemote.cpp
+    src/SelfTestStepsV2.cpp
     src/SelfTestText.cpp
     src/SelfTestWorld.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp

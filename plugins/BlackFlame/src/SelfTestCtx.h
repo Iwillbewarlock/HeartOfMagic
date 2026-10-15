@@ -121,4 +121,7 @@ namespace BlackFlame::SelfTest
     bool StepBuffOff(Ctx& a_c, bool a_first);
     bool StepCastUnstoked(Ctx& a_c, bool a_first);
     bool StepCleanup(Ctx& a_c, bool a_first);
+
+    // SelfTestStepsV2.cpp (the v2 copy framework spike)
+    bool StepThreads(Ctx& a_c, bool a_first);
 }

@@ -332,6 +332,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T7", kEnvTimeout, &StepModifiers },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
+            StepDef{ "T-threads", kEnvTimeout, &StepThreads },
             StepDef{ "T9", kCleanupTimeout, &StepCleanup },
         };
         return kSteps;

@@ -350,3 +350,9 @@
 - ResolvePending: 찍어 둔 게임 스레드가 아니면 판정을 거절하던 줄만 지웠다. 태스크·티커 본문이면 어느 스레드든 판정하고,
   VM 핸들 정책 검사(HandleIsType, IsHandleObjectAvailable)는 그대로이며 처음 8번 스레드를 로그에 남긴다. 다른 게임 스레드
   관문(Handle3DLoaded, Set3D)은 S4 측정 결과를 본 뒤에 정한다.
+
+### S4 스레드 측정 (게이트는 그대로)
+
+- `ThreadTrace`: QueueTask 본문 전부와 v2 훅 본문이 (종류, 스레드 id, 시작, 끝)을 4096칸 고리 버퍼에 남긴다. 칸마다 seq를
+  0으로 두고 채운 뒤 번호를 쓰는 락 없는 방식이라 읽는 쪽은 쓰는 중인 칸을 건너뛴다. 자가 시험 T-threads가 종류별 스레드와
+  다른 스레드끼리 겹친 구간 수를 보고한다(기록 0개면 FAIL). IsOnGameThread 관문은 이 데이터를 읽은 뒤에 정한다.
