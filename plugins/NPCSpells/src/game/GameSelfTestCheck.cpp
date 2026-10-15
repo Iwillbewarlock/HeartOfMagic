@@ -211,7 +211,7 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     using Flag = RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG;  // RE/T/TESActorBaseData.h:46-62, the field at :74
     Log(s, std::format("SELFTEST sample {} kind={} placed {} actorBase {} templateBase {} extraLeveled={} originalBase {} copiedTemplate={} "
                        "holder {} holderFrom={} inherited={} chain={} holderLists={} actorBaseLists={} listsFrom={} 3D=loaded high=yes waitedMs={}",
-        r.text, r.npc ? "npc" : "leveled", FormText(r.placed), FormText(base), FormText(b.templateBase), b.leveled ? "yes" : "no",
+        r.label, r.npc ? "npc" : "leveled", FormText(r.placed), FormText(base), FormText(b.templateBase), b.leveled ? "yes" : "no",
         FormText(b.originalBase), base ? (base->actorData.templateUseFlags.all(Flag::kCopiedTemplate) ? "yes" : "no") : "n/a",
         FormText(r.holder), r.holderFrom, r.holder && r.holder != r.holderStart ? "yes" : "no",
         r.unresolvable ? "leveled-link-before-holder" : "resolved", holderLists.size(), baseLists.size(),
@@ -255,14 +255,15 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     IdSet cache;
     std::size_t cacheCount = 0;
     const bool cacheBuilt = ReadLeveledCache(actor, cache, cacheCount);
-    Log(s, cacheBuilt ? std::format("SELFTEST cache {} leveledSpellList={} spells", r.text, cacheCount)
-                      : std::format("SELFTEST cache {} leveledSpellList=null", r.text));
+    Log(s, cacheBuilt ? std::format("SELFTEST cache {} leveledSpellList={} spells", r.label, cacheCount)
+                      : std::format("SELFTEST cache {} leveledSpellList=null", r.label));
 
     auto* avOwner = actor->AsActorValueOwner();  // RE/A/Actor.h:778; GetActorValue = current value (RE/A/ActorValueOwner.h:16)
     std::array<IdSet, NpcSpells::kSchoolCount> schoolHits, schoolPicked;
     std::array<std::size_t, NpcSpells::kSchoolCount> schoolLists{};
     IdSet evidence;
     std::vector<NpcSpells::SelfTestListOutcome> outcomes;
+    std::vector<std::pair<std::string, bool>> listPicked;  // for the repeated sample's tally
     for (std::size_t i = 0; i < lists.size(); ++i) {
         const auto& list = lists[i];
         IdSet others;
@@ -296,9 +297,10 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
         }
         ++schoolLists[school];
         outcomes.push_back({ witnesses.size(), reach.witnessReachable, picked.size(), pickedWitnesses });
+        listPicked.emplace_back(list.editorId, !picked.empty());
         Log(s, std::format("SELFTEST list {} {} school={} skill={:.0f} entries={} levels={} minLevel={} witnessMinLevel={} topLevel={} witnessReachable={} "
                            "excluded={} witnesses={} shared={} hits={} picked={} pickedWitnesses={}{}{}",
-            r.text, list.editorId, NpcSpells::kSchoolNames[school], skill, list.spells.size(), list.allLevels ? "all" : "highest",
+            r.label, list.editorId, NpcSpells::kSchoolNames[school], skill, list.spells.size(), list.allLevels ? "all" : "highest",
             LevelText(reach.minLevel), LevelText(reach.witnessMinLevel), LevelText(reach.topLevel), reach.witnessReachable ? "yes" : "no",
             NpcSpells::CountExcluded(list.spells, excluded), witnesses.size(),
             NpcSpells::CountShared(witnesses, others), hits.size(), picked.size(), pickedWitnesses,
@@ -306,10 +308,11 @@ void SelfTest::Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waite
     }
     for (std::size_t sc = 0; sc < NpcSpells::kSchoolCount; ++sc) {
         if (schoolLists[sc] > 0) {
-            Log(s, std::format("SELFTEST school {} {} lists={} distinctHits={} distinctPicked={}", r.text, NpcSpells::kSchoolNames[sc],
+            Log(s, std::format("SELFTEST school {} {} lists={} distinctHits={} distinctPicked={}", r.label, NpcSpells::kSchoolNames[sc],
                 schoolLists[sc], schoolHits[sc].size(), schoolPicked[sc].size()));
         }
     }
+    r.tally.AddRun(listPicked);
     std::string reason;
     const auto verdict = NpcSpells::JudgeSample(outcomes, { holderLists.size(), baseLists.size() }, evidence.size(), reason);
     Record(s, r, verdict, reason);  // here, not on entry: a throw above leaves the sample to RunTick's Fail, so DONE counts every sample

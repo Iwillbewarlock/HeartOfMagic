@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <format>
+#include <iterator>
 namespace NpcSpells {
 namespace {
     void AppendError(std::string& error, const std::string& part) { if (!error.empty()) error += "; "; error += part; }
@@ -25,11 +26,20 @@ bool ParseSelfTestConfig(const std::string& jsonText, SelfTestConfig& out, std::
     const auto samples = j.find("samples");
     if (samples == j.end() || !samples->is_array()) { error = "self test JSON has no \"samples\" array"; return false; }
     for (const auto& v : *samples) {
-        if (!v.is_string()) { AppendError(error, std::format("samples: not a FormID (XXXXXX:Plugin.ext): {}", v.dump())); continue; }
+        // A string, or {"id": "...", "repeat": N}
+        const nlohmann::json* idValue = &v;
+        if (v.is_object()) { const auto id = v.find("id"); idValue = id != v.end() ? &*id : nullptr; }
+        if (!idValue || !idValue->is_string()) { AppendError(error, std::format("samples: not a FormID (XXXXXX:Plugin.ext) or {{\"id\": ..., \"repeat\": N}}: {}", v.dump())); continue; }
         std::string refError;
-        const auto& text = v.get_ref<const std::string&>();
-        if (auto ref = ParseFormRef(text, refError)) { out.samples.push_back(*ref); out.sampleTexts.push_back(text); }
-        else AppendError(error, "samples: " + refError);
+        const auto& text = idValue->get_ref<const std::string&>();
+        auto ref = ParseFormRef(text, refError);
+        if (!ref) { AppendError(error, "samples: " + refError); continue; }
+        int repeat = kSelfTestDefaultRepeat;
+        if (const auto r = v.is_object() ? v.find("repeat") : v.end(); r != v.end()) {
+            if (r->is_number_integer() && r->get<long long>() >= 1 && r->get<long long>() <= kSelfTestMaxRepeat) repeat = static_cast<int>(r->get<long long>());
+            else AppendError(error, std::format("samples: {} repeat {} is not a whole number in 1..{}, {} is used", text, r->dump(), kSelfTestMaxRepeat, kSelfTestDefaultRepeat));
+        }
+        out.samples.push_back(*ref); out.sampleTexts.push_back(text); out.repeats.push_back(repeat);
     }
     ReadMs(j, "startDelayMs", out.startDelayMs, kSelfTestDefaultStartDelayMs, error);
     ReadMs(j, "maxWaitMs", out.maxWaitMs, kSelfTestDefaultMaxWaitMs, error);
@@ -117,6 +127,31 @@ std::size_t CountShared(const std::vector<std::uint32_t>& witnesses, const std::
     std::size_t n = 0;
     for (const auto id : witnesses) n += otherLists.contains(id) ? 1 : 0;
     return n;
+}
+std::string SelfTestRunLabel(std::string_view sampleText, int run, int runs)
+{
+    if (runs <= 1) return std::string(sampleText);
+    return std::format("{} run={}/{}", sampleText, run, runs);
+}
+void SelfTestRunTally::AddRun(const std::vector<std::pair<std::string, bool>>& listPicked)
+{
+    ++checkedRuns;
+    for (const auto& [editorId, picked] : listPicked) {
+        auto it = std::ranges::find_if(pickedRuns, [&](const auto& p) { return p.first == editorId; });
+        if (it == pickedRuns.end()) { pickedRuns.emplace_back(editorId, 0); it = std::prev(pickedRuns.end()); }
+        it->second += picked ? 1 : 0;
+    }
+}
+std::string SelfTestListsLine(std::string_view sampleText, int runs, const SelfTestRunTally& tally)
+{
+    std::string out = std::format("SELFTEST lists {} runs={} checked={}", sampleText, runs, tally.checkedRuns);
+    if (tally.pickedRuns.empty()) return out + " (no run reached the check)";
+    bool first = true;
+    for (const auto& [editorId, picked] : tally.pickedRuns) {
+        out += std::format("{} {} pickedRuns={}/{}", first ? "" : ",", editorId, picked, tally.checkedRuns);
+        first = false;
+    }
+    return out;
 }
 std::string SelfTestEndLine(bool spawned, std::string_view reason, std::size_t pass, std::size_t fail, std::size_t inconclusive)
 {

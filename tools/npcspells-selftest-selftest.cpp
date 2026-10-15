@@ -47,6 +47,30 @@ int RunSelfTestSelfTest()
         Check(CountExcluded(list, { 0x20, 0x99 }) == 1 && CountExcluded(list, {}) == 0, "excluded counts the list's distinct spells the set removed (not ids outside the list)");
         Check(CountExcluded({ 0x20, 0x20, 0 }, { 0x20, 0 }) == 1, "excluded counts a repeated spell once and never the null id");
     }
+    {   // repeat: a sample as {"id", "repeat"}, default 1, 1..kSelfTestMaxRepeat
+        SelfTestConfig c; std::string e;
+        const bool ok = ParseSelfTestConfig(std::format(R"({{"samples": ["039D37:Skyrim.esm", {{"id": "013BBB:Skyrim.esm", "repeat": 5}}, {{"id": "0551AD:Skyrim.esm"}}, {{"id": "013BBC:Skyrim.esm", "repeat": {}}}]}})", kSelfTestMaxRepeat), c, e);
+        Check(ok && e.empty() && c.samples.size() == 4 && c.repeats == std::vector<int>{ 1, 5, 1, kSelfTestMaxRepeat }, "repeat: a string sample runs once, an object takes its repeat (default 1, the cap allowed)");
+        Check(c.sampleTexts[1] == "013BBB:Skyrim.esm" && c.samples[1].local == 0x013BBB, "repeat: an object sample keeps its id text and FormID");
+    }
+    {   // repeat edge and failure: 0, over the cap, not a whole number -> 1 with an error; an object without an id is dropped
+        SelfTestConfig c; std::string e;
+        const bool ok = ParseSelfTestConfig(std::format(R"({{"samples": [{{"id": "013BBB:Skyrim.esm", "repeat": 0}}, {{"id": "0551AD:Skyrim.esm", "repeat": {}}}, {{"id": "039D37:Skyrim.esm", "repeat": "5"}}, {{"repeat": 3}}]}})", kSelfTestMaxRepeat + 1), c, e);
+        Check(ok && c.samples.size() == 3 && c.repeats == std::vector<int>{ 1, 1, 1 }, "repeat: 0, over the cap and a string go back to 1; the sample stays");
+        Check(e.find("013BBB:Skyrim.esm repeat 0") != std::string::npos && e.find(std::format("repeat {}", kSelfTestMaxRepeat + 1)) != std::string::npos &&
+              e.find("repeat \"5\"") != std::string::npos && e.find(R"({"repeat":3})") != std::string::npos, "repeat: each bad value and the object without an id are named");
+        e.clear(); Check(!ParseSelfTestConfig(R"({"samples": [{"id": 42}]})", c, e) && c.samples.empty() && c.repeats.empty(), "repeat: an object whose id is not text is refused like a bad sample");
+    }
+    {   // per-run labels and the repeated sample's final line
+        Check(SelfTestRunLabel("013BBB:Skyrim.esm", 1, 1) == "013BBB:Skyrim.esm" && SelfTestRunLabel("013BBB:Skyrim.esm", 2, 5) == "013BBB:Skyrim.esm run=2/5", "a sample run once keeps its text, a repeated one says run=k/N");
+        SelfTestRunTally t;
+        t.AddRun({ { "HoMNS_A", true }, { "HoMNS_B", false } });
+        t.AddRun({ { "HoMNS_A", true }, { "HoMNS_B", true } });
+        t.AddRun({ { "HoMNS_A", false }, { "HoMNS_B", false }, { "HoMNS_C", true } });
+        Check(t.checkedRuns == 3 && t.pickedRuns.size() == 3 && t.pickedRuns[0].second == 2 && t.pickedRuns[1].second == 1 && t.pickedRuns[2].second == 1, "tally: runs with a pick per list, lists in first-seen order");
+        Check(SelfTestListsLine("013BBB:Skyrim.esm", 5, t) == "SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=3 HoMNS_A pickedRuns=2/3, HoMNS_B pickedRuns=1/3, HoMNS_C pickedRuns=1/3", "lists line: runs asked, runs checked, pickedRuns per list over the checked runs");
+        Check(SelfTestListsLine("013BBB:Skyrim.esm", 5, SelfTestRunTally{}) == "SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=0 (no run reached the check)", "lists line: no checked run says so");
+    }
     {   // a leveled sample (LVLN) is written like any other record; the parser cannot tell the record type
         SelfTestConfig c; std::string e;
         const bool ok = ParseSelfTestConfig(R"({"samples": ["039D37:Skyrim.esm", "039D5F:Skyrim.esm"]})", c, e);

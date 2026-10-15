@@ -34,7 +34,10 @@ namespace NpcSpellsGame::SelfTest
 
     struct SampleRun
     {
-        std::string text;
+        std::string text;                      // the sample as the config writes it
+        std::string label;                     // the per-run lines' name for it (NpcSpells::SelfTestRunLabel)
+        int run = 1, runs = 1;                 // this spawn of the sample, of how many (config "repeat"), one after another
+        NpcSpells::SelfTestRunTally tally;     // a repeated sample's checked runs, for its final SELFTEST lists line
         NpcSpells::FormRef ref;
         RE::TESBoundObject* placed = nullptr;  // what is spawned: the sample's TESNPC or TESLevCharacter
         RE::TESNPC* npc = nullptr;             // the sample as an NPC; null for a leveled sample
@@ -45,7 +48,8 @@ namespace NpcSpellsGame::SelfTest
         RE::ObjectRefHandle handle;            // a handle, not a NiPointer: the state may be freed on the worker thread
         RE::FormID spawnedId = 0;              // the spawned ref's FormID: cleanup touches only a ref that still has it
         std::size_t waitTicks = 0;             // ticks since the spawn tick
-        bool done = false;
+        bool done = false;                     // this run has its RESULT
+        bool stopped = false;                  // no further run: a failure before the spawn would fail every run the same way
     };
 
     struct State
@@ -76,6 +80,7 @@ namespace NpcSpellsGame::SelfTest
     std::string FormText(const RE::TESForm* form);
     std::vector<RE::TESLevSpell*> OurListsOn(const RE::TESSpellList::SpellData* d, const OurLists& ours);
 
-    // One actor with its 3D and high process: logs its bases, holder, leveled spell cache and lists, then the verdict
+    // One actor with its 3D and high process: logs its bases, holder, leveled spell cache and lists, adds the run to the
+    // sample's tally, then the verdict
     void Check(State& s, SampleRun& r, RE::Actor* actor, std::size_t waitedTicks);
 }

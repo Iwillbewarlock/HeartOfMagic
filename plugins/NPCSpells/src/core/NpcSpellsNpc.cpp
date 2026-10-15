@@ -80,7 +80,7 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
 {
     NpcDecision d;
     if (npc.isPlayer) { d.skipReason = "player"; return d; }
-    if (npc.inheritsSpellList) { d.skipReason = "template spell list"; return d; }
+    if (npc.inheritsSpellList) { d.skipReason = kSkipTemplateUnresolvable; return d; }
     if (npc.isBeast) { d.skipReason = "beast race"; return d; }
     d.tier = npc.hasClass ? ClassifyClass(npc.weights, rules) : ClassTier::NonMage;
     if (npc.isCreature && d.tier != ClassTier::Mage) { d.skipReason = "creature not a mage"; return d; }
@@ -124,5 +124,11 @@ NpcDecision DecideNpc(const NpcFacts& npc, const Rules& rules, const ListIndex& 
         if (school && !Attach(d, lists, { *school, d.group, Variant::All, 0, true }, h)) ++d.slotsWithoutList;
     }
     return d;
+}
+std::optional<NpcDecision> InheritDecision(const NpcDecision* holder, const char*& skipReason)
+{
+    if (!holder || holder->lists.empty()) { skipReason = kSkipHolderGotNone; return std::nullopt; }
+    skipReason = nullptr;
+    return *holder;
 }
 }

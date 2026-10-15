@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 // The dev-only in-game self test's pure parts (game/GameSelfTest.cpp does the spawning): its config file, the witness
 // spells of one attached list, the tick-counted waits and a sample's verdict. The config file never ships (the code is
@@ -15,15 +16,30 @@ namespace NpcSpells {
     inline constexpr int kSelfTestMaxMs = 60000;                // either value above this (or below 0) goes back to its default
     inline constexpr int kSelfTestPollMs = 100;                 // one main-thread tick per this much (a worker thread queues it)
     inline constexpr int kSelfTestPlayerWaitMs = 60000;         // the player's 3D and cell, in ticks counted from the test's start
+    inline constexpr int kSelfTestDefaultRepeat = 1;            // spawns of one sample, one after another
+    inline constexpr int kSelfTestMaxRepeat = 10;               // a repeat outside 1..this goes back to the default
     struct SelfTestConfig {
         std::vector<FormRef> samples;            // base NPC (NPC_) or leveled NPC (LVLN) records, "XXXXXX:Plugin.ext" like the rules file
         std::vector<std::string> sampleTexts;    // as written, parallel to samples (for the log)
+        std::vector<int> repeats;                // parallel to samples: how many times each is spawned (one after another)
         int startDelayMs = kSelfTestDefaultStartDelayMs;
         int maxWaitMs = kSelfTestDefaultMaxWaitMs;
     };
-    // {"samples": ["039D37:Skyrim.esm", ...], "startDelayMs": 2000, "maxWaitMs": 8000}. false + error when the text is not a JSON
-    // object or no sample is usable; true otherwise, error naming each dropped sample or reset value ("; " between).
+    // {"samples": ["039D37:Skyrim.esm", {"id": "013BBB:Skyrim.esm", "repeat": 5}, ...], "startDelayMs": 2000, "maxWaitMs": 8000}:
+    // a sample is its FormID text, or an object with "id" and an optional "repeat" (1..kSelfTestMaxRepeat). false + error when
+    // the text is not a JSON object or no sample is usable; true otherwise, error naming each dropped sample or reset value ("; " between).
     bool ParseSelfTestConfig(const std::string& jsonText, SelfTestConfig& out, std::string& error);
+    // The sample as the per-run lines name it: the text alone for a sample spawned once, "<text> run=k/N" for a repeated one
+    std::string SelfTestRunLabel(std::string_view sampleText, int run, int runs);
+    // A repeated sample's runs: per list (EditorID, first-seen order), how many checked runs found one of its spells in the
+    // actor's leveled spell cache (picked > 0). Lists of one school overlap, so a pick may have come from another list of ours.
+    struct SelfTestRunTally {
+        std::size_t checkedRuns = 0;
+        std::vector<std::pair<std::string, std::size_t>> pickedRuns;
+        void AddRun(const std::vector<std::pair<std::string, bool>>& listPicked);   // one checked run: (EditorID, picked > 0) per list
+    };
+    // "SELFTEST lists <text> runs=N checked=C <EditorID> pickedRuns=K/C, ..." (the repeated sample's final line)
+    std::string SelfTestListsLine(std::string_view sampleText, int runs, const SelfTestRunTally& tally);
     // A list's spells that prove the list worked: each once, in list order, without those the NPC can have another way
     // (excluded: the static spells and other leveled lists' entries of the sample, its holder, its bases and their template
     // chains, its race's spells and leveled lists, the actor's added spells)

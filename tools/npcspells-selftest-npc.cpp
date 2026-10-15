@@ -43,6 +43,27 @@ int RunNpcSelfTest()
     const Rules rules = DefaultRules(); const ListIndex all = AllPresent();
     NpcFacts inherits = Npc(1, Mage()); inherits.inheritsSpellList = true;
     Check(!DecideNpc(inherits, rules, all).eligible, "template spell list -> skipped");
+    {   // inheritance: an NPC whose spell list comes from a template takes its holder's decision as it is
+        NpcFacts holderFacts = Npc(500, Mage()); holderFacts.groupsMatched = { 4 };
+        const auto holder = DecideNpc(holderFacts, rules, all);
+        const char* why = "unset";
+        const auto copy = InheritDecision(&holder, why);
+        Check(!holder.lists.empty() && copy && why == nullptr && copy->lists.size() == holder.lists.size() &&
+              std::equal(copy->lists.begin(), copy->lists.end(), holder.lists.begin(), [](const Attachment& x, const Attachment& y) { return x.slotIndex == y.slotIndex && x.chunk == y.chunk; }) &&
+              copy->tier == holder.tier && copy->group == 4 && copy->undead == holder.undead, "inherited: the holder's lists, tier, group and undead policy, copied");
+        // No dice of its own: two children of one holder get the same lists, though their own ids would roll differently
+        Check(InheritDecision(&holder, why)->lists.size() == copy->lists.size(), "inherited: every child of one holder gets the same copy");
+        NpcDecision skippedHolder; skippedHolder.skipReason = "beast race";
+        Check(!InheritDecision(&skippedHolder, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: a holder skipped (no lists) gives nothing");
+        NpcDecision eligibleEmpty; eligibleEmpty.eligible = true; eligibleEmpty.slotsWithoutList = 3;
+        Check(!InheritDecision(&eligibleEmpty, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: an eligible holder whose dice gave no list gives nothing");
+        Check(!InheritDecision(nullptr, why) && std::string_view(why) == kSkipHolderGotNone, "inherited: a holder with no row (skipped before the decision) gives nothing");
+        // A chain with a leveled link before the holder cannot be resolved: such an NPC reaches DecideNpc and stays skipped
+        Check(!SpellListProviderIndex({ { 0x8, false }, { 0x8, true }, { 0, false } }).has_value(), "inherited: a leveled link before the holder is unresolvable");
+        NpcFacts unresolvable = Npc(501, Mage()); unresolvable.inheritsSpellList = true;
+        const auto u = DecideNpc(unresolvable, rules, all);
+        Check(!u.eligible && u.lists.empty() && u.skipReason && std::string_view(u.skipReason) == kSkipTemplateUnresolvable, "inherited: an unresolvable chain is skipped as 'holder not resolvable'");
+    }
     NpcFacts beast = Npc(2, Mage()); beast.isBeast = true;
     Check(!DecideNpc(beast, rules, all).eligible, "beast race -> skipped");
     NpcFacts creatureWarrior = Npc(3, Warrior()); creatureWarrior.isCreature = true;

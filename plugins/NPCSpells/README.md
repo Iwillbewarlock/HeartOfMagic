@@ -83,11 +83,23 @@ ahead of time (at data load) and attaches them to NPC base records.
   machine with another code page can roll differently for that plugin's NPCs (ASCII names roll the same everywhere).
 - **Who gets what:** the NPC's class (from its skill weights) decides: mage (magic weights at least 0.6 of all),
   hybrid (at least 0.3), non-mage. A non-mage gets, with 5 %, a list of novice curing/armor spells. Beast races get
-  nothing; other creatures get lists only with a mage class. NPCs that inherit their spell list from a template are
-  skipped (the lists go on the record that really uses it); leveled NPCs resolve to their end record. The template
+  nothing; other creatures get lists only with a mage class. The template
   flag for spells counts only with a template set: a record with the flag and no template keeps its own spell list
   and gets lists like any other. Deleted or
   ignored NPC records, and character-creation face presets, are skipped.
+- **NPCs that inherit their spell list from a template** (most bandit and warlock mages) get exactly the lists decided
+  for their spell list holder, the record at the end of the template chain that really holds the list: no dice of
+  their own, so a template and all its children behave alike, and a holder that gets nothing (skipped, a non-mage
+  whose 5 % roll failed) gives its children nothing. Only our lists are copied, never the holder's other entries. The
+  engine copies the holder's spell list into each child while loading (`kCopiedTemplate`), before the addon runs, so
+  lists put on the holder alone never reached a spawned child (in-game run 6, 2026-10-15). Every holder is decided
+  first and every record is written only after the whole scan (the form array is in load order, not template order).
+  Before anything is written, each child's spell list memory is compared with every record of its chain: a child that
+  shares its spell list data with its template is skipped (the template's write reaches it), and a child sharing only
+  its leveled-list array with one is never written, nor is that record, because adding lists frees the old array.
+  Both are expected to be 0 and are counted. A chain with a leveled link before the holder cannot be resolved before
+  spawn and stays skipped ("template spell list, holder not resolvable"); the leveled NPC's end record is a record
+  like any other and gets its own or its holder's lists.
 - **Conjuration:** a necromancer (Necromancer or Vampire group, or class `CombatMageNecro` and not a Redguard) mostly
   gets NecroPrefer lists (3/4), All lists otherwise. A conjurer (conjuration weight 3 or more and not below any other
   school, not a Redguard) in no group gets NoUndeadAll mostly, All otherwise; if its NoUndeadAll list is missing it
@@ -143,9 +155,21 @@ reason; a missing or unreadable `spell_tree.json` or `spell_catalog.json` is nam
 one node, taken once so its weight is not doubled -, excluded by tag, kept...);
 Lists (lists built, empty slots, dropped over capacity, ESL records found/missing/wrong type, per school, every list
 the game got with its entry count and flag - a list skipped for a missing record, a prefilled record or no memory is
-only counted); NPCs (scanned, eligible, got lists, by class tier, by group, skipped with reasons);
-NPC lists (one row for every NPC that got lists: persistent id `Plugin|0xLocal`, name, group, class tier and undead
-policy, the attached list EditorIDs `HoMNS_...`); Timing. NPC names are converted to UTF-8 from the system code page.
+only counted); NPCs (scanned, eligible, got lists, by class tier, by group - these count the NPCs that decided for
+themselves -, skipped with reasons, and a line for the template children: how many inherit their spell list, how many
+got their holder's lists and how many lists, how many lack `kCopiedTemplate` with and without a leveled link in their
+chain, how many came before their holder in the form array, how many take class, race or factions from another record
+than the holder, and the memory audit's shared spell list data and shared leveled-list arrays, both expected 0);
+NPC lists (one row for every NPC that decided for itself and got lists: persistent id `Plugin|0xLocal`, name, group,
+class tier and undead policy, the attached list EditorIDs `HoMNS_...`); NPC lists inherited from a template (one short
+row per child: `Plugin|0xLocal  Name  inherited from Plugin|0xHolder  (N lists)`; the holder's row above names the
+lists); Timing. NPC names are converted to UTF-8 from the system code page.
+Skip reasons for template children: `template spell list, holder not resolvable` (a leveled link before the holder),
+`template spell list, holder got no lists`, `template spell list, no spell list data of its own`, `template spell
+list, spell list data shared with its template`, and `leveled-list array shared with a template chain record (not
+written)` (a child or a holder). The log has the same counters on the `NPCs in N ms:` line (`inheritedAttached=`,
+`inheritedLists=`) and on `template spell list: inheriting= notCopiedTemplate leveledChain= plainChain= beforeHolder=
+otherProvider= sharedSpellData= sharedLevSpells=`, read at data load with no game needed.
 The Lists section also counts the variant lists topped up from All and `skippedPrefilled`: ESL records whose entry
 count was not 0 when the addon came to fill them (another plugin's override). Those are left as they were and get no
 NPC; the first one is named in the log. A record with count 0 is filled even when the engine left an entry pointer on
@@ -156,11 +180,14 @@ missing record.
 
 ## Known limits
 
-- **Not yet checked in game: NPCs that inherit their spell list from a template**, which is most leveled bandit
-  mages. The addon puts the lists on the record that really holds the spell list (the template's end), never on
-  the inheriting NPC; whether the spawned actor then has the spells is not confirmed. The dev self test below
-  checks it on the leveled bandit-mage list `039D5F:Skyrim.esm` (and on `039D37:Skyrim.esm`, a bandit mage
-  inheriting from `039D31`); `PASS` on the leveled sample, or checklist item 10 by hand, must come before release.
+- **Template children: the fix is not yet confirmed in game.** Lists on the holder alone never reached a spawned
+  child (run 6: `039D37` FAIL, holder `039D31` with 9 lists, the child's base with none); children now get the holder's
+  lists themselves. The self test's `039D37` must now show `actorBaseLists>0` and `PASS`. Not known from the headers,
+  to be watched: whether the engine copies a template's list again later (a save load, a spawn), which would replace
+  ours on the child, and how a leveled spawn's temporary base takes its list.
+- **The leveled spawn path is checked from outside**, with the console through DevBench: the self test cannot spawn a
+  leveled NPC (`PlaceObjectAtMe` gave no actor for `039D5F`, 2026-10-15), so it no longer has a leveled sample.
+  Checklist item 10 stays the release condition.
 - The same spell can be given again when the NPC already knows it; harmless.
 - An NPC in two groups gets the first group's lists (see Group priority).
 - Vigilant `never: undead` also removes Turn Undead (the `undead` tag covers repelling). A spell that commands undead
@@ -195,7 +222,7 @@ An in-game check that needs no console work. The run:
 1. `.\DeployDev.ps1 -NpcSpellsOnly -WithSelfTest` (it reminds you to take the file out afterwards).
 2. Launch and load a **disposable** save (not a new game: the test never starts on one, it would spawn hostile NPCs
    into the opening scene).
-3. Wait for the log's `SELFTEST DONE` line (about 10 seconds with the defaults; a `SELFTEST RESTART ...` line instead
+3. Wait for the log's `SELFTEST DONE` line (about 10 to 20 seconds with the shipped file: repeated samples spawn one after another; a `SELFTEST RESTART ...` line instead
    means the test ended before its spawn and the next save load runs it). Until then **do not save, die,
    reload or start a new game**: a save holds the spawned actors (logged as `SELFTEST WARN save taken while sample
    actors exist`), and a load or a new game ends the test with its open samples failed.
@@ -211,18 +238,26 @@ zip (`DistributionNpcSpells.cmake` copies files by name and does not name it); t
 the file, which costs one file-exists check per load.
 
 ```json
-{ "samples": ["039D37:Skyrim.esm", "039D5F:Skyrim.esm", "013BBB:Skyrim.esm", "0551AD:Skyrim.esm"], "startDelayMs": 2000, "maxWaitMs": 8000 }
+{ "samples": ["039D37:Skyrim.esm", { "id": "013BBB:Skyrim.esm", "repeat": 5 }, "0551AD:Skyrim.esm"], "startDelayMs": 2000, "maxWaitMs": 8000 }
 ```
 
-Samples are base NPC records (NPC_) or leveled NPC records (LVLN) in the rules file's form (`XXXXXX:Plugin.ext`; the
-report's `Plugin|0x...` form is refused and logged). The shipped four: `039D37` a bandit mage that inherits its spell
-list from `039D31`, `039D5F` `OREO_SubCharBandit01Magic`, the leveled bandit-mage list (LVLN; the release gate),
-`013BBB` Farengar (own spell list, the 2026-10-10 control), `0551AD` a Necromancer-group mage with NecroPrefer lists.
-`startDelayMs` (wait after the player's 3D and cell are in) and `maxWaitMs` (per spawned actor) are 0..60000; a bad
-value goes back to its default, a bad sample is dropped alone, both logged.
+Samples are base NPC records (NPC_) in the rules file's form (`XXXXXX:Plugin.ext`; the report's `Plugin|0x...` form
+is refused and logged), each a string or an object `{"id": "...", "repeat": N}`. The shipped three: `039D37` a bandit
+mage that inherits its spell list from `039D31` (the template fix: it must now `PASS` with `actorBaseLists>0`),
+`013BBB` Farengar (own spell list, the 2026-10-10 control) spawned 5 times, `0551AD` a Necromancer-group mage with
+NecroPrefer lists. `startDelayMs` (wait after the player's 3D and cell are in) and `maxWaitMs` (per spawned actor) are
+0..60000; `repeat` is 1..10 (default 1); a bad value goes back to its default, a bad sample is dropped alone, all logged.
 
-The leveled sample relies on `PlaceObjectAtMe` resolving a `TESLevCharacter` to an actor. If it does not, the sample
-FAILs as `PlaceObjectAtMe gave no actor`: read that as a problem of the spawn method, not of the lists.
+`repeat` spawns the sample again after each run's check and cleanup, one actor of it at a time (each new actor rolls
+its leveled lists anew), to measure how often each list gives a spell (the open "some R1 lists give nothing"
+question). Each run has its own lines and `RESULT` (named `<sample> run=k/N`; a sample run once keeps its plain name)
+and counts in `DONE`; a failure before the spawn (record not found, holder without lists, no actor from the spawn)
+ends the sample's runs. After the last run the sample's `SELFTEST lists` line gives each list's `pickedRuns=K/C`: in K
+of the C checked runs the actor's leveled spell cache held one of the list's spells.
+
+A leveled NPC record (LVLN) is accepted but cannot be spawned this way: `PlaceObjectAtMe` gave no actor for
+`039D5F` (2026-10-15), so such a sample FAILs as `PlaceObjectAtMe gave no actor`. The leveled spawn path is checked
+from outside, with the console through DevBench.
 
 What it does, once per session, at the first save load (`kPostLoadGame`):
 
@@ -272,14 +307,17 @@ Log lines (`HeartOfMagic_NPCSpells.log`, all start with `SELFTEST`, the values b
 warnings and errors included, is also appended to the report under `== Self test ==`:
 
 ```
-SELFTEST start samples=4 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded
-SELFTEST spawn sample 039D5F:Skyrim.esm ref 0xFF0012AB
-SELFTEST sample 039D5F:Skyrim.esm kind=leveled placed Skyrim.esm|0x039D5F actorBase 0xFF0012AC templateBase Skyrim.esm|0x039D37 extraLeveled=yes originalBase Skyrim.esm|0x039D37 copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=templateBase inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
-SELFTEST cache 039D5F:Skyrim.esm leveledSpellList=7 spells
-SELFTEST list 039D5F:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 levels=highest minLevel=0 witnessMinLevel=0 topLevel=25 witnessReachable=yes excluded=2 witnesses=118 shared=90 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x... Name picked: 0x... Name
-SELFTEST school 039D5F:Skyrim.esm destruction lists=2 distinctHits=1 distinctPicked=1
-SELFTEST RESULT sample 039D5F:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
-SELFTEST DONE pass=4 fail=0 inconclusive=0
+SELFTEST start samples=3 startDelayMs=2000 maxWaitMs=8000 pollMs=100 esl=loaded runs=7
+SELFTEST spawn sample 039D37:Skyrim.esm ref 0xFF0012AB
+SELFTEST sample 039D37:Skyrim.esm kind=npc placed Skyrim.esm|0x039D37 actorBase Skyrim.esm|0x039D37 templateBase Skyrim.esm|0x039D37 extraLeveled=no originalBase none copiedTemplate=yes holder Skyrim.esm|0x039D31 holderFrom=record inherited=yes chain=resolved holderLists=9 actorBaseLists=9 listsFrom=actorBase 3D=loaded high=yes waitedMs=300
+SELFTEST cache 039D37:Skyrim.esm leveledSpellList=7 spells
+SELFTEST list 039D37:Skyrim.esm HoMNS_Destruction_None_All_R1_C0 school=destruction skill=35 entries=120 levels=highest minLevel=0 witnessMinLevel=0 topLevel=25 witnessReachable=yes excluded=2 witnesses=118 shared=90 hits=1 picked=1 pickedWitnesses=1 hitSpells: 0x... Name picked: 0x... Name
+SELFTEST school 039D37:Skyrim.esm destruction lists=2 distinctHits=1 distinctPicked=1
+SELFTEST RESULT sample 039D37:Skyrim.esm PASS (HoMNS-only witnesses found: 4)
+SELFTEST spawn sample 013BBB:Skyrim.esm run=1/5 ref 0xFF0012AC
+SELFTEST RESULT sample 013BBB:Skyrim.esm run=1/5 PASS (HoMNS-only witnesses found: 3)
+SELFTEST lists 013BBB:Skyrim.esm runs=5 checked=5 HoMNS_Alteration_None_All_R1_C1 pickedRuns=2/5, HoMNS_Destruction_None_All_R1_C0 pickedRuns=5/5
+SELFTEST DONE pass=7 fail=0 inconclusive=0
 ```
 
 Other lines: `SELFTEST config: ...` (a warning: a dropped sample or a reset value), `SELFTEST cache <sample>
@@ -304,8 +342,11 @@ How to read them:
   are in this list; `pickedWitnesses` of them are witnesses. `hits` (`HasSpell` on witnesses) is the second line; the
   two should agree. `excluded` is how many of the list's spells were taken out of its witnesses.
 - `actorBaseLists` is the discriminator for the template question: the engine reads the leveled lists of the spawned
-  actor's own base. `holderLists>0` with `actorBaseLists=0` means the inheriting NPC's copy did not get our lists
-  (they were attached to the template after the engine copied it), so no roll can ever give them (the FAIL above).
+  actor's own base. `holderLists>0` with `actorBaseLists=0` means the inheriting NPC's copy did not get our lists, so
+  no roll can ever give them (the FAIL above). Before the template fix that was every template child (run 6); now
+  every child gets its holder's lists at data load, so it means that write did not happen or did not last (look for
+  the child in the report's inherited rows and in the skip reasons; a copy from the template after data load would
+  also show as this).
   `actorBaseLists` equal to `holderLists` with no pick means the lists are there and the roll gave nothing.
   `actorBase`, `templateBase`, `extraLeveled`, `originalBase` and `copiedTemplate` say which records the engine used.
 - `hits` and `picked` per list cannot be read as "this list gave one": lists of one school overlap (`shared` =
@@ -373,12 +414,12 @@ the engine side. Enable `HeartOfMagic_NPCSpells.esp` in MO2, start to the main m
    9. Wolf: no lists.
    10. **Release condition.** A leveled bandit mage (its end record inherits its spell list from a template, as most
        leveled bandit mages do): `HasSpell` on the spawned actor must be true for at least one spell only our lists
-       hold (the report row of the template record that holds the lists names them); the leveled record itself gets
-       no list. Not yet done. The self test closes this item with `PASS` on its leveled sample `039D5F:Skyrim.esm`
-       (`OREO_SubCharBandit01Magic`, LVLN); its `sample` line shows which records the engine used.
-       `PASS` on the direct sample `039D37` is necessary but not sufficient: placing the end record itself skips the
-       leveled spawn path the game uses. By hand: `player.placeatme` a `LvlBanditWizard...` record and check
-       `HasSpell` as above.
+       hold (the report's inherited row of the end record names its holder, whose row names the lists); the leveled
+       record itself gets no list. Not yet done. The self test cannot spawn a leveled record (`PlaceObjectAtMe` gave no
+       actor for `039D5F`, `OREO_SubCharBandit01Magic`), so this is checked from outside with the console through
+       DevBench: `player.placeatme` a `LvlBanditWizard...` record and check `HasSpell` as above. `PASS` on the direct
+       sample `039D37` is necessary but not sufficient: placing the end record itself skips the leveled spawn path the
+       game uses.
    11. Non-mage sanity: among about 20 guards or bandits (`player.placeatme` a few `EncBandit01Melee...`), about one
        has a `..._NonMage_...` list.
    12. Save and reload: the lists are still on the base records (re-added at load), no crash. Disable the addon and

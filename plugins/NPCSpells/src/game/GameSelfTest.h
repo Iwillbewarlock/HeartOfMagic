@@ -10,7 +10,9 @@
 // its spells (Actor::VisitSpells builds the leveled spell cache), reads that
 // cache and asks Actor::HasSpell for the spells only our
 // lists give, logs SELFTEST lines, appends them to the report and deletes the
-// spawned actors. Internals: GameSelfTestState.h, GameSelfTestCheck.cpp.
+// spawned actors. A sample with "repeat": N is spawned N times, one after
+// another, and ends with a SELFTEST lists line (pickedRuns per list).
+// Internals: GameSelfTestState.h, GameSelfTestCheck.cpp.
 // =============================================================================
 
 namespace NpcSpellsGame

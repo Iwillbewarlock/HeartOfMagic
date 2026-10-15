@@ -100,7 +100,7 @@ void SelfTest::Record(State& s, SampleRun& r, NpcSpells::SelfTestVerdict verdict
     }
     r.done = true;
     ++(verdict == NpcSpells::SelfTestVerdict::kPass ? s.pass : verdict == NpcSpells::SelfTestVerdict::kInconclusive ? s.inconclusive : s.fail);
-    Log(s, std::format("SELFTEST RESULT sample {} {} ({})", r.text, NpcSpells::VerdictName(verdict), reason));
+    Log(s, std::format("SELFTEST RESULT sample {} {} ({})", r.label, NpcSpells::VerdictName(verdict), reason));
 }
 
 void SelfTest::Fail(State& s, SampleRun& r, std::string_view reason)
@@ -158,46 +158,88 @@ namespace
         Forget(s, r);
     }
 
+    // A failure no later run could get past: the RESULT of this run, and no further run
+    void Stop(State& s, SampleRun& r, std::string_view reason)
+    {
+        Fail(s, r, reason);
+        r.stopped = true;
+    }
+
+    // The sample's record and, for an NPC whose chain resolves, its holder with our lists. false: the sample FAILed and stops.
+    bool Prepare(State& s, SampleRun& r, NpcSpellsGame::PluginLookup& lookup)
+    {
+        auto* form = NpcSpellsGame::LookupLocalForm(lookup, r.ref.pluginLower, r.ref.local);
+        r.npc = form ? form->As<RE::TESNPC>() : nullptr;
+        auto* leveled = form ? form->As<RE::TESLevCharacter>() : nullptr;  // RE/T/TESLevCharacter.h:10, a TESBoundObject
+        r.placed = r.npc ? static_cast<RE::TESBoundObject*>(r.npc) : leveled;
+        if (!r.placed) {
+            Stop(s, r, form ? "the record is neither an NPC (TESNPC) nor a leveled NPC (TESLevCharacter)" : "base record not found in this load order");
+            return false;
+        }
+        if (r.npc) {
+            auto* holder = NpcSpellsGame::SpellListHolder(r.npc, r.unresolvable);
+            if (!r.unresolvable) {  // an unresolvable chain is resolved from the spawned actor (GameSelfTestCheck.cpp)
+                r.holder = holder;
+                r.holderStart = r.npc;
+                r.holderFrom = "record";
+                if (OurListsOn(r.holder->actorEffects, s.ours).empty()) {
+                    Stop(s, r, std::format("spell list holder {} has no HoMNS list (is it in the report's NPC lists? is the ESL loaded?)", FormText(r.holder)));
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // One spawn of a prepared sample. A spawn that gives no actor FAILs and stops the sample.
+    void Place(State& s, SampleRun& r, RE::PlayerCharacter* player)
+    {
+        // RE/T/TESObjectREFR.h:475: at the player's position, a hostile NPC stands next to the player until it is checked
+        const auto ref = player->PlaceObjectAtMe(r.placed, false);
+        if (!ref || !ref->As<RE::Actor>()) {
+            if (ref) {
+                ref->Disable();
+                ref->SetDelete(true);
+            }
+            Stop(s, r, "PlaceObjectAtMe gave no actor");
+            return;
+        }
+        r.handle = ref->GetHandle();  // RE/T/TESObjectREFR.h:402
+        r.spawnedId = ref->GetFormID();
+        ++s.liveActors;
+        Log(s, std::format("SELFTEST spawn sample {} ref 0x{:08X}", r.label, ref->GetFormID()));
+    }
+
     void Spawn(State& s, RE::PlayerCharacter* player)
     {
         NpcSpellsGame::PluginLookup lookup;
         for (auto& r : s.samples) {
-            auto* form = NpcSpellsGame::LookupLocalForm(lookup, r.ref.pluginLower, r.ref.local);
-            r.npc = form ? form->As<RE::TESNPC>() : nullptr;
-            auto* leveled = form ? form->As<RE::TESLevCharacter>() : nullptr;  // RE/T/TESLevCharacter.h:10, a TESBoundObject
-            r.placed = r.npc ? static_cast<RE::TESBoundObject*>(r.npc) : leveled;
-            if (!r.placed) {
-                Fail(s, r, form ? "the record is neither an NPC (TESNPC) nor a leveled NPC (TESLevCharacter)" : "base record not found in this load order");
-                continue;
+            if (Prepare(s, r, lookup)) {
+                Place(s, r, player);
             }
-            if (r.npc) {
-                auto* holder = NpcSpellsGame::SpellListHolder(r.npc, r.unresolvable);
-                if (!r.unresolvable) {  // an unresolvable chain is resolved from the spawned actor (GameSelfTestCheck.cpp)
-                    r.holder = holder;
-                    r.holderStart = r.npc;
-                    r.holderFrom = "record";
-                    if (OurListsOn(r.holder->actorEffects, s.ours).empty()) {
-                        Fail(s, r, std::format("spell list holder {} has no HoMNS list (is it in the report's NPC lists? is the ESL loaded?)", FormText(r.holder)));
-                        continue;
-                    }
-                }
-            }
-            // RE/T/TESObjectREFR.h:475: at the player's position, a hostile NPC stands next to the player until it is checked
-            const auto ref = player->PlaceObjectAtMe(r.placed, false);
-            if (!ref || !ref->As<RE::Actor>()) {
-                if (ref) {
-                    ref->Disable();
-                    ref->SetDelete(true);
-                }
-                Fail(s, r, "PlaceObjectAtMe gave no actor");
-                continue;
-            }
-            r.handle = ref->GetHandle();  // RE/T/TESObjectREFR.h:402
-            r.spawnedId = ref->GetFormID();
-            ++s.liveActors;
-            Log(s, std::format("SELFTEST spawn sample {} ref 0x{:08X}", r.text, ref->GetFormID()));
         }
         FlushLog();  // info lines are buffered (Common.h): a crash while hostile actors stand here keeps these lines
+    }
+
+    // After a run's RESULT and cleanup: a repeated sample's next run, spawned at once (one actor of a sample at a time)
+    void NextRun(State& s, SampleRun& r)
+    {
+        if (r.stopped || r.run >= r.runs) {
+            return;
+        }
+        ++r.run;
+        r.label = NpcSpells::SelfTestRunLabel(r.text, r.run, r.runs);
+        r.done = false;
+        r.waitTicks = 0;
+        r.handle = {};
+        r.spawnedId = 0;
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !player->Is3DLoaded() || !player->GetParentCell()) {
+            Stop(s, r, "the player's 3D or cell is gone before this run's spawn");
+            return;
+        }
+        Place(s, r, player);
+        FlushLog();
     }
 
     void AppendReport(const std::vector<std::string>& lines)
@@ -227,6 +269,11 @@ namespace
         }
         if (!s.spawned) {
             g_started = false;
+        }
+        for (const auto& r : s.samples) {
+            if (s.spawned && r.runs > 1) {
+                SelfTest::Log(s, NpcSpells::SelfTestListsLine(r.text, r.runs, r.tally));  // per list: checked runs that picked from it
+            }
         }
         SelfTest::Log(s, NpcSpells::SelfTestEndLine(s.spawned, beforeSpawnReason, s.pass, s.fail, s.inconclusive));
         AppendReport(s.lines);
@@ -280,12 +327,16 @@ namespace
             if (actor && actor->Is3DLoaded() && actor->GetHighProcess()) {
                 SelfTest::Check(s, r, actor, waited);
                 Cleanup(s, r);
+                NextRun(s, r);
+                open = open || !r.done;
                 continue;
             }
             if (NpcSpells::SelfTestWaitOver(waited, s.config.maxWaitMs)) {
                 SelfTest::Fail(s, r, std::format("no 3D or high process after {} ticks of {} ms (actor={} 3D={} high={})", waited, NpcSpells::kSelfTestPollMs,
                     actor ? "yes" : "no", actor && actor->Is3DLoaded() ? "yes" : "no", actor && actor->GetHighProcess() ? "yes" : "no"));
                 Cleanup(s, r);
+                NextRun(s, r);
+                open = open || !r.done;
                 continue;
             }
             open = true;
@@ -345,16 +396,20 @@ namespace
         if (!error.empty()) {
             SelfTest::Warn(*state, std::format("SELFTEST config: {}", error));
         }
+        std::size_t runs = 0;  // spawns over all samples (each sample's repeat)
         for (std::size_t i = 0; i < state->config.samples.size(); ++i) {
             auto& r = state->samples.emplace_back();
             r.text = state->config.sampleTexts[i];
             r.ref = state->config.samples[i];
+            r.runs = state->config.repeats[i];
+            r.label = NpcSpells::SelfTestRunLabel(r.text, r.run, r.runs);
+            runs += static_cast<std::size_t>(r.runs);
         }
         if (auto* dh = RE::TESDataHandler::GetSingleton()) {
             state->ours.file = dh->LookupLoadedLightModByName(NpcSpells::kEslFileName);  // RE/T/TESDataHandler.h:78
         }
-        SelfTest::Log(*state, std::format("SELFTEST start samples={} startDelayMs={} maxWaitMs={} pollMs={} esl={}", state->samples.size(), state->config.startDelayMs,
-            state->config.maxWaitMs, NpcSpells::kSelfTestPollMs, state->ours.file ? "loaded" : "not loaded"));
+        SelfTest::Log(*state, std::format("SELFTEST start samples={} startDelayMs={} maxWaitMs={} pollMs={} esl={} runs={}", state->samples.size(), state->config.startDelayMs,
+            state->config.maxWaitMs, NpcSpells::kSelfTestPollMs, state->ours.file ? "loaded" : "not loaded", runs));
         {
             std::lock_guard lock(g_currentLock);
             g_current = state;

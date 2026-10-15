@@ -23,6 +23,12 @@ namespace
     constexpr std::string_view kNoRace = "no race";
     constexpr std::string_view kDeletedOrIgnored = "deleted or ignored record";
     constexpr std::string_view kFacePreset = "face preset";
+    // An inheriting NPC without spell list data: no copy of its holder's list to add to (GetSpellList would make one holding
+    // only our lists, in place of whatever the engine gives it)
+    constexpr std::string_view kNoOwnSpellList = "template spell list, no spell list data of its own";
+    constexpr std::string_view kSharedSpellData = "template spell list, spell list data shared with its template";
+    constexpr std::string_view kSharedLevArray = "leveled-list array shared with a template chain record (not written)";
+    constexpr std::size_t kMaxSharedWarnings = 5;  // log lines for shared leveled-list arrays; every one is counted
 
     static_assert(sizeof(RE::CLASS_DATA::SkillWeights) == std::tuple_size_v<decltype(NpcSpells::ClassWeights::w)>);
     static_assert(std::tuple_size_v<decltype(NpcSpellsGame::NpcStats::byGroup)> == NpcSpells::kGroups.size());
@@ -156,6 +162,100 @@ namespace
         f.isRedguard = rr.redguardRace && race->GetFormID() == *rr.redguardRace;
     }
 
+    std::vector<RE::TESLevSpell*> ListsFor(const NpcSpells::NpcDecision& d, const NpcSpellsGame::EslRecords& records)
+    {
+        std::vector<RE::TESLevSpell*> out;
+        for (const auto& a : d.lists) {
+            // ListIndex marks only (slot, chunk) pairs FillLists wrote, so the record is there
+            if (auto* lev = records.byRecord[a.slotIndex * NpcSpells::kMaxChunks + a.chunk]) {
+                out.push_back(lev);
+            }
+        }
+        return out;
+    }
+
+    // The game gives names in the system code page; the report is UTF-8 (src/EncodingUtils.cpp)
+    NpcSpells::NpcLine MakeLine(const RE::TESNPC* npc, const RE::TESFile* file, NpcSpells::NpcDecision decision, std::string inheritedFrom = {})
+    {
+        const char* name = npc->GetName();
+        return { PluginNames::MakePersistentId(file->fileName, npc->GetLocalFormID()),
+            EncodingUtils::SanitizeToUTF8(std::string(name ? name : ""), PluginNames::kSystemCodePage), std::move(decision), std::move(inheritedFrom) };
+    }
+
+    // An NPC that decides for itself; written after the whole scan, once every memory audit is done
+    struct HolderWrite
+    {
+        RE::TESNPC* npc;
+        const RE::TESFile* file;
+        NpcSpells::NpcDecision decision;
+        std::vector<RE::TESLevSpell*> toAdd;  // our lists only: what an inheriting NPC gets, never the holder's whole array
+        std::size_t line = 0;                 // its row in lines, once written
+    };
+
+    struct InheritingNpc
+    {
+        RE::TESNPC* npc;
+        const RE::TESFile* file;
+        RE::TESNPC* holder;
+    };
+
+    enum class Sharing { kNone, kSpellData, kLevSpells };
+
+    // The memory audit of an NPC that inherits its spell list, against every NPC record of its template chain, before any
+    // record is written: AddLevSpells frees the record's old array (src/RE/T/TESSpellList.cpp:16-28 CopySpellList), so a
+    // write to one of two records sharing memory would leave the other pointing at freed memory. Spell list data shared
+    // (RE/T/TESSpellList.h:65 actorEffects): the child is skipped, a write to the template reaches it. Only the leveled-list
+    // array shared (:45 levSpells): neither record is written (both go into `blocked`).
+    Sharing AuditChain(const RE::TESNPC* child, const std::vector<RE::TESNPC*>& npcs, std::unordered_set<const RE::TESNPC*>& blocked)
+    {
+        const auto* mine = child->actorEffects;
+        auto out = Sharing::kNone;
+        for (std::size_t i = 1; mine && i < npcs.size(); ++i) {
+            const auto* theirs = npcs[i] ? npcs[i]->actorEffects : nullptr;
+            if (!theirs) {
+                continue;
+            }
+            if (theirs == mine) {
+                return Sharing::kSpellData;
+            }
+            if (mine->levSpells && mine->levSpells == theirs->levSpells) {
+                blocked.insert(child);
+                blocked.insert(npcs[i]);
+                out = Sharing::kLevSpells;
+            }
+        }
+        return out;
+    }
+
+    // Counts for an NPC that inherits its spell list (logged at kDataLoaded, read without playing). Returns its spell list
+    // holder, null when the chain cannot tell it before spawn (a leveled link first, a malformed chain).
+    RE::TESNPC* ReadInheriting(const RE::TESNPC* npc, const std::vector<NpcSpells::ChainLink>& chain, const std::vector<RE::TESNPC*>& npcs,
+        const std::unordered_set<RE::FormID>& seen, NpcSpellsGame::NpcStats& stats)
+    {
+        ++stats.inheriting;
+        using Flag = RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG;  // RE/T/TESActorBaseData.h:46-62, the field at :74
+        if (!npc->actorData.templateUseFlags.all(Flag::kCopiedTemplate)) {
+            // WalkChain's leveled-link flag (TESActorBase::IsLeveled is never true for a LVLN in CommonLib)
+            const bool leveled = std::ranges::any_of(chain, [](const NpcSpells::ChainLink& l) { return l.isLeveledCharacter; });
+            ++(leveled ? stats.notCopiedLeveledChain : stats.notCopiedPlainChain);
+        }
+        const auto at = NpcSpells::SpellListProviderIndex(chain);
+        if (!at || *at == 0 || *at >= npcs.size() || !npcs[*at]) {
+            return nullptr;
+        }
+        auto* holder = npcs[*at];
+        if (!seen.contains(holder->GetFormID())) {
+            ++stats.beforeHolder;  // GetFormArray is in load order, not template order
+        }
+        for (const auto category : { Category::Stats, Category::Traits, Category::Factions }) {
+            if (NpcSpells::ProviderIndex(chain, category) != at) {
+                ++stats.otherProvider;  // class, race or factions from another record: counted only, the lists come from the holder
+                break;
+            }
+        }
+        return holder;
+    }
+
     void ReadFactions(const RE::TESNPC* provider, const ResolvedRules& rr, NpcSpells::NpcFacts& f)
     {
         for (const auto& rank : provider->factions) {  // RE/T/TESActorBaseData.h:139, RE/F/FactionRank.h:11
@@ -180,14 +280,19 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
     }
     const ResolvedRules rr = ResolveRules(rules, stats.unresolvedRefs);
 
+    // Pass 1 reads and decides every record and audits the inheriting ones' memory; nothing is written until it ends
     std::vector<NpcSpells::ChainLink> chain;
     std::vector<RE::TESNPC*> npcs;
-    std::vector<RE::TESLevSpell*> toAdd;
+    std::vector<HolderWrite> holders;
+    std::vector<InheritingNpc> inheriting;
+    std::unordered_set<RE::FormID> seen;             // records pass 1 has reached (for beforeHolder)
+    std::unordered_set<const RE::TESNPC*> blocked;   // share a leveled-list array with a chain record: never written
     for (auto* npc : dh->GetFormArray<RE::TESNPC>()) {  // RE/T/TESDataHandler.h:89
         if (!npc) {
             continue;
         }
         ++stats.scanned;
+        seen.insert(npc->GetFormID());
         if (npc->IsDeleted() || npc->IsIgnored()) {  // RE/T/TESForm.h:331, :336
             ++stats.skipped[std::string(kDeletedOrIgnored)];
             continue;
@@ -210,6 +315,26 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
         // The Spells flag inherits only through a template link: with no TPLT (18 such NPCs in a 2026-10 load order, mod
         // records and a COTH-overridden vanilla mage) the record's own spell list is the one the game uses
         f.inheritsSpellList = (chain[0].templateFlags & static_cast<std::uint16_t>(Category::Spells)) != 0 && chain.size() > 1;
+        if (f.inheritsSpellList && !f.isPlayer) {
+            // Its own facts are not read: it gets its holder's lists after pass 1. A holder that cannot be told before spawn
+            // falls through to DecideNpc, which skips it (kSkipTemplateUnresolvable).
+            auto* holder = ReadInheriting(npc, chain, npcs, seen, stats);
+            const auto sharing = AuditChain(npc, npcs, blocked);
+            if (sharing == Sharing::kSpellData) {
+                ++stats.sharedSpellData;
+            } else if (sharing == Sharing::kLevSpells && ++stats.sharedLevSpells <= kMaxSharedWarnings) {
+                logger::warn("NPCSpells: {:08X} shares its leveled-list array with a record of its template chain: neither is given lists",
+                    npc->GetFormID());
+            }
+            if (holder && sharing == Sharing::kSpellData) {
+                ++stats.skipped[std::string(kSharedSpellData)];
+                continue;
+            }
+            if (holder) {
+                inheriting.push_back({ npc, file, holder });
+                continue;
+            }
+        }
         auto* classNpc = Provider(npc, chain, npcs, Category::Stats, f.unresolvableStats);
         auto* raceNpc = Provider(npc, chain, npcs, Category::Traits, f.unresolvableTraits);
         auto* factionNpc = Provider(npc, chain, npcs, Category::Factions, f.unresolvableFactions);
@@ -236,30 +361,54 @@ NpcSpellsGame::NpcStats NpcSpellsGame::AttachToNpcs(const NpcSpells::Rules& rule
         if (d.skipReason) {
             ++stats.skipped[d.skipReason];
         }
-        if (d.lists.empty()) {
+        auto toAdd = ListsFor(d, records);
+        if (!toAdd.empty()) {
+            holders.push_back({ npc, file, std::move(d), std::move(toAdd) });
+        }
+    }
+
+    // Pass 2: the NPCs that decide for themselves. RE/T/TESSpellList.h:24 AddLevSpells skips lists the NPC already has and
+    // copies the array once. No AddChange: the lists are rebuilt at every data load and never written to the save.
+    std::unordered_map<RE::FormID, const HolderWrite*> written;
+    for (auto& h : holders) {
+        if (blocked.contains(h.npc)) {
+            ++stats.skipped[std::string(kSharedLevArray)];
             continue;
         }
-        toAdd.clear();
-        for (const auto& a : d.lists) {
-            // ListIndex marks only (slot, chunk) pairs FillLists wrote, so the record is there
-            if (auto* lev = records.byRecord[a.slotIndex * NpcSpells::kMaxChunks + a.chunk]) {
-                toAdd.push_back(lev);
-            }
-        }
-        if (toAdd.empty()) {
-            continue;
-        }
-        // RE/T/TESSpellList.h:24: skips lists the NPC already has and copies the array once. No AddChange:
-        // the lists are rebuilt at every data load and never written to the save.
-        npc->GetSpellList()->AddLevSpells(toAdd);
+        h.npc->GetSpellList()->AddLevSpells(h.toAdd);  // RE/T/TESNPC.h:251, makes an empty one when the record has none
         ++stats.attached;
-        stats.listsAttached += toAdd.size();
-        ++stats.byTier[static_cast<std::size_t>(d.tier)];
-        ++stats.byGroup[d.group];
-        // The game gives names in the system code page; the report is UTF-8 (src/EncodingUtils.cpp)
-        const char* name = npc->GetName();
-        lines.push_back({ PluginNames::MakePersistentId(file->fileName, f.localId),
-            EncodingUtils::SanitizeToUTF8(std::string(name ? name : ""), PluginNames::kSystemCodePage), std::move(d) });
+        stats.listsAttached += h.toAdd.size();
+        ++stats.byTier[static_cast<std::size_t>(h.decision.tier)];
+        ++stats.byGroup[h.decision.group];
+        h.line = lines.size();
+        lines.push_back(MakeLine(h.npc, h.file, h.decision));
+        written.emplace(h.npc->GetFormID(), &h);
+    }
+
+    // Pass 3: each inheriting NPC gets its holder's lists (InheritDecision: the holder's decision, no dice of its own). A
+    // holder that was skipped or got no list gives nothing. byTier and byGroup stay the own decisions'.
+    for (const auto& [npc, file, holder] : inheriting) {
+        if (blocked.contains(npc)) {
+            ++stats.skipped[std::string(kSharedLevArray)];
+            continue;
+        }
+        const auto it = written.find(holder->GetFormID());
+        const HolderWrite* h = it != written.end() ? it->second : nullptr;
+        const char* skipReason = nullptr;
+        auto d = NpcSpells::InheritDecision(h ? &lines[h->line].decision : nullptr, skipReason);
+        if (!d) {
+            ++stats.skipped[skipReason];
+            continue;
+        }
+        if (!npc->actorEffects) {
+            ++stats.skipped[std::string(kNoOwnSpellList)];
+            continue;
+        }
+        npc->actorEffects->AddLevSpells(h->toAdd);
+        ++stats.inheritedAttached;
+        stats.inheritedLists += h->toAdd.size();
+        std::string holderId = lines[h->line].persistentId;  // copied before the push may move the rows
+        lines.push_back(MakeLine(npc, file, std::move(*d), std::move(holderId)));
     }
     return stats;
 }
