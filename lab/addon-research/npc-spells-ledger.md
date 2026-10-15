@@ -104,3 +104,5 @@ DevBench `game loadLast` 로 최신 세이브(Save3, 화이트런 홀드, 레벨
 - `SELFTEST DONE pass=13 fail=0 inconclusive=0`, SELFTEST WARN 0줄.
 - 레벨드 소환 경로를 자가 테스트가 직접 확인: 039D5F 5회 모두 `match=baseIsEntry extraLeveled=no foundAfterMs=0`, 매번 다른 항목 NPC(Bandit War 00AA11, 00AA0E, 0A98B5, 00AA10, 0A98B7), 모두 `actorBaseLists>0` PASS. 그중 0A98B5·0A98B7 은 템플릿 상속 자식(holder 02FE54, inherited=yes)이라 상속 + 레벨드 경로가 함께 확인됨.
 - 039D37, 파렌가 5회, 강령마법사, 2750FE 모두 PASS (8차와 같음).
+- **P4 (세이브 로드 후 재복사 여부) 확인**: Save3 는 상속 수정 빌드가 깔린 상태(22:12 배포 이후)에서 2026-10-15 23:25 에 사용자가 만든 세이브다. 8·9차에서 그 세이브를 불러온 뒤에도 039D37 actorBaseLists=9 (초기화도 두 배도 아님), 홀더 039D31 도 9. 세이브 로드는 템플릿 목록을 다시 복사하지 않는다.
+- 테스트 중 세이브 기록 없음 (profiles/TKL - MUNG ADDON/saves 최신 파일이 23:25 Save3).
