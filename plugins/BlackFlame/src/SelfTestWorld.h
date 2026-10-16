@@ -71,6 +71,12 @@ namespace BlackFlame::SelfTestWorld
     [[nodiscard]] bool LaunchAt(RE::Actor* a_shooter, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target,
         std::string& a_detail);
 
+    /// LaunchAt's aim for an arrow: LaunchData's ammo constructor (Projectile.cpp:224: projectile base = the ammo's PROJ,
+    /// weapon and ammo source) with desiredTarget set, then Projectile::Launch. Game thread only; false (nothing launched)
+    /// without a shooter in a cell, ammo with a projectile, weapon or target.
+    [[nodiscard]] bool LaunchAmmoAt(RE::Actor* a_shooter, RE::TESAmmo* a_ammo, RE::TESObjectWEAP* a_weapon,
+        RE::TESObjectREFR* a_target, std::string& a_detail);
+
     /// PlaceObjectAtMe at the player, then moved a_forward units ahead and a_right
     /// units to the right of where the player faces. Null handle on failure.
     [[nodiscard]] RE::ObjectRefHandle Spawn(RE::TESBoundObject* a_base, float a_forward, float a_right);

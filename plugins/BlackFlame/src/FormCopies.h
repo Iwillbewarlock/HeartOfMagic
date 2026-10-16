@@ -45,9 +45,12 @@ namespace BlackFlame
 
     /// kPostLoadGame / kNewGame (message thread): compare every copy with its live source; a copy that differs
     /// is logged field by field, filled again and its links rewired, then compared once more (C5)
-    void RefreshCopies(const char* a_reason);
+    /// J1: a_pointersOnly (in play): only the pointer and value fields are written; the BSFixedString ones (names, the muzzle
+    /// model) wait for the next kPostLoadGame refresh
+    void RefreshCopies(const char* a_reason, bool a_pointersOnly = false);
 
-    /// What the last RefreshCopies found (one line per differing copy), for the self-test's T0-v2
+    /// What the last RefreshCopies of each reason found (one line per differing copy; J3: a refresh replaces only the notes of
+    /// its own reason), for the self-test's T0-v2
     [[nodiscard]] std::vector<std::string> CopyRefreshNotes();
 
     /// The copy of a source form, or null (any thread after kDataLoaded); null too for a copy whose model failed to load
@@ -80,6 +83,9 @@ namespace BlackFlame
 
     /// DisableCopiesForSession ran (the copy model probe finished)
     [[nodiscard]] bool CopyModelProbeDone() noexcept;
+
+    /// J2: a_source has a copy that the copy model probe took out of the swaps (CopyOf returns null for it)
+    [[nodiscard]] bool IsDroppedByProbe(const RE::TESForm* a_source) noexcept;
 
     template <class T>
     [[nodiscard]] T* CopyOfAs(const T* a_source) noexcept
@@ -165,7 +171,7 @@ namespace BlackFlame
 
         /// D3 (refresh): writes into a_copy only what differs from a fill now, each data struct as one write with its links
         /// already pointing at copies; whether anything changed
-        bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source);
+        bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_pointersOnly = false);
 
         /// The second pass: links that have a copy point at it; returns how many were rewired
         int RewireLinks(RE::TESForm* a_copy);

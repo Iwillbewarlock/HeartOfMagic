@@ -3,7 +3,7 @@
 #include "Common.h"
 
 // =============================================================================
-// TINT - the one luminance / desaturation rule (Recolor.cpp, ParticleColors.cpp)
+// TINT - the one luminance / desaturation rule (Recolor.cpp: the kept runtime recolours)
 // =============================================================================
 
 namespace BlackFlame

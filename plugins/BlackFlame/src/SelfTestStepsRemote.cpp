@@ -103,7 +103,7 @@ namespace BlackFlame::SelfTest
 
     // T3-remote: the script-tag rule. A placed marker (not an actor), tagged as the native wrapper tags
     // a Cast's akSource, casts Firebolt at the target with no blame actor: PASS only when the projectile
-    // it shot was the player's through the script tag and was recoloured. T3-blame (INFO), cast only
+    // it shot was the player's through the script tag and took its copy (C6). T3-blame (INFO), cast only
     // after that one is on record: a second marker with the player as blame actor and no tag. The step
     // ends once both projectiles can have finished, so no extra hit leaks into a later step.
     bool StepRemoteCast(Ctx& a_c, bool a_first)

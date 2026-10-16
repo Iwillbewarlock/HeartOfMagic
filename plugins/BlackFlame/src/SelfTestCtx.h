@@ -76,10 +76,10 @@ namespace BlackFlame::SelfTest
         std::uint64_t t3Mark = 0;
         bool buffWasTurnedOn = false;
         bool t3Recolored = false;
-        bool t3Copy = false;  // W5: T3's Firebolt launched with the projectile copy (recolour off)
+        bool t3Copy = false;  // W5: T3's Firebolt launched with the projectile copy
         bool redispelled = false;   // C4: T8's second dispel dispelled something (the first did not hold)
         bool redispelTried = false; // E2: T8 tried the second dispel
-        bool t3Judged = false;      // E4: T3 judged grey or not (a copy or the recolour), not INFO
+        bool t3Judged = false;      // E4: T3 judged grey or not (a copy; C6: no runtime recolour), not INFO
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
@@ -222,7 +222,7 @@ namespace BlackFlame::SelfTest
     void ShiftV2Clocks(Clock::duration a_paused);
 
     /// V9: the player's launch of a_spell should take a copy (copyLaunch on, the Launch detour hooked, its projectile
-    /// has a copy); recolour-off steps judge copies with it
+    /// has a copy); the steps judge copies with it
     [[nodiscard]] bool CopyLaunchExpected(const RE::SpellItem* a_spell);
     void ShiftFireClocks(Clock::duration a_paused);
     void ShiftFlameClocks(Clock::duration a_paused);

@@ -2,6 +2,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
+#include "CopyModelProbe.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
@@ -44,6 +45,8 @@ namespace BlackFlame::SelfTest
 
         // Step timeouts, counted in unpaused play
         constexpr float kEnvTimeout = 2.0f;
+        constexpr auto kProbeWait = std::chrono::seconds(30);  // J2: T0 waits this long for the copy model probe
+        constexpr float kT0Timeout = 35.0f;                     // kProbeWait and the step itself
         constexpr float kBuffOnTimeout = 6.0f;    // I2: a dispel first when already stoked, flag off, then the cast, flag on
         constexpr auto kOldBuffWait = std::chrono::milliseconds(3000);  // H2: then T1 goes on with the buff it found
         constexpr float kSpawnTimeout = 1.0f;
@@ -91,6 +94,18 @@ namespace BlackFlame::SelfTest
         bool StepEnvironment(Ctx& a_c, bool)
         {
             const auto& cfg = GetConfig();
+            // J2: T0, T0-cover and T0-bound read the copies after the copy model probe (it runs in slices over frames); waited
+            // for up to kProbeWait of unpaused play, then judged as they are
+            if (cfg.copyModelProbe != ProbeMode::kOff && !CopyModelProbeDone()) {
+                if (Clock::now() - a_c.stepStart < kProbeWait) {
+                    a_c.waitingFor = "the copy model probe to finish";
+                    return false;
+                }
+                SelfTestLog::Info("T0", std::format("copy model probe not finished after {} s ({}): the copies are judged as they "
+                    "are now", std::chrono::duration_cast<std::chrono::seconds>(kProbeWait).count(), CopyModelProbeStatus()));
+            } else {
+                SelfTestLog::Info("T0", "copy model probe: " + CopyModelProbeStatus());
+            }
             const auto& forms = GetForms();
             const auto counts = GetFireSetCounts();
             std::string missing;
@@ -391,7 +406,7 @@ namespace BlackFlame::SelfTest
     {
         // T5 runs right after T3 (before the NPC casts) so the target carries only the player's hit shader
         static constexpr std::array kSteps{
-            StepDef{ "T0", kEnvTimeout, &StepEnvironment },
+            StepDef{ "T0", kT0Timeout, &StepEnvironment },
             StepDef{ "T0-hooks", kEnvTimeout, &StepV2Static },
             StepDef{ "T0-cover", kEnvTimeout, &StepV2Cover },
             StepDef{ "T0-bound", kEnvTimeout, &StepBoundCover },

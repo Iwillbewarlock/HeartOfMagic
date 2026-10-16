@@ -12,6 +12,7 @@
     "copyExplosionCreate": true,
     "copyImpacts": true,
     "copyHitArt": true,
+    "copyModelProbe": "log",
     "copyCastingArt": true,
     "copyHazardCreate": true,
     "copyPlaced": true,

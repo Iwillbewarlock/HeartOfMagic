@@ -61,6 +61,17 @@ namespace BlackFlame::SelfTest
             SelfTestProbe::SetRecording(false);
             try {
                 if (lateCleanup) {
+                    // J8: E6's cloak and E-bound's spell (its arrows deleted, the player's hands put back), each on its own
+                    try {
+                        CleanupArtSpells();
+                    } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: CleanupArtSpells threw");
+                    }
+                    try {
+                        CleanupBoundSpell();
+                    } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: CleanupBoundSpell threw");
+                    }
                     // Each removal on its own first, so a throw in one cannot skip the other
                     int dispelled = 0;
                     std::string target = "not removed (threw)";

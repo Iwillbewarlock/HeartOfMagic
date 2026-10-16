@@ -5,7 +5,7 @@
     "addons: an original ADDN index, its grey index (9100 + original), the original MPS NIF and its grey copy, and the grey ADDN record in HeartOfMagic_BlackFlame.esp (greyForm, plugin|local id).",
     "models: impact / hazard NIFs whose AddOnNodes are remapped to the grey indices (nothing else in them changed).",
     "dnamFlags: the ADDN DNAM flags as stored (1 master particle system, 3 always loaded), copied to the grey record.",
-    "tint: base colour RGB = luminance x tint in the grey MPS copies (the DLL tintScale default).",
+    "tint: base colour RGB = luminance x tint in the grey MPS copies (0.6, the builder's default --tint).",
     "Vanilla core only. Replacers (Embers XD, Inferno, ...) use other MPS files and indices: blackflame-greybuild --request makes the grey meshes, a full map and an ESL of extra grey ADDN records for one setup (README, Grey duplicates for any setup)."
   ],
   "version": 1,

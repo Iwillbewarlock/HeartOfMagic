@@ -6,6 +6,7 @@
 #include "NifDump.h"
 #include "FormCopies.h"
 #include "GameThread.h"
+#include "MainThreadQueue.h"
 #include "SehGuard.h"
 #include "TrackedMutex.h"
 
@@ -127,6 +128,7 @@ namespace BlackFlame
             std::map<std::string, std::string> sourceOf;  // Key(copy path) -> the first use's source path (the control)
             Clock::time_point begun = Clock::now();
             int frames = 0;
+            int faults = 0;  // Demand calls that faulted (GuardedKeep)
             Clock::duration largestSlice{};
         };
 
@@ -279,6 +281,7 @@ namespace BlackFlame
             auto& slot = a_run.results[Key(a_path)];
             if (!slot.probed) {
                 slot = Demand(a_path);
+                a_run.faults += slot.fault ? 1 : 0;
             }
             return slot;
         }
@@ -412,10 +415,18 @@ namespace BlackFlame
                 return;
             }
             DisableCopiesForSession(std::move(a_run.disabled), std::move(a_run.muzzlesReverted));
-            // I7: links other copies hold to a dropped copy go back to the original now, and a reverted muzzle is written
-            if (changed) {
-                RefreshCopies("copy model probe");
+            // I7: links other copies hold to a dropped copy go back to the original now, and a reverted muzzle is written.
+            // J1: only from the main-thread queue (the AddTask fallback runs tasks on job threads); in play, pointers only
+            if (!changed) {
+                return;
             }
+            if (!MainQueue::Installed()) {
+                logger::info("BlackFlame: copy model probe: no main-thread queue - links to the dropped copies go back to the "
+                             "source at the next load's refresh");
+                return;
+            }
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            RefreshCopies("copy model probe", player && player->GetParentCell() != nullptr);
         }
 
         // One drain's slice; true when the run is over
@@ -448,12 +459,21 @@ namespace BlackFlame
             return false;
         }
 
+        // J4: a probe that cannot go on still ends, nothing taken out, with the reason in the tester line
+        void Stopped(const std::string& a_why)
+        {
+            logger::warn("BlackFlame: copy model probe stopped: {} - no copy is taken out", a_why);
+            SetStatus("probe stopped: " + a_why);
+            DisableCopiesForSession({}, {});
+        }
+
         void Post(std::shared_ptr<Run> a_run)
         {
             const bool queued = QueueTask("BlackFlameCopyModelProbe", [a_run]() {
                 bool done = true;
                 if (!Guarded("copy model probe run", [&]() { done = Step(*a_run); })) {
-                    return;  // faulted (logged): the copies stay as they are
+                    Stopped(std::format("a hardware fault in a slice (logged), {} Demand fault(s) before it", a_run->faults));
+                    return;
                 }
                 if (done) {
                     (void)Guarded("copy model probe finish", [&]() { Finish(*a_run); });
@@ -462,7 +482,7 @@ namespace BlackFlame
                 }
             });
             if (!queued) {
-                logger::warn("BlackFlame: copy model probe: could not be queued for the main thread - the copies stay as they are");
+                Stopped("could not be queued for the main thread");
             }
         }
     }

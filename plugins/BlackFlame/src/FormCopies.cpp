@@ -77,7 +77,7 @@ namespace BlackFlame
         std::atomic<bool> g_disabledTaken{ false };
 
         TrackedMutex g_refreshMutex;
-        std::vector<std::string> g_refreshNotes;  // under g_refreshMutex
+        std::vector<std::pair<std::string, std::string>> g_refreshNotes;  // (reason, note), under g_refreshMutex
 
         // Built once on the kDataLoaded thread and never changed afterwards (hooks read it from any thread)
         Copies& TheCopies()
@@ -386,7 +386,7 @@ namespace BlackFlame
             c.linksToCopies);
     }
 
-    void RefreshCopies(const char* a_reason)
+    void RefreshCopies(const char* a_reason, bool a_pointersOnly)
     {
         std::vector<std::string> notes;
         for (const auto& entry : TheCopies().entries) {
@@ -397,7 +397,7 @@ namespace BlackFlame
             if (before.empty()) {
                 continue;
             }
-            (void)CopyFill::Refill(entry.copy, entry.source);  // D3: no window where a copy points at an original
+            (void)CopyFill::Refill(entry.copy, entry.source, a_pointersOnly);  // D3: no window where a copy points at an original
             const auto after = CopyFill::Compare(entry.copy, entry.source);
             notes.push_back(std::format("{} {:08X} -> copy {:08X} differed at the {} ({}); filled again: {}", entry.sourceText,
                 entry.source->GetFormID(), entry.copy->GetFormID(), a_reason, before, after.empty() ? "now equal" : after));
@@ -405,14 +405,25 @@ namespace BlackFlame
         }
         logger::info("BlackFlame: copies: refresh at the {}: {} cop{} differed from the live source", a_reason, notes.size(),
             notes.size() == 1 ? "y" : "ies");
+        if (a_pointersOnly) {
+            logger::info("BlackFlame: copies: refresh at the {} wrote pointers and values only (in play); names and muzzle models "
+                         "follow at the next load's refresh", a_reason);
+        }
         std::lock_guard lock(g_refreshMutex);
-        g_refreshNotes = std::move(notes);
+        std::erase_if(g_refreshNotes, [&](const auto& a_note) { return a_note.first == a_reason; });
+        for (auto& note : notes) {
+            g_refreshNotes.emplace_back(a_reason, std::move(note));
+        }
     }
 
     std::vector<std::string> CopyRefreshNotes()
     {
         std::lock_guard lock(g_refreshMutex);
-        return g_refreshNotes;
+        std::vector<std::string> out;
+        for (const auto& [reason, note] : g_refreshNotes) {
+            out.push_back(note);
+        }
+        return out;
     }
 
     RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept
@@ -463,6 +474,16 @@ namespace BlackFlame
     bool CopyModelProbeDone() noexcept
     {
         return g_disabledReady.load(std::memory_order_acquire);
+    }
+
+    bool IsDroppedByProbe(const RE::TESForm* a_source) noexcept
+    {
+        if (!a_source || !g_disabledReady.load(std::memory_order_acquire)) {
+            return false;
+        }
+        const auto& map = TheCopies().bySource;
+        const auto it = map.find(a_source->GetFormID());
+        return it != map.end() && DisabledIds().contains(it->second->GetFormID());
     }
 
     const char* ExpectedMuzzleFor(const RE::TESForm* a_copy) noexcept

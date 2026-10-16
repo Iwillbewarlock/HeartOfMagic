@@ -156,6 +156,8 @@ namespace BlackFlame::SelfTest
         const auto& closure = LastFireClosure();
         std::size_t missing = 0;
         std::size_t absent = 0;
+        std::size_t dropped = 0;  // J2: taken out by the copy model probe ("drop"), counted apart from "no copy"
+        std::string droppedLines;
         std::size_t unused = 0;
         std::string lines;
         std::string absentLines;
@@ -164,6 +166,13 @@ namespace BlackFlame::SelfTest
                 // H1: excluded with its reason - the source's own mesh is in no mod or archive (FormCopies.h)
                 if (++absent <= kMaxMissingLines) {
                     absentLines += std::format("{}{} {:08X} ({})", absentLines.empty() ? "" : "; ", CopyKindTag(form.kind),
+                        form.form->GetFormID(), FileOf(form.form));
+                }
+                continue;
+            }
+            if (!CopyOf(form.form) && IsDroppedByProbe(form.form)) {
+                if (++dropped <= kMaxMissingLines) {
+                    droppedLines += std::format("{}{} {:08X} ({})", droppedLines.empty() ? "" : "; ", CopyKindTag(form.kind),
                         form.form->GetFormID(), FileOf(form.form));
                 }
                 continue;
@@ -183,6 +192,10 @@ namespace BlackFlame::SelfTest
         if (absent > 0) {
             SelfTestLog::Info("T0-cover", std::format("{} closure form(s) excluded: source mesh absent in this load order: {}",
                 absent, absentLines));
+        }
+        if (dropped > 0) {
+            SelfTestLog::Fail("T0-cover", std::format("{} closure form(s) whose copy the copy model probe dropped (its NIF did not "
+                "load in game; see T0-v2): {}", dropped, droppedLines));
         }
         // Bound-weapon stage 1: the arrows of bound fire weapons, used by the Launch swap with the weapon as its source
         std::size_t boundArrows = 0;

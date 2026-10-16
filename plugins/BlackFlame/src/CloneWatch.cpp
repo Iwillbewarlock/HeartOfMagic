@@ -32,6 +32,8 @@ namespace BlackFlame
         {
             bool task = false;  // the effect had a clone task
             bool read = false;  // its fields were read (no fault)
+            bool notReady = false;  // J11: the art field is still 0 (the task not filled yet): read again next tick
+            bool mismatch = false;  // J11: the art field holds another art than the effect's (the layout does not fit)
             std::uint32_t state = 0;
             std::uint32_t pending = 0;
             std::uint32_t queue = 0;
@@ -75,6 +77,12 @@ namespace BlackFlame
             if (!a_read.task) {
                 return "no clone task";
             }
+            if (a_read.mismatch) {
+                return std::format("clone task layout mismatch (art field 0x{:X}): not read", a_read.art);
+            }
+            if (a_read.notReady) {
+                return "clone task not filled yet (art field 0)";
+            }
             if (!a_read.read) {
                 return "clone task fields NOT readable (fault)";
             }
@@ -115,8 +123,13 @@ namespace BlackFlame
                 if (task && !g_layoutBad.load()) {
                     seen.task.read = GuardedKeep("clone watch task read", [&]() {
                         seen.task.art = ReadAt<std::uintptr_t>(task, kTaskArt);
+                        if (seen.task.art == 0) {
+                            seen.task.notReady = true;  // J11: not a mismatch, read again next tick
+                            return;
+                        }
                         if (seen.task.art != seen.effectArt) {
                             seen.layoutMismatch = true;  // I4: nothing else of the task is trusted
+                            seen.task.mismatch = true;
                             return;
                         }
                         seen.task.state = ReadAt<std::uint32_t>(task, kTaskState);

@@ -67,10 +67,11 @@ namespace BlackFlame
                 g_boundSeeds.push_back({ mgef, weapon, nullptr, fireEffect, fireEnchantment });
                 g_boundWeapons.insert(weapon->GetFormID());
             }
-            // A spell for each seed (the self-test casts it): a fire spell first, else any spell carrying the effect
+            // A spell for each seed (the self-test casts it): a fire spell first, else any castable spell (J9: SpellType kSpell,
+            // no ability, power or disease) carrying the effect
             for (const bool fireOnly : { true, false }) {
                 for (auto* spell : dh->GetFormArray<RE::SpellItem>()) {
-                    if (!spell || (fireOnly && !IsFireSpell(spell))) {
+                    if (!spell || spell->GetSpellType() != RE::MagicSystem::SpellType::kSpell || (fireOnly && !IsFireSpell(spell))) {
                         continue;
                     }
                     for (const auto* item : spell->effects) {

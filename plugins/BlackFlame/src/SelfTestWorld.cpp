@@ -70,6 +70,74 @@ namespace BlackFlame::SelfTestWorld
         return true;
     }
 
+    namespace
+    {
+        struct Aim
+        {
+            RE::NiPoint3 origin;
+            RE::Projectile::ProjectileRot angles{};
+            std::string text;  // what the aim did (for the step's line)
+        };
+
+        // From the shooter's chest at the target's torso (its 3D bound centre when it has one), aimed above it by the
+        // projectile's estimated gravity drop (see LaunchAt in the header)
+        Aim AimAt(RE::Actor* a_shooter, RE::TESObjectREFR* a_target, const RE::BGSProjectile& a_projectile)
+        {
+            // Heights: a fresh spawn may have no bounds yet (GetHeight near 0): fixed fallbacks then
+            float shooterHeight = a_shooter->GetHeight();
+            float targetHeight = a_target->GetHeight();
+            std::string fallback;
+            if (shooterHeight < kMinHeight) {
+                fallback += std::format(" shooter height {:.1f} -> fallback;", shooterHeight);
+                shooterHeight = a_shooter->IsPlayerRef() ? kPlayerFallbackHeight : kCreatureFallbackHeight;
+            }
+            float aimLift = targetHeight * kAimHeightShare;
+            if (targetHeight < kMinHeight) {
+                aimLift = kTargetFallbackLift;
+                fallback += std::format(" target height {:.1f} -> fallback lift;", targetHeight);
+            }
+            // Origin: the shooter's chest, nudged toward the target so it starts clear of the shooter
+            const auto from = a_shooter->GetPosition();
+            auto aim = a_target->GetPosition();
+            aim.z += aimLift;
+            // C3: the centre of the target's 3D (its world bound) when it has one: the torso of a standing deer
+            const char* aimedAt = "height share";
+            if (const auto* root = a_target->Get3D(); root && root->worldBound.radius >= kMinBoundRadius) {
+                aim = root->worldBound.center;
+                aimedAt = "3D bound centre";
+            }
+            const float flatX = aim.x - from.x;
+            const float flatY = aim.y - from.y;
+            const float flat = std::sqrt(flatX * flatX + flatY * flatY);
+            Aim out;
+            out.origin = from;
+            out.origin.z += shooterHeight * kOriginHeightShare;
+            if (flat > 0.0f) {
+                out.origin.x += flatX / flat * kOriginForward;
+                out.origin.y += flatY / flat * kOriginForward;
+            }
+            // Gravity drop over the flight, aimed above to make up for it (an estimate: see kWorldGravity)
+            const float distance = out.origin.GetDistance(aim);
+            const float speed = a_projectile.data.speed;
+            const float flightSeconds = speed > 0.0f ? distance / speed : 0.0f;
+            const float drop = kHalf * kWorldGravity * a_projectile.data.gravity * flightSeconds * flightSeconds;
+            aim.z += drop;
+            // Straight line: heading z = atan2(dx, dy) (as Actor::SetHeading), pitch x positive DOWN.
+            // No engine solve: CombatUtilities::GetAngleToProjectedTarget's AE id is unverified
+            // (CommonLib's Projectile.cpp:290 marks it 0) and a wrong id would crash on AE.
+            const float dx = aim.x - out.origin.x;
+            const float dy = aim.y - out.origin.y;
+            const float dz = aim.z - out.origin.z;
+            out.angles.z = std::atan2(dx, dy);
+            out.angles.x = -std::atan2(dz, std::sqrt(dx * dx + dy * dy));
+            out.text = std::format("aimed at the target's {}: launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}) incl. "
+                "{:.1f} units of gravity drop ({:.0f} units at speed {:.0f}, gravity {:.2f}): pitch {:.3f}, heading {:.3f} rad;{}",
+                aimedAt, out.origin.x, out.origin.y, out.origin.z, aim.x, aim.y, aim.z, drop, distance, speed,
+                a_projectile.data.gravity, out.angles.x, out.angles.z, fallback);
+            return out;
+        }
+    }
+
     bool LaunchAt(RE::Actor* a_shooter, RE::SpellItem* a_spell, RE::TESObjectREFR* a_target, std::string& a_detail)
     {
         if (!a_shooter || !a_spell || !a_target || !a_shooter->GetParentCell()) {
@@ -83,64 +151,35 @@ namespace BlackFlame::SelfTestWorld
             a_detail = "the spell has no projectile";
             return false;
         }
-        // Heights: a fresh spawn may have no bounds yet (GetHeight near 0): fixed fallbacks then
-        float shooterHeight = a_shooter->GetHeight();
-        float targetHeight = a_target->GetHeight();
-        std::string fallback;
-        if (shooterHeight < kMinHeight) {
-            fallback += std::format(" shooter height {:.1f} -> fallback;", shooterHeight);
-            shooterHeight = a_shooter->IsPlayerRef() ? kPlayerFallbackHeight : kCreatureFallbackHeight;
-        }
-        float aimLift = targetHeight * kAimHeightShare;
-        if (targetHeight < kMinHeight) {
-            aimLift = kTargetFallbackLift;
-            fallback += std::format(" target height {:.1f} -> fallback lift;", targetHeight);
-        }
-        // Origin: the shooter's chest, nudged toward the target so it starts clear of the shooter
-        const auto from = a_shooter->GetPosition();
-        auto aim = a_target->GetPosition();
-        aim.z += aimLift;
-        // C3: the centre of the target's 3D (its world bound) when it has one: the torso of a standing deer
-        const char* aimedAt = "height share";
-        if (const auto* root = a_target->Get3D(); root && root->worldBound.radius >= kMinBoundRadius) {
-            aim = root->worldBound.center;
-            aimedAt = "3D bound centre";
-        }
-        const float flatX = aim.x - from.x;
-        const float flatY = aim.y - from.y;
-        const float flat = std::sqrt(flatX * flatX + flatY * flatY);
-        RE::NiPoint3 origin = from;
-        origin.z += shooterHeight * kOriginHeightShare;
-        if (flat > 0.0f) {
-            origin.x += flatX / flat * kOriginForward;
-            origin.y += flatY / flat * kOriginForward;
-        }
-        // Gravity drop over the flight, aimed above to make up for it (an estimate: see kWorldGravity)
-        const float distance = origin.GetDistance(aim);
-        const float speed = projectileBase->data.speed;
-        const float flightSeconds = speed > 0.0f ? distance / speed : 0.0f;
-        const float drop = kHalf * kWorldGravity * projectileBase->data.gravity * flightSeconds * flightSeconds;
-        aim.z += drop;
-        // Straight line: heading z = atan2(dx, dy) (as Actor::SetHeading), pitch x positive DOWN.
-        // No engine solve: CombatUtilities::GetAngleToProjectedTarget's AE id is unverified
-        // (CommonLib's Projectile.cpp:290 marks it 0) and a wrong id would crash on AE.
-        const float dx = aim.x - origin.x;
-        const float dy = aim.y - origin.y;
-        const float dz = aim.z - origin.z;
-        RE::Projectile::ProjectileRot angles{};
-        angles.z = std::atan2(dx, dy);
-        angles.x = -std::atan2(dz, std::sqrt(dx * dx + dy * dy));
-
-        RE::Projectile::LaunchData data(a_shooter, origin, angles, a_spell);
+        const auto aim = AimAt(a_shooter, a_target, *projectileBase);
+        RE::Projectile::LaunchData data(a_shooter, aim.origin, aim.angles, a_spell);
         data.castingSource = RE::MagicSystem::CastingSource::kRightHand;
         data.desiredTarget = a_target;
         RE::ProjectileHandle handle;
         RE::Projectile::Launch(&handle, data);
         const bool launched = static_cast<bool>(handle);
-        a_detail = std::format("aimed at the target's {}: launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}) incl. {:.1f} units of "
-            "gravity drop ({:.0f} units at speed {:.0f}, gravity {:.2f}): pitch {:.3f}, heading {:.3f} rad;{} {}", aimedAt, origin.x,
-            origin.y, origin.z, aim.x, aim.y, aim.z, drop, distance, speed, projectileBase->data.gravity, angles.x, angles.z,
-            fallback, launched ? "projectile handle returned" : "NO projectile handle");
+        a_detail = std::format("{} {}", aim.text, launched ? "projectile handle returned" : "NO projectile handle");
+        return launched;
+    }
+
+    bool LaunchAmmoAt(RE::Actor* a_shooter, RE::TESAmmo* a_ammo, RE::TESObjectWEAP* a_weapon, RE::TESObjectREFR* a_target,
+        std::string& a_detail)
+    {
+        auto* projectileBase = a_ammo ? a_ammo->GetRuntimeData().data.projectile : nullptr;
+        if (!a_shooter || !a_weapon || !projectileBase || !a_target || !a_shooter->GetParentCell()) {
+            a_detail = "no shooter (in a cell), ammo with a projectile, weapon or target";
+            return false;
+        }
+        const auto aim = AimAt(a_shooter, a_target, *projectileBase);
+        // The ammo constructor (Projectile.cpp:224): projectileBase = the ammo's PROJ, weaponSource, ammoSource
+        RE::Projectile::LaunchData data(a_shooter, aim.origin, aim.angles, a_ammo, a_weapon);
+        data.desiredTarget = a_target;
+        RE::ProjectileHandle handle;
+        RE::Projectile::Launch(&handle, data);
+        const bool launched = static_cast<bool>(handle);
+        a_detail = std::format("{:08X} shot ammo {:08X} (PROJ {:08X}) with weapon {:08X}, {} {}", a_shooter->GetFormID(),
+            a_ammo->GetFormID(), projectileBase->GetFormID(), a_weapon->GetFormID(), aim.text,
+            launched ? "projectile handle returned" : "NO projectile handle");
         return launched;
     }
 

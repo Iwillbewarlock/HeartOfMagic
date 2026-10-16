@@ -50,6 +50,10 @@
   꺼진다) `target->ApplyEffectShader(HoMBF_BurnShader, 남은 지속시간)`을 건다. 이미 붙은 우리 셰이더는 다시 걸지 않고
   수명을 늘린다. 자세한 규칙은 아래 "1차 검증 반영".
 
+> **대체됨 (C6, 2026-10-17)**: 아래 "층 2"부터 "검토 반영"까지(층 2-4의 런타임 재색칠, forcePalette, particleColors, tintScale,
+> 설정 표의 그 키들)는 v1 설계 기록이다. 지금은 사본(빌더가 회색으로 구운 폼)이 투사체·폭발·해저드·아트를 맡고, 런타임 재색칠은
+> hitArt·handArt·boundWeapon 키 뒤(기본 끔)에만 남는다. 현재 동작은 README와 아래 "C6" 절을 본다.
+
 ### 층 2. 투사체
 - 투사체 종류별 vtable의 `Handle3DLoaded`(또는 확인된 다른 시점)에 훅. 원본 호출 후, `shooter`가 플레이어 · `spell`이
   불마법 · 버프 중이면 3D를 다시 칠한다.
@@ -811,6 +815,28 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   사본을 빼서 대부분 주문이 원본으로 나갔다. 파일은 Copies 모드에 있고 탐침 없던 실행에서는 사본이 불러졌다(회색 Firebolt) -> 틀린 것은
   탐침의 요청 방식. 그래서 기본은 "log"(사본을 절대 빼지 않음), 캐시는 결과만 저장하고 "drop"에서만 적용. 실패 줄마다 사본과 원본(대조)의
   Demand 문자열을 그대로 나란히 남겨 경로 형식 문제를 한 줄에서 읽게 함. 원인은 별도 조사.
+
+### v2 수정 J (46855dd..1f437b5 두 리뷰, fixlist-v2j.md)
+
+- J1 "drop"에서 떨어뜨린 뒤 RefreshCopies는 메인 스레드 큐가 있을 때만(AddTask 대체 경로는 작업 스레드), 플레이 중이면 포인터·값만
+  (이름·머즐 BSFixedString은 다음 kPostLoadGame 새로 고침). 캐시 적용은 kDataLoaded라 전부.
+- J2 T0는 사본 모델 탐침이 끝나기를 최대 30초 기다림(T0 한도 35초), 아니면 INFO. T0-bound·T0-cover는 탐침이 뺀 사본을 "dropped by
+  the copy model probe"로 따로 셈(FormCopies IsDroppedByProbe).
+- J3 g_refreshNotes는 이유별로 교체(같은 이유만), 탐침의 새로 고침이 로드의 것을 지우지 않음.
+- J4 조각이 결함으로 멈춘 탐침도 "probe stopped: ..." 상태로 끝나고 아무 사본도 빼지 않음.
+- J5 E-bound: 시전 전 양손과 화살을 기록, 해제 뒤 다르면 ActorEquipManager로 다시 장착(주문은 EquipSpell, 무기·화살은 EquipObject, 손마다
+  기본 객체 LeftHandEquip/RightHandEquip 슬롯), 결과 INFO.
+- J6 화살은 T3와 같은 조준(SelfTestWorld의 AimAt를 LaunchAt와 새 LaunchAmmoAt가 같이 씀)으로 시험 표적 사슴에게. 표적 없으면 SKIP,
+  아무것도 쏘지 않음(경비병 등 범죄 없음).
+- J7 판정 뒤 시험 화살(플레이어 둘, 사슴, 버프 끔)을 LaunchRecord 핸들로 Disable + SetDelete, INFO로 개수. 저장에 사본 화살이 남지 않음.
+- J8 SelfTest Finish의 늦은 정리(로드 중단 제외)도 CleanupArtSpells·CleanupBoundSpell을 각자 try로.
+- J9 씨앗 주문 대체 후보는 SpellType kSpell만.
+- J10 README E-bound 행에 E3와 같은 저장 경고.
+- J11 CloneWatch: 태스크 +0x78이 0이면 "아직 안 채워짐"(다음 틱 다시), 진짜 불일치는 따로 Describe.
+- J12 C6 전 낡은 문장 정리(README 층 표·스레드·T4·T3-remote·T8-cast·해저드 한계, greymap.json, Tint.h, SelfTestStepsRemote.cpp, SelfTestCtx.h),
+  이 문서 층 2-4 절에 "대체됨" 표시.
+- J13 README 알려진 한계: 런타임 묶인 목록은 정적 씨앗으로 제한(런타임에 MGEF associatedForm을 바꾸는 모드는 못 덮음).
+- J14 배포 json에 copyModelProbe "log".
 
 ### v2 dev automation (580e315 이후)
 

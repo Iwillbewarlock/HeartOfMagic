@@ -404,8 +404,12 @@ namespace BlackFlame::CopyFill
         }
     }
 
-    bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source)
+    bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_pointersOnly)
     {
+        // J1: BSFixedString assignments (names, the muzzle model) only out of play (a_pointersOnly false)
+        const auto refillName = [&](RE::TESFullName& a_copyName, const RE::TESFullName& a_sourceName) {
+            return !a_pointersOnly && RefillName(a_copyName, a_sourceName);
+        };
         if (!a_copy || !a_source || a_copy->GetFormType() != a_source->GetFormType()) {
             return false;
         }
@@ -415,10 +419,10 @@ namespace BlackFlame::CopyFill
             changed |= Bytes::WriteIfDiffers(p->data, ExpectedData(s));
             changed |= Bytes::WriteIfDiffers(p->boundData, s.boundData);
             changed |= AssignIfDiffers(p->soundLevel, s.soundLevel);
-            changed |= RefillName(*p, s);
+            changed |= refillName(*p, s);
             const char* model = ExpectedMuzzle(*p, s);
             const char* now = p->muzzleFlashModel.GetModel();
-            if (std::strcmp(now ? now : "", model) != 0) {
+            if (!a_pointersOnly && std::strcmp(now ? now : "", model) != 0) {
                 p->muzzleFlashModel.SetModel(model);
                 changed = true;
             }
@@ -430,7 +434,7 @@ namespace BlackFlame::CopyFill
             changed |= AssignIfDiffers(e->castingType, s.castingType);
             changed |= AssignIfDiffers(e->amountofEnchantment, s.amountofEnchantment);
             changed |= AssignIfDiffers(e->imageSpaceModifying, s.imageSpaceModifying);
-            changed |= RefillName(*e, s);
+            changed |= refillName(*e, s);
         } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
             const auto& s = *a_source->As<RE::BGSImpactData>();
             changed |= Bytes::WriteIfDiffers(i->data, s.data);
@@ -448,7 +452,7 @@ namespace BlackFlame::CopyFill
             changed |= Bytes::WriteIfDiffers(h->data, s.data);
             changed |= Bytes::WriteIfDiffers(h->boundData, s.boundData);
             changed |= AssignIfDiffers(h->imageSpaceModifying, s.imageSpaceModifying);
-            changed |= RefillName(*h, s);
+            changed |= refillName(*h, s);
         } else if (auto* a = a_copy->As<RE::BGSArtObject>()) {
             changed |= RefillArt(*a, *a_source->As<RE::BGSArtObject>());
         }
