@@ -115,7 +115,7 @@ namespace
             logger::info("Toxicology: InventoryInjectorImproved (I5) not loaded - no icon cache to purge");
             return;
         }
-        logger::warn("Toxicology: InventoryInjectorImproved (I5) is loaded - its icon cache cannot be purged from a plugin, "
+        logger::warn("Toxicology: InventoryInjectorImproved (I5) is loaded - Toxicology does not purge its icon cache, "
             "so the inventory and barter menus may show the copy icon on the old poison until it is purged in the console "
             "('i5 purge'; 'i5 cache purge' on newer I5). The favorites menu is not cached and is right");
     }
