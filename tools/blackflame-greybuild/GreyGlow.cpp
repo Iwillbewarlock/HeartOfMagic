@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyGlow.h"
+#include "GreyRisk.h"
 
 #include <Animation.hpp>
 #include <Geometry.hpp>
@@ -34,13 +35,118 @@ namespace GreyBuild
             return { grey, grey, grey };
         }
 
-        /// GreyEffects' own rule, kept for every shader: an additive palette shader's colours x tintAdd, every other x tint
-        [[nodiscard]] ColourRule RuleFor(const std::vector<const EffectShape*>& a_shapes, const GlowContext& a_ctx)
+        enum class Glow
         {
+            kG0,  // not drawn: hidden, no blending, a blank texture, colour 0 - luminance x tint, nothing judged
+            kG1,  // additive, soft, warm: RGB 0 (its role was the orange haze; grey it would float a grey disc or ball)
+            kG2,  // additive with detail (flames, sparks): luminance x tintAdd, the silver edge
+            kG3,  // additive, soft, neutral (white before): luminance x tint, a WARN in the risk check
+            kG5   // normal blend: luminance x tint (grey smoke reads as the body of a black fire)
+        };
+
+        struct Judged
+        {
+            Glow glow = Glow::kG0;
+            bool unread = false;  // the texture could not be read: G2 (soft or not cannot be told)
+            std::string why;
+        };
+
+        // The class of one shape without the palette flag (glow-rule.md section 3, the same measures as the risk check)
+        [[nodiscard]] Judged Classify(const EffectShape& a_shape, GlowContext& a_ctx)
+        {
+            if (a_shape.hidden || a_shape.blend == ShapeBlend::kNoAlpha || a_shape.blend == ShapeBlend::kOpaque) {
+                return { Glow::kG0 };
+            }
+            if (a_shape.blend != ShapeBlend::kAdditive) {
+                return { Glow::kG5 };
+            }
+            const TexStats* stats = nullptr;
+            if (!a_shape.sourceTexture.empty()) {
+                if (!a_ctx.textures) {
+                    return { Glow::kG2, true, "no texture source in this run" };
+                }
+                const auto look = a_ctx.textures->Look(a_shape.sourceTexture);
+                if (look.status != TextureRead::kOk) {
+                    return { Glow::kG2, true, fmt::format("{}: {}", look.path.empty() ? a_shape.sourceTexture : look.path, look.why) };
+                }
+                stats = look.stats;
+                if (stats->energyMean == 0.0) {
+                    return { Glow::kG0 };  // a blank texture draws nothing
+                }
+            }
+            const Rgb white{ 1.0, 1.0, 1.0 };
+            const Rgb texMean = stats ? stats->meanRgb : white;
+            const bool vertexOn = (a_shape.flags2 & kSlsf2VertexColors) != 0 && a_shape.vertexColours;
+            const Rgb vertex = vertexOn ? a_shape.vertexMean : white;
+            double sat = 0.0;
+            double high = 0.0;
+            for (const auto& colour : a_shape.colours) {
+                const Rgb shown = Multiply(Multiply(colour, texMean), vertex);
+                sat = std::max(sat, Saturation(shown, kRiskMinChannel));
+                high = std::max({ high, shown.r, shown.g, shown.b });
+            }
+            if (high <= 0.0) {
+                return { Glow::kG0 };
+            }
+            const bool soft = !stats || stats->detail < kRiskSoftDetail;
+            if (!soft) {
+                return { Glow::kG2 };
+            }
+            return { sat >= kRiskWarmSat ? Glow::kG1 : Glow::kG3 };
+        }
+
+        /// A shader's rule from its shapes: a palette shader keeps GreyEffects' (additive x tintAdd, else x tint); every
+        /// other one by its shapes' classes - 0 when every drawn shape is G1, tintAdd when one is G2, else tint
+        [[nodiscard]] ColourRule RuleFor(const std::vector<const EffectShape*>& a_shapes, GlowContext& a_ctx, bool& a_zeroed,
+            const std::string& a_rel)
+        {
+            a_zeroed = false;
             const bool palette = std::any_of(a_shapes.begin(), a_shapes.end(), [](const EffectShape* a_s) { return IsPaletteShape(*a_s); });
             const bool additive =
                 std::any_of(a_shapes.begin(), a_shapes.end(), [](const EffectShape* a_s) { return a_s->blend == ShapeBlend::kAdditive; });
-            return { palette && additive ? a_ctx.tintAdd : a_ctx.tint };
+            if (palette) {
+                return { additive ? a_ctx.tintAdd : a_ctx.tint };
+            }
+            bool anyG2 = false;
+            bool allG1 = true;
+            bool drawn = false;
+            for (const auto* shape : a_shapes) {
+                const auto judged = Classify(*shape, a_ctx);
+                if (judged.unread) {
+                    ++a_ctx.totals.unread;
+                    std::cout << fmt::format("NOTE  {}: shape block {} '{}': texture not read ({}) - G2 (luminance x tintAdd)\n",
+                        a_rel, shape->block, shape->name, judged.why);
+                }
+                if (judged.glow == Glow::kG0) {
+                    continue;
+                }
+                drawn = true;
+                anyG2 |= judged.glow == Glow::kG2;
+                allG1 &= judged.glow == Glow::kG1;
+                a_ctx.totals.g3 += judged.glow == Glow::kG3 ? 1 : 0;
+                a_ctx.totals.g5 += judged.glow == Glow::kG5 ? 1 : 0;
+            }
+            if (drawn && allG1) {
+                a_zeroed = true;
+                return { 0.0f };
+            }
+            return { anyG2 ? a_ctx.tintAdd : a_ctx.tint };
+        }
+
+        // EFFECT_EMPTY's exception: drawn at all in the source (the risk check's measure)
+        [[nodiscard]] bool Drawn(const EffectShape& a_shape, GlowContext& a_ctx)
+        {
+            if (a_shape.hidden || a_shape.blend == ShapeBlend::kNoAlpha || a_shape.blend == ShapeBlend::kOpaque) {
+                return false;
+            }
+            if (!a_shape.sourceTexture.empty() && a_ctx.textures) {
+                const auto look = a_ctx.textures->Look(a_shape.sourceTexture);
+                if (look.stats && look.stats->energyMean == 0.0) {
+                    return false;
+                }
+            }
+            return IsPaletteShape(a_shape) || std::any_of(a_shape.colours.begin(), a_shape.colours.end(),
+                                                  [](const Rgb& a_c) { return std::max({ a_c.r, a_c.g, a_c.b }) > 0.0; });
         }
 
         // K: one interpolator and its keys from the source's values (the unused marker kept as it is)
@@ -129,10 +235,48 @@ namespace GreyBuild
         for (const auto& shape : shapes) {
             byShader[shape.shader].push_back(&shape);
         }
-        // K: every reached colour key with its shader's rule; an interpolator two shaders share keeps the first rule
+        // G: each shader's rule; G1 (RGB 0) only while the NIF keeps a drawn shape - else those shaders take G2
+        std::map<std::uint32_t, ColourRule> rules;
+        std::set<std::uint32_t> zeroed;
+        for (const auto& [shader, users] : byShader) {
+            bool zero = false;
+            rules[shader] = RuleFor(users, a_ctx, zero, a_rel);
+            if (zero) {
+                zeroed.insert(shader);
+            }
+        }
+        int drawnBefore = 0;
+        int drawnAfter = 0;
+        for (const auto& shape : shapes) {
+            if (Drawn(shape, a_ctx)) {
+                ++drawnBefore;
+                drawnAfter += zeroed.count(shape.shader) == 0 ? 1 : 0;
+            }
+        }
+        if (!zeroed.empty() && drawnBefore > 0 && drawnAfter == 0) {
+            for (const auto shader : zeroed) {
+                rules[shader] = { a_ctx.tintAdd };
+            }
+            ++a_ctx.totals.g1Kept;
+            std::cout << fmt::format("NOTE  {}: every drawn shape is a soft warm glow (G1): RGB 0 would leave the effect empty - "
+                                     "G2 (luminance x tintAdd) instead\n", a_rel);
+            zeroed.clear();
+        }
+        a_ctx.totals.g1 += static_cast<int>(zeroed.size());
+        // Base colours (alpha kept) and K: every reached colour key with its shader's rule; an interpolator two shaders
+        // share keeps the first rule
         std::set<std::uint32_t> done;
         for (const auto& [shader, users] : byShader) {
-            const ColourRule rule = RuleFor(users, a_ctx);
+            const ColourRule rule = rules[shader];
+            a_ctx.totals.g2 += rule.scale == a_ctx.tintAdd && !IsPaletteShape(*users.front()) ? 1 : 0;
+            auto* copyShader = a_copy.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(shader);
+            const auto* sourceShader = a_source.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(shader);
+            if (copyShader && sourceShader) {
+                const auto grey = Apply(rule, { sourceShader->baseColor.r, sourceShader->baseColor.g, sourceShader->baseColor.b });
+                copyShader->baseColor.r = grey.x;
+                copyShader->baseColor.g = grey.y;
+                copyShader->baseColor.b = grey.z;
+            }
             const auto& first = *users.front();
             for (const auto& keys : first.colourKeys) {
                 if (!done.insert(keys.interpolator).second) {
@@ -177,9 +321,11 @@ namespace GreyBuild
 
     std::string GlowTotalsLine(const GlowTotals& a_totals)
     {
-        return fmt::format("glow  colour keys reached through controlled blocks greyed {}; blend interpolator values greyed {}; "
-                           "colour controllers without keys {}; vertex colours to luminance on {} shape(s) ({} left: geometry a "
-                           "palette shape shares)", a_totals.sequenceKeys, a_totals.blendValues, a_totals.unreached,
-            a_totals.vertexShapes, a_totals.vertexShared);
+        return fmt::format("glow  shaders: G1 RGB 0 {} ({} NIF(s) kept at G2: nothing else drawn), G2 x tintAdd {}; shapes: G3 "
+                           "soft neutral {}, G5 normal blend {}, texture not read {}; colour keys reached through controlled blocks "
+                           "greyed {}; blend interpolator values greyed {}; colour controllers without keys {}; vertex colours to "
+                           "luminance on {} shape(s) ({} left: geometry a palette shape shares)", a_totals.g1, a_totals.g1Kept,
+            a_totals.g2, a_totals.g3, a_totals.g5, a_totals.unread, a_totals.sequenceKeys, a_totals.blendValues,
+            a_totals.unreached, a_totals.vertexShapes, a_totals.vertexShared);
     }
 }

@@ -42,6 +42,7 @@ namespace GreyBuild::SelfTest
             std::optional<nifly::Vector3> directKey;    // a colour controller's own NiPoint3Interpolator key
             std::optional<nifly::Vector3> sequenceKey;  // a key only a controlled block reaches (the controller blends)
             std::optional<nifly::Color4> vertexColour;  // every vertex, with the Vertex_Colors flag
+            bool companion = false;  // a second, normal-blend grey shape (smoke) with its own shader and alpha
         };
 
         struct Made
@@ -87,6 +88,24 @@ namespace GreyBuild::SelfTest
             shape->ShaderPropertyRef()->index = made.shader;
             shape->AlphaPropertyRef()->index = alphaId;
             Add(a_nif, std::move(shape));
+            if (a_spec.companion) {
+                auto smokeAlpha = std::make_unique<nifly::NiAlphaProperty>();
+                smokeAlpha->flags = static_cast<std::uint16_t>(kAlphaBlend | kSrcAlpha | kDestInvSrcAlpha);
+                const auto smokeAlphaId = Add(a_nif, std::move(smokeAlpha));
+                auto smokeShader = std::make_unique<nifly::BSEffectShaderProperty>();
+                smokeShader->baseColor = kGreyColour;
+                smokeShader->shaderFlags1 &= ~(kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha);
+                const auto smokeShaderId = Add(a_nif, std::move(smokeShader));
+                auto smokeData = std::make_unique<nifly::NiTriShapeData>();
+                smokeData->vertices = { { 0, 0, 0 }, { 1, 0, 0 }, { 0, 1, 0 } };
+                const auto smokeDataId = Add(a_nif, std::move(smokeData));
+                auto smoke = std::make_unique<nifly::NiTriShape>();
+                smoke->name.get() = "Smoke";
+                smoke->DataRef()->index = smokeDataId;
+                smoke->ShaderPropertyRef()->index = smokeShaderId;
+                smoke->AlphaPropertyRef()->index = smokeAlphaId;
+                Add(a_nif, std::move(smoke));
+            }
             const auto keyed = [&](const nifly::Vector3& a_key) {
                 auto keys = std::make_unique<nifly::NiPosData>();
                 keys->data.SetInterpolationType(nifly::NiKeyType::LINEAR_KEY);
@@ -155,6 +174,21 @@ namespace GreyBuild::SelfTest
             return job;
         }
 
+        // Every other texel lit: high detail (sparks)
+        [[nodiscard]] RgbaImage Sparks()
+        {
+            RgbaImage image;
+            image.width = kTex;
+            image.height = kTex;
+            for (std::size_t y = 0; y < kTex; ++y) {
+                for (std::size_t x = 0; x < kTex; ++x) {
+                    const std::uint8_t on = (x + y) % 2 == 0 ? 255 : 0;
+                    image.pixels.insert(image.pixels.end(), { on, on, on, on });
+                }
+            }
+            return image;
+        }
+
         [[nodiscard]] RgbaImage Image(std::uint8_t a_alpha, bool a_greenRamp)
         {
             RgbaImage image;
@@ -194,9 +228,22 @@ namespace GreyBuild::SelfTest
 
         Spec halo;
         halo.base = kOrange;
+        halo.companion = true;
         const auto haloJob = Judge(halo, textures, nullptr);
-        a_check.Check(Count(haloJob, "GREY_HALO") == 1, fmt::format("risk: a textureless additive orange glow greyed by GreyEffects "
-            "is GREY_HALO ({})", Count(haloJob, "GREY_HALO")));
+        const int zeroedBefore = glow.totals.g1;
+        const auto haloAfter = Judge(halo, textures, &glow);
+        a_check.Check(Count(haloJob, "GREY_HALO") == 1 && Count(haloAfter, "GREY_HALO") == 0 && Count(haloAfter, "EFFECT_EMPTY") == 0 &&
+                          glow.totals.g1 == zeroedBefore + 1,
+            fmt::format("risk + G1: a textureless additive orange glow is GREY_HALO after GreyEffects ({}) and RGB 0 after the glow "
+                        "rules ({} left), the smoke beside it still drawn", Count(haloJob, "GREY_HALO"), Count(haloAfter, "GREY_HALO")));
+        Spec alone = halo;
+        alone.companion = false;
+        const int keptBefore = glow.totals.g1Kept;
+        const auto aloneAfter = Judge(alone, textures, &glow);
+        a_check.Check(Count(aloneAfter, "EFFECT_EMPTY") == 0 && glow.totals.g1Kept == keptBefore + 1,
+            fmt::format("G1 exception: a NIF whose only drawn shape is a soft warm glow keeps it at G2 (EFFECT_EMPTY {}, kept {})",
+                Count(aloneAfter, "EFFECT_EMPTY"), glow.totals.g1Kept - keptBefore));
+
 
         Spec vertex;
         vertex.vertexColour = nifly::Color4{ 1.0f, 0.3f, 0.0f, 1.0f };
@@ -211,6 +258,14 @@ namespace GreyBuild::SelfTest
         textures.Put("textures\\selftest\\clear.dds", Image(0, false));
         textures.Put("textures\\selftest\\solid.dds", Image(255, false));
         textures.Put("textures\\selftest\\broken.dds", std::nullopt);
+        textures.Put("textures\\selftest\\sparks.dds", Sparks());
+        Spec flames = halo;
+        flames.texture = "textures\\selftest\\sparks.dds";
+        const int g2Before = glow.totals.g2;
+        const auto flamesAfter = Judge(flames, textures, &glow);
+        a_check.Check(glow.totals.g2 == g2Before + 1 && Count(flamesAfter, "GREY_HALO") == 0,
+            fmt::format("G2: an additive orange shape with a detailed texture goes to luminance x tintAdd ({} shader), no GREY_HALO",
+                glow.totals.g2 - g2Before));
         Spec sheet;
         sheet.texture = "textures\\selftest\\ramp.dds";
         sheet.palette = "textures\\selftest\\clear.dds";

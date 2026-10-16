@@ -518,6 +518,16 @@ the grey copies look.
 After `GreyEffects` the builder writes a full-grey copy's colours again from the source NIF's own values (the same block
 numbers: the builder changes values only), so nothing is greyed twice:
 
+- **G, glow classes** (each effect shader without the palette flag, by its shapes; the measures are the risk check's):
+  G1, an additive soft shape (no texture, or texture detail under 0.06) whose source colour - base colour and keys x
+  texture mean x vertex colour - is warm (S >= 0.35): RGB 0 for its base colour and every key, alpha and flags kept (in
+  the source it was an orange haze; grey it floats a grey disc or ball over the black body, and additive cannot draw
+  dark). When G1 would leave a NIF nothing drawn (on this load order `impactfrost01` and `impactfrostsmall01`), those
+  shaders take G2 instead and the risk check lists them as HALO_KEPT (WARN). G2, additive with detail (flames, sparks):
+  luminance x `tintAdd` (0.9), the silver edge. G3, additive soft neutral (white in the source): luminance x `--tint`
+  (WARN NEUTRAL_HALO). G5, normal blend: luminance x `--tint`. G0, not drawn (hidden, no blending, a blank texture,
+  colour 0): luminance x `--tint`. A texture that cannot be read makes its shape G2 (soft or not cannot be told) and is
+  noted. Palette shaders keep GreyEffects' rule here.
 - **K, colour keys**: every key a shader's `BSEffectShaderPropertyColorController`s reach - the controller's own
   `NiPoint3Interpolator`, and every `NiControllerSequence` controlled block that names the controller (by reference, or
   for a block without one by node name, property type `BSEffectShaderProperty` and controller type) - gets the shader's
@@ -527,8 +537,8 @@ numbers: the builder changes values only), so nothing is greyed twice:
   colour goes to its luminance, alpha kept (`BSTriShape` vertex data and `NiTriShapeData`); a palette shape's are left (its
   vertex red selects the palette row), and so is geometry a palette shape shares.
 
-The run ends with `glow  colour keys reached through controlled blocks greyed N; ...; vertex colours to luminance on N
-shape(s)`.
+The run ends with `glow  shaders: G1 RGB 0 N (N NIF(s) kept at G2: nothing else drawn), G2 x tintAdd N; shapes: G3 ...;
+colour keys reached through controlled blocks greyed N; ...; vertex colours to luminance on N shape(s)`.
 
 ### Visual-risk check: `GreyRisk.h`
 
@@ -550,6 +560,7 @@ run it is reported, not fatal.
 | PAL_VANISH | FAIL | an additive palette shape that drew at least 0.01 whose energy falls under a quarter |
 | EFFECT_EMPTY | FAIL | a NIF whose source draws a shape and whose copy draws none |
 | PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT | WARN | energy over 4x on a small area; a soft additive neutral glow still visible; a palette texture with one flat green |
+| HALO_KEPT | WARN | a GREY_HALO in a NIF whose every drawn shape is a soft warm glow: the glow rules keep it visible so the effect is not empty |
 | UNREAD | gate | a texture the rule needs is in no folder read (and the game did not say it is absent) or does not decode |
 | MISSING | INFO | the game itself does not have the texture (the request lists it as not opening): the source has the same hole |
 
@@ -557,7 +568,8 @@ Textures (mip 0, 8-bit RGBA) are read from the `--in` folders (`--from-game`: th
 and our own shipped ones. The palette rules assume NifSkope's effect shader model: palette colour looked up by the
 texture's green, palette alpha by its alpha, the row by base colour red x vertex red - not checked against the game.
 Measured on the 2026-10-16 load order (the dump plus the prototype's textures, `--no-textures`), the v2i copies gave
-FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0.
+FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0; with
+G, GREY_HALO 90 -> 0 (HALO_KEPT 2).
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 

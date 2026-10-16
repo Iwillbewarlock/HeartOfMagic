@@ -6,6 +6,10 @@
 // GreyEffects greys every effect shader's base colour and the keys of colour controllers it reaches directly. These
 // rules read the source NIF (the same block numbers: the builder changes values only) and write the copy's colours from
 // the source values, so nothing is greyed twice:
+//   G  each shader without the palette flag by its shapes (glow-rule.md section 3): an additive soft glow (no texture, or
+//      texture detail under kRiskSoftDetail) whose source colour is warm (S >= kRiskWarmSat, texture mean and vertex
+//      colours included) goes to RGB 0 (G1) unless that leaves the NIF nothing drawn (then G2); an additive one with
+//      detail x tintAdd (G2); an additive soft neutral one and normal blend x tint (G3, G5); not drawn: x tint (G0);
 //   K  every colour key a shader's colour controllers reach - directly, or through NiControllerSequence controlled blocks
 //      (by reference, or by node name / property type / controller type) - gets the shader's own colour rule;
 //   V  vertex colours of a shape without the palette flag go to their luminance, alpha kept (a palette shape's vertex red
@@ -27,6 +31,12 @@ namespace GreyBuild
 
     struct GlowTotals
     {
+        int g1 = 0;                // G1: shaders whose colours went to RGB 0 (additive soft warm glows)
+        int g1Kept = 0;            // NIFs where G1 would have left nothing drawn: G2 instead
+        int g2 = 0;                // G2: shaders without the palette flag at luminance x tintAdd
+        int g3 = 0;                // G3: shapes, additive soft neutral (luminance x tint)
+        int g5 = 0;                // G5: shapes, normal blend (luminance x tint)
+        int unread = 0;            // shapes whose texture could not be read (G2)
         int sequenceKeys = 0;      // K: colour keys reached only through controlled blocks, greyed
         int blendValues = 0;       // K: a colour controller's own blend interpolator value, greyed
         int unreached = 0;         // colour controllers without a reachable NiPoint3Interpolator (no keys to grey)

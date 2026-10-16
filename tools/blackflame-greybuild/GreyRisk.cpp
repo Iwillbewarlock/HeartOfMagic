@@ -24,6 +24,7 @@ namespace GreyBuild
         constexpr const char* kRuleVc = "VC_LEFT";
         constexpr const char* kRulePsys = "PSYS_LEFT";
         constexpr const char* kRuleHalo = "GREY_HALO";
+        constexpr const char* kRuleHaloKept = "HALO_KEPT";
         constexpr const char* kRuleTexColour = "TEX_COLOUR";
         constexpr const char* kRuleSheet = "PAL_SHEET";
         constexpr const char* kRuleVanish = "PAL_VANISH";
@@ -39,6 +40,8 @@ namespace GreyBuild
         {
             RiskJob& job;
             const std::string& nif;
+            int warmSoft = 0;                 // drawn soft additive warm shapes (G1 by the glow rules)
+            std::vector<RiskFinding> halos;   // GREY_HALO, judged when the NIF is done (the G1 exception)
         };
 
         void Add(Context& a_ctx, RiskLevel a_level, const char* a_rule, const EffectShape* a_shape, std::string a_detail)
@@ -166,11 +169,12 @@ namespace GreyBuild
                 copyLum = std::max(copyLum, Luminance(Multiply(Multiply(colour, texMean), copyVertex)));
             }
             copyLum *= a_copy.multipleMax;
+            a_ctx.warmSoft += soft && sourceSat >= kRiskWarmSat ? 1 : 0;
             if (soft && sourceSat >= kRiskWarmSat && copyLum > kRiskHaloLumMax) {
-                Add(a_ctx, RiskLevel::kFail, kRuleHalo, &a_source, fmt::format("soft additive {}, source S {:.2f}, copy grey "
-                    "luminance {:.3f}{}", a_source.sourceTexture.empty() ? std::string("no texture") :
-                    fmt::format("texture {} (detail {})", a_texture.path, stats ? stats->detail : 0.0), sourceSat, copyLum,
-                    a_source.billboard ? ", under a billboard node" : ""));
+                a_ctx.halos.push_back({ RiskLevel::kFail, kRuleHalo, a_ctx.nif, a_source.block, a_source.name,
+                    fmt::format("soft additive {}, source S {:.2f}, copy grey luminance {:.3f}{}", a_source.sourceTexture.empty() ?
+                        std::string("no texture") : fmt::format("texture {} (detail {})", a_texture.path, stats ? stats->detail : 0.0),
+                        sourceSat, copyLum, a_source.billboard ? ", under a billboard node" : "") });
             } else if (soft && copyLum > kRiskHaloLumMax) {
                 Add(a_ctx, RiskLevel::kWarn, kRuleNeutralHalo, &a_source, fmt::format("soft additive neutral glow, copy "
                     "luminance {:.3f}", copyLum));
@@ -272,6 +276,18 @@ namespace GreyBuild
             } else {
                 CheckPlain(ctx, source, copy, texture);
             }
+        }
+        // The G1 exception (GreyGlow.h): when every drawn shape is a soft warm glow, RGB 0 would empty the effect, so the
+        // glow rules keep them visible - a WARN (HALO_KEPT), not a failure
+        const bool kept = visibleBefore > 0 && ctx.warmSoft == visibleBefore;
+        for (auto& halo : ctx.halos) {
+            if (kept) {
+                halo.level = RiskLevel::kWarn;
+                halo.rule = kRuleHaloKept;
+                halo.detail += " - the NIF's only drawn shape(s): kept visible (G2) so the effect is not empty";
+            }
+            ++a_job.perRule[halo.rule];
+            a_job.findings.push_back(std::move(halo));
         }
         if (visibleBefore > 0 && visibleAfter == 0) {
             Add(ctx, RiskLevel::kFail, kRuleEmpty, nullptr, fmt::format("the source draws {} shape(s), the copy none (every "
