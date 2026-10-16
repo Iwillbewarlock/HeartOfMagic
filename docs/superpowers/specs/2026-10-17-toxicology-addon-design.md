@@ -31,7 +31,7 @@
 - 모든 독 마법(투사체, 룬, 접촉, 집중)에 같은 규칙.
 - 복제 중에 즐겨찾기 1순위가 바뀌면 이미 걸린 효과는 끝까지 가고, 다음 피격부터 새 독약.
 - 즐겨찾기한 독약이 없으면 아무 일도 없다.
-- 게임 안 글자(메뉴·알림) 없음 → 번역 파일 없음. 설정은 json 하나.
+- 메뉴·알림 글자 없음. 게임 안 글자는 ESL 의 능력·주문서 이름과 설명뿐(4a). 설정은 json 하나.
 - I4 가 없으면 아이콘만 빠지고 기능은 동작.
 - 아이콘 색은 `#62A636`(사서가 독 원소 주문에 쓰는 초록). I4 기본 독약 색(`#AD00B3`, 보라)과 달라서 눈에 띈다.
 
@@ -39,7 +39,7 @@
 
 | 파일 | 역할 |
 |---|---|
-| `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드 레코드 `HoMTox_MimicPoison` 하나. I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
+| `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드·마법 효과·능력·주문서(4a). I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | 본체 |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `minIntervalSeconds`(기본 1.0), `magickaPerDose`(기본 100) |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 규칙: `{"match":{"formType":"Potion","keywords":"HoMTox_MimicPoison"},"assign":{"iconSource":"HeartOfMagicToxicology/icons.swf","iconLabel":"potion_mimic","iconColor":"#62A636"}}` |
@@ -52,6 +52,25 @@
 - ESL 은 `I4IconAddon.esp` 뒤에 로드되어야 우리 규칙이 이긴다. 새 플러그인은 기본으로 맨 뒤라 보통 맞다(README 에 적음).
 - NPC Spells(`feature/npc-spells-1.5`, 미병합)가 같은 애드온 배포 틀(별도 VERSION, 별도 zip, 노티스)을 먼저 만들었다.
   그 브랜치가 먼저 병합되면 그 틀을 재사용하고, 아니면 이 브랜치가 같은 모양으로 만들고 나중 병합 때 맞춘다(빌더 판단).
+
+## 4a. 능력과 주문서 (사용자 결정 2026-10-17)
+
+기능 전체가 능력(Ability) "Toxicology" 에 묶인다. 플레이어가 이 능력을 갖고 있을 때만 5.2~5.6 이 동작한다
+(복제, 아이콘 키워드, 매지카 집계, 독약 소모 모두). 능력은 주문서로 배우고, 주문서는 리프튼 연금술 상점
+Elgrim's Elixirs 에서 판다.
+
+- ESL 레코드: 키워드 `HoMTox_MimicPoison`, 마법 효과(MGEF, 이로운 상시 효과, 스크립트 없음, 설명문에 기능 설명),
+  능력(SPEL, 타입 Ability, 위 MGEF 하나), 주문서(BOOK, "Teaches Spell" = 능력).
+- HoM 과의 관계: HoM 의 주문서 훅은 능력·권능을 가르치는 책을 바닐라 방식으로 처리한다 — 바로 배우고 책이
+  사라진다(`plugins/spelllearning/src/SpellTomeHook.cpp:81-88, 165-190`). 그래서 공부 XP 로 바뀌지 않고, 트리에도
+  들어가지 않는다(스캐너는 kSpell 만 남김).
+- 판매: 상인 상자에 주문서 1권을 넣는다. 레코드를 덮어쓰지 않고 DLL 이 `kDataLoaded` 에 메모리에서 상자 기본
+  폼(또는 그 상자가 쓰는 레벨 목록)에 넣는다. 어느 상자·목록이 Elgrim's Elixirs 전용인지는 houseCARL 로
+  확인한다(다른 상인과 공유하는 기본 폼이면 쓰지 말 것). 상인 재고가 바뀌는 주기(약 48시간)마다 다시 생긴다.
+- 내 결정(확인 필요로 사용자에게 알림): 주문서 값 350 골드, 책 모델·아이콘은 바닐라 변화계 주문서를 복사,
+  게임 안 글자(능력 이름, 효과 설명, 주문서 이름)는 영어만. 한국어는 이후 별도 번역 파일로.
+- ESL 은 레코드가 4개라 생성기를 쓰지 않고 houseCARL 로 작성한 바이너리를 저장소에 넣는다(바닐라 주문서를 새
+  레코드로 복사해 필드를 바꾸는 방식). 작성 단계는 README 의 개발 절에 적는다.
 
 ## 5. 동작
 
