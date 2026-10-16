@@ -1,4 +1,5 @@
 #include "ScriptTags.h"
+#include "TrackedMutex.h"
 
 #include "BuffState.h"
 #include "Config.h"
@@ -41,7 +42,7 @@ namespace BlackFlame
             RE::VMHandle pendingCaller = 0;
         };
 
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::atomic<std::size_t> g_count{ 0 };
 
         // Guarded by g_mutex; keyed by the handle's value. Heap-held like the other layers' lists.
@@ -154,7 +155,7 @@ namespace BlackFlame
             default:
                 break;
             }
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static auto* logged = std::make_unique<std::unordered_set<RE::FormType>>().release();
             bool first = false;
             {
@@ -274,7 +275,7 @@ namespace BlackFlame
 
     void LogDeferredOnce(const char* a_layer)
     {
-        static std::mutex mutex;
+        static TrackedMutex mutex;
         static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
         {
             std::lock_guard lock(mutex);

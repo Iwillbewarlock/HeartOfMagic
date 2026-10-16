@@ -33,6 +33,7 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "Watchdog.h"
 
 namespace
 {
@@ -50,6 +51,7 @@ namespace
         BlackFlame::EffectEventSink::GetSingleton()->Register();
         BlackFlame::HitEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
+        BlackFlame::Watchdog::Start();  // C6: log flushed each second, STALL blocks
         // Installed after the fire sets are built: the hooks read them from any thread. Always installed
         // (v2): besides the runtime recolour (its own config keys, off by default) they tint lights, feed
         // the self-test records and open the explosion side of the impact window
@@ -100,6 +102,7 @@ namespace
         BlackFlame::LogThread("SKSE message handler", "message", kMessageThreadLogs);
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
+            BlackFlame::Watchdog::NoteLoadStarted();
             TearDown("a save is being loaded");
             BlackFlame::SelfTest::OnPreLoadGame();
             break;
@@ -107,6 +110,7 @@ namespace
             OnDataLoaded();
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
+            BlackFlame::Watchdog::NoteLoadEnded();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("game loaded");
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
@@ -115,6 +119,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
+            BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
             BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
@@ -129,6 +134,32 @@ namespace
         }
     }
 
+    const char* MessageName(std::uint32_t a_type)
+    {
+        switch (a_type) {
+        case SKSE::MessagingInterface::kPostLoad:
+            return "PostLoad";
+        case SKSE::MessagingInterface::kPostPostLoad:
+            return "PostPostLoad";
+        case SKSE::MessagingInterface::kPreLoadGame:
+            return "PreLoadGame";
+        case SKSE::MessagingInterface::kPostLoadGame:
+            return "PostLoadGame";
+        case SKSE::MessagingInterface::kSaveGame:
+            return "SaveGame";
+        case SKSE::MessagingInterface::kDeleteGame:
+            return "DeleteGame";
+        case SKSE::MessagingInterface::kInputLoaded:
+            return "InputLoaded";
+        case SKSE::MessagingInterface::kNewGame:
+            return "NewGame";
+        case SKSE::MessagingInterface::kDataLoaded:
+            return "DataLoaded";
+        default:
+            return "other";
+        }
+    }
+
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg) {
@@ -136,6 +167,10 @@ namespace
         }
         // Called from SKSE: nothing may throw out of here
         try {
+            // C6b: every message we receive, with its thread, written through at once (a hang keeps it)
+            logger::info("BlackFlame: SKSE message {} ({}) on thread {}", a_msg->type, MessageName(a_msg->type),
+                REX::W32::GetCurrentThreadId());
+            FlushLog();
             HandleMessage(*a_msg);
         } catch (const std::exception& e) {
             logger::error("BlackFlame: SKSE message {} handler threw: {}", a_msg->type, e.what());

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "TrackedMutex.h"
 #include "ThreadTrace.h"
 #include "ThreadUtils.h"  // plugins/spelllearning/include: MarkGameThread, IsOnGameThread, AddTaskToGameThread
 
@@ -69,7 +70,7 @@ namespace BlackFlame
     /// The first a_max runs per a_what (a string literal): which thread it ran on
     inline void LogThread(const char* a_what, const char* a_kind, int a_max = kMaxThreadLogs)
     {
-        static std::mutex mutex;
+        static TrackedMutex mutex;
         static auto* counts = std::make_unique<std::unordered_map<const char*, int>>().release();
         int run = 0;
         {

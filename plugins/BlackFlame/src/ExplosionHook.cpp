@@ -1,4 +1,5 @@
 #include "ExplosionHook.h"
+#include "TrackedMutex.h"
 
 #include "Attribution.h"
 #include "BuffState.h"
@@ -52,7 +53,7 @@ namespace BlackFlame
 
         // Explosions to tint once more next tick, under g_lightsMutex (tasks and the message handler
         // reach it). Heap-held and never freed like the other layers' lists.
-        std::mutex g_lightsMutex;
+        TrackedMutex g_lightsMutex;
 
         std::vector<RE::ObjectRefHandle>& PendingLights()
         {
@@ -119,7 +120,7 @@ namespace BlackFlame
         // Every explosion is decided once, whichever hook sees its 3D first with its attribution known
         // (Set3D, Initialize or Update). Keyed by its reference handle, whose age bits differ when a
         // slot is reused. Past the cap only handles whose explosion is gone are dropped.
-        std::mutex g_processedMutex;
+        TrackedMutex g_processedMutex;
         constexpr std::size_t kMaxProcessed = 512;
 
         std::unordered_map<std::uint32_t, RE::ObjectRefHandle>& Processed()

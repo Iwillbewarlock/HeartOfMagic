@@ -17,7 +17,6 @@ namespace BlackFlame::SelfTest
 {
     namespace
     {
-        constexpr auto kReadyDelay = std::chrono::seconds(3);
         constexpr auto kArmedLimit = std::chrono::minutes(5);       // never started by then: disarm
         constexpr auto kNominalTick = std::chrono::milliseconds(100);
         constexpr auto kMaxTickGap = std::chrono::milliseconds(500);  // a longer gap counts as paused time
@@ -31,7 +30,9 @@ namespace BlackFlame::SelfTest
         std::size_t g_index = 0;
         Clock::time_point g_armedAt;
         Clock::time_point g_lastTick;
-        std::optional<Clock::time_point> g_readySince;
+        // C1: unpaused play counted since the arm (config selfTestDelaySeconds); menus, loading and pauses add nothing
+        Clock::duration g_readyPlay{};
+        std::optional<Clock::time_point> g_lastReadyCheck;
         Ctx g_ctx;
 
         bool PlayerReady()
@@ -189,20 +190,22 @@ namespace BlackFlame::SelfTest
 
         bool StartWhenReady(Clock::time_point a_now)
         {
-            if (a_now - g_armedAt > kArmedLimit) {
+            const auto delay = std::chrono::duration_cast<Clock::duration>(
+                std::chrono::duration<float>(GetConfig().selfTestDelaySeconds));
+            if (a_now - g_armedAt > kArmedLimit + delay) {
                 logger::info("BlackFlame: self-test disarmed: it could not start within {} minutes", kArmedLimit.count());
                 g_armed = false;
                 g_active.store(false);
                 return false;
             }
+            const auto gap = g_lastReadyCheck ? std::min<Clock::duration>(a_now - *g_lastReadyCheck, kMaxTickGap) :
+                                                Clock::duration{};
+            g_lastReadyCheck = a_now;
             if (!PlayerReady()) {
-                g_readySince.reset();
-                return false;
+                return false;  // not counted (a menu, a load, a pause)
             }
-            if (!g_readySince) {
-                g_readySince = a_now;
-            }
-            if (a_now - *g_readySince < kReadyDelay) {
+            g_readyPlay += gap;
+            if (g_readyPlay < delay) {
                 return false;
             }
             g_armed = false;
@@ -242,9 +245,11 @@ namespace BlackFlame::SelfTest
         }
         g_armed = true;
         g_armedAt = Clock::now();
-        g_readySince.reset();
+        g_readyPlay = {};
+        g_lastReadyCheck.reset();
         g_active.store(true);
-        logger::info("BlackFlame: self-test armed (starts when the player is in a loaded cell and the game is not paused)");
+        logger::info("BlackFlame: self-test armed: starts after {:.0f} s of unpaused play with the player in a loaded cell "
+                     "(config selfTestDelaySeconds; menus, loading and pauses are not counted)", GetConfig().selfTestDelaySeconds);
     }
 
     void Abort(const char* a_reason)

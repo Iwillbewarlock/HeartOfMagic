@@ -9,6 +9,7 @@
 #include "PlayerArt.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "ThreadTrace.h"
 
 #include <atomic>
 #include <chrono>
@@ -74,6 +75,7 @@ namespace BlackFlame
                 TickPlayerArt();  // layer 4: bound fire weapons, fire light effects
             }
             SelfTest::Tick();  // does nothing unless config selfTest armed it
+            ThreadTrace::NoteTickEnd();  // the watchdog measures stalls from here (Watchdog.h)
         }
 
         void TickerLoop()

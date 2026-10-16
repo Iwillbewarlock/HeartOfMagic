@@ -61,6 +61,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
 | `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
+| `selfTestDelaySeconds` | `30` | Seconds of unpaused play (player in a loaded cell, no menu, not loading) after the load before the self-test's first step, and before E3 judges after its quickload (0..600) |
 | `tintScale` | `0.6` | Base colour RGB = luminance x tintScale (0..2), alpha kept |
 | `lightColor` | `[0.25, 0.22, 0.28]` | RGB 0..1 for the tinted lights |
 
@@ -395,6 +396,16 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 - Threads: SKSE tasks run in the SKSE task phase of Main::Update (main thread, per SKSE 2.2.8 Hooks_Threads.cpp); kDataLoaded runs on an init thread. The game thread is stamped by the first SKSE task (queued at `SKSEPlugin_Load`), which logs `taskThread=`, `loadThread=` and `Main::threadID=` in one line. Log lines that print a stored thread label it (`hookThread=`, `callerThread=`, `gameThread=`), so the log prefix's own thread id is not confused with it. Lists shared between tasks, the message handler and hooks are under mutexes. Since v2 a pending script tag is judged (`ResolvePending`) from any task or ticker body whatever thread runs it - run 2 showed SKSE task bodies on several threads - under the same VM handle policy checks; its first runs log their thread.
 - A pending script tag (a wrapped call on a VM thread) is judged by a task right after the call; if the calling effect has already ended by then, it leaves no tag. A second pending caller on a live pending tag is dropped (the first is kept until judged), so the player's tag can be lost when another effect's pending call on the same reference came first. A projectile decided by the deferred path (only a pending tag matched at its hook) does not log the material check. The explosion side of the impact swap lives in the Explosion Update hook (installed whatever `explosion` says since v2). The hazard swap has no PASS/FAIL step: T6-hazard counts, the log lines tell.
 - The grey swap is not run in game yet: whether the grey copies draw grey, whether an impact hazard is created inside the impact window (log `loaded inside the player's impact window`), and the 1.6.1170 code offsets are open.
+- Hangs (v2 fix C6, measurement only): a watchdog thread flushes the log every second (every info line at once
+  while the self-test records) and logs every SKSE message with its thread. Every traced body (`ThreadTrace.h`)
+  writes a START and an END entry and holds a slot in an open-body table; our mutexes are `TrackedMutex`
+  (`TrackedMutex.h`), which keep their owner thread. When no ticker body has finished for 10 s while no load is
+  under way and the game is not paused, the log gets one `STALL` block: the last 64 trace entries, every body
+  started and not ended (kind, thread, since when) and every held mutex with its owner and declaration; `stall
+  over` when ticks come back. A STALL with no open body and no held mutex means the hang is outside our traced
+  code. For the stacks of a hung game, leave it running and run `cdbX64 -pv -p <pid> -c "~*kb 30;q"` (cdb from
+  the Windows SDK Debugging Tools; `-pv` attaches without stopping the process for long, `~*kb 30` prints 30
+  frames of every thread); the thread ids in the STALL block are the ones to look for.
 - Diagnostic build: every step runs under an SEH guard. A fault (access violation and the like) logs the step, code and module+offset and switches that step off for the session (later calls counted); restores are the exception, guarded item by item and never switched off. A fault inside engine code that holds an engine lock may hang the game rather than crash it; the first `hardware exception` line names the step.
 
 ## Self-test
@@ -406,8 +417,9 @@ The DLL can check most of itself in game, from the engine's own data, and write 
    the end.
 2. Set `"selfTest": true` in `HeartOfMagic_BlackFlame.json` (the Stoke spell does not need to be known).
 3. Load the save and wait about 90 s without opening a menu, and **do not save while the test runs yourself**. It
-   starts 3 s after the player is in a loaded cell with the game unpaused, runs once per game session, and is
-   disarmed if it could not start within 5 minutes. Time in menus or with the game paused does not count
+   starts after `selfTestDelaySeconds` (default 30) of unpaused play with the player in a loaded cell - time in
+   menus, loading screens or with the game paused is not counted, and the arm line in the log says the delay -
+   runs once per game session, and is disarmed if it could not start within 5 minutes plus that delay. Time in menus or with the game paused does not count
    against a step's timeout. Loading another save or starting a new game stops it (`ABORT`), leaving its
    actors and buff to the load.
 4. Read `Documents/My Games/Skyrim Special Edition/SKSE/HeartOfMagic_BlackFlame_selftest.txt` (the same

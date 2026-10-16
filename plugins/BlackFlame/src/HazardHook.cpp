@@ -1,4 +1,5 @@
 #include "HazardHook.h"
+#include "TrackedMutex.h"
 
 #include "Attribution.h"
 #include "BuffState.h"
@@ -39,7 +40,7 @@ namespace BlackFlame
             Clock::time_point queuedAt{};
         };
 
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::atomic<std::size_t> g_pendingCount{ 0 };
         std::atomic<int> g_diagnostics{ 0 };
         std::atomic<int> g_threadLogs{ 0 };

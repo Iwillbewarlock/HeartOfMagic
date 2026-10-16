@@ -211,7 +211,8 @@ namespace BlackFlame::SelfTest
     // threads overlapped. Measurement only; no gate depends on it. Meant to observe: no recorded body is a FAIL.
     bool StepThreads(Ctx&, bool)
     {
-        const auto entries = ThreadTrace::Snapshot();
+        auto entries = ThreadTrace::Snapshot();
+        std::erase_if(entries, [](const auto& a_e) { return a_e.end == 0; });  // START entries (C6c)
         const auto game = g_gameThreadNativeId.load();
         for (const auto& line : ThreadTrace::Report(game)) {
             SelfTestLog::Info("T-threads", line);

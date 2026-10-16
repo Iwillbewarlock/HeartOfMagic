@@ -1,4 +1,5 @@
 #include "HitArt.h"
+#include "TrackedMutex.h"
 
 #include "GameThread.h"
 #include "HitEffectHook.h"
@@ -33,7 +34,7 @@ namespace BlackFlame
             int ticks = 0;
         };
 
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::atomic<std::size_t> g_pendingCount{ 0 };
         std::atomic<int> g_overflow{ 0 };
 

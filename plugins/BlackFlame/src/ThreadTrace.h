@@ -26,8 +26,28 @@ namespace BlackFlame::ThreadTrace
         const char* kind = "";  // a string literal (compared by pointer and printed)
         std::uint32_t thread = 0;
         std::int64_t start = 0;  // steady_clock ticks
-        std::int64_t end = 0;
+        std::int64_t end = 0;    // 0: a START entry (C6c: the body began; its END entry follows when it ends)
     };
+
+    /// A body that started and has not ended (C6c), from the open-body table
+    struct OpenBody
+    {
+        const char* kind = "";
+        std::uint32_t thread = 0;
+        std::int64_t start = 0;
+    };
+
+    /// Every body started and not ended now (any thread, read only)
+    [[nodiscard]] std::vector<OpenBody> OpenBodies();
+
+    /// The ticker body finished (BuffState Tick); the watchdog measures stalls from it
+    void NoteTickEnd() noexcept;
+
+    /// steady_clock ticks of the last NoteTickEnd, 0 before the first
+    [[nodiscard]] std::int64_t LastTickEnd() noexcept;
+
+    /// The last a_count ring entries (START and END), oldest first
+    [[nodiscard]] std::vector<Entry> LastEntries(std::size_t a_count);
 
     /// Any thread: records one finished body
     void Record(const char* a_kind, std::uint32_t a_thread, std::int64_t a_start, std::int64_t a_end) noexcept;
@@ -47,6 +67,7 @@ namespace BlackFlame::ThreadTrace
     private:
         const char* m_kind;
         std::int64_t m_start;
+        int m_slot;  // its open-body slot, -1 when the table was full
     };
 
     /// The complete entries in the ring now (any thread)

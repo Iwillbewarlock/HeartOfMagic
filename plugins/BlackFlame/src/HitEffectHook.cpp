@@ -1,4 +1,5 @@
 #include "HitEffectHook.h"
+#include "TrackedMutex.h"
 
 #include "BuffState.h"
 #include "Config.h"
@@ -122,7 +123,7 @@ namespace BlackFlame
         // by them), so the log shows whether a call comes once per effect or again and again
         int CallNumber(const Controller* a_this)
         {
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static auto* counts = std::make_unique<std::unordered_map<const Controller*, int>>().release();
             std::lock_guard lock(mutex);
             return ++(*counts)[a_this];

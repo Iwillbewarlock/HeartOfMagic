@@ -25,6 +25,8 @@ set(BLACKFLAME_SOURCES
     src/FormCopiesFill.cpp
     src/Palette.cpp
     src/ThreadTrace.cpp
+    src/TrackedMutex.cpp
+    src/Watchdog.cpp
     src/BuffState.cpp
     src/EffectEvents.cpp
     src/HitEffectHook.cpp

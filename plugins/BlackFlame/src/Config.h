@@ -32,6 +32,7 @@ namespace BlackFlame
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)
         float tintScale = 0.6f;   // baseColor RGB = luminance * tintScale
+        float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test (and E3's judgement) starts
         RE::NiColor lightColor{ 0.25f, 0.22f, 0.28f };
     };
 

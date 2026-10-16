@@ -1,4 +1,5 @@
 #include "Attribution.h"
+#include "TrackedMutex.h"
 
 #include "ScriptTags.h"
 
@@ -16,7 +17,7 @@ namespace BlackFlame
         // off, or a cast we cannot see), once per layer
         void LogCauseOnce(const char* a_layer, RE::TESObjectREFR* a_ref)
         {
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
             {
                 std::lock_guard lock(mutex);
@@ -80,7 +81,7 @@ namespace BlackFlame
         if (a_link == PlayerLink::kNone) {
             return;
         }
-        static std::mutex mutex;
+        static TrackedMutex mutex;
         static auto* logged = std::make_unique<std::set<std::pair<const char*, PlayerLink>>>().release();
         {
             std::lock_guard lock(mutex);

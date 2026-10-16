@@ -33,6 +33,23 @@ namespace BlackFlame::ThreadTrace
         }
 
         constexpr std::size_t kMaxThreadsListed = 8;
+        constexpr std::size_t kOpenSlots = 128;
+
+        // C6c: bodies started and not ended; a slot is free while its thread is 0
+        struct OpenSlot
+        {
+            std::atomic<std::uint32_t> thread{ 0 };
+            std::atomic<const char*> kind{ nullptr };
+            std::atomic<std::int64_t> start{ 0 };
+        };
+
+        std::array<OpenSlot, kOpenSlots>& Open()
+        {
+            static auto* open = std::make_unique<std::array<OpenSlot, kOpenSlots>>().release();
+            return *open;
+        }
+
+        std::atomic<std::int64_t> g_lastTickEnd{ 0 };
     }
 
     std::int64_t Now() noexcept
@@ -53,12 +70,63 @@ namespace BlackFlame::ThreadTrace
     }
 
     Scope::Scope(const char* a_kind) noexcept :
-        m_kind(a_kind), m_start(Now())
-    {}
+        m_kind(a_kind), m_start(Now()), m_slot(-1)
+    {
+        const auto thread = REX::W32::GetCurrentThreadId();
+        Record(m_kind, thread, m_start, 0);  // the START entry
+        auto& open = Open();
+        for (std::size_t i = 0; i < kOpenSlots; ++i) {
+            std::uint32_t free = 0;
+            if (open[i].thread.compare_exchange_strong(free, thread)) {
+                open[i].kind.store(m_kind);
+                open[i].start.store(m_start);
+                m_slot = static_cast<int>(i);
+                break;
+            }
+        }
+    }
 
     Scope::~Scope()
     {
+        if (m_slot >= 0) {
+            auto& slot = Open()[static_cast<std::size_t>(m_slot)];
+            slot.kind.store(nullptr);
+            slot.thread.store(0);
+        }
         Record(m_kind, REX::W32::GetCurrentThreadId(), m_start, Now());
+    }
+
+    std::vector<OpenBody> OpenBodies()
+    {
+        std::vector<OpenBody> out;
+        for (auto& slot : Open()) {
+            const auto thread = slot.thread.load();
+            const auto* kind = slot.kind.load();
+            if (thread != 0 && kind) {
+                out.push_back({ kind, thread, slot.start.load() });
+            }
+        }
+        return out;
+    }
+
+    void NoteTickEnd() noexcept
+    {
+        g_lastTickEnd.store(Now());
+    }
+
+    std::int64_t LastTickEnd() noexcept
+    {
+        return g_lastTickEnd.load();
+    }
+
+    std::vector<Entry> LastEntries(std::size_t a_count)
+    {
+        auto all = Snapshot();
+        std::ranges::sort(all, {}, [](const Entry& a_e) { return a_e.end != 0 ? a_e.end : a_e.start; });
+        if (all.size() > a_count) {
+            all.erase(all.begin(), all.end() - static_cast<std::ptrdiff_t>(a_count));
+        }
+        return all;
     }
 
     std::vector<Entry> Snapshot()
@@ -93,6 +161,7 @@ namespace BlackFlame::ThreadTrace
         // O(n log n + n * k), k = intervals alive at once (small)
         std::map<KindPair, std::size_t> Overlaps(std::vector<Entry> a_entries)
         {
+            std::erase_if(a_entries, [](const Entry& a_e) { return a_e.end == 0; });  // START entries
             std::ranges::sort(a_entries, {}, &Entry::start);
             std::map<KindPair, std::size_t> pairs;
             std::vector<const Entry*> active;
@@ -126,7 +195,8 @@ namespace BlackFlame::ThreadTrace
 
     std::vector<std::string> Report(std::uint32_t a_gameThread)
     {
-        const auto entries = Snapshot();
+        auto entries = Snapshot();
+        std::erase_if(entries, [](const Entry& a_e) { return a_e.end == 0; });  // START entries: counted by their END
         std::map<std::string, std::map<std::uint32_t, std::size_t>> byKind;
         for (const auto& e : entries) {
             ++byKind[e.kind][e.thread];

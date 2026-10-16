@@ -1,4 +1,5 @@
 #include "Recolor.h"
+#include "TrackedMutex.h"
 
 #include "Config.h"
 #include "Palette.h"
@@ -25,7 +26,7 @@ namespace BlackFlame
         // property at a reused address would be left alone until the next load clears this).
         // Under g_failedMutex: recolours run from tasks whose thread is not proven to be one thread
         // (first in-game run); heap-held and never freed, like the other layers' lists.
-        std::mutex g_failedMutex;
+        TrackedMutex g_failedMutex;
 
         std::unordered_set<const RE::BSEffectShaderProperty*>& FailedProperties()
         {
@@ -384,7 +385,7 @@ namespace BlackFlame
         const char* kind = nullptr;
         auto* light = AsNiLight(a_raw, kind);
         if (a_raw) {
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
             bool first = false;
             {

@@ -1,4 +1,6 @@
 #include "SelfTestProbe.h"
+#include "Watchdog.h"
+#include "TrackedMutex.h"
 
 #include "Palette.h"
 #include "ParticleColors.h"
@@ -14,7 +16,7 @@ namespace BlackFlame::SelfTestProbe
         constexpr std::size_t kRgbaFloats = 4;
 
         std::atomic<bool> g_recording{ false };
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::uint64_t g_nextSeq = 1;  // guarded by g_mutex
         std::vector<ProjectileRecord> g_projectiles;
         std::vector<ExplosionRecord> g_explosions;
@@ -78,6 +80,7 @@ namespace BlackFlame::SelfTestProbe
 
     void SetRecording(bool a_on) noexcept
     {
+        Watchdog::SetFlushEveryLine(a_on);  // C6a: during the self-test every info line reaches the file at once
         g_recording.store(a_on, std::memory_order_release);
     }
 

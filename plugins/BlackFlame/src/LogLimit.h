@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "TrackedMutex.h"
 
 #include <chrono>
 #include <cstdint>
@@ -29,7 +30,7 @@ namespace BlackFlame
         /// gets the number held back since the last one written (then reset).
         [[nodiscard]] static bool Allow(std::string_view a_kind, RE::FormID a_spell, int& a_suppressed)
         {
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static std::unordered_map<std::string, Entry> entries;
             const auto now = std::chrono::steady_clock::now();
             std::lock_guard lock(mutex);

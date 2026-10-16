@@ -1,6 +1,8 @@
 #include "SelfTestReload.h"
+#include "TrackedMutex.h"
 
 #include "BuffState.h"
+#include "Config.h"
 #include "FormCopies.h"
 #include "Forms.h"
 #include "SelfTestLog.h"
@@ -24,7 +26,6 @@ namespace BlackFlame::SelfTest::Reload
         constexpr float kMarkerForward = 300.0f;
         constexpr auto kBuffWait = std::chrono::seconds(3);
         constexpr auto kRuneWait = std::chrono::seconds(3);
-        constexpr auto kReadyDelay = std::chrono::seconds(3);
         constexpr int kMaxRefScan = 4096;
         constexpr float kGameDaysSlack = 0.0001f;  // ~9 game seconds at the default timescale
         constexpr float kGameDaysWindow = 1.0f;     // W2: a save more than a game day after the request is not E3's
@@ -52,10 +53,11 @@ namespace BlackFlame::SelfTest::Reload
             bool preloadSeen = false;
             Clock::time_point preloadAt{};
             Clock::time_point resumeAt{};
-            std::optional<Clock::time_point> readySince;
+            Clock::duration readyPlay{};  // C1: unpaused play since the load, against config selfTestDelaySeconds
+            std::optional<Clock::time_point> lastReadyCheck;
             RE::ObjectRefHandle runeHandle;  // valid only in the world E3 asked in
         };
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         E3 g_e3;
 
         // Step-local (game thread, reset at the step's first call)
@@ -415,7 +417,8 @@ namespace BlackFlame::SelfTest::Reload
             const bool inTime = Clock::now() - g_e3.askedAt <= kE3Window;
             if (a_success && g_e3.preloadSeen && inTime) {
                 g_e3.state = State::kResume;
-                g_e3.readySince.reset();
+                g_e3.readyPlay = {};
+                g_e3.lastReadyCheck.reset();
                 g_e3.resumeAt = Clock::now();
                 return true;
             }
@@ -468,7 +471,9 @@ namespace BlackFlame::SelfTest::Reload
         if (e3.state != State::kResume) {
             return;
         }
-        if (now - e3.resumeAt > kResumeWait) {  // W3: the player never became ready after the load
+        const auto delay = std::chrono::duration_cast<Clock::duration>(
+            std::chrono::duration<float>(GetConfig().selfTestDelaySeconds));
+        if (now - e3.resumeAt > kResumeWait + delay) {  // W3: the player never became ready after the load
             Disarm();
             Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes of the load",
                 kResumeWait.count()));
@@ -476,18 +481,19 @@ namespace BlackFlame::SelfTest::Reload
         }
         auto* player = Player();
         auto* ui = RE::UI::GetSingleton();
-        if (!player || !ui || !player->Is3DLoaded() || !player->GetParentCell() || ui->GameIsPaused()) {
+        constexpr auto kMaxGap = std::chrono::milliseconds(500);  // a longer gap between ticks is paused time
+        const bool ready = player && ui && player->Is3DLoaded() && player->GetParentCell() && !ui->GameIsPaused();
+        {
             std::lock_guard lock(g_mutex);
-            g_e3.readySince.reset();
-            return;
-        }
-        if (!e3.readySince) {
-            std::lock_guard lock(g_mutex);
-            g_e3.readySince = now;
-            return;
-        }
-        if (now - *e3.readySince < kReadyDelay) {
-            return;
+            const auto gap = g_e3.lastReadyCheck ? std::min<Clock::duration>(now - *g_e3.lastReadyCheck, kMaxGap) :
+                                                   Clock::duration{};
+            g_e3.lastReadyCheck = now;
+            if (ready) {
+                g_e3.readyPlay += gap;
+            }
+            if (!ready || g_e3.readyPlay < delay) {
+                return;  // C1: the same unpaused-play delay as the run's start
+            }
         }
         Disarm();
         try {

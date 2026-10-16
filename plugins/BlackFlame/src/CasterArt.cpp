@@ -1,4 +1,5 @@
 #include "CasterArt.h"
+#include "TrackedMutex.h"
 
 #include "Config.h"
 #include "FireSet.h"
@@ -69,7 +70,7 @@ namespace BlackFlame
             std::array<HandState, kHandCount> hands{};
         };
 
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::atomic<std::uint32_t> g_restoreGeneration{ 0 };  // bumped by every restore, inside g_mutex
         thread_local std::optional<std::uint32_t> t_tickGeneration;  // set while a hand tick runs
 

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "CopySwap.h"
+#include "TrackedMutex.h"
 
 #include "Attribution.h"
 #include "BuffState.h"
@@ -59,7 +60,7 @@ namespace BlackFlame
         // The fallback the user chose: a player's fire form without a copy stays orange, said once per form
         void LogNoCopyOnce(const RE::TESForm* a_form, const char* a_what)
         {
-            static std::mutex mutex;
+            static TrackedMutex mutex;
             static auto* logged = std::make_unique<std::unordered_set<RE::FormID>>().release();
             {
                 std::lock_guard lock(mutex);

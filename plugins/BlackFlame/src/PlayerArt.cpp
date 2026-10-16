@@ -1,4 +1,5 @@
 #include "PlayerArt.h"
+#include "TrackedMutex.h"
 
 #include "CasterArt.h"
 #include "Config.h"
@@ -44,7 +45,7 @@ namespace BlackFlame
 
         // The player's bound fire weapons, refreshed by the ticker task (the only place the player's
         // effect list is read); the projectile hook only compares FormIDs under the lock
-        std::mutex g_boundMutex;
+        TrackedMutex g_boundMutex;
 
         std::vector<RE::FormID>& BoundFire()
         {

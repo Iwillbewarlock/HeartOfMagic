@@ -17,6 +17,8 @@ namespace BlackFlame
         constexpr float kMinLightChannel = 0.0f;
         constexpr float kMaxLightChannel = 1.0f;
         constexpr std::size_t kLightChannels = 3;
+        constexpr float kMinSelfTestDelay = 0.0f;
+        constexpr float kMaxSelfTestDelay = 600.0f;
 
         Config g_config;
 
@@ -49,7 +51,7 @@ namespace BlackFlame
 
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "tintScale" || key == "lightColor" || key == "burnMode") {
+            if (key == "tintScale" || key == "lightColor" || key == "burnMode" || key == "selfTestDelaySeconds") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -106,6 +108,20 @@ namespace BlackFlame
             out.tintScale = value;
         }
 
+        void ReadSelfTestDelay(const nlohmann::json& j, Config& out)
+        {
+            const auto it = j.find("selfTestDelaySeconds");
+            if (it == j.end()) {
+                return;
+            }
+            if (!it->is_number() || it->get<float>() < kMinSelfTestDelay || it->get<float>() > kMaxSelfTestDelay) {
+                logger::warn("BlackFlame: config 'selfTestDelaySeconds' {} is not a number in {}..{} - keeping {}", it->dump(),
+                    kMinSelfTestDelay, kMaxSelfTestDelay, out.selfTestDelaySeconds);
+                return;
+            }
+            out.selfTestDelaySeconds = it->get<float>();
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -141,10 +157,11 @@ namespace BlackFlame
             logger::info(
                 "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
                 "forcePalette={} selfTest={} particleColors={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} tintScale={} lightColor=[{}, {}, {}]",
+                "copyImpacts={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
                 g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap, g_config.hazardSwap, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
+                g_config.selfTestDelaySeconds,
                 g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
                 logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "
@@ -179,6 +196,7 @@ namespace BlackFlame
         ReadBools(j, next);
         ReadBurnMode(j);
         ReadTintScale(j, next);
+        ReadSelfTestDelay(j, next);
         ReadLightColor(j, next);
         g_config = next;
         LogConfig();

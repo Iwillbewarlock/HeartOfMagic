@@ -1,4 +1,5 @@
 #include "SehGuard.h"
+#include "TrackedMutex.h"
 
 #ifndef NOMINMAX
 #    define NOMINMAX
@@ -31,7 +32,7 @@ namespace BlackFlame
 
         constexpr std::uint64_t kSkipLogFactor = 10;  // skipped calls logged at 1, 10, 100, ...
 
-        std::mutex g_mutex;
+        TrackedMutex g_mutex;
         std::atomic<bool> g_anyFault{ false };  // no lookup at all until some step faulted
 
         // Guarded by g_mutex; keyed by the step name's content (one name at several call sites is one

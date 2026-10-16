@@ -1,4 +1,5 @@
 #include "PapyrusWrap.h"
+#include "TrackedMutex.h"
 
 #include "BuffState.h"
 #include "Config.h"
@@ -299,7 +300,7 @@ namespace BlackFlame
         // Our proxies by target, held by our own smart pointer for as long as we report them (stored only when
         // the bind took); recognised by pointer: MSVC RTTI cannot see our class through skyrim_cast. Under
         // g_proxyMutex; heap-held and never freed (no DecRef into the game heap at DLL unload).
-        std::mutex g_proxyMutex;
+        TrackedMutex g_proxyMutex;
         std::array<std::atomic<bool>, kTargets.size()> g_reboundWarned{};
 
         std::array<RE::BSTSmartPointer<NativeProxy>, kTargets.size()>& Proxies()
