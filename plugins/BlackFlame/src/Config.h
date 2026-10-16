@@ -31,6 +31,9 @@ namespace BlackFlame
         bool copyImpacts = true;          // GetImpactData inside a copy window returns the impact copy
         bool writeRequest = false;        // kDataLoaded: write the copy request and the NIF dump for the builder (CopyRequest.h);
                                           // J7: off for players (no NIF is read), on in the tester package
+        bool copyPlaced = true;           // PlaceAtMe from the player's fire effect script: akFormToPlace becomes its copy
+        bool copyCastingArt = true;       // SetCastingArt: the player's fire hand art becomes its copy (CopySwapArt.cpp)
+        bool copyHazardCreate = true;     // hazard creation: the base becomes its copy (copy window, spawn-hazard effect)
         bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)

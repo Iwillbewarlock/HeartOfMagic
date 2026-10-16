@@ -45,6 +45,9 @@ namespace BlackFlame
             BoolKey{ "copyExplosionCreate", &Config::copyExplosionCreate },
             BoolKey{ "copyImpacts", &Config::copyImpacts },
             BoolKey{ "copyHitArt", &Config::copyHitArt },
+            BoolKey{ "copyCastingArt", &Config::copyCastingArt },
+            BoolKey{ "copyPlaced", &Config::copyPlaced },
+            BoolKey{ "copyHazardCreate", &Config::copyHazardCreate },
             BoolKey{ "writeRequest", &Config::writeRequest },
             BoolKey{ "forcePalette", &Config::forcePalette },
             BoolKey{ "selfTest", &Config::selfTest },
@@ -160,11 +163,11 @@ namespace BlackFlame
             logger::info(
                 "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
                 "forcePalette={} selfTest={} particleColors={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} copyHitArt={} writeRequest={} testerMode={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
+                "copyImpacts={} copyHitArt={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
                 g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap, g_config.hazardSwap, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
-                g_config.copyHitArt, g_config.writeRequest, g_config.testerMode, g_config.selfTestDelaySeconds,
+                g_config.copyHitArt, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.selfTestDelaySeconds,
                 g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
                 logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "

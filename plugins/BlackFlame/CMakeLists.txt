@@ -49,6 +49,8 @@ set(BLACKFLAME_SOURCES
     src/Patch.cpp
     src/CopySwapLaunch.cpp
     src/CopySwapImpact.cpp
+    src/CopySwapArt.cpp
+    src/CopySwapHazard.cpp
     src/HitEvents.cpp
     src/HazardSwap.cpp
     src/GreyCheck.cpp

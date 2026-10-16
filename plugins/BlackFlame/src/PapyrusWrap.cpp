@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "GameThread.h"
 #include "HitEffectHook.h"
 #include "SehGuard.h"
@@ -186,6 +187,50 @@ namespace BlackFlame
             a_out.callerRef = HandleOf(static_cast<RE::TESObjectREFR*>(object->Resolve(refType)));
         }
 
+        std::atomic<std::uint64_t> g_placeSwaps{ 0 };
+        std::atomic<bool> g_placePendingLogged{ false };
+
+        // C4 (swap point 8): the caller is settled as the player's fire right now - a reference whose tag is confirmed, or on
+        // the game thread an ActiveEffect the player cast whose MGEF is fire. A pending tag (a VM thread) is not settled.
+        bool SettledNow(const Decision& a_decision)
+        {
+            if (const auto ref = a_decision.callerRef.get(); ref && TagInfoOf(ref.get()).state == TagState::kConfirmed) {
+                return true;
+            }
+            return IsOnGameThread() && CallerIsPlayersFireEffect(a_decision.caller);
+        }
+
+        // PlaceAtMe's akFormToPlace (argument 0) becomes its copy when it is a HAZD, EXPL or PROJ with one and the caller is
+        // settled now; only the argument of this call changes (the native's own frame), no engine state
+        void SwapPlacedForm(const RE::BSScript::StackFrame& a_frame, const Decision& a_decision)
+        {
+            if (!GetConfig().copyPlaced) {
+                return;
+            }
+            auto& argument = a_frame.GetStackFrameVariable(0, a_frame.GetPageForFrame());
+            auto* form = argument.Unpack<RE::TESForm*>();
+            const auto type = form ? form->GetFormType() : RE::FormType::None;
+            if (type != RE::FormType::Hazard && type != RE::FormType::Explosion && type != RE::FormType::Projectile) {
+                return;
+            }
+            auto* copy = IsCopy(form) ? nullptr : CopyOf(form);
+            if (!copy) {
+                return;
+            }
+            if (!SettledNow(a_decision)) {
+                if (!g_placePendingLogged.exchange(true)) {
+                    logger::info("BlackFlame: PlaceAtMe of {:08X} (has a copy) from a caller not settled yet (a VM thread): "
+                                 "placed as it is, it stays orange; not logged again", form->GetFormID());
+                }
+                return;
+            }
+            argument.Pack(copy);
+            if (g_placeSwaps.fetch_add(1) == 0) {
+                logger::info("BlackFlame: PlaceAtMe: {:08X} placed as its copy {:08X} for the player's fire (first of its kind)",
+                    form->GetFormID(), copy->GetFormID());
+            }
+        }
+
         // A spell with any fire MGEF (script-cast spells need not be counted kSpell spells). Spell
         // records are immutable after load: safe on any thread
         bool CarriesFire(const RE::SpellItem* a_spell)
@@ -269,6 +314,7 @@ namespace BlackFlame
                     }
                     return false;  // the source is tagged before the cast runs
                 }
+                SwapPlacedForm(a_frame, a_out);
                 return true;
             }
 

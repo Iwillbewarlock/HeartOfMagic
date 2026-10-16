@@ -653,3 +653,13 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - 낡음: none(맵 없음·항목 0) / pluginMissing(Copies.esp 미로드 또는 항목 절반 넘게 사본 폼 없음) / stale(v1 맵, 지문 다름) / fresh. 지문은 writeRequest가 계산한 바이트 형태, 아니면 크기 형태(스트림 열기만, 바이트 안 읽음).
 - 세션당 한 번 첫 불러오기·새 게임에 메인 큐로 SendHUDMessage(영어), 큐가 없으면 로그만. 사본 없는 폼은 폼마다 한 번 로그에 상태와 이유.
 - tester.txt에 낡음 상태와 맵 버전.
+
+### v2 확장 C4: 손 아트, 해저드 생성, PlaceAtMe
+
+- SetCastingArt: 38784(SE 37830) 앞 0x200바이트에서 SetCastingArt로 가는 E8을 찾는다(pdata가 나뉘어 함수표 범위 스캔은 놓침), 정확히 1개. +0x91 대체는 1170·1.7.104만.
+  썽크는 caster·art vtable 확인 뒤 PickCastingArtImpl(플레이어, 손, 선택 주문 불, art == 가장 비싼 효과 castingArt, 버프 중) → 사본. rax 전달. 플레이어 호출 40줄 계측.
+- R-H(1.7.104): 34360은 create data를 스택에 만들고 43954 호출, 효과는 r13. 34360 첫머리 우회로 thread_local 창(SpawnHazardEffect vtable일 때만). 43954 우회: 기반 BGSHazard vtable·셀 vtable 확인,
+  복사 창 또는 플레이어 불 spawn-hazard 효과면 사본, 호출 뒤 복원. 레지스터 인자 4개 전달.
+- PlaceAtMe: 호출자가 지금 확정(확정 태그 참조, 또는 게임 스레드에서 플레이어 불 ActiveEffect)일 때 akFormToPlace(HAZD·EXPL·PROJ)를 사본으로(그 호출의 인자만). 대기 중이면 원본, 로그 1회.
+- ImpactSwap/HazardSwap은 사본을 건너뛰라고 따로 고치지 않았다: 사본 모델은 copies\ 아래라 회색 맵에 없고, 원본 경로를 지닌 경고-계속 사본은 회색 맵 모델로 바뀌는 게 의도된 대체.
+- 설정 copyCastingArt, copyHazardCreate, copyPlaced(기본 true). 트램펄린 사용 최대 274바이트(512).

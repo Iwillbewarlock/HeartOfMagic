@@ -61,6 +61,9 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
 | `writeRequest` | `false` | v2 expansion: write the copy request and the NIF dump for the builder at kDataLoaded (section "Copy request"). Off for players: then no NIF is read at startup; the tester package turns it on |
 | `testerMode` | `false` | the tester package: `selfTest` and `writeRequest` forced on, every log line written through at once (section "Runtimes and Address Library ids") |
+| `copyCastingArt` | `true` | v2 expansion C4: SetCastingArt's call gives the player's fire hand art its copy (section "Swap points") |
+| `copyHazardCreate` | `true` | v2 expansion C4: hazard creation gives the hazard its copy inside a copy window or from the player's fire spawn-hazard effect |
+| `copyPlaced` | `true` | v2 expansion C4: PlaceAtMe called by the player's fire effect script places the copy of a HAZD, EXPL or PROJ |
 | `copyHitArt` | `true` | v2 (ARTO spike): the hit art of the player's fire effects is the art's ARTO copy when it has one - `GetHitEffectArt` returns the copy, so the engine builds the art's 3D from the copy's grey NIF; an art without a copy keeps the engine's art (recoloured only under `hitArt`) |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
@@ -444,6 +447,14 @@ a weapon source (+0x38) on the player's bound fire weapon list counts; an enchan
 | explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | on every runtime whose prologue the replay decoder takes (layout read on 1.7.104, every pointer checked elsewhere; see "Runtimes and Address Library ids"), and only when explosion copies exist. The create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
 | `GetImpactData` (SE 20408 / AE 20860) calls in `SpawnCollisionEffects` (43022 / 44213) and the explosion's impact function (42679 / 43851) | `copyImpacts` | inside a copy window the impact copy is returned for the impact the set would return (no IPDS copy, no hash map insert). The window opens on the impact call sites (section "Grey swap") when the projectile's base is a copy, and in `Explosion::Update` when the explosion's base is a copy. The round-10 model window (GetModel swap) stays for projectiles and explosions without a copy |
 
+| SetCastingArt (SE 33369 / AE 34150) call in SE 37830 / AE 38784 | `copyCastingArt` | v2 expansion C4. On 1.7.104 it is the only E8 to SetCastingArt in the executable (no pointer to it either), inside a function that reads `selectedSpells[slot]`, takes that spell's costliest effect (`GetAVEffect`) and its `castingArt`. The site is found on every runtime by scanning the caller's first 0x200 bytes for E8s to SetCastingArt (its pdata is split, so a function-table scan would miss it): exactly one must be there; only on 1.6.1170 / 1.7.104 may +0x91 stand in for a call another plugin rewrote. The thunk checks the caster (ActorMagicCaster vtable) and the art (BGSArtObject vtable), then `PickCastingArtImpl`: the copy when the caster's actor is the player, its casting source a hand, the hand's selected spell fire, the art that spell's costliest effect's `castingArt`, while stoked. Rax is passed back. The first 40 player calls are logged (hand, spell, art, result, thread) to settle when the engine calls it (equip/ready or every cast); a casting art made while stoked is saved with the copy's FormID |
+| hazard creation (SE 42786 / AE 43954) prologue detour | `copyHazardCreate` | v2 expansion C4, on every runtime whose prologue the decoder takes (1.7.104: `48 8B C4` and pushes), four argument registers forwarded. The create data's base (+0x00, BGSHazard by vtable; +0x08 a cell by vtable when set) becomes its copy inside a copy window, or when the call comes from the spawn-hazard effect (SE 33580 / AE 34360: research R-H on 1.7.104 - it builds the create data on its stack and calls 43954 with the effect in r13) of a fire effect the player cast while stoked; 34360's prologue is detoured too and opens a thread-local window naming the effect when it carries the SpawnHazardEffect vtable. Restored after the call |
+| PlaceAtMe proxy (`PapyrusWrap.h`) | `copyPlaced` | v2 expansion C4: when the calling script is settled as the player's fire right now (a confirmed tagged reference, or on the game thread an ActiveEffect the player cast), PlaceAtMe's `akFormToPlace` - a HAZD, EXPL or PROJ with a copy - becomes the copy for that call (the native's own argument; nothing else changes). A caller still pending on a VM thread places the original (logged once) |
+
+The grey map's model swaps (ImpactSwap, HazardSwap) never touch a copy's own grey model (a copy's path is under
+`copies\`, which the grey map does not list); a copy that kept its source's model under warn-and-continue still gets the
+grey map's model - the intended fallback, so they are not told to skip copies.
+
 **Detours.** The first 16 bytes are read at runtime. An `E9` there (another plugin's detour, e.g. IDRC hooks
 Launch's prologue) or an `FF 25` absolute jump is chained onto: our thunk calls its target. Otherwise the leading
 instructions are replayed in a gateway only when every one is a position-independent form the decoder knows (push,
@@ -481,8 +492,9 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
   then and loaded without the copies plugin drops or mis-reads that art. Not checked in game (an E3-style check could be
   added).
 - Hit art: the ARTO spike returns the copy from `GetHitEffectArt` (0x0C) for the player's fire effects while stoked
-  (`copyHitArt`); E6 settles in one run whether the engine takes it. Casting (hand) art copies are filled and compared
-  (T0-v2) but not swapped until the SetCastingArt site is hooked: hand art stays orange. Impacts
+  (`copyHitArt`); E6 settles in one run whether the engine takes it. Casting (hand) art takes its copy at SetCastingArt's
+  call (C4); when the engine calls it (equip/ready or every cast) is settled by its log lines and E5's INFO. Spawn-hazard
+  archetype hazards take their copy only when the spawn-hazard effect's MGEF is itself a fire effect. Impacts
   of a copy hazard (`HAZD.impactDataSet`) and every impact data set stay the originals (no IPDS copies).
 - The grey NIFs are built from the user's winning files; a replacer installed or updated later needs a new
   `--forms` run (a form whose copy is missing stays orange, logged once). The DLL fills copies at kDataLoaded only:

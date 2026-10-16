@@ -182,17 +182,20 @@ namespace BlackFlame
     void InstallCopySwaps()
     {
         const auto counts = GetCopyCounts();
-        g_status.copies = counts.projectiles + counts.explosions + counts.impacts + counts.hazards > 0;
+        g_status.copies = counts.projectiles + counts.explosions + counts.impacts + counts.hazards + counts.arts > 0;
         if (!g_status.copies) {
             logger::info("BlackFlame: copy swap off: no copies were filled");
             return;
         }
         CopySwapDetail::InstallLaunchDetours(g_status);
         CopySwapDetail::InstallImpactSites(g_status);
-        logger::info("BlackFlame: copy swap: Launch {}, explosion creation {}, impacts: {}; trampoline {} bytes free",
-            g_status.launch.hooked ? (g_status.launch.chained ? "chained" : "detoured") : "off",
-            g_status.explosionCreate.hooked ? (g_status.explosionCreate.chained ? "chained" : "detoured") : "off",
-            g_status.impactNote, SKSE::GetTrampoline().free_size());
+        CopySwapDetail::InstallArtSite(g_status);
+        CopySwapDetail::InstallHazardDetours(g_status);
+        const auto state = [](const Patch::Detour& a_detour) { return a_detour.hooked ? (a_detour.chained ? "chained" : "detoured") : "off"; };
+        logger::info("BlackFlame: copy swap: Launch {}, explosion creation {}, impacts: {}, casting art {}, hazard creation {} "
+                     "(spawn window {}); trampoline {} bytes free", state(g_status.launch), state(g_status.explosionCreate),
+            g_status.impactNote, g_status.castingArt.hooked ? "hooked" : g_status.castingArt.note, state(g_status.hazardCreate),
+            state(g_status.spawnHazard), SKSE::GetTrampoline().free_size());
     }
 
     SyntheticImpact RunSyntheticImpactCheck(const RE::BGSImpactDataSet* a_set)
@@ -244,6 +247,8 @@ namespace BlackFlame
         CopySwapCounters out;
         CopySwapDetail::AddLaunchCounters(out);
         CopySwapDetail::AddImpactCounters(out);
+        CopySwapDetail::AddArtCounters(out);
+        CopySwapDetail::AddHazardCounters(out);
         return out;
     }
 }

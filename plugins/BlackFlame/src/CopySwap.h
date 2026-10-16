@@ -30,6 +30,13 @@
 //      SpawnCollisionEffects (43022 / 44213) and the explosion's impact function
 //      (42679 / 43851) return the impact copy for the impact they would return. No
 //      IPDS copy and no hash map insert. An impact copy's hazard is the hazard copy.
+//   5. Casting art (CopySwapArt.cpp): the one E8 to ActorMagicCaster::SetCastingArt
+//      (SE 33369 / AE 34150, in SE 37830 / AE 38784): the art becomes its copy when the
+//      caster is the player's, a hand, the hand's selected spell is fire, and the art is
+//      that spell's costliest effect's castingArt (PickCastingArtImpl).
+//   6. Hazard creation (CopySwapHazard.cpp, SE 42786 / AE 43954): the create data's base
+//      to its copy inside a copy window, or from the player's fire spawn-hazard effect
+//      (SE 33580 / AE 34360, whose prologue opens a thread-local window).
 
 namespace BlackFlame
 {
@@ -66,6 +73,15 @@ namespace BlackFlame
         int impactSites = 0;    // GetImpactData call sites hooked (of 2)
         int impactChained = 0;  // of those, onto another plugin's redirect
         std::string impactNote;
+        struct CallSite
+        {
+            bool hooked = false;
+            bool chained = false;
+            std::uintptr_t offset = 0;  // in its caller
+            std::string note;
+        } castingArt;
+        Patch::Detour hazardCreate;
+        Patch::Detour spawnHazard;
     };
 
     [[nodiscard]] const CopySwapStatus& GetCopySwapStatus() noexcept;
@@ -85,6 +101,15 @@ namespace BlackFlame
         std::uint64_t createNotSpell = 0;         // the self-area spell slot held another MagicItem (valid, not judged)
         std::uint64_t impactWindowCalls = 0;  // GetImpactData calls inside a copy window
         std::uint64_t impactCopies = 0;       // of those, the impact copy returned
+        std::uint64_t castingArtCalls = 0;    // SetCastingArt calls through the site
+        std::uint64_t castingArtSwaps = 0;    // of those, the art's copy handed on
+        std::uint64_t castingArtRejected = 0; // a caster or art that failed its vtable check
+        std::uint64_t hazardCreateCalls = 0;
+        std::uint64_t hazardSwapsWindow = 0;  // swapped inside a copy window
+        std::uint64_t hazardSwapsSpawn = 0;   // swapped from the player's spawn-hazard effect
+        std::uint64_t hazardCreateRejected = 0;  // a create data pointer failed its check
+        std::uint64_t spawnWindowCalls = 0;   // spawn-hazard effect calls through its detour
+        std::uint64_t spawnWindowOther = 0;   // of those, not a SpawnHazardEffect by vtable (no window)
     };
 
     [[nodiscard]] CopySwapCounters GetCopySwapCounters() noexcept;
@@ -102,12 +127,23 @@ namespace BlackFlame
     /// impact counters. Game thread.
     [[nodiscard]] SyntheticImpact RunSyntheticImpactCheck(const RE::BGSImpactDataSet* a_set);
 
-    // Counters and recording for the two detours (CopySwapLaunch.cpp) and the impact sites (CopySwapImpact.cpp)
+    /// E5: the casting art SetCastingArt should get - a_art's copy when a_actor is the player, a_slot a hand, a_spell (that
+    /// hand's selected spell) a fire spell whose costliest effect's castingArt is a_art, while a_stoked and a copy exists;
+    /// else a_art. No engine state is read or changed (the self-test calls it directly).
+    [[nodiscard]] RE::BGSArtObject* PickCastingArtImpl(const RE::Actor* a_actor, int a_slot, const RE::MagicItem* a_spell,
+        RE::BGSArtObject* a_art, bool a_stoked);
+
+    // Counters and recording for the detours (CopySwapLaunch.cpp, CopySwapHazard.cpp) and the call sites (CopySwapImpact.cpp,
+    // CopySwapArt.cpp)
     namespace CopySwapDetail
     {
         void InstallLaunchDetours(CopySwapStatus& a_status);
         void InstallImpactSites(CopySwapStatus& a_status);
+        void InstallArtSite(CopySwapStatus& a_status);
+        void InstallHazardDetours(CopySwapStatus& a_status);
         void AddLaunchCounters(CopySwapCounters& a_out) noexcept;
         void AddImpactCounters(CopySwapCounters& a_out) noexcept;
+        void AddArtCounters(CopySwapCounters& a_out) noexcept;
+        void AddHazardCounters(CopySwapCounters& a_out) noexcept;
     }
 }
