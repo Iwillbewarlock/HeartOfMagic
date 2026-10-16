@@ -1,6 +1,8 @@
 #include "FormCopies.h"
 #include "FormCopiesState.h"
 
+#include "CopyFreshness.h"
+
 #include "TrackedMutex.h"
 
 #include "FireClosure.h"
@@ -263,9 +265,15 @@ namespace BlackFlame
     {
         // X14: a throw part way leaves no half-filled table behind: the lookups are emptied (CopyOf finds nothing, no
         // swap happens) before the caller goes on to the hook installs
+        std::string why = "an exception of an unknown type";
         try {
             LoadAndFillCopiesChecked();
+            return;
+        } catch (const std::exception& e) {
+            why = e.what();
         } catch (...) {
+        }
+        {
             auto& copies = TheCopies();
             copies.bySource.clear();
             copies.byCopy.clear();
@@ -273,8 +281,8 @@ namespace BlackFlame
             copies.muzzles.clear();
             copies.absentSources.clear();
             copies.counts.mapRead = false;
-            logger::error("BlackFlame: copies: the fill stopped part way - every copy left out this session (no swap)");
-            throw;
+            logger::error("BlackFlame: copies: the fill stopped part way ({}) - every copy left out this session (no swap)", why);
+            MarkCopiesFillFailed(why);  // Y11: the freshness check says so, not "not built"
         }
     }
 

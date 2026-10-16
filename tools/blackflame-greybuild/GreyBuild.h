@@ -269,8 +269,9 @@ namespace GreyBuild
     /// it); the first difference, or empty
     [[nodiscard]] std::vector<std::string> CheckHeaderStrings(const nifly::NifFile& a_source, const nifly::NifFile& a_written);
 
-    /// A palette shader: the source already maps its texture through a palette (SLSF1 greyscale-to-palette colour on
-    /// and a non-empty source texture). Reads shader data only; the builder never changes either, so it holds on the copy.
+    /// A palette shader: SLSF1 greyscale-to-palette colour on. Y1: with or without a source texture - the shader samples
+    /// the palette whenever the flag is on (Community Shaders' Effect.hlsl, GrayscaleToColor), so a flag-only shape showed
+    /// its source palette's colours when it was left out. Reads shader data only; the builder never changes the flag.
     [[nodiscard]] bool UsesPalette(const nifly::BSEffectShaderProperty& a_prop);
 
     /// Every BSEffectShaderProperty: base colour RGB luminance x tint (alpha kept); a palette shader (UsesPalette) also gets

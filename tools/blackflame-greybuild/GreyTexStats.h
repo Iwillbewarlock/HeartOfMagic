@@ -76,8 +76,10 @@ namespace GreyBuild
     class TextureSource
     {
     public:
-        /// a_folders searched in order; a_notInGame: the request's textures the game left out, path -> its reason
-        TextureSource(std::vector<std::filesystem::path> a_folders, std::map<std::string, std::string> a_notInGame);
+        /// a_folders searched in order; a_notInGame: the request's textures the game left out, path -> its reason;
+        /// a_generated (Y14): the output being written, searched first for a path under our copies folder
+        TextureSource(std::vector<std::filesystem::path> a_folders, std::map<std::string, std::string> a_notInGame,
+            std::filesystem::path a_generated = {});
 
         /// The texture a slot names (read once, then cached)
         [[nodiscard]] TextureLook Look(const std::string& a_slot);
@@ -99,6 +101,7 @@ namespace GreyBuild
             std::string why;
         };
         std::vector<std::filesystem::path> m_folders;
+        std::filesystem::path m_generated;
         std::map<std::string, std::string> m_notInGame;
         std::map<std::string, Entry> m_cache;
     };
@@ -108,13 +111,14 @@ namespace GreyBuild
 
     [[nodiscard]] TexStats ComputeStats(const RgbaImage& a_image);
 
-    /// One palette shader through one palette over its texture (the prototype's model, not checked against the game):
-    /// rgb = palette(u = texture green, v), alpha = palette alpha (u = texture alpha, v) when palette alpha is on, else the
-    /// texture's alpha; sampled on a grid of at most ~128 x 128
+    /// One palette shader through one palette over its texture, as Community Shaders' Effect.hlsl samples it (Y2, Y17):
+    /// rgb = palette(u = texture green, v = a_colourRow: base red x vertex red), alpha = palette alpha (u = texture alpha,
+    /// v = a_alphaRow: base alpha x vertex alpha) when palette alpha is on, else the texture's alpha; sampled on a grid of
+    /// at most ~128 x 128. With a_testThreshold >= 0 (alpha test, Y4) the coverage counts the samples whose alpha passes it
     struct PaletteSim
     {
         double energy = 0.0;     // mean luminance x alpha
-        double coverage = 0.0;   // mean alpha
+        double coverage = 0.0;   // mean alpha (alpha test: the share that passes)
         double uRange = 0.0;     // spread of the green values of texels with alpha > kSimLitAlpha
         double darkFrac = 0.0;   // of those texels, the share whose palette colour is darker than kRiskDarkLum
     };
@@ -123,5 +127,9 @@ namespace GreyBuild
     inline constexpr std::size_t kSimGrid = 128;
 
     [[nodiscard]] PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha,
-        double a_v, double a_darkLum);
+        double a_colourRow, double a_alphaRow, double a_darkLum, double a_testThreshold = -1.0);
+
+    /// The texture a shader samples when its source texture slot is empty (Y1): one white texel (assumed; not checked
+    /// against the game's default texture)
+    [[nodiscard]] const RgbaImage& WhiteTexel();
 }

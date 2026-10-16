@@ -178,7 +178,8 @@ namespace GreyBuild
             add->greyscaleTexture.get() = kOrangePalette;
             AddShape(nif, id, kAlphaAdditive);
             const std::uint32_t addId = id;
-            // v2i: the flag on but no texture to map (a textureless glow): left as it was, base colour greyed
+            // Y1: the flag on but no source texture: the shader samples the palette all the same (Effect.hlsl), so it takes
+            // ours like any palette shader (no shape uses it: normal blend, I12)
             auto* glow = AddBlock(nif, std::make_unique<nifly::BSEffectShaderProperty>(), id);
             glow->name.get() = "GlowNoTexture";
             glow->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
@@ -246,13 +247,13 @@ namespace GreyBuild
                     const bool isOff = name == "FlameOff";
                     const bool isOn = name == "FlameOn";
                     const bool isAdd = name == "FlameAdd";
-                    // v2i: only FlameOn / FlameAdd (flag on, a texture) take a palette - by their shape's blend; the others
-                    // keep flags and textures
+                    // FlameOn, FlameAdd and (Y1) GlowNoTexture - the flag on - take a palette by their shape's blend; flags and
+                    // textures are kept
                     a_check.Check(((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0) == !isOff,
                         fmt::format("'{}' palette colour flag as it was", name));
                     a_check.Check(((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteAlpha) != 0) == isOn,
                         fmt::format("'{}' palette alpha flag as it was", name));
-                    const std::string expectedGreyscale = isOn ? kPalettePath : (isAdd ? kPaletteAddPath : (isOff ? "" : kOrangePalette));
+                    const std::string expectedGreyscale = isOff ? "" : (isAdd ? kPaletteAddPath : kPalettePath);
                     a_check.Check(prop->greyscaleTexture.get() == expectedGreyscale,
                         fmt::format("'{}' greyscale texture '{}' (expected '{}')", name, prop->greyscaleTexture.get(),
                             expectedGreyscale));
@@ -368,8 +369,8 @@ namespace GreyBuild
             const GreyMap map = TestMap(true);
             std::vector<std::string> notes;
             const GreyStats stats = GreyEffects(nif, map.tint, map.tintAdd, &notes);
-            check.Check(stats.effectShaders == 4 && stats.paletted == 1 && stats.palettedAdd == 1 && stats.paletteNoAlpha == 0 &&
-                            stats.paletteLeft == 2 && stats.lightingShaders == 1 &&
+            check.Check(stats.effectShaders == 4 && stats.paletted == 2 && stats.palettedAdd == 1 && stats.paletteNoAlpha == 0 &&
+                            stats.paletteLeft == 1 && stats.lightingShaders == 1 &&
                             stats.colorModifiers == 1 && stats.colorControllers == 2 && stats.controllerKeys == 4 && notes.empty(),
                 fmt::format("grey stats (effects {}, paletted {}, additive {}, no alpha {}, left {}, lighting {}, modifiers {}, "
                     "controllers {}, keys {})", stats.effectShaders, stats.paletted, stats.palettedAdd, stats.paletteNoAlpha,

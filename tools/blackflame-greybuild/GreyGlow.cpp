@@ -23,18 +23,58 @@ namespace GreyBuild
     namespace
     {
         constexpr float kByteMax = 255.0f;
+        constexpr long kByteTop = 255;           // Y19: the largest 8-bit value
 
         /// How a shader's colours become grey: luminance x scale, or (a derived palette's shader) the red kept as grey
         struct ColourRule
         {
             float scale = kDefaultTint;
             bool red = false;
+            bool g2 = false;  // Y19: decided as G2 (counted by this, not by comparing scales)
         };
 
         [[nodiscard]] nifly::Vector3 Apply(const ColourRule& a_rule, const nifly::Vector3& a_value) noexcept
         {
             const float grey = a_rule.red ? a_value.x : Luminance(a_value.x, a_value.y, a_value.z) * a_rule.scale;
             return { grey, grey, grey };
+        }
+
+        // Y2: a derived additive palette's brightness: the emissive multiple scales the palette output (Effect.hlsl:
+        // baseColor.xyz = BaseColorScale.x x palette; the base colour only picks the row), so --tint-add goes there - the
+        // shader's baseColorScale and every emissive-multiple value and key, from the source's
+        void ScaleEmissive(nifly::NifFile& a_copy, nifly::NifFile& a_source, std::uint32_t a_shader, float a_scale)
+        {
+            auto& copyHdr = a_copy.GetHeader();
+            auto& sourceHdr = a_source.GetHeader();
+            if (auto* shader = copyHdr.GetBlock<nifly::BSEffectShaderProperty>(a_shader)) {
+                if (const auto* source = sourceHdr.GetBlock<nifly::BSEffectShaderProperty>(a_shader)) {
+                    shader->baseColorScale = source->baseColorScale * a_scale;
+                }
+            }
+            const auto scaled = [&](float a_value) {
+                return a_value > kUnusedKeyValue && a_value < kHugeFloatValue ? a_value * a_scale : a_value;
+            };
+            for (const auto& [interpId, dataId] : EmissiveKeysOf(a_source, a_shader)) {
+                auto* interp = copyHdr.GetBlock<nifly::NiFloatInterpolator>(interpId);
+                const auto* sourceInterp = sourceHdr.GetBlock<nifly::NiFloatInterpolator>(interpId);
+                if (interp && sourceInterp) {
+                    interp->floatValue = scaled(sourceInterp->floatValue);
+                }
+                auto* data = copyHdr.GetBlock<nifly::NiFloatData>(dataId);
+                const auto* sourceData = sourceHdr.GetBlock<nifly::NiFloatData>(dataId);
+                if (!data || !sourceData) {
+                    continue;
+                }
+                const auto count = static_cast<int>(std::min(data->data.GetNumKeys(), sourceData->data.GetNumKeys()));
+                for (int i = 0; i < count; ++i) {
+                    const auto source = sourceData->data.GetKey(i);
+                    auto key = data->data.GetKey(i);
+                    key.value = scaled(source.value);
+                    key.forward = source.forward * a_scale;
+                    key.backward = source.backward * a_scale;
+                    data->data.SetKey(i, key);
+                }
+            }
         }
 
         // P: a palette shader's derived palette (GreyPalette.h); false keeps GreyEffects' palette and rule
@@ -45,7 +85,7 @@ namespace GreyBuild
                 return false;
             }
             const auto* first = a_users.front();
-            const bool additive = std::any_of(a_users.begin(), a_users.end(), [](const EffectShape* a_s) { return a_s->blend == ShapeBlend::kAdditive; });
+            const bool additive = AnyAdditive(a_users);
             std::string why;
             const auto slot = DerivedPalette(*a_ctx.palettes, first->greyscaleTexture, additive, why);
             if (slot.empty()) {
@@ -101,12 +141,19 @@ namespace GreyBuild
             const Rgb texMean = stats ? stats->meanRgb : white;
             const bool vertexOn = (a_shape.flags2 & kSlsf2VertexColors) != 0 && a_shape.vertexColours;
             const Rgb vertex = vertexOn ? a_shape.vertexMean : white;
+            // Y5: a particle system's colour modifier multiplies its particles: each of its colours counts too
+            std::vector<Rgb> modifiers = a_shape.particleColours;
+            if (modifiers.empty()) {
+                modifiers.push_back(white);
+            }
             double sat = 0.0;
             double high = 0.0;
             for (const auto& colour : a_shape.colours) {
-                const Rgb shown = Multiply(Multiply(colour, texMean), vertex);
-                sat = std::max(sat, Saturation(shown, kRiskMinChannel));
-                high = std::max({ high, shown.r, shown.g, shown.b });
+                for (const auto& modifier : modifiers) {
+                    const Rgb shown = Multiply(Multiply(Multiply(colour, texMean), vertex), modifier);
+                    sat = std::max(sat, Saturation(shown, kRiskMinChannel));
+                    high = std::max({ high, shown.r, shown.g, shown.b });
+                }
             }
             if (high <= 0.0) {
                 return { Glow::kG0 };
@@ -125,15 +172,19 @@ namespace GreyBuild
         {
             a_zeroed = false;
             const bool palette = std::any_of(a_shapes.begin(), a_shapes.end(), [](const EffectShape* a_s) { return IsPaletteShape(*a_s); });
-            const bool additive =
-                std::any_of(a_shapes.begin(), a_shapes.end(), [](const EffectShape* a_s) { return a_s->blend == ShapeBlend::kAdditive; });
+            const bool additive = AnyAdditive(a_shapes);
             if (palette) {
                 return { additive ? a_ctx.tintAdd : a_ctx.tint };
             }
             bool anyG2 = false;
             bool allG1 = true;
+            bool anyG1 = false;
             bool drawn = false;
+            std::string other;  // Y18: the first drawn shape that is not G1
             for (const auto* shape : a_shapes) {
+                if (shape->hidden) {
+                    allG1 = false;  // Y5: a hidden shape may be shown later (a visibility controller): never RGB 0 under it
+                }
                 const auto judged = Classify(*shape, a_ctx);
                 if (judged.unread) {
                     ++a_ctx.totals.unread;
@@ -146,6 +197,10 @@ namespace GreyBuild
                 drawn = true;
                 anyG2 |= judged.glow == Glow::kG2;
                 allG1 &= judged.glow == Glow::kG1;
+                anyG1 |= judged.glow == Glow::kG1;
+                if (judged.glow != Glow::kG1 && other.empty()) {
+                    other = fmt::format("'{}' (block {})", shape->name, shape->block);
+                }
                 a_ctx.totals.g3 += judged.glow == Glow::kG3 ? 1 : 0;
                 a_ctx.totals.g5 += judged.glow == Glow::kG5 ? 1 : 0;
             }
@@ -153,7 +208,12 @@ namespace GreyBuild
                 a_zeroed = true;
                 return { 0.0f };
             }
-            return { anyG2 ? a_ctx.tintAdd : a_ctx.tint };
+            if (anyG1) {  // Y18: one shader for a soft warm glow and another kind of shape: no RGB 0, said once
+                ++a_ctx.totals.mixed;
+                std::cout << fmt::format("NOTE  {}: a soft warm glow shares its shader with {}: not RGB 0 (G1), {}\n", a_rel,
+                    other.empty() ? std::string("a hidden shape") : other, anyG2 ? "luminance x tintAdd" : "luminance x tint");
+            }
+            return { anyG2 ? a_ctx.tintAdd : a_ctx.tint, false, anyG2 };
         }
 
         // EFFECT_EMPTY's exception: drawn at all in the source (the risk check's measure)
@@ -161,6 +221,9 @@ namespace GreyBuild
         {
             if (a_shape.hidden || a_shape.blend == ShapeBlend::kNoAlpha || a_shape.blend == ShapeBlend::kOpaque) {
                 return false;
+            }
+            if (a_shape.alphaMax * a_shape.multipleMax <= 0.0) {
+                return false;  // Y5: the risk check's Visible - no alpha (controllers included) or no emissive multiple
             }
             if (!a_shape.sourceTexture.empty() && a_ctx.textures) {
                 const auto look = a_ctx.textures->Look(a_shape.sourceTexture);
@@ -231,7 +294,7 @@ namespace GreyBuild
                 for (auto& vertex : tri->vertData) {
                     const float grey = Luminance(vertex.colorData[0] / kByteMax, vertex.colorData[1] / kByteMax,
                         vertex.colorData[2] / kByteMax);
-                    const auto byte = static_cast<std::uint8_t>(std::clamp(std::lround(grey * kByteMax), 0L, 255L));
+                    const auto byte = static_cast<std::uint8_t>(std::clamp(std::lround(grey * kByteMax), 0L, kByteTop));
                     vertex.colorData[0] = byte;
                     vertex.colorData[1] = byte;
                     vertex.colorData[2] = byte;
@@ -269,6 +332,9 @@ namespace GreyBuild
             }
             if (IsPaletteShape(*users.front()) && TakeDerivedPalette(a_copy, shader, users, a_ctx, a_rel)) {
                 rules[shader].red = true;
+                if (AnyAdditive(users)) {
+                    ScaleEmissive(a_copy, a_source, shader, a_ctx.tintAdd);
+                }
             }
         }
         int drawnBefore = 0;
@@ -281,9 +347,10 @@ namespace GreyBuild
         }
         if (!zeroed.empty() && drawnBefore > 0 && drawnAfter == 0) {
             for (const auto shader : zeroed) {
-                rules[shader] = { a_ctx.tintAdd };
+                rules[shader] = { a_ctx.tintAdd, false, true };
             }
             ++a_ctx.totals.g1Kept;
+            a_ctx.haloKept.insert(a_rel);  // Y7: the risk check lists its GREY_HALO as HALO_KEPT
             std::cout << fmt::format("NOTE  {}: every drawn shape is a soft warm glow (G1): RGB 0 would leave the effect empty - "
                                      "G2 (luminance x tintAdd) instead\n", a_rel);
             zeroed.clear();
@@ -294,7 +361,7 @@ namespace GreyBuild
         std::set<std::uint32_t> done;
         for (const auto& [shader, users] : byShader) {
             const ColourRule rule = rules[shader];
-            a_ctx.totals.g2 += rule.scale == a_ctx.tintAdd && !IsPaletteShape(*users.front()) ? 1 : 0;
+            a_ctx.totals.g2 += rule.g2 ? 1 : 0;
             auto* copyShader = a_copy.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(shader);
             const auto* sourceShader = a_source.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(shader);
             if (copyShader && sourceShader) {

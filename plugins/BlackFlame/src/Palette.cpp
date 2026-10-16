@@ -125,9 +125,9 @@ namespace BlackFlame
 
     bool IsAnyPalettePath(const RE::BSFixedString& a_path)
     {
-        // B(d): the builder's palettes derived from each source palette live under our own folder
-        // (textures\heartofmagic\blackflame\copies\palettes\...); a greyscale texture there is one of ours
-        constexpr std::string_view kOwnRoot = "heartofmagic\\blackflame\\";
+        // B(d): the builder's palettes derived from each source palette (Y19: only their folder,
+        // textures\heartofmagic\blackflame\copies\palettes\, besides the two fixed ones)
+        constexpr std::string_view kOwnRoot = "heartofmagic\\blackflame\\copies\\palettes\\";
         return IsPalettePath(a_path) || IsAddPalettePath(a_path) ||
                (!a_path.empty() && NormalizePath(a_path.c_str()).starts_with(kOwnRoot));
     }

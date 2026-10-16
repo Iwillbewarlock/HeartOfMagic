@@ -531,19 +531,28 @@ numbers: the builder changes values only), so nothing is greyed twice:
   (WARN NEUTRAL_HALO). G5, normal blend: luminance x `--tint`. G0, not drawn (hidden, no blending, a blank texture,
   colour 0): luminance x `--tint`. A texture that cannot be read makes its shape G2 (soft or not cannot be told) and is
   noted.
-- **P, palettes** (`GreyPalette.h`, `--palette-mode derived`, the default): a palette shader gets a palette derived from its
+- **P, palettes** (`GreyPalette.h`, `--palette-mode derived`, the default). A palette shader is one with the palette colour
+  flag on, with or without a source texture (Y1: Community Shaders' `Effect.hlsl` samples the palette whenever the flag is on;
+  13 flag-only copy shapes on the scratch run - firestorm and rune `Glow:0`, Vulcan, `arcwallfx01 Cylinder10:0` - had kept
+  their source's orange palette: PAL_FOREIGN 13).
+  It gets a palette derived from its
   own source palette, one file per source palette and blend under
   `textures\heartofmagic\blackflame\copies\palettes\{add,normal}\<path after textures\>` (8-bit RGBA, one mip, sRGB as the
   source). Additive (P2): the source palette with every texel at its luminance and its alpha exactly kept, so the shape
   keeps the outline and brightness the source palette gave it (our one-row `GradBlackFlameAdd.dds` lit palette-alpha
   shapes up whole - Firebolt's `Cylinder02:0`, Fire Rune's ground planes - or sank them into its dark band). Normal blend
   (P1): `GradBlackFlame.dds`'s colour resampled to the source palette's size with the source's alpha. The shader's base
-  colour and keys keep their red as grey (r, r, r): red picks the palette row, so a derived palette's rows are read as the
-  source's were (not checked in game). A source palette that cannot be read keeps `GradBlackFlameAdd.dds` /
+  colour and keys keep their red as grey (r, r, r): `Effect.hlsl` takes the palette colour as `BaseColorScale` (the emissive
+  multiple) x palette(texture green, base red x vertex red) - the base colour only picks the row - so a derived palette's
+  rows are read as the source's were. `--tint-add` scales a derived additive palette's output through that emissive
+  multiple (the shader's `baseColorScale` and every emissive-multiple controller value and key), so `--tint-add 0`
+  really darkens it (Y2). The vanilla shader may differ (NifSkope's reading multiplies the base colour in): the risk
+  check warns (PAL_MODEL) where the two readings differ more than 2x, and the in-game check is Fire Rune's ground planes
+  and Firebolt's `Cylinder02:0` / `Wisps02:0` against the original. A source palette that cannot be read keeps `GradBlackFlameAdd.dds` /
   `GradBlackFlame.dds` and the risk check reports it (UNREAD, or MISSING when the game lacks it).
   `--palette-mode godskin` keeps the earlier rule: `GradBlackFlameAdd.dds` (the Godskin gradient) on every additive palette
-  shader and `GradBlackFlame.dds` on every normal-blend one. The DLL counts any greyscale texture under
-  `textures\heartofmagic\blackflame\` as one of ours (`IsAnyPalettePath`: the self-test's grey rule, the runtime recolour's
+  shader and `GradBlackFlame.dds` on every normal-blend one. The DLL counts a greyscale texture under
+  `textures\heartofmagic\blackflame\copies\palettes\` (and the two fixed ones) as one of ours, when it is loaded (`IsAnyPalettePath`: the self-test's grey rule, the runtime recolour's
   "already ours"), and the builder's own check accepts a derived palette of the shader's blend.
 - **K, colour keys**: every key a shader's `BSEffectShaderPropertyColorController`s reach - the controller's own
   `NiPoint3Interpolator`, and every `NiControllerSequence` controlled block that names the controller (by reference, or
@@ -577,13 +586,21 @@ run it is reported, not fatal.
 | PAL_VANISH | FAIL | an additive palette shape that drew at least 0.01 whose energy falls under a quarter |
 | EFFECT_EMPTY | FAIL | a NIF whose source draws a shape and whose copy draws none |
 | PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT | WARN | energy over 4x on a small area; a soft additive neutral glow still visible; a palette texture with one flat green |
-| HALO_KEPT | WARN | a GREY_HALO in a NIF whose every drawn shape is a soft warm glow: the glow rules keep it visible so the effect is not empty |
+| HALO_KEPT | WARN | a GREY_HALO in a NIF where the glow rules kept the soft warm glows visible because RGB 0 would have emptied it (Y7: the glow step says so) |
+| PAL_FOREIGN | FAIL | Y1: a copy shape with the palette colour flag whose greyscale texture is not one of ours (it shows the source's palette) |
+| PAL_MODEL | WARN | Y3: an additive palette shape whose energy ratio under the other reading of the shader (base colour multiplies the palette) differs more than 2x |
+| EFFECT_DIM | WARN | Y5: a NIF whose drawn shapes give under a quarter of its source's light (G1's RGB 0 included) |
+| KEYS_UNREACHED | WARN | Y6: a colour controller none of whose keys can be reached (nothing to grey or judge) |
 | UNREAD | gate | a texture the rule needs is in no folder read (and the game did not say it is absent) or does not decode |
 | MISSING | INFO | the game itself does not have the texture (the request lists it as not opening): the source has the same hole |
 
 Textures (mip 0, 8-bit RGBA) are read from the `--in` folders (`--from-game`: the game's dump), the output being written
-and our own shipped ones. The palette rules assume NifSkope's effect shader model: palette colour looked up by the
-texture's green, palette alpha by its alpha, the row by base colour red x vertex red - not checked against the game.
+and our own shipped ones (this run's copies first, Y14). The palette rules follow Community Shaders' `Effect.hlsl`
+(2026-10-17; the vanilla shader may differ): colour = emissive multiple x palette(texture green, base red x vertex red),
+palette alpha = palette(texture alpha, base alpha x vertex alpha); an empty source texture slot is taken as one white
+texel (assumed). Each side is read from its own NIF values (Y2: the copy's row and emissive multiple, not the run's
+settings). A shape is drawn when it is shown, blended, its texture not blank, its colour not black and its alpha
+(alpha-transparency controller keys included) x emissive multiple above 0.
 Measured on the 2026-10-16 load order (the dump plus the prototype's textures, `--no-textures`), the v2i copies gave
 FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0; with
 G, GREY_HALO 90 -> 0 (HALO_KEPT 2); with the derived palettes, PAL_SHEET 423 -> 0, PAL_VANISH 78 -> 0 and PAL_BRIGHTER 132 -> 0
@@ -591,8 +608,10 @@ G, GREY_HALO 90 -> 0 (HALO_KEPT 2); with the derived palettes, PAL_SHEET 423 -> 
 texture step on as well, the whole run gives `T0 risk: PASS fail=0 unread=0` (WARN 95: NEUTRAL_HALO 56, PAL_FLAT 37,
 HALO_KEPT 2; MISSING 2). The texture step never leaves as grey a texture this check calls coloured (`IsColouredTexture`),
 and a mean colour's saturation needs a channel of 0.02 (the design's S(c); the prototype's statistics had no floor).
-Alpha-test-only shapes (no blending) get the colour rules but not the energy and coverage ones: they draw an opaque
-cut-out. Source and copy shapes are paired by block and name (BLOCK_LAYOUT otherwise), and the copy side is judged with
+Alpha-test-only shapes (no blending) draw an opaque cut-out: the colour rules and the coverage rule apply, the coverage
+counted as the samples whose alpha passes the property's threshold (Y4), and the energy rules do not. After Y1-Y7 the
+scratch run gives PAL_FOREIGN 13 -> 0 and `T0 risk: PASS fail=0 unread=0` (WARN 122: PAL_FLAT 37, NEUTRAL_HALO 33,
+EFFECT_DIM 30, PAL_MODEL 18, HALO_KEPT 2, KEYS_UNREACHED 2; MISSING 2). Source and copy shapes are paired by block and name (BLOCK_LAYOUT otherwise), and the copy side is judged with
 the texture the copy names.
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
@@ -857,7 +876,9 @@ published only when a branch or tag origin has now reaches it (`git fetch origin
 commit is refused unless `-AllowUnpublished`, which puts `source\HeartOfMagic-<version>-source.zip` in the package:
 `git archive` of the commit (with `-AllowDirty`, which needs it, the tracked files' uncommitted changes too) and of the
 CommonLibSSE-NG submodule's commit at `plugins/external/commonlibsse-ng/`, in one zip; the notice then points into the
-zip. An untracked file under the DLL's or the builder's sources is refused always. The DLL's library table has no xbyak
+zip. The zip is written with .NET's ZipArchive, which marks entries as made on Windows: the submodule's few symbolic
+links (documentation files) come out as small files holding their target (Y20). An untracked file under the DLL's or
+the builder's sources is refused always. The DLL's library table has no xbyak
 and no zlib: neither one's strings are in `HeartOfMagic_BlackFlame.dll` (both are in `SpellLearning.dll`, whose
 release notice lists them).
 

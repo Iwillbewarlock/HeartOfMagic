@@ -28,7 +28,8 @@ namespace BlackFlame
         kFresh,
         kStale,
         kNone,
-        kPluginMissing
+        kPluginMissing,
+        kNotApplied  // Y11: the map was there but filling the copies failed part way (no copy is used this session)
     };
 
     struct FreshnessState
@@ -44,6 +45,9 @@ namespace BlackFlame
 
     /// F10: kDataLoaded could not check (the closure failed); no notice is shown, the log says why
     void MarkFreshnessUnchecked(const std::string& a_why);
+
+    /// Y11: LoadAndFillCopies stopped part way (FormCopies.cpp); CheckFreshness then reports kNotApplied, not "not built"
+    void MarkCopiesFillFailed(const std::string& a_why);
 
     [[nodiscard]] const FreshnessState& GetFreshness() noexcept;
 

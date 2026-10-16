@@ -42,6 +42,8 @@ namespace GreyBuild
     inline constexpr double kRiskMinGBand = 0.05;       // palette texture green spread below this: one flat colour
     inline constexpr double kRiskDarkLum = 0.15;        // palette colour darker than this: the "dark valley"
     inline constexpr double kRiskEnergyFloor = 1e-4;    // an energy or coverage below this counts as drawing nothing
+    inline constexpr double kRiskModelSpread = 2.0;     // Y3: the two readings of the palette shader disagree beyond this
+    inline constexpr double kRiskDimRatio = 0.25;       // Y5: a NIF giving less than this share of its source's light
 
     enum class RiskLevel
     {
@@ -65,7 +67,6 @@ namespace GreyBuild
     struct RiskJob
     {
         TextureSource* textures = nullptr;  // none: every texture rule is UNREAD
-        double tintAdd = kDefaultTintAdd;   // the additive palette shaders' base colour scale (the energy ratio's factor)
         int nifs = 0;
         int shapes = 0;
         std::vector<RiskFinding> findings;
@@ -73,7 +74,9 @@ namespace GreyBuild
     };
 
     /// Compares a copy NIF with its source and adds what it finds to a_job (a_nif: the copy's Data-relative path)
-    void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job);
+    /// a_haloKept: the glow rules kept this NIF's soft warm glows visible (the G1 exception, GlowContext::haloKept)
+    void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job,
+        bool a_haloKept = false);
 
     [[nodiscard]] int RiskCount(const RiskJob& a_job, RiskLevel a_level);
 

@@ -108,7 +108,7 @@ namespace BlackFlame::CopyFill
         {
             auto& names = Names();
             std::lock_guard lock(names.mutex);
-            if (!names.built && ++names.misses >= kMissesBeforeMap) {
+            if (!names.built && t_scope && ++names.misses >= kMissesBeforeMap) {  // Y12: only inside a scope (else the walk)
                 // Copied under the form map's read lock (no allocation per pair there), the map built after unlocking
                 std::vector<std::pair<const RE::TESForm*, RE::FormID>> pairs;
                 {

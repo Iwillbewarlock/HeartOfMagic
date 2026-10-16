@@ -212,6 +212,7 @@ namespace GreyBuild
                 mean = { sum.r / weight, sum.g / weight, sum.b / weight };
             }
             a_shape.vertexColours = true;
+            a_shape.vertexAlpha = weight / static_cast<double>(a_colours.size());
             a_shape.vertexMean = { Round3(mean.r), Round3(mean.g), Round3(mean.b) };
             a_shape.vertexSaturation = Round3(Saturation(a_shape.vertexMean, kCensusSatFloor));
         }
@@ -266,9 +267,14 @@ namespace GreyBuild
         return std::floor(a_value * kThousand + 0.5) / kThousand;
     }
 
+    bool AnyAdditive(const std::vector<const EffectShape*>& a_users) noexcept
+    {
+        return std::any_of(a_users.begin(), a_users.end(), [](const EffectShape* a_s) { return a_s->blend == ShapeBlend::kAdditive; });
+    }
+
     bool IsPaletteShape(const EffectShape& a_shape) noexcept
     {
-        return (a_shape.flags1 & kSlsf1GreyscaleToPaletteColor) != 0 && !a_shape.sourceTexture.empty();
+        return (a_shape.flags1 & kSlsf1GreyscaleToPaletteColor) != 0;  // Y1: the flag alone (UsesPalette)
     }
 
     std::vector<ColourKeys> ColourKeysOf(nifly::NifFile& a_nif, std::uint32_t a_shader, int& a_unreached, int& a_sequenceLinks)
@@ -304,6 +310,29 @@ namespace GreyBuild
         return out;
     }
 
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> EmissiveKeysOf(nifly::NifFile& a_nif, std::uint32_t a_shader)
+    {
+        auto& hdr = a_nif.GetHeader();
+        const auto sequences = SequenceInterpolators(a_nif);
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> out;
+        for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+            auto* ctrl = hdr.GetBlock<nifly::BSEffectShaderPropertyFloatController>(id);
+            if (!ctrl || ctrl->targetRef.index != a_shader || ctrl->typeOfControlledVariable != kFloatVarEmissiveMultiple) {
+                continue;
+            }
+            std::vector<std::uint32_t> interps{ ctrl->interpolatorRef.index };
+            if (const auto it = sequences.find(id); it != sequences.end()) {
+                interps.insert(interps.end(), it->second.begin(), it->second.end());
+            }
+            for (const auto interp : interps) {
+                if (const auto* f = hdr.GetBlock<nifly::NiFloatInterpolator>(interp)) {
+                    out.emplace_back(interp, f->dataRef.index);
+                }
+            }
+        }
+        return out;
+    }
+
     std::vector<EffectShape> EffectShapes(nifly::NifFile& a_nif)
     {
         auto& hdr = a_nif.GetHeader();
@@ -330,7 +359,9 @@ namespace GreyBuild
                 continue;
             }
             shape.block = id;
-            shape.blend = BlendOf(hdr.GetBlock<nifly::NiAlphaProperty>(alphaRef));
+            const auto* alphaProperty = hdr.GetBlock<nifly::NiAlphaProperty>(alphaRef);
+            shape.blend = BlendOf(alphaProperty);
+            shape.alphaThreshold = alphaProperty ? alphaProperty->threshold / kByteMax : 0.0;
             shape.hidden = OnChain(a_nif, parent, id, true, [](nifly::NiHeader& a_hdr, std::uint32_t a_id) {
                 const auto* object = a_hdr.GetBlock<nifly::NiAVObject>(a_id);
                 return object && (object->flags & kHiddenFlag) != 0;
@@ -343,6 +374,7 @@ namespace GreyBuild
             shape.sourceTexture = effect->sourceTexture.get();
             shape.greyscaleTexture = effect->greyscaleTexture.get();
             shape.baseColour = { effect->baseColor.r, effect->baseColor.g, effect->baseColor.b };
+            shape.baseAlpha = effect->baseColor.a;
             shape.colourScale = effect->baseColorScale;
             shape.multipleMax = effect->baseColorScale;
             shape.colours.push_back(shape.baseColour);
@@ -350,20 +382,43 @@ namespace GreyBuild
             for (const auto& keys : shape.colourKeys) {
                 AddPoint3Values(a_nif, keys.interpolator, shape.colours);
             }
+            shape.alphaMax = shape.baseAlpha;
             for (std::uint32_t c = 0; c < hdr.GetNumBlocks(); ++c) {
                 auto* ctrl = hdr.GetBlock<nifly::BSEffectShaderPropertyFloatController>(c);
-                if (!ctrl || ctrl->targetRef.index != shape.shader || ctrl->typeOfControlledVariable != kFloatVarEmissiveMultiple) {
+                if (!ctrl || ctrl->targetRef.index != shape.shader) {
                     continue;
                 }
-                AddFloatValues(a_nif, ctrl->interpolatorRef.index, shape.multipleMax);
+                double* into = ctrl->typeOfControlledVariable == kFloatVarEmissiveMultiple ? &shape.multipleMax :
+                               ctrl->typeOfControlledVariable == kFloatVarAlpha            ? &shape.alphaMax :
+                                                                                             nullptr;
+                if (!into) {
+                    continue;
+                }
+                AddFloatValues(a_nif, ctrl->interpolatorRef.index, *into);
                 if (const auto it = sequences.find(c); it != sequences.end()) {
                     for (const auto interp : it->second) {
-                        AddFloatValues(a_nif, interp, shape.multipleMax);
+                        AddFloatValues(a_nif, interp, *into);
                     }
                 }
             }
             if (!shape.particles) {
                 ReadVertexColours(a_nif, id, shape);
+            } else if (auto* system = hdr.GetBlock<nifly::NiParticleSystem>(id)) {
+                for (auto& modRef : system->modifierRefs) {  // Y5: the colours a modifier multiplies the particles by
+                    if (const auto* simple = hdr.GetBlock<nifly::BSPSysSimpleColorModifier>(modRef.index)) {
+                        for (const auto& c : { simple->color1, simple->color2, simple->color3 }) {
+                            shape.particleColours.push_back({ c.r, c.g, c.b });
+                        }
+                    } else if (const auto* mod = hdr.GetBlock<nifly::NiPSysColorModifier>(modRef.index)) {
+                        if (const auto* data = hdr.GetBlock<nifly::NiColorData>(mod->dataRef)) {
+                            const auto count = static_cast<int>(data->data.GetNumKeys());
+                            for (int i = 0; i < count; ++i) {
+                                const auto v = data->data.GetKey(i).value;
+                                shape.particleColours.push_back({ v.r, v.g, v.b });
+                            }
+                        }
+                    }
+                }
             }
             shapes.push_back(std::move(shape));
         }

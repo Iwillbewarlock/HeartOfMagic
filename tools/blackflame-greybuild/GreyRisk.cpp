@@ -28,6 +28,17 @@ namespace GreyBuild
         constexpr const char* kRuleHalo = "GREY_HALO";
         constexpr const char* kRuleHaloKept = "HALO_KEPT";
         constexpr const char* kRuleLayout = "BLOCK_LAYOUT";
+        constexpr const char* kRuleForeign = "PAL_FOREIGN";
+        constexpr const char* kRuleModel = "PAL_MODEL";
+        constexpr const char* kRuleDim = "EFFECT_DIM";
+        constexpr const char* kRuleUnreached = "KEYS_UNREACHED";
+
+        // Our own palettes and copies: every greyscale texture a copy may name lives under this folder
+        [[nodiscard]] bool IsOurTexture(const std::string& a_slot)
+        {
+            const auto path = TextureDataPath(a_slot);
+            return path && StartsWith(*path, kOwnTextureRoot);
+        }
         constexpr const char* kRuleTexColour = "TEX_COLOUR";
         constexpr const char* kRuleSheet = "PAL_SHEET";
         constexpr const char* kRuleVanish = "PAL_VANISH";
@@ -43,7 +54,8 @@ namespace GreyBuild
         {
             RiskJob& job;
             const std::string& nif;
-            int warmSoft = 0;                 // drawn soft additive warm shapes (G1 by the glow rules)
+            double energyBefore = 0.0;        // Y5: what the drawn shapes give, source and copy (EFFECT_DIM)
+            double energyAfter = 0.0;
             std::vector<RiskFinding> halos;   // GREY_HALO, judged when the NIF is done (the G1 exception)
         };
 
@@ -93,10 +105,43 @@ namespace GreyBuild
             return a_job.textures->Look(a_slot);
         }
 
+        // Y1: an empty source texture slot samples a default texture (assumed one white texel); else the slot's texture
+        [[nodiscard]] TextureLook TextureOf(RiskJob& a_job, const std::string& a_slot)
+        {
+            if (!a_slot.empty()) {
+                return Look(a_job, a_slot);
+            }
+            TextureLook white;
+            white.status = TextureRead::kOk;
+            white.image = &WhiteTexel();
+            white.path = "(no source texture: one white texel assumed)";
+            return white;
+        }
+
+        struct Rows
+        {
+            double colour = 1.0;  // base red x vertex red (Effect.hlsl: grayscaleToColorUv.y = baseColorMul.x)
+            double alpha = 1.0;   // base alpha x vertex alpha (the alpha lookup's v)
+        };
+
+        // Y2, Y17: each side's own rows, from its own values (the copy's base colour, not the source's)
+        [[nodiscard]] Rows RowsOf(const EffectShape& a_shape)
+        {
+            const bool vertexOn = (a_shape.flags2 & kSlsf2VertexColors) != 0 && a_shape.vertexColours;
+            return { std::clamp(a_shape.baseColour.r * (vertexOn ? a_shape.vertexMean.r : 1.0), 0.0, 1.0),
+                std::clamp(a_shape.baseAlpha * (vertexOn ? a_shape.vertexAlpha : 1.0), 0.0, 1.0) };
+        }
+
+        [[nodiscard]] double RatioOf(double a_copy, double a_source)
+        {
+            return a_source > kRiskEnergyFloor ? a_copy / a_source :
+                   a_copy > kRiskEnergyFloor   ? std::numeric_limits<double>::infinity() : 1.0;
+        }
+
         void CheckPalette(Context& a_ctx, const EffectShape& a_source, const EffectShape& a_copy, const TexStats* a_stats)
         {
-            const auto texture = Look(a_ctx.job, a_source.sourceTexture);
-            const auto copyTexture = Look(a_ctx.job, a_copy.sourceTexture);  // X6: the copy side with the copy's own texture
+            const auto texture = TextureOf(a_ctx.job, a_source.sourceTexture);
+            const auto copyTexture = TextureOf(a_ctx.job, a_copy.sourceTexture);  // X6: the copy side with the copy's texture
             const auto sourcePalette = Look(a_ctx.job, a_source.greyscaleTexture);
             const auto copyPalette = Look(a_ctx.job, a_copy.greyscaleTexture);
             for (const auto& [look, slot, what] : { std::tuple{ texture, a_source.sourceTexture, "texture" },
@@ -109,36 +154,52 @@ namespace GreyBuild
                 }
             }
             const bool paletteAlpha = (a_source.flags1 & kSlsf1GreyscaleToPaletteAlpha) != 0;
-            const bool vertexOn = (a_source.flags2 & kSlsf2VertexColors) != 0 && a_source.vertexColours;
-            const double v = std::clamp(a_source.baseColour.r * (vertexOn ? a_source.vertexMean.r : 1.0), 0.0, 1.0);
-            const auto src = SimulatePalette(*texture.image, *sourcePalette.image, paletteAlpha, v, kRiskDarkLum);
-            const auto copy = SimulatePalette(*copyTexture.image, *copyPalette.image, paletteAlpha, v, kRiskDarkLum);
+            const bool test = a_source.blend == ShapeBlend::kTest;
+            // Y4: alpha test without blending: coverage = the samples whose alpha passes the property's threshold
+            const double threshold = test ? a_source.alphaThreshold : -1.0;
+            const Rows sourceRows = RowsOf(a_source);
+            const Rows copyRows = RowsOf(a_copy);
+            const auto src = SimulatePalette(*texture.image, *sourcePalette.image, paletteAlpha, sourceRows.colour, sourceRows.alpha,
+                kRiskDarkLum, threshold);
+            const auto copy = SimulatePalette(*copyTexture.image, *copyPalette.image, paletteAlpha, copyRows.colour, copyRows.alpha,
+                kRiskDarkLum, threshold);
+            a_ctx.energyBefore += src.energy * a_source.multipleMax;
+            a_ctx.energyAfter += copy.energy * a_copy.multipleMax;
             const char* alphaNote = paletteAlpha ? " (palette alpha)" : "";
-            if (a_source.blend == ShapeBlend::kTest) {
-                // X7: alpha test without blending draws an opaque cut-out: the colour rules apply, the energy and coverage
-                // rules (sheet, vanish) do not - the cut-out's outline is the texture's alpha test, not a blend
-            } else if (a_source.blend == ShapeBlend::kAdditive) {
-                const double ratio = src.energy > kRiskEnergyFloor ? a_ctx.job.tintAdd * copy.energy / src.energy :
-                                     copy.energy > kRiskEnergyFloor ? std::numeric_limits<double>::infinity() : 1.0;
+            if (a_source.blend == ShapeBlend::kAdditive) {
+                // Y2: the output scale is each shader's own emissive multiple (Effect.hlsl: baseColor.xyz = BaseColorScale.x x
+                // palette), read from the source and from the copy - not assumed from the run's settings
+                const double ratio = RatioOf(copy.energy * a_copy.multipleMax, src.energy * a_source.multipleMax);
                 if (ratio > kRiskSheetRatio && copy.coverage >= kRiskSheetCover) {
                     Add(a_ctx, RiskLevel::kFail, kRuleSheet, &a_source, fmt::format("energy x{}, coverage {:.2f} -> {:.2f}{}",
                         Ratio(ratio), src.coverage, copy.coverage, alphaNote));
                 } else if (ratio > kRiskSheetRatio) {
                     Add(a_ctx, RiskLevel::kWarn, kRuleBrighter, &a_source, fmt::format("energy x{}", Ratio(ratio)));
                 }
-                if (ratio < kRiskVanishRatio && src.energy >= kRiskMinSrcEnergy) {
+                if (ratio < kRiskVanishRatio && src.energy * a_source.multipleMax >= kRiskMinSrcEnergy) {
                     Add(a_ctx, RiskLevel::kFail, kRuleVanish, &a_source, fmt::format("energy x{}, {:.0f}% of lit texels on the "
                         "palette dark band", Ratio(ratio), copy.darkFrac * 100.0));
                 }
+                // Y3: under the other reading of the shader (the base colour multiplies the palette output, as in NifSkope),
+                // the copy's (r, r, r) base against the source's coloured one changes the energy; warn when the two readings
+                // disagree by more than kRiskModelSpread
+                const double alt = RatioOf(copy.energy * a_copy.multipleMax * Luminance(a_copy.baseColour),
+                    src.energy * a_source.multipleMax * Luminance(a_source.baseColour));
+                const double spread = std::isinf(alt) || std::isinf(ratio) || alt <= 0.0 || ratio <= 0.0 ?
+                                          (alt == ratio ? 1.0 : std::numeric_limits<double>::infinity()) :
+                                          std::max(alt / ratio, ratio / alt);
+                if (spread > kRiskModelSpread) {
+                    Add(a_ctx, RiskLevel::kWarn, kRuleModel, &a_source, fmt::format("energy x{} (palette x emissive multiple, "
+                        "Effect.hlsl) but x{} if the base colour multiplied the palette", Ratio(ratio), Ratio(alt)));
+                }
             } else {
-                const double ratio = src.coverage > kRiskEnergyFloor ? copy.coverage / src.coverage :
-                                     copy.coverage > kRiskEnergyFloor ? std::numeric_limits<double>::infinity() : 1.0;
+                const double ratio = RatioOf(copy.coverage, src.coverage);
                 if (ratio > kRiskSheetRatio && copy.coverage >= kRiskSheetCover) {
-                    Add(a_ctx, RiskLevel::kFail, kRuleSheet, &a_source, fmt::format("normal blend coverage {:.2f} -> {:.2f}{}",
-                        src.coverage, copy.coverage, alphaNote));
+                    Add(a_ctx, RiskLevel::kFail, kRuleSheet, &a_source, fmt::format("{} coverage {:.2f} -> {:.2f}{}",
+                        test ? "alpha test" : "normal blend", src.coverage, copy.coverage, alphaNote));
                 }
             }
-            if (src.uRange < kRiskMinGBand && !(a_stats && a_stats->energyMean == 0.0)) {
+            if (src.uRange < kRiskMinGBand && !(a_stats && a_stats->energyMean == 0.0) && !a_source.sourceTexture.empty()) {
                 Add(a_ctx, RiskLevel::kWarn, kRuleFlat, &a_source, fmt::format("texture lit green range {:.3f}", src.uRange));
             }
         }
@@ -185,7 +246,6 @@ namespace GreyBuild
                 copyLum = std::max(copyLum, Luminance(Multiply(Multiply(colour, copyTexMean), copyVertex)));
             }
             copyLum *= a_copy.multipleMax;
-            a_ctx.warmSoft += soft && sourceSat >= kRiskWarmSat ? 1 : 0;
             if (soft && sourceSat >= kRiskWarmSat && copyLum > kRiskHaloLumMax) {
                 a_ctx.halos.push_back({ RiskLevel::kFail, kRuleHalo, a_ctx.nif, a_source.block, a_source.name,
                     fmt::format("soft additive {}, source S {:.2f}, copy grey luminance {:.3f}{}", a_source.sourceTexture.empty() ?
@@ -199,10 +259,27 @@ namespace GreyBuild
 
         // Drawn at all: shown, blended, a texture that is not blank, a colour that is not black (a palette shape's colour
         // comes from its palette)
+        // Y5: a plain shape's light: its brightest colour's luminance x texture mean (and its energy) x vertex colour x the
+        // emissive multiple
+        [[nodiscard]] double PlainEnergy(const EffectShape& a_shape, const TextureLook& a_texture)
+        {
+            const Rgb white{ 1.0, 1.0, 1.0 };
+            const Rgb texMean = a_texture.stats ? a_texture.stats->meanRgb : white;
+            const bool vertexOn = (a_shape.flags2 & kSlsf2VertexColors) != 0 && a_shape.vertexColours;
+            double lum = 0.0;
+            for (const auto& colour : a_shape.colours) {
+                lum = std::max(lum, Luminance(Multiply(Multiply(colour, texMean), vertexOn ? a_shape.vertexMean : white)));
+            }
+            return lum * a_shape.multipleMax * (a_texture.stats ? a_texture.stats->energyMean : 1.0);
+        }
+
         [[nodiscard]] bool Visible(const EffectShape& a_shape, const TextureLook& a_texture)
         {
             if (a_shape.hidden || a_shape.blend == ShapeBlend::kNoAlpha || a_shape.blend == ShapeBlend::kOpaque) {
                 return false;
+            }
+            if (a_shape.alphaMax * a_shape.multipleMax <= 0.0) {
+                return false;  // Y5: no alpha (an alpha controller included) or no emissive multiple: nothing shows
             }
             if (a_texture.stats && a_texture.stats->energyMean == 0.0) {
                 return false;
@@ -252,7 +329,7 @@ namespace GreyBuild
         }
     }
 
-    void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job)
+    void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job, bool a_haloKept)
     {
         Context ctx{ a_job, a_nif };
         ++a_job.nifs;
@@ -282,6 +359,12 @@ namespace GreyBuild
                 ++visibleBefore;
                 visibleAfter += Visible(copy, copyTexture) ? 1 : 0;  // X6: a blank generated texture draws nothing
             }
+            // Y1: the shader samples the palette whenever the flag is on (Community Shaders' Effect.hlsl: GrayscaleToColor,
+            // with or without a source texture), blended or not: a palette that is not ours shows the source's colours
+            if (!copy.hidden && (copy.flags1 & kSlsf1GreyscaleToPaletteColor) != 0 && !IsOurTexture(copy.greyscaleTexture)) {
+                Add(ctx, RiskLevel::kFail, kRuleForeign, &source, fmt::format("palette flag on, greyscale texture '{}' is not one of "
+                    "ours{}", copy.greyscaleTexture, copy.sourceTexture.empty() ? " (no source texture)" : ""));
+            }
             if (source.hidden || source.blend == ShapeBlend::kNoAlpha || source.blend == ShapeBlend::kOpaque) {
                 continue;  // not drawn, or a helper without blending (EditorMarker-type): out of scope
             }
@@ -293,15 +376,23 @@ namespace GreyBuild
                 Add(ctx, RiskLevel::kFail, kRuleKeys, &source, fmt::format("copy colour key saturation {:.2f} ({} colours, {} "
                     "controlled-block links)", worst, copy.colours.size(), source.sequenceLinks));
             }
+            if (copy.unreachedControllers > 0) {  // Y6: keys nothing reaches cannot be judged (nor greyed)
+                Add(ctx, RiskLevel::kWarn, kRuleUnreached, &source, fmt::format("{} colour controller(s) with no reachable "
+                    "NiPoint3Interpolator", copy.unreachedControllers));
+            }
             if (IsPaletteShape(source)) {
                 CheckPalette(ctx, source, copy, texture.stats);
             } else {
+                if (Visible(source, texture)) {
+                    ctx.energyBefore += PlainEnergy(source, texture);
+                    ctx.energyAfter += PlainEnergy(copy, copy.sourceTexture.empty() ? TextureLook{} : copyTexture);
+                }
                 CheckPlain(ctx, source, copy, texture, copyTexture);
             }
         }
-        // The G1 exception (GreyGlow.h): when every drawn shape is a soft warm glow, RGB 0 would empty the effect, so the
-        // glow rules keep them visible - a WARN (HALO_KEPT), not a failure
-        const bool kept = visibleBefore > 0 && ctx.warmSoft == visibleBefore;
+        // The G1 exception (GreyGlow.h): when the glow rules kept a NIF's soft warm glows visible because RGB 0 would have
+        // emptied it (Y7: told by the glow step, not guessed here), its GREY_HALO is a WARN (HALO_KEPT), not a failure
+        const bool kept = a_haloKept;
         for (auto& halo : ctx.halos) {
             if (kept) {
                 halo.level = RiskLevel::kWarn;
@@ -310,6 +401,11 @@ namespace GreyBuild
             }
             ++a_job.perRule[halo.rule];
             a_job.findings.push_back(std::move(halo));
+        }
+        // Y5: the effect as a whole much dimmer than its source (G1's RGB 0 included): a WARN, the look is a choice
+        if (ctx.energyBefore > kRiskEnergyFloor && ctx.energyAfter / ctx.energyBefore < kRiskDimRatio && visibleAfter > 0) {
+            Add(ctx, RiskLevel::kWarn, kRuleDim, nullptr, fmt::format("the drawn shapes give {:.0f}% of the source's light",
+                ctx.energyAfter / ctx.energyBefore * 100.0));
         }
         if (visibleBefore > 0 && visibleAfter == 0) {
             Add(ctx, RiskLevel::kFail, kRuleEmpty, nullptr, fmt::format("the source draws {} shape(s), the copy none (every "
@@ -343,11 +439,13 @@ namespace GreyBuild
         std::string text = "# HeartOfMagic Black Flame visual-risk report v1\n";
         text += fmt::format("# constants kRiskWarmSat={} kRiskMinChannel={} kRiskSoftDetail={} kRiskHaloLumMax={} kRiskMaxKeySat={} "
                             "kRiskMaxVcSat={} kRiskTexColoredFrac={} kRiskTexMeanSat={} kRiskSheetRatio={} kRiskSheetCover={} "
-                            "kRiskVanishRatio={} kRiskMinSrcEnergy={} kRiskMinGBand={} kRiskDarkLum={} tintAdd={}\n",
+                            "kRiskVanishRatio={} kRiskMinSrcEnergy={} kRiskMinGBand={} kRiskDarkLum={} kRiskModelSpread={}\n",
             kRiskWarmSat, kRiskMinChannel, kRiskSoftDetail, kRiskHaloLumMax, kRiskMaxKeySat, kRiskMaxVcSat, kRiskTexColoredFrac,
             kRiskTexMeanSat, kRiskSheetRatio, kRiskSheetCover, kRiskVanishRatio, kRiskMinSrcEnergy, kRiskMinGBand, kRiskDarkLum,
-            a_job.tintAdd);
-        text += "# model (not checked against the game): palette colour by the texture's green, palette alpha by its alpha\n";
+            kRiskModelSpread);
+        text += "# model (Community Shaders' Effect.hlsl; the vanilla shader may differ): palette colour by the texture's green on "
+                "the row base red x vertex red, x the emissive multiple; palette alpha by the texture's alpha on the row base "
+                "alpha x vertex alpha\n";
         text += fmt::format("SUMMARY\tnifs={}\tshapes={}\tfail={}\twarn={}\tunread={}\tmissing={}", a_job.nifs, a_job.shapes,
             RiskCount(a_job, RiskLevel::kFail), RiskCount(a_job, RiskLevel::kWarn), RiskCount(a_job, RiskLevel::kUnread),
             RiskCount(a_job, RiskLevel::kMissing));

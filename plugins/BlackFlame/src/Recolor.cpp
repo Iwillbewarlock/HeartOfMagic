@@ -121,7 +121,7 @@ namespace BlackFlame
             // nor desaturated again (a fresh copy every tick would compound the desaturation to black,
             // also for a copy that lost the path as well as the texture)
             if (IsFailed(a_prop) ||
-                (IsPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture)) {
+                (IsAnyPalettePath(source->greyscaleTexturePath) && !source->greyscaleTexture)) {  // Y9: any palette of ours
                 if (a_prop->flags.any(Flag::kGrayscaleToPaletteColor, Flag::kGrayscaleToPaletteAlpha)) {
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, false);
                     a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, false);

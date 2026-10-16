@@ -22,6 +22,8 @@ namespace BlackFlame
         constexpr const char* kStaleText = "Black Flame: your fire spells changed. Run the Black Flame builder, then restart the game.";
         constexpr const char* kNoneText = "Black Flame: the grey copies are not built yet. Run the Black Flame builder, then restart the game.";
         constexpr const char* kEmptyText = "Black Flame: the copies output holds no fire forms. Check the builder's messages.";
+        constexpr const char* kNotAppliedText = "Black Flame: the grey copies could not be applied this session (see "
+                                                "HeartOfMagic_BlackFlame.log); fire spells stay as they were.";
         constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp "
                                              "and put the copies output mod after Black Flame.";
         // The player-facing line when a loose-file index (CRDW and the like) does not know the copies; {} the count, {} the cache
@@ -30,6 +32,7 @@ namespace BlackFlame
         constexpr const char* kFileIndexNamed = "the CRDW loose-file cache is out of date";
         constexpr const char* kFileIndexGeneric = "a loose-file cache such as CRDW is out of date";
         constexpr int kOldMapVersion = 1;
+        constexpr const char* kDerivedPaletteFolder = "Data/textures/heartofmagic/blackflame/copies/palettes";  // Y8
 
         TrackedMutex g_fileIndexMutex;
         std::string g_fileIndexText;               // under g_fileIndexMutex
@@ -40,6 +43,7 @@ namespace BlackFlame
         bool g_checked = false;          // F10: CheckFreshness ran (kDataLoaded finished its copy request part)
         std::string g_uncheckedWhy;      // why not, when it did not
         std::atomic<bool> g_notified{ false };
+        std::string g_fillFailedWhy;     // Y11: set before CheckFreshness when the fill stopped part way
 
         bool CopiesPluginLoaded()
         {
@@ -57,6 +61,8 @@ namespace BlackFlame
             return "stale";
         case CopyFreshness::kPluginMissing:
             return "pluginMissing";
+        case CopyFreshness::kNotApplied:
+            return "notApplied";
         default:
             return "none";
         }
@@ -71,7 +77,10 @@ namespace BlackFlame
             state.formsWithoutCopy += CopyOf(form.form) ? 0 : 1;
         }
         state.copiesLostSource = counts.sourceMissing;
-        if (!counts.mapRead || counts.mapEntries == 0) {
+        if (!g_fillFailedWhy.empty()) {
+            state.state = CopyFreshness::kNotApplied;
+            state.detail = "the copies map could not be applied: " + g_fillFailedWhy;
+        } else if (!counts.mapRead || counts.mapEntries == 0) {
             state.state = CopyFreshness::kNone;
             state.detail = counts.mapRead ? "the copies map has no entry" : "no copies map (the builder has not been run)";
         } else if (!CopiesPluginLoaded() || (counts.copyMissing > 0 && counts.copyMissing * 2 >= counts.mapEntries)) {
@@ -101,6 +110,11 @@ namespace BlackFlame
         g_state = std::move(state);
         g_checked = true;
         logger::info("BlackFlame: copies freshness: {} - {}", FreshnessName(g_state.state), g_state.detail);
+    }
+
+    void MarkCopiesFillFailed(const std::string& a_why)
+    {
+        g_fillFailedWhy = a_why.empty() ? std::string("the fill stopped part way") : a_why;
     }
 
     void MarkFreshnessUnchecked(const std::string& a_why)
@@ -158,6 +172,19 @@ namespace BlackFlame
             mix(model);
             mix(stamp(std::filesystem::path("Data") / relative));
         }
+        // Y8: the palettes the builder derived for the copies are loose files too (the copy NIFs name them)
+        std::error_code walkError;
+        std::size_t palettes = 0;
+        for (auto it = std::filesystem::recursive_directory_iterator(kDerivedPaletteFolder, walkError);
+             !walkError && it != std::filesystem::recursive_directory_iterator(); it.increment(walkError)) {
+            std::error_code typeError;
+            if (it->is_regular_file(typeError)) {
+                mix(it->path().string());
+                mix(stamp(it->path()));
+                ++palettes;
+            }
+        }
+        mix(std::format("palettes {}", palettes));
         std::string crdw = "no CRDW.dll";
         if (const auto module = REX::W32::GetModuleHandleW(L"CRDW.dll")) {
             constexpr std::size_t kModulePathChars = 1024;  // a longer module path reads as absent
@@ -213,7 +240,8 @@ namespace BlackFlame
             return;
         }
         const auto counts = GetCopyCounts();
-        const char* text = state == CopyFreshness::kPluginMissing      ? kMissingText :
+        const char* text = state == CopyFreshness::kNotApplied         ? kNotAppliedText :
+                           state == CopyFreshness::kPluginMissing      ? kMissingText :
                            state == CopyFreshness::kNone && counts.mapRead ? kEmptyText :  // G9: a map with no entry
                            state == CopyFreshness::kNone                 ? kNoneText :
                                                                            kStaleText;

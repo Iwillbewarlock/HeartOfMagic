@@ -95,9 +95,12 @@ if ($dirty) { $Version = "$Version-dirty" }
 $commit = (git -C $repo rev-parse HEAD).Trim()
 # W6: published = reachable from a branch or tag that origin has now (fetched first; offline counts as unpublished)
 $published = $false
+$promptBefore = $env:GIT_TERMINAL_PROMPT
 $env:GIT_TERMINAL_PROMPT = '0'  # X12: never wait on a credential prompt
 git -C $repo fetch --quiet --tags origin 2>$null
-if ($LASTEXITCODE -eq 0) {
+$fetchCode = $LASTEXITCODE
+$env:GIT_TERMINAL_PROMPT = $promptBefore  # Y19: put back as it was
+if ($fetchCode -eq 0) {
     foreach ($line in @(git -C $repo ls-remote --heads --tags origin)) {
         $sha = ($line -split '\s+')[0]
         if ($sha) {

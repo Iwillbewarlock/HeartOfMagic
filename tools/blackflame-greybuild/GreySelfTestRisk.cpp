@@ -168,11 +168,15 @@ namespace GreyBuild::SelfTest
 
         [[nodiscard]] RiskJob Judge(const Spec& a_spec, TextureSource& a_textures, GlowContext* a_glow)
         {
+            if (a_glow) {
+                a_glow->haloKept.clear();  // one made-up NIF name for every case
+            }
             Pair pair;
             MakePair(pair, a_spec, a_glow);
             RiskJob job;
             job.textures = &a_textures;
-            RiskCheckNif(pair.source, pair.copy, "meshes\\selftest.nif", job);
+            RiskCheckNif(pair.source, pair.copy, "meshes\\selftest.nif", job,
+                a_glow && a_glow->haloKept.count("meshes\\selftest.nif") != 0);  // Y7: the glow step says whether it kept G2
             return job;
         }
 
@@ -262,9 +266,80 @@ namespace GreyBuild::SelfTest
         }
     }
 
+    namespace
+    {
+        // Y1, Y2 end to end: the glow rules derive the palette and scale it, then the check reads the copy's own values
+        void CheckDerivedEndToEnd(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto out = a_dir / "derived";
+            TextureSource textures({ out }, {}, out);
+            RgbaImage ramp;
+            ramp.width = kTex;
+            ramp.height = kTex;
+            for (std::size_t y = 0; y < kTex; ++y) {
+                for (std::size_t x = 0; x < kTex; ++x) {
+                    ramp.pixels.insert(ramp.pixels.end(), { 200, static_cast<std::uint8_t>(60 * x + 20), 200, 255 });
+                }
+            }
+            RgbaImage palette;  // orange, alpha rising across: the source palette carves the shape
+            palette.width = kTex;
+            palette.height = 1;
+            for (std::size_t x = 0; x < kTex; ++x) {
+                palette.pixels.insert(palette.pixels.end(), { 255, 120, 0, static_cast<std::uint8_t>(80 * x) });
+            }
+            textures.Put("textures\\selftest\\e2e_tex.dds", ramp);
+            textures.Put("textures\\selftest\\e2e_pal.dds", palette);
+            const auto run = [&](const Spec& a_spec, float a_tintAdd, const char* a_forceGreyscale) {
+                PaletteJob palettes;
+                palettes.out = out;
+                palettes.textures = &textures;
+                GlowContext glow;
+                glow.textures = &textures;
+                glow.palettes = &palettes;
+                glow.tintAdd = a_tintAdd;
+                Pair pair;
+                MakePair(pair, a_spec, &glow);
+                if (a_forceGreyscale) {
+                    auto& hdr = pair.copy.GetHeader();
+                    for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                        if (auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
+                            shader->greyscaleTexture.get() = a_forceGreyscale;
+                        }
+                    }
+                }
+                RiskJob job;
+                job.textures = &textures;
+                RiskCheckNif(pair.source, pair.copy, "meshes\\selftest_e2e.nif", job);
+                return job;
+            };
+            Spec palShape;
+            palShape.texture = "textures\\selftest\\e2e_tex.dds";
+            palShape.palette = "textures\\selftest\\e2e_pal.dds";
+            palShape.paletteAlpha = true;
+            palShape.base = nifly::Color4{ 1.0f, 0.5f, 0.0f, 1.0f };
+            palShape.companion = true;
+            const auto good = run(palShape, kDefaultTintAdd, nullptr);
+            a_check.Check(RiskGatePasses(good) && Count(good, "PAL_SHEET") == 0 && Count(good, "PAL_VANISH") == 0,
+                fmt::format("Y2: glow rules -> derived palette -> the check, from the copy's own values, passes ({})", RiskGateLine(good)));
+            const auto dark = run(palShape, 0.0f, nullptr);
+            a_check.Check(!RiskGatePasses(dark), fmt::format("Y2: --tint-add 0 really darkens a derived additive palette (emissive "
+                "multiple 0) and the check fails it ({})", RiskGateLine(dark)));
+            Spec flagOnly = palShape;
+            flagOnly.texture.clear();
+            const auto flag = run(flagOnly, kDefaultTintAdd, nullptr);
+            a_check.Check(Count(flag, "PAL_FOREIGN") == 0 && RiskGatePasses(flag),
+                fmt::format("Y1: a palette flag without a source texture takes a derived palette (PAL_FOREIGN {}; {})",
+                    Count(flag, "PAL_FOREIGN"), RiskGateLine(flag)));
+            const auto foreign = run(flagOnly, kDefaultTintAdd, "textures\\selftest\\e2e_pal.dds");
+            a_check.Check(Count(foreign, "PAL_FOREIGN") == 1, fmt::format("Y1: a copy that keeps the source's palette is "
+                "PAL_FOREIGN ({})", Count(foreign, "PAL_FOREIGN")));
+        }
+    }
+
     void CheckRisk(Checker& a_check, const std::filesystem::path& a_dir)
     {
         CheckPalettes(a_check, a_dir);
+        CheckDerivedEndToEnd(a_check, a_dir);
         TextureSource textures({}, {});
         GlowContext glow;
         glow.textures = &textures;
@@ -299,9 +374,16 @@ namespace GreyBuild::SelfTest
         alone.companion = false;
         const int keptBefore = glow.totals.g1Kept;
         const auto aloneAfter = Judge(alone, textures, &glow);
-        a_check.Check(Count(aloneAfter, "EFFECT_EMPTY") == 0 && glow.totals.g1Kept == keptBefore + 1,
-            fmt::format("G1 exception: a NIF whose only drawn shape is a soft warm glow keeps it at G2 (EFFECT_EMPTY {}, kept {})",
-                Count(aloneAfter, "EFFECT_EMPTY"), glow.totals.g1Kept - keptBefore));
+        a_check.Check(Count(aloneAfter, "EFFECT_EMPTY") == 0 && glow.totals.g1Kept == keptBefore + 1 &&
+                          Count(aloneAfter, "HALO_KEPT") == 1 && Count(aloneAfter, "GREY_HALO") == 0,
+            fmt::format("G1 exception: a NIF whose only drawn shape is a soft warm glow keeps it at G2, listed as HALO_KEPT "
+                        "(EFFECT_EMPTY {}, kept {}, HALO_KEPT {}, GREY_HALO {})", Count(aloneAfter, "EFFECT_EMPTY"),
+                glow.totals.g1Kept - keptBefore, Count(aloneAfter, "HALO_KEPT"), Count(aloneAfter, "GREY_HALO")));
+        // Y7: the same lone glow judged without the glow step's word is a GREY_HALO failure, not a HALO_KEPT
+        const auto aloneUntold = Judge(alone, textures, nullptr);
+        a_check.Check(Count(aloneUntold, "GREY_HALO") == 1 && Count(aloneUntold, "HALO_KEPT") == 0,
+            fmt::format("Y7: HALO_KEPT only when the glow step kept the NIF (without it: GREY_HALO {}, HALO_KEPT {})",
+                Count(aloneUntold, "GREY_HALO"), Count(aloneUntold, "HALO_KEPT")));
 
 
         Spec vertex;

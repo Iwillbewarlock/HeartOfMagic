@@ -149,8 +149,14 @@ namespace GreyBuild
         return a_stats.colouredFrac >= kStatColouredFrac || a_stats.meanSat >= kStatMeanSat;
     }
 
-    PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha, double a_v,
-        double a_darkLum)
+    const RgbaImage& WhiteTexel()
+    {
+        static const RgbaImage white{ 1, 1, { 255, 255, 255, 255 }, false };
+        return white;
+    }
+
+    PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha, double a_colourRow,
+        double a_alphaRow, double a_darkLum, double a_testThreshold)
     {
         PaletteSim sim;
         const std::size_t step = std::max<std::size_t>(1, std::max(a_texture.width, a_texture.height) / kSimGrid);
@@ -164,11 +170,11 @@ namespace GreyBuild
         for (std::size_t y = 0; y < a_texture.height; y += step) {
             for (std::size_t x = 0; x < a_texture.width; x += step) {
                 const auto t = a_texture.At(x, y);
-                const auto c = Lookup(a_palette, t[1], a_v);
-                const double a = a_paletteAlpha ? Lookup(a_palette, t[3], a_v)[3] : t[3];
+                const auto c = Lookup(a_palette, t[1], a_colourRow);
+                const double a = a_paletteAlpha ? Lookup(a_palette, t[3], a_alphaRow)[3] : t[3];
                 const double lum = Lum(c);
                 energy += lum * a;
-                alpha += a;
+                alpha += a_testThreshold >= 0.0 ? (a > a_testThreshold ? 1.0 : 0.0) : a;
                 ++samples;
                 if (t[3] > kSimLitAlpha) {
                     ++lit;
@@ -187,8 +193,9 @@ namespace GreyBuild
         return sim;
     }
 
-    TextureSource::TextureSource(std::vector<std::filesystem::path> a_folders, std::map<std::string, std::string> a_notInGame) :
-        m_folders(std::move(a_folders)), m_notInGame(std::move(a_notInGame))
+    TextureSource::TextureSource(std::vector<std::filesystem::path> a_folders, std::map<std::string, std::string> a_notInGame,
+        std::filesystem::path a_generated) :
+        m_folders(std::move(a_folders)), m_generated(std::move(a_generated)), m_notInGame(std::move(a_notInGame))
     {}
 
     std::vector<std::filesystem::path> TextureSource::OwnFolders()
@@ -243,7 +250,11 @@ namespace GreyBuild
         auto it = m_cache.find(*path);
         if (it == m_cache.end()) {
             Entry entry;
-            if (const auto file = FindSource(m_folders, *path)) {
+            std::vector<std::filesystem::path> folders = m_folders;
+            if (!m_generated.empty() && StartsWith(*path, kTextureCopyRoot)) {
+                folders.insert(folders.begin(), m_generated);  // Y14: this run's copy first, never an older one elsewhere
+            }
+            if (const auto file = FindSource(folders, *path)) {
                 if (auto image = ReadRgba(*file, entry.why)) {
                     entry.status = TextureRead::kOk;
                     entry.stats = std::make_unique<TexStats>(ComputeStats(*image));

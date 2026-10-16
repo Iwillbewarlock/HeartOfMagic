@@ -23,6 +23,9 @@
 namespace GreyBuild
 {
     inline constexpr const char* kPaletteCopyRoot = "textures\\heartofmagic\\blackflame\\copies\\palettes\\";
+    // Y16: the folder of each blend under kPaletteCopyRoot (GreyPalette.cpp writes there, VerifyGrey expects them)
+    inline constexpr const char* kPaletteAddFolder = "add\\";
+    inline constexpr const char* kPaletteNormalFolder = "normal\\";
 
     enum class PaletteMode
     {

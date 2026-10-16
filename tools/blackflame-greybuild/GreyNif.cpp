@@ -172,7 +172,7 @@ namespace GreyBuild
 
     bool UsesPalette(const nifly::BSEffectShaderProperty& a_prop)
     {
-        return (a_prop.shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0 && !a_prop.sourceTexture.get().empty();
+        return (a_prop.shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0;  // Y1: the flag alone
     }
 
     void AddShaderCounts(GreyStats& a_sum, const GreyStats& a_stats) noexcept
@@ -517,7 +517,7 @@ namespace GreyBuild
                         const bool additive = it != blends.end() && it->second == Blend::kAdditive;
                         // Our fixed palette for its blend, or a palette derived for that blend (GreyPalette.h)
                         const std::string greyscale = Lower(a_prop.greyscaleTexture.get());
-                        const std::string derived = std::string(kPaletteCopyRoot) + (additive ? "add\\" : "normal\\");
+                        const std::string derived = std::string(kPaletteCopyRoot) + (additive ? kPaletteAddFolder : kPaletteNormalFolder);
                         if (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived)) {
                             problems.push_back(fmt::format("effect shader block {}: {} palette shader, greyscale texture '{}'",
                                 a_id, additive ? "additive" : "normal-blend", a_prop.greyscaleTexture.get()));

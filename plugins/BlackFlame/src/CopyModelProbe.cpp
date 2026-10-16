@@ -43,6 +43,7 @@ namespace BlackFlame
         TrackedMutex g_statusMutex;
         std::string g_status = "not started";  // under g_statusMutex (the tester file reads it)
         std::atomic<std::size_t> g_failedCopies{ 0 };  // W27: the failing copies found (drop or log)
+        std::atomic<bool> g_refreshTried{ false };     // Y10: Finish got to its refresh (Stopped does not run it again)
 
         void SetStatus(std::string a_status)
         {
@@ -452,6 +453,7 @@ namespace BlackFlame
                 return;
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
+            g_refreshTried.store(true);
             RefreshCopies("copy model probe", player && player->GetParentCell() != nullptr);
         }
 
@@ -493,9 +495,10 @@ namespace BlackFlame
                 logger::warn("BlackFlame: copy model probe stopped after its result took effect ({} cop{} out): {}", out,
                     out == 1 ? "y" : "ies", a_why);
                 SetStatus(std::format("probe stopped after its result ({} copies out): {}", out, a_why));
-                if (Dropping() && out > 0 && MainQueue::Installed()) {
+                if (Dropping() && out > 0 && MainQueue::Installed() && !g_refreshTried.exchange(true)) {  // Y10: once, guarded
                     const auto* player = RE::PlayerCharacter::GetSingleton();
-                    RefreshCopies("copy model probe", player && player->GetParentCell() != nullptr);
+                    (void)Guarded("copy model probe refresh after a stop",
+                        [&]() { RefreshCopies("copy model probe", player && player->GetParentCell() != nullptr); });
                 }
                 return;
             }

@@ -124,9 +124,9 @@ namespace BlackFlame::SelfTestProbe
             AddProperty(a_prop, out.pointers);
             if (const auto* material = a_prop->GetMaterial()) {
                 // v2i: the copies' grey rule (FormCopies / the builder's GreyEffects)
-                const bool paletteShader = a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor) &&
-                                           !material->sourceTexturePath.empty();
-                const bool ours = IsAnyPalettePath(material->greyscaleTexturePath);
+                // Y1: the flag alone (the shader samples the palette with or without a source texture)
+                const bool paletteShader = a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor);
+                const bool ours = IsAnyPalettePath(material->greyscaleTexturePath) && material->greyscaleTexture;  // Y8: loaded
                 const auto& base = material->baseColor;
                 const bool greyBase = std::fabs(base.red - base.green) <= kGreyTolerance &&
                                       std::fabs(base.green - base.blue) <= kGreyTolerance;

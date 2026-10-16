@@ -37,7 +37,7 @@ namespace BlackFlame
     /// The path names the additive palette (the same comparison as IsPalettePath, against its fixed path)
     [[nodiscard]] bool IsAddPalettePath(const RE::BSFixedString& a_path);
 
-    /// Any palette of ours: either fixed one, or one the builder derived from a source palette (any greyscale texture under
-    /// textures\heartofmagic\blackflame\, the same comparison)
+    /// Any palette of ours: either fixed one, or one the builder derived from a source palette (under
+    /// textures\heartofmagic\blackflame\copies\palettes\, the same comparison)
     [[nodiscard]] bool IsAnyPalettePath(const RE::BSFixedString& a_path);
 }

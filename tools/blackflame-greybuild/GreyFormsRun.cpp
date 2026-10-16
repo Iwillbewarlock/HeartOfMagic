@@ -166,7 +166,8 @@ namespace GreyBuild
             std::vector<std::filesystem::path> files;
             for (auto it = std::filesystem::recursive_directory_iterator(a_staging, ec);
                  !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-                if (it->is_regular_file()) {
+                std::error_code typeError;  // Y15: no throwing overload
+                if (it->is_regular_file(typeError)) {
                     files.push_back(it->path());
                 }
             }
@@ -351,10 +352,9 @@ namespace GreyBuild
             for (const auto& own : TextureSource::OwnFolders()) {
                 textureFolders.push_back(own);
             }
-            TextureSource textureSource(textureFolders, a_options.texturesNotDumped);
+            TextureSource textureSource(textureFolders, a_options.texturesNotDumped, a_staging);
             RiskJob risk;
             risk.textures = &textureSource;
-            risk.tintAdd = a_plan.map.tintAdd;
             PaletteJob palettes;
             palettes.mode = a_options.paletteMode;
             palettes.out = a_staging;

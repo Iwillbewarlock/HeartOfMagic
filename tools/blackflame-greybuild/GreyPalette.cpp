@@ -16,21 +16,41 @@ namespace GreyBuild
 {
     namespace
     {
-        constexpr const char* kAddFolder = "add\\";
-        constexpr const char* kNormalFolder = "normal\\";
         constexpr float kByteMax = 255.0f;
+        constexpr long kByteTop = 255;
 
         [[nodiscard]] std::uint8_t Byte(float a_value) noexcept
         {
-            return static_cast<std::uint8_t>(std::clamp(std::lround(a_value * kByteMax), 0L, 255L));
+            return static_cast<std::uint8_t>(std::clamp(std::lround(a_value * kByteMax), 0L, kByteTop));
         }
 
-        // P2: every texel's colour to its luminance (8-bit, the builder's Luminance), alpha untouched
+        // Y13: sRGB transfer (IEC 61966-2-1), so an sRGB palette's luminance is taken from linear values
+        [[nodiscard]] float ToLinear(float a_value) noexcept
+        {
+            return a_value <= 0.04045f ? a_value / 12.92f : std::pow((a_value + 0.055f) / 1.055f, 2.4f);
+        }
+
+        [[nodiscard]] float ToSrgb(float a_value) noexcept
+        {
+            return a_value <= 0.0031308f ? a_value * 12.92f : 1.055f * std::pow(a_value, 1.0f / 2.4f) - 0.055f;
+        }
+
+        // P2: every texel's colour to its luminance (8-bit, the builder's Luminance; an sRGB palette decoded to linear and
+        // encoded back), alpha untouched
         void Desaturate(RgbaImage& a_image)
         {
             for (std::size_t i = 0; i + 3 < a_image.pixels.size(); i += 4) {
                 auto* p = a_image.pixels.data() + i;
-                const auto grey = Byte(Luminance(p[0] / kByteMax, p[1] / kByteMax, p[2] / kByteMax));
+                float r = p[0] / kByteMax;
+                float g = p[1] / kByteMax;
+                float b = p[2] / kByteMax;
+                if (a_image.srgb) {
+                    r = ToLinear(r);
+                    g = ToLinear(g);
+                    b = ToLinear(b);
+                }
+                const float lum = Luminance(r, g, b);
+                const auto grey = Byte(a_image.srgb ? ToSrgb(lum) : lum);
                 p[0] = grey;
                 p[1] = grey;
                 p[2] = grey;
@@ -100,11 +120,12 @@ namespace GreyBuild
                 ok = ours.status == TextureRead::kOk;
                 if (ok) {
                     TakeColour(image, *ours.image);
+                    image.srgb = ours.image->srgb;  // Y13: the colour bytes are ours, so is their encoding (alpha is linear)
                 } else {
                     why = fmt::format("our palette {}: {}", kPalettePath, ours.why);
                 }
             }
-            const std::string slot = std::string(kPaletteCopyRoot) + (a_additive ? kAddFolder : kNormalFolder) +
+            const std::string slot = std::string(kPaletteCopyRoot) + (a_additive ? kPaletteAddFolder : kPaletteNormalFolder) +
                                      source.path.substr(std::char_traits<char>::length(kTexturesRoot));
             if (ok) {
                 ok = Write(image, a_job.out / std::filesystem::path(slot), why);

@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace nifly
@@ -34,6 +35,8 @@ namespace GreyBuild
     inline constexpr float kHugeFloatValue = 1e30f;
     // BSEffectShaderPropertyFloatController controlled variable 0: the emissive multiple
     inline constexpr std::uint32_t kFloatVarEmissiveMultiple = 0;
+    // ... variable 5: the alpha transparency (nif.xml EffectShaderControlledVariable)
+    inline constexpr std::uint32_t kFloatVarAlpha = 5;
 
     enum class ShapeBlend
     {
@@ -75,6 +78,9 @@ namespace GreyBuild
         std::string sourceTexture;
         std::string greyscaleTexture;
         Rgb baseColour;
+        double baseAlpha = 1.0;     // the base colour's alpha (the palette alpha row with the vertex alpha, Y17)
+        double alphaMax = 1.0;      // Y5: the base alpha's largest value, its alpha-transparency controller keys included
+        double alphaThreshold = 0.0;  // NiAlphaProperty threshold / 255 (alpha test)
         double colourScale = 1.0;   // baseColorScale
         std::vector<Rgb> colours;   // base colour, then every colour controller value and key reached
         int sequenceLinks = 0;      // controlled blocks that name one of its colour controllers
@@ -83,6 +89,8 @@ namespace GreyBuild
         int unreachedControllers = 0;  // colour controllers no NiPoint3Interpolator of theirs is reached for
         bool vertexColours = false;    // the geometry stores vertex colours
         Rgb vertexMean;                // alpha-weighted mean of the vertex colours (3 decimals, as the census)
+        double vertexAlpha = 1.0;      // mean vertex alpha (1 without vertex colours)
+        std::vector<Rgb> particleColours;  // Y5: a particle system's colour modifier colours and keys (they multiply)
         double vertexSaturation = 0.0; // of vertexMean (3 decimals)
         std::uint32_t vertexBlock = 0; // the block holding them: the BSTriShape, or the NiTriShapeData
     };
@@ -92,8 +100,15 @@ namespace GreyBuild
     [[nodiscard]] Rgb Multiply(const Rgb& a_left, const Rgb& a_right) noexcept;
     [[nodiscard]] double Round3(double a_value) noexcept;  // to 3 decimals, half up (the census's rounding)
 
-    /// Palette shader by the census's rule: SLSF1 greyscale-to-palette-colour on and a source texture
+    /// Palette shader: SLSF1 greyscale-to-palette-colour on (Y1: with or without a source texture, as UsesPalette)
     [[nodiscard]] bool IsPaletteShape(const EffectShape& a_shape) noexcept;
+
+    /// Y16: a shader blends additively when any shape using it does (GreyEffects' BlendByShader rule)
+    [[nodiscard]] bool AnyAdditive(const std::vector<const EffectShape*>& a_users) noexcept;
+
+    /// Y2: the emissive multiple's float interpolators a shader's BSEffectShaderPropertyFloatController (variable 0)
+    /// reaches, directly or through controlled blocks: (interpolator, its NiFloatData or NIF_NPOS)
+    [[nodiscard]] std::vector<std::pair<std::uint32_t, std::uint32_t>> EmissiveKeysOf(nifly::NifFile& a_nif, std::uint32_t a_shader);
 
     /// Every effect-shader shape of a_nif, in block order
     [[nodiscard]] std::vector<EffectShape> EffectShapes(nifly::NifFile& a_nif);

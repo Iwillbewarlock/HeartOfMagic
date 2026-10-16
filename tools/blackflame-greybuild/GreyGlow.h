@@ -21,6 +21,7 @@
 #include "GreyPalette.h"
 #include "GreyShapes.h"
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,8 +32,6 @@ namespace nifly
 
 namespace GreyBuild
 {
-    class TextureSource;
-
     struct GlowTotals
     {
         int g1 = 0;                // G1: shaders whose colours went to RGB 0 (additive soft warm glows)
@@ -41,6 +40,7 @@ namespace GreyBuild
         int g3 = 0;                // G3: shapes, additive soft neutral (luminance x tint)
         int g5 = 0;                // G5: shapes, normal blend (luminance x tint)
         int unread = 0;            // shapes whose texture could not be read (G2)
+        int mixed = 0;             // Y18: shaders shared by shapes of different classes (no G1)
         int sequenceKeys = 0;      // K: colour keys reached only through controlled blocks, greyed
         int blendValues = 0;       // K: a colour controller's own blend interpolator value, greyed
         int unreached = 0;         // colour controllers without a reachable NiPoint3Interpolator (no keys to grey)
@@ -56,6 +56,7 @@ namespace GreyBuild
         float tint = kDefaultTint;
         float tintAdd = kDefaultTintAdd;
         GlowTotals totals;
+        std::set<std::string> haloKept;  // Y7: NIFs (source paths) where G1 would have emptied the effect: kept at G2
     };
 
     /// The rules above on a_copy (GreyEffects already ran on it) from a_source; prints a NOTE per thing it could not do
