@@ -12,6 +12,19 @@
 
 namespace BlackFlame
 {
+    /// copyModelProbe (CopyModelProbe.h): "off" = no probe; "log" (the default) = probe and log only, never take a copy out
+    /// (the in-game run of 46855dd reported 347 of 356 copy models failed with error 1 although they load in play: the probe's
+    /// way of asking is in doubt); "drop" = a copy whose model fails while its source's loads is taken out of the swaps.
+    /// A cached result (same copies map) is reused instead of probing, unless copyModelProbeAlways, selfTest or testerMode.
+    enum class ProbeMode
+    {
+        kOff,
+        kLog,
+        kDrop
+    };
+
+    [[nodiscard]] const char* ProbeModeName(ProbeMode a_mode) noexcept;
+
     struct Config
     {
         bool burnShader = true;   // layer 1: the hit shader of the player's fire effects swapped for ours
@@ -36,8 +49,9 @@ namespace BlackFlame
         bool copyCastingArt = true;       // SetCastingArt: the player's fire hand art becomes its copy (CopySwapArt.cpp)
         bool copyHazardCreate = true;     // hazard creation: the base becomes its copy (copy window, spawn-hazard effect)
         bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
-        bool copyModelProbe = true;       // v2i: every copy NIF demanded once at the main menu; a failure leaves that copy out
-                                          // of the swaps (CopyModelProbe.h)
+        ProbeMode copyModelProbe = ProbeMode::kLog;  // v2i: the copy NIFs demanded from the model database in the background
+                                                     // (CopyModelProbe.h); log only unless "drop"
+        bool copyModelProbeAlways = false;           // probe at every start (the cached result is not reused)
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool testerMode = false;  // the tester package: selfTest and writeRequest on, every log line written through at once,
                                   // and HeartOfMagic_BlackFlame_tester.txt (Tester.h; the file is written in every mode)

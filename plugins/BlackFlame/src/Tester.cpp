@@ -1,5 +1,7 @@
 #include "Tester.h"
 
+#include "CopyModelProbe.h"
+
 #include "Config.h"
 #include "CopyFreshness.h"
 #include "CopyRequest.h"
@@ -56,8 +58,8 @@ namespace BlackFlame::Tester
                 c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
                 c.sourceAbsent);
             out += CopyModelProbeDone() ?  // v2i (CopyModelProbe; I12: a startup write comes before the probe)
-                       std::format("  copy NIF failed to load in game: {}\n", CopiesFailedToLoad().size()) :
-                       std::string("  copy NIF failed to load in game: not probed yet (before the probe, or copyModelProbe false)\n");
+                       std::format("  copy NIF failed to load in game: {} (probe {})\n", CopiesFailedToLoad().size(), CopyModelProbeStatus()) :
+                       std::format("  copy NIF failed to load in game: not known yet (probe {})\n", CopyModelProbeStatus());
             out += std::format("  fire spells {} ({} cloak-associated), fire effects {}\n", fire.total, fire.cloakAssociated,
                 fire.effects);
             out += std::format("  request: {} closure forms, {} excluded; fingerprint {}; request {}; dump {}; NIFs {} ({} failed) "

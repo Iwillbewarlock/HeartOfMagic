@@ -44,7 +44,7 @@ namespace BlackFlame
             BoolKey{ "copyExplosionCreate", &Config::copyExplosionCreate },
             BoolKey{ "copyImpacts", &Config::copyImpacts },
             BoolKey{ "copyHitArt", &Config::copyHitArt },
-            BoolKey{ "copyModelProbe", &Config::copyModelProbe },
+            BoolKey{ "copyModelProbeAlways", &Config::copyModelProbeAlways },
             BoolKey{ "copyCastingArt", &Config::copyCastingArt },
             BoolKey{ "copyPlaced", &Config::copyPlaced },
             BoolKey{ "copyHazardCreate", &Config::copyHazardCreate },
@@ -67,7 +67,7 @@ namespace BlackFlame
 
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad") {
+            if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -103,6 +103,30 @@ namespace BlackFlame
                 return "the runtime recolour is retired (C6); the builder bakes the copies' palette, colour keys and tint";
             }
             return "the runtime recolour of projectiles, explosions and hazards is retired (C6): their copies are grey";
+        }
+
+        // copyModelProbe: "off" / "log" / "drop" (false = "off"; true = "log", never "drop": dropping must be asked for by name)
+        void ReadProbeMode(const nlohmann::json& j, Config& out)
+        {
+            const auto it = j.find("copyModelProbe");
+            if (it == j.end()) {
+                return;
+            }
+            if (it->is_boolean()) {
+                out.copyModelProbe = it->get<bool>() ? ProbeMode::kLog : ProbeMode::kOff;
+                return;
+            }
+            const std::string text = it->is_string() ? it->get<std::string>() : std::string();
+            if (text == "off") {
+                out.copyModelProbe = ProbeMode::kOff;
+            } else if (text == "log") {
+                out.copyModelProbe = ProbeMode::kLog;
+            } else if (text == "drop") {
+                out.copyModelProbe = ProbeMode::kDrop;
+            } else {
+                logger::warn("BlackFlame: config 'copyModelProbe' {} is not \"off\", \"log\" or \"drop\" - keeping {}", it->dump(),
+                    ProbeModeName(out.copyModelProbe));
+            }
         }
 
         void ReadSelfTestDelay(const nlohmann::json& j, Config& out)
@@ -191,11 +215,11 @@ namespace BlackFlame
             logger::info(
                 "BlackFlame: config burnShader={} hitArt={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
                 "selfTest={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} copyHitArt={} copyModelProbe={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} lightColor=[{}, {}, {}]",
+                "copyImpacts={} copyHitArt={} copyModelProbe={} copyModelProbeAlways={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap,
                 g_config.hazardSwap, g_config.light, g_config.selfTest,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
-                g_config.copyHitArt, g_config.copyModelProbe, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
+                g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
         }
     }
@@ -226,6 +250,7 @@ namespace BlackFlame
 
         Config next;
         ReadBools(j, next);
+        ReadProbeMode(j, next);
         ReadSelfTestDelay(j, next);
         ReadLightColor(j, next);
         if (next.testerMode) {
@@ -249,6 +274,18 @@ namespace BlackFlame
         g_config.light = false;
         logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon and light false; the "
                      "copies and the per-call swaps stay on", a_why);
+    }
+
+    const char* ProbeModeName(ProbeMode a_mode) noexcept
+    {
+        switch (a_mode) {
+        case ProbeMode::kOff:
+            return "off";
+        case ProbeMode::kDrop:
+            return "drop";
+        default:
+            return "log";
+        }
     }
 
     const Config& GetConfig() noexcept

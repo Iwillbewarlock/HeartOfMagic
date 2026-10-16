@@ -149,6 +149,12 @@ namespace GreyBuild
             nif.Create(nifly::NiVersion::getSSE());
             AddValueNode(nif, "AddOnNode9", kMappedA);
             AddValueNode(nif, "AddOnNode24", kMappedB);
+            // I10: a node whose empty name has a real string index, before the lighting shader in block order: nifly's Save
+            // then puts "" in the table and points the shader's no-string name at it (the case the fix undoes)
+            std::uint32_t emptyNamedId = 0;
+            auto* emptyNamed = AddBlock(nif, std::make_unique<nifly::NiNode>(), emptyNamedId);
+            emptyNamed->name.SetIndex(nif.GetHeader().AddOrFindStringId("", true));
+            nif.GetRootNode()->childRefs.AddBlockRef(emptyNamedId);
 
             std::uint32_t id = 0;
             auto* off = AddBlock(nif, std::make_unique<nifly::BSEffectShaderProperty>(), id);

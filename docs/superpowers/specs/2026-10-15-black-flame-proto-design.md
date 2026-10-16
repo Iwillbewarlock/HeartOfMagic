@@ -796,6 +796,22 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - I12 셰이프가 쓰지 않는 셰이더는 NOTE 없이 일반 팔레트; 가산·일반 컨트롤러가 공유한 키 블록은 큰 배율로, NOTE; 테스터 시작 줄은
   탐침 전이면 "not probed yet"; LoadPalette가 LoadTexture 사용; 탐침의 ModelOf 감싸기 제거(ModelPathOf 직접); LogLimit Once는 set.
 
+### 사본 모델 탐침 비용 (사용자 피드백: 매 시작 메인 메뉴 최대 20초 멈춤은 배포에 치명적)
+
+- 캐시: 완전한 탐침 결과를 `<SKSE 로그 폴더>\HeartOfMagic_BlackFlame\HeartOfMagic_BlackFlame_probe.json`에 씀(요청·덤프와 같은 폴더,
+  VFS 밖). 키 = 사본 맵 바이트의 FNV-1a 64 + 크기 + 마지막 기록 시각(빌더를 다시 돌리면 바뀜) + 플러그인 버전. 떨어뜨린 사본과 되돌린
+  머즐은 사본 ESL의 로컬 id로 저장(로드 순서와 무관), 시작 때 LookupFormID로 다시 찾음. 같은 키면 kDataLoaded에 바로 적용하고 탐침하지
+  않음; 키가 다르거나 캐시가 없거나 selfTest·testerMode이거나 copyModelProbe "always"면 다시 탐침. 예산이 끝나 빠진 경로가 있으면 캐시를
+  쓰지 않음.
+- 조각: 50 ms -> 8 ms(60 fps 프레임의 절반 정도), 드레인마다 한 조각. 메인 메뉴에서 뒤에서 끝나고, 먼저 세이브를 불러오면 플레이 중에도
+  같은 예산으로 계속(아직 안 본 사본은 켜진 채). 로그: 탐침 시간 합, 쓴 프레임 수, 가장 긴 조각, 시작부터 끝까지 시간. Demand 하나가
+  8 ms보다 길면 그 조각은 그만큼 길다(한 NIF는 나눌 수 없음) - 그래서 가장 긴 조각을 남김.
+- 설정 copyModelProbe: "off" | "log"(기본) | "drop", 다시 탐침은 copyModelProbeAlways. 테스터 파일 줄에 탐침 상태.
+- 긴급 변경(01:13-01:23 실행, 46855dd): 탐침이 356개 중 347개를 "error code 1, node NULL, 0 ms"로 실패라 했고 안전망이 거의 모든
+  사본을 빼서 대부분 주문이 원본으로 나갔다. 파일은 Copies 모드에 있고 탐침 없던 실행에서는 사본이 불러졌다(회색 Firebolt) -> 틀린 것은
+  탐침의 요청 방식. 그래서 기본은 "log"(사본을 절대 빼지 않음), 캐시는 결과만 저장하고 "drop"에서만 적용. 실패 줄마다 사본과 원본(대조)의
+  Demand 문자열을 그대로 나란히 남겨 경로 형식 문제를 한 줄에서 읽게 함. 원인은 별도 조사.
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.
