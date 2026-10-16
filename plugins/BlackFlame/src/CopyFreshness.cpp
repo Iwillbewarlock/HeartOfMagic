@@ -1,4 +1,5 @@
 #include "CopyFreshness.h"
+#include "DataPathRule.h"
 
 #include "CopyRequest.h"
 #include "FormCopies.h"
@@ -7,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cctype>
 #include <filesystem>
 #include <format>
@@ -149,10 +151,10 @@ namespace BlackFlame
             const auto time = std::filesystem::last_write_time(a_file, ec);
             return ok && !ec ? std::format("{}:{}", size, time.time_since_epoch().count()) : std::string("absent");
         };
+        const auto begun = std::chrono::steady_clock::now();
         for (const auto& model : a_copyModelPaths) {
-            std::string lower = model;
-            std::ranges::transform(lower, lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            const std::string relative = lower.starts_with("meshes\\") ? model : "meshes\\" + model;
+            // X21: the DLL's own path rule (as the dump and the grey map); a path it refuses is stamped as given
+            const std::string relative = DataPathRule::Normalize(model, DataPathRule::kMeshesRoot).value_or(model);
             mix(model);
             mix(stamp(std::filesystem::path("Data") / relative));
         }
@@ -164,6 +166,9 @@ namespace BlackFlame
             file.resize(length);
             crdw = "CRDW.dll " + stamp(std::filesystem::path(file));
         }
+        // X17: what the key's stat of every copy NIF costs at each start (one line)
+        logger::info("BlackFlame: copy model probe: file index state of {} copy NIF path(s) read in {} ms", a_copyModelPaths.size(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begun).count());
         return std::format("index {}, copy NIFs {} fnv64:{:016x}", crdw, a_copyModelPaths.size(), hash);
     }
 

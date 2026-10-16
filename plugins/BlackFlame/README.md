@@ -458,7 +458,10 @@ start the game once to the main menu with this release (the DLL then dumps the t
 - **Where**: `textures\heartofmagic\blackflame\copies\_tint\<tint x 100>\<path after textures\>` for every tint (`_tint\100\`
   for 1, `_tint\60\` for the default diffuse tint), in `--out` (staged and committed with the rest). The fixed `_tint\`
   segment keeps a source path from landing on another source's copy (a texture under `textures\t60\` once did when tint 1
-  had no folder). One texture used at two tints gets two copies; each texture and tint is made once per run. The slot is
+  had no folder). After a successful run the builder removes from `--out` every file under its own copy folders
+  (`textures\heartofmagic\blackflame\copies\`, `meshes\heartofmagic\blackflame\copies\`) that this run did not write - an
+  earlier run's copy of a source that left the load order, or of a texture now grey; nothing outside those folders, and
+  nothing through a symbolic link or junction (W17, X13). One texture used at two tints gets two copies; each texture and tint is made once per run. The slot is
   rewritten as that path with `textures\` in front, as `kPalettePath` is. The source file is never written. A texture that
   is missing, unreadable or fails leaves its slot as it was; it never fails the NIF.
 - **Paths**: the builder reads a slot with the DLL's own rule (`plugins/BlackFlame/src/DataPathRule.h`, included by both,
@@ -854,6 +857,10 @@ release notice lists them).
 
 ## Known limits
 
+- The copy model probe's cache key (W20) stamps CRDW.dll and every copy NIF, not CRDW's own index file (its path is not
+  known here): a loose-file index rebuilt while the copies mod was off, with the copies unchanged since, reuses the cache
+  and is not probed again; delete `HeartOfMagic_BlackFlame_probe.json` (or set `copyModelProbeAlways` once) after such a
+  rebuild (X17).
 - Non-ASCII model and texture paths (W10): the builder finds a dumped file whether the path came from a NIF (system code
   page bytes) or from `request.json` (UTF-8), and the DLL and the builder fold keys with one rule (`DataPathRule.h`),
   but the copies ESL records and the copies map carry a request path as the request has it (UTF-8); a model path with
@@ -934,7 +941,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 
 | Step | PASS when |
 |---|---|
-| T0 | the palette loaded (path logged), the ESP's forms and the vanilla forms exist, Firebolt and Fireball count as fire (game thread, fire counts, config and Fireball's explosion radius logged). It first waits for the copy model probe, up to 240 s of play (W21: the probe's 20 s budget is spent in 8 ms slices, one per frame, about 170 s at 15 fps); a finished probe ends the wait at once |
+| T0 | the palette loaded (path logged), the ESP's forms and the vanilla forms exist, Firebolt and Fireball count as fire (game thread, fire counts, config and Fireball's explosion radius logged). It first waits for the copy model probe to end (W21, X18: the probe always ends by its 20 s budget of 8 ms slices, one per frame, about 170 s at 15 fps; a cap of 600 s of play guards a stuck one and is logged), so T0-cover counts every drop |
 | T0-wrap | each wrapped native: the script type holds our proxy (the real check, "bound"); the proxy's parameter count and types, static, latent and tasklet flags are the values copied from the original in its constructor (no game script needed) |
 | T0-grey | the kDataLoaded grey check lines (see "Grey swap") |
 | T0-v2 | the copies map read (no map = FAIL), fill counts per type, and per copy: its fields equal its live source's now and its links point to copies where one exists, else to the source's own (`FormCopies.h` CheckCopies); v2i: a FAIL line per copy whose NIF the game could not load (`CopyModelProbe.h`, with the path and the error code) - that copy is out of the swaps for the session |

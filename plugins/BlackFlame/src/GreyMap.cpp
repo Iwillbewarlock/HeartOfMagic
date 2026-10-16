@@ -40,7 +40,8 @@ namespace BlackFlame
         // dropped; a path that rule refuses keeps LowerSlashes (case and separators, a DBCS trail byte kept)
         std::string Normalise(std::string_view a_path)
         {
-            std::string out = DataPathRule::Normalize(a_path, DataPathRule::kMeshesRoot).value_or(DataPathRule::LowerSlashes(a_path));
+            auto normalized = DataPathRule::Normalize(a_path, DataPathRule::kMeshesRoot);  // X20: LowerSlashes only when refused
+            std::string out = normalized ? std::move(*normalized) : DataPathRule::LowerSlashes(a_path);
             if (out.starts_with(kMeshesPrefix)) {
                 out.erase(0, kMeshesPrefix.size());
             }

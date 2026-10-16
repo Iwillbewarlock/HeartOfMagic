@@ -88,16 +88,17 @@ namespace
         // Installed after the fire sets are built: the hooks read them from any thread. Always installed
         // (v2): besides the runtime recolour (its own config keys, off by default) they tint lights, feed
         // the self-test records and open the explosion side of the impact window
-        BlackFlame::InstallProjectileHooks();
-        BlackFlame::InstallExplosionHook();
-        BlackFlame::InstallHazardHook();
-        BlackFlame::InstallHitEffectHooks();
-        BlackFlame::InstallImpactSwap();
-        BlackFlame::InstallCopySwaps();  // v2: after the copies are filled and the impact call sites (CopySwap.h)
-        BlackFlame::InstallHazardSwap();
-        BlackFlame::RunGreyCheck();
-        BlackFlame::Tester::WriteStartup();  // every hook's state, the copies, the runtime (Tester.h)
-        BlackFlame::DevAutomation::Install();  // dev only: nothing unless a devAuto key is on with selfTest (DevAutomation.h)
+        // X15: each one on its own, so a throw in one does not skip the rest
+        guarded("InstallProjectileHooks", [] { BlackFlame::InstallProjectileHooks(); });
+        guarded("InstallExplosionHook", [] { BlackFlame::InstallExplosionHook(); });
+        guarded("InstallHazardHook", [] { BlackFlame::InstallHazardHook(); });
+        guarded("InstallHitEffectHooks", [] { BlackFlame::InstallHitEffectHooks(); });
+        guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
+        guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
+        guarded("InstallHazardSwap", [] { BlackFlame::InstallHazardSwap(); });
+        guarded("RunGreyCheck", [] { BlackFlame::RunGreyCheck(); });
+        guarded("Tester::WriteStartup", [] { BlackFlame::Tester::WriteStartup(); });  // every hook's state, the copies
+        guarded("DevAutomation::Install", [] { BlackFlame::DevAutomation::Install(); });  // dev only (DevAutomation.h)
     }
 
     // The world is torn down: nothing tracked from it may be touched again

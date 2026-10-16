@@ -257,7 +257,28 @@ namespace BlackFlame
         }
     }
 
+    void LoadAndFillCopiesChecked();
+
     void LoadAndFillCopies()
+    {
+        // X14: a throw part way leaves no half-filled table behind: the lookups are emptied (CopyOf finds nothing, no
+        // swap happens) before the caller goes on to the hook installs
+        try {
+            LoadAndFillCopiesChecked();
+        } catch (...) {
+            auto& copies = TheCopies();
+            copies.bySource.clear();
+            copies.byCopy.clear();
+            copies.entries.clear();
+            copies.muzzles.clear();
+            copies.absentSources.clear();
+            copies.counts.mapRead = false;
+            logger::error("BlackFlame: copies: the fill stopped part way - every copy left out this session (no swap)");
+            throw;
+        }
+    }
+
+    void LoadAndFillCopiesChecked()
     {
         static bool loaded = false;
         if (loaded) {

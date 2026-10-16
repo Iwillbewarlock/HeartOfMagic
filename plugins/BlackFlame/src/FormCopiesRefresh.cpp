@@ -33,9 +33,6 @@ namespace BlackFlame
         using Clock = std::chrono::steady_clock;
         const auto micros = [](Clock::duration a_d) { return std::chrono::duration_cast<std::chrono::microseconds>(a_d).count(); };
         const auto start = Clock::now();
-        if (!a_pointersOnly) {
-            CopyFill::ResetPointerNames();  // W12: a new load: one reverse form map for its refresh and checks
-        }
         Clock::duration compare{};
         Clock::duration refill{};
         const CopyFill::PointerNameScope names;  // perf: one form map walk for this refresh's diff texts, at most

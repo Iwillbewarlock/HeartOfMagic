@@ -203,6 +203,9 @@ namespace BlackFlame::SelfTest
         // hand leaves the left hand to be put back on its own, even the same spell or one-handed base
         bool TwoHanded(const RE::TESForm* a_right)
         {
+            if (const auto* spell = a_right ? a_right->As<RE::SpellItem>() : nullptr) {
+                return spell->IsTwoHanded();  // X1: a two-handed (ritual) spell fills both hands from the right slot
+            }
             const auto* weapon = a_right ? a_right->As<RE::TESObjectWEAP>() : nullptr;
             return weapon && (weapon->IsTwoHandedSword() || weapon->IsTwoHandedAxe() || weapon->IsBow() || weapon->IsCrossbow());
         }
@@ -227,9 +230,14 @@ namespace BlackFlame::SelfTest
             const auto before = g_bound.loadout;
             const auto now = CurrentLoadout(player);
             std::string done;
-            const auto hand = [&](RE::TESForm* a_was, RE::TESForm* a_is, RE::ExtraDataList* a_extra, bool a_left) {
-                if (!a_was || a_was == a_is) {
-                    return;
+            const auto hand = [&](RE::TESForm* a_was, RE::TESForm* a_is, RE::ExtraDataList* a_extra, RE::ExtraDataList* a_isExtra,
+                                  bool a_left) {
+                if (!a_was || a_was->As<RE::TESObjectARMO>()) {
+                    return;  // X2: a shield shows in the left hand; the shield branch below puts it back, once
+                }
+                auto* held = a_was->As<RE::TESBoundObject>() ? StillHeld(player, a_was, a_extra) : nullptr;
+                if (a_was == a_is && (!held || held == a_isExtra)) {
+                    return;  // X3: the same base and, when the instance is known, the same instance
                 }
                 const auto* slot = defaults->GetObject<RE::BGSEquipSlot>(a_left ? RE::DEFAULT_OBJECTS::kLeftHandEquip :
                                                                                   RE::DEFAULT_OBJECTS::kRightHandEquip);
@@ -238,16 +246,21 @@ namespace BlackFlame::SelfTest
                 } else if (auto* spell = a_was->As<RE::SpellItem>()) {
                     equip->EquipSpell(player, spell, slot);
                 } else if (auto* object = a_was->As<RE::TESBoundObject>()) {
-                    equip->EquipObject(player, object, StillHeld(player, object, a_extra), 1, slot);
+                    equip->EquipObject(player, object, held, 1, slot);
                 } else {
                     done += std::format(" {} hand: {} not re-equipped (neither spell nor item);", a_left ? "left" : "right", Name(a_was));
                     return;
                 }
-                done += std::format(" {} hand {} -> {};", a_left ? "left" : "right", Name(a_is), Name(a_was));
+                // X4: whether the recorded instance was found again (else the base: another copy of it may come back)
+                done += std::format(" {} hand {} -> {} ({});", a_left ? "left" : "right", Name(a_is), Name(a_was),
+                    a_was->As<RE::SpellItem>() && !a_was->As<RE::ScrollItem>() ? "spell" :
+                    held                                                       ? "instance re-equipped" :
+                    a_extra                                                    ? "base only: the recorded instance is gone" :
+                                                                                 "base only: no instance recorded");
             };
-            hand(before.right, now.right, before.rightExtra, false);
-            if (!TwoHanded(before.right)) {  // W1
-                hand(before.left, now.left, before.leftExtra, true);
+            hand(before.right, now.right, before.rightExtra, now.rightExtra, false);
+            if (!TwoHanded(before.right)) {  // W1, X1
+                hand(before.left, now.left, before.leftExtra, now.leftExtra, true);
             }
             if (before.ammo && before.ammo != now.ammo) {
                 equip->EquipObject(player, before.ammo);
@@ -468,6 +481,14 @@ namespace BlackFlame::SelfTest
             g_bound.pick->seed->spell->GetFormID(), dispelled));
         RestoreLoadout("T9");
         g_bound.pick.reset();
+    }
+
+    void NoteBoundRestoreUnchecked()
+    {
+        if (g_bound.restored) {
+            g_bound.restored.reset();
+            SelfTestLog::Info("T9-loadout", "not read again (late cleanup: the run ended before the 1 s check)");  // X5
+        }
     }
 
     bool CheckBoundRestore()

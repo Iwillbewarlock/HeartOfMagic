@@ -30,9 +30,12 @@ namespace BlackFlame::CopyFill
         thread_local PointerNameScope* t_scope = nullptr;
 
         // W12: one reverse map of the game's form map per load, from the second unknown pointer on
+        constexpr int kMissesBeforeMap = 2;  // the first unknown pointer is found by a walk, the second builds the map
+
         struct PointerNames
         {
             std::mutex mutex;
+            int scopes = 0;   // PointerNameScopes alive on any thread
             int misses = 0;
             bool built = false;
             std::unordered_map<const RE::TESForm*, RE::FormID> forms;
@@ -66,24 +69,26 @@ namespace BlackFlame::CopyFill
         KnownForms() = std::move(a_known);
     }
 
-    void ResetPointerNames()
-    {
-        auto& names = Names();
-        std::lock_guard lock(names.mutex);
-        names.misses = 0;
-        names.built = false;
-        std::unordered_map<const RE::TESForm*, RE::FormID>().swap(names.forms);
-    }
-
     PointerNameScope::PointerNameScope() :
         m_outer(t_scope)
     {
         t_scope = this;
+        auto& names = Names();
+        std::lock_guard lock(names.mutex);
+        ++names.scopes;
     }
 
     PointerNameScope::~PointerNameScope()
     {
         t_scope = m_outer;
+        // X16: the reverse map (every form of the game: tens of MB) lives only while a scope does; the last one frees it
+        auto& names = Names();
+        std::lock_guard lock(names.mutex);
+        if (--names.scopes == 0) {
+            names.misses = 0;
+            names.built = false;
+            std::unordered_map<const RE::TESForm*, RE::FormID>().swap(names.forms);
+        }
     }
 
     // D3: a form pointer named without dereferencing it. First our own sources and copies (most links point there), then the
@@ -99,10 +104,11 @@ namespace BlackFlame::CopyFill
         }
         const auto start = std::chrono::steady_clock::now();
         std::optional<RE::FormID> id;
+        bool walk = false;
         {
             auto& names = Names();
             std::lock_guard lock(names.mutex);
-            if (!names.built && ++names.misses >= 2) {
+            if (!names.built && ++names.misses >= kMissesBeforeMap) {
                 // Copied under the form map's read lock (no allocation per pair there), the map built after unlocking
                 std::vector<std::pair<const RE::TESForm*, RE::FormID>> pairs;
                 {
@@ -127,8 +133,9 @@ namespace BlackFlame::CopyFill
                     id = it->second;
                 }
             }
+            walk = !names.built;  // X16: read under the lock
         }
-        if (!id && !Names().built) {
+        if (!id && walk) {
             WalkForms([&](RE::FormID a_id, const RE::TESForm* a_entry) {  // the first miss: a walk that stops at it
                 if (a_entry == a_form) {
                     id = a_id;

@@ -92,28 +92,56 @@ namespace GreyBuild
         // on the first failure, naming how far it got. The --out folder itself is never removed or renamed.
         // W17: our generated copy folders hold only this run's files: a copy NIF or texture an earlier run made and this
         // one did not (a source left the load order, a texture now grey) is removed. Nothing outside those folders
+        // X13: a path relative to a_base, lower case (no throwing overloads; "" when it cannot be made)
+        [[nodiscard]] std::wstring FoldedRelative(const std::filesystem::path& a_path, const std::filesystem::path& a_base)
+        {
+            std::wstring rel = a_path.lexically_relative(a_base).lexically_normal().wstring();
+            std::transform(rel.begin(), rel.end(), rel.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+            return rel;
+        }
+
+        // X13: a symbolic link or junction anywhere from a_out down to a_folder: never cleaned through (it may lead out)
+        [[nodiscard]] bool CrossesLink(const std::filesystem::path& a_out, const std::filesystem::path& a_folder)
+        {
+            std::filesystem::path at = a_out;
+            for (const auto& part : a_folder.lexically_relative(a_out)) {
+                at /= part;
+                std::error_code ec;
+                const auto status = std::filesystem::symlink_status(at, ec);
+                if (ec) {
+                    return false;  // not there: nothing to clean
+                }
+                if (std::filesystem::is_symlink(status) || status.type() == std::filesystem::file_type::junction) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         void RemoveStaleCopies(const std::filesystem::path& a_staging, const std::filesystem::path& a_out,
             const std::vector<std::filesystem::path>& a_staged)
         {
             std::set<std::wstring> made;
             for (const auto& file : a_staged) {
-                std::wstring rel = std::filesystem::relative(file, a_staging).lexically_normal().wstring();
-                std::transform(rel.begin(), rel.end(), rel.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-                made.insert(std::move(rel));
+                made.insert(FoldedRelative(file, a_staging));
             }
             int removed = 0;
-            for (const char* root : { kTextureCopyRoot, "meshes\\heartofmagic\\blackflame\\copies\\" }) {
+            for (const char* root : { kTextureCopyRoot, kCopyRoot }) {
                 const auto folder = a_out / std::filesystem::path(root);
+                if (CrossesLink(a_out, folder)) {
+                    std::cout << fmt::format("WARN  {} goes through a link or junction: earlier copies there are not removed\n",
+                        PathText(folder));
+                    continue;
+                }
                 std::error_code ec;
                 std::vector<std::filesystem::path> stale;
                 for (auto it = std::filesystem::recursive_directory_iterator(folder, ec);
                      !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-                    if (!it->is_regular_file()) {
+                    std::error_code typeError;
+                    if (!it->is_regular_file(typeError) || it->is_symlink(typeError)) {
                         continue;
                     }
-                    std::wstring rel = std::filesystem::relative(it->path(), a_out).lexically_normal().wstring();
-                    std::transform(rel.begin(), rel.end(), rel.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-                    if (made.count(rel) == 0) {
+                    if (const auto rel = FoldedRelative(it->path(), a_out); !rel.empty() && made.count(rel) == 0) {
                         stale.push_back(it->path());
                     }
                 }
@@ -147,7 +175,7 @@ namespace GreyBuild
                 return false;
             }
             for (std::size_t i = 0; i < files.size(); ++i) {
-                const auto target = a_out / std::filesystem::relative(files[i], a_staging);
+                const auto target = a_out / files[i].lexically_relative(a_staging);  // X13: no throwing overload
                 std::filesystem::create_directories(target.parent_path(), ec);
                 if (!ec && !::MoveFileExW(files[i].c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                     std::cout << fmt::format("FAIL  moving {} into place failed ({}): {} of {} files moved, --out may hold a mix "

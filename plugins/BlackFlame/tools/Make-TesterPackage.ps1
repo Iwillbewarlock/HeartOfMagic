@@ -95,6 +95,7 @@ if ($dirty) { $Version = "$Version-dirty" }
 $commit = (git -C $repo rev-parse HEAD).Trim()
 # W6: published = reachable from a branch or tag that origin has now (fetched first; offline counts as unpublished)
 $published = $false
+$env:GIT_TERMINAL_PROMPT = '0'  # X12: never wait on a credential prompt
 git -C $repo fetch --quiet --tags origin 2>$null
 if ($LASTEXITCODE -eq 0) {
     foreach ($line in @(git -C $repo ls-remote --heads --tags origin)) {
@@ -105,7 +106,7 @@ if ($LASTEXITCODE -eq 0) {
         }
     }
 } else {
-    Write-Host "Make-TesterPackage: git fetch origin failed (offline?): the commit counts as unpublished"
+    Write-Host "Make-TesterPackage: git fetch origin failed (offline, no access, or a tag conflict): the commit counts as unpublished"
 }
 if ($dirty -and -not $AllowUnpublished) {
     Fail "-AllowDirty packages changes no commit holds: pass -AllowUnpublished too (the source zip then goes in the package)"
@@ -133,6 +134,10 @@ function PortVersion([string]$port) {
     if (-not $entry -or -not $entry.versionInfo) { Fail "$spdx names no version for $port" }
     return $entry.versionInfo
 }
+# X11: the submodule's work tree must be its commit (the zip and the notice name that commit)
+$commonlibDirty = git -C $commonlib status --porcelain
+if ($LASTEXITCODE -ne 0) { Fail "git status failed in $commonlib" }
+if ($commonlibDirty) { Fail "plugins\external\commonlibsse-ng has uncommitted changes: the binaries would not be its commit (git -C plugins\external\commonlibsse-ng status)" }
 $commonlibVersion = (git -C $commonlib describe --tags --exact-match 2>$null)
 if ($LASTEXITCODE -ne 0 -or -not $commonlibVersion) { Fail "plugins\external\commonlibsse-ng is not at a tag (git submodule update --init --recursive)" }
 $commonlibVersion = $commonlibVersion.Trim().TrimStart('v')
@@ -265,22 +270,28 @@ if ($withSource) {
     git -C $commonlib archive --format=zip --prefix="HeartOfMagic-$Version/plugins/external/commonlibsse-ng/" -o $libZip $commonlibCommit
     if ($LASTEXITCODE -ne 0) { Fail "git archive of the CommonLibSSE-NG submodule failed: no source zip, no package" }
     Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
-    $target = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Compression.ZipArchiveMode]::Update)
-    $library = [System.IO.Compression.ZipFile]::OpenRead($libZip)
     try {
-        foreach ($entry in $library.Entries) {
-            $copy = $target.CreateEntry($entry.FullName)
-            $copy.LastWriteTime = $entry.LastWriteTime
-            if ($entry.FullName.EndsWith('/')) { continue }
-            $in = $entry.Open()
-            $out = $copy.Open()
-            try { $in.CopyTo($out) } finally { $out.Dispose(); $in.Dispose() }
+        $target = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Compression.ZipArchiveMode]::Update)
+        $library = [System.IO.Compression.ZipFile]::OpenRead($libZip)
+        try {
+            foreach ($entry in $library.Entries) {
+                # X10: the repository's archive already has the submodule's folder entry (its gitlink): never twice
+                if ($target.GetEntry($entry.FullName)) { continue }
+                $copy = $target.CreateEntry($entry.FullName)
+                $copy.LastWriteTime = $entry.LastWriteTime
+                $copy.ExternalAttributes = $entry.ExternalAttributes  # symbolic link and executable bits as git wrote them
+                if ($entry.FullName.EndsWith('/')) { continue }
+                $in = $entry.Open()
+                $out = $copy.Open()
+                try { $in.CopyTo($out) } finally { $out.Dispose(); $in.Dispose() }
+            }
+        } finally {
+            if ($library) { $library.Dispose() }
+            if ($target) { $target.Dispose() }
         }
     } finally {
-        $library.Dispose()
-        $target.Dispose()
+        Remove-Item -Force -ErrorAction SilentlyContinue $libZip
     }
-    Remove-Item -Force $libZip
 }
 
 # Last guard: nothing outside the expected tree

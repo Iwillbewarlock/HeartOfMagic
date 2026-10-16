@@ -69,6 +69,7 @@ namespace BlackFlame::SelfTest
                     }
                     try {
                         CleanupBoundSpell();
+                        NoteBoundRestoreUnchecked();
                     } catch (...) {
                         logger::error("BlackFlame: self-test late cleanup: CleanupBoundSpell threw");
                     }

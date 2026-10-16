@@ -45,6 +45,7 @@ set(BLACKFLAME_SOURCES
     src/HitArt.cpp
     src/CloneWatch.cpp
     src/CopyModelProbe.cpp
+    src/CopyModelProbeCache.cpp
     src/HazardHook.cpp
     src/Attribution.cpp
     src/PlayerArt.cpp

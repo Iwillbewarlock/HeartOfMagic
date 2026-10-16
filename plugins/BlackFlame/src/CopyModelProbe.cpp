@@ -1,4 +1,5 @@
 #include "CopyModelProbe.h"
+#include "CopyModelProbeCache.h"
 
 #include "Config.h"
 #include "CopyFreshness.h"
@@ -37,9 +38,7 @@ namespace BlackFlame
         // yet stays enabled). The budget is the sum of the slices; past it the rest is left out (listed) and those copies stay
         constexpr auto kBudget = std::chrono::seconds(20);
         constexpr auto kSlice = std::chrono::milliseconds(8);
-        constexpr const char* kCacheName = "HeartOfMagic_BlackFlame_probe.json";
         constexpr int kCacheVersion = 1;
-        constexpr std::uint32_t kLightLocalMask = 0xFFF;  // the copies plugin is an ESL
 
         TrackedMutex g_statusMutex;
         std::string g_status = "not started";  // under g_statusMutex (the tester file reads it)
@@ -135,43 +134,10 @@ namespace BlackFlame
             Clock::duration largestSlice{};
         };
 
-        // The copies map's identity: its bytes (FNV-1a 64), its last write time (a builder run rewrites it even when the bytes
-        // stay the same, e.g. after a builder fix) and this plugin's version. Empty when the map cannot be read
-        std::string MapIdentity()
-        {
-            std::ifstream in(kCopiesMapPath, std::ios::binary);
-            if (!in) {
-                return {};
-            }
-            std::stringstream bytes;
-            bytes << in.rdbuf();
-            const auto text = bytes.str();
-            std::error_code ec;
-            const auto written = std::filesystem::last_write_time(kCopiesMapPath, ec);
-            const auto version = SKSE::PluginDeclaration::GetSingleton()->GetVersion().string(".");
-            return std::format("map fnv64:{:016x} size {} written {} plugin {}", NifDump::Fnv64(text.data(), text.size()), text.size(),
-                ec ? 0 : written.time_since_epoch().count(), version);
-        }
-
-        std::optional<std::filesystem::path> CachePath()
-        {
-            const auto folder = RequestFolder();
-            return folder ? std::optional(*folder / kCacheName) : std::nullopt;
-        }
-
-        std::string LocalHex(RE::FormID a_copy) { return std::format("{:03X}", a_copy & kLightLocalMask); }
-
-        RE::FormID CopyFromLocal(const std::string& a_hex)
-        {
-            std::uint32_t local = 0;
-            try {
-                local = static_cast<std::uint32_t>(std::stoul(a_hex, nullptr, 16));
-            } catch (const std::exception&) {
-                return 0;
-            }
-            auto* dh = RE::TESDataHandler::GetSingleton();
-            return dh ? dh->LookupFormID(local, kCopiesPluginName) : 0;
-        }
+        using ProbeCache::CachePath;
+        using ProbeCache::CopyFromLocal;
+        using ProbeCache::LocalHex;
+        using ProbeCache::MapIdentity;
 
         // A complete probe's result, for later starts with the same map
         void WriteCache(const Run& a_run, const std::vector<DisabledCopy>& a_disabled, const std::vector<RE::FormID>& a_muzzles)
@@ -522,6 +488,17 @@ namespace BlackFlame
         // J4: a probe that cannot go on still ends, nothing taken out, with the reason in the tester line
         void Stopped(const std::string& a_why)
         {
+            if (CopyModelProbeDone()) {  // X19: Finish got as far as its result: say so, and do its last step
+                const auto out = CopiesFailedToLoad().size();
+                logger::warn("BlackFlame: copy model probe stopped after its result took effect ({} cop{} out): {}", out,
+                    out == 1 ? "y" : "ies", a_why);
+                SetStatus(std::format("probe stopped after its result ({} copies out): {}", out, a_why));
+                if (Dropping() && out > 0 && MainQueue::Installed()) {
+                    const auto* player = RE::PlayerCharacter::GetSingleton();
+                    RefreshCopies("copy model probe", player && player->GetParentCell() != nullptr);
+                }
+                return;
+            }
             logger::warn("BlackFlame: copy model probe stopped: {} - no copy is taken out", a_why);
             SetStatus("probe stopped: " + a_why);
             DisableCopiesForSession({}, {});
@@ -573,7 +550,7 @@ namespace BlackFlame
         if (auto map = MapIdentity(); !map.empty()) {
             run->cacheKey = map + " " + FileIndexState(run->order);
         }
-        // A normal start with an unchanged copies map costs nothing: the cached result is used now (applied only in "drop").
+        // A normal start with an unchanged copies map and file index skips the probe (X17: the key's file stat costs ms, logged).
         // Probe again when the map changed or there is no cache, and always under copyModelProbeAlways, selfTest or testerMode
         const bool forced = config.copyModelProbeAlways || config.selfTest || config.testerMode;
         if (!forced && ApplyCache(run->cacheKey)) {

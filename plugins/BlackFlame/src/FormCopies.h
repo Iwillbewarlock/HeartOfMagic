@@ -179,12 +179,10 @@ namespace BlackFlame
         /// so a diff text names a link to one of them without walking the game's form map
         void SetKnownForms(std::unordered_map<const RE::TESForm*, RE::FormID> a_known);
 
-        /// W12: a form pointer the known forms do not name: the first one of a load by a walk of the game's form map that
-        /// stops at it, from the second on in one reverse map of that map, built once per load (the pairs copied under its
-        /// read lock, the map built after unlocking) and shared by every refresh and check of the load. ResetPointerNames
-        /// starts a new load (a full RefreshCopies). D3 either way: a pointer is compared, never dereferenced
-        void ResetPointerNames();
-
+        /// W12, X16: a form pointer the known forms do not name: the first one by a walk of the game's form map that stops
+        /// at it, from the second on in one reverse map of that map (the pairs copied under its read lock, the map built
+        /// after unlocking), shared while any PointerNameScope lives and freed when the last one ends (it holds every
+        /// form of the game). D3 either way: a pointer is compared, never dereferenced.
         /// Times this thread's pointer naming while it lives (the refresh summary line)
         class PointerNameScope
         {
