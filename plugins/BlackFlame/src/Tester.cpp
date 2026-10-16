@@ -54,9 +54,9 @@ namespace BlackFlame::Tester
             out += std::format("  fire spells {} ({} cloak-associated), fire effects {}\n", fire.total, fire.cloakAssociated,
                 fire.effects);
             out += std::format("  request: {} closure forms, {} excluded; fingerprint {}; request {}; dump {}; NIFs {} ({} failed) "
-                               "in {} ms\n", request.forms, request.excluded, request.computed ? request.fingerprint : std::string("-"),
+                               "in {} ms ({} form or muzzle NIFs, {} ADDN-only)\n", request.forms, request.excluded, request.computed ? request.fingerprint : std::string("-"),
                 request.requestWritten ? "written" : "not written", request.dumpState, request.nifs, request.nifsFailed,
-                request.readMs);
+                request.readMs, request.nifsFailedForms, request.nifsFailedAddons);
             for (const auto& line : CheckCopies()) {
                 if (!line.pass) {
                     out += "  copy problem: " + line.text + "\n";

@@ -76,8 +76,12 @@ namespace BlackFlame
             return std::filesystem::path(L"\\\\?\\" + text);
         }
 
-        // Every model the request names: closure forms, PROJ muzzles, ADDNs not ours. Refused paths are counted apart.
-        std::vector<std::string> ModelsToRead(const FireClosure& a_closure, std::vector<std::string>& a_refused)
+        constexpr std::size_t kAddonSample = 5;
+
+        // Every model the request names: closure forms, PROJ muzzles, ADDNs not ours. Refused paths are counted apart;
+        // a_formPaths gets the form and muzzle models (a NIF failure there fails T0-request, an ADDN-only one is INFO)
+        std::vector<std::string> ModelsToRead(const FireClosure& a_closure, std::vector<std::string>& a_refused,
+            std::set<std::string>& a_formPaths)
         {
             std::set<std::string> paths;
             const auto add = [&](const std::string& a_model) {
@@ -96,6 +100,7 @@ namespace BlackFlame
                     add(CopyRequestData::MuzzleModelOf(*projectile));
                 }
             }
+            a_formPaths = paths;
             if (auto* dh = RE::TESDataHandler::GetSingleton()) {
                 for (const auto* addon : dh->GetFormArray<RE::BGSAddonNode>()) {
                     if (addon && !IsOwnPluginForm(addon)) {
@@ -104,6 +109,19 @@ namespace BlackFlame
                 }
             }
             return { paths.begin(), paths.end() };
+        }
+
+        void CountFailure(const std::string& a_path, const std::set<std::string>& a_formPaths)
+        {
+            ++g_state.nifsFailed;
+            if (a_formPaths.contains(a_path)) {
+                ++g_state.nifsFailedForms;
+                return;
+            }
+            ++g_state.nifsFailedAddons;
+            if (g_state.failedAddonSample.size() < kAddonSample) {
+                g_state.failedAddonSample.push_back(Utf8(a_path));
+            }
         }
 
         std::string NormalizedOrRaw(const std::string& a_model)
@@ -289,10 +307,13 @@ namespace BlackFlame
             // fingerprint the freshness check compares with the map's)
             try {
                 std::vector<std::string> refused;
+                std::set<std::string> formPaths;
                 const auto probeStart = Clock::now();
-                for (const auto& path : ModelsToRead(a_closure, refused)) {
+                for (const auto& path : ModelsToRead(a_closure, refused, formPaths)) {
                     nifs.push_back({ path, NifDump::ProbeModel(path), {} });
-                    g_state.nifsFailed += nifs.back().blob.opened ? 0 : 1;
+                    if (!nifs.back().blob.opened) {
+                        CountFailure(path, formPaths);
+                    }
                 }
                 g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - probeStart).count();
                 g_state.nifs = nifs.size();
@@ -308,14 +329,17 @@ namespace BlackFlame
         }
         try {
             std::vector<std::string> refused;
+            std::set<std::string> formPaths;
             const auto readStart = Clock::now();
-            for (const auto& path : ModelsToRead(a_closure, refused)) {
+            for (const auto& path : ModelsToRead(a_closure, refused, formPaths)) {
                 Nif nif{ path, {}, {} };
                 nif.blob = NifDump::ReadModel(path, &nif.bytes);
                 if (!nif.blob.ok) {
                     std::vector<std::byte>().swap(nif.bytes);
                 }
-                g_state.nifsFailed += nif.blob.ok ? 0 : 1;
+                if (!nif.blob.ok) {
+                    CountFailure(path, formPaths);
+                }
                 nifs.push_back(std::move(nif));
             }
             g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - readStart).count();

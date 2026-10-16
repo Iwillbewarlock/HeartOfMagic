@@ -171,12 +171,23 @@ namespace BlackFlame::SelfTest
                 request.forms, request.excluded));
         } else {
             // J2: a NIF the game could not read or a dump that did not complete is a FAIL (the builder would miss it)
+            // Decision 4: a form's or muzzle's NIF that failed is a FAIL (no copy of it can be made); an ADDN-only one is INFO below
             SelfTestLog::Check("T0-request", request.computed && request.forms > 0 && request.requestWritten &&
-                request.nifsFailed == 0 && dumpOk,
-                std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} failed) read in {} ms, fingerprint {}, "
-                    "request {}, dump {}", request.forms, request.excluded, request.nifs, request.nifsFailed, request.readMs,
+                request.nifsFailedForms == 0 && dumpOk,
+                std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} form or muzzle NIFs failed) read in {} ms, "
+                    "fingerprint {}, request {}, dump {}", request.forms, request.excluded, request.nifs, request.nifsFailedForms,
+                    request.readMs,
                     request.computed ? request.fingerprint : std::string("NOT computed"),
                     request.requestWritten ? "written" : "NOT written", request.dumpState));
+        }
+        if (request.nifsFailedAddons > 0) {
+            std::string paths;
+            for (const auto& path : request.failedAddonSample) {
+                paths += (paths.empty() ? "" : ", ") + path;
+            }
+            SelfTestLog::Info("T0-request", std::format("{} ADDN-only NIF(s) did not open (often another mod's missing mesh; their "
+                "grey particles are not made): {}{}", request.nifsFailedAddons, paths,
+                request.nifsFailedAddons > request.failedAddonSample.size() ? ", ..." : ""));
         }
 
         std::string detail;

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 // =============================================================================
 // COPY REQUEST (v2 expansion C1) - what the builder needs, written at kDataLoaded
@@ -41,6 +42,9 @@ namespace BlackFlame
         std::size_t excluded = 0;
         std::size_t nifs = 0;
         std::size_t nifsFailed = 0;
+        std::size_t nifsFailedForms = 0;   // of those, a closure form's or a muzzle's model (T0-request FAILs on them)
+        std::size_t nifsFailedAddons = 0;  // of those, only an ADDN record's model (INFO: often another mod's broken mesh)
+        std::vector<std::string> failedAddonSample;  // the first few such ADDN paths (UTF-8)
         long long readMs = 0;         // NIF reads and hashing
         long long totalMs = 0;
         std::filesystem::path folder; // where the request lives (empty without a log folder)
