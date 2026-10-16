@@ -60,8 +60,8 @@ namespace GreyBuild
     [[nodiscard]] const char* TextureRoleName(TextureRole a_role) noexcept;
     [[nodiscard]] float TextureTint(TextureRole a_role) noexcept;
 
-    /// A slot's text as a Data-relative texture path: lower case, '/' as '\', leading "data\" dropped and "textures\" put in
-    /// front when missing. nullopt for an empty path, a drive or ':', a ".." token, or a name not ending in ".dds".
+    /// A slot's text as a Data-relative texture path: lower case, '/' as '\', every leading "data\" and "textures\" dropped
+    /// and one "textures\" put in front (the DLL's NormalizeTexturePath rule, so a slot finds the file the dump wrote). nullopt for an empty path, a drive or ':', a ".." token, or a name not ending in ".dds".
     [[nodiscard]] std::optional<std::string> TextureDataPath(const std::string& a_slot);
 
     /// The copy's path for a TextureDataPath result: kTextureCopyRoot + the part after textures\.

@@ -151,8 +151,10 @@ namespace GreyBuild::SelfTest
         {
             a_check.Check(TextureDataPath("Textures/Effects/FXFire01.DDS") == std::string("textures\\effects\\fxfire01.dds") &&
                               TextureDataPath("effects\\a.dds") == std::string("textures\\effects\\a.dds") &&
-                              TextureDataPath("data\\textures\\b.dds") == std::string("textures\\b.dds"),
-                "textures: slot text as a Data-relative path (case, slashes, data\\ dropped, textures\\ put in front)");
+                              TextureDataPath("data\\textures\\b.dds") == std::string("textures\\b.dds") &&
+                              TextureDataPath("\\Textures\\textures\\c.dds") == std::string("textures\\c.dds"),
+                "textures: slot text as a Data-relative path (case, slashes, data\\ and repeated textures\\ dropped, one "
+                "textures\\ in front, as the DLL's dump path)");
             a_check.Check(!TextureDataPath("..\\x.dds") && !TextureDataPath("c:\\x.dds") && !TextureDataPath("textures\\x.tga") &&
                               !TextureDataPath(""),
                 "textures: '..', a drive, a non-DDS name and an empty slot are refused");

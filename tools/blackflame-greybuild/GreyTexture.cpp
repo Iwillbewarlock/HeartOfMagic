@@ -163,8 +163,17 @@ namespace GreyBuild
     {
         std::string path = NormalizeDataPath(a_slot);
         path.erase(0, path.find_first_not_of('\\'));
-        while (StartsWith(path, kDataRoot)) {
-            path.erase(0, std::char_traits<char>::length(kDataRoot));
+        // Every leading data\ and textures\ dropped, one textures\ put back: the DLL's NormalizeTexturePath rule, so a
+        // slot finds the file the dump wrote for it
+        for (bool stripped = true; stripped;) {
+            stripped = false;
+            for (const char* root : { kDataRoot, kTexturesRoot }) {
+                if (StartsWith(path, root)) {
+                    path.erase(0, std::char_traits<char>::length(root));
+                    path.erase(0, path.find_first_not_of('\\'));
+                    stripped = true;
+                }
+            }
         }
         if (path.empty() || path.find(':') != std::string::npos || !EndsWith(path, kDdsSuffix)) {
             return std::nullopt;
@@ -176,7 +185,7 @@ namespace GreyBuild
             }
             at = end + 1;
         }
-        return StartsWith(path, kTexturesRoot) ? path : std::string(kTexturesRoot) + path;
+        return std::string(kTexturesRoot) + path;
     }
 
     std::string TextureCopyPathFor(const std::string& a_textureDataPath)
@@ -273,7 +282,11 @@ namespace GreyBuild
             FAILED(hr)) {
             return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)));
         }
-        result.bytes = std::filesystem::file_size(a_target, ec);
+        const auto written = std::filesystem::file_size(a_target, ec);
+        if (ec) {
+            return Fail(result, fmt::format("{} was written but cannot be read back: {}", PathText(a_target), ec.message()));
+        }
+        result.bytes = written;
         result.outcome = RecolourOutcome::kRecoloured;
         return result;
     }
