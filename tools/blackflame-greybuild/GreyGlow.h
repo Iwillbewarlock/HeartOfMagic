@@ -10,11 +10,15 @@
 //      texture detail under kRiskSoftDetail) whose source colour is warm (S >= kRiskWarmSat, texture mean and vertex
 //      colours included) goes to RGB 0 (G1) unless that leaves the NIF nothing drawn (then G2); an additive one with
 //      detail x tintAdd (G2); an additive soft neutral one and normal blend x tint (G3, G5); not drawn: x tint (G0);
+//   P  a palette shader (derived mode, GreyPalette.h) takes the palette derived from its source palette, and its base colour
+//      and keys keep their red as grey (r, r, r): red picks the palette row, so the derived palette's rows are read as
+//      the source's were;
 //   K  every colour key a shader's colour controllers reach - directly, or through NiControllerSequence controlled blocks
 //      (by reference, or by node name / property type / controller type) - gets the shader's own colour rule;
 //   V  vertex colours of a shape without the palette flag go to their luminance, alpha kept (a palette shape's vertex red
 //      selects its palette row and stays).
 
+#include "GreyPalette.h"
 #include "GreyShapes.h"
 
 #include <string>
@@ -48,6 +52,7 @@ namespace GreyBuild
     struct GlowContext
     {
         TextureSource* textures = nullptr;
+        PaletteJob* palettes = nullptr;  // none: palette shaders keep GreyEffects' palette (the godskin rule)
         float tint = kDefaultTint;
         float tintAdd = kDefaultTintAdd;
         GlowTotals totals;

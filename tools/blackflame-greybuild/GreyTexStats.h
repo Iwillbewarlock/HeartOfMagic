@@ -28,6 +28,7 @@ namespace GreyBuild
         std::size_t width = 0;
         std::size_t height = 0;
         std::vector<std::uint8_t> pixels;  // RGBA, row after row
+        bool srgb = false;                 // the source stored sRGB (the bytes are as stored)
 
         /// r, g, b, a in 0..1 (a_x, a_y inside the image)
         [[nodiscard]] std::array<double, 4> At(std::size_t a_x, std::size_t a_y) const noexcept;

@@ -6,6 +6,7 @@
 
 #include "GreySelfTest.h"
 #include "GreyGlow.h"
+#include "GreyPalette.h"
 #include "GreyRisk.h"
 
 #include <Animation.hpp>
@@ -13,6 +14,7 @@
 #include <NifFile.hpp>
 #include <Shaders.hpp>
 
+#include <cmath>
 #include <fmt/format.h>
 #include <memory>
 #include <optional>
@@ -204,8 +206,65 @@ namespace GreyBuild::SelfTest
         }
     }
 
-    void CheckRisk(Checker& a_check)
+    namespace
     {
+        // P1, P2 and the fallback on a 4 x 4 source palette whose alpha runs 0..255 across it
+        void CheckPalettes(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            TextureSource textures({}, {});
+            RgbaImage source;
+            source.width = kTex;
+            source.height = kTex;
+            for (std::size_t y = 0; y < kTex; ++y) {
+                for (std::size_t x = 0; x < kTex; ++x) {
+                    const auto alpha = static_cast<std::uint8_t>(85 * x);
+                    source.pixels.insert(source.pixels.end(), { 255, static_cast<std::uint8_t>(60 * y), 0, alpha });
+                }
+            }
+            RgbaImage ours;
+            ours.width = 2;
+            ours.height = 1;
+            ours.pixels = { 10, 10, 10, 255, 40, 40, 40, 255 };
+            textures.Put("textures\\selftest\\palette.dds", source);
+            textures.Put("textures\\heartofmagic\\blackflame\\gradblackflame.dds", ours);
+            textures.Put("textures\\selftest\\unreadable.dds", std::nullopt);
+            PaletteJob job;
+            job.out = a_dir / "palettes";
+            job.textures = &textures;
+            std::string why;
+            const auto add = DerivedPalette(job, "Textures/SelfTest/Palette.dds", true, why);
+            const auto normal = DerivedPalette(job, "textures\\selftest\\palette.dds", false, why);
+            const auto again = DerivedPalette(job, "textures\\selftest\\palette.dds", true, why);
+            std::string readWhy;
+            const auto addBack = add.empty() ? std::nullopt : ReadRgba(job.out / std::filesystem::path(add), readWhy);
+            const auto normalBack = normal.empty() ? std::nullopt : ReadRgba(job.out / std::filesystem::path(normal), readWhy);
+            bool p2 = addBack && addBack->width == kTex && addBack->height == kTex;
+            bool p1 = normalBack && normalBack->width == kTex && normalBack->height == kTex;
+            for (std::size_t i = 0; p2 && p1 && i < source.pixels.size(); i += 4) {
+                const auto* s = source.pixels.data() + i;
+                const auto* a = addBack->pixels.data() + i;
+                const auto* n = normalBack->pixels.data() + i;
+                const auto grey = static_cast<int>(std::lround(Luminance(s[0] / 255.0f, s[1] / 255.0f, s[2] / 255.0f) * 255.0f));
+                p2 = a[0] == grey && a[1] == grey && a[2] == grey && a[3] == s[3];
+                const std::size_t x = (i / 4) % kTex;
+                const std::uint8_t expected = x < 2 ? 10 : 40;  // our 2 texels resampled across 4
+                p1 = n[0] == expected && n[3] == s[3];
+            }
+            a_check.Check(add == "textures\\heartofmagic\\blackflame\\copies\\palettes\\add\\selftest\\palette.dds" && p2 &&
+                              again == add && job.totals.derivedAdd == 1,
+                fmt::format("palettes P2: the source palette at its luminance, every alpha exactly kept, made once ({}; {})", add,
+                    readWhy.empty() ? "read back" : readWhy));
+            a_check.Check(normal == "textures\\heartofmagic\\blackflame\\copies\\palettes\\normal\\selftest\\palette.dds" && p1,
+                fmt::format("palettes P1: our palette's colour resampled to the source's size, the source's alpha ({})", normal));
+            const auto fallback = DerivedPalette(job, "textures\\selftest\\unreadable.dds", true, why);
+            a_check.Check(fallback.empty() && job.totals.fallback == 1 && !why.empty(),
+                fmt::format("palettes: a source palette that does not decode keeps today's palette ({})", why));
+        }
+    }
+
+    void CheckRisk(Checker& a_check, const std::filesystem::path& a_dir)
+    {
+        CheckPalettes(a_check, a_dir);
         TextureSource textures({}, {});
         GlowContext glow;
         glow.textures = &textures;

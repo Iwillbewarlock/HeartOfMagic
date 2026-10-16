@@ -4,6 +4,7 @@
 
 #include "GreyGlow.h"
 #include "GreyRisk.h"
+#include "GreyTexture.h"
 
 #include <Animation.hpp>
 #include <Geometry.hpp>
@@ -23,16 +24,38 @@ namespace GreyBuild
     {
         constexpr float kByteMax = 255.0f;
 
-        /// How a shader's colours become grey: luminance x scale
+        /// How a shader's colours become grey: luminance x scale, or (a derived palette's shader) the red kept as grey
         struct ColourRule
         {
             float scale = kDefaultTint;
+            bool red = false;
         };
 
         [[nodiscard]] nifly::Vector3 Apply(const ColourRule& a_rule, const nifly::Vector3& a_value) noexcept
         {
-            const float grey = Luminance(a_value.x, a_value.y, a_value.z) * a_rule.scale;
+            const float grey = a_rule.red ? a_value.x : Luminance(a_value.x, a_value.y, a_value.z) * a_rule.scale;
             return { grey, grey, grey };
+        }
+
+        // P: a palette shader's derived palette (GreyPalette.h); false keeps GreyEffects' palette and rule
+        bool TakeDerivedPalette(nifly::NifFile& a_copy, std::uint32_t a_shader, const std::vector<const EffectShape*>& a_users,
+            GlowContext& a_ctx, const std::string& a_rel)
+        {
+            if (!a_ctx.palettes || a_ctx.palettes->mode != PaletteMode::kDerived) {
+                return false;
+            }
+            const auto* first = a_users.front();
+            const bool additive = std::any_of(a_users.begin(), a_users.end(), [](const EffectShape* a_s) { return a_s->blend == ShapeBlend::kAdditive; });
+            std::string why;
+            const auto slot = DerivedPalette(*a_ctx.palettes, first->greyscaleTexture, additive, why);
+            if (slot.empty()) {
+                std::cout << fmt::format("NOTE  {}: effect shader block {}: {} - today's palette kept\n", a_rel, a_shader, why);
+                return false;
+            }
+            if (auto* shader = a_copy.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(a_shader)) {
+                shader->greyscaleTexture.get() = slot;
+            }
+            return true;
         }
 
         enum class Glow
@@ -243,6 +266,9 @@ namespace GreyBuild
             rules[shader] = RuleFor(users, a_ctx, zero, a_rel);
             if (zero) {
                 zeroed.insert(shader);
+            }
+            if (IsPaletteShape(*users.front()) && TakeDerivedPalette(a_copy, shader, users, a_ctx, a_rel)) {
+                rules[shader].red = true;
             }
         }
         int drawnBefore = 0;

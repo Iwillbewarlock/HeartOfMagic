@@ -327,8 +327,13 @@ namespace GreyBuild
             RiskJob risk;
             risk.textures = &textureSource;
             risk.tintAdd = a_plan.map.tintAdd;
+            PaletteJob palettes;
+            palettes.mode = a_options.paletteMode;
+            palettes.out = a_staging;
+            palettes.textures = &textureSource;
             GlowContext glow;
             glow.textures = &textureSource;
+            glow.palettes = &palettes;
             glow.tint = a_plan.map.tint;
             glow.tintAdd = a_plan.map.tintAdd;
             const Judging judging{ a_options.textures ? &job : nullptr, &glow, &risk };
@@ -350,7 +355,7 @@ namespace GreyBuild
                 return false;
             }
             // The check's report goes out with the copies; its gate is reported here, not fatal (README "Visual-risk check")
-            std::cout << GlowTotalsLine(glow.totals) << "\n";
+            std::cout << GlowTotalsLine(glow.totals) << "\n" << PaletteTotalsLine(palettes) << "\n";
             WriteRiskReport(risk, PluginsDir(a_staging) / kRiskReportName);
             a_totals.riskGate = RiskGateLine(risk);
             a_totals.riskPassed = RiskGatePasses(risk);

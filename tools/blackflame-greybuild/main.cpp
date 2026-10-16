@@ -49,6 +49,7 @@ namespace
         std::vector<std::filesystem::path> files;  // --dump / --roundtrip
         float tint = GreyBuild::kDefaultTint;
         float tintAdd = GreyBuild::kDefaultTintAdd;  // v2i: additive palette shaders
+        GreyBuild::PaletteMode paletteMode = GreyBuild::PaletteMode::kDerived;  // --palette-mode derived|godskin
         bool roundTrip = false;
         bool selfTest = false;
     };
@@ -59,12 +60,14 @@ namespace
                      "  blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>\n"
                      "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]\n"
                      "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
-                     "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]\n"
+                     "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures] [--palette-mode derived|godskin]\n"
                      "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] "
-                     "[--reclaim-retired] [--no-textures]\n"
+                     "[--reclaim-retired] [--no-textures] [--palette-mode derived|godskin]\n"
                      "      (the request folder defaults to <Documents>\\My Games\\Skyrim Special Edition[ GOG]\\SKSE\\"
                      "HeartOfMagic_BlackFlame; --out must exist and be the same folder every time; SE and AE, not VR)\n"
                      "      (--no-textures: no grey texture copies; the copy NIFs keep naming the source textures)\n"
+                     "      (--palette-mode godskin: GradBlackFlameAdd.dds / GradBlackFlame.dds on every palette shader instead of\n"
+                     "       palettes derived from each source palette)\n"
                      "  blackflame-greybuild --write-empty-esls <folder>\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
@@ -96,6 +99,16 @@ namespace
                 }
             } else if (arg == "--no-textures") {
                 a_options.noTextures = true;
+            } else if (arg == "--palette-mode" && hasValue) {
+                const std::string_view mode = a_argv[++i];
+                if (mode == "derived") {
+                    a_options.paletteMode = GreyBuild::PaletteMode::kDerived;
+                } else if (mode == "godskin") {
+                    a_options.paletteMode = GreyBuild::PaletteMode::kGodskin;
+                } else {
+                    std::cerr << fmt::format("--palette-mode '{}' must be derived (the default) or godskin\n", mode);
+                    return false;
+                }
             } else if (arg == "--reclaim-retired") {
                 a_options.reclaimRetired = true;
             } else if (arg == "--write-empty-esls" && hasValue) {
@@ -226,6 +239,7 @@ namespace
         options.reclaimRetired = a_options.reclaimRetired;
         options.tintAdd = a_options.tintAdd;
         options.textures = !a_options.noTextures;
+        options.paletteMode = a_options.paletteMode;
         const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.failed);
@@ -262,7 +276,7 @@ int main(int a_argc, char** a_argv)
         }
         try {
             return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired, options.tintAdd,
-                !options.noTextures);
+                !options.noTextures, options.paletteMode);
         } catch (const std::exception& e) {
             std::cerr << e.what() << "\n";
             return kExitFail;

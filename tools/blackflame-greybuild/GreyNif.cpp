@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyBuild.h"
+#include "GreyPalette.h"
 
 #include <Animation.hpp>
 #include <NifFile.hpp>
@@ -514,7 +515,10 @@ namespace GreyBuild
                     if (UsesPalette(a_prop)) {
                         const auto it = blends.find(a_id);
                         const bool additive = it != blends.end() && it->second == Blend::kAdditive;
-                        if (Lower(a_prop.greyscaleTexture.get()) != (additive ? paletteAdd : palette)) {
+                        // Our fixed palette for its blend, or a palette derived for that blend (GreyPalette.h)
+                        const std::string greyscale = Lower(a_prop.greyscaleTexture.get());
+                        const std::string derived = std::string(kPaletteCopyRoot) + (additive ? "add\\" : "normal\\");
+                        if (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived)) {
                             problems.push_back(fmt::format("effect shader block {}: {} palette shader, greyscale texture '{}'",
                                 a_id, additive ? "additive" : "normal-blend", a_prop.greyscaleTexture.get()));
                         }

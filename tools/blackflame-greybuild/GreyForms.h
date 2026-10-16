@@ -19,6 +19,7 @@
 // The DLL fills each copy from the live winning source at kDataLoaded (FormCopies.h).
 
 #include "GreyBuild.h"
+#include "GreyPalette.h"
 #include "GreyTexture.h"
 
 #include <array>
@@ -214,6 +215,7 @@ namespace GreyBuild
         std::vector<std::string> failedNifs; // models the game could not read: no grey copy is tried
         bool reclaimRetired = false;         // AssignCopyIds
         float tintAdd = kDefaultTintAdd;     // v2i: additive palette shaders' base colour scale (--tint-add)
+        PaletteMode paletteMode = PaletteMode::kDerived;  // --palette-mode (GreyPalette.h)
         bool warnAndContinue = false;        // --from-game: a NIF that cannot be read or parsed, or an AddOnNode value
                                              // in no ADDN, is a warning (source model kept / value kept), not a failure
         bool textures = true;                // texture copies (GreyTexture.h) of the full-grey copy NIFs and grey MPS; --no-textures: off
@@ -235,7 +237,7 @@ namespace GreyBuild
     /// The whole --from-game run: the request (version 3) and its NIF dump in a_folder (empty: FindRequestFolder) into
     /// a_out, warn-and-continue. Exit code 0 / 1 (failure) / 2 (bad arguments), each refusal with the next step.
     [[nodiscard]] int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint,
-        bool a_reclaim, float a_tintAdd = kDefaultTintAdd, bool a_textures = true);
+        bool a_reclaim, float a_tintAdd = kDefaultTintAdd, bool a_textures = true, PaletteMode a_paletteMode = PaletteMode::kDerived);
 
     /// Writes an ESL-flagged, masterless plugin with no records (HEDR 1.70, next id 0x800): the empty
     /// HeartOfMagic_BlackFlame_Copies.esp / _Local.esp shipped with the mod (a built output replaces them)

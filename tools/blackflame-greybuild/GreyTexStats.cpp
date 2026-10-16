@@ -81,6 +81,7 @@ namespace GreyBuild
             image = converted.GetImage(0, 0, 0);
         }
         RgbaImage out;
+        out.srgb = DirectX::IsSRGB(meta.format);
         out.width = image->width;
         out.height = image->height;
         out.pixels.resize(out.width * out.height * 4);

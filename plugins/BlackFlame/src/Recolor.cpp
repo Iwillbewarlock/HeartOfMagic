@@ -134,8 +134,8 @@ namespace BlackFlame
             // the texture-less case was handled just above
             // v2i: a copy's additive palette counts as ours too (the runtime recolour never replaces it with the grey one)
             const auto* paletteAdd = GetAddPalette();
-            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath) ||
-                (paletteAdd && source->greyscaleTexture.get() == paletteAdd) || IsAddPalettePath(source->greyscaleTexturePath)) {
+            if (source->greyscaleTexture.get() == palette || (paletteAdd && source->greyscaleTexture.get() == paletteAdd) ||
+                IsAnyPalettePath(source->greyscaleTexturePath)) {  // B(d): a derived palette counts as ours too
                 ++a_stats.alreadyOurs;
                 return;
             }

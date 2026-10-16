@@ -73,7 +73,7 @@ namespace GreyBuild
     }
 
     int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint, bool a_reclaim,
-        float a_tintAdd, bool a_textures)
+        float a_tintAdd, bool a_textures, PaletteMode a_paletteMode)
     {
         constexpr int kOk = 0;
         constexpr int kFail = 1;
@@ -138,6 +138,7 @@ namespace GreyBuild
         options.reclaimRetired = a_reclaim;
         options.warnAndContinue = true;
         options.tintAdd = a_tintAdd;
+        options.paletteMode = a_paletteMode;
         // T1: textures need the dump of a DLL that writes them; an older request builds without them, saying so
         options.textures = a_textures && parsed.hasTextures;
         options.texturesNotDumped = parsed.texturesNotDumped;

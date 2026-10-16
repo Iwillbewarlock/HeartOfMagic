@@ -527,7 +527,21 @@ numbers: the builder changes values only), so nothing is greyed twice:
   luminance x `tintAdd` (0.9), the silver edge. G3, additive soft neutral (white in the source): luminance x `--tint`
   (WARN NEUTRAL_HALO). G5, normal blend: luminance x `--tint`. G0, not drawn (hidden, no blending, a blank texture,
   colour 0): luminance x `--tint`. A texture that cannot be read makes its shape G2 (soft or not cannot be told) and is
-  noted. Palette shaders keep GreyEffects' rule here.
+  noted.
+- **P, palettes** (`GreyPalette.h`, `--palette-mode derived`, the default): a palette shader gets a palette derived from its
+  own source palette, one file per source palette and blend under
+  `textures\heartofmagic\blackflame\copies\palettes\{add,normal}\<path after textures\>` (8-bit RGBA, one mip, sRGB as the
+  source). Additive (P2): the source palette with every texel at its luminance and its alpha exactly kept, so the shape
+  keeps the outline and brightness the source palette gave it (our one-row `GradBlackFlameAdd.dds` lit palette-alpha
+  shapes up whole - Firebolt's `Cylinder02:0`, Fire Rune's ground planes - or sank them into its dark band). Normal blend
+  (P1): `GradBlackFlame.dds`'s colour resampled to the source palette's size with the source's alpha. The shader's base
+  colour and keys keep their red as grey (r, r, r): red picks the palette row, so a derived palette's rows are read as the
+  source's were (not checked in game). A source palette that cannot be read keeps `GradBlackFlameAdd.dds` /
+  `GradBlackFlame.dds` and the risk check reports it (UNREAD, or MISSING when the game lacks it).
+  `--palette-mode godskin` keeps the earlier rule: `GradBlackFlameAdd.dds` (the Godskin gradient) on every additive palette
+  shader and `GradBlackFlame.dds` on every normal-blend one. The DLL counts any greyscale texture under
+  `textures\heartofmagic\blackflame\` as one of ours (`IsAnyPalettePath`: the self-test's grey rule, the runtime recolour's
+  "already ours"), and the builder's own check accepts a derived palette of the shader's blend.
 - **K, colour keys**: every key a shader's `BSEffectShaderPropertyColorController`s reach - the controller's own
   `NiPoint3Interpolator`, and every `NiControllerSequence` controlled block that names the controller (by reference, or
   for a block without one by node name, property type `BSEffectShaderProperty` and controller type) - gets the shader's
@@ -569,7 +583,8 @@ and our own shipped ones. The palette rules assume NifSkope's effect shader mode
 texture's green, palette alpha by its alpha, the row by base colour red x vertex red - not checked against the game.
 Measured on the 2026-10-16 load order (the dump plus the prototype's textures, `--no-textures`), the v2i copies gave
 FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0; with
-G, GREY_HALO 90 -> 0 (HALO_KEPT 2).
+G, GREY_HALO 90 -> 0 (HALO_KEPT 2); with the derived palettes, PAL_SHEET 423 -> 0, PAL_VANISH 78 -> 0 and PAL_BRIGHTER 132 -> 0
+(138 P2 and 59 P1 files; 2 shaders keep today's palette: `gradpurple05_blur.dds` is not in the load order).
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 

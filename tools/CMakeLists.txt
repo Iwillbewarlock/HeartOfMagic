@@ -191,6 +191,7 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyTexStats.cpp
     blackflame-greybuild/GreyRisk.cpp
     blackflame-greybuild/GreyGlow.cpp
+    blackflame-greybuild/GreyPalette.cpp
     blackflame-greybuild/GreySelfTestRisk.cpp
 )
 
