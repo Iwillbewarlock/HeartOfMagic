@@ -1275,7 +1275,11 @@ window.onPanelHiding = function() {
         TreePreview._stopRenderLoop();
     }
 
-    // Auto-save settings when panel closes
+    // Edit mode stays on while the panel is closed: its prerequisite changes reach C++ now,
+    // before the player reads a tome (EditMode.commitPrerequisites)
+    if (typeof EditMode !== 'undefined' && EditMode.commitPrerequisites) EditMode.commitPrerequisites();
+
+    // Auto-save settings when panel closes (a pending autosave goes out with it, saveSettings)
     if (typeof saveSettings === 'function') {
         saveSettings();
     }

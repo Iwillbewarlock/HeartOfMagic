@@ -203,6 +203,11 @@ void SpellEffectivenessHook::RefreshAllSpellDisplays()
 
 void SpellEffectivenessHook::ApplyModifiedSpellName(RE::FormID spellFormId)
 {
+    // Modify Game Display off: the game's menus keep the spell's own name
+    if (!m_modifyGameDisplay.load(std::memory_order_acquire)) {
+        return;
+    }
+
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellFormId);
     if (!spell) {
         return;
@@ -337,6 +342,12 @@ static bool EffectSharedWithAnotherPlayerSpell(const RE::EffectSetting* baseEffe
 
 void SpellEffectivenessHook::ApplyModifiedDescriptions(RE::FormID spellFormId)
 {
+    // Modify Game Display off: the effects keep their own descriptions (and are not
+    // tracked, so a later mastery has nothing to put back)
+    if (!m_modifyGameDisplay.load(std::memory_order_acquire)) {
+        return;
+    }
+
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellFormId);
     if (!spell) {
         return;

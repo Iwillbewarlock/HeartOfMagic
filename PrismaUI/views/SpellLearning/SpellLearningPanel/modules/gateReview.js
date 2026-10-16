@@ -18,7 +18,7 @@
  * Spell Research take an included spell back.
  *
  * Depends on: state.lastSpellData, settings (spellBlacklist, gateReviewed),
- *   isTreeCandidate, foldPluginName (proceduralTreeBuilder.js), getPrimedSpells, getLocalFormId
+ *   isTreeCandidate, foldPluginName (constants.js), getPrimedSpells, getLocalFormId
  *   (uiHelpers.js), addToBlacklist, autoSaveSettings (settingsPanel.js), tOr (i18n.js)
  */
 
@@ -40,7 +40,7 @@ var GateReview = {
     },
 
     /**
-     * "plugin.esp:localid", the plugin folded A-Z only (foldPluginName, proceduralTreeBuilder.js):
+     * "plugin.esp:localid", the plugin folded A-Z only (foldPluginName, constants.js):
      * the DLL makes the same bytes (SpellScannerGate.cpp PluginKey), so a Korean, Russian or
      * accented plugin name gives one key on both sides. Blacklist entries match by it too
      */

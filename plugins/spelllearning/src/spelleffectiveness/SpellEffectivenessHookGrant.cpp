@@ -352,6 +352,20 @@ void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterf
     // and the next grant then stored that as the original - seen in game as
     // "Spell (Learning - 20%) (Learning - 20%)", and after mastery the name
     // stayed wrong until the game was restarted. Put them back first.
+    PutBackOriginalTextLocked();
+
+    m_earlyLearnedSpells.clear();
+    m_earlySpellCount.store(0, std::memory_order_release);
+    m_displayCache.clear();
+    m_originalSpellNames.clear();
+    m_originalEffectDescriptions.clear();
+    m_effectSpellTracking.clear();
+    m_progressMirror.clear();
+    logger::info("SpellEffectivenessHook: Cleared all early-learned spell data on revert");
+}
+
+void SpellEffectivenessHook::PutBackOriginalTextLocked()
+{
     for (const auto& [spellId, name] : m_originalSpellNames) {
         if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId)) {
             spell->fullName = name;
@@ -363,16 +377,7 @@ void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterf
         }
     }
     if (!m_originalSpellNames.empty() || !m_originalEffectDescriptions.empty()) {
-        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions before revert",
+        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions",
             m_originalSpellNames.size(), m_originalEffectDescriptions.size());
     }
-
-    m_earlyLearnedSpells.clear();
-    m_earlySpellCount.store(0, std::memory_order_release);
-    m_displayCache.clear();
-    m_originalSpellNames.clear();
-    m_originalEffectDescriptions.clear();
-    m_effectSpellTracking.clear();
-    m_progressMirror.clear();
-    logger::info("SpellEffectivenessHook: Cleared all early-learned spell data on revert");
 }

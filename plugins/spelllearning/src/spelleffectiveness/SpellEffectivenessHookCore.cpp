@@ -261,13 +261,34 @@ void SpellEffectivenessHook::ApplyEffectivenessScaling(RE::ActiveEffect* a_effec
 // SETTINGS MANAGEMENT
 // =============================================================================
 
+// Game thread: ApplySettingsFromConfig, from the config load and every save (both
+// reach it through AddTaskToGameThread) - turning Modify Game Display off or on
+// writes the spells' names and descriptions, which are game-thread only
 void SpellEffectivenessHook::SetSettings(const EarlyLearningSettings& settings)
 {
-    std::unique_lock<std::shared_mutex> lock(m_mutex);
-    m_settings = settings;
-    m_settingsEnabled.store(settings.enabled, std::memory_order_release);
-    logger::info("SpellEffectivenessHook: Settings updated - enabled: {}, unlock: {}%, min: {}%, max: {}%",
-        settings.enabled, settings.unlockThreshold, settings.minEffectiveness, settings.maxEffectiveness);
+    bool displayWasOn = false;
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        m_settings = settings;
+        m_settingsEnabled.store(settings.enabled, std::memory_order_release);
+        displayWasOn = m_modifyGameDisplay.exchange(settings.modifyGameDisplay, std::memory_order_acq_rel);
+        logger::info("SpellEffectivenessHook: Settings updated - enabled: {}, unlock: {}%, min: {}%, max: {}%, "
+            "modify game display: {}", settings.enabled, settings.unlockThreshold, settings.minEffectiveness,
+            settings.maxEffectiveness, settings.modifyGameDisplay);
+
+        if (displayWasOn && !settings.modifyGameDisplay) {
+            // Off: every name and description back as the game has it. The originals stay
+            // stored for when it is turned on again; the effect tracking starts over then
+            PutBackOriginalTextLocked();
+            m_effectSpellTracking.clear();
+            logger::info("SpellEffectivenessHook: Modify Game Display off - spell names and descriptions put back");
+        }
+    }
+
+    if (!displayWasOn && settings.modifyGameDisplay) {
+        // On again: the weakened spells get their "(Learning - N%)" names and scaled descriptions
+        RefreshAllSpellNames();
+    }
 }
 
 SpellEffectivenessHook::EarlyLearningSettings SpellEffectivenessHook::GetSettings() const

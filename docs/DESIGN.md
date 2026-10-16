@@ -166,6 +166,13 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   not both in the tree changes and saves nothing. A school's root (`isRoot` or `schools[name].root`) is
   refused with a status line (`editMode.rootNotDeleted`), before Shift+eraser blacklists it: its children
   would be left with no prerequisite, and a reload would make the school's first node the root.
+  The edits reach C++ (2026-10-17; before, only the next tree load sent them, so a tome was judged by the old
+  links): every prerequisite edit and every added spell marks the tree changed, and leaving edit mode - or
+  closing the panel with edit mode still on (`onPanelHiding`) - sends the whole tree's lists once
+  (`EditMode.commitPrerequisites` -> `sendTreePrerequisites` in treeLoad.js, the same call a tree load makes)
+  and recounts which spells are available. A spell added with Spawn keeps the scan's `persistentId` on its node
+  and in the saved tree, so a load order change moves it like any other node; a second copy of a spell on the
+  tree (`_dup_` id) gets none, since the persistentId would turn it into the original's formId.
 - **Empty state** — shown when no tree is loaded, prompts user to scan
 - **Font Size** (Settings, 0.7x to 2.0x; 1.5x before 1.2.1) — `applyFontSizeMultiplier` sets the body font
   (`PANEL_BASE_FONT_SIZE` times the value) that the page's em sizes follow, and `CanvasRenderer.labelScale`: the tree's spell
@@ -774,6 +781,12 @@ panel closed and in use:
   when the node list changes, also by count for edit mode) makes it linear: 325 ms → 2 ms on the game's
   tree in a desktop browser, same result. `ProgressUpdates.nodesFor` now also notices nodes added or
   removed.
+- **A state change repaints the canvas tree** (2026-10-17): `ProgressUpdates.repaintStates` (WheelRenderer's
+  states, `SmartRenderer.refresh` - the canvas tree's discovery set, learning paths and buckets - and
+  `_needsRender`) after a mastery, a relock, the Unlock answer (`onSpellUnlocked`) and the cheat Unlock and
+  Relock buttons; the cheat Unlock also recounts availability at once, so the spell's children open. The
+  Unlock paths told only WheelRenderer, which holds no nodes while the canvas tree is in use, and the
+  `updateSpellState` C++ sends next skips its own refresh because the state is already 'unlocked'.
 - **Info logging stays in the page** (`modules/logGate.js`). Every `console.log`/`console.info` crossed to
   SpellLearning.dll, which dropped it unless developer mode was on. `LogGate` drops it in the page instead;
   warnings and errors still go through. The heaviest log strings are not even built outside developer

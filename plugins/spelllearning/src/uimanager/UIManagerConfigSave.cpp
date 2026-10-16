@@ -63,29 +63,8 @@ namespace
 
         auto* progression = ProgressionManager::GetSingleton();
         ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(config);
-
-        // Load modded XP source settings from config
-        if (config.contains("moddedXPSources") && config["moddedXPSources"].is_object()) {
-            for (auto& [srcId, srcData] : config["moddedXPSources"].items()) {
-                // An internal source (passive) has no panel controls: an entry left
-                // in the file would make it an external one, capped at 25% again
-                if (progression->IsReservedSourceName(srcId)) continue;
-                ProgressionManager::ModdedSourceConfig sourceConfig;
-                sourceConfig.displayName = SafeJsonValue<std::string>(srcData, "displayName", srcId);
-                sourceConfig.enabled = SafeJsonValue<bool>(srcData, "enabled", true);
-                sourceConfig.multiplier = SafeJsonValue<float>(srcData, "multiplier", 100.0f);
-                sourceConfig.cap = SafeJsonValue<float>(srcData, "cap", 25.0f);
-                xpSettings.moddedSources[srcId] = sourceConfig;
-            }
-            logger::debug("UIManager: Loaded {} modded XP source configs", xpSettings.moddedSources.size());
-        }
-
-        // Preserve modded sources registered by API consumers that aren't in the saved config
-        for (auto& [srcId, srcConfig] : progression->GetXPSettings().moddedSources) {
-            if (xpSettings.moddedSources.find(srcId) == xpSettings.moddedSources.end()) {
-                xpSettings.moddedSources[srcId] = srcConfig;
-            }
-        }
+        // The saved settings over the registered sources (the same as at game start)
+        xpSettings.moddedSources = ReadModdedSourcesFromConfig(config);
         progression->SetXPSettings(xpSettings);
 
         // Apply early learning, tome, passive, and notification settings
@@ -257,19 +236,10 @@ void UIManager::OnSaveUnifiedConfig(const char* argument)
         return;
     }
 
-    // Debounce: skip if we saved very recently (prevents double-save on panel close)
-    auto* instance = GetSingleton();
-    {
-        std::scoped_lock lock(instance->m_configSaveMutex);
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - instance->m_lastConfigSaveTime).count();
-        if (elapsed < kConfigSaveDebounceMs) {
-            logger::info("UIManager: SaveUnifiedConfig debounced ({}ms since last save)", elapsed);
-            return;
-        }
-        instance->m_lastConfigSaveTime = now;
-    }
-
+    // Every save is written, in the order it came. A 500 ms debounce here used to drop
+    // a save that followed another closely (a change, then closing the panel) while the
+    // panel already counted it as saved, so the last change was lost. The panel sends
+    // nothing when the text is the same as its last save (settingsPanel.js)
     logger::info("UIManager: SaveUnifiedConfig");
 
     // File IO on the save worker; the settings reach the game thread from there

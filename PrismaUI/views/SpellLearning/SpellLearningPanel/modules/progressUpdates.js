@@ -57,6 +57,17 @@ var ProgressUpdates = {
         this._byCanon = null;
     },
 
+    /**
+     * A spell's state changed (mastered, unlocked, taken back): the whole tree layer
+     * repaints with its discovery set and learning paths. WheelRenderer alone (the SVG
+     * tree) holds no nodes while the canvas tree is in use, so it draws nothing then.
+     */
+    repaintStates: function() {
+        if (typeof WheelRenderer !== 'undefined' && WheelRenderer.updateNodeStates) WheelRenderer.updateNodeStates();
+        if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) SmartRenderer.refresh();
+        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+    },
+
     /** Did the progress cross one of the reveal thresholds (name, effects, description)? */
     crossedReveal: function(before, after) {
         var lo = Math.min(before, after) * 100, hi = Math.max(before, after) * 100;
@@ -127,9 +138,7 @@ var ProgressUpdates = {
         // The tree
         if (state.treeData) {
             if (stateChanged) {
-                if (typeof WheelRenderer !== 'undefined' && WheelRenderer.updateNodeStates) WheelRenderer.updateNodeStates();
-                if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) SmartRenderer.refresh();
-                if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+                this.repaintStates();
             } else if (repaint) {
                 if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
             }
@@ -195,9 +204,7 @@ window.onSpellRelocked = function(dataStr) {
 
         if (window._panelVisible === false || !state.treeData) return;
 
-        if (typeof WheelRenderer !== 'undefined' && WheelRenderer.updateNodeStates) WheelRenderer.updateNodeStates();
-        if (typeof SmartRenderer !== 'undefined' && SmartRenderer.refresh) SmartRenderer.refresh();
-        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+        ProgressUpdates.repaintStates();
 
         var sel = state.selectedNode;
         if (sel && ProgressUpdates._canon(sel) === canonId && typeof showSpellDetails === 'function') showSpellDetails(sel);

@@ -237,6 +237,10 @@ private:
     // Maintained by SetSettings. Mirrors the pattern of m_earlySpellCount.
     std::atomic<bool> m_settingsEnabled{true};
 
+    // Mirror of m_settings.modifyGameDisplay (Settings > Modify Game Display), set by
+    // SetSettings: off, ApplyModifiedSpellName / ApplyModifiedDescriptions change nothing
+    std::atomic<bool> m_modifyGameDisplay{true};
+
     // Reader-writer mutex for thread safety (shared_mutex allows concurrent reads).
     // Protects all internal data structures above. Does NOT protect RE game object
     // fields — those are only accessed from the game thread (see display file comments).
@@ -249,4 +253,9 @@ private:
     // (conditional fetch_add/fetch_sub based on insert/erase return values).
     void AddToEarlySet(RE::FormID formId);
     void RemoveFromEarlySet(RE::FormID formId);
+
+    // Every spell name and effect description this hook changed back to the stored
+    // original; the originals stay stored. Caller MUST hold unique_lock on m_mutex,
+    // on the game thread (the forms' fields are game-thread only).
+    void PutBackOriginalTextLocked();
 };

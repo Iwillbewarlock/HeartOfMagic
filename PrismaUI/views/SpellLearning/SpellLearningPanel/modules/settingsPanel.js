@@ -664,7 +664,12 @@ function loadSettings() {
 }
 
 function saveSettings() {
-    // Save unified config to C++ (all settings in one file)
+    // Save unified config to C++ (all settings in one file). A pending autosave goes
+    // out with this save, not 500 ms later (closing the panel saves through here)
+    if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+    }
     saveUnifiedConfig();
 }
 
@@ -694,9 +699,29 @@ function autoSaveSettings() {
 
 var _lastSavedConfigText = null;
 
+// The last config load threw part way (onUnifiedConfigLoaded): the settings are partly
+// defaults, and a save would write them over the player's blacklist, whitelist, roots
+// and kept spells. Nothing is saved until a load goes in whole - as C++ writes nothing
+// when it could not read config.json (ConfigFile::SaveMode::Blocked)
+var _configLoadFailed = false;
+
+/** onUnifiedConfigLoaded's end: a load that went in part way blocks saves, a whole one lifts the block */
+function noteConfigLoadResult(applied, error) {
+    _configLoadFailed = !applied;
+    if (applied) return;
+    var msg = 'SpellLearning panel: config.json could not be applied (' + (error && error.message ? error.message : 'no settings in it') +
+        ') - settings are NOT saved this session, so the file keeps the player\'s choices';
+    console.error('[SpellLearning] ' + msg);
+    if (window.callCpp) window.callCpp('LogMessage', JSON.stringify({ message: msg, level: 'error' }));
+}
+
 function saveUnifiedConfig() {
     if (!window.callCpp) return;
-    
+    if (_configLoadFailed) {
+        console.warn('[SpellLearning] Settings not saved: the config did not load whole (see SpellLearning.log)');
+        return;
+    }
+
     var unifiedConfig = {
         // Panel settings
         developerMode: settings.developerMode,
@@ -887,6 +912,9 @@ function resetSettings() {
     settings.xpMultiplierDirect = 100;
     settings.xpMultiplierSchool = 50;
     settings.xpMultiplierAny = 10;
+    settings.xpCapAny = XP_CAP_DEFAULTS.xpCapAny;
+    settings.xpCapSchool = XP_CAP_DEFAULTS.xpCapSchool;
+    settings.xpCapDirect = XP_CAP_DEFAULTS.xpCapDirect;
     settings.xpNovice = 100;
     settings.xpApprentice = 200;
     settings.xpAdept = 400;
@@ -972,11 +1000,14 @@ function resetSettings() {
         if (input) input.value = tierInputDefaults[inputId];
     }
     
-    // Reset reveal sliders
+    // Reset reveal and XP cap sliders
     var revealSliderDefaults = [
         { id: 'revealNameSlider', valueId: 'revealNameValue', val: 0 },
         { id: 'revealEffectsSlider', valueId: 'revealEffectsValue', val: 25 },
-        { id: 'revealDescSlider', valueId: 'revealDescValue', val: 50 }
+        { id: 'revealDescSlider', valueId: 'revealDescValue', val: 50 },
+        { id: 'xpCapAnySlider', valueId: 'xpCapAnyValue', val: XP_CAP_DEFAULTS.xpCapAny },
+        { id: 'xpCapSchoolSlider', valueId: 'xpCapSchoolValue', val: XP_CAP_DEFAULTS.xpCapSchool },
+        { id: 'xpCapDirectSlider', valueId: 'xpCapDirectValue', val: XP_CAP_DEFAULTS.xpCapDirect }
     ];
     revealSliderDefaults.forEach(function(cfg) {
         var slider = document.getElementById(cfg.id);
@@ -1021,6 +1052,7 @@ function resetSettings() {
 window.onUnifiedConfigLoaded = function(dataStr) {
     console.log('[SpellLearning] Unified config received');
     var applied = false;   // the whole config went in (the build at game start, below)
+    var loadError = null;
     try {
         var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
         if (!data) return;
@@ -1065,6 +1097,10 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         settings.xpMultiplierDirect = data.xpMultiplierDirect !== undefined ? data.xpMultiplierDirect : 100;
         settings.xpMultiplierSchool = data.xpMultiplierSchool !== undefined ? data.xpMultiplierSchool : 50;
         settings.xpMultiplierAny = data.xpMultiplierAny !== undefined ? data.xpMultiplierAny : 10;
+        // XP caps: saved but never read back here, so the next save put 5/15/50 back
+        settings.xpCapAny = clampSetting(data.xpCapAny, XP_CAP_MIN, XP_CAP_MAX, XP_CAP_DEFAULTS.xpCapAny, false);
+        settings.xpCapSchool = clampSetting(data.xpCapSchool, XP_CAP_MIN, XP_CAP_MAX, XP_CAP_DEFAULTS.xpCapSchool, false);
+        settings.xpCapDirect = clampSetting(data.xpCapDirect, XP_CAP_MIN, XP_CAP_MAX, XP_CAP_DEFAULTS.xpCapDirect, false);
         // Tier XP requirements
         settings.xpNovice = data.xpNovice !== undefined ? data.xpNovice : 100;
         settings.xpApprentice = data.xpApprentice !== undefined ? data.xpApprentice : 200;
@@ -1484,8 +1520,11 @@ window.onUnifiedConfigLoaded = function(dataStr) {
         }
         applied = true;
     } catch (e) {
+        loadError = e;
         console.error('[SpellLearning] Failed to parse unified config:', e);
     } finally {
+        // Part way (a throw, or no config at all): no save until a load goes in whole
+        noteConfigLoadResult(applied, loadError);
         // Only now may the build at game start scan: with the saved fields. A config that
         // threw part way builds nothing - the scan would not have the player's fields (autoBuild.js)
         if (typeof AutoBuild !== 'undefined' && typeof AutoBuildSetting !== 'undefined' && AutoBuildSetting.loaded) {
@@ -2437,7 +2476,7 @@ function addToBlacklist(spell) {
     var exists = settings.spellBlacklist.some(function(entry) {
         // Match by stable key if available, fall back to raw formId
         if (entry.plugin && entry.localFormId && plugin && localId) {
-            return entry.plugin.toLowerCase() === plugin.toLowerCase() && entry.localFormId === localId;
+            return foldPluginName(entry.plugin) === foldPluginName(plugin) && entry.localFormId === localId;
         }
         return entry.formId === spell.formId;
     });
@@ -2468,7 +2507,7 @@ function removeFromBlacklist(plugin, localFormId, formId) {
     settings.spellBlacklist = settings.spellBlacklist.filter(function(entry) {
         // Match by stable key if available
         if (plugin && localFormId && entry.plugin && entry.localFormId) {
-            return !(entry.plugin.toLowerCase() === plugin.toLowerCase() && entry.localFormId === localFormId);
+            return !(foldPluginName(entry.plugin) === foldPluginName(plugin) && entry.localFormId === localFormId);
         }
         // Fall back to raw formId
         return entry.formId !== formId;
@@ -2684,7 +2723,7 @@ function renderWhitelistEntries() {
 
     allPlugins.forEach(function(plugin) {
         var isBase = BASE_GAME_PLUGINS.some(function(bp) {
-            return bp.toLowerCase() === plugin.toLowerCase();
+            return foldPluginName(bp) === foldPluginName(plugin);
         });
         if (isBase) {
             basePlugins.push(plugin);
@@ -2696,7 +2735,7 @@ function renderWhitelistEntries() {
     // Also add base game plugins that might not have spells but should be shown
     BASE_GAME_PLUGINS.forEach(function(bp) {
         var exists = basePlugins.some(function(p) {
-            return p.toLowerCase() === bp.toLowerCase();
+            return foldPluginName(p) === foldPluginName(bp);
         });
         if (!exists) {
             basePlugins.push(bp);
@@ -2707,7 +2746,7 @@ function renderWhitelistEntries() {
     var whitelist = settings.pluginWhitelist || [];
     var whitelistMap = {};
     whitelist.forEach(function(entry) {
-        whitelistMap[entry.plugin.toLowerCase()] = entry.enabled;
+        whitelistMap[foldPluginName(entry.plugin)] = entry.enabled;
     });
 
     // Render base game plugins
@@ -2716,11 +2755,11 @@ function renderWhitelistEntries() {
 
     basePlugins.forEach(function(plugin) {
         var count = pluginCounts[plugin] || 0;
-        var isEnabled = whitelistMap[plugin.toLowerCase()] !== false; // Default to enabled
+        var isEnabled = whitelistMap[foldPluginName(plugin)] !== false; // Default to enabled
         if (isEnabled) enabledBaseCount++;
 
         // Ensure base game plugins are actually in the whitelist array (not just visually checked)
-        if (isEnabled && whitelistMap[plugin.toLowerCase()] === undefined) {
+        if (isEnabled && whitelistMap[foldPluginName(plugin)] === undefined) {
             updateWhitelistEntry(plugin, true);
         }
 
@@ -2742,11 +2781,11 @@ function renderWhitelistEntries() {
     } else {
         modPlugins.forEach(function(plugin) {
             var count = pluginCounts[plugin] || 0;
-            var isEnabled = whitelistMap[plugin.toLowerCase()] !== false; // Default to enabled for all plugins
+            var isEnabled = whitelistMap[foldPluginName(plugin)] !== false; // Default to enabled for all plugins
             if (isEnabled) enabledModCount++;
 
             // Ensure mod plugins are actually in the whitelist array (not just visually checked)
-            if (isEnabled && whitelistMap[plugin.toLowerCase()] === undefined) {
+            if (isEnabled && whitelistMap[foldPluginName(plugin)] === undefined) {
                 updateWhitelistEntry(plugin, true);
             }
 
@@ -2766,7 +2805,7 @@ function renderWhitelistEntries() {
 function createWhitelistEntry(plugin, count, isEnabled) {
     var div = document.createElement('div');
     div.className = 'whitelist-entry';
-    div.dataset.plugin = plugin.toLowerCase();
+    div.dataset.plugin = plugin;   // as the scan names it: Select All and Base Only save this name
 
     div.innerHTML =
         '<div class="whitelist-entry-left">' +
@@ -2796,7 +2835,7 @@ function updateWhitelistEntry(plugin, enabled) {
 
     var found = false;
     settings.pluginWhitelist.forEach(function(entry) {
-        if (entry.plugin.toLowerCase() === plugin.toLowerCase()) {
+        if (foldPluginName(entry.plugin) === foldPluginName(plugin)) {
             entry.enabled = enabled;
             found = true;
         }
@@ -2861,7 +2900,7 @@ function setBaseOnlyWhitelist() {
         var plugin = entry.dataset.plugin;
         if (checkbox && plugin) {
             var isBase = BASE_GAME_PLUGINS.some(function(bp) {
-                return bp.toLowerCase() === plugin.toLowerCase();
+                return foldPluginName(bp) === foldPluginName(plugin);
             });
             checkbox.checked = isBase;
             updateWhitelistEntry(plugin, isBase);
@@ -2877,7 +2916,7 @@ function filterWhitelistEntries(searchTerm) {
     var term = searchTerm.toLowerCase();
 
     entries.forEach(function(entry) {
-        var plugin = entry.dataset.plugin || '';
+        var plugin = (entry.dataset.plugin || '').toLowerCase();   // text search, any letter case
         if (!term || plugin.indexOf(term) !== -1) {
             entry.classList.remove('hidden');
         } else {

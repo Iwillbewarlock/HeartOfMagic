@@ -52,7 +52,7 @@ namespace SpellScanner
             std::set<RE::EffectArchetype> archetypes; // every effect of the spell is one of these (empty: any)
         };
 
-        // A-Z only, the way the panel's foldPluginName (proceduralTreeBuilder.js) folds (UTF-8 bytes stay as they are)
+        // A-Z only, the way the panel's foldPluginName (constants.js) folds (UTF-8 bytes stay as they are)
         std::string Lower(std::string text)
         {
             std::ranges::transform(text, text.begin(), AsciiText::ToLower);

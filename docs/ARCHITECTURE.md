@@ -99,7 +99,7 @@ when the band is not "in". "out" - free, or only dismisses a summon (banish only
 `gate/rules.json` (none ships) - leaves the tree, a saved tree's load (`ValidateAndFixTree`) and Spell Research
 unless the player includes it again from the blacklist window's "Left out by itself" list (`GateLeavesOut`
 with `ReadGateKept`, the panel's `gateReviewed` in config.json: "plugin:localid" keys whose plugin name is
-UTF-8 with A-Z folded and nothing else, `PluginKey` in C++ and `foldPluginName` (proceduralTreeBuilder.js)
+UTF-8 with A-Z folded and nothing else, `PluginKey` in C++ and `foldPluginName` (constants.js)
 in the panel, so a Korean, Russian or accented plugin name matches on both sides since 2026-10-17; the
 panel's blacklist, plugin list and chosen roots compare plugin names through `foldPluginName` too. A key the
 panel saved before with `toLowerCase` (a Cyrillic or accented capital folded) is replaced by
@@ -656,6 +656,28 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 
 **Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file (`WritePanelLocale`) is written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
 
+**Every save is written; a broken load writes nothing** (2026-10-17): `OnSaveUnifiedConfig` no longer drops a save
+that comes within 500 ms of the last one. That debounce lost the last change (a slider moved, then the panel closed
+right after an autosave) while the panel had already recorded the text as saved; the panel itself sends nothing when
+the text equals its last save (`_lastSavedConfigText`, settingsPanel.js), and the worker writes each save in order.
+On the panel side, closing it (`onPanelHiding` -> `saveSettings`) cancels a pending 500 ms autosave and saves at once.
+`onUnifiedConfigLoaded` reports every load in its `finally` (`noteConfigLoadResult`): a config that threw part way, did
+not parse or held nothing leaves the settings partly defaults, so `saveUnifiedConfig` sends nothing for the rest of the
+session (logged once to SpellLearning.log as an error) - otherwise the next save would write an empty blacklist,
+whitelist, root choice and kept-spell list over the file. A later load that goes in whole lifts the block. This is the
+panel's counterpart of C++'s `ConfigFile::SaveMode::Blocked`; a `configNotRead` config (C++ could not read the file)
+still saves, because C++ writes nothing then and applies the panel's settings for the session. The XP caps
+(`xpCapAny`, `xpCapSchool`, `xpCapDirect`) are read back on load (held to 0-100, defaults 5/15/50, `XP_CAP_*` in
+constants.js) - before, they were saved but never loaded, so the next save put the defaults back - and Reset to
+Defaults resets them.
+
+**Modded XP sources at game start** (2026-10-17): `ReadModdedSourcesFromConfig` (UIManagerConfig.cpp) gives the
+sources the game uses - the ones mods registered, each `moddedXPSources` entry of the config over its source (or
+added), internal and reserved names (passive, isl_study, any internal source), names the co-save cannot hold and
+entries past `ProgressionCoSave::kMaxModdedSources` left out. Both the config load at game start and every save use
+it; before, the load kept only the registered defaults, so a source the player turned off (BookXP) or slowed down
+counted at full rate until the panel's next save.
+
 **PrismaUI View Path:**
 ```
 CreateView("SpellLearning/SpellLearningPanel/index.html", ...)
@@ -909,6 +931,16 @@ struct EarlyLearningSettings {
     bool modifyGameDisplay = true;      // Modify spell names in game menus
 };
 ```
+
+**Modify Game Display** (`earlySpellLearning.modifyGameDisplay`, read by `ApplySettingsFromConfig`; acted on since
+2026-10-17 - before, C++ read the value and never used it): `SetSettings` mirrors it in the atomic
+`m_modifyGameDisplay`. Off, `ApplyModifiedSpellName` and `ApplyModifiedDescriptions` change nothing (the spells keep
+their own names and the effects their own descriptions, untracked), and turning it off at runtime puts back every
+name and description this hook changed (`PutBackOriginalTextLocked`, the same loop `OnRevert` uses; the originals
+stay stored and the effect tracking starts over). Turning it on again renames the weakened spells
+(`RefreshAllSpellNames`). Both happen on the game thread: `SetSettings` is reached only through
+`ApplySettingsFromConfig`, from the config load and every save, both game-thread tasks. The power scaling itself is
+not affected.
 
 **Hook Targets:**
 ```cpp
@@ -2161,7 +2193,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **Classic builder** — Tier-first builder. Novice=depth 0, Master=depth 4. NLP similarity guides within-tier parent selection.
 - **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving. (Removed 2026-09-27.)
 - **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaced the duplicate error handlers of the Classic and Tree modes; only Classic uses it now (its Retry reruns `TreeGrowthClassic.buildTree()` since 2026-09-28)
-- **Classic `buildTree()` sends** `command: 'build_tree_classic'` and its config. It also named `tier_zones`, but read them from the wrong object, so the value was always undefined and dropped from the JSON, and C++ never read the key; the line went on 2026-09-28. Tier zones act in the panel: `ClassicLayout` places the returned tree by `TreeGrowthClassic.settings.tierZones`. A throw while the request is put together now releases the pending flag, the Build buttons and the progress modal (as a result parse error does), since no reply will come
+- **Classic `buildTree()` sends** `command: 'build_tree_classic'` and its config. It also named `tier_zones`, but read them from the wrong object, so the value was always undefined and dropped from the JSON, and C++ never read the key; the line went on 2026-09-28. Tier zones act in the panel: `ClassicLayout` places the returned tree by `TreeGrowthClassic.settings.tierZones`. The tier zone chart (`ClassicSettings`) reads and drags those same zones since 2026-10-17 (it kept a copy of its own: a scanner preset did not show on it, and a drag started from the stale copy and wrote it over the preset's zones); applying a scanner preset redraws it (`ClassicSettings.refreshTierChart`). A throw while the request is put together now releases the pending flag, the Build buttons and the progress modal (as a result parse error does), since no reply will come
 - **Tree `buildTree()` sends** `command: 'build_tree'` explicitly (Tree mode removed 2026-09-27)
 - **Fixes Classic tier zone controls** — Tier zone sliders now work because tree structure matches tier ordering (Novice near roots, Master at edges)
 

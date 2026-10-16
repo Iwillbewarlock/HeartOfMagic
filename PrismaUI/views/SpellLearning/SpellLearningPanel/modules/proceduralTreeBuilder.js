@@ -75,18 +75,7 @@ function spellPluginName(spell) {
     return spell.plugin || spell.source || '';
 }
 
-/**
- * A plugin name to compare by: A-Z folded, every other letter as it is. The DLL folds
- * plugin names the same way (AsciiText, SpellScannerGate.cpp PluginKey), so a Korean,
- * Russian or accented name matches on both sides; toLowerCase would also fold Cyrillic
- * and accented capitals, which the DLL cannot. The spell gate's keys, the blacklist,
- * the plugin list and chosen roots all compare plugin names through this.
- */
-function foldPluginName(name) {
-    return String(name).replace(/[A-Z]+/g, function(run) { return run.toLowerCase(); });
-}
-
-window.foldPluginName = foldPluginName;
+// foldPluginName (plugin names compared A-Z folded) is in constants.js
 
 /**
  * Filter blacklisted spells from a spell array.

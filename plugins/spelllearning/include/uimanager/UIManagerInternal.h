@@ -54,6 +54,9 @@ std::filesystem::path GetUnifiedConfigPath();
 void MergeJsonNonNull(nlohmann::json& dst, const nlohmann::json& src);
 // XP rates, caps, tier XP and reverse unlock settings (moddedSources left empty)
 ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& config);
+// The modded XP sources to use: the registered ones, each config "moddedXPSources" entry
+// over its source (or added), internal and reserved names left out. Game thread.
+std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModdedSourcesFromConfig(const nlohmann::json& config);
 // Early learning, tome, passive learning and notification settings. Game thread.
 void ApplySettingsFromConfig(const nlohmann::json& config);
 
