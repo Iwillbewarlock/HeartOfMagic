@@ -327,13 +327,26 @@ namespace BlackFlame::SelfTest
         const auto right = RE::Actor::SlotTypes::kRightHand;
         const bool stoked = PickCastingArtImpl(player, right, spell, art, true) == copy;
         const bool unstoked = PickCastingArtImpl(player, right, spell, art, false) == art;
-        const bool npc = PickCastingArtImpl(ActorOf(a_c.caster), right, spell, art, true) == art;
         const bool power = PickCastingArtImpl(player, RE::Actor::SlotTypes::kPowerOrShout, spell, art, true) == art;
-        auto* other = copy;  // an art that is not the costliest effect's: the copy itself stands in
-        const bool otherArt = PickCastingArtImpl(player, right, spell, other, true) == other;
-        SelfTestLog::Check("E5", stoked && unstoked && npc && power && otherArt, std::format("spell {:08X}, casting art {:08X} -> copy "
-            "{:08X}: player right hand stoked -> copy {}, not stoked -> original {}, the deer -> original {}, power slot -> original {}, "
-            "another art -> unchanged {}", spell->GetFormID(), art->GetFormID(), copy->GetFormID(), stoked, unstoked, npc, power, otherArt));
+        // F12: cases that cannot run are said so and kept out of the PASS condition
+        auto* deer = ActorOf(a_c.caster);
+        const std::optional<bool> npc = deer ? std::optional<bool>(PickCastingArtImpl(deer, right, spell, art, true) == art) : std::nullopt;
+        RE::BGSArtObject* other = nullptr;  // another effect's casting art of the same spell (not the costliest one's)
+        for (const auto* item : spell->effects) {
+            auto* candidate = item && item->baseEffect ? item->baseEffect->data.castingArt : nullptr;
+            if (candidate && candidate != art) {
+                other = candidate;
+                break;
+            }
+        }
+        const std::optional<bool> otherArt = other ? std::optional<bool>(PickCastingArtImpl(player, right, spell, other, true) == other) :
+                                                     std::nullopt;
+        const auto text = [](const std::optional<bool>& a_case) { return a_case ? (*a_case ? "true" : "false") : "not run"; };
+        SelfTestLog::Check("E5", stoked && unstoked && power && npc.value_or(true) && otherArt.value_or(true), std::format("spell {:08X}, "
+            "casting art {:08X} -> copy {:08X}: player right hand stoked -> copy {}, not stoked -> original {}, power slot -> original {}, "
+            "the deer -> original {}, another effect's casting art {} -> unchanged {} (the rule only; the hand art in game is judged by "
+            "the SetCastingArt log lines)", spell->GetFormID(), art->GetFormID(), copy->GetFormID(), stoked, unstoked, power, text(npc),
+            other ? std::format("{:08X}", other->GetFormID()) : std::string("(none)"), text(otherArt)));
         return true;
     }
 

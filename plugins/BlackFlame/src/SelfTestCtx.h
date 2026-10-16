@@ -226,4 +226,5 @@ namespace BlackFlame::SelfTest
     void ShiftFireClocks(Clock::duration a_paused);
     void ShiftFlameClocks(Clock::duration a_paused);
     void ShiftArtClocks(Clock::duration a_paused);  // SelfTestStepsV2Art.cpp (E6-drop)
+    void ShiftCoverClocks(Clock::duration a_paused);  // SelfTestStepsV2Cover.cpp (E1m's aim)
 }

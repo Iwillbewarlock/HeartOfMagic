@@ -266,6 +266,7 @@ namespace BlackFlame::SelfTest
         ShiftFireClocks(a_paused);
         ShiftFlameClocks(a_paused);
         ShiftArtClocks(a_paused);
+        ShiftCoverClocks(a_paused);
         Reload::ShiftClocks(a_paused);
     }
 

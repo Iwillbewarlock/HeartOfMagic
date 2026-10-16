@@ -27,6 +27,7 @@
 #include <format>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 namespace BlackFlame::SelfTest
 {
@@ -93,9 +94,9 @@ namespace BlackFlame::SelfTest
         struct E1mState
         {
             RE::SpellItem* spell = nullptr;
-            const RE::BGSExplosion* explosion = nullptr;  // the explosion with a copy the launch should give, or null
+            const RE::BGSExplosion* explosion = nullptr;  // the explosion the engine gives the launch, when it has a copy
             std::uint64_t mark = 0;
-            Clock::time_point castAt{};
+            Aim aim;  // F11: judged only after a confirmed hit, recast up to three times (as E1a)
         };
         E1mState g_e1m;
 
@@ -104,6 +105,37 @@ namespace BlackFlame::SelfTest
             kSettling,
             kJudging
         };
+
+        // F11: the explosion the engine uses - the costliest effect's MGEF explosion when that effect has an area, else
+        // the projectile's own
+        const RE::BGSExplosion* ExpectedExplosion(const RE::SpellItem* a_spell)
+        {
+            const auto* item = a_spell->GetCostliestEffectItem();
+            const auto* costliest = item ? item->baseEffect : nullptr;
+            if (!costliest) {
+                return nullptr;
+            }
+            if (item->effectItem.area > 0 && costliest->data.explosion) {
+                return costliest->data.explosion;
+            }
+            return costliest->data.projectileBase ? costliest->data.projectileBase->data.explosionType : nullptr;
+        }
+
+        // F11: a candidate launches a projectile at its target: aimed delivery, its costliest effect has a projectile with a
+        // copy. Target-location spells (runes) are left out: their projectile lands, so no hit on the target confirms it.
+        bool LaunchesAtTarget(const RE::SpellItem* a_spell)
+        {
+            const auto* costliest = a_spell->GetAVEffect();
+            const auto* projectile = costliest ? costliest->data.projectileBase : nullptr;
+            return a_spell->GetDelivery() == RE::MagicSystem::Delivery::kAimed && projectile && CopyOf(projectile);
+        }
+    }
+
+    void ShiftCoverClocks(Clock::duration a_paused)
+    {
+        if (g_e1m.aim.hitAt) {
+            *g_e1m.aim.hitAt += a_paused;
+        }
     }
 
     bool StepV2Cover(Ctx&, bool)
@@ -163,20 +195,20 @@ namespace BlackFlame::SelfTest
             }
             std::size_t bestAt = 0;
             for (auto* spell : FireSpellList()) {
-                const auto* costliest = spell->GetAVEffect();
-                const auto* projectile = costliest ? costliest->data.projectileBase : nullptr;
-                if (!projectile || !CopyOf(projectile)) {
+                if (!LaunchesAtTarget(spell)) {
                     continue;
                 }
                 const auto it = order.find(spell->GetFile(0));
-                const auto at = it != order.end() ? it->second : 0;
-                if (!g_e1m.spell || at > bestAt || (at == bestAt && spell->GetFormID() < g_e1m.spell->GetFormID())) {
+                if (it == order.end()) {
+                    continue;  // F11: a file not in the load order map has no place (no tie with Skyrim.esm at 0)
+                }
+                if (!g_e1m.spell || it->second > bestAt || (it->second == bestAt && spell->GetFormID() < g_e1m.spell->GetFormID())) {
                     g_e1m.spell = spell;
-                    bestAt = at;
+                    bestAt = it->second;
                 }
             }
             if (!g_e1m.spell) {
-                SelfTestLog::Skip("E1m", "no fire spell whose costliest effect's projectile has a copy");
+                SelfTestLog::Skip("E1m", "no aimed fire spell whose costliest effect's projectile has a copy");
                 return true;
             }
             if (IsOfficial(g_e1m.spell)) {
@@ -187,13 +219,13 @@ namespace BlackFlame::SelfTest
             if (!NeedActors(a_c, "E1m")) {
                 return true;
             }
-            const auto* costliest = g_e1m.spell->GetAVEffect();
-            const auto* own = costliest->data.projectileBase->data.explosionType;
-            const auto* explosion = own ? own : costliest->data.explosion;
+            const auto* explosion = ExpectedExplosion(g_e1m.spell);
             g_e1m.explosion = explosion && CopyOf(explosion) ? explosion : nullptr;
-            SelfTestLog::Info("E1m", std::format("picked spell {:08X} '{}' ({}), projectile {:08X}, explosion {}", g_e1m.spell->GetFormID(),
-                g_e1m.spell->GetName(), FileOf(g_e1m.spell), costliest->data.projectileBase->GetFormID(),
-                g_e1m.explosion ? std::format("{:08X} (has a copy)", g_e1m.explosion->GetFormID()) : std::string("none with a copy")));
+            SelfTestLog::Info("E1m", std::format("picked spell {:08X} '{}' ({}), projectile {:08X}, the engine's explosion {}",
+                g_e1m.spell->GetFormID(), g_e1m.spell->GetName(), FileOf(g_e1m.spell),
+                g_e1m.spell->GetAVEffect()->data.projectileBase->GetFormID(),
+                explosion ? std::format("{:08X}{}", explosion->GetFormID(), g_e1m.explosion ? " (has a copy)" : " (no copy: not judged)") :
+                            std::string("none")));
             a_c.phase = kSettling;
             return false;
         }
@@ -204,12 +236,22 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             g_e1m.mark = SelfTestProbe::Mark();
-            g_e1m.castAt = Clock::now();
+            if (!CastAtTarget(a_c, Player(), g_e1m.spell, "E1m")) {
+                return true;
+            }
+            StartAim(g_e1m.aim, g_e1m.mark);
             a_c.phase = kJudging;
-            return !CastAtTarget(a_c, Player(), g_e1m.spell, "E1m");
+            return false;
         }
-        if (Clock::now() - g_e1m.castAt < kExplosionWait) {
-            a_c.waitingFor = "the modded spell's launch and explosion";
+        // F11: judged only after the hit is confirmed (recast up to three times, as E1a); records from the cast that hit
+        const auto aim = ConfirmHit(a_c, g_e1m.aim, g_e1m.spell, "E1m");
+        if (std::exchange(g_e1m.aim.newCast, false)) {
+            g_e1m.mark = g_e1m.aim.mark;
+        }
+        if (aim == AimResult::kGaveUp) {
+            return true;
+        }
+        if (aim == AimResult::kWaiting) {
             return false;
         }
         const auto playerId = Player()->GetFormID();
@@ -221,13 +263,19 @@ namespace BlackFlame::SelfTest
                 copied |= r.copyBase != 0;
             }
         }
-        bool explosionCopy = false;
+        const auto* explosionCopy = g_e1m.explosion ? CopyOf(g_e1m.explosion) : nullptr;
+        bool explosionSeen = false;
         for (const auto& r : SelfTestProbe::ExplosionsSince(g_e1m.mark)) {
-            explosionCopy |= r.byPlayer && r.copyBase != 0;
+            explosionSeen |= explosionCopy && r.byPlayer && r.copyBase == explosionCopy->GetFormID();
         }
-        SelfTestLog::Check("E1m", launched && copied && (!g_e1m.explosion || explosionCopy), std::format("spell {:08X}: launch {}, "
-            "projectile copy {}, explosion copy {}", g_e1m.spell->GetFormID(), launched ? "recorded" : "NOT recorded", copied ? "yes" : "NO",
-            g_e1m.explosion ? (explosionCopy ? "seen" : "NOT seen within 1.5 s") : "not expected"));
+        if (explosionCopy && !explosionSeen && Clock::now() - *g_e1m.aim.hitAt < kExplosionWait) {
+            a_c.waitingFor = "the modded spell's explosion copy";
+            return false;
+        }
+        SelfTestLog::Check("E1m", launched && copied && (!explosionCopy || explosionSeen), std::format("spell {:08X}: hit confirmed, "
+            "launch {}, projectile copy {}, explosion copy {}", g_e1m.spell->GetFormID(), launched ? "recorded" : "NOT recorded",
+            copied ? "yes" : "NO", explosionCopy ? (explosionSeen ? std::format("{:08X} seen", explosionCopy->GetFormID()) :
+                std::format("{:08X} NOT seen within 1.5 s of the hit", explosionCopy->GetFormID())) : std::string("not expected")));
         return true;
     }
 }

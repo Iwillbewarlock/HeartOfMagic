@@ -58,6 +58,7 @@ namespace BlackFlame::SelfTest
         constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
         constexpr float kE1aTimeout = 8.0f;        // C3: up to three casts until one hits, then 1.5 s for the impact
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
+        constexpr float kE1mTimeout = 12.0f;       // F11: 2.5 s settle, then up to three casts until one hits, then 1.5 s
         constexpr float kE6Timeout = 6.0f;         // J3: kWatch for the art, the dispel, kWatch for the art to go, and slack
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
@@ -469,7 +470,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "E1a", kE1aTimeout, &StepE1Firebolt },
             StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
             StepDef{ "E1c", kE1cTimeout, &StepE1Npc },
-            StepDef{ "E1m", kE1aTimeout, &StepE1Modded },
+            StepDef{ "E1m", kE1mTimeout, &StepE1Modded },
             StepDef{ "E2", kE2Timeout, &StepE2Flames },
             StepDef{ "E6", kE6Timeout, &StepE6Player },
             StepDef{ "E6-npc", kE6Timeout, &StepE6Npc },
