@@ -10,7 +10,7 @@
 // source textures UsesPalette rejects. Each texture is found in the --in folders (--from-game: the game's dump, which
 // the DLL writes from the game's own file system), decoded with DirectXTex, every pixel set to its Rec. 709 luminance x
 // the role's tint (alpha kept), encoded again in the source format with its mip count, and written under
-// textures\heartofmagic\blackflame\copies\ (a tint other than 1 in its own folder, t<percent>\); the slot then names
+// textures\heartofmagic\blackflame\copies\_tint\<percent>\ (every tint, 1 included); the slot then names
 // the copy. A glow shader's emissive colour is greyed too (a grey glow map under an orange emissive colour stays
 // orange). A texture whose lit, visible pixels of mip 0 carry a mean chroma under kGreyscaleChroma is already grey and
 // left as it is. The source file is never written. A texture that is missing, unreadable or fails leaves its slot.
@@ -42,7 +42,9 @@ namespace GreyBuild
     // full range. Effect source: the shader's base colour is already luminance x tint, so the texture is plain luminance
     inline constexpr float kTextureTintGlow = 1.0f;
     inline constexpr float kTextureTintEffect = 1.0f;
-    inline constexpr int kTintPercent = 100;  // a copy's tint folder is t<tint x this>; a tint of 1 has none
+    inline constexpr int kTintPercent = 100;  // a copy's tint folder is <tint x this>, under kTintFolder
+    // The fixed segment in front of every tint folder: copies\_tint\<percent>\<path after textures\>
+    inline constexpr const char* kTintFolder = "_tint\\";
 
     // Mean chroma (max - min channel, 0..1) of the lit, visible pixels of mip 0 below which a texture counts as already
     // grey. Chroma, not HSV saturation: the 5:6:5 noise of a dark grey BC1 gives a high saturation but a chroma of about
@@ -76,8 +78,10 @@ namespace GreyBuild
     /// extension.
     [[nodiscard]] std::optional<std::string> TextureDataPath(const std::string& a_slot);
 
-    /// The copy's path for a TextureDataPath result: kTextureCopyRoot [+ "t<percent>\"] + the part after textures\. A
-    /// tint other than 1 has its own folder, so one texture used with two tints gets two copies.
+    /// The copy's path for a TextureDataPath result: kTextureCopyRoot + kTintFolder + "<percent>\" + the part after
+    /// textures\. Every tint (1 included) has its own folder under one fixed segment, so one texture used with two tints
+    /// gets two copies, and no source path can land on another source's copy (a source under textures\t60\ once did,
+    /// when tint 1 had no folder and 0.6 used t60\)
     [[nodiscard]] std::string TextureCopyPathFor(const std::string& a_textureDataPath, float a_tint);
 
     enum class RecolourOutcome

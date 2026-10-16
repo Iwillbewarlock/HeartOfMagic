@@ -449,9 +449,10 @@ start the game once to the main menu with this release (the DLL then dumps the t
   otherwise left alone, so the diffuse carries the darkening), glow `kTextureTintGlow` 1.0 (a brightness mask), effect
   source `kTextureTintEffect` 1.0 (the base colour already carries the tint). HDR (BC6H), float, typeless, planar,
   palettized and video formats are refused with a reason (a float texture is not clamped).
-- **Where**: `textures\heartofmagic\blackflame\copies\<path after textures\>` for tint 1 and
-  `...\copies\t<tint x 100>\<path after textures\>` for another tint (`t60\` by default), in `--out` (staged and committed
-  with the rest). One texture used at two tints gets two copies; each texture and tint is made once per run. The slot is
+- **Where**: `textures\heartofmagic\blackflame\copies\_tint\<tint x 100>\<path after textures\>` for every tint (`_tint\100\`
+  for 1, `_tint\60\` for the default diffuse tint), in `--out` (staged and committed with the rest). The fixed `_tint\`
+  segment keeps a source path from landing on another source's copy (a texture under `textures\t60\` once did when tint 1
+  had no folder). One texture used at two tints gets two copies; each texture and tint is made once per run. The slot is
   rewritten as that path with `textures\` in front, as `kPalettePath` is. The source file is never written. A texture that
   is missing, unreadable or fails leaves its slot as it was; it never fails the NIF.
 - **Paths**: the builder reads a slot with the DLL's own rule (`plugins/BlackFlame/src/DataPathRule.h`, included by both,

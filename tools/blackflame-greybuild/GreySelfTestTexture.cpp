@@ -237,10 +237,18 @@ namespace GreyBuild::SelfTest
 
         void CheckSkipsAndFailures(Checker& a_check, const std::filesystem::path& a_dir)
         {
-            a_check.Check(TextureCopyPathFor("textures\\effects\\a.dds", 1.0f) == "textures\\heartofmagic\\blackflame\\copies\\effects\\a.dds" &&
+            a_check.Check(TextureCopyPathFor("textures\\effects\\a.dds", 1.0f) ==
+                                  "textures\\heartofmagic\\blackflame\\copies\\_tint\\100\\effects\\a.dds" &&
                               TextureCopyPathFor("textures\\effects\\a.dds", 0.6f) ==
-                                  "textures\\heartofmagic\\blackflame\\copies\\t60\\effects\\a.dds",
-                "textures: the copy path is copies\\<path after textures\\>, a tint other than 1 in its own t<percent>\\ folder");
+                                  "textures\\heartofmagic\\blackflame\\copies\\_tint\\60\\effects\\a.dds",
+                "textures: the copy path is copies\\_tint\\<percent>\\<path after textures\\>, every tint in its own folder");
+            // Second review: a source under textures\t60\ at tint 1 once got the same copy as textures\a.dds at tint 0.6
+            const auto sourceT60 = TextureCopyPathFor("textures\\t60\\a.dds", 1.0f);
+            const auto tinted = TextureCopyPathFor("textures\\a.dds", 0.6f);
+            const auto sourceTint = TextureCopyPathFor("textures\\_tint\\60\\a.dds", 1.0f);
+            a_check.Check(sourceT60 != tinted && sourceTint != tinted && sourceT60 != sourceTint,
+                fmt::format("textures: no two sources share a copy path (t60\\a.dds at 1: {}, a.dds at 0.6: {}, _tint\\60\\a.dds at 1: {})",
+                    sourceT60, tinted, sourceTint));
 
             const auto grey = a_dir / "grey_bc1.dds";
             const auto greyOut = a_dir / "out" / "grey_bc1.dds";
@@ -381,13 +389,13 @@ namespace GreyBuild::SelfTest
                 }
             }
             const std::string copies = "textures\\heartofmagic\\blackflame\\copies\\";
-            const std::string orangeDiffuse = copies + "t60\\effects\\homtest_orange.dds";
-            const std::string glowCopy = copies + "effects\\homtest_glow.dds";
-            const std::string fxCopy = copies + "effects\\homtest_fx.dds";
+            const std::string orangeDiffuse = copies + "_tint\\60\\effects\\homtest_orange.dds";
+            const std::string glowCopy = copies + "_tint\\100\\effects\\homtest_glow.dds";
+            const std::string fxCopy = copies + "_tint\\100\\effects\\homtest_fx.dds";
             a_check.Check(made && backA && backA->textures[kSlotDiffuse].get() == orangeDiffuse &&
                               backA->textures[1].get() == "textures\\effects\\homtest_orange_n.dds" &&
                               backA->textures[kSlotGlow].get() == glowCopy,
-                "textures: glow shader set - diffuse copy at tint 0.6 (t60\\), glow copy at tint 1, normal slot left (read back)");
+                "textures: glow shader set - diffuse copy at tint 0.6 (_tint\\60\\), glow copy at tint 1 (_tint\\100\\), normal slot left (read back)");
             a_check.Check(backB && backB->textures[kSlotDiffuse].get() == "textures\\effects\\homtest_grey.dds" &&
                               backB->textures[kSlotGlow].get() == "textures\\effects\\homtest_skin.dds",
                 "textures: default shader set - grey diffuse left, slot 2 (not a glow map there) left though it is orange");
@@ -418,7 +426,7 @@ namespace GreyBuild::SelfTest
                 }
             }
             auto* setAgain = second.GetHeader().GetBlock<nifly::BSShaderTextureSet>(setC);
-            a_check.Check(againSource == copies + "effects\\homtest_orange.dds" && setAgain &&
+            a_check.Check(againSource == copies + "_tint\\100\\effects\\homtest_orange.dds" && setAgain &&
                               setAgain->textures[kSlotDiffuse].get() == orangeDiffuse && job.totals.recoloured == 4 &&
                               job.totals.repointed == 5,
                 fmt::format("textures: one texture at two tints gets two copies, each made once (recoloured {}, repointed {}) (T4)",

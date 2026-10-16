@@ -171,8 +171,8 @@ namespace GreyBuild
     std::string TextureCopyPathFor(const std::string& a_textureDataPath, float a_tint)
     {
         const long percent = std::lround(a_tint * static_cast<float>(kTintPercent));
-        const std::string folder = percent == kTintPercent ? std::string() : fmt::format("t{}\\", percent);
-        return std::string(kTextureCopyRoot) + folder + a_textureDataPath.substr(std::char_traits<char>::length(kTexturesRoot));
+        return fmt::format("{}{}{}\\{}", kTextureCopyRoot, kTintFolder, percent,
+            a_textureDataPath.substr(std::char_traits<char>::length(kTexturesRoot)));
     }
 
     RecolourResult RecolourDds(const std::filesystem::path& a_source, const std::filesystem::path& a_target, float a_tint)
