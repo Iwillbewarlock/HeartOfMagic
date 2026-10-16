@@ -255,26 +255,32 @@ if ($withSource) {
     $tree = if ($stashed) { "$stashed".Trim() } else { $commit }
     $sourceDir = Join-Path $stage 'source'
     New-Item -ItemType Directory -Force $sourceDir | Out-Null
-    # W5: the repository and the CommonLibSSE-NG submodule (git archive leaves submodules out) unpacked into one tree,
-    # then zipped once (tar: bsdtar, in Windows since 10 1803)
-    $sourceTree = Join-Path $dist "HeartOfMagic-BlackFlame-Tester_$Version-source-tree"
-    if (Test-Path $sourceTree) { Remove-Item -Recurse -Force $sourceTree }
-    New-Item -ItemType Directory -Force $sourceTree | Out-Null
-    $repoTar = Join-Path $sourceTree 'repo.tar'
-    $libTar = Join-Path $sourceTree 'commonlib.tar'
-    git -C $repo archive --format=tar --prefix="HeartOfMagic-$Version/" -o $repoTar $tree
+    # W5: the repository's zip (git archive), then the CommonLibSSE-NG submodule's (git archive leaves submodules out)
+    # copied into it entry by entry under plugins/external/commonlibsse-ng/. Zip to zip: nothing is unpacked on disk (the
+    # submodule has symbolic links that need a privilege to create; in the zip they are entries holding their target)
+    $sourceZip = Join-Path $sourceDir "HeartOfMagic-$Version-source.zip"
+    $libZip = Join-Path $dist "HeartOfMagic-BlackFlame-Tester_$Version-commonlib.zip"
+    git -C $repo archive --format=zip --prefix="HeartOfMagic-$Version/" -o $sourceZip $tree
     if ($LASTEXITCODE -ne 0) { Fail "git archive of $tree failed: no source zip, no package" }
-    git -C $commonlib archive --format=tar --prefix="HeartOfMagic-$Version/plugins/external/commonlibsse-ng/" -o $libTar $commonlibCommit
+    git -C $commonlib archive --format=zip --prefix="HeartOfMagic-$Version/plugins/external/commonlibsse-ng/" -o $libZip $commonlibCommit
     if ($LASTEXITCODE -ne 0) { Fail "git archive of the CommonLibSSE-NG submodule failed: no source zip, no package" }
-    $unpacked = Join-Path $sourceTree 'tree'
-    New-Item -ItemType Directory -Force $unpacked | Out-Null
-    foreach ($tar in $repoTar, $libTar) {
-        tar -xf $tar -C $unpacked
-        if ($LASTEXITCODE -ne 0) { Fail "unpacking $tar failed" }
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $target = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Compression.ZipArchiveMode]::Update)
+    $library = [System.IO.Compression.ZipFile]::OpenRead($libZip)
+    try {
+        foreach ($entry in $library.Entries) {
+            $copy = $target.CreateEntry($entry.FullName)
+            $copy.LastWriteTime = $entry.LastWriteTime
+            if ($entry.FullName.EndsWith('/')) { continue }
+            $in = $entry.Open()
+            $out = $copy.Open()
+            try { $in.CopyTo($out) } finally { $out.Dispose(); $in.Dispose() }
+        }
+    } finally {
+        $library.Dispose()
+        $target.Dispose()
     }
-    tar -a -cf (Join-Path $sourceDir "HeartOfMagic-$Version-source.zip") -C $unpacked "HeartOfMagic-$Version"
-    if ($LASTEXITCODE -ne 0) { Fail "zipping the source tree failed: no package" }
-    Remove-Item -Recurse -Force $sourceTree
+    Remove-Item -Force $libZip
 }
 
 # Last guard: nothing outside the expected tree
