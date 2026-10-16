@@ -57,7 +57,8 @@ namespace BlackFlame::SelfTest
 
         // Before every caster cast: still placed safely (it keeps its AI and may wander), turned to
         // the target; FAIL without casting otherwise
-        Prepared PrepareCaster(Ctx& a_c, const char* a_id)
+        // a_explosion (I1): the caster's cast explodes at the target, so the margin is checked (skipped, not failed)
+        Prepared PrepareCaster(Ctx& a_c, const char* a_id, bool a_explosion)
         {
             if (BringCasterHome(a_c, a_id)) {  // C3: it keeps its AI and wandered up to 8,400 units off in run 11:11
                 a_c.waitingFor = "the caster's move back home to take effect";
@@ -70,17 +71,10 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Fail(a_id, "the caster, the target or the player is gone: nothing cast");
                 return Prepared::kFailed;
             }
-            const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
             const auto pos = caster->GetPosition();
             const float toTarget = pos.GetDistance(target->GetPosition());
-            const float toPlayer = target->GetPosition().GetDistance(player->GetPosition());
-            const float casterToPlayer = pos.GetDistance(player->GetPosition());
-            const float reach = radius + kRadiusMargin;
-            if (toTarget < reach || toPlayer < reach || casterToPlayer < reach) {
-                SelfTestLog::Fail(a_id, std::format("an actor moved inside the explosion's reach (caster to target {:.0f}, "
-                    "target to player {:.0f}, caster to player {:.0f}, radius {:.0f} + {:.0f}): nothing cast", toTarget,
-                    toPlayer, casterToPlayer, radius, kRadiusMargin));
-                return Prepared::kFailed;
+            if (a_explosion && !ExplosionRoom(a_c, a_id, true)) {
+                return Prepared::kSkipped;
             }
             SelfTestWorld::FaceTarget(caster, target);
             SelfTestLog::Info(a_id, std::format("caster at ({:.0f}, {:.0f}, {:.0f}), {:.0f} from the target, turned to it",
@@ -106,10 +100,15 @@ namespace BlackFlame::SelfTest
                     a_c.waitingFor = "the player's Fireball explosion to end";
                     return false;
                 }
+                if (a_byPlayer && !ExplosionRoom(a_c, id, false)) {
+                    a_c.t6Skipped = true;
+                    return true;
+                }
                 if (!a_byPlayer) {
-                    const auto prepared = PrepareCaster(a_c, id);
+                    const auto prepared = PrepareCaster(a_c, id, true);
+                    a_c.t6NpcSkipped = prepared == Prepared::kSkipped;
                     if (prepared != Prepared::kReady) {
-                        return prepared == Prepared::kFailed;
+                        return prepared != Prepared::kWait;
                     }
                 }
                 a_c.phase = 1;
@@ -310,8 +309,8 @@ namespace BlackFlame::SelfTest
             if (!secondSeen) {
                 SelfTestLog::Info("T4", "T5-second's projectile never recorded: the player record below may be it");
             }
-            if (const auto prepared = PrepareCaster(a_c, "T4"); prepared != Prepared::kReady) {
-                return prepared == Prepared::kFailed;
+            if (const auto prepared = PrepareCaster(a_c, "T4", false); prepared != Prepared::kReady) {  // Firebolt: no margin
+                return prepared != Prepared::kWait;
             }
             // The engine hit shaders already on the target (T3, T5-second): not the caster's
             a_c.engineBeforeT4.clear();

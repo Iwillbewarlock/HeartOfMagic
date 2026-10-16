@@ -256,6 +256,10 @@ namespace BlackFlame::SelfTest
             a_c.waitingFor = "the player's Fireball impact effects";
             return false;
         }
+        if (a_c.t6Skipped) {
+            SelfTestLog::Info("T6-swap", "not judged: T6 was skipped (explosion margin)");
+            return true;
+        }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6;
         const auto mapped = ImpactMappedSeenCount() - a_c.mappedAtT6;
         // Hazards: INFO only (no vanilla spell is known to leave a mapped hazard reliably)
@@ -275,6 +279,10 @@ namespace BlackFlame::SelfTest
         if (Clock::now() - a_c.stepStart < kSwapSettle) {
             a_c.waitingFor = "the caster's Fireball impact effects";
             return false;
+        }
+        if (a_c.t6NpcSkipped) {
+            SelfTestLog::Info("T6-npc-swap", "not judged: T6-npc was skipped (explosion margin)");
+            return true;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6npc;
         if (!SwapExpected(a_c)) {

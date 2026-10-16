@@ -182,7 +182,7 @@ namespace BlackFlame::SelfTest
     {
         if (a_first) {
             Reset(g_fire);
-            if (!NeedActors(a_c, "E1b")) {
+            if (!NeedActors(a_c, "E1b") || !ExplosionRoom(a_c, "E1b", false)) {  // I1: skipped without the margin
                 return true;
             }
             return !CastAtTarget(a_c, Player(), a_c.forms.fireball, "E1b");
@@ -271,6 +271,9 @@ namespace BlackFlame::SelfTest
             }
             if (BringCasterHome(a_c, "E1c")) {  // C3: near the target like the other steps; G2: cast on a later tick
                 return false;
+            }
+            if (!ExplosionRoom(a_c, "E1c", true)) {  // I1: from the caster at home and the player
+                return true;
             }
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();

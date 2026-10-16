@@ -44,8 +44,8 @@ namespace BlackFlame::SelfTest
 
         // Step timeouts, counted in unpaused play
         constexpr float kEnvTimeout = 2.0f;
-        constexpr float kBuffOnTimeout = 3.0f;    // a dispel first when already stoked, then the cast
-        constexpr auto kOldBuffWait = std::chrono::milliseconds(2000);  // H2: then T1 goes on with the buff it found
+        constexpr float kBuffOnTimeout = 6.0f;    // I2: a dispel first when already stoked, flag off, then the cast, flag on
+        constexpr auto kOldBuffWait = std::chrono::milliseconds(3000);  // H2: then T1 goes on with the buff it found
         constexpr float kSpawnTimeout = 1.0f;
         constexpr float kActorsTimeout = 10.0f;  // C3: their 3D, then the target at rest (H1: the step itself gives up at 8 s)
         constexpr auto kRestCap = std::chrono::milliseconds(8000);  // H1: then judged by its height alone
@@ -62,11 +62,13 @@ namespace BlackFlame::SelfTest
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
 
         // Placement: the target ahead (C3: close enough to hit, 550 units), the caster level with the player off to
-        // the side, all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime, T2 checks it)
+        // the side. I1: wherever the target comes to rest 300..1200 from the player (ground plane) will do; the explosion
+        // steps check Fireball's radius (320 units in Skyrim.esm; read at runtime) against the actual distances
         constexpr float kTargetForward = 550.0f;
         constexpr float kRestXY = 5.0f;  // H1: units the target may slide on the ground plane at rest (sub-unit jitter ignored)
         constexpr float kRestZ = 5.0f;   // and up or down (a falling actor moves far more in 0.5 s)
-        constexpr float kPlacementSlack = 200.0f;                   // the target may end this much further than planned
+        constexpr float kMinTargetDistance = 300.0f;   // I1: the target's rest distance from the player on the ground plane
+        constexpr float kMaxTargetDistance = 1200.0f;
         constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long within both
         constexpr float kCasterRight = 700.0f;
         constexpr float kHealthShare = 0.99f;  // the target's health must reach this share of kDummyHealth
@@ -131,6 +133,7 @@ namespace BlackFlame::SelfTest
                 if (IsStoked()) {
                     SelfTestLog::Info("T1", std::format("the buff was already on: dispelled {} effect(s) first",
                         SelfTestWorld::DispelStoke()));
+                    a_c.t1Dispelled = true;
                     a_c.waitingFor = "the old buff to go off before casting";
                     a_c.phase = 1;
                     return false;
@@ -144,11 +147,13 @@ namespace BlackFlame::SelfTest
                     return true;
                 }
                 a_c.lastCast = Clock::now();
+                a_c.t1CastAfter = std::chrono::duration_cast<std::chrono::milliseconds>(*a_c.lastCast - a_c.stepStart);
                 a_c.waitingFor = "IsStoked() true and one more Stoke effect after the cast";
                 a_c.phase = 3;
                 return false;
             case 1:
                 if (!IsStoked()) {
+                    a_c.t1OffAfter = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.stepStart);
                     a_c.phase = 2;
                     return false;
                 }
@@ -166,7 +171,9 @@ namespace BlackFlame::SelfTest
                     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - *a_c.lastCast);
                     a_c.buffWasTurnedOn = true;
                     SelfTestLog::Pass("T1", std::format("buff flag on {} ms after CastSpellImmediate (Stoke effects {} -> "
-                        "{})", ms.count(), a_c.stokeBefore, SelfTestWorld::StokeEffectCount()));
+                        "{}); {}", ms.count(), a_c.stokeBefore, SelfTestWorld::StokeEffectCount(), !a_c.t1Dispelled ?
+                        std::string("no old buff to dispel") : std::format("old buff dispelled, flag off after {} ms, cast at {} ms",
+                        a_c.t1OffAfter.count(), a_c.t1CastAfter.count())));
                     return true;
                 }
                 return false;
@@ -236,7 +243,8 @@ namespace BlackFlame::SelfTest
             const bool zStill = now - *a_c.targetZSince >= kRestTime;
             const bool atRest = zStill && now - *a_c.targetXYSince >= kRestTime;
             const auto playerPos = Player()->GetPosition();
-            const bool closeEnough = pos.GetDistance(playerPos) <= kTargetForward + kPlacementSlack;  // D3: not slid off
+            const float groundToPlayer = std::hypot(pos.x - playerPos.x, pos.y - playerPos.y);
+            const bool inRange = groundToPlayer >= kMinTargetDistance && groundToPlayer <= kMaxTargetDistance;  // I1
             const auto moved = std::format("moved {:.0f} on the ground plane at most and {:.0f} - {:.0f} in height since the "
                 "wait began at ({:.0f}, {:.0f}, {:.0f})", a_c.targetMaxDrift, a_c.targetZMin, a_c.targetZMax, a_c.targetWaitStart->x,
                 a_c.targetWaitStart->y, a_c.targetWaitStart->z);
@@ -246,11 +254,10 @@ namespace BlackFlame::SelfTest
                         pos.x, pos.y, pos.z, playerPos.z, moved);
                     return false;
                 }
-                // H1: at the cap, a target whose height holds and that is still near its planned spot will do
-                if (!zStill || !closeEnough) {
-                    SelfTestLog::Fail("T2", std::format("the target did not come to rest in {} ms: at ({:.0f}, {:.0f}, {:.0f}), height "
-                        "{}, {:.0f} from the player (at most {:.0f}); {}", kRestCap.count(), pos.x, pos.y, pos.z,
-                        zStill ? "steady" : "still changing", pos.GetDistance(playerPos), kTargetForward + kPlacementSlack, moved));
+                // H1: at the cap, a target whose height holds will do (it may slide on a slope with its AI off)
+                if (!zStill) {
+                    SelfTestLog::Fail("T2", std::format("the target did not come to rest in {} ms: at ({:.0f}, {:.0f}, {:.0f}), its "
+                        "height still changing; {}", kRestCap.count(), pos.x, pos.y, pos.z, moved));
                     return true;
                 }
                 SelfTestLog::Info("T2", std::format("the target still slides on the ground plane after {} ms but its height holds "
@@ -270,14 +277,15 @@ namespace BlackFlame::SelfTest
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
             const float toPlayer = dummy->GetPosition().GetDistance(playerPos);
             const float toCaster = dummy->GetPosition().GetDistance(caster->GetPosition());
-            const bool farEnough = toPlayer >= radius + kRadiusMargin && toCaster >= radius + kRadiusMargin;
-            const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && farEnough &&
-                            closeEnough;
+            // I1: the explosion margin is no T2 condition; the explosion steps check it from the actual positions
+            const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && inRange;
             a_c.actorsOk = ok;
-            SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target to player {:.0f}, to caster {:.0f} "
-                "(explosion radius {:.0f} + {:.0f}; at most {:.0f} to the player); caster AI {}, {:.0f} units from its planned spot; "
-                "target at rest at height {:.0f} (player {:.0f}); it {}", done, health, toPlayer, toCaster, radius, kRadiusMargin,
-                kTargetForward + kPlacementSlack, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z, playerPos.z, moved));
+            SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target at rest {:.0f} from the player on the ground "
+                "plane ({:.0f} - {:.0f}; {:.0f} in 3D, planned {:.0f}), {:.0f} from the caster (explosion radius {:.0f} + {:.0f}: "
+                "checked again by each explosion step); caster AI {}, {:.0f} units from its planned spot; target at rest at height "
+                "{:.0f} (player {:.0f}); it {}", done, health, groundToPlayer, kMinTargetDistance, kMaxTargetDistance, toPlayer,
+                kTargetForward, toCaster, radius, kRadiusMargin, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z,
+                playerPos.z, moved));
             return true;
         }
 
@@ -392,6 +400,26 @@ namespace BlackFlame::SelfTest
             return true;
         }
         SelfTestLog::Fail(a_id, "skipped: the test actors are gone or T2 did not pass");
+        return false;
+    }
+
+    bool ExplosionRoom(Ctx& a_c, const char* a_id, bool a_caster)
+    {
+        auto* target = RefOf(a_c.dummy);
+        auto* caster = RefOf(a_c.caster);
+        auto* player = Player();
+        if (!target || !player || (a_caster && !caster)) {
+            return true;  // NeedActors / PrepareCaster report a missing actor
+        }
+        const float reach = (a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f) + kRadiusMargin;
+        const auto at = target->GetPosition();
+        const float toPlayer = at.GetDistance(player->GetPosition());
+        const float toCaster = a_caster ? at.GetDistance(caster->GetPosition()) : 0.0f;
+        if (toPlayer >= reach && (!a_caster || toCaster >= reach)) {
+            return true;
+        }
+        SelfTestLog::Info(a_id, std::format("skipped: the target is inside the explosion's reach ({:.0f}: radius + {:.0f}) - {:.0f} "
+            "from the player{}", reach, kRadiusMargin, toPlayer, a_caster ? std::format(", {:.0f} from the caster", toCaster) : ""));
         return false;
     }
 

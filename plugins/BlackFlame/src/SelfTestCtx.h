@@ -65,7 +65,12 @@ namespace BlackFlame::SelfTest
         RE::ObjectRefHandle caster;
         RE::ObjectRefHandle extraTarget;  // E2's flame target (removed by E2, else by the cleanup)
         bool cleanedUp = false;  // the cleanup step dispelled the buff and deleted the actors
-        bool actorsOk = false;  // T2 passed: placed, passive, out of the explosion's reach
+        bool actorsOk = false;  // T2 passed: placed, passive, at rest 300..1200 from the player (I1)
+        bool t6Skipped = false;     // I1: T6 skipped for the explosion margin (T6-swap not judged)
+        bool t6NpcSkipped = false;  // and T6-npc (T6-npc-swap not judged)
+        bool t1Dispelled = false;                    // I2: T1 found the buff on and dispelled it first
+        std::chrono::milliseconds t1OffAfter{ 0 };   // I2: T1's dispel -> flag off, from the step start
+        std::chrono::milliseconds t1CastAfter{ 0 };  // and -> the cast
         RE::FormID casterId = 0;
         std::uint64_t mark = 0;
         std::uint64_t t3Mark = 0;
@@ -154,9 +159,14 @@ namespace BlackFlame::SelfTest
     enum class Prepared
     {
         kReady,
-        kWait,   // the caster was just moved home: cast on a later tick
-        kFailed  // FAIL logged, nothing cast
+        kWait,    // the caster was just moved home: cast on a later tick
+        kFailed,  // FAIL logged, nothing cast
+        kSkipped  // I1: INFO logged (no explosion margin), nothing cast
     };
+
+    /// I1: the explosion steps' margin from where the actors are now: false (INFO logged, the step skipped, not failed)
+    /// when the target is within the explosion radius + kRadiusMargin of the player, or with a_caster of the caster
+    [[nodiscard]] bool ExplosionRoom(Ctx& a_c, const char* a_id, bool a_caster);
 
     inline constexpr float kCasterLeash = 200.0f;  // the caster moved further than this from home: put back (E3: and T2)
 
