@@ -14,22 +14,29 @@
       optional\palettes\GradBlackFlameAdd_blackblade.dds, _messmer.dds (not loaded: copy one over GradBlackFlameAdd.dds)
       tools\BlackFlame\blackflame-greybuild.exe and "Build Black Flame copies.bat"
       README_TESTER.md
-      THIRD-PARTY-NOTICES.md and licenses\ (from the release assembly: CommonLibSSE-NG in the DLL, nifly and DirectXTex
-      in the builder, and the other statically linked libraries; the script refuses without them)
+      THIRD-PARTY-NOTICES.md (from THIRD-PARTY-NOTICES-TESTER.md.in: the DLL and the builder, their libraries with the
+      versions vcpkg installed, the exact commit) and licenses\ (copied from the CommonLib submodule and vcpkg's installed
+      copyright files at packaging time, so never an older build's copies)
+      source\HeartOfMagic-<commit>-source.zip when the commit is on no remote branch or tag (-AllowUnpublished): the
+      Corresponding Source of the GPL binaries, from git archive (a dirty tree: git stash create, tracked files)
     Never in it: other mods' meshes or generated copies. The script refuses when plugins\BlackFlame\data holds a
     meshes\heartofmagic\blackflame\copies folder or a non-empty Copies/Local ESL (those are built on the tester's machine).
     It also refuses a working tree with uncommitted changes (the zip is named after the commit; -AllowDirty packages it
-    anyway with "-dirty" in the name) and a DLL older than the newest file under plugins\BlackFlame\src (build first).
+    anyway with "-dirty" in the name), a DLL older than the newest file under plugins\BlackFlame\src (build first), and a
+    commit no remote branch or tag holds (the notices would name source nobody can get): -AllowUnpublished packages it
+    with the source zip inside. -AllowDirty needs -AllowUnpublished (no remote holds uncommitted changes).
 
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -Version 1.5.0-t2
-    .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowDirty
+    .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowUnpublished
+    .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowDirty -AllowUnpublished
 #>
 [CmdletBinding()]
 param(
     [string]$Version,
-    [switch]$AllowDirty
+    [switch]$AllowDirty,
+    [switch]$AllowUnpublished
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,12 +45,18 @@ $data = Join-Path $repo 'plugins\BlackFlame\data'
 $dllDir = Join-Path $repo 'build\plugins\BlackFlame\Release'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
-# T8: the DLL statically links CommonLibSSE-NG (a GPL combined work) and the builder nifly (GPL-3.0) and DirectXTex (MIT):
-# their notices and licence texts ship with them, from the release assembly BuildRelease.ps1 makes
-$releaseVersion = (Get-Content (Join-Path $repo 'VERSION') -Raw).Trim()
-$notices = Join-Path $repo 'build\THIRD-PARTY-NOTICES.md'
-$licenses = Join-Path $repo "dist\HeartOfMagic-Librarian_$releaseVersion\licenses"
-$requiredLicenses = @('nifly.txt', 'directxtex.txt', 'CommonLibSSE-NG\COPYING.txt', 'CommonLibSSE-NG\EXCEPTIONS.md')
+# T8, U2: the DLL statically links CommonLibSSE-NG (a GPL combined work) and the builder nifly (GPL-3.0): the package's
+# own notice (not the Librarian release's) names both binaries and the exact commit; the licence texts are copied from
+# their origins now (the CommonLib submodule, vcpkg's installed copyright files), so none can be an older build's
+$noticesTemplate = Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES-TESTER.md.in'
+$commonlib = Join-Path $repo 'plugins\external\commonlibsse-ng'
+$vcpkgShare = Join-Path $repo 'build\vcpkg_installed\x64-windows-static\share'
+# port -> shown name, licence; DLL: CommonLib's own links (spdlog, DirectXTK) and the DLL's (nlohmann-json), spdlog's fmt
+$dllPorts = [ordered]@{ 'fmt' = @('{fmt}', 'MIT'); 'spdlog' = @('spdlog', 'MIT'); 'nlohmann-json' = @('JSON for Modern C++ (nlohmann-json)', 'MIT');
+    'directxtk' = @('DirectX Tool Kit (DirectXTK)', 'MIT'); 'directxmath' = @('DirectXMath', 'MIT') }
+$builderPorts = [ordered]@{ 'nifly' = @('nifly', 'GPL-3.0'); 'directxtex' = @('DirectXTex', 'MIT'); 'fmt' = @('{fmt}', 'MIT');
+    'nlohmann-json' = @('JSON for Modern C++ (nlohmann-json)', 'MIT') }
+$commonlibLicenses = @('COPYING.txt', 'EXCEPTIONS.md', 'licenses\LICENSE-MIT.txt')
 
 # G6: to stderr and exit 1 (Write-Error under ErrorActionPreference Stop would throw before the exit code is set)
 function Fail([string]$why) {
@@ -73,14 +86,38 @@ if (-not $Version) {
 }
 if ($dirty) { $Version = "$Version-dirty" }
 
+# U2: the notices name the commit as the Corresponding Source, so a remote must hold it - or the source goes in the zip
+$commit = (git -C $repo rev-parse HEAD).Trim()
+$published = @(git -C $repo branch -r --contains $commit) + @(git -C $repo tag --contains $commit) | Where-Object { $_.Trim() }
+if ($dirty -and -not $AllowUnpublished) {
+    Fail "-AllowDirty packages changes no commit holds: pass -AllowUnpublished too (the source zip then goes in the package)"
+}
+if (-not $published -and -not $AllowUnpublished) {
+    Fail "commit $commit is on no remote branch or tag: push it, or pass -AllowUnpublished to put its source zip in the package"
+}
+$withSource = $dirty -or -not $published
+
 foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Path $dllDir 'HeartOfMagic_BlackFlame.pdb'), $builder, $readme,
         (Join-Path $data 'HeartOfMagic_BlackFlame.esp'), (Join-Path $data 'HeartOfMagic_BlackFlame_Copies.esp'),
         (Join-Path $data 'HeartOfMagic_BlackFlame_Local.esp'), (Join-Path $data 'SKSE\Plugins\HeartOfMagic_BlackFlame.json'))) {
     if (-not (Test-Path $file)) { Fail "$file is missing (run .\BuildRelease.ps1 -preset Release-2026 first)" }
 }
-foreach ($file in @($notices) + @($requiredLicenses | ForEach-Object { Join-Path $licenses $_ })) {
-    if (-not (Test-Path $file)) { Fail "$file is missing: the licence texts come from the release assembly (run .\BuildRelease.ps1 -preset Release-2026 first)" }
+$licenceSources = @($noticesTemplate) + @($commonlibLicenses | ForEach-Object { Join-Path $commonlib $_ }) +
+    @(@($dllPorts.Keys) + @($builderPorts.Keys) | Select-Object -Unique | ForEach-Object { Join-Path $vcpkgShare "$_\copyright" })
+foreach ($file in $licenceSources) {
+    if (-not (Test-Path $file)) { Fail "$file is missing (git submodule update --init --recursive, then .\BuildRelease.ps1 -preset Release-2026)" }
 }
+# The version vcpkg installed, from the port's SPDX file (the package entry named after the port)
+function PortVersion([string]$port) {
+    $spdx = Join-Path $vcpkgShare "$port\vcpkg.spdx.json"
+    if (-not (Test-Path $spdx)) { Fail "$spdx is missing: run .\BuildRelease.ps1 -preset Release-2026 first" }
+    $entry = (Get-Content $spdx -Raw | ConvertFrom-Json).packages | Where-Object { $_.name -eq $port } | Select-Object -First 1
+    if (-not $entry -or -not $entry.versionInfo) { Fail "$spdx names no version for $port" }
+    return $entry.versionInfo
+}
+$commonlibVersion = (git -C $commonlib describe --tags --exact-match 2>$null)
+if ($LASTEXITCODE -ne 0 -or -not $commonlibVersion) { Fail "plugins\external\commonlibsse-ng is not at a tag (git submodule update --init --recursive)" }
+$commonlibVersion = $commonlibVersion.Trim().TrimStart('v')
 # G6: each binary must be newer than everything it is compiled from (the DLL: its sources, its CMakeLists, the shared plugin
 # headers and the spelllearning files it compiles; the builder: its sources and tools\CMakeLists.txt). README, data and the
 # tools folder are not compiled into either and are packaged as they are.
@@ -155,10 +192,39 @@ exit /b %CODE%
 '@
 Set-Content -Encoding ASCII (Join-Path $tools 'Build Black Flame copies.bat') $bat
 Copy-Item $readme (Join-Path $stage 'README_TESTER.md')
-Copy-Item $notices (Join-Path $stage 'THIRD-PARTY-NOTICES.md')
-Copy-Item -Recurse $licenses (Join-Path $stage 'licenses')
-foreach ($name in $requiredLicenses) {
-    if (-not (Test-Path (Join-Path $stage "licenses\$name"))) { Fail "licenses\$name did not land in the package" }
+# U2: licence texts from their origins, the notice filled in for this commit
+$stageLicenses = Join-Path $stage 'licenses'
+New-Item -ItemType Directory -Force (Join-Path $stageLicenses 'CommonLibSSE-NG') | Out-Null
+foreach ($name in $commonlibLicenses) { Copy-Item (Join-Path $commonlib $name) (Join-Path $stageLicenses 'CommonLibSSE-NG') }
+function Rows($ports) {
+    ($ports.Keys | ForEach-Object {
+        Copy-Item (Join-Path $vcpkgShare "$_\copyright") (Join-Path $stageLicenses "$_.txt") -Force
+        '| {0} | {1} | {2} | `licenses/{3}.txt` |' -f $ports[$_][0], (PortVersion $_), $ports[$_][1], $_
+    }) -join "`n"
+}
+$sourceLine = if ($withSource) {
+    $kind = if ($dirty) { 'and the uncommitted changes of its tracked files' } else { 'which no public branch or tag holds yet' }
+    'That commit ({0}) is in this package as `source/HeartOfMagic-{1}-source.zip` (git archive of the repository).' -f $kind, $Version
+} else { 'The commit is public in that repository.' }
+$text = (Get-Content $noticesTemplate -Raw).Replace('@VERSION@', $Version).Replace('@COMMIT@', $commit).
+    Replace('@COMMONLIB_VERSION@', $commonlibVersion).Replace('@SOURCE@', $sourceLine).
+    Replace('@DLL_ROWS@', (Rows $dllPorts)).Replace('@BUILDER_ROWS@', (Rows $builderPorts))
+if ($text -match '@[A-Z_]+@') { Fail "THIRD-PARTY-NOTICES-TESTER.md.in has a placeholder the script does not fill: $($Matches[0])" }
+Set-Content -Encoding UTF8 (Join-Path $stage 'THIRD-PARTY-NOTICES.md') $text
+foreach ($file in $licenceSources | Where-Object { $_ -ne $noticesTemplate }) {
+    $name = if ($file.StartsWith($commonlib)) { "CommonLibSSE-NG\$(Split-Path $file -Leaf)" } else { "$(Split-Path (Split-Path $file -Parent) -Leaf).txt" }
+    $landed = Join-Path $stageLicenses $name
+    if (-not (Test-Path $landed) -or (Get-FileHash $landed).Hash -ne (Get-FileHash $file).Hash) {
+        Fail "licenses\$name in the package is not the current $file"
+    }
+}
+if ($withSource) {
+    $tree = if ($dirty) { (git -C $repo stash create).Trim() } else { $commit }
+    if (-not $tree) { $tree = $commit }
+    $sourceDir = Join-Path $stage 'source'
+    New-Item -ItemType Directory -Force $sourceDir | Out-Null
+    git -C $repo archive --format=zip --prefix="HeartOfMagic-$Version/" -o (Join-Path $sourceDir "HeartOfMagic-$Version-source.zip") $tree
+    if ($LASTEXITCODE -ne 0) { Fail "git archive of $tree failed: no source zip, no package" }
 }
 
 # Last guard: nothing outside the expected tree

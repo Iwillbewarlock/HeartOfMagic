@@ -1,0 +1,39 @@
+# Third-party notices - Heart of Magic Black Flame tester package @VERSION@
+
+## Licenses
+
+- **`SKSE/Plugins/HeartOfMagic_BlackFlame.dll` is a GPL-3.0-or-later combined work.** It statically links
+  **CommonLibSSE-NG @COMMONLIB_VERSION@**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
+  **GPL-3.0 Linking Exception**, and is distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt`
+  (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
+- **`tools/BlackFlame/blackflame-greybuild.exe` is a GPL-3.0 combined work.** It statically links **nifly**
+  (GPL-3.0) and is distributed under the GNU GPL version 3 (`licenses/nifly.txt`).
+- **Heart of Magic's own source files are MIT** (the repository's `LICENSE`). MIT is compatible with the GPL; files
+  you take from this project on their own stay MIT.
+
+## Corresponding Source
+
+These binaries were built from commit `@COMMIT@` of <https://github.com/Iwillbewarlock/HeartOfMagic>.
+@SOURCE@
+CommonLibSSE-NG is the repository's git submodule `plugins/external/commonlibsse-ng` at tag `v@COMMONLIB_VERSION@`
+(<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive` fetches it. The
+other libraries come from the vcpkg manifest `vcpkg.json` (triplet `x64-windows-static`). Building:
+`BuildRelease.ps1 -preset Release-2026` (see the repository's README and CLAUDE.md).
+
+## Libraries in the plugin DLL (`HeartOfMagic_BlackFlame.dll`)
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | @COMMONLIB_VERSION@ | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+@DLL_ROWS@
+
+## Libraries in the builder (`blackflame-greybuild.exe`)
+
+| Library | Version | License | License text |
+|---|---|---|---|
+@BUILDER_ROWS@
+
+Both binaries link the Microsoft C/C++ runtime (CRT) statically under the Visual Studio redistribution terms. The
+builder also loads Microsoft's OpenMP runtime `vcomp140.dll` (DirectXTex's BC6H/BC7 encoder). It is not in this
+package: it comes with the Microsoft Visual C++ Redistributable 2015-2022 (x64).

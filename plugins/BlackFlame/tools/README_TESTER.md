@@ -20,7 +20,9 @@ hazard models from the shipped grey map still apply, and the rest runs.
   exit code -1073741515 (0xC0000135, "a DLL was not found"; the builder needs `VCOMP140.DLL`). Install the x64
   redistributable and run it again.
 
-The licences of the libraries in the plugin and the builder are in `THIRD-PARTY-NOTICES.md` and `licenses\`.
+The licences of the libraries in the plugin and the builder are in `THIRD-PARTY-NOTICES.md` and `licenses\`. Both
+binaries are GPL combined works; `THIRD-PARTY-NOTICES.md` names the commit they were built from, and when that commit
+is not public yet its source is in the package as `source\HeartOfMagic-<version>-source.zip`.
 
 ## Install
 

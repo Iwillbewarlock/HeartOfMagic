@@ -752,6 +752,12 @@ vanilla-derived grey meshes and palette, the grey map, the config with `testerMo
 `Build Black Flame copies.bat` (no argument: `Documents\HeartOfMagic BlackFlame Copies`) under `tools\BlackFlame`, and
 [tools/README_TESTER.md](tools/README_TESTER.md) (MO2 and Vortex steps, the files to send back, a throwaway save). The
 script refuses to package generated copies (a `copies` mesh folder, a copies map, a non-empty copies or local ESL).
+The package's `THIRD-PARTY-NOTICES.md` is its own (`tools/THIRD-PARTY-NOTICES-TESTER.md.in`, not the Librarian
+release's): the DLL (CommonLibSSE-NG) and the builder (nifly) as GPL combined works, each one's libraries with the
+version vcpkg installed, and the exact commit as the Corresponding Source. The licence texts are copied from the
+CommonLib submodule and vcpkg's installed copyright files when packaging (and checked byte for byte). A commit on no
+remote branch or tag is refused unless `-AllowUnpublished`, which puts `source\HeartOfMagic-<version>-source.zip`
+(`git archive`; with `-AllowDirty`, which needs it, the tracked files' uncommitted changes too) in the package.
 
 ## Known limits
 
