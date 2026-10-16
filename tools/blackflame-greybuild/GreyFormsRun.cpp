@@ -499,10 +499,10 @@ namespace GreyBuild
             std::cout << fmt::format("retired  {} keeps {:06X} (not given to another source)\n", source, id);
         }
         totals.copies = static_cast<int>(copies.entries.size());
-        std::cout << fmt::format("shaders  {} effect shaders in the grey NIFs: palette normal {} (GradBlackFlame.dds, tint {}; {} "
-                                 "without an alpha property), palette additive {} (GradBlackFlameAdd.dds, tint {}), left with a grey "
-                                 "base colour {}\n", totals.shaders.effectShaders, totals.shaders.paletted, plan.map.tint,
-            totals.shaders.paletteNoAlpha, totals.shaders.palettedAdd, plan.map.tintAdd, totals.shaders.paletteLeft);
+        std::cout << fmt::format("shaders  {} effect shaders in the grey NIFs: palette normal {} ({} without an alpha property), "
+                                 "palette additive {} (their palettes: the palettes line), left with a grey base colour {} (tint {}, "
+                                 "tintAdd {}; their classes: the glow line)\n", totals.shaders.effectShaders, totals.shaders.paletted,
+            totals.shaders.paletteNoAlpha, totals.shaders.palettedAdd, totals.shaders.paletteLeft, plan.map.tint, plan.map.tintAdd);
         std::cout << (a_options.textures ? TextureTotalsLine(totals.textures) :
                                            std::string("textures  off (--no-textures, or a game request without a texture list)"))
                   << "\n";

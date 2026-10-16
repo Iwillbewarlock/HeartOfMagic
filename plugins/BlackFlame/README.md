@@ -587,7 +587,13 @@ texture's green, palette alpha by its alpha, the row by base colour red x vertex
 Measured on the 2026-10-16 load order (the dump plus the prototype's textures, `--no-textures`), the v2i copies gave
 FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0; with
 G, GREY_HALO 90 -> 0 (HALO_KEPT 2); with the derived palettes, PAL_SHEET 423 -> 0, PAL_VANISH 78 -> 0 and PAL_BRIGHTER 132 -> 0
-(138 P2 and 59 P1 files; 2 shaders keep today's palette: `gradpurple05_blur.dds` is not in the load order).
+(138 P2 and 59 P1 files; 2 shaders keep today's palette: `gradpurple05_blur.dds` is not in the load order). With the
+texture step on as well, the whole run gives `T0 risk: PASS fail=0 unread=0` (WARN 95: NEUTRAL_HALO 56, PAL_FLAT 37,
+HALO_KEPT 2; MISSING 2). The texture step never leaves as grey a texture this check calls coloured (`IsColouredTexture`),
+and a mean colour's saturation needs a channel of 0.02 (the design's S(c); the prototype's statistics had no floor).
+Alpha-test-only shapes (no blending) get the colour rules but not the energy and coverage ones: they draw an opaque
+cut-out. Source and copy shapes are paired by block and name (BLOCK_LAYOUT otherwise), and the copy side is judged with
+the texture the copy names.
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 
