@@ -498,7 +498,8 @@ namespace BlackFlame::SelfTest
         }
         if (!IsStoked()) {
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.stepStart);
-            SelfTestLog::Pass("T8", std::format("buff flag off {} ms after the dispel", ms.count()));
+            SelfTestLog::Pass("T8", std::format("buff flag off {} ms after the dispel{}", ms.count(), a_c.redispelled ?
+                " - only after the second dispel at 500 ms (the first did not hold: see the 'self-test dispel' log lines)" : ""));
             return true;
         }
         return false;

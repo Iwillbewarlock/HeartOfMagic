@@ -54,6 +54,7 @@ namespace BlackFlame::SelfTest
         constexpr float kBuffOffTimeout = 1.0f;
         constexpr float kCleanupTimeout = 5.0f;
         constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
+        constexpr float kE1aTimeout = 8.0f;        // C3: up to three casts until one hits, then 1.5 s for the impact
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
@@ -175,6 +176,7 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             a_c.casterId = caster->GetFormID();
+            a_c.casterHome = caster->GetPosition();  // where Spawn put it; T2 takes the height it comes to rest at
             SelfTestLog::Info("T2", std::format("spawned target {:08X} and caster {:08X} (both EncDeer)", dummy->GetFormID(),
                 caster->GetFormID()));
             return true;
@@ -207,7 +209,9 @@ namespace BlackFlame::SelfTest
                     Player()->GetPositionZ());
                 return false;
             }
-            a_c.casterHome = caster->GetPosition();
+            if (a_c.casterHome) {
+                a_c.casterHome->z = caster->GetPositionZ();  // the planned spot, at the ground's height
+            }
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
@@ -375,7 +379,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T6-npc-swap", kInfoTimeout, &StepNpcImpactSwap },
             StepDef{ "T3-remote", kRemoteTimeout, &StepRemoteCast },
             StepDef{ "T7", kEnvTimeout, &StepModifiers },
-            StepDef{ "E1a", kProjectileTimeout, &StepE1Firebolt },
+            StepDef{ "E1a", kE1aTimeout, &StepE1Firebolt },
             StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
             StepDef{ "E1c", kE1cTimeout, &StepE1Npc },
             StepDef{ "E2", kE2Timeout, &StepE2Flames },

@@ -99,7 +99,7 @@ namespace BlackFlame::SelfTest
         std::string targetMadeText;                    // what MakeTarget said
         float targetLastZ = 0.0f;                      // T2: the target's height when it was last seen moving
         std::optional<Clock::time_point> targetStillSince;
-        std::optional<RE::NiPoint3> casterHome;        // where the caster stood at rest in T2
+        std::optional<RE::NiPoint3> casterHome;        // where Spawn put the caster, at the height it rests at in T2
     };
 
     using Handler = bool (*)(Ctx&, bool);  // true when the step is finished
