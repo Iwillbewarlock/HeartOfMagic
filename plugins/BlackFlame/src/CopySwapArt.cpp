@@ -127,6 +127,29 @@ namespace BlackFlame
         }
     }
 
+    namespace
+    {
+        // G4: SE + testerMode - the scan and the byte check on the SE candidates, read only, into the hook list (no hook)
+        void ProbeSeSite()
+        {
+            if (!GetConfig().testerMode || !Patch::HasIds({ kSetArtSeCandidate, kCallerSeCandidate }, "SE SetCastingArt probe")) {
+                return;
+            }
+            const auto callee = Patch::AddressOf(kSetArtSeCandidate);
+            const auto caller = Patch::AddressOf(kCallerSeCandidate);
+            std::string found;
+            for (const auto at : CallsInWindow(caller, callee)) {
+                const bool load = Patch::IsExecutable(at - kArtLoad.size(), kArtLoad.size()) &&
+                                  std::memcmp(reinterpret_cast<const void*>(at - kArtLoad.size()), kArtLoad.data(), kArtLoad.size()) == 0;
+                found += std::format("{}+0x{:X} (bytes from -7: {}; mov rdx, [rax+0xE8] {})", found.empty() ? "" : "; ", at - caller,
+                    Patch::HexBytes(at - kArtLoad.size(), kArtLoad.size() + Patch::kRel32Size), load ? "yes" : "NO");
+            }
+            Patch::RecordHook("SetCastingArt call (SE probe, not hooked)", false, caller, Patch::HexBytes(caller, 16),
+                std::format("E8 calls to the SE candidate {} in the first 0x{:X} bytes of {}: {}", kSetArtSeCandidate, kScanWindow,
+                    kCallerSeCandidate, found.empty() ? std::string("none") : found));
+        }
+    }
+
     RE::BGSArtObject* PickCastingArtImpl(const RE::Actor* a_actor, int a_slot, const RE::MagicItem* a_spell, RE::BGSArtObject* a_art,
         bool a_stoked)
     {
@@ -156,6 +179,7 @@ namespace BlackFlame
                 site.note = kSeNotVerified;  // F1
                 RecordSeCandidate(kSiteName, kCallerSeCandidate);
                 RecordSeCandidate("SetCastingArt (callee)", kSetArtSeCandidate);
+                ProbeSeSite();  // G4: read only, in testerMode
                 return;
             }
             if (GetCopyCounts().arts == 0) {

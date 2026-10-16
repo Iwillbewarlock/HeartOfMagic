@@ -7,8 +7,9 @@ runs a scripted self-test and writes extra logs, so it is **for testing only**.
 quicksave and quickload at the end. Do not keep playing from a save made during the test.
 
 **On SE and on AE builds other than 1.6.1170 / 1.7.104** this is a diagnostic run: SKIPPED hooks in the tester file
-and INFO / SKIP lines for devices in T0-hooks are expected there. FAIL lines are what to report. On SE the hand art,
-hazards and the explosion creation swap are off (their SE addresses are not verified yet); the rest runs.
+and INFO / SKIP lines for devices in T0-hooks are expected there. FAIL lines are what to report. On SE the hand art copy,
+the hazard creation copy swap and the explosion creation swap are off (their SE addresses are not verified yet); grey
+hazard models from the shipped grey map still apply, and the rest runs.
 
 ## What you need
 

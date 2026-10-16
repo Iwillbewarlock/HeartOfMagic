@@ -130,6 +130,7 @@ namespace
             BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
             BlackFlame::NotifyFreshnessOnce();
             BlackFlame::RetryNativeWrappers();
+            BlackFlame::Tester::Write("save load");  // G5: the wrappers have bound by now
             BlackFlame::RequestRecomputeBuff("game loaded");
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
             // "data contains a bool"); anything else is read as success
@@ -147,6 +148,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kSaveGame:
+            BlackFlame::Tester::Write("save");  // G5
             FlushLog();
             break;
         default:

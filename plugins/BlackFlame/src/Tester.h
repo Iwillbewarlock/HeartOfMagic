@@ -9,10 +9,14 @@
 // =============================================================================
 // One short file a tester sends back with the log: the runtime, every hook (installed or skipped, its address
 // as an offset from the image base, the bytes it found, why), the copies (map, fill counts, what was left out,
-// the request) and the self-test summary. Rewritten whole at kDataLoaded and again when the self-test ends.
+// the request) and the self-test summary. Rewritten whole at kDataLoaded, at every save load and save (G5), and when the
+// self-test ends; each write says when and why it was made.
 
 namespace BlackFlame::Tester
 {
+    /// Writes the file now; a_when names the moment ("kDataLoaded", "save load", "save", "self-test end")
+    void Write(const char* a_when);
+
     /// kDataLoaded, after every hook is installed
     void WriteStartup();
 

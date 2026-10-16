@@ -685,3 +685,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - F11 E1m: E1a 조준·재시전·일시정지 보정, aimed 주문만(룬은 표적 맞음으로 확인 안 됨), 엔진 규칙의 폭발(면적>0이면 MGEF, 아니면 투사체)과 그 사본 id로 판정, 로드 순서에 없는 파일 건너뜀, 제한 12초.
 - F12 E5: 사슴 없음·다른 castingArt 없음은 not run(PASS 조건 밖), 다른 효과의 실제 castingArt로 확인. F13 패키지 스크립트: PS7, 커밋 안 된 트리 거절(-AllowDirty), 소스보다 오래된 DLL 거절.
 - F14 README_TESTER: request.json·copies.json 회수, 사본 모드가 충돌에서 이기게, MO2 F5, 단계 번호, SE·다른 AE는 진단 실행. F15 README 장치 표·런타임 표·id 표(36885, SE 열 없음).
+
+### v2 수정 G (3081385..ceb5c66 2차 리뷰)
+
+- G1 T0-hooks: 의도적으로 남겨 둔 경우(디코더 거절, SE 미검증, SetCastingArt 스캔·바이트 확인)만 INFO, 1170·1.7.104에서는 원하는데 안 걸리면 FAIL, 트램펄린 부족·실행 불가 점프·id 없음은 어디서나 FAIL. spawn 창도 판정.
+- G2 E1m: fire-and-forget만, 발사·사본은 첫 시전 표시부터(재시전이 첫 발사를 지우지 않음), 엔진 폭발 규칙(GetAVEffect의 효과 항목 면적>0이면 그 MGEF 폭발만, 없으면 기대 없음; 0이면 투사체 폭발), T0-cover 수도 같은 규칙. 제한 16초.
+  Aim의 시계는 hitAt 하나뿐이고 재시전·대기는 Ctx::lastCast(SelfTest.cpp가 보정)를 본다 - 추가 시계 없음.
+- G3 E5: 서로 다른 castingArt가 둘 이상인 불 주문을 먼저 고른다. G4 SE+testerMode: SE 후보에서 SetCastingArt 스캔·7바이트 확인을 읽기만 해서 tester.txt에(훅 없음).
+- G5 tester.txt를 불러오기·저장 때도 다시 쓰고, 언제(UTC)·왜 썼는지, kDataLoaded 때는 래퍼 상태가 첫 불러오기 전이라고 적는다.
+- G6 패키지 스크립트: DLL은 컴파일 입력 전부(src, CMakeLists, plugins 공용 헤더, spelllearning EncodingUtils·PluginNames·AsciiText), 빌더는 tools 소스보다 새것이어야 함. Fail은 stderr+exit 1.
+- G7 README_TESTER: SE에서도 회색 맵의 해저드 모델은 적용. G8 재생 디코더 사례에 36885 첫머리(5). G9 항목 0개 맵은 따로 문구.
+- G10 주석(장치 6: AE 36885, SE 미사용), 빈 바이트는 '-', SlotSwap은 a_slot && a_to, 폭발 썽크 catch에서 before도 비움.
+  반박: CopySwapArt의 HexBytes는 Patch::HexBytes 안에서 IsExecutable을 먼저 본다(Patch.cpp HexBytes 첫 줄). SpawnThunk는 이미 a_effect 널 확인 뒤 ReadAt.

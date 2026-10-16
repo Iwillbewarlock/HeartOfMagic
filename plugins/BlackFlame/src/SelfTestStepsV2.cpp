@@ -54,6 +54,35 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Check("T0-hooks", a_detour.hooked, std::format("{}: {}", a_name, DescribeDetour(a_detour)));
         }
 
+        // G1: a device left off on purpose - the replay decoder refused the prologue, SE where the function is not verified,
+        // the SetCastingArt scan or its byte check - is INFO, except on the builds whose code was read (there it must hook).
+        // Anything else (the trampoline full, a jump into memory that is not executable, a missing id) is a FAIL.
+        bool LeftOffOnPurpose(const std::string& a_note)
+        {
+            const bool purpose = a_note.find("replay decoder") != std::string::npos ||
+                                 a_note.find(CopySwapDetail::kSeNotVerified) != std::string::npos ||
+                                 a_note.find("E8 call(s) to SetCastingArt") != std::string::npos ||
+                                 a_note.find("is not preceded by mov rdx") != std::string::npos;
+            return purpose && !Patch::IsCodeReadBuild();
+        }
+
+        // One wanted-or-not device: PASS hooked, INFO not wanted or left off on purpose (with a_consequence), else FAIL
+        void JudgeDevice(const char* a_name, bool a_wanted, bool a_hooked, const std::string& a_note, const std::string& a_bytes,
+            const char* a_consequence)
+        {
+            const auto bytes = a_bytes.empty() ? std::string("-") : a_bytes;
+            if (!a_wanted) {
+                SelfTestLog::Info("T0-hooks", std::format("{}: not wanted ({})", a_name, a_note.empty() ? "config off or no copies" : a_note));
+            } else if (a_hooked) {
+                SelfTestLog::Pass("T0-hooks", std::format("{}: {}; bytes {}", a_name, a_note, bytes));
+            } else if (LeftOffOnPurpose(a_note)) {
+                SelfTestLog::Info("T0-hooks", std::format("{}: left off on this build ({}; bytes {}): {}", a_name, a_note, bytes,
+                    a_consequence));
+            } else {
+                SelfTestLog::Fail("T0-hooks", std::format("{}: NOT hooked ({}; bytes {})", a_name, a_note.empty() ? "off" : a_note, bytes));
+            }
+        }
+
         const RE::BGSImpactDataSet* FirstImpactSet(const RE::SpellItem* a_spell)
         {
             if (!a_spell) {
@@ -83,6 +112,7 @@ namespace BlackFlame::SelfTest
                 Case{ "sub rsp, imm32", { 0x48, 0x81, 0xEC, 0x00, 0x01, 0x00, 0x00, 0x90 }, 7 },
                 Case{ "mov rax, rsp; push rbp; push rsi", { 0x48, 0x8B, 0xC4, 0x55, 0x56, 0x90, 0x90, 0x90 }, 5 },
                 Case{ "mov r11, rsp; push rbp; push rsi", { 0x4C, 0x8B, 0xDC, 0x55, 0x56, 0x90, 0x90, 0x90 }, 5 },
+                Case{ "mov [rsp+0x18], rbx (SpawnHazardEffect start 36885, 1.7.104)", { 0x48, 0x89, 0x5C, 0x24, 0x18, 0x56, 0x48, 0x81 }, 5 },
                 Case{ "mov rax, rsp; mov [rax+8], rbx (refused: not rsp-based)", { 0x48, 0x8B, 0xC4, 0x48, 0x89, 0x58, 0x08, 0x90 }, 0 },
                 Case{ "jmp rel32 (refused: not replayed)", { 0xE9, 0x00, 0x00, 0x00, 0x00, 0x90, 0x90, 0x90 }, 0 },
             };
@@ -126,40 +156,20 @@ namespace BlackFlame::SelfTest
         const bool copies = status.copies;
         CheckDevice("Projectile::Launch (copyLaunch / copyLaunchExplosion)", copies && (cfg.copyLaunch || cfg.copyLaunchExplosion),
             status.launch);
-        // Multi-runtime: wanted on every runtime; a prologue the replay decoder does not take is the logged fallback (the
-        // Launch post-write still swaps the MGEF explosions), so it is INFO, not FAIL
-        // F8: left alone on purpose (the decoder refused the prologue, or SE where the function is not verified) is INFO
-        const auto leftAlone = [](const std::string& a_note) {
-            return a_note.find("replay decoder") != std::string::npos || a_note.find(CopySwapDetail::kSeNotVerified) != std::string::npos ||
-                   a_note.find("left alone") != std::string::npos;
-        };
-        if (!status.explosionCreate.hooked && leftAlone(status.explosionCreate.note)) {
-            SelfTestLog::Info("T0-hooks", "explosion creation: not detoured on this build (" + status.explosionCreate.note +
-                "; bytes " + status.explosionCreate.bytes + "): the creation swap is off, the Launch post-write still works");
-        } else {
-            CheckDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
-                status.explosionCreate);
-        }
+        // G1: the C4 devices and explosion creation - wanted, hooked or left off on purpose (JudgeDevice)
+        const auto& create = status.explosionCreate;
+        JudgeDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
+            create.hooked, create.note, create.bytes, "the creation swap is off, the Launch post-write still works");
         CheckReplayCases();
-        // C4: the casting art call site and the hazard creation detours (INFO when the decoder or the scan left them alone)
         const auto& art = status.castingArt;
-        if (!art.hooked && leftAlone(art.note)) {
-            SelfTestLog::Info("T0-hooks", "SetCastingArt call: left alone on this build (" + art.note + "): hand art stays orange");
-        } else if (copies && cfg.copyCastingArt && counts.arts > 0) {
-            SelfTestLog::Check("T0-hooks", art.hooked, "SetCastingArt call: " + art.note);
-        } else {
-            SelfTestLog::Info("T0-hooks", "SetCastingArt call: not wanted (" + (art.note.empty() ? std::string("config off or no art copies") : art.note) + ")");
-        }
-        if (!status.hazardCreate.hooked && leftAlone(status.hazardCreate.note)) {
-            SelfTestLog::Info("T0-hooks", "hazard creation: not detoured on this build (" + status.hazardCreate.note + "; bytes " +
-                status.hazardCreate.bytes + ")");
-        } else {
-            CheckDevice("hazard creation (copyHazardCreate)", copies && cfg.copyHazardCreate && counts.hazards > 0, status.hazardCreate);
-        }
-        if (status.hazardCreate.hooked) {
-            SelfTestLog::Info("T0-hooks", std::format("spawn-hazard window: {} ({}; bytes {})", status.spawnHazard.hooked ? "detoured" :
-                "NOT detoured (spawn-hazard hazards stay orange)", status.spawnHazard.note, status.spawnHazard.bytes));
-        }
+        JudgeDevice("SetCastingArt call (copyCastingArt)", copies && cfg.copyCastingArt && counts.arts > 0, art.hooked, art.note, {},
+            "hand art stays orange");
+        const auto& hazard = status.hazardCreate;
+        JudgeDevice("hazard creation (copyHazardCreate)", copies && cfg.copyHazardCreate && counts.hazards > 0, hazard.hooked,
+            hazard.note, hazard.bytes, "hazards keep the grey map's models only");
+        const auto& spawn = status.spawnHazard;
+        JudgeDevice("SpawnHazardEffect window (copyHazardCreate)", hazard.hooked || hazard.note == CopySwapDetail::kSeNotVerified,
+            spawn.hooked, spawn.note, spawn.bytes, "spawn-hazard archetype hazards stay orange");
         if (copies && cfg.copyImpacts && counts.impacts > 0) {
             SelfTestLog::Check("T0-hooks", status.impactSites == 2, std::format("GetImpactData call sites: {} of 2 hooked ({} "
                 "chained): {}", status.impactSites, status.impactChained, status.impactNote));

@@ -106,16 +106,22 @@ namespace BlackFlame::SelfTest
             kJudging
         };
 
-        // F11: the explosion the engine uses - the costliest effect's MGEF explosion when that effect has an area, else
-        // the projectile's own
+        // F11/G2: the explosion the engine uses: the costliest effect (GetAVEffect) - with an area, that MGEF's explosion only
+        // (none: no explosion expected); without one, the projectile's own
         const RE::BGSExplosion* ExpectedExplosion(const RE::SpellItem* a_spell)
         {
-            const auto* item = a_spell->GetCostliestEffectItem();
-            const auto* costliest = item ? item->baseEffect : nullptr;
+            const auto* costliest = a_spell->GetAVEffect();
             if (!costliest) {
                 return nullptr;
             }
-            if (item->effectItem.area > 0 && costliest->data.explosion) {
+            std::uint32_t area = 0;
+            for (const auto* item : a_spell->effects) {
+                if (item && item->baseEffect == costliest) {
+                    area = item->effectItem.area;
+                    break;
+                }
+            }
+            if (area > 0) {
                 return costliest->data.explosion;
             }
             return costliest->data.projectileBase ? costliest->data.projectileBase->data.explosionType : nullptr;
@@ -127,10 +133,13 @@ namespace BlackFlame::SelfTest
         {
             const auto* costliest = a_spell->GetAVEffect();
             const auto* projectile = costliest ? costliest->data.projectileBase : nullptr;
-            return a_spell->GetDelivery() == RE::MagicSystem::Delivery::kAimed && projectile && CopyOf(projectile);
+            // G2: fire and forget only (a concentration spell's one launch is not what E1a's aim judges)
+            return a_spell->GetDelivery() == RE::MagicSystem::Delivery::kAimed &&
+                   a_spell->GetCastingType() == RE::MagicSystem::CastingType::kFireAndForget && projectile && CopyOf(projectile);
         }
     }
 
+    // G2: Aim's only clock is hitAt (SelfTestCtx.h); the settle and recast waits read Ctx::lastCast, which SelfTest.cpp shifts
     void ShiftCoverClocks(Clock::duration a_paused)
     {
         if (g_e1m.aim.hitAt) {
@@ -170,7 +179,7 @@ namespace BlackFlame::SelfTest
             const auto* projectile = costliest->data.projectileBase;
             projectiles.Add(projectile);
             dualProjectiles.Add(costliest->data.dualCastData ? costliest->data.dualCastData->data.pProjectile : nullptr);
-            explosions.Add(projectile && projectile->data.explosionType ? projectile->data.explosionType : costliest->data.explosion);
+            explosions.Add(ExpectedExplosion(spell));  // G2: the engine's rule, as E1m
             castingArts.Add(costliest->data.castingArt);
         }
         SelfTestLog::Info("T0-cover", std::format("per fire spell, its costliest effect: projectiles {}, dual cast projectiles {}, "
@@ -243,11 +252,10 @@ namespace BlackFlame::SelfTest
             a_c.phase = kJudging;
             return false;
         }
-        // F11: judged only after the hit is confirmed (recast up to three times, as E1a); records from the cast that hit
+        // F11: judged only after the hit is confirmed (recast up to three times, as E1a). G2: the launches and explosions are
+        // read from the FIRST cast's mark, so a recast never hides the first cast's launch
         const auto aim = ConfirmHit(a_c, g_e1m.aim, g_e1m.spell, "E1m");
-        if (std::exchange(g_e1m.aim.newCast, false)) {
-            g_e1m.mark = g_e1m.aim.mark;
-        }
+        g_e1m.aim.newCast = false;
         if (aim == AimResult::kGaveUp) {
             return true;
         }

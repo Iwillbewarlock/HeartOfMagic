@@ -36,9 +36,19 @@ $dllDir = Join-Path $repo 'build\plugins\BlackFlame\Release'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
 
+# G6: to stderr and exit 1 (Write-Error under ErrorActionPreference Stop would throw before the exit code is set)
 function Fail([string]$why) {
-    Write-Error "Make-TesterPackage: $why"
+    [Console]::Error.WriteLine("Make-TesterPackage: $why")
     exit 1
+}
+
+# The newest of the files a binary is compiled from
+function Newest([string[]]$paths) {
+    $files = foreach ($p in $paths) {
+        $full = Join-Path $repo $p
+        if (Test-Path $full -PathType Container) { Get-ChildItem -Recurse -File $full } elseif (Test-Path $full) { Get-Item $full }
+    }
+    $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 # The zip is named after the commit: a working tree with changes would ship something no commit holds
@@ -59,11 +69,19 @@ foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Pat
         (Join-Path $data 'HeartOfMagic_BlackFlame_Local.esp'), (Join-Path $data 'SKSE\Plugins\HeartOfMagic_BlackFlame.json'))) {
     if (-not (Test-Path $file)) { Fail "$file is missing (run .\BuildRelease.ps1 -preset Release-2026 first)" }
 }
-# The DLL must be built from the sources as they are now
-$dll = Get-Item (Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll')
-$newestSource = Get-ChildItem -Recurse -File (Join-Path $repo 'plugins\BlackFlame\src') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($newestSource -and $newestSource.LastWriteTime -gt $dll.LastWriteTime) {
-    Fail "the DLL ($($dll.LastWriteTime)) is older than $($newestSource.FullName) ($($newestSource.LastWriteTime)): run .\BuildRelease.ps1 -preset Release-2026 first"
+# G6: each binary must be newer than everything it is compiled from (the DLL: its sources, its CMakeLists, the shared plugin
+# headers and the spelllearning files it compiles; the builder: its sources and tools\CMakeLists.txt). README, data and the
+# tools folder are not compiled into either and are packaged as they are.
+$dllSources = @('plugins\BlackFlame\src', 'plugins\BlackFlame\CMakeLists.txt', 'plugins\Common.h', 'plugins\PCH.h',
+    'plugins\WideFileSink.h', 'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
+    'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h')
+$builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt')
+foreach ($pair in @(@((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), $dllSources), @($builder, $builderSources))) {
+    $binary = Get-Item $pair[0]
+    $newest = Newest $pair[1]
+    if ($newest -and $newest.LastWriteTime -gt $binary.LastWriteTime) {
+        Fail "$($binary.Name) ($($binary.LastWriteTime)) is older than $($newest.FullName) ($($newest.LastWriteTime)): run .\BuildRelease.ps1 -preset Release-2026 first"
+    }
 }
 # Only the shipped, vanilla-derived files: no generated copies, no populated copies plugin
 if (Test-Path (Join-Path $data 'meshes\heartofmagic\blackflame\copies')) {

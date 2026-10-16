@@ -13,6 +13,7 @@ namespace BlackFlame
     {
         constexpr const char* kStaleText = "Black Flame: your fire spells changed. Run the Black Flame builder, then restart the game.";
         constexpr const char* kNoneText = "Black Flame: the grey copies are not built yet. Run the Black Flame builder, then restart the game.";
+        constexpr const char* kEmptyText = "Black Flame: the copies output holds no fire forms. Check the builder's messages.";
         constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp "
                                              "and put the copies output mod after Black Flame.";
         constexpr int kOldMapVersion = 1;
@@ -110,7 +111,11 @@ namespace BlackFlame
                 g_uncheckedWhy.empty() ? std::string("kDataLoaded did not finish") : g_uncheckedWhy);
             return;
         }
-        const char* text = state == CopyFreshness::kPluginMissing ? kMissingText : state == CopyFreshness::kNone ? kNoneText : kStaleText;
+        const auto counts = GetCopyCounts();
+        const char* text = state == CopyFreshness::kPluginMissing      ? kMissingText :
+                           state == CopyFreshness::kNone && counts.mapRead ? kEmptyText :  // G9: a map with no entry
+                           state == CopyFreshness::kNone                 ? kNoneText :
+                                                                           kStaleText;
         if (!MainQueue::Installed()) {
             g_notified.store(true);  // no AddTask fallback for a HUD line: the log says it, once
             logger::info("BlackFlame: copies freshness {}: \"{}\" (no main-thread queue: not shown)", FreshnessName(state), text);

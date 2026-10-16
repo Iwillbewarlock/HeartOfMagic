@@ -303,13 +303,28 @@ namespace BlackFlame::SelfTest
     // effect's casting art has a copy; then the session's SetCastingArt counters as INFO (when the engine calls it)
     bool StepE5(Ctx& a_c, bool)
     {
+        // G3: first a fire spell whose effects carry two or more distinct casting arts (the other-art case can run), else any
         const RE::SpellItem* spell = nullptr;
         RE::BGSArtObject* art = nullptr;
-        for (const auto* candidate : FireSpellList()) {
-            const auto* costliest = candidate->GetAVEffect();
-            if (costliest && costliest->data.castingArt && CopyOf(costliest->data.castingArt)) {
-                spell = candidate;
-                art = costliest->data.castingArt;
+        for (const bool wantTwo : { true, false }) {
+            for (const auto* candidate : FireSpellList()) {
+                const auto* costliest = candidate->GetAVEffect();
+                auto* own = costliest ? costliest->data.castingArt : nullptr;
+                if (!own || !CopyOf(own)) {
+                    continue;
+                }
+                bool two = false;
+                for (const auto* item : candidate->effects) {
+                    const auto* other = item && item->baseEffect ? item->baseEffect->data.castingArt : nullptr;
+                    two |= other && other != own;
+                }
+                if (!wantTwo || two) {
+                    spell = candidate;
+                    art = own;
+                    break;
+                }
+            }
+            if (spell) {
                 break;
             }
         }

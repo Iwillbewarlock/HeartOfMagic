@@ -260,6 +260,7 @@ namespace BlackFlame
                 }
             } catch (...) {
                 swapTo = nullptr;
+                before = nullptr;  // G10: nothing half read goes into the record
                 ReportOnce(g_createFailure, "the explosion creation detour");
             }
             std::uintptr_t result = 0;

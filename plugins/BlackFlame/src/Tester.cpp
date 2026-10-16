@@ -10,7 +10,9 @@
 #include "PapyrusWrap.h"
 #include "Patch.h"
 
+#include <chrono>
 #include <format>
+#include <string_view>
 #include <fstream>
 #include <mutex>
 
@@ -66,7 +68,7 @@ namespace BlackFlame::Tester
             return out;
         }
 
-        void Write()
+        void WriteFile(const char* a_when)
         {
             const auto dir = SKSE::log::log_directory();
             if (!dir) {
@@ -75,11 +77,16 @@ namespace BlackFlame::Tester
             const auto& cfg = GetConfig();
             std::string text = "Heart of Magic - Black Flame, tester file (send it back with HeartOfMagic_BlackFlame.log, "
                                "HeartOfMagic_BlackFlame_selftest.txt and a crash log if there is one)\n";
+            text += std::format("written {} UTC at {}\n", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+                a_when);
             text += std::format("runtime {}; testerMode {}, selfTest {}, writeRequest {}; main-thread queue {}\n", Runtime(),
                 cfg.testerMode, cfg.selfTest, cfg.writeRequest, MainQueue::Installed() ? "installed" : "NOT installed");
             text += "hooks:\n" + Hooks();
             text += "copies:\n" + Copies();
             text += "counters: " + CounterSummary() + "\n";
+            if (std::string_view(a_when) == "kDataLoaded") {
+                text += "  (native wrapper state at kDataLoaded; the wrappers may bind only at the first save load)\n";
+            }
             {
                 std::lock_guard lock(g_mutex);
                 text += "self-test: " + g_selfTest + "\n";
@@ -110,13 +117,18 @@ namespace BlackFlame::Tester
             c.castingArtRejected, PlacedCopySwaps(), wrappers.empty() ? std::string("none") : wrappers);
     }
 
-    void WriteStartup()
+    void Write(const char* a_when)
     {
         try {
-            Write();
+            WriteFile(a_when);
         } catch (const std::exception& e) {
             logger::warn("BlackFlame: the tester file failed: {}", e.what());
         }
+    }
+
+    void WriteStartup()
+    {
+        Write("kDataLoaded");
     }
 
     void NoteSelfTest(const std::string& a_doneLine)
@@ -126,6 +138,6 @@ namespace BlackFlame::Tester
             // The main run and E3's reload part each end with a DONE line: both are kept
             g_selfTest = g_selfTest.starts_with("not run") ? a_doneLine : g_selfTest + "\n  " + a_doneLine;
         }
-        WriteStartup();
+        Write("self-test end");
     }
 }
