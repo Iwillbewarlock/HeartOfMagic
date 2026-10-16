@@ -36,6 +36,8 @@ namespace BlackFlame
         bool copyCastingArt = true;       // SetCastingArt: the player's fire hand art becomes its copy (CopySwapArt.cpp)
         bool copyHazardCreate = true;     // hazard creation: the base becomes its copy (copy window, spawn-hazard effect)
         bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
+        bool copyModelProbe = true;       // v2i: every copy NIF demanded once at the main menu; a failure leaves that copy out
+                                          // of the swaps (CopyModelProbe.h)
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool testerMode = false;  // the tester package: selfTest and writeRequest on, every log line written through at once,
                                   // and HeartOfMagic_BlackFlame_tester.txt (Tester.h; the file is written in every mode)

@@ -116,6 +116,27 @@ namespace GreyBuild
         }
 
         constexpr const char* kOrphanString = "HoMBF_OrphanHeaderString";
+        constexpr const char* kDuplicateString = "HoMBF_DuplicateHeaderString";
+
+        [[nodiscard]] int CountString(const nifly::NifFile& a_nif, const std::string& a_text)
+        {
+            int count = 0;
+            for (std::uint32_t i = 0; i < a_nif.GetHeader().GetStringCount(); ++i) {
+                count += a_nif.GetHeader().GetStringById(i) == a_text ? 1 : 0;
+            }
+            return count;
+        }
+
+        [[nodiscard]] std::uint32_t LightingNameIndex(nifly::NifFile& a_nif)
+        {
+            auto& hdr = a_nif.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(id)) {
+                    return lit->name.GetIndex();
+                }
+            }
+            return 0;
+        }
         constexpr const char* kOnTexture = "textures\\effects\\fxfire02.dds";
         constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradflame01.dds";
 
@@ -170,6 +191,12 @@ namespace GreyBuild
             AddColorController(nif, addId);  // v2i: drives the additive palette shader: keys x tintAdd
             // v2i: a header string no block names (as Dragonfire's 'AutoPlay'): the copy must keep it, in its place
             (void)nif.GetHeader().AddOrFindStringId(kOrphanString);
+            // I10: a string twice in the table (made through a placeholder slot) and an empty table string; the lighting
+            // shader's empty name stays a reference to no string (NIF_NPOS) through the copy
+            auto& hdr = nif.GetHeader();
+            (void)hdr.AddOrFindStringId(kDuplicateString);
+            hdr.SetStringById(hdr.AddOrFindStringId("HoMBF_DuplicateSlot"), kDuplicateString);
+            (void)hdr.AddOrFindStringId("", true);
             SaveNif(nif, a_file);
         }
 
@@ -360,6 +387,12 @@ namespace GreyBuild
                     fmt::format("header strings kept as the source has them, the orphan string included ({} source, {} copy{})",
                         original.GetHeader().GetStringCount(), written.GetHeader().GetStringCount(),
                         problems.empty() ? std::string() : "; " + problems.front()));
+                check.Check(CountString(original, kDuplicateString) == 2 && CountString(written, kDuplicateString) == 2,
+                    fmt::format("a string the table holds twice is kept twice (source {}, copy {})",
+                        CountString(original, kDuplicateString), CountString(written, kDuplicateString)));
+                check.Check(LightingNameIndex(original) == nifly::NIF_NPOS && LightingNameIndex(written) == nifly::NIF_NPOS,
+                    fmt::format("an empty name with no string stays none beside an empty table string (source index {}, copy {})",
+                        LightingNameIndex(original), LightingNameIndex(written)));
             }
 
             nifly::NifFile partial;

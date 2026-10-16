@@ -68,6 +68,11 @@ namespace BlackFlame
             static auto* ids = std::make_unique<std::unordered_set<RE::FormID>>().release();
             return *ids;
         }
+        std::unordered_set<RE::FormID>& RevertedMuzzles()
+        {
+            static auto* ids = std::make_unique<std::unordered_set<RE::FormID>>().release();
+            return *ids;
+        }
         std::atomic<bool> g_disabledReady{ false };
         std::atomic<bool> g_disabledTaken{ false };
 
@@ -437,7 +442,7 @@ namespace BlackFlame
         return out;
     }
 
-    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies)
+    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies, std::vector<RE::FormID> a_muzzles)
     {
         if (g_disabledTaken.exchange(true)) {
             return;
@@ -445,6 +450,7 @@ namespace BlackFlame
         for (const auto& item : a_copies) {
             DisabledIds().insert(item.copy);
         }
+        RevertedMuzzles().insert(a_muzzles.begin(), a_muzzles.end());
         DisabledList() = std::move(a_copies);
         g_disabledReady.store(true, std::memory_order_release);
     }
@@ -454,9 +460,18 @@ namespace BlackFlame
         return g_disabledReady.load(std::memory_order_acquire) ? DisabledList() : std::vector<DisabledCopy>{};
     }
 
+    bool CopyModelProbeDone() noexcept
+    {
+        return g_disabledReady.load(std::memory_order_acquire);
+    }
+
     const char* ExpectedMuzzleFor(const RE::TESForm* a_copy) noexcept
     {
         if (!a_copy) {
+            return nullptr;
+        }
+        // I8: a grey muzzle the game could not load: the source's muzzle is expected (the caller's fallback)
+        if (g_disabledReady.load(std::memory_order_acquire) && RevertedMuzzles().contains(a_copy->GetFormID())) {
             return nullptr;
         }
         const auto& map = TheCopies().muzzles;

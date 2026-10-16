@@ -80,21 +80,15 @@ namespace BlackFlame
     {
         LoadAddPalette();
         for (const char* path : kPaletteCandidates) {
-            RE::NiPointer<RE::NiTexture> texture;
-            RE::BSShaderManager::GetTexture(path, true, texture, false);
-            auto* source = netimmerse_cast<RE::NiSourceTexture*>(texture.get());
-            logger::info("BlackFlame: palette '{}': {}", path,
-                source ? "loaded" : (texture ? "loaded but not an NiSourceTexture" : "not loaded"));
-            if (source) {
-                source->IncRefCount();
+            if (auto* source = LoadTexture(path, "palette")) {
                 g_palette = source;
                 g_palettePath = path;
                 g_ready.store(true, std::memory_order_release);
                 return true;
             }
         }
-        logger::error("BlackFlame: the grey palette did not load from any path - projectile, explosion and hand art "
-                      "recolours are off (the burn shader layer still works)");
+        logger::error("BlackFlame: the grey palette did not load from any path - the kept runtime recolours (hitArt, handArt, "
+                      "boundWeapon) are off (the burn shader layer and the copies still work)");
         return false;
     }
 

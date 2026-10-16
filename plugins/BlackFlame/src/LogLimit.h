@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 // =============================================================================
 // LOG LIMIT - at most one info line per kind and spell per second
@@ -69,14 +70,14 @@ namespace BlackFlame
         [[nodiscard]] static bool Once(std::string_view a_kind, RE::FormID a_form, bool a_mark)
         {
             static TrackedMutex mutex;
-            static std::unordered_map<std::string, bool> seen;
+            static std::unordered_set<std::string> seen;
             std::lock_guard lock(mutex);
             const std::string key = std::string(a_kind) + ':' + std::to_string(a_form);
             if (seen.contains(key) || seen.size() >= kMaxFirstTime) {
                 return false;
             }
             if (a_mark) {
-                seen.emplace(key, true);
+                seen.insert(key);
             }
             return true;
         }

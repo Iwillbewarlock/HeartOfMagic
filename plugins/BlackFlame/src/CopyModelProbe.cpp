@@ -1,5 +1,6 @@
 #include "CopyModelProbe.h"
 
+#include "Config.h"
 #include "FireClosure.h"
 #include "FormCopies.h"
 #include "GameThread.h"
@@ -10,6 +11,7 @@
 #include <chrono>
 #include <format>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -19,8 +21,11 @@ namespace BlackFlame
     {
         using Clock = std::chrono::steady_clock;
 
-        constexpr auto kBudget = std::chrono::seconds(20);  // past this the rest is left out (listed), copies stay enabled
-        constexpr std::size_t kPathsPerLine = 8;            // the left-out list, a few paths a line
+        // I6: the work is spread over main-thread drains, a slice each, so the main menu does not freeze; the budget is the
+        // sum of the slices (Demand time, controls included). Past it the rest is left out (listed) and those copies stay
+        constexpr auto kBudget = std::chrono::seconds(20);
+        constexpr auto kSlice = std::chrono::milliseconds(50);
+        constexpr std::size_t kPathsPerLine = 8;  // the left-out list, a few paths a line
 
         struct Result
         {
@@ -38,12 +43,6 @@ namespace BlackFlame
             std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
             std::ranges::replace(out, '/', '\\');
             return out;
-        }
-
-        // The record's own model (FireClosure.h ModelPathOf: a per-type cast; TESModel is a component, not a form type)
-        std::string ModelOf(const RE::TESForm* a_form)
-        {
-            return ModelPathOf(a_form);
         }
 
         std::string MuzzleOf(const RE::TESForm* a_form)
@@ -81,105 +80,198 @@ namespace BlackFlame
             const RE::TESForm* copy = nullptr;
             std::string copyPath;
             std::string sourcePath;  // the source's model in the same role (the control), may be empty
-            const char* role = "";
+            bool muzzle = false;
         };
 
-        void Run()
+        // The whole run's state, kept between drains (main thread only)
+        struct Run
         {
-            // Every (copy, role) use with its path; distinct paths probed once, in first-use order
             std::vector<Use> uses;
-            for (const auto& filled : FilledCopies()) {
-                if (auto path = ModelOf(filled.copy); !path.empty()) {
-                    uses.push_back({ filled.source, filled.copy, std::move(path), ModelOf(filled.source), "model" });
-                }
-                if (auto path = MuzzleOf(filled.copy); !path.empty()) {
-                    uses.push_back({ filled.source, filled.copy, std::move(path), MuzzleOf(filled.source), "muzzle" });
-                }
-            }
-            std::map<std::string, Result> results;  // by Key(path)
-            std::vector<std::string> order;
-            for (const auto& use : uses) {
-                if (results.try_emplace(Key(use.copyPath)).second) {
-                    order.push_back(use.copyPath);
-                }
-            }
-            const auto start = Clock::now();
-            std::vector<std::string> leftOut;
+            std::vector<std::string> order;          // distinct copy paths, first-use order
+            std::map<std::string, Result> results;  // by Key(path): copy paths and the controls asked for
+            std::size_t next = 0;                    // next index into order, then into uses (the safety net)
+            bool pathsDone = false;
+            Clock::duration spent{};
             int ok = 0;
             int failed = 0;
-            for (const auto& path : order) {
-                if (Clock::now() - start > kBudget) {
-                    leftOut.push_back(path);
-                    continue;
+            std::vector<std::string> leftOut;
+            std::vector<DisabledCopy> disabled;
+            std::vector<RE::FormID> muzzlesReverted;
+            std::map<RE::FormID, std::size_t> seen;  // copy -> index in disabled (a copy failing in model and muzzle: one entry)
+        };
+
+        bool OverBudget(const Run& a_run) { return a_run.spent > kBudget; }
+
+        // A probed result for a_path: already probed (a copy path or an earlier control) or probed now (I5)
+        const Result& ResultFor(Run& a_run, const std::string& a_path)
+        {
+            auto& slot = a_run.results[Key(a_path)];
+            if (!slot.probed) {
+                slot = Demand(a_path);
+            }
+            return slot;
+        }
+
+        void Prepare(Run& a_run)
+        {
+            for (const auto& filled : FilledCopies()) {
+                if (auto path = ModelPathOf(filled.copy); !path.empty()) {
+                    a_run.uses.push_back({ filled.source, filled.copy, std::move(path), ModelPathOf(filled.source), false });
                 }
-                auto& result = results[Key(path)];
-                result = Demand(path);
-                if (result.ok) {
-                    ++ok;
-                } else {
-                    ++failed;
-                    logger::warn("BlackFlame: copy model probe: FAILED {}", Describe(path, result));
+                if (auto path = MuzzleOf(filled.copy); !path.empty()) {
+                    a_run.uses.push_back({ filled.source, filled.copy, std::move(path), MuzzleOf(filled.source), true });
                 }
             }
-            const auto totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count();
+            for (const auto& use : a_run.uses) {
+                if (a_run.results.try_emplace(Key(use.copyPath)).second) {
+                    a_run.order.push_back(use.copyPath);
+                }
+            }
+        }
+
+        // One copy path (left out when the budget ran out)
+        void ProbePath(Run& a_run, const std::string& a_path)
+        {
+            if (OverBudget(a_run)) {
+                a_run.leftOut.push_back(a_path);
+                return;
+            }
+            const auto& result = ResultFor(a_run, a_path);
+            if (result.ok) {
+                ++a_run.ok;
+            } else {
+                ++a_run.failed;
+                logger::warn("BlackFlame: copy model probe: FAILED {}", Describe(a_path, result));
+            }
+        }
+
+        // The safety net for one use: a failed copy path whose source path (the control) loads takes the copy out (its model)
+        // or puts the source's muzzle back (its muzzle, I8)
+        void Judge(Run& a_run, const Use& a_use)
+        {
+            const auto& result = a_run.results[Key(a_use.copyPath)];
+            if (!result.probed || result.ok) {
+                return;
+            }
+            const char* role = a_use.muzzle ? "muzzle" : "model";
+            const auto copyId = a_use.copy->GetFormID();
+            if (Key(a_use.copyPath) == Key(a_use.sourcePath)) {
+                logger::warn("BlackFlame: copy model probe: copy {:08X} kept: its {} is the source's own (the builder kept it), "
+                             "nothing to fall back to: {}", copyId, role, Describe(a_use.copyPath, result));  // I5
+                return;
+            }
+            std::string controlText = "no source model in that role";
+            bool controlOk = false;
+            if (!a_use.sourcePath.empty()) {
+                const auto known = a_run.results.find(Key(a_use.sourcePath));
+                if ((known == a_run.results.end() || !known->second.probed) && OverBudget(a_run)) {
+                    logger::warn("BlackFlame: copy model probe: copy {:08X} kept: its {} failed, the control was not checked (the {} s "
+                                 "budget ran out): {}", copyId, role, std::chrono::duration_cast<std::chrono::seconds>(kBudget).count(),
+                        Describe(a_use.copyPath, result));  // I6
+                    return;
+                }
+                const auto& control = ResultFor(a_run, a_use.sourcePath);
+                controlOk = control.ok;
+                controlText = "source " + Describe(a_use.sourcePath, control);
+            }
+            const std::string text = std::format("{} {} (source {:08X}; control {})", role, Describe(a_use.copyPath, result),
+                a_use.source->GetFormID(), controlText);
+            if (!controlOk) {
+                logger::warn("BlackFlame: copy model probe: copy {:08X} kept: its {} failed but the source's did not load either - "
+                             "not a copy fault: {}", copyId, role, text);
+                return;
+            }
+            if (a_use.muzzle) {
+                a_run.muzzlesReverted.push_back(copyId);
+                logger::warn("BlackFlame: copy model probe: copy {:08X} keeps its swaps; its muzzle goes back to the source's: {}",
+                    copyId, text);
+                return;
+            }
+            if (const auto it = a_run.seen.find(copyId); it != a_run.seen.end()) {
+                a_run.disabled[it->second].text += "; " + text;
+                return;
+            }
+            a_run.seen.emplace(copyId, a_run.disabled.size());
+            a_run.disabled.push_back({ copyId, text });
+        }
+
+        void Finish(Run& a_run)
+        {
             logger::info("BlackFlame: copy model probe: {} distinct copy model path(s) of {} copies: {} ok, {} failed, {} left out; "
-                         "{} ms", order.size(), FilledCopies().size(), ok, failed, leftOut.size(), totalMs);
-            for (std::size_t i = 0; i < leftOut.size(); i += kPathsPerLine) {
+                         "{} ms of probing", a_run.order.size(), FilledCopies().size(), a_run.ok, a_run.failed, a_run.leftOut.size(),
+                std::chrono::duration_cast<std::chrono::milliseconds>(a_run.spent).count());
+            for (std::size_t i = 0; i < a_run.leftOut.size(); i += kPathsPerLine) {
                 std::string line;
-                for (std::size_t j = i; j < std::min(leftOut.size(), i + kPathsPerLine); ++j) {
-                    line += (line.empty() ? "" : ", ") + leftOut[j];
+                for (std::size_t j = i; j < std::min(a_run.leftOut.size(), i + kPathsPerLine); ++j) {
+                    line += (line.empty() ? "" : ", ") + a_run.leftOut[j];
                 }
                 logger::info("BlackFlame: copy model probe: not probed (the {} s budget ran out): {}",
                     std::chrono::duration_cast<std::chrono::seconds>(kBudget).count(), line);
             }
-
-            // The safety net: a failed copy path whose source path (the control) loads takes that copy out
-            std::map<std::string, Result> controls;
-            std::vector<DisabledCopy> disabled;
-            std::map<RE::FormID, std::size_t> seen;  // copy -> index in disabled (a copy failing in two roles: one entry)
-            for (const auto& use : uses) {
-                const auto& result = results[Key(use.copyPath)];
-                if (!result.probed || result.ok) {
-                    continue;
-                }
-                std::string controlText = "no source model in that role";
-                bool controlOk = false;
-                if (!use.sourcePath.empty()) {
-                    auto [it, fresh] = controls.try_emplace(Key(use.sourcePath));
-                    if (fresh) {
-                        it->second = Demand(use.sourcePath);
-                    }
-                    controlOk = it->second.ok;
-                    controlText = "source " + Describe(use.sourcePath, it->second);
-                }
-                const auto copyId = use.copy->GetFormID();
-                const std::string text = std::format("{} {} (source {:08X}; control {})", use.role, Describe(use.copyPath, result),
-                    use.source->GetFormID(), controlText);
-                if (!controlOk) {
-                    logger::warn("BlackFlame: copy model probe: copy {:08X} kept: its {} failed but the source's did not load either "
-                                 "- not a copy fault: {}", copyId, use.role, text);
-                    continue;
-                }
-                if (const auto it = seen.find(copyId); it != seen.end()) {
-                    disabled[it->second].text += "; " + text;
-                    continue;
-                }
-                seen.emplace(copyId, disabled.size());
-                disabled.push_back({ copyId, text });
-            }
-            for (const auto& item : disabled) {
+            for (const auto& item : a_run.disabled) {
                 logger::warn("BlackFlame: copy model probe: copy {:08X} out of the swaps this session (stays original): {}", item.copy,
                     item.text);
             }
-            logger::info("BlackFlame: copy NIF failed to load in game: {} copies taken out of the swaps", disabled.size());
-            DisableCopiesForSession(std::move(disabled));
+            logger::info("BlackFlame: copy NIF failed to load in game: {} copies taken out of the swaps, {} muzzle(s) back to the "
+                         "source's", a_run.disabled.size(), a_run.muzzlesReverted.size());
+            const bool changed = !a_run.disabled.empty() || !a_run.muzzlesReverted.empty();
+            DisableCopiesForSession(std::move(a_run.disabled), std::move(a_run.muzzlesReverted));
+            // I7: links other copies hold to a dropped copy go back to the original now, and a reverted muzzle is written
+            if (changed) {
+                RefreshCopies("copy model probe");
+            }
+        }
+
+        // One drain's slice; true when the run is over
+        bool Step(Run& a_run)
+        {
+            const auto start = Clock::now();
+            while (Clock::now() - start < kSlice) {
+                const auto before = Clock::now();
+                if (!a_run.pathsDone) {
+                    if (a_run.next < a_run.order.size()) {
+                        ProbePath(a_run, a_run.order[a_run.next++]);
+                    } else {
+                        a_run.pathsDone = true;
+                        a_run.next = 0;
+                    }
+                } else if (a_run.next < a_run.uses.size()) {
+                    Judge(a_run, a_run.uses[a_run.next++]);
+                } else {
+                    return true;
+                }
+                a_run.spent += Clock::now() - before;
+            }
+            return false;
+        }
+
+        void Post(std::shared_ptr<Run> a_run)
+        {
+            const bool queued = QueueTask("BlackFlameCopyModelProbe", [a_run]() {
+                bool done = true;
+                if (!Guarded("copy model probe run", [&]() { done = Step(*a_run); })) {
+                    return;  // faulted (logged): the copies stay as they are
+                }
+                if (done) {
+                    (void)Guarded("copy model probe finish", [&]() { Finish(*a_run); });
+                } else {
+                    Post(a_run);
+                }
+            });
+            if (!queued) {
+                logger::warn("BlackFlame: copy model probe: could not be queued for the main thread - the copies stay as they are");
+            }
         }
     }
 
     void QueueCopyModelProbe()
     {
-        if (!QueueTask("BlackFlameCopyModelProbe", []() { (void)Guarded("copy model probe run", []() { Run(); }); })) {
-            logger::warn("BlackFlame: copy model probe: could not be queued for the main thread");
+        if (!GetConfig().copyModelProbe) {
+            logger::info("BlackFlame: copy model probe: off (copyModelProbe false)");
+            return;
         }
+        auto run = std::make_shared<Run>();
+        Prepare(*run);
+        Post(std::move(run));
     }
 }

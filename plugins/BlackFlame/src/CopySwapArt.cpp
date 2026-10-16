@@ -110,11 +110,15 @@ namespace BlackFlame
                     }
                 }
                 const auto result = func(a_caster, art, a_r8, a_r9);
-                if (!line.empty()) {
-                    logger::info("BlackFlame: SetCastingArt (player): {}", line);
-                }
-                if (!first.empty()) {
-                    logger::info("BlackFlame: {}", first);
+                try {  // I9: nothing may throw out of the thunk
+                    if (!line.empty()) {
+                        logger::info("BlackFlame: SetCastingArt (player): {}", line);
+                    }
+                    if (!first.empty()) {
+                        logger::info("BlackFlame: {}", first);
+                    }
+                } catch (...) {
+                    (void)g_failure.exchange(true);
                 }
                 return result;
             }

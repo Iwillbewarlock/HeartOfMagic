@@ -313,8 +313,13 @@ namespace BlackFlame
                     logger::info("BlackFlame: first copy hit art {:08X} for {:08X} (spell {:08X})", copy->GetFormID(),
                         a_art->GetFormID(), spell ? spell->GetFormID() : 0);
                 }
-                ArmCloneWatch(copy);  // cause B diagnostics: when its effect on the player gets 3D (CloneWatch.h)
-                return copy ? copy : a_art;  // CopyOf was not null in Decide; the map never changes after kDataLoaded
+                // Cause B diagnostics (CloneWatch.h), I1: only for an effect on the player (its ActiveEffect's MagicTarget; the
+                // controller's own target is not set yet at the first call), so an NPC hit by the player's spell takes no slot
+                const auto* player = RE::PlayerCharacter::GetSingleton();
+                if (player && a_this->effect && a_this->effect->target == player->AsMagicTarget()) {
+                    ArmCloneWatch(copy);
+                }
+                return copy ? copy : a_art;  // CopyOf was not null in Decide; a copy dropped by the model probe is never returned
             }
             if (outcome == Outcome::kSwapped) {
                 RememberHitArt(a_this, a_art);  // config hitArt: recolour once its 3D exists (HitArt.h)

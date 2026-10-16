@@ -69,12 +69,17 @@ namespace BlackFlame
         std::string text;  // what failed: the path and the error
     };
 
-    /// v2i safety net, main thread, once (CopyModelProbe): these copies' models did not load in game, so CopyOf stops handing
-    /// them out for the session (the form stays original instead of invisible). A second call is ignored.
-    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies);
+    /// v2i safety net, main thread, once (CopyModelProbe): a_copies' models did not load in game, so CopyOf stops handing
+    /// them out for the session (the form stays original instead of invisible); a_muzzles' grey muzzle models did not load,
+    /// so ExpectedMuzzleFor gives them the source's muzzle (the copy keeps its swaps; RefreshCopies then writes it).
+    /// A second call is ignored.
+    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies, std::vector<RE::FormID> a_muzzles = {});
 
     /// The copies DisableCopiesForSession took out (empty before it ran)
     [[nodiscard]] std::vector<DisabledCopy> CopiesFailedToLoad();
+
+    /// DisableCopiesForSession ran (the copy model probe finished)
+    [[nodiscard]] bool CopyModelProbeDone() noexcept;
 
     template <class T>
     [[nodiscard]] T* CopyOfAs(const T* a_source) noexcept

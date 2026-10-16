@@ -109,10 +109,12 @@ namespace GreyBuild
             }
         }
 
-        /// The keys (and constant) of an effect colour controller's NiPoint3Interpolator:
-        /// the same rule as the base colour it drives (luminance x tint).
+        /// The keys (and constant) of an effect colour controller's NiPoint3Interpolator: the same rule as the base colour it
+        /// drives (luminance x tint). a_tintOf gives the scale of a block (the interpolator, its data): the largest of the
+        /// controllers that share it (I12), so a block is greyed once.
+        template <class TintOf>
         void GreyColorController(nifly::NifFile& a_nif, nifly::BSEffectShaderPropertyColorController& a_ctrl,
-            float a_tint, std::set<std::uint32_t>& a_done, GreyStats& a_stats)
+            const TintOf& a_tintOf, std::set<std::uint32_t>& a_done, GreyStats& a_stats)
         {
             auto& hdr = a_nif.GetHeader();
             const nifly::NiRef& interpRef = a_ctrl.interpolatorRef;
@@ -124,18 +126,19 @@ namespace GreyBuild
             if (!a_done.insert(interpRef.index).second) {
                 return;
             }
-            Desaturate(interp->point3Value, a_tint);
+            Desaturate(interp->point3Value, a_tintOf(interpRef.index));
             const nifly::NiRef& dataRef = interp->dataRef;
             auto* data = hdr.GetBlock<nifly::NiPosData>(dataRef);
             if (!data || !a_done.insert(dataRef.index).second) {
                 return;
             }
+            const float tint = a_tintOf(dataRef.index);
             const auto keyCount = static_cast<int>(data->data.GetNumKeys());
             for (int i = 0; i < keyCount; ++i) {
                 auto key = data->data.GetKey(i);
-                Desaturate(key.value, a_tint);
-                Desaturate(key.forward, a_tint);  // tangents: the same linear map keeps the curve grey
-                Desaturate(key.backward, a_tint);
+                Desaturate(key.value, tint);
+                Desaturate(key.forward, tint);  // tangents: the same linear map keeps the curve grey
+                Desaturate(key.backward, tint);
                 data->data.SetKey(i, key);
                 ++a_stats.controllerKeys;
             }
@@ -203,7 +206,8 @@ namespace GreyBuild
                 return;
             }
             const auto it = blends.find(a_id);
-            const Blend blend = it != blends.end() ? it->second : Blend::kNoAlpha;
+            // I12: a shader no shape uses has no blend to tell: normal palette, without the no-alpha NOTE
+            const Blend blend = it != blends.end() ? it->second : Blend::kNormal;
             if (blend == Blend::kAdditive) {
                 a_prop.greyscaleTexture.get() = kPaletteAddPath;
                 ++stats.palettedAdd;
@@ -231,12 +235,42 @@ namespace GreyBuild
                 Desaturate(a_mod.color3, 1.0f);
                 ++stats.colorModifiers;
             });
+        // Each controller's scale is the base colour's of the shader it targets; an interpolator or key block two controllers
+        // share takes the larger of their scales (noted when they differ)
+        std::map<std::uint32_t, float> blockTint;
+        std::set<std::uint32_t> mixed;
+        ForEachBlock<nifly::BSEffectShaderPropertyColorController>(a_nif,
+            [&](std::uint32_t, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
+                const float tint = additive.count(a_ctrl.targetRef.index) != 0 ? a_tintAdd : a_tint;
+                const auto note = [&](std::uint32_t a_block) {
+                    if (a_block == nifly::NIF_NPOS) {
+                        return;
+                    }
+                    auto [it, fresh] = blockTint.try_emplace(a_block, tint);
+                    if (!fresh && it->second != tint) {
+                        mixed.insert(a_block);
+                        it->second = std::max(it->second, tint);
+                    }
+                };
+                note(a_ctrl.interpolatorRef.index);
+                if (const auto* interp = a_nif.GetHeader().GetBlock<nifly::NiPoint3Interpolator>(a_ctrl.interpolatorRef)) {
+                    note(interp->dataRef.index);
+                }
+            });
+        for (const auto block : mixed) {
+            if (a_log) {
+                a_log->push_back(fmt::format("block {}: colour keys shared by controllers of additive and normal shaders - greyed "
+                    "with the larger scale {}", block, blockTint[block]));
+            }
+        }
+        const auto tintOf = [&](std::uint32_t a_block) {
+            const auto it = blockTint.find(a_block);
+            return it != blockTint.end() ? it->second : a_tint;
+        };
         ForEachBlock<nifly::BSEffectShaderPropertyColorController>(a_nif,
             [&](std::uint32_t, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
                 ++stats.colorControllers;
-                // the same scale as the base colour it drives (its target shader)
-                const bool toAdditive = additive.count(a_ctrl.targetRef.index) != 0;
-                GreyColorController(a_nif, a_ctrl, toAdditive ? a_tintAdd : a_tint, done, stats);
+                GreyColorController(a_nif, a_ctrl, tintOf, done, stats);
             });
         ForEachBlock<nifly::NiPSysColorModifier>(a_nif,
             [&](std::uint32_t, nifly::NiPSysColorModifier& a_mod) { GreyColorData(a_nif, a_mod, done, stats); });
@@ -346,6 +380,7 @@ namespace GreyBuild
             hdr.ClearStrings();
             for (std::uint32_t i = 0; i < a_strings.size(); ++i) {
                 if (hdr.AddOrFindStringId(fmt::format("\x01HoMBF slot {}", i), true) != i) {
+                    hdr.UpdateHeaderStrings(false);  // I11: nifly's own table back from the references (none was moved yet)
                     return false;
                 }
             }
@@ -357,8 +392,9 @@ namespace GreyBuild
                 const std::uint32_t was = a_before[i];
                 if (was != nifly::NIF_NPOS && was < a_strings.size() && a_strings[was] == ref->get()) {
                     ref->SetIndex(was);  // the very slot it named
-                } else if (ref->GetIndex() == nifly::NIF_NPOS && ref->get().empty()) {
-                    continue;  // no string, as nifly leaves it
+                } else if (was == nifly::NIF_NPOS && ref->get().empty()) {
+                    // I10: no string in the source stays none (nifly's Save may have pointed it at an empty table string)
+                    ref->SetIndex(nifly::NIF_NPOS);
                 } else {
                     ref->SetIndex(hdr.AddOrFindStringId(ref->get(), true));  // changed or new: first equal string, or appended
                 }
@@ -405,7 +441,19 @@ namespace GreyBuild
         if (!WriteKeepingStrings(a_nif, strings, before, kept) || !kept) {
             return out.str();  // the references did not line up: nifly's own table (CheckHeaderStrings reports it)
         }
-        return kept.str();
+        // I11: our bytes parsed back before anyone writes them: a NIF nifly reads whose table starts with the source's;
+        // otherwise nifly's own bytes (CheckHeaderStrings then reports the table)
+        std::string bytes = kept.str();
+        std::istringstream back(bytes, std::ios::binary);
+        nifly::NifFile check;
+        if (check.Load(back) != kNiflyOk || !check.IsValid()) {
+            return out.str();
+        }
+        const auto written = HeaderStrings(check);
+        if (written.size() < strings.size() || !std::equal(strings.begin(), strings.end(), written.begin())) {
+            return out.str();
+        }
+        return bytes;
     }
 
     void SaveNif(nifly::NifFile& a_nif, const std::filesystem::path& a_file)

@@ -776,6 +776,26 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - 2단계(무기·화살 메시, GetModel 창)는 게임 안 진단 실행을 기다린다. 진단 훅도 이번에는 넣지 않았다(세 vtable GetModel thunk +
   창 후보 둘이라 작지 않음).
 
+### v2 수정 I (5d51a49..46855dd 리뷰, fixlist-v2i.md)
+
+- I1 CloneWatch는 효과의 ActiveEffect::target(0x50)이 플레이어의 MagicTarget일 때만 무장(컨트롤러의 target 0x10은 첫 호출 때 아직 비어
+  있음: HitArt.h 주석). 플레이어 주문에 맞은 NPC의 사본 아트가 한 칸뿐인 감시를 빼앗지 않는다.
+- I2 효과가 사라진 줄과 Stop은 줄 상한과 무관. I3 줄은 g_mutex 안에서 만들고 풀고 나서 남김.
+- I4 태스크 +0x78(아트)이 효과의 artObject(0xB8)와 다르면 "layout mismatch"를 한 번 남기고 세션 동안 태스크를 읽지 않음.
+- I5 사본 경로 = 원본 경로(빌더가 원본 모델을 둠)면 대조 없이 유지, 이미 탐침한 경로 결과는 재사용.
+- I6 탐침을 50 ms 조각으로 여러 드레인에 나눔(메인 메뉴가 멈추지 않음), 예산 20초는 조각 합. 대조도 예산을 따르고 예산 뒤 대조는
+  "확인 못 함, 유지". 설정 copyModelProbe(기본 true).
+- I7 DisableCopiesForSession 뒤 RefreshCopies("copy model probe")를 메인 스레드에서: 다른 사본이 떨어진 사본을 가리키던 링크가 첫
+  로드가 아니라 바로 원본으로(LinkFor가 CopyOf를 쓰고, CopyOf가 떨어진 사본을 돌려주지 않음). HitEffectHook 낡은 주석 정정.
+- I8 머즐 모델만 실패하면 사본은 유지하고 ExpectedMuzzleFor가 원본 머즐을 기대하게 함(RefreshCopies가 씀).
+- I9 LaunchThunk·SetCastingArt의 첫 회/기존 로그 블록을 try 안에.
+- I10 빌더: 원본에서 NIF_NPOS였던 빈 참조는 NIF_NPOS로(nifly의 AddOrFindStringId("", false)는 표에 빈 문자열이 있으면 그 번호를 줌).
+  자가 시험: 표에 두 번 있는 문자열, 빈 표 문자열 옆의 NPOS 빈 이름(133 PASS).
+- I11 빌더: 우리 바이트를 다시 파싱해 표가 원본으로 시작하는지 확인한 뒤에만 사용(아니면 nifly 바이트), 자리표시 경로 실패 시
+  UpdateHeaderStrings(false)로 표 복구, 헤더 검사 실패한 출력 파일은 지움.
+- I12 셰이프가 쓰지 않는 셰이더는 NOTE 없이 일반 팔레트; 가산·일반 컨트롤러가 공유한 키 블록은 큰 배율로, NOTE; 테스터 시작 줄은
+  탐침 전이면 "not probed yet"; LoadPalette가 LoadTexture 사용; 탐침의 ModelOf 감싸기 제거(ModelPathOf 직접); LogLimit Once는 set.
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.

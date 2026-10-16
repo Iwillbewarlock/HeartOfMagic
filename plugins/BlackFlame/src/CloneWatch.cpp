@@ -53,6 +53,9 @@ namespace BlackFlame
         TrackedMutex g_mutex;
         std::optional<Watch> g_watch;  // guarded by g_mutex
         std::atomic<bool> g_active{ false };
+        // I4: the task's art field (+0x78) did not hold the effect's art (+0xB8): the offsets do not fit this runtime, so the
+        // task is never read again this session (logged once)
+        std::atomic<bool> g_layoutBad{ false };
 
         template <class T>
         T ReadAt(const void* a_base, std::size_t a_offset)
@@ -84,6 +87,8 @@ namespace BlackFlame
         {
             bool found = false;
             bool has3D = false;
+            bool layoutMismatch = false;  // I4: task+0x78 is not the effect's artObject
+            std::uintptr_t effectArt = 0;
             TaskRead task;
         };
 
@@ -104,14 +109,19 @@ namespace BlackFlame
                 }
                 seen.found = true;
                 seen.has3D = a_effect->artObject3D != nullptr;
+                seen.effectArt = reinterpret_cast<std::uintptr_t>(a_effect->artObject);
                 const void* task = a_effect->cloneTask.get();
                 seen.task.task = task != nullptr;
-                if (task) {
+                if (task && !g_layoutBad.load()) {
                     seen.task.read = GuardedKeep("clone watch task read", [&]() {
+                        seen.task.art = ReadAt<std::uintptr_t>(task, kTaskArt);
+                        if (seen.task.art != seen.effectArt) {
+                            seen.layoutMismatch = true;  // I4: nothing else of the task is trusted
+                            return;
+                        }
                         seen.task.state = ReadAt<std::uint32_t>(task, kTaskState);
                         seen.task.pending = ReadAt<std::uint32_t>(task, kTaskPending);
                         seen.task.queue = ReadAt<std::uint32_t>(task, kTaskQueue);
-                        seen.task.art = ReadAt<std::uintptr_t>(task, kTaskArt);
                         seen.task.result = ReadAt<std::uintptr_t>(task, kTaskResult);
                     });
                 }
@@ -157,48 +167,54 @@ namespace BlackFlame
         }
         Seen seen;
         const bool walked = Guarded("clone watch", [&]() { seen = Look(art); });
-        std::lock_guard lock(g_mutex);
-        if (!g_watch || g_watch->art != art) {
-            return;  // reset or re-armed meanwhile
+        if (seen.layoutMismatch && !g_layoutBad.exchange(true)) {
+            logger::warn("BlackFlame: clone watch: layout mismatch - the clone task's art field (+0x{:X}) holds 0x{:X}, the effect's "
+                         "art is 0x{:X}: the task offsets do not fit this runtime, its fields are not read again this session",
+                kTaskArt, seen.task.art, seen.effectArt);
+            seen.task.read = false;
         }
-        if (!walked) {
-            Stop();
-            return;
-        }
-        auto& watch = *g_watch;
-        const auto artId = art->GetFormID();
-        const auto elapsed = Clock::now() - watch.armed;
-        if (seen.found && seen.has3D) {
-            logger::info("BlackFlame: clone watch: copy hit art {:08X} on the player: artObject3D set {} ms after the hook "
-                         "handed the copy out; {}", artId, Ms(elapsed), Describe(seen.task));
-            Stop();
-            return;
-        }
-        if (elapsed >= kWatchTime) {
-            logger::info("BlackFlame: clone watch: copy hit art {:08X}: NO 3D {} ms after the hook handed it out ({}); last: {}",
-                artId, Ms(elapsed), watch.effectSeen ? "its effect was seen on the player" : "no live effect with it on the player",
-                watch.last ? Describe(*watch.last) : std::string("nothing read"));
-            Stop();
-            return;
-        }
-        if (!seen.found) {
-            if (watch.effectSeen && watch.lines < kMaxLines) {
-                ++watch.lines;
-                logger::info("BlackFlame: clone watch: copy hit art {:08X}: its effect is gone from the player after {} ms, no 3D",
-                    artId, Ms(elapsed));
-                Stop();
+        std::string line;  // I3: built under g_mutex, logged after it
+        {
+            std::lock_guard lock(g_mutex);
+            if (!g_watch || g_watch->art != art) {
+                return;  // reset or re-armed meanwhile
             }
-            return;
+            if (!walked) {
+                Stop();
+                return;
+            }
+            auto& watch = *g_watch;
+            const auto artId = art->GetFormID();
+            const auto elapsed = Clock::now() - watch.armed;
+            if (seen.found && seen.has3D) {
+                line = std::format("copy hit art {:08X} on the player: artObject3D set {} ms after the hook handed the copy out; {}",
+                    artId, Ms(elapsed), Describe(seen.task));
+                Stop();
+            } else if (elapsed >= kWatchTime) {
+                line = std::format("copy hit art {:08X}: NO 3D {} ms after the hook handed it out ({}); last: {}", artId, Ms(elapsed),
+                    watch.effectSeen ? "its effect was seen on the player" : "no live effect with it on the player",
+                    watch.last ? Describe(*watch.last) : std::string("nothing read"));
+                Stop();
+            } else if (!seen.found) {
+                if (watch.effectSeen) {  // I2: the end of the watch, whatever the line cap says
+                    line = std::format("copy hit art {:08X}: its effect is gone from the player after {} ms, no 3D", artId,
+                        Ms(elapsed));
+                    Stop();
+                }
+            } else {
+                watch.effectSeen = true;
+                if (!watch.last || !(*watch.last == seen.task)) {
+                    watch.last = seen.task;
+                    if (watch.lines < kMaxLines) {
+                        ++watch.lines;
+                        line = std::format("copy hit art {:08X} on the player, {} ms, no 3D yet: {}", artId, Ms(elapsed),
+                            Describe(seen.task));
+                    }
+                }
+            }
         }
-        watch.effectSeen = true;
-        if (watch.last && *watch.last == seen.task) {
-            return;
-        }
-        watch.last = seen.task;
-        if (watch.lines < kMaxLines) {
-            ++watch.lines;
-            logger::info("BlackFlame: clone watch: copy hit art {:08X} on the player, {} ms, no 3D yet: {}", artId, Ms(elapsed),
-                Describe(seen.task));
+        if (!line.empty()) {
+            logger::info("BlackFlame: clone watch: {}", line);
         }
     }
 
