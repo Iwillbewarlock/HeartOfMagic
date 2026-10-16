@@ -21,6 +21,12 @@ namespace BlackFlame
         // would DecRef at DLL unload, after the renderer and texture manager are gone. The
         // palette lives for the whole session anyway (an intentional one-texture leak).
         RE::NiSourceTexture* g_palette = nullptr;
+        // v2i: the additive palette, loaded the same way (same one-reference leak); written before g_ready
+        RE::NiSourceTexture* g_paletteAdd = nullptr;
+        constexpr std::array kAddPaletteCandidates{
+            "textures\\HeartOfMagic\\BlackFlame\\GradBlackFlameAdd.dds",
+            "HeartOfMagic\\BlackFlame\\GradBlackFlameAdd.dds",
+        };
         const char* g_palettePath = nullptr;
         // Set after g_palette and g_palettePath are written; hooks on other threads read it first
         std::atomic<bool> g_ready{ false };
@@ -43,8 +49,36 @@ namespace BlackFlame
         }
     }
 
+    namespace
+    {
+        RE::NiSourceTexture* LoadTexture(const char* a_path, const char* a_what)
+        {
+            RE::NiPointer<RE::NiTexture> texture;
+            RE::BSShaderManager::GetTexture(a_path, true, texture, false);
+            auto* source = netimmerse_cast<RE::NiSourceTexture*>(texture.get());
+            logger::info("BlackFlame: {} '{}': {}", a_what, a_path,
+                source ? "loaded" : (texture ? "loaded but not an NiSourceTexture" : "not loaded"));
+            if (source) {
+                source->IncRefCount();
+            }
+            return source;
+        }
+
+        void LoadAddPalette()
+        {
+            for (const char* path : kAddPaletteCandidates) {
+                if ((g_paletteAdd = LoadTexture(path, "additive palette")) != nullptr) {
+                    return;
+                }
+            }
+            logger::warn("BlackFlame: the additive palette (GradBlackFlameAdd.dds) did not load from any path - copies built "
+                         "with it show their additive palette shapes without colour; the grey palette is not affected");
+        }
+    }
+
     bool LoadPalette()
     {
+        LoadAddPalette();
         for (const char* path : kPaletteCandidates) {
             RE::NiPointer<RE::NiTexture> texture;
             RE::BSShaderManager::GetTexture(path, true, texture, false);
@@ -83,5 +117,20 @@ namespace BlackFlame
     {
         const char* ours = GetPalettePath();
         return ours && !a_path.empty() && NormalizePath(a_path.c_str()) == NormalizePath(ours);
+    }
+
+    RE::NiSourceTexture* GetAddPalette() noexcept
+    {
+        return PaletteReady() ? g_paletteAdd : nullptr;
+    }
+
+    bool IsAddPalettePath(const RE::BSFixedString& a_path)
+    {
+        return !a_path.empty() && NormalizePath(a_path.c_str()) == NormalizePath(kAddPaletteCandidates[0]);
+    }
+
+    bool IsAnyPalettePath(const RE::BSFixedString& a_path)
+    {
+        return IsPalettePath(a_path) || IsAddPalettePath(a_path);
     }
 }

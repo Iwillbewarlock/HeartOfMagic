@@ -9,6 +9,7 @@
 #include "SehGuard.h"
 
 #include <atomic>
+#include <cmath>
 #include <mutex>
 
 namespace BlackFlame::SelfTestProbe
@@ -16,6 +17,7 @@ namespace BlackFlame::SelfTestProbe
     namespace
     {
         constexpr std::size_t kRgbaFloats = 4;
+        constexpr float kGreyTolerance = 1e-3f;  // v2i: a grey base colour (R = G = B as the builder writes it)
 
         std::atomic<bool> g_recording{ false };
         TrackedMutex g_mutex;
@@ -144,6 +146,17 @@ namespace BlackFlame::SelfTestProbe
             ++out.effectProperties;
             AddProperty(a_prop, out.pointers);
             if (const auto* material = a_prop->GetMaterial()) {
+                // v2i: the copies' grey rule (FormCopies / the builder's GreyEffects)
+                const bool paletteShader = a_prop->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kGrayscaleToPaletteColor) &&
+                                           !material->sourceTexturePath.empty();
+                const bool ours = IsAnyPalettePath(material->greyscaleTexturePath);
+                const auto& base = material->baseColor;
+                const bool greyBase = std::fabs(base.red - base.green) <= kGreyTolerance &&
+                                      std::fabs(base.green - base.blue) <= kGreyTolerance;
+                out.paletteShaders += paletteShader ? 1 : 0;
+                out.withOurPalette += ours ? 1 : 0;
+                out.withAddPalette += IsAddPalettePath(material->greyscaleTexturePath) ? 1 : 0;
+                out.greyByRule += (paletteShader ? ours : greyBase) ? 1 : 0;
                 const bool path = IsPalettePath(material->greyscaleTexturePath);
                 const bool pointer = palette && material->greyscaleTexture.get() == palette;
                 out.withPalettePath += path ? 1 : 0;

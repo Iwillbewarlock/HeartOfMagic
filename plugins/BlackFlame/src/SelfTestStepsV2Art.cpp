@@ -212,14 +212,14 @@ namespace BlackFlame::SelfTest
                 grey = SelfTestProbe::Inspect(a_seen.copy3D.get());
             }
             const bool noShapes = a_seen.copy3D && grey.effectProperties == 0;
-            const bool allGrey = noShapes || grey.withPalettePath == grey.effectProperties;
+            const bool allGrey = noShapes || grey.greyByRule == grey.effectProperties;  // v2i: the copies' rule
             const bool newOriginal = a_seen.original && !g_art.originalBefore;
             SelfTestLog::Check("E6", a_seen.copy && a_seen.copy3D && allGrey && copied > 0 && !newOriginal,
-                std::format("{}: {} live art effect(s) on the player; the copy {} ({}), the original {}; effect shapes {}, with "
-                    "the grey palette path {}; GetHitEffectArt returned the copy {} time(s) since the cast", Describe(pick),
+                std::format("{}: {} live art effect(s) on the player; the copy {} ({}), the original {}; effect shapes {}, grey by "
+                    "the copies' rule {}; GetHitEffectArt returned the copy {} time(s) since the cast", Describe(pick),
                     a_seen.onTarget, a_seen.copy ? "FOUND" : "not found", a_seen.copy3D ? "3D loaded" : "no 3D yet",
                     newOriginal ? "ALSO found (new)" : (a_seen.original ? "found, already there before the cast" : "not found"),
-                    grey.effectProperties, grey.withPalettePath, copied));
+                    grey.effectProperties, grey.greyByRule, copied));
             if (noShapes) {
                 SelfTestLog::Info("E6", "the copy's NIF has no effect shape: its grey is not judged here");
             }

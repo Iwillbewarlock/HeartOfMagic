@@ -69,11 +69,32 @@ namespace BlackFlame
 
         // Game thread: the material check (a scene-graph walk), the recolour (when due) and,
         // while the self-test runs, its record
+        // v2i: one line the first time a copy projectile's 3D is seen: the copies' grey rule on its effect shapes and the
+        // first materials (the material check above stops after kMaxMaterialLogs projectiles of any kind)
+        void LogFirstCopy3D(RE::Projectile* a_projectile, const char* a_kind, bool a_byPlayer)
+        {
+            const auto* base = a_projectile->GetBaseObject();
+            if (!base || !IsCopy(base) || !LogLimit::FirstTime("copy 3D", base->GetFormID())) {
+                return;
+            }
+            const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
+            auto* root = a_projectile->Get3D();
+            const auto seen = SelfTestProbe::Inspect(root);
+            logger::info("BlackFlame: first 3D of copy projectile {:08X} for {:08X} (spell {:08X}, {}, {}): {}; copies' rule grey "
+                         "on {} of {} effect shapes ({} palette shaders, {} with our palette, {} of them the additive one); {}",
+                base->GetFormID(), SourceOrSelf(base)->GetFormID(), spell ? spell->GetFormID() : 0, a_kind,
+                a_byPlayer ? "player" : "not the player", root ? "3D present" : "NO 3D", seen.greyByRule, seen.effectProperties,
+                seen.paletteShaders, seen.withOurPalette, seen.withAddPalette, DescribeMaterials(root));
+        }
+
         void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_recolor, bool a_byPlayer,
             const char* a_link,
-            bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread)
+            bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread, bool a_firstCopy3D = false)
         {
             const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
+            if (a_firstCopy3D) {
+                (void)Guarded("first copy 3D line", [&]() { LogFirstCopy3D(a_projectile, a_kind, a_byPlayer); });
+            }
             if (a_logMaterials && !Guarded("projectile material check", [&]() {
                     logger::info("BlackFlame: material check, {} fire projectile {:08X} ({}) before any recolour{}: {}",
                         a_byPlayer ? "PLAYER" : "NPC", spell ? spell->GetFormID() : 0, a_kind,
@@ -175,7 +196,10 @@ namespace BlackFlame
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
             const bool logMaterials = MainQueue::Installed() && counter.fetch_add(1) < kMaxMaterialLogs;  // G5
             const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
-            if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
+            // v2i: a copy's first 3D gets its line (marked in the task: a task dropped by a load leaves it for the next one)
+            const auto* base = a_projectile->GetBaseObject();
+            const bool firstCopy3D = MainQueue::Installed() && base && IsCopy(base) && LogLimit::NotYet("copy 3D", base->GetFormID());
+            if (!recolor && !logMaterials && !firstCopy3D && !SelfTestProbe::Recording()) {
                 return;
             }
 
@@ -188,13 +212,14 @@ namespace BlackFlame
             const auto handle = a_projectile->GetHandle();
             const auto generation = WorldGeneration();
             QueueTask("BlackFlameProjectile",
-                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread, generation]() {
+                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread, generation, firstCopy3D]() {
                 if (generation != WorldGeneration()) {
                     return;  // queued before a load
                 }
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread);
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread,
+                        firstCopy3D);
                 }
             });
         }

@@ -306,6 +306,12 @@ namespace BlackFlame
             Diagnose(kArtSlot, a_this, a_art, outcome);
             if (outcome == Outcome::kCopied) {
                 auto* copy = CopyOfAs<RE::BGSArtObject>(a_art);
+                // v2i: one line the first time each copy hit art is handed out
+                if (copy && LogLimit::FirstTime("copy hit art", copy->GetFormID())) {
+                    const auto* spell = a_this->effect ? a_this->effect->spell : nullptr;
+                    logger::info("BlackFlame: first copy hit art {:08X} for {:08X} (spell {:08X})", copy->GetFormID(),
+                        a_art->GetFormID(), spell ? spell->GetFormID() : 0);
+                }
                 return copy ? copy : a_art;  // CopyOf was not null in Decide; the map never changes after kDataLoaded
             }
             if (outcome == Outcome::kSwapped) {

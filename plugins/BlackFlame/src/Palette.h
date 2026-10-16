@@ -28,4 +28,15 @@ namespace BlackFlame
     /// kinds alike and any leading "data" or "textures" folder ignored (BSFixedString's operator== is
     /// case-sensitive, while the game's string pool may hand back the path in another case)
     [[nodiscard]] bool IsPalettePath(const RE::BSFixedString& a_path);
+
+    /// v2i: the additive palette shaders' palette (GradBlackFlameAdd.dds; the builder puts it on copies whose shape blends
+    /// additively). Its colours are whatever DDS sits at that path. Loaded and logged by LoadPalette; the runtime recolour
+    /// never uses it. Null when it did not load.
+    [[nodiscard]] RE::NiSourceTexture* GetAddPalette() noexcept;
+
+    /// The path names the additive palette (the same comparison as IsPalettePath, against its fixed path)
+    [[nodiscard]] bool IsAddPalettePath(const RE::BSFixedString& a_path);
+
+    /// Either of our palettes
+    [[nodiscard]] bool IsAnyPalettePath(const RE::BSFixedString& a_path);
 }

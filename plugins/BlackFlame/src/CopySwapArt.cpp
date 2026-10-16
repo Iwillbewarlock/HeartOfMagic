@@ -18,6 +18,7 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "FormCopies.h"
+#include "LogLimit.h"
 #include "MainThreadQueue.h"
 #include "SehGuard.h"
 #include "ThreadTrace.h"
@@ -57,7 +58,7 @@ namespace BlackFlame
             return value;
         }
 
-        RE::BGSArtObject* Decide(RE::ActorMagicCaster* a_caster, RE::BGSArtObject* a_art, std::string& a_line)
+        RE::BGSArtObject* Decide(RE::ActorMagicCaster* a_caster, RE::BGSArtObject* a_art, std::string& a_line, std::string& a_first)
         {
             if (!a_caster || !a_art || ReadAt<std::uintptr_t>(a_caster, 0) != g_casterVtable ||
                 ReadAt<std::uintptr_t>(a_art, 0) != g_artVtable) {
@@ -73,6 +74,12 @@ namespace BlackFlame
             auto* chosen = PickCastingArtImpl(actor, slot, spell, a_art, IsStoked());
             if (chosen != a_art) {
                 g_swaps.fetch_add(1);
+                // v2i: one line the first time each copy art is handed out (the player's lines above are capped)
+                if (IsCopy(chosen) && LogLimit::FirstTime("copy casting art", chosen->GetFormID())) {
+                    a_first = std::format("first copy casting art {:08X} for {:08X} (hand {}, spell {:08X}, caster {:08X})",
+                        chosen->GetFormID(), a_art->GetFormID(), slot, spell ? spell->GetFormID() : 0,
+                        actor ? actor->GetFormID() : 0);
+                }
             }
             if (actor == RE::PlayerCharacter::GetSingleton() && g_lines.load() < kMaxLines && g_lines.fetch_add(1) < kMaxLines) {
                 a_line = std::format("hand {}, spell {:08X}, art {:08X} -> {:08X}, stoked {}, thread {}", slot,
@@ -91,9 +98,10 @@ namespace BlackFlame
                 g_calls.fetch_add(1);
                 RE::BGSArtObject* art = a_art;
                 std::string line;
+                std::string first;
                 try {
                     if (GetConfig().copyCastingArt) {
-                        (void)Guarded("copy casting art", [&]() { art = Decide(a_caster, a_art, line); });
+                        (void)Guarded("copy casting art", [&]() { art = Decide(a_caster, a_art, line, first); });
                     }
                 } catch (...) {
                     art = a_art;
@@ -104,6 +112,9 @@ namespace BlackFlame
                 const auto result = func(a_caster, art, a_r8, a_r9);
                 if (!line.empty()) {
                     logger::info("BlackFlame: SetCastingArt (player): {}", line);
+                }
+                if (!first.empty()) {
+                    logger::info("BlackFlame: {}", first);
                 }
                 return result;
             }

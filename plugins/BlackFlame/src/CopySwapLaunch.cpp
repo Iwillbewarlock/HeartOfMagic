@@ -11,6 +11,7 @@
 #include "CopyFreshness.h"
 #include "FireSet.h"
 #include "FormCopies.h"
+#include "LogLimit.h"
 #include "MainThreadQueue.h"
 #include "PlayerArt.h"
 #include "SehGuard.h"
@@ -166,6 +167,13 @@ namespace BlackFlame
             auto* result = reinterpret_cast<LaunchFn*>(g_launchOriginal)(a_result, a_data);
             if (copy) {
                 a_data.projectileBase = asked;  // the caller's struct as it was
+                // v2i: one line the first time each copy is launched (the swap itself is not logged per call)
+                if (LogLimit::FirstTime("copy launch", copy->GetFormID())) {
+                    logger::info("BlackFlame: first launch of copy projectile {:08X} for {:08X} (spell {:08X}, shooter {:08X}): "
+                                 "projectile made {}", copy->GetFormID(), asked->GetFormID(),
+                        a_data.spell ? a_data.spell->GetFormID() : 0, a_data.shooter ? a_data.shooter->GetFormID() : 0,
+                        result && *result ? "yes" : "NO");
+                }
             }
             try {
                 (void)Guarded("copy launch (after)", [&]() { PostLaunch(result, a_data, playerFire, asked, copy); });

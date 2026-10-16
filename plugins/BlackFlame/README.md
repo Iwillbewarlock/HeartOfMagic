@@ -21,7 +21,9 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` | the grey duplicate map (section "Grey duplicates") |
 | `data/HeartOfMagic_BlackFlame_Copies.esp`, `data/HeartOfMagic_BlackFlame_Local.esp` | empty ESLs (no masters, no records, HEDR 1.70; `blackflame-greybuild --write-empty-esls`): enabled from the start, so the builder's output - the same two file names in a mod placed after this one - takes over without changing the plugin list |
 | `data/meshes/heartofmagic/blackflame/` | grey master particle systems and remapped impact / hazard copies, made from the vanilla BSAs by `tools/blackflame-greybuild` |
-| `data/textures/HeartOfMagic/BlackFlame/GradBlackFlame.dds` | the grey palette (256x64), made by `tools/make-gradient.js` |
+| `data/textures/HeartOfMagic/BlackFlame/GradBlackFlame.dds` | the grey palette (256x64) of normal-blend palette shaders and of the runtime recolour, made by `tools/make-gradient.js` |
+| `data/textures/HeartOfMagic/BlackFlame/GradBlackFlameAdd.dds` | the bright-edge palette of additive palette shaders in the copies (Godskin; `make-gradient.js <out> godskin`). The path is fixed: the colours are whichever DDS sits there |
+| `data/optional/palettes/GradBlackFlameAdd_blackblade.dds`, `_messmer.dds` | other bright-edge palettes, not loaded: copy one over `GradBlackFlameAdd.dds` (a later FOMOD option) - no rebuild of the copies needed |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame.json` | config (below) |
 | `build/plugins/BlackFlame/Release/HeartOfMagic_BlackFlame.dll` | the plugin (build output) |
 | `src/` | the plugin source, one file per layer |
@@ -152,17 +154,28 @@ Each record: EditorID `HoMBF_GreyAddon_<original>`, DATA the grey index, MODL
 loaded, as Skyrim.esm stores them), OBND as Skyrim.esm's. No ADDN index above 8444 is used in the TAKEALOOK
 order (houseCARL scan); the grey range starts at 9100.
 
-**The map**, `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` (version 1): `tint`, `addons` (per
+**The map**, `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` (version 1): `tint`, optional `tintAdd` (v2i, default 0.9), `addons` (per
 original index: `grey`, `model` and `greyModel`, `editorId`, `source`, `masterParticleCap`, `dnamFlags`,
 `greyEditorId`, `greyForm` as `Plugin|localId`) and `models` (impact / hazard NIF -> its grey copy). Paths are
 Data-relative, lower case, backslashes (`meshes\mps\mpsfireboltimpact01.nif`); a record's Model field is the same
 path without `meshes\`.
 
-**The grey copies.** In a grey MPS every `BSEffectShaderProperty` gets the greyscale-to-palette colour flag
-(SLSF1 bit 4) on, `textures\HeartOfMagic\BlackFlame\GradBlackFlame.dds` as greyscale texture and base colour RGB =
-luminance x `tint` (Rec. 709 weights and default 0.6, the DLL's `Tint.h` and `tintScale`), alpha kept; the
-palette alpha flag stays as it was. `BSPSysSimpleColorModifier` keys and `BSEffectShaderPropertyColorController`
-keys (direct `NiPoint3Interpolator` only; the build counts any it cannot reach) go to luminance, alpha kept.
+**The grey copies.** Only a *palette shader* - a `BSEffectShaderProperty` whose source already maps its texture
+through a palette (greyscale-to-palette colour flag, SLSF1 bit 4, on and a non-empty source texture) - gets one of our
+palettes as its greyscale texture, chosen by the blend of the shape that uses it (its `NiAlphaProperty` flags:
+blending on and destination blend ONE, i.e. SRC_ALPHA->ONE or ONE->ONE, is additive):
+`textures\HeartOfMagic\BlackFlame\GradBlackFlameAdd.dds` for additive (an additive shape cannot draw dark, so this
+palette has bright edges), `GradBlackFlame.dds` for normal blend. A palette shader whose shape has no alpha property
+counts as normal blend and the build prints a `NOTE` line for it. Every other shader (textureless glows, FXWhite tint
+spheres, lens flares, palette-alpha-only shaders) keeps its flags and textures (v2i: forcing the flag and the palette on
+them made flat grey shapes). Every shader's base colour RGB = luminance x `tint` (Rec. 709 weights and default 0.6,
+the DLL's `Tint.h` and `tintScale`), or x `tintAdd` (default 0.9, `--tint-add`) on an additive palette shader, alpha
+kept; the palette alpha flag stays as it was. `BSPSysSimpleColorModifier` keys and `BSEffectShaderPropertyColorController`
+keys (direct `NiPoint3Interpolator` only; the build counts any it cannot reach) go to luminance, alpha kept, the
+controller's keys scaled like the base colour of the shader it targets. The palettes are made by
+`node tools/make-gradient.js <out.dds> [default|godskin|blackblade|messmer]` (no name: the grey palette, byte-identical
+to the shipped one); the bright-edge ones are smoothstep curves between stops with wide edge plateaus (narrow peaks drew
+contour lines).
 Lighting-shader shapes are left alone. An impact / hazard copy changes only its AddOnNode values (names kept);
 its own inline particles (e.g. FireWallFX01's flames) stay as they are, for the DLL's per-instance recolour.
 nifly re-saves the rest unchanged: byte-identical, or with the header string table reordered, or (seen on two
@@ -172,7 +185,7 @@ replacer meshes) with unused header strings dropped and one node block 4-8 bytes
 
 ```
 blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
-blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
+blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
 blackflame-greybuild --dump <file.nif> [...]        (AddOnNodes, effect shaders, colour keys)
 blackflame-greybuild --roundtrip <file.nif> [...]   (does an unchanged re-save match?)
 blackflame-greybuild --self-test                    (made-up NIF, no game files; exit 0 = pass)
@@ -181,8 +194,9 @@ blackflame-greybuild --self-test                    (made-up NIF, no game files;
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
 a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla
 extraction (the builder reads loose files only; extract BSAs first, e.g. houseCARL `housecarl_bsa_extract`).
-`--out` must not overlap any `--in`. Every output is read back and checked (flag, texture, grey colours,
-no original index left); an AddOnNode value the map does not know fails that file and nothing is written for it.
+`--out` must not overlap any `--in`. Every output is read back and checked (each palette shader on the palette its
+blend takes, grey colours, no original index left); each NIF's line and the run's summary count the effect shaders as
+palette normal (and how many of those without an alpha property), palette additive and left with a grey base colour; an AddOnNode value the map does not know fails that file and nothing is written for it.
 The shipped meshes were made with `--map` on Skyrim - Meshes0/1.bsa extracted to a scratch folder.
 
 **Grey duplicates for any setup (`--request`).** VFX replacers (Embers XD, Inferno, Particle Patch, Dragon
@@ -271,7 +285,7 @@ without a copy stays orange and is logged once. The per-instance light tint stay
 ### Copies (S1): `blackflame-greybuild --forms`
 
 ```
-blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--in <dir> ...] --out <mod root> [--tint <0..2>]
+blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--in <dir> ...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
 ```
 
 The forms request (version 2) lists source forms, each with `source` (`Plugin|localId`, the defining plugin), `type`
@@ -285,7 +299,7 @@ copy of them is made), so one run writes everything a setup needs into `--out`:
 | Output | What |
 |---|---|
 | `HeartOfMagic_BlackFlame_Copies.esp` | ESL, no masters, HEDR 1.70, form version 44, FormIDs 0x800 up: one placeholder per source - EDID `HoMBF_Copy_<editorId>_<localId>`, OBND (PROJ, HAZD, EXPL), MODL = the grey copy, DATA in Skyrim.esm's size for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24) with the scalars and every form link 0, VNAM on PROJ. Groups PROJ, HAZD, EXPL, IPCT. Read back and compared after writing |
-| `meshes\heartofmagic\blackflame\copies\<model path>` | the full-grey copy of each distinct source NIF: every effect shader on the grey palette (as the grey MPS) and every AddOnNode on its grey ADDN index |
+| `meshes\heartofmagic\blackflame\copies\<model path>` | the full-grey copy of each distinct source NIF: effect shaders as in the grey MPS (palette shaders on the palette of their blend, the rest with a grey base colour) and every AddOnNode on its grey ADDN index |
 | `SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json` | the copies map (version 1): source -> copy id, type, models. The next run reads it back from `--out`: a source keeps its id, a new one takes the id after every id used, a source no longer requested is kept as `retired` and its id is never given to another (a saved projectile or hazard of that copy must not turn into another form) |
 | grey MPS, `HeartOfMagic_BlackFlame_greymap.json`, `HeartOfMagic_BlackFlame_Local.esp` | as `--request` writes them (the copies' AddOnNode indices included) |
 
@@ -352,7 +366,7 @@ runtime) is excluded, and a hazard's spell seeds only its fire effects and its c
 ### Builder from the game (v2 expansion C2): `--from-game`
 
 ```
-blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--reclaim-retired]
+blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]
 ```
 
 The request folder defaults to `<Documents>\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame` (SE and AE)
@@ -370,7 +384,9 @@ step (no request: start the game to the main menu once; no `--out`: make an empt
   later record (warned).
 - **Copies map version 2** (`SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json`): `requestFingerprint` (the request's,
   compared by the DLL at every start), `copiesPlugin`, per copy also `sourceMuzzleModel`, `greyMuzzleModel` (PROJ: the
-  grey copy of its muzzle flash model, built like the form models) and `note`; `retired`; `excluded` (the request's).
+  grey copy of its muzzle flash model, built like the form models) and `note`; `retired`; `excluded` (the request's);
+  `shaders` (v2i, information only, no reader takes it: `tint`, `tintAdd` and the grey NIFs' effect shader counts
+  `paletteNormal`, `paletteNormalNoAlpha`, `paletteAdditive`, `left`; the run prints the same as its `shaders` line).
   Version 1 maps are still read. Copy EditorIDs are `HoMBF_C_<TYPE>_<local id>` (the runtime gives no source EditorID).
 - **Ids**: kept and new as before; when no id above every used one is left, the run writes nothing and the message gives
   the requested, earlier and retired counts per type. `--reclaim-retired` then gives retired ids to new forms, lowest

@@ -55,7 +55,32 @@ namespace BlackFlame
             return true;
         }
 
+        /// v2i: true the first time this kind and form is asked in the session (then false); past kMaxFirstTime keys it
+        /// stays false (a session with that many copies logs the first ones only). For one-line "first launch / 3D / art"
+        /// notes, which the per-second limit above would also let through again later.
+        [[nodiscard]] static bool FirstTime(std::string_view a_kind, RE::FormID a_form) { return Once(a_kind, a_form, true); }
+
+        /// Whether FirstTime would still say true (marks nothing): for a hook that leaves the line to a later task
+        [[nodiscard]] static bool NotYet(std::string_view a_kind, RE::FormID a_form) { return Once(a_kind, a_form, false); }
+
+        static constexpr std::size_t kMaxFirstTime = 256;
+
     private:
+        [[nodiscard]] static bool Once(std::string_view a_kind, RE::FormID a_form, bool a_mark)
+        {
+            static TrackedMutex mutex;
+            static std::unordered_map<std::string, bool> seen;
+            std::lock_guard lock(mutex);
+            const std::string key = std::string(a_kind) + ':' + std::to_string(a_form);
+            if (seen.contains(key) || seen.size() >= kMaxFirstTime) {
+                return false;
+            }
+            if (a_mark) {
+                seen.emplace(key, true);
+            }
+            return true;
+        }
+
         struct Entry
         {
             std::chrono::steady_clock::time_point last{};

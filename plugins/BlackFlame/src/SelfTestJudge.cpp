@@ -24,9 +24,12 @@ namespace BlackFlame::SelfTest
         if (a_copyBase != 0) {
             out.judged = true;
             out.copy = true;
-            out.pass = a_after.effectProperties > 0 && a_after.withPalettePath == a_after.effectProperties;
-            out.how = std::format("copy {:08X}: grey palette path on {} of {} effect shapes in its 3D{}", a_copyBase,
-                a_after.withPalettePath, a_after.effectProperties, a_after.effectProperties == 0 ? " (NOTHING OBSERVED)" : "");
+            // v2i: palette shaders carry one of our palettes, every other shader a grey base colour
+            out.pass = a_after.effectProperties > 0 && a_after.greyByRule == a_after.effectProperties;
+            out.how = std::format("copy {:08X}: grey by the copies' rule on {} of {} effect shapes in its 3D ({} palette shaders, "
+                "{} with our palette, {} of them the additive one){}", a_copyBase, a_after.greyByRule, a_after.effectProperties,
+                a_after.paletteShaders, a_after.withOurPalette, a_after.withAddPalette,
+                a_after.effectProperties == 0 ? " (NOTHING OBSERVED)" : "");
             return out;
         }
         if (a_recolourOn) {

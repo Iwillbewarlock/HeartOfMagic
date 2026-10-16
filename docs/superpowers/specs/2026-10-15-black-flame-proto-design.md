@@ -503,7 +503,7 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   원본(MAG_ExplosionRuneFlame02)은 houseCARL로 확인: 다시 이을 링크가 없고 SkyPatcher가 바꿀 수 없는 형식이다. 그러니 차이는
   kDataLoaded 뒤 런타임에 원본이나 사본이 바뀐 것이고, 어느 필드인지는 다음 실행의 필드 줄이 말한다(아직 모름).
 - C2 사본 기대값: 사본은 만들 때부터 회색이므로 T3·T6·T3-remote는 사본이면 "사본 + 살아 있는 3D의 모든 효과 셰이프에 회색 팔레트
-  경로"로 판정한다(JudgeGrey, SelfTestJudge). 이미 회색인 것이 기대 상태다. T3-pointer·T3-tint는 사본이면 INFO. 재색칠 판정은 사본이
+  경로"로 판정한다(JudgeGrey, SelfTestJudge; v2i부터는 "사본 규칙": 팔레트 셰이더는 우리 팔레트 둘 중 하나, 나머지는 회색 기본색). 이미 회색인 것이 기대 상태다. T3-pointer·T3-tint는 사본이면 INFO. 재색칠 판정은 사본이
   아닐 때만. 관찰 없는 통과 금지: T3·T3-remote는 훅에서 3D를 본 기록이 있어야 하고, E1c는 시전자 투사체·폭발 3D에 효과 셰이프가
   있어야 "회색 아님"으로 통과한다. 사본 판정의 "모든 셰이프"는 11:11 실행 값과 맞다(T3 9/9, E1a 9, E1b 8/8).
 - C3 조준: 목표를 550 앞에(폭발 반경 320 + 100 밖), T2가 목표가 멈출 때까지(높이 변화 2 이내 0.5초) 기다린다 - 플레이어 높이에
@@ -697,6 +697,24 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - G7 README_TESTER: SE에서도 회색 맵의 해저드 모델은 적용. G8 재생 디코더 사례에 36885 첫머리(5). G9 항목 0개 맵은 따로 문구.
 - G10 주석(장치 6: AE 36885, SE 미사용), 빈 바이트는 '-', SlotSwap은 a_slot && a_to, 폭발 썽크 catch에서 before도 비움.
   반박: CopySwapArt의 HexBytes는 Patch::HexBytes 안에서 IsExecutable을 먼저 본다(Patch.cpp HexBytes 첫 줄). SpawnThunk는 이미 a_effect 널 확인 뒤 ReadAt.
+
+### v2i 팔레트 규칙 (원인 A1·A2, 2026-10-16)
+
+- A2: 빌더가 모든 BSEffectShaderProperty에 팔레트 플래그와 GradBlackFlame.dds를 강제했다(356개 사본 NIF에서 367개 강제, 그중 132개는
+  소스 텍스처 없음). 텍스처 없는 글로(Fire Rune·Fire Storm Glow:0), FXWhite 틴트 구(RedGlowAdd), 렌즈 플레어(PCoreCircularFlare)가
+  평평한 회색 도형이 됐다. 이제 팔레트는 원본이 이미 팔레트로 텍스처를 매핑하던 셰이더(플래그 켜짐 + 소스 텍스처 있음, `UsesPalette`)에만
+  들어가고, 나머지는 플래그·텍스처를 그대로 두고 기본색만 회색으로.
+- A1(사용자 결정): 가산 셰이프는 어두운 색을 그릴 수 없다(1676개 중 1375개가 SRC_ALPHA->ONE). 가산 팔레트 셰이더(셰이프의 NiAlphaProperty:
+  블렌딩 켜짐, 대상 블렌드 ONE)는 밝은 가장자리 팔레트 `GradBlackFlameAdd.dds`와 `--tint-add`(기본 0.9), 일반 블렌드는 GradBlackFlame.dds와
+  `--tint` 0.6. 알파 속성 없는 셰이프는 일반으로 보고 NOTE 줄. 색 컨트롤러 키도 대상 셰이더의 배율을 따른다. 셰이프는 모두 그대로.
+- 색 선택은 파일로: 경로는 고정, 그 자리에 놓인 DDS가 색이다(기본 Godskin; Black Blade·Messmer는 data/optional/palettes, 게임이 읽지 않음).
+  나중 FOMOD 선택지가 사본을 다시 만들지 않고 바꿀 수 있다. `make-gradient.js <out> [default|godskin|blackblade|messmer]`, 이름 없으면 기존과 바이트 같음.
+- 집계: 각 NIF 줄, 실행 요약(`shaders` 줄), 회색 맵 `tintAdd`, 사본 맵 `shaders`(정보용).
+- DLL: LoadPalette가 가산 팔레트도 불러 로그에 남긴다(못 불러도 회색 팔레트와 무관, 경고). HasGreyMaterial·자가 시험 판정은 두 팔레트 경로를
+  모두 받고, 사본 판정은 사본 규칙(`greyByRule`)으로. 런타임 재색칠(C6까지 남음)은 GradBlackFlame.dds 그대로이고, 가산 팔레트를 단 사본은
+  "이미 우리 것"으로 건너뛴다.
+- 첫 회 로그(사본마다 한 줄, 세션당, 최대 256키, `LogLimit::FirstTime`): 사본 투사체 첫 발사(만들어졌는지), 사본 투사체 첫 3D(사본 규칙
+  집계와 처음 재질들 - 재질 점검 5회 상한과 무관), 사본 손 아트·사본 hit 아트 첫 교체. 23:0x 로그로는 Dragonfire 발사·3D 여부를 알 수 없던 문제.
 
 ### v2 dev automation (580e315 이후)
 

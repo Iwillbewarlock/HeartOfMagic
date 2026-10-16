@@ -132,7 +132,10 @@ namespace BlackFlame
             // The property holds the engine's copy of ours: should it resolve the palette to another
             // texture object, the path still marks it (else the hand-art tick would recolour again);
             // the texture-less case was handled just above
-            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath)) {
+            // v2i: a copy's additive palette counts as ours too (the runtime recolour never replaces it with the grey one)
+            const auto* paletteAdd = GetAddPalette();
+            if (source->greyscaleTexture.get() == palette || IsPalettePath(source->greyscaleTexturePath) ||
+                (paletteAdd && source->greyscaleTexture.get() == paletteAdd) || IsAddPalettePath(source->greyscaleTexturePath)) {
                 ++a_stats.alreadyOurs;
                 return;
             }
@@ -454,8 +457,10 @@ namespace BlackFlame
     {
         const auto* material = a_prop ? a_prop->GetMaterial() : nullptr;
         const auto* palette = GetPalette();
-        // Our path counts only with a texture behind it (a broken copy is not "grey")
+        const auto* paletteAdd = GetAddPalette();
+        // Our path counts only with a texture behind it (a broken copy is not "grey"); v2i: either of our palettes
         return material && ((palette && material->greyscaleTexture.get() == palette) ||
-                               (IsPalettePath(material->greyscaleTexturePath) && material->greyscaleTexture));
+                               (paletteAdd && material->greyscaleTexture.get() == paletteAdd) ||
+                               (IsAnyPalettePath(material->greyscaleTexturePath) && material->greyscaleTexture));
     }
 }

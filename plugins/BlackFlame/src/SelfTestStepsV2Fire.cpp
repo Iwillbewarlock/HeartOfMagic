@@ -105,7 +105,8 @@ namespace BlackFlame::SelfTest
             const bool valuesGrey = !values.empty() && std::ranges::all_of(values, [&](std::uint32_t v) { return grey.contains(v); });
             const bool valuesOk = values.empty() || valuesGrey;
             const bool launchOk = launch && launch->copyBase != 0;
-            const bool projectileOk = projectile && projectile->copyBase != 0 && projectile->after.withPalettePath > 0;
+            const bool projectileOk = projectile && projectile->copyBase != 0 && projectile->after.effectProperties > 0 &&
+                                      projectile->after.greyByRule == projectile->after.effectProperties;  // v2i: the copies' rule
             SelfTestLog::Info("E1a", std::format("launch: {}; projectile: {}; AddOnNode values in its 3D at the hook: {} ({}); impact "
                 "copies since the launch: {} (GetImpactData calls in a copy window {})",
                 launch ? std::format("base {:08X} -> copy {:08X}, rule matched {}", launch->base, launch->copyBase, launch->playerFire) :
@@ -115,8 +116,8 @@ namespace BlackFlame::SelfTest
                 values.empty() ? "this NIF has none: the ADDN part is not judged" : (valuesGrey ? "all grey indices" : "SOME NOT GREY"),
                 impactCopies, now.impactWindowCalls - g_fire.at.impactWindowCalls));
             SelfTestLog::Check("E1a", launchOk && projectileOk && inspected && valuesOk && impactCopies >= 1, std::format("player Firebolt: "
-                "launched with the copy {}, its 3D grey (palette path {} shapes) {}, AddOnNodes on grey ADDNs {}, impact copies {} "
-                "(at least 1)", launchOk ? "yes" : "NO", projectile ? projectile->after.withPalettePath : 0,
+                "launched with the copy {}, its 3D grey (copies' rule on {} shapes) {}, AddOnNodes on grey ADDNs {}, impact copies {} "
+                "(at least 1)", launchOk ? "yes" : "NO", projectile ? projectile->after.greyByRule : 0,
                 projectileOk ? "yes" : "NO", !inspected ? "NOT INSPECTED" : (values.empty() ? "none (not judged)" : (valuesGrey ? "yes" : "NO")), impactCopies));
             (void)a_c;
         }
@@ -208,9 +209,10 @@ namespace BlackFlame::SelfTest
             postWrites, alreadyCopy, createSwaps, now.createSwapsSelfArea - g_fire.at.createSwapsSelfArea,
             now.createLayoutRejected - g_fire.at.createLayoutRejected, now.createNotSpell - g_fire.at.createNotSpell,
             now.launchNoCopy - g_fire.at.launchNoCopy));
-        SelfTestLog::Check("E1b", record->copyBase != 0 && record->after.withPalettePath > 0, std::format("player Fireball "
-            "explosion: base {:08X} copy {:08X}, palette path on {} of {} shapes; made by {} | {}", record->base, record->copyBase,
-            record->after.withPalettePath, record->after.effectProperties, device, DescribeExplosion(*record)));
+        SelfTestLog::Check("E1b", record->copyBase != 0 && record->after.effectProperties > 0 &&
+            record->after.greyByRule == record->after.effectProperties, std::format("player Fireball "
+            "explosion: base {:08X} copy {:08X}, grey by the copies' rule on {} of {} shapes; made by {} | {}", record->base, record->copyBase,
+            record->after.greyByRule, record->after.effectProperties, device, DescribeExplosion(*record)));
         return true;
     }
 
@@ -225,9 +227,9 @@ namespace BlackFlame::SelfTest
             const bool launchOk = launch && launch->copyBase == 0 && !launch->playerFire;
             // C2: no PASS without observing: each needs effect shapes in its 3D to be called not grey
             const bool projectileOk = projectile && projectile->copyBase == 0 && projectile->after.effectProperties > 0 &&
-                                      projectile->after.withGrey == 0 && projectile->after.withPalettePath == 0;
+                                      projectile->after.withGrey == 0 && projectile->after.withOurPalette == 0;
             const bool explosionOk = explosion && explosion->copyBase == 0 && explosion->after.effectProperties > 0 &&
-                                     explosion->after.withGrey == 0 && explosion->after.withPalettePath == 0;
+                                     explosion->after.withGrey == 0 && explosion->after.withOurPalette == 0;
             SelfTestLog::Check("E1c", launchOk && projectileOk && explosionOk, std::format("{}: caster's launch {}, projectile ({} "
                 "effect shapes in its 3D) {}, explosion ({} in its 3D) {}", a_phase,
                 launch ? std::format("base {:08X} copy {:08X} rule {}", launch->base, launch->copyBase, launch->playerFire) :
