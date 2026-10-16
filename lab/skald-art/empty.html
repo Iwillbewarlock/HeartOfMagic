@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style></head><body>
+<script src="common.js"></script><script src="knots.js"></script>
+<script>
+/* Skald empty-tree picture, 480x320: a thin plate with a woven trefoil at each corner holding the
+   five school glyphs, plaited rules above and below. Transparent, over the design's page colour. */
+var s = '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">';
+function rule(y) {
+  return '<g opacity="0.75"><line x1="44" y1="' + y + '" x2="180" y2="' + y + '" stroke="' + RULE + '" stroke-width="1.5"/>' +
+    '<line x1="300" y1="' + y + '" x2="436" y2="' + y + '" stroke="' + RULE + '" stroke-width="1.5"/>' +
+    ringCap(40, y, 3, RULE) + ringCap(440, y, 3, RULE) + '</g>' +
+    weave(plait(180, y, 300, y, 4.5, 20), RULE, 1.6, 1.4, 0.8);
+}
+s += rule(52);
+s += '<rect x="110" y="104" width="260" height="112" rx="2" fill="none" stroke="' + LINE + '" stroke-width="1.6"/>';
+var k = [[110, 104, 0], [370, 104, Math.PI / 2], [110, 216, -Math.PI / 2], [370, 216, Math.PI]];
+for (var i = 0; i < 4; i++) s += weave([trefoil(k[i][0], k[i][1], 11, Math.PI / 4 + k[i][2])], RULE, 1.7, 1.6, 0.95);
+var xs = [150, 195, 240, 285, 330];
+for (i = 0; i < 5; i++) s += glyph(SCHOOL_ORDER[i], xs[i], 160, 15, SCHOOL[SCHOOL_ORDER[i]].color, '#0b0b0c');
+s += rule(268);
+s += '</svg>';
+document.body.innerHTML = s;
+</script></body></html>

@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style></head><body>
+<script src="common.js"></script><script src="knots.js"></script>
+<script>
+/* Skald page corner, 200x200, top-left (the panel mirrors it into all four corners):
+   a woven trefoil knot in the corner, a two-strand plait running out along each edge,
+   then a long hairline fading out to a small ring. */
+var C = '#cfc9b8';
+var s = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">' +
+  '<defs><linearGradient id="h" gradientUnits="userSpaceOnUse" x1="108" y1="0" x2="188" y2="0"><stop offset="0" stop-color="' + C + '" stop-opacity="0.9"/><stop offset="1" stop-color="' + C + '" stop-opacity="0.12"/></linearGradient>' +
+  '<linearGradient id="v" gradientUnits="userSpaceOnUse" x1="0" y1="108" x2="0" y2="188"><stop offset="0" stop-color="' + C + '" stop-opacity="0.9"/><stop offset="1" stop-color="' + C + '" stop-opacity="0.12"/></linearGradient></defs>' +
+  '<line x1="108" y1="18" x2="186" y2="18" stroke="url(#h)" stroke-width="2"/>' +
+  '<line x1="18" y1="108" x2="18" y2="186" stroke="url(#v)" stroke-width="2"/>' +
+  ringCap(190, 18, 2.6, C, 0.3) + ringCap(18, 190, 2.6, C, 0.3) +
+  weave(plait(50, 18, 110, 18, 5, 20).concat(plait(18, 50, 18, 110, 5, 20)), C, 1.8, 1.6, 0.9) +
+  weave([trefoil(32, 32, 20, -Math.PI / 4)], C, 2.3, 1.9, 0.95) +
+  '</svg>';
+document.body.innerHTML = s;
+</script></body></html>

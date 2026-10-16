@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Skald design.** A sixth look in Settings > UI Display > Design, after Skyrim's own menus: smoky black,
+  thin pale lines, knotwork corners, wide-set capital titles, and the school colours softened to quiet tints.
+
 ## Heart of Magic Librarian 1.5.0
 
 ### New

@@ -975,7 +975,7 @@ licence file), subset to the characters the UI and common spell names need
 (KS X 1001 Hangul, Joyo kanji, GB2312 level 1, Big5 level 1, plus every character in the lang files);
 each folder has a README with sources and licences.
 
-Who uses what (Classic and Modern Dark keep the theme's own sans):
+Who uses what (Classic and Modern Dark keep the theme's own sans; Skald uses the system's Bahnschrift, see "Skald" below):
 
 | Design | Variable | Latin/Cyrillic | ko | ja | zh-cn | zh-tw |
 |---|---|---|---|---|---|---|
@@ -1015,6 +1015,27 @@ shared with Chalkboard). On a dark page the gold is light, so the corner's vines
 their lit flank.
 
 The drawings' sources (tone fields and plates) are in `lab/anidoodle-arcane/`, with how to re-render them.
+
+### Skald (2026-10-17)
+
+Skald is the look of the mod's explainer pictures made into a design: Skyrim's own menus - smoky black,
+thin pale lines (`#e8e4d8` text, `#cfc9b8` rules), woven knotwork corners, wide-set capital
+titles, and the school colours mixed 40% toward the line colour (`schoolInk` 0.4) so they read as quiet
+tints. Like Night Grimoire it is only a preset file (`presets/design/Skald.json`) over
+`design-darkbook.css` with its own `--book-*` palette. Its inline `css` also turns the gold the sheet and
+the theme use for the chosen school tab, toggle and Canvas badge into the pale line colour, sets the
+titles in capitals and draws the empty screen. Two transparent PNGs in `themes/skald/`: the page corner
+(`pageOrnament`, 200 px: a trefoil knot in the corner, a two-strand plait out along each edge, then a
+hairline fading out to a small ring) and the empty screen (the five school marks in a plate with a trefoil
+at each corner, between two plaited rules). The knots are woven over-under: their sources
+(`lab/skald-art/`, `knots.js`) find each crossing and redraw
+the over strand with a page-coloured edge. No tree effect past
+the page and its corners, chapter titles and ornamented dividers (no glow sprites, no drawn lines), so it
+costs about what Night Grimoire costs without its engraving. Icons: the neutral line set
+(`themes/icons-line/`). Font: Windows' own Bahnschrift (`--skald-font`: SemiCondensed, then the theme's
+narrow faces), the face closest to the game's menus that Windows 10 and 11 carry; no font file is
+shipped, so a system without it falls back to the Skyrim Edge theme's narrow faces, and CJK text to the
+system's sans. Whether the game's Ultralight finds the system Bahnschrift is not yet seen in game.
 
 ### Settings page layout and control size (2026-09-27)
 
@@ -1311,9 +1332,10 @@ Designs in detail:
 Add-ons add presets by dropping a `.json` into `SKSE/Plugins/SpellLearning/presets/design/` - the
 plugin's `LoadPresets` already lists any preset folder, so no plugin change and no shared list two
 add-ons could overwrite. Format and the full token list: [PRESETS.md](PRESETS.md#design-presets).
-Two looks ship with the mod that way, always installed and picked in the list like the built-ins, and
-double as examples for modders: **Night Grimoire** (indigo vellum, gold-leaf ink) and **Chalkboard**
-(slate in a wooden frame, the tree in pastel chalk; it replaced Candlelit Tome on 2026-09-27), `SKSE/Plugins/SpellLearning/presets/design/*.json`. They are a few KB
+Three looks ship with the mod that way, always installed and picked in the list like the built-ins, and
+double as examples for modders: **Night Grimoire** (indigo vellum, gold-leaf ink), **Chalkboard**
+(slate in a wooden frame, the tree in pastel chalk; it replaced Candlelit Tome on 2026-09-27) and **Skald**
+(Skyrim's own menus, see "Skald" above), `SKSE/Plugins/SpellLearning/presets/design/*.json`. They are a few KB
 each, so there is no installer choice for them. Their panel is one shared sheet,
 `themes/design-darkbook.css` (a tooled cover, serif gold lettering, dark pages where Arcane has
 parchment, gold switches and tools), coloured by the `--book-*` palette each preset sets in its inline

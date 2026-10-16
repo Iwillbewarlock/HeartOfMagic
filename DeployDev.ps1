@@ -100,7 +100,7 @@ if (-not $PanelOnly) {
     Write-Host ("plugin  {0}" -f (Split-Path $dllDst -Leaf))
 }
 
-# The design presets shipped with the mod (Night Grimoire, Chalkboard): data
+# The design presets shipped with the mod (Night Grimoire, Chalkboard, Skald): data
 # files the plugin lists at runtime, so the dev install needs them to show them
 $designSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\presets\design'
 $designDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\presets\design'
