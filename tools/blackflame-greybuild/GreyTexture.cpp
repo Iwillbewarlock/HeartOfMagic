@@ -110,27 +110,51 @@ namespace GreyBuild
             return a_format == DXGI_FORMAT_BC6H_TYPELESS || a_format == DXGI_FORMAT_BC6H_UF16 || a_format == DXGI_FORMAT_BC6H_SF16;
         }
 
-        // T2: mean chroma (brightest - darkest channel) over the pixels that are visible (alpha) and lit (brightest channel
-        // at kLitFloor or above). None lit: 0 (grey). A dark texture with small orange specks is judged by its specks; the
-        // 5:6:5 noise of a dark grey BC1 stays under the line (chroma of a few 8-bit steps). Out: the mean.
-        [[nodiscard]] HRESULT MeanChroma(const DirectX::Image& a_image, float& a_mean)
+        struct ChromaMeasure
+        {
+            float mean = 0.0f;   // mean chroma of the measured pixels
+            float share = 0.0f;  // U4: share of them with a chroma of kColouredChroma or more
+            std::uint64_t lit = 0;
+        };
+
+        // T2: chroma (brightest - darkest channel) over the pixels that are lit (brightest channel at kLitFloor or above)
+        // and, unless a_ignoreAlpha, visible (alpha). None lit: 0 (grey). A dark texture with small orange specks is judged
+        // by its specks; the 5:6:5 noise of a dark grey BC1 stays under the line (chroma of a few 8-bit steps).
+        [[nodiscard]] HRESULT MeasureChroma(const DirectX::Image& a_image, bool a_ignoreAlpha, ChromaMeasure& a_out)
         {
             double sum = 0.0;
             std::uint64_t lit = 0;
+            std::uint64_t coloured = 0;
             const HRESULT result = DirectX::EvaluateImage(a_image, [&](const XMVECTOR* a_pixels, std::size_t a_width, std::size_t) {
                 for (std::size_t x = 0; x < a_width; ++x) {
                     DirectX::XMFLOAT4 p;
                     DirectX::XMStoreFloat4(&p, a_pixels[x]);
                     const float high = std::max({ p.x, p.y, p.z });
-                    if (p.w <= kVisibleAlpha || high < kLitFloor) {
+                    if ((!a_ignoreAlpha && p.w <= kVisibleAlpha) || high < kLitFloor) {
                         continue;
                     }
-                    sum += high - std::min({ p.x, p.y, p.z });
+                    const float chroma = high - std::min({ p.x, p.y, p.z });
+                    sum += chroma;
+                    coloured += chroma >= kColouredChroma ? 1 : 0;
                     ++lit;
                 }
             });
-            a_mean = lit > 0 ? static_cast<float>(sum / static_cast<double>(lit)) : 0.0f;
+            a_out.lit = lit;
+            a_out.mean = lit > 0 ? static_cast<float>(sum / static_cast<double>(lit)) : 0.0f;
+            a_out.share = lit > 0 ? static_cast<float>(static_cast<double>(coloured) / static_cast<double>(lit)) : 0.0f;
             return result;
+        }
+
+        // U5: the visible, lit pixels; when there are none (an additive texture whose alpha is zero everywhere still
+        // shows its colour), the lit pixels whatever their alpha
+        [[nodiscard]] HRESULT MeasureTexture(const DirectX::Image& a_image, ChromaMeasure& a_out, bool& a_alphaIgnored)
+        {
+            a_alphaIgnored = false;
+            if (const HRESULT hr = MeasureChroma(a_image, false, a_out); FAILED(hr) || a_out.lit > 0) {
+                return hr;
+            }
+            a_alphaIgnored = true;
+            return MeasureChroma(a_image, true, a_out);
         }
 
         RecolourResult Fail(RecolourResult a_result, std::string a_reason)
@@ -213,12 +237,17 @@ namespace GreyBuild
         }
         const DirectX::ScratchImage& pixels = compressed ? decoded : source;
 
-        if (const HRESULT hr = MeanChroma(*pixels.GetImage(0, 0, 0), result.chroma); FAILED(hr)) {
+        ChromaMeasure measure;
+        if (const HRESULT hr = MeasureTexture(*pixels.GetImage(0, 0, 0), measure, result.alphaIgnored); FAILED(hr)) {
             return Fail(result, fmt::format("reading the pixels failed: {}", HrText(hr)));
         }
-        if (result.chroma < kGreyscaleChroma) {
+        result.chroma = measure.mean;
+        result.colouredShare = measure.share;
+        if (result.chroma < kGreyscaleChroma && result.colouredShare <= kColouredShare && std::abs(a_tint - 1.0f) < kTintOneEpsilon) {
             result.outcome = RecolourOutcome::kGreyscale;
-            result.reason = fmt::format("mean chroma of the lit pixels {:.3f} < {}", result.chroma, kGreyscaleChroma);
+            result.reason = fmt::format("mean chroma of the lit{} pixels {:.3f} < {} and {:.2f}% of them at chroma {} or more "
+                                        "(<= {:.2f}%)", result.alphaIgnored ? "" : ", visible", result.chroma, kGreyscaleChroma,
+                result.colouredShare * 100.0f, kColouredChroma, kColouredShare * 100.0f);
             return result;
         }
 
@@ -278,7 +307,7 @@ namespace GreyBuild
     std::string TextureTotalsLine(const TextureTotals& a_totals)
     {
         return fmt::format("textures  recoloured {}, skipped greyscale {}, failed {}, not in the dump {}; {} of {} slots now name a "
-                           "grey copy; glow shader emissive colours greyed {}; copies {:.1f} MiB",
+                           "grey copy; glow and Own_Emit shader emissive colours greyed {}; copies {:.1f} MiB",
             a_totals.recoloured, a_totals.greyscale, a_totals.failed, a_totals.missing, a_totals.repointed, a_totals.slots, a_totals.emissiveGreyed,
             static_cast<double>(a_totals.bytes) / static_cast<double>(kMiB));
     }

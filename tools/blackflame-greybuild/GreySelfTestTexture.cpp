@@ -51,7 +51,9 @@ namespace GreyBuild::SelfTest
             kOrange,    // orange, alpha a gradient
             kGrey,      // mid grey, alpha a gradient
             kSpecks,    // black with small orange specks, opaque (T2)
-            kDarkGrey   // a dark grey ramp, opaque (T2: 5:6:5 noise)
+            kDarkGrey,  // a dark grey ramp, opaque (T2: 5:6:5 noise)
+            kSmoke,     // mid grey with small orange specks, opaque (U4: a low mean chroma that shows orange)
+            kHidden     // orange with alpha 0 everywhere (U5: an additive texture that ignores its alpha)
         };
 
         [[nodiscard]] std::uint8_t TestAlpha(std::size_t a_x) noexcept
@@ -68,10 +70,12 @@ namespace GreyBuild::SelfTest
                 case Fill::kOrange: a_texel[c] = kOrange[c]; break;
                 case Fill::kGrey: a_texel[c] = kGrey; break;
                 case Fill::kSpecks: a_texel[c] = speck ? kOrange[c] : 0; break;
+                case Fill::kSmoke: a_texel[c] = speck ? kOrange[c] : kGrey; break;
+                case Fill::kHidden: a_texel[c] = kOrange[c]; break;
                 default: a_texel[c] = dark; break;
                 }
             }
-            a_texel[3] = a_fill == Fill::kOrange || a_fill == Fill::kGrey ? TestAlpha(a_x) : kOpaque;
+            a_texel[3] = a_fill == Fill::kOrange || a_fill == Fill::kGrey ? TestAlpha(a_x) : a_fill == Fill::kHidden ? 0 : kOpaque;
         }
 
         // A kTestSize square with a full mip chain, filled as a_fill says, written in a_format
@@ -253,9 +257,15 @@ namespace GreyBuild::SelfTest
             const auto grey = a_dir / "grey_bc1.dds";
             const auto greyOut = a_dir / "out" / "grey_bc1.dds";
             const bool made = WriteDds(grey, DXGI_FORMAT_BC1_UNORM, Fill::kGrey);
-            const auto skipped = RecolourDds(grey, greyOut, kTestTint);
+            const auto skipped = RecolourDds(grey, greyOut, 1.0f);
             a_check.Check(made && skipped.outcome == RecolourOutcome::kGreyscale && !std::filesystem::exists(greyOut),
-                fmt::format("textures: a grey BC1 is skipped and nothing is written ({})", skipped.reason));
+                fmt::format("textures: a grey BC1 at tint 1 is skipped and nothing is written ({})", skipped.reason));
+            // U7: at another tint a grey texture is darkened into a copy (the diffuse carries --tint)
+            const auto greyTinted = a_dir / "out" / "grey_bc1_t60.dds";
+            const auto greyTintResult = RecolourDds(grey, greyTinted, kTestTint);
+            a_check.Check(made && greyTintResult.outcome == RecolourOutcome::kRecoloured && std::filesystem::exists(greyTinted),
+                fmt::format("textures: a grey BC1 at tint {} gets a darkened copy ({})", kTestTint,
+                    greyTintResult.reason.empty() ? std::string("written") : greyTintResult.reason));
 
             // T2: small orange specks on black are judged by the specks; a dark grey with 5:6:5 noise stays grey
             const auto specks = a_dir / "specks_bc1.dds";
@@ -264,16 +274,31 @@ namespace GreyBuild::SelfTest
             a_check.Check(madeSpecks && specksResult.outcome == RecolourOutcome::kRecoloured,
                 fmt::format("textures: a black BC1 with small orange specks is recoloured (chroma {:.3f}{})", specksResult.chroma,
                     specksResult.reason.empty() ? std::string() : "; " + specksResult.reason));
+            // U4: mid grey smoke with 1/64 orange specks: mean chroma about 0.016, but 1.6% of the lit pixels are orange
+            const auto smoke = a_dir / "smoke_bc1.dds";
+            const bool madeSmoke = WriteDds(smoke, DXGI_FORMAT_BC1_UNORM, Fill::kSmoke);
+            const auto smokeResult = RecolourDds(smoke, a_dir / "out" / "smoke_bc1.dds", kTestTint);
+            a_check.Check(madeSmoke && smokeResult.outcome == RecolourOutcome::kRecoloured,
+                fmt::format("textures: mid grey with 1/64 orange specks is recoloured (mean chroma {:.3f}, coloured {:.2f}%{})",
+                    smokeResult.chroma, smokeResult.colouredShare * 100.0f,
+                    smokeResult.reason.empty() ? std::string() : "; " + smokeResult.reason));
+            // U5: orange under alpha 0 everywhere (additive): measured over the lit pixels
+            const auto hidden = a_dir / "hidden_bgra.dds";
+            const bool madeHidden = WriteDds(hidden, DXGI_FORMAT_B8G8R8A8_UNORM, Fill::kHidden);
+            const auto hiddenResult = RecolourDds(hidden, a_dir / "out" / "hidden_bgra.dds", kTestTint);
+            a_check.Check(madeHidden && hiddenResult.outcome == RecolourOutcome::kRecoloured && hiddenResult.alphaIgnored,
+                fmt::format("textures: orange under alpha 0 everywhere is measured ignoring alpha and recoloured (chroma {:.3f}{})",
+                    hiddenResult.chroma, hiddenResult.reason.empty() ? std::string() : "; " + hiddenResult.reason));
             const auto dark = a_dir / "darkgrey_bc1.dds";
             const bool madeDark = WriteDds(dark, DXGI_FORMAT_BC1_UNORM, Fill::kDarkGrey);
-            const auto darkResult = RecolourDds(dark, a_dir / "out" / "darkgrey_bc1.dds", kTestTint);
+            const auto darkResult = RecolourDds(dark, a_dir / "out" / "darkgrey_bc1.dds", 1.0f);  // the greyscale judgement (at another tint a grey texture is darkened, U7)
             a_check.Check(madeDark && darkResult.outcome == RecolourOutcome::kGreyscale,
                 fmt::format("textures: a dark grey BC1 (5:6:5 noise) is skipped as grey ({})", darkResult.reason));
 
             // T5: a legacy A8L8 reads as grey, not as a two-channel failure
             const auto luminance = a_dir / "legacy_a8l8.dds";
             WriteLegacyA8L8(luminance);
-            const auto luminanceResult = RecolourDds(luminance, a_dir / "out" / "legacy_a8l8.dds", kTestTint);
+            const auto luminanceResult = RecolourDds(luminance, a_dir / "out" / "legacy_a8l8.dds", 1.0f);
             a_check.Check(luminanceResult.outcome == RecolourOutcome::kGreyscale,
                 fmt::format("textures: a legacy A8L8 DDS is read expanded and skipped as grey ({}, {})", luminanceResult.format,
                     luminanceResult.reason));
@@ -304,6 +329,7 @@ namespace GreyBuild::SelfTest
             auto lit = std::make_unique<nifly::BSLightingShaderProperty>();
             lit->textureSetRef.index = a_set;
             lit->emissiveColor = kOrangeEmissive;
+            lit->shaderFlags1 &= ~kSlsf1OwnEmit;  // nifly's default flags carry Own_Emit (U6 sets it where a case wants it)
             if (a_glowType) {
                 lit->SetShaderType(nifly::BSLSP_GLOWMAP);
             }
@@ -362,6 +388,7 @@ namespace GreyBuild::SelfTest
             AddLighting(nif, setA, true, false);
             AddLighting(nif, setA, false, true);
             AddLighting(nif, setB, false, false);
+            AddLighting(nif, setB, false, false)->shaderFlags1 |= kSlsf1OwnEmit;  // U6: emissive without a glow map
             AddEffect(nif, "FxOff", "textures\\effects\\homtest_fx.dds", false);
             AddEffect(nif, "FxPalette", "textures\\effects\\homtest_fx.dds", true);
             AddEffect(nif, "FxMissing", "textures\\effects\\homtest_missing.dds", false);
@@ -396,19 +423,25 @@ namespace GreyBuild::SelfTest
                               backA->textures[1].get() == "textures\\effects\\homtest_orange_n.dds" &&
                               backA->textures[kSlotGlow].get() == glowCopy,
                 "textures: glow shader set - diffuse copy at tint 0.6 (_tint\\60\\), glow copy at tint 1 (_tint\\100\\), normal slot left (read back)");
-            a_check.Check(backB && backB->textures[kSlotDiffuse].get() == "textures\\effects\\homtest_grey.dds" &&
+            const std::string greyDiffuse = copies + "_tint\\60\\effects\\homtest_grey.dds";
+            a_check.Check(backB && backB->textures[kSlotDiffuse].get() == greyDiffuse &&
                               backB->textures[kSlotGlow].get() == "textures\\effects\\homtest_skin.dds",
-                "textures: default shader set - grey diffuse left, slot 2 (not a glow map there) left though it is orange");
-            a_check.Check(lit.size() == 3 && EmissiveGrey(*lit[0]) && EmissiveGrey(*lit[1]) && !EmissiveGrey(*lit[2]),
-                "textures: emissive colour greyed on the glow-type and the glow-flag shader, left on the default one (T3)");
+                "textures: default shader set - grey diffuse darkened at tint 0.6 (U7), slot 2 (not a glow map there) left though "
+                "it is orange");
+            a_check.Check(lit.size() == 4 && EmissiveGrey(*lit[0]) && EmissiveGrey(*lit[1]) && !EmissiveGrey(*lit[2]) &&
+                              EmissiveGrey(*lit[3]),
+                "textures: emissive colour greyed on the glow-type, the glow-flag and the Own_Emit shader, left on the default "
+                "one (T3, U6)");
             a_check.Check(fx["FxOff"] == fxCopy && fx["FxPalette"] == "textures\\effects\\homtest_fx.dds" &&
                               fx["FxMissing"] == "textures\\effects\\homtest_missing.dds" && fx["FxOurs"] == kPalettePath,
                 "textures: effect source off the palette repointed; a palette shader's, a missing one and our own left");
             const auto& t = job.totals;
-            a_check.Check(t.recoloured == 3 && t.greyscale == 1 && t.missing == 1 && t.failed == 0 && t.slots == 5 && t.repointed == 3 &&
-                              t.emissiveGreyed == 2 && std::filesystem::exists(job.out / orangeDiffuse) &&
+            a_check.Check(t.recoloured == 4 && t.greyscale == 0 && t.missing == 1 && t.failed == 0 && t.slots == 5 && t.repointed == 4 &&
+                              t.emissiveGreyed == 3 && std::filesystem::exists(job.out / orangeDiffuse) &&
+                              std::filesystem::exists(job.out / greyDiffuse) &&
                               std::filesystem::exists(job.out / glowCopy) && std::filesystem::exists(job.out / fxCopy) &&
-                              !std::filesystem::exists(job.out / copies / "effects" / "homtest_skin.dds"),
+                              !std::filesystem::exists(job.out / copies / "_tint" / "100" / "effects" / "homtest_skin.dds") &&
+                              !std::filesystem::exists(job.out / copies / "_tint" / "60" / "effects" / "homtest_skin.dds"),
                 fmt::format("textures: counts (recoloured {}, greyscale {}, missing {}, failed {}, slots {}, repointed {}, emissive {})",
                     t.recoloured, t.greyscale, t.missing, t.failed, t.slots, t.repointed, t.emissiveGreyed));
 
@@ -418,7 +451,13 @@ namespace GreyBuild::SelfTest
             AddEffect(second, "Again", "textures\\effects\\homtest_orange.dds", false);
             const std::uint32_t setC = AddSet(second, "textures\\effects\\homtest_orange.dds", "", "");
             AddLighting(second, setC, false, false);
+            // U8: the missing texture again, now as a diffuse (tint 0.6): judged missing once per path
+            const std::uint32_t setD = AddSet(second, "textures\\effects\\homtest_missing.dds", "", "");
+            AddLighting(second, setD, false, false);
             RetargetTextures(second, job, "meshes\\second.nif");
+            a_check.Check(job.totals.missing == 1 && job.totals.slots == 8,
+                fmt::format("textures: a missing texture met at a second tint counts once (missing {}, slots {}) (U8)",
+                    job.totals.missing, job.totals.slots));
             std::string againSource;
             for (std::uint32_t id = 0; id < second.GetHeader().GetNumBlocks(); ++id) {
                 if (const auto* effect = second.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(id)) {
@@ -427,8 +466,8 @@ namespace GreyBuild::SelfTest
             }
             auto* setAgain = second.GetHeader().GetBlock<nifly::BSShaderTextureSet>(setC);
             a_check.Check(againSource == copies + "_tint\\100\\effects\\homtest_orange.dds" && setAgain &&
-                              setAgain->textures[kSlotDiffuse].get() == orangeDiffuse && job.totals.recoloured == 4 &&
-                              job.totals.repointed == 5,
+                              setAgain->textures[kSlotDiffuse].get() == orangeDiffuse && job.totals.recoloured == 5 &&
+                              job.totals.repointed == 6,
                 fmt::format("textures: one texture at two tints gets two copies, each made once (recoloured {}, repointed {}) (T4)",
                     job.totals.recoloured, job.totals.repointed));
         }

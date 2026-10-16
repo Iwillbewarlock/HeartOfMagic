@@ -26,10 +26,42 @@
 #include <fstream>
 #include <set>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#    define NOMINMAX
+#endif
+#include <Windows.h>
+
 namespace GreyBuild
 {
     namespace
     {
+        // U11: request.json holds the DLL's paths as UTF-8 (EncodingUtils::SanitizeToUTF8 of the system code page's
+        // bytes), a NIF slot holds the code page's bytes: a non-ASCII path back to the code page, so its texturesNotDumped
+        // key is the one a slot looks up. The text unchanged when it is ASCII or does not convert without loss.
+        [[nodiscard]] std::string Utf8ToAnsi(const std::string& a_text)
+        {
+            if (std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
+                return a_text;
+            }
+            const int wide = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), static_cast<int>(a_text.size()), nullptr, 0);
+            if (wide <= 0) {
+                return a_text;
+            }
+            std::wstring buffer(static_cast<std::size_t>(wide), L'\0');
+            ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), static_cast<int>(a_text.size()), buffer.data(), wide);
+            BOOL lossy = FALSE;
+            const int narrow = ::WideCharToMultiByte(CP_ACP, 0, buffer.data(), wide, nullptr, 0, nullptr, &lossy);
+            if (narrow <= 0 || lossy) {
+                return a_text;
+            }
+            std::string out(static_cast<std::size_t>(narrow), '\0');
+            ::WideCharToMultiByte(CP_ACP, 0, buffer.data(), wide, out.data(), narrow, nullptr, &lossy);
+            return lossy ? a_text : out;
+        }
+
         constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;
         constexpr std::size_t kMaxIdDigits = 6;
         constexpr int kJsonIndent = 2;
@@ -159,7 +191,7 @@ namespace GreyBuild
                     const bool ok = textures[i].is_object() && textures[i].contains("ok") && textures[i]["ok"].is_boolean() &&
                                     textures[i]["ok"].get<bool>();
                     if (!ok) {
-                        const auto path = TextureDataPath(Json::ReadString(a_file, textures[i], "path", where));
+                        const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
                         if (path) {
                             a_request.texturesNotDumped[*path] = Json::ReadOptionalString(a_file, textures[i], "error", where);
                         }

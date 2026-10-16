@@ -436,12 +436,18 @@ start the game once to the main menu with this release (the DLL then dumps the t
   `BSEffectShaderProperty` that `UsesPalette` rejects (a palette shader's texture is a greyscale map through our palette).
   Our own textures (`textures\heartofmagic\blackflame\...`) are skipped. A texture is **already grey** when the mean chroma
   (brightest minus darkest channel) of the mip 0 pixels that are visible (alpha) and lit (brightest channel at
-  `kLitFloor` 0.1 or above) is under `kGreyscaleChroma` (0.05), or when none is lit: small orange specks on black count
-  fully, the 5:6:5 noise of a dark grey BC1 does not. One-channel formats (BC4, R8, A8) and legacy luminance DDS (L8,
+  `kLitFloor` 0.1 or above) is under `kGreyscaleChroma` (0.05) and no more than `kColouredShare` (0.5%) of them have a
+  chroma of `kColouredChroma` (0.15) or more, or when none is lit: small orange specks on black count fully, a few orange
+  embers in grey smoke count through the share, the 5:6:5 noise of a dark grey BC1 does not. When no pixel is both visible
+  and lit (an additive texture whose alpha is zero), the lit pixels are measured whatever their alpha. An already grey
+  texture is left only at a tint of 1: a diffuse at `--tint` 0.6 gets a darkened copy even when grey, so the diffuse
+  always carries the darkening. One-channel formats (BC4, R8, A8) and legacy luminance DDS (L8,
   A8L8, L16, read expanded to RGBA) are grey too. A two-channel format (BC5, R8G8) cannot hold grey (no blue) and is
   left as a failure.
 - **Glow shaders' emissive colour**: set to its luminance (x 1) in the copy NIF, since a grey glow map under an orange
-  emissive colour still glows orange. Other lighting shaders keep their emissive colour.
+  emissive colour still glows orange; the same for a lighting shader with the SLSF1 `Own_Emit` flag (bit 22), which adds
+  its emissive colour without a glow map. Other lighting shaders keep their emissive colour. A
+  `BSLightingShaderPropertyColorController` that animates the emissive colour is not greyed (known limit).
 - **Recolour** (DirectXTex, MIT, linked into the builder only): decode (BCn to 8-bit RGBA in the source's colour space, so
   sRGB stays sRGB), each pixel set to its Rec. 709 luminance (the builder's own `Luminance`) x the role's tint, alpha kept,
   encoded again in the **source format** (BC1/BC2/BC3/BC7 or the uncompressed format; BC7 with `TEX_COMPRESS_BC7_QUICK`)
@@ -458,8 +464,15 @@ start the game once to the main menu with this release (the DLL then dumps the t
 - **Paths**: the builder reads a slot with the DLL's own rule (`plugins/BlackFlame/src/DataPathRule.h`, included by both,
   not copied): lower case, `/` as `\`, leading and repeated separators folded, every leading `data\` and `textures\`
   dropped and one `textures\` put in front, a double-byte character of the system code page kept as it is; a drive, `:`,
-  a `..` token or a character no file name has is refused. One table of cases runs in the self-test against that header.
-- **Output**: one `TEX OK|GREY|FAIL|MISS` line per texture and tint the first time it is met, and at the end
+  a `..` token, a trailing separator or a character no file name has is refused. A double-byte character counts as one
+  character of its path token, so a trail byte 0x5C is never taken for a separator (the separator after it is kept, a
+  path ending in it is a file, it splits no `..` off its token). One table of cases runs in the self-test against that
+  header (the double-byte cases only on a double-byte system code page). The same header's `LowerSlashes` (case and
+  separators, a double-byte character kept) is the key rule of the builder's model paths (`NormalizeDataPath`;
+  `MeshDataPath` is `Normalize` under `meshes`) and of the DLL's grey map lookups, so model and texture keys follow
+  one rule.
+- **Output**: one `TEX OK` line per copy (texture and tint) and one `GREY|FAIL|MISS` line per texture path, the first
+  time it is met (a texture that failed or is missing is not tried again at another tint), and at the end
   `textures  recoloured N, skipped greyscale G, failed F, not in the dump M; R of S slots now name a grey copy; glow shader
   emissive colours greyed E; copies X MiB`. `MISS` names the game's reason when the request lists the texture as left out
   of the dump.
@@ -475,8 +488,9 @@ start the game once to the main menu with this release (the DLL then dumps the t
   error) with `textureCaps`; it is written after the dump, so a read failure is named there. The request fingerprint is
   unchanged (the players' freshness check shares it), so a texture-only change does not make the copies stale;
   `dump-manifest.json` carries its own `textureFingerprint` (path, size, planned) and `textureReadFailures`: a texture
-  that opens but cannot be read is listed there and not tried again (nor the whole dump redone) until a fingerprint
-  changes; a texture that cannot be written leaves the manifest as it was, so the next start dumps again. A manifest
+  that opens but cannot be read is listed there; the next start with an unchanged dump reads only those again (a read
+  failure may pass, e.g. a busy archive) and rewrites the manifest when one reads, without redoing the dump; a texture
+  that cannot be written leaves the manifest as it was, so the next start dumps again. A manifest
   without a texture fingerprint - a dump made before T1 - is written again once. A listing that throws writes `error` as
   the texture fingerprint (never equal to a real one) and leaves `textures` out of the request.
 - **Same-size replacements**: the texture fingerprint holds sizes only (no byte is read at a start), so a texture mod

@@ -49,7 +49,8 @@ namespace BlackFlame::CopyRequestData
         NifDump::ModelBlob probe;  // opened and totalSize; no byte read until the dump
         bool planned = false;      // opened and within both caps: the dump holds it
         std::string error;         // why it is not in the dump ("" when planned)
-        bool readFailed = false;   // T1: planned, but it opened and could not be read (kept in the manifest, not retried)
+        bool readFailed = false;   // T1: planned, but it opened and could not be read (kept in the manifest; U10: tried again
+                                   // at the next start, alone, when the dump is otherwise unchanged)
     };
 
     /// Every texture path a_nifBytes name inline (NifDump::TexturePathsIn: the builder picks the slots it recolours), our

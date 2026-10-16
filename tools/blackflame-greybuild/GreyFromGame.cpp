@@ -142,8 +142,9 @@ namespace GreyBuild
         options.textures = a_textures && parsed.hasTextures;
         options.texturesNotDumped = parsed.texturesNotDumped;
         if (a_textures && !parsed.hasTextures) {
-            std::cout << "NOTE  the request lists no textures (written by an older Black Flame DLL): no texture copies this run. "
-                         "Start the game once to the main menu with this release, quit, then run this again.\n";
+            std::cout << "NOTE  the request lists no textures (written by an older Black Flame DLL, or the game could not list "
+                         "the textures - see HeartOfMagic_BlackFlame.log): no texture copies this run. Start the game once to "
+                         "the main menu with this release, quit, then run this again.\n";
         }
         const auto totals = BuildForms(parsed.forms, *parsed.addons, { dump }, a_out, a_tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} warnings, {} failed\n", totals.copies, totals.nifsBuilt,

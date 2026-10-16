@@ -14,7 +14,6 @@
 #include <format>
 #include <fstream>
 #include <set>
-#include <sstream>
 
 namespace BlackFlame
 {
@@ -315,7 +314,7 @@ namespace BlackFlame
                     if (!blob.ok) {
                         texture.planned = false;
                         texture.readFailed = true;
-                        texture.error = std::format("{} (not read again until the load order or a texture size changes)", blob.error);
+                        texture.error = std::format("{} (tried again at the next start)", blob.error);
                     }
                 }
                 if (!texture.planned) {
@@ -334,6 +333,49 @@ namespace BlackFlame
                 a_bytes += bytes.size();
             }
             return failed;
+        }
+
+        // The dump's manifest: both fingerprints and the textures that opened but could not be read
+        void WriteManifest(const std::filesystem::path& a_folder, const std::string& a_fingerprint,
+            const std::string& a_textureFingerprint, const std::vector<Texture>& a_textures)
+        {
+            Json readFailures = Json::array();
+            for (const auto& texture : a_textures) {
+                if (texture.readFailed) {
+                    readFailures.push_back(Utf8(texture.path));
+                }
+            }
+            const Json manifest{ { kFingerprintKey, a_fingerprint }, { kTextureFingerprintKey, a_textureFingerprint },
+                { kTextureReadFailuresKey, std::move(readFailures) } };
+            WriteWhole(a_folder / kManifestName, manifest.dump(kJsonIndent) + "\n");
+        }
+
+        // U10: an unchanged dump tries once more the textures the last dump could not read (only those; a read failure may
+        // pass, e.g. a busy archive), and rewrites the manifest when one reads now
+        std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<Texture>& a_textures,
+            const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint)
+        {
+            std::vector<Texture*> retry;
+            std::vector<Texture> batch;
+            for (auto& texture : a_textures) {
+                if (texture.planned && a_readFailed.contains(Utf8(texture.path))) {
+                    retry.push_back(&texture);
+                    batch.push_back(texture);
+                }
+            }
+            if (batch.empty()) {
+                return "unchanged";
+            }
+            int written = 0;
+            std::uint64_t bytes = 0;
+            const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes);
+            for (std::size_t i = 0; i < batch.size(); ++i) {
+                *retry[i] = std::move(batch[i]);
+            }
+            if (written > 0 && failed == 0) {
+                WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures);
+            }
+            return std::format("unchanged; {} of {} textures the last dump could not read read now", written, retry.size());
         }
 
         // Every NIF's bytes from the one read written under data\ (a failed one's stale copy removed), then the textures (T1)
@@ -362,15 +404,7 @@ namespace BlackFlame
             std::uint64_t textureBytes = 0;
             failed += DumpTextures(root, a_textures, textures, textureBytes);
             if (failed == 0) {
-                Json readFailures = Json::array();
-                for (const auto& texture : a_textures) {
-                    if (texture.readFailed) {
-                        readFailures.push_back(Utf8(texture.path));
-                    }
-                }
-                const Json manifest{ { kFingerprintKey, a_fingerprint }, { kTextureFingerprintKey, a_textureFingerprint },
-                    { kTextureReadFailuresKey, std::move(readFailures) } };
-                WriteWhole(a_folder / kManifestName, manifest.dump(kJsonIndent) + "\n");
+                WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures);
             }
             const auto counts = std::format("{} NIFs, {} textures ({} MiB)", written, textures, textureBytes / kMiB);
             return failed == 0 ? std::format("written ({})", counts) :
@@ -490,17 +524,7 @@ namespace BlackFlame
                 const bool unchanged = CopyRequestData::JsonString(manifest, kFingerprintKey) == g_state.fingerprint &&
                                        CopyRequestData::JsonString(manifest, kTextureFingerprintKey) == textureFingerprint &&
                                        DumpIntact(*folder, nifs, textures, readFailed);
-                if (unchanged) {
-                    // T1: a texture the last dump could not read stays out until a fingerprint changes
-                    for (auto& texture : textures) {
-                        if (texture.planned && readFailed.contains(Utf8(texture.path))) {
-                            texture.planned = false;
-                            texture.readFailed = true;
-                            texture.error = "not read at the last dump (read again when the load order or a texture size changes)";
-                        }
-                    }
-                }
-                g_state.dumpState = unchanged ? std::string("unchanged") :
+                g_state.dumpState = unchanged ? RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint) :
                                                 Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint);
                 dumpMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - dumpStart).count();
             } catch (const std::exception& e) {

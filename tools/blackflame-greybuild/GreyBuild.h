@@ -130,10 +130,11 @@ namespace GreyBuild
     /// Writes a map in the same format LoadMap reads. Throws std::runtime_error on a write failure.
     void WriteMap(const GreyMap& a_map, const std::filesystem::path& a_file, const std::vector<std::string>& a_comment);
 
-    /// Lower case, forward slashes to backslashes.
+    /// ASCII lower case, forward slashes to backslashes, a double-byte character kept (DataPathRule::LowerSlashes).
     [[nodiscard]] std::string NormalizeDataPath(std::string a_path);
 
-    /// NormalizeDataPath, with "meshes\" put in front when missing (record Model fields leave it out).
+    /// DataPathRule::Normalize under "meshes\" (record Model fields leave it out); a path it refuses: NormalizeDataPath
+    /// with "meshes\" put in front when missing.
     [[nodiscard]] std::string MeshDataPath(const std::string& a_path);
 
     /// The grey copy's path for a Data-relative mesh path: meshes\heartofmagic\blackflame\<rest>.

@@ -46,6 +46,9 @@ namespace GreyBuild::SelfTest
             { "a\tb.dds", nullptr },
             { "", nullptr },
             { "textures\\", nullptr },
+            { "effects\\", nullptr },
+            { "effects\\..", nullptr },
+            { "..a\\x.dds", "textures\\..a\\x.dds" },
         };
 
         [[nodiscard]] std::string Shown(const std::optional<std::string>& a_value)
@@ -104,6 +107,24 @@ namespace GreyBuild::SelfTest
             const std::string expected = std::string("textures\\a\\") + static_cast<char>(lead) + "Ab.dds";
             a_check.Check(Rule::Normalize(text, Rule::kTexturesRoot) == expected && TextureDataPath(text) == expected,
                 fmt::format("path rule: a double-byte character (lead 0x{:02X}, code page {}) keeps its trail byte", lead, ::GetACP()));
+            // U3: a trail byte 0x5C ('\\') is no separator: the real '\\' after it stays, a path ending in it is a file,
+            // and it does not split a ".." off its token (the rule is byte based; 0x5C is a real trail byte in code pages
+            // 932 and 936, not in 949, where the case still checks the rule's own consistency)
+            const std::string pair = std::string(1, static_cast<char>(lead)) + '\\';
+            const std::string kept = "A\\" + pair + "\\B.dds";
+            const std::string keptExpected = "textures\\a\\" + pair + "\\b.dds";
+            const std::string dots = pair + "..\\c.dds";
+            const std::string dotsExpected = "textures\\" + pair + "..\\c.dds";
+            const std::string ending = "d" + pair;
+            a_check.Check(Rule::Normalize(kept, Rule::kTexturesRoot) == keptExpected && TextureDataPath(kept) == keptExpected,
+                fmt::format("path rule: the separator after a trail byte 0x5C is kept (lead 0x{:02X})", lead));
+            a_check.Check(Rule::Normalize(dots, Rule::kTexturesRoot) == dotsExpected,
+                fmt::format("path rule: a trail byte 0x5C does not split '..' off its token (lead 0x{:02X})", lead));
+            a_check.Check(Rule::Normalize(ending, Rule::kMeshesRoot) == "meshes\\" + ending,
+                fmt::format("path rule: a path ending in a trail byte 0x5C is no folder (lead 0x{:02X})", lead));
+            a_check.Check(Rule::LowerSlashes(std::string(1, static_cast<char>(lead)) + "A/B") ==
+                              std::string(1, static_cast<char>(lead)) + "A\\b",
+                fmt::format("path rule: LowerSlashes keeps a trail byte 'A' as it is (lead 0x{:02X})", lead));
         }
 
         void CheckScanner(Checker& a_check)

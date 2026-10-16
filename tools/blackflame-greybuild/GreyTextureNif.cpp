@@ -45,31 +45,42 @@ namespace GreyBuild
             const std::string key = fmt::format("{}|{}", *path, std::lround(tint * static_cast<float>(kTintPercent)));
             auto found = a_job.done.find(key);
             if (found == a_job.done.end()) {
+                // U8: found or missing, and a failure, are judged once per path; a copy is made per tint
+                auto& state = a_job.paths[*path];
+                if (!state.judged) {
+                    state.judged = true;
+                    state.source = FindSource(a_job.inputs, *path);
+                    if (!state.source) {
+                        const auto why = a_job.notDumped.find(*path);
+                        std::cout << fmt::format("TEX   MISS {} ({}, first in {}): in no --in folder{}; slot left\n", *path,
+                            TextureRoleName(a_role), a_nifRel, why == a_job.notDumped.end() ? std::string() : " - the game: " + why->second);
+                        ++a_job.totals.missing;
+                    }
+                }
                 TextureJob::Done done;
-                const auto source = FindSource(a_job.inputs, *path);
-                done.found = source.has_value();
-                if (!source) {
-                    const auto why = a_job.notDumped.find(*path);
-                    std::cout << fmt::format("TEX   MISS {} ({}, first in {}): in no --in folder{}; slot left\n", *path,
-                        TextureRoleName(a_role), a_nifRel, why == a_job.notDumped.end() ? std::string() : " - the game: " + why->second);
-                    ++a_job.totals.missing;
-                } else {
+                done.found = state.source.has_value();
+                if (state.source && !state.failed) {
                     const std::string copy = TextureCopyPathFor(*path, tint);
-                    const auto result = RecolourDds(*source, a_job.out / std::filesystem::path(copy), tint);
+                    const auto result = RecolourDds(*state.source, a_job.out / std::filesystem::path(copy), tint);
                     done.outcome = result.outcome;
                     switch (result.outcome) {
                     case RecolourOutcome::kRecoloured:
                         done.copy = copy;
                         ++a_job.totals.recoloured;
                         a_job.totals.bytes += result.bytes;
-                        std::cout << fmt::format("TEX   OK   {} -> {} ({}, tint {}, {}, {} mips, chroma {:.3f}, {} bytes)\n", *path,
-                            copy, TextureRoleName(a_role), tint, result.format, result.mips, result.chroma, result.bytes);
+                        std::cout << fmt::format("TEX   OK   {} -> {} ({}, tint {}, {}, {} mips, chroma {:.3f}, coloured {:.2f}%{}, {} "
+                                                 "bytes)\n", *path, copy, TextureRoleName(a_role), tint, result.format, result.mips,
+                            result.chroma, result.colouredShare * 100.0f, result.alphaIgnored ? ", alpha ignored" : "", result.bytes);
                         break;
                     case RecolourOutcome::kGreyscale:
-                        ++a_job.totals.greyscale;
-                        std::cout << fmt::format("TEX   GREY {} ({}): {}; slot left\n", *path, result.format, result.reason);
+                        if (!state.greyCounted) {
+                            state.greyCounted = true;
+                            ++a_job.totals.greyscale;
+                            std::cout << fmt::format("TEX   GREY {} ({}): {}; slot left\n", *path, result.format, result.reason);
+                        }
                         break;
                     default:
+                        state.failed = true;
                         ++a_job.totals.failed;
                         std::cout << fmt::format("TEX   FAIL {} ({}, first in {}): {}; slot left\n", *path, TextureRoleName(a_role),
                             a_nifRel, result.reason);
@@ -84,7 +95,8 @@ namespace GreyBuild
             }
         }
 
-        // T3: a glow shader's emissive colour to its luminance (x 1): a grey glow map under an orange emissive colour glows orange
+        // T3: a glow shader's emissive colour to its luminance (x 1): a grey glow map under an orange emissive colour glows
+        // orange. U6: an Own_Emit shader adds its emissive colour too, glow map or not
         void GreyEmissive(nifly::BSLightingShaderProperty& a_shader, TextureJob& a_job)
         {
             auto& colour = a_shader.emissiveColor;
@@ -103,7 +115,7 @@ namespace GreyBuild
         for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
             if (auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(id)) {
                 const bool glow = IsGlowShader(*lit);
-                if (glow) {
+                if (glow || (lit->shaderFlags1 & kSlsf1OwnEmit) != 0) {
                     GreyEmissive(*lit, a_job);
                 }
                 auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(lit->textureSetRef);

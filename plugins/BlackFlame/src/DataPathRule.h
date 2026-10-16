@@ -40,33 +40,76 @@ namespace BlackFlame::DataPathRule
         return a_text.substr(0, a_prefix.size()) == a_prefix;
     }
 
-    /// A path text as a Data-relative path under a_root ("meshes\" or "textures\"): ASCII letters lower case, '/' as '\',
-    /// leading and repeated '\' folded, every leading "data\" and a_root dropped and one a_root put in front. A double-byte
-    /// character of the system code page (lead byte by IsDBCSLeadByteEx) is copied as it is, so its trail byte is never
-    /// lowered or taken for a separator. nullopt (refused) for an empty path, a drive letter or ':' anywhere, a ".." path
-    /// token, or a character Windows forbids in a file name (<>"|?* and control characters): such a path could name a file
-    /// outside Data or no file at all.
+    /// A lead byte of a double-byte character of the system code page (the next byte is its trail, any value)
+    [[nodiscard]] inline bool IsLeadByte(unsigned char a_byte) noexcept
+    {
+        return a_byte >= kFirstHighByte && ::IsDBCSLeadByteEx(CP_ACP, a_byte);
+    }
+
+    /// ASCII letters lower case and '/' as '\'; a double-byte character of the system code page is copied as it is (its
+    /// trail byte may look like a letter or '\'). The case and separator rule every path key follows (models, textures,
+    /// the builder's and the DLL's maps); Normalize adds the folding and the checks
+    [[nodiscard]] inline std::string LowerSlashes(std::string_view a_text)
+    {
+        std::string out;
+        out.reserve(a_text.size());
+        for (std::size_t i = 0; i < a_text.size(); ++i) {
+            const auto c = static_cast<unsigned char>(a_text[i]);
+            if (IsLeadByte(c) && i + 1 < a_text.size()) {
+                out.push_back(a_text[i]);
+                out.push_back(a_text[++i]);
+                continue;
+            }
+            out.push_back(c == '/' ? '\\' : static_cast<char>(c < kFirstHighByte ? std::tolower(c) : c));
+        }
+        return out;
+    }
+
+    /// A path text as a Data-relative path under a_root ("meshes\" or "textures\"): LowerSlashes, leading and repeated '\'
+    /// folded, every leading "data\" and a_root dropped and one a_root put in front. A double-byte character of the system
+    /// code page (lead byte by IsDBCSLeadByteEx) is copied as it is and counts as one character of its path token: its
+    /// trail byte is never lowered, taken for a separator (a real '\' after it is kept, a path ending in it is not taken
+    /// for one ending in '\') or split off a ".." token. nullopt (refused) for an empty path, a drive letter or ':'
+    /// anywhere, a ".." path token, a trailing separator, or a character Windows forbids in a file name (<>"|?* and
+    /// control characters): such a path could name a file outside Data, a folder, or no file at all.
     [[nodiscard]] inline std::optional<std::string> Normalize(std::string_view a_text, std::string_view a_root)
     {
         std::string path;
         path.reserve(a_text.size() + a_root.size());
+        bool lastSeparator = false;  // U3: the last byte written was a real separator (not a DBCS trail byte 0x5C)
+        std::size_t token = 0;       // where the current path token starts in path
+        const auto tokenIsDots = [&]() { return std::string_view(path).substr(token) == ".."; };
         for (std::size_t i = 0; i < a_text.size(); ++i) {
             const auto c = static_cast<unsigned char>(a_text[i]);
-            if (c >= kFirstHighByte && ::IsDBCSLeadByteEx(CP_ACP, c) && i + 1 < a_text.size()) {
+            if (IsLeadByte(c) && i + 1 < a_text.size()) {
                 path.push_back(a_text[i]);  // a double-byte character as it is: its trail byte may look like '\\' or a letter
                 path.push_back(a_text[++i]);
+                lastSeparator = false;
                 continue;
             }
             if (c == ':' || c < kFirstPrintable || kForbidden.find(static_cast<char>(c)) != std::string_view::npos) {
                 return std::nullopt;  // a drive letter, a stream name or a character no file name has
             }
             const char out = c == '/' ? '\\' : static_cast<char>(c < kFirstHighByte ? std::tolower(c) : c);
-            if (out == '\\' && (path.empty() || path.back() == '\\')) {
-                continue;  // a leading or repeated separator
+            if (out == '\\') {
+                if (path.empty() || lastSeparator) {
+                    continue;  // a leading or repeated separator
+                }
+                if (tokenIsDots()) {
+                    return std::nullopt;
+                }
+                path.push_back(out);
+                lastSeparator = true;
+                token = path.size();
+                continue;
             }
             path.push_back(out);
+            lastSeparator = false;
         }
-        for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too
+        if (lastSeparator || tokenIsDots()) {
+            return std::nullopt;  // a folder, not a file; or a last ".." token
+        }
+        for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too (whole ASCII tokens only)
             stripped = false;
             for (const auto root : { kDataRoot, a_root }) {
                 if (StartsWith(path, root)) {
@@ -75,16 +118,8 @@ namespace BlackFlame::DataPathRule
                 }
             }
         }
-        if (path.empty() || path.back() == '\\') {
+        if (path.empty()) {
             return std::nullopt;
-        }
-        for (std::size_t at = 0; at < path.size();) {
-            const std::size_t found = path.find('\\', at);
-            const std::size_t end = found == std::string::npos ? path.size() : found;
-            if (std::string_view(path).substr(at, end - at) == "..") {
-                return std::nullopt;
-            }
-            at = end + 1;
         }
         return std::string(a_root) + path;
     }

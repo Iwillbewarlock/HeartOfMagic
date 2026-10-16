@@ -1,5 +1,7 @@
 #include "GreyMap.h"
 
+#include "DataPathRule.h"
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -34,13 +36,10 @@ namespace BlackFlame
             return *map;
         }
 
-        // Lower case, forward slashes to backslashes, a leading "meshes\" dropped
+        // DataPathRule::LowerSlashes (the builder's key rule, a DBCS trail byte kept), a leading "meshes\" dropped
         std::string Normalise(std::string_view a_path)
         {
-            std::string out(a_path);
-            for (auto& c : out) {
-                c = c == '/' ? '\\' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            }
+            std::string out = DataPathRule::LowerSlashes(a_path);
             if (out.starts_with(kMeshesPrefix)) {
                 out.erase(0, kMeshesPrefix.size());
             }

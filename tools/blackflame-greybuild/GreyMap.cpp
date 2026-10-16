@@ -12,6 +12,8 @@
 
 #include "GreyJson.h"
 
+#include "../../plugins/BlackFlame/src/DataPathRule.h"  // U12: one path rule with the DLL
+
 #include <algorithm>
 #include <cctype>
 #include <set>
@@ -103,14 +105,16 @@ namespace GreyBuild
 
     std::string NormalizeDataPath(std::string a_path)
     {
-        std::replace(a_path.begin(), a_path.end(), '/', '\\');
-        std::transform(a_path.begin(), a_path.end(), a_path.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return a_path;
+        return BlackFlame::DataPathRule::LowerSlashes(a_path);  // U12: the DLL's rule (a DBCS trail byte kept as it is)
     }
 
     std::string MeshDataPath(const std::string& a_path)
     {
+        // U12: the DLL's path rule (as the dump writes it); a path it refuses keeps the plain rule, so a caller's own
+        // check (Json::CheckedPath) still names what is wrong with it
+        if (auto path = BlackFlame::DataPathRule::Normalize(a_path, BlackFlame::DataPathRule::kMeshesRoot)) {
+            return std::move(*path);
+        }
         const std::string path = NormalizeDataPath(a_path);
         return StartsWith(path, kMeshesRoot) ? path : std::string(kMeshesRoot) + path;
     }
