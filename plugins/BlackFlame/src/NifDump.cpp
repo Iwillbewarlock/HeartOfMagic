@@ -1,5 +1,7 @@
 #include "NifDump.h"
 
+#include "DataPathRule.h"
+
 #include <atomic>
 #include <format>
 
@@ -11,11 +13,9 @@ namespace BlackFlame::NifDump
     {
         constexpr std::uint64_t kFnvPrime = 0x100000001B3ull;
         constexpr std::size_t kChunk = 64 * 1024;
-        constexpr std::string_view kMeshesRoot = "meshes\\";
-        constexpr std::string_view kDataRoot = "data\\";
         constexpr int kMaxChunks = 1 << 16;  // 4 GiB of 64 KiB reads: a stream that never ends is refused
-        constexpr std::string_view kForbidden = "<>\"|?*";
-        constexpr unsigned char kFirstPrintable = 0x20;
+        // A stream's own size reserved up front at most this (a bad totalSize must not ask for gigabytes; the vector grows)
+        constexpr std::uint64_t kMaxReserve = 256ull * 1024ull * 1024ull;
         std::atomic<bool> g_seekWarned{ false };
 
         const char* ErrorText(RE::BSResource::ErrorCode a_code)
@@ -46,44 +46,17 @@ namespace BlackFlame::NifDump
 
     std::optional<std::string> NormalizeModelPath(std::string_view a_model)
     {
-        std::string path;
-        path.reserve(a_model.size() + kMeshesRoot.size());
-        for (std::size_t i = 0; i < a_model.size(); ++i) {
-            const auto c = static_cast<unsigned char>(a_model[i]);
-            if (c >= 0x80 && ::IsDBCSLeadByteEx(CP_ACP, c) && i + 1 < a_model.size()) {
-                path.push_back(a_model[i]);  // a double-byte character as it is: its trail byte may look like '\\' or a letter
-                path.push_back(a_model[++i]);
-                continue;
-            }
-            if (c == ':' || c < kFirstPrintable || kForbidden.find(static_cast<char>(c)) != std::string_view::npos) {
-                return std::nullopt;  // a drive letter, a stream name or a character no file name has
-            }
-            const char out = c == '/' ? '\\' : static_cast<char>(c < 0x80 ? std::tolower(c) : c);
-            if (out == '\\' && (path.empty() || path.back() == '\\')) {
-                continue;  // a leading or repeated separator
-            }
-            path.push_back(out);
-        }
-        for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too
-            stripped = false;
-            for (const auto root : { kDataRoot, kMeshesRoot }) {
-                if (path.starts_with(root)) {
-                    path.erase(0, root.size());
-                    stripped = true;
-                }
-            }
-        }
-        if (path.empty() || path.back() == '\\') {
-            return std::nullopt;
-        }
-        for (std::size_t at = 0; at < path.size();) {
-            const auto end = std::min(path.find('\\', at), path.size());
-            if (std::string_view(path).substr(at, end - at) == "..") {
-                return std::nullopt;
-            }
-            at = end + 1;
-        }
-        return std::string(kMeshesRoot) + path;
+        return DataPathRule::Normalize(a_model, DataPathRule::kMeshesRoot);
+    }
+
+    std::optional<std::string> NormalizeTexturePath(std::string_view a_texture)
+    {
+        return DataPathRule::Normalize(a_texture, DataPathRule::kTexturesRoot);
+    }
+
+    std::vector<std::string> TexturePathsIn(const std::vector<std::byte>& a_bytes)
+    {
+        return DataPathRule::TexturePathsIn(reinterpret_cast<const unsigned char*>(a_bytes.data()), a_bytes.size());
     }
 
     std::uint64_t Fnv64(const void* a_bytes, std::size_t a_size, std::uint64_t a_hash) noexcept
@@ -143,6 +116,9 @@ namespace BlackFlame::NifDump
         } else if (code != RE::BSResource::ErrorCode::kNone) {
             blob.error = std::format("seek to 0 failed ({})", ErrorText(code));
             return blob;
+        }
+        if (a_outBytes) {
+            a_outBytes->reserve(static_cast<std::size_t>(std::min(total, kMaxReserve)));  // T14: one allocation for a texture
         }
         std::vector<std::byte> chunk(kChunk);
         std::uint64_t hash = kFnvOffset;

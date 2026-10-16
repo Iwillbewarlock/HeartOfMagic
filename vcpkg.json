@@ -13,6 +13,10 @@
     "zlib",
     "nifly",
     {
+      "name": "directxtex",
+      "default-features": false
+    },
+    {
       "name": "highway",
       "features": ["contrib"]
     }

@@ -19,6 +19,7 @@
 // The DLL fills each copy from the live winning source at kDataLoaded (FormCopies.h).
 
 #include "GreyBuild.h"
+#include "GreyTexture.h"
 
 #include <array>
 #include <cstdint>
@@ -98,6 +99,8 @@ namespace GreyBuild
         std::vector<ExcludedForm> excluded; // v3: what the DLL left out and why (copied into the map)
         std::vector<std::string> failedNifs;  // v3: Data-relative NIFs the game could not read (no grey copy made)
         std::vector<std::string> warnings;  // v3: entries skipped while reading (duplicate ADDN index)
+        bool hasTextures = false;           // the request lists "textures" (a DLL that dumps them; older requests do not)
+        std::map<std::string, std::string> texturesNotDumped;  // "textures" entries with ok false: path -> error
     };
 
     /// Reads and validates a forms request: version 2 (forms only) or 3 (the DLL's: also addons, models, nifs,
@@ -198,6 +201,7 @@ namespace GreyBuild
         int failed = 0;      // NIFs or records that failed (nothing then written for the ESL and map)
         int warnings = 0;    // grey copies not made (the copy keeps the source's model), values kept, entries dropped
         GreyStats shaders;   // v2i: effect shaders of the grey copy NIFs and grey MPS built, by palette kind
+        TextureTotals textures;  // the texture copies (all zero with textures off)
     };
 
     struct FormsRunOptions
@@ -210,6 +214,8 @@ namespace GreyBuild
         float tintAdd = kDefaultTintAdd;     // v2i: additive palette shaders' base colour scale (--tint-add)
         bool warnAndContinue = false;        // --from-game: a NIF that cannot be read or parsed, or an AddOnNode value
                                              // in no ADDN, is a warning (source model kept / value kept), not a failure
+        bool textures = true;                // texture copies (GreyTexture.h) of the full-grey copy NIFs and grey MPS; --no-textures: off
+        std::map<std::string, std::string> texturesNotDumped;  // --from-game: the request's textures not in the dump, and why
     };
 
     /// The whole --forms run: grey ADDN plan from a_addons (whose models gain the copies' models for their
@@ -227,7 +233,7 @@ namespace GreyBuild
     /// The whole --from-game run: the request (version 3) and its NIF dump in a_folder (empty: FindRequestFolder) into
     /// a_out, warn-and-continue. Exit code 0 / 1 (failure) / 2 (bad arguments), each refusal with the next step.
     [[nodiscard]] int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint,
-        bool a_reclaim, float a_tintAdd = kDefaultTintAdd);
+        bool a_reclaim, float a_tintAdd = kDefaultTintAdd, bool a_textures = true);
 
     /// Writes an ESL-flagged, masterless plugin with no records (HEDR 1.70, next id 0x800): the empty
     /// HeartOfMagic_BlackFlame_Copies.esp / _Local.esp shipped with the mod (a built output replaces them)

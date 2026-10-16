@@ -14,6 +14,8 @@
       optional\palettes\GradBlackFlameAdd_blackblade.dds, _messmer.dds (not loaded: copy one over GradBlackFlameAdd.dds)
       tools\BlackFlame\blackflame-greybuild.exe and "Build Black Flame copies.bat"
       README_TESTER.md
+      THIRD-PARTY-NOTICES.md and licenses\ (from the release assembly: CommonLibSSE-NG in the DLL, nifly and DirectXTex
+      in the builder, and the other statically linked libraries; the script refuses without them)
     Never in it: other mods' meshes or generated copies. The script refuses when plugins\BlackFlame\data holds a
     meshes\heartofmagic\blackflame\copies folder or a non-empty Copies/Local ESL (those are built on the tester's machine).
     It also refuses a working tree with uncommitted changes (the zip is named after the commit; -AllowDirty packages it
@@ -36,6 +38,12 @@ $data = Join-Path $repo 'plugins\BlackFlame\data'
 $dllDir = Join-Path $repo 'build\plugins\BlackFlame\Release'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
+# T8: the DLL statically links CommonLibSSE-NG (a GPL combined work) and the builder nifly (GPL-3.0) and DirectXTex (MIT):
+# their notices and licence texts ship with them, from the release assembly BuildRelease.ps1 makes
+$releaseVersion = (Get-Content (Join-Path $repo 'VERSION') -Raw).Trim()
+$notices = Join-Path $repo 'build\THIRD-PARTY-NOTICES.md'
+$licenses = Join-Path $repo "dist\HeartOfMagic-Librarian_$releaseVersion\licenses"
+$requiredLicenses = @('nifly.txt', 'directxtex.txt', 'CommonLibSSE-NG\COPYING.txt', 'CommonLibSSE-NG\EXCEPTIONS.md')
 
 # G6: to stderr and exit 1 (Write-Error under ErrorActionPreference Stop would throw before the exit code is set)
 function Fail([string]$why) {
@@ -70,13 +78,16 @@ foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Pat
         (Join-Path $data 'HeartOfMagic_BlackFlame_Local.esp'), (Join-Path $data 'SKSE\Plugins\HeartOfMagic_BlackFlame.json'))) {
     if (-not (Test-Path $file)) { Fail "$file is missing (run .\BuildRelease.ps1 -preset Release-2026 first)" }
 }
+foreach ($file in @($notices) + @($requiredLicenses | ForEach-Object { Join-Path $licenses $_ })) {
+    if (-not (Test-Path $file)) { Fail "$file is missing: the licence texts come from the release assembly (run .\BuildRelease.ps1 -preset Release-2026 first)" }
+}
 # G6: each binary must be newer than everything it is compiled from (the DLL: its sources, its CMakeLists, the shared plugin
 # headers and the spelllearning files it compiles; the builder: its sources and tools\CMakeLists.txt). README, data and the
 # tools folder are not compiled into either and are packaged as they are.
 $dllSources = @('plugins\BlackFlame\src', 'plugins\BlackFlame\CMakeLists.txt', 'plugins\Common.h', 'plugins\PCH.h',
     'plugins\WideFileSink.h', 'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
     'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h')
-$builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt')
+$builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt', 'plugins\BlackFlame\src\DataPathRule.h')
 foreach ($pair in @(@((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), $dllSources), @($builder, $builderSources))) {
     $binary = Get-Item $pair[0]
     $newest = Newest $pair[1]
@@ -133,6 +144,9 @@ set "CODE=%ERRORLEVEL%"
 echo.
 if "%CODE%"=="0" (
     echo Done. Install the output folder as a mod placed AFTER Heart of Magic - Black Flame, then start the game again.
+) else if "%CODE%"=="-1073741515" (
+    echo The builder could not start: a DLL is missing ^(code 0xC0000135^). It needs VCOMP140.DLL from the
+    echo Microsoft Visual C++ Redistributable 2015-2022 ^(x64^): install it from Microsoft, then run this again.
 ) else (
     echo The builder stopped with code %CODE%: read the lines above for the next step.
 )
@@ -141,6 +155,11 @@ exit /b %CODE%
 '@
 Set-Content -Encoding ASCII (Join-Path $tools 'Build Black Flame copies.bat') $bat
 Copy-Item $readme (Join-Path $stage 'README_TESTER.md')
+Copy-Item $notices (Join-Path $stage 'THIRD-PARTY-NOTICES.md')
+Copy-Item -Recurse $licenses (Join-Path $stage 'licenses')
+foreach ($name in $requiredLicenses) {
+    if (-not (Test-Path (Join-Path $stage "licenses\$name"))) { Fail "licenses\$name did not land in the package" }
+}
 
 # Last guard: nothing outside the expected tree
 $unexpected = Get-ChildItem -Recurse -File $stage | Where-Object { $_.FullName -match '\\copies\\' }

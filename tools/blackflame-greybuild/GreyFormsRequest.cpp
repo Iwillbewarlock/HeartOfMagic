@@ -150,6 +150,22 @@ namespace GreyBuild
                     }
                 }
             }
+            // T1: the textures the game dumped next to the NIFs ([{ path, size, ok, error }]); one left out keeps its reason
+            if (a_root.contains("textures")) {
+                a_request.hasTextures = true;
+                const auto& textures = Json::RequireArray(a_file, a_root, "textures");
+                for (std::size_t i = 0; i < textures.size(); ++i) {
+                    const std::string where = fmt::format("textures[{}]", i);
+                    const bool ok = textures[i].is_object() && textures[i].contains("ok") && textures[i]["ok"].is_boolean() &&
+                                    textures[i]["ok"].get<bool>();
+                    if (!ok) {
+                        const auto path = TextureDataPath(Json::ReadString(a_file, textures[i], "path", where));
+                        if (path) {
+                            a_request.texturesNotDumped[*path] = Json::ReadOptionalString(a_file, textures[i], "error", where);
+                        }
+                    }
+                }
+            }
         }
 
         std::string OutOfIds(const std::vector<FormSource>& a_sources, const CopiesMap& a_previous, bool a_reclaim)

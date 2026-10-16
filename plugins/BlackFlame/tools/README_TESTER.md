@@ -15,6 +15,12 @@ hazard models from the shipped grey map still apply, and the rest runs.
 
 - Skyrim SE 1.5.97 or AE 1.6.x / 1.7.x (Skyrim VR is not supported)
 - SKSE for your game version and Address Library for SKSE Plugins
+- For the builder (`tools\BlackFlame\blackflame-greybuild.exe`): the Microsoft Visual C++ Redistributable 2015-2022
+  (x64), from Microsoft. Most Skyrim setups have it. Without it the builder does not start: the bat (or MO2) reports
+  exit code -1073741515 (0xC0000135, "a DLL was not found"; the builder needs `VCOMP140.DLL`). Install the x64
+  redistributable and run it again.
+
+The licences of the libraries in the plugin and the builder are in `THIRD-PARTY-NOTICES.md` and `licenses\`.
 
 ## Install
 
@@ -39,7 +45,9 @@ hazard models from the shipped grey map still apply, and the rest runs.
 1. Start the game to the main menu, then quit. (The plugin writes what the builder needs into
    `Documents\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame\`.)
 2. Run the builder (MO2: the executable from step 3 of the MO2 install; Vortex: the bat). It ends with "next: enable the
-   output mod".
+   output mod". It also writes grey copies of the fire textures (a `textures  recoloured ...` line). If you built copies
+   with an earlier tester build, do steps 1 and 2 again with this one: the game now also saves the textures the builder
+   needs.
 3. Enable the output mod (it replaces the two empty plugins). In MO2, press F5 (refresh) if its new files do not show.
    If you use a loose-file cache mod (CRDW and the like), rebuild its cache after running the builder: a cache made
    before the builder ran does not know the new files, and the game then cannot load those grey copies (the plugin says

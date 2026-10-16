@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyBuild.h"
+#include "GreyTexture.h"
 
 #include <NifFile.hpp>
 
@@ -99,6 +100,9 @@ namespace GreyBuild
                 stats = GreyEffects(nif, a_map.tint, a_map.tintAdd, &shaderNotes);
                 for (const auto& line : shaderNotes) {
                     std::cout << fmt::format("NOTE  {}: {}\n", a_rel, line);
+                }
+                if (a_options.textures) {
+                    RetargetTextures(nif, *a_options.textures, a_rel);  // after GreyEffects: UsesPalette as the copy has it
                 }
             }
             const RemapStats remap = RemapAddonValues(nif, a_map);

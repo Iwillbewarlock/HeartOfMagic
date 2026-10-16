@@ -3,10 +3,16 @@
 #include "Common.h"
 
 #include "FireClosure.h"
+#include "NifDump.h"
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <set>
 #include <string>
+#include <vector>
 
 // =============================================================================
 // COPY REQUEST DATA - one form or ADDN as the request writes it (CopyRequest.h)
@@ -24,4 +30,46 @@ namespace BlackFlame::CopyRequestData
 
     /// Every ADDN record: { index, model, editorId, source, masterParticleCap, dnamFlags, own }
     [[nodiscard]] nlohmann::ordered_json AddonsJson();
+
+    // =========================================================================
+    // T1: textures the read NIFs name, dumped beside them for the builder's texture copies
+    // =========================================================================
+
+    inline constexpr std::uint64_t kMiB = 1024ull * 1024ull;
+    // One texture the dump takes at most (a 4096 BC7 with mips is about 22 MiB; an uncompressed 4096 one, 85 MiB, is left
+    // out and named in the request)
+    inline constexpr std::uint64_t kMaxTextureBytes = 64 * kMiB;
+    // Every texture of one dump together at most; a texture that no longer fits is left out (named in the request), smaller
+    // ones after it in path order still go in
+    inline constexpr std::uint64_t kMaxTextureDumpBytes = 768 * kMiB;
+
+    struct Texture
+    {
+        std::string path;          // Data-relative, normalised (textures\...)
+        NifDump::ModelBlob probe;  // opened and totalSize; no byte read until the dump
+        bool planned = false;      // opened and within both caps: the dump holds it
+        std::string error;         // why it is not in the dump ("" when planned)
+        bool readFailed = false;   // T1: planned, but it opened and could not be read (kept in the manifest, not retried)
+    };
+
+    /// Every texture path a_nifBytes name inline (NifDump::TexturePathsIn: the builder picks the slots it recolours), our
+    /// own (textures\heartofmagic\blackflame\) left out, each opened for its size and planned in path order within the
+    /// caps. Reads no texture byte. kDataLoaded thread (BSResource).
+    [[nodiscard]] std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes);
+
+    /// The dump's texture part (path, size, planned): sizes only, so a texture replaced by one of the same size is not dumped
+    /// again. Kept apart from the request fingerprint, whose formula the players' freshness check shares.
+    [[nodiscard]] std::string TextureFingerprint(const std::vector<Texture>& a_textures);
+
+    /// [{ path, size, ok (in the dump), error (when not) }]
+    [[nodiscard]] nlohmann::ordered_json TexturesJson(const std::vector<Texture>& a_textures);
+
+    /// The JSON object in a_file (the dump manifest), or an empty object when it is missing or not an object
+    [[nodiscard]] nlohmann::json ReadJsonObject(const std::filesystem::path& a_file);
+
+    /// a_object[a_key] when it is a string, else ""
+    [[nodiscard]] std::string JsonString(const nlohmann::json& a_object, const char* a_key);
+
+    /// The strings of a_object[a_key] when it is an array (others skipped), else none
+    [[nodiscard]] std::set<std::string> JsonStringSet(const nlohmann::json& a_object, const char* a_key);
 }

@@ -28,6 +28,8 @@ namespace nifly
 
 namespace GreyBuild
 {
+    struct TextureJob;  // GreyTexture.h
+
     /// Perf audit 2: "time  <stage>: N ms" when it goes out of scope (stdout, with the run's other lines)
     class StageTimer
     {
@@ -359,6 +361,7 @@ namespace GreyBuild
         bool greyEffects = true;
         bool needed = true;         // a missing source counts as failed (else skipped)
         bool keepUnmapped = false;  // an AddOnNode value in no map entry stays as it is (warned), the NIF is written
+        TextureJob* textures = nullptr;  // with greyEffects: texture slots retargeted at grey copies (GreyTexture.h); none: left
     };
 
     struct NifResult

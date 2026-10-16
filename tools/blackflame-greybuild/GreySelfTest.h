@@ -32,4 +32,10 @@ namespace GreyBuild::SelfTest
 
     /// The game's request (v3), the copies map v2, the id budget, warn-and-continue and the per-file commit.
     void CheckGameRequest(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+
+    /// The texture copies (GreyTexture.h): recolour, skips, failures and the NIF slot rule, on made-up files in a_dir.
+    void CheckTextures(Checker& a_check, const std::filesystem::path& a_dir);
+
+    /// The path rule the DLL and the builder share (DataPathRule.h): normalising and the texture scan, one table (T7).
+    void CheckPathRule(Checker& a_check);
 }

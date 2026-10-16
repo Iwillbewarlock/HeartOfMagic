@@ -3,8 +3,8 @@
 // =============================================================================
 //   blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
 //   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
-//   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
-//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]
+//   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
+//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
 //   blackflame-greybuild --write-empty-esls <folder>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
@@ -16,7 +16,8 @@
 // copies (GreyForms.h): full-grey copies of the listed forms' NIFs, the copies ESL and the copies
 // map, on top of what --request writes (its ADDN list gives the grey indices). --from-game reads the request and the
 // NIF dump the DLL wrote at kDataLoaded (GreyFromGame.cpp) and writes all of that into --out, warning and going on
-// where a NIF cannot be read. --write-empty-esls writes the empty copies and local ESLs the mod ships.
+// where a NIF cannot be read. --forms and --from-game also write grey copies of the textures the copy NIFs name
+// (GreyTexture.h; --no-textures: none). --write-empty-esls writes the empty copies and local ESLs the mod ships.
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
@@ -41,6 +42,7 @@ namespace
         bool fromGame = false;
         std::filesystem::path fromGameDir;  // empty: found under Documents
         bool reclaimRetired = false;
+        bool noTextures = false;  // --no-textures: no texture copies (--forms, --from-game)
         std::filesystem::path emptyEsls;
         std::vector<std::filesystem::path> inputs;
         std::filesystem::path out;
@@ -57,11 +59,12 @@ namespace
                      "  blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>\n"
                      "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]\n"
                      "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
-                     "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]\n"
+                     "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]\n"
                      "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] "
-                     "[--reclaim-retired]\n"
+                     "[--reclaim-retired] [--no-textures]\n"
                      "      (the request folder defaults to <Documents>\\My Games\\Skyrim Special Edition[ GOG]\\SKSE\\"
                      "HeartOfMagic_BlackFlame; --out must exist and be the same folder every time; SE and AE, not VR)\n"
+                     "      (--no-textures: no grey texture copies; the copy NIFs keep naming the source textures)\n"
                      "  blackflame-greybuild --write-empty-esls <folder>\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
@@ -91,6 +94,8 @@ namespace
                 if (hasValue && !GreyBuild::StartsWith(a_argv[i + 1], "--")) {
                     a_options.fromGameDir = a_argv[++i];
                 }
+            } else if (arg == "--no-textures") {
+                a_options.noTextures = true;
             } else if (arg == "--reclaim-retired") {
                 a_options.reclaimRetired = true;
             } else if (arg == "--write-empty-esls" && hasValue) {
@@ -220,6 +225,7 @@ namespace
         GreyBuild::FormsRunOptions options;
         options.reclaimRetired = a_options.reclaimRetired;
         options.tintAdd = a_options.tintAdd;
+        options.textures = !a_options.noTextures;
         const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.failed);
@@ -255,7 +261,8 @@ int main(int a_argc, char** a_argv)
             return kExitUsage;
         }
         try {
-            return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired, options.tintAdd);
+            return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired, options.tintAdd,
+                !options.noTextures);
         } catch (const std::exception& e) {
             std::cerr << e.what() << "\n";
             return kExitFail;
