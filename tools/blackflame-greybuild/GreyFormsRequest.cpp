@@ -1,7 +1,7 @@
 // =============================================================================
 // GreyFormsRequest - the forms request, the copies map and stable copy ids
 // =============================================================================
-// Request (version 2):
+// Request (version 2; type ARTO with "data": { "artType": 0..2 } since the ARTO spike):
 //   { "version": 2,
 //     "forms": [ { "source": "Skyrim.esm|10FBED", "type": "PROJ", "editorId": "MAG_FireBallProjectile01",
 //                  "model": "Magic\\FireballProjectile01.nif", "bounds": [x1, y1, z1, x2, y2, z2],
@@ -34,12 +34,12 @@ namespace GreyBuild
         [[nodiscard]] CopyType ParseType(const std::filesystem::path& a_file, const std::string& a_tag,
             const std::string& a_where)
         {
-            for (const auto type : { CopyType::kProjectile, CopyType::kHazard, CopyType::kExplosion, CopyType::kImpact }) {
+            for (const auto type : kCopyTypes) {
                 if (a_tag == CopyTypeTag(type)) {
                     return type;
                 }
             }
-            Json::Fail(a_file, fmt::format("{}: type '{}' is not PROJ, HAZD, EXPL or IPCT", a_where, a_tag));
+            Json::Fail(a_file, fmt::format("{}: type '{}' is not PROJ, HAZD, EXPL, IPCT or ARTO", a_where, a_tag));
         }
 
         // projectileType: a name (Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow) or the raw u16 bit

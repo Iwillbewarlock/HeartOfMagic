@@ -466,6 +466,8 @@ namespace BlackFlame::SelfTest
             StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
             StepDef{ "E1c", kE1cTimeout, &StepE1Npc },
             StepDef{ "E2", kE2Timeout, &StepE2Flames },
+            StepDef{ "E6", kInfoTimeout, &StepE6Player },
+            StepDef{ "E6-npc", kInfoTimeout, &StepE6Npc },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
             StepDef{ "T-threads", kEnvTimeout, &StepThreads },

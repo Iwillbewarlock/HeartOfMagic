@@ -1,5 +1,5 @@
 // =============================================================================
-// GreyFormsEsl - the copies ESL: placeholder PROJ, HAZD, EXPL and IPCT records
+// GreyFormsEsl - the copies ESL: placeholder PROJ, HAZD, EXPL, IPCT and ARTO records
 // =============================================================================
 // DATA layouts as Skyrim.esm stores them (FormIDs 4 bytes; the CommonLibSSE-NG memory layouts
 // RE/B/BGSProjectile.h, BGSHazard.h, BGSExplosion.h, BGSImpactData.h with pointers as FormIDs):
@@ -13,6 +13,7 @@
 //            damage 1C, radius 20, IS radius 24, vertical offset mult 28, flags u32 2C, sound level u32 30.
 //   IPCT 24: effect duration 0, orientation u32 4, angle threshold 8, placement radius C, sound level u32 10,
 //            flags u8 14, result override u8 15, unused u16 16.
+//   ARTO: no DATA; DNAM u32 art type (0 casting, 1 hit effect, 2 enchant effect; RE/B/BGSArtObject.h Data).
 // Every form link is written 0 (no masters): the DLL copies the live source's values and links.
 
 #include "GreyEslIo.h"
@@ -47,6 +48,8 @@ namespace GreyBuild
         constexpr std::size_t kHazardData = 40;
         constexpr std::size_t kExplosionData = 52;
         constexpr std::size_t kImpactData = 24;
+        constexpr std::size_t kArtData = 4;  // DNAM
+        constexpr std::uint32_t kMaxArtType = 2;
         constexpr const char* kSoundLevelKey = "soundLevel";  // PROJ: VNAM, the others: inside DATA
 
         const std::vector<Field>& Fields(CopyType a_type)
@@ -70,6 +73,7 @@ namespace GreyBuild
                 { "orientation", 0x04, Kind::kU32 }, { "angleThreshold", 0x08, Kind::kFloat },
                 { "placementRadius", 0x0C, Kind::kFloat }, { "soundLevel", 0x10, Kind::kU32 }, { "flags", 0x14, Kind::kU8 },
                 { "resultOverride", 0x15, Kind::kU8 } };
+            static const std::vector<Field> kArt{ { "artType", 0x00, Kind::kU32 } };
             switch (a_type) {
             case CopyType::kProjectile:
                 return kProjectile;
@@ -77,6 +81,8 @@ namespace GreyBuild
                 return kHazard;
             case CopyType::kExplosion:
                 return kExplosion;
+            case CopyType::kArtObject:
+                return kArt;
             default:
                 return kImpact;
             }
@@ -125,6 +131,10 @@ namespace GreyBuild
                     break;
                 }
             }
+            if (a_source.type == CopyType::kArtObject && ValueOf(a_source, "artType") > kMaxArtType) {
+                throw std::runtime_error(fmt::format("ARTO {}: artType {} is not 0 (casting), 1 (hit effect) or 2 (enchant "
+                    "effect)", a_source.source, ValueOf(a_source, "artType")));
+            }
             return bytes;
         }
 
@@ -144,7 +154,7 @@ namespace GreyBuild
             if (!a_entry.greyModel.empty()) {
                 body.ZString("MODL", a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot)));
             }
-            body.Sub("DATA", DataBytes(a_source));
+            body.Sub(CopyDataTag(a_entry.type), DataBytes(a_source));
             if (a_entry.type == CopyType::kProjectile) {
                 body.Sub("VNAM", Pack(ProjectileSoundLevel(a_source)));
             }
@@ -187,6 +197,9 @@ namespace GreyBuild
                     }
                 } else if (tag == "DATA") {
                     form.data = a_in.Slice(data, length);
+                } else if (tag == "DNAM" && length == kArtData) {
+                    form.hasDnam = true;
+                    form.dnam = a_in.Slice(data, length);
                 } else if (tag == "VNAM" && length == sizeof(std::uint32_t)) {
                     form.hasSoundLevel = true;
                     form.soundLevel = a_in.Value<std::uint32_t>(data);
@@ -208,9 +221,16 @@ namespace GreyBuild
             return "HAZD";
         case CopyType::kExplosion:
             return "EXPL";
+        case CopyType::kArtObject:
+            return "ARTO";
         default:
             return "IPCT";
         }
+    }
+
+    const char* CopyDataTag(CopyType a_type) noexcept
+    {
+        return a_type == CopyType::kArtObject ? "DNAM" : "DATA";
     }
 
     std::size_t CopyDataSize(CopyType a_type) noexcept
@@ -222,6 +242,8 @@ namespace GreyBuild
             return kHazardData;
         case CopyType::kExplosion:
             return kExplosionData;
+        case CopyType::kArtObject:
+            return kArtData;
         default:
             return kImpactData;
         }
@@ -270,7 +292,7 @@ namespace GreyBuild
         std::string groups;
         std::int32_t count = 0;
         std::uint32_t highest = 0;
-        for (const auto type : { CopyType::kProjectile, CopyType::kHazard, CopyType::kExplosion, CopyType::kImpact }) {
+        for (const auto type : kCopyTypes) {
             std::string records;
             for (std::size_t i = 0; i < a_map.entries.size(); ++i) {
                 if (a_map.entries[i].type != type) {
@@ -387,11 +409,16 @@ namespace GreyBuild
             const bool soundOk = entry.type == CopyType::kProjectile ?
                                      (it->hasSoundLevel && it->soundLevel == ProjectileSoundLevel(a_sources[i])) :
                                      !it->hasSoundLevel;
-            if (it->type != CopyTypeTag(entry.type) || it->editorId != entry.editorId || it->model != model ||
-                it->data != DataBytes(a_sources[i]) || !boundsOk || !soundOk || !it->otherSubrecords.empty()) {
-                problems.push_back(fmt::format("{:06X} {}: read back {} '{}' model '{}' DATA {} bytes, bounds {}, sound level "
-                    "{}, other subrecords {}", entry.localId, entry.editorId, it->type, it->editorId, it->model,
-                    it->data.size(), boundsOk ? "ok" : "DIFFER", soundOk ? "ok" : "DIFFER", it->otherSubrecords.size()));
+            // ARTO: the scalars in DNAM and no DATA; every other type: DATA and no DNAM
+            const bool art = entry.type == CopyType::kArtObject;
+            const bool scalarsOk = art ? (it->hasDnam && it->dnam == DataBytes(a_sources[i]) && it->data.empty()) :
+                                         (!it->hasDnam && it->data == DataBytes(a_sources[i]));
+            if (it->type != CopyTypeTag(entry.type) || it->editorId != entry.editorId || it->model != model || !scalarsOk ||
+                !boundsOk || !soundOk || !it->otherSubrecords.empty()) {
+                problems.push_back(fmt::format("{:06X} {}: read back {} '{}' model '{}' DATA {} bytes, DNAM {} bytes, scalars {}, "
+                    "bounds {}, sound level {}, other subrecords {}", entry.localId, entry.editorId, it->type, it->editorId,
+                    it->model, it->data.size(), it->dnam.size(), scalarsOk ? "ok" : "DIFFER", boundsOk ? "ok" : "DIFFER",
+                    soundOk ? "ok" : "DIFFER", it->otherSubrecords.size()));
             }
         }
         return problems;

@@ -65,6 +65,9 @@ namespace BlackFlame
             if (a_tag == "HAZD") {
                 return RE::FormType::Hazard;
             }
+            if (a_tag == "ARTO") {
+                return RE::FormType::ArtObject;
+            }
             return RE::FormType::None;
         }
 
@@ -115,7 +118,7 @@ namespace BlackFlame
             if (entry.type == RE::FormType::None || bar == std::string::npos || bar == 0 ||
                 !ParseHex(std::string_view(entry.sourceText).substr(bar + 1), sourceLocal) ||
                 !ParseHex(a_item["copy"].get<std::string>(), copyLocal)) {
-                entry.detail = std::format("bad entry {} (type PROJ/EXPL/IPCT/HAZD, hex ids)", a_item.dump());
+                entry.detail = std::format("bad entry {} (type PROJ/EXPL/IPCT/HAZD/ARTO, hex ids)", a_item.dump());
                 return entry;
             }
             entry.source = LookupLocal(a_dh, a_lookup, entry.sourceText.substr(0, bar), sourceLocal);
@@ -154,9 +157,14 @@ namespace BlackFlame
             case RE::FormType::Impact:
                 ++a_counts.impacts;
                 break;
-            default:
+            case RE::FormType::Hazard:
                 ++a_counts.hazards;
                 break;
+            case RE::FormType::ArtObject:
+                ++a_counts.arts;
+                break;
+            default:
+                break;  // TypeOf admits no other type
             }
         }
 
@@ -211,6 +219,10 @@ namespace BlackFlame
                 entry.ok = false;
                 entry.detail = "the copy form already belongs to another entry (or a copy is named as a source)";
             }
+            if (const auto refusal = entry.ok ? CopyFill::Refusal(entry.source) : std::string(); !refusal.empty()) {
+                entry.ok = false;
+                entry.detail = refusal;
+            }
             if (entry.ok && !CopyFill::FillData(entry.copy, entry.source)) {
                 entry.ok = false;
                 entry.detail = "the fill refused the type";
@@ -240,8 +252,8 @@ namespace BlackFlame
             }
         }
         const auto& c = copies.counts;
-        logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}; {} left out; {} links "
-                     "pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.failed,
+        logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; {} left out; {} "
+                     "links pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
             c.linksToCopies);
     }
 
@@ -305,9 +317,9 @@ namespace BlackFlame
         const auto& copies = TheCopies();
         const auto& c = copies.counts;
         lines.push_back({ c.mapRead && c.failed == 0 && c.mapEntries > 0,
-            std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {}, {} left out, {} links to copies",
-                c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.failed,
-                c.linksToCopies) });
+            std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {}, {} left out, {} links to "
+                "copies", c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards,
+                c.arts, c.failed, c.linksToCopies) });
         for (const auto& entry : copies.entries) {
             if (!entry.ok) {
                 lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail) });

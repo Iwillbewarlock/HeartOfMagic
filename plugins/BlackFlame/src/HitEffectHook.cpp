@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "Forms.h"
 #include "HitArt.h"
 #include "LogLimit.h"
@@ -52,6 +53,7 @@ namespace BlackFlame
         enum class Outcome
         {
             kSwapped,        // ours returned (shader) / remembered for the recolour (art)
+            kCopied,         // art: the art's copy returned
             kNotPlayer,      // someone else cast it
             kEngineNull,     // the engine's answer was null
             kEngineNullFlag, // null with flags bit 1 set (the engine's "no hit shader" bit)
@@ -67,6 +69,8 @@ namespace BlackFlame
             switch (a_outcome) {
             case Outcome::kSwapped:
                 return "SWAPPED (ours)";
+            case Outcome::kCopied:
+                return "COPY returned";
             case Outcome::kNotPlayer:
                 return "kept: not the player's";
             case Outcome::kEngineNull:
@@ -88,8 +92,8 @@ namespace BlackFlame
 
         struct SlotStats
         {
-            std::atomic<std::uint64_t> playerCalls{ 0 }, swapped{ 0 }, engineNull{ 0 }, engineNullFlag{ 0 }, notStoked{ 0 },
-                notFire{ 0 }, otherRejected{ 0 };
+            std::atomic<std::uint64_t> playerCalls{ 0 }, swapped{ 0 }, copied{ 0 }, engineNull{ 0 }, engineNullFlag{ 0 },
+                notStoked{ 0 }, notFire{ 0 }, otherRejected{ 0 };
         };
 
         std::array<std::array<std::atomic<int>, kKindCount>, kSlotCount> g_diagnostics{};
@@ -225,6 +229,13 @@ namespace BlackFlame
                 return Outcome::kNotFire;
             }
             if (a_slot == kArtSlot) {
+                // v2: the copy when one exists (its NIF is grey); the runtime recolour only for an art without one
+                if (IsCopy(a_original)) {
+                    return Outcome::kAlreadyOurs;
+                }
+                if (GetConfig().copyHitArt && CopyOf(a_original)) {
+                    return Outcome::kCopied;
+                }
                 return GetConfig().hitArt ? Outcome::kSwapped : Outcome::kConfigOff;
             }
             const auto* ours = GetForms().burnShader;
@@ -247,6 +258,9 @@ namespace BlackFlame
             switch (a_outcome) {
             case Outcome::kSwapped:
                 stats.swapped.fetch_add(1);
+                break;
+            case Outcome::kCopied:
+                stats.copied.fetch_add(1);
                 break;
             case Outcome::kEngineNullFlag:
                 stats.engineNullFlag.fetch_add(1);
@@ -283,14 +297,20 @@ namespace BlackFlame
             return GetForms().burnShader;
         }
 
-        void OnHitArt(Controller* a_this, RE::BGSArtObject* a_art)
+        // The art to hand back: the copy (copyHitArt), else the engine's (remembered for the recolour under hitArt)
+        RE::BGSArtObject* ChooseArt(Controller* a_this, RE::BGSArtObject* a_art)
         {
             const Outcome outcome = Decide(kArtSlot, a_this, a_art);
             Count(kArtSlot, outcome);
             Diagnose(kArtSlot, a_this, a_art, outcome);
+            if (outcome == Outcome::kCopied) {
+                auto* copy = CopyOfAs<RE::BGSArtObject>(a_art);
+                return copy ? copy : a_art;  // CopyOf was not null in Decide; the map never changes after kDataLoaded
+            }
             if (outcome == Outcome::kSwapped) {
                 RememberHitArt(a_this, a_art);  // config hitArt: recolour once its 3D exists (HitArt.h)
             }
+            return a_art;
         }
 
         struct HitEffectShaderHook
@@ -320,14 +340,17 @@ namespace BlackFlame
             static RE::BGSArtObject* thunk(Controller* a_this)
             {
                 auto* art = func(a_this);
+                auto* result = art;
+                // As the shader thunk: nothing may throw out of here, and a fault in our part returns the engine's art
                 try {
                     if (a_this) {
-                        (void)Guarded("hit effect art", [&]() { OnHitArt(a_this, art); });
+                        (void)Guarded("hit effect art", [&]() { result = ChooseArt(a_this, art); });
                     }
                 } catch (...) {
+                    result = art;
                     ReportFailure();
                 }
-                return art;
+                return result;
             }
 
             static inline REL::Relocation<decltype(thunk)> func;
@@ -351,8 +374,16 @@ namespace BlackFlame
     HitSlotStats GetHitSlotStats(bool a_shader) noexcept
     {
         const auto& stats = g_stats[a_shader ? kShaderSlot : kArtSlot];
-        return { stats.playerCalls.load(), stats.swapped.load(), stats.engineNull.load(), stats.engineNullFlag.load(),
-            stats.notStoked.load(), stats.notFire.load(), stats.otherRejected.load() };
+        HitSlotStats out;
+        out.playerCalls = stats.playerCalls.load();
+        out.swapped = stats.swapped.load();
+        out.copied = stats.copied.load();
+        out.engineNull = stats.engineNull.load();
+        out.engineNullFlag = stats.engineNullFlag.load();
+        out.notStoked = stats.notStoked.load();
+        out.notFire = stats.notFire.load();
+        out.otherRejected = stats.otherRejected.load();
+        return out;
     }
 
     void InstallHitEffectHooks()
@@ -365,7 +396,8 @@ namespace BlackFlame
         HitEffectShaderHook::func = vtbl.write_vfunc(kHitEffectShaderIndex, HitEffectShaderHook::thunk);
         HitEffectArtHook::func = vtbl.write_vfunc(kHitEffectArtIndex, HitEffectArtHook::thunk);
         logger::info("BlackFlame: hooked the ActiveEffectReferenceEffectController vtable: GetHitEffectShader (0x{:X}) swap {}, "
-                     "GetHitEffectArt (0x{:X}) recolour {}", kHitEffectShaderIndex, config.burnShader ? "on" : "off (burnShader false)",
-            kHitEffectArtIndex, config.hitArt ? "on" : "off (hitArt false)");
+                     "GetHitEffectArt (0x{:X}) copy {} ({} art copies), recolour {}", kHitEffectShaderIndex,
+            config.burnShader ? "on" : "off (burnShader false)", kHitEffectArtIndex, config.copyHitArt ? "on" : "off (copyHitArt false)",
+            GetCopyCounts().arts, config.hitArt ? "on" : "off (hitArt false)");
     }
 }

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "_comment": [
-    "Hand-made for the v2 spike (2026-10-16) from read-only houseCARL reads of the TAKEALOOK MO2 profile TKL - MUNG ADDON (epoch e2-7edcad29963e5910): the winning PROJ/EXPL/IPCT/HAZD reached from vanilla Firebolt, Fireball, Flames (MAG_FireDamageConcAimed) and Fire Rune.",
+    "Hand-made for the v2 spike (2026-10-16) from read-only houseCARL reads of the TAKEALOOK MO2 profile TKL - MUNG ADDON (epoch e2-7edcad29963e5910): the winning PROJ/EXPL/IPCT/HAZD reached from vanilla Firebolt, Fireball, Flames (MAG_FireDamageConcAimed) and Fire Rune; plus the ARTO spike's two arts (epoch e2-304b1cc6c6b55007): Flame Cloak's hit art FXFireCloak01 and casting art FireCloakHandEffects.",
     "source = the defining plugin and local id; model, bounds and data = the load order winner. The DLL fills each copy from the live winner at kDataLoaded, so the scalars here only make a valid placeholder.",
     "Planned: the DLL writes this request at kDataLoaded (FireSet closure)."
   ],
@@ -646,6 +646,40 @@
         "imageSpaceRadius": 0,
         "targetInterval": 0.3,
         "flags": 4
+      }
+    },
+    {
+      "source": "Skyrim.esm|02ACD7",
+      "type": "ARTO",
+      "editorId": "FXFireCloak01",
+      "model": "Magic\\FXFireCloak01.nif",
+      "bounds": [
+        -74,
+        -87,
+        -89,
+        74,
+        79,
+        99
+      ],
+      "data": {
+        "artType": 1
+      }
+    },
+    {
+      "source": "Skyrim.esm|036342",
+      "type": "ARTO",
+      "editorId": "FireCloakHandEffects",
+      "model": "Magic\\FXFireCloakHandEffects.nif",
+      "bounds": [
+        -11,
+        -11,
+        -6,
+        11,
+        11,
+        12
+      ],
+      "data": {
+        "artType": 0
       }
     }
   ]

@@ -7,7 +7,7 @@
 #include <vector>
 
 // =============================================================================
-// FORM COPIES (v2 spike S1) - the grey copies of fire PROJ / EXPL / IPCT / HAZD
+// FORM COPIES (v2 spike S1) - the grey copies of fire PROJ / EXPL / IPCT / HAZD / ARTO
 // =============================================================================
 // tools/blackflame-greybuild --forms writes HeartOfMagic_BlackFlame_Copies.esp: one
 // masterless placeholder record per source form (EDID, OBND, MODL = a fully grey
@@ -22,6 +22,8 @@
 //         TESImageSpaceModifiableForm imageSpaceModifying (0x90), fullName, boundData
 //   IPCT  data, decalTextureSet(2), sound1/2, hazard, DecalData dData (0x48-0xAC)
 //   HAZD  BGSHazardData data (0x80-0xB8), imageSpaceModifying (0x78), fullName, boundData
+//   ARTO  data (DNAM art type, 0x68), boundData; never its TESModelTextureSwap (the copy keeps its grey
+//         model). A source with alternate textures (MODS) is refused and left out (FormCopiesFillArt.cpp)
 // then a second pass rewires only the links that have a copy (PROJ.explosionType,
 // EXPL.impactPlacedObject and spawnProjectile, IPCT.hazard); every other link stays
 // the original's (LIGH, SNDR, TXST, IMAD, ENCH, SPEL, IPDS: no IPDS copies). A copy
@@ -80,6 +82,7 @@ namespace BlackFlame
         std::size_t explosions = 0;
         std::size_t impacts = 0;
         std::size_t hazards = 0;
+        std::size_t arts = 0;
         std::size_t failed = 0;      // left out of the map
         std::size_t linksToCopies = 0;  // links the second pass pointed at a copy
     };
@@ -99,6 +102,14 @@ namespace BlackFlame
     // Fill helpers, FormCopiesFill.cpp (kDataLoaded only)
     namespace CopyFill
     {
+        /// Why a_source cannot be copied although its type can (an ARTO with alternate textures), or empty
+        [[nodiscard]] std::string Refusal(const RE::TESForm* a_source);
+
+        // ARTO (FormCopiesFillArt.cpp): the art type and the bounds, never the copy's own model
+        void FillArt(RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source);
+        bool RefillArt(RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source);
+        [[nodiscard]] std::string CompareArt(const RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source);
+
         /// Data members from a_source into a_copy (same form type, checked by the caller); false for a type
         /// that is not copied
         bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source);

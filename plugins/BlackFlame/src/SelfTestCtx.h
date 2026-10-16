@@ -209,6 +209,8 @@ namespace BlackFlame::SelfTest
     bool StepE1Npc(Ctx& a_c, bool a_first);
     bool StepE2Flames(Ctx& a_c, bool a_first);
     bool StepThreads(Ctx& a_c, bool a_first);
+    bool StepE6Player(Ctx& a_c, bool a_first);  // SelfTestStepsV2Art.cpp (ARTO copies)
+    bool StepE6Npc(Ctx& a_c, bool a_first);
 
     /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,
     /// SelfTestReload.cpp); SelfTest.cpp ShiftClocks calls it

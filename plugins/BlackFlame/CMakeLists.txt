@@ -23,6 +23,7 @@ set(BLACKFLAME_SOURCES
     src/FireSet.cpp
     src/FormCopies.cpp
     src/FormCopiesFill.cpp
+    src/FormCopiesFillArt.cpp
     src/Palette.cpp
     src/ThreadTrace.cpp
     src/TrackedMutex.cpp
@@ -61,6 +62,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestStepsV2.cpp
     src/SelfTestStepsV2Fire.cpp
     src/SelfTestStepsV2Flames.cpp
+    src/SelfTestStepsV2Art.cpp
     src/SelfTestReload.cpp
     src/SelfTestText.cpp
     src/SelfTestWorld.cpp

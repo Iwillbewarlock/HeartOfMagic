@@ -58,6 +58,9 @@ namespace GreyBuild::SelfTest
             R"({"source":"Skyrim.esm|06051C","type":"IPCT","editorId":"MAG_RuneFireImpact",)"
             R"("data":{"effectDuration":1,"angleThreshold":80,"flags":1,"soundLevel":2}})";
         const std::string kIpct2 = R"({"source":"Other.esp|000D66","type":"IPCT","editorId":"Two"})";
+        const std::string kArto =
+            R"({"source":"Skyrim.esm|02ACD7","type":"ARTO","editorId":"FXFireCloak01","model":"Magic\\FXFireCloak01.nif",)"
+            R"("bounds":[-40,-30,-5,40,30,130],"data":{"artType":1}})";
         const std::string kIpct3 = R"({"source":"Other.esp|000D67","type":"IPCT","editorId":"Three"})";
 
         [[nodiscard]] const EslForm* Find(const std::vector<EslForm>& a_forms, std::uint32_t a_id)
@@ -88,6 +91,29 @@ namespace GreyBuild::SelfTest
                 }
             }
             return 0;
+        }
+
+        // ARTO (the art spike): OBND, MODL, DNAM and no DATA, after IPCT; added to an earlier map, the old ids stay
+        void CheckArt(Checker& a_check, const std::filesystem::path& a_dir, const CopiesMap& a_previous)
+        {
+            const auto sources = LoadFormsRequest(WriteText(a_dir / "forms_art.json", FormsText(kProj + "," + kHazd + "," +
+                                                                                          kExpl + "," + kIpct + "," + kArto)));
+            const CopiesMap map = AssignCopyIds(sources, a_previous);
+            a_check.Check(map.entries.size() == 5 && IdOf(map, "skyrim.esm|012FCF") == kFirst &&
+                              IdOf(map, "skyrim.esm|06051C") == kFirst + 3 && IdOf(map, "skyrim.esm|02ACD7") == kFirst + 4,
+                "forms ARTO: an ARTO added to an earlier map takes the next id, the four earlier copies keep theirs");
+            const auto esl = a_dir / "copies_art.esp";
+            WriteCopiesEsl(map, sources, esl);
+            EslHeader header;
+            const auto forms = ReadCopiesEsl(esl, header);
+            a_check.Check(forms.size() == 5 && forms[3].type == "IPCT" && forms[4].type == "ARTO" && header.records == 10,
+                fmt::format("forms ARTO: the ARTO group comes last, after IPCT (HEDR count {})", header.records));
+            const auto* art = Find(forms, kFirst + 4);
+            a_check.Check(art && art->hasDnam && At<std::uint32_t>(art->dnam, 0) == 1 && art->data.empty() && art->hasBounds &&
+                              art->bounds[5] == 130 && art->model == "heartofmagic\\blackflame\\copies\\magic\\fxfirecloak01.nif" &&
+                              art->editorId == "HoMBF_Copy_FXFireCloak01_02ACD7" && art->otherSubrecords.empty(),
+                "forms ARTO: EDID, OBND, MODL (grey copy), DNAM art type 1, no DATA, nothing else");
+            a_check.Check(VerifyCopiesEsl(map, sources, esl).empty(), "forms ARTO: VerifyCopiesEsl finds no difference");
         }
 
         void CheckEsl(Checker& a_check, const std::filesystem::path& a_dir)
@@ -156,6 +182,7 @@ namespace GreyBuild::SelfTest
             a_check.Check(IdOf(map3, "skyrim.esm|03E075") == kFirst + 1 && IdOf(map3, "other.esp|000D67") == kFirst + 5,
                 "forms ids: a retired source requested again gets its old id; a retired id is not given to another");
             a_check.Check(map3.retired.size() == 4, fmt::format("forms ids: the other four are retired ({})", map3.retired.size()));
+            CheckArt(a_check, a_dir, map);
         }
 
         // Each malformed request must throw, not write anything
@@ -189,6 +216,17 @@ namespace GreyBuild::SelfTest
                 threw = true;
             }
             a_check.Check(threw, "forms ESL: a fractional integer field (HAZD limit 1.5) is refused");
+            a_check.Check(refuses("arto_key.json", R"({"source":"A.esp|000801","type":"ARTO","data":{"speed":1}})"),
+                "forms request: an ARTO data key other than artType is refused");
+            bool artThrew = false;
+            try {
+                const auto sources = LoadFormsRequest(
+                    WriteText(a_dir / "arto3.json", FormsText(R"({"source":"A.esp|000801","type":"ARTO","data":{"artType":3}})")));
+                WriteCopiesEsl(AssignCopyIds(sources, {}), sources, a_dir / "arto3.esp");
+            } catch (const std::runtime_error&) {
+                artThrew = true;
+            }
+            a_check.Check(artThrew, "forms ESL: ARTO artType 3 is refused (0 casting, 1 hit, 2 enchant)");
 
             // V16: a source once across copies and retired
             const auto mapRefuses = [&](const char* a_name, const std::string& a_text) {

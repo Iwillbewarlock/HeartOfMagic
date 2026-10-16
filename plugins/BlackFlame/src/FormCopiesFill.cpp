@@ -378,6 +378,9 @@ namespace BlackFlame::CopyFill
         case RE::FormType::Hazard:
             FillHazard(*a_copy->As<RE::BGSHazard>(), *a_source->As<RE::BGSHazard>());
             return true;
+        case RE::FormType::ArtObject:
+            FillArt(*a_copy->As<RE::BGSArtObject>(), *a_source->As<RE::BGSArtObject>());
+            return true;
         default:
             return false;
         }
@@ -458,6 +461,8 @@ namespace BlackFlame::CopyFill
             changed |= WriteIfDiffers(h->boundData, s.boundData);
             changed |= AssignIfDiffers(h->imageSpaceModifying, s.imageSpaceModifying);
             changed |= RefillName(*h, s);
+        } else if (auto* a = a_copy->As<RE::BGSArtObject>()) {
+            changed |= RefillArt(*a, *a_source->As<RE::BGSArtObject>());
         }
         return changed;
     }
@@ -494,6 +499,8 @@ namespace BlackFlame::CopyFill
             return CompareImpact(*a_copy->As<RE::BGSImpactData>(), *a_source->As<RE::BGSImpactData>());
         case RE::FormType::Hazard:
             return CompareHazard(*a_copy->As<RE::BGSHazard>(), *a_source->As<RE::BGSHazard>());
+        case RE::FormType::ArtObject:
+            return CompareArt(*a_copy->As<RE::BGSArtObject>(), *a_source->As<RE::BGSArtObject>());
         default:
             return "DIFFERS: not a copied type";
         }

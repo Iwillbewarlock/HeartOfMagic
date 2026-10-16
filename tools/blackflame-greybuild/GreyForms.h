@@ -3,12 +3,13 @@
 // =============================================================================
 // GreyForms - Black Flame v2 copies (README "Black Flame v2", --forms)
 // =============================================================================
-// A forms request lists source forms (PROJ, EXPL, IPCT, HAZD) of one load order with
-// their model path, object bounds and scalar DATA values. The builder writes:
+// A forms request lists source forms (PROJ, EXPL, IPCT, HAZD, ARTO) of one load order with
+// their model path, object bounds and scalar DATA values (ARTO: its DNAM art type). The builder writes:
 //   - a masterless ESL (HeartOfMagic_BlackFlame_Copies.esp) of placeholder records,
 //     one per source: EDID, OBND (types that have it), MODL = the fully grey copy of
 //     the source NIF, DATA in Skyrim.esm's size for the type with the scalars copied
-//     and every form link zero (VNAM sound level on PROJ). Form version 44, HEDR 1.70,
+//     and every form link zero (VNAM sound level on PROJ; ARTO has no DATA, only DNAM).
+//     Form version 44, HEDR 1.70,
 //     FormIDs 0x800 up, stable across re-runs through the copies map.
 //   - the grey NIFs under meshes\heartofmagic\blackflame\copies\ (every effect shader
 //     on the grey palette and AddOnNodes on grey ADDN indices: the grey map built in
@@ -40,16 +41,24 @@ namespace GreyBuild
         kProjectile,
         kHazard,
         kExplosion,
-        kImpact
+        kImpact,
+        kArtObject
     };
 
-    /// "PROJ" / "HAZD" / "EXPL" / "IPCT"
+    /// Every copy type in the ESL's group order (Skyrim.esm's top group order: PROJ, HAZD, EXPL, IPCT, ARTO)
+    inline constexpr CopyType kCopyTypes[] = { CopyType::kProjectile, CopyType::kHazard, CopyType::kExplosion,
+        CopyType::kImpact, CopyType::kArtObject };
+
+    /// "PROJ" / "HAZD" / "EXPL" / "IPCT" / "ARTO"
     [[nodiscard]] const char* CopyTypeTag(CopyType a_type) noexcept;
 
-    /// The DATA subrecord size Skyrim.esm uses for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24)
+    /// The DATA subrecord size Skyrim.esm uses for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24; ARTO: its DNAM, 4)
     [[nodiscard]] std::size_t CopyDataSize(CopyType a_type) noexcept;
 
-    /// The type has OBND (PROJ, HAZD, EXPL; not IPCT)
+    /// The type's scalar subrecord: "DATA", or "DNAM" for ARTO (an ARTO record has no DATA)
+    [[nodiscard]] const char* CopyDataTag(CopyType a_type) noexcept;
+
+    /// The type has OBND (PROJ, HAZD, EXPL, ARTO; not IPCT)
     [[nodiscard]] bool CopyHasBounds(CopyType a_type) noexcept;
 
     /// The DATA offsets of the type's form links (each a 4-byte FormID written as 0)
@@ -104,7 +113,7 @@ namespace GreyBuild
     [[nodiscard]] std::string CopyModelFor(const std::string& a_meshDataPath);
 
     /// Writes the copies ESL: one record per entry (the matching source by index), groups PROJ, HAZD, EXPL,
-    /// IPCT in that order (Skyrim.esm's group order). a_sources[i] belongs to a_map.entries[i].
+    /// IPCT, ARTO in that order (Skyrim.esm's group order). a_sources[i] belongs to a_map.entries[i].
     void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
         const std::filesystem::path& a_file);
 
@@ -117,6 +126,8 @@ namespace GreyBuild
         bool hasBounds = false;
         std::array<std::int16_t, 6> bounds{};
         std::string data;  // raw DATA bytes
+        bool hasDnam = false;
+        std::string dnam;  // raw DNAM bytes (ARTO art type)
         bool hasSoundLevel = false;
         std::uint32_t soundLevel = 0;  // PROJ VNAM
         std::vector<std::string> otherSubrecords;  // anything else (a writer bug)

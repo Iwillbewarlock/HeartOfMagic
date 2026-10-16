@@ -89,6 +89,9 @@ namespace BlackFlame::SelfTestWorld
     /// SelfTestDispel.cpp). Logs each effect's flags before and after; how many were dispelled or queued.
     [[nodiscard]] int DispelStoke();
 
+    /// MagicTarget::DispelEffect on every live effect of a_spell on a_actor, as DispelStoke (SelfTestDispel.cpp); how many
+    [[nodiscard]] int DispelSpell(RE::Actor* a_actor, const RE::SpellItem* a_spell);
+
     /// Every player effect carrying the Stoke keyword: id, flags, live or not, elapsed/duration (for FAIL lines)
     [[nodiscard]] std::string DescribeStokeEffects();
 

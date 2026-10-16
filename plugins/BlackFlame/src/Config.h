@@ -29,6 +29,7 @@ namespace BlackFlame
         bool copyLaunchExplosion = true;  // after Launch: the projectile's explosion set to its copy
         bool copyExplosionCreate = true;  // explosion creation: the base set to its copy (projectile copy or self area)
         bool copyImpacts = true;          // GetImpactData inside a copy window returns the impact copy
+        bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)

@@ -182,9 +182,9 @@ namespace BlackFlame::SelfTest
         SelfTestLog::Info("E4", std::format("the player's Firebolt hit the target (TESHitEvent): {} time(s){}", hits,
             projectiles.empty() ? "" : " (projectiles " + projectiles + ")"));
         SelfTestLog::Info("E4", std::format("GetHitEffectShader on the player's effects: {} calls, {} swapped, {} engine answered "
-            "null ({} with flags bit 1), {} not stoked, {} not a fire effect, {} other; GetHitEffectArt: {} calls, {} null",
-            shader.playerCalls, shader.swapped, shader.engineNull, shader.engineNullFlag, shader.notStoked, shader.notFire,
-            shader.otherRejected, art.playerCalls, art.engineNull));
+            "null ({} with flags bit 1), {} not stoked, {} not a fire effect, {} other; GetHitEffectArt: {} calls, {} null, {} "
+            "copy returned", shader.playerCalls, shader.swapped, shader.engineNull, shader.engineNullFlag, shader.notStoked,
+            shader.notFire, shader.otherRejected, art.playerCalls, art.engineNull, art.copied));
         // C3/D3: judged only after a confirmed hit (T5's aim) or our shader seen on the target
         if (!a_c.aim.hit && !a_c.greySeen) {
             SelfTestLog::Fail("E4", std::format("aim: no hit after {} casts (T5) - nothing to judge | {}", a_c.aim.casts,

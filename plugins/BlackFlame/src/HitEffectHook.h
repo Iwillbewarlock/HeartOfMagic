@@ -14,8 +14,10 @@
 //     (config burnShader), so the engine makes the hit shader from ours: instant
 //     hits, concentration and cloaks (caster = target = player) alike, no event,
 //     no record changed, nothing to finish. NPC effects get the engine's shader.
-//   - GetHitEffectArt returns the engine's art unchanged; the art's 3D is
-//     recoloured once it exists (config hitArt, HitArt.h).
+//   - GetHitEffectArt returns the art's grey copy when it has one (config copyHitArt,
+//     FormCopies.h: the engine then makes the art's 3D from the copy's grey NIF);
+//     without a copy the engine's art is returned and its 3D recoloured once it
+//     exists (config hitArt, HitArt.h).
 // What decides is the state when the engine asks: a shader or art made while
 // stoked stays grey after the buff ends; one made before the buff stays as it was.
 
@@ -33,7 +35,8 @@ namespace BlackFlame
     struct HitSlotStats
     {
         std::uint64_t playerCalls = 0;
-        std::uint64_t swapped = 0;
+        std::uint64_t swapped = 0;         // shader: ours returned; art: remembered for the runtime recolour
+        std::uint64_t copied = 0;          // art: the art's copy returned (v2 ARTO copies)
         std::uint64_t engineNull = 0;      // the engine answered null
         std::uint64_t engineNullFlag = 0;  // of those, with flags bit 1 (the engine's no-hit-shader bit)
         std::uint64_t notStoked = 0;

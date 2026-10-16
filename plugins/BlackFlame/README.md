@@ -58,6 +58,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyLaunchExplosion` | `true` | v2: after that launch the projectile's explosion is set to its copy |
 | `copyExplosionCreate` | `true` | v2: explosion creation hands the explosion copy when the source projectile is a copy or the player's self-area fire cast made it |
 | `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
+| `copyHitArt` | `true` | v2 (ARTO spike): the hit art of the player's fire effects is the art's ARTO copy when it has one - `GetHitEffectArt` returns the copy, so the engine builds the art's 3D from the copy's grey NIF; an art without a copy keeps the engine's art (recoloured only under `hitArt`) |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
 | `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
@@ -261,9 +262,10 @@ blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--
 ```
 
 The forms request (version 2) lists source forms, each with `source` (`Plugin|localId`, the defining plugin), `type`
-(`PROJ`, `EXPL`, `IPCT`, `HAZD`; no IPDS or LIGH copies), `editorId`, `model` (as the record stores it), `bounds`
+(`PROJ`, `EXPL`, `IPCT`, `HAZD`, `ARTO`; no IPDS or LIGH copies), `editorId`, `model` (as the record stores it), `bounds`
 (6 integers; not on IPCT) and `data` (the scalar DATA values; unknown keys are refused, missing ones are 0; PROJ
-`projectileType` takes a name or the raw bit, PROJ `soundLevel` goes to VNAM). `--request` is the ADDN request
+`projectileType` takes a name or the raw bit, PROJ `soundLevel` goes to VNAM; ARTO takes only `artType` 0 casting,
+1 hit effect, 2 enchant effect, written as its DNAM: an ARTO record has no DATA). `--request` is the ADDN request
 of "Grey duplicates": the copies' models count for the AddOnNode values that need a grey ADDN index (no remapped
 copy of them is made), so one run writes everything a setup needs into `--out`:
 
@@ -281,12 +283,16 @@ retired), and a new source takes the id after the highest id the map holds, reti
 
 Install the output folder as a mod after this one and enable both ESLs. The spike's requests are hand-made from
 read-only houseCARL reads of the TAKEALOOK profile: [requests/forms-takealook.json](requests/forms-takealook.json)
-(33 forms: the winning PROJ, EXPL, IPCT and HAZD reached from vanilla Firebolt, Fireball, Flames and Fire Rune) and
+(33 forms: the winning PROJ, EXPL, IPCT and HAZD reached from vanilla Firebolt, Fireball, Flames and Fire Rune, plus
+the two ARTOs of the art spike: Flame Cloak's hit art `FXFireCloak01` 02ACD7 and casting art `FireCloakHandEffects`
+036342) and
 [requests/addons-takealook.json](requests/addons-takealook.json) (the profile's 329 ADDN records). Their NIFs are
 other mods' files (Flame VFX Edit, Embers XD - CS, CS Particle Patch), so the output is built on the user's machine
 and not committed; the spike run used `--in` Flame VFX Edit, Dragon Breath VFX Edit, Embers XD - CS, Embers XD, then
 the CS Particle Patch, Inferno, Particle Patch and vanilla Meshes0/1 BSAs extracted to scratch (33 copies, 9 copy
-NIFs, 7 extra grey ADDN records for indices 5, 6, 34, 35, 80, 81 and Embers XD's 225). Planned: the DLL writes the
+NIFs, 7 extra grey ADDN records for indices 5, 6, 34, 35, 80, 81 and Embers XD's 225). The art spike re-ran it into a
+copy of that output with `KittyVFX - ENBHands` first (the winning `fxfirecloakhandeffects.nif`): the 33 copies kept
+their ids 0x800-0x820, the two ARTOs took 0x821 and 0x822 (35 copies, 11 copy NIFs). Planned: the DLL writes the
 forms request at kDataLoaded from the fire set's closure.
 
 ### Fill (S1, DLL): `FormCopies.h`
@@ -296,7 +302,8 @@ other runtime edits made before then are included), data members only, never the
 own model: PROJ `data` (0x80-0x108), `soundLevel`, `fullName`, `muzzleFlashModel` through `TESModel::SetModel`,
 `boundData`; EXPL `data` (0x98-0xE8), the enchantment members, `imageSpaceModifying`, `fullName`, `boundData`; IPCT
 `data`, both decal texture sets, both sounds, `hazard`, `dData`; HAZD `data`, `imageSpaceModifying`, `fullName`,
-`boundData`. Data structs are copied byte for byte (their layouts are asserted by CommonLib). A second pass points
+`boundData`; ARTO `data` (the DNAM art type) and `boundData` - never its model component; a source art with alternate
+textures (MODS) is refused and left out (`alternate textures not copied`; no fire art in the measured order has any). Data structs are copied byte for byte (their layouts are asserted by CommonLib). A second pass points
 only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedObject` and `spawnProjectile`, IPCT
 `hazard`; every other link (light, sounds, texture sets, image space, enchantment, hazard spell, impact data sets)
 stays the source's. A copy whose source or copy form is missing, or whose types differ, is left out of the map and
@@ -357,7 +364,9 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 
 - Copies are not purely visual: a script's OnHit `akProjectile` is the copy's FormID while stoked (a script comparing
   projectile ids sees another form); hazard count limits may count copy hazards apart from the originals'.
-- Hand art and hit art stay orange in the spike (runtime recolour off; ARTO copies come with the full build). Impacts
+- Hit art: the ARTO spike returns the copy from `GetHitEffectArt` (0x0C) for the player's fire effects while stoked
+  (`copyHitArt`); E6 settles in one run whether the engine takes it. Casting (hand) art copies are filled and compared
+  (T0-v2) but not swapped until the SetCastingArt site is hooked: hand art stays orange. Impacts
   of a copy hazard (`HAZD.impactDataSet`) and every impact data set stay the originals (no IPDS copies).
 - The grey NIFs are built from the user's winning files; a replacer installed or updated later needs a new
   `--forms` run (a form whose copy is missing stays orange, logged once). The DLL fills copies at kDataLoaded only:
@@ -488,6 +497,8 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | E1b | v2: the player's Fireball explosion is the explosion copy with the palette path; INFO which device did it from the counters (Launch post-write, the creation detour seeing a copy already, or the creation detour swapping), with the self-area swaps, rejected create data, non-spell self-area slots and player launches without a copy |
 | E1c | v2: the caster's Fireball before the player's (A), 2.5 s after it (B) and in the same frame (C): each phase needs the caster's launch, projectile and explosion each seen at least once, with original bases, effect shapes in their 3D (observed) and none of them grey or with the palette path; in C the player's explosion is the copy. The caster is moved back home before each of its casts (v2 fix C3) |
 | E2 | v2: a Flames-type spell (MAG_Flames when its projectile is a flamethrower, else the Flame Atronach's Flames `07E881`) launched by the player every tick at a deer 400 units ahead: 1 s stoked, the buff dispelled mid-stream, 0.6 s more, the buff cast again. PASS: every stoked launch took the copy, launches after the flag went off took the original, and a TESHitEvent from the player with that spell came while stoked (the damage path runs with the copy). INFO: distinct streams before and after (one each = the stream held) |
+| E6 | v2 ARTO spike: a fire spell picked by data - cast fire and forget, with a Cloak-archetype fire effect whose hit art (the MGEF's RFCT art when set, else its `hitEffectArt`) has an ARTO copy; of those the spell whose file comes last in the load order (INFO "not judged" when there is none, or `copyHitArt` is off). The player casts it on itself while stoked; PASS when within 2 s a live ModelReferenceEffect on the player has the copy as its art, its 3D is loaded with every effect shape on the grey palette path, no effect there has the original art, and `GetHitEffectArt` returned the copy since the cast. That one line settles both spike questions: the engine takes the art the hook returns, and loads an ARTO record without DATA. The cloak is dispelled right after |
+| E6-npc | the same spell cast by the deer caster on itself: PASS when its art effect has the original art and none has the copy; the cloak is dispelled right after |
 | E3 | v2, after T9, semi-manual: the buff cast again, a vanilla Fire Rune (`05DB90`) launched at a marker 300 units ahead; before the save its projectile's base and explosion must be copies; then a marker file `HeartOfMagic_BlackFlame_e3.json` (rune, copy base, cell, game days, session nonce) next to the self-test file and the line asking for a quicksave and a quickload. Judged only on a kPostLoadGame that succeeded, came after its kPreLoadGame and within 10 minutes, with the marker's nonce, the same cell and a game time from the request to one game day after it (another load before the judgement ends E3 as not run): the rune is found again (by FormID with the copy base, else a projectile of the copy base in the cell), alive, base the copy and explosion still a copy (PostLoad3D resets it from the copy PROJ's link). Every other outcome is INFO "E3 not run (manual step skipped)". The cleanup (rune and marker removed; the Stoke buff dispelled only where E3 cast it or its rune was found by FormID in its own save) runs only in the world E3 ran in or in a save shown to be its own; an E3 step ended by its timeout or an exception is cleaned up when the run finishes; every wait has a deadline (10 minutes for the reload, 5 for a started load to finish, 5 for the player to be ready); the marker file is always deleted. E3-esl (INFO, manual): removing the copies ESL with such a save |
 
 The log's `material check` lines (first 5 player and NPC fire projectiles, first 5 NPC fire explosions) list per effect property `prop=`, `mat=`, `grey=` and `paletteFlag=`: `prop=` must differ between player and NPC instances; an equal `mat=` is normal (materials are pooled); any `grey=yes` on an NPC line is contamination.

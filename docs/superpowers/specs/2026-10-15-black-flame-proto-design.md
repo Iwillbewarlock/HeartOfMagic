@@ -594,3 +594,14 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   T6·T6-npc·E1b·E1c가 쏘기 직전 실제 거리로 본다(목표-플레이어, NPC 시전이면 목표-시전자도 반경+100). 모자라면 INFO로 그 단계만 건너뛰고 T6-swap·T6-npc-swap은 판정 안 함. T4(화염탄)는 여유 검사 없음.
   조준·비행 시간·기하는 원래 실시간 위치를 읽는다(LaunchAt, ConfirmHit, AimGeometry).
 - I2 T1 제한 6초(옛 버프 기다림 3초), PASS 줄에 디스펠→꺼짐, 시전 시각.
+
+### v2 확장: ARTO 미니 스파이크
+
+- 빌더: 사본 종류 ARTO 추가(그룹 순서 PROJ, HAZD, EXPL, IPCT, ARTO). ARTO 레코드는 EDID, OBND, MODL, DNAM(artType 4바이트)이고 DATA 없음. 요청은 v2 그대로 type ARTO, data는 artType만.
+  지도 v1 그대로(이 스파이크는 v3 요청·지도 v2 전에 따로 배포 가능). 자가 시험: ARTO 다시 읽기, 그룹 순서, 기존 맵에 ARTO 추가 시 기존 id 유지, artType 3 거절.
+- DLL: 채움은 data(DNAM)와 boundData만, 사본의 모델 성분은 건드리지 않음. 원본에 MODS가 있으면 맵에서 뺌("alternate textures not copied").
+  GetHitEffectArt(0x0C) 썽크가 플레이어 불 효과·버프 중·copyHitArt이면 사본을 돌려줌(사본이 있으면 런타임 재색칠 기억 안 함). 카운터 copied.
+- 스파이크 요청: forms-takealook.json에 FXFireCloak01 02ACD7(맞은 자리)과 FireCloakHandEffects 036342(손) 추가. 맞은 자리 아트는 바닐라 Flame Cloak 계열을 골랐다:
+  불 Cloak MGEF 30개 중 가장 많이 쓰는 아트이고 NIF가 느슨한 승자(Flame VFX Edit, SE 스트림)라 LE NIF 위험(Vigilant BSA)이 없다. 손 아트는 채움·비교(T0-v2)만 확인, 교체는 C4.
+- 자가 시험 E6/E6-npc(SelfTestStepsV2Art.cpp): 데이터로 고른 불 Cloak 주문(발사형, 맞은 자리 아트에 사본)을 플레이어가 자기에게 → 2초 안 플레이어 대상 ModelReferenceEffect의
+  artObject가 사본, 3D 로드, 효과 모양 전부 팔레트 경로, 훅 카운터 증가면 PASS. 사슴은 원본. 판정 뒤 바로 망토 디스펠(DispelSpell, Stoke 디스펠과 같은 방식).
