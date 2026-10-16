@@ -52,17 +52,18 @@ namespace BlackFlame::Tester
             const auto fire = GetFireSetCounts();
             const auto& fresh = GetFreshness();
             std::string out = std::format("  freshness {}: {}\n", FreshnessName(fresh.state), fresh.detail);
-            out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {}\n",
-                c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed);
+            out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {} ({} source mesh absent)\n",
+                c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
+                c.sourceAbsent);
             out += std::format("  fire spells {} ({} cloak-associated), fire effects {}\n", fire.total, fire.cloakAssociated,
                 fire.effects);
             out += std::format("  request: {} closure forms, {} excluded; fingerprint {}; request {}; dump {}; NIFs {} ({} failed) "
-                               "in {} ms ({} form or muzzle NIFs, {} ADDN-only)\n", request.forms, request.excluded, request.computed ? request.fingerprint : std::string("-"),
+                               "in {} ms ({} form or muzzle NIFs, {} absent from the load order, {} ADDN-only)\n", request.forms, request.excluded, request.computed ? request.fingerprint : std::string("-"),
                 request.requestWritten ? "written" : "not written", request.dumpState, request.nifs, request.nifsFailed,
-                request.readMs, request.nifsFailedForms, request.nifsFailedAddons);
+                request.readMs, request.nifsFailedForms, request.nifsAbsentForms, request.nifsFailedAddons);
             for (const auto& line : CheckCopies()) {
                 if (!line.pass) {
-                    out += "  copy problem: " + line.text + "\n";
+                    out += (line.info ? "  copy note: " : "  copy problem: ") + line.text + "\n";
                 }
             }
             return out;

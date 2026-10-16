@@ -155,9 +155,19 @@ namespace BlackFlame::SelfTest
 
         const auto& closure = LastFireClosure();
         std::size_t missing = 0;
+        std::size_t absent = 0;
         std::size_t unused = 0;
         std::string lines;
+        std::string absentLines;
         for (const auto& form : closure.forms) {
+            if (!CopyOf(form.form) && IsSourceMeshAbsent(form.form)) {
+                // H1: excluded with its reason - the source's own mesh is in no mod or archive (FormCopies.h)
+                if (++absent <= kMaxMissingLines) {
+                    absentLines += std::format("{}{} {:08X} ({})", absentLines.empty() ? "" : "; ", CopyKindTag(form.kind),
+                        form.form->GetFormID(), FileOf(form.form));
+                }
+                continue;
+            }
             if (!CopyOf(form.form)) {
                 if (++missing <= kMaxMissingLines) {
                     const auto* spell = RE::TESForm::LookupByID(form.viaSpell);
@@ -169,7 +179,11 @@ namespace BlackFlame::SelfTest
             unused += Unused(form) ? 1 : 0;
         }
         SelfTestLog::Check("T0-cover", missing == 0 && !closure.forms.empty(), std::format("{} closure forms, {} excluded, {} without a "
-            "copy{}{}", closure.forms.size(), closure.excluded.size(), missing, missing ? ": " : "", lines));
+            "copy{}{}", closure.forms.size(), closure.excluded.size() + absent, missing, missing ? ": " : "", lines));
+        if (absent > 0) {
+            SelfTestLog::Info("T0-cover", std::format("{} closure form(s) excluded: source mesh absent in this load order: {}",
+                absent, absentLines));
+        }
         Part projectiles, dualProjectiles, explosions, castingArts;
         for (const auto* spell : FireSpellList()) {
             const auto* costliest = spell->GetAVEffect();

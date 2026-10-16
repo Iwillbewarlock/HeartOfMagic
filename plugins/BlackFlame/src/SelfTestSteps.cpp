@@ -121,7 +121,11 @@ namespace BlackFlame::SelfTest
             }
             // v2: every copy against its live source now (fill counts, fields, links); no map read is a FAIL
             for (const auto& line : CheckCopies()) {
-                SelfTestLog::Check("T0-v2", line.pass, line.text);
+                if (line.info) {
+                    SelfTestLog::Info("T0-v2", line.text);  // H1: source mesh absent in this load order
+                } else {
+                    SelfTestLog::Check("T0-v2", line.pass, line.text);
+                }
             }
             const bool fireOk = a_c.haveForms && IsFireSpell(a_c.forms.firebolt) && IsFireSpell(a_c.forms.fireball);
             const bool ok = PaletteReady() && forms.burnShader && forms.stokeSpell && forms.stokedKeyword && fireOk;

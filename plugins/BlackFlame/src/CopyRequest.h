@@ -43,6 +43,8 @@ namespace BlackFlame
         std::size_t nifs = 0;
         std::size_t nifsFailed = 0;
         std::size_t nifsFailedForms = 0;   // of those, a closure form's or a muzzle's model (T0-request FAILs on them)
+        std::size_t nifsAbsentForms = 0;   // H1: of nifsFailed, a non-base-game form's model that does not open at all (INFO)
+        std::vector<std::string> absentFormSample;  // the first few such paths (UTF-8)
         std::size_t nifsFailedAddons = 0;  // of those, only an ADDN record's model (INFO: often another mod's broken mesh)
         std::vector<std::string> failedAddonSample;  // the first few such ADDN paths (UTF-8)
         long long readMs = 0;         // NIF reads and hashing

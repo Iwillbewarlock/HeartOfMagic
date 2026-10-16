@@ -191,11 +191,20 @@ namespace BlackFlame::SelfTest
             // Decision 4: a form's or muzzle's NIF that failed is a FAIL (no copy of it can be made); an ADDN-only one is INFO below
             SelfTestLog::Check("T0-request", request.computed && request.forms > 0 && request.requestWritten &&
                 request.nifsFailedForms == 0 && dumpOk,
-                std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} form or muzzle NIFs failed) read in {} ms, "
-                    "fingerprint {}, request {}, dump {}", request.forms, request.excluded, request.nifs, request.nifsFailedForms,
-                    request.readMs,
+                std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} form or muzzle NIFs failed, {} absent from "
+                    "this load order) read in {} ms, fingerprint {}, request {}, dump {}", request.forms, request.excluded,
+                    request.nifs, request.nifsFailedForms, request.nifsAbsentForms, request.readMs,
                     request.computed ? request.fingerprint : std::string("NOT computed"),
                     request.requestWritten ? "written" : "NOT written", request.dumpState));
+        }
+        if (request.nifsAbsentForms > 0) {
+            std::string paths;
+            for (const auto& path : request.absentFormSample) {
+                paths += (paths.empty() ? "" : ", ") + path;
+            }
+            SelfTestLog::Info("T0-request", std::format("{} form or muzzle NIF(s) absent in this load order (a plugin names a mesh "
+                "no mod or archive provides; the original form stays, nothing to copy): {}{}", request.nifsAbsentForms, paths,
+                request.nifsAbsentForms > request.absentFormSample.size() ? ", ..." : ""));
         }
         if (request.nifsFailedAddons > 0) {
             std::string paths;

@@ -94,6 +94,8 @@ namespace BlackFlame
         std::size_t greyless = 0;       // filled copies whose map greyModel is empty (the builder kept the source's model)
         std::size_t sourceMissing = 0;  // entries whose source form is not in the load order
         std::size_t copyMissing = 0;    // entries whose copy form is not there (the copies plugin not enabled?)
+        std::size_t modelsOpened = 0;   // H1: filled copies with a model that opened through the game's file system
+        std::size_t sourceAbsent = 0;   // H1: of failed, left out because the source's own mesh is in no mod or archive
         std::string requestFingerprint;       // map v2: the request's fingerprint
         std::string requestFingerprintSizes;  // map v2: its size-only form
     };
@@ -104,7 +106,15 @@ namespace BlackFlame
     {
         bool pass = false;
         std::string text;
+        bool info = false;  // H1: an INFO line (source mesh absent in this load order), not judged
     };
+
+    /// H1: a source left out because its own mesh is in no mod or archive (not a base-game form, and other copy
+    /// models opened); such a form keeps its original and is no failure of ours
+    [[nodiscard]] bool IsSourceMeshAbsent(const RE::TESForm* a_source) noexcept;
+
+    /// Whether a_form is defined by Skyrim.esm, Update.esm or one of the three DLC masters
+    [[nodiscard]] bool IsBaseGameForm(const RE::TESForm* a_form);
 
     /// Compares every copy with its live source now (game thread or kDataLoaded): scalars and uncopied links
     /// equal the source's, copied links point to the copies. Also the per-entry failures of the fill.

@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "CopyRequestData.h"
+#include "FormCopies.h"
 #include "NifDump.h"
 
 #include "EncodingUtils.h"
@@ -80,41 +81,56 @@ namespace BlackFlame
 
         // Every model the request names: closure forms, PROJ muzzles, ADDNs not ours. Refused paths are counted apart;
         // a_formPaths gets the form and muzzle models (a NIF failure there fails T0-request, an ADDN-only one is INFO)
+        // a_basePaths (H1): the form and muzzle models a base-game form names (never counted as absent)
         std::vector<std::string> ModelsToRead(const FireClosure& a_closure, std::vector<std::string>& a_refused,
-            std::set<std::string>& a_formPaths)
+            std::set<std::string>& a_formPaths, std::set<std::string>& a_basePaths)
         {
             std::set<std::string> paths;
-            const auto add = [&](const std::string& a_model) {
+            const auto add = [&](const std::string& a_model, bool a_base) {
                 if (a_model.empty()) {
                     return;
                 }
                 if (const auto path = NifDump::NormalizeModelPath(a_model)) {
                     paths.insert(*path);
+                    if (a_base) {
+                        a_basePaths.insert(*path);
+                    }
                 } else {
                     a_refused.push_back(Utf8(a_model));
                 }
             };
             for (const auto& form : a_closure.forms) {
-                add(ModelPathOf(form.form));
+                const bool base = IsBaseGameForm(form.form);
+                add(ModelPathOf(form.form), base);
                 if (const auto* projectile = form.form->As<RE::BGSProjectile>()) {
-                    add(CopyRequestData::MuzzleModelOf(*projectile));
+                    add(CopyRequestData::MuzzleModelOf(*projectile), base);
                 }
             }
             a_formPaths = paths;
             if (auto* dh = RE::TESDataHandler::GetSingleton()) {
                 for (const auto* addon : dh->GetFormArray<RE::BGSAddonNode>()) {
                     if (addon && !IsOwnPluginForm(addon)) {
-                        add(ModelPathOf(addon));
+                        add(ModelPathOf(addon), false);
                     }
                 }
             }
             return { paths.begin(), paths.end() };
         }
 
-        void CountFailure(const std::string& a_path, const std::set<std::string>& a_formPaths)
+        // H1: a form's or muzzle's NIF that does not open at all (no mod or archive has it) is counted apart as absent
+        // (INFO), unless a base-game form names it; one that opened but could not be read stays a failure
+        void CountFailure(const std::string& a_path, const std::set<std::string>& a_formPaths,
+            const std::set<std::string>& a_basePaths, bool a_opened)
         {
             ++g_state.nifsFailed;
             if (a_formPaths.contains(a_path)) {
+                if (!a_opened && !a_basePaths.contains(a_path)) {
+                    ++g_state.nifsAbsentForms;
+                    if (g_state.absentFormSample.size() < kAddonSample) {
+                        g_state.absentFormSample.push_back(Utf8(a_path));
+                    }
+                    return;
+                }
                 ++g_state.nifsFailedForms;
                 return;
             }
@@ -122,6 +138,19 @@ namespace BlackFlame
             if (g_state.failedAddonSample.size() < kAddonSample) {
                 g_state.failedAddonSample.push_back(Utf8(a_path));
             }
+        }
+
+        // H1 guard: when no NIF opened at all the cause is ours (a path bug, the file system), so nothing is "absent"
+        void FoldAbsentWhenNothingOpened()
+        {
+            if (g_state.nifsAbsentForms == 0 || g_state.nifs > g_state.nifsFailed) {
+                return;
+            }
+            logger::warn("BlackFlame: copy request: no NIF opened at all - the {} absent form NIF(s) count as failures",
+                g_state.nifsAbsentForms);
+            g_state.nifsFailedForms += g_state.nifsAbsentForms;
+            g_state.nifsAbsentForms = 0;
+            g_state.absentFormSample.clear();
         }
 
         std::string NormalizedOrRaw(const std::string& a_model)
@@ -308,15 +337,17 @@ namespace BlackFlame
             try {
                 std::vector<std::string> refused;
                 std::set<std::string> formPaths;
+                std::set<std::string> basePaths;
                 const auto probeStart = Clock::now();
-                for (const auto& path : ModelsToRead(a_closure, refused, formPaths)) {
+                for (const auto& path : ModelsToRead(a_closure, refused, formPaths, basePaths)) {
                     nifs.push_back({ path, NifDump::ProbeModel(path), {} });
                     if (!nifs.back().blob.opened) {
-                        CountFailure(path, formPaths);
+                        CountFailure(path, formPaths, basePaths, false);
                     }
                 }
                 g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - probeStart).count();
                 g_state.nifs = nifs.size();
+                FoldAbsentWhenNothingOpened();
                 g_state.sizeFingerprint = ComputeFingerprint(a_closure, nifs, true);
             } catch (const std::exception& e) {
                 logger::error("BlackFlame: copy request: the size fingerprint failed: {}", e.what());
@@ -330,20 +361,22 @@ namespace BlackFlame
         try {
             std::vector<std::string> refused;
             std::set<std::string> formPaths;
+            std::set<std::string> basePaths;
             const auto readStart = Clock::now();
-            for (const auto& path : ModelsToRead(a_closure, refused, formPaths)) {
+            for (const auto& path : ModelsToRead(a_closure, refused, formPaths, basePaths)) {
                 Nif nif{ path, {}, {} };
                 nif.blob = NifDump::ReadModel(path, &nif.bytes);
                 if (!nif.blob.ok) {
                     std::vector<std::byte>().swap(nif.bytes);
                 }
                 if (!nif.blob.ok) {
-                    CountFailure(path, formPaths);
+                    CountFailure(path, formPaths, basePaths, nif.blob.opened);
                 }
                 nifs.push_back(std::move(nif));
             }
             g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - readStart).count();
             g_state.nifs = nifs.size();
+            FoldAbsentWhenNothingOpened();
             for (const auto& model : refused) {
                 logger::warn("BlackFlame: copy request: model path '{}' refused (a drive, ':' or '..'): not read", model);
             }

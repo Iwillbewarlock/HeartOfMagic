@@ -9,13 +9,17 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <array>
 #include <charconv>
+#include <optional>
 #include <format>
 #include <fstream>
 #include <memory>
 #include <sstream>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace BlackFlame
 {
@@ -37,6 +41,7 @@ namespace BlackFlame
             bool ok = false;
             bool sourceMissing = false;
             bool copyMissing = false;
+            bool sourceAbsent = false;  // H1: left out because the source's own mesh is in no mod or archive
             std::string detail;
         };
 
@@ -47,6 +52,7 @@ namespace BlackFlame
             std::vector<Entry> entries;
             CopyCounts counts;
             std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
+            std::unordered_set<RE::FormID> absentSources;          // H1: sources whose own mesh is absent (INFO, not FAIL)
         };
 
         TrackedMutex g_refreshMutex;
@@ -180,8 +186,18 @@ namespace BlackFlame
 
         // J5: the copy's own model opens through the game's file system (as GreyCheck opens the grey models); a copy whose
         // NIF is missing is left out, so the engine keeps the original form and its runtime fallback. Empty model: fine.
-        std::string ModelProblem(const RE::TESForm* a_copy)
+        bool ModelOpens(const std::string& a_dataPath)
         {
+            RE::BSResourceNiBinaryStream stream(a_dataPath.c_str());
+            return stream.good();
+        }
+
+        // H1: a_sourceAbsent is set when the copy kept the source's model (map greyModel empty) and that model does not open
+        // either - the load order names a mesh no mod or archive provides, so no copy of it can exist
+        std::string ModelProblem(const RE::TESForm* a_copy, const RE::TESForm* a_source, const nlohmann::json& a_item,
+            bool& a_sourceAbsent)
+        {
+            a_sourceAbsent = false;
             const auto model = ModelPathOf(a_copy);
             if (model.empty()) {
                 return {};
@@ -190,9 +206,38 @@ namespace BlackFlame
             if (!path) {
                 return std::format("the copy's model path '{}' is refused", model);
             }
-            RE::BSResourceNiBinaryStream stream(path->c_str());
-            return stream.good() ? std::string() : std::format("the copy's model {} does not open (is the builder's output mod "
-                                                               "enabled with its meshes?)", *path);
+            if (ModelOpens(*path)) {
+                return {};
+            }
+            const bool greyless = a_item.contains("greyModel") && a_item["greyModel"].is_string() &&
+                                  a_item["greyModel"].get<std::string>().empty();
+            const auto sourceModel = ModelPathOf(a_source);
+            const auto sourcePath = sourceModel.empty() ? std::nullopt : NifDump::NormalizeModelPath(sourceModel);
+            if (greyless && sourcePath && !ModelOpens(*sourcePath)) {
+                a_sourceAbsent = true;
+                return std::format("source mesh absent in this load order ({} names {}; no mod or archive provides it): the "
+                                   "copy is not used, the original form stays", a_source->GetFile(0) ? std::string(a_source->GetFile(0)->GetFilename()) : std::string("?"), *sourcePath);
+            }
+            return std::format("the copy's model {} does not open (is the builder's output mod enabled with its meshes?)", *path);
+        }
+
+        // H1 guards: a base-game form's mesh is never "absent" (a path bug would look the same), and when no copy model
+        // opened at all the cause is ours (the copies mod off, a path bug), so nothing counts as absent then
+        void MarkAbsentSources(Copies& a_copies)
+        {
+            for (auto& entry : a_copies.entries) {
+                if (!entry.sourceAbsent) {
+                    continue;
+                }
+                if (a_copies.counts.modelsOpened == 0 || IsBaseGameForm(entry.source)) {
+                    entry.sourceAbsent = false;
+                    entry.detail += a_copies.counts.modelsOpened == 0 ? " - counted as a failure: no copy model opened at all" :
+                                                                        " - counted as a failure: a base-game form";
+                    continue;
+                }
+                ++a_copies.counts.sourceAbsent;
+                a_copies.absentSources.insert(entry.source->GetFormID());
+            }
         }
 
         bool ReadMap(nlohmann::json& a_root)
@@ -264,9 +309,12 @@ namespace BlackFlame
                 entry.ok = false;
                 entry.detail = "the copy form already belongs to another entry (or a copy is named as a source)";
             }
-            if (const auto problem = entry.ok ? ModelProblem(entry.copy) : std::string(); !problem.empty()) {
+            if (const auto problem = entry.ok ? ModelProblem(entry.copy, entry.source, item, entry.sourceAbsent) : std::string();
+                !problem.empty()) {
                 entry.ok = false;
                 entry.detail = problem;
+            } else if (entry.ok && !ModelPathOf(entry.copy).empty()) {
+                ++copies.counts.modelsOpened;
             }
             if (const auto refusal = entry.ok ? CopyFill::Refusal(entry.source) : std::string(); !refusal.empty()) {
                 entry.ok = false;
@@ -286,11 +334,18 @@ namespace BlackFlame
                 Count(copies.counts, entry.type);
             } else {
                 ++copies.counts.failed;
-                logger::warn("BlackFlame: copies: {} left out: {}", entry.sourceText.empty() ? item.dump() : entry.sourceText,
-                    entry.detail);
+                // H1: an absent source mesh is the load order's, not ours: info (the base-game and nothing-opened guards
+                // in MarkAbsentSources may still count it as a failure)
+                const auto& what = entry.sourceText.empty() ? item.dump() : entry.sourceText;
+                if (entry.sourceAbsent) {
+                    logger::info("BlackFlame: copies: {} left out: {}", what, entry.detail);
+                } else {
+                    logger::warn("BlackFlame: copies: {} left out: {}", what, entry.detail);
+                }
             }
             copies.entries.push_back(std::move(entry));
         }
+        MarkAbsentSources(copies);
         // Pass 2: links that have a copy point at it (all copies exist now)
         for (const auto& entry : copies.entries) {
             if (entry.ok) {
@@ -369,6 +424,25 @@ namespace BlackFlame
         return it != map.end() ? it->second : nullptr;
     }
 
+    bool IsBaseGameForm(const RE::TESForm* a_form)
+    {
+        static constexpr std::array<std::string_view, 5> kBaseFiles{ "Skyrim.esm", "Update.esm", "Dawnguard.esm",
+            "HearthFires.esm", "Dragonborn.esm" };
+        const auto* file = a_form ? a_form->GetFile(0) : nullptr;
+        if (!file) {
+            return false;
+        }
+        const std::string name(file->GetFilename());
+        return std::ranges::any_of(kBaseFiles, [&](std::string_view a_base) {
+            return name.size() == a_base.size() && _strnicmp(name.c_str(), a_base.data(), a_base.size()) == 0;
+        });
+    }
+
+    bool IsSourceMeshAbsent(const RE::TESForm* a_source) noexcept
+    {
+        return a_source && TheCopies().absentSources.contains(a_source->GetFormID());
+    }
+
     CopyCounts GetCopyCounts() noexcept
     {
         return TheCopies().counts;
@@ -379,13 +453,13 @@ namespace BlackFlame
         std::vector<CopyCheckLine> lines;
         const auto& copies = TheCopies();
         const auto& c = copies.counts;
-        lines.push_back({ c.mapRead && c.failed == 0 && c.mapEntries > 0,
-            std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {}, {} left out, {} links to "
-                "copies", c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards,
-                c.arts, c.failed, c.linksToCopies) });
+        lines.push_back({ c.mapRead && c.failed == c.sourceAbsent && c.mapEntries > 0,
+            std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {}, {} left out ({} of them: "
+                "source mesh absent in this load order), {} links to copies", c.mapRead ? "read" : "NOT read", c.mapEntries,
+                c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed, c.sourceAbsent, c.linksToCopies) });
         for (const auto& entry : copies.entries) {
             if (!entry.ok) {
-                lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail) });
+                lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail), entry.sourceAbsent });
                 continue;
             }
             const auto diff = CopyFill::Compare(entry.copy, entry.source);
