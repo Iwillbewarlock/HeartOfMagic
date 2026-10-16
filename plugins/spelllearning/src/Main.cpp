@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "CoSave.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
 #include "SpellScanner.h"
@@ -324,64 +325,6 @@ void UpdateInputHandlerHotkey(uint32_t keyCode)
 }
 
 // =============================================================================
-// SKSE SERIALIZATION CALLBACKS (Co-save)
-// =============================================================================
-
-constexpr uint32_t kSerializationUniqueID = 'SPLL';  // Spell Learning
-
-void OnGameSaved(SKSE::SerializationInterface* a_intfc)
-{
-    logger::info("SKSE Serialization: Game saved");
-    ProgressionManager::GetSingleton()->OnGameSaved(a_intfc);
-    SpellEffectivenessHook::GetSingleton()->OnGameSaved(a_intfc);
-    // NOTE: DEST registrations are NOT serialized to co-save.
-    // They are re-established on each load via AutoRegisterISLAliases()
-    // in OnPostLoadGame, since OnInit() only fires once per save creation.
-    FlushLog();
-}
-
-void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
-{
-    logger::info("SKSE Serialization: Game loaded");
-
-    // One record stream, read once. Each owner used to run its own
-    // GetNextRecordInfo loop, and the first one drained the stream: the
-    // progression reader consumed the early-learned record, logged it as an
-    // unknown type and threw it away, so a spell learned early lost its
-    // weakened state on every load.
-    auto* progression = ProgressionManager::GetSingleton();
-    auto* effectiveness = SpellEffectivenessHook::GetSingleton();
-
-    progression->BeginLoad();
-    effectiveness->BeginLoad();
-
-    uint32_t type = 0, version = 0, length = 0;
-    while (a_intfc->GetNextRecordInfo(type, version, length)) {
-        if (progression->ReadRecord(a_intfc, type, version, length)) continue;
-        if (effectiveness->ReadRecord(a_intfc, type, version, length)) continue;
-        logger::warn("SKSE Serialization: no owner for record type {:08X}, skipped", type);
-    }
-
-    progression->EndLoad();
-    effectiveness->EndLoad();
-    // NOTE: DEST registrations are handled via AutoRegisterISLAliases()
-    // in OnPostLoadGame, not through serialization.
-}
-
-void OnRevert(SKSE::SerializationInterface* a_intfc)
-{
-    logger::info("SKSE Serialization: Reverting (new game or loading different save)");
-    ProgressionManager::GetSingleton()->OnRevert(a_intfc);
-    SpellEffectivenessHook::GetSingleton()->OnRevert(a_intfc);
-    // A different save means a different inventory
-    SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
-    // NOTE: Do NOT revert DEST registrations here.
-    // AutoRegisterISLAliases() in OnPostLoadGame will re-establish them.
-    // Reverting would clear them, and since OnInit() only fires once per
-    // save creation, they'd never come back until the next load.
-}
-
-// =============================================================================
 // SKSE MESSAGE HANDLER
 // =============================================================================
 
@@ -570,10 +513,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // Register serialization interface (co-save)
     auto serialization = SKSE::GetSerializationInterface();
     if (serialization) {
-        serialization->SetUniqueID(kSerializationUniqueID);
-        serialization->SetSaveCallback(OnGameSaved);
-        serialization->SetLoadCallback(OnGameLoaded);
-        serialization->SetRevertCallback(OnRevert);
+        serialization->SetUniqueID(CoSave::kUniqueID);
+        serialization->SetSaveCallback(CoSave::OnGameSaved);
+        serialization->SetLoadCallback(CoSave::OnGameLoaded);
+        serialization->SetRevertCallback(CoSave::OnRevert);
         logger::info("SKSE Serialization interface registered (co-save enabled)");
     } else {
         logger::error("Failed to get SKSE serialization interface - co-save disabled!");

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ProgressionCoSave.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
@@ -113,7 +114,12 @@ public:
                            bool a_debugLevel = false);
     void AddXP(RE::FormID targetSpellId, float amount);
     void AddXP(const std::string& formIdStr, float amount);  // String overload for DEST integration
-    void AddXPNoGrant(const std::string& formIdStr, float amount);  // Record XP without early spell grant (ISL compat)
+    // ISL study XP: recorded without the early grant (ISL teaches the spell itself),
+    // all study XP of a spell capped at its unlock-threshold share (tracked under
+    // kStudySource in xpFromModded, so the co-save keeps it), and never taking the
+    // spell to 1.0 (ProgressionMath::NoGrantProgress). Returns the XP added.
+    float AddXPNoGrant(const std::string& formIdStr, float amount);
+    static constexpr const char* kStudySource = "isl_study";
     SpellProgress GetProgress(RE::FormID formId) const;
     // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
     // whose modded-source map allocates. For the per-effect and per-cast paths.
@@ -133,7 +139,8 @@ public:
     // Cheat-mode Relock: the spell's progress goes back to nothing (not unlocked,
     // no XP), so a reload or the next progress reply does not unlock it again.
     // An early-learned spell gets its own name and descriptions back and leaves
-    // the early-learned set; a learning target on it is cleared. The caller
+    // the early-learned set; a learning target on it is cleared, and its tome
+    // gives its XP again (SpellTomeHook::UnmarkTomeXPGranted). The caller
     // takes the spell from the player. Game thread only.
     void RelockSpell(RE::FormID formId);
     bool IsUnlocked(RE::FormID formId) const;
@@ -145,9 +152,13 @@ public:
     // =========================================================================
     // SKSE CO-SAVE SERIALIZATION
     // =========================================================================
-    static constexpr uint32_t kSerializationVersion = 2;
-    static constexpr uint32_t kProgressRecord = 'SLPR';  // Spell Learning Progress Record
-    static constexpr uint32_t kTargetsRecord = 'SLTR';   // Spell Learning Targets Record
+    // SLTR is written as version 2 (versions 1 and 2 have the same layout). SLPR's
+    // and SLPX's versions and layouts are in ProgressionCoSave.h: SLPR stays v2 as
+    // 1.5.0 writes it, the built-in cap trackers go in SLPX, which older builds skip.
+    static constexpr uint32_t kTargetsVersion = 2;
+    static constexpr uint32_t kProgressRecord = 'SLPR';     // Spell Learning Progress Record
+    static constexpr uint32_t kTargetsRecord = 'SLTR';      // Spell Learning Targets Record
+    static constexpr uint32_t kCapTrackersRecord = 'SLPX';  // Spell Learning Progress XP by source
     
     // Called by SKSE serialization callbacks
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
@@ -180,7 +191,7 @@ public:
         bool enabled = true;
         float multiplier = 100.0f;  // 0-200%
         float cap = 25.0f;          // 0-100% of required XP
-        bool internal = false;      // Internal sources use cap tracking but don't show in modded UI
+        bool internal = false;      // Internal sources: tracked, not capped here, not shown in modded UI
     };
 
     // How fast XP comes in: the overall multiplier, and a multiplier and a cap
@@ -245,26 +256,41 @@ public:
     // downward with reverseXPSeparate on, the usual ones otherwise
     XPGainRates GetGainRates(RE::FormID targetId) const;
 
-    // Direct XP manipulation (cheat mode)
+    // Direct XP manipulation (cheat mode, API, Papyrus): clamped to 0..required XP
     void SetSpellXP(RE::FormID formId, float xp);
 
     // =========================================================================
     // PUBLIC MODDER API
     // =========================================================================
 
-    // Grant XP through the cap system with named source.
+    // Grant XP through the cap system with named source (other mods: C++ API, Papyrus).
     // Built-in sources: "any", "school", "direct", "self"
-    // Custom sources: any string (auto-registers if unknown)
+    // Custom sources: any string (auto-registers if unknown). Refused (0, logged
+    // once): the plugin's own internal source names (IsReservedSourceName), a name
+    // over ProgressionCoSave::kMaxNameLength bytes, and a new name once a spell or
+    // the registry holds kMaxModdedSources - the co-save could not read it back.
     // Returns actual XP granted after caps/multipliers.
     float AddSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName = "direct");
+
+    // The plugin's own internal sources (passive learning): tracked per spell, not
+    // cut by the modded cap or multiplier - the source applies its own.
+    float AddInternalSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName);
 
     // Grant raw XP bypassing ALL caps and multipliers.
     float AddRawXP(RE::FormID targetId, float amount);
 
     // Register a named modded XP source (creates UI controls).
-    // Returns true if newly registered, false if already existed.
-    // Internal sources use cap tracking but don't appear in the modded XP sources UI.
+    // Returns true if newly registered, false if already existed or refused (the
+    // same names AddSourcedXP refuses, for an external source).
+    // Internal sources (passive learning) don't appear in the modded XP sources UI;
+    // AddInternalSourcedXP tracks their XP per spell but does not cut it with the
+    // modded cap or multiplier - the source applies its own (passive: a cap per tier).
     bool RegisterModdedXPSource(const std::string& sourceId, const std::string& displayName, bool internal = false);
+
+    // Names only the plugin uses: kPassiveSource, kStudySource, any source
+    // registered as internal. Other mods may not grant XP or register under them.
+    static constexpr const char* kPassiveSource = "passive";
+    bool IsReservedSourceName(const std::string& sourceName) const;
 
     // Get the cap value for a source (works for built-in and modded)
     float GetSourceCap(const std::string& sourceName) const;
@@ -279,6 +305,16 @@ private:
     ProgressionManager& operator=(const ProgressionManager&) = delete;
 
     std::filesystem::path GetProgressFilePath() const;
+
+    // The spell's progress entry, made on first use with the spell's own required
+    // XP (GetRequiredXP: tier, reverse unlock share) - not the struct's 100, which
+    // made a Master tome's read worth 100% of an entry nobody had sized yet.
+    SpellProgress& EnsureProgress(RE::FormID formId);
+
+    // AddSourcedXP / AddInternalSourcedXP: internalCaller lets the internal names through
+    float AddSourcedXPImpl(RE::FormID targetId, float amount, const std::string& sourceName, bool internalCaller);
+    // An external source name the co-save can carry (length) and not reserved; logs once
+    bool AcceptExternalSourceName(const std::string& sourceName) const;
 
     // One spell is the learning target of one school at most: a spell under two keys
     // earned XP twice per cast (ProgressionManagerCore.cpp). Every key dropped is
@@ -319,6 +355,12 @@ private:
 
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;
+
+    // SLPX entries read during a load (form ids resolved), put onto m_spellProgress
+    // in EndLoad - after every SLPR entry is in, whatever order the records came in
+    std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
+    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
+    void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
 
     // Current save name for file naming
     std::string m_currentSaveName = "default";

@@ -78,6 +78,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/progressionmanager/ProgressionManagerTargets.cpp
     src/progressionmanager/ProgressionManagerCopies.cpp
     src/progressionmanager/ProgressionManagerXP.cpp
+    src/progressionmanager/ProgressionManagerStudy.cpp
     src/progressionmanager/ProgressionManagerAPI.cpp
     src/progressionmanager/ProgressionManagerSerialization.cpp
     src/ISLIntegration.cpp
@@ -89,6 +90,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/SpellTomeHook.cpp
     src/SpellTomeHookGate.cpp
     src/SpellTomeHookInventory.cpp
+    src/SpellTomeHookSave.cpp
+    src/CoSave.cpp
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp
     src/treebuilder/TreeBuilderCore.cpp

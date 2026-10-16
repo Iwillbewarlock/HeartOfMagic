@@ -64,7 +64,7 @@ float Function AddSourcedXP(Spell akSpell, float amount, string sourceName = "di
 ; For quest rewards where amount is pre-determined.
 float Function AddRawXP(Spell akSpell, float amount) global native
 
-; Set exact XP value (debug/cheat).
+; Set exact XP value (debug/cheat), clamped to 0 .. the spell's required XP.
 Function SetSpellXP(Spell akSpell, float xp) global native
 
 ; === Progress Queries ===

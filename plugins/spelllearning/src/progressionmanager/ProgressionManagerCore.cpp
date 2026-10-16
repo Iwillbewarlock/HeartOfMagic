@@ -66,6 +66,18 @@ void ProgressionManager::ClearAllProgress()
     m_dirty = false;
 }
 
+ProgressionManager::SpellProgress& ProgressionManager::EnsureProgress(RE::FormID formId)
+{
+    auto it = m_spellProgress.find(formId);
+    if (it != m_spellProgress.end()) {
+        return it->second;
+    }
+    // Before the entry exists, so GetRequiredXP does not find a placeholder
+    SpellProgress progress;
+    progress.requiredXP = GetRequiredXP(formId);
+    return m_spellProgress.emplace(formId, std::move(progress)).first->second;
+}
+
 // =============================================================================
 // ONE SCHOOL PER TARGET, XP LOG
 // =============================================================================
