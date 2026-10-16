@@ -1,0 +1,6 @@
+{
+    "enabled": true,
+    "showIcon": true,
+    "minIntervalSeconds": 1.0,
+    "magickaPerDose": 100
+}
