@@ -16,7 +16,8 @@
 //                         judge that load exactly as a player's quickload.
 //   devAutoQuit true      kQuitDelay after the self-test's DONE (DONE E3 when E3 armed), Main::quitGame is
 //                         set on the main thread. kStallTimeout after the last load (or the auto load's
-//                         request) without that, it quits anyway and logs the timeout.
+//                         request, or kDataLoaded with devAutoLoad set) without that, it quits anyway and
+//                         logs the timeout.
 // One detached thread polls every kPoll; every engine call goes through MainQueue::Post. Each step is logged.
 
 namespace BlackFlame::DevAutomation

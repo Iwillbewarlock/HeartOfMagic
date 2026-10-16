@@ -6,6 +6,7 @@
 #include "SelfTestReload.h"
 #include "TrackedMutex.h"
 
+#include <atomic>
 #include <format>
 #include <functional>
 #include <mutex>
@@ -52,7 +53,7 @@ namespace BlackFlame::DevAutomation
         };
         TrackedMutex g_mutex;
         State g_state;
-        bool g_installed = false;  // kDataLoaded only (message thread)
+        std::atomic_bool g_installed = false;  // set at kDataLoaded (message thread), read from the game thread too
 
         bool AnyKeyOn(const Config& a_config)
         {
@@ -226,10 +227,14 @@ namespace BlackFlame::DevAutomation
         if (g_installed || !AnyKeyOn(config)) {
             return;
         }
-        g_installed = true;
         if (!EngineIdsPresent()) {
             logger::error("BlackFlame: dev automation off: an engine id is missing (see the line above)");
             return;
+        }
+        if (!config.devAutoLoad.empty()) {
+            // The timeout runs from here until the load is requested: a main menu event never seen still ends the game
+            std::lock_guard lock(g_mutex);
+            g_state.stallFrom = Clock::now();
         }
         if (!config.devAutoLoad.empty()) {
             auto* ui = RE::UI::GetSingleton();
@@ -239,6 +244,7 @@ namespace BlackFlame::DevAutomation
                 logger::error("BlackFlame: dev automation: no RE::UI - devAutoLoad cannot see the main menu");
             }
         }
+        g_installed = true;
         std::thread(&PollLoop).detach();  // detached, never joined: a thread joined at DLL unload can hang the exit
         logger::warn("BlackFlame: dev automation ON (dev only): devAutoLoad='{}' devAutoE3={} devAutoQuit={}",
             config.devAutoLoad, config.devAutoE3, config.devAutoQuit);
