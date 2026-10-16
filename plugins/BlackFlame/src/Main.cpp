@@ -46,6 +46,7 @@ namespace
         BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
         if (!BlackFlame::LoadForms()) {
             logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
+            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
             return;
         }
         BlackFlame::LoadAndFillCopies();  // v2: before any hook reads the copies (FormCopies.h)
@@ -58,6 +59,7 @@ namespace
             BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing (CopyFreshness.h)
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
+            BlackFlame::MarkFreshnessUnchecked(std::string("the fire closure failed: ") + e.what());
         }
         BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();

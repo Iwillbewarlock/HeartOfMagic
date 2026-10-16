@@ -398,15 +398,18 @@ the copy request, the copies are judged:
 | State | When |
 |---|---|
 | `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
-| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or more than half of its entries lost their copy form (the output mod placed before Black Flame, or not enabled) |
+| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled) |
 | `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms) |
 | `fresh` | otherwise |
 
 The log line gives the state, why, how many closure forms have no copy and how many map entries lost their source. Once
 per session, at the first save load or new game, the player sees a corner notice through the main-thread queue (no
-queue: the log only): stale or none - "Black Flame: your fire spells changed. Run the Black Flame builder, then restart
-the game."; pluginMissing - "Black Flame: the generated copies are not enabled. Enable
-HeartOfMagic_BlackFlame_Copies.esp." English only (as the rest of this prototype's HUD lines); no id goes on screen. A
+queue: the log only): stale - "Black Flame: your fire spells changed. Run the Black Flame builder, then restart the
+game."; none - "Black Flame: the grey copies are not built yet. Run the Black Flame builder, then restart the game.";
+pluginMissing - "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp and put
+the copies output mod after Black Flame." The notice counts as shown only once the main-thread queue took it, and none
+is shown when kDataLoaded did not get as far as the check (the ESP's forms missing, the closure failing: the log says
+why; fix F10). English only (as the rest of this prototype's HUD lines); no id goes on screen. A
 player's fire form without a copy stays orange, logged once per form with the freshness state. Do not deploy a C2
 builder output with a DLL older than C3 (it reads only map version 1).
 
@@ -625,9 +628,11 @@ Our jumps never use a hand-written rel32 into the DLL: call redirects and the pr
 
 **Tester diagnostics.** `HeartOfMagic_BlackFlame_tester.txt` next to the log, written at kDataLoaded and again when the
 self-test ends: the runtime, every hook INSTALLED or SKIPPED with its address (image offset), the bytes it found and why,
-the copies map and fill counts with any copy problem, the copy request, and the self-test's DONE line. `testerMode`
-(config, default false) turns on `selfTest` and `writeRequest` and writes every log line through at once (a crash keeps
-it); the self-test starts after `selfTestDelaySeconds` (30) of unpaused play.
+the copies map and fill counts with any copy problem, the copy request, a counters line (Launch, explosion creation,
+hazard creation and the spawn window, the SetCastingArt site, PlaceAtMe copies, the native wrappers bound or not; also
+an INFO line of T9, fix F6), and the self-test's DONE lines. `testerMode` (config, default false) turns on `selfTest`
+and `writeRequest` and writes every log line through at once (a crash keeps it), during and after the self-test (fix F9);
+the self-test starts after `selfTestDelaySeconds` (30) of unpaused play.
 
 **Tester package.** `plugins\BlackFlame\tools\Make-TesterPackage.ps1` (after `BuildRelease.ps1`) writes
 `dist\HeartOfMagic-BlackFlame-Tester_<VERSION>-<commit>.zip`: the DLL and PDB, the ESP and the two empty ESLs, the shipped

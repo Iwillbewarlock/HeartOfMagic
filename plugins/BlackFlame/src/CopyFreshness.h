@@ -42,11 +42,15 @@ namespace BlackFlame
     /// kDataLoaded, after PrepareCopyRequest
     void CheckFreshness(const FireClosure& a_closure);
 
+    /// F10: kDataLoaded could not check (the closure failed); no notice is shown, the log says why
+    void MarkFreshnessUnchecked(const std::string& a_why);
+
     [[nodiscard]] const FreshnessState& GetFreshness() noexcept;
 
     /// "fresh" / "stale" / "none" / "pluginMissing"
     [[nodiscard]] const char* FreshnessName(CopyFreshness a_state) noexcept;
 
-    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing, once
+    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing, once (nothing when
+    /// kDataLoaded never checked; marked shown only once the main-thread queue took the notice)
     void NotifyFreshnessOnce();
 }

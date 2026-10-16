@@ -454,6 +454,11 @@ namespace BlackFlame
         return true;
     }
 
+    std::uint64_t PlacedCopySwaps() noexcept
+    {
+        return g_placeSwaps.load();
+    }
+
     std::vector<WrapperStatus> CheckNativeWrappers()
     {
         std::vector<WrapperStatus> out;

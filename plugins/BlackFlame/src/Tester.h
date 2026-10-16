@@ -16,6 +16,10 @@ namespace BlackFlame::Tester
     /// kDataLoaded, after every hook is installed
     void WriteStartup();
 
+    /// F6: one line of this session's swap counters (Launch, explosion creation, hazard creation and its spawn window, the
+    /// casting art site, PlaceAtMe) and the native wrappers' state; game thread (it reads the VM)
+    [[nodiscard]] std::string CounterSummary();
+
     /// The self-test's DONE line (SelfTestLog::Done): the file is written again with it
     void NoteSelfTest(const std::string& a_doneLine);
 }

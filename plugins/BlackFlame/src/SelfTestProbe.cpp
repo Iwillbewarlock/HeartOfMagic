@@ -1,4 +1,6 @@
 #include "SelfTestProbe.h"
+
+#include "Config.h"
 #include "Watchdog.h"
 #include "TrackedMutex.h"
 
@@ -80,7 +82,8 @@ namespace BlackFlame::SelfTestProbe
 
     void SetRecording(bool a_on) noexcept
     {
-        Watchdog::SetFlushEveryLine(a_on);  // C6a: during the self-test every info line reaches the file at once
+        // C6a: during the self-test every info line reaches the file at once; F9: testerMode keeps it on afterwards too
+        Watchdog::SetFlushEveryLine(a_on || GetConfig().testerMode);
         g_recording.store(a_on, std::memory_order_release);
     }
 

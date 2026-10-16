@@ -44,6 +44,9 @@ namespace BlackFlame
         bool latent = false;
     };
 
+    /// F6: how often PlaceAtMe placed a copy (copyPlaced) this session
+    [[nodiscard]] std::uint64_t PlacedCopySwaps() noexcept;
+
     /// For the self-test (T0-wrap): each target's state, read from the VM now
     [[nodiscard]] std::vector<WrapperStatus> CheckNativeWrappers();
 }

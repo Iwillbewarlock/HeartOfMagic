@@ -12,10 +12,14 @@ namespace BlackFlame
     namespace
     {
         constexpr const char* kStaleText = "Black Flame: your fire spells changed. Run the Black Flame builder, then restart the game.";
-        constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp.";
+        constexpr const char* kNoneText = "Black Flame: the grey copies are not built yet. Run the Black Flame builder, then restart the game.";
+        constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp "
+                                             "and put the copies output mod after Black Flame.";
         constexpr int kOldMapVersion = 1;
 
-        FreshnessState g_state;  // written once at kDataLoaded
+        FreshnessState g_state;          // written once at kDataLoaded
+        bool g_checked = false;          // F10: CheckFreshness ran (kDataLoaded finished its copy request part)
+        std::string g_uncheckedWhy;      // why not, when it did not
         std::atomic<bool> g_notified{ false };
 
         bool CopiesPluginLoaded()
@@ -51,7 +55,7 @@ namespace BlackFlame
         if (!counts.mapRead || counts.mapEntries == 0) {
             state.state = CopyFreshness::kNone;
             state.detail = counts.mapRead ? "the copies map has no entry" : "no copies map (the builder has not been run)";
-        } else if (!CopiesPluginLoaded() || counts.copyMissing * 2 > counts.mapEntries) {
+        } else if (!CopiesPluginLoaded() || (counts.copyMissing > 0 && counts.copyMissing * 2 >= counts.mapEntries)) {
             state.state = CopyFreshness::kPluginMissing;
             state.detail = std::format("the map was read but {} ({} of {} entries without their copy form)",
                 CopiesPluginLoaded() ? std::string("most copies are missing") : std::string(kCopiesPluginName) + " is not loaded",
@@ -76,7 +80,16 @@ namespace BlackFlame
         state.detail += std::format("; {} closure forms without a copy, {} map entries whose source is gone", state.formsWithoutCopy,
             state.copiesLostSource);
         g_state = std::move(state);
+        g_checked = true;
         logger::info("BlackFlame: copies freshness: {} - {}", FreshnessName(g_state.state), g_state.detail);
+    }
+
+    void MarkFreshnessUnchecked(const std::string& a_why)
+    {
+        g_checked = false;
+        g_uncheckedWhy = a_why;
+        g_state.detail = "not checked: " + a_why;
+        logger::warn("BlackFlame: copies freshness not checked ({}): no notice will be shown this session", a_why);
     }
 
     const FreshnessState& GetFreshness() noexcept
@@ -87,14 +100,26 @@ namespace BlackFlame
     void NotifyFreshnessOnce()
     {
         const auto state = g_state.state;
-        if (state == CopyFreshness::kFresh || g_notified.exchange(true)) {
+        if (state == CopyFreshness::kFresh || g_notified.load()) {
             return;
         }
-        const char* text = state == CopyFreshness::kPluginMissing ? kMissingText : kStaleText;
-        logger::info("BlackFlame: copies freshness {}: telling the player \"{}\"", FreshnessName(state), text);
-        if (!MainQueue::Installed()) {
-            return;  // no AddTask fallback for a HUD line: the log says it
+        if (!g_checked) {
+            // F10: kDataLoaded did not get as far as the check (LoadForms or the closure failed): say so, show nothing
+            g_notified.store(true);
+            logger::warn("BlackFlame: copies freshness was not checked this session ({}): no notice",
+                g_uncheckedWhy.empty() ? std::string("kDataLoaded did not finish") : g_uncheckedWhy);
+            return;
         }
-        (void)MainQueue::Post("copies freshness notice", [text]() { RE::SendHUDMessage::ShowHUDMessage(text); });
+        const char* text = state == CopyFreshness::kPluginMissing ? kMissingText : state == CopyFreshness::kNone ? kNoneText : kStaleText;
+        if (!MainQueue::Installed()) {
+            g_notified.store(true);  // no AddTask fallback for a HUD line: the log says it, once
+            logger::info("BlackFlame: copies freshness {}: \"{}\" (no main-thread queue: not shown)", FreshnessName(state), text);
+            return;
+        }
+        // F10: marked only once the notice is really queued (a stopped task kind refuses it)
+        if (MainQueue::Post("copies freshness notice", [text]() { RE::SendHUDMessage::ShowHUDMessage(text); })) {
+            g_notified.store(true);
+            logger::info("BlackFlame: copies freshness {}: telling the player \"{}\"", FreshnessName(state), text);
+        }
     }
 }

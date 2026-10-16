@@ -7,6 +7,7 @@
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "MainThreadQueue.h"
+#include "PapyrusWrap.h"
 #include "Patch.h"
 
 #include <format>
@@ -78,6 +79,7 @@ namespace BlackFlame::Tester
                 cfg.testerMode, cfg.selfTest, cfg.writeRequest, MainQueue::Installed() ? "installed" : "NOT installed");
             text += "hooks:\n" + Hooks();
             text += "copies:\n" + Copies();
+            text += "counters: " + CounterSummary() + "\n";
             {
                 std::lock_guard lock(g_mutex);
                 text += "self-test: " + g_selfTest + "\n";
@@ -88,6 +90,24 @@ namespace BlackFlame::Tester
                 logger::warn("BlackFlame: the tester file could not be written");
             }
         }
+    }
+
+    std::string CounterSummary()
+    {
+        const auto c = GetCopySwapCounters();
+        std::string wrappers;
+        for (const auto& w : CheckNativeWrappers()) {
+            wrappers += std::format("{}{}.{} {}{}", wrappers.empty() ? "" : ", ", w.className, w.functionName,
+                w.bound ? "bound" : "NOT bound", w.bound && !w.matches ? " (signature differs)" : "");
+        }
+        return std::format("Launch {} calls / {} swaps / {} without a copy; explosion creation {} calls / {} already copies / {} "
+                           "swapped (projectile) / {} swapped (self area) / {} rejected; hazard creation {} calls / {} swapped "
+                           "(window) / {} swapped (spawn) / {} rejected; spawn window {} calls / {} not a SpawnHazardEffect; "
+                           "SetCastingArt {} calls / {} copies / {} rejected; PlaceAtMe copies {}; native wrappers: {}",
+            c.launchCalls, c.launchSwaps, c.launchNoCopy, c.createCalls, c.createAlreadyCopy, c.createSwapsProjectile,
+            c.createSwapsSelfArea, c.createLayoutRejected, c.hazardCreateCalls, c.hazardSwapsWindow, c.hazardSwapsSpawn,
+            c.hazardCreateRejected, c.spawnWindowCalls, c.spawnWindowOther, c.castingArtCalls, c.castingArtSwaps,
+            c.castingArtRejected, PlacedCopySwaps(), wrappers.empty() ? std::string("none") : wrappers);
     }
 
     void WriteStartup()
