@@ -29,6 +29,7 @@ function sendTreePrerequisites(nodes) {
     for (var pi = 0; pi < nodes.length; pi++) {
         var pNode = nodes[pi];
         var ownId = pNode.formId || pNode.id;
+        if (!ownId) continue;
         var canonId = _canonicalPrereqId(ownId);
         if (canonId !== ownId) {
             if (plain[canonId] || sentIds[canonId]) continue;

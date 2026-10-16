@@ -28,7 +28,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 3005 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
-| `treeLoad.js` | 594 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode; an edit mode copy `_dup_` sent as its spell or not at all) |
+| `treeLoad.js` | 595 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode; an edit mode copy `_dup_` sent as its spell or not at all) |
 | `spellCardView.js` | 539 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
 | `spellProgressView.js` | 216 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
