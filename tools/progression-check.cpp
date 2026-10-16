@@ -16,7 +16,9 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <limits>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace
@@ -155,21 +157,48 @@ namespace
     {
         ByteWriter w;
         w.Put(static_cast<std::uint32_t>(entries.size()));
+        bool written = true;
         for (const auto& e : entries) {
-            if (!CS::WriteEntry(w, e)) std::printf("FAIL writer refused an entry\n");
+            written = CS::WriteEntry(w, e) && written;
         }
+        Check(written, "progress entries written");
         return w.bytes;
     }
 
     void CoSaveCases()
     {
-        // Normal: v3 round trip
+        // Normal: SLPR is written as v2, byte for byte what 1.5.0 writes and reads
         const auto sample = SampleEntries();
         const auto bytes = WriteRecord(sample);
+        Check(CS::kProgressVersion == 2, "SLPR written as version 2 (the version 1.5.0 reads)");
+        ByteWriter as150;
+        as150.Put(static_cast<std::uint32_t>(sample.size()));
+        for (const auto& e : sample) PutOldEntry(as150, 2, e.formId, e.progressPercent, e.unlocked, e.modded);
+        Check(bytes == as150.bytes, "SLPR bytes identical to 1.5.0's v2 layout (no cap trackers in it)");
+
         const auto read = ReadRecord(bytes, CS::kProgressVersion);
         bool same = read.result == CS::ReadResult::Ok && read.entries.size() == sample.size();
-        for (std::size_t i = 0; same && i < sample.size(); ++i) same = SameEntry(read.entries[i], sample[i]);
-        Check(same, "v3 round trip keeps percent, unlocked, modded and the four cap trackers");
+        for (std::size_t i = 0; same && i < sample.size(); ++i) {
+            auto expected = sample[i];
+            expected.xpFromAny = expected.xpFromSchool = expected.xpFromDirect = expected.xpFromSelf = 0.0f;
+            same = SameEntry(read.entries[i], expected);
+        }
+        Check(same, "SLPR v2 round trip keeps percent, unlocked and modded; trackers come from SLPX");
+
+        // A development build's v3 (trackers appended) is still read
+        ByteWriter v3;
+        v3.Put(std::uint32_t{ 2 });
+        for (const auto& e : { sample[0], sample[1] }) {
+            PutOldEntry(v3, 2, e.formId, e.progressPercent, e.unlocked, e.modded);
+            v3.Put(e.xpFromAny);
+            v3.Put(e.xpFromSchool);
+            v3.Put(e.xpFromDirect);
+            v3.Put(e.xpFromSelf);
+        }
+        const auto r3 = ReadRecord(v3.bytes, 3);
+        Check(r3.result == CS::ReadResult::Ok && r3.entries.size() == 2 && SameEntry(r3.entries[0], sample[0]) &&
+                  SameEntry(r3.entries[1], sample[1]),
+              "dev-build SLPR v3 reads with its trackers, second entry aligned");
 
         // Older saves: v2 and v1 bytes read with the trackers at 0, every entry aligned
         ByteWriter v2;
@@ -197,18 +226,66 @@ namespace
                   !CS::IsReadableProgressVersion(4),
               "versions 1-3 readable, 0 and 4 refused");
 
-        // Failure: cut inside the last entry's trackers - the entries before it stay
+        // Failure: cut inside the last entry - the entries before it stay
         auto cut = bytes;
         cut.resize(cut.size() - 2);
         const auto rc = ReadRecord(cut, CS::kProgressVersion);
-        Check(rc.result == CS::ReadResult::ShortRead && rc.entries.size() == 2 && SameEntry(rc.entries[1], sample[1]),
+        Check(rc.result == CS::ReadResult::ShortRead && rc.entries.size() == 2 &&
+                  rc.entries[1].formId == sample[1].formId && rc.entries[1].unlocked,
               "record cut short: read stops at the broken entry, earlier entries kept");
 
         // Failure: a v3 record read as v2 is misaligned - shows why the version must be honoured
-        const auto rWrong = ReadRecord(bytes, 2);
-        Check(rWrong.result != CS::ReadResult::Ok || rWrong.entries.size() != sample.size() ||
+        const auto rWrong = ReadRecord(v3.bytes, 2);
+        Check(rWrong.result != CS::ReadResult::Ok || rWrong.entries.size() != 2 ||
                   !SameEntry(rWrong.entries[1], sample[1]),
               "v3 bytes read as v2 do not come out right (the version decides the layout)");
+
+        // SLPX: round trip, applied onto the SLPR entries
+        const std::vector<CS::CapEntry> caps = {
+            { 0x0001'2FCD, 5.0f, 15.0f, 30.0f, 7.5f },
+            { 0x0BAD'0001, 1.0f, 2.0f, 3.0f, 4.0f },  // a spell with no SLPR entry
+        };
+        ByteWriter px;
+        Check(CS::WriteCapEntries(px, caps) && px.bytes.size() == 4 + caps.size() * CS::kCapEntrySize,
+              "SLPX written: count + 20 bytes per spell");
+        std::vector<CS::CapEntry> capsBack;
+        ByteReader pxIn{ px.bytes };
+        const bool pxOk = CS::ReadCapEntries(pxIn, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
+                          CS::ReadResult::Ok;
+        Check(pxOk && capsBack.size() == 2 && capsBack[0].formId == caps[0].formId &&
+                  Near(capsBack[0].xpFromDirect, 30.0f) && Near(capsBack[1].xpFromSelf, 4.0f),
+              "SLPX round trip");
+
+        std::unordered_map<std::uint32_t, CS::Entry> loaded;
+        for (const auto& e : read.entries) loaded.emplace(e.formId, e);
+        const auto applied = CS::ApplyCapEntries(capsBack, loaded);
+        const auto& a = loaded.at(0x0001'2FCD);
+        Check(applied == 1 && Near(a.xpFromAny, 5.0f) && Near(a.xpFromSchool, 15.0f) && Near(a.xpFromDirect, 30.0f) &&
+                  Near(a.xpFromSelf, 7.5f),
+              "SLPX applied onto the spell's SLPR entry");
+        Check(loaded.size() == read.entries.size() && !loaded.contains(0x0BAD'0001),
+              "SLPX for a spell with no SLPR entry makes no entry");
+
+        // Old save (1.5.0): no SLPX at all - the entries keep their counters at 0
+        std::unordered_map<std::uint32_t, CS::Entry> old;
+        for (const auto& e : read.entries) old.emplace(e.formId, e);
+        Check(CS::ApplyCapEntries({}, old) == 0 && Near(old.at(0x0001'2FCD).xpFromDirect, 0.0f),
+              "save without SLPX: progress loads, cap trackers 0");
+
+        // Failure: SLPX cut short keeps whole entries; a count the record cannot hold is refused
+        auto pxCut = px.bytes;
+        pxCut.resize(pxCut.size() - 3);
+        ByteReader pxCutIn{ pxCut };
+        Check(CS::ReadCapEntries(pxCutIn, static_cast<std::uint32_t>(px.bytes.size()), capsBack) ==
+                      CS::ReadResult::ShortRead &&
+                  capsBack.size() == 1 && capsBack[0].formId == caps[0].formId,
+              "SLPX cut short: the whole entry before the cut kept");
+        ByteReader pxLenIn{ px.bytes };
+        Check(CS::ReadCapEntries(pxLenIn, static_cast<std::uint32_t>(px.bytes.size()) - 1, capsBack) ==
+                  CS::ReadResult::CountTooLarge,
+              "SLPX count larger than the record refused");
+        Check(CS::CapEntry{ 1, 0.0f, 0.0f, 0.0f, 0.0f }.IsEmpty() && !caps[0].IsEmpty(),
+              "SLPX skips spells with nothing counted");
 
         // Failure: cut inside a modded name - the record ends there, no misaligned entry after it
         ByteWriter broken;
@@ -305,6 +382,13 @@ namespace
               "SetSpellXP: 200 of 100 clamps to 1.0");
         Check(Near(PM::ProgressForXP(-5.0f, 100.0f), 0.0f) && Near(PM::ProgressForXP(50.0f, 0.0f), 0.0f),
               "SetSpellXP: negative XP or no required XP gives 0");
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        Check(Near(PM::ProgressForXP(nan, 100.0f), 0.0f) && Near(PM::ProgressForXP(50.0f, nan), 0.0f) &&
+                  Near(PM::ProgressForXP(std::numeric_limits<float>::infinity(), 100.0f), 1.0f),
+              "SetSpellXP: NaN gives 0 (not a NaN progress), infinity clamps to 1");
+        Check(Near(PM::GrantWithinCap(nan, 50.0f, 0.0f), 0.0f) && Near(PM::PreMultiplierGrant(nan, 6.0f, 1.0f), 0.0f) &&
+                  Near(PM::StudyGrant(nan, 400.0f, 0.25f, 0.0f), 0.0f),
+              "caps: a NaN amount grants 0");
 
         // ISL study: swapping books restarts ISL's count, not the cap
         const float req = 400.0f;
@@ -330,11 +414,14 @@ namespace
 
         // Mastery
         Check(PM::ShouldMaster(0.95f, 1.0f, false, false), "mastery: crossing 1.0 masters");
-        Check(PM::ShouldMaster(1.0f, 1.0f, false, true), "mastery: stuck at 1.0, early learned (ISL overflow) masters");
+        Check(PM::ShouldMaster(1.0f, 1.0f, false, true),
+              "mastery: stuck at 1.0, early learned and known (ISL overflow, taught) masters");
         Check(!PM::ShouldMaster(1.0f, 1.0f, false, false),
-              "mastery: stuck at 1.0, never granted (cheat 100%) stays ready for Unlock");
-        Check(!PM::ShouldMaster(0.95f, 1.0f, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true),
-              "mastery: unlocked or below 1.0 does not master");
+              "mastery: stuck at 1.0, held for ISL and not taught, or never granted (cheat 100%), waits");
+        Check(PM::ShouldMaster(0.95f, 1.0f, true, false),
+              "mastery: an unlocked spell lowered by cheat mode masters again when it crosses 1.0");
+        Check(!PM::ShouldMaster(1.0f, 1.0f, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true),
+              "mastery: already unlocked at 1.0, or below 1.0, does not master");
     }
 }
 

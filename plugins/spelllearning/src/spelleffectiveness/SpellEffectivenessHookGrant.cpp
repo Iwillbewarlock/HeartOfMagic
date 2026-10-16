@@ -270,7 +270,7 @@ void SpellEffectivenessHook::BeginLoad()
 void SpellEffectivenessHook::EndLoad()
 {
     // The effect hook's progress copy, now that ProgressionManager has the save's
-    // progress (its records are read in the same loop; Main.cpp ends its load first)
+    // progress (its records are read in the same loop; CoSave.cpp ends its load first)
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
         m_progressMirror.clear();

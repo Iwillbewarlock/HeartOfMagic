@@ -55,7 +55,9 @@ void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID
 
     logger::info("ProgressionManager: Set learning target for {} to {:08X}", school, formId);
 
-    EnsureProgress(formId);
+    if (formId != 0) {
+        EnsureProgress(formId);  // no entry for "no target" (the panel can send 0)
+    }
 
     // If switching back to a spell with progress above early threshold, regrant it
     if (earlySettings.enabled && formId != 0) {
@@ -525,6 +527,8 @@ void ProgressionManager::RelockSpell(RE::FormID formId)
     SpellEffectivenessHook::RemoveEarlySpellFromPlayer(formId);
     // A relocked spell is no longer being learned either
     ClearLearningTargetForSpell(formId);
+    // Back to nothing: its tome's XP too (the list is in the co-save, SLTX)
+    SpellTomeHook::GetSingleton()->UnmarkTomeXPGranted(formId);
 
     auto it = m_spellProgress.find(formId);
     if (it == m_spellProgress.end()) {

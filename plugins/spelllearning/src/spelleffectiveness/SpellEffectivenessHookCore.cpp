@@ -317,6 +317,11 @@ void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
 
 void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progressFraction)
 {
+    // Every cast's XP comes through here: no exclusive lock against the effect
+    // hook's reads when no spell is early learned (count 0 means the set is empty)
+    if (m_earlySpellCount.load(std::memory_order_acquire) == 0) {
+        return;
+    }
     std::unique_lock<std::shared_mutex> lock(m_mutex);
     if (m_earlyLearnedSpells.contains(spellFormId)) {
         m_progressMirror[spellFormId] = progressFraction * 100.0f;

@@ -50,18 +50,14 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     uint32_t numProgress = static_cast<uint32_t>(m_spellProgress.size());
     a_intfc->WriteRecordData(&numProgress, sizeof(numProgress));
 
-    // Each entry in the ProgressionCoSave.h layout: percent, unlocked, the modded
-    // sources' XP and (v3) the built-in sources' XP the caps count against
+    // Each entry in the v2 layout 1.5.0 reads (ProgressionCoSave.h): percent,
+    // unlocked, the modded sources' XP. The built-in sources' XP goes in SLPX below.
     for (auto& [formId, progress] : m_spellProgress) {
         ProgressionCoSave::Entry entry;
         entry.formId = formId;
         entry.progressPercent = progress.progressPercent;
         entry.unlocked = progress.unlocked;
         entry.modded.assign(progress.xpFromModded.begin(), progress.xpFromModded.end());
-        entry.xpFromAny = progress.xpFromAny;
-        entry.xpFromSchool = progress.xpFromSchool;
-        entry.xpFromDirect = progress.xpFromDirect;
-        entry.xpFromSelf = progress.xpFromSelf;
         if (!ProgressionCoSave::WriteEntry(*a_intfc, entry)) {
             logger::error("ProgressionManager: Failed to write progress entry {:08X}", formId);
             return;
@@ -70,35 +66,88 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
 
     logger::info("ProgressionManager: Saved {} spell progress entries to co-save (version {})", numProgress,
                  ProgressionCoSave::kProgressVersion);
+    WriteCapTrackers(a_intfc);
     m_dirty = false;
+}
+
+void ProgressionManager::WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const
+{
+    // Only spells with something counted: a zero entry reads the same as none
+    std::vector<ProgressionCoSave::CapEntry> entries;
+    for (const auto& [formId, progress] : m_spellProgress) {
+        const ProgressionCoSave::CapEntry e{ formId, progress.xpFromAny, progress.xpFromSchool, progress.xpFromDirect,
+                                             progress.xpFromSelf };
+        if (!e.IsEmpty()) entries.push_back(e);
+    }
+    if (!a_intfc->OpenRecord(kCapTrackersRecord, ProgressionCoSave::kCapTrackersVersion) ||
+        !ProgressionCoSave::WriteCapEntries(*a_intfc, entries)) {
+        logger::error("ProgressionManager: Failed to write the cap tracker record ({} spells)", entries.size());
+        return;
+    }
+    logger::info("ProgressionManager: Saved cap trackers for {} spells", entries.size());
+}
+
+bool ProgressionManager::ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length)
+{
+    std::vector<ProgressionCoSave::CapEntry> saved;
+    const auto result = ProgressionCoSave::ReadCapEntries(*a_intfc, length, saved);
+    if (result != ProgressionCoSave::ReadResult::Ok) {
+        // Whole entries read before the failure are good
+        logger::error("ProgressionManager: cap tracker record unreadable ({}), {} entries read before it kept",
+                      ProgressionCoSave::Describe(result), saved.size());
+    }
+    for (auto& e : saved) {
+        RE::FormID resolvedId = 0;
+        if (a_intfc->ResolveFormID(e.formId, resolvedId)) {
+            e.formId = resolvedId;
+            m_pendingCapTrackers.push_back(e);
+        }
+    }
+    return true;
 }
 
 void ProgressionManager::BeginLoad()
 {
     logger::info("ProgressionManager: Loading from co-save...");
     ClearAllProgress();
+    m_pendingCapTrackers.clear();
 }
 
 void ProgressionManager::EndLoad()
 {
+    // SLPX onto the entries SLPR made; a save without SLPX (1.5.0 and before)
+    // keeps the counters at 0, a spell without an entry gets none made
+    const auto applied = ProgressionCoSave::ApplyCapEntries(m_pendingCapTrackers, m_spellProgress);
+    if (!m_pendingCapTrackers.empty()) {
+        logger::info("ProgressionManager: Applied cap trackers to {} of {} spells ({} without a progress entry)",
+                     applied, m_pendingCapTrackers.size(), m_pendingCapTrackers.size() - applied);
+    }
+    m_pendingCapTrackers.clear();
     logger::info("ProgressionManager: Co-save load complete");
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
-                                    uint32_t type, uint32_t version, [[maybe_unused]] uint32_t length)
+                                    uint32_t type, uint32_t version, uint32_t length)
 {
     // Not ours: say so before looking at the version, or a record belonging to
     // another owner would be rejected here for a version it never claimed.
-    if (type != kTargetsRecord && type != kProgressRecord) return false;
+    if (type != kTargetsRecord && type != kProgressRecord && type != kCapTrackersRecord) return false;
 
-    // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3
-    const bool readable = type == kTargetsRecord ? (version >= 1 && version <= kTargetsVersion)
-                                                 : ProgressionCoSave::IsReadableProgressVersion(version);
+    // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3 (v3
+    // from a 2026-10-17 development build only), SLPX 1
+    bool readable = false;
+    switch (type) {
+        case kTargetsRecord: readable = version >= 1 && version <= kTargetsVersion; break;
+        case kProgressRecord: readable = ProgressionCoSave::IsReadableProgressVersion(version); break;
+        default: readable = version >= 1 && version <= ProgressionCoSave::kCapTrackersVersion; break;
+    }
     if (!readable) {
         logger::warn("ProgressionManager: Skipping record {:08X} with unsupported version {} (written by a newer version?)",
             type, version);
         return true;
     }
+
+    if (type == kCapTrackersRecord) return ReadCapTrackers(a_intfc, length);
 
     switch (type) {
         case kTargetsRecord: {
@@ -180,7 +229,8 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                 progress.progressPercent = entry.progressPercent;
                 progress.unlocked = entry.unlocked;
                 progress.xpFromModded.insert(entry.modded.begin(), entry.modded.end());
-                // v3: what the built-in caps count against (0 from an older save)
+                // What the built-in caps count against: from a v3 record only; a
+                // v2 one has them in SLPX, put on in EndLoad (0 from an older save)
                 progress.xpFromAny = entry.xpFromAny;
                 progress.xpFromSchool = entry.xpFromSchool;
                 progress.xpFromDirect = entry.xpFromDirect;
@@ -191,12 +241,11 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                 // own number - per-spell override, known-higher-spell share - through SetRequiredXP.
                 m_spellProgress.erase(resolvedId);
                 progress.requiredXP = GetRequiredXP(resolvedId);
-                m_spellProgress[resolvedId] = std::move(progress);
+                m_spellProgress.insert_or_assign(resolvedId, std::move(progress));
 
-                logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources, "
-                             "any/school/direct/self XP {:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",
                     resolvedId, entry.progressPercent * 100.0f, entry.unlocked ? "(unlocked)" : "",
-                    entry.modded.size(), entry.xpFromAny, entry.xpFromSchool, entry.xpFromDirect, entry.xpFromSelf);
+                    entry.modded.size());
             }
 
             logger::info("ProgressionManager: Loaded {} spell progress entries (record version {})",

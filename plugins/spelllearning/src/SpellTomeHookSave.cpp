@@ -5,6 +5,14 @@
 #include "SpellTomeHook.h"
 #include "ProgressionCoSave.h"
 
+void SpellTomeHook::UnmarkTomeXPGranted(RE::FormID spellFormId)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_tomeXPGranted.erase(spellFormId) > 0) {
+        logger::info("SpellTomeHook: {:08X} relocked - its tome gives XP again", spellFormId);
+    }
+}
+
 void SpellTomeHook::OnGameSaved(SKSE::SerializationInterface* a_intfc) const
 {
     std::vector<std::uint32_t> formIds;

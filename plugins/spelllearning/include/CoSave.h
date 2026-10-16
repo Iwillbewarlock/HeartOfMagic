@@ -6,7 +6,7 @@
 // CoSave — the SKSE serialization callbacks (save, load, revert)
 // =============================================================================
 // One record stream, three owners: ProgressionManager (SLTR targets, SLPR
-// progress), SpellEffectivenessHook (SLEL early-learned spells) and SpellTomeHook
+// progress, SLPX cap trackers), SpellEffectivenessHook (SLEL early-learned spells) and SpellTomeHook
 // (SLTX tome XP once). Record layouts and versions: docs/ARCHITECTURE.md,
 // "Co-save records". Registered in SKSEPluginLoad (Main.cpp).
 namespace CoSave

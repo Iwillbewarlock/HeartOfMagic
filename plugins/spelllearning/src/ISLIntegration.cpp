@@ -338,7 +338,7 @@ namespace DESTIntegration {
                              "granted {:.1f} of {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
                              a_spell->GetName(), a_hoursStudied,
                              a_totalStudied, a_hoursToMaster,
-                             granted, sessionXP, totalStudyXP > 0.0f ? (sessionXP / totalStudyXP) * 100.0f : 0.0f,
+                             granted, sessionXP, totalStudyXP > 0.0f ? (granted / totalStudyXP) * 100.0f : 0.0f,
                              totalStudyXP);
 
                 // Do NOT call CheckAndUpdatePowerStep here — the player doesn't have

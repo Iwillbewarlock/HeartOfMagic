@@ -650,7 +650,7 @@ MO2/mods/HeartOfMagic_RELEASE/PrismaUI/views/SpellLearning/SpellLearningPanel/
 ```
 
 ### 3. **ProgressionManager** (`plugins/spelllearning/src/progressionmanager/`, `plugins/spelllearning/include/ProgressionManager.h`)
-Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, ProgressionManagerAPI.cpp, ProgressionManagerTargets.cpp, ProgressionManagerXP.cpp
+Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, ProgressionManagerAPI.cpp, ProgressionManagerTargets.cpp, ProgressionManagerXP.cpp, ProgressionManagerStudy.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -685,34 +685,43 @@ its owner in turn. Every record version ever written is still read.
 | Record | Owner | Version written | Layout |
 |---|---|---|---|
 | `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
-| `SLPR` | ProgressionManager | 3 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
+| `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
+| `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
 | `SLEL` | SpellEffectivenessHook | 1 | count, then the early-learned spells' formIds |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
 
-- The `SLPR` layout is `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
-  `tools/progression-check --self-test` writes and reads v1-v3 and `SLTX` records in byte buffers. Before v3 the
-  built-in sources' XP was not saved, so their caps (any 5%, school 15%, direct 50% of the required XP) opened
-  again on every load; a v1/v2 entry still loads with them at 0. The required XP is not saved: a load starts
-  from the tier XP and the panel sends its own (`RequiredXPSync`).
+- The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
+  `tools/progression-check --self-test` writes and reads `SLPR` v1-v3, `SLPX` and `SLTX` records in byte buffers.
+- `SLPX` (2026-10-17): the built-in sources' XP, which their caps (any 5%, school 15%, direct 50% of the
+  required XP) count against, was not saved, so the caps opened again on every load. It is a record of its own
+  rather than an `SLPR` v3: 1.5.0 skips a record it does not know ("no owner") but would skip an `SLPR` of an
+  unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
+  `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
+  in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
+  `SLPX` loads with the counters at 0, as before. The required XP is not saved: a load starts from the tier XP
+  and the panel sends its own (`RequiredXPSync`).
 - A failed or short read anywhere in an `SLPR` entry ends the record (the entries read before it are kept,
   the error says how many were skipped); it used to leave only the inner loop and read the next entry from
-  the wrong offset. `SLTX` refuses a count its record length cannot hold before allocating.
+  the wrong offset. `SLPX` and `SLTX` refuse a count their record length cannot hold before allocating, and keep
+  the whole entries read before a short read.
 - `SLTX` (2026-10-17): the tome "XP once" list used to live only in memory and was never cleared - a save
   loaded later kept the list of the session (its own tomes gave no XP), and a restart gave the XP again.
   `CoSave::OnRevert` now clears it (`ClearTomeXPTracking`) and the load brings the save's own list; a save
   from before has none and starts empty. Each id goes through `ResolveFormID`, so a removed plugin's spells drop out.
-- A build older than 2026-10-17 skips an `SLPR` v3 record as an unsupported version: going back to such a
-  build after saving loses the progress in that save (the targets record is still v2 and loads).
+  1.5.0 skips it. A cheat-mode Relock takes the spell off the list (`UnmarkTomeXPGranted`): back to nothing,
+  its tome gives XP again.
 
 **Progress entries and XP limits** (2026-10-17):
 - An entry is made only through `EnsureProgress`, with the spell's own required XP (`GetRequiredXP`: tier,
   reverse-unlock share). `operator[]` used to make it with the struct's 100, so a Master tome read before the
   spell was ever a target (`autoSetLearningTarget` off) or the API's first XP counted against 100 XP.
 - `SetSpellXP` (cheat mode, C++ API, Papyrus) clamps the progress to 0..1 of the required XP
-  (`ProgressionMath::ProgressForXP`); 200 XP on a 100 XP spell used to read as 200%.
+  (`ProgressionMath::ProgressForXP`); 200 XP on a 100 XP spell used to read as 200%. NaN gives 0, so a NaN
+  from the API cannot stay in the co-save as the spell's progress.
 - Mastery (`AddXP` with early learning on) fires when the progress is 1.0 and the spell is not unlocked - when
-  it crosses 1.0, or when it was already there and the spell is early learned (`ProgressionMath::ShouldMaster`).
-  A spell left at 1.0 unlearned by the study overflow below masters on its next XP; a spell set to 100% by
+  it crosses 1.0, or when it was already there and the spell is early learned and the player has it
+  (`ProgressionMath::ShouldMaster`). A spell left at 1.0 by the study overflow below masters on its next XP once
+  ISL has taught it (held for ISL and not taught, it waits: mastery adds no spell); a spell set to 100% by
   cheat mode and never granted stays "ready" for the Unlock button.
 - **Internal sources** (`RegisterModdedXPSource(..., internal = true)`: passive learning) are tracked per spell
   in `xpFromModded` but `AddSourcedXP` does not cut them with the modded multiplier or cap (`GetSourceCap`
@@ -1019,7 +1028,10 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
   its threshold share at most, counted in `xpFromModded["isl_study"]` (so the co-save keeps it). ISL starts
   its own count again when the player swaps books mid-study, and each new count used to add its share on top -
   past 25%, and on a spell with cast XP up to 1.0 without ISL having taught it. Study XP also stops at
-  `ProgressionMath::kNoGrantMaxProgress` (0.99): the last step comes from a cast once ISL has taught the spell
+  `ProgressionMath::kNoGrantMaxProgress` (0.99): the last step comes from a cast once ISL has taught the spell.
+  The count is made at the first study XP granted (`ProgressionManagerStudy.cpp`). A spell studied with an
+  earlier version starts it at 0 - its study so far cannot be told apart from cast XP - so it can get its
+  share once more
 - The tome inventory bonus is `SpellTomeHook`'s (see above), not this module's
 
 **Supported Plugin Names:**
@@ -1864,7 +1876,7 @@ HeartOfMagic/
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
-│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (v1-v3) and SLTX record layouts, templated on the stream (no game types)
+│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── ProgressionMath.h            ✅ XP cap, study, SetSpellXP clamp and mastery arithmetic (no game types)
 │   │   │   ├── SimdKernels.h                ✅ SIMD kernel header
@@ -1921,12 +1933,13 @@ HeartOfMagic/
 │   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
 │   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
-│   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (5 files)
+│   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (7 files)
 │   │       │   ├── ProgressionManagerCore.cpp       (singleton, core logic)
 │   │       │   ├── ProgressionManagerSerialization.cpp (co-save read/write)
 │   │       │   ├── ProgressionManagerAPI.cpp        (public API methods)
 │   │       │   ├── ProgressionManagerTargets.cpp    (learning target management)
-│   │       │   └── ProgressionManagerXP.cpp         (XP calculation, grants)
+│   │       │   ├── ProgressionManagerXP.cpp         (XP calculation, grants)
+│   │       │   └── ProgressionManagerStudy.cpp      (ISL study XP, capped per spell)
 │   │       ├── spelleffectiveness/          ✅ Runtime magnitude scaling (4 files)
 │   │       │   ├── SpellEffectivenessHookCore.cpp   (hook install, settings, main scaling)
 │   │       │   ├── SpellEffectivenessHookDisplay.cpp (display name/description modification)

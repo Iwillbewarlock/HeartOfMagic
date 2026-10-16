@@ -76,6 +76,8 @@ public:
     
     // Mark that XP has been granted for this spell from a tome
     void MarkTomeXPGranted(RE::FormID spellFormId);
+    // Cheat-mode Relock: the spell's tome gives its XP again (SpellTomeHookSave.cpp)
+    void UnmarkTomeXPGranted(RE::FormID spellFormId);
     
     // Clear tome XP tracking (SKSE revert: a new game, or before any save loads)
     void ClearTomeXPTracking();

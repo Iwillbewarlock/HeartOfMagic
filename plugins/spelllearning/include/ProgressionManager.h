@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ProgressionCoSave.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
@@ -138,7 +139,8 @@ public:
     // Cheat-mode Relock: the spell's progress goes back to nothing (not unlocked,
     // no XP), so a reload or the next progress reply does not unlock it again.
     // An early-learned spell gets its own name and descriptions back and leaves
-    // the early-learned set; a learning target on it is cleared. The caller
+    // the early-learned set; a learning target on it is cleared, and its tome
+    // gives its XP again (SpellTomeHook::UnmarkTomeXPGranted). The caller
     // takes the spell from the player. Game thread only.
     void RelockSpell(RE::FormID formId);
     bool IsUnlocked(RE::FormID formId) const;
@@ -151,10 +153,12 @@ public:
     // SKSE CO-SAVE SERIALIZATION
     // =========================================================================
     // SLTR is written as version 2 (versions 1 and 2 have the same layout). SLPR's
-    // version and layout are in ProgressionCoSave.h (v3: the built-in cap trackers).
+    // and SLPX's versions and layouts are in ProgressionCoSave.h: SLPR stays v2 as
+    // 1.5.0 writes it, the built-in cap trackers go in SLPX, which older builds skip.
     static constexpr uint32_t kTargetsVersion = 2;
-    static constexpr uint32_t kProgressRecord = 'SLPR';  // Spell Learning Progress Record
-    static constexpr uint32_t kTargetsRecord = 'SLTR';   // Spell Learning Targets Record
+    static constexpr uint32_t kProgressRecord = 'SLPR';     // Spell Learning Progress Record
+    static constexpr uint32_t kTargetsRecord = 'SLTR';      // Spell Learning Targets Record
+    static constexpr uint32_t kCapTrackersRecord = 'SLPX';  // Spell Learning Progress XP by source
     
     // Called by SKSE serialization callbacks
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
@@ -333,6 +337,12 @@ private:
 
     // Progress data: spell formId -> progress
     std::unordered_map<RE::FormID, SpellProgress> m_spellProgress;
+
+    // SLPX entries read during a load (form ids resolved), put onto m_spellProgress
+    // in EndLoad - after every SLPR entry is in, whatever order the records came in
+    std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
+    bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
+    void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
 
     // Current save name for file naming
     std::string m_currentSaveName = "default";
