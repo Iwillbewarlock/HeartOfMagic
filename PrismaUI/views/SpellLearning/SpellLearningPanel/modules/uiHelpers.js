@@ -199,12 +199,12 @@ function findScanSpellForEntry(entry) {
     var data = (typeof state !== 'undefined' && state) ? state.lastSpellData : null;
     if (!entry || !entry.plugin || !entry.localFormId || !data || !data.spells ||
             typeof spellPluginName !== 'function') return undefined;
-    var key = String(entry.plugin).toLowerCase() + ':' + String(entry.localFormId).toLowerCase();
+    var key = foldPluginName(entry.plugin) + ':' + String(entry.localFormId).toLowerCase();
     // A linear scan: called once per chosen root (a few per school) per build
     for (var i = 0; i < data.spells.length; i++) {
         var spell = data.spells[i];
         var plugin = spellPluginName(spell);
-        if (plugin && spell.formId && plugin.toLowerCase() + ':' + getLocalFormId(spell.formId) === key) return spell;
+        if (plugin && spell.formId && foldPluginName(plugin) + ':' + getLocalFormId(spell.formId) === key) return spell;
     }
     return null;
 }

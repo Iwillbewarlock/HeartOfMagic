@@ -163,6 +163,8 @@ window.updateSpellData = function(jsonStr) {
         console.warn('[Timing] updateSpellData: ' + jsonStr.length + ' chars parsed in ' + (Date.now() - parseStarted) + ' ms');
         state.lastSpellData = data;
         ScanRef.reset(data);
+        // Spell gate keys saved before 2026-10-17 become the DLL's (gateReview.js)
+        if (typeof GateReview !== 'undefined') GateReview.migrateKeys(data.spells);
         
         // The scan came over as one string - 19.8 MB on the author's load order.
         // Pretty-printing it made a ~20 MB second copy and put it in a hidden

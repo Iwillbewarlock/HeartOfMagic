@@ -234,7 +234,7 @@ node run-tests.js
 | `modules/spellSearchTest.js` | Find Spell's matcher (`SpellSearch`): shown name, school (English and translated) and formId (only a formId-like text, "fe" is not one; after name matches), case and spaces ignored (Korean too), exact - prefix - rest - formId order alphabetical within each, the 80 cap, locked spells out in discovery mode and in with cheat mode or discovery mode off, the raw tree data (no states) listing nothing in discovery mode, the space-blind highlight range |
 | `modules/treeToolsScaleTest.js` | The tree tool bar's size (`TreeToolsScale`): clamp 1x - 3x in 0.05 steps, the scale a drag gives, save/load, Reset to Defaults, saving only a finished drag, a lost release (a move with no button held, focus lost) ending the drag - the no-button check only when the press reported its button, so an engine sending buttons 0 on every event keeps dragging until the release |
 | `modules/learningTargetKeysTest.js` | A learning target found by spell id, not school key (`LearningTargetKeys`): a multi-school spell under another key than its node's, the canonical id, `onLearningTargetDropped` forgetting only a key that still holds that spell and then redrawing the learning paths, wheel marks and open spell card, the Learn button (cheat mode too), spell card and wheel learning mark using it and the clear sending the formId |
-| `modules/gateReviewTest.js` | The spell gate's lists (`GateReview`): "review" and "out" tree candidates each in their list, not blacklisted ones (plugin:localFormId or formId) or kept ones (`gateReviewed`); "out" spells stay out of the tree unless included, an included one comes back; an old scan's `freeSpell` still leaves a spell out; reasons in words |
+| `modules/gateReviewTest.js` | The spell gate's lists (`GateReview`): "review" and "out" tree candidates each in their list, not blacklisted ones (plugin:localFormId or formId) or kept ones (`gateReviewed`); "out" spells stay out of the tree unless included, an included one comes back; an old scan's `freeSpell` still leaves a spell out; reasons in words; plugin keys fold A-Z only (`foldPluginName`), the same bytes the DLL's `PluginKey` makes for Korean, Cyrillic and accented names; `migrateKeys` replaces a key saved before with `toLowerCase` once (not before the config is read, not for a configNotRead config, saved once, a new key or an unknown old key left alone) |
 | `modules/i18nRelabelTest.js` | Text written with `setI18n` (i18n.js) comes back in the new language on a switch, with its values, as text or a title; text written after `clearI18n` stays; a missing key shows the English fallback |
 | `modules/stableIdsTest.js` | Saved settings that name spells after a load order shift: chosen roots sent with the spell's current formId (by plugin + localFormId, light plugins too), a root whose spell is gone left out, legacy roots and no-scan roots sent as saved; XP overrides by persistentId, legacy formId-keyed ones still read and replaced on the next set; the root picker's Current badge on the root's spell in this scan |
 | `modules/homIconsTest.js` | `HomIcons` (homIcons.js): the 19 icon ids, slots painted from the design's icon folder, an unknown id left alone, a design without icons or a bad path falls back to the line set, `slot()` markup, `setLabel` writes the label span, not the button |
@@ -293,9 +293,15 @@ This project does not have a C++ test framework. Validation is done through:
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
-  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `tree-save-check` (SaveSpellTree's no-spells guard,
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save"), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
-  full parse; exit 1 on a disagreement)
+  full parse; exit 1 on a disagreement) and `tree-remap-check` (a saved tree's FormIDs and links after a load order
+  change, `include/TreeRemap.h`, the part of `ValidateAndFixTree` with no game types: `tree-remap-check --self-test`
+  on made-up trees - light plugin removed and the rest shifted, two plugins swapping indices, legacy nodes without a
+  persistentId (following a copy, colliding, gone), the same spell kept in one school and dropped in another, a
+  spell that resolves but is no player's spell, links to removed spells, formIds in another letter case, roots no
+  node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
+  failure)
 
 ## Code Style
 

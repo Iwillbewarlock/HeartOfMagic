@@ -89,15 +89,18 @@ namespace SpellScanner
         int validNodes = 0;
         int invalidNodes = 0;
         int resolvedFromPersistent = 0;
-        std::vector<std::string> missingPlugins;      // Plugins that couldn't be found
-        std::vector<std::string> invalidFormIds;      // FormIDs that couldn't be resolved
+        std::vector<std::string> missingPlugins;      // Plugins persistentIds name that are not loaded
+        std::vector<std::string> missingRecords;      // persistentIds of loaded plugins without that record
+        std::vector<std::string> invalidFormIds;      // Saved FormIDs of the dropped nodes (their links went)
     };
 
     // Validate and optionally fix a spell tree JSON
     // - A node's persistentId decides its FormID; the stored formId is used for a node without one
+    //   (and that node goes when a persistentId node now has its formId)
     // - Drops nodes that are not a player's spell now
     // - Updates formId fields and the links to a moved or dropped node (children,
-    //   prerequisites, hardPrereqs, softPrereqs, locks[].nodeId, school root, bridges)
+    //   prerequisites, hardPrereqs, softPrereqs, locks[].nodeId, school root, bridges),
+    //   each link looked up once by its saved formId (TreeRemap.h)
     // - Returns validation statistics
     TreeValidationResult ValidateAndFixTree(json& treeData);
 
