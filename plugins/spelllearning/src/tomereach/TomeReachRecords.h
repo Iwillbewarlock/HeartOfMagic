@@ -13,6 +13,8 @@
 // Pure C++ (no RE types): the plugin and the offline harness tools/tome-reach-test
 // run the same code. See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
+#include "FormIdBits.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -36,12 +38,13 @@ namespace TomeReach
 
     // A form id's parts: the high byte picks the plugin (0xFE: a light plugin,
     // whose number is the next 12 bits); the rest is the id inside the plugin
-    constexpr unsigned kFileIndexShift = 24;
-    constexpr std::uint32_t kLightIndex = 0xFE;
-    constexpr unsigned kLightFileShift = 12;
-    constexpr std::uint32_t kLightFileMask = 0x00000FFF;
-    constexpr std::uint32_t kLocalMask = 0x00FFFFFF;
-    constexpr std::uint32_t kLightLocalMask = 0x00000FFF;
+    // (include/FormIdBits.h, shared with the spell scanner)
+    using FormIdBits::kFileIndexShift;
+    using FormIdBits::kLightIndex;
+    using FormIdBits::kLightFileShift;
+    using FormIdBits::kLightFileMask;
+    using FormIdBits::kLightLocalMask;
+    inline constexpr std::uint32_t kLocalMask = FormIdBits::kFullLocalMask;
 
     // The game's data folder, relative to the game's working directory
     inline constexpr std::string_view kDataDir = "Data";

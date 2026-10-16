@@ -1492,6 +1492,8 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             if (applied) AutoBuild.noteConfigLoaded();
             else AutoBuild.noteConfigPartial();
         }
+        // Spell gate keys saved before 2026-10-17 become the DLL's (gateReview.js), only from a whole config
+        if (typeof GateReview !== 'undefined') GateReview.configLoaded(applied && !(data && data.configNotRead === true));
     }
 };
 

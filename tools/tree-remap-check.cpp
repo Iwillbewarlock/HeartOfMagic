@@ -4,18 +4,20 @@
 //   tree-remap-check --self-test     made-up trees and load orders, no game needed
 //
 // Each case is a saved tree (every link holds the formIds it was saved with) and
-// what the game says now: the formId each persistentId resolves to, and which
-// formIds a node without one still finds. The fixed tree is checked two ways:
-// the case's own expectations (spells kept, counts), and links read back by
-// spell name - every kept node's links, locks, bridges and root must name the
-// same spells as before, less the ones that went, and no two kept nodes may
-// share a formId.
+// what the game says now: the formId each persistentId resolves to, which plugins
+// are loaded, which formIds a node without a persistentId still finds, and which
+// are no player's spell. The fixed tree is checked three ways: the case's own
+// expectations (spells kept, counts); links read back by spell name - every kept
+// node's links, locks, bridges and root name the same spells as before, less the
+// ones that went, and no formId names two spells; and a second pass over the
+// fixed tree (the next load) changes nothing.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
 #include "TreeRemap.h"
 
 #include <cstdio>
+#include <format>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -36,75 +38,81 @@ namespace
     struct FakeGame
     {
         std::map<std::string, std::string> resolves;  ///< persistentId -> formId now (absent: plugin or record gone)
+        std::set<std::string> loadedPlugins;          ///< plugins whose missing ids are a missing record, not plugin
         std::set<std::string> legacyValid;            ///< formIds a node without a persistentId still finds
+        std::set<std::string> notPlayerSpells;        ///< formIds that resolve but are no player's spell
     };
 
     struct Expect
     {
-        std::vector<std::string> kept;  ///< spell names left in the tree, in no particular order
+        std::vector<std::string> kept;  ///< spell names left in the tree
         int resolved = 0;
         int invalid = 0;
         int collisions = 0;
+        int followed = 0;
         std::vector<std::string> missingPlugins;
+        std::vector<std::string> missingRecords;
+        std::map<std::string, std::string> formIds;  ///< "school/name" -> formId the node must have now
     };
 
     struct Case
     {
         const char* name;
-        Json tree;
+        const char* tree;  ///< the saved tree, as JSON text
         FakeGame game;
         Expect expect;
     };
 
+    std::string Norm(const std::string& id) { return TreeRemap::NormalizeFormId(id); }
+
     TreeRemap::NodeVerdict Judge(const FakeGame& game, const Json& node)
     {
         TreeRemap::NodeVerdict verdict;
-        const auto saved = node["formId"].get<std::string>();
+        verdict.formId = node["formId"].get<std::string>();
         const auto pid = node.value("persistentId", std::string());
+        bool found = false;
         if (pid.find('|') != std::string::npos) {
+            verdict.hasPersistentId = true;
             const auto it = game.resolves.find(pid);
             if (it == game.resolves.end()) {
-                verdict.missingPlugin = pid.substr(0, pid.find('|'));
+                const auto plugin = pid.substr(0, pid.find('|'));
+                if (game.loadedPlugins.contains(plugin)) {
+                    verdict.missingRecord = pid;
+                } else {
+                    verdict.missingPlugin = plugin;
+                }
                 return verdict;
             }
-            verdict.keep = true;
             verdict.formId = it->second;
-            verdict.fromPersistentId = true;
-            return verdict;
+            found = true;
+        } else {
+            const auto id = Norm(verdict.formId);
+            found = game.legacyValid.contains(id);
+            for (const auto& [p, resolved] : game.resolves) found = found || Norm(resolved) == id;
         }
-        verdict.keep = game.legacyValid.contains(saved);
-        verdict.formId = saved;
+        verdict.keep = found && !game.notPlayerSpells.contains(Norm(verdict.formId));
         return verdict;
-    }
-
-    Json Node(const char* name, const char* formId, const char* pid, Json links = Json::object())
-    {
-        Json node = { { "name", name } };
-        if (formId) node["formId"] = formId;  // nullptr: a node without one
-        if (pid) node["persistentId"] = pid;
-        for (auto& [key, value] : links.items()) node[key] = value;
-        return node;
     }
 
     // ------------------------------------------------------------------------
     // Reading links back by spell name
     // ------------------------------------------------------------------------
 
-    using NameOf = std::map<std::string, std::string>;  // formId -> spell name
-
     struct Snapshot
     {
-        NameOf names;                                       // formId -> name
-        std::map<std::string, Json> nodes;                  // name -> node
-        std::map<std::string, std::string> roots;           // school -> root name (or raw id)
+        std::map<std::string, std::string> names;  // formId -> spell name
+        std::map<std::string, Json> nodes;         // "school/name" -> node
+        std::set<std::string> spells;              // spell names
+        std::map<std::string, std::string> roots;  // school -> root as a name
         std::vector<std::pair<std::string, std::string>> bridges;
-        std::vector<std::string> duplicateIds;
+        std::vector<std::string> clashes;          // formIds naming two different spells
     };
 
-    std::string NameFor(const NameOf& names, const std::string& id)
+    std::string NameFor(const Snapshot& snap, const Json& id)
     {
-        const auto it = names.find(id);
-        return it != names.end() ? it->second : "raw:" + id;
+        if (!id.is_string()) return "json:" + id.dump();
+        const auto it = snap.names.find(Norm(id.get<std::string>()));
+        return it != snap.names.end() ? it->second : "raw:" + Norm(id.get<std::string>());
     }
 
     Snapshot Take(const Json& tree)
@@ -112,39 +120,40 @@ namespace
         Snapshot snap;
         for (const auto& [school, data] : tree["schools"].items()) {
             for (const auto& node : data["nodes"]) {
-                if (!node.contains("formId") || !node["formId"].is_string()) continue;
-                const auto id = node["formId"].get<std::string>();
-                if (!snap.names.emplace(id, node["name"].get<std::string>()).second) snap.duplicateIds.push_back(id);
-                snap.nodes[node["name"].get<std::string>()] = node;
+                if (!node.is_object() || !node.contains("formId") || !node["formId"].is_string()) continue;
+                const auto id = Norm(node["formId"].get<std::string>());
+                const auto name = node["name"].get<std::string>();
+                const auto [it, added] = snap.names.emplace(id, name);
+                if (!added && it->second != name) snap.clashes.push_back(id);
+                snap.nodes[school + "/" + name] = node;
+                snap.spells.insert(name);
             }
         }
         for (const auto& [school, data] : tree["schools"].items()) {
-            if (data.contains("root")) snap.roots[school] = NameFor(snap.names, data["root"].get<std::string>());
+            if (data.contains("root")) snap.roots[school] = NameFor(snap, data["root"]);
         }
         if (tree.contains("bridges")) {
-            for (const auto& b : tree["bridges"]) {
-                snap.bridges.emplace_back(NameFor(snap.names, b["from"].get<std::string>()),
-                    NameFor(snap.names, b["to"].get<std::string>()));
-            }
+            for (const auto& b : tree["bridges"]) snap.bridges.emplace_back(NameFor(snap, b.value("from", Json())), NameFor(snap, b.value("to", Json())));
         }
         return snap;
     }
 
-    /// One node's links (lists and locks) as names; `keep` filters names of spells that went
-    std::vector<std::string> LinkNames(const Json& node, const NameOf& names, const std::set<std::string>* keep)
+    /// A node's links (lists and locks) as names; `keep` filters out spells that went
+    std::vector<std::string> LinkNames(const Json& node, const Snapshot& snap, const std::set<std::string>* keep)
     {
         std::vector<std::string> out;
-        const auto add = [&](const std::string& key, const std::string& id) {
-            const auto name = NameFor(names, id);
-            if (keep && name.rfind("raw:", 0) != 0 && !keep->contains(name)) return;
+        const auto add = [&](const std::string& key, const Json& id) {
+            const auto name = NameFor(snap, id);
+            const bool spell = name.rfind("raw:", 0) != 0 && name.rfind("json:", 0) != 0;
+            if (keep && spell && !keep->contains(name)) return;
             out.push_back(key + "=" + name);
         };
         for (const char* key : TreeRemap::kLinkLists) {
             if (!node.contains(key)) continue;
-            for (const auto& link : node[key]) add(key, link.get<std::string>());
+            for (const auto& link : node[key]) add(key, link);
         }
         if (node.contains("locks")) {
-            for (const auto& lock : node["locks"]) add("lock", lock["nodeId"].get<std::string>());
+            for (const auto& lock : node["locks"]) add("lock", lock.is_object() ? lock.value("nodeId", Json()) : lock);
         }
         return out;
     }
@@ -170,204 +179,208 @@ namespace
         return out;
     }
 
+    template <class Set>
+    std::vector<std::string> List(const Set& set) { return { set.begin(), set.end() }; }
+
+    bool LinksKept(const Snapshot& before, const Snapshot& after)
+    {
+        bool ok = true;
+        for (const auto& [key, node] : after.nodes) {
+            const auto was = LinkNames(before.nodes.at(key), before, &after.spells);
+            const auto now = LinkNames(node, after, nullptr);
+            if (was == now) continue;
+            ok = false;
+            std::printf("      %s: saved [%s], now [%s]\n", key.c_str(), Join(was).c_str(), Join(now).c_str());
+        }
+        return ok;
+    }
+
+    /// The saved root's spell if it stayed; the first spell left if it went; a root no node had stays
+    bool RootsKept(const Snapshot& before, const Snapshot& after, const Json& tree)
+    {
+        bool ok = true;
+        for (const auto& [school, rootWas] : before.roots) {
+            const auto& nodes = tree["schools"][school]["nodes"];
+            const bool wasNode = rootWas.rfind("raw:", 0) != 0;
+            std::string expect = rootWas;
+            if (wasNode && !after.spells.contains(rootWas) && !nodes.empty()) expect = nodes[0]["name"].get<std::string>();
+            const auto it = after.roots.find(school);
+            const std::string now = it != after.roots.end() ? it->second : "";
+            // A root whose spell went with no spell left keeps its text, which names nothing now
+            if (now == expect || (wasNode && nodes.empty() && now.rfind("raw:", 0) == 0)) continue;
+            ok = false;
+            std::printf("      %s root: %s, expected %s\n", school.c_str(), now.c_str(), expect.c_str());
+        }
+        return ok;
+    }
+
     int RunCase(const Case& c)
     {
         std::printf("  %s\n", c.name);
         Checker check;
-        Json tree = c.tree;
+        Json tree = Json::parse(c.tree);
+        const auto judge = [&c](const Json& node) { return Judge(c.game, node); };
         const Snapshot before = Take(tree);
-        const auto report = TreeRemap::FixTree(tree, [&c](const Json& node) { return Judge(c.game, node); });
+        const auto report = TreeRemap::FixTree(tree, judge);
         const Snapshot after = Take(tree);
 
-        std::set<std::string> keptNames;
-        for (const auto& [name, node] : after.nodes) keptNames.insert(name);
         const std::set<std::string> expectKept(c.expect.kept.begin(), c.expect.kept.end());
-        check.Check(keptNames == expectKept, "spells kept: " + Join({ keptNames.begin(), keptNames.end() }));
-        check.Check(after.duplicateIds.empty(), "no two kept nodes share a formId");
+        check.Check(after.spells == expectKept, "spells kept: " + Join(List(after.spells)));
+        check.Check(after.clashes.empty(), "no formId names two spells");
         check.Check(report.resolvedFromPersistent == c.expect.resolved && report.invalidNodes == c.expect.invalid &&
-                        report.legacyCollisions == c.expect.collisions,
-            "counts: " + std::to_string(report.resolvedFromPersistent) + " resolved, " +
-                std::to_string(report.invalidNodes) + " invalid, " + std::to_string(report.legacyCollisions) +
-                " legacy collisions");
-        const std::vector<std::string> missing(report.missingPlugins.begin(), report.missingPlugins.end());
-        check.Check(missing == c.expect.missingPlugins, "missing plugins: [" + Join(missing) + "]");
-
-        // Every kept spell's links name the spells they named when saved, less the ones that went
-        bool linksOk = true;
-        for (const auto& name : keptNames) {
-            const auto was = LinkNames(before.nodes.at(name), before.names, &keptNames);
-            const auto now = LinkNames(after.nodes.at(name), after.names, nullptr);
-            if (was != now) {
-                linksOk = false;
-                std::printf("      %s: saved [%s], now [%s]\n", name.c_str(), Join(was).c_str(), Join(now).c_str());
-            }
+                        report.legacyCollisions == c.expect.collisions && report.legacyFollowed == c.expect.followed,
+            std::format("counts: {} resolved, {} invalid, {} legacy collisions, {} legacy followed",
+                report.resolvedFromPersistent, report.invalidNodes, report.legacyCollisions, report.legacyFollowed));
+        check.Check(List(report.missingPlugins) == c.expect.missingPlugins &&
+                        List(report.missingRecords) == c.expect.missingRecords,
+            "missing plugins [" + Join(List(report.missingPlugins)) + "], records [" +
+                Join(List(report.missingRecords)) + "]");
+        for (const auto& [key, id] : c.expect.formIds) {
+            const auto it = after.nodes.find(key);
+            check.Check(it != after.nodes.end() && it->second["formId"] == id, key + " is " + id);
         }
-        check.Check(linksOk, "every link, lock and prerequisite still names its own spell");
+        check.Check(LinksKept(before, after), "every link, lock and prerequisite still names its own spell");
 
         std::vector<std::pair<std::string, std::string>> bridgesWas;
         for (const auto& b : before.bridges) {
-            if (keptNames.contains(b.first) && keptNames.contains(b.second)) bridgesWas.push_back(b);
+            if (after.spells.contains(b.first) && after.spells.contains(b.second)) bridgesWas.push_back(b);
         }
         check.Check(after.bridges == bridgesWas, "bridges follow their spells; one to a spell that went is dropped");
+        check.Check(RootsKept(before, after, tree), "school roots follow their spell, or the first spell left");
 
-        bool rootsOk = true;
-        for (const auto& [school, rootWas] : before.roots) {
-            const auto& nodes = tree["schools"][school]["nodes"];
-            const std::string expectRoot = keptNames.contains(rootWas) ? rootWas
-                                           : nodes.empty()             ? rootWas
-                                                                       : nodes[0]["name"].get<std::string>();
-            const auto it = after.roots.find(school);
-            const std::string rootNow = it != after.roots.end() ? it->second : "";
-            if (rootNow != expectRoot && !(nodes.empty() && rootNow.rfind("raw:", 0) == 0)) {
-                rootsOk = false;
-                std::printf("      %s root: %s, expected %s\n", school.c_str(), rootNow.c_str(), expectRoot.c_str());
-            }
+        Json again = tree;
+        const auto second = TreeRemap::FixTree(again, judge);
+        check.Check(again == tree && second.moved.empty() && second.removedFormIds.empty() && second.invalidNodes == 0 &&
+                        second.rootChanges.empty(),
+            "the next load changes nothing");
+        return check.failed;
+    }
+
+    /// Trees whose shape is not a tree: left alone, counted as nothing
+    int RunShapeCase()
+    {
+        std::printf("  shape: \"schools\" is not an object\n");
+        Checker check;
+        for (const char* text : { R"({"schools":[{"nodes":[{"formId":"0x1"}]}]})", R"({"schools":"x"})", R"([1,2])" }) {
+            Json tree = Json::parse(text);
+            const Json was = tree;
+            const auto report = TreeRemap::FixTree(tree, [](const Json&) { return TreeRemap::NodeVerdict{}; });
+            check.Check(!report.hasSchools && report.totalNodes == 0 && tree == was, std::string("left alone: ") + text);
         }
-        check.Check(rootsOk, "school roots: a moved root follows, a root that went gives way to the first spell left");
         return check.failed;
     }
 
     // ------------------------------------------------------------------------
-    // The cases
+    // The cases (trees as JSON text: every link holds the saved formIds)
     // ------------------------------------------------------------------------
 
     std::vector<Case> Cases()
     {
-        std::vector<Case> cases;
+        return {
+            { "shift: light plugin A removed, B and C move down one index (normal)",
+                R"({"schools":{"Destruction":{"root":"0xFE906800","nodes":[
+                    {"name":"Alpha","formId":"0xFE905800","persistentId":"A.esl|0x000800","prerequisites":["0xFE906800"]},
+                    {"name":"Bravo","formId":"0xFE906800","persistentId":"B.esl|0x000800","children":["0xFE907800","0xFE905800"]},
+                    {"name":"Charlie","formId":"0xFE907800","persistentId":"C.esl|0x000800","prerequisites":["0xFE906800"],
+                     "hardPrereqs":["0xFE906800"],"softPrereqs":["0xFE905800"],"locks":[{"nodeId":"0xFE906800","type":"x"}]},
+                    {"name":"Delta","formId":"0x01000D62","persistentId":"Skyrim.esm|0x000D62","children":["0xFE907800"]}]}},
+                  "bridges":[{"from":"0xFE906800","to":"0x01000D62"},{"from":"0xFE905800","to":"0x01000D62"}]})",
+                { { { "B.esl|0x000800", "0xFE905800" }, { "C.esl|0x000800", "0xFE906800" }, { "Skyrim.esm|0x000D62", "0x01000D62" } } },
+                { { "Bravo", "Charlie", "Delta" }, 2, 1, 0, 0, { "A.esl" }, {} } },
 
-        // Light plugin A taken out: B and C each move down one light index. Every new
-        // formId of B and C is the saved formId of the node before it
-        cases.push_back({ "shift: light plugin A removed, B and C move down one index",
-            { { "schools",
-                  { { "Destruction",
-                      { { "root", "0xFE906800" },
-                          { "nodes",
-                              Json::array({
-                                  Node("Alpha", "0xFE905800", "A.esl|0x000800", { { "prerequisites", { "0xFE906800" } } }),
-                                  Node("Bravo", "0xFE906800", "B.esl|0x000800",
-                                      { { "children", { "0xFE907800", "0xFE905800" } } }),
-                                  Node("Charlie", "0xFE907800", "C.esl|0x000800",
-                                      { { "prerequisites", { "0xFE906800" } }, { "hardPrereqs", { "0xFE906800" } },
-                                          { "softPrereqs", { "0xFE905800" } },
-                                          { "locks", Json::array({ { { "nodeId", "0xFE906800" }, { "type", "x" } } }) } }),
-                                  Node("Delta", "0x01000D62", "Skyrim.esm|0x000D62", { { "children", { "0xFE907800" } } }),
-                              }) } } } } },
-                { "bridges", Json::array({ { { "from", "0xFE906800" }, { "to", "0x01000D62" } },
-                                 { { "from", "0xFE905800" }, { "to", "0x01000D62" } } }) } },
-            { { { "B.esl|0x000800", "0xFE905800" }, { "C.esl|0x000800", "0xFE906800" },
-                  { "Skyrim.esm|0x000D62", "0x01000D62" } },
-                {} },
-            { { "Bravo", "Charlie", "Delta" }, 2, 1, 0, { "A.esl" } } });
+            { "swap: Arclight and Bloodmoon trade light indices (edge)",
+                R"({"schools":{
+                    "Destruction":{"root":"0xFE906838","nodes":[
+                      {"name":"Arclight","formId":"0xFE906838","persistentId":"Arclight.esp|0x000838","children":["0x02000801"],"softPrereqs":["0xFE907838"]},
+                      {"name":"ArcChild","formId":"0x02000801","persistentId":"Vanilla.esm|0x000801","prerequisites":["0xFE906838"]}]},
+                    "Conjuration":{"root":"0xFE907838","nodes":[
+                      {"name":"Bloodmoon","formId":"0xFE907838","persistentId":"Bloodmoon.esp|0x000838","children":["0x02000802"]},
+                      {"name":"BloodChild","formId":"0x02000802","persistentId":"Vanilla.esm|0x000802","prerequisites":["0xFE907838"],"locks":[{"nodeId":"0xFE906838"}]}]}},
+                  "bridges":[{"from":"0xFE906838","to":"0xFE907838"}]})",
+                { { { "Arclight.esp|0x000838", "0xFE907838" }, { "Bloodmoon.esp|0x000838", "0xFE906838" },
+                    { "Vanilla.esm|0x000801", "0x02000801" }, { "Vanilla.esm|0x000802", "0x02000802" } } },
+                { { "Arclight", "ArcChild", "Bloodmoon", "BloodChild" }, 2, 0, 0, 0, {}, {} } },
 
-        // Two light plugins swap indices: each new formId is the other's saved one
-        cases.push_back({ "swap: Arclight and Bloodmoon trade light indices",
-            { { "schools",
-                  { { "Destruction",
-                      { { "root", "0xFE906838" },
-                          { "nodes",
-                              Json::array({
-                                  Node("Arclight", "0xFE906838", "Arclight.esp|0x000838",
-                                      { { "children", { "0x02000801" } }, { "softPrereqs", { "0xFE907838" } } }),
-                                  Node("ArcChild", "0x02000801", "Vanilla.esm|0x000801",
-                                      { { "prerequisites", { "0xFE906838" } } }),
-                              }) } } },
-                      { "Conjuration",
-                          { { "root", "0xFE907838" },
-                              { "nodes",
-                                  Json::array({
-                                      Node("Bloodmoon", "0xFE907838", "Bloodmoon.esp|0x000838",
-                                          { { "children", { "0x02000802" } } }),
-                                      Node("BloodChild", "0x02000802", "Vanilla.esm|0x000802",
-                                          { { "prerequisites", { "0xFE907838" } },
-                                              { "locks", Json::array({ { { "nodeId", "0xFE906838" } } }) } }),
-                                  }) } } } } },
-                { "bridges", Json::array({ { { "from", "0xFE906838" }, { "to", "0xFE907838" } } }) } },
-            { { { "Arclight.esp|0x000838", "0xFE907838" }, { "Bloodmoon.esp|0x000838", "0xFE906838" },
-                  { "Vanilla.esm|0x000801", "0x02000801" }, { "Vanilla.esm|0x000802", "0x02000802" } },
-                {} },
-            { { "Arclight", "ArcChild", "Bloodmoon", "BloodChild" }, 2, 0, 0, {} } });
+            { "slot taken: Arclight's spell gone, Bloodmoon's moved onto its saved formId (2026-10-05)",
+                R"({"schools":{"Destruction":{"root":"0xFE906838","nodes":[
+                    {"name":"Arclight","formId":"0xFE906838","persistentId":"Arclight.esp|0x000838","children":["0xFE907838"]},
+                    {"name":"Bloodmoon","formId":"0xFE907838","persistentId":"Bloodmoon.esp|0x000838","prerequisites":["0xFE906838"],"children":["0x02000803"]},
+                    {"name":"Echo","formId":"0x02000803","persistentId":"Vanilla.esm|0x000803","prerequisites":["0xFE907838"],"softPrereqs":["0xFE906838"]}]}}})",
+                { { { "Bloodmoon.esp|0x000838", "0xFE906838" }, { "Vanilla.esm|0x000803", "0x02000803" } } },
+                { { "Bloodmoon", "Echo" }, 1, 1, 0, 0, { "Arclight.esp" }, {} } },
 
-        // The 2026-10-05 report: Arclight's spell went and Bloodmoon's took its old formId
-        cases.push_back({ "slot taken: Arclight's spell gone, Bloodmoon's moved onto its saved formId",
-            { { "schools",
-                  { { "Destruction",
-                      { { "root", "0xFE906838" },
-                          { "nodes",
-                              Json::array({
-                                  Node("Arclight", "0xFE906838", "Arclight.esp|0x000838", { { "children", { "0xFE907838" } } }),
-                                  Node("Bloodmoon", "0xFE907838", "Bloodmoon.esp|0x000838",
-                                      { { "prerequisites", { "0xFE906838" } }, { "children", { "0x02000803" } } }),
-                                  Node("Echo", "0x02000803", "Vanilla.esm|0x000803",
-                                      { { "prerequisites", { "0xFE907838" } }, { "softPrereqs", { "0xFE906838" } } }),
-                              }) } } } } } },
-            { { { "Bloodmoon.esp|0x000838", "0xFE906838" }, { "Vanilla.esm|0x000803", "0x02000803" } }, {} },
-            { { "Bloodmoon", "Echo" }, 1, 1, 0, { "Arclight.esp" } } });
+            { "legacy nodes (failure path): still found, gone, on a resolved spell's formId, no formId, not an object",
+                R"({"schools":{"Alteration":{"root":"0xFE905800","nodes":[
+                    {"name":"OldA","formId":"0xFE905800","children":["0x03000900"]},
+                    {"name":"Moved","formId":"0xFE906800","persistentId":"B.esl|0x000800","children":["0xFE905800"]},
+                    {"name":"Stays","formId":"0x03000900","prerequisites":["0xFE905800","0xFE906800",42,null],"children":["0x03000901"]},
+                    {"name":"Gone","formId":"0x03000901","prerequisites":["0x03000900"]},
+                    {"name":"NoFormId"}, 7, "0x03000902"]}}})",
+                { { { "B.esl|0x000800", "0xFE905800" } }, {}, { "0x03000900" } },
+                { { "Moved", "Stays" }, 1, 5, 1, 0, {}, {} } },
 
-        // Nodes without a persistentId (a tree from before they were saved)
-        cases.push_back({ "legacy nodes: one still found, one gone, one on a resolved spell's formId",
-            { { "schools",
-                  { { "Alteration",
-                      { { "root", "0xFE905800" },
-                          { "nodes",
-                              Json::array({
-                                  // Its plugin left; a resolved spell moved onto its formId
-                                  Node("OldA", "0xFE905800", nullptr, { { "children", { "0x03000900" } } }),
-                                  Node("Moved", "0xFE906800", "B.esl|0x000800", { { "children", { "0xFE905800" } } }),
-                                  Node("Stays", "0x03000900", nullptr,
-                                      { { "prerequisites", { "0xFE905800", "0xFE906800" } },
-                                          { "children", { "0x03000901" } } }),
-                                  Node("Gone", "0x03000901", nullptr, { { "prerequisites", { "0x03000900" } } }),
-                                  Node("NoFormId", nullptr, nullptr),
-                              }) } } } } } },
-            { { { "B.esl|0x000800", "0xFE905800" } }, { "0xFE905800", "0x03000900" } },
-            { { "Moved", "Stays" }, 1, 3, 1, {} } });
+            { "legacy copy follows its persistentId node: moved in one school, gone in another",
+                R"({"schools":{
+                    "Destruction":{"root":"0x04000100","nodes":[
+                      {"name":"Firebolt","formId":"0x04000100","persistentId":"Fire.esp|0x000100","children":["0x04000200"]},
+                      {"name":"Gone","formId":"0x04000200","persistentId":"Fire.esp|0x000200","prerequisites":["0x04000100"]}]},
+                    "Conjuration":{"root":"0x04000100","nodes":[
+                      {"name":"Firebolt","formId":"0x04000100","children":["0x04000200"]},
+                      {"name":"Gone","formId":"0x04000200"},
+                      {"name":"Atronach","formId":"0x01000300","persistentId":"Skyrim.esm|0x000300","prerequisites":["0x04000100","0x04000200"]}]}}})",
+                { { { "Fire.esp|0x000100", "0x05000100" }, { "Skyrim.esm|0x000300", "0x01000300" } }, { "Fire.esp" },
+                    { "0x04000100", "0x04000200" } },
+                { { "Firebolt", "Atronach" }, 2, 2, 0, 2, {}, { "Fire.esp|0x000200" },
+                    { { "Conjuration/Firebolt", "0x05000100" }, { "Destruction/Firebolt", "0x05000100" } } } },
 
-        // Links to spells that went: a removed plugin, a record gone from a loaded one
-        cases.push_back({ "links to removed spells: plugin gone, record gone, link to no node",
-            { { "schools",
-                  { { "Restoration",
-                      { { "root", "0x05000100" },
-                          { "nodes",
-                              Json::array({
-                                  Node("RemovedRoot", "0x05000100", "Gone.esp|0x000100",
-                                      { { "children", { "0x01000200", "0x01000300" } } }),
-                                  Node("Heal", "0x01000200", "Kept.esp|0x000200",
-                                      { { "prerequisites", { "0x05000100" } }, { "children", { "0x01000300" } },
-                                          { "softPrereqs", { "0x0A00ABCD" } },
-                                          { "locks", Json::array({ { { "nodeId", "0x05000100" } },
-                                                         { { "nodeId", "0x01000300" } } }) } }),
-                                  Node("RecordGone", "0x01000300", "Kept.esp|0x000300",
-                                      { { "prerequisites", { "0x01000200" } } }),
-                              }) } } } } },
-                { "bridges", Json::array({ { { "from", "0x01000200" }, { "to", "0x05000100" } },
-                                 { { "from", "0x01000200" }, { "to", "0x01000200" } } }) } },
-            { { { "Kept.esp|0x000200", "0x02000200" } }, {} },
-            { { "Heal" }, 1, 2, 0, { "Gone.esp", "Kept.esp" } } });
+            { "same spell kept in one school, dropped in another (a broken copy)",
+                R"({"schools":{
+                    "Restoration":{"root":"0x06000100","nodes":[
+                      {"name":"Heal","formId":"0x06000100","persistentId":"Heal.esp|0x000100","children":["0x01000500"]}]},
+                    "Alteration":{"root":"0x06000100","nodes":[
+                      {"name":"Heal","formId":"0x06000100","persistentId":"Old.esp|0x000100"},
+                      {"name":"Ward","formId":"0x01000500","persistentId":"Skyrim.esm|0x000500","prerequisites":["0x06000100"]}]}}})",
+                { { { "Heal.esp|0x000100", "0x07000100" }, { "Skyrim.esm|0x000500", "0x01000500" } } },
+                { { "Heal", "Ward" }, 1, 1, 0, 0, { "Old.esp" }, {} } },
 
-        // Nothing moved: the tree comes out as it went in
-        cases.push_back({ "same load order: nothing changes",
-            { { "schools",
-                  { { "Illusion",
-                      { { "root", "0x01000010" },
-                          { "nodes",
-                              Json::array({
-                                  Node("Calm", "0x01000010", "Skyrim.esm|0x000010", { { "children", { "0x01000011" } } }),
-                                  Node("Fury", "0x01000011", "Skyrim.esm|0x000011", { { "prerequisites", { "0x01000010" } } }),
-                              }) } } } } } },
-            { { { "Skyrim.esm|0x000010", "0x01000010" }, { "Skyrim.esm|0x000011", "0x01000011" } }, {} },
-            { { "Calm", "Fury" }, 0, 0, 0, {} } });
+            { "links to removed spells: plugin gone, record gone, not a player's spell, link to no node",
+                R"({"schools":{"Restoration":{"root":"0x05000100","nodes":[
+                    {"name":"RemovedRoot","formId":"0x05000100","persistentId":"Gone.esp|0x000100","children":["0x01000200","0x01000300"]},
+                    {"name":"Heal","formId":"0x01000200","persistentId":"Kept.esp|0x000200","prerequisites":["0x05000100"],
+                     "children":["0x01000300","0x01000400"],"softPrereqs":["0x0A00ABCD"],
+                     "locks":[{"nodeId":"0x05000100"},{"nodeId":"0x01000300"},{"nodeId":"0x01000400"},{"type":"noId"}]},
+                    {"name":"RecordGone","formId":"0x01000300","persistentId":"Kept.esp|0x000300","prerequisites":["0x01000200"]},
+                    {"name":"Ability","formId":"0x01000400","persistentId":"Kept.esp|0x000400","prerequisites":["0x01000200"]}]}},
+                  "bridges":[{"from":"0x01000200","to":"0x05000100"},{"from":"0x01000200","to":"0x01000200"},{"from":"0x01000200"}]})",
+                { { { "Kept.esp|0x000200", "0x02000200" }, { "Kept.esp|0x000400", "0x02000400" } }, { "Kept.esp" }, {},
+                    { "0x02000400" } },
+                { { "Heal" }, 1, 3, 0, 0, { "Gone.esp" }, { "Kept.esp|0x000300" } } },
 
-        return cases;
+            { "formIds in another case and a root no node has",
+                R"({"schools":{"Illusion":{"root":"0x0900ffff","nodes":[
+                    {"name":"Calm","formId":"0xfe905800","persistentId":"Calm.esl|0x800","children":["0xFE906800"]},
+                    {"name":"Fear","formId":"0xfe906800","children":["0xfe905800"]},
+                    {"name":"Fury","formId":"0x01000011","persistentId":"Skyrim.esm|0x000011","prerequisites":["0XFE905800"]}]}}})",
+                { { { "Calm.esl|0x800", "0xFE906800" }, { "Skyrim.esm|0x000011", "0x01000011" } } },
+                { { "Calm", "Fury" }, 1, 1, 1, 0, {}, {} } },
+
+            { "same load order: nothing changes",
+                R"({"schools":{"Illusion":{"root":"0x01000010","nodes":[
+                    {"name":"Calm","formId":"0x01000010","persistentId":"Skyrim.esm|0x000010","children":["0x01000011"]},
+                    {"name":"Fury","formId":"0x01000011","persistentId":"Skyrim.esm|0x000011","prerequisites":["0x01000010"]}]}}})",
+                { { { "Skyrim.esm|0x000010", "0x01000010" }, { "Skyrim.esm|0x000011", "0x01000011" } } },
+                { { "Calm", "Fury" }, 0, 0, 0, 0, {}, {} } },
+        };
     }
 
     int SelfTest()
     {
-        int failedCases = 0;
+        int failedCases = RunShapeCase() > 0 ? 1 : 0;
         const auto cases = Cases();
         for (const auto& c : cases) {
             if (RunCase(c) > 0) ++failedCases;
         }
-        std::printf("self-test: %d of %zu cases failed\n", failedCases, cases.size());
+        std::printf("self-test: %d of %zu cases failed\n", failedCases, cases.size() + 1);
         return failedCases == 0 ? kExitOk : kExitFailed;
     }
 }

@@ -1,6 +1,7 @@
 #include "AsciiText.h"
 #include "Common.h"
 #include "EncodingUtils.h"
+#include "FormIdBits.h"
 #include "JsonText.h"
 #include "librarian/LibrarianInternal.h"
 #include "SpellScanner.h"
@@ -43,12 +44,6 @@ namespace SpellScanner
 
         constexpr const char* kRulesPath = "Data/SKSE/Plugins/SpellLearning/gate/rules.json";
 
-        // A form id's load index and local id (light plugins sit at index 0xFE)
-        constexpr unsigned kLoadIndexShift = 24;
-        constexpr RE::FormID kLightIndex = 0xFE;
-        constexpr RE::FormID kLightLocalMask = 0xFFF;
-        constexpr RE::FormID kFullLocalMask = 0xFFFFFF;
-
         struct GateRule
         {
             std::string id;
@@ -57,7 +52,7 @@ namespace SpellScanner
             std::set<RE::EffectArchetype> archetypes; // every effect of the spell is one of these (empty: any)
         };
 
-        // A-Z only, the way the panel's GateReview.asciiLower folds (UTF-8 bytes stay as they are)
+        // A-Z only, the way the panel's foldPluginName (proceduralTreeBuilder.js) folds (UTF-8 bytes stay as they are)
         std::string Lower(std::string text)
         {
             std::ranges::transform(text, text.begin(), AsciiText::ToLower);
@@ -291,7 +286,8 @@ namespace SpellScanner
         if (!file) return true;
         // The local id as the panel's getLocalFormId reads it: 12 bits in a light plugin, 24 in a full one
         const RE::FormID id = spell->GetFormID();
-        const RE::FormID local = (id >> kLoadIndexShift) == kLightIndex ? (id & kLightLocalMask) : (id & kFullLocalMask);
+        using namespace FormIdBits;
+        const RE::FormID local = (id >> kFileIndexShift) == kLightIndex ? (id & kLightLocalMask) : (id & kFullLocalMask);
         return !kept.contains(PluginKey(file->fileName) + "|" + std::to_string(local));
     }
 

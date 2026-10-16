@@ -76,6 +76,19 @@ function spellPluginName(spell) {
 }
 
 /**
+ * A plugin name to compare by: A-Z folded, every other letter as it is. The DLL folds
+ * plugin names the same way (AsciiText, SpellScannerGate.cpp PluginKey), so a Korean,
+ * Russian or accented name matches on both sides; toLowerCase would also fold Cyrillic
+ * and accented capitals, which the DLL cannot. The spell gate's keys, the blacklist,
+ * the plugin list and chosen roots all compare plugin names through this.
+ */
+function foldPluginName(name) {
+    return String(name).replace(/[A-Z]+/g, function(run) { return run.toLowerCase(); });
+}
+
+window.foldPluginName = foldPluginName;
+
+/**
  * Filter blacklisted spells from a spell array.
  * Uses settings.spellBlacklist (saved persistently via UnifiedConfig). An entry with
  * plugin and localFormId matches by those, so it survives a load order change (as
@@ -91,7 +104,7 @@ function filterBlacklistedSpells(spells) {
     var formIds = {};
     settings.spellBlacklist.forEach(function(entry) {
         if (entry.plugin && entry.localFormId) {
-            keys[String(entry.plugin).toLowerCase() + ':' + String(entry.localFormId).toLowerCase()] = true;
+            keys[foldPluginName(entry.plugin) + ':' + String(entry.localFormId).toLowerCase()] = true;
         } else if (entry.formId) {
             formIds[entry.formId] = true;
         }
@@ -101,7 +114,7 @@ function filterBlacklistedSpells(spells) {
         var formId = spell.formId || spell.id;
         var plugin = spellPluginName(spell);
         if (plugin && formId && typeof getLocalFormId === 'function' &&
-                keys[plugin.toLowerCase() + ':' + getLocalFormId(formId)]) return false;
+                keys[foldPluginName(plugin) + ':' + getLocalFormId(formId)]) return false;
         return !formIds[formId];
     });
 }
@@ -126,13 +139,13 @@ function filterWhitelistedSpells(spells) {
 
     var disabledMap = {};
     settings.pluginWhitelist.forEach(function(entry) {
-        if (entry.enabled === false && entry.plugin) disabledMap[String(entry.plugin).toLowerCase()] = true;
+        if (entry.enabled === false && entry.plugin) disabledMap[foldPluginName(entry.plugin)] = true;
     });
 
     return spells.filter(function(spell) {
         var plugin = spellPluginName(spell);
         // Can't determine plugin - include it to be safe
-        return !plugin || disabledMap[plugin.toLowerCase()] !== true;
+        return !plugin || disabledMap[foldPluginName(plugin)] !== true;
     });
 }
 

@@ -99,6 +99,7 @@ target_compile_features(tome-reach-test PRIVATE cxx_std_23)
 
 target_include_directories(tome-reach-test PRIVATE
     ${SL_SRC_DIR}
+    ${SL_INCLUDE_DIR}
 )
 
 target_link_libraries(tome-reach-test PRIVATE

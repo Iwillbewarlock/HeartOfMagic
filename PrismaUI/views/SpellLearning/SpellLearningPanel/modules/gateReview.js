@@ -13,12 +13,12 @@
  * (Mysticism's Symmetry, a spell whose cost follows another spell).
  *
  * Keep and Include write the same list, settings.gateReviewed (config.json,
- * "plugin.esp:localid" keys, plugin A-Z folded (asciiLower), local id as getLocalFormId
+ * "plugin.esp:localid" keys, plugin A-Z folded (foldPluginName), local id as getLocalFormId
  * writes it). The DLL reads it too (ReadGateKept), so a saved tree's load and
  * Spell Research take an included spell back.
  *
  * Depends on: state.lastSpellData, settings (spellBlacklist, gateReviewed),
- *   isTreeCandidate (proceduralTreeBuilder.js), getPrimedSpells, getLocalFormId
+ *   isTreeCandidate, foldPluginName (proceduralTreeBuilder.js), getPrimedSpells, getLocalFormId
  *   (uiHelpers.js), addToBlacklist, autoSaveSettings (settingsPanel.js), tOr (i18n.js)
  */
 
@@ -35,47 +35,82 @@ var GateReview = {
         rule: ['modals.gateReview.reason.rule', 'matches a review rule']
     },
 
-    /**
-     * A-Z folded, every other letter as it is: the DLL folds the plugin name the same
-     * way (SpellScannerGate.cpp Lower), so a Korean, Russian or accented name gives one key
-     * on both sides. toLowerCase would fold Cyrillic and accented capitals too, and the DLL cannot.
-     */
-    asciiLower: function(text) {
-        return String(text).replace(/[A-Z]+/g, function(run) { return run.toLowerCase(); });
-    },
-
     _local: function(spell) {
         return typeof getLocalFormId === 'function' ? getLocalFormId(spell.formId) : spell.formId;
     },
 
-    /** "plugin.esp:localid", plugin A-Z folded (asciiLower): the key blacklist entries use too */
+    /**
+     * "plugin.esp:localid", the plugin folded A-Z only (foldPluginName, proceduralTreeBuilder.js):
+     * the DLL makes the same bytes (SpellScannerGate.cpp PluginKey), so a Korean, Russian or
+     * accented plugin name gives one key on both sides. Blacklist entries match by it too
+     */
     key: function(spell) {
-        return this.asciiLower(spell.plugin || '') + ':' + this._local(spell);
+        return foldPluginName(spell.plugin || '') + ':' + this._local(spell);
     },
 
-    /** The key Keep wrote before 2026-10-17 (toLowerCase): a saved one still counts in the panel (not in the DLL) */
-    _oldKey: function(spell) {
+    /** The key Keep wrote before 2026-10-17 (toLowerCase): migrateKeys replaces it */
+    _legacyKey: function(spell) {
         return String(spell.plugin || '').toLowerCase() + ':' + this._local(spell);
-    },
-
-    _inList: function(spell, kept) {
-        return kept[this.key(spell)] === true || kept[this._oldKey(spell)] === true;
     },
 
     /** The player kept or included this spell (settings.gateReviewed) */
     isKept: function(spell) {
         var list = (typeof settings !== 'undefined' && settings.gateReviewed) || [];
-        return list.indexOf(this.key(spell)) !== -1 || list.indexOf(this._oldKey(spell)) !== -1;
+        return list.indexOf(this.key(spell)) !== -1;
     },
 
     _blacklisted: function(spell, list) {
         var key = this.key(spell);
         for (var i = 0; i < list.length; i++) {
             var e = list[i];
-            if (e.plugin && e.localFormId && (this.asciiLower(e.plugin) + ':' + e.localFormId) === key) return true;
+            if (e.plugin && e.localFormId && (foldPluginName(e.plugin) + ':' + e.localFormId) === key) return true;
             if (e.formId === spell.formId) return true;
         }
         return false;
+    },
+
+    /** Whether config.json was read whole (not C++'s defaults): only then may migrateKeys save */
+    _configReady: false,
+
+    /**
+     * onUnifiedConfigLoaded: the config was applied; readable is false when C++ could not
+     * read config.json (configNotRead). Migrates the kept keys if a scan is here already.
+     */
+    configLoaded: function(readable) {
+        this._configReady = readable === true;
+        if (this._configReady && typeof state !== 'undefined' && state && state.lastSpellData) {
+            this.migrateKeys(state.lastSpellData.spells);
+        }
+    },
+
+    /**
+     * Keys Keep wrote before 2026-10-17 with toLowerCase (a Cyrillic or accented capital
+     * folded too) never match in the DLL: for each scanned spell whose old key is kept and
+     * whose new key is not, the entry becomes the new key, and the settings are saved once.
+     * An entry no scanned spell has stays as it is. Called on a new scan, a config load and
+     * the gate lists' render; does nothing before the config is read.
+     * @returns {number} entries replaced
+     */
+    migrateKeys: function(spells) {
+        var list = (typeof settings !== 'undefined' && settings && settings.gateReviewed) || null;
+        if (!this._configReady || !list || list.length === 0 || !spells) return 0;
+        var at = {};
+        for (var i = 0; i < list.length; i++) at[list[i]] = i;
+        var replaced = 0;
+        for (var j = 0; j < spells.length; j++) {
+            var s = spells[j];
+            if (!s || !s.plugin) continue;
+            var oldKey = this._legacyKey(s);
+            if (!at.hasOwnProperty(oldKey)) continue;
+            var newKey = this.key(s);
+            if (newKey === oldKey || at.hasOwnProperty(newKey)) continue;
+            list[at[oldKey]] = newKey;
+            at[newKey] = at[oldKey];
+            delete at[oldKey];
+            replaced++;
+        }
+        if (replaced > 0 && typeof autoSaveSettings === 'function') autoSaveSettings();
+        return replaced;
     },
 
     /**
@@ -91,7 +126,7 @@ var GateReview = {
         for (var i = 0; i < (spells || []).length; i++) {
             var s = spells[i];
             if (!s || !s.gate || s.gate.band !== band) continue;
-            if (this._inList(s, kept) || this._blacklisted(s, blacklist || [])) continue;
+            if (kept[this.key(s)] || this._blacklisted(s, blacklist || [])) continue;
             out.push(s);
         }
         return out;
@@ -113,6 +148,7 @@ var GateReview = {
         var spells = typeof getPrimedSpells === 'function'
             ? getPrimedSpells(typeof isTreeCandidate === 'function' ? isTreeCandidate : null)
             : ((state.lastSpellData && state.lastSpellData.spells) || []);
+        this.migrateKeys((state.lastSpellData && state.lastSpellData.spells) || spells);
         var blacklist = settings.spellBlacklist, kept = settings.gateReviewed;
         var self = this;
         this._renderList('gate-review', this.pending(spells, blacklist, kept, 'review'),

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdBits.h"
 #include "PluginNames.h"
 #include "SpellScanner.h"
 #include "TreeRemap.h"
@@ -13,22 +14,21 @@ namespace SpellScanner
 
     std::string GetPersistentFormId(RE::FormID formId)
     {
+        using namespace FormIdBits;
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) return "";
 
-        uint8_t modIndex = (formId >> 24) & 0xFF;
+        const auto modIndex = static_cast<std::uint8_t>(formId >> kFileIndexShift);
         uint32_t localFormId = 0;
         const RE::TESFile* plugin = nullptr;
 
-        if (modIndex == 0xFE) {
-            // Light plugin (ESL)
-            uint16_t lightIndex = (formId >> 12) & 0xFFF;
+        if (modIndex == kLightIndex) {
+            const auto lightIndex = static_cast<std::uint16_t>((formId >> kLightFileShift) & kLightFileMask);
             plugin = dataHandler->LookupLoadedLightModByIndex(lightIndex);
-            localFormId = formId & 0x00000FFF;  // Only 12 bits for light plugins
+            localFormId = formId & kLightLocalMask;
         } else {
-            // Regular plugin
             plugin = dataHandler->LookupLoadedModByIndex(modIndex);
-            localFormId = formId & 0x00FFFFFF;  // 24 bits for regular plugins
+            localFormId = formId & kFullLocalMask;
         }
 
         if (plugin && plugin->fileName && strlen(plugin->fileName) > 0) {
@@ -48,9 +48,15 @@ namespace SpellScanner
         // A file the game read but did not load (unchecked in the load order) keeps this
         // compile index; CommonLib's TESDataHandler::LookupFormID refuses it the same way
         constexpr std::uint8_t kNotLoadedIndex = 0xFF;
-        // The local id bits a form id has room for in a light and in a full plugin
-        constexpr std::uint32_t kLightLocalMask = 0xFFF;
-        constexpr std::uint32_t kFullLocalMask = 0xFFFFFF;
+
+        // Why a persistentId gave no formId (the tree load logs it)
+        enum class ResolveFailure
+        {
+            kNone,
+            kBadFormat,
+            kPluginNotLoaded,
+            kLocalIdTooBig,
+        };
 
         const RE::TESFile* IfLoaded(const RE::TESFile* file)
         {
@@ -73,9 +79,12 @@ namespace SpellScanner
                 });
         }
 
-        // ResolvePersistentFormId with the caller's lookup (one per tree pass)
-        RE::FormID ResolveWith(const std::string& persistentId, PluginLookup& lookup)
+        // ResolvePersistentFormId with the caller's lookup (one per tree pass). Logs at trace:
+        // the librarian asks for many ids of plugins the player does not have
+        RE::FormID ResolveWith(const std::string& persistentId, PluginLookup& lookup, ResolveFailure& failure)
         {
+            using namespace FormIdBits;
+            failure = ResolveFailure::kBadFormat;
             // Parse "PluginName.esp|0x123456" format
             auto pipePos = persistentId.find('|');
             if (pipePos == std::string::npos || pipePos == 0) {
@@ -104,6 +113,7 @@ namespace SpellScanner
 
             const RE::TESFile* plugin = FindPlugin(dataHandler, lookup, pluginName);
             if (!plugin) {
+                failure = ResolveFailure::kPluginNotLoaded;
                 logger::trace("SpellScanner: Plugin not loaded: {}", pluginName);
                 return 0;
             }
@@ -113,28 +123,26 @@ namespace SpellScanner
             // another one
             const std::uint32_t localMask = plugin->IsLight() ? kLightLocalMask : kFullLocalMask;
             if (localFormId > localMask) {
+                failure = ResolveFailure::kLocalIdTooBig;
                 logger::trace("SpellScanner: {} does not fit a {} plugin's local ids", persistentId,
                     plugin->IsLight() ? "light" : "full");
                 return 0;
             }
 
-            // Reconstruct full FormID with current mod index
+            failure = ResolveFailure::kNone;
             if (plugin->IsLight()) {
-                // Light plugin: 0xFEXXX + 12-bit local ID
-                std::uint32_t lightIndex = plugin->GetPartialIndex();
-                return (0xFE000000 | ((lightIndex) << 12) | localFormId);
-            } else {
-                // Regular plugin: mod index + 24-bit local ID
-                uint8_t modIndex = plugin->GetCompileIndex();
-                return (static_cast<uint32_t>(modIndex) << 24) | localFormId;
+                return kLightPrefix | (static_cast<std::uint32_t>(plugin->GetSmallFileCompileIndex()) << kLightFileShift) |
+                       localFormId;
             }
+            return (static_cast<std::uint32_t>(plugin->GetCompileIndex()) << kFileIndexShift) | localFormId;
         }
     }
 
     RE::FormID ResolvePersistentFormId(const std::string& persistentId)
     {
         PluginLookup lookup;
-        return ResolveWith(persistentId, lookup);
+        ResolveFailure failure = ResolveFailure::kNone;
+        return ResolveWith(persistentId, lookup, failure);
     }
 
     bool IsFormIdValid(RE::FormID formId)
@@ -183,6 +191,28 @@ namespace SpellScanner
             return name && *name && !GateLeavesOut(spell, gateKept) && !IsEquippedInVoiceSlot(spell);
         }
 
+        // A persistentId that resolved to nothing: why, in the log the player can read, and which
+        // report list it goes to (a plugin not loaded, or a loaded plugin without that record)
+        void NoteUnresolved(TreeRemap::NodeVerdict& verdict, const std::string& persistentId, ResolveFailure failure)
+        {
+            const std::string plugin = persistentId.substr(0, persistentId.find('|'));
+            switch (failure) {
+            case ResolveFailure::kPluginNotLoaded:
+                verdict.missingPlugin = plugin;
+                logger::info("SpellScanner: {} - plugin {} is not loaded", persistentId, plugin);
+                break;
+            case ResolveFailure::kLocalIdTooBig:
+                verdict.missingRecord = persistentId;
+                logger::info("SpellScanner: {} - the local id does not fit {} (ESL-flagged after it was saved?)",
+                    persistentId, plugin);
+                break;
+            default:
+                verdict.missingRecord = persistentId;
+                logger::info("SpellScanner: {} - {} has no such record", persistentId, plugin);
+                break;
+            }
+        }
+
         // What the game says about one saved node: its formId now, and whether it stays
         TreeRemap::NodeVerdict JudgeNode(const json& node, PluginLookup& lookup,
                                          const std::unordered_set<std::string>& gateKept, std::size_t& notPlayerSpells)
@@ -202,19 +232,20 @@ namespace SpellScanner
             if (node.contains("persistentId") && node["persistentId"].is_string() &&
                 node["persistentId"].get<std::string>().find('|') != std::string::npos) {
                 const std::string persistentId = node["persistentId"].get<std::string>();
-                const RE::FormID resolvedId = ResolveWith(persistentId, lookup);
+                verdict.hasPersistentId = true;
+                ResolveFailure failure = ResolveFailure::kNone;
+                const RE::FormID resolvedId = ResolveWith(persistentId, lookup, failure);
                 if (resolvedId != 0 && IsFormIdValid(resolvedId)) {
                     verdict.formId = std::format("0x{:08X}", resolvedId);
-                    verdict.fromPersistentId = true;
                     isValid = true;
-                    if (verdict.formId != saved) {
+                    if (TreeRemap::NormalizeFormId(saved) != verdict.formId) {
                         logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}", saved, verdict.formId,
                             persistentId);
                     }
                 } else {
                     // The plugin or the record is gone: the old formId, valid or not, is not this spell
                     isValid = false;
-                    verdict.missingPlugin = persistentId.substr(0, persistentId.find('|'));
+                    NoteUnresolved(verdict, persistentId, failure);
                 }
             }
 
@@ -230,13 +261,31 @@ namespace SpellScanner
             verdict.keep = isValid;
             return verdict;
         }
+
+        void LogReport(const TreeRemap::Report& report)
+        {
+            if (report.nodesWithoutFormId > 0) {
+                logger::warn("SpellScanner: {} nodes without a string formId - left out of the tree",
+                    report.nodesWithoutFormId);
+            }
+            for (const auto& saved : report.collisions) {
+                logger::warn("SpellScanner: {} has no persistent ID and a resolved spell now holds that formId - "
+                    "left out of the tree", saved);
+            }
+            for (const auto& change : report.rootChanges) {
+                logger::info("SpellScanner: Updated {} root {} -> {}", change.school, change.from, change.to);
+            }
+            if (report.bridgesDropped > 0) {
+                logger::info("SpellScanner: Dropped {} bridges to removed spells", report.bridgesDropped);
+            }
+        }
     }
 
     TreeValidationResult ValidateAndFixTree(json& treeData)
     {
         TreeValidationResult result;
-        if (!treeData.contains("schools")) {
-            logger::warn("SpellScanner: Tree has no schools key");
+        if (!treeData.contains("schools") || !treeData["schools"].is_object()) {
+            logger::warn("SpellScanner: Tree has no schools object - nothing checked");
             return result;
         }
 
@@ -251,26 +300,21 @@ namespace SpellScanner
         const auto report = TreeRemap::FixTree(treeData, [&](const json& node) {
             return JudgeNode(node, pluginLookup, gateKept, notPlayerSpells);
         });
-
-        for (const auto& saved : report.collisions) {
-            logger::warn("SpellScanner: {} has no persistent ID and a resolved spell now holds that formId - "
-                "left out of the tree", saved);
-        }
-        if (report.bridgesDropped > 0) {
-            logger::info("SpellScanner: Dropped {} bridges to removed spells", report.bridgesDropped);
-        }
+        LogReport(report);
 
         result.totalNodes = report.totalNodes;
         result.validNodes = report.validNodes;
         result.invalidNodes = report.invalidNodes;
         result.resolvedFromPersistent = report.resolvedFromPersistent;
         result.missingPlugins.assign(report.missingPlugins.begin(), report.missingPlugins.end());
+        result.missingRecords.assign(report.missingRecords.begin(), report.missingRecords.end());
         result.invalidFormIds.assign(report.removedFormIds.begin(), report.removedFormIds.end());
 
         logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent, {} invalid "
-            "({} not a player's spell, {} legacy nodes on a resolved spell's formId), {} references remapped",
+            "({} not a player's spell, {} legacy nodes on a resolved spell's formId, {} legacy nodes following a "
+            "copy with a persistent ID), {} nodes moved to a new formId",
             result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.invalidNodes, notPlayerSpells,
-            report.legacyCollisions, report.moved.size());
+            report.legacyCollisions, report.legacyFollowed, report.moved.size());
 
         return result;
     }
