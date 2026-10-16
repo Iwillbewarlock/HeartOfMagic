@@ -1,0 +1,184 @@
+# Heart of Magic Librarian - Toxicology — 설계
+
+날짜: 2026-10-17. 상태: 사용자 검토 대기.
+브랜치: `feature/toxicology` (master d4f325c 에서 분기, 워크트리 `.claude/worktrees/toxicology`).
+
+## 1. 목적
+
+하트 오브 매직 Librarian 이 `poison` 태그를 붙인 주문(독 마법)이 대상에 맞으면, 플레이어가 즐겨찾기한 독약의
+효과를 그 대상에게 건다. 독 마법이 독약의 구조를 복제하는 것이다. 독약은 줄지 않는다(사용자 결정).
+
+넥서스에 별도 페이지로 배포하는 애드온. 원작 Heart of Magic 과는 호환되지 않는다 — Librarian 이 쓰는
+`spell_catalog.json` 의 태그를 읽기 때문이다(넥서스 페이지와 README 에 명시).
+
+같은 기능의 넥서스 모드는 없다(2026-10-17 houseCARL 이름 검색 기준. 이름에 poison/venom 이 없는 모드는 놓쳤을 수 있다).
+
+## 2. 사용자가 정한 것
+
+| 항목 | 결정 |
+|---|---|
+| 독약 소모 | 없음 |
+| 어떤 독약 | 즐겨찾기한 독약 중 즐겨찾기 메뉴 맨 위 하나 |
+| 겹침 | 처음 맞을 때 효과를 걸고, 효과가 남아 있는 동안 다시 맞으면 지속 시간만 처음으로 되돌린다(쌓이지 않음). 대상·독약마다 최소 1초 간격(설정) |
+| 표시 | I4 로 복제 중인 독약의 아이콘을 "마법진 앞의 독약병" 그림으로 바꾼다 |
+| 배포 | 넥서스, 이름 "Heart of Magic Librarian - Toxicology" |
+
+## 3. 내가 정한 것 (사용자에게 말했고, 반대 없음)
+
+- 시전자는 플레이어만. NPC 가 쓰는 독 마법에는 걸지 않는다.
+- 독약 효과의 세기·지속 시간은 독약 값 그대로. 엔진이 `CastSpellImmediate` 에서 퍽을 적용하는지는 자가 테스트로
+  기록만 하고 손대지 않는다.
+- 모든 독 마법(투사체, 룬, 접촉, 집중)에 같은 규칙.
+- 복제 중에 즐겨찾기 1순위가 바뀌면 이미 걸린 효과는 끝까지 가고, 다음 피격부터 새 독약.
+- 즐겨찾기한 독약이 없으면 아무 일도 없다.
+- 게임 안 글자(메뉴·알림) 없음 → 번역 파일 없음. 설정은 json 하나.
+- I4 가 없으면 아이콘만 빠지고 기능은 동작.
+- 아이콘 색은 `#62A636`(사서가 독 원소 주문에 쓰는 초록). I4 기본 독약 색(`#AD00B3`, 보라)과 달라서 눈에 띈다.
+
+## 4. 배포 형태
+
+| 파일 | 역할 |
+|---|---|
+| `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드 레코드 `HoMTox_MimicPoison` 하나. I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
+| `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | 본체 |
+| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `minIntervalSeconds`(기본 1.0) |
+| `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 규칙: `{"match":{"formType":"Potion","keywords":"HoMTox_MimicPoison"},"assign":{"iconSource":"HeartOfMagicToxicology/icons.swf","iconLabel":"potion_mimic","iconColor":"#62A636"}}` |
+| `Interface/HeartOfMagicToxicology/icons.swf` | 아이콘 1개(라벨 `potion_mimic`) |
+| `SKSE/Plugins/HeartOfMagic_Toxicology/` | `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/` (NPC Spells 와 같은 방식) |
+| `dist/HeartOfMagic-Librarian-Toxicology_<버전>.zip` | Data 루트 zip, FOMOD 없음. PDB 는 `_DebugSymbols.zip` |
+
+- 버전은 `plugins/Toxicology/VERSION`(1.0.0), 소스 태그 `toxicology-v1.0.0`.
+- 요구: SKSE, Address Library, Heart of Magic Librarian 1.5.0+(전체 스캔 1회). 선택: I4.
+- ESL 은 `I4IconAddon.esp` 뒤에 로드되어야 우리 규칙이 이긴다. 새 플러그인은 기본으로 맨 뒤라 보통 맞다(README 에 적음).
+- NPC Spells(`feature/npc-spells-1.5`, 미병합)가 같은 애드온 배포 틀(별도 VERSION, 별도 zip, 노티스)을 먼저 만들었다.
+  그 브랜치가 먼저 병합되면 그 틀을 재사용하고, 아니면 이 브랜치가 같은 모양으로 만들고 나중 병합 때 맞춘다(빌더 판단).
+
+## 5. 동작
+
+### 5.1 독 마법 목록
+
+`kDataLoaded` 와 세이브 로드(`kPostLoadGame`, `kNewGame`) 때 `Data/SKSE/Plugins/SpellLearning/spell_catalog.json` 을
+읽는다. `version` 이 1 이 아니면 아무것도 하지 않고 로그에 남긴다. `spells` 의 각 항목 중 `elements` 에 `poison`
+이 있는 것의 키(`Plugin.esp|0x00XXXX`)를 FormID 로 풀어 `SpellItem*` 집합을 만든다. 풀리지 않는 키는 세어서 로그.
+그중 **적대 효과가 하나라도 있는 주문만** 남긴다(`SpellItem` 의 이펙트 중 `EffectSetting::IsHostile()`; 내 결정).
+사서는 트리 묶음용으로 Cure Poison, 독 저항 버프, Dispel Poison Cloak 에도 `poison` 을 붙이므로(`librarian/00_mgef.json:215,223`,
+`80_manual.json:115,125`, `10_kit.json:121,192`), 거르지 않으면 동료에게 쓴 치료 주문이 동료를 중독시킨다.
+독 저항을 깎는 저주(`10_kit.json:202`)는 적대라 남는다.
+(세이브 로드 때 다시 읽는 이유: 플레이어가 게임 안에서 전체 스캔을 다시 하면 카탈로그가 바뀐다.)
+
+### 5.2 복제할 독약 고르기
+
+플레이어 인벤토리에서 `AlchemyItem::IsPoison()` 이고 `InventoryEntryData::IsFavorited()` 인 것 중 이름이 가장 앞인 것.
+- 이름: 엔트리의 표시 이름(플레이어가 만든 독약은 붙인 이름). 대소문자 무시, 코드 포인트 순.
+  근거: SkyUI 즐겨찾기 메뉴가 `_sortFilter.setSortBy(["text"], ...)` 로 이름순 정렬(schlangster/skyui
+  `src/FavoritesMenu/FavoritesMenu.as:272`). 바닐라 메뉴의 순서는 확인 안 함 — 같은 규칙을 쓴다.
+- 계산 시점: 피격 때(최대 0.5초에 한 번 다시 계산, 그 사이는 캐시)와 인벤토리·즐겨찾기 메뉴가 열릴 때.
+
+### 5.3 피격 감지
+
+`TESHitEvent` 싱크. 조건: `cause` 가 플레이어, `source` 를 `LookupByID` 한 폼의 타입이 `Spell` 이고 5.1 집합에 있음,
+`target` 이 살아 있는 Actor 이고 플레이어가 아님.
+- 근거: BladeAndBlunt·PAPER 가 `source` 로 주문을 찾는다(조사 보고). 한 피격에 이벤트가 여러 번 오므로
+  (대상, 주문) 짝으로 같은 프레임 중복을 버린다.
+- 우리 독 시전이 일으키는 이벤트는 `source` 가 AlchemyItem 이라 타입 검사에서 걸러진다(재진입 방지 겸).
+- 룬·폭발·망토형, 그리고 `kNoHitEvent` 이펙트에서 이 이벤트가 오는지는 모른다 → 자가 테스트로 확인.
+  오지 않는 종류가 있으면 `TESMagicEffectApplyEvent`(caster 플레이어, 이펙트 → 그 이펙트를 가진 독 마법 집합)를
+  보조로 붙인다. 이 보조는 테스트 결과를 보고 결정한다.
+
+### 5.4 독약 효과 걸기 / 갱신
+
+이벤트 싱크 안에서 바로 하지 않고 `SKSE::GetTaskInterface()->AddTask` 로 미룬다.
+(대상, 독약) 짝마다 마지막으로 처리한 시각을 기억하고, 그 뒤 `minIntervalSeconds`(설정, 기본 1.0초, 사용자 결정)가
+지나지 않은 피격은 버린다 — 갱신이든 새로 걸기든. 즉발 피해만 있는 독약(남는 효과가 없음)이 집중 주문으로
+초당 여러 번 걸리는 것을 막는다. 기록은 세이브 로드 때 비운다.
+1. 대상의 활성 효과 중 `spell` 이 이 독약이고 시전자가 플레이어인 것이 있으면 → 그 효과들의 경과 시간
+   (`ActiveEffect::elapsedSeconds`)을 0 으로. 새로 걸지 않는다. (다시 거는 방식은 지속 피해가 처음부터
+   다시 걸리거나 겹칠 수 있어서 쓰지 않는다.)
+2. 없으면 → `player->GetMagicCaster(kInstant)->CastSpellImmediate(poison, false, target, 1.0f, false, 0.0f, player)`.
+   근거: QuickPocket 이 같은 호출로 플레이어 책임의 독을 대상에 건다(조사 보고). 독약의 전달 방식은 Self 지만
+   대상을 명시하면 대상에 걸린다(ANDR_SKSEFunctions, Throwing-Stuff-VR, OIF 가 그렇게 씀).
+- 효과가 여럿인 독약에서 일부만 끝났으면, 남은 것만 갱신하고 끝난 것은 다시 걸지 않는다. 전부 끝났을 때만
+  2번으로 새로 건다(내 결정).
+- 활성 효과 순회와 `elapsedSeconds` 의 정확한 멤버·접근 방법은 CommonLib 헤더(`ActiveEffect.h`, `MagicTarget.h`)에서
+  확인할 것. 엔진이 `elapsedSeconds` 를 0 으로 되돌린 효과를 실제로 연장하는지는 자가 테스트로 확인.
+
+### 5.5 아이콘
+
+ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 폼에 `BGSKeywordForm::AddKeyword` 로 붙이고,
+전에 붙인 독약에서는 뗀다. 메모리에서만이고 세이브에 남지 않는다(세이브 로드 때 다시 붙인다).
+- I4 는 메뉴가 목록을 그릴 때 항목마다 `keywords` 객체(SKSE 가 기본 폼의 키워드 editorID 로 채움)를 문자열로
+  비교한다(Exit-9B/InventoryInjector `Property.cpp:71-78`, skse64 `ScaleformExtendedData.cpp:61-87`).
+  그래서 실행 중에 붙인 키워드가 다음 메뉴 그리기에 반영된다.
+- **I5(InventoryInjectorImproved, TAKEALOOK 에 설치됨)**: I4 결과를 FormID 로 캐시해서 키워드를 옮겨도
+  인벤토리·상점 메뉴에 옛 아이콘이 남는다(`codepuncher/InventoryInjectorImproved` `src/CacheKey.h:27-39`).
+  즐겨찾기 메뉴는 캐시하지 않는다. 대응: 독약이 바뀔 때 I5 가 로드되어 있으면 콘솔 명령 `i5 cache purge` 를
+  실행해 본다(미검증, 자가 테스트에서 확인). 안 되면 "I5 를 쓰면 인벤토리 아이콘이 늦게 바뀔 수 있다, 즐겨찾기
+  메뉴는 정확"을 README 의 알려진 한계로 적는다.
+- 메뉴가 열린 채 즐겨찾기를 바꾸면 아이콘은 다음에 메뉴를 열 때 바뀐다(알려진 한계).
+
+## 6. 아이콘 그림
+
+- 내용: 마법진(원과 룬 문자) 앞에 독약병 실루엣. 단색(흰색 채움 + 투명). I4 가 `iconColor` 로 색을 덮어쓰므로
+  색은 의미 없다.
+- 초안은 Gemini(agy `image-generator`)가 그리고, Claude 가 결과를 열어 보고 고칠 점을 요청한다. 작은 크기
+  (목록 아이콘 약 20~30px)에서 병과 원이 구분되어야 한다.
+- SWF: 기존 I4 아이콘 SWF 와 같은 구조 — CWS v10, 프레임 1 은 stop + placeholder, 아이콘 프레임은
+  `FrameLabel` + `DefineShape`(흰 벡터) + `DefineSprite` 래퍼 + `PlaceObject2`. 벡터로 넣는다(비트맵 채움은 I4 선례가 불확실).
+  제작 도구: FFDec 18.5.0 이 있다(`D:\TAKEALOOK\mods\Dynamic Interface Patcher - DIP\DIP\ffdec\ffdec.jar`, JDK 21) —
+  `-importShapes` 로 SVG 를 넣을 수 있음을 확인했다. 래스터 → 벡터 변환 방법과 라벨 이름 쓰기는 빌더 판단.
+  Python 은 쓰지 않는다(프로젝트 규칙). 만든 SWF 는 저장소에 바이너리로 넣는다.
+
+## 7. 실패 처리
+
+모두 게임을 멈추지 않고 `HeartOfMagic_Toxicology.log` 에 이유를 남긴다.
+
+| 상황 | 동작 |
+|---|---|
+| 카탈로그 없음 / `version` 불일치 | 독 마법 집합 비어 있음 → 아무 일 없음 |
+| ESL 꺼짐(키워드 못 찾음) | 아이콘 없이 기능만 |
+| 설정 json 깨짐 / 없음, 값이 범위 밖 | 기본값(`enabled` true, `showIcon` true, `minIntervalSeconds` 1.0; 음수·NaN 은 기본값) |
+| 즐겨찾기 독약 없음 | 아무 일 없음 |
+| 대상이 죽었거나 사라짐(태스크 실행 시점) | 건너뜀 |
+
+## 8. 코드 구조
+
+워크트리는 서브모듈이 비어 있다 — 먼저 `git submodule update --init --recursive`.
+
+`plugins/Toxicology/` (BookXP·NPC Spells 와 같은 CMake 구조, CommonLibSSE-NG, 파일당 600줄 한도).
+- 순수 부분(게임 없이 도는 것): 카탈로그 JSON → 독 마법 키 목록, 독약 후보(이름, 즐겨찾기) 목록 → 고른 하나.
+  오프라인 도구 `tools/toxicology-test --self-test` 로 확인(정상·경계·실패 각각).
+- 게임 부분: 이벤트 싱크, 태스크, 활성 효과 갱신, 키워드 이동, I5 purge.
+
+## 9. 테스트
+
+- 오프라인 `toxicology-test --self-test`: 카탈로그 파싱(poison 있음/없음/버전 불일치/깨진 키), 이름순 선택
+  (대소문자, 한글, 같은 이름, 빈 목록).
+- 게임 안 자가 테스트(개발용 `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json` 이 있을 때만, 로드가 가라앉은 뒤
+  약 30초에 시작, 결과는 로그에 PASS/FAIL):
+  1. 독약 2개를 주고 즐겨찾기 → 이름이 앞인 것이 골라지고 그 폼에만 키워드.
+  2. 대상 NPC 를 소환, 독 마법을 전달 방식별로(투사체, 접촉, 집중, 룬) 플레이어 시전으로 맞힘 → 피격 이벤트 수신
+     여부, 독약 효과가 대상에 생겼는지.
+  3. 다시 맞힘 → 같은 효과가 하나뿐이고 경과 시간이 0 근처로 돌아갔는지, 지속 시간이 실제로 연장되는지.
+  4. 독약 효과의 크기를 독약 레코드 값과 비교해 로그(퍽 반영 여부 기록, 판정 없음).
+  5. I5 가 있으면 `i5 cache purge` 실행 결과 로그.
+  6. 효과의 시전자가 플레이어인지.
+  게임 실행·세이브 로드는 NPC Spells 와 같은 경로(mo2_guard -Mode Test, DevBench).
+- 사용자 눈 확인(자동화 불가: 화면 모양): 즐겨찾기 메뉴와 인벤토리에서 아이콘이 알아볼 만한지, 색.
+- 리뷰: 독립 리뷰어 에이전트 + OCR(프로젝트 규칙). Gemini 는 이미지 전담(2026-10-16 이후 메모리 규칙).
+
+## 10. 문서
+
+- `plugins/Toxicology/README.md`: 설치, 요구, 원작과 비호환, 동작, 설정, 알려진 한계(I5, 메뉴 열린 채 변경,
+  NPC 시전 없음, 스캔 뒤 새 주문 모드는 다음 스캔부터).
+- CLAUDE.md 문서 트리·Key Locations 한 줄, `docs/ARCHITECTURE.md` 애드온 한 줄.
+- 넥서스 페이지 초안(영어), 추천 독 마법 모드: Venomancy(146585), Plague(62807), Poison Spells(25497),
+  Mordant(145884). Venomancy 의 "독 지속 피해는 자기와 겹치지 않음" 과의 상호작용은 게임에서 확인.
+
+## 11. 확인하지 못한 전제
+
+- `TESHitEvent` 가 룬·폭발·망토·집중(얼마나 자주) 주문에서 오는지.
+- `elapsedSeconds` 를 0 으로 하면 지속이 연장되는지.
+- `CastSpellImmediate` 로 건 독약에 퍽이 적용되는지, 비적대 대상에 범죄·적대가 생기는지(독 마법 자체의 피격이 이미 만든다).
+- I5 캐시를 DLL 에서 비울 수 있는지.
+- 바닐라(SkyUI 없음) 즐겨찾기 메뉴의 정렬 순서.
+- 설치된 I5 버전(meta 0.4.0, 로그 0.3.1).
