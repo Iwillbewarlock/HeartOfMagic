@@ -1,3 +1,4 @@
+#Requires -Version 7
 <#
 .SYNOPSIS
     Builds dist\HeartOfMagic-BlackFlame-Tester_<version>.zip from the last build (run BuildRelease.ps1 first).
@@ -14,14 +15,18 @@
       README_TESTER.md
     Never in it: other mods' meshes or generated copies. The script refuses when plugins\BlackFlame\data holds a
     meshes\heartofmagic\blackflame\copies folder or a non-empty Copies/Local ESL (those are built on the tester's machine).
+    It also refuses a working tree with uncommitted changes (the zip is named after the commit; -AllowDirty packages it
+    anyway with "-dirty" in the name) and a DLL older than the newest file under plugins\BlackFlame\src (build first).
 
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -Version 1.5.0-t2
+    .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowDirty
 #>
 [CmdletBinding()]
 param(
-    [string]$Version
+    [string]$Version,
+    [switch]$AllowDirty
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,21 +36,34 @@ $dllDir = Join-Path $repo 'build\plugins\BlackFlame\Release'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
 
-if (-not $Version) {
-    $base = (Get-Content (Join-Path $repo 'VERSION') -Raw).Trim()
-    $sha = (git -C $repo rev-parse --short HEAD).Trim()
-    $Version = "$base-$sha"
-}
-
 function Fail([string]$why) {
     Write-Error "Make-TesterPackage: $why"
     exit 1
 }
 
+# The zip is named after the commit: a working tree with changes would ship something no commit holds
+$dirty = git -C $repo status --porcelain
+if ($LASTEXITCODE -ne 0) { Fail "git status failed in $repo" }
+if ($dirty -and -not $AllowDirty) {
+    Fail "the working tree has uncommitted changes (commit them, or pass -AllowDirty to package with -dirty in the name)"
+}
+if (-not $Version) {
+    $base = (Get-Content (Join-Path $repo 'VERSION') -Raw).Trim()
+    $sha = (git -C $repo rev-parse --short HEAD).Trim()
+    $Version = "$base-$sha"
+}
+if ($dirty) { $Version = "$Version-dirty" }
+
 foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Path $dllDir 'HeartOfMagic_BlackFlame.pdb'), $builder, $readme,
         (Join-Path $data 'HeartOfMagic_BlackFlame.esp'), (Join-Path $data 'HeartOfMagic_BlackFlame_Copies.esp'),
         (Join-Path $data 'HeartOfMagic_BlackFlame_Local.esp'), (Join-Path $data 'SKSE\Plugins\HeartOfMagic_BlackFlame.json'))) {
     if (-not (Test-Path $file)) { Fail "$file is missing (run .\BuildRelease.ps1 -preset Release-2026 first)" }
+}
+# The DLL must be built from the sources as they are now
+$dll = Get-Item (Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll')
+$newestSource = Get-ChildItem -Recurse -File (Join-Path $repo 'plugins\BlackFlame\src') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($newestSource -and $newestSource.LastWriteTime -gt $dll.LastWriteTime) {
+    Fail "the DLL ($($dll.LastWriteTime)) is older than $($newestSource.FullName) ($($newestSource.LastWriteTime)): run .\BuildRelease.ps1 -preset Release-2026 first"
 }
 # Only the shipped, vanilla-derived files: no generated copies, no populated copies plugin
 if (Test-Path (Join-Path $data 'meshes\heartofmagic\blackflame\copies')) {
