@@ -5,8 +5,11 @@
 #include "game/ToxSelection.h"
 
 #include <atomic>
+#include <chrono>
+#include <cstddef>
 #include <exception>
 #include <thread>
+#include <unordered_map>
 
 namespace
 {
@@ -18,6 +21,31 @@ namespace
     std::atomic<bool> g_threadLogged{ false };      // any thread
     std::atomic<bool> g_noTaskLogged{ false };      // any thread
     std::thread::id g_mainThread;                   // written once by RegisterHitSink, before the sink exists
+
+    // Spec 5.3: one hit raises several TESHitEvents. Repeats of the same (target, spell) inside
+    // this window are dropped whatever minIntervalSeconds is and whatever the first one did.
+    constexpr double kSameHitWindowSeconds = 0.05;
+    // The window map is swept of expired entries once it holds more than this many
+    constexpr std::size_t kSameHitSweepSize = 64;
+
+    using Clock = std::chrono::steady_clock;
+
+    // (target FormID << 32 | spell FormID) -> last kept hit, steady_clock seconds (main thread only)
+    std::unordered_map<std::uint64_t, double> g_lastHits;
+
+    // True for a repeat of the same hit; otherwise stamps (target, spell) and returns false
+    bool IsSameHit(RE::FormID a_target, RE::FormID a_spell)
+    {
+        const double now = std::chrono::duration<double>(Clock::now().time_since_epoch()).count();
+        if (g_lastHits.size() > kSameHitSweepSize) {
+            std::erase_if(g_lastHits, [now](const auto& a_entry) { return now - a_entry.second >= kSameHitWindowSeconds; });
+        }
+        const auto key = (static_cast<std::uint64_t>(a_target) << 32) | a_spell;
+        const auto it = g_lastHits.find(key);
+        if (it != g_lastHits.end() && now - it->second < kSameHitWindowSeconds) return true;
+        g_lastHits[key] = now;
+        return false;
+    }
 
     // =========================================================================
     // Task
@@ -112,6 +140,7 @@ void ToxGame::OnPoisonSpellHit(RE::ActorHandle a_target, RE::FormID a_spell)
     const auto targetRef = a_target.get();  // RE/B/BSPointerHandle.h:155; null once the actor is gone
     auto* target = targetRef.get();
     if (!target || target->IsPlayerRef() || target->IsDead()) return;  // Actor.h:363
+    if (IsSameHit(target->GetFormID(), a_spell)) return;
     auto* poison = CurrentPoison();  // null with no favorited poison (ToxSelection.h)
     if (!poison) return;
     ApplyOrRefresh(target, poison, player);

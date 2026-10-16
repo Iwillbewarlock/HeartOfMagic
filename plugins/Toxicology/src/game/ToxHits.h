@@ -8,8 +8,9 @@
 // and hands each one to an SKSE task carrying only the target's ActorHandle,
 // the spell's FormID and the session generation. Spec 5.4: the task drops a
 // hit from an earlier session, checks the spell is in the poison set, the
-// ability, the setting, the target alive and a poison to copy, then calls
-// ApplyOrRefresh (game/ToxApply.h).
+// ability, the setting, the target alive, drops a repeat of the same (target,
+// spell) inside kSameHitWindowSeconds (one hit raises several events), checks
+// there is a poison to copy, then calls ApplyOrRefresh (game/ToxApply.h).
 //
 // Threads: the sink may run on any thread. It reads the event's fields, does a
 // LookupByID form type check, takes the target's handle and reads the
