@@ -62,6 +62,16 @@ namespace GreyBuild
 
     inline constexpr double kStatLitWeight = 0.1;
     inline constexpr double kStatColouredSat = 0.25;
+    // The mean colour's saturation has no verdict below this brightest channel (the design's S(c) rule, = kRiskMinChannel):
+    // a near-black texture's mean (0, 0.004, 0.016) is not "saturated"
+    inline constexpr double kStatMinChannel = 0.02;
+    inline constexpr double kStatColouredFrac = 0.20;  // = kRiskTexColoredFrac
+    inline constexpr double kStatMeanSat = 0.30;       // = kRiskTexMeanSat
+
+    struct TexStats;
+
+    /// The risk check's coloured texture (TEX_COLOUR): kStatColouredFrac of the lit texels coloured, or a saturated mean
+    [[nodiscard]] bool IsColouredTexture(const TexStats& a_stats) noexcept;
 
     class TextureSource
     {

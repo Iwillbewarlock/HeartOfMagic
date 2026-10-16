@@ -20,6 +20,8 @@ namespace GreyBuild
 {
     namespace
     {
+        static_assert(kStatMinChannel == kRiskMinChannel && kStatColouredFrac == kRiskTexColoredFrac && kStatMeanSat == kRiskTexMeanSat,
+            "the texture statistics and the risk check judge colour alike");
         constexpr const char* kRuleKeys = "KEYS_LEFT";
         constexpr const char* kRuleVc = "VC_LEFT";
         constexpr const char* kRulePsys = "PSYS_LEFT";
@@ -160,7 +162,7 @@ namespace GreyBuild
             const TexStats* stats = a_texture.stats;
             const TexStats* copyStats = a_copyTexture.stats;
             // X6: TEX_COLOUR on the texture the copy names (a texture copy that came out coloured, or the source left)
-            const bool coloured = copyStats && (copyStats->colouredFrac >= kRiskTexColoredFrac || copyStats->meanSat >= kRiskTexMeanSat);
+            const bool coloured = copyStats && IsColouredTexture(*copyStats);
             if (coloured) {
                 Add(a_ctx, RiskLevel::kFail, kRuleTexColour, &a_source, fmt::format("texture {} coloured (mean {},{},{}, {:.0f}% "
                     "coloured texels) named by the copy", a_copyTexture.path, copyStats->meanRgb.r, copyStats->meanRgb.g,

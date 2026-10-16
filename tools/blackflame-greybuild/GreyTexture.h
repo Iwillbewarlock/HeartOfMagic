@@ -109,6 +109,7 @@ namespace GreyBuild
         float chroma = 0.0f;    // the mean chroma of the lit, visible pixels of mip 0
         float colouredShare = 0.0f;  // U4: the share of those pixels with a chroma of kColouredChroma or more
         bool alphaIgnored = false;   // U5: no pixel was both visible and lit, so the measure ran over the lit pixels
+        bool riskColoured = false;   // the visual-risk check's coloured-texture rule holds (then never left as grey)
         std::size_t mips = 0;
         std::uint64_t bytes = 0;  // kRecoloured: the copy's file size
     };

@@ -10,6 +10,7 @@
 #endif
 
 #include "GreyTexture.h"
+#include "GreyTexStats.h"
 
 #include "../../plugins/BlackFlame/src/DataPathRule.h"  // T7: the DLL's own path rule, not a copy
 
@@ -243,7 +244,13 @@ namespace GreyBuild
         }
         result.chroma = measure.mean;
         result.colouredShare = measure.share;
-        if (result.chroma < kGreyscaleChroma && result.colouredShare <= kColouredShare && std::abs(a_tint - 1.0f) < kTintOneEpsilon) {
+        // B: never "already grey" when the visual-risk check would call it coloured (TEX_COLOUR), so the check can only
+        // fire on a texture that could not be done (a faint tint on many dark texels: fxbubble01's 34%)
+        std::string riskWhy;
+        const auto rgba = ReadRgba(a_source, riskWhy);
+        result.riskColoured = rgba && IsColouredTexture(ComputeStats(*rgba));
+        if (result.chroma < kGreyscaleChroma && result.colouredShare <= kColouredShare && !result.riskColoured &&
+            std::abs(a_tint - 1.0f) < kTintOneEpsilon) {
             result.outcome = RecolourOutcome::kGreyscale;
             result.reason = fmt::format("mean chroma of the lit{} pixels {:.3f} < {} and {:.2f}% of them at chroma {} or more "
                                         "(<= {:.2f}%)", result.alphaIgnored ? "" : ", visible", result.chroma, kGreyscaleChroma,

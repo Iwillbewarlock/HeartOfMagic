@@ -121,7 +121,7 @@ namespace GreyBuild
         }
         const Rgb mean = alphaSum > 0.0 ? Rgb{ weighted.r / alphaSum, weighted.g / alphaSum, weighted.b / alphaSum } : Rgb{};
         stats.meanRgb = { Round3(mean.r), Round3(mean.g), Round3(mean.b) };
-        stats.meanSat = Round3(Saturation(mean, 0.0));
+        stats.meanSat = Round3(Saturation(mean, kStatMinChannel));
         stats.colouredFrac = lit > 0 ? Round3(static_cast<double>(coloured) / static_cast<double>(lit)) : 0.0;
         // Detail and energy over the texels with a right and a lower neighbour
         const auto energy = [&](std::size_t a_x, std::size_t a_y) {
@@ -142,6 +142,11 @@ namespace GreyBuild
         stats.detail = total > 0.0 ? Round3(gradient / total) : 0.0;
         stats.energyMean = Round3(total / static_cast<double>(std::max<std::size_t>(count, 1)));
         return stats;
+    }
+
+    bool IsColouredTexture(const TexStats& a_stats) noexcept
+    {
+        return a_stats.colouredFrac >= kStatColouredFrac || a_stats.meanSat >= kStatMeanSat;
     }
 
     PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha, double a_v,
