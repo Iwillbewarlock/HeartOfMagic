@@ -11,6 +11,7 @@
 #include "BuffState.h"
 #include "CasterArt.h"
 #include "Config.h"
+#include "CopyRequest.h"
 #include "CopySwap.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
@@ -47,6 +48,13 @@ namespace
         }
         BlackFlame::LoadAndFillCopies();  // v2: before any hook reads the copies (FormCopies.h)
         BlackFlame::BuildFireSets();
+        // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
+        // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
+        try {
+            BlackFlame::PrepareCopyRequest(BlackFlame::BuildFireClosure());
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
+        }
         BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();
         BlackFlame::EffectEventSink::GetSingleton()->Register();

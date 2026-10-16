@@ -15,6 +15,7 @@
     "copyExplosionCreate": true,
     "copyImpacts": true,
     "copyHitArt": true,
+    "writeRequest": true,
     "forcePalette": true,
     "particleColors": false,
     "selfTest": false,

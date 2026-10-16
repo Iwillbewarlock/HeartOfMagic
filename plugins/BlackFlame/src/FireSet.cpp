@@ -6,6 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <fstream>
 #include <optional>
@@ -209,6 +210,38 @@ namespace BlackFlame
                 AddHazard(a_base->data.associatedForm);
             }
         }
+
+        // R3: the associated spell of every fire Cloak MGEF becomes a fire spell (any SpellType) with all of its effects
+        // fire effects, until a pass adds nothing (a cloak spell's own cloak); returns how many spells were added
+        std::size_t AddCloakSpells()
+        {
+            std::size_t added = 0;
+            for (bool grew = true; grew;) {
+                grew = false;
+                std::vector<const RE::SpellItem*> found;
+                for (const auto id : g_fireEffects) {
+                    const auto* base = RE::TESForm::LookupByID<RE::EffectSetting>(id);
+                    const auto* spell = base && base->HasArchetype(RE::EffectSetting::Archetype::kCloak) && base->data.associatedForm ?
+                                            base->data.associatedForm->As<RE::SpellItem>() : nullptr;
+                    if (spell && spell != GetForms().stokeSpell && !g_fireSpells.contains(spell->GetFormID())) {
+                        found.push_back(spell);
+                    }
+                }
+                for (const auto* spell : found) {
+                    if (!g_fireSpells.insert(spell->GetFormID()).second) {
+                        continue;  // two cloaks naming the same spell
+                    }
+                    ++added;
+                    grew = true;
+                    for (const auto* effect : spell->effects) {
+                        if (const auto* base = effect ? effect->baseEffect : nullptr) {
+                            AddFireEffect(base);
+                        }
+                    }
+                }
+            }
+            return added;
+        }
     }
 
     void BuildFireSets()
@@ -253,12 +286,14 @@ namespace BlackFlame
             }
         }
 
+        const std::size_t associated = AddCloakSpells();
+
         logger::info("BlackFlame: fire spells (a fire MGEF, or the catalog's fire tag): {}; {} fire effects, {} fire "
                      "explosions, {} fire hazards. Catalog {}: {} spells tagged fire, {} of them fire by the tag alone "
-                     "(every effect of those counts)",
+                     "(every effect of those counts); {} added as a fire cloak's associated spell",
             g_fireSpells.size(), g_fireEffects.size(), g_fireExplosions.size(), g_fireHazards.size(),
-            catalogRead ? "read" : "not read", catalog.fire, catalogOnly);
-        g_counts = { catalogRead, catalog.fire, catalogOnly, g_fireSpells.size(), g_fireEffects.size(),
+            catalogRead ? "read" : "not read", catalog.fire, catalogOnly, associated);
+        g_counts = { catalogRead, catalog.fire, catalogOnly, associated, g_fireSpells.size(), g_fireEffects.size(),
             g_fireExplosions.size(), g_fireHazards.size() };
     }
 
@@ -280,6 +315,20 @@ namespace BlackFlame
     bool IsFireEffect(const RE::EffectSetting* a_effect)
     {
         return a_effect && g_fireEffects.contains(a_effect->GetFormID());
+    }
+
+    std::vector<RE::SpellItem*> FireSpellList()
+    {
+        std::vector<RE::FormID> ids(g_fireSpells.begin(), g_fireSpells.end());
+        std::ranges::sort(ids);
+        std::vector<RE::SpellItem*> spells;
+        spells.reserve(ids.size());
+        for (const auto id : ids) {
+            if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(id)) {
+                spells.push_back(spell);
+            }
+        }
+        return spells;
     }
 
     bool IsFireSpell(const RE::MagicItem* a_spell)

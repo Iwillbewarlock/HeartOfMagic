@@ -605,3 +605,13 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   불 Cloak MGEF 30개 중 가장 많이 쓰는 아트이고 NIF가 느슨한 승자(Flame VFX Edit, SE 스트림)라 LE NIF 위험(Vigilant BSA)이 없다. 손 아트는 채움·비교(T0-v2)만 확인, 교체는 C4.
 - 자가 시험 E6/E6-npc(SelfTestStepsV2Art.cpp): 데이터로 고른 불 Cloak 주문(발사형, 맞은 자리 아트에 사본)을 플레이어가 자기에게 → 2초 안 플레이어 대상 ModelReferenceEffect의
   artObject가 사본, 3D 로드, 효과 모양 전부 팔레트 경로, 훅 카운터 증가면 PASS. 사슴은 원본. 판정 뒤 바로 망토 디스펠(DispelSpell, Stoke 디스펠과 같은 방식).
+
+### v2 확장 C1: 요청과 덤프
+
+- FireSet: 불 Cloak MGEF의 associatedForm 주문을 SpellType과 관계없이 불 주문으로, 그 효과 전부를 불 효과로(고정점까지). 로그에 수.
+- FireClosure: 시작점 (a) 불 주문의 불 MGEF, (b) 가장 비싼 효과(GetAVEffect) MGEF. 간선은 계획 §1 그대로, 맞은 자리 아트(hitEffectArt, RFCT 아트)는 불 MGEF에서만.
+  같은 폼을 가장 비싼 효과 경로로 다시 만나면 한 번 더 걷는다(costliest 표시가 아래로 전파). 제외: 우리 플러그인, 사본 종류 아닌 placed object, MODS 있는 ARTO.
+- CopyRequest: 지문은 매 시작 계산(바이트 해시), 요청·덤프는 writeRequest일 때. 덤프는 manifest 지문과 다를 때만, 바이트를 다시 읽어 해시가 같을 때만 쓴다.
+  읽기 실패 NIF는 덤프에서 지운다(빌더가 낡은 파일을 쓰지 않게). 경로는 UTF-8 → wide 경로, 정규화된 경로는 드라이브·:·..가 없어 덤프 폴더 밖으로 못 나간다.
+- 자가 시험 T0-request: 요청이 돌았는지만(수·지문·시간). 집합의 정확성은 request.json을 센서스와 대조해 판정(게임 1회 필요, 미검증).
+- 지문 비용(매 시작 NIF 읽기)은 아직 측정 전: 1초를 넘으면 (path, totalSize) 공식으로 바꾼다(코디네이터 결정).

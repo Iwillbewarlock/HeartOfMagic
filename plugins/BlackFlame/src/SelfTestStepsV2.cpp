@@ -10,6 +10,7 @@
 #include "MainThreadQueue.h"
 
 #include "Config.h"
+#include "CopyRequest.h"
 #include "CopySwap.h"
 #include "FireSet.h"
 #include "FormCopies.h"
@@ -143,6 +144,14 @@ namespace BlackFlame::SelfTest
         const auto impact = GetImpactSwapStatus();
         SelfTestLog::Info("T0-hooks", std::format("impact window call sites (round 10, shared with the copy window): {} of 3 "
             "hooked, {} chained; GetModel {}", impact.sitesHooked, impact.sitesChained, impact.modelHooked ? "hooked" : "not hooked"));
+
+        // C1: the copy request's state (judged against the census by hand from request.json; here only that it ran)
+        const auto& request = GetCopyRequestState();
+        SelfTestLog::Check("T0-request", request.computed && request.forms > 0 && (!cfg.writeRequest || request.requestWritten),
+            std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} failed) read in {} ms, fingerprint {}, request {}, "
+                "dump {}", request.forms, request.excluded, request.nifs, request.nifsFailed, request.readMs,
+                request.computed ? request.fingerprint : std::string("NOT computed"),
+                request.requestWritten ? "written" : (cfg.writeRequest ? "NOT written" : "off"), request.dumpState));
 
         std::string detail;
         const auto v2 = SelfTestWorld::LookupV2(detail);

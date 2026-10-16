@@ -19,6 +19,11 @@
 // the Stoke spell itself. The fire explosions and hazards are those the fire effects
 // name: their explosions (own and projectile's), impact data sets' hazards,
 // explosions' placed hazards and a spawn-hazard archetype's form.
+//
+// Cloak (v2 expansion, R3): the spell a fire Cloak-archetype MGEF names as its associated
+// form (the damage spell the cloak casts on whatever comes near) is a fire spell whatever its
+// SpellType, and every effect of it is a fire effect - so the hit art and shader the cloak's
+// spell puts on a target count as the player's fire. Repeated until no new spell is added.
 
 namespace BlackFlame
 {
@@ -31,6 +36,7 @@ namespace BlackFlame
         bool catalogRead = false;
         std::size_t catalogFire = 0;  // spells the catalog tags fire
         std::size_t catalogOnly = 0;  // of those, without a fire effect: fire by the tag alone (v2)
+        std::size_t cloakAssociated = 0;  // spells added as a fire cloak's associated spell (any SpellType)
         std::size_t total = 0;        // fire spells
         std::size_t effects = 0;
         std::size_t explosions = 0;
@@ -41,6 +47,9 @@ namespace BlackFlame
     [[nodiscard]] FireSetCounts GetFireSetCounts() noexcept;
 
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
+
+    /// Every fire spell, by FormID (kDataLoaded thread, after BuildFireSets; the copy closure's seeds)
+    [[nodiscard]] std::vector<RE::SpellItem*> FireSpellList();
 
     /// The effect burns grey: a_spell is a fire spell and a_effect is one of its fire MGEFs. A
     /// scroll, staff or enchantment carrying the same MGEF does not count (not a fire spell).

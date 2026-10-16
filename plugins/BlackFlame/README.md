@@ -58,6 +58,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyLaunchExplosion` | `true` | v2: after that launch the projectile's explosion is set to its copy |
 | `copyExplosionCreate` | `true` | v2: explosion creation hands the explosion copy when the source projectile is a copy or the player's self-area fire cast made it |
 | `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
+| `writeRequest` | `true` | v2 expansion: write the copy request and the NIF dump for the builder at kDataLoaded (section "Copy request") |
 | `copyHitArt` | `true` | v2 (ARTO spike): the hit art of the player's fire effects is the art's ARTO copy when it has one - `GetHitEffectArt` returns the copy, so the engine builds the art's 3D from the copy's grey NIF; an art without a copy keeps the engine's art (recoloured only under `hitArt`) |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
@@ -74,7 +75,10 @@ or fire resistance as its resist value - OR when Heart of Magic's `spell_catalog
 `SpellType::kSpell` counts. A fire-MGEF spell's fire effects are its fire MGEFs; a catalog-only fire spell's
 fire effects are all of its effects (it has no fire MGEF to pick; e.g. Vigilant's Script-archetype Blinding
 Fire). The v2 copies change only visuals, so a catalog false positive costs only a grey look (this reverses
-round 8b, where the catalog tag alone did nothing). The log says how many spells are fire by the tag alone. The
+round 8b, where the catalog tag alone did nothing). The log says how many spells are fire by the tag alone. A fire
+Cloak-archetype MGEF's associated spell (the damage spell the cloak casts on whatever comes near) is a fire spell
+whatever its SpellType, with every effect of it a fire effect (v2 expansion R3; repeated until nothing is added; the
+log counts them), so what a player's cloak puts on a target counts as the player's fire. The
 fire explosions are those the fire effects and their projectiles name; the fire hazards are those the fire
 effects can leave (their impact data sets' hazards, their explosions' impact hazards and placed
 objects, a spawn-hazard archetype's form) plus any hazard whose own spell carries a fire effect. The
@@ -292,8 +296,40 @@ and not committed; the spike run used `--in` Flame VFX Edit, Dragon Breath VFX E
 the CS Particle Patch, Inferno, Particle Patch and vanilla Meshes0/1 BSAs extracted to scratch (33 copies, 9 copy
 NIFs, 7 extra grey ADDN records for indices 5, 6, 34, 35, 80, 81 and Embers XD's 225). The art spike re-ran it into a
 copy of that output with `KittyVFX - ENBHands` first (the winning `fxfirecloakhandeffects.nif`): the 33 copies kept
-their ids 0x800-0x820, the two ARTOs took 0x821 and 0x822 (35 copies, 11 copy NIFs). Planned: the DLL writes the
-forms request at kDataLoaded from the fire set's closure.
+their ids 0x800-0x820, the two ARTOs took 0x821 and 0x822 (35 copies, 11 copy NIFs).
+
+### Copy request (v2 expansion C1, DLL): `FireClosure.h`, `CopyRequest.h`
+
+At kDataLoaded, after the fire sets, the DLL walks the **fire closure** from the original forms: for every fire spell its
+fire MGEFs and its costliest effect's MGEF (`MagicItem::GetAVEffect`, where the engine takes the projectile and the
+casting art; fire or not), then to a fixed point MGEF projectile, explosion, impact data set, casting art, dual cast
+data and a spawn-hazard archetype's hazard (and for a fire MGEF its hit art and its RFCT's art), DUAL projectile,
+explosion, impact data set and hit art, PROJ explosion, EXPL impact data set, placed object and spawn projectile, every
+impact of an IPDS, IPCT hazard, HAZD impact data set and its spell's MGEFs. Copy types: PROJ, EXPL, IPCT, HAZD, ARTO;
+IPDS, DUAL, RFCT, SPEL and MGEF are walked through. Excluded, each with its reason: a form of our own plugins
+(`HeartOfMagic_BlackFlame*`), a placed object that is not a copy type, an art with alternate textures. Then, in
+`<SKSE log folder>\HeartOfMagic_BlackFlame\` (`My Games\Skyrim Special Edition\SKSE\...`: outside the VFS, so MO2's
+overwrite stays clean):
+
+| File | What |
+|---|---|
+| `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error). Written through a temporary file and a rename |
+| `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump |
+| `dump-manifest.json` | the fingerprint the dump was made for |
+
+Model paths are normalised (ASCII lower case, `/` as `\`, repeated separators folded, a leading `data\`/`meshes\` dropped,
+one `meshes\` put in front); a path with a drive letter, `:` or a `..` token is refused and never read or written. Each
+NIF is read in 64 KiB pieces with every return code checked and must give exactly the stream's `totalSize`.
+
+**Fingerprint** (one formula for the request, which the builder copies into the copies map, and for the freshness
+check at every start): FNV-1a 64 over the sorted lines of every closure form (type, source, model, muzzle), every ADDN
+not ours (index, source, model) and every NIF (path, size, fnv64). Scalars, EditorIDs and bounds are left out (the DLL
+fills them from the live forms), and so are our own plugins' forms and ADDNs (a built copies plugin must not make its
+own request stale). The NIF bytes are read at every start on the kDataLoaded thread, so a same-size replacer (a
+recolour) is caught; the log line gives the time (`copy request: N forms (PROJ a, EXPL b, IPCT c, HAZD d, ARTO e) from S
+fire spells, X excluded, M NIFs (K failed) read in T ms, fingerprint F, request written, dump written|unchanged`). The
+fingerprint, the request and the dump each have their own try/catch: a failure is logged and the hooks are installed
+anyway. `writeRequest` false skips the request and the dump (the fingerprint is still computed).
 
 ### Fill (S1, DLL): `FormCopies.h`
 
@@ -490,6 +526,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T-threads | v2 fixes D1, E7: PASS only when the main-thread queue is installed, ran task bodies, all of them on `Main::threadID`, no two drains overlapped, nothing fell back to `AddTask`, and no job-side hook body (Launch, explosion creation, GetImpactData in a copy window, Explosion::Update in a copy window) was entered on a worker thread while a drain was running (v2 fix G1: counted online at each hook's entry over the whole session; only drains that ran tasks go into the trace ring) |
 | T9 | cleanup (INFO) |
 | T0-hooks | v2: the Launch and explosion creation detours hooked (or chained) with the bytes they found, and both GetImpactData call sites hooked; FAIL for a device that is wanted (config on, copies of that kind filled; the creation detour on AE only) but not hooked; INFO otherwise. Also the round-10 impact call sites, and the prologue replay decoder on fixed byte cases (Launch's and the creation's 1.7.104 prologues = 5, sub rsp imm8/imm32, mov rax/r11 rsp accepted; `48 8B C4 48 89 58 08` and an E9 refused) |
+| T0-request | v2 expansion C1: the copy request ran - closure forms above 0, the fingerprint computed and, with `writeRequest` on, `request.json` written; the line gives the counts, the NIF read time, the fingerprint and the dump state. Whether the closure is the right set is judged from `request.json` against the census, not here |
 | T0-pred | v2: `IsFireLaunch` on vanilla props: Firebolt true, no spell/enchantment/weapon false, Sparks (`02DD2A`) false (INFO instead when Sparks counts as fire in the load order) |
 | T0-v2 | (also) the synthetic GetImpactData call: the thunk of a hooked site called through the engine's lookup for the first impact of Firebolt's impact set that has a copy - the engine's impact with the window closed, the copy with it open |
 | E4 | v2 S3: FAIL `aim: no hit after 3 casts` when T5 neither confirmed a hit nor saw our shader (v2 fixes C3, D3). PASS only when our EFSH was alight on the target after the player's Firebolt (T5's sighting). INFO lines: how often the Firebolt hit the target (TESHitEvent) and the 0x0D outcome counters for the player's effects (calls, swapped, engine answered null and with flags bit 1, not stoked, not a fire effect); the FAIL names which of the three cases it was (no hit, the thunk never reached, the engine answered null, or our own check kept the engine's shader) |
