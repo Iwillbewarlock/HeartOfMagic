@@ -133,6 +133,12 @@ namespace GreyBuild
         if (!(map.tint >= kMinTint && map.tint <= kMaxTint)) {
             Json::Fail(a_file, fmt::format("'tint' = {} is outside {}..{}", map.tint, kMinTint, kMaxTint));
         }
+        if (root.contains("tintAdd")) {  // v2i, optional: additive palette shaders' base colour scale
+            if (!root["tintAdd"].is_number() || !(root["tintAdd"].get<float>() >= kMinTint && root["tintAdd"].get<float>() <= kMaxTint)) {
+                Json::Fail(a_file, fmt::format("'tintAdd' must be a number in {}..{}", kMinTint, kMaxTint));
+            }
+            map.tintAdd = root["tintAdd"].get<float>();
+        }
         ReadAddons(a_file, root, map);
         ReadModels(a_file, root, map);
         return map;
@@ -144,6 +150,7 @@ namespace GreyBuild
         root["_comment"] = a_comment;
         root["version"] = kMapVersion;
         root["tint"] = std::stod(fmt::format("{:.4g}", a_map.tint));  // 0.6, not 0.6000000238 (float to double)
+        root["tintAdd"] = std::stod(fmt::format("{:.4g}", a_map.tintAdd));
         root["addons"] = nlohmann::ordered_json::array();
         for (const auto& [index, entry] : a_map.addons) {
             nlohmann::ordered_json item;

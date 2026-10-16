@@ -22,6 +22,7 @@
 namespace nifly
 {
     class NifFile;
+    class BSEffectShaderProperty;
 }
 
 namespace GreyBuild
@@ -32,6 +33,9 @@ namespace GreyBuild
 
     // The palette the DLL loads (plugins/BlackFlame/src/Palette.cpp), as a NIF stores it
     inline constexpr const char* kPalettePath = "textures\\HeartOfMagic\\BlackFlame\\GradBlackFlame.dds";
+    // v2i: the palette of additive palette shaders (bright edges: an additive shape cannot draw dark). The path is fixed;
+    // which colours it holds is chosen by the DDS placed there (Godskin by default; data/optional/palettes has others)
+    inline constexpr const char* kPaletteAddPath = "textures\\HeartOfMagic\\BlackFlame\\GradBlackFlameAdd.dds";
 
     // SLSF1 bit positions (CommonLibSSE-NG RE/B/BSShaderProperty.h EShaderPropertyFlag8,
     // kGrayscaleToPaletteColor = 4, kGrayscaleToPaletteAlpha = 5)
@@ -72,6 +76,7 @@ namespace GreyBuild
     // =========================================================================
 
     inline constexpr float kDefaultTint = 0.6f;  // the DLL's tintScale default (plugins/BlackFlame/src/Config.h)
+    inline constexpr float kDefaultTintAdd = 0.9f;  // v2i: base colour scale of additive palette shaders (--tint-add)
 
     // ADDN DNAM flags as Skyrim.esm stores them (raw DNAM: MPSFireSmall01 01 00, MPSFireBoltImpact01 03 00)
     inline constexpr std::uint16_t kDnamMasterParticleSystem = 1;
@@ -95,6 +100,7 @@ namespace GreyBuild
     struct GreyMap
     {
         float tint = kDefaultTint;
+        float tintAdd = kDefaultTintAdd;  // v2i: additive palette shaders' base colour (optional "tintAdd" in the map)
         std::map<int, AddonEntry> addons;           // by original index
         std::map<std::string, std::string> models;  // impact / hazard NIF -> grey copy
     };
@@ -216,7 +222,10 @@ namespace GreyBuild
     struct GreyStats
     {
         int effectShaders = 0;     // BSEffectShaderProperty blocks
-        int paletteForced = 0;     // of those, palette colour flag was off and is now on
+        int paletted = 0;          // of those, normal-blend palette shaders (flag on, a source texture): GradBlackFlame.dds
+        int palettedAdd = 0;       // additive palette shaders (destination blend ONE): GradBlackFlameAdd.dds, tintAdd (v2i)
+        int paletteNoAlpha = 0;    // of paletted, without an NiAlphaProperty (counted as normal blend, logged)
+        int paletteLeft = 0;       // the others: flags and textures kept, only the base colour greyed (v2i)
         int lightingShaders = 0;   // BSLightingShaderProperty blocks (left alone)
         int colorModifiers = 0;    // BSPSysSimpleColorModifier blocks desaturated
         int colorControllers = 0;  // BSEffectShaderPropertyColorController blocks
@@ -236,10 +245,17 @@ namespace GreyBuild
 
     [[nodiscard]] float Luminance(float a_red, float a_green, float a_blue) noexcept;
 
-    /// Every BSEffectShaderProperty: palette colour flag on, greyscale texture the palette,
-    /// base colour RGB luminance x tint (alpha kept); colour modifier keys and effect colour
-    /// controller keys RGB to luminance (alpha kept). Lighting shaders are left alone.
-    GreyStats GreyEffects(nifly::NifFile& a_nif, float a_tint);
+    /// A palette shader: the source already maps its texture through a palette (SLSF1 greyscale-to-palette colour on
+    /// and a non-empty source texture). Reads shader data only; the builder never changes either, so it holds on the copy.
+    [[nodiscard]] bool UsesPalette(const nifly::BSEffectShaderProperty& a_prop);
+
+    /// Every BSEffectShaderProperty: base colour RGB luminance x tint (alpha kept); a palette shader (UsesPalette) also gets
+    /// our palette as its greyscale texture - GradBlackFlameAdd.dds and a_tintAdd when its shape blends additively
+    /// (NiAlphaProperty blending on, destination ONE), else GradBlackFlame.dds - every other one keeps its flags and
+    /// textures (v2i); colour modifier keys and effect colour controller keys RGB to luminance (alpha kept). Lighting
+    /// shaders are left alone. a_log gets one line per palette shader without an alpha property.
+    GreyStats GreyEffects(nifly::NifFile& a_nif, float a_tint, float a_tintAdd = kDefaultTintAdd,
+        std::vector<std::string>* a_log = nullptr);
 
     /// Every BSValueNode value through the map (names and everything else kept).
     RemapStats RemapAddonValues(nifly::NifFile& a_nif, const GreyMap& a_map);
@@ -292,7 +308,11 @@ namespace GreyBuild
         int built = 0;
         int skipped = 0;
         int failed = 0;
+        GreyStats shaders;  // v2i: effect shaders of the NIFs built, summed (palette kinds)
     };
+
+    /// Adds a_stats' shader counts into a_sum
+    void AddShaderCounts(GreyStats& a_sum, const GreyStats& a_stats) noexcept;
 
     /// The first folder in a_inputs that has a_dataPath, or nothing.
     [[nodiscard]] std::optional<std::filesystem::path> FindSource(const std::vector<std::filesystem::path>& a_inputs,
@@ -326,6 +346,7 @@ namespace GreyBuild
         bool missing = false;       // in no --in folder
         std::string reason;         // why not ok
         std::vector<std::string> keptValues;  // keepUnmapped: "name: value" left as they were
+        GreyStats stats;            // v2i: what GreyEffects did (zero when effects were not greyed)
     };
 
     /// BuildNif with options and the reason of a failure (BuildNif is this with keepUnmapped off)

@@ -20,9 +20,11 @@ namespace GreyBuild
         void PrintStats(const GreyStats& a_stats)
         {
             std::cout << fmt::format(
-                "      effect shaders {} (palette flag forced on {}), lighting shaders left {}, colour modifiers {}, "
+                "      effect shaders {} (palette normal {} ({} without an alpha property), additive {}; left with a grey base colour {}), "
+                "lighting shaders left {}, colour modifiers {}, "
                 "colour controllers {} ({} keys, {} with keys not reached), NiPSysColorModifier data {}\n",
-                a_stats.effectShaders, a_stats.paletteForced, a_stats.lightingShaders, a_stats.colorModifiers,
+                a_stats.effectShaders, a_stats.paletted, a_stats.paletteNoAlpha, a_stats.palettedAdd, a_stats.paletteLeft,
+                a_stats.lightingShaders, a_stats.colorModifiers,
                 a_stats.colorControllers, a_stats.controllerKeys, a_stats.controllersUnreached, a_stats.psysColorData);
         }
 
@@ -86,8 +88,12 @@ namespace GreyBuild
             const RoundTrip roundTrip = CheckRoundTrip(*source);
 
             GreyStats stats;
+            std::vector<std::string> shaderNotes;
             if (a_greyEffects) {
-                stats = GreyEffects(nif, a_map.tint);
+                stats = GreyEffects(nif, a_map.tint, a_map.tintAdd, &shaderNotes);
+                for (const auto& line : shaderNotes) {
+                    std::cout << fmt::format("NOTE  {}: {}\n", a_rel, line);
+                }
             }
             const RemapStats remap = RemapAddonValues(nif, a_map);
             if (!remap.unmapped.empty() && a_options.keepUnmapped) {
@@ -126,6 +132,10 @@ namespace GreyBuild
             }
             (problems.empty() ? a_totals.built : a_totals.failed) += 1;
             result.ok = problems.empty();
+            result.stats = stats;
+            if (result.ok) {
+                AddShaderCounts(a_totals.shaders, stats);
+            }
             if (!result.ok) {
                 result.reason = problems.front();
             }

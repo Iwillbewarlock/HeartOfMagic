@@ -24,6 +24,9 @@ namespace GreyBuild
     namespace
     {
         constexpr float kTestTint = 0.6f;
+        constexpr float kTestTintAdd = 0.85f;  // v2i: additive palette shaders (not the default, so the map's value is used)
+        constexpr std::uint16_t kAlphaNormal = 0x12ED;    // blending on, SRC_ALPHA -> INV_SRC_ALPHA, alpha test
+        constexpr std::uint16_t kAlphaAdditive = 0x000D;  // blending on, SRC_ALPHA -> ONE
         constexpr float kTolerance = 1e-6f;
         constexpr int kMappedA = 9;
         constexpr int kMappedB = 24;
@@ -63,6 +66,19 @@ namespace GreyBuild
             return raw;
         }
 
+        // v2i: a shape naming a_shader and an alpha property with a_alphaFlags (the blend picks the palette)
+        void AddShape(nifly::NifFile& a_nif, std::uint32_t a_shader, std::uint16_t a_alphaFlags)
+        {
+            std::uint32_t alphaId = 0;
+            auto* alpha = AddBlock(a_nif, std::make_unique<nifly::NiAlphaProperty>(), alphaId);
+            alpha->flags = a_alphaFlags;
+            std::uint32_t shapeId = 0;
+            auto* shape = AddBlock(a_nif, std::make_unique<nifly::BSTriShape>(), shapeId);
+            shape->ShaderPropertyRef()->index = a_shader;
+            shape->AlphaPropertyRef()->index = alphaId;
+            a_nif.GetRootNode()->childRefs.AddBlockRef(shapeId);
+        }
+
         void AddValueNode(nifly::NifFile& a_nif, const std::string& a_name, int a_value)
         {
             auto node = std::make_unique<nifly::BSValueNode>();
@@ -73,7 +89,8 @@ namespace GreyBuild
             a_nif.GetRootNode()->childRefs.AddBlockRef(id);
         }
 
-        void AddColorController(nifly::NifFile& a_nif)
+        // An effect colour controller on a_target (NIF_NPOS: none); its keys are kCtrlKey0 / kCtrlKey1
+        void AddColorController(nifly::NifFile& a_nif, std::uint32_t a_target)
         {
             std::uint32_t dataId = 0;
             auto* data = AddBlock(a_nif, std::make_unique<nifly::NiPosData>(), dataId);
@@ -95,10 +112,15 @@ namespace GreyBuild
             std::uint32_t ctrlId = 0;
             auto* ctrl = AddBlock(a_nif, std::make_unique<nifly::BSEffectShaderPropertyColorController>(), ctrlId);
             ctrl->interpolatorRef.index = interpId;
+            ctrl->targetRef.index = a_target;
         }
 
-        /// The made-up source: 2 AddOnNodes (9, 24), 2 effect shaders (palette off / on),
-        /// a lighting shader, a simple colour modifier and an effect colour controller.
+        constexpr const char* kOnTexture = "textures\\effects\\fxfire02.dds";
+        constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradflame01.dds";
+
+        /// The made-up source: 2 AddOnNodes (9, 24), 4 effect shaders (palette off; on with a texture on a normal-blend shape;
+        /// the same on an additive shape; on without a texture), two shapes with their alpha properties,
+        /// a lighting shader, a simple colour modifier and two effect colour controllers (none / the additive shader).
         void MakeSource(const std::filesystem::path& a_file)
         {
             nifly::NifFile nif;
@@ -116,7 +138,24 @@ namespace GreyBuild
             on->name.get() = "FlameOn";
             on->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha;
             on->baseColor = kWarmBase2;
-            on->greyscaleTexture.get() = "textures\\effects\\gradients\\gradflame01.dds";
+            on->sourceTexture.get() = kOnTexture;
+            on->greyscaleTexture.get() = kOrangePalette;
+            AddShape(nif, id, kAlphaNormal);
+            // v2i: the same kind of palette shader on an additive shape: the bright-edge palette and tintAdd
+            auto* add = AddBlock(nif, std::make_unique<nifly::BSEffectShaderProperty>(), id);
+            add->name.get() = "FlameAdd";
+            add->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
+            add->baseColor = kWarmBase2;
+            add->sourceTexture.get() = kOnTexture;
+            add->greyscaleTexture.get() = kOrangePalette;
+            AddShape(nif, id, kAlphaAdditive);
+            const std::uint32_t addId = id;
+            // v2i: the flag on but no texture to map (a textureless glow): left as it was, base colour greyed
+            auto* glow = AddBlock(nif, std::make_unique<nifly::BSEffectShaderProperty>(), id);
+            glow->name.get() = "GlowNoTexture";
+            glow->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
+            glow->baseColor = kWarmBase;
+            glow->greyscaleTexture.get() = kOrangePalette;
 
             auto* lit = AddBlock(nif, std::make_unique<nifly::BSLightingShaderProperty>(), id);
             lit->emissiveColor = kEmissive;
@@ -126,7 +165,8 @@ namespace GreyBuild
             mod->color2 = kKey2;
             mod->color3 = kKey3;
 
-            AddColorController(nif);
+            AddColorController(nif, nifly::NIF_NPOS);
+            AddColorController(nif, addId);  // v2i: drives the additive palette shader: keys x tintAdd
             SaveNif(nif, a_file);
         }
 
@@ -134,6 +174,7 @@ namespace GreyBuild
         {
             GreyMap map;
             map.tint = kTestTint;
+            map.tintAdd = kTestTintAdd;
             map.addons[kMappedA] = AddonEntry{ kMappedA, kGreyA, "meshes\\mps\\a.nif",
                 "meshes\\heartofmagic\\blackflame\\mps\\a.nif" };
             if (a_withB) {
@@ -154,6 +195,8 @@ namespace GreyBuild
             auto& hdr = a_nif.GetHeader();
             int values = 0;
             int effects = 0;
+            int posData = 0;
+            int interps = 0;
             for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
                 if (const auto* node = hdr.GetBlock<nifly::BSValueNode>(id)) {
                     ++values;
@@ -163,15 +206,22 @@ namespace GreyBuild
                         node->name.get(), node->value));
                 } else if (const auto* prop = hdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
                     ++effects;
-                    const bool isOff = prop->name.get() == "FlameOff";
-                    a_check.Check((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0,
-                        fmt::format("'{}' palette colour flag on", prop->name.get()));
-                    a_check.Check(((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteAlpha) != 0) == !isOff,
-                        fmt::format("'{}' palette alpha flag as it was", prop->name.get()));
-                    a_check.Check(prop->greyscaleTexture.get() == kPalettePath,
-                        fmt::format("'{}' greyscale texture = palette", prop->name.get()));
-                    a_check.Check(IsGreyOf(prop->baseColor, isOff ? kWarmBase : kWarmBase2, kTestTint),
-                        fmt::format("'{}' base colour = luminance x tint, alpha kept", prop->name.get()));
+                    const auto& name = prop->name.get();
+                    const bool isOff = name == "FlameOff";
+                    const bool isOn = name == "FlameOn";
+                    const bool isAdd = name == "FlameAdd";
+                    // v2i: only FlameOn / FlameAdd (flag on, a texture) take a palette - by their shape's blend; the others
+                    // keep flags and textures
+                    a_check.Check(((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0) == !isOff,
+                        fmt::format("'{}' palette colour flag as it was", name));
+                    a_check.Check(((prop->shaderFlags1 & kSlsf1GreyscaleToPaletteAlpha) != 0) == isOn,
+                        fmt::format("'{}' palette alpha flag as it was", name));
+                    const std::string expectedGreyscale = isOn ? kPalettePath : (isAdd ? kPaletteAddPath : (isOff ? "" : kOrangePalette));
+                    a_check.Check(prop->greyscaleTexture.get() == expectedGreyscale,
+                        fmt::format("'{}' greyscale texture '{}' (expected '{}')", name, prop->greyscaleTexture.get(),
+                            expectedGreyscale));
+                    a_check.Check(IsGreyOf(prop->baseColor, isOn || isAdd ? kWarmBase2 : kWarmBase, isAdd ? kTestTintAdd : kTestTint),
+                        fmt::format("'{}' base colour = luminance x {}, alpha kept", name, isAdd ? "tintAdd" : "tint"));
                     if (isOff) {
                         a_check.Check(prop->sourceTexture.get() == "textures\\effects\\fxfire01.dds",
                             "source texture kept");
@@ -184,16 +234,21 @@ namespace GreyBuild
                                       IsGreyOf(mod->color3, kKey3, 1.0f),
                         "colour modifier keys = luminance, alpha kept");
                 } else if (const auto* data = hdr.GetBlock<nifly::NiPosData>(id)) {
+                    // block order kept: the first controller has no target (tint), the second the additive shader
+                    const float scale = posData++ == 0 ? kTestTint : kTestTintAdd;
                     const bool ok = data->data.GetNumKeys() == 2 &&
-                                    IsGreyOf(data->data.GetKey(0).value, kCtrlKey0, kTestTint) &&
-                                    IsGreyOf(data->data.GetKey(1).value, kCtrlKey1, kTestTint);
-                    a_check.Check(ok, "colour controller keys = luminance x tint");
+                                    IsGreyOf(data->data.GetKey(0).value, kCtrlKey0, scale) &&
+                                    IsGreyOf(data->data.GetKey(1).value, kCtrlKey1, scale);
+                    a_check.Check(ok, fmt::format("colour controller keys = luminance x {}", scale));
                 } else if (const auto* interp = hdr.GetBlock<nifly::NiPoint3Interpolator>(id)) {
-                    a_check.Check(IsGreyOf(interp->point3Value, kCtrlKey0, kTestTint),
-                        "colour controller constant = luminance x tint");
+                    const float scale = interps++ == 0 ? kTestTint : kTestTintAdd;
+                    a_check.Check(IsGreyOf(interp->point3Value, kCtrlKey0, scale),
+                        fmt::format("colour controller constant = luminance x {}", scale));
                 }
             }
-            a_check.Check(values == 2 && effects == 2, fmt::format("block counts kept ({} values, {} effects)", values,
+            a_check.Check(posData == 2 && interps == 2, fmt::format("two colour controllers ({} data, {} interpolators)", posData,
+                interps));
+            a_check.Check(values == 2 && effects == 4, fmt::format("block counts kept ({} values, {} effects)", values,
                 effects));
             const auto problems = VerifyGrey(a_nif, true, a_map);
             a_check.Check(problems.empty(), fmt::format("VerifyGrey finds nothing ({} problem(s))", problems.size()));
@@ -275,11 +330,14 @@ namespace GreyBuild
             nifly::NifFile nif;
             LoadNif(nif, source);
             const GreyMap map = TestMap(true);
-            const GreyStats stats = GreyEffects(nif, map.tint);
-            check.Check(stats.effectShaders == 2 && stats.paletteForced == 1 && stats.lightingShaders == 1 &&
-                            stats.colorModifiers == 1 && stats.colorControllers == 1 && stats.controllerKeys == 2,
-                fmt::format("grey stats (effects {}, forced {}, lighting {}, modifiers {}, controllers {}, keys {})",
-                    stats.effectShaders, stats.paletteForced, stats.lightingShaders, stats.colorModifiers,
+            std::vector<std::string> notes;
+            const GreyStats stats = GreyEffects(nif, map.tint, map.tintAdd, &notes);
+            check.Check(stats.effectShaders == 4 && stats.paletted == 1 && stats.palettedAdd == 1 && stats.paletteNoAlpha == 0 &&
+                            stats.paletteLeft == 2 && stats.lightingShaders == 1 &&
+                            stats.colorModifiers == 1 && stats.colorControllers == 2 && stats.controllerKeys == 4 && notes.empty(),
+                fmt::format("grey stats (effects {}, paletted {}, additive {}, no alpha {}, left {}, lighting {}, modifiers {}, "
+                    "controllers {}, keys {})", stats.effectShaders, stats.paletted, stats.palettedAdd, stats.paletteNoAlpha,
+                    stats.paletteLeft, stats.lightingShaders, stats.colorModifiers,
                     stats.colorControllers, stats.controllerKeys));
             const RemapStats remap = RemapAddonValues(nif, map);
             check.Check(remap.valueNodes == 2 && remap.remapped == 2 && remap.unmapped.empty(),

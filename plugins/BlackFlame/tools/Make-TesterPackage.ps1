@@ -10,7 +10,8 @@
       SKSE\Plugins\HeartOfMagic_BlackFlame.json            (testerMode true: self-test, copy request, full log)
       SKSE\Plugins\HeartOfMagic_BlackFlame_greymap.json
       meshes\heartofmagic\blackflame\...                    (the grey meshes made from vanilla, as shipped)
-      textures\HeartOfMagic\BlackFlame\GradBlackFlame.dds
+      textures\HeartOfMagic\BlackFlame\GradBlackFlame.dds and GradBlackFlameAdd.dds (Godskin: additive palette shaders)
+      optional\palettes\GradBlackFlameAdd_blackblade.dds, _messmer.dds (not loaded: copy one over GradBlackFlameAdd.dds)
       tools\BlackFlame\blackflame-greybuild.exe and "Build Black Flame copies.bat"
       README_TESTER.md
     Never in it: other mods' meshes or generated copies. The script refuses when plugins\BlackFlame\data holds a

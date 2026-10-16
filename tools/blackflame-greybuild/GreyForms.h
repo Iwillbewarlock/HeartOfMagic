@@ -131,6 +131,9 @@ namespace GreyBuild
         std::string requestFingerprint;  // v2: the request's fingerprint (the DLL's freshness check)
         std::string requestFingerprintSizes;  // v2: its size-only form (the check when the game reads no NIF bytes)
         std::vector<ExcludedForm> excluded;  // v2: the request's excluded forms
+        GreyStats shaders;                   // v2i: effect shaders of the grey NIFs by palette kind (written, not read back)
+        float tint = kDefaultTint;
+        float tintAdd = kDefaultTintAdd;
     };
 
     /// The model the copy's record names (without meshes\): the grey copy, else the source's own model, else ""
@@ -194,6 +197,7 @@ namespace GreyBuild
         int nifsBuilt = 0;   // distinct grey copy NIFs
         int failed = 0;      // NIFs or records that failed (nothing then written for the ESL and map)
         int warnings = 0;    // grey copies not made (the copy keeps the source's model), values kept, entries dropped
+        GreyStats shaders;   // v2i: effect shaders of the grey copy NIFs and grey MPS built, by palette kind
     };
 
     struct FormsRunOptions
@@ -203,6 +207,7 @@ namespace GreyBuild
         std::vector<ExcludedForm> excluded;  // into the copies map
         std::vector<std::string> failedNifs; // models the game could not read: no grey copy is tried
         bool reclaimRetired = false;         // AssignCopyIds
+        float tintAdd = kDefaultTintAdd;     // v2i: additive palette shaders' base colour scale (--tint-add)
         bool warnAndContinue = false;        // --from-game: a NIF that cannot be read or parsed, or an AddOnNode value
                                              // in no ADDN, is a warning (source model kept / value kept), not a failure
     };
@@ -222,7 +227,7 @@ namespace GreyBuild
     /// The whole --from-game run: the request (version 3) and its NIF dump in a_folder (empty: FindRequestFolder) into
     /// a_out, warn-and-continue. Exit code 0 / 1 (failure) / 2 (bad arguments), each refusal with the next step.
     [[nodiscard]] int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint,
-        bool a_reclaim);
+        bool a_reclaim, float a_tintAdd = kDefaultTintAdd);
 
     /// Writes an ESL-flagged, masterless plugin with no records (HEDR 1.70, next id 0x800): the empty
     /// HeartOfMagic_BlackFlame_Copies.esp / _Local.esp shipped with the mod (a built output replaces them)

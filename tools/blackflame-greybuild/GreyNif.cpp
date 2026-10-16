@@ -13,6 +13,7 @@
 #include <cctype>
 #include <fmt/format.h>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -51,6 +52,49 @@ namespace GreyBuild
         [[nodiscard]] bool IsGrey(const nifly::Color4& a_color) noexcept
         {
             return a_color.r == a_color.g && a_color.g == a_color.b;
+        }
+
+        // NiAlphaProperty flags: bit 0 blending on, bits 5-8 the destination blend mode (0 = ONE)
+        constexpr std::uint16_t kAlphaBlendOn = 1u;
+        constexpr int kDestBlendShift = 5;
+        constexpr std::uint16_t kBlendModeMask = 0xF;
+        constexpr std::uint16_t kBlendOne = 0;
+
+        enum class Blend
+        {
+            kNoAlpha,
+            kNormal,
+            kAdditive
+        };
+
+        // The blend of the shape(s) that use each effect shader: an NiShape or an NiParticleSystem names its shader and its
+        // alpha property. A shader two shapes share with different blends counts as additive if any of them is.
+        std::map<std::uint32_t, Blend> BlendByShader(nifly::NifFile& a_nif)
+        {
+            auto& hdr = a_nif.GetHeader();
+            std::map<std::uint32_t, Blend> out;
+            const auto note = [&](std::uint32_t a_shader, std::uint32_t a_alpha) {
+                if (a_shader == nifly::NIF_NPOS) {
+                    return;
+                }
+                const auto* alpha = a_alpha == nifly::NIF_NPOS ? nullptr : hdr.GetBlock<nifly::NiAlphaProperty>(a_alpha);
+                const Blend blend = !alpha ? Blend::kNoAlpha :
+                                    ((alpha->flags & kAlphaBlendOn) != 0 &&
+                                        ((alpha->flags >> kDestBlendShift) & kBlendModeMask) == kBlendOne) ? Blend::kAdditive :
+                                                                                                             Blend::kNormal;
+                auto& slot = out.try_emplace(a_shader, blend).first->second;
+                slot = std::max(slot, blend);
+            };
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* shape = hdr.GetBlock<nifly::NiShape>(id)) {
+                    const auto* shader = shape->ShaderPropertyRef();
+                    const auto* alpha = shape->AlphaPropertyRef();
+                    note(shader ? shader->index : nifly::NIF_NPOS, alpha ? alpha->index : nifly::NIF_NPOS);
+                } else if (auto* system = hdr.GetBlock<nifly::NiParticleSystem>(id)) {
+                    note(system->shaderPropertyRef.index, system->alphaPropertyRef.index);
+                }
+            }
+            return out;
         }
 
         template <class T, class Fn>
@@ -122,22 +166,60 @@ namespace GreyBuild
         return a_red * kLumaRed + a_green * kLumaGreen + a_blue * kLumaBlue;
     }
 
+    bool UsesPalette(const nifly::BSEffectShaderProperty& a_prop)
+    {
+        return (a_prop.shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0 && !a_prop.sourceTexture.get().empty();
+    }
+
+    void AddShaderCounts(GreyStats& a_sum, const GreyStats& a_stats) noexcept
+    {
+        a_sum.effectShaders += a_stats.effectShaders;
+        a_sum.paletted += a_stats.paletted;
+        a_sum.palettedAdd += a_stats.palettedAdd;
+        a_sum.paletteNoAlpha += a_stats.paletteNoAlpha;
+        a_sum.paletteLeft += a_stats.paletteLeft;
+    }
+
     // =========================================================================
     // Grey effects
     // =========================================================================
 
-    GreyStats GreyEffects(nifly::NifFile& a_nif, float a_tint)
+    GreyStats GreyEffects(nifly::NifFile& a_nif, float a_tint, float a_tintAdd, std::vector<std::string>* a_log)
     {
         GreyStats stats;
         std::set<std::uint32_t> done;  // data blocks two controllers may share: grey them once
+        const auto blends = BlendByShader(a_nif);
+        std::set<std::uint32_t> additive;  // shaders that took the additive palette: their colour controllers use a_tintAdd
 
-        ForEachBlock<nifly::BSEffectShaderProperty>(a_nif, [&](std::uint32_t, nifly::BSEffectShaderProperty& a_prop) {
+        // v2i (cause A2): only a shader that already maps its texture through a palette gets ours. Forcing the flag and the
+        // palette on the others (textureless glows, FXWhite tint spheres, lens flares, palette-alpha-only shaders) turned
+        // them into flat grey shapes; they keep their flags and textures and only their base colour is greyed
+        // v2i (cause A1): an additive palette shader gets the bright-edge palette and its own tint (additive cannot draw dark)
+        ForEachBlock<nifly::BSEffectShaderProperty>(a_nif, [&](std::uint32_t a_id, nifly::BSEffectShaderProperty& a_prop) {
             ++stats.effectShaders;
-            if ((a_prop.shaderFlags1 & kSlsf1GreyscaleToPaletteColor) == 0) {
-                a_prop.shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
-                ++stats.paletteForced;
+            if (!UsesPalette(a_prop)) {
+                ++stats.paletteLeft;
+                Desaturate(a_prop.baseColor, a_tint);
+                return;
+            }
+            const auto it = blends.find(a_id);
+            const Blend blend = it != blends.end() ? it->second : Blend::kNoAlpha;
+            if (blend == Blend::kAdditive) {
+                a_prop.greyscaleTexture.get() = kPaletteAddPath;
+                ++stats.palettedAdd;
+                additive.insert(a_id);
+                Desaturate(a_prop.baseColor, a_tintAdd);
+                return;
+            }
+            if (blend == Blend::kNoAlpha) {
+                ++stats.paletteNoAlpha;
+                if (a_log) {
+                    a_log->push_back(fmt::format("effect shader block {} '{}': no NiAlphaProperty on its shape - normal palette",
+                        a_id, a_prop.name.get()));
+                }
             }
             a_prop.greyscaleTexture.get() = kPalettePath;
+            ++stats.paletted;
             Desaturate(a_prop.baseColor, a_tint);
         });
         ForEachBlock<nifly::BSLightingShaderProperty>(a_nif,
@@ -152,7 +234,9 @@ namespace GreyBuild
         ForEachBlock<nifly::BSEffectShaderPropertyColorController>(a_nif,
             [&](std::uint32_t, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
                 ++stats.colorControllers;
-                GreyColorController(a_nif, a_ctrl, a_tint, done, stats);
+                // the same scale as the base colour it drives (its target shader)
+                const bool toAdditive = additive.count(a_ctrl.targetRef.index) != 0;
+                GreyColorController(a_nif, a_ctrl, toAdditive ? a_tintAdd : a_tint, done, stats);
             });
         ForEachBlock<nifly::NiPSysColorModifier>(a_nif,
             [&](std::uint32_t, nifly::NiPSysColorModifier& a_mod) { GreyColorData(a_nif, a_mod, done, stats); });
@@ -250,15 +334,20 @@ namespace GreyBuild
     {
         std::vector<std::string> problems;
         const std::string palette = Lower(kPalettePath);
+        const std::string paletteAdd = Lower(kPaletteAddPath);
+        const auto blends = BlendByShader(a_nif);
         if (a_expectGreyEffects) {
             ForEachBlock<nifly::BSEffectShaderProperty>(a_nif,
                 [&](std::uint32_t a_id, nifly::BSEffectShaderProperty& a_prop) {
-                    if ((a_prop.shaderFlags1 & kSlsf1GreyscaleToPaletteColor) == 0) {
-                        problems.push_back(fmt::format("effect shader block {}: palette colour flag off", a_id));
-                    }
-                    if (Lower(a_prop.greyscaleTexture.get()) != palette) {
-                        problems.push_back(fmt::format("effect shader block {}: greyscale texture '{}'", a_id,
-                            a_prop.greyscaleTexture.get()));
+                    // v2i: a palette shader (flag on, a source texture) carries our palette; every other one only a grey
+                    // base colour (flags and textures are never changed, so the copy tells which kind each was)
+                    if (UsesPalette(a_prop)) {
+                        const auto it = blends.find(a_id);
+                        const bool additive = it != blends.end() && it->second == Blend::kAdditive;
+                        if (Lower(a_prop.greyscaleTexture.get()) != (additive ? paletteAdd : palette)) {
+                            problems.push_back(fmt::format("effect shader block {}: {} palette shader, greyscale texture '{}'",
+                                a_id, additive ? "additive" : "normal-blend", a_prop.greyscaleTexture.get()));
+                        }
                     }
                     if (!IsGrey(a_prop.baseColor)) {
                         problems.push_back(fmt::format("effect shader block {}: base colour not grey", a_id));

@@ -2,9 +2,9 @@
 // blackflame-greybuild - command line (plugins/BlackFlame/README.md, "Grey duplicates")
 // =============================================================================
 //   blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
-//   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
-//   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
-//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--reclaim-retired]
+//   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
+//   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
+//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]
 //   blackflame-greybuild --write-empty-esls <folder>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
@@ -46,6 +46,7 @@ namespace
         std::filesystem::path out;
         std::vector<std::filesystem::path> files;  // --dump / --roundtrip
         float tint = GreyBuild::kDefaultTint;
+        float tintAdd = GreyBuild::kDefaultTintAdd;  // v2i: additive palette shaders
         bool roundTrip = false;
         bool selfTest = false;
     };
@@ -54,10 +55,10 @@ namespace
     {
         std::cerr << "usage:\n"
                      "  blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>\n"
-                     "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]\n"
+                     "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]\n"
                      "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
-                     "[--tint <0..2>] [--reclaim-retired]\n"
-                     "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] "
+                     "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]\n"
+                     "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] "
                      "[--reclaim-retired]\n"
                      "      (the request folder defaults to <Documents>\\My Games\\Skyrim Special Edition[ GOG]\\SKSE\\"
                      "HeartOfMagic_BlackFlame; --out must exist and be the same folder every time; SE and AE, not VR)\n"
@@ -110,6 +111,12 @@ namespace
                         GreyBuild::kMinTint, GreyBuild::kMaxTint);
                     return false;
                 }
+            } else if (arg == "--tint-add" && hasValue) {
+                if (!ParseTint(a_argv[++i], a_options.tintAdd)) {
+                    std::cerr << fmt::format("--tint-add '{}' must be a number in {}..{}\n", a_argv[i],
+                        GreyBuild::kMinTint, GreyBuild::kMaxTint);
+                    return false;
+                }
             } else if ((arg == "--dump" || arg == "--roundtrip") && hasValue) {
                 a_options.roundTrip = arg == "--roundtrip";
                 while (i + 1 < a_argc && !GreyBuild::StartsWith(a_argv[i + 1], "--")) {
@@ -147,6 +154,10 @@ namespace
     {
         std::cout << fmt::format("built {}, skipped {} (in no --in folder), failed {}\n", a_totals.built,
             a_totals.skipped, a_totals.failed);
+        const auto& s = a_totals.shaders;
+        std::cout << fmt::format("effect shaders {}: palette normal {} ({} without an alpha property), palette additive {}, "
+                                 "left with a grey base colour {}\n", s.effectShaders, s.paletted, s.paletteNoAlpha, s.palettedAdd,
+            s.paletteLeft);
     }
 
     [[nodiscard]] int RunMap(const Options& a_options)
@@ -164,7 +175,8 @@ namespace
         const GreyBuild::Request request = GreyBuild::LoadRequest(a_options.request);
         std::cout << fmt::format("request {}: {} ADDN record(s), {} model(s)\n", a_options.request.string(),
             request.addons.size(), request.models.size());
-        const GreyBuild::Plan plan = GreyBuild::PlanFromRequest(request, a_options.inputs, a_options.tint);
+        GreyBuild::Plan plan = GreyBuild::PlanFromRequest(request, a_options.inputs, a_options.tint);
+        plan.map.tintAdd = a_options.tintAdd;
         for (const auto& line : plan.skipped) {
             std::cout << "SKIP  " << line << "\n";
         }
@@ -207,6 +219,7 @@ namespace
             addons.models.size());
         GreyBuild::FormsRunOptions options;
         options.reclaimRetired = a_options.reclaimRetired;
+        options.tintAdd = a_options.tintAdd;
         const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.failed);
@@ -242,7 +255,7 @@ int main(int a_argc, char** a_argv)
             return kExitUsage;
         }
         try {
-            return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired);
+            return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired, options.tintAdd);
         } catch (const std::exception& e) {
             std::cerr << e.what() << "\n";
             return kExitFail;

@@ -71,7 +71,8 @@ namespace GreyBuild
         return best;
     }
 
-    int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint, bool a_reclaim)
+    int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint, bool a_reclaim,
+        float a_tintAdd)
     {
         constexpr int kOk = 0;
         constexpr int kFail = 1;
@@ -133,6 +134,7 @@ namespace GreyBuild
         options.failedNifs = parsed.failedNifs;
         options.reclaimRetired = a_reclaim;
         options.warnAndContinue = true;
+        options.tintAdd = a_tintAdd;
         const auto totals = BuildForms(parsed.forms, *parsed.addons, { dump }, a_out, a_tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} warnings, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.warnings + static_cast<int>(parsed.warnings.size()), totals.failed);

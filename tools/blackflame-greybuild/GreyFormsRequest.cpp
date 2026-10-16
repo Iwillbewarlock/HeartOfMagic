@@ -361,6 +361,11 @@ namespace GreyBuild
         for (const auto& excluded : a_map.excluded) {
             root["excluded"].push_back({ { "source", excluded.source }, { "type", excluded.type }, { "reason", excluded.reason } });
         }
+        // v2i: the palette kinds of the grey NIFs (information only: no reader takes it)
+        root["shaders"] = { { "tint", std::stod(fmt::format("{:.4g}", a_map.tint)) },
+            { "tintAdd", std::stod(fmt::format("{:.4g}", a_map.tintAdd)) }, { "effectShaders", a_map.shaders.effectShaders },
+            { "paletteNormal", a_map.shaders.paletted }, { "paletteNormalNoAlpha", a_map.shaders.paletteNoAlpha },
+            { "paletteAdditive", a_map.shaders.palettedAdd }, { "left", a_map.shaders.paletteLeft } };
         std::filesystem::create_directories(a_file.parent_path());
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
         out << root.dump(kJsonIndent) << "\n";
