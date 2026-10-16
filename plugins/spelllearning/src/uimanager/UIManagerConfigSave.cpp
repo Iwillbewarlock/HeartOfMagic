@@ -66,7 +66,11 @@ namespace
 
         // Load modded XP source settings from config
         if (config.contains("moddedXPSources") && config["moddedXPSources"].is_object()) {
+            const auto& registered = progression->GetXPSettings().moddedSources;
             for (auto& [srcId, srcData] : config["moddedXPSources"].items()) {
+                // An internal source (passive) has no panel controls: an entry left
+                // in the file would make it an external one, capped at 25% again
+                if (auto it = registered.find(srcId); it != registered.end() && it->second.internal) continue;
                 ProgressionManager::ModdedSourceConfig sourceConfig;
                 sourceConfig.displayName = SafeJsonValue<std::string>(srcData, "displayName", srcId);
                 sourceConfig.enabled = SafeJsonValue<bool>(srcData, "enabled", true);

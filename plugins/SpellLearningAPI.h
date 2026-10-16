@@ -81,7 +81,7 @@ namespace SpellLearning {
         // XP
         virtual float AddSourcedXP(uint32_t spellFormID, float amount, const std::string& sourceName) = 0;
         virtual float AddRawXP(uint32_t spellFormID, float amount) = 0;
-        virtual void SetSpellXP(uint32_t spellFormID, float xp) = 0;
+        virtual void SetSpellXP(uint32_t spellFormID, float xp) = 0;  // clamped to 0 .. required XP
 
         // Queries
         virtual bool IsSpellMastered(uint32_t spellFormID) const = 0;

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "ProgressionCoSave.h"
 #include "SpellEffectivenessHook.h"
 #include "JsonText.h"
 #include "SKSE/SKSE.h"
@@ -20,7 +21,7 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     logger::info("ProgressionManager: Saving to co-save...");
 
     // Write learning targets record
-    if (!a_intfc->OpenRecord(kTargetsRecord, kSerializationVersion)) {
+    if (!a_intfc->OpenRecord(kTargetsRecord, kTargetsVersion)) {
         logger::error("ProgressionManager: Failed to open targets record for writing");
         return;
     }
@@ -40,7 +41,7 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     logger::info("ProgressionManager: Saved {} learning targets", numTargets);
 
     // Write progress record
-    if (!a_intfc->OpenRecord(kProgressRecord, kSerializationVersion)) {
+    if (!a_intfc->OpenRecord(kProgressRecord, ProgressionCoSave::kProgressVersion)) {
         logger::error("ProgressionManager: Failed to open progress record for writing");
         return;
     }
@@ -49,25 +50,26 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     uint32_t numProgress = static_cast<uint32_t>(m_spellProgress.size());
     a_intfc->WriteRecordData(&numProgress, sizeof(numProgress));
 
-    // Write each progress: formId, progressPercent, unlocked, [v2: modded source XP]
+    // Each entry in the ProgressionCoSave.h layout: percent, unlocked, the modded
+    // sources' XP and (v3) the built-in sources' XP the caps count against
     for (auto& [formId, progress] : m_spellProgress) {
-        a_intfc->WriteRecordData(&formId, sizeof(formId));
-        a_intfc->WriteRecordData(&progress.progressPercent, sizeof(progress.progressPercent));
-        uint8_t unlocked = progress.unlocked ? 1 : 0;
-        a_intfc->WriteRecordData(&unlocked, sizeof(unlocked));
-
-        // v2: Write modded source XP tracking
-        uint32_t moddedCount = static_cast<uint32_t>(progress.xpFromModded.size());
-        a_intfc->WriteRecordData(&moddedCount, sizeof(moddedCount));
-        for (auto& [name, xp] : progress.xpFromModded) {
-            uint32_t nameLen = static_cast<uint32_t>(name.length());
-            a_intfc->WriteRecordData(&nameLen, sizeof(nameLen));
-            a_intfc->WriteRecordData(name.c_str(), nameLen);
-            a_intfc->WriteRecordData(&xp, sizeof(xp));
+        ProgressionCoSave::Entry entry;
+        entry.formId = formId;
+        entry.progressPercent = progress.progressPercent;
+        entry.unlocked = progress.unlocked;
+        entry.modded.assign(progress.xpFromModded.begin(), progress.xpFromModded.end());
+        entry.xpFromAny = progress.xpFromAny;
+        entry.xpFromSchool = progress.xpFromSchool;
+        entry.xpFromDirect = progress.xpFromDirect;
+        entry.xpFromSelf = progress.xpFromSelf;
+        if (!ProgressionCoSave::WriteEntry(*a_intfc, entry)) {
+            logger::error("ProgressionManager: Failed to write progress entry {:08X}", formId);
+            return;
         }
     }
 
-    logger::info("ProgressionManager: Saved {} spell progress entries to co-save", numProgress);
+    logger::info("ProgressionManager: Saved {} spell progress entries to co-save (version {})", numProgress,
+                 ProgressionCoSave::kProgressVersion);
     m_dirty = false;
 }
 
@@ -89,9 +91,12 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
     // another owner would be rejected here for a version it never claimed.
     if (type != kTargetsRecord && type != kProgressRecord) return false;
 
-    if (version != kSerializationVersion && version != 1) {
-        logger::warn("ProgressionManager: Skipping record with unsupported version (got {}, expected {} or 1)",
-            version, kSerializationVersion);
+    // Every version written so far is read: SLTR 1-2 (one layout), SLPR 1-3
+    const bool readable = type == kTargetsRecord ? (version >= 1 && version <= kTargetsVersion)
+                                                 : ProgressionCoSave::IsReadableProgressVersion(version);
+    if (!readable) {
+        logger::warn("ProgressionManager: Skipping record {:08X} with unsupported version {} (written by a newer version?)",
+            type, version);
         return true;
     }
 
@@ -154,84 +159,48 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
             }
 
             for (uint32_t i = 0; i < numProgress; ++i) {
-                RE::FormID formId = 0;
-                if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                    logger::error("ProgressionManager: Failed to read formId at progress entry {}", i);
+                // A failed read anywhere in an entry ends the record: the rest of
+                // it would be read from the wrong offset (ProgressionCoSave.h)
+                ProgressionCoSave::Entry entry;
+                const auto result = ProgressionCoSave::ReadEntry(*a_intfc, version, entry);
+                if (result != ProgressionCoSave::ReadResult::Ok) {
+                    logger::error("ProgressionManager: progress entry {} of {} unreadable ({}), the {} after it are "
+                                  "skipped; {} kept", i, numProgress, ProgressionCoSave::Describe(result),
+                                  numProgress - i - 1, m_spellProgress.size());
                     break;
-                }
-
-                float progressPercent = 0.0f;
-                if (!a_intfc->ReadRecordData(&progressPercent, sizeof(progressPercent))) {
-                    logger::error("ProgressionManager: Failed to read progressPercent at progress entry {}", i);
-                    break;
-                }
-
-                uint8_t unlocked = 0;
-                if (!a_intfc->ReadRecordData(&unlocked, sizeof(unlocked))) {
-                    logger::error("ProgressionManager: Failed to read unlocked at progress entry {}", i);
-                    break;
-                }
-
-                // v2: Read modded source XP tracking
-                std::unordered_map<std::string, float> moddedXP;
-                if (version >= 2) {
-                    uint32_t moddedCount = 0;
-                    if (!a_intfc->ReadRecordData(&moddedCount, sizeof(moddedCount))) {
-                        logger::error("ProgressionManager: Failed to read moddedCount at progress entry {}", i);
-                        break;
-                    }
-                    if (moddedCount > 4096) {
-                        logger::error("ProgressionManager: moddedCount {} exceeds limit at progress entry {}", moddedCount, i);
-                        break;
-                    }
-                    for (uint32_t m = 0; m < moddedCount; ++m) {
-                        uint32_t nameLen = 0;
-                        if (!a_intfc->ReadRecordData(&nameLen, sizeof(nameLen))) {
-                            logger::error("ProgressionManager: Failed to read nameLen at progress entry {}, modded {}", i, m);
-                            break;
-                        }
-                        if (nameLen > 4096) {
-                            logger::error("ProgressionManager: nameLen {} exceeds limit at progress entry {}, modded {}", nameLen, i, m);
-                            break;
-                        }
-                        std::string name(nameLen, '\0');
-                        if (!a_intfc->ReadRecordData(name.data(), nameLen)) {
-                            logger::error("ProgressionManager: Failed to read name string at progress entry {}, modded {}", i, m);
-                            break;
-                        }
-                        float xp = 0.0f;
-                        if (!a_intfc->ReadRecordData(&xp, sizeof(xp))) {
-                            logger::error("ProgressionManager: Failed to read xp at progress entry {}, modded {}", i, m);
-                            break;
-                        }
-                        moddedXP[name] = xp;
-                    }
                 }
 
                 // Resolve formId (handles load order changes)
                 RE::FormID resolvedId = 0;
-                if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                    SpellProgress progress;
-                    progress.progressPercent = progressPercent;
-                    progress.unlocked = unlocked != 0;
-                    progress.xpFromModded = std::move(moddedXP);
-                    // The co-save keeps only the percent. Start from the spell's tier
-                    // XP (GetRequiredXP with no stored value) rather than the struct's
-                    // 100; the panel then sends its own number - per-spell override,
-                    // known-higher-spell share - through SetRequiredXP.
-                    progress.requiredXP = 0.0f;
-                    m_spellProgress[resolvedId] = progress;
-                    m_spellProgress[resolvedId].requiredXP = GetRequiredXP(resolvedId);
-
-                    logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",
-                        resolvedId, progressPercent * 100.0f, unlocked ? "(unlocked)" : "",
-                        progress.xpFromModded.size());
-                } else {
-                    logger::warn("ProgressionManager: Failed to resolve progress formId {:08X}", formId);
+                if (!a_intfc->ResolveFormID(entry.formId, resolvedId)) {
+                    logger::warn("ProgressionManager: Failed to resolve progress formId {:08X}", entry.formId);
+                    continue;
                 }
+                SpellProgress progress;
+                progress.progressPercent = entry.progressPercent;
+                progress.unlocked = entry.unlocked;
+                progress.xpFromModded.insert(entry.modded.begin(), entry.modded.end());
+                // v3: what the built-in caps count against (0 from an older save)
+                progress.xpFromAny = entry.xpFromAny;
+                progress.xpFromSchool = entry.xpFromSchool;
+                progress.xpFromDirect = entry.xpFromDirect;
+                progress.xpFromSelf = entry.xpFromSelf;
+                // The co-save keeps only the percent. Start from the spell's tier
+                // XP (GetRequiredXP with no stored value, so before the entry is
+                // in the map) rather than the struct's 100; the panel then sends its
+                // own number - per-spell override, known-higher-spell share - through SetRequiredXP.
+                m_spellProgress.erase(resolvedId);
+                progress.requiredXP = GetRequiredXP(resolvedId);
+                m_spellProgress[resolvedId] = std::move(progress);
+
+                logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources, "
+                             "any/school/direct/self XP {:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                    resolvedId, entry.progressPercent * 100.0f, entry.unlocked ? "(unlocked)" : "",
+                    entry.modded.size(), entry.xpFromAny, entry.xpFromSchool, entry.xpFromDirect, entry.xpFromSelf);
             }
 
-            logger::info("ProgressionManager: Loaded {} spell progress entries", m_spellProgress.size());
+            logger::info("ProgressionManager: Loaded {} spell progress entries (record version {})",
+                         m_spellProgress.size(), version);
             break;
         }
 

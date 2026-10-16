@@ -8,6 +8,7 @@
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellScanner.h"
+#include "ProgressionMath.h"
 
 // =============================================================================
 // XP SETTINGS
@@ -51,23 +52,16 @@ float ProgressionManager::GetXPForTier(const std::string& tier) const
 
 void ProgressionManager::SetSpellXP(RE::FormID formId, float xp)
 {
-    // Direct XP manipulation for cheat mode
-    auto& progress = m_spellProgress[formId];
-
-    // Ensure xp is non-negative
-    xp = (std::max)(0.0f, xp);
-
-    // Calculate progress percent from XP and required XP
-    if (progress.requiredXP > 0) {
-        progress.progressPercent = xp / progress.requiredXP;
-    } else {
-        progress.progressPercent = 0.0f;  // Don't mark as mastered when requiredXP is not set
-    }
-
+    // Direct XP manipulation (cheat mode, API, Papyrus). Clamped to 0..required:
+    // a progress over 1.0 read as 200% in the panel and made the next XP's maths
+    // (current XP = progress x required) start above the requirement.
+    auto& progress = EnsureProgress(formId);
+    progress.progressPercent = ProgressionMath::ProgressForXP(xp, progress.requiredXP);
     m_dirty = true;
+    SpellEffectivenessHook::GetSingleton()->SyncProgress(formId, progress.progressPercent);
 
-    logger::info("ProgressionManager: SetSpellXP {:08X} to {:.0f} XP ({:.1f}%, cheat mode)",
-        formId, xp, progress.progressPercent * 100.0f);
+    logger::info("ProgressionManager: SetSpellXP {:08X} to {:.0f} XP asked, now {:.0f} / {:.0f} ({:.1f}%)",
+        formId, xp, progress.GetCurrentXP(), progress.requiredXP, progress.progressPercent * 100.0f);
 }
 
 // =============================================================================
@@ -196,7 +190,7 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
         // =========================================================================
         // CHECK XP CAPS - limit contribution from each source type
         // =========================================================================
-        auto& progRef = m_spellProgress[targetId];
+        auto& progRef = EnsureProgress(targetId);
         float maxXPFromSource = 0.0f;
         float currentXPFromSource = 0.0f;
 
@@ -273,13 +267,14 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
 
 void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 {
-    auto& progress = m_spellProgress[targetSpellId];
+    auto& progress = EnsureProgress(targetSpellId);
 
     // If already fully mastered (unlocked in old system OR 100% in new system), no more XP needed
     if (progress.unlocked && progress.progressPercent >= 1.0f) {
         return;
     }
 
+    auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     float oldXP = progress.GetCurrentXP();
     float oldProgress = progress.progressPercent;
     float newXP = (std::min)(oldXP + amount, progress.requiredXP);  // Parentheses to avoid Windows min macro
@@ -294,6 +289,8 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
     }
     progress.progressPercent = (std::min)(progress.progressPercent, 1.0f);
     m_dirty = true;
+    // The effect hook's copy, before the power step below reads it
+    effectivenessHook->SyncProgress(targetSpellId, progress.progressPercent);
 
     // PERFORMANCE: Use trace for frequent XP updates (only visible with verbose logging)
     logger::trace("ProgressionManager: Spell {:08X} XP: {:.1f} -> {:.1f} / {:.1f} ({:.1f}%)",
@@ -303,7 +300,6 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
     // EARLY SPELL LEARNING - Grant spell at threshold, master at 100%
     // Power steps: 25%, 40%, 55%, 70%, 85%, 100%
     // =========================================================================
-    auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     const auto& earlySettings = effectivenessHook->GetSettings();
 
     if (earlySettings.enabled) {
@@ -324,6 +320,10 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
                 SendModEvent("SpellLearning_SpellEarlyGranted", EventSchoolOf(targetSpellId), newProgress * 100.0f, spell);
             }
         }
+
+        // Read before the step check: reaching the last step there masters the
+        // spell's effect and drops it from the early-learned set
+        const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId);
 
         // Check if power step changed (for display updates)
         // This only updates name/description when crossing step thresholds
@@ -349,8 +349,9 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
             }
         }
 
-        // Check if we just reached 100% mastery
-        if (oldProgress < 1.0f && newProgress >= 1.0f) {
+        // 100% and not yet unlocked: just reached, or reached before without
+        // mastering (ProgressionMath::ShouldMaster)
+        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked, earlyLearned)) {
             // Mark as mastered - this removes the nerf
             effectivenessHook->MarkMastered(targetSpellId);
             progress.unlocked = true;  // Also mark as unlocked in progress system
@@ -400,7 +401,7 @@ void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
     AddXP(formId, amount);
 }
 
-void ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amount)
+float ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amount)
 {
     // ISL compatibility: Record XP progress without triggering early spell grant.
     // ISL's scripts call AddSpell when study is complete — we must not AddSpell
@@ -410,34 +411,42 @@ void ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amount
         formId = std::stoul(formIdStr, nullptr, 16);
     } catch (const std::exception& e) {
         logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
-        return;
+        return 0.0f;
     }
 
-    auto& progress = m_spellProgress[formId];
+    auto& progress = EnsureProgress(formId);
 
     if (progress.unlocked && progress.progressPercent >= 1.0f) {
-        return;
+        return 0.0f;
     }
-
-    float oldXP = progress.GetCurrentXP();
-    float newXP = (std::min)(oldXP + amount, progress.requiredXP);
-
     // requiredXP == 0 means XP requirements not initialized — treat as no progress, not instant mastery
-    if (progress.requiredXP > 0) {
-        progress.progressPercent = newXP / progress.requiredXP;
-    } else {
-        progress.progressPercent = 0.0f;
+    if (progress.requiredXP <= 0.0f) {
         logger::warn("ProgressionManager: [ISL-NoGrant] AddXP for {:08X} but requiredXP is 0 — XP update ignored", formId);
+        return 0.0f;
     }
-    progress.progressPercent = (std::min)(progress.progressPercent, 1.0f);
-    m_dirty = true;
 
-    logger::info("ProgressionManager: [ISL-NoGrant] Spell {:08X} XP: {:.1f} -> {:.1f} / {:.1f} ({:.1f}%)",
-        formId, oldXP, newXP, progress.requiredXP, progress.progressPercent * 100.0f);
+    // All study of a spell is worth its unlock-threshold share, however often ISL
+    // starts its own count again (the player swaps books mid-study)
+    const float threshold = SpellEffectivenessHook::GetSingleton()->GetSettings().unlockThreshold / 100.0f;
+    float& studied = progress.xpFromModded[kStudySource];
+    const float granted = ProgressionMath::StudyGrant(amount, progress.requiredXP, threshold, studied);
+
+    const float oldXP = progress.GetCurrentXP();
+    progress.progressPercent = ProgressionMath::NoGrantProgress(progress.progressPercent, granted, progress.requiredXP);
+    const float added = progress.GetCurrentXP() - oldXP;
+    studied += (std::max)(0.0f, added);
+    m_dirty = true;
+    SpellEffectivenessHook::GetSingleton()->SyncProgress(formId, progress.progressPercent);
+
+    logger::info("ProgressionManager: [ISL-NoGrant] Spell {:08X} XP: {:.1f} -> {:.1f} / {:.1f} ({:.1f}%), "
+                 "{:.1f} asked, study XP {:.1f} of {:.1f}",
+        formId, oldXP, progress.GetCurrentXP(), progress.requiredXP, progress.progressPercent * 100.0f,
+        amount, studied, progress.requiredXP * threshold);
 
     // NOTE: Deliberately skipping GrantEarlySpell and power step updates.
     // ISL will call AddSpell when study completes, at which point our
     // SpellEffectivenessHook will apply the appropriate power scaling.
+    return (std::max)(0.0f, added);
 }
 
 // =============================================================================
@@ -567,5 +576,5 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required)
         logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
         required = 1.0f;
     }
-    m_spellProgress[formId].requiredXP = required;
+    EnsureProgress(formId).requiredXP = required;
 }

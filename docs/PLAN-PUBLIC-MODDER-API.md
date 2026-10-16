@@ -42,6 +42,11 @@ When an external mod calls `AddSourcedXP` with a **custom source name** (anythin
 3. **C++ notifies JS**: `UIManager::NotifyModdedSourceRegistered(name, displayName)` -> JS creates the UI controls dynamically
 4. **Settings persist**: saved in unified config + presets, loaded on next session
 
+The plugin's own internal sources (passive learning: `RegisterModdedXPSource(..., internal = true)`) get no UI
+controls, and `AddSourcedXP` tracks their XP per spell without applying the source multiplier or cap above -
+they apply their own (passive: a cap per tier). `GetSourceCap` answers 100 for them (2026-10-17; before, the
+default cap of 25% cut passive learning short at 25% whatever its tier caps said).
+
 Mods can also **explicitly register** before granting XP (recommended -- lets them set a display name):
 
 ```papyrus
@@ -335,7 +340,7 @@ float Function AddSourcedXP(Spell akSpell, float amount, string sourceName = "di
 ; For quest rewards where amount is pre-determined.
 float Function AddRawXP(Spell akSpell, float amount) global native
 
-; Set exact XP value (debug/cheat).
+; Set exact XP value (debug/cheat), clamped to 0 .. the spell's required XP.
 Function SetSpellXP(Spell akSpell, float xp) global native
 ```
 
@@ -464,7 +469,7 @@ namespace SpellLearning {
         // XP - amount is pre-multiplier, sourceName identifies the XP source
         virtual float AddSourcedXP(uint32_t spellFormID, float amount, const std::string& sourceName) = 0;
         virtual float AddRawXP(uint32_t spellFormID, float amount) = 0;
-        virtual void SetSpellXP(uint32_t spellFormID, float xp) = 0;
+        virtual void SetSpellXP(uint32_t spellFormID, float xp) = 0;  // clamped to 0 .. required XP
 
         // Queries
         virtual bool IsSpellMastered(uint32_t spellFormID) const = 0;

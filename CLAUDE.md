@@ -295,7 +295,10 @@ This project does not have a C++ test framework. Validation is done through:
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
-  full parse; exit 1 on a disagreement)
+  full parse; exit 1 on a disagreement) and `progression-check` (`progression-check --self-test`: the co-save's
+  progress and tome XP records, `include/ProgressionCoSave.h`, written and read in byte buffers - versions 1-3, cut
+  short, over the limits - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
+  exit 1 on a failure)
 
 ## Code Style
 

@@ -55,12 +55,7 @@ void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID
 
     logger::info("ProgressionManager: Set learning target for {} to {:08X}", school, formId);
 
-    // Initialize progress if not exists
-    if (m_spellProgress.find(formId) == m_spellProgress.end()) {
-        SpellProgress progress;
-        progress.requiredXP = GetRequiredXP(formId);
-        m_spellProgress[formId] = progress;
-    }
+    EnsureProgress(formId);
 
     // If switching back to a spell with progress above early threshold, regrant it
     if (earlySettings.enabled && formId != 0) {
@@ -441,12 +436,7 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
         }
     }
 
-    // Initialize progress if not exists
-    if (m_spellProgress.find(formId) == m_spellProgress.end()) {
-        SpellProgress progress;
-        progress.requiredXP = GetRequiredXP(formId);
-        m_spellProgress[formId] = progress;
-    }
+    EnsureProgress(formId);
 
     // Set as learning target (empty prereqs since tome provides direct learning)
     // This also handles clearing any existing target in the SAME school
@@ -510,7 +500,7 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
     player->AddSpell(spell);
 
     // Mark as unlocked
-    m_spellProgress[formId].unlocked = true;
+    EnsureProgress(formId).unlocked = true;
     m_dirty = true;
 
     // Remove from early-learned tracking before clearing target, so ClearLearningTarget
@@ -528,17 +518,11 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
 
 void ProgressionManager::RelockSpell(RE::FormID formId)
 {
-    // An early-learned spell: put its own name and descriptions back (the
-    // "(Learning - 40%)" ones), then drop the tracking the co-save keeps, in the
-    // order MarkMastered uses - the name restore can fall back to the display
-    // cache RemoveEarlySpellFromPlayer clears. The caller already took the spell
-    // from the player, so RemoveEarlySpellFromPlayer finds nothing to remove.
-    auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
-    if (effectivenessHook->IsEarlyLearnedSpell(formId)) {
-        effectivenessHook->RestoreOriginalSpellName(formId);
-        effectivenessHook->RestoreOriginalDescriptions(formId);
-        SpellEffectivenessHook::RemoveEarlySpellFromPlayer(formId);
-    }
+    // An early-learned spell: RemoveEarlySpellFromPlayer puts its own name and
+    // descriptions back (the "(Learning - 40%)" ones) and drops the tracking the
+    // co-save keeps. The caller already took the spell from the player, so it
+    // finds nothing to remove. It does nothing for a spell not early-learned.
+    SpellEffectivenessHook::RemoveEarlySpellFromPlayer(formId);
     // A relocked spell is no longer being learned either
     ClearLearningTargetForSpell(formId);
 

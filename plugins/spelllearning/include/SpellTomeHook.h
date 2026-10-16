@@ -77,8 +77,18 @@ public:
     // Mark that XP has been granted for this spell from a tome
     void MarkTomeXPGranted(RE::FormID spellFormId);
     
-    // Clear tome XP tracking (for new game/reload)
+    // Clear tome XP tracking (SKSE revert: a new game, or before any save loads)
     void ClearTomeXPTracking();
+
+    // The spells a tome already gave XP live in the co-save, so a save loaded
+    // earlier gets its own list and a restart does not give the XP again
+    // (SpellTomeHookSave.cpp; layout in ProgressionCoSave.h). A save from before
+    // this record has none: the list starts empty, as it did on every load.
+    static constexpr std::uint32_t kTomeXPRecord = 'SLTX';  // Spell Learning Tome XP
+    void OnGameSaved(SKSE::SerializationInterface* a_intfc) const;
+    // True when the record was ours (see ProgressionManager::ReadRecord)
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+                    std::uint32_t length);
 
 private:
     SpellTomeHook() = default;

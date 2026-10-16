@@ -328,15 +328,18 @@ namespace DESTIntegration {
                 float totalStudyXP = reqXP * threshold;  // Total XP across all study
                 float sessionXP = (static_cast<float>(a_hoursStudied) / a_hoursToMaster) * totalStudyXP;
 
-                pm->AddXPNoGrant(formIdStr, sessionXP);
-                ProgressionManager::LogXPGrant("study", a_spell->GetFormID(), sessionXP,
-                                               std::format("{} hours", a_hoursStudied));
+                // Capped there at totalStudyXP for all study of the spell: ISL starts
+                // its count again when the player swaps books, this session's share would not
+                const float granted = pm->AddXPNoGrant(formIdStr, sessionXP);
+                ProgressionManager::LogXPGrant("study", a_spell->GetFormID(), granted,
+                                               std::format("{} hours, {:.2f} asked", a_hoursStudied, sessionXP));
 
                 logger::info("DESTIntegration: OnStudyProgress — {} studied {} hrs ({:.0f}/{:.0f}), "
-                             "granted {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
+                             "granted {:.1f} of {:.1f} XP ({:.0f}% of {:.0f} total study XP)",
                              a_spell->GetName(), a_hoursStudied,
                              a_totalStudied, a_hoursToMaster,
-                             sessionXP, (sessionXP / totalStudyXP) * 100.0f, totalStudyXP);
+                             granted, sessionXP, totalStudyXP > 0.0f ? (sessionXP / totalStudyXP) * 100.0f : 0.0f,
+                             totalStudyXP);
 
                 // Do NOT call CheckAndUpdatePowerStep here — the player doesn't have
                 // the spell yet, so we shouldn't modify its name/description during study.

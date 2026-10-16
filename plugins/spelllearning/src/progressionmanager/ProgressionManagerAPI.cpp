@@ -4,6 +4,7 @@
 
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
+#include "ProgressionMath.h"
 
 // =============================================================================
 // PUBLIC MODDER API
@@ -44,14 +45,7 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
 {
     if (targetId == 0 || amount <= 0.0f) return 0.0f;
 
-    // Initialize progress entry if missing
-    if (m_spellProgress.find(targetId) == m_spellProgress.end()) {
-        SpellProgress newProgress;
-        newProgress.requiredXP = GetRequiredXP(targetId);
-        m_spellProgress[targetId] = newProgress;
-    }
-
-    auto& progress = m_spellProgress[targetId];
+    auto& progress = EnsureProgress(targetId);
 
     // Already mastered
     if (progress.unlocked && progress.progressPercent >= 1.0f) return 0.0f;
@@ -104,14 +98,14 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
         auto& srcConfig = m_xpSettings.moddedSources[sourceName];
         if (!srcConfig.enabled) return 0.0f;
 
-        // Apply source-specific multiplier
-        adjustedAmount *= (srcConfig.multiplier / 100.0f);
-
-        // Apply cap
-        float maxFromSource = progress.requiredXP * (srcConfig.cap / 100.0f);
-        float currentFromSource = progress.xpFromModded[sourceName];
-        float remaining = maxFromSource - currentFromSource;
-        adjustedAmount = (std::min)(adjustedAmount, (std::max)(0.0f, remaining));
+        // An internal source (passive learning) applies its own cap and rate: the
+        // modded defaults (cap 25%) cut passive's per-tier caps short at 25%
+        if (!srcConfig.internal) {
+            adjustedAmount *= (srcConfig.multiplier / 100.0f);
+            const float maxFromSource = progress.requiredXP * (srcConfig.cap / 100.0f);
+            adjustedAmount = ProgressionMath::GrantWithinCap(adjustedAmount, maxFromSource,
+                                                             progress.xpFromModded[sourceName]);
+        }
 
         if (adjustedAmount > 0.0f) {
             progress.xpFromModded[sourceName] += adjustedAmount;
@@ -134,14 +128,7 @@ float ProgressionManager::AddRawXP(RE::FormID targetId, float amount)
 {
     if (targetId == 0 || amount <= 0.0f) return 0.0f;
 
-    // Initialize progress entry if missing
-    if (m_spellProgress.find(targetId) == m_spellProgress.end()) {
-        SpellProgress newProgress;
-        newProgress.requiredXP = GetRequiredXP(targetId);
-        m_spellProgress[targetId] = newProgress;
-    }
-
-    auto& progress = m_spellProgress[targetId];
+    auto& progress = EnsureProgress(targetId);
     if (progress.unlocked && progress.progressPercent >= 1.0f) return 0.0f;
 
     // Clamp to remaining XP needed
@@ -169,7 +156,8 @@ float ProgressionManager::GetSourceCap(const std::string& sourceName) const
     // Check modded sources
     auto it = m_xpSettings.moddedSources.find(sourceName);
     if (it != m_xpSettings.moddedSources.end()) {
-        return it->second.cap;
+        // An internal source is not capped here (AddSourcedXP): its own rules apply
+        return it->second.internal ? 100.0f : it->second.cap;
     }
 
     return 0.0f;  // Unknown source

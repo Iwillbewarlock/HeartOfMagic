@@ -202,12 +202,12 @@ void SpellEffectivenessHook::ApplyEffectivenessScalingFast(RE::ActiveEffect* a_e
 
     RE::FormID spellId = spell->GetFormID();
 
-    // One lock for the early-learned check, the power step and the binary
-    // threshold, and the progress read without copying its struct. This runs
-    // for every effect of every player spell (several at once for a cloak or
-    // an area spell, again and again for a concentration spell); it used to
-    // take the lock four or five times and copy the progress twice.
-    float progressPercent = ProgressionManager::GetSingleton()->GetProgressPercent(spellId) * 100.0f;
+    // One lock for the early-learned check, the progress, the power step and
+    // the binary threshold. This runs for every effect of every player spell
+    // (several at once for a cloak or an area spell, again and again for a
+    // concentration spell). The progress comes from the hook's own mirror, not
+    // ProgressionManager: this may not be the game thread (m_progressMirror).
+    float progressPercent = 0.0f;
     float effectiveness = 1.0f;
     float threshold = 0.0f;
     if (!ScalingFor(spellId, progressPercent, effectiveness, threshold)) {
@@ -303,6 +303,7 @@ void SpellEffectivenessHook::AddToEarlySet(RE::FormID formId)
     if (inserted) {
         m_earlySpellCount.fetch_add(1, std::memory_order_release);
     }
+    m_progressMirror[formId] = ProgressionManager::GetSingleton()->GetProgressPercent(formId) * 100.0f;
 }
 
 void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
@@ -310,6 +311,15 @@ void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
     size_t erased = m_earlyLearnedSpells.erase(formId);
     if (erased > 0) {
         m_earlySpellCount.fetch_sub(1, std::memory_order_release);
+    }
+    m_progressMirror.erase(formId);
+}
+
+void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progressFraction)
+{
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    if (m_earlyLearnedSpells.contains(spellFormId)) {
+        m_progressMirror[spellFormId] = progressFraction * 100.0f;
     }
 }
 
@@ -427,13 +437,15 @@ std::string SpellEffectivenessHook::GetPowerStepLabel(int step) const
     return m_powerSteps[step].label;
 }
 
-bool SpellEffectivenessHook::ScalingFor(RE::FormID spellFormId, float progressPercent,
+bool SpellEffectivenessHook::ScalingFor(RE::FormID spellFormId, float& progressPercent,
                                         float& effectiveness, float& binaryThreshold) const
 {
     std::shared_lock<std::shared_mutex> lock(m_mutex);
     if (m_earlyLearnedSpells.find(spellFormId) == m_earlyLearnedSpells.end()) {
         return false;
     }
+    const auto mirrored = m_progressMirror.find(spellFormId);
+    progressPercent = mirrored != m_progressMirror.end() ? mirrored->second : 0.0f;
     // Same step as GetCurrentPowerStep / GetSteppedEffectiveness: the highest
     // step whose threshold the progress has reached, step 0 otherwise
     int numSteps = static_cast<int>(m_powerSteps.size());

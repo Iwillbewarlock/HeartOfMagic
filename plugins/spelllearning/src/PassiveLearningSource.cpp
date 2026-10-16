@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "ProgressionManager.h"
+#include "ProgressionMath.h"
 #include "SpellScanner.h"
 #include "uimanager/UIManager.h"
 
@@ -144,13 +145,17 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
             alreadyGranted = it->second;
         }
 
-        float remaining = maxPassiveXP - alreadyGranted;
+        float remaining = ProgressionMath::CapRemaining(maxPassiveXP, alreadyGranted);
         if (remaining <= 0.0f) continue;
 
-        // Clamp to remaining cap
-        float xpToGrant = (std::min)(baseXP, remaining);
+        // The tier cap is this source's only cap: AddSourcedXP tracks "passive" (an
+        // internal source) but neither caps it nor scales it beyond the overall
+        // multiplier, which it applies after this - so ask for the amount that
+        // lands inside the cap once multiplied
+        const float xpToGrant =
+            ProgressionMath::PreMultiplierGrant(baseXP, remaining, pm->GetGainRates(targetId).globalMultiplier);
+        if (xpToGrant <= 0.0f) continue;
 
-        // Use AddSourcedXP which handles the modded source cap tracking
         float actual = pm->AddSourcedXP(targetId, xpToGrant, "passive");
         if (actual > 0.0f) {
             granted++;
