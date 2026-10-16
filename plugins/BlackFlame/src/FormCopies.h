@@ -46,7 +46,8 @@ namespace BlackFlame
 
     /// kPostLoadGame / kNewGame (message thread): compare every copy with its live source; a copy that differs
     /// is logged field by field, filled again and its links rewired, then compared once more (C5)
-    /// J1: a_pointersOnly (in play): only the pointer and value fields are written; the BSFixedString ones (names, the muzzle
+    /// J1, W11: a_pointersOnly (in play): only the copy links are stored (one pointer each; CheckCopies reports the rest as
+    /// deferred, W26); the structs and the BSFixedString fields (names, the muzzle
     /// model) wait for the next kPostLoadGame refresh
     void RefreshCopies(const char* a_reason, bool a_pointersOnly = false);
 
@@ -178,9 +179,13 @@ namespace BlackFlame
         /// so a diff text names a link to one of them without walking the game's form map
         void SetKnownForms(std::unordered_map<const RE::TESForm*, RE::FormID> a_known);
 
-        /// Perf: while one lives on this thread, a form pointer the known forms do not name is looked up in one reverse map of
-        /// the game's form map, built on the first need (one walk per scope, not one per differing field). Without a scope the
-        /// old per-pointer walk stays (the D3 rule either way: a pointer is compared, never dereferenced)
+        /// W12: a form pointer the known forms do not name: the first one of a load by a walk of the game's form map that
+        /// stops at it, from the second on in one reverse map of that map, built once per load (the pairs copied under its
+        /// read lock, the map built after unlocking) and shared by every refresh and check of the load. ResetPointerNames
+        /// starts a new load (a full RefreshCopies). D3 either way: a pointer is compared, never dereferenced
+        void ResetPointerNames();
+
+        /// Times this thread's pointer naming while it lives (the refresh summary line)
         class PointerNameScope
         {
         public:
@@ -190,11 +195,10 @@ namespace BlackFlame
             PointerNameScope& operator=(const PointerNameScope&) = delete;
 
             [[nodiscard]] long long LookupMicros() const noexcept { return m_micros; }  // time spent naming pointers
-            [[nodiscard]] bool Walked() const noexcept { return m_built; }               // the form map was walked once
+            [[nodiscard]] bool Walked() const noexcept { return m_built; }               // the reverse map was built under it
 
         private:
             friend std::string NamePointer(const RE::TESForm* a_form);
-            std::unordered_map<const RE::TESForm*, RE::FormID> m_forms;
             bool m_built = false;
             long long m_micros = 0;
             PointerNameScope* m_outer = nullptr;

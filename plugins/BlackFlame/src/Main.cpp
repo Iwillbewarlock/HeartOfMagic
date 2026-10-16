@@ -52,8 +52,19 @@ namespace
             BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
             return;
         }
-        BlackFlame::LoadAndFillCopies();  // v2: before any hook reads the copies (FormCopies.h)
-        BlackFlame::BuildFireSets();
+        // W23: every step before the hook installs runs guarded, so a throw in one cannot skip the installs below
+        const auto guarded = [](const char* a_step, auto&& a_work) {
+            try {
+                a_work();
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: kDataLoaded: {} threw ({}) - going on to the hook installs", a_step, e.what());
+            } catch (...) {
+                logger::error("BlackFlame: kDataLoaded: {} threw an exception of an unknown type - going on to the hook installs",
+                    a_step);
+            }
+        };
+        guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
+        guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
         // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
         try {
@@ -64,13 +75,16 @@ namespace
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
             BlackFlame::MarkFreshnessUnchecked(std::string("the fire closure failed: ") + e.what());
         }
-        BlackFlame::LoadGreyMap();
-        (void)BlackFlame::LoadPalette();
-        BlackFlame::QueueCopyModelProbe();  // v2i: every copy NIF demanded once on the main thread; failures out of the swaps
-        BlackFlame::EffectEventSink::GetSingleton()->Register();
-        BlackFlame::HitEventSink::GetSingleton()->Register();
-        BlackFlame::StartTicker();
-        BlackFlame::Watchdog::Start();  // C6: log flushed each second, STALL blocks
+        guarded("LoadGreyMap", [] { BlackFlame::LoadGreyMap(); });
+        guarded("LoadPalette", [] { (void)BlackFlame::LoadPalette(); });
+        // v2i: every copy NIF demanded once on the main thread; failures out of the swaps
+        guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
+        guarded("event sinks", [] {
+            BlackFlame::EffectEventSink::GetSingleton()->Register();
+            BlackFlame::HitEventSink::GetSingleton()->Register();
+        });
+        guarded("StartTicker", [] { BlackFlame::StartTicker(); });
+        guarded("Watchdog::Start", [] { BlackFlame::Watchdog::Start(); });  // C6: log flushed each second, STALL blocks
         // Installed after the fire sets are built: the hooks read them from any thread. Always installed
         // (v2): besides the runtime recolour (its own config keys, off by default) they tint lights, feed
         // the self-test records and open the explosion side of the impact window

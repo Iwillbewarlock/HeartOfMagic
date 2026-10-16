@@ -40,6 +40,8 @@ namespace BlackFlame::SelfTest
         using namespace SelfTestText;
 
         constexpr auto kListWait = std::chrono::milliseconds(3000);  // the ticker (100 ms while stoked) refreshes the list
+        // W4: queued equips land within a few frames; the restored hands are read again after this
+        constexpr auto kRestoreSettle = std::chrono::milliseconds(1000);
         constexpr std::size_t kMaxListed = 8;
 
         RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
@@ -57,12 +59,17 @@ namespace BlackFlame::SelfTest
             RE::BGSProjectile* arrow = nullptr;
         };
 
-        // J5: what the player held before the cast, to put back after the dispel
+        // J5: what the player held before the cast, to put back after the dispel. W2: each hand's instance (its extra data:
+        // enchantment, tempering, name) so the same item comes back, not another copy of its base. W4: the shield too (a
+        // bound bow takes the left hand)
         struct Loadout
         {
             RE::TESForm* left = nullptr;
             RE::TESForm* right = nullptr;
             RE::TESAmmo* ammo = nullptr;
+            RE::ExtraDataList* leftExtra = nullptr;
+            RE::ExtraDataList* rightExtra = nullptr;
+            RE::TESObjectARMO* shield = nullptr;
         };
 
         struct BoundState
@@ -72,6 +79,8 @@ namespace BlackFlame::SelfTest
             std::uint64_t mark = 0;
             bool npcLaunched = false;
             std::vector<RE::ObjectRefHandle> arrows;  // J7: the test arrows still to delete
+            std::optional<Loadout> restored;           // W4: what RestoreLoadout put back, to read again once settled
+            Clock::time_point restoredAt{};
         };
         BoundState g_bound;
 
@@ -108,12 +117,28 @@ namespace BlackFlame::SelfTest
             return std::nullopt;
         }
 
-        // J7: the judged launches' arrows are deleted (their handles from the records)
+        // J7: the test arrows are deleted (W3: each one's handle taken at its launch, so an abort or a failed later step
+        // still finds it; the launch records add any the launch did not hand back)
+        void Remember(const RE::ObjectRefHandle& a_arrow)
+        {
+            if (a_arrow && std::ranges::find(g_bound.arrows, a_arrow) == g_bound.arrows.end()) {
+                g_bound.arrows.push_back(a_arrow);
+            }
+        }
+
         void Remember(const std::optional<SelfTestProbe::LaunchRecord>& a_launch)
         {
-            if (a_launch && a_launch->projectile) {
-                g_bound.arrows.push_back(a_launch->projectile);
+            if (a_launch) {
+                Remember(a_launch->projectile);
             }
+        }
+
+        [[nodiscard]] bool Launch(RE::Actor* a_shooter, const BoundPick& a_pick, RE::TESObjectREFR* a_target, std::string& a_detail)
+        {
+            RE::ObjectRefHandle arrow;
+            const bool launched = SelfTestWorld::LaunchAmmoAt(a_shooter, a_pick.ammo, a_pick.seed->weapon, a_target, a_detail, &arrow);
+            Remember(arrow);
+            return launched;
         }
 
         void DeleteArrows(const char* a_id)
@@ -131,9 +156,55 @@ namespace BlackFlame::SelfTest
             g_bound.arrows.clear();
         }
 
+        // W2: the worn instance of a hand's item: the extra data list of its inventory entry that carries the worn flag
+        RE::ExtraDataList* WornExtra(RE::PlayerCharacter* a_player, bool a_left)
+        {
+            const auto* entry = a_player->GetEquippedEntryData(a_left);
+            if (!entry || !entry->extraLists) {
+                return nullptr;
+            }
+            for (auto* list : *entry->extraLists) {
+                if (list && (a_left ? list->HasType<RE::ExtraWornLeft>() : list->HasType<RE::ExtraWorn>())) {
+                    return list;
+                }
+            }
+            return nullptr;
+        }
+
+        // W2: a recorded extra data list is used only while the player's inventory still holds it for that item (the
+        // pointer is never used after its item left)
+        RE::ExtraDataList* StillHeld(RE::PlayerCharacter* a_player, const RE::TESForm* a_object, RE::ExtraDataList* a_extra)
+        {
+            auto* changes = a_extra ? a_player->GetInventoryChanges() : nullptr;
+            if (!changes || !changes->entryList) {
+                return nullptr;
+            }
+            for (auto* entry : *changes->entryList) {
+                if (!entry || entry->GetObject() != a_object || !entry->extraLists) {
+                    continue;
+                }
+                for (auto* list : *entry->extraLists) {
+                    if (list == a_extra) {
+                        return a_extra;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
         Loadout CurrentLoadout(RE::PlayerCharacter* a_player)
         {
-            return { a_player->GetEquippedObject(true), a_player->GetEquippedObject(false), a_player->GetCurrentAmmo() };
+            return { a_player->GetEquippedObject(true), a_player->GetEquippedObject(false), a_player->GetCurrentAmmo(),
+                WornExtra(a_player, true), WornExtra(a_player, false),
+                a_player->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kShield) };
+        }
+
+        // W1: a two-handed weapon (or bow / crossbow) shows in both hands and is equipped once; anything else in the right
+        // hand leaves the left hand to be put back on its own, even the same spell or one-handed base
+        bool TwoHanded(const RE::TESForm* a_right)
+        {
+            const auto* weapon = a_right ? a_right->As<RE::TESObjectWEAP>() : nullptr;
+            return weapon && (weapon->IsTwoHandedSword() || weapon->IsTwoHandedAxe() || weapon->IsBow() || weapon->IsCrossbow());
         }
 
         std::string Name(const RE::TESForm* a_form)
@@ -141,8 +212,9 @@ namespace BlackFlame::SelfTest
             return a_form ? std::format("{:08X}", a_form->GetFormID()) : std::string("empty");
         }
 
-        // J5: re-equip what the player held when it differs now (a spell with EquipSpell, a weapon or ammo with EquipObject,
-        // each hand to its own equip slot); an empty hand before is left as the dispel leaves it
+        // J5: re-equip what the player held when it differs now (a spell with EquipSpell, a weapon, scroll, ammo or shield
+        // with EquipObject, each hand to its own equip slot, the recorded instance when still held); an empty hand before is
+        // left as the dispel leaves it. W4: what was put back is read again once settled (CheckBoundRestore)
         void RestoreLoadout(const char* a_id)
         {
             auto* player = Player();
@@ -155,30 +227,38 @@ namespace BlackFlame::SelfTest
             const auto before = g_bound.loadout;
             const auto now = CurrentLoadout(player);
             std::string done;
-            const auto hand = [&](RE::TESForm* a_was, RE::TESForm* a_is, bool a_left) {
+            const auto hand = [&](RE::TESForm* a_was, RE::TESForm* a_is, RE::ExtraDataList* a_extra, bool a_left) {
                 if (!a_was || a_was == a_is) {
                     return;
                 }
                 const auto* slot = defaults->GetObject<RE::BGSEquipSlot>(a_left ? RE::DEFAULT_OBJECTS::kLeftHandEquip :
                                                                                   RE::DEFAULT_OBJECTS::kRightHandEquip);
-                if (auto* spell = a_was->As<RE::SpellItem>()) {
+                if (auto* scroll = a_was->As<RE::ScrollItem>()) {  // W19: a scroll is an item (a SpellItem by type)
+                    equip->EquipObject(player, scroll, nullptr, 1, slot);
+                } else if (auto* spell = a_was->As<RE::SpellItem>()) {
                     equip->EquipSpell(player, spell, slot);
                 } else if (auto* object = a_was->As<RE::TESBoundObject>()) {
-                    equip->EquipObject(player, object, nullptr, 1, slot);
+                    equip->EquipObject(player, object, StillHeld(player, object, a_extra), 1, slot);
                 } else {
                     done += std::format(" {} hand: {} not re-equipped (neither spell nor item);", a_left ? "left" : "right", Name(a_was));
                     return;
                 }
                 done += std::format(" {} hand {} -> {};", a_left ? "left" : "right", Name(a_is), Name(a_was));
             };
-            hand(before.right, now.right, false);
-            if (before.left != before.right) {  // a two-handed weapon shows in both hands: equipped once
-                hand(before.left, now.left, true);
+            hand(before.right, now.right, before.rightExtra, false);
+            if (!TwoHanded(before.right)) {  // W1
+                hand(before.left, now.left, before.leftExtra, true);
             }
             if (before.ammo && before.ammo != now.ammo) {
                 equip->EquipObject(player, before.ammo);
                 done += std::format(" ammo {} -> {};", Name(now.ammo), Name(before.ammo));
             }
+            if (before.shield && before.shield != now.shield) {
+                equip->EquipObject(player, before.shield);
+                done += std::format(" shield {} -> {};", Name(now.shield), Name(before.shield));
+            }
+            g_bound.restored = before;
+            g_bound.restoredAt = Clock::now();
             SelfTestLog::Info(a_id, std::format("loadout before the bound weapon: left {}, right {}, ammo {}; {}", Name(before.left),
                 Name(before.right), Name(before.ammo), done.empty() ? "nothing to put back" : "re-equipped:" + done));
         }
@@ -300,11 +380,11 @@ namespace BlackFlame::SelfTest
             }
             g_bound.mark = SelfTestProbe::Mark();
             std::string detail;
-            const bool launched = SelfTestWorld::LaunchAmmoAt(player, pick.ammo, pick.seed->weapon, target, detail);
+            const bool launched = Launch(player, pick, target, detail);
             SelfTestLog::Info("E-bound-launch", detail);
             if (auto* deer = ActorOf(a_c.caster)) {
                 std::string npcDetail;
-                g_bound.npcLaunched = SelfTestWorld::LaunchAmmoAt(deer, pick.ammo, pick.seed->weapon, target, npcDetail);
+                g_bound.npcLaunched = Launch(deer, pick, target, npcDetail);
                 SelfTestLog::Info("E-bound-npc", npcDetail);
             }
             if (!launched) {
@@ -359,7 +439,7 @@ namespace BlackFlame::SelfTest
             }
             g_bound.mark = SelfTestProbe::Mark();
             std::string detail;
-            if (!SelfTestWorld::LaunchAmmoAt(player, pick.ammo, pick.seed->weapon, target, detail)) {
+            if (!Launch(player, pick, target, detail)) {
                 SelfTestLog::Fail("E-bound-off", "the arrow could not be launched: " + detail);
                 CleanupBoundSpell();
                 return true;
@@ -388,5 +468,44 @@ namespace BlackFlame::SelfTest
             g_bound.pick->seed->spell->GetFormID(), dispelled));
         RestoreLoadout("T9");
         g_bound.pick.reset();
+    }
+
+    bool CheckBoundRestore()
+    {
+        if (!g_bound.restored) {
+            return true;
+        }
+        if (Clock::now() - g_bound.restoredAt < kRestoreSettle) {
+            return false;
+        }
+        const auto want = *g_bound.restored;
+        g_bound.restored.reset();
+        auto* player = Player();
+        if (!player) {
+            SelfTestLog::Info("T9", "restored loadout not read again: no player");
+            return true;
+        }
+        const auto now = CurrentLoadout(player);
+        std::string wrong;
+        const auto compare = [&](const char* a_what, const RE::TESForm* a_want, const RE::TESForm* a_now) {
+            if (a_want && a_want != a_now) {
+                wrong += std::format(" {} {} (wanted {});", a_what, Name(a_now), Name(a_want));
+            }
+        };
+        compare("right", want.right, now.right);
+        compare("left", TwoHanded(want.right) ? nullptr : want.left, now.left);
+        compare("ammo", want.ammo, now.ammo);
+        compare("shield", want.shield, now.shield);
+        const bool instances = (!want.rightExtra || want.rightExtra == now.rightExtra || !StillHeld(player, want.right, want.rightExtra)) &&
+                               (!want.leftExtra || TwoHanded(want.right) || want.leftExtra == now.leftExtra ||
+                                   !StillHeld(player, want.left, want.leftExtra));
+        if (!instances) {
+            wrong += " a hand holds another instance of its item than before;";
+        }
+        SelfTestLog::Check("T9-loadout", wrong.empty(), wrong.empty() ?
+            std::format("the player's hands, ammo and shield are as before the bound weapon (read {} ms after the restore)",
+                kRestoreSettle.count()) :
+            "after the restore:" + wrong);
+        return true;
     }
 }

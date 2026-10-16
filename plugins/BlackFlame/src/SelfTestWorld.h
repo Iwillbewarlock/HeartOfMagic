@@ -75,7 +75,7 @@ namespace BlackFlame::SelfTestWorld
     /// weapon and ammo source) with desiredTarget set, then Projectile::Launch. Game thread only; false (nothing launched)
     /// without a shooter in a cell, ammo with a projectile, weapon or target.
     [[nodiscard]] bool LaunchAmmoAt(RE::Actor* a_shooter, RE::TESAmmo* a_ammo, RE::TESObjectWEAP* a_weapon,
-        RE::TESObjectREFR* a_target, std::string& a_detail);
+        RE::TESObjectREFR* a_target, std::string& a_detail, RE::ObjectRefHandle* a_arrow = nullptr);  // W3: the arrow's handle
 
     /// PlaceObjectAtMe at the player, then moved a_forward units ahead and a_right
     /// units to the right of where the player faces. Null handle on failure.

@@ -32,4 +32,7 @@ namespace BlackFlame
 
     /// "off", "from the cache (...)", "probing", "probed this start (...)" (any thread; the tester file)
     [[nodiscard]] std::string CopyModelProbeStatus();
+
+    /// W27: the copies the probe found failing (taken out in "drop", only logged in "log"); any thread
+    [[nodiscard]] std::size_t CopyModelProbeFailedCopies() noexcept;
 }

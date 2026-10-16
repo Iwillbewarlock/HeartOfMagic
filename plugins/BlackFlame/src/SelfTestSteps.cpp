@@ -45,8 +45,11 @@ namespace BlackFlame::SelfTest
 
         // Step timeouts, counted in unpaused play
         constexpr float kEnvTimeout = 2.0f;
-        constexpr auto kProbeWait = std::chrono::seconds(30);  // J2: T0 waits this long for the copy model probe
-        constexpr float kT0Timeout = 35.0f;                     // kProbeWait and the step itself
+        // J2, W21: T0 waits this long for the copy model probe. Its budget is 20 s of probing in 8 ms slices, one slice per
+        // frame (CopyModelProbe.cpp kBudget, kSlice): 2500 frames, about 170 s of wall time at the 15 fps measured on the
+        // heavy load order (perf audit); this covers that with a margin, and a finished probe ends the wait at once
+        constexpr auto kProbeWait = std::chrono::seconds(240);
+        constexpr float kT0Timeout = 245.0f;                    // kProbeWait and the step itself
         constexpr float kBuffOnTimeout = 6.0f;    // I2: a dispel first when already stoked, flag off, then the cast, flag on
         constexpr auto kOldBuffWait = std::chrono::milliseconds(3000);  // H2: then T1 goes on with the buff it found
         constexpr float kSpawnTimeout = 1.0f;

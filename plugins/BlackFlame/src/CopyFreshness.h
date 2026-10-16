@@ -56,7 +56,9 @@ namespace BlackFlame
 
     /// The copy model probe found a_count copy NIFs that exist (the plain stream opens them) but that the game's loose-file
     /// index does not know (a cache mod such as CRDW AE out of date). Logged and kept for the tester file; the HUD line is
-    /// shown now when the player is in the world, else at the first kPostLoadGame / kNewGame (NotifyFileIndexOnce). Any thread.
+    /// shown now when the player is in the world, else at the first kPostLoadGame / kNewGame (NotifyFileIndexOnce); W13:
+    /// only when CRDW.dll is loaded (the one index layer the line names a fix for), otherwise logged only. Main thread only
+    /// (it reads the player's cell; the probe's Finish calls it from the main-thread queue).
     void ReportStaleFileIndex(std::size_t a_count);
 
     /// The HUD line of ReportStaleFileIndex, once per session (nothing when nothing was reported)
@@ -64,4 +66,8 @@ namespace BlackFlame
 
     /// "" or the stale file index line (the tester file)
     [[nodiscard]] std::string StaleFileIndexText();
+
+    /// W20: the loose-file index state the copy model probe's cache key carries: CRDW.dll's size and write time (or that
+    /// it is not loaded) and an FNV-1a of each copy NIF's path, size and write time under Data\meshes. kDataLoaded thread.
+    [[nodiscard]] std::string FileIndexState(const std::vector<std::string>& a_copyModelPaths);
 }

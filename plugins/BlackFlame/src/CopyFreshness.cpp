@@ -5,7 +5,10 @@
 #include "MainThreadQueue.h"
 #include "TrackedMutex.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
+#include <filesystem>
 #include <format>
 #include <mutex>
 #include <string>
@@ -29,6 +32,7 @@ namespace BlackFlame
         TrackedMutex g_fileIndexMutex;
         std::string g_fileIndexText;               // under g_fileIndexMutex
         std::atomic<bool> g_fileIndexNotified{ false };
+        std::atomic<bool> g_fileIndexCrdw{ false };  // W13: CRDW.dll was loaded when the stale index was reported
 
         FreshnessState g_state;          // written once at kDataLoaded
         bool g_checked = false;          // F10: CheckFreshness ran (kDataLoaded finished its copy request part)
@@ -113,6 +117,7 @@ namespace BlackFlame
     void ReportStaleFileIndex(std::size_t a_count)
     {
         const bool crdw = REX::W32::GetModuleHandleW(L"CRDW.dll") != nullptr;  // CRDW AE's SKSE plugin (mod "CRDW AE")
+        g_fileIndexCrdw.store(crdw);
         const auto text = std::vformat(kFileIndexText, std::make_format_args(a_count, crdw ? kFileIndexNamed : kFileIndexGeneric));
         {
             std::lock_guard lock(g_fileIndexMutex);
@@ -127,6 +132,41 @@ namespace BlackFlame
         }
     }
 
+    std::string FileIndexState(const std::vector<std::string>& a_copyModelPaths)
+    {
+        constexpr std::uint64_t kFnvOffset = 0xCBF29CE484222325ull;
+        constexpr std::uint64_t kFnvPrime = 0x100000001B3ull;
+        std::uint64_t hash = kFnvOffset;
+        const auto mix = [&](std::string_view a_text) {
+            for (const char c : a_text) {
+                hash = (hash ^ static_cast<unsigned char>(c)) * kFnvPrime;
+            }
+        };
+        const auto stamp = [](const std::filesystem::path& a_file) {
+            std::error_code ec;
+            const auto size = std::filesystem::file_size(a_file, ec);
+            const auto ok = !ec;
+            const auto time = std::filesystem::last_write_time(a_file, ec);
+            return ok && !ec ? std::format("{}:{}", size, time.time_since_epoch().count()) : std::string("absent");
+        };
+        for (const auto& model : a_copyModelPaths) {
+            std::string lower = model;
+            std::ranges::transform(lower, lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            const std::string relative = lower.starts_with("meshes\\") ? model : "meshes\\" + model;
+            mix(model);
+            mix(stamp(std::filesystem::path("Data") / relative));
+        }
+        std::string crdw = "no CRDW.dll";
+        if (const auto module = REX::W32::GetModuleHandleW(L"CRDW.dll")) {
+            constexpr std::size_t kModulePathChars = 1024;  // a longer module path reads as absent
+            std::wstring file(kModulePathChars, L'\0');
+            const auto length = REX::W32::GetModuleFileNameW(module, file.data(), static_cast<std::uint32_t>(file.size()));
+            file.resize(length);
+            crdw = "CRDW.dll " + stamp(std::filesystem::path(file));
+        }
+        return std::format("index {}, copy NIFs {} fnv64:{:016x}", crdw, a_copyModelPaths.size(), hash);
+    }
+
     std::string StaleFileIndexText()
     {
         std::lock_guard lock(g_fileIndexMutex);
@@ -136,17 +176,21 @@ namespace BlackFlame
     void NotifyFileIndexOnce()
     {
         const auto text = StaleFileIndexText();
-        if (text.empty() || g_fileIndexNotified.load()) {
+        if (text.empty() || g_fileIndexNotified.exchange(true)) {  // W13: claimed first, so two callers cannot both post
+            return;
+        }
+        if (!g_fileIndexCrdw.load()) {
+            logger::info("BlackFlame: file index notice \"{}\" (no CRDW.dll: logged only, not shown)", text);
             return;
         }
         if (!MainQueue::Installed()) {
-            g_fileIndexNotified.store(true);
             logger::info("BlackFlame: file index notice \"{}\" (no main-thread queue: not shown)", text);
             return;
         }
         if (MainQueue::Post("file index notice", [text]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); })) {
-            g_fileIndexNotified.store(true);
             logger::info("BlackFlame: file index notice: telling the player \"{}\"", text);
+        } else {
+            g_fileIndexNotified.store(false);  // not posted: the next caller tries again
         }
     }
 

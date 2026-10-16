@@ -11,6 +11,8 @@
 // =============================================================================
 // Hot hooks add their call count and the time spent in OUR part (not the engine's original) to relaxed atomic counters;
 // nothing is logged per call. The heartbeat (MainThreadQueue.cpp, every 5 s) takes the window's totals and resets them.
+// W16: the entries overlap (LogLimit runs inside the hooks, the drain holds the tasks), so they are not to be added up;
+// the drain that logs the heartbeat counts its own time in the next window (its scope ends after the line).
 // Timer: QueryPerformanceCounter (one call at each end).
 
 namespace BlackFlame::Perf

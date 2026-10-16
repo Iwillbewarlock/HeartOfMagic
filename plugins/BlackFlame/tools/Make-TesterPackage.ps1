@@ -17,14 +17,17 @@
       THIRD-PARTY-NOTICES.md (from THIRD-PARTY-NOTICES-TESTER.md.in: the DLL and the builder, their libraries with the
       versions vcpkg installed, the exact commit) and licenses\ (copied from the CommonLib submodule and vcpkg's installed
       copyright files at packaging time, so never an older build's copies)
-      source\HeartOfMagic-<commit>-source.zip when the commit is on no remote branch or tag (-AllowUnpublished): the
-      Corresponding Source of the GPL binaries, from git archive (a dirty tree: git stash create, tracked files)
+      source\HeartOfMagic-<version>-source.zip when the commit is reachable from no branch or tag on origin
+      (-AllowUnpublished): the Corresponding Source of the GPL binaries, from git archive (a dirty tree: git stash create,
+      tracked files), with the CommonLibSSE-NG submodule's tree at plugins/external/commonlibsse-ng/ in the same zip
     Never in it: other mods' meshes or generated copies. The script refuses when plugins\BlackFlame\data holds a
     meshes\heartofmagic\blackflame\copies folder or a non-empty Copies/Local ESL (those are built on the tester's machine).
     It also refuses a working tree with uncommitted changes (the zip is named after the commit; -AllowDirty packages it
     anyway with "-dirty" in the name), a DLL older than the newest file under plugins\BlackFlame\src (build first), and a
-    commit no remote branch or tag holds (the notices would name source nobody can get): -AllowUnpublished packages it
-    with the source zip inside. -AllowDirty needs -AllowUnpublished (no remote holds uncommitted changes).
+    commit no branch or tag on origin reaches (after git fetch origin; local tags and other remotes do not count: the
+    notices would name source nobody can get): -AllowUnpublished packages it with the source zip inside. -AllowDirty needs
+    -AllowUnpublished (no remote holds uncommitted changes). An untracked file under the DLL's or the builder's sources
+    is refused always (no zip and no commit would hold it).
 
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
@@ -51,7 +54,9 @@ $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
 $noticesTemplate = Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES-TESTER.md.in'
 $commonlib = Join-Path $repo 'plugins\external\commonlibsse-ng'
 $vcpkgShare = Join-Path $repo 'build\vcpkg_installed\x64-windows-static\share'
-# port -> shown name, licence; DLL: CommonLib's own links (spdlog, DirectXTK) and the DLL's (nlohmann-json), spdlog's fmt
+# port -> shown name, licence; DLL: CommonLib's own links (spdlog, DirectXTK) and the DLL's (nlohmann-json), spdlog's fmt.
+# W8: no xbyak and no zlib here: neither one's strings are in HeartOfMagic_BlackFlame.dll (xbyak's "code is too big",
+# zlib's "incorrect header check"), while SpellLearning.dll has both - the main release notice lists them for its DLLs
 $dllPorts = [ordered]@{ 'fmt' = @('{fmt}', 'MIT'); 'spdlog' = @('spdlog', 'MIT'); 'nlohmann-json' = @('JSON for Modern C++ (nlohmann-json)', 'MIT');
     'directxtk' = @('DirectX Tool Kit (DirectXTK)', 'MIT'); 'directxmath' = @('DirectXMath', 'MIT') }
 $builderPorts = [ordered]@{ 'nifly' = @('nifly', 'GPL-3.0'); 'directxtex' = @('DirectXTex', 'MIT'); 'fmt' = @('{fmt}', 'MIT');
@@ -88,7 +93,20 @@ if ($dirty) { $Version = "$Version-dirty" }
 
 # U2: the notices name the commit as the Corresponding Source, so a remote must hold it - or the source goes in the zip
 $commit = (git -C $repo rev-parse HEAD).Trim()
-$published = @(git -C $repo branch -r --contains $commit) + @(git -C $repo tag --contains $commit) | Where-Object { $_.Trim() }
+# W6: published = reachable from a branch or tag that origin has now (fetched first; offline counts as unpublished)
+$published = $false
+git -C $repo fetch --quiet --tags origin 2>$null
+if ($LASTEXITCODE -eq 0) {
+    foreach ($line in @(git -C $repo ls-remote --heads --tags origin)) {
+        $sha = ($line -split '\s+')[0]
+        if ($sha) {
+            git -C $repo merge-base --is-ancestor $commit $sha 2>$null
+            if ($LASTEXITCODE -eq 0) { $published = $true; break }
+        }
+    }
+} else {
+    Write-Host "Make-TesterPackage: git fetch origin failed (offline?): the commit counts as unpublished"
+}
 if ($dirty -and -not $AllowUnpublished) {
     Fail "-AllowDirty packages changes no commit holds: pass -AllowUnpublished too (the source zip then goes in the package)"
 }
@@ -125,6 +143,9 @@ $dllSources = @('plugins\BlackFlame\src', 'plugins\BlackFlame\CMakeLists.txt', '
     'plugins\WideFileSink.h', 'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
     'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h')
 $builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt', 'plugins\BlackFlame\src\DataPathRule.h')
+# W7: a file the build compiles that git does not track would be in neither the commit nor the source zip
+$untracked = @(git -C $repo ls-files --others --exclude-standard -- @($dllSources + $builderSources | ForEach-Object { $_ -replace '\\', '/' }))
+if ($untracked) { Fail "untracked file(s) under the DLL's or the builder's sources (commit or remove them): $($untracked -join ', ')" }
 foreach ($pair in @(@((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), $dllSources), @($builder, $builderSources))) {
     $binary = Get-Item $pair[0]
     $newest = Newest $pair[1]
@@ -202,12 +223,22 @@ function Rows($ports) {
         '| {0} | {1} | {2} | `licenses/{3}.txt` |' -f $ports[$_][0], (PortVersion $_), $ports[$_][1], $_
     }) -join "`n"
 }
+$commonlibCommit = (git -C $commonlib rev-parse HEAD).Trim()
 $sourceLine = if ($withSource) {
     $kind = if ($dirty) { 'and the uncommitted changes of its tracked files' } else { 'which no public branch or tag holds yet' }
     'That commit ({0}) is in this package as `source/HeartOfMagic-{1}-source.zip` (git archive of the repository).' -f $kind, $Version
 } else { 'The commit is public in that repository.' }
+# W5: the submodule is in the zip when the zip is the source; otherwise the repository's submodule names it
+$commonlibSource = if ($withSource) {
+    ('CommonLibSSE-NG {0} is in the same zip at `plugins/external/commonlibsse-ng` (its commit `{1}`, upstream ' +
+        '<https://github.com/alandtse/CommonLibVR>, branch `ng`).') -f "v$commonlibVersion", $commonlibCommit
+} else {
+    ('CommonLibSSE-NG is the repository''s git submodule `plugins/external/commonlibsse-ng` at tag `v{0}` (commit `{1}`, ' +
+        '<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive` fetches it.') -f
+        $commonlibVersion, $commonlibCommit
+}
 $text = (Get-Content $noticesTemplate -Raw).Replace('@VERSION@', $Version).Replace('@COMMIT@', $commit).
-    Replace('@COMMONLIB_VERSION@', $commonlibVersion).Replace('@SOURCE@', $sourceLine).
+    Replace('@COMMONLIB_VERSION@', $commonlibVersion).Replace('@SOURCE@', $sourceLine).Replace('@COMMONLIB_SOURCE@', $commonlibSource).
     Replace('@DLL_ROWS@', (Rows $dllPorts)).Replace('@BUILDER_ROWS@', (Rows $builderPorts))
 if ($text -match '@[A-Z_]+@') { Fail "THIRD-PARTY-NOTICES-TESTER.md.in has a placeholder the script does not fill: $($Matches[0])" }
 Set-Content -Encoding UTF8 (Join-Path $stage 'THIRD-PARTY-NOTICES.md') $text
@@ -219,12 +250,31 @@ foreach ($file in $licenceSources | Where-Object { $_ -ne $noticesTemplate }) {
     }
 }
 if ($withSource) {
-    $tree = if ($dirty) { (git -C $repo stash create).Trim() } else { $commit }
-    if (-not $tree) { $tree = $commit }
+    # W7: git stash create prints nothing when there is nothing to stash (untracked files only): the commit then
+    $stashed = if ($dirty) { git -C $repo stash create } else { $null }
+    $tree = if ($stashed) { "$stashed".Trim() } else { $commit }
     $sourceDir = Join-Path $stage 'source'
     New-Item -ItemType Directory -Force $sourceDir | Out-Null
-    git -C $repo archive --format=zip --prefix="HeartOfMagic-$Version/" -o (Join-Path $sourceDir "HeartOfMagic-$Version-source.zip") $tree
+    # W5: the repository and the CommonLibSSE-NG submodule (git archive leaves submodules out) unpacked into one tree,
+    # then zipped once (tar: bsdtar, in Windows since 10 1803)
+    $sourceTree = Join-Path $dist "HeartOfMagic-BlackFlame-Tester_$Version-source-tree"
+    if (Test-Path $sourceTree) { Remove-Item -Recurse -Force $sourceTree }
+    New-Item -ItemType Directory -Force $sourceTree | Out-Null
+    $repoTar = Join-Path $sourceTree 'repo.tar'
+    $libTar = Join-Path $sourceTree 'commonlib.tar'
+    git -C $repo archive --format=tar --prefix="HeartOfMagic-$Version/" -o $repoTar $tree
     if ($LASTEXITCODE -ne 0) { Fail "git archive of $tree failed: no source zip, no package" }
+    git -C $commonlib archive --format=tar --prefix="HeartOfMagic-$Version/plugins/external/commonlibsse-ng/" -o $libTar $commonlibCommit
+    if ($LASTEXITCODE -ne 0) { Fail "git archive of the CommonLibSSE-NG submodule failed: no source zip, no package" }
+    $unpacked = Join-Path $sourceTree 'tree'
+    New-Item -ItemType Directory -Force $unpacked | Out-Null
+    foreach ($tar in $repoTar, $libTar) {
+        tar -xf $tar -C $unpacked
+        if ($LASTEXITCODE -ne 0) { Fail "unpacking $tar failed" }
+    }
+    tar -a -cf (Join-Path $sourceDir "HeartOfMagic-$Version-source.zip") -C $unpacked "HeartOfMagic-$Version"
+    if ($LASTEXITCODE -ne 0) { Fail "zipping the source tree failed: no package" }
+    Remove-Item -Recurse -Force $sourceTree
 }
 
 # Last guard: nothing outside the expected tree

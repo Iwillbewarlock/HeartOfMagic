@@ -15,8 +15,7 @@
 
 These binaries were built from commit `@COMMIT@` of <https://github.com/Iwillbewarlock/HeartOfMagic>.
 @SOURCE@
-CommonLibSSE-NG is the repository's git submodule `plugins/external/commonlibsse-ng` at tag `v@COMMONLIB_VERSION@`
-(<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive` fetches it. The
+@COMMONLIB_SOURCE@ The
 other libraries come from the vcpkg manifest `vcpkg.json` (triplet `x64-windows-static`). Building:
 `BuildRelease.ps1 -preset Release-2026` (see the repository's README and CLAUDE.md).
 

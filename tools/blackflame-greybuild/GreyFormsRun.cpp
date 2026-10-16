@@ -17,6 +17,8 @@
 
 #include <fmt/format.h>
 #include <iostream>
+#include <algorithm>
+#include <cwctype>
 #include <optional>
 #include <set>
 
@@ -87,6 +89,47 @@ namespace GreyBuild
 
         // Moves every staged file into --out, one file at a time (MoveFileExW: replace, write through); false (printed)
         // on the first failure, naming how far it got. The --out folder itself is never removed or renamed.
+        // W17: our generated copy folders hold only this run's files: a copy NIF or texture an earlier run made and this
+        // one did not (a source left the load order, a texture now grey) is removed. Nothing outside those folders
+        void RemoveStaleCopies(const std::filesystem::path& a_staging, const std::filesystem::path& a_out,
+            const std::vector<std::filesystem::path>& a_staged)
+        {
+            std::set<std::wstring> made;
+            for (const auto& file : a_staged) {
+                std::wstring rel = std::filesystem::relative(file, a_staging).lexically_normal().wstring();
+                std::transform(rel.begin(), rel.end(), rel.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+                made.insert(std::move(rel));
+            }
+            int removed = 0;
+            for (const char* root : { kTextureCopyRoot, "meshes\\heartofmagic\\blackflame\\copies\\" }) {
+                const auto folder = a_out / std::filesystem::path(root);
+                std::error_code ec;
+                std::vector<std::filesystem::path> stale;
+                for (auto it = std::filesystem::recursive_directory_iterator(folder, ec);
+                     !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+                    if (!it->is_regular_file()) {
+                        continue;
+                    }
+                    std::wstring rel = std::filesystem::relative(it->path(), a_out).lexically_normal().wstring();
+                    std::transform(rel.begin(), rel.end(), rel.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+                    if (made.count(rel) == 0) {
+                        stale.push_back(it->path());
+                    }
+                }
+                for (const auto& file : stale) {
+                    std::error_code removeError;
+                    removed += std::filesystem::remove(file, removeError) ? 1 : 0;
+                    if (removeError) {
+                        std::cout << fmt::format("WARN  an earlier run's copy {} could not be removed ({})\n", PathText(file),
+                            removeError.message());
+                    }
+                }
+            }
+            if (removed > 0) {
+                std::cout << fmt::format("removed {} copy file(s) an earlier run made and this one did not\n", removed);
+            }
+        }
+
         [[nodiscard]] bool Commit(const std::filesystem::path& a_staging, const std::filesystem::path& a_out)
         {
             // W7: every staged file is listed first (no moves while the folder is walked), then moved
@@ -117,6 +160,7 @@ namespace GreyBuild
                     return false;
                 }
             }
+            RemoveStaleCopies(a_staging, a_out, files);
             return true;
         }
 

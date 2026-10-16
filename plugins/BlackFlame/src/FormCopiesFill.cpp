@@ -390,98 +390,39 @@ namespace BlackFlame::CopyFill
         }
     }
 
+
     namespace
     {
-        // Set once at kDataLoaded before any Compare reads it (FormCopies.cpp LoadAndFillCopies), read-only afterwards
-        std::unordered_map<const RE::TESForm*, RE::FormID>& KnownForms()
+        // W11: in play (a_pointersOnly) only the copy links are stored, one aligned pointer each, from the source's links
+        // through LinkFor (a dropped copy's link goes back to the source); no struct, name or model is written while the
+        // engine may be reading it
+        bool RefillLinks(RE::TESForm* a_copy, const RE::TESForm* a_source)
         {
-            static auto* known = std::make_unique<std::unordered_map<const RE::TESForm*, RE::FormID>>().release();
-            return *known;
-        }
-
-        thread_local PointerNameScope* t_scope = nullptr;
-
-        // D3: the game's form map walked under its read lock, comparing pointer values only
-        template <class Visit>
-        void WalkForms(Visit&& a_visit)
-        {
-            auto [map, lock] = RE::TESForm::GetAllForms();
-            if (!map) {
-                return;
+            bool changed = false;
+            if (auto* p = a_copy->As<RE::BGSProjectile>()) {
+                changed |= AssignIfDiffers(p->data.explosionType, LinkFor(a_source->As<RE::BGSProjectile>()->data.explosionType));
+            } else if (auto* e = a_copy->As<RE::BGSExplosion>()) {
+                const auto& s = *a_source->As<RE::BGSExplosion>();
+                changed |= AssignIfDiffers(e->data.impactPlacedObject, PlacedLinkFor(s.data.impactPlacedObject));
+                changed |= AssignIfDiffers(e->data.spawnProjectile, LinkFor(s.data.spawnProjectile));
+            } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
+                changed |= AssignIfDiffers(i->hazard, LinkFor(a_source->As<RE::BGSImpactData>()->hazard));
             }
-            const RE::BSReadLockGuard guard(lock.get());
-            for (const auto& [id, form] : *map) {
-                if (!a_visit(id, form)) {
-                    return;
-                }
-            }
+            return changed;
         }
-    }
-
-    void SetKnownForms(std::unordered_map<const RE::TESForm*, RE::FormID> a_known)
-    {
-        KnownForms() = std::move(a_known);
-    }
-
-    PointerNameScope::PointerNameScope() :
-        m_outer(t_scope)
-    {
-        t_scope = this;
-    }
-
-    PointerNameScope::~PointerNameScope()
-    {
-        t_scope = m_outer;
-    }
-
-    // D3: a form pointer named without dereferencing it. First our own sources and copies (most links point there), then the
-    // game's form map by value (LookupByID would need the id, which only the dereference gives): one reverse map per
-    // PointerNameScope, or a full walk per pointer without one (measured: 7-34 ms a field at a load with 157 differing copies)
-    std::string NamePointer(const RE::TESForm* a_form)
-    {
-        if (!a_form) {
-            return "null";
-        }
-        if (const auto it = KnownForms().find(a_form); it != KnownForms().end()) {
-            return std::format("{:08X}", it->second);
-        }
-        const auto start = std::chrono::steady_clock::now();
-        std::optional<RE::FormID> id;
-        if (auto* scope = t_scope) {
-            if (!scope->m_built) {
-                WalkForms([&](RE::FormID a_id, const RE::TESForm* a_entry) {
-                    scope->m_forms.emplace(a_entry, a_id);
-                    return true;
-                });
-                scope->m_built = true;
-            }
-            if (const auto it = scope->m_forms.find(a_form); it != scope->m_forms.end()) {
-                id = it->second;
-            }
-            scope->m_micros +=
-                std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-        } else {
-            WalkForms([&](RE::FormID a_id, const RE::TESForm* a_entry) {
-                if (a_entry == a_form) {
-                    id = a_id;
-                    return false;
-                }
-                return true;
-            });
-        }
-        return id ? std::format("{:08X}", *id) :
-                    std::format("pointer {:X} (not a form in the map)", reinterpret_cast<std::uintptr_t>(a_form));
     }
 
     bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_pointersOnly)
     {
-        // J1: BSFixedString assignments (names, the muzzle model) only out of play (a_pointersOnly false)
-        const auto refillName = [&](RE::TESFullName& a_copyName, const RE::TESFullName& a_sourceName) {
-            return !a_pointersOnly && RefillName(a_copyName, a_sourceName);
-        };
         if (!a_copy || !a_source || a_copy->GetFormType() != a_source->GetFormType()) {
             return false;
         }
+        if (a_pointersOnly) {
+            return RefillLinks(a_copy, a_source);
+        }
+        const auto refillName = [](RE::TESFullName& a_copyName, const RE::TESFullName& a_sourceName) {
+            return RefillName(a_copyName, a_sourceName);
+        };
         bool changed = false;
         if (auto* p = a_copy->As<RE::BGSProjectile>()) {
             const auto& s = *a_source->As<RE::BGSProjectile>();
@@ -491,7 +432,7 @@ namespace BlackFlame::CopyFill
             changed |= refillName(*p, s);
             const char* model = ExpectedMuzzle(*p, s);
             const char* now = p->muzzleFlashModel.GetModel();
-            if (!a_pointersOnly && std::strcmp(now ? now : "", model) != 0) {
+            if (std::strcmp(now ? now : "", model) != 0) {
                 p->muzzleFlashModel.SetModel(model);
                 changed = true;
             }

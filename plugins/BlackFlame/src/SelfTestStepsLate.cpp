@@ -517,6 +517,9 @@ namespace BlackFlame::SelfTest
         if (a_c.lastCast && Clock::now() - *a_c.lastCast < kInFlightWait) {
             return false;
         }
+        if (!CheckBoundRestore()) {
+            return false;  // W4: the restored hands read again once the queued equips landed
+        }
         RemoveRemoteMarkers(a_c);  // left behind when T3-remote timed out
         if (a_c.extraTarget.get()) {
             SelfTestLog::Info("T9", "E2 target: " + SelfTestWorld::Remove(a_c.extraTarget));  // E2 timed out

@@ -62,7 +62,12 @@ namespace BlackFlame::Tester
                 out += "  file index: " + stale + "\n";
             }
             out += CopyModelProbeDone() ?  // v2i (CopyModelProbe; I12: a startup write comes before the probe)
-                       std::format("  copy NIF failed to load in game: {} (probe {})\n", CopiesFailedToLoad().size(), CopyModelProbeStatus()) :
+                       (GetConfig().copyModelProbe == ProbeMode::kDrop ?
+                               std::format("  copy NIF failed to load in game: {} (probe {})\n", CopiesFailedToLoad().size(),
+                                   CopyModelProbeStatus()) :
+                               // W27: "log" takes nothing out; the count the probe found is what would be
+                               std::format("  copy NIF failed to load in game: none taken out (log only), would be dropped: {} "
+                                           "(probe {})\n", CopyModelProbeFailedCopies(), CopyModelProbeStatus())) :
                        std::format("  copy NIF failed to load in game: not known yet (probe {})\n", CopyModelProbeStatus());
             out += std::format("  fire spells {} ({} cloak-associated), fire effects {}\n", fire.total, fire.cloakAssociated,
                 fire.effects);
@@ -104,10 +109,10 @@ namespace BlackFlame::Tester
             }
             std::ofstream out(*dir / kFileName, std::ios::binary | std::ios::trunc);
             out << text;
+            out.close();  // W15: a write that fails at the flush shows only after close
             if (!out) {
                 logger::warn("BlackFlame: the tester file could not be written");
             }
-            out.close();
             // Perf: it runs at every save and load on the main thread (CheckCopies compares every copy)
             logger::info("BlackFlame: tester file written at {} in {} ms ({} lines)", a_when,
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(),

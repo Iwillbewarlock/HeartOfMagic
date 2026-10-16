@@ -163,7 +163,7 @@ namespace BlackFlame::SelfTestWorld
     }
 
     bool LaunchAmmoAt(RE::Actor* a_shooter, RE::TESAmmo* a_ammo, RE::TESObjectWEAP* a_weapon, RE::TESObjectREFR* a_target,
-        std::string& a_detail)
+        std::string& a_detail, RE::ObjectRefHandle* a_arrow)
     {
         auto* projectileBase = a_ammo ? a_ammo->GetRuntimeData().data.projectile : nullptr;
         if (!a_shooter || !a_weapon || !projectileBase || !a_target || !a_shooter->GetParentCell()) {
@@ -177,6 +177,11 @@ namespace BlackFlame::SelfTestWorld
         RE::ProjectileHandle handle;
         RE::Projectile::Launch(&handle, data);
         const bool launched = static_cast<bool>(handle);
+        if (a_arrow) {
+            if (const auto projectile = handle.get()) {
+                *a_arrow = projectile->GetHandle();
+            }
+        }
         a_detail = std::format("{:08X} shot ammo {:08X} (PROJ {:08X}) with weapon {:08X}, {} {}", a_shooter->GetFormID(),
             a_ammo->GetFormID(), projectileBase->GetFormID(), a_weapon->GetFormID(), aim.text,
             launched ? "projectile handle returned" : "NO projectile handle");

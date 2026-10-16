@@ -19,8 +19,12 @@ namespace GreyBuild
 {
     StageTimer::~StageTimer()
     {
-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_start).count();
-        std::cout << fmt::format("time  {}: {} ms\n", m_stage, ms);
+        try {  // W22: a destructor never throws (an output failure, a bad stage text)
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_start).count();
+            std::cout << fmt::format("time  {}: {} ms\n", m_stage, ms);
+        } catch (...) {
+            // nothing to report the failure with
+        }
     }
 
     namespace
@@ -177,11 +181,24 @@ namespace GreyBuild
     std::optional<std::filesystem::path> FindSource(const std::vector<std::filesystem::path>& a_inputs,
         const std::string& a_dataPath)
     {
-        for (const auto& dir : a_inputs) {
-            const auto candidate = dir / std::filesystem::path(a_dataPath);
-            std::error_code ec;
-            if (std::filesystem::is_regular_file(candidate, ec)) {
-                return candidate;
+        // W10: a NIF slot holds the system code page's bytes, request.json UTF-8 (the DLL's SanitizeToUTF8): the narrow
+        // form (code page) first, then, for a non-ASCII path, the same text read as UTF-8
+        const bool ascii = std::all_of(a_dataPath.begin(), a_dataPath.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
+        std::vector<std::filesystem::path> forms{ std::filesystem::path(a_dataPath) };
+        if (!ascii) {
+            try {
+                forms.push_back(std::filesystem::u8path(a_dataPath));
+            } catch (const std::exception&) {
+                // not UTF-8: the code page form only
+            }
+        }
+        for (const auto& form : forms) {
+            for (const auto& dir : a_inputs) {
+                const auto candidate = dir / form;
+                std::error_code ec;
+                if (std::filesystem::is_regular_file(candidate, ec)) {
+                    return candidate;
+                }
             }
         }
         return std::nullopt;

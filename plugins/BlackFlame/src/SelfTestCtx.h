@@ -216,6 +216,7 @@ namespace BlackFlame::SelfTest
     bool StepBoundLaunch(Ctx& a_c, bool a_first);  // E-bound-launch, E-bound-npc
     bool StepBoundOff(Ctx& a_c, bool a_first);     // E-bound-off (after T8)
     void CleanupBoundSpell();                      // T9: the bound fire weapon spell dispelled on the player
+    bool CheckBoundRestore();                      // T9-loadout (W4): the restored loadout read again once settled; false: wait
 
     /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,
     /// SelfTestReload.cpp); SelfTest.cpp ShiftClocks calls it

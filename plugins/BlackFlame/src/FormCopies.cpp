@@ -1,4 +1,5 @@
 #include "FormCopies.h"
+#include "FormCopiesState.h"
 
 #include "TrackedMutex.h"
 
@@ -34,28 +35,9 @@ namespace BlackFlame
         constexpr std::uint32_t kMaxLightLocalId = 0xFFF;
         constexpr int kHexBase = 16;
 
-        struct Entry
-        {
-            std::string sourceText;  // "plugin|localId" as the map gives it
-            RE::FormType type = RE::FormType::None;
-            RE::TESForm* source = nullptr;
-            RE::TESForm* copy = nullptr;
-            bool ok = false;
-            bool sourceMissing = false;
-            bool copyMissing = false;
-            bool sourceAbsent = false;  // H1: left out because the source's own mesh is in no mod or archive
-            std::string detail;
-        };
-
-        struct Copies
-        {
-            std::unordered_map<RE::FormID, RE::TESForm*> bySource;
-            std::unordered_map<RE::FormID, const RE::TESForm*> byCopy;
-            std::vector<Entry> entries;
-            CopyCounts counts;
-            std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
-            std::unordered_set<RE::FormID> absentSources;          // H1: sources whose own mesh is absent (INFO, not FAIL)
-        };
+        using CopiesState::Copies;
+        using CopiesState::Entry;
+        using CopiesState::TheCopies;
 
         // v2i: copies whose model failed to load in game. Written once on the main thread, then published through
         // g_disabledReady (release); CopyOf reads it only after an acquire load, and it never changes afterwards
@@ -77,15 +59,6 @@ namespace BlackFlame
         std::atomic<bool> g_disabledReady{ false };
         std::atomic<bool> g_disabledTaken{ false };
 
-        TrackedMutex g_refreshMutex;
-        std::vector<std::pair<std::string, std::string>> g_refreshNotes;  // (reason, note), under g_refreshMutex
-
-        // Built once on the kDataLoaded thread and never changed afterwards (hooks read it from any thread)
-        Copies& TheCopies()
-        {
-            static auto* copies = std::make_unique<Copies>().release();
-            return *copies;
-        }
 
         RE::FormType TypeOf(std::string_view a_tag)
         {
@@ -401,64 +374,6 @@ namespace BlackFlame
             c.linksToCopies);
     }
 
-    void RefreshCopies(const char* a_reason, bool a_pointersOnly)
-    {
-        using Clock = std::chrono::steady_clock;
-        const auto micros = [](Clock::duration a_d) { return std::chrono::duration_cast<std::chrono::microseconds>(a_d).count(); };
-        const auto start = Clock::now();
-        Clock::duration compare{};
-        Clock::duration refill{};
-        const CopyFill::PointerNameScope names;  // perf: one form map walk for this refresh's diff texts, at most
-        std::vector<std::string> notes;
-        std::size_t compared = 0;
-        for (const auto& entry : TheCopies().entries) {
-            if (!entry.ok) {
-                continue;
-            }
-            ++compared;
-            auto t = Clock::now();
-            const auto before = CopyFill::Compare(entry.copy, entry.source);
-            compare += Clock::now() - t;
-            if (before.empty()) {
-                continue;
-            }
-            t = Clock::now();
-            (void)CopyFill::Refill(entry.copy, entry.source, a_pointersOnly);  // D3: no window where a copy points at an original
-            refill += Clock::now() - t;
-            t = Clock::now();
-            const auto after = CopyFill::Compare(entry.copy, entry.source);
-            compare += Clock::now() - t;
-            notes.push_back(std::format("{} {:08X} -> copy {:08X} differed at the {} ({}); filled again: {}", entry.sourceText,
-                entry.source->GetFormID(), entry.copy->GetFormID(), a_reason, before, after.empty() ? "now equal" : after));
-            logger::warn("BlackFlame: copies: {}", notes.back());
-        }
-        // Perf: the diff texts' pointer naming is part of compare (diff text); before the reverse map it walked the form
-        // map once per differing link field (1249 ms for 157 differing copies)
-        logger::info("BlackFlame: copies: refresh at the {}: {} compared, {} cop{} differed from the live source; compare {} ms "
-                     "(diff text pointer names {} ms{}), refill {} ms, {} ms in all", a_reason, compared, notes.size(),
-            notes.size() == 1 ? "y" : "ies", micros(compare) / 1000, names.LookupMicros() / 1000,
-            names.Walked() ? ", form map walked once" : "", micros(refill) / 1000, micros(Clock::now() - start) / 1000);
-        if (a_pointersOnly) {
-            logger::info("BlackFlame: copies: refresh at the {} wrote pointers and values only (in play); names and muzzle models "
-                         "follow at the next load's refresh", a_reason);
-        }
-        std::lock_guard lock(g_refreshMutex);
-        std::erase_if(g_refreshNotes, [&](const auto& a_note) { return a_note.first == a_reason; });
-        for (auto& note : notes) {
-            g_refreshNotes.emplace_back(a_reason, std::move(note));
-        }
-    }
-
-    std::vector<std::string> CopyRefreshNotes()
-    {
-        std::lock_guard lock(g_refreshMutex);
-        std::vector<std::string> out;
-        for (const auto& [reason, note] : g_refreshNotes) {
-            out.push_back(note);
-        }
-        return out;
-    }
-
     RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept
     {
         if (!a_source) {
@@ -567,31 +482,4 @@ namespace BlackFlame
         return TheCopies().counts;
     }
 
-    std::vector<CopyCheckLine> CheckCopies()
-    {
-        std::vector<CopyCheckLine> lines;
-        const auto& copies = TheCopies();
-        const auto& c = copies.counts;
-        const CopyFill::PointerNameScope names;  // perf: one form map walk for these diff texts, at most (Tester::Write, T0-v2)
-        lines.push_back({ c.mapRead && c.failed == c.sourceAbsent && c.mapEntries > 0,
-            std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {}, {} left out ({} of them: "
-                "source mesh absent in this load order), {} links to copies", c.mapRead ? "read" : "NOT read", c.mapEntries,
-                c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed, c.sourceAbsent, c.linksToCopies) });
-        for (const auto& entry : copies.entries) {
-            if (!entry.ok) {
-                lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail), entry.sourceAbsent });
-                continue;
-            }
-            const auto diff = CopyFill::Compare(entry.copy, entry.source);
-            lines.push_back({ diff.empty(), std::format("{} {:08X} -> copy {:08X}: {}", entry.sourceText,
-                                                entry.source->GetFormID(), entry.copy->GetFormID(),
-                                                diff.empty() ? "fields equal the live source, links to copies where one exists" : diff) });
-        }
-        // v2i: a copy whose NIF the game could not load is out of the swaps for the session (it stays original)
-        for (const auto& item : CopiesFailedToLoad()) {
-            lines.push_back({ false, std::format("copy {:08X}: copy NIF failed to load in game, the form stays original this "
-                                                 "session: {}", item.copy, item.text) });
-        }
-        return lines;
-    }
 }

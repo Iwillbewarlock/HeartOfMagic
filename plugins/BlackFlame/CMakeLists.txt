@@ -24,6 +24,8 @@ set(BLACKFLAME_SOURCES
     src/FireSet.cpp
     src/FormCopies.cpp
     src/FormCopiesFill.cpp
+    src/FormCopiesRefresh.cpp
+    src/FormCopiesNames.cpp
     src/FormCopiesFillArt.cpp
     src/FireClosure.cpp
     src/NifDump.cpp

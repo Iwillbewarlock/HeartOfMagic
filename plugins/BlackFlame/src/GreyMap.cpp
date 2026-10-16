@@ -36,10 +36,11 @@ namespace BlackFlame
             return *map;
         }
 
-        // DataPathRule::LowerSlashes (the builder's key rule, a DBCS trail byte kept), a leading "meshes\" dropped
+        // W9: the builder's key rule - DataPathRule::Normalize under meshes\ (folding, a leading data\), "meshes\" then
+        // dropped; a path that rule refuses keeps LowerSlashes (case and separators, a DBCS trail byte kept)
         std::string Normalise(std::string_view a_path)
         {
-            std::string out = DataPathRule::LowerSlashes(a_path);
+            std::string out = DataPathRule::Normalize(a_path, DataPathRule::kMeshesRoot).value_or(DataPathRule::LowerSlashes(a_path));
             if (out.starts_with(kMeshesPrefix)) {
                 out.erase(0, kMeshesPrefix.size());
             }

@@ -43,6 +43,7 @@ namespace BlackFlame
 
         TrackedMutex g_statusMutex;
         std::string g_status = "not started";  // under g_statusMutex (the tester file reads it)
+        std::atomic<std::size_t> g_failedCopies{ 0 };  // W27: the failing copies found (drop or log)
 
         void SetStatus(std::string a_status)
         {
@@ -214,8 +215,23 @@ namespace BlackFlame
             }
         }
 
-        // The cached result when it was made for this copies map: applied at once (kDataLoaded), true. False: probe
+        bool ApplyCacheChecked(const std::string& a_key);
+
+        // The cached result when it was made for this copies map: applied at once (kDataLoaded), true. False: probe.
+        // W23: a cache with a value of the wrong JSON type (hand-edited) makes nlohmann throw; that is a cache to ignore,
+        // never a throw out of kDataLoaded (it ran before every hook install)
         bool ApplyCache(const std::string& a_key)
+        {
+            try {
+                return ApplyCacheChecked(a_key);
+            } catch (const std::exception& e) {
+                logger::info("BlackFlame: copy model probe: the cached result is not readable ({}) - probing again in the "
+                             "background", e.what());
+                return false;
+            }
+        }
+
+        bool ApplyCacheChecked(const std::string& a_key)
         {
             const auto path = CachePath();
             if (!path || a_key.empty()) {
@@ -256,6 +272,7 @@ namespace BlackFlame
                 muzzles.push_back(id);
             }
             const bool drop = Dropping();
+            g_failedCopies.store(disabled.size());
             for (const auto& item : disabled) {
                 logger::warn("BlackFlame: copy model probe: copy {:08X} {}: {}", item.copy,
                     drop ? "out of the swaps this session (stays original)" : "would be dropped (log only, it stays in the swaps)",
@@ -340,12 +357,19 @@ namespace BlackFlame
             // The control's string beside the copy's, so the path form can be read from one line
             const auto& source = a_run.sourceOf[Key(a_path)];
             std::string control = "no source path in that role";
+            bool controlOk = false;
             if (!source.empty()) {
-                control = OverBudget(a_run) ? std::format("Demand(\"{}\") not run (budget)", source) :
-                                              Describe(source, ResultFor(a_run, source));
+                if (OverBudget(a_run)) {
+                    control = std::format("Demand(\"{}\") not run (budget)", source);
+                } else {
+                    const auto& sourceResult = ResultFor(a_run, source);
+                    controlOk = sourceResult.ok;
+                    control = Describe(source, sourceResult);
+                }
             }
             const bool stream = StreamOpens(a_path);
-            const bool stale = stream && result.code == static_cast<int>(RE::BSResource::ErrorCode::kNotExist);
+            // W25: a stale index only when the control loaded (a failing control puts the probe itself in doubt)
+            const bool stale = stream && controlOk && result.code == static_cast<int>(RE::BSResource::ErrorCode::kNotExist);
             a_run.staleIndex += stale ? 1 : 0;
             logger::warn("BlackFlame: copy model probe: FAILED copy {} | stream open: {}{} | control (source) {}",
                 Describe(a_path, result), stream ? "yes" : "no",
@@ -412,8 +436,11 @@ namespace BlackFlame
                          "slice {} ms), {} ms from start to end", a_run.order.size(), FilledCopies().size(), a_run.ok, a_run.failed,
                 a_run.staleIndex, a_run.leftOut.size(), ms(a_run.spent), a_run.frames, ms(a_run.largestSlice),
                 ms(Clock::now() - a_run.begun));
-            if (a_run.staleIndex > 0) {
+            if (a_run.staleIndex > 0 && a_run.ok > 0) {
                 ReportStaleFileIndex(static_cast<std::size_t>(a_run.staleIndex));
+            } else if (a_run.staleIndex > 0) {
+                logger::warn("BlackFlame: copy model probe: {} copy NIF(s) look unknown to the file index, but no copy NIF loaded "
+                             "at all - the probe itself is in doubt: no notice", a_run.staleIndex);  // W25
             }
             for (std::size_t i = 0; i < a_run.leftOut.size(); i += kPathsPerLine) {
                 std::string line;
@@ -424,6 +451,7 @@ namespace BlackFlame
                     std::chrono::duration_cast<std::chrono::seconds>(kBudget).count(), line);
             }
             const bool drop = Dropping();
+            g_failedCopies.store(a_run.disabled.size());
             for (const auto& item : a_run.disabled) {
                 logger::warn("BlackFlame: copy model probe: copy {:08X} {}: {}", item.copy,
                     drop ? "out of the swaps this session (stays original)" : "would be dropped (log only, it stays in the swaps)",
@@ -434,8 +462,11 @@ namespace BlackFlame
                 drop ? "taken out of the swaps" : "would be dropped (copyModelProbe \"log\": none is)", a_run.muzzlesReverted.size(),
                 drop ? "back to the source's" : "would go back");
             const bool changed = drop && (!a_run.disabled.empty() || !a_run.muzzlesReverted.empty());
-            if (a_run.leftOut.empty()) {
-                WriteCache(a_run, a_run.disabled, a_run.muzzlesReverted);  // only a complete probe is cached (results only)
+            // W14: only a complete probe without failures is cached: ApplyCache never reuses one with failures (their cause
+            // may lie outside the copies), so its "dropped" and "muzzles" lists are empty by construction - the cache's only
+            // effect is skipping the probe at the next start; the lists stay in the format for a later use
+            if (a_run.leftOut.empty() && a_run.failed == 0) {
+                WriteCache(a_run, a_run.disabled, a_run.muzzlesReverted);
             }
             SetStatus(std::format("{}, probed this start ({} failed copies, {} muzzles, {} left out)", drop ? "drop" : "log only",
                 a_run.disabled.size(), a_run.muzzlesReverted.size(), a_run.leftOut.size()));
@@ -499,15 +530,23 @@ namespace BlackFlame
         void Post(std::shared_ptr<Run> a_run)
         {
             const bool queued = QueueTask("BlackFlameCopyModelProbe", [a_run]() {
-                bool done = true;
-                if (!Guarded("copy model probe run", [&]() { done = Step(*a_run); })) {
-                    Stopped(std::format("a hardware fault in a slice (logged), {} Demand fault(s) before it", a_run->faults));
-                    return;
-                }
-                if (done) {
-                    (void)Guarded("copy model probe finish", [&]() { Finish(*a_run); });
-                } else {
-                    Post(a_run);
+                // W24: a hardware fault or a C++ exception still ends the probe (Stopped), so CopyModelProbeDone() becomes
+                // true; DisableCopiesForSession keeps the first call, so a Finish that got that far keeps its result
+                try {
+                    bool done = true;
+                    if (!Guarded("copy model probe run", [&]() { done = Step(*a_run); })) {
+                        Stopped(std::format("a hardware fault in a slice (logged), {} Demand fault(s) before it", a_run->faults));
+                        return;
+                    }
+                    if (!done) {
+                        Post(a_run);
+                    } else if (!Guarded("copy model probe finish", [&]() { Finish(*a_run); })) {
+                        Stopped("a hardware fault while finishing (logged)");
+                    }
+                } catch (const std::exception& e) {
+                    Stopped(std::format("an exception: {}", e.what()));
+                } catch (...) {
+                    Stopped("an exception of an unknown type");
                 }
             });
             if (!queued) {
@@ -528,7 +567,12 @@ namespace BlackFlame
             config.copyModelProbe == ProbeMode::kDrop ? "a copy whose model fails while its source's loads leaves the swaps" :
                                                         "results logged only, no copy is taken out");
         auto run = std::make_shared<Run>();
-        run->cacheKey = MapIdentity();
+        Prepare(*run);
+        // W20: the key also carries the file-index state (CRDW.dll, every copy NIF's size and time): a cache made before
+        // the index went stale is not reused, so the probe runs again and can report it
+        if (auto map = MapIdentity(); !map.empty()) {
+            run->cacheKey = map + " " + FileIndexState(run->order);
+        }
         // A normal start with an unchanged copies map costs nothing: the cached result is used now (applied only in "drop").
         // Probe again when the map changed or there is no cache, and always under copyModelProbeAlways, selfTest or testerMode
         const bool forced = config.copyModelProbeAlways || config.selfTest || config.testerMode;
@@ -540,8 +584,12 @@ namespace BlackFlame
                 config.copyModelProbeAlways ? "copyModelProbeAlways" : "selfTest / testerMode");
         }
         SetStatus("probing");
-        Prepare(*run);
         Post(std::move(run));
+    }
+
+    std::size_t CopyModelProbeFailedCopies() noexcept
+    {
+        return g_failedCopies.load();
     }
 
     std::string CopyModelProbeStatus()
