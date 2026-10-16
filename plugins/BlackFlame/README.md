@@ -469,7 +469,7 @@ start the game once to the main menu with this release (the DLL then dumps the t
   path ending in it is a file, it splits no `..` off its token). One table of cases runs in the self-test against that
   header (the double-byte cases only on a double-byte system code page). The same header's `LowerSlashes` (case and
   separators, a double-byte character kept) is the key rule of the builder's model paths (`NormalizeDataPath`;
-  `MeshDataPath` is `Normalize` under `meshes`) and of the DLL's grey map lookups, so model and texture keys follow
+  `MeshDataPath` is `Normalize` under `meshes\`) and of the DLL's grey map lookups, so model and texture keys follow
   one rule.
 - **Output**: one `TEX OK` line per copy (texture and tint) and one `GREY|FAIL|MISS` line per texture path, the first
   time it is met (a texture that failed or is missing is not tried again at another tint), and at the end
