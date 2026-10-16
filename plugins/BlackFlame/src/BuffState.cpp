@@ -6,6 +6,7 @@
 #include "GameThread.h"
 #include "HazardHook.h"
 #include "HitArt.h"
+#include "MainThreadQueue.h"
 #include "PlayerArt.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
@@ -99,9 +100,10 @@ namespace BlackFlame
                     if (g_tickPending.exchange(true)) {
                         continue;
                     }
-                    // ThreadUtils' AddTaskToGameThread returns nothing and drops the task only
-                    // without a TaskInterface: checked here so the pending flag is not left set
-                    if (!SKSE::GetTaskInterface()) {
+                    // Without the main-thread queue, QueueTask falls back to ThreadUtils' AddTaskToGameThread, which
+                    // drops the task without a TaskInterface: checked here so the pending flag is not left set (with the
+                    // queue installed the TaskInterface is not used)
+                    if (!MainQueue::Installed() && !SKSE::GetTaskInterface()) {
                         g_tickPending.store(false);
                         continue;
                     }

@@ -52,7 +52,8 @@ namespace BlackFlame::SelfTest
             Clock::time_point phaseStart{};
             int launches = 0;
             bool firstLogged = false;
-            bool redispelled = false;
+            bool redispelled = false;   // the second dispel found a live effect (the first did not hold)
+            bool redispelTried = false;
         };
         FlameState g_flames;
 
@@ -115,10 +116,11 @@ namespace BlackFlame::SelfTest
                 "projectiles) while stoked {}, after the toggle {} - one each means the stream held", spellId,
                 projectileBase ? projectileBase->GetFormID() : 0, copy ? copy->GetFormID() : 0, g_flames.launches,
                 stokedStreams.size(), afterStreams.size()));
-            SelfTestLog::Check("E2", stoked > 0 && stokedSwapped == stoked && afterOriginal > 0 && hitsStoked > 0,
-                std::format("stoked launches {} ({} with the copy); after the buff went off {} ({} with the original); hits on "
-                    "the target {} ({} while stoked, {} naming the copy as the projectile)", stoked, stokedSwapped, after,
-                    afterOriginal, hitsAll, hitsStoked, hitsCopy));
+            SelfTestLog::Check("E2", stoked > 0 && stokedSwapped == stoked && afterOriginal > 0 && hitsStoked > 0 &&
+                !g_flames.redispelled, std::format("stoked launches {} ({} with the copy); after the buff went off {} ({} with the "
+                    "original); hits on the target {} ({} while stoked, {} naming the copy as the projectile); the first dispel "
+                    "held: {}", stoked, stokedSwapped, after, afterOriginal, hitsAll, hitsStoked, hitsCopy,
+                    g_flames.redispelled ? "NO (a second one found a live effect: 'self-test dispel' log lines)" : "yes"));
         }
     }
 
@@ -174,19 +176,17 @@ namespace BlackFlame::SelfTest
         case kToggling:
             LaunchOnce(a_c);
             a_c.waitingFor = "the buff flag off after the dispel";
-            if (IsStoked() && !g_flames.redispelled && since >= kRedispelAfter) {
-                g_flames.redispelled = true;
+            if (IsStoked() && !g_flames.redispelTried && since >= kRedispelAfter) {
+                g_flames.redispelTried = true;
                 const auto state = SelfTestWorld::DescribeStokeEffects();
-                if (const int again = SelfTestWorld::DispelStoke(); again > 0) {
-                    SelfTestLog::Info("E2", std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
-                        kRedispelAfter.count(), state, again));
-                }
+                const int again = SelfTestWorld::DispelStoke();
+                g_flames.redispelled = again > 0;  // E2: judged in the final check
+                SelfTestLog::Info("E2", again > 0 ? std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
+                                                        kRedispelAfter.count(), state, again) :
+                                                    std::format("after {} ms the first dispel held ({}); the flag recompute is late",
+                                                        kRedispelAfter.count(), state));
             }
             if (!IsStoked()) {
-                if (g_flames.redispelled) {  // D3: the first dispel must hold
-                    SelfTestLog::Fail("E2", "the buff went off only after a SECOND dispel: the first did not hold (flags before and "
-                        "after in the 'self-test dispel' log lines)");
-                }
                 g_flames.afterMark = SelfTestProbe::Mark();
                 Next(a_c.phase, kAfter);
             } else if (since >= kOffWait) {

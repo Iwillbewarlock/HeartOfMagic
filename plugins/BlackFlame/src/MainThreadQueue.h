@@ -34,6 +34,9 @@ namespace BlackFlame::MainQueue
 
     [[nodiscard]] bool Installed() noexcept;
 
+    /// The trace kind of a whole drain (ThreadTrace.h): T-threads checks that no job-side hook body starts inside one (E7)
+    inline constexpr const char* kDrainKind = "main-thread drain";
+
     /// Any thread: runs a_task on the main thread at the end of the next Main::Update (or through SKSE's
     /// AddTask when the hook is not installed). a_name is a string literal (thread logs and the trace).
     void Post(const char* a_name, std::function<void()> a_task);

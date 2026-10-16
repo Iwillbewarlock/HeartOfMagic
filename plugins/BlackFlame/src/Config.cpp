@@ -202,6 +202,21 @@ namespace BlackFlame
         LogConfig();
     }
 
+    void DisableEngineWrites(const char* a_why)
+    {
+        g_config.hitArt = false;
+        g_config.projectile = false;
+        g_config.explosion = false;
+        g_config.hazard = false;
+        g_config.handArt = false;
+        g_config.boundWeapon = false;
+        g_config.light = false;
+        g_config.particleColors = false;
+        logger::warn("BlackFlame: runtime recolour layers and light writes off for this session ({}); the copies and the per-call "
+                     "swaps stay on", a_why);
+        LogConfig();
+    }
+
     const Config& GetConfig() noexcept
     {
         return g_config;

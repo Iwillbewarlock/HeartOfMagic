@@ -43,4 +43,9 @@ namespace BlackFlame
     void LoadConfig();
 
     [[nodiscard]] const Config& GetConfig() noexcept;
+
+    /// E6: SKSEPlugin_Load, when the main-thread queue could not be installed: the layers that change engine data from a
+    /// task (runtime recolours, light writes, 3D walks) are switched off for the session; the per-call swaps (copies,
+    /// hit shader, impact and hazard models) keep working. Logs a_why.
+    void DisableEngineWrites(const char* a_why);
 }

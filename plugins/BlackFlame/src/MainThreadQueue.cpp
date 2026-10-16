@@ -16,6 +16,7 @@
 #include <exception>
 #include <format>
 #include <mutex>
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -35,6 +36,7 @@ namespace BlackFlame::MainQueue
         constexpr std::uintptr_t kAeTailFromSite = 0x37;  // pdata end - site on 1.6.1170 and 1.7.104
         constexpr auto kHeartbeat = std::chrono::seconds(5);
         constexpr int kFirstFramesLogged = 3;
+        constexpr std::size_t kPendingWarn = 10000;  // E5: a queue this long means the drain is not keeping up
 
         struct Task
         {
@@ -59,6 +61,8 @@ namespace BlackFlame::MainQueue
         std::atomic<std::uint32_t> g_thread{ 0 };
         std::atomic<std::uint32_t> g_mainThreadId{ 0 };
         bool g_pausedLogged = false;  // drain thread only
+        std::vector<const char*> g_stoppedKinds;  // drain thread only (E9): kinds that threw a non-C++ exception
+        std::atomic<bool> g_pendingWarned{ false };
         std::chrono::steady_clock::time_point g_nextHeartbeat{};  // drain thread only
 
         // Inside the game's code segment (.text)
@@ -80,11 +84,13 @@ namespace BlackFlame::MainQueue
         void NoteFirstFrames(std::uint64_t a_frame, std::uint32_t a_thread)
         {
             if (a_frame == 1) {
+                g_thread.store(a_thread);
+                StampGameThread(a_thread, "the main-thread queue's first frame");
+            }
+            if (g_mainThreadId.load() == 0) {  // E5: re-read until the game has set it
                 const auto* main = RE::Main::GetSingleton();
                 const auto mainId = main ? main->threadID : 0;
                 g_mainThreadId.store(mainId);
-                g_thread.store(a_thread);
-                StampGameThread(a_thread, "the main-thread queue's first frame");
                 if (mainId != 0 && mainId != a_thread) {
                     logger::warn("BlackFlame: main-thread queue: drain thread {} is not Main::threadID {} - please report",
                         a_thread, mainId);
@@ -111,19 +117,28 @@ namespace BlackFlame::MainQueue
             }
         }
 
-        void Heartbeat(std::uint32_t a_thread)
+        void Heartbeat(std::uint32_t a_thread, std::size_t a_ran)
         {
             const auto now = std::chrono::steady_clock::now();
             if (now < g_nextHeartbeat) {
                 return;
             }
             g_nextHeartbeat = now + kHeartbeat;
-            logger::info("BlackFlame: heartbeat: frame {}, queue {}, stoked {}, paused {}, thread {}", g_frames.load(),
-                g_pendingCount.load(), IsStoked() ? "yes" : "no", g_lastPaused.load() ? "yes" : "no", a_thread);
+            logger::info("BlackFlame: heartbeat: frame {}, tasks run this frame {}, waiting {}, stoked {}, paused {}, thread {}",
+                g_frames.load(), a_ran, g_pendingCount.load(), IsStoked() ? "yes" : "no", g_lastPaused.load() ? "yes" : "no",
+                a_thread);
+        }
+
+        bool Stopped(const char* a_kind)
+        {
+            return std::ranges::find(g_stoppedKinds, a_kind) != g_stoppedKinds.end();
         }
 
         void RunTask(Task& a_task, std::uint32_t a_thread, std::uint32_t a_main)
         {
+            if (Stopped(a_task.name)) {
+                return;  // E9: this kind threw a non-C++ exception earlier: not run again this session
+            }
             const ThreadTrace::Scope trace(a_task.name);
             LogThread(a_task.name, "task");
             g_bodies.fetch_add(1);
@@ -135,7 +150,10 @@ namespace BlackFlame::MainQueue
             } catch (const std::exception& e) {
                 logger::error("BlackFlame: main-thread task '{}' threw: {}", a_task.name, e.what());
             } catch (...) {
-                logger::error("BlackFlame: main-thread task '{}' threw an unknown exception", a_task.name);
+                // E9: not a C++ exception of ours: its state may be broken, so this kind stops for the session
+                g_stoppedKinds.push_back(a_task.name);
+                logger::error("BlackFlame: main-thread task '{}' threw a non-C++ exception: tasks of this kind are not run again "
+                              "this session", a_task.name);
             }
         }
 
@@ -156,6 +174,7 @@ namespace BlackFlame::MainQueue
                 return;
             }
             const FrameEnd frameEnd;
+            const ThreadTrace::Scope drainTrace(kDrainKind);  // E7: hooks starting inside it are counted by T-threads
             const auto thread = REX::W32::GetCurrentThreadId();
             const auto frame = g_frames.fetch_add(1) + 1;
             NoteFirstFrames(frame, thread);
@@ -170,7 +189,7 @@ namespace BlackFlame::MainQueue
             for (auto& task : batch) {
                 RunTask(task, thread, main);
             }
-            Heartbeat(thread);
+            Heartbeat(thread, batch.size());
         }
 
         struct MainUpdateHook
@@ -259,6 +278,10 @@ namespace BlackFlame::MainQueue
         std::lock_guard lock(g_mutex);
         g_pending->push_back({ a_name, std::move(a_task) });
         g_pendingCount.store(g_pending->size());
+        if (g_pending->size() > kPendingWarn && !g_pendingWarned.exchange(true)) {
+            logger::warn("BlackFlame: main-thread queue: {} tasks waiting (last '{}') - the drain is not keeping up",
+                g_pending->size(), a_name);
+        }
     }
 
     Stats GetStats() noexcept

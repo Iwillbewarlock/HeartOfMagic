@@ -217,8 +217,10 @@ namespace BlackFlame::SelfTest
             // The caster's home: its planned spot at the height it stands at now (O-L1 refuted: the caster wanders hundreds
             // to thousands of units with its AI on, so its position at T2 may already be a drift point)
             const auto casterNow = caster->GetPosition();
-            a_c.casterHome = RE::NiPoint3{ a_c.casterSpawn.x, a_c.casterSpawn.y, casterNow.z };
             const float casterDrift = std::hypot(casterNow.x - a_c.casterSpawn.x, casterNow.y - a_c.casterSpawn.y);
+            // E3: its present height only while it is still near the spot; wandered off, the spawn height (it falls from there)
+            a_c.casterHome = RE::NiPoint3{ a_c.casterSpawn.x, a_c.casterSpawn.y,
+                casterDrift <= kCasterLeash ? casterNow.z : a_c.casterSpawn.z };
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
@@ -307,6 +309,7 @@ namespace BlackFlame::SelfTest
             if (r->copyBase != 0 || !GetConfig().projectile) {
                 const auto verdict = JudgeGrey(r->copyBase, r->recolored, r->stats.Recolored(), a, GetConfig().projectile);
                 const bool observed = r->inspected3D;
+                a_c.t3Judged = verdict.judged;
                 if (verdict.judged) {
                     a_c.t3Recolored = verdict.pass && observed;
                     SelfTestLog::Check("T3", verdict.pass && observed, std::format("{}{} | {}", verdict.how,
@@ -322,6 +325,7 @@ namespace BlackFlame::SelfTest
             }
             const bool ok = r->recolored && r->stats.Recolored() > 0 && a.withPalettePath >= r->stats.Recolored();
             a_c.t3Recolored = ok;
+            a_c.t3Judged = true;
             SelfTestLog::Check("T3", ok, std::format("{} effect shapes with the palette path of {} | {}", a.withPalettePath,
                 a.effectProperties, DescribeProjectile(*r)));
             SelfTestLog::Check("T3-pointer", a.withPalettePath > 0 && a.withBoth == a.withPalettePath, std::format(

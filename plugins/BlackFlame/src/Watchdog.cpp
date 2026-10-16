@@ -18,12 +18,14 @@ namespace BlackFlame::Watchdog
         constexpr auto kStallTime = std::chrono::seconds(10);
         constexpr auto kLoadingStallTime = std::chrono::seconds(120);  // a save load may hold the main thread that long
         constexpr std::size_t kLastEntries = 64;
+        constexpr auto kFirstFrameTime = std::chrono::seconds(60);  // E5: the queue is installed but never ran
 
         std::atomic<bool> g_started{ false };
         std::atomic<bool> g_stop{ false };  // set at process exit (atexit): no flush after it
         std::atomic<bool> g_loading{ false };
         std::atomic<bool> g_stallReported{ false };
         std::atomic<std::int64_t> g_stallMark{ 0 };  // the last frame end the reported stall measured from
+        std::atomic<std::int64_t> g_startedAt{ 0 };
 
         double SecondsAgo(std::int64_t a_ticks, std::int64_t a_now)
         {
@@ -80,7 +82,15 @@ namespace BlackFlame::Watchdog
                     const auto last = LastSign();
                     const auto now = ThreadTrace::Now();
                     if (last == 0) {
-                        continue;  // no frame yet
+                        // E5: installed but no frame 60 s after the watchdog started: one STALL block
+                        if (MainQueue::Installed() && !g_stallReported.load() &&
+                            std::chrono::steady_clock::duration(now - g_startedAt.load()) > kFirstFrameTime) {
+                            g_stallReported.store(true);
+                            logger::warn("BlackFlame: STALL: the main-thread queue is installed but has run no frame {} s after "
+                                         "the watchdog started", kFirstFrameTime.count());
+                            ReportStall(g_startedAt.load(), now, g_loading.load());
+                        }
+                        continue;
                     }
                     if (g_stallReported.load() && last != g_stallMark.load()) {
                         g_stallReported.store(false);
@@ -114,6 +124,7 @@ namespace BlackFlame::Watchdog
         }
         // Registered after spdlog's statics exist: runs before they are destroyed, so the loop stops flushing first
         (void)std::atexit(&StopAtExit);
+        g_startedAt.store(ThreadTrace::Now());
         std::thread(&Loop).detach();
         logger::info("BlackFlame: watchdog started (log flushed every {} s; a STALL block after {} s without a main-thread "
                      "frame, {} s while a load is under way)", kPeriod.count(), kStallTime.count(), kLoadingStallTime.count());

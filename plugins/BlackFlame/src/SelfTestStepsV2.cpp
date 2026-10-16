@@ -254,12 +254,30 @@ namespace BlackFlame::SelfTest
             missing.empty() ? std::string("all measured") : "not measured (no entry): " + missing));
         // D1: every queued body ran on the main thread, one drain at a time; hooks stay measured above
         const auto q = MainQueue::GetStats();
+        // E7: job-side hook bodies (the engine's worker threads) that started while a drain was running; loader-thread
+        // kinds (Hazard Set3D and the like) are not in the list
+        static constexpr std::array<std::string_view, 4> kJobSide{ "Launch (v2 detour)", "explosion create (v2 detour)",
+            "GetImpactData in a copy window", "Explosion::Update (copy window)" };
+        std::vector<std::pair<std::int64_t, std::int64_t>> drains;
+        for (const auto& e : entries) {
+            if (std::string_view(e.kind) == MainQueue::kDrainKind) {
+                drains.emplace_back(e.start, e.end);
+            }
+        }
+        std::size_t duringDrain = 0;
+        for (const auto& e : entries) {
+            if (e.thread == q.mainThreadId || std::ranges::find(kJobSide, std::string_view(e.kind)) == kJobSide.end()) {
+                continue;
+            }
+            duringDrain += std::ranges::any_of(drains, [&](const auto& d) { return e.start >= d.first && e.start <= d.second; }) ? 1 : 0;
+        }
         const bool ok = MainQueue::Installed() && q.bodies > 0 && q.bodiesOffMain == 0 && q.overlaps == 0 && q.fallbacks == 0 &&
-                        q.thread != 0 && q.thread == q.mainThreadId;
+                        q.thread != 0 && q.thread == q.mainThreadId && !drains.empty() && duringDrain == 0;
         SelfTestLog::Check("T-threads", ok, std::format("main-thread queue {}: {} frames ({} paused), {} task bodies, {} off "
-            "Main::threadID, {} overlapping drains, {} posts sent to SKSE AddTask; drain thread {}, Main::threadID {}",
-            MainQueue::Installed() ? "installed" : "NOT installed", q.frames, q.pausedFrames, q.bodies, q.bodiesOffMain, q.overlaps,
-            q.fallbacks, q.thread, q.mainThreadId));
+            "Main::threadID, {} overlapping drains, {} posts sent to SKSE AddTask; drain thread {}, Main::threadID {}; {} drains in "
+            "the ring, {} job-side hook bodies started on a worker thread during one", MainQueue::Installed() ? "installed" :
+            "NOT installed", q.frames, q.pausedFrames, q.bodies, q.bodiesOffMain, q.overlaps, q.fallbacks, q.thread, q.mainThreadId,
+            drains.size(), duringDrain));
         return true;
     }
 }

@@ -72,7 +72,9 @@ namespace BlackFlame::SelfTest
         bool buffWasTurnedOn = false;
         bool t3Recolored = false;
         bool t3Copy = false;  // W5: T3's Firebolt launched with the projectile copy (recolour off)
-        bool redispelled = false;  // C4: T8 dispelled a second time
+        bool redispelled = false;   // C4: T8's second dispel dispelled something (the first did not hold)
+        bool redispelTried = false; // E2: T8 tried the second dispel
+        bool t3Judged = false;      // E4: T3 judged grey or not (a copy or the recolour), not INFO
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
@@ -131,11 +133,17 @@ namespace BlackFlame::SelfTest
     void StartAim(Aim& a_aim, std::uint64_t a_mark);
     /// The hit of the last cast by TESHitEvent; after its flight and a margin without one, the player casts again,
     /// up to kMaxAimCasts casts, then a FAIL "aim: no hit after 3 casts" with the geometry
-    [[nodiscard]] AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast = true);
+    /// a_before (E1): when not 0, only hits recorded before that mark count (T5-second's cast must not fill T5's gate)
+    [[nodiscard]] AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast = true,
+        std::uint64_t a_before = 0);
+    /// Every TESHitEvent on the target since a_mark (cause, source, projectile)
+    [[nodiscard]] std::string HitsListed(const Ctx& a_c, std::uint64_t a_mark);
     /// The player, the target, its 3D bound and their distance, for FAIL lines
     [[nodiscard]] std::string AimGeometry(const Ctx& a_c);
     /// The caster moved back to where it stood in T2 when it wandered off (it keeps its AI)
     void BringCasterHome(Ctx& a_c, const char* a_id);
+
+    inline constexpr float kCasterLeash = 200.0f;  // the caster moved further than this from home: put back (E3: and T2)
 
     // D3: one gap for the self-test's clocks and E3's ready time: a longer gap between ticks is paused time
     inline constexpr auto kMaxTickGap = std::chrono::milliseconds(500);

@@ -32,7 +32,8 @@ namespace BlackFlame::Patch
 
     bool HasIds(std::initializer_list<std::uint64_t> a_ids, const char* a_what)
     {
-        // Built once (kDataLoaded thread; every caller runs there): the sorted ids of this game's database
+        // Built once (a function-local static: thread-safe initialisation; callers are SKSEPlugin_Load for the main-thread
+        // queue and the kDataLoaded thread for the swaps): the sorted ids of this game's database
         static const std::vector<std::uint64_t> ids = [] {
             const REL::Offset2ID table;
             std::vector<std::uint64_t> sorted;

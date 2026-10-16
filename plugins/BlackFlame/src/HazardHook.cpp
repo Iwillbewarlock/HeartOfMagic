@@ -42,6 +42,7 @@ namespace BlackFlame
 
         TrackedMutex g_mutex;
         std::atomic<std::size_t> g_pendingCount{ 0 };
+        std::atomic<bool> g_tickQueued{ false };  // E10: a TickHazards task is waiting in the queue
         std::atomic<int> g_diagnostics{ 0 };
         std::atomic<int> g_threadLogs{ 0 };
         std::atomic<bool> g_failureReported{ false };
@@ -123,7 +124,12 @@ namespace BlackFlame
                 g_pendingCount.store(pending.size());
             }
             LogHookThread(g_threadLogs, "Hazard Set3D/Initialize");
-            QueueTask("BlackFlameHazard", &TickHazards);
+            if (!g_tickQueued.exchange(true)) {  // E10: one TickHazards in the queue at a time
+                QueueTask("BlackFlameHazard", []() {
+                    g_tickQueued.store(false);
+                    TickHazards();
+                });
+            }
         }
 
         // Back into the queue on a later Set3D/Initialize (an early call may have had placeholder 3D)

@@ -197,6 +197,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 
     BlackFlame::LoadConfig();
     BlackFlame::MainQueue::Install();          // D1: our per-frame main-thread drain (MainThreadQueue.h)
+    if (!BlackFlame::MainQueue::Installed()) {
+        // E6: without the queue our tasks run on SKSE's job-thread drain: nothing there may change engine data
+        BlackFlame::DisableEngineWrites("the main-thread queue is not installed");
+    }
     BlackFlame::StampGameThreadFallback();     // without the queue an SKSE task stamps the game thread (GameThread.h)
 
     auto* messaging = SKSE::GetMessagingInterface();

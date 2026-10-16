@@ -542,3 +542,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   구조체를 만들어 다를 때만 한 번에 쓴다(Refill). T8-cast는 "T3 grey (copy/recolour)"이고 버프 없는 발사는 늘 사본이 아니어야 한다.
   기한 메시지에 시작 지연을 넣고, 틱 공백 0.5초는 SelfTestCtx.h의 kMaxTickGap 하나로. SelfTestStepsLate.cpp는 574줄이라 나누지 않았다.
 - D4 다음 실행 설정(복사본만, 재색칠 끔)은 메인 세션이 사용자와 정한다: 코드는 바꾸지 않았다.
+
+### v2 수정 E (배포 전 마지막, fixlist-v2e)
+
+- E1 T5: 셰이더를 본 뒤에는 다시 쏘지 않고 T5-second 발사 이전 맞힘만 센다. 맞힘 기록이 없어도 셰이더가 증거로 판정하고,
+  판정 줄과 시간 초과 줄에 목표에 온 모든 TESHitEvent를 적는다. E2 T8·E2: 두 번째 해제가 살아 있는 효과를 찾았을 때만 "첫 해제
+  실패"(0이면 INFO: 첫 해제는 남았고 플래그 재계산이 늦음). E2는 마지막 Check 하나에 합쳤다(같은 단계에 FAIL과 PASS가 함께 안 나옴).
+  E3 시전자 집 높이: 200 안이면 T2 때 높이, 벗어났으면 생성 높이. E4 T8-cast: T3가 판정되지 않았으면 그 부분은 "not judged"이고
+  버프 없는 발사는 그대로 판정. E5 큐: 설치됐는데 60초 동안 프레임이 없으면 STALL, 대기 10,000 넘으면 한 번 경고, 하트비트는 그
+  프레임에 돈 작업 수, Main::threadID는 0인 동안 다시 읽는다. E6 큐가 없으면 재색칠·빛 쓰기 끔. E7 드레인을 추적하고 작업 스레드의
+  훅 몸체(Launch, 폭발 생성, GetImpactData, Explosion::Update 사본 창)가 드레인 중에 시작하면 T-threads FAIL. E8 열린 몸체 칸에
+  seqlock. E9 C++ 예외가 아닌 것을 던진 작업 종류는 그 세션에서 다시 돌리지 않는다. E10 E1a 카운터를 다시 쏘기 전에 찍고,
+  TickHazards는 큐에 하나만. E11 README T-threads 줄, cdbX64(WinDbg 스토어 별칭, SDK는 cdb.exe), 주석 정리.

@@ -41,6 +41,7 @@ namespace BlackFlame::ThreadTrace
             std::atomic<std::uint32_t> thread{ 0 };
             std::atomic<const char*> kind{ nullptr };
             std::atomic<std::int64_t> start{ 0 };
+            std::atomic<std::uint64_t> seq{ 0 };  // E8: odd while the slot is being written
         };
 
         std::array<OpenSlot, kOpenSlots>& Open()
@@ -82,9 +83,11 @@ namespace BlackFlame::ThreadTrace
         for (std::size_t i = 0; i < kOpenSlots; ++i) {
             std::uint32_t free = 0;
             if (open[i].thread.compare_exchange_strong(free, thread)) {
-                // D2: start first, kind last (release): a reader that sees the kind sees this body's start and thread
+                // D2/E8: a seqlock - odd while written; a reader keeps a slot only when the even sequence did not move
+                open[i].seq.fetch_add(1, std::memory_order_acq_rel);
                 open[i].start.store(m_start, std::memory_order_relaxed);
-                open[i].kind.store(m_kind, std::memory_order_release);
+                open[i].kind.store(m_kind, std::memory_order_relaxed);
+                open[i].seq.fetch_add(1, std::memory_order_release);
                 m_slot = static_cast<int>(i);
                 break;
             }
@@ -95,8 +98,10 @@ namespace BlackFlame::ThreadTrace
     {
         if (m_slot >= 0) {
             auto& slot = Open()[static_cast<std::size_t>(m_slot)];
-            slot.kind.store(nullptr);
-            slot.thread.store(0);
+            slot.seq.fetch_add(1, std::memory_order_acq_rel);
+            slot.kind.store(nullptr, std::memory_order_relaxed);
+            slot.seq.fetch_add(1, std::memory_order_release);
+            slot.thread.store(0);  // free for the next claim only after the slot is cleared
         }
         Record(m_kind, REX::W32::GetCurrentThreadId(), m_start, Now());
     }
@@ -105,14 +110,16 @@ namespace BlackFlame::ThreadTrace
     {
         std::vector<OpenBody> out;
         for (auto& slot : Open()) {
-            // kind -> start -> thread, then the kind again: a slot freed or re-claimed while read is skipped
-            const auto* kind = slot.kind.load(std::memory_order_acquire);
-            if (!kind) {
+            // E8: the sequence before and after; odd or moved = written meanwhile, skipped (no ABA mix of two bodies)
+            const auto before = slot.seq.load(std::memory_order_acquire);
+            if ((before & 1) != 0) {
                 continue;
             }
+            const auto* kind = slot.kind.load(std::memory_order_relaxed);
             const auto start = slot.start.load(std::memory_order_relaxed);
             const auto thread = slot.thread.load(std::memory_order_relaxed);
-            if (thread != 0 && slot.kind.load(std::memory_order_acquire) == kind) {
+            std::atomic_thread_fence(std::memory_order_acquire);
+            if (kind && thread != 0 && slot.seq.load(std::memory_order_relaxed) == before) {
                 out.push_back({ kind, thread, start });
             }
         }

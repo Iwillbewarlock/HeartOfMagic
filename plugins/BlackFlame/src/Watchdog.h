@@ -23,7 +23,7 @@ namespace BlackFlame::Watchdog
     /// kDataLoaded, once
     void Start();
 
-    /// kPreLoadGame: a load is under way (no stall is reported until it ends)
+    /// kPreLoadGame: a load is under way (the stall limit is 120 s instead of 10 s until it ends)
     void NoteLoadStarted() noexcept;
 
     /// kPostLoadGame / kNewGame: the load ended

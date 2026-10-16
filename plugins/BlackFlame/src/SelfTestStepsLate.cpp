@@ -198,16 +198,19 @@ namespace BlackFlame::SelfTest
             a_c.engineLiveAfterGrey = true;
         }
         // C3/D3: judged only after a hit confirmed by TESHitEvent (up to three casts, then FAIL "aim: no hit after 3
-        // casts"); no recast once our shader is seen
-        const auto aim = ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5", !a_c.greySeen);
+        // casts"). E1: once our shader is seen, no recast, only hits from before T5-second's cast count, and the shader
+        // itself is the evidence of the hit (the line lists every hit event on the target)
+        const auto aim = a_c.greySeen ? ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5", false, a_c.secondMark) :
+                                        ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5");
         if (aim == AimResult::kGaveUp) {
             return true;
         }
-        if (aim != AimResult::kHit) {
+        if (aim != AimResult::kHit && !a_c.greySeen) {
+            a_c.waitingFor += " | hits on the target: " + HitsListed(a_c, a_c.aim.firstMark);
             return false;
         }
-        a_c.waitingFor = std::format("our shader alight on the target, then {} s of watching; shaders seen: {}; swaps: {}",
-            kBurnWatch.count(), DescribeShaders(shaders), DescribeBurns(a_c.t3Mark));
+        a_c.waitingFor = std::format("our shader alight on the target, then {} s of watching; shaders seen: {}; swaps: {}; hits on the "
+            "target: {}", kBurnWatch.count(), DescribeShaders(shaders), DescribeBurns(a_c.t3Mark), HitsListed(a_c, a_c.aim.firstMark));
         if (!a_c.greySeen || Clock::now() - *a_c.greySeen < kBurnWatch) {
             return false;
         }
@@ -221,7 +224,8 @@ namespace BlackFlame::SelfTest
             "player's hit: {}; Firebolt's engine hit shaders known: {}; one of them unfinished at {:.1f} s or older in "
             "the {:.2f} s checked: {}; engine shaders now: {}; swaps: {}", swapped ? "yes" : "NO", engines.size(),
             kEngineAgeMin, window, a_c.engineLiveAfterGrey ? "YES" : "no", DescribeEngineShaders(shaders, engines),
-            DescribeBurns(a_c.t3Mark)));
+            DescribeBurns(a_c.t3Mark)) + std::format("; hit event before T5-second's cast: {}; hits on the target: {}",
+            a_c.aim.hit ? "yes" : "none - our shader on the target is the evidence", HitsListed(a_c, a_c.aim.firstMark)));
         return true;
     }
 
@@ -486,16 +490,20 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Info("T8", std::format("dispelled {} Stoke effect(s) with MagicTarget::DispelEffect", dispelled));
             a_c.waitingFor = "IsStoked() false after dispelling the Stoke effect";
             a_c.redispelled = false;
+            a_c.redispelTried = false;
             return false;
         }
-        if (IsStoked() && !a_c.redispelled && Clock::now() - a_c.stepStart >= kRedispelAfter) {
-            // C4: a dispel that did not hold leaves a live effect; once more, inside the same 1 s limit
-            a_c.redispelled = true;
+        if (IsStoked() && !a_c.redispelTried && Clock::now() - a_c.stepStart >= kRedispelAfter) {
+            // C4: a dispel that did not hold leaves a live effect; once more, inside the same 1 s limit. E2: it counts as
+            // "did not hold" only when the second dispel found a live effect
+            a_c.redispelTried = true;
             const auto state = SelfTestWorld::DescribeStokeEffects();
-            if (const int again = SelfTestWorld::DispelStoke(); again > 0) {
-                SelfTestLog::Info("T8", std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
-                    kRedispelAfter.count(), state, again));
-            }
+            const int again = SelfTestWorld::DispelStoke();
+            a_c.redispelled = again > 0;
+            SelfTestLog::Info("T8", again > 0 ? std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
+                                                    kRedispelAfter.count(), state, again) :
+                                                std::format("after {} ms the first dispel held (no live Stoke effect: {}); the "
+                                                    "flag recompute is late", kRedispelAfter.count(), state));
         }
         if (!IsStoked()) {
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.stepStart);
@@ -527,19 +535,13 @@ namespace BlackFlame::SelfTest
         if (!r) {
             return false;
         }
-        // V9/W5: with the recolour off, the unbuffed launch must keep the original base - judged only when T3's buffed
-        // launch took the copy (else there was no difference to show: INFO)
-        if (!GetConfig().projectile && !a_c.t3Copy) {
-            SelfTestLog::Info("T8-cast", "not judged: recolour off and T3's Firebolt was not launched with a copy | " +
-                DescribeProjectile(*r));
-            return true;
-        }
-        // D3: the unbuffed launch never takes a copy, whatever the recolour setting; T3 must have been judged grey
+        // D3: the unbuffed launch never takes a copy, whatever the recolour setting. E4: T3's part counts only when T3 was
+        // judged; otherwise it is "not judged" and the unbuffed launch is still judged
         const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 && r->copyBase == 0 &&
-                        a_c.t3Recolored;
+                        (!a_c.t3Judged || a_c.t3Recolored);
         SelfTestLog::Check("T8-cast", ok, std::format("T3 grey (copy/recolour): {} | unbuffed launch: copy {:08X}, {} effect "
-            "shapes, {} grey | {}", a_c.t3Recolored ? "yes" : "NO", r->copyBase, r->after.effectProperties, r->after.withGrey,
-            DescribeProjectile(*r)));
+            "shapes, {} grey | {}", !a_c.t3Judged ? "not judged" : (a_c.t3Recolored ? "yes" : "NO"), r->copyBase,
+            r->after.effectProperties, r->after.withGrey, DescribeProjectile(*r)));
         return true;
     }
 

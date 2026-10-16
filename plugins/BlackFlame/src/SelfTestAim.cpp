@@ -23,7 +23,6 @@ namespace BlackFlame::SelfTest
     {
         constexpr float kHitMarginSeconds = 0.8f;        // after the flight, for the hit event to arrive
         constexpr float kUnknownFlightSeconds = 1.0f;    // when the projectile's speed is unknown
-        constexpr float kCasterLeash = 200.0f;           // the caster moved further than this from home: put back
 
         RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
 
@@ -41,7 +40,7 @@ namespace BlackFlame::SelfTest
                    (copy && a_hit.projectile == copy->GetFormID());
         }
 
-        int HitsOnTarget(const Ctx& a_c, std::uint64_t a_mark, const RE::SpellItem* a_spell)
+        int HitsOnTarget(const Ctx& a_c, std::uint64_t a_mark, const RE::SpellItem* a_spell, std::uint64_t a_before)
         {
             const auto* player = Player();
             const auto* target = RefOf(a_c.dummy);
@@ -50,24 +49,11 @@ namespace BlackFlame::SelfTest
             }
             int hits = 0;
             for (const auto& hit : SelfTestProbe::HitsSince(a_mark)) {
-                hits += IsOurHit(hit, player->GetFormID(), target->GetFormID(), a_spell) ? 1 : 0;
+                hits += (a_before == 0 || hit.seq < a_before) && IsOurHit(hit, player->GetFormID(), target->GetFormID(), a_spell) ? 1 : 0;
             }
             return hits;
         }
 
-        // Every TESHitEvent on the target since a_mark, for the aim FAIL line
-        std::string HitsListed(const Ctx& a_c, std::uint64_t a_mark)
-        {
-            const auto* target = RefOf(a_c.dummy);
-            std::string out;
-            for (const auto& hit : SelfTestProbe::HitsSince(a_mark)) {
-                if (target && hit.target == target->GetFormID()) {
-                    out += std::format("{}cause {:08X} source {:08X} projectile {:08X}", out.empty() ? "" : "; ", hit.cause,
-                        hit.source, hit.projectile);
-                }
-            }
-            return out.empty() ? std::string("none") : out;
-        }
 
         // The flight from the player to the target at the spell's projectile speed, plus the margin
         Clock::duration HitWait(const Ctx& a_c, const RE::SpellItem* a_spell)
@@ -87,6 +73,19 @@ namespace BlackFlame::SelfTest
         {
             return std::format("({:.0f}, {:.0f}, {:.0f})", a_p.x, a_p.y, a_p.z);
         }
+    }
+
+    std::string HitsListed(const Ctx& a_c, std::uint64_t a_mark)
+    {
+        const auto* target = RefOf(a_c.dummy);
+        std::string out;
+        for (const auto& hit : SelfTestProbe::HitsSince(a_mark)) {
+            if (target && hit.target == target->GetFormID()) {
+                out += std::format("{}cause {:08X} source {:08X} projectile {:08X}", out.empty() ? "" : "; ", hit.cause,
+                    hit.source, hit.projectile);
+            }
+        }
+        return out.empty() ? std::string("none") : out;
     }
 
     void StartAim(Aim& a_aim, std::uint64_t a_mark)
@@ -113,7 +112,7 @@ namespace BlackFlame::SelfTest
             player->GetPosition().GetDistance(target->GetPosition()), target->GetHeight(), a_c.targetLastZ);
     }
 
-    AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast)
+    AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast, std::uint64_t a_before)
     {
         if (a_aim.hit) {
             return AimResult::kHit;
@@ -121,7 +120,7 @@ namespace BlackFlame::SelfTest
         if (a_aim.gaveUp) {
             return AimResult::kGaveUp;
         }
-        if (HitsOnTarget(a_c, a_aim.mark, a_spell) > 0) {
+        if (HitsOnTarget(a_c, a_aim.mark, a_spell, a_before) > 0) {
             a_aim.hit = true;
             a_aim.hitAt = Clock::now();
             SelfTestLog::Info(a_id, std::format("aim: hit confirmed by TESHitEvent (the player, {:08X}, the target) after {} "
