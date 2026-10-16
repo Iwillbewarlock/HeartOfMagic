@@ -1,4 +1,5 @@
 #include "HazardHook.h"
+#include "MainThreadQueue.h"
 #include "TrackedMutex.h"
 
 #include "Attribution.h"
@@ -124,6 +125,10 @@ namespace BlackFlame
                 g_pendingCount.store(pending.size());
             }
             LogHookThread(g_threadLogs, "Hazard Set3D/Initialize");
+            // F3: without the queue, AddTask drops the task when there is no TaskInterface - the flag must not stick
+            if (!MainQueue::Installed() && !SKSE::GetTaskInterface()) {
+                return;
+            }
             if (!g_tickQueued.exchange(true)) {  // E10: one TickHazards in the queue at a time
                 QueueTask("BlackFlameHazard", []() {
                     g_tickQueued.store(false);

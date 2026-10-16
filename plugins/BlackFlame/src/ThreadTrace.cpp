@@ -35,9 +35,11 @@ namespace BlackFlame::ThreadTrace
         constexpr std::size_t kMaxThreadsListed = 8;
         constexpr std::size_t kOpenSlots = 128;
 
-        // C6c: bodies started and not ended; a slot is free while its thread is 0
+        // C6c: bodies started and not ended; a slot is free while claimed is false (F5: the claim is separate from the
+        // published fields, which are written only inside the odd sequence)
         struct OpenSlot
         {
+            std::atomic<bool> claimed{ false };
             std::atomic<std::uint32_t> thread{ 0 };
             std::atomic<const char*> kind{ nullptr };
             std::atomic<std::int64_t> start{ 0 };
@@ -81,10 +83,11 @@ namespace BlackFlame::ThreadTrace
         Record(m_kind, thread, m_start, 0);  // the START entry
         auto& open = Open();
         for (std::size_t i = 0; i < kOpenSlots; ++i) {
-            std::uint32_t free = 0;
-            if (open[i].thread.compare_exchange_strong(free, thread)) {
-                // D2/E8: a seqlock - odd while written; a reader keeps a slot only when the even sequence did not move
+            bool free = false;
+            if (open[i].claimed.compare_exchange_strong(free, true)) {
+                // D2/E8/F5: a seqlock - odd while written; a reader keeps a slot only when the even sequence did not move
                 open[i].seq.fetch_add(1, std::memory_order_acq_rel);
+                open[i].thread.store(thread, std::memory_order_relaxed);
                 open[i].start.store(m_start, std::memory_order_relaxed);
                 open[i].kind.store(m_kind, std::memory_order_relaxed);
                 open[i].seq.fetch_add(1, std::memory_order_release);
@@ -100,8 +103,10 @@ namespace BlackFlame::ThreadTrace
             auto& slot = Open()[static_cast<std::size_t>(m_slot)];
             slot.seq.fetch_add(1, std::memory_order_acq_rel);
             slot.kind.store(nullptr, std::memory_order_relaxed);
+            slot.thread.store(0, std::memory_order_relaxed);
+            slot.start.store(0, std::memory_order_relaxed);
             slot.seq.fetch_add(1, std::memory_order_release);
-            slot.thread.store(0);  // free for the next claim only after the slot is cleared
+            slot.claimed.store(false, std::memory_order_release);  // free for the next claim only after the slot is cleared
         }
         Record(m_kind, REX::W32::GetCurrentThreadId(), m_start, Now());
     }
@@ -119,7 +124,7 @@ namespace BlackFlame::ThreadTrace
             const auto start = slot.start.load(std::memory_order_relaxed);
             const auto thread = slot.thread.load(std::memory_order_relaxed);
             std::atomic_thread_fence(std::memory_order_acquire);
-            if (kind && thread != 0 && slot.seq.load(std::memory_order_relaxed) == before) {
+            if (kind && thread != 0 && slot.seq.load(std::memory_order_acquire) == before) {
                 out.push_back({ kind, thread, start });
             }
         }

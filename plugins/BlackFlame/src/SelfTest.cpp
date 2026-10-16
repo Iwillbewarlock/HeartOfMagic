@@ -1,6 +1,7 @@
 #include "SelfTest.h"
 
 #include "Config.h"
+#include "MainThreadQueue.h"
 #include "SelfTestCtx.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
@@ -247,6 +248,12 @@ namespace BlackFlame::SelfTest
             return;
         }
         if (!GetConfig().selfTest || g_ran || g_armed) {
+            return;
+        }
+        if (!MainQueue::Installed()) {
+            // F2: its spawns, casts, moves and dispels change engine data; without the queue they would run on job threads
+            logger::warn("BlackFlame: self-test not armed: the main-thread queue is not installed");
+            g_ran = true;
             return;
         }
         g_armed = true;

@@ -554,3 +554,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   훅 몸체(Launch, 폭발 생성, GetImpactData, Explosion::Update 사본 창)가 드레인 중에 시작하면 T-threads FAIL. E8 열린 몸체 칸에
   seqlock. E9 C++ 예외가 아닌 것을 던진 작업 종류는 그 세션에서 다시 돌리지 않는다. E10 E1a 카운터를 다시 쏘기 전에 찍고,
   TickHazards는 큐에 하나만. E11 README T-threads 줄, cdbX64(WinDbg 스토어 별칭, SDK는 cdb.exe), 주석 정리.
+
+### v2 수정 F (Gemini 2차 리뷰)
+
+- F1 T5는 T5-second 발사가 있으면 언제나 그 발사 이전 맞힘만 센다(T5-second는 셰이더를 처음 본 순간에 쏘므로 그 전에는 경계가 없다).
+- F2 큐가 없으면 자가 시험을 무장하지 않는다(로그). 틱의 손·빛·위험물 작업은 E6에서 끈 설정이 이미 막는다(CasterArt·PlayerArt·
+  HitArt·TickExplosionLights·TickHazards·ScriptTags가 handArt/boundWeapon/hitArt/light/hazard/explosion을 확인). hitArt 주석: 아트는
+  바꾸지 않고 나중에 3D만 재색칠.
+- F3 멈춘 종류는 이름 내용으로 비교, Post에서도 거른다(g_mutex 아래). 대기 플래그 해제 요구는 반박: g_tickPending·g_recomputePending·
+  g_tickQueued는 각 작업 몸체의 첫 문장에서 풀리므로 예외로 남지 않고, 멈춘 종류는 다시 돌지 않으니 플래그를 풀어도 버려질 작업만 쌓인다.
+  대체 경로(AddTask)에서 TaskInterface가 없으면 위험물 훅·버프 재계산은 플래그를 세우기 전에 그만둔다.
+- F4 T-threads 겹침은 구간 교차(시작이 드레인 끝 이전이고 끝이 드레인 시작 이후).
+- F5 열린 몸체 칸: 점유 플래그를 따로 두고 thread·start·kind는 홀수 구간 안에서만 쓴다, 해제 때 start도 0, 읽기의 seq 두 번 모두 acquire.

@@ -17,6 +17,7 @@
 #include <format>
 #include <mutex>
 #include <algorithm>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -61,7 +62,7 @@ namespace BlackFlame::MainQueue
         std::atomic<std::uint32_t> g_thread{ 0 };
         std::atomic<std::uint32_t> g_mainThreadId{ 0 };
         bool g_pausedLogged = false;  // drain thread only
-        std::vector<const char*> g_stoppedKinds;  // drain thread only (E9): kinds that threw a non-C++ exception
+        std::vector<std::string_view> g_stoppedKinds;  // under g_mutex (E9/F3): kinds that threw a non-C++ exception
         std::atomic<bool> g_pendingWarned{ false };
         std::chrono::steady_clock::time_point g_nextHeartbeat{};  // drain thread only
 
@@ -129,9 +130,16 @@ namespace BlackFlame::MainQueue
                 a_thread);
         }
 
-        bool Stopped(const char* a_kind)
+        // Caller holds g_mutex; compared by content (F3: the same name from two translation units may be two pointers)
+        bool StoppedLocked(std::string_view a_kind)
         {
             return std::ranges::find(g_stoppedKinds, a_kind) != g_stoppedKinds.end();
+        }
+
+        bool Stopped(std::string_view a_kind)
+        {
+            std::lock_guard lock(g_mutex);
+            return StoppedLocked(a_kind);
         }
 
         void RunTask(Task& a_task, std::uint32_t a_thread, std::uint32_t a_main)
@@ -151,7 +159,10 @@ namespace BlackFlame::MainQueue
                 logger::error("BlackFlame: main-thread task '{}' threw: {}", a_task.name, e.what());
             } catch (...) {
                 // E9: not a C++ exception of ours: its state may be broken, so this kind stops for the session
-                g_stoppedKinds.push_back(a_task.name);
+                {
+                    std::lock_guard lock(g_mutex);
+                    g_stoppedKinds.emplace_back(a_task.name);
+                }
                 logger::error("BlackFlame: main-thread task '{}' threw a non-C++ exception: tasks of this kind are not run again "
                               "this session", a_task.name);
             }
@@ -276,6 +287,9 @@ namespace BlackFlame::MainQueue
             return;
         }
         std::lock_guard lock(g_mutex);
+        if (StoppedLocked(a_name)) {
+            return;  // F3: a stopped kind is not queued either
+        }
         g_pending->push_back({ a_name, std::move(a_task) });
         g_pendingCount.store(g_pending->size());
         if (g_pending->size() > kPendingWarn && !g_pendingWarned.exchange(true)) {

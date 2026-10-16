@@ -200,8 +200,9 @@ namespace BlackFlame::SelfTest
         // C3/D3: judged only after a hit confirmed by TESHitEvent (up to three casts, then FAIL "aim: no hit after 3
         // casts"). E1: once our shader is seen, no recast, only hits from before T5-second's cast count, and the shader
         // itself is the evidence of the hit (the line lists every hit event on the target)
-        const auto aim = a_c.greySeen ? ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5", false, a_c.secondMark) :
-                                        ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5");
+        // F1: the bound applies whenever T5-second's cast exists (it is made the moment our shader is first seen)
+        const auto aim = ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5", !a_c.greySeen,
+            a_c.secondAttempted ? a_c.secondMark : 0);
         if (aim == AimResult::kGaveUp) {
             return true;
         }

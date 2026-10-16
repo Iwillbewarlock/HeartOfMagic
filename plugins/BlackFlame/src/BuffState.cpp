@@ -146,7 +146,7 @@ namespace BlackFlame
         if (g_recomputePending.exchange(true)) {
             return;  // one already queued: it reads the effects as they are when it runs
         }
-        if (!SKSE::GetTaskInterface()) {
+        if (!MainQueue::Installed() && !SKSE::GetTaskInterface()) {
             g_recomputePending.store(false);  // the task would be dropped
             return;
         }

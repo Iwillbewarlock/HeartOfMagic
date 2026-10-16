@@ -59,7 +59,7 @@ namespace BlackFlame
             kNotFire,        // not a fire effect of a fire spell (IsBurnable)
             kNoBurnShader,
             kAlreadyOurs,
-            kConfigOff       // burnShader / hitArt false
+            kConfigOff       // burnShader false (shader slot) / hitArt false (art slot: no later recolour)
         };
 
         const char* OutcomeText(Outcome a_outcome)
@@ -358,7 +358,8 @@ namespace BlackFlame
     void InstallHitEffectHooks()
     {
         // Both slots are hooked whatever the config says (S3: the diagnostics tell whether the engine asks, with
-        // what, and why a call was kept); burnShader and hitArt decide only whether a call is swapped
+        // what, and why a call was kept); burnShader decides whether the shader call is swapped, hitArt only whether the
+        // returned art's 3D is recoloured later (the art call always returns the engine's art)
         const auto& config = GetConfig();
         REL::Relocation<std::uintptr_t> vtbl{ Controller::VTABLE[0] };
         HitEffectShaderHook::func = vtbl.write_vfunc(kHitEffectShaderIndex, HitEffectShaderHook::thunk);

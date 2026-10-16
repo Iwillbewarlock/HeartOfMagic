@@ -13,7 +13,8 @@ namespace BlackFlame
     struct Config
     {
         bool burnShader = true;   // layer 1: the hit shader of the player's fire effects swapped for ours
-        bool hitArt = false;      // layer 1: runtime recolour of the hit art (v2: off by default, retired with the copies)
+        bool hitArt = false;      // layer 1: runtime recolour of the hit art's 3D on a later tick (the art itself is never
+                                  // swapped; v2: off by default, retired with the copies; off without the main-thread queue)
         bool projectile = false;  // layer 2: runtime recolour of the projectile's 3D (v2: off by default)
         bool explosion = false;   // layer 3: runtime recolour of the explosion's 3D (v2: off by default)
         bool hazard = false;      // layer 3: runtime recolour of the player's fire hazards' non-shared geometry (v2: off)

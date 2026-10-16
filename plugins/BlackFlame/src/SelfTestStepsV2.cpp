@@ -254,7 +254,7 @@ namespace BlackFlame::SelfTest
             missing.empty() ? std::string("all measured") : "not measured (no entry): " + missing));
         // D1: every queued body ran on the main thread, one drain at a time; hooks stay measured above
         const auto q = MainQueue::GetStats();
-        // E7: job-side hook bodies (the engine's worker threads) that started while a drain was running; loader-thread
+        // E7/F4: job-side hook bodies (the engine's worker threads) that overlapped a drain; loader-thread
         // kinds (Hazard Set3D and the like) are not in the list
         static constexpr std::array<std::string_view, 4> kJobSide{ "Launch (v2 detour)", "explosion create (v2 detour)",
             "GetImpactData in a copy window", "Explosion::Update (copy window)" };
@@ -269,7 +269,8 @@ namespace BlackFlame::SelfTest
             if (e.thread == q.mainThreadId || std::ranges::find(kJobSide, std::string_view(e.kind)) == kJobSide.end()) {
                 continue;
             }
-            duringDrain += std::ranges::any_of(drains, [&](const auto& d) { return e.start >= d.first && e.start <= d.second; }) ? 1 : 0;
+            // F4: any overlap of the hook body with a drain, not only a start inside it
+            duringDrain += std::ranges::any_of(drains, [&](const auto& d) { return e.start <= d.second && e.end >= d.first; }) ? 1 : 0;
         }
         const bool ok = MainQueue::Installed() && q.bodies > 0 && q.bodiesOffMain == 0 && q.overlaps == 0 && q.fallbacks == 0 &&
                         q.thread != 0 && q.thread == q.mainThreadId && !drains.empty() && duringDrain == 0;
