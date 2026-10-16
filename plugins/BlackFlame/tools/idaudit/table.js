@@ -11,8 +11,8 @@ var bins = [['1.5.97', 'version-1-5-97-0.bin', 'se'], ['1.6.353', 'versionlib-1-
 var dbs = bins.map(function (b) { return { name: b[0], kind: b[2], db: load(path.join(dir, b[1])) }; });
 var own = [
   ['Projectile::Launch (copy swap detour)', 42928, 44108],
-  ['explosion creation (copy swap detour)', 42657, 43829],
-  ['hazard creation (C4 detour)', 42786, 43954],
+  ['explosion creation (copy swap detour; SE id an unverified match, not used on SE)', 42657, 43829],
+  ['hazard creation (C4 detour; SE id an unverified match, not used on SE)', 42786, 43954],
   ['BGSImpactDataSet::GetImpactData (callee)', 20408, 20860],
   ['Projectile::SpawnCollisionEffects (GetImpactData site, impact window)', 43022, 44213],
   ['explosion impact function (GetImpactData site)', 42679, 43851],
@@ -20,9 +20,9 @@ var own = [
   ['Projectile::HandleHits caller (impact window site)', 43014, 44205],
   ['ConeProjectile::UpdateImpl (impact window site)', 42638, 43806],
   ['Main::Update (main-thread queue call site)', 35565, 36564],
-  ['ActorMagicCaster::SetCastingArt (C4 callee)', 33369, 34150],
-  ['SetCastingArt caller (C4 site)', 37830, 38784],
-  ['ActiveEffect spawn-hazard (R-H)', 33580, 34360],
+  ['ActorMagicCaster::SetCastingArt (C4 callee; SE id unverified, not used on SE)', 33369, 34150],
+  ['SetCastingArt caller (C4 site; SE id unverified, not used on SE)', 37830, 38784],
+  ['SpawnHazardEffect start, the spawn window (fix F2; no SE id)', null, 36885],
   ['VTABLE_ActorMagicCaster[0]', 257613, 205828],
   ['VTABLE_Explosion[0]', 263870, 209940],
   ['VTABLE_Hazard[0]', 263922, 209971],
@@ -41,14 +41,18 @@ var lib = require('./reached.json').filter(function (r) { return r[1] !== 46022;
   ['BSResourceNiBinaryStream dtor', 69638, 71016]
 ]);
 function row(r, group) {
-  var cells = dbs.map(function (d) { return d.db.map.has(BigInt(d.kind === 'se' ? r[1] : r[2])) ? 'yes' : 'MISSING'; });
+  var cells = dbs.map(function (d) {
+    var id = d.kind === 'se' ? r[1] : r[2];
+    if (id === null) return '-';  // no id for this runtime: the device is not installed there
+    return d.db.map.has(BigInt(id)) ? 'yes' : 'MISSING';
+  });
   return { name: r[0], se: r[1], ae: r[2], group: group, cells: cells };
 }
 var rows = own.map(function (r) { return row(r, 'ours'); }).concat(lib.map(function (r) { return row(r, 'CommonLib'); }));
 if (md) {
   console.log('| What | SE id | AE id | ' + dbs.map(function (d) { return d.name; }).join(' | ') + ' |');
   console.log('|---|---|---|' + dbs.map(function () { return '---'; }).join('|') + '|');
-  rows.forEach(function (r) { console.log('| ' + r.name + (r.group === 'ours' ? '' : ' (CommonLib)') + ' | ' + r.se + ' | ' + r.ae + ' | ' + r.cells.join(' | ') + ' |'); });
+  rows.forEach(function (r) { console.log('| ' + r.name + (r.group === 'ours' ? '' : ' (CommonLib)') + ' | ' + (r.se === null ? '-' : r.se) + ' | ' + r.ae + ' | ' + r.cells.join(' | ') + ' |'); });
 } else {
   rows.forEach(function (r) { console.log([r.group, r.name, r.se, r.ae].concat(r.cells).join(' | ')); });
 }

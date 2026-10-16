@@ -31,7 +31,9 @@ namespace BlackFlame
         // explosion creation function that the projectile explode function (SE 43025 / AE 44216) and the self-area cast
         // (SE 33635 / AE 34413) call
         constexpr std::uint64_t kLaunchSe = 42928, kLaunchAe = 44108;
-        constexpr std::uint64_t kCreateSe = 42657, kCreateAe = 43829;
+        constexpr std::uint64_t kCreateSeCandidate = 42657, kCreateAe = 43829;  // SE: an unverified match (F1)
+        constexpr const char* kCreateName = "explosion creation (v2 copy swap)";
+        constexpr std::size_t kSeCandidateBytes = 32;
 
         // The explosion create data (1.7.104 code: built at 44216 +0x2a6..+0x940 and 34413 +0x130..+0x195; 44216, 34413
         // and 43829 have the same pdata size and unwind codes on 1.6.1170; other builds and SE: every pointer checked)
@@ -260,13 +262,11 @@ namespace BlackFlame
                 swapTo = nullptr;
                 ReportOnce(g_createFailure, "the explosion creation detour");
             }
-            auto** slot = static_cast<RE::BGSExplosion**>(a_data);
-            if (swapTo) {
-                *slot = swapTo;
-            }
-            const auto result = reinterpret_cast<CreateFn*>(g_createOriginal)(a_data, a_rdx, a_r8, a_r9);
-            if (swapTo) {
-                *slot = before;  // the caller's create data as it was
+            std::uintptr_t result = 0;
+            {
+                // F3: the caller's create data is put back however the original returns
+                const CopySwapDetail::SlotSwap<RE::BGSExplosion> swap(static_cast<RE::BGSExplosion**>(a_data), swapTo);
+                result = reinterpret_cast<CreateFn*>(g_createOriginal)(a_data, a_rdx, a_r8, a_r9);
             }
             try {
                 if (before && SelfTestProbe::Recording()) {
@@ -301,6 +301,9 @@ namespace BlackFlame
                 if (Patch::HasIds({ id }, "copy swap (Projectile::Launch)")) {
                     a_status.launch = Patch::PrologueDetour("Projectile::Launch (v2 copy swap)", Patch::AddressOf(id),
                         reinterpret_cast<std::uintptr_t>(&LaunchThunk), g_launchOriginal);
+                } else {
+                    a_status.launch.note = "Address Library id missing";  // F7
+                    Patch::RecordHook("Projectile::Launch (v2 copy swap)", false, 0, {}, a_status.launch.note);
                 }
                 if (!a_status.launch.hooked) {
                     logger::warn("BlackFlame: copy swap: Projectile::Launch not detoured ({}); bytes {}", a_status.launch.note,
@@ -314,24 +317,44 @@ namespace BlackFlame
             // swap off for the session. V14: no explosion copy, no detour.
             const auto explosionVtableId = Patch::IdFor(kExplosionVtableSe, kExplosionVtableAe);
             const auto casterVtableId = Patch::IdFor(kActorCasterVtableSe, kActorCasterVtableAe);
-            if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
+            if (config.copyExplosionCreate && !REL::Module::IsAE()) {
+                // F1: 42657 is an attempted match, not derived from SE code: off on SE (Launch's post-write still gives MGEF
+                // explosions their copies there)
+                a_status.explosionCreate.note = CopySwapDetail::kSeNotVerified;
+                CopySwapDetail::RecordSeCandidate(kCreateName, kCreateSeCandidate);
+            } else if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
                 a_status.explosionCreate.note = "no explosion copies";
             } else if (config.copyExplosionCreate && !Patch::HasIds({ explosionVtableId, casterVtableId }, "copy swap (explosion creation vtables)")) {
                 a_status.explosionCreate.note = "a vtable id is missing";
-                Patch::RecordHook("explosion creation (v2 copy swap)", false, 0, {}, a_status.explosionCreate.note);
+                Patch::RecordHook(kCreateName, false, 0, {}, a_status.explosionCreate.note);
             } else if (config.copyExplosionCreate) {
                 g_explosionVtable = Patch::AddressOf(explosionVtableId);
                 g_actorCasterVtable = Patch::AddressOf(casterVtableId);
-                const auto id = Patch::IdFor(kCreateSe, kCreateAe);
-                if (Patch::HasIds({ id }, "copy swap (explosion creation)")) {
-                    a_status.explosionCreate = Patch::PrologueDetour("explosion creation (v2 copy swap)",
-                        Patch::AddressOf(id), reinterpret_cast<std::uintptr_t>(&CreateThunk), g_createOriginal);
+                if (Patch::HasIds({ kCreateAe }, "copy swap (explosion creation)")) {
+                    a_status.explosionCreate = Patch::PrologueDetour(kCreateName, Patch::AddressOf(kCreateAe),
+                        reinterpret_cast<std::uintptr_t>(&CreateThunk), g_createOriginal);
+                } else {
+                    a_status.explosionCreate.note = "Address Library id missing";  // F7
+                    Patch::RecordHook(kCreateName, false, 0, {}, a_status.explosionCreate.note);
                 }
                 if (!a_status.explosionCreate.hooked) {
                     logger::warn("BlackFlame: copy swap: explosion creation not detoured ({}); bytes {}",
                         a_status.explosionCreate.note, a_status.explosionCreate.bytes);
                 }
             }
+        }
+
+        void RecordSeCandidate(const char* a_name, std::uint64_t a_seId)
+        {
+            std::string bytes;
+            std::uintptr_t address = 0;
+            if (GetConfig().testerMode && Patch::HasIds({ a_seId }, "SE candidate (read only)")) {
+                address = Patch::AddressOf(a_seId);
+                bytes = Patch::HexBytes(address, kSeCandidateBytes);
+            }
+            Patch::RecordHook(a_name, false, address, std::move(bytes), std::format("{} (SE candidate id {}{})", kSeNotVerified, a_seId,
+                address ? "; its first bytes recorded for an offline check" : ""));
+            logger::info("BlackFlame: {}: off - {}", a_name, kSeNotVerified);
         }
 
         void AddLaunchCounters(CopySwapCounters& a_out) noexcept

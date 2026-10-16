@@ -31,6 +31,7 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> g_fireExplosions;
         std::unordered_set<RE::FormID> g_fireEffects;  // fire MGEFs (keyword or fire resistance) of fire spells
         std::unordered_set<RE::FormID> g_fireHazards;  // hazards those MGEFs can leave
+        std::unordered_map<RE::FormID, RE::BGSArtObject*> g_castingArts;  // F5: fire spell -> its costliest effect's casting art
         FireSetCounts g_counts;
 
         using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
@@ -289,6 +290,15 @@ namespace BlackFlame
         }
 
         const std::size_t associated = AddCloakSpells();
+        // F5: the engine takes the casting art from the costliest effect; read here, on the kDataLoaded thread, once
+        g_castingArts.clear();
+        for (const auto id : g_fireSpells) {
+            const auto* spell = RE::TESForm::LookupByID<RE::MagicItem>(id);
+            const auto* costliest = spell ? spell->GetAVEffect() : nullptr;
+            if (costliest && costliest->data.castingArt) {
+                g_castingArts.emplace(id, costliest->data.castingArt);
+            }
+        }
 
         logger::info("BlackFlame: fire spells (a fire MGEF, or the catalog's fire tag): {}; {} fire effects, {} fire "
                      "explosions, {} fire hazards. Catalog {}: {} spells tagged fire, {} of them fire by the tag alone "
@@ -317,6 +327,15 @@ namespace BlackFlame
     bool IsFireEffect(const RE::EffectSetting* a_effect)
     {
         return a_effect && g_fireEffects.contains(a_effect->GetFormID());
+    }
+
+    RE::BGSArtObject* CostliestCastingArtOf(const RE::MagicItem* a_spell)
+    {
+        if (!a_spell) {
+            return nullptr;
+        }
+        const auto it = g_castingArts.find(a_spell->GetFormID());
+        return it != g_castingArts.end() ? it->second : nullptr;
     }
 
     std::vector<RE::SpellItem*> FireSpellList()

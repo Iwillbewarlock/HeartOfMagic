@@ -128,7 +128,12 @@ namespace BlackFlame::SelfTest
             status.launch);
         // Multi-runtime: wanted on every runtime; a prologue the replay decoder does not take is the logged fallback (the
         // Launch post-write still swaps the MGEF explosions), so it is INFO, not FAIL
-        if (!status.explosionCreate.hooked && status.explosionCreate.note.find("replay decoder") != std::string::npos) {
+        // F8: left alone on purpose (the decoder refused the prologue, or SE where the function is not verified) is INFO
+        const auto leftAlone = [](const std::string& a_note) {
+            return a_note.find("replay decoder") != std::string::npos || a_note.find(CopySwapDetail::kSeNotVerified) != std::string::npos ||
+                   a_note.find("left alone") != std::string::npos;
+        };
+        if (!status.explosionCreate.hooked && leftAlone(status.explosionCreate.note)) {
             SelfTestLog::Info("T0-hooks", "explosion creation: not detoured on this build (" + status.explosionCreate.note +
                 "; bytes " + status.explosionCreate.bytes + "): the creation swap is off, the Launch post-write still works");
         } else {
@@ -138,12 +143,14 @@ namespace BlackFlame::SelfTest
         CheckReplayCases();
         // C4: the casting art call site and the hazard creation detours (INFO when the decoder or the scan left them alone)
         const auto& art = status.castingArt;
-        if (copies && cfg.copyCastingArt && counts.arts > 0) {
+        if (!art.hooked && leftAlone(art.note)) {
+            SelfTestLog::Info("T0-hooks", "SetCastingArt call: left alone on this build (" + art.note + "): hand art stays orange");
+        } else if (copies && cfg.copyCastingArt && counts.arts > 0) {
             SelfTestLog::Check("T0-hooks", art.hooked, "SetCastingArt call: " + art.note);
         } else {
             SelfTestLog::Info("T0-hooks", "SetCastingArt call: not wanted (" + (art.note.empty() ? std::string("config off or no art copies") : art.note) + ")");
         }
-        if (!status.hazardCreate.hooked && status.hazardCreate.note.find("replay decoder") != std::string::npos) {
+        if (!status.hazardCreate.hooked && leftAlone(status.hazardCreate.note)) {
             SelfTestLog::Info("T0-hooks", "hazard creation: not detoured on this build (" + status.hazardCreate.note + "; bytes " +
                 status.hazardCreate.bytes + ")");
         } else {

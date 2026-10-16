@@ -137,6 +137,38 @@ namespace BlackFlame
     // CopySwapArt.cpp)
     namespace CopySwapDetail
     {
+        /// F1: why a device is off on SE: its SE id is an attempted AE->SE match, never derived from SE code
+        inline constexpr const char* kSeNotVerified = "SE: function identity not verified";
+
+        /// F1: records a_name as skipped on SE; in testerMode also the first 32 bytes at the SE candidate a_seId (read
+        /// only, no hook) so its identity can be checked offline later (CopySwapLaunch.cpp)
+        void RecordSeCandidate(const char* a_name, std::uint64_t a_seId);
+
+        /// F3: *a_slot holds a_to for this scope and gets its old value back however the scope ends (no swap when a_to is null)
+        template <class T>
+        class SlotSwap
+        {
+        public:
+            SlotSwap(T** a_slot, T* a_to) noexcept : m_slot(a_to ? a_slot : nullptr), m_before(a_to ? *a_slot : nullptr)
+            {
+                if (m_slot) {
+                    *m_slot = a_to;
+                }
+            }
+            ~SlotSwap()
+            {
+                if (m_slot) {
+                    *m_slot = m_before;
+                }
+            }
+            SlotSwap(const SlotSwap&) = delete;
+            SlotSwap& operator=(const SlotSwap&) = delete;
+
+        private:
+            T** m_slot;
+            T* m_before;
+        };
+
         void InstallLaunchDetours(CopySwapStatus& a_status);
         void InstallImpactSites(CopySwapStatus& a_status);
         void InstallArtSite(CopySwapStatus& a_status);

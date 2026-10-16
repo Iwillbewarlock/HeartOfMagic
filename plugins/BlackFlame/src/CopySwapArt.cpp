@@ -1,13 +1,16 @@
 // =============================================================================
 // COPY SWAP - the casting (hand) art: SetCastingArt's call site (CopySwap.h, device 5)
 // =============================================================================
-// 1.7.104 (research 2026-10-16): ActorMagicCaster::SetCastingArt (AE 34150, SE 33369) has exactly one E8 caller in the
-// whole executable, inside 38784 (SE 37830): `selectedSpells[slot]` -> MagicItem::GetAVEffect (11302) -> castingArt
-// (+0xE8) -> SetCastingArt(caster = actor->GetMagicCaster(slot), art). The site is found on every runtime by a scan of a
-// window from the caller's start (its pdata is split: the call sits past the first chunk) for E8s whose target is
-// SetCastingArt; exactly one must be there. Only on 1.6.1170 / 1.7.104 may the known offset +0x91 stand in for a call
-// another plugin rewrote (an E8 into a trampoline stub). The thunk checks the caster by the ActorMagicCaster vtable and
-// the art by the BGSArtObject vtable before reading anything, then asks PickCastingArtImpl.
+// 1.7.104 (research 2026-10-16): ActorMagicCaster::SetCastingArt (AE 34150) has exactly one E8 caller in the whole
+// executable, inside 38784: `selectedSpells[slot]` -> MagicItem::GetAVEffect (11302) -> castingArt (+0xE8) ->
+// SetCastingArt(caster = actor->GetMagicCaster(slot), art). The site is found by a scan of a window from the caller's start
+// (its pdata is split in three: the call sits past the first chunk) for E8s whose target is SetCastingArt; exactly one must
+// be there, and (fix F4) the 7 bytes before it must be `48 8B 90 E8 00 00 00` (mov rdx, [rax+0xE8]: the castingArt read).
+// Only on 1.6.1170 / 1.7.104 may the known offset +0x91 stand in for a call another plugin rewrote (an E8 into a trampoline
+// stub). The thunk forwards rcx, rdx, r8, r9, checks the caster by the ActorMagicCaster vtable and the art by the
+// BGSArtObject vtable before reading anything, then asks PickCastingArtImpl, which reads only FireSet's kDataLoaded cache of
+// each fire spell's costliest casting art (fix F5: no GetAVEffect on a job thread). SE (fix F1): 33369 / 37830 are attempted
+// AE->SE matches, never derived from SE code - not installed on SE.
 
 #include "CopySwap.h"
 
@@ -19,6 +22,7 @@
 #include "SehGuard.h"
 #include "ThreadTrace.h"
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <format>
@@ -27,14 +31,17 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr std::uint64_t kSetArtSe = 33369, kSetArtAe = 34150;
-        constexpr std::uint64_t kCallerSe = 37830, kCallerAe = 38784;
-        constexpr std::uintptr_t kScanWindow = 0x200;      // the caller is 0xD0 bytes on 1.7.104, in two pdata chunks
+        constexpr std::uint64_t kSetArtSeCandidate = 33369, kSetArtAe = 34150;  // SE: unverified matches (F1)
+        constexpr std::uint64_t kCallerSeCandidate = 37830, kCallerAe = 38784;
+        constexpr std::uintptr_t kScanWindow = 0x200;      // the caller is 0xDA bytes on 1.7.104, in three pdata chunks
+        // F4: mov rdx, [rax+0xE8] right before the call - EffectSetting::data.castingArt (0x68 + 0x80; the same on SE and AE)
+        constexpr std::array<std::uint8_t, 7> kArtLoad{ 0x48, 0x8B, 0x90, 0xE8, 0x00, 0x00, 0x00 };
+        constexpr const char* kSiteName = "SetCastingArt call";
         constexpr std::uintptr_t kKnownOffsetAe = 0x91;    // 1.7.104 (1.6.1170 by unwind equality)
         constexpr int kMaxLines = 40;
         // Vtable ids (SE, AE; CommonLib Offsets_VTABLE.h), checked and resolved at install
-        constexpr std::uint64_t kCasterVtableSe = 257613, kCasterVtableAe = 205828;  // VTABLE_ActorMagicCaster[0]
-        constexpr std::uint64_t kArtVtableSe = 233406, kArtVtableAe = 189017;        // VTABLE_BGSArtObject[0]
+        constexpr std::uint64_t kCasterVtableAe = 205828;  // VTABLE_ActorMagicCaster[0]
+        constexpr std::uint64_t kArtVtableAe = 189017;     // VTABLE_BGSArtObject[0]
         std::uintptr_t g_casterVtable = 0;
         std::uintptr_t g_artVtable = 0;
 
@@ -76,8 +83,8 @@ namespace BlackFlame
 
         struct SetCastingArtHook
         {
-            // rax is passed back (the leaf tail-jumps on 1.7.104; a caller elsewhere may read it)
-            static std::uintptr_t thunk(RE::ActorMagicCaster* a_caster, RE::BGSArtObject* a_art)
+            // F4: all four argument registers forwarded and rax passed back (1.7.104: two arguments; the leaf tail-jumps)
+            static std::uintptr_t thunk(RE::ActorMagicCaster* a_caster, RE::BGSArtObject* a_art, void* a_r8, void* a_r9)
             {
                 const ThreadTrace::Scope trace("SetCastingArt (v2 copy)");
                 MainQueue::NoteJobSideHook();
@@ -94,7 +101,7 @@ namespace BlackFlame
                         logger::error("BlackFlame: the casting art thunk threw; the engine's art was used; not logged again");
                     }
                 }
-                const auto result = func(a_caster, art);
+                const auto result = func(a_caster, art, a_r8, a_r9);
                 if (!line.empty()) {
                     logger::info("BlackFlame: SetCastingArt (player): {}", line);
                 }
@@ -128,8 +135,8 @@ namespace BlackFlame
             !IsFireSpell(a_spell)) {
             return a_art;
         }
-        const auto* costliest = a_spell->GetAVEffect();
-        if (!costliest || costliest->data.castingArt != a_art) {
+        // F5: the kDataLoaded cache, never GetAVEffect here (the thunk runs on job threads)
+        if (CostliestCastingArtOf(a_spell) != a_art) {
             return a_art;  // only the art the engine takes from that spell's costliest effect
         }
         auto* copy = CopyOfAs<RE::BGSArtObject>(a_art);
@@ -145,27 +152,29 @@ namespace BlackFlame
                 site.note = "copyCastingArt false";
                 return;
             }
+            if (!REL::Module::IsAE()) {
+                site.note = kSeNotVerified;  // F1
+                RecordSeCandidate(kSiteName, kCallerSeCandidate);
+                RecordSeCandidate("SetCastingArt (callee)", kSetArtSeCandidate);
+                return;
+            }
             if (GetCopyCounts().arts == 0) {
                 site.note = "no art copies";
                 return;
             }
-            const auto calleeId = Patch::IdFor(kSetArtSe, kSetArtAe);
-            const auto callerId = Patch::IdFor(kCallerSe, kCallerAe);
-            const auto casterVtableId = Patch::IdFor(kCasterVtableSe, kCasterVtableAe);
-            const auto artVtableId = Patch::IdFor(kArtVtableSe, kArtVtableAe);
-            if (!Patch::HasIds({ calleeId, callerId, casterVtableId, artVtableId }, "copy casting art")) {
-                site.note = "an Address Library id is missing";
-                Patch::RecordHook("SetCastingArt call", false, 0, {}, site.note);
+            if (!Patch::HasIds({ kSetArtAe, kCallerAe, kCasterVtableAe, kArtVtableAe }, "copy casting art")) {
+                site.note = "Address Library id missing";
+                Patch::RecordHook(kSiteName, false, 0, {}, site.note);
                 return;
             }
-            g_casterVtable = Patch::AddressOf(casterVtableId);
-            g_artVtable = Patch::AddressOf(artVtableId);
-            const auto callee = Patch::AddressOf(calleeId);
-            const auto caller = Patch::AddressOf(callerId);
+            g_casterVtable = Patch::AddressOf(kCasterVtableAe);
+            g_artVtable = Patch::AddressOf(kArtVtableAe);
+            const auto callee = Patch::AddressOf(kSetArtAe);
+            const auto caller = Patch::AddressOf(kCallerAe);
             const auto sites = CallsInWindow(caller, callee);
             std::uintptr_t at = sites.size() == 1 ? sites.front() : 0;
             bool chained = false;
-            if (sites.empty() && REL::Module::IsAE() && Patch::IsCodeReadBuild()) {
+            if (sites.empty() && Patch::IsCodeReadBuild()) {
                 const auto known = caller + kKnownOffsetAe;
                 if (*reinterpret_cast<const std::uint8_t*>(known) == Patch::kCallOpcode && Patch::IsTrampolineStub(Patch::Rel32Target(known))) {
                     at = known;
@@ -176,11 +185,19 @@ namespace BlackFlame
                 site.note = std::format("{} E8 call(s) to SetCastingArt in the caller's first 0x{:X} bytes (one expected) - left alone",
                     sites.size(), kScanWindow);
                 logger::warn("BlackFlame: copy casting art: {}", site.note);
-                Patch::RecordHook("SetCastingArt call", false, caller, Patch::HexBytes(caller, 16), site.note);
+                Patch::RecordHook(kSiteName, false, caller, Patch::HexBytes(caller, 16), site.note);
                 return;
             }
-            const auto before = Patch::HexBytes(at >= 7 ? at - 7 : at, 12);
-            SetCastingArtHook::func = Patch::WriteCall("SetCastingArt call", at, SetCastingArtHook::thunk,
+            const auto before = Patch::HexBytes(at - kArtLoad.size(), kArtLoad.size() + Patch::kRel32Size);
+            if (!Patch::IsExecutable(at - kArtLoad.size(), kArtLoad.size()) ||
+                std::memcmp(reinterpret_cast<const void*>(at - kArtLoad.size()), kArtLoad.data(), kArtLoad.size()) != 0) {
+                site.note = std::format("the call at caller +0x{:X} is not preceded by mov rdx, [rax+0xE8] (bytes from -7: {}) - left "
+                                        "alone", at - caller, before);
+                logger::warn("BlackFlame: copy casting art: {}", site.note);
+                Patch::RecordHook(kSiteName, false, at, before, site.note);
+                return;
+            }
+            SetCastingArtHook::func = Patch::WriteCall(kSiteName, at, SetCastingArtHook::thunk,
                 std::format("caller +0x{:X}{}; bytes from -7: {}", at - caller, chained ? ", chained" : "", before));
             site.hooked = true;
             site.chained = chained;

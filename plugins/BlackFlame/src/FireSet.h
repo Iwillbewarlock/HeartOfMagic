@@ -50,6 +50,10 @@ namespace BlackFlame
 
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
 
+    /// F5: the casting art of a_spell's costliest effect (MagicItem::GetAVEffect -> data.castingArt) as BuildFireSets cached it
+    /// for every fire spell, or null; any thread (the cache never changes after kDataLoaded)
+    [[nodiscard]] RE::BGSArtObject* CostliestCastingArtOf(const RE::MagicItem* a_spell);
+
     /// Every fire spell, by FormID (kDataLoaded thread, after BuildFireSets; the copy closure's seeds)
     [[nodiscard]] std::vector<RE::SpellItem*> FireSpellList();
 

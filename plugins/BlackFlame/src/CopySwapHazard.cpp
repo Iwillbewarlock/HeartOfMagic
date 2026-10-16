@@ -1,18 +1,23 @@
 // =============================================================================
 // COPY SWAP - hazard creation (CopySwap.h, device 6: swap point 4 of the expansion plan)
 // =============================================================================
-// Hazard creation (SE 42786 / AE 43954) takes a create data block: +0x00 BGSHazard*, +0x08 TESObjectCELL*, +0x38 the
-// cause actor (1.7.104, research-swap notes; checked per pointer at runtime on every build). Its prologue is detoured on
-// every runtime the replay decoder takes (1.7.104: 48 8B C4 + pushes); the thunk forwards all four argument registers and
-// returns rax. The base becomes its copy, for the call only, when:
+// Hazard creation (AE 43954) takes one argument, a create data block: +0x00 BGSHazard*, +0x08 TESObjectCELL*, +0x38 the
+// cause actor (1.7.104 code; 1.6.1170 pdata/unwind equal; checked per pointer at runtime). Its prologue is detoured on
+// every AE runtime the replay decoder takes (1.7.104: 48 8B C4 + pushes); the thunk forwards all four argument registers
+// and returns rax (1.7.104: one argument, no float or stack argument - verify-signatures.md). The base becomes its copy,
+// for the call only, when:
 //   (a) a copy window is open (the impacts of a copy projectile or explosion: SpawnCollisionEffects / Explosion::Update,
 //       CopySwap.h) - an impact copy whose hazard link is already the copy needs nothing;
-//   (b) the call comes from the spawn-hazard effect (SE 33580 / AE 34360, research R-H on 1.7.104: it builds the create
-//       data on its stack and calls 43954 with the effect still in r13) while that effect is a fire effect the player cast
-//       and the player is stoked. 34360's prologue is detoured as well (mov rax, rsp + pushes): its thunk opens a
-//       thread-local window naming the effect, when the effect carries the SpawnHazardEffect vtable.
+//   (b) the call comes from SpawnHazardEffect's own start (AE 36885, fix F2: 1.7.104 0x666ed0, reached from
+//       SpawnHazardEffect::Start 36879 directly and from slot 0xF HandleQueuedStart through a je, both with rcx = the
+//       effect; it calls 43954 at 0x66700b) while that effect is a fire effect the player cast, the player is stoked,
+//       and the create data's base is the effect's MGEF associated hazard. 36885's prologue (48 89 5C 24 18) is detoured
+//       too: its thunk opens a thread-local window naming the effect when it carries the SpawnHazardEffect vtable. (The
+//       earlier window on 34360 was GuideEffect's path trail, never a SpawnHazardEffect.)
+// SE (fix F1): no SE id of 43954 / 36885 is derived (an attempted AE->SE match only), so neither is installed on SE; the
+// hook list says so, and testerMode records the candidate's first bytes for an offline check.
 // A pointer that fails its check (form type, vtable) swaps nothing and is counted; a fault trips the SEH guard once and
-// turns the device off for the session.
+// stops that swap decision for the session (the detour stays and calls the original).
 
 #include "CopySwap.h"
 
@@ -31,24 +36,39 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr std::uint64_t kCreateSe = 42786, kCreateAe = 43954;
-        constexpr std::uint64_t kSpawnSe = 33580, kSpawnAe = 34360;
+        constexpr std::uint64_t kCreateSeCandidate = 42786, kCreateAe = 43954;  // SE: an unverified match
+        constexpr std::uint64_t kSpawnAe = 36885;                              // SE: no id found
         constexpr std::size_t kCreateBase = 0x00;  // BGSHazard*
         constexpr std::size_t kCreateCell = 0x08;  // TESObjectCELL*
+        constexpr const char* kCreateName = "hazard creation (v2 copy swap)";
+        constexpr const char* kSpawnName = "SpawnHazardEffect start (v2 hazard window)";
 
         using Fn4 = std::uintptr_t(void*, void*, void*, void*);
 
-        // Vtable ids (SE, AE; CommonLib Offsets_VTABLE.h), checked and resolved at install
-        constexpr std::uint64_t kHazardVtableSe = 233487, kHazardVtableAe = 189079;  // VTABLE_BGSHazard[0]
-        constexpr std::uint64_t kCellVtableSe = 235197, kCellVtableAe = 190143;      // VTABLE_TESObjectCELL[0]
-        constexpr std::uint64_t kSpawnVtableSe = 259802, kSpawnVtableAe = 207209;    // VTABLE_SpawnHazardEffect[0]
+        // Vtable ids (AE; CommonLib Offsets_VTABLE.h), checked and resolved at install
+        constexpr std::uint64_t kHazardVtableAe = 189079;  // VTABLE_BGSHazard[0]
+        constexpr std::uint64_t kCellVtableAe = 190143;    // VTABLE_TESObjectCELL[0]
+        constexpr std::uint64_t kSpawnVtableAe = 207209;   // VTABLE_SpawnHazardEffect[0]
         std::uintptr_t g_hazardVtable = 0;
         std::uintptr_t g_cellVtable = 0;
         std::uintptr_t g_spawnVtable = 0;
 
         std::uintptr_t g_createOriginal = 0;
         std::uintptr_t g_spawnOriginal = 0;
-        thread_local RE::ActiveEffect* t_spawnEffect = nullptr;  // the spawn-hazard effect on this thread's stack, or null
+        thread_local RE::ActiveEffect* t_spawnEffect = nullptr;  // the SpawnHazardEffect starting on this thread, or null
+
+        // F3: the window restored however the original returns
+        class SpawnScope
+        {
+        public:
+            explicit SpawnScope(RE::ActiveEffect* a_effect) noexcept : m_previous(t_spawnEffect) { t_spawnEffect = a_effect; }
+            ~SpawnScope() { t_spawnEffect = m_previous; }
+            SpawnScope(const SpawnScope&) = delete;
+            SpawnScope& operator=(const SpawnScope&) = delete;
+
+        private:
+            RE::ActiveEffect* m_previous;
+        };
 
         std::atomic<std::uint64_t> g_calls{ 0 }, g_swapsWindow{ 0 }, g_swapsSpawn{ 0 }, g_rejected{ 0 }, g_spawnCalls{ 0 },
             g_spawnOther{ 0 };
@@ -60,6 +80,13 @@ namespace BlackFlame
             T value{};
             std::memcpy(&value, static_cast<const std::uint8_t*>(a_base) + a_offset, sizeof(T));
             return value;
+        }
+
+        // G2-1: the hazard the spawn-hazard effect's MGEF names (its associated form)
+        const RE::TESForm* SpawnedHazardOf(const RE::ActiveEffect* a_effect)
+        {
+            const auto* base = a_effect->GetBaseObject();
+            return base ? base->data.associatedForm : nullptr;
         }
 
         // What the creation should get instead of its base, or null
@@ -83,7 +110,7 @@ namespace BlackFlame
                 g_swapsWindow.fetch_add(1);
                 return copy;
             }
-            if (t_spawnEffect && IsStoked() && IsPlayerFireEffect(t_spawnEffect)) {
+            if (t_spawnEffect && IsStoked() && SpawnedHazardOf(t_spawnEffect) == base && IsPlayerFireEffect(t_spawnEffect)) {
                 g_swapsSpawn.fetch_add(1);
                 return copy;
             }
@@ -96,13 +123,9 @@ namespace BlackFlame
             MainQueue::NoteJobSideHook();
             g_calls.fetch_add(1);
             RE::BGSHazard* swapTo = nullptr;
-            RE::TESForm* before = nullptr;
             try {
                 if (a_data && GetConfig().copyHazardCreate) {
-                    (void)Guarded("copy hazard create", [&]() {
-                        swapTo = Decide(a_data);
-                        before = swapTo ? ReadAt<RE::TESForm*>(a_data, kCreateBase) : nullptr;
-                    });
+                    (void)Guarded("copy hazard create", [&]() { swapTo = Decide(a_data); });
                 }
             } catch (...) {
                 swapTo = nullptr;
@@ -110,21 +133,14 @@ namespace BlackFlame
                     logger::error("BlackFlame: the hazard creation detour threw; the original went on; not logged again");
                 }
             }
-            auto** slot = static_cast<RE::TESForm**>(a_data);
-            if (swapTo) {
-                *slot = swapTo;
-            }
-            const auto result = reinterpret_cast<Fn4*>(g_createOriginal)(a_data, a_rdx, a_r8, a_r9);
-            if (swapTo) {
-                *slot = before;  // the caller's create data as it was
-            }
-            return result;
+            // F3: the caller's create data is put back however the original returns
+            const CopySwapDetail::SlotSwap<RE::TESForm> swap(static_cast<RE::TESForm**>(a_data), swapTo);
+            return reinterpret_cast<Fn4*>(g_createOriginal)(a_data, a_rdx, a_r8, a_r9);
         }
 
         std::uintptr_t SpawnThunk(void* a_effect, void* a_rdx, void* a_r8, void* a_r9)
         {
             g_spawnCalls.fetch_add(1);
-            auto* previous = t_spawnEffect;
             RE::ActiveEffect* effect = nullptr;
             try {
                 (void)Guarded("spawn hazard window", [&]() {
@@ -137,10 +153,8 @@ namespace BlackFlame
             } catch (...) {
                 effect = nullptr;
             }
-            t_spawnEffect = effect;
-            const auto result = reinterpret_cast<Fn4*>(g_spawnOriginal)(a_effect, a_rdx, a_r8, a_r9);
-            t_spawnEffect = previous;
-            return result;
+            const SpawnScope window(effect);
+            return reinterpret_cast<Fn4*>(g_spawnOriginal)(a_effect, a_rdx, a_r8, a_r9);
         }
     }
 
@@ -152,24 +166,31 @@ namespace BlackFlame
                 a_status.hazardCreate.note = "copyHazardCreate false";
                 return;
             }
+            if (!REL::Module::IsAE()) {
+                // F1: neither function's SE id is derived; nothing is detoured on SE (bytes recorded in testerMode)
+                a_status.hazardCreate.note = kSeNotVerified;
+                a_status.spawnHazard.note = kSeNotVerified;
+                RecordSeCandidate(kCreateName, kCreateSeCandidate);
+                Patch::RecordHook(kSpawnName, false, 0, {}, std::string(kSeNotVerified) + " (no SE id found)");
+                return;
+            }
             if (GetCopyCounts().hazards == 0) {
                 a_status.hazardCreate.note = "no hazard copies";
                 return;
             }
-            const auto createId = Patch::IdFor(kCreateSe, kCreateAe);
-            const auto hazardVtableId = Patch::IdFor(kHazardVtableSe, kHazardVtableAe);
-            const auto cellVtableId = Patch::IdFor(kCellVtableSe, kCellVtableAe);
-            const auto spawnVtableId = Patch::IdFor(kSpawnVtableSe, kSpawnVtableAe);
-            if (!Patch::HasIds({ hazardVtableId, cellVtableId, spawnVtableId }, "copy hazard create (vtables)")) {
-                a_status.hazardCreate.note = "a vtable id is missing";
-                Patch::RecordHook("hazard creation (v2 copy swap)", false, 0, {}, a_status.hazardCreate.note);
+            if (!Patch::HasIds({ kHazardVtableAe, kCellVtableAe, kSpawnVtableAe }, "copy hazard create (vtables)")) {
+                a_status.hazardCreate.note = "an Address Library vtable id is missing";
+                Patch::RecordHook(kCreateName, false, 0, {}, a_status.hazardCreate.note);
                 return;
             }
-            g_hazardVtable = Patch::AddressOf(hazardVtableId);
-            g_cellVtable = Patch::AddressOf(cellVtableId);
-            g_spawnVtable = Patch::AddressOf(spawnVtableId);
-            if (Patch::HasIds({ createId }, "copy hazard create")) {
-                a_status.hazardCreate = Patch::PrologueDetour("hazard creation (v2 copy swap)", Patch::AddressOf(createId),
+            g_hazardVtable = Patch::AddressOf(kHazardVtableAe);
+            g_cellVtable = Patch::AddressOf(kCellVtableAe);
+            g_spawnVtable = Patch::AddressOf(kSpawnVtableAe);
+            if (!Patch::HasIds({ kCreateAe }, "copy hazard create")) {
+                a_status.hazardCreate.note = "Address Library id missing";  // F7
+                Patch::RecordHook(kCreateName, false, 0, {}, a_status.hazardCreate.note);
+            } else {
+                a_status.hazardCreate = Patch::PrologueDetour(kCreateName, Patch::AddressOf(kCreateAe),
                     reinterpret_cast<std::uintptr_t>(&CreateThunk), g_createOriginal);
             }
             if (!a_status.hazardCreate.hooked) {
@@ -177,9 +198,11 @@ namespace BlackFlame
                     a_status.hazardCreate.bytes);
                 return;
             }
-            const auto spawnId = Patch::IdFor(kSpawnSe, kSpawnAe);
-            if (Patch::HasIds({ spawnId }, "copy hazard spawn window")) {
-                a_status.spawnHazard = Patch::PrologueDetour("spawn-hazard effect (v2 hazard window)", Patch::AddressOf(spawnId),
+            if (!Patch::HasIds({ kSpawnAe }, "copy hazard spawn window")) {
+                a_status.spawnHazard.note = "Address Library id missing";  // F7
+                Patch::RecordHook(kSpawnName, false, 0, {}, a_status.spawnHazard.note);
+            } else {
+                a_status.spawnHazard = Patch::PrologueDetour(kSpawnName, Patch::AddressOf(kSpawnAe),
                     reinterpret_cast<std::uintptr_t>(&SpawnThunk), g_spawnOriginal);
             }
             if (!a_status.spawnHazard.hooked) {
