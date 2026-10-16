@@ -3,11 +3,13 @@
 // =============================================================================
 // When a spell the librarian tags "poison" hits, applies the player's top
 // favorited poison to the target. Data load: settings, the ESL's forms, the
-// poison spell set and the tome at Elgrim's Elixirs (game/ToxData.h).
+// poison spell set and the tome at Elgrim's Elixirs (game/ToxData.h). The
+// poison to copy and its icon keyword: game/ToxSelection.h.
 // =============================================================================
 
 #include "Common.h"
 #include "game/ToxData.h"
+#include "game/ToxSelection.h"
 
 namespace
 {
@@ -24,15 +26,23 @@ namespace
             ToxGame::LoadForms();
             ToxGame::LoadPoisonSpells();
             ToxGame::PutTomeInShop();
+            ToxGame::RegisterMenuSink();
             FlushLog();
             break;
         case SKSE::MessagingInterface::kPreLoadGame:
+            // The keyword added to a static form stays in memory across loads (spec 12)
+            ToxGame::ResetSelection();
             FlushLog();
             break;
-        case SKSE::MessagingInterface::kPostLoadGame:
         case SKSE::MessagingInterface::kNewGame:
+            // No kPreLoadGame before a new game: take the keyword off the last game's poison here
+            ToxGame::ResetSelection();
+            [[fallthrough]];
+        case SKSE::MessagingInterface::kPostLoadGame:
             // A full scan in game rewrites the catalog
             ToxGame::LoadPoisonSpells();
+            // Puts the keyword back on the loaded game's poison (spec 5.5)
+            ToxGame::OnSelectionMaybeChanged();
             FlushLog();
             break;
         default:

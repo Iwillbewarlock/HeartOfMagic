@@ -17,6 +17,7 @@ set(TOXICOLOGY_SOURCES
     src/Main.cpp
     src/core/ToxCore.cpp
     src/game/ToxData.cpp
+    src/game/ToxSelection.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 
