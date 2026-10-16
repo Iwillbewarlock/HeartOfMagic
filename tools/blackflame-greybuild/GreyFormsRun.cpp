@@ -356,7 +356,9 @@ namespace GreyBuild
             }
             // The check's report goes out with the copies; its gate is reported here, not fatal (README "Visual-risk check")
             std::cout << GlowTotalsLine(glow.totals) << "\n" << PaletteTotalsLine(palettes) << "\n";
-            WriteRiskReport(risk, PluginsDir(a_staging) / kRiskReportName);
+            if (std::string why; !WriteRiskReport(risk, PluginsDir(a_staging) / kRiskReportName, why)) {
+                Warn(a_totals, "the visual-risk report was not written: " + why);
+            }
             a_totals.riskGate = RiskGateLine(risk);
             a_totals.riskPassed = RiskGatePasses(risk);
             std::cout << a_totals.riskGate << "\n";

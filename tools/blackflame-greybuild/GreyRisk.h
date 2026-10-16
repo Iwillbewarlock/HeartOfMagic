@@ -82,8 +82,9 @@ namespace GreyBuild
 
     [[nodiscard]] bool RiskGatePasses(const RiskJob& a_job);
 
-    /// The report (UTF-8, tab separated): header, constants, SUMMARY, then FAIL / WARN / UNREAD / MISSING lines
-    void WriteRiskReport(const RiskJob& a_job, const std::filesystem::path& a_file);
+    /// The report (UTF-8, tab separated): header, constants, SUMMARY, then FAIL / WARN / UNREAD / MISSING lines. False
+    /// with a_why when it could not be written (X9: the caller warns, the build goes on)
+    [[nodiscard]] bool WriteRiskReport(const RiskJob& a_job, const std::filesystem::path& a_file, std::string& a_why);
 
     inline constexpr const char* kRiskReportName = "HeartOfMagic_BlackFlame_risk.txt";
 }

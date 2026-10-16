@@ -343,6 +343,43 @@ namespace GreyBuild::SelfTest
         a_check.Check(Count(sheetJob, "PAL_SHEET") == 1, fmt::format("risk: a palette shape whose copy palette lifts alpha 0 to 1 "
             "is PAL_SHEET ({})", Count(sheetJob, "PAL_SHEET")));
 
+        // X6: the copy side is judged with the texture the copy names (a grey texture copy passes, the source left fails)
+        RgbaImage orange = Image(255, false);
+        for (std::size_t i = 0; i < orange.pixels.size(); i += 4) {
+            orange.pixels[i + 1] = 60;
+            orange.pixels[i + 2] = 0;
+        }
+        textures.Put("textures\\selftest\\orange.dds", orange);
+        textures.Put("textures\\selftest\\greycopy.dds", Image(255, false));
+        Spec painted;
+        painted.additive = false;
+        painted.texture = "textures\\selftest\\orange.dds";
+        const auto retarget = [&](const char* a_texture, const char* a_name) {
+            Pair pair;
+            MakePair(pair, painted, nullptr);
+            auto& hdr = pair.copy.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id); shader && a_texture) {
+                    shader->sourceTexture.get() = a_texture;
+                }
+                if (auto* shape = hdr.GetBlock<nifly::NiTriShape>(id); shape && a_name) {
+                    shape->name.get() = a_name;
+                }
+            }
+            RiskJob job;
+            job.textures = &textures;
+            RiskCheckNif(pair.source, pair.copy, "meshes\\selftest.nif", job);
+            return job;
+        };
+        const auto left = retarget(nullptr, nullptr);
+        const auto greyed = retarget("textures\\selftest\\greycopy.dds", nullptr);
+        a_check.Check(Count(left, "TEX_COLOUR") == 1 && Count(greyed, "TEX_COLOUR") == 0,
+            fmt::format("risk (X6): a coloured texture the copy still names is TEX_COLOUR ({}), its grey copy passes ({})",
+                Count(left, "TEX_COLOUR"), Count(greyed, "TEX_COLOUR")));
+        const auto renamed = retarget(nullptr, "NotTheSource");
+        a_check.Check(Count(renamed, "BLOCK_LAYOUT") == 1, fmt::format("risk (X8): a copy whose shape at the same block has another "
+            "name is BLOCK_LAYOUT ({})", Count(renamed, "BLOCK_LAYOUT")));
+
         Spec unread = sheet;
         unread.palette = "textures\\selftest\\broken.dds";
         const auto unreadJob = Judge(unread, textures, nullptr);

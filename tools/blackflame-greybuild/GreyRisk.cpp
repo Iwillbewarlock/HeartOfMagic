@@ -25,6 +25,7 @@ namespace GreyBuild
         constexpr const char* kRulePsys = "PSYS_LEFT";
         constexpr const char* kRuleHalo = "GREY_HALO";
         constexpr const char* kRuleHaloKept = "HALO_KEPT";
+        constexpr const char* kRuleLayout = "BLOCK_LAYOUT";
         constexpr const char* kRuleTexColour = "TEX_COLOUR";
         constexpr const char* kRuleSheet = "PAL_SHEET";
         constexpr const char* kRuleVanish = "PAL_VANISH";
@@ -93,9 +94,11 @@ namespace GreyBuild
         void CheckPalette(Context& a_ctx, const EffectShape& a_source, const EffectShape& a_copy, const TexStats* a_stats)
         {
             const auto texture = Look(a_ctx.job, a_source.sourceTexture);
+            const auto copyTexture = Look(a_ctx.job, a_copy.sourceTexture);  // X6: the copy side with the copy's own texture
             const auto sourcePalette = Look(a_ctx.job, a_source.greyscaleTexture);
             const auto copyPalette = Look(a_ctx.job, a_copy.greyscaleTexture);
             for (const auto& [look, slot, what] : { std::tuple{ texture, a_source.sourceTexture, "texture" },
+                     std::tuple{ copyTexture, a_copy.sourceTexture, "copy texture" },
                      std::tuple{ sourcePalette, a_source.greyscaleTexture, "source palette" },
                      std::tuple{ copyPalette, a_copy.greyscaleTexture, "copy palette" } }) {
                 if (look.status != TextureRead::kOk) {
@@ -107,9 +110,12 @@ namespace GreyBuild
             const bool vertexOn = (a_source.flags2 & kSlsf2VertexColors) != 0 && a_source.vertexColours;
             const double v = std::clamp(a_source.baseColour.r * (vertexOn ? a_source.vertexMean.r : 1.0), 0.0, 1.0);
             const auto src = SimulatePalette(*texture.image, *sourcePalette.image, paletteAlpha, v, kRiskDarkLum);
-            const auto copy = SimulatePalette(*texture.image, *copyPalette.image, paletteAlpha, v, kRiskDarkLum);
+            const auto copy = SimulatePalette(*copyTexture.image, *copyPalette.image, paletteAlpha, v, kRiskDarkLum);
             const char* alphaNote = paletteAlpha ? " (palette alpha)" : "";
-            if (a_source.blend == ShapeBlend::kAdditive) {
+            if (a_source.blend == ShapeBlend::kTest) {
+                // X7: alpha test without blending draws an opaque cut-out: the colour rules apply, the energy and coverage
+                // rules (sheet, vanish) do not - the cut-out's outline is the texture's alpha test, not a blend
+            } else if (a_source.blend == ShapeBlend::kAdditive) {
                 const double ratio = src.energy > kRiskEnergyFloor ? a_ctx.job.tintAdd * copy.energy / src.energy :
                                      copy.energy > kRiskEnergyFloor ? std::numeric_limits<double>::infinity() : 1.0;
                 if (ratio > kRiskSheetRatio && copy.coverage >= kRiskSheetCover) {
@@ -135,7 +141,8 @@ namespace GreyBuild
             }
         }
 
-        void CheckPlain(Context& a_ctx, const EffectShape& a_source, const EffectShape& a_copy, const TextureLook& a_texture)
+        void CheckPlain(Context& a_ctx, const EffectShape& a_source, const EffectShape& a_copy, const TextureLook& a_texture,
+            const TextureLook& a_copyTexture)
         {
             const bool vertexOn = (a_source.flags2 & kSlsf2VertexColors) != 0 && a_source.vertexColours;
             if (vertexOn && a_copy.vertexColours && a_copy.vertexSaturation > kRiskMaxVcSat) {
@@ -146,18 +153,25 @@ namespace GreyBuild
                 NotRead(a_ctx, a_source, a_texture, a_source.sourceTexture, "texture");
                 return;
             }
+            if (!a_copy.sourceTexture.empty() && a_copyTexture.status != TextureRead::kOk) {
+                NotRead(a_ctx, a_source, a_copyTexture, a_copy.sourceTexture, "copy texture");  // X6: a generated copy unread
+                return;
+            }
             const TexStats* stats = a_texture.stats;
-            const bool coloured = stats && (stats->colouredFrac >= kRiskTexColoredFrac || stats->meanSat >= kRiskTexMeanSat);
-            if (coloured && TextureDataPath(a_copy.sourceTexture) == TextureDataPath(a_source.sourceTexture)) {
+            const TexStats* copyStats = a_copyTexture.stats;
+            // X6: TEX_COLOUR on the texture the copy names (a texture copy that came out coloured, or the source left)
+            const bool coloured = copyStats && (copyStats->colouredFrac >= kRiskTexColoredFrac || copyStats->meanSat >= kRiskTexMeanSat);
+            if (coloured) {
                 Add(a_ctx, RiskLevel::kFail, kRuleTexColour, &a_source, fmt::format("texture {} coloured (mean {},{},{}, {:.0f}% "
-                    "coloured texels) still named by the copy", a_texture.path, stats->meanRgb.r, stats->meanRgb.g, stats->meanRgb.b,
-                    stats->colouredFrac * 100.0));
+                    "coloured texels) named by the copy", a_copyTexture.path, copyStats->meanRgb.r, copyStats->meanRgb.g,
+                    copyStats->meanRgb.b, copyStats->colouredFrac * 100.0));
             }
             if (a_source.blend != ShapeBlend::kAdditive || (stats && stats->energyMean == 0.0)) {
                 return;
             }
             const bool soft = a_source.sourceTexture.empty() || (stats && stats->detail < kRiskSoftDetail);
             const Rgb texMean = stats ? stats->meanRgb : kWhite;
+            const Rgb copyTexMean = copyStats ? copyStats->meanRgb : (a_copy.sourceTexture.empty() ? kWhite : texMean);
             const Rgb sourceVertex = vertexOn ? a_source.vertexMean : kWhite;
             const Rgb copyVertex = vertexOn && a_copy.vertexColours ? a_copy.vertexMean : sourceVertex;
             double sourceSat = 0.0;
@@ -166,7 +180,7 @@ namespace GreyBuild
             }
             double copyLum = 0.0;
             for (const auto& colour : a_copy.colours) {
-                copyLum = std::max(copyLum, Luminance(Multiply(Multiply(colour, texMean), copyVertex)));
+                copyLum = std::max(copyLum, Luminance(Multiply(Multiply(colour, copyTexMean), copyVertex)));
             }
             copyLum *= a_copy.multipleMax;
             a_ctx.warmSoft += soft && sourceSat >= kRiskWarmSat ? 1 : 0;
@@ -250,15 +264,21 @@ namespace GreyBuild
         int visibleAfter = 0;
         for (const auto& source : sources) {
             const auto it = copyByBlock.find(source.block);
-            if (it == copyByBlock.end()) {
+            // X8: the builder changes values only, so a copy has the source's effect shapes at the same block numbers
+            // under the same names; anything else means the layout changed and nothing below would compare like with like
+            if (it == copyByBlock.end() || it->second->name != source.name) {
+                Add(ctx, RiskLevel::kFail, kRuleLayout, &source, it == copyByBlock.end() ?
+                    std::string("the copy has no effect shape at this block") :
+                    fmt::format("the copy's shape at this block is '{}'", it->second->name));
                 continue;
             }
             const EffectShape& copy = *it->second;
             ++a_job.shapes;
             const auto texture = source.sourceTexture.empty() ? TextureLook{} : Look(a_job, source.sourceTexture);
+            const auto copyTexture = copy.sourceTexture.empty() ? TextureLook{} : Look(a_job, copy.sourceTexture);
             if (Visible(source, texture)) {
                 ++visibleBefore;
-                visibleAfter += Visible(copy, texture) ? 1 : 0;
+                visibleAfter += Visible(copy, copyTexture) ? 1 : 0;  // X6: a blank generated texture draws nothing
             }
             if (source.hidden || source.blend == ShapeBlend::kNoAlpha || source.blend == ShapeBlend::kOpaque) {
                 continue;  // not drawn, or a helper without blending (EditorMarker-type): out of scope
@@ -274,7 +294,7 @@ namespace GreyBuild
             if (IsPaletteShape(source)) {
                 CheckPalette(ctx, source, copy, texture.stats);
             } else {
-                CheckPlain(ctx, source, copy, texture);
+                CheckPlain(ctx, source, copy, texture, copyTexture);
             }
         }
         // The G1 exception (GreyGlow.h): when every drawn shape is a soft warm glow, RGB 0 would empty the effect, so the
@@ -316,7 +336,7 @@ namespace GreyBuild
                                        fmt::format("T0 risk: FAIL fail={} unread={} (see {})", fail, unread, kRiskReportName);
     }
 
-    void WriteRiskReport(const RiskJob& a_job, const std::filesystem::path& a_file)
+    bool WriteRiskReport(const RiskJob& a_job, const std::filesystem::path& a_file, std::string& a_why)
     {
         std::string text = "# HeartOfMagic Black Flame visual-risk report v1\n";
         text += fmt::format("# constants kRiskWarmSat={} kRiskMinChannel={} kRiskSoftDetail={} kRiskHaloLumMax={} kRiskMaxKeySat={} "
@@ -340,11 +360,15 @@ namespace GreyBuild
                 }
             }
         }
-        std::filesystem::create_directories(a_file.parent_path());
+        std::error_code ec;
+        std::filesystem::create_directories(a_file.parent_path(), ec);
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
         out << text;
-        if (!out) {
-            throw std::runtime_error(fmt::format("writing {} failed", a_file.string()));
+        out.close();  // X9: judged after the close (a failed flush shows only then)
+        if (!out || ec) {
+            a_why = fmt::format("writing {} failed{}", a_file.string(), ec ? " (" + ec.message() + ")" : std::string());
+            return false;
         }
+        return true;
     }
 }
