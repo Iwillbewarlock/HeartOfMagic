@@ -33,14 +33,16 @@ namespace BlackFlame
         constexpr std::uint64_t kCreateSe = 42657, kCreateAe = 43829;
 
         // The explosion create data (1.7.104 code: built at 44216 +0x2a6..+0x940 and 34413 +0x130..+0x195; 44216, 34413
-        // and 43829 have the same pdata size and unwind codes on 1.6.1170; SE unverified)
+        // and 43829 have the same pdata size and unwind codes on 1.6.1170; other builds and SE: every pointer checked)
         constexpr std::size_t kCreateBase = 0x00;        // BGSExplosion*
         constexpr std::size_t kCreateProjectile = 0x20;  // the source Projectile* (44216), null for a self-area cast
         constexpr std::size_t kCreateSpell = 0x28;       // MagicItem*
         constexpr std::size_t kCreateCaster = 0x38;      // MagicCaster* (34413), null from 44216
 
         using LaunchFn = RE::ProjectileHandle*(RE::ProjectileHandle*, RE::Projectile::LaunchData&);
-        using CreateFn = std::uintptr_t(void*);
+        // All four argument registers are forwarded and rax returned: only the first argument (the create data) is read,
+        // and an unverified signature (SE) cannot lose rdx, r8 or r9 on the way to the original
+        using CreateFn = std::uintptr_t(void*, void*, void*, void*);
 
         std::uintptr_t g_launchOriginal = 0;  // written before the detour's jump (Patch::PrologueDetour)
         std::uintptr_t g_createOriginal = 0;
@@ -179,8 +181,10 @@ namespace BlackFlame
         // What the creation should get instead of its base, or null. Every pointer is checked before use.
         RE::BGSExplosion* DecideCreate(void* a_data, RE::BGSExplosion*& a_before, bool& a_selfArea, RE::FormID& a_projBase)
         {
+            // The base must be a BGSExplosion by its vtable before anything else is read from it (another layout: rejected)
+            static const std::uintptr_t explosionVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_BGSExplosion[0] }.address();
             auto* base = Read<RE::TESForm*>(a_data, kCreateBase);
-            if (!base || base->GetFormType() != RE::FormType::Explosion) {
+            if (!base || Read<std::uintptr_t>(base, 0) != explosionVtable || base->GetFormType() != RE::FormType::Explosion) {
                 g_createRejected.fetch_add(1);
                 return nullptr;
             }
@@ -231,7 +235,7 @@ namespace BlackFlame
             return copy;
         }
 
-        std::uintptr_t CreateThunk(void* a_data)
+        std::uintptr_t CreateThunk(void* a_data, void* a_rdx, void* a_r8, void* a_r9)
         {
             const ThreadTrace::Scope trace("explosion create (v2 detour)");
             MainQueue::NoteJobSideHook();  // G1
@@ -253,7 +257,7 @@ namespace BlackFlame
             if (swapTo) {
                 *slot = swapTo;
             }
-            const auto result = reinterpret_cast<CreateFn*>(g_createOriginal)(a_data);
+            const auto result = reinterpret_cast<CreateFn*>(g_createOriginal)(a_data, a_rdx, a_r8, a_r9);
             if (swapTo) {
                 *slot = before;  // the caller's create data as it was
             }
@@ -296,17 +300,12 @@ namespace BlackFlame
                         a_status.launch.bytes);
                 }
             }
-            // V6: SE off - the creation's signature and create data layout were read on 1.7.104 code and match
-            // 1.6.1170 only by pdata/unwind; nothing of it is verified on 1.5.97. V14: no explosion copy, no detour.
-            // W6: AE only on the versions checked: 1.7.104 (code read) and 1.6.1170 (43829, 44216 and 34413 have the same
-            // pdata size and unwind codes as on 1.7.104). Any other build: off
-            const auto version = REL::Module::get().version();
-            const bool verified = version == REL::Version(1, 6, 1170, 0) || version == REL::Version(1, 7, 104, 0);
-            if (config.copyExplosionCreate && !verified) {
-                a_status.explosionCreate.note = std::format("off on {} (its signature and create data layout were checked on "
-                                                            "1.7.104 and 1.6.1170 only)", version.string());
-                logger::info("BlackFlame: copy swap: explosion creation detour {}", a_status.explosionCreate.note);
-            } else if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
+            // Multi-runtime (2026-10-16): on every runtime whose prologue the replay decoder takes. The create data layout
+            // was read on 1.7.104 (1.6.1170 unwind-equal); elsewhere it is checked per pointer at runtime (the base by its
+            // BGSExplosion vtable, the projectile by its form type, the caster by the ActorMagicCaster vtable, the spell by its
+            // form type), the thunk forwards all four argument registers, and a fault trips the SEH guard once and turns the
+            // swap off for the session. V14: no explosion copy, no detour.
+            if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
                 a_status.explosionCreate.note = "no explosion copies";
             } else if (config.copyExplosionCreate) {
                 const auto id = Patch::IdFor(kCreateSe, kCreateAe);

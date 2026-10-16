@@ -19,6 +19,7 @@
     "forcePalette": true,
     "particleColors": false,
     "selfTest": false,
+    "testerMode": false,
     "selfTestDelaySeconds": 30,
     "tintScale": 0.6,
     "lightColor": [0.25, 0.22, 0.28]

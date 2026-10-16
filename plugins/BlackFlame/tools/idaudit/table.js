@@ -28,7 +28,8 @@ var own = [
   ['VTABLE_Hazard[0]', 263922, 209971],
   ['VTABLE_BGSHazard[2] (TESModel)', 233489, 189083],
   ['VTABLE_BGSImpactData[1] (TESModel)', 236357, 190905],
-  ['VTABLE_ActiveEffectReferenceEffectController[0]', 257577, 205809]
+  ['VTABLE_ActiveEffectReferenceEffectController[0]', 257577, 205809],
+  ['VTABLE_BGSExplosion[0] (explosion creation base check)', 233467, 189059]
 ];
 var lib = require('./reached.json').filter(function (r) { return r[1] !== 46022; /* not called: SelfTestWorld.cpp says so */ }).map(function (r) { return [r[0], r[1], r[2]]; }).concat([
   ['MagicTarget::DispelEffect', 33721, 34505],

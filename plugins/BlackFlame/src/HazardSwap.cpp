@@ -1,4 +1,5 @@
 #include "HazardSwap.h"
+#include "Patch.h"
 
 #include "Attribution.h"
 #include "BuffState.h"
@@ -164,9 +165,9 @@ namespace BlackFlame
             return;
         }
         REL::Relocation<std::uintptr_t> hazard{ RE::Hazard::VTABLE[0] };
-        Load3DHook::func = hazard.write_vfunc(kLoad3DIndex, Load3DHook::thunk);
+        Load3DHook::func = Patch::WriteVfunc("hazard swap Load3DHook", hazard, kLoad3DIndex, Load3DHook::thunk);
         REL::Relocation<std::uintptr_t> model{ RE::VTABLE_BGSHazard[2] };  // the TESModel sub-object's vtable
-        HazardModelHook::func = model.write_vfunc(kGetModelIndex, HazardModelHook::thunk);
+        HazardModelHook::func = Patch::WriteVfunc("hazard swap HazardModelHook", model, kGetModelIndex, HazardModelHook::thunk);
         g_hooked.store(true);
         logger::info("BlackFlame: hazard swap: Load3D (0x{:X}) on the Hazard vtable and BGSHazard GetModel (slot {}) "
                      "hooked", kLoad3DIndex, kGetModelIndex);

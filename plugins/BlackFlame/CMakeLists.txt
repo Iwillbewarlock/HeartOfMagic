@@ -28,6 +28,7 @@ set(BLACKFLAME_SOURCES
     src/NifDump.cpp
     src/CopyRequest.cpp
     src/CopyRequestData.cpp
+    src/Tester.cpp
     src/Palette.cpp
     src/ThreadTrace.cpp
     src/TrackedMutex.cpp

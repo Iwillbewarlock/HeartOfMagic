@@ -35,7 +35,7 @@ namespace BlackFlame::MainQueue
         constexpr std::uintptr_t kSiteSe = 0x748;
         constexpr std::uintptr_t kSiteAe = 0xC26;      // AE before 1.7.99
         constexpr std::uintptr_t kSiteAe1799 = 0xC38;  // 1.7.99 and later
-        constexpr std::uintptr_t kAeTailFromSite = 0x37;  // pdata end - site on 1.6.1170 and 1.7.104
+        constexpr std::uintptr_t kAeTailFromSite = 0x37;  // pdata end - site on 1.6.1170 and 1.7.104 (checked only there)
         constexpr auto kHeartbeat = std::chrono::seconds(5);
         constexpr int kFirstFramesLogged = 3;
         constexpr std::size_t kPendingWarn = 10000;  // E5: a queue this long means the drain is not keeping up
@@ -257,11 +257,18 @@ namespace BlackFlame::MainQueue
                              "image nor a trampoline stub - not hooked", a_site - a_function, target);
                 return false;
             }
+            // The site offsets are the community's for every runtime (OAR, Precision, TDM: SE 0x748, AE 0xC26, 1.7.99+ 0xC38);
+            // the E8 and its target are checked everywhere. The tail anchor was measured on 1.6.1170 and 1.7.104 only: it is
+            // enforced there and logged elsewhere (another AE build may end the function at another distance)
             if (REL::Module::IsAE()) {
                 DWORD64 imageBase = 0;
                 const auto* entry = RtlLookupFunctionEntry(a_function, &imageBase, nullptr);
                 const auto end = entry ? static_cast<std::uintptr_t>(imageBase + entry->EndAddress) : 0;
-                if (end == 0 || end - a_site != kAeTailFromSite) {
+                if (!Patch::IsCodeReadBuild()) {
+                    logger::info("BlackFlame: main-thread queue: Main::Update ends {} after the site on this build (0x{:X} on "
+                                 "1.6.1170 / 1.7.104; not enforced here)", end ? std::format("0x{:X}", end - a_site) : std::string("(no pdata)"),
+                        kAeTailFromSite);
+                } else if (end == 0 || end - a_site != kAeTailFromSite) {
                     logger::warn("BlackFlame: main-thread queue: Main::Update ends {} bytes after the site, not 0x{:X} - another "
                                  "build; not hooked", end ? std::format("0x{:X}", end - a_site) : std::string("(no pdata)"),
                         kAeTailFromSite);
@@ -282,9 +289,12 @@ namespace BlackFlame::MainQueue
         const auto site = function + SiteOffset();
         bool chained = false;
         if (!SiteOk(function, site, chained)) {
+            Patch::RecordHook("main-thread queue (Main::Update)", false, site, Patch::HexBytes(site, Patch::kRel32Size),
+                "the site check failed (see the log)");
             return;
         }
-        MainUpdateHook::func = SKSE::GetTrampoline().write_call<5>(site, MainUpdateHook::thunk);
+        MainUpdateHook::func = Patch::WriteCall("main-thread queue (Main::Update)", site, MainUpdateHook::thunk,
+            std::format("Main::Update +0x{:X}{}", site - function, chained ? ", chained" : ""));
         g_installed.store(true);
         logger::info("BlackFlame: main-thread queue hooked at Main::Update +0x{:X} ({:X}){}", site - function,
             site - REL::Module::get().base(), chained ? ", chained onto another plugin's redirect" : "");

@@ -60,6 +60,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyExplosionCreate` | `true` | v2: explosion creation hands the explosion copy when the source projectile is a copy or the player's self-area fire cast made it |
 | `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
 | `writeRequest` | `false` | v2 expansion: write the copy request and the NIF dump for the builder at kDataLoaded (section "Copy request"). Off for players: then no NIF is read at startup; the tester package turns it on |
+| `testerMode` | `false` | the tester package: `selfTest` and `writeRequest` forced on, every log line written through at once (section "Runtimes and Address Library ids") |
 | `copyHitArt` | `true` | v2 (ARTO spike): the hit art of the player's fire effects is the art's ARTO copy when it has one - `GetHitEffectArt` returns the copy, so the engine builds the art's 3D from the copy's grey NIF; an art without a copy keeps the engine's art (recoloured only under `hitArt`) |
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
@@ -418,7 +419,7 @@ a weapon source (+0x38) on the player's bound fire weapon list counts; an enchan
 |---|---|---|
 | `Projectile::Launch` (SE 42928 / AE 44108) prologue detour | `copyLaunch` | `LaunchData.projectileBase` set to its copy for the call and restored after. A Flame or Beam stream started with the copy is a new stream (Launch reuses a stream only with the same base) |
 | the same detour, after the call | `copyLaunchExplosion` | the new projectile's `GetProjectileRuntimeData().explosion` (Launch takes it from the MGEF when the area is above 0 - Fireball - else from the base) set to its copy |
-| explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | only on 1.6.1170 and 1.7.104, the versions its signature and create data layout were checked on (off on SE and other AE builds), and only when explosion copies exist. The create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
+| explosion creation (SE 42657 / AE 43829) prologue detour | `copyExplosionCreate` | on every runtime whose prologue the replay decoder takes (layout read on 1.7.104, every pointer checked elsewhere; see "Runtimes and Address Library ids"), and only when explosion copies exist. The create data's base (+0x00) set to its copy when its source projectile (+0x20, a projectile reference by form type) has a copy as its base, or - no projectile, the self-area cast - when its caster (+0x38, an ActorMagicCaster by vtable) is the player's and its spell (+0x28, a SpellItem by form type) is fire. Restored after the call. A base that is already a copy is counted apart, so the self-test tells which device made a Fireball's explosion grey |
 | `GetImpactData` (SE 20408 / AE 20860) calls in `SpawnCollisionEffects` (43022 / 44213) and the explosion's impact function (42679 / 43851) | `copyImpacts` | inside a copy window the impact copy is returned for the impact the set would return (no IPDS copy, no hash map insert). The window opens on the impact call sites (section "Grey swap") when the projectile's base is a copy, and in `Explosion::Update` when the explosion's base is a copy. The round-10 model window (GetModel swap) stays for projectiles and explosions without a copy |
 
 **Detours.** The first 16 bytes are read at runtime. An `E9` there (another plugin's detour, e.g. IDRC hooks
@@ -520,6 +521,7 @@ counterparts the research notes name; no SE executable was read, so their SE fun
 | VTABLE_BGSHazard[2] (TESModel) | 233489 | 189083 | yes | yes | yes | yes | yes | yes | yes |
 | VTABLE_BGSImpactData[1] (TESModel) | 236357 | 190905 | yes | yes | yes | yes | yes | yes | yes |
 | VTABLE_ActiveEffectReferenceEffectController[0] | 257577 | 205809 | yes | yes | yes | yes | yes | yes | yes |
+| VTABLE_BGSExplosion[0] (explosion creation base check) | 233467 | 189059 | yes | yes | yes | yes | yes | yes | yes |
 | PlayerCharacter::GetSingleton (singleton ptr) (CommonLib) | 517014 | 403521 | yes | yes | yes | yes | yes | yes | yes |
 | ProcessLists::GetSingleton (CommonLib) | 514167 | 400315 | yes | yes | yes | yes | yes | yes | yes |
 | TESDataHandler::GetSingleton (CommonLib) | 514141 | 400269 | yes | yes | yes | yes | yes | yes | yes |
@@ -570,6 +572,32 @@ counterparts the research notes name; no SE executable was read, so their SE fun
 | MagicTarget::DispelEffect (CommonLib) | 33721 | 34505 | yes | yes | yes | yes | yes | yes | yes |
 | BSResourceNiBinaryStream ctor (CommonLib) | 69636 | 71014 | yes | yes | yes | yes | yes | yes | yes |
 | BSResourceNiBinaryStream dtor (CommonLib) | 69638 | 71016 | yes | yes | yes | yes | yes | yes | yes |
+
+
+**Hook sites on every runtime** (2026-10-16): no in-function offset measured only on 1.6.1170 is trusted elsewhere.
+
+| Site | How it is found and checked |
+|---|---|
+| main-thread queue | `Main::Update` (35565 / 36564) + 0x748 on SE, + 0xC26 on AE before 1.7.99, + 0xC38 from 1.7.99 (the offsets OAR, Precision and TDM use for every runtime); the site must be an E8 into the game image or a trampoline stub. The AE tail anchor (pdata end - site = 0x37) is enforced only on 1.6.1170 and 1.7.104, where it was measured; other AE builds log their distance. SE's SKSE task drain sits in the same function (+0x6B8), so the queue's reasoning holds there too |
+| Launch, explosion creation | prologue detours on every runtime whose first bytes the replay decoder takes (else left alone, logged, and the self-test says INFO); explosion creation was gated to 1.6.1170 / 1.7.104 before and now runs everywhere: its thunk forwards all four argument registers and returns rax, the create data's base must carry the BGSExplosion vtable, the projectile its form type, the caster the ActorMagicCaster vtable, the spell its form type; a fault trips the SEH guard once and turns the swap off |
+| GetImpactData sites, impact window sites | scan of the caller's function-table range for its one E8 to the callee; a fixed offset only for a call another plugin already rewrote (an E8 into a trampoline stub), and only where the offset was confirmed: SE 1.5.97 (MuIF, KillFeed) and AE 1.6.1170 / 1.7.104 |
+| vtable slots | CommonLib's vtable ids, checked in the database |
+
+Our jumps never use a hand-written rel32 into the DLL: call redirects and the prologue jump go through the SKSE trampoline
+(within 2 GB of the game), and the gateway returns with an absolute `FF 25` jump.
+
+**Tester diagnostics.** `HeartOfMagic_BlackFlame_tester.txt` next to the log, written at kDataLoaded and again when the
+self-test ends: the runtime, every hook INSTALLED or SKIPPED with its address (image offset), the bytes it found and why,
+the copies map and fill counts with any copy problem, the copy request, and the self-test's DONE line. `testerMode`
+(config, default false) turns on `selfTest` and `writeRequest` and writes every log line through at once (a crash keeps
+it); the self-test starts after `selfTestDelaySeconds` (30) of unpaused play.
+
+**Tester package.** `plugins\BlackFlame\tools\Make-TesterPackage.ps1` (after `BuildRelease.ps1`) writes
+`dist\HeartOfMagic-BlackFlame-Tester_<VERSION>-<commit>.zip`: the DLL and PDB, the ESP and the two empty ESLs, the shipped
+vanilla-derived grey meshes and palette, the grey map, the config with `testerMode` true, the builder with
+`Build Black Flame copies.bat` (no argument: `Documents\HeartOfMagic BlackFlame Copies`) under `tools\BlackFlame`, and
+[tools/README_TESTER.md](tools/README_TESTER.md) (MO2 and Vortex steps, the files to send back, a throwaway save). The
+script refuses to package generated copies (a `copies` mesh folder, a copies map, a non-empty copies or local ESL).
 
 ## Known limits
 

@@ -1,4 +1,5 @@
 #include "HitEffectHook.h"
+#include "Patch.h"
 #include "TrackedMutex.h"
 
 #include "BuffState.h"
@@ -393,8 +394,8 @@ namespace BlackFlame
         // returned art's 3D is recoloured later (the art call always returns the engine's art)
         const auto& config = GetConfig();
         REL::Relocation<std::uintptr_t> vtbl{ Controller::VTABLE[0] };
-        HitEffectShaderHook::func = vtbl.write_vfunc(kHitEffectShaderIndex, HitEffectShaderHook::thunk);
-        HitEffectArtHook::func = vtbl.write_vfunc(kHitEffectArtIndex, HitEffectArtHook::thunk);
+        HitEffectShaderHook::func = Patch::WriteVfunc("ActiveEffectReferenceEffectController HitEffectShaderHook", vtbl, kHitEffectShaderIndex, HitEffectShaderHook::thunk);
+        HitEffectArtHook::func = Patch::WriteVfunc("ActiveEffectReferenceEffectController HitEffectArtHook", vtbl, kHitEffectArtIndex, HitEffectArtHook::thunk);
         logger::info("BlackFlame: hooked the ActiveEffectReferenceEffectController vtable: GetHitEffectShader (0x{:X}) swap {}, "
                      "GetHitEffectArt (0x{:X}) copy {} ({} art copies), recolour {}", kHitEffectShaderIndex,
             config.burnShader ? "on" : "off (burnShader false)", kHitEffectArtIndex, config.copyHitArt ? "on" : "off (copyHitArt false)",

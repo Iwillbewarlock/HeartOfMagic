@@ -115,7 +115,7 @@ namespace BlackFlame
         bool HookSite(std::uintptr_t a_site, std::uintptr_t a_spawn)
         {
             const auto previous = Patch::Rel32Target(a_site);
-            SpawnHook<I>::func = SKSE::GetTrampoline().write_call<5>(a_site, SpawnHook<I>::thunk);
+            SpawnHook<I>::func = Patch::WriteCall("impact window call site", a_site, SpawnHook<I>::thunk, "SpawnCollisionEffects call");
             const bool chained = previous != a_spawn;
             g_status.sitesChained += chained ? 1 : 0;
             logger::info("BlackFlame: impact swap: call site {} at {:X} hooked{}", I, a_site - REL::Module::get().base(),
@@ -138,8 +138,13 @@ namespace BlackFlame
                     a_index, sites.size());
                 return 0;
             }
-            const auto offset = REL::Module::IsAE() ? caller.knownOffsetAe : caller.knownOffsetSe;
+            // A known offset only for a call another plugin rewrote, only where it was confirmed: SE 1.5.97 (MuIF, KillFeed)
+            // and the AE builds whose code was read (1.6.1170, 1.7.104); in-function offsets move between other AE builds
+            const bool trusted = REL::Module::IsAE() ? Patch::IsCodeReadBuild() : REL::Module::get().version() == REL::Version(1, 5, 97, 0);
+            const auto offset = !trusted ? 0 : (REL::Module::IsAE() ? caller.knownOffsetAe : caller.knownOffsetSe);
             if (offset == 0) {
+                Patch::RecordHook(std::format("impact window call site {}", a_index), false, function, std::string(),
+                    "no E8 to SpawnCollisionEffects found by the scan");
                 logger::warn("BlackFlame: impact swap: no call to SpawnCollisionEffects found in caller {}", a_index);
                 return 0;
             }
@@ -241,7 +246,7 @@ namespace BlackFlame
         g_status.sitesHooked += sites[2] && HookSite<2>(sites[2], spawn) ? 1 : 0;
         if (modelSwap) {
             REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_BGSImpactData[1] };  // the TESModel sub-object's vtable
-            ImpactModelHook::func = vtbl.write_vfunc(kGetModelIndex, ImpactModelHook::thunk);
+            ImpactModelHook::func = Patch::WriteVfunc("BGSImpactData TESModel ImpactModelHook", vtbl, kGetModelIndex, ImpactModelHook::thunk);
             g_status.modelHooked = true;
         }
         logger::info("BlackFlame: impact call sites: {} of 3 hooked ({} chained); BGSImpactData GetModel {} (round-10 model "

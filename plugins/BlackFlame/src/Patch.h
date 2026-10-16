@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include <cstdint>
+#include <format>
 #include <initializer_list>
 #include <string>
 #include <vector>
@@ -29,6 +30,33 @@ namespace BlackFlame::Patch
 
     [[nodiscard]] std::uintptr_t AddressOf(std::uint64_t a_id);
 
+    /// 1.6.1170 or 1.7.104: the builds whose code was read (1.7.104) or matched by pdata and unwind codes (1.6.1170).
+    /// A fixed in-function offset is trusted only there; every other build finds its sites by scan and target check.
+    [[nodiscard]] bool IsCodeReadBuild() noexcept;
+
+    // Every hook's state for the tester file (Tester.h): installed or skipped, where, the bytes before, why
+    struct HookRecord
+    {
+        std::string name;
+        bool installed = false;
+        std::uintptr_t address = 0;  // absolute; 0 when none was found
+        std::string bytes;
+        std::string note;
+    };
+
+    void RecordHook(std::string a_name, bool a_installed, std::uintptr_t a_address, std::string a_bytes, std::string a_note);
+    [[nodiscard]] std::vector<HookRecord> HookRecords();
+
+    /// vtable slot a_index of a_vtable to a_thunk, recorded; the old function
+    template <class F>
+    std::uintptr_t WriteVfunc(const char* a_name, REL::Relocation<std::uintptr_t>& a_vtable, std::size_t a_index, F a_thunk)
+    {
+        const auto slot = a_vtable.address() + a_index * sizeof(void*);
+        const auto original = a_vtable.write_vfunc(a_index, a_thunk);
+        RecordHook(a_name, true, slot, std::format("slot 0x{:X}, was {:X}", a_index, original), "vtable slot");
+        return original;
+    }
+
     /// a_size bytes at a_address are committed executable memory without a guard page
     [[nodiscard]] bool IsExecutable(std::uintptr_t a_address, std::size_t a_size);
 
@@ -44,6 +72,16 @@ namespace BlackFlame::Patch
 
     /// "48 89 4C 24 08 ..." (a_count bytes at a_address)
     [[nodiscard]] std::string HexBytes(std::uintptr_t a_address, std::size_t a_count);
+
+    /// write_call<5> at a_site (an E8 checked by the caller), recorded with the bytes before; the old target
+    template <class F>
+    std::uintptr_t WriteCall(const char* a_name, std::uintptr_t a_site, F a_thunk, const std::string& a_note)
+    {
+        auto bytes = HexBytes(a_site, kRel32Size);
+        const auto original = SKSE::GetTrampoline().write_call<5>(a_site, a_thunk);
+        RecordHook(a_name, true, a_site, std::move(bytes), a_note);
+        return original;
+    }
 
     struct Detour
     {

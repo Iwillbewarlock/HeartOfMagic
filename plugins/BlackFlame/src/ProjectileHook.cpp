@@ -1,4 +1,5 @@
 #include "ProjectileHook.h"
+#include "Patch.h"
 #include "MainThreadQueue.h"
 
 #include "Attribution.h"
@@ -221,7 +222,7 @@ namespace BlackFlame
             {
                 s_kind = a_name;
                 REL::Relocation<std::uintptr_t> vtbl{ T::VTABLE[0] };
-                func = vtbl.write_vfunc(kHandle3DLoadedIndex, thunk);
+                func = Patch::WriteVfunc("projectile vtable Handle3DLoaded", vtbl, kHandle3DLoadedIndex, thunk);
             }
 
             static inline REL::Relocation<decltype(thunk)> func;

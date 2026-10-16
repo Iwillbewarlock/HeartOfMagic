@@ -90,8 +90,12 @@ namespace BlackFlame
                     sites.size());
                 return 0;
             }
-            if (!REL::Module::IsAE() || a_caller.knownOffsetAe == 0) {
+            // The fallback offset is for a call another plugin already rewrote, and only on the builds whose code was read:
+            // in-function offsets move between AE builds, so elsewhere only the scan counts
+            if (!REL::Module::IsAE() || a_caller.knownOffsetAe == 0 || !Patch::IsCodeReadBuild()) {
                 logger::warn("BlackFlame: copy impacts: no call to GetImpactData found in {}", a_caller.name);
+                Patch::RecordHook(a_caller.name, false, function, Patch::HexBytes(function, Patch::kRel32Size),
+                    "no E8 to GetImpactData found by the scan");
                 return 0;
             }
             const auto site = function + a_caller.knownOffsetAe;
@@ -102,6 +106,8 @@ namespace BlackFlame
             }
             logger::warn("BlackFlame: copy impacts: {} +0x{:X} is not a call to GetImpactData or a trampoline stub (bytes "
                          "{}) - left alone", a_caller.name, a_caller.knownOffsetAe, Patch::HexBytes(site, Patch::kRel32Size));
+            Patch::RecordHook(a_caller.name, false, site, Patch::HexBytes(site, Patch::kRel32Size),
+                "neither the scan nor the 1.7.104 offset found the call");
             return 0;
         }
 
@@ -114,7 +120,8 @@ namespace BlackFlame
                 return;
             }
             chained = chained || Patch::Rel32Target(site) != a_callee;
-            GetImpactDataHook<I>::func = SKSE::GetTrampoline().write_call<5>(site, GetImpactDataHook<I>::thunk);
+            GetImpactDataHook<I>::func = Patch::WriteCall(kCallers[I].name, site, GetImpactDataHook<I>::thunk,
+                chained ? "GetImpactData call, chained onto another plugin's redirect" : "GetImpactData call (scan and target check)");
             ++g_status.impactSites;
             g_siteHooked[I] = true;
             g_status.impactChained += chained ? 1 : 0;

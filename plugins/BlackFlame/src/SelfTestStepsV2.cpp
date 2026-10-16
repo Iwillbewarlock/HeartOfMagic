@@ -126,10 +126,11 @@ namespace BlackFlame::SelfTest
         const bool copies = status.copies;
         CheckDevice("Projectile::Launch (copyLaunch / copyLaunchExplosion)", copies && (cfg.copyLaunch || cfg.copyLaunchExplosion),
             status.launch);
-        const auto version = REL::Module::get().version();
-        if (version != REL::Version(1, 6, 1170, 0) && version != REL::Version(1, 7, 104, 0)) {
-            SelfTestLog::Info("T0-hooks", "explosion creation: " + (status.explosionCreate.note.empty() ?
-                std::string("off (copyExplosionCreate false)") : status.explosionCreate.note));
+        // Multi-runtime: wanted on every runtime; a prologue the replay decoder does not take is the logged fallback (the
+        // Launch post-write still swaps the MGEF explosions), so it is INFO, not FAIL
+        if (!status.explosionCreate.hooked && status.explosionCreate.note.find("replay decoder") != std::string::npos) {
+            SelfTestLog::Info("T0-hooks", "explosion creation: not detoured on this build (" + status.explosionCreate.note +
+                "; bytes " + status.explosionCreate.bytes + "): the creation swap is off, the Launch post-write still works");
         } else {
             CheckDevice("explosion creation (copyExplosionCreate)", copies && cfg.copyExplosionCreate && counts.explosions > 0,
                 status.explosionCreate);

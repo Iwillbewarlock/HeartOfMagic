@@ -637,3 +637,12 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - J7 writeRequest 기본 false(배포 json도), 꺼져 있으면 NIF를 읽지 않는다. 켜져 있으면 한 번만 읽고 바이트를 덤프에 쓴다. 요청에 fingerprintSizes(바이트 해시 없는 같은 공식), 빌더가 맵에 requestFingerprintSizes로 복사(C3 싼 검사용).
 - J8 HAZD.data.spell: 그 주문의 불 효과 + 가장 비싼 효과만 시작점으로.
 - J9 한계: 버프 중 만든 맞은 자리 아트는 사본 FormID로 저장된다(README). J10 FormCopiesBytes.h로 바이트 도우미 공유.
+
+### 다중 런타임과 테스터 (2026-10-16)
+
+- DLL 하나로 SE 1.5.97·AE 1.6.x·1.7.x(ENABLE_SKYRIM_SE/AE 켬, VR 끔). id 표는 README(tests/REL 7개 DB, 1.7.99 형식 5 읽기 추가), 1.6.640·1.7.104 DB는 없어 미확인.
+- Main::Update 자리: SE 0x748, AE 0xC26, 1.7.99+ 0xC38(OAR·Precision·TDM), E8·대상 확인 어디서나, 꼬리 0x37은 1170·1.7.104에서만 강제.
+- 폭발 생성 우회: 버전 관문 없앰, 디코더가 받는 런타임 전부. 썽크는 레지스터 인자 4개 전달·rax 반환, 기반은 BGSExplosion vtable 확인. 디코더 거절이면 로그·자가 시험 INFO.
+- 고정 오프셋 대체(다른 플러그인이 바꾼 호출)는 확인된 빌드에서만: GetImpactData 44213+0xBC는 1170·1.7.104, 충격 창 자리는 SE 1.5.97과 1170·1.7.104. 그 밖은 스캔만.
+- 모든 훅 기록(Patch::WriteCall/WriteVfunc/PrologueDetour → HookRecord), tester.txt에 설치·건너뜀·주소·바이트·이유, 사본·요청·자가 시험 요약. testerMode 키.
+- 테스터 패키지 스크립트 Make-TesterPackage.ps1, README_TESTER.md. 생성 사본·비어 있지 않은 ESL·사본 맵은 넣지 않는다(스크립트가 거절).

@@ -1,5 +1,7 @@
 #include "SelfTestLog.h"
 
+#include "Tester.h"
+
 #include <format>
 #include <fstream>
 
@@ -89,5 +91,6 @@ namespace BlackFlame::SelfTestLog
             g_file.close();
         }
         FlushLog();  // info lines are buffered (plugins/Common.h): the results reach disk now
+        Tester::NoteSelfTest(line);
     }
 }

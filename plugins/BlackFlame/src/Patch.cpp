@@ -9,6 +9,7 @@
 #include <array>
 #include <cstring>
 #include <format>
+#include <mutex>
 
 #ifdef GetObject
 #    undef GetObject
@@ -23,6 +24,30 @@ namespace BlackFlame::Patch
         constexpr std::size_t kPrologueWindow = 16;
         constexpr std::uint8_t kNop = 0x90;
         constexpr std::array<std::uint8_t, 6> kJmpRip{ 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+    }
+
+    namespace
+    {
+        std::mutex g_hooksMutex;
+        std::vector<HookRecord> g_hooks;  // under g_hooksMutex
+    }
+
+    bool IsCodeReadBuild() noexcept
+    {
+        const auto version = REL::Module::get().version();
+        return version == REL::Version(1, 6, 1170, 0) || version == REL::Version(1, 7, 104, 0);
+    }
+
+    void RecordHook(std::string a_name, bool a_installed, std::uintptr_t a_address, std::string a_bytes, std::string a_note)
+    {
+        std::lock_guard lock(g_hooksMutex);
+        g_hooks.push_back({ std::move(a_name), a_installed, a_address, std::move(a_bytes), std::move(a_note) });
+    }
+
+    std::vector<HookRecord> HookRecords()
+    {
+        std::lock_guard lock(g_hooksMutex);
+        return g_hooks;
     }
 
     std::uint64_t IdFor(std::uint64_t a_se, std::uint64_t a_ae) noexcept
@@ -146,8 +171,21 @@ namespace BlackFlame::Patch
         return i;
     }
 
+    Detour PrologueDetourImpl(std::uintptr_t a_function, std::uintptr_t a_thunk, std::uintptr_t& a_originalSlot);
+
     Detour PrologueDetour(const char* a_name, std::uintptr_t a_function, std::uintptr_t a_thunk,
         std::uintptr_t& a_originalSlot)
+    {
+        Detour result = PrologueDetourImpl(a_function, a_thunk, a_originalSlot);
+        RecordHook(a_name, result.hooked, a_function, result.bytes, result.note);
+        if (result.hooked) {
+            logger::info("BlackFlame: {} detoured at {:X} ({}); bytes before: {}", a_name, a_function - REL::Module::get().base(),
+                result.note, result.bytes);
+        }
+        return result;
+    }
+
+    Detour PrologueDetourImpl(std::uintptr_t a_function, std::uintptr_t a_thunk, std::uintptr_t& a_originalSlot)
     {
         Detour result;
         if (!IsExecutable(a_function, kPrologueWindow)) {
@@ -206,8 +244,7 @@ namespace BlackFlame::Patch
                 original.data() + kRel32Size, result.replayed - kRel32Size);
         }
         result.hooked = true;
-        logger::info("BlackFlame: {} detoured at {:X} ({}); bytes before: {}", a_name, a_function - REL::Module::get().base(),
-            result.note, before);
+        result.bytes = before;
         return result;
     }
 }

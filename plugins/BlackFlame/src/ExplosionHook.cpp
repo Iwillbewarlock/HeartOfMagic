@@ -1,4 +1,5 @@
 #include "ExplosionHook.h"
+#include "Patch.h"
 #include "MainThreadQueue.h"
 #include "TrackedMutex.h"
 
@@ -441,9 +442,9 @@ namespace BlackFlame
     void InstallExplosionHook()
     {
         REL::Relocation<std::uintptr_t> vtbl{ RE::Explosion::VTABLE[0] };
-        Set3DHook::func = vtbl.write_vfunc(kSet3DIndex, Set3DHook::thunk);
-        InitializeHook::func = vtbl.write_vfunc(kInitializeIndex, InitializeHook::thunk);
-        UpdateHook::func = vtbl.write_vfunc(kUpdateIndex, UpdateHook::thunk);
+        Set3DHook::func = Patch::WriteVfunc("Explosion Set3DHook", vtbl, kSet3DIndex, Set3DHook::thunk);
+        InitializeHook::func = Patch::WriteVfunc("Explosion InitializeHook", vtbl, kInitializeIndex, InitializeHook::thunk);
+        UpdateHook::func = Patch::WriteVfunc("Explosion UpdateHook", vtbl, kUpdateIndex, UpdateHook::thunk);
         logger::info("BlackFlame: hooked Set3D (0x{:X}), Initialize (0x{:X}) and Update (0x{:X}) on the Explosion vtable",
             kSet3DIndex, kInitializeIndex, kUpdateIndex);
     }

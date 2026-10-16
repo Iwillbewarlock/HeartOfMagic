@@ -34,6 +34,7 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "Tester.h"
 #include "MainThreadQueue.h"
 #include "Watchdog.h"
 
@@ -72,6 +73,7 @@ namespace
         BlackFlame::InstallCopySwaps();  // v2: after the copies are filled and the impact call sites (CopySwap.h)
         BlackFlame::InstallHazardSwap();
         BlackFlame::RunGreyCheck();
+        BlackFlame::Tester::WriteStartup();  // every hook's state, the copies, the runtime (Tester.h)
     }
 
     // The world is torn down: nothing tracked from it may be touched again

@@ -34,6 +34,8 @@ namespace BlackFlame
         bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
         bool forcePalette = true; // add the grey-to-palette colour flag to effect shapes without it
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
+        bool testerMode = false;  // the tester package: selfTest and writeRequest on, every log line written through at once,
+                                  // and HeartOfMagic_BlackFlame_tester.txt (Tester.h; the file is written in every mode)
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)
         float tintScale = 0.6f;   // baseColor RGB = luminance * tintScale
         float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test (and E3's judgement) starts
