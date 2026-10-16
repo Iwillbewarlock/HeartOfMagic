@@ -12,6 +12,7 @@
 #include "ThreadTrace.h"
 #include "GameThread.h"
 #include "LogLimit.h"
+#include "EffectLight.h"
 #include "Recolor.h"
 #include "ImpactSwap.h"
 #include "ScriptTags.h"
@@ -40,7 +41,7 @@ namespace BlackFlame
         std::atomic<int> g_threadLogs{ 0 };
         std::atomic<int> g_otherLogs{ 0 };
         std::atomic<int> g_npcMaterialLogs{ 0 };
-        std::atomic<int> g_recolors{ 0 };
+        std::atomic<int> g_tints{ 0 };
         std::atomic<int> g_lightMissing{ 0 };
         std::atomic<int> g_diagnostics{ 0 };
         constexpr int kMaxDiagnostics = 20;
@@ -63,55 +64,46 @@ namespace BlackFlame
             return *lights;
         }
 
-        // True when the 3D was recoloured (config explosion, off by default since v2); the light is tinted with
-        // config light either way. False when the buff went off before a deferred run
-        bool RecolorExplosion(RE::Explosion* a_explosion, RecolorStats& a_stats)
+        // The player's fire explosion's light (config light). C6: its 3D is never recoloured any more - the copy is
+        // grey by construction. Nothing when the buff went off before a deferred run
+        void TintExplosionLight(RE::Explosion* a_explosion)
         {
-            const bool recolor3D = GetConfig().explosion;
-            if (!IsStoked() || (!recolor3D && !GetConfig().light)) {
-                return false;
+            if (!IsStoked() || !GetConfig().light) {
+                return;
             }
             auto& data = a_explosion->GetExplosionRuntimeData();
-            if (recolor3D) {
-                a_stats = RecolorTree(a_explosion->Get3D());
-            }
-            const int recolors = g_recolors.fetch_add(1) + 1;
-            bool lightTinted = false;
+            const int tints = g_tints.fetch_add(1) + 1;
+            const bool lightTinted = TintLight(ExplosionLight(a_explosion));
             bool lightQueued = false;
-            if (GetConfig().light) {
-                lightTinted = TintLight(ExplosionLight(a_explosion));
-                if (!data.light) {
-                    // Not created yet at Set3D: one more try on the next ticker tick
-                    std::lock_guard lock(g_lightsMutex);
-                    PendingLights().push_back(a_explosion->GetHandle());
-                    g_lightMissing.fetch_add(1);
-                    lightQueued = true;
-                }
+            if (!data.light) {
+                // Not created yet at Set3D: one more try on the next ticker tick
+                std::lock_guard lock(g_lightsMutex);
+                PendingLights().push_back(a_explosion->GetHandle());
+                g_lightMissing.fetch_add(1);
+                lightQueued = true;
             }
             const auto* base = a_explosion->GetBaseObject();
             const auto baseId = base ? base->GetFormID() : 0;
             int suppressed = 0;
             if (LogLimit::Allow("explosion", baseId, suppressed)) {
-                logger::info("BlackFlame: explosion: {:08X}: {}; light {} (missing at recolour {} of {} times){}", baseId,
-                    recolor3D ? a_stats.Describe() : std::string("3D not recoloured (explosion false)"),
+                logger::info("BlackFlame: explosion: {:08X}: light {} (missing at Set3D {} of {} times){}", baseId,
                     lightQueued ? "not there yet, retried next tick" : (!data.light ? "none" : (lightTinted ? "tinted" : "left")),
-                    g_lightMissing.load(), recolors,
+                    g_lightMissing.load(), tints,
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
-            return recolor3D;
         }
 
-        // Game thread: the recolour (when due), the NPC contamination check and, while the
+        // Game thread: the light tint (when due), the NPC contamination check and, while the
         // self-test runs, its record (a_record carries what Set3D saw)
-        void HandleExplosion(RE::Explosion* a_explosion, bool a_recolor, bool a_logMaterials,
+        void HandleExplosion(RE::Explosion* a_explosion, bool a_tint, bool a_logMaterials,
             SelfTestProbe::ExplosionRecord a_record)
         {
             if (a_logMaterials) {
                 logger::info("BlackFlame: material check, NPC fire explosion {:08X} (any grey=yes is contamination): {}",
                     a_record.base, DescribeMaterials(a_explosion->Get3D()));
             }
-            if (a_recolor) {
-                a_record.recolored = RecolorExplosion(a_explosion, a_record.stats);
+            if (a_tint) {
+                TintExplosionLight(a_explosion);
             }
             if (SelfTestProbe::Recording()) {
                 a_record.after = SelfTestProbe::Inspect(a_explosion->Get3D());
@@ -288,10 +280,10 @@ namespace BlackFlame
                         static_cast<int>(casterSpell->GetSpellType()));
                 }
             }
-            const bool recolor = byPlayer && !notFireCast && IsStoked() && (GetConfig().explosion || GetConfig().light);
+            const bool tint = byPlayer && !notFireCast && IsStoked() && GetConfig().light;  // C6: the light only
             // G5: the material logs walk 3D in a task: not without the main-thread queue
             const bool logMaterials = MainQueue::Installed() && !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
-            if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
+            if (!tint && !logMaterials && !SelfTestProbe::Recording()) {
                 return;
             }
 
@@ -309,20 +301,20 @@ namespace BlackFlame
             record.hookThread = REX::W32::GetCurrentThreadId();
 
             // D1: the hook only records and posts; the recolour runs from the main-thread queue
-            if (recolor) {
+            if (tint) {
                 LogHookThread(g_threadLogs, "Explosion Set3D");
             }
             const auto handle = a_explosion->GetHandle();
             const auto generation = WorldGeneration();
             QueueTask("BlackFlameExplosion",
-                [handle, recolor, logMaterials, generation, record = std::move(record)]() mutable {
+                [handle, tint, logMaterials, generation, record = std::move(record)]() mutable {
                     if (generation != WorldGeneration()) {
                         return;  // queued before a load
                     }
                     const auto ref = handle.get();
                     if (auto* explosion = ref ? ref->AsExplosion() : nullptr) {
                         (void)Guarded("explosion recolour (task)",
-                            [&]() { HandleExplosion(explosion, recolor, logMaterials, std::move(record)); });
+                            [&]() { HandleExplosion(explosion, tint, logMaterials, std::move(record)); });
                     }
                 });
         }
@@ -463,7 +455,7 @@ namespace BlackFlame
             FirstSeen().clear();
         }
         g_lightMissing.store(0);
-        g_recolors.store(0);
+        g_tints.store(0);
     }
 
     void TickExplosionLights()

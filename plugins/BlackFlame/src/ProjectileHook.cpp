@@ -10,6 +10,7 @@
 #include "GameThread.h"
 #include "LogLimit.h"
 #include "PlayerArt.h"
+#include "EffectLight.h"
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SehGuard.h"
@@ -33,41 +34,34 @@ namespace BlackFlame
         std::atomic<int> g_npcMaterialLogs{ 0 };
 
 
-        // True when the 3D was recoloured (config projectile, off by default since v2). The light is tinted
-        // with config light whether or not the 3D is. False when the buff went off before a deferred run, or
-        // a step hit a hardware exception (SehGuard names it; the rest of this projectile is skipped)
-        bool RecolorProjectile(RE::Projectile* a_projectile, const char* a_kind, RecolorStats& a_stats)
+        // The player's fire projectile's light (config light). C6: its 3D is never recoloured any more - the copy
+        // (CopySwapLaunch) is grey by construction, a launch without a copy stays orange. Nothing when the buff went
+        // off before a deferred run or the light step hit a hardware exception (SehGuard names it)
+        void TintProjectileLight(RE::Projectile* a_projectile, const char* a_kind)
         {
-            const auto& config = GetConfig();
-            if (!IsStoked() || (!config.projectile && !config.light)) {
-                return false;
-            }
-            auto& data = a_projectile->GetProjectileRuntimeData();
-            const bool recolor3D = config.projectile;
-            if (recolor3D && !Guarded("projectile recolour 3D", [&]() { a_stats = RecolorTree(a_projectile->Get3D()); })) {
-                return false;
+            if (!IsStoked() || !GetConfig().light) {
+                return;
             }
             bool hasLight = false;
             bool lightTinted = false;
-            if (config.light && !Guarded("projectile light", [&]() {
+            if (!Guarded("projectile light", [&]() {
                     auto* light = ProjectileLight(a_projectile);
                     hasLight = light != nullptr;
                     lightTinted = TintLight(light);
                 })) {
-                return recolor3D;  // the light step failed (logged)
+                return;
             }
-            const auto spellId = data.spell ? data.spell->GetFormID() : 0;
+            const auto* spell = a_projectile->GetProjectileRuntimeData().spell;
+            const auto spellId = spell ? spell->GetFormID() : 0;
             int suppressed = 0;
             if (LogLimit::Allow(a_kind, spellId, suppressed)) {
-                logger::info("BlackFlame: projectile: spell {:08X} ({}): {}; light {}{}", spellId, a_kind,
-                    recolor3D ? a_stats.Describe() : std::string("3D not recoloured (projectile false)"),
+                logger::info("BlackFlame: projectile: spell {:08X} ({}): light {}{}", spellId, a_kind,
                     !hasLight ? "none" : (lightTinted ? "tinted" : "left"),
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
-            return recolor3D;
         }
 
-        // Game thread: the material check (a scene-graph walk), the recolour (when due) and,
+        // Game thread: the material check (a scene-graph walk), the light tint (when due) and,
         // while the self-test runs, its record
         // v2i: one line the first time a copy projectile's 3D is seen: the copies' grey rule on its effect shapes and the
         // first materials (the material check above stops after kMaxMaterialLogs projectiles of any kind)
@@ -87,7 +81,7 @@ namespace BlackFlame
                 seen.paletteShaders, seen.withOurPalette, seen.withAddPalette, DescribeMaterials(root));
         }
 
-        void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_recolor, bool a_byPlayer,
+        void HandleProjectile(RE::Projectile* a_projectile, const char* a_kind, bool a_tint, bool a_byPlayer,
             const char* a_link,
             bool a_logMaterials, std::uint32_t a_hookThread, bool a_hookOnGameThread, bool a_firstCopy3D = false)
         {
@@ -107,11 +101,8 @@ namespace BlackFlame
             if (probe) {
                 record.before = SelfTestProbe::Capture(a_projectile->Get3D());
             }
-            if (a_recolor) {
-                const auto start = std::chrono::steady_clock::now();
-                record.recolored = RecolorProjectile(a_projectile, a_kind, record.stats);
-                record.recolorMicros = std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - start).count();
+            if (a_tint) {
+                TintProjectileLight(a_projectile, a_kind);
             }
             if (!probe) {
                 return;
@@ -165,11 +156,11 @@ namespace BlackFlame
                 (void)ResolvePending(shooter.get());
                 const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
                 const bool byPlayer = link != PlayerLink::kNone;
-                const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
+                const bool tint = byPlayer && IsStoked() && GetConfig().light;
                 LogLinkOnce("projectile", link);
                 // Not the player's after all: the normal path still runs for the records and logs
-                if (recolor || SelfTestProbe::Recording()) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, PlayerLinkName(link), false, hookThread, false);
+                if (tint || SelfTestProbe::Recording()) {
+                    HandleProjectile(projectile, a_kind, tint, byPlayer, PlayerLinkName(link), false, hookThread, false);
                 }
             });
         }
@@ -195,30 +186,30 @@ namespace BlackFlame
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
             const bool logMaterials = MainQueue::Installed() && counter.fetch_add(1) < kMaxMaterialLogs;  // G5
-            const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
+            const bool tint = byPlayer && IsStoked() && GetConfig().light;
             // v2i: a copy's first 3D gets its line (marked in the task: a task dropped by a load leaves it for the next one)
             const auto* base = a_projectile->GetBaseObject();
             const bool firstCopy3D = MainQueue::Installed() && base && IsCopy(base) && LogLimit::NotYet("copy 3D", base->GetFormID());
-            if (!recolor && !logMaterials && !firstCopy3D && !SelfTestProbe::Recording()) {
+            if (!tint && !logMaterials && !firstCopy3D && !SelfTestProbe::Recording()) {
                 return;
             }
 
-            // D1: the hook only records and posts; the 3D walk and the recolour run from the main-thread queue
+            // D1: the hook only records and posts; the 3D walk and the light tint run from the main-thread queue
             const bool onGameThread = IsOnGameThread();
             const auto hookThread = REX::W32::GetCurrentThreadId();
-            if (recolor) {
+            if (tint) {
                 LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
             }
             const auto handle = a_projectile->GetHandle();
             const auto generation = WorldGeneration();
             QueueTask("BlackFlameProjectile",
-                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread, generation, firstCopy3D]() {
+                [handle, a_kind, tint, byPlayer, linkName, logMaterials, hookThread, onGameThread, generation, firstCopy3D]() {
                 if (generation != WorldGeneration()) {
                     return;  // queued before a load
                 }
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread,
+                    HandleProjectile(projectile, a_kind, tint, byPlayer, linkName, logMaterials, hookThread, onGameThread,
                         firstCopy3D);
                 }
             });

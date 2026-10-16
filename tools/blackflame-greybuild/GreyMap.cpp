@@ -127,7 +127,7 @@ namespace GreyBuild
         Json::RequireVersion(a_file, root, kMapVersion);
         GreyMap map;
         if (!root.contains("tint") || !root["tint"].is_number()) {
-            Json::Fail(a_file, "'tint' must be a number (the DLL's tintScale, default 0.6)");
+            Json::Fail(a_file, "'tint' must be a number (the base colour scale, default 0.6)");
         }
         map.tint = root["tint"].get<float>();
         if (!(map.tint >= kMinTint && map.tint <= kMaxTint)) {

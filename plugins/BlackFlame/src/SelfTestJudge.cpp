@@ -1,7 +1,5 @@
 #include "SelfTestJudge.h"
 
-#include "Tint.h"
-
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -10,15 +8,10 @@ namespace BlackFlame::SelfTest
 {
     namespace
     {
-        constexpr float kColorTolerance = 0.002f;
         constexpr float kSlackSeconds = 0.2f;
-        constexpr std::size_t kRgba = 4;
-
-        bool Near(float a_lhs, float a_rhs) { return std::fabs(a_lhs - a_rhs) <= kColorTolerance; }
     }
 
-    GreyVerdict JudgeGrey(RE::FormID a_copyBase, bool a_recolored, int a_recoloredShapes,
-        const SelfTestProbe::Inspection& a_after, bool a_recolourOn)
+    GreyVerdict JudgeGrey(RE::FormID a_copyBase, const SelfTestProbe::Inspection& a_after)
     {
         GreyVerdict out;
         if (a_copyBase != 0) {
@@ -32,14 +25,7 @@ namespace BlackFlame::SelfTest
                 a_after.effectProperties == 0 ? " (NOTHING OBSERVED)" : "");
             return out;
         }
-        if (a_recolourOn) {
-            out.judged = true;
-            out.pass = a_recolored && a_recoloredShapes > 0 && a_after.withPalettePath >= a_recoloredShapes;
-            out.how = std::format("runtime recolour (no copy): {} shapes recoloured, palette path on {} of {}", a_recoloredShapes,
-                a_after.withPalettePath, a_after.effectProperties);
-            return out;
-        }
-        out.how = "no copy and the runtime recolour off: nothing to judge";
+        out.how = "no copy (C6: no runtime recolour; this form stays orange): nothing to judge";
         return out;
     }
 
@@ -91,51 +77,5 @@ namespace BlackFlame::SelfTest
                 s.finished ? " finished" : "");
         }
         return out.empty() ? "none" : out;
-    }
-
-    bool HasColour(const ColorKeys& a_keys)
-    {
-        for (std::size_t i = 0; i + kRgba <= a_keys.size(); i += kRgba) {
-            if (a_keys[i] != a_keys[i + 1] || a_keys[i] != a_keys[i + 2]) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool MatchesDesaturated(const ColorKeys& a_keys, const ColorKeys& a_original)
-    {
-        if (!HasColour(a_original)) {
-            return false;
-        }
-        for (std::size_t i = 0; i + kRgba <= a_original.size(); i += kRgba) {
-            RE::NiColorA c{ a_original[i], a_original[i + 1], a_original[i + 2], a_original[i + 3] };
-            (void)Desaturate(c);
-            if (!Near(a_keys[i], c.red) || !Near(a_keys[i + 1], c.green) || !Near(a_keys[i + 2], c.blue) ||
-                !Near(a_keys[i + 3], c.alpha)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    std::optional<bool> ModifiersChanged(const SelfTestProbe::Inspection& a_atHook, const SelfTestProbe::Inspection& a_now)
-    {
-        if (a_atHook.colorModifiers.empty() || a_now.colorModifiers.empty()) {
-            return std::nullopt;
-        }
-        bool matched = false;
-        for (std::size_t i = 0; i < a_atHook.colorModifiers.size(); ++i) {
-            const auto it = std::ranges::find(a_now.colorModifiers, a_atHook.colorModifiers[i]);
-            if (it == a_now.colorModifiers.end()) {
-                continue;
-            }
-            matched = true;
-            if (a_now.modifierKeys[static_cast<std::size_t>(it - a_now.colorModifiers.begin())] !=
-                a_atHook.modifierKeys[i]) {
-                return true;
-            }
-        }
-        return matched ? std::optional<bool>(false) : std::nullopt;  // nothing compared: unknown
     }
 }

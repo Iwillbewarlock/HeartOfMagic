@@ -8,24 +8,24 @@
 // =============================================================================
 // RECOLOUR - grey palette and desaturated base colour on effect materials
 // =============================================================================
+// C6: what is left of the runtime recolour serves only the two keys kept until the copies are proven in game,
+// hitArt (HitArt.cpp) and handArt (CasterArt.cpp), plus boundWeapon (PlayerArt.cpp, until the bound-weapon copies);
+// all default off. This material code goes when those keys go. The read-only helpers below (ForEachEffectProperty,
+// DescribeMaterials, HasGreyMaterial, HasColorController) stay: the self-test and the material checks use them.
+//
 // Game thread only. Every BSEffectShaderProperty under a root gets its own copy
 // of its material (materials are pooled: never edit the shared one, other
 // instances, NPC projectiles included, may use it) with the grey palette as its
-// greyscale texture and its base colour RGB set to luminance * config tintScale
-// (alpha kept). The property itself is the instance's own: its palette flag is
-// edited in place when config forcePalette adds it to a shape without it, so
-// that shape's own texture brightness is mapped through the grey ramp
-// (replacers such as Embers XD drop the flag on flame bodies); with forcePalette
-// off only the base colour changes on such a shape. A material whose greyscale
-// texture or path is already the palette is skipped, so calling it again on the
-// same tree is cheap and changes nothing.
+// greyscale texture and its base colour RGB set to luminance * 0.6 (alpha kept).
+// A shape without a palette flag only gets the desaturated base colour (no flag is
+// added). A material whose greyscale texture or path is already one of our palettes
+// is skipped, so calling it again on the same tree is cheap and changes nothing.
 //
 // Not touched: BSLightingShaderProperty (its emissive colour is a pointer that
 // may be shared) and colour controllers (likely shared). The base colour is
 // desaturated on every recoloured shape, but a controller animating the
 // property's colour every frame may overwrite it; the stats count such
-// properties. Particle colour modifiers only with config particleColors
-// (ParticleColors.h).
+// properties.
 
 namespace BlackFlame
 {
@@ -33,7 +33,6 @@ namespace BlackFlame
     {
         int effectGeometries = 0;  // geometries with a BSEffectShaderProperty
         int paletteSwapped = 0;    // recoloured, the property maps grey to the palette
-        int forcedPalette = 0;     // recoloured, palette colour flag added (config forcePalette)
         int baseColorOnly = 0;     // recoloured, no palette flag: only the base colour changes
         int alreadyOurs = 0;       // skipped, already recoloured
         int colorControlled = 0;   // of those seen, properties with a BSEffectShaderPropertyColorController
@@ -44,11 +43,10 @@ namespace BlackFlame
         // no material or Create() null, the palette lost after SetMaterial, or a property already in
         // that terminal state
         int failed = 0;
-        int colorModifiers = 0;    // BSPSysSimpleColorModifiers desaturated (config particleColors)
         int masterSkipped = 0;     // effect geometries under a BSMasterParticleSystem: shared, left alone
         int addOnNodes = 0;        // "AddOnNode" nodes: they emit into a shared master particle system elsewhere
 
-        [[nodiscard]] int Recolored() const noexcept { return paletteSwapped + forcedPalette + baseColorOnly; }
+        [[nodiscard]] int Recolored() const noexcept { return paletteSwapped + baseColorOnly; }
         void Add(const RecolorStats& a_other) noexcept;
         [[nodiscard]] std::string Describe() const;
     };
@@ -77,18 +75,6 @@ namespace BlackFlame
     /// greyscale texture, path and base colour (SetMaterial(copy, true)), and its palette flags as
     /// they were (never on without a texture). Game thread only. False without a material.
     bool RestoreProperty(RE::BSEffectShaderProperty* a_prop, const PropertyOriginal& a_original);
-
-    /// The NiLight behind a light slot whose declared type may not be what it holds (a projectile's
-    /// BSLight slot was the prime suspect for the AE fault): asked through MSVC RTTI, a BSLight gives its
-    /// NiLight. a_kind names what it was ("BSLight", "NiLight", "null" or neither).
-    RE::NiLight* AsNiLight(RE::NiRefObject* a_raw, const char*& a_kind);
-
-    /// AsNiLight, and the first time per a_owner (a string literal: "projectile", "explosion",
-    /// "hazard", "casting") its real type is logged. Every light the layers tint goes through this.
-    RE::NiLight* CheckedLight(RE::NiRefObject* a_raw, const char* a_owner);
-
-    /// Sets a light's diffuse colour to config lightColor. False for a null light.
-    bool TintLight(RE::NiLight* a_light);
 
     /// "prop=0x... mat=0x... grey=yes/no paletteFlag=yes/no" for the first few effect properties
     /// under a_root, and how many are grey (read only; any grey on an NPC instance = contamination)

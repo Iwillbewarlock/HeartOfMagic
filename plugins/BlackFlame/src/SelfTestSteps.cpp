@@ -104,9 +104,8 @@ namespace BlackFlame::SelfTest
                 "hazards {}; catalog {}: {} tagged fire, {} of them fire by the tag alone", counts.total,
                 counts.effects, counts.explosions, counts.hazards, counts.catalogRead ? "read" : "NOT read",
                 counts.catalogFire, counts.catalogOnly));
-            SelfTestLog::Info("T0", std::format("config: burnShader={} hitArt={} projectile={} explosion={} hazard={} "
-                "handArt={} light={} forcePalette={} particleColors={} tintScale={}", cfg.burnShader, cfg.hitArt,
-                cfg.projectile, cfg.explosion, cfg.hazard, cfg.handArt, cfg.light, cfg.forcePalette, cfg.particleColors, cfg.tintScale));
+            SelfTestLog::Info("T0", std::format("config: burnShader={} hitArt={} handArt={} boundWeapon={} light={}",
+                cfg.burnShader, cfg.hitArt, cfg.handArt, cfg.boundWeapon, cfg.light));
             if (a_c.forms.fireballExplosion) {
                 SelfTestLog::Info("T0", std::format("Fireball explosion {:08X} radius {:.0f}",
                     a_c.forms.fireballExplosion->GetFormID(), a_c.forms.fireballExplosion->data.radius));
@@ -302,47 +301,6 @@ namespace BlackFlame::SelfTest
         // T3 and its numeric checks
         // ---------------------------------------------------------------------
 
-        void CheckTint(const SelfTestProbe::ProjectileRecord& a_r)
-        {
-            int grey = 0;
-            int notGrey = 0;
-            int lumChecked = 0;
-            int lumOff = 0;
-            int controlled = 0;
-            const auto& after = a_r.after.pointers;
-            for (std::size_t i = 0; i < after.properties.size(); ++i) {
-                if (!after.grey[i]) {
-                    continue;
-                }
-                const auto& c = after.baseColors[i];
-                (Near(c.red, c.green) && Near(c.red, c.blue) ? grey : notGrey)++;
-                // The same property before the recolour (and not grey yet): its luminance x tintScale
-                const auto& before = a_r.before;
-                const auto it = std::ranges::find(before.properties, after.properties[i]);
-                if (it == before.properties.end()) {
-                    continue;
-                }
-                const auto j = static_cast<std::size_t>(it - before.properties.begin());
-                if (before.grey[j]) {
-                    continue;
-                }
-                if (after.colorControlled[i]) {
-                    ++controlled;  // its controller rewrites the colour per frame: no luminance compare
-                    continue;
-                }
-                ++lumChecked;
-                lumOff += Near(c.red, Luminance(before.baseColors[j]) * GetConfig().tintScale) ? 0 : 1;
-            }
-            const auto detail = std::format("recoloured base colours: {} grey (R=G=B), {} not; luminance x tintScale "
-                "checked on {}, {} off; {} with a colour controller left out of that compare", grey, notGrey, lumChecked,
-                lumOff, controlled);
-            if (grey > 0 && lumChecked == 0 && controlled > 0 && notGrey == 0) {
-                SelfTestLog::Info("T3-tint", "every comparable shape has a colour controller, nothing to compare: " + detail);
-                return;
-            }
-            SelfTestLog::Check("T3-tint", grey > 0 && notGrey == 0 && lumChecked > 0 && lumOff == 0, detail);
-        }
-
         bool StepPlayerProjectile(Ctx& a_c, bool a_first)
         {
             if (a_first) {
@@ -362,39 +320,18 @@ namespace BlackFlame::SelfTest
             }
             const auto& a = r->after;
             a_c.t3Copy = r->copyBase != 0;
-            a_c.t3ModifierKeys = r->before.modifierKeys;  // T7: contamination before T4 would show against these
-            // C2: a copy is grey by construction: judged by the copy and the palette in its 3D; the recolour checks
-            // (T3-pointer, T3-tint) only for a launch without a copy
-            if (r->copyBase != 0 || !GetConfig().projectile) {
-                const auto verdict = JudgeGrey(r->copyBase, r->recolored, r->stats.Recolored(), a, GetConfig().projectile);
-                const bool observed = r->inspected3D;
-                a_c.t3Judged = verdict.judged;
-                if (verdict.judged) {
-                    a_c.t3Recolored = verdict.pass && observed;
-                    SelfTestLog::Check("T3", verdict.pass && observed, std::format("{}{} | {}", verdict.how,
-                        observed ? "" : "; NOT INSPECTED: no 3D at the hook", DescribeProjectile(*r)));
-                } else {
-                    SelfTestLog::Info("T3", verdict.how + " | " + DescribeProjectile(*r));
-                }
-                const char* why = verdict.copy ? "not judged: a copy (grey by construction, the recolour changes nothing)" :
-                                                 "not judged: runtime recolour off";
-                SelfTestLog::Info("T3-pointer", why);
-                SelfTestLog::Info("T3-tint", why);
-                return true;
+            // C2: a copy is grey by construction: judged by the copy and the copies' rule in its 3D. C6: a launch without a
+            // copy is not judged (no runtime recolour; T3-pointer and T3-tint went with it)
+            const auto verdict = JudgeGrey(r->copyBase, a);
+            const bool observed = r->inspected3D;
+            a_c.t3Judged = verdict.judged;
+            if (verdict.judged) {
+                a_c.t3Recolored = verdict.pass && observed;
+                SelfTestLog::Check("T3", verdict.pass && observed, std::format("{}{} | {}", verdict.how,
+                    observed ? "" : "; NOT INSPECTED: no 3D at the hook", DescribeProjectile(*r)));
+            } else {
+                SelfTestLog::Info("T3", verdict.how + " | " + DescribeProjectile(*r));
             }
-            const bool ok = r->recolored && r->stats.Recolored() > 0 && a.withPalettePath >= r->stats.Recolored();
-            a_c.t3Recolored = ok;
-            a_c.t3Judged = true;
-            SelfTestLog::Check("T3", ok, std::format("{} effect shapes with the palette path of {} | {}", a.withPalettePath,
-                a.effectProperties, DescribeProjectile(*r)));
-            SelfTestLog::Check("T3-pointer", a.withPalettePath > 0 && a.withBoth == a.withPalettePath, std::format(
-                "engine copy kept our texture pointer: {} of {} palette materials", a.withBoth, a.withPalettePath));
-            if (GetConfig().forcePalette && a.withPalettePath < a.effectProperties) {
-                SelfTestLog::Info("T3", std::format("partial: {} of {} effect shapes recoloured", a.withPalettePath,
-                    a.effectProperties));
-            }
-            CheckTint(*r);  // the light is judged later on a live projectile (T4-light): reading it back here
-                            // right after writing it would prove nothing
             return true;
         }
     }
@@ -471,7 +408,6 @@ namespace BlackFlame::SelfTest
             StepDef{ "T6-npc", kExplosionTimeout, &StepNpcExplosion },
             StepDef{ "T6-npc-swap", kInfoTimeout, &StepNpcImpactSwap },
             StepDef{ "T3-remote", kRemoteTimeout, &StepRemoteCast },
-            StepDef{ "T7", kEnvTimeout, &StepModifiers },
             StepDef{ "E1a", kE1aTimeout, &StepE1Firebolt },
             StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
             StepDef{ "E1c", kE1cTimeout, &StepE1Npc },

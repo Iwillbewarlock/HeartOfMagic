@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Common.h"
-#include "ParticleColors.h"
 #include "Recolor.h"
 
 #include <chrono>
@@ -41,7 +40,6 @@ namespace BlackFlame::SelfTestProbe
         std::vector<std::uintptr_t> properties;
         std::vector<std::uintptr_t> materials;
         std::vector<RE::NiColorA> baseColors;  // the material's baseColor
-        std::vector<ColorKeys> modifierKeys;   // every simple colour modifier's keys (Capture only)
         std::vector<bool> grey;                // Recolor.h HasGreyMaterial
         std::vector<bool> colorControlled;     // Recolor.h HasColorController
     };
@@ -60,9 +58,6 @@ namespace BlackFlame::SelfTestProbe
         int withOurPalette = 0;      // the greyscale path names either of our palettes (any shader)
         int withAddPalette = 0;      // of those, the additive palette (GradBlackFlameAdd.dds)
         int greyByRule = 0;          // palette shaders with one of ours plus other shaders with a grey base colour
-        std::vector<std::uintptr_t> colorModifiers;  // BSPSysSimpleColorModifier pointers
-        int colorModifiersAllGrey = 0;               // of those, every colour key has R == G == B
-        std::vector<ColorKeys> modifierKeys;         // each modifier's colour keys (ParticleColors.h), in order
     };
 
     /// Game thread. Read-only walk of a_root (null: empty).
@@ -83,14 +78,11 @@ namespace BlackFlame::SelfTestProbe
         const char* kind = "";
         bool byPlayer = false;
         const char* link = "none";  // the attribution rule that matched (PlayerLinkName)
-        bool recolored = false;     // the projectile layer ran on it
-        RecolorStats stats;
-        long long recolorMicros = 0;
         std::uint32_t hookThread = 0;
         bool hookOnGameThread = false;
         bool hasLight = false;
-        RE::NiColor lightDiffuse{};  // after the recolour
-        Snapshot before;  // taken just before the recolour (or instead of it)
+        RE::NiColor lightDiffuse{};  // after the light tint
+        Snapshot before;  // taken at the hook, before the light tint
         Inspection after;
         bool inspected3D = false;              // the 3D existed when the record was taken
         std::vector<std::uint32_t> valueNodes; // its BSValueNode (AddOnNode) values (v2 E1a)
@@ -102,8 +94,6 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID base = 0;      // the explosion's base form (a v2 copy's source when it is a copy)
         RE::FormID copyBase = 0;  // the copy's own id when the base is a v2 copy, else 0
         bool byPlayer = false;
-        bool recolored = false;
-        RecolorStats stats;
         RE::FormID owner = 0;
         RE::FormID causeActor = 0;
         bool hasMagicCaster = false;

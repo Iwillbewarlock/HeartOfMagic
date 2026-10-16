@@ -1,9 +1,7 @@
 #include "Recolor.h"
 #include "TrackedMutex.h"
 
-#include "Config.h"
 #include "Palette.h"
-#include "ParticleColors.h"
 #include "LogLimit.h"
 #include "Tint.h"
 
@@ -19,6 +17,8 @@ namespace BlackFlame
     namespace
     {
         constexpr int kMaxDescribedMaterials = 3;
+        // C6: the runtime recolour's base colour scale, fixed (the retired tintScale key's default, = the builder's --tint)
+        constexpr float kRuntimeTint = 0.6f;
 
         std::atomic<bool> g_ownershipLogged{ false };
 
@@ -153,7 +153,7 @@ namespace BlackFlame
             copy->CopyMembers(source);
             copy->greyscaleTexture.reset(palette);
             copy->greyscaleTexturePath = GetPalettePath();
-            (void)Desaturate(copy->baseColor, GetConfig().tintScale);
+            (void)Desaturate(copy->baseColor, kRuntimeTint);
 
             // Ownership out of the unique_ptr BEFORE the engine call: should anything fault from here
             // on (the step is then unwound and switched off), our copy leaks instead of being freed
@@ -169,11 +169,13 @@ namespace BlackFlame
             // changes baseColor every frame without one). If the palette does not show in
             // game, a missing SetupGeometry/FinishSetupGeometry is the first suspect (README).
 
+            // C6: no palette flag is ever added (forcePalette retired; the builder's v2i rule: forcing it made flat grey
+            // shapes): a shape without one only gets the desaturated base colour
             const bool hasFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteColor);
             const bool hasAlphaFlag = a_prop->flags.all(Flag::kGrayscaleToPaletteAlpha);
-            if (hasFlag || hasAlphaFlag || GetConfig().forcePalette) {
-                // Re-read: the property holds the engine's copy now, and no palette flag (already
-                // on, or about to be) may stay on without a palette texture behind it
+            if (hasFlag || hasAlphaFlag) {
+                // Re-read: the property holds the engine's copy now, and no palette flag may stay on without a palette
+                // texture behind it
                 const auto* now = a_prop->GetMaterial();
                 if (!now || !now->greyscaleTexture) {
                     // The property is the instance's own: its palette flags go off, so the effect
@@ -193,15 +195,8 @@ namespace BlackFlame
                     return;
                 }
             }
-            if (hasFlag || (hasAlphaFlag && !GetConfig().forcePalette)) {
+            if (hasFlag || hasAlphaFlag) {
                 ++a_stats.paletteSwapped;  // an alpha-only shape maps through the palette too
-            } else if (GetConfig().forcePalette) {
-                // Set only now, after the material with both palette pointer and path is in
-                // place: the effect technique gates on the path and reads the pointer unchecked.
-                // The property is the instance's own (cloned per instance; the material is the
-                // pooled part), and the material check log shows its pointer per instance.
-                a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, true);
-                ++a_stats.forcedPalette;
             } else {
                 ++a_stats.baseColorOnly;
             }
@@ -281,7 +276,6 @@ namespace BlackFlame
     {
         effectGeometries += a_other.effectGeometries;
         paletteSwapped += a_other.paletteSwapped;
-        forcedPalette += a_other.forcedPalette;
         baseColorOnly += a_other.baseColorOnly;
         alreadyOurs += a_other.alreadyOurs;
         colorControlled += a_other.colorControlled;
@@ -290,20 +284,18 @@ namespace BlackFlame
         legacyGeometries += a_other.legacyGeometries;
         paletteAlpha += a_other.paletteAlpha;
         failed += a_other.failed;
-        colorModifiers += a_other.colorModifiers;
         masterSkipped += a_other.masterSkipped;
         addOnNodes += a_other.addOnNodes;
     }
 
     std::string RecolorStats::Describe() const
     {
-        return std::format("{} effect geometries: {} palette swapped, {} palette forced (flag added), "
+        return std::format("{} effect geometries: {} palette swapped, "
                            "{} base colour only (no palette flag), {} already grey, {} with a colour controller, "
                            "{} with palette alpha, {} legacy NiGeometry, {} failed; material copies: {} engine-copied, "
-                           "{} ours kept; {} particle colour modifiers desaturated{}{}",
-            effectGeometries, paletteSwapped, forcedPalette, baseColorOnly, alreadyOurs, colorControlled, paletteAlpha,
-            legacyGeometries, failed, engineCopied, keptOurs, colorModifiers,
-            GetConfig().particleColors ? "" : " (particleColors off)",
+                           "{} ours kept{}",
+            effectGeometries, paletteSwapped, baseColorOnly, alreadyOurs, colorControlled, paletteAlpha,
+            legacyGeometries, failed, engineCopied, keptOurs,
             masterSkipped + addOnNodes == 0 ? "" :
                 std::format("; shared particles left alone: {} geometries under a BSMasterParticleSystem, {} AddOn "
                             "nodes", masterSkipped, addOnNodes));
@@ -320,16 +312,11 @@ namespace BlackFlame
         if (!a_root || !PaletteReady()) {
             return stats;
         }
-        ForEachEffectPropertyImpl(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool a_legacy) {
+        ForEachEffectPropertyImpl(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool a_legacy) {
             if (a_legacy) {
                 ++stats.legacyGeometries;
             }
             RecolorProperty(a_prop, stats, a_observer);
-            if (GetConfig().particleColors && a_geometry) {
-                if (auto* particles = netimmerse_cast<RE::NiParticleSystem*>(a_geometry)) {
-                    stats.colorModifiers += DesaturateColorModifiers(particles);
-                }
-            }
         }, &stats);
         return stats;
     }
@@ -362,53 +349,6 @@ namespace BlackFlame
         a_prop->SetFlags(Flag8::kGrayscaleToPaletteColor, a_original.paletteColor && hasTexture);
         a_prop->SetFlags(Flag8::kGrayscaleToPaletteAlpha, a_original.paletteAlpha && hasTexture);
         SetFailed(a_prop, false);
-        return true;
-    }
-
-    RE::NiLight* AsNiLight(RE::NiRefObject* a_raw, const char*& a_kind)
-    {
-        a_kind = "neither BSLight nor NiLight";
-        if (!a_raw) {
-            a_kind = "null";
-            return nullptr;
-        }
-        if (auto* bsLight = skyrim_cast<RE::BSLight*>(a_raw)) {
-            a_kind = "BSLight";
-            return bsLight->light.get();
-        }
-        if (auto* niLight = skyrim_cast<RE::NiLight*>(a_raw)) {
-            a_kind = "NiLight";
-            return niLight;
-        }
-        return nullptr;
-    }
-
-    RE::NiLight* CheckedLight(RE::NiRefObject* a_raw, const char* a_owner)
-    {
-        const char* kind = nullptr;
-        auto* light = AsNiLight(a_raw, kind);
-        if (a_raw) {
-            static TrackedMutex mutex;
-            static auto* logged = std::make_unique<std::unordered_set<const char*>>().release();
-            bool first = false;
-            {
-                std::lock_guard lock(mutex);
-                first = logged->insert(a_owner).second;
-            }
-            if (first) {
-                logger::info("BlackFlame: {} light object 0x{:X} is a {}", a_owner, reinterpret_cast<std::uintptr_t>(a_raw),
-                    kind);
-            }
-        }
-        return light;
-    }
-
-    bool TintLight(RE::NiLight* a_light)
-    {
-        if (!a_light) {
-            return false;
-        }
-        a_light->GetLightRuntimeData().diffuse = GetConfig().lightColor;
         return true;
     }
 

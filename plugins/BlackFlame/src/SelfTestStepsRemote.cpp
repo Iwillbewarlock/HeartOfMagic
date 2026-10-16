@@ -134,16 +134,15 @@ namespace BlackFlame::SelfTest
                     return false;  // the step's timeout ends it (logged as a timeout)
                 }
                 const bool byTag = std::string_view(tagged->link) == PlayerLinkName(PlayerLink::kTagged);
-                // W5: recolour off and no copy expected: the attribution alone cannot pass this step
-                if (!GetConfig().projectile && !CopyLaunchExpected(a_c.forms.firebolt)) {
-                    SelfTestLog::Info("T3-remote", std::format("not judged: recolour off and no projectile copy expected; "
+                // W5: no copy expected: the attribution alone cannot pass this step
+                if (!CopyLaunchExpected(a_c.forms.firebolt)) {
+                    SelfTestLog::Info("T3-remote", std::format("not judged: no projectile copy expected; "
                         "the player's through its {}: {}", tagged->link, DescribeProjectile(*tagged)));
                     a_c.phase = kCastBlamed;
                     return false;
                 }
-                // C2: grey judged the same way as T3 (a copy by its 3D, else the recolour); observed 3D required
-                const auto verdict = JudgeGrey(tagged->copyBase, tagged->recolored, tagged->stats.Recolored(), tagged->after,
-                    GetConfig().projectile);
+                // C2: grey judged the same way as T3 (a copy by its 3D); observed 3D required
+                const auto verdict = JudgeGrey(tagged->copyBase, tagged->after);
                 SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag && verdict.judged && verdict.pass && tagged->inspected3D,
                     std::format("projectile shot by the tagged marker {:08X}, the player's through its {}; {}{}: {}",
                         a_c.remoteMarkerId, tagged->link, verdict.how, tagged->inspected3D ? "" : " (NOT INSPECTED: no 3D)",

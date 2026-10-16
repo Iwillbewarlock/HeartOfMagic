@@ -8,7 +8,7 @@
 #include <vector>
 
 // =============================================================================
-// SELF-TEST JUDGE - shader identity and colour-key comparisons for the steps
+// SELF-TEST JUDGE - shader identity and the copies' grey verdict for the steps
 // =============================================================================
 
 namespace BlackFlame::SelfTest
@@ -32,16 +32,9 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] std::string DescribeEngineShaders(const std::vector<SelfTestWorld::ShaderOn>& a_shaders,
         const std::vector<RE::FormID>& a_engines);
 
-    /// Some RGB key is not grey: desaturating these keys would change them
-    [[nodiscard]] bool HasColour(const ColorKeys& a_keys);
-
-    /// a_keys equals a_original desaturated the way ParticleColors does it (RGB to luminance,
-    /// alpha kept), within a small tolerance; false for an already grey original
-    [[nodiscard]] bool MatchesDesaturated(const ColorKeys& a_keys, const ColorKeys& a_original);
-
     /// C2: whether the player's projectile or explosion is grey. A copy base is grey by construction, so it is
-    /// judged by the copy and the grey palette path on every effect shape of its 3D (already grey is the expected
-    /// state); a non-copy only by the runtime recolour, when that is on; otherwise not judged.
+    /// judged by the copy and the copies' rule on every effect shape of its 3D (already grey is the expected
+    /// state); a non-copy is not judged (C6: no runtime recolour; a form without a copy stays orange).
     struct GreyVerdict
     {
         bool judged = false;
@@ -50,10 +43,5 @@ namespace BlackFlame::SelfTest
         std::string how;
     };
 
-    [[nodiscard]] GreyVerdict JudgeGrey(RE::FormID a_copyBase, bool a_recolored, int a_recoloredShapes,
-        const SelfTestProbe::Inspection& a_after, bool a_recolourOn);
-
-    /// The caster's colour keys at its hook vs now, per modifier pointer; empty when nothing matched
-    [[nodiscard]] std::optional<bool> ModifiersChanged(const SelfTestProbe::Inspection& a_atHook,
-        const SelfTestProbe::Inspection& a_now);
+    [[nodiscard]] GreyVerdict JudgeGrey(RE::FormID a_copyBase, const SelfTestProbe::Inspection& a_after);
 }

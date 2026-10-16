@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <sstream>
@@ -12,8 +13,6 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr float kMinTintScale = 0.0f;
-        constexpr float kMaxTintScale = 2.0f;
         constexpr float kMinLightChannel = 0.0f;
         constexpr float kMaxLightChannel = 1.0f;
         constexpr std::size_t kLightChannels = 3;
@@ -34,9 +33,6 @@ namespace BlackFlame
         constexpr std::array kBoolKeys{
             BoolKey{ "burnShader", &Config::burnShader },
             BoolKey{ "hitArt", &Config::hitArt },
-            BoolKey{ "hazard", &Config::hazard },
-            BoolKey{ "projectile", &Config::projectile },
-            BoolKey{ "explosion", &Config::explosion },
             BoolKey{ "handArt", &Config::handArt },
             BoolKey{ "boundWeapon", &Config::boundWeapon },
             BoolKey{ "scriptPlaced", &Config::scriptPlaced },
@@ -52,18 +48,25 @@ namespace BlackFlame
             BoolKey{ "copyPlaced", &Config::copyPlaced },
             BoolKey{ "copyHazardCreate", &Config::copyHazardCreate },
             BoolKey{ "writeRequest", &Config::writeRequest },
-            BoolKey{ "forcePalette", &Config::forcePalette },
             BoolKey{ "selfTest", &Config::selfTest },
             BoolKey{ "testerMode", &Config::testerMode },
-            BoolKey{ "particleColors", &Config::particleColors },
             BoolKey{ "devAutoE3", &Config::devAutoE3 },
             BoolKey{ "devAutoQuit", &Config::devAutoQuit },
         };
 
+        // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
+        // once as retired and ignored, not as an unknown key
+        constexpr std::array<std::string_view, 7> kRetiredKeys{ "projectile", "explosion", "hazard", "forcePalette",
+            "particleColors", "tintScale", "burnMode" };
+
+        bool IsRetiredKey(std::string_view key)
+        {
+            return std::ranges::find(kRetiredKeys, key) != kRetiredKeys.end();
+        }
+
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "tintScale" || key == "lightColor" || key == "burnMode" || key == "selfTestDelaySeconds" ||
-                key == "devAutoLoad") {
+            if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -90,34 +93,15 @@ namespace BlackFlame
             }
         }
 
-        // burnMode is gone: the hit shader is swapped where the engine asks for it, so there is one
-        // shader per hit and nothing to lay on top. An old config keeps loading; the key is ignored.
-        void ReadBurnMode(const nlohmann::json& j)
+        std::string_view RetiredWhy(std::string_view key)
         {
-            const auto it = j.find("burnMode");
-            if (it != j.end()) {
-                logger::info("BlackFlame: config 'burnMode' {} is ignored (no longer used: the engine now makes the hit "
-                             "shader from ours, so there is no overlay)", it->dump());
+            if (key == "burnMode") {
+                return "the hit shader is swapped where the engine asks for it, so there is no overlay";
             }
-        }
-
-        void ReadTintScale(const nlohmann::json& j, Config& out)
-        {
-            const auto it = j.find("tintScale");
-            if (it == j.end()) {
-                return;
+            if (key == "forcePalette" || key == "particleColors" || key == "tintScale") {
+                return "the runtime recolour is retired (C6); the builder bakes the copies' palette, colour keys and tint";
             }
-            if (!it->is_number()) {
-                logger::warn("BlackFlame: config 'tintScale' is not a number ({}) - keeping {}", it->dump(), out.tintScale);
-                return;
-            }
-            const float value = it->get<float>();
-            if (value < kMinTintScale || value > kMaxTintScale) {
-                logger::warn("BlackFlame: config 'tintScale' {} is outside {}..{} - keeping {}", value, kMinTintScale,
-                    kMaxTintScale, out.tintScale);
-                return;
-            }
-            out.tintScale = value;
+            return "the runtime recolour of projectiles, explosions and hazards is retired (C6): their copies are grey";
         }
 
         void ReadSelfTestDelay(const nlohmann::json& j, Config& out)
@@ -204,18 +188,14 @@ namespace BlackFlame
         void LogConfig()
         {
             logger::info(
-                "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
-                "forcePalette={} selfTest={} particleColors={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} copyHitArt={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
-                g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
-                g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap, g_config.hazardSwap, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
+                "BlackFlame: config burnShader={} hitArt={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
+                "selfTest={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
+                "copyImpacts={} copyHitArt={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} lightColor=[{}, {}, {}]",
+                g_config.burnShader, g_config.hitArt, g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap,
+                g_config.hazardSwap, g_config.light, g_config.selfTest,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
                 g_config.copyHitArt, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
-                g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
-            if (g_config.particleColors) {
-                logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "
-                             "3D are desaturated through a layout CommonLib does not have (unverified on AE)");
-            }
+                g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
         }
     }
 
@@ -236,15 +216,15 @@ namespace BlackFlame
             return;
         }
         for (const auto& [key, value] : j.items()) {
-            if (!IsKnownKey(key)) {
+            if (IsRetiredKey(key)) {
+                logger::info("BlackFlame: config key '{}' ({}) is retired, ignored: {}", key, value.dump(), RetiredWhy(key));
+            } else if (!IsKnownKey(key)) {
                 logger::warn("BlackFlame: config key '{}' is not known - ignored", key);
             }
         }
 
         Config next;
         ReadBools(j, next);
-        ReadBurnMode(j);
-        ReadTintScale(j, next);
         ReadSelfTestDelay(j, next);
         ReadLightColor(j, next);
         if (next.testerMode) {
@@ -263,15 +243,11 @@ namespace BlackFlame
     void DisableEngineWrites(const char* a_why)
     {
         g_config.hitArt = false;
-        g_config.projectile = false;
-        g_config.explosion = false;
-        g_config.hazard = false;
         g_config.handArt = false;
         g_config.boundWeapon = false;
         g_config.light = false;
-        g_config.particleColors = false;
-        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, projectile, explosion, hazard, handArt, "
-                     "boundWeapon, light and particleColors false; the copies and the per-call swaps stay on", a_why);
+        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon and light false; the "
+                     "copies and the per-call swaps stay on", a_why);
     }
 
     const Config& GetConfig() noexcept

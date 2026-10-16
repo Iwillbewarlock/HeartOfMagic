@@ -1,9 +1,6 @@
 {
     "burnShader": true,
     "hitArt": false,
-    "projectile": false,
-    "explosion": false,
-    "hazard": false,
     "handArt": false,
     "boundWeapon": false,
     "scriptPlaced": true,
@@ -19,11 +16,8 @@
     "copyHazardCreate": true,
     "copyPlaced": true,
     "writeRequest": false,
-    "forcePalette": true,
-    "particleColors": false,
     "selfTest": false,
     "testerMode": false,
     "selfTestDelaySeconds": 30,
-    "tintScale": 0.6,
     "lightColor": [0.25, 0.22, 0.28]
 }

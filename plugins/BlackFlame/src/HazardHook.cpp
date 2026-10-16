@@ -11,6 +11,7 @@
 #include "FireSet.h"
 #include "GameThread.h"
 #include "LogLimit.h"
+#include "EffectLight.h"
 #include "Recolor.h"
 #include "ImpactSwap.h"
 #include "ScriptTags.h"
@@ -108,7 +109,7 @@ namespace BlackFlame
             if (ImpactWindowOpen() || CopyWindowOpen() || (hazardBase && IsCopy(hazardBase))) {
                 TagSource(a_hazard);
             }
-            if (!IsStoked() || (!GetConfig().hazard && !GetConfig().light) || !a_hazard->Get3D()) {
+            if (!IsStoked() || !GetConfig().light || !a_hazard->Get3D()) {
                 return;
             }
             const auto handle = a_hazard->GetHandle();
@@ -153,32 +154,29 @@ namespace BlackFlame
             Queued().erase(a_handle.native_handle());
         }
 
-        // True when something changed (a shape recoloured or already grey, or the light tinted)
-        bool RecolorHazard(RE::Hazard* a_hazard, const RE::BGSHazard* a_base, PlayerLink a_link)
+        // The player's fire hazard's light (config light); true when it was tinted (false: back into the queue on a
+        // later Set3D/Initialize, the light may come later). C6: its 3D is never recoloured any more - a copy hazard or
+        // the grey map's model (HazardSwap) is grey by construction
+        bool TintHazardLight(RE::Hazard* a_hazard, const RE::BGSHazard* a_base, PlayerLink a_link)
         {
-            RecolorStats stats;
-            // The 3D only with config hazard (off by default since v2); the light with config light
-            if (GetConfig().hazard && !Guarded("hazard recolour", [&]() { stats = RecolorTree(a_hazard->Get3D()); })) {
-                return true;  // faulted: not again
+            if (!GetConfig().light) {
+                return true;
             }
-            const char* lightKind = "not touched (light false)";
+            const char* lightKind = "";
             bool tinted = false;
-            if (GetConfig().light) {
-                (void)Guarded("hazard light", [&]() {
-                    auto* light = CheckedLight(a_hazard->GetHazardRuntimeData().light.get(), "hazard");
-                    lightKind = light ? "" : "none or not an NiLight,";
-                    tinted = TintLight(light);
-                });
-            }
+            (void)Guarded("hazard light", [&]() {
+                auto* light = CheckedLight(a_hazard->GetHazardRuntimeData().light.get(), "hazard");
+                lightKind = light ? "" : "none or not an NiLight,";
+                tinted = TintLight(light);
+            });
             const auto* spell = a_base->data.spell;
             int suppressed = 0;
             if (LogLimit::Allow("hazard", a_base->GetFormID(), suppressed)) {
-                logger::info("BlackFlame: hazard {:08X} (spell {:08X}, the player's through its {}): {}; light {} {}{}",
-                    a_base->GetFormID(), spell ? spell->GetFormID() : 0, PlayerLinkName(a_link), stats.Describe(),
-                    lightKind, tinted ? "tinted" : "left",
-                    suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
+                logger::info("BlackFlame: hazard {:08X} (spell {:08X}, the player's through its {}): light {} {}{}",
+                    a_base->GetFormID(), spell ? spell->GetFormID() : 0, PlayerLinkName(a_link), lightKind,
+                    tinted ? "tinted" : "left", suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
-            return stats.Recolored() + stats.alreadyOurs > 0 || tinted;
+            return tinted;
         }
 
         // One queued hazard: handled or dropped (true), or its owner still unset (false: wait)
@@ -209,7 +207,7 @@ namespace BlackFlame
             const auto link = LinkToPlayer("hazard", hazard, owner.get());
             if (link != PlayerLink::kNone && IsFireHazard(base) && IsStoked()) {
                 LogLinkOnce("hazard", link);
-                if (!RecolorHazard(hazard, base, link)) {
+                if (!TintHazardLight(hazard, base, link)) {
                     Unqueue(a_pending.handle);
                 }
             }

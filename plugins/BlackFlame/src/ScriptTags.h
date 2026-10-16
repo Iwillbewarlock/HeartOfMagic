@@ -59,7 +59,7 @@ namespace BlackFlame
     /// pending one does not count (yet)
     [[nodiscard]] bool IsTaggedSource(const RE::TESObjectREFR* a_ref);
 
-    /// Ticker task: recolours placed references whose 3D exists, drops expired tags
+    /// Ticker task: tints the lights of placed references whose 3D exists, drops expired tags
     void TickScriptTags();
 
     [[nodiscard]] bool HasScriptTags() noexcept;

@@ -97,10 +97,8 @@ namespace BlackFlame::SelfTest
         RE::ObjectRefHandle blameMarker;                  // T3-blame's casting marker
         RE::FormID blameMarkerId = 0;
         std::optional<Clock::time_point> secondSwapSeen;  // T5-second's swap record first seen
-        std::optional<bool> npcModifiersChanged;  // the caster's colour keys moved between its hook and T4
         std::vector<SeenShader> engineBeforeT4;    // engine hit shaders on the target before the T4 casts
         std::optional<Clock::time_point> npcHitEta;  // when the caster's T4 projectile can have arrived
-        std::vector<ColorKeys> t3ModifierKeys;     // the player's T3 projectile's colour keys before its recolour
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
         Aim aim;                                       // C3: T5's confirmation of the T3 Firebolt's hit
@@ -196,7 +194,6 @@ namespace BlackFlame::SelfTest
     bool StepNpcBurnInfo(Ctx& a_c, bool a_first);
     bool StepPlayerExplosion(Ctx& a_c, bool a_first);
     bool StepNpcExplosion(Ctx& a_c, bool a_first);
-    bool StepModifiers(Ctx& a_c, bool a_first);
     bool StepBuffOff(Ctx& a_c, bool a_first);
     bool StepCastUnstoked(Ctx& a_c, bool a_first);
     bool StepCleanup(Ctx& a_c, bool a_first);

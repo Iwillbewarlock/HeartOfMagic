@@ -5,7 +5,6 @@
 #include "TrackedMutex.h"
 
 #include "Palette.h"
-#include "ParticleColors.h"
 #include "SehGuard.h"
 
 #include <atomic>
@@ -16,7 +15,6 @@ namespace BlackFlame::SelfTestProbe
 {
     namespace
     {
-        constexpr std::size_t kRgbaFloats = 4;
         constexpr float kGreyTolerance = 1e-3f;  // v2i: a grey base colour (R = G = B as the builder writes it)
 
         std::atomic<bool> g_recording{ false };
@@ -38,21 +36,6 @@ namespace BlackFlame::SelfTestProbe
             a_out.baseColors.push_back(material ? material->baseColor : RE::NiColorA{});
             a_out.grey.push_back(HasGreyMaterial(a_prop));
             a_out.colorControlled.push_back(HasColorController(a_prop));
-        }
-
-        void InspectModifiers(RE::NiParticleSystem* a_particles, Inspection& a_out)
-        {
-            ForEachSimpleColorModifier(a_particles, [&](RE::NiPSysModifier* a_modifier, const ColorKeys& keys) {
-                a_out.colorModifiers.push_back(reinterpret_cast<std::uintptr_t>(a_modifier));
-                a_out.modifierKeys.push_back(keys);
-                bool grey = true;
-                for (std::size_t i = 0; i < kColorKeyFloats; i += kRgbaFloats) {
-                    grey = grey && keys[i] == keys[i + 1] && keys[i] == keys[i + 2];
-                }
-                if (grey) {
-                    ++a_out.colorModifiersAllGrey;
-                }
-            });
         }
 
         template <class T>
@@ -124,14 +107,8 @@ namespace BlackFlame::SelfTestProbe
         Snapshot out;
         // Guarded like the layers: a fault leaves what was read so far
         (void)Guarded("self-test capture", [&]() {
-        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
+        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
             AddProperty(a_prop, out);
-            // The colour keys as they were before any recolour (the self-test's T7 compares with them)
-            if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
-                ForEachSimpleColorModifier(particles, [&](RE::NiPSysModifier*, const ColorKeys& a_keys) {
-                    out.modifierKeys.push_back(a_keys);
-                });
-            }
         });
         });
         return out;
@@ -142,7 +119,7 @@ namespace BlackFlame::SelfTestProbe
         Inspection out;
         const auto* palette = GetPalette();
         (void)Guarded("self-test inspect", [&]() {
-        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, bool) {
+        ForEachEffectProperty(a_root, [&](RE::BSEffectShaderProperty* a_prop, RE::BSGeometry*, bool) {
             ++out.effectProperties;
             AddProperty(a_prop, out.pointers);
             if (const auto* material = a_prop->GetMaterial()) {
@@ -163,9 +140,6 @@ namespace BlackFlame::SelfTestProbe
                 out.withPalettePointer += pointer ? 1 : 0;
                 out.withBoth += (path && pointer) ? 1 : 0;
                 out.withGrey += out.pointers.grey.back() ? 1 : 0;
-            }
-            if (auto* particles = a_geometry ? netimmerse_cast<RE::NiParticleSystem*>(a_geometry) : nullptr) {
-                InspectModifiers(particles, out);
             }
         });
         });

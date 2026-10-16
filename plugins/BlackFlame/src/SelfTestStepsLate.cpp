@@ -3,7 +3,6 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "Forms.h"
-#include "ParticleColors.h"
 #include "HazardSwap.h"
 #include "ImpactSwap.h"
 #include "ProjectileHook.h"
@@ -133,8 +132,8 @@ namespace BlackFlame::SelfTest
                 }
                 const auto& a = r.after;
                 if (a_byPlayer) {
-                    // C2: a copy by the copy and the palette in its 3D, a non-copy by the runtime recolour (when on)
-                    const auto verdict = JudgeGrey(r.copyBase, r.recolored, r.stats.Recolored(), a, GetConfig().explosion);
+                    // C2: a copy by the copy and the copies' rule in its 3D; a non-copy is not judged (C6)
+                    const auto verdict = JudgeGrey(r.copyBase, a);
                     if (!verdict.judged) {
                         SelfTestLog::Info(id, verdict.how + " | " + DescribeExplosion(r));
                     } else {
@@ -142,7 +141,7 @@ namespace BlackFlame::SelfTest
                     }
                     return true;
                 }
-                SelfTestLog::Check(id, !r.recolored && a.effectProperties > 0 && a.withGrey == 0, std::format("{} effect "
+                SelfTestLog::Check(id, a.effectProperties > 0 && a.withGrey == 0, std::format("{} effect "
                     "shapes in its 3D, {} grey | {}", a.effectProperties, a.withGrey, DescribeExplosion(r)));
                 return true;
             }
@@ -346,18 +345,16 @@ namespace BlackFlame::SelfTest
         }
         const auto& npc = *a_c.npcT4;
         const auto& player = *a_c.playerT4;
-        // V9/W5: with the recolour off the copies are judged instead (the caster's original, the player's copy); with no
-        // copy expected (copyLaunch off, the Launch detour not hooked, no copy) there is nothing to judge: INFO
-        const bool judgeCopies = !GetConfig().projectile;
-        if (judgeCopies && !CopyLaunchExpected(a_c.forms.firebolt)) {
-            SelfTestLog::Info("T4", std::format("not judged: recolour off and no projectile copy expected | caster: {} | player: {}",
+        // V9/W5: the copies are judged (the caster's original, the player's copy); with no copy expected (copyLaunch off,
+        // the Launch detour not hooked, no copy) there is nothing to judge: INFO
+        if (!CopyLaunchExpected(a_c.forms.firebolt)) {
+            SelfTestLog::Info("T4", std::format("not judged: no projectile copy expected | caster: {} | player: {}",
                 DescribeProjectile(npc), DescribeProjectile(player)));
         } else {
-            const bool copyOk = !judgeCopies || (npc.copyBase == 0 && player.copyBase != 0);
-            const bool ok = !npc.recolored && npc.after.effectProperties > 0 && npc.after.withGrey == 0 &&
-                            player.after.effectProperties > 0 && (player.recolored || judgeCopies) && copyOk;
-            SelfTestLog::Check("T4", ok, std::format("caster: {} | player: recoloured={}, copy {:08X}, {} effect properties",
-                DescribeProjectile(npc), player.recolored, player.copyBase, player.after.effectProperties));
+            const bool copyOk = npc.copyBase == 0 && player.copyBase != 0;
+            const bool ok = npc.after.effectProperties > 0 && npc.after.withGrey == 0 && player.after.effectProperties > 0 && copyOk;
+            SelfTestLog::Check("T4", ok, std::format("caster: {} | player: copy {:08X}, {} effect properties",
+                DescribeProjectile(npc), player.copyBase, player.after.effectProperties));
         }
 
         // Compared only while both projectiles still exist, inspected now
@@ -373,14 +370,13 @@ namespace BlackFlame::SelfTest
             } else {
                 SelfTestLog::Info("T4-shared", "not comparable: a live projectile showed no effect properties");
             }
-            a_c.npcModifiersChanged = ModifiersChanged(npc.after, npcNow);
             CheckLiveLight(playerRef.get());
         } else {
             SelfTestLog::Info("T4-shared", "not comparable: a projectile was gone before both could be inspected");
             SelfTestLog::Info("T4-light", "not checked: the player's projectile was gone");
         }
         const int pooled = CommonCount(npc.before.materials, player.before.materials);
-        SelfTestLog::Info("T4", std::format("materials before any recolour: caster {} vs player {}, {} pointer(s) in "
+        SelfTestLog::Info("T4", std::format("materials at the hook: caster {} vs player {}, {} pointer(s) in "
             "common ({}pooled)", npc.before.materials.size(), player.before.materials.size(), pooled,
             pooled ? "" : "not "));
         return true;
@@ -432,56 +428,8 @@ namespace BlackFlame::SelfTest
     bool StepNpcExplosion(Ctx& a_c, bool a_first) { return StepExplosion(a_c, a_first, false); }
 
     // ---------------------------------------------------------------------
-    // T7, T8, T9
+    // T8, T9 (T7, the particle colour modifiers, retired with particleColors in C6)
     // ---------------------------------------------------------------------
-
-    bool StepModifiers(Ctx& a_c, bool)
-    {
-        if (!a_c.playerT4 || !a_c.npcT4) {
-            SelfTestLog::Info("T7", "nothing to compare: no T4 projectiles");
-            return true;
-        }
-        const auto& player = a_c.playerT4->after;
-        const auto& npc = a_c.npcT4->after;
-        const auto& keysOf = !player.modifierKeys.empty() ? player.modifierKeys : npc.modifierKeys;
-        if (keysOf.empty()) {
-            SelfTestLog::Info("T7", "no BSPSysSimpleColorModifier found");
-        } else {
-            SelfTestLog::Info("T7", std::format("first BSPSysSimpleColorModifier colour keys (0x30-0x5F): {} -> {}",
-                DescribeColorKeys(keysOf.front()),
-                KeysPlausible(keysOf.front()) ? "layout plausible" : "layout mismatch - keep particleColors off"));
-        }
-        if (!GetConfig().particleColors || player.colorModifiers.empty()) {
-            SelfTestLog::Info("T7", std::format("nothing to compare (particleColors {}, player modifiers {})",
-                GetConfig().particleColors, player.colorModifiers.size()));
-            return true;
-        }
-        SelfTestLog::Check("T7-player", player.colorModifiersAllGrey == static_cast<int>(player.colorModifiers.size()),
-            std::format("player modifiers desaturated: {} of {}", player.colorModifiersAllGrey, player.colorModifiers.size()));
-        if (npc.colorModifiers.empty() || !a_c.npcModifiersChanged) {
-            SelfTestLog::Info("T7", "caster modifiers not comparable (none, or the projectile was gone at T4)");
-            return true;
-        }
-        if (a_c.npcT4->seq >= a_c.playerT4->seq) {
-            SelfTestLog::Info("T7", "order not guaranteed: the caster's projectile was recorded after the player's, so "
-                "its keys at its hook may already be the player's desaturation - not judged");
-            return true;
-        }
-        // Already contaminated before T4: a shared modifier desaturated at T3 would show the
-        // desaturated T3 keys at the caster's hook
-        const bool desaturatedAtHook = std::ranges::any_of(npc.modifierKeys, [&](const ColorKeys& a_keys) {
-            return std::ranges::any_of(a_c.t3ModifierKeys, [&](const ColorKeys& a_original) {
-                return MatchesDesaturated(a_keys, a_original);
-            });
-        });
-        const bool t3Comparable = std::ranges::any_of(a_c.t3ModifierKeys, [](const ColorKeys& a_k) { return HasColour(a_k); });
-        const int shared = CommonCount(npc.colorModifiers, player.colorModifiers);
-        SelfTestLog::Check("T7", shared == 0 && !*a_c.npcModifiersChanged && !desaturatedAtHook, std::format("caster "
-            "modifiers: {}, {} shared with the player's, keys changed between its hook and T4: {}, keys at its hook equal "
-            "to the desaturated T3 keys: {}", npc.colorModifiers.size(), shared, *a_c.npcModifiersChanged ? "YES" : "no",
-            !t3Comparable ? "not compared (no coloured T3 keys)" : (desaturatedAtHook ? "YES" : "no")));
-        return true;
-    }
 
     bool StepBuffOff(Ctx& a_c, bool a_first)
     {
@@ -543,11 +491,11 @@ namespace BlackFlame::SelfTest
         if (!r) {
             return false;
         }
-        // D3: the unbuffed launch never takes a copy, whatever the recolour setting. E4: T3's part counts only when T3 was
-        // judged; otherwise it is "not judged" and the unbuffed launch is still judged
-        const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 && r->copyBase == 0 &&
+        // D3: the unbuffed launch never takes a copy. E4: T3's part counts only when T3 was judged; otherwise it is "not
+        // judged" and the unbuffed launch is still judged
+        const bool ok = r->after.effectProperties > 0 && r->after.withGrey == 0 && r->copyBase == 0 &&
                         (!a_c.t3Judged || a_c.t3Recolored);
-        SelfTestLog::Check("T8-cast", ok, std::format("T3 grey (copy/recolour): {} | unbuffed launch: copy {:08X}, {} effect "
+        SelfTestLog::Check("T8-cast", ok, std::format("T3 grey (copy): {} | unbuffed launch: copy {:08X}, {} effect "
             "shapes, {} grey | {}", !a_c.t3Judged ? "not judged" : (a_c.t3Recolored ? "yes" : "NO"), r->copyBase,
             r->after.effectProperties, r->after.withGrey, DescribeProjectile(*r)));
         return true;

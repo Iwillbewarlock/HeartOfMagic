@@ -741,6 +741,23 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   TAKEALOOK 요청: 무변경 재저장 동일 156 -> 489/513, 나머지 24는 NiNode 빈 자식 참조 제거(파일 전체로 4-48바이트 짧아짐, 이번 범위 밖).
 - E6 kWatch 2초 -> 10초(E6-drop도), 단계 한도 6 -> 23초, 시전에서 3D까지 시간을 줄에, E6-npc는 원본 아트 3D를 10초까지 기다려 그 시간을 INFO로.
 
+### C6: 런타임 재색칠 은퇴 (사용자 승인, scratchpad c6-gaps.md "권장 분할")
+
+- 지움: 투사체·폭발·해저드 3D 재색칠 분기(훅 설치, 조명, 기록, 충격·사본 창, 해저드 태그는 그대로), 스크립트가 놓은 물체의 RecolorTree(놓인
+  불 폭발·해저드의 조명만 남음, 시각 전용 종류는 더 이상 다루지 않음), particleColors 쓰기 경로(ParticleColors.cpp/.h 전부: 읽기 도우미를
+  쓰던 T7과 함께), forcePalette(런타임 재색칠도 팔레트 플래그를 더하지 않음: 빌더 v2i 규칙과 같게), tintScale(남은 재색칠은 0.6 고정),
+  자가 시험 T3-pointer, T3-tint, T7, JudgeGrey의 런타임 분기(사본이 아니면 "not judged"), 기록의 recolored/stats/recolorMicros.
+- 키 뒤에 남김(기본 꺼짐): hitArt(해제 조건 E6·E6-npc PASS), handArt(실제 충전 시전에서 SetCastingArt 호출 > 0, SE는 SE id 확인),
+  boundWeapon(묶인 무기 사본이 대신할 때까지; 사용자 결정 항목이라 이번에 지우지 않음). Recolor.cpp의 재질 코드는 이 셋이 함께 쓰므로
+  남고, 셋이 갈 때 같이 간다(Recolor.h 머리 주석, README 설정 표).
+- 반드시 남김: light, burnShader, impactSwap, hazardSwap, scriptPlaced, 세 훅의 설치·기록·창·태그, 묶인 불 무기 목록.
+- 조명은 EffectLight.cpp/.h로 분리(AsNiLight, CheckedLight, TintLight): Recolor.cpp는 재질 + 읽기 도우미만.
+- Config: 은퇴 키 목록(projectile, explosion, hazard, forcePalette, particleColors, tintScale, burnMode) - 예전 json은 키마다
+  "retired, ignored"와 이유를 info로 한 줄, "not known" 경고 아님. 배포 json에서 여섯 키 삭제. DisableEngineWrites는 hitArt, handArt,
+  boundWeapon, light만.
+- README 254행 "needs `explosion` on" 정정: 폭발 쪽 충격 창은 impactSwap만 본다(ExplosionHook.cpp).
+- 600줄 확인: 가장 긴 파일 SelfTestReload.cpp 573줄.
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.

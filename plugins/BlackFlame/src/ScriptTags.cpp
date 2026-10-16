@@ -7,6 +7,7 @@
 #include "GameThread.h"
 #include "HitEffectHook.h"
 #include "LogLimit.h"
+#include "EffectLight.h"
 #include "Recolor.h"
 #include "SehGuard.h"
 
@@ -34,7 +35,7 @@ namespace BlackFlame
         {
             RE::ObjectRefHandle handle;
             Clock::time_point expires{};
-            bool placed = false;  // waiting for its 3D to be recoloured
+            bool placed = false;  // waiting for its 3D (its light tinted)
             std::uint32_t generation = 0;
             // Set by a call on a VM thread: the calling script's VM handle, not judged yet. Judged on the
             // game thread (the ActiveEffect is read only there) when the tag is first asked about or at
@@ -132,11 +133,10 @@ namespace BlackFlame
             return nullptr;
         }
 
-        // What a script of the player's fire effect placed is recoloured only when its base is fire by the
-        // FireSet rules (a fire explosion or hazard), or a visual-only kind (activator, moveable static,
-        // static, art object) whose effect shaders are the fire the effect placed. Anything else (an actor,
-        // an item, a container, a door, a light...) is left and logged once per base type.
-        bool IsRecolourable(RE::TESObjectREFR* a_ref)
+        // What a script of the player's fire effect placed gets its light tinted only when its base is fire by the
+        // FireSet rules (a fire explosion or hazard). C6: nothing placed is recoloured any more (copyPlaced hands the
+        // script the copy); anything else (a visual-only kind, an actor, an item...) is left and logged once per base type.
+        bool IsTintable(RE::TESObjectREFR* a_ref)
         {
             const auto* base = a_ref->GetBaseObject();
             if (!base || a_ref->As<RE::Actor>()) {
@@ -147,11 +147,6 @@ namespace BlackFlame
                 return IsFireExplosion(base->As<RE::BGSExplosion>());
             case RE::FormType::Hazard:
                 return IsFireHazard(base->As<RE::BGSHazard>());
-            case RE::FormType::Activator:
-            case RE::FormType::MovableStatic:
-            case RE::FormType::Static:
-            case RE::FormType::ArtObject:
-                return true;
             default:
                 break;
             }
@@ -164,33 +159,25 @@ namespace BlackFlame
             }
             if (first) {
                 logger::info("BlackFlame: placed by a script of the player's fire effect: {:08X} (base {:08X}, form type "
-                             "{}) is not a fire explosion, hazard or visual-only kind - left",
+                             "{}) is not a fire explosion or hazard - left",
                     a_ref->GetFormID(), base->GetFormID(), static_cast<int>(base->GetFormType()));
             }
             return false;
         }
 
-        void RecolorPlaced(RE::TESObjectREFR* a_ref)
+        void TintPlaced(RE::TESObjectREFR* a_ref)
         {
-            if (!IsRecolourable(a_ref)) {
+            if (!GetConfig().light || !IsTintable(a_ref)) {
                 return;
             }
-            RecolorStats stats;
             bool tinted = false;
-            (void)Guarded("script-placed recolour", [&]() {
-                // Runtime recolour of placed fire only with the explosion or hazard layer on (both off by
-                // default since v2); the light with config light
-                if (GetConfig().explosion || GetConfig().hazard) {
-                    stats = RecolorTree(a_ref->Get3D());
-                }
-                tinted = GetConfig().light && TintLight(LightOf(a_ref));
-            });
+            (void)Guarded("script-placed light", [&]() { tinted = TintLight(LightOf(a_ref)); });
             const auto* base = a_ref->GetBaseObject();
             const auto baseId = base ? base->GetFormID() : 0;
             int suppressed = 0;
             if (LogLimit::Allow("script-placed", baseId, suppressed)) {
-                logger::info("BlackFlame: placed by a script of the player's fire effect: {:08X} (base {:08X}): {}; light "
-                             "{}{}", a_ref->GetFormID(), baseId, stats.Describe(), tinted ? "tinted" : "none or left",
+                logger::info("BlackFlame: placed by a script of the player's fire effect: {:08X} (base {:08X}): light {}{}",
+                    a_ref->GetFormID(), baseId, tinted ? "tinted" : "none or left",
                     suppressed ? std::format(" ({} similar lines held back)", suppressed) : "");
             }
         }
@@ -311,14 +298,14 @@ namespace BlackFlame
             g_count.store(tags.size());
         }
         for (const auto& [value, caller] : pending) {
-            (void)JudgePending(value, caller);  // a confirmed placed tag is recoloured on the next tick
+            (void)JudgePending(value, caller);  // a confirmed placed tag gets its light on the next tick
         }
         for (const auto& handle : due) {
             const auto ref = handle.get();
             if (!ref || !ref->Get3D() || !IsStoked()) {
                 continue;
             }
-            RecolorPlaced(ref.get());
+            TintPlaced(ref.get());
             std::lock_guard lock(g_mutex);
             if (const auto it = Tags().find(handle.native_handle()); it != Tags().end()) {
                 it->second.placed = false;  // done; it stays a source until it expires

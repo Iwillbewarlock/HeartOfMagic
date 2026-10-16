@@ -6,6 +6,7 @@
 #include "FireSet.h"
 #include "HitEffectHook.h"
 #include "LogLimit.h"
+#include "EffectLight.h"
 #include "Recolor.h"
 #include "SehGuard.h"
 

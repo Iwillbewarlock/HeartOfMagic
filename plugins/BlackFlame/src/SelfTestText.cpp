@@ -64,10 +64,10 @@ namespace BlackFlame::SelfTestText
 
     std::string DescribeProjectile(const SelfTestProbe::ProjectileRecord& a_r)
     {
-        return std::format("spell {:08X} ({}) base {:08X} copy {:08X} recoloured={} [{}] in {} us; 3D after: {} effect properties, {} with "
+        return std::format("spell {:08X} ({}) base {:08X} copy {:08X}; 3D after: {} effect properties, {} with "
                            "palette path, {} with palette pointer, {} both, {} grey; copies' rule: {} grey of {} ({} palette shaders, {} with our palette, "
                            "{} additive); hookThread={} ({}), gameThread={}",
-            a_r.spell, a_r.kind, a_r.base, a_r.copyBase, a_r.recolored, a_r.stats.Describe(), a_r.recolorMicros, a_r.after.effectProperties,
+            a_r.spell, a_r.kind, a_r.base, a_r.copyBase, a_r.after.effectProperties,
             a_r.after.withPalettePath, a_r.after.withPalettePointer, a_r.after.withBoth, a_r.after.withGrey, a_r.after.greyByRule,
             a_r.after.effectProperties, a_r.after.paletteShaders, a_r.after.withOurPalette, a_r.after.withAddPalette, a_r.hookThread,
             a_r.hookOnGameThread ? "game thread" : "other thread", g_gameThreadNativeId.load());
@@ -75,10 +75,10 @@ namespace BlackFlame::SelfTestText
 
     std::string DescribeExplosion(const SelfTestProbe::ExplosionRecord& a_r)
     {
-        return std::format("explosion {:08X} copy {:08X} byPlayer={} recoloured={} [{}]; owner {:08X}, cause actor {:08X}, "
+        return std::format("explosion {:08X} copy {:08X} byPlayer={}; owner {:08X}, cause actor {:08X}, "
                            "magicCaster {} currentSpell {:08X}, light at Set3D {}; 3D after: {} with palette path, copies' rule {} grey of {} ({} additive); "
                            "hookThread={} (gameThread={})",
-            a_r.base, a_r.copyBase, a_r.byPlayer, a_r.recolored, a_r.stats.Describe(), a_r.owner, a_r.causeActor,
+            a_r.base, a_r.copyBase, a_r.byPlayer, a_r.owner, a_r.causeActor,
             a_r.hasMagicCaster ? "set" : "null", a_r.casterSpell, a_r.lightAtSet3D ? "yes" : "no",
             a_r.after.withPalettePath, a_r.after.greyByRule, a_r.after.effectProperties, a_r.after.withAddPalette, a_r.hookThread,
             g_gameThreadNativeId.load());

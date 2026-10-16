@@ -75,7 +75,7 @@ namespace GreyBuild
     // Map file (plugins/BlackFlame/data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json)
     // =========================================================================
 
-    inline constexpr float kDefaultTint = 0.6f;  // the DLL's tintScale default (plugins/BlackFlame/src/Config.h)
+    inline constexpr float kDefaultTint = 0.6f;  // the copies' base colour scale (was the DLL tintScale default, a key retired in C6)
     inline constexpr float kDefaultTintAdd = 0.9f;  // v2i: base colour scale of additive palette shaders (--tint-add)
 
     // ADDN DNAM flags as Skyrim.esm stores them (raw DNAM: MPSFireSmall01 01 00, MPSFireBoltImpact01 03 00)
