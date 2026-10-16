@@ -282,7 +282,9 @@ void ToxGame::LoadPoisonSpells()
         AddWithCloakSpells(spell, candidates, cloakSpells);
     }
     std::size_t notHostile = 0;
+    std::unordered_set<RE::FormID> seen;  // a sub-spell two cloaks share, or a catalog spell that is also a sub-spell: counted once
     for (auto* spell : candidates) {
+        if (!seen.insert(spell->GetFormID()).second) continue;
         if (HasHostileEffect(spell)) {
             g_poisonSpells.insert(spell->GetFormID());
         } else {
