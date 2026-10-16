@@ -154,3 +154,26 @@ target_include_directories(tree-save-check PRIVATE
 target_link_libraries(tree-save-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# toxicology-test  -  offline harness for the Toxicology addon core
+# =============================================================================
+# The addon's own core (src/core, no game types): settings, poison spell keys,
+# top poison, magicka per dose, coat interval. --self-test, exit 1 on a FAIL.
+
+set(TOXICOLOGY_SRC_DIR "${CMAKE_SOURCE_DIR}/plugins/Toxicology/src")
+
+add_executable(toxicology-test
+    toxicology-test.cpp
+    ${TOXICOLOGY_SRC_DIR}/core/ToxCore.cpp
+)
+
+target_compile_features(toxicology-test PRIVATE cxx_std_23)
+
+target_include_directories(toxicology-test PRIVATE
+    ${TOXICOLOGY_SRC_DIR}
+)
+
+target_link_libraries(toxicology-test PRIVATE
+    nlohmann_json::nlohmann_json
+)
