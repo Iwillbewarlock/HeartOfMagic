@@ -758,6 +758,24 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - README 254행 "needs `explosion` on" 정정: 폭발 쪽 충격 창은 impactSwap만 본다(ExplosionHook.cpp).
 - 600줄 확인: 가장 긴 파일 SelfTestReload.cpp 573줄.
 
+### 묶인 불 무기 1단계: 화살 (scratchpad bound-weapon-plan.md)
+
+- 전제 정정: 폐포는 MGEF projectileBase를 이미 따라가서, 카탈로그 fire 주문의 묶인 활 화살(예: Vigilant 1258AD)은 이미 사본이 있었다.
+  c6-gaps.md의 "화살 PROJ는 요청되지 않는다"는 일부 틀림(그 파일에 취소선과 정정).
+- FireSet: kDataLoaded에 정적 씨앗(BoundFireSeeds). BoundWeapon 원형 MGEF 중 associatedForm이 묶인 WEAP이고, 런타임 규칙의 두
+  갈래 중 하나로 불인 것: 불 주문의 불 효과(IsFireEffect), 또는 무기 마법 부여에 불 MGEF(HasFireEnchantment, PlayerArt에서 옮김).
+  씨앗마다 그 효과를 가진 주문(불 주문 먼저)을 찾아 둔다(자가 시험이 시전). RefreshBoundFire는 씨앗 무기만 받는다: 런타임 목록 ⊆ 폐포.
+- FireClosure: 새 간선 kEdgeBoundArrow 둘: 씨앗 MGEF의 projectileBase, 활·석궁이면 WeapTypeBoundArrow 기본 객체 키워드
+  (DEFAULT_OBJECTS::kKeywordWeaponTypeBoundArrow, TESAmmo::AsKeywordForm)를 가진 모든 AMMO의 data.projectile. via는 씨앗 MGEF.
+  과대 근사는 무해(Launch 교체는 플레이어 + 묶인 불 무기가 무기 출처일 때만). windows.h의 GetObject 매크로 때문에 FireSet.cpp에서 undef.
+- 자가 시험 SelfTestStepsBound.cpp: T0-bound(씨앗마다 화살 PROJ 사본 / 제외 이유 / 없음 FAIL), E-bound-launch(씨앗 주문 시전, 목록
+  반영 뒤 AMMO LaunchData 생성자로 발사, copyBase = 사본), E-bound-npc(사슴이 같은 탄·무기로 쏘면 원본), E-bound-off(T8 뒤 버프 꺼짐,
+  원본, 그 뒤 주문 해제; T9가 다시 해제). T0-cover에 묶인 화살 간선 INFO.
+- 빌더 변경 없음. 새 요청은 게임이 kDataLoaded에 쓴다: 지난 요청(10-16 21:42)으로 한 스크래치 재빌드에는 새 사본(예: 바닐라
+  BoundArrowPROJ 10B0A5)이 나올 수 없다. 다음 게임 실행이 요청을 다시 쓴 뒤 빌더를 돌려야 한다.
+- 2단계(무기·화살 메시, GetModel 창)는 게임 안 진단 실행을 기다린다. 진단 훅도 이번에는 넣지 않았다(세 vtable GetModel thunk +
+  창 후보 둘이라 작지 않음).
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.

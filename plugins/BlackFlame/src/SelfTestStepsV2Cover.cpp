@@ -184,6 +184,17 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Info("T0-cover", std::format("{} closure form(s) excluded: source mesh absent in this load order: {}",
                 absent, absentLines));
         }
+        // Bound-weapon stage 1: the arrows of bound fire weapons, used by the Launch swap with the weapon as its source
+        std::size_t boundArrows = 0;
+        std::size_t boundArrowsCopied = 0;
+        for (const auto& form : closure.forms) {
+            if ((form.edges & kEdgeBoundArrow) != 0) {
+                ++boundArrows;
+                boundArrowsCopied += CopyOf(form.form) ? 1 : 0;
+            }
+        }
+        SelfTestLog::Info("T0-cover", std::format("bound fire weapon arrows (edge bound arrow, the Launch swap): {} of {} copied, from {} "
+            "seed(s)", boundArrowsCopied, boundArrows, closure.boundSeeds));
         Part projectiles, dualProjectiles, explosions, castingArts;
         for (const auto* spell : FireSpellList()) {
             const auto* costliest = spell->GetAVEffect();

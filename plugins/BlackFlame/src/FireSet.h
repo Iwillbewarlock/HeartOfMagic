@@ -74,4 +74,30 @@ namespace BlackFlame
     /// A hazard a fire MGEF can leave (see the top), or one whose own spell (BGSHazardData::spell)
     /// is a fire spell or carries a fire MGEF (hazard spells need not be of the counted kSpell type)
     [[nodiscard]] bool IsFireHazard(const RE::BGSHazard* a_hazard);
+
+    /// The weapon's own enchantment carries a fire MGEF (IsFireMgefAny)
+    [[nodiscard]] bool HasFireEnchantment(const RE::TESObjectWEAP* a_weapon);
+
+    // Bound fire weapons (bound-weapon stage 1): the static form of the runtime rule (PlayerArt.cpp RefreshBoundFire), built
+    // at kDataLoaded after the fire sets. Every BoundWeapon-archetype MGEF whose associated form is a bound WEAP and that is
+    // fire by one of the two rules: a fire effect of a fire spell (IsFireEffect), or the weapon's enchantment carries a fire
+    // MGEF (HasFireEnchantment; then the MGEF need not be in any fire spell). The copy closure seeds its arrows from these.
+    struct BoundFireSeed
+    {
+        RE::EffectSetting* effect = nullptr;
+        RE::TESObjectWEAP* weapon = nullptr;
+        RE::SpellItem* spell = nullptr;  // a spell carrying the effect (a fire spell first), null when none does
+        bool byEffect = false;           // fire as a fire effect of a fire spell
+        bool byEnchantment = false;      // fire by the weapon's enchantment
+    };
+
+    /// The seeds BuildFireSets found (kDataLoaded thread wrote them; read-only afterwards)
+    [[nodiscard]] const std::vector<BoundFireSeed>& BoundFireSeeds() noexcept;
+
+    /// The weapon is a seed's weapon (any thread)
+    [[nodiscard]] bool IsFireBoundWeaponForm(const RE::TESForm* a_weapon);
+
+    /// Every AMMO with the WeapTypeBoundArrow default-object keyword and a projectile (the arrows bound-bow scripts hand out);
+    /// read from the data handler each call (kDataLoaded or the game thread)
+    [[nodiscard]] std::vector<RE::TESAmmo*> BoundArrowAmmo();
 }

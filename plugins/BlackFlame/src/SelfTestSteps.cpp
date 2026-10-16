@@ -60,6 +60,7 @@ namespace BlackFlame::SelfTest
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
         // G2: 2.5 s settle + three casts x HitWait (flight to 1200 units + 0.8 s: 3.8 s at a projectile speed of 400) + 1.5 s
         constexpr float kE1mTimeout = 16.0f;
+        constexpr float kEBoundTimeout = 6.0f;     // the bound weapon on the list (3 s at most), the launches, the records
         constexpr float kE6Timeout = 23.0f;        // J3: kWatch (10 s) for the art, the dispel, kWatch for the art to go, and slack
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
@@ -393,6 +394,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T0", kEnvTimeout, &StepEnvironment },
             StepDef{ "T0-hooks", kEnvTimeout, &StepV2Static },
             StepDef{ "T0-cover", kEnvTimeout, &StepV2Cover },
+            StepDef{ "T0-bound", kEnvTimeout, &StepBoundCover },
             StepDef{ "T1", kBuffOnTimeout, &StepBuffOn },
             StepDef{ "T2", kSpawnTimeout, &StepSpawn },
             StepDef{ "T2", kActorsTimeout, &StepActorsReady },
@@ -416,8 +418,10 @@ namespace BlackFlame::SelfTest
             StepDef{ "E6", kE6Timeout, &StepE6Player },
             StepDef{ "E6-npc", kE6Timeout, &StepE6Npc },
             StepDef{ "E5", kEnvTimeout, &StepE5 },
+            StepDef{ "E-bound-launch", kEBoundTimeout, &StepBoundLaunch },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
+            StepDef{ "E-bound-off", kProjectileTimeout, &StepBoundOff },
             StepDef{ "T-threads", kEnvTimeout, &StepThreads },
             StepDef{ "T9", kCleanupTimeout, &StepCleanup },
             StepDef{ "E3", kE3Timeout, &Reload::StepE3 },  // after the cleanup: asks the player for a quicksave and quickload

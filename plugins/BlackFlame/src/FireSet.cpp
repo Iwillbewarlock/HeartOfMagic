@@ -16,6 +16,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#ifdef GetObject
+#    undef GetObject  // windows.h: BGSDefaultObjectManager::GetObject below
+#endif
+
 namespace BlackFlame
 {
     namespace
@@ -33,6 +37,58 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> g_fireHazards;  // hazards those MGEFs can leave
         std::unordered_map<RE::FormID, RE::BGSArtObject*> g_castingArts;  // F5: fire spell -> its costliest effect's casting art
         FireSetCounts g_counts;
+        std::vector<BoundFireSeed> g_boundSeeds;          // bound-weapon stage 1
+        std::unordered_set<RE::FormID> g_boundWeapons;   // their weapons
+
+        // The bound fire weapon seeds (see FireSet.h): after the fire effects are known
+        void BuildBoundFireSeeds()
+        {
+            g_boundSeeds.clear();
+            g_boundWeapons.clear();
+            auto* dh = RE::TESDataHandler::GetSingleton();
+            if (!dh) {
+                return;
+            }
+            std::unordered_map<RE::FormID, std::size_t> byEffect;  // MGEF -> index in g_boundSeeds
+            for (auto* mgef : dh->GetFormArray<RE::EffectSetting>()) {
+                if (!mgef || !mgef->HasArchetype(RE::EffectSetting::Archetype::kBoundWeapon)) {
+                    continue;
+                }
+                auto* weapon = mgef->data.associatedForm ? mgef->data.associatedForm->As<RE::TESObjectWEAP>() : nullptr;
+                if (!weapon || !weapon->IsBound()) {
+                    continue;
+                }
+                const bool fireEffect = IsFireEffect(mgef);
+                const bool fireEnchantment = HasFireEnchantment(weapon);
+                if (!fireEffect && !fireEnchantment) {
+                    continue;
+                }
+                byEffect.emplace(mgef->GetFormID(), g_boundSeeds.size());
+                g_boundSeeds.push_back({ mgef, weapon, nullptr, fireEffect, fireEnchantment });
+                g_boundWeapons.insert(weapon->GetFormID());
+            }
+            // A spell for each seed (the self-test casts it): a fire spell first, else any spell carrying the effect
+            for (const bool fireOnly : { true, false }) {
+                for (auto* spell : dh->GetFormArray<RE::SpellItem>()) {
+                    if (!spell || (fireOnly && !IsFireSpell(spell))) {
+                        continue;
+                    }
+                    for (const auto* item : spell->effects) {
+                        const auto it = item && item->baseEffect ? byEffect.find(item->baseEffect->GetFormID()) : byEffect.end();
+                        if (it != byEffect.end() && !g_boundSeeds[it->second].spell) {
+                            g_boundSeeds[it->second].spell = spell;
+                        }
+                    }
+                }
+            }
+            for (const auto& seed : g_boundSeeds) {
+                logger::info("BlackFlame: bound fire weapon {:08X} '{}' from effect {:08X} (fire {}{}{}), spell {:08X}",
+                    seed.weapon->GetFormID(), seed.weapon->GetName(), seed.effect->GetFormID(), seed.byEffect ? "effect" : "",
+                    seed.byEffect && seed.byEnchantment ? " and " : "", seed.byEnchantment ? "enchantment" : "",
+                    seed.spell ? seed.spell->GetFormID() : 0);
+            }
+            logger::info("BlackFlame: {} bound fire weapon seed(s), {} weapon(s)", g_boundSeeds.size(), g_boundWeapons.size());
+        }
 
         using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
 
@@ -300,6 +356,7 @@ namespace BlackFlame
             }
         }
 
+        BuildBoundFireSeeds();
         logger::info("BlackFlame: fire spells (a fire MGEF, or the catalog's fire tag): {}; {} fire effects, {} fire "
                      "explosions, {} fire hazards. Catalog {}: {} spells tagged fire, {} of them fire by the tag alone "
                      "(every effect of those counts); {} added as a fire cloak's associated spell",
@@ -327,6 +384,49 @@ namespace BlackFlame
     bool IsFireEffect(const RE::EffectSetting* a_effect)
     {
         return a_effect && g_fireEffects.contains(a_effect->GetFormID());
+    }
+
+    bool HasFireEnchantment(const RE::TESObjectWEAP* a_weapon)
+    {
+        const auto* enchantment = a_weapon ? a_weapon->formEnchanting : nullptr;
+        if (!enchantment) {
+            return false;
+        }
+        for (const auto* effect : enchantment->effects) {
+            if (effect && IsFireMgefAny(effect->baseEffect)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    const std::vector<BoundFireSeed>& BoundFireSeeds() noexcept
+    {
+        return g_boundSeeds;
+    }
+
+    bool IsFireBoundWeaponForm(const RE::TESForm* a_weapon)
+    {
+        return a_weapon && g_boundWeapons.contains(a_weapon->GetFormID());
+    }
+
+    std::vector<RE::TESAmmo*> BoundArrowAmmo()
+    {
+        std::vector<RE::TESAmmo*> out;
+        const auto* defaults = RE::BGSDefaultObjectManager::GetSingleton();
+        // (windows.h maps GetObject to GetObjectW: undefined at the top of this file)
+        const auto* keyword = defaults ? defaults->GetObject<RE::BGSKeyword>(RE::DEFAULT_OBJECTS::kKeywordWeaponTypeBoundArrow) : nullptr;
+        auto* dh = RE::TESDataHandler::GetSingleton();
+        if (!keyword || !dh) {
+            return out;
+        }
+        for (auto* ammo : dh->GetFormArray<RE::TESAmmo>()) {
+            const auto* keywords = ammo ? ammo->AsKeywordForm() : nullptr;
+            if (keywords && keywords->HasKeyword(keyword) && ammo->GetRuntimeData().data.projectile) {
+                out.push_back(ammo);
+            }
+        }
+        return out;
     }
 
     RE::BGSArtObject* CostliestCastingArtOf(const RE::MagicItem* a_spell)

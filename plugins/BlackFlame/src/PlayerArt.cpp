@@ -54,22 +54,10 @@ namespace BlackFlame
             return *bound;
         }
 
-        bool HasFireEnchantment(const RE::TESObjectWEAP* a_weapon)
-        {
-            const auto* enchantment = a_weapon->formEnchanting;
-            if (!enchantment) {
-                return false;
-            }
-            for (const auto* effect : enchantment->effects) {
-                if (effect && IsFireMgefAny(effect->baseEffect)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         // A bound weapon named by an active Bound Weapon effect the player cast on themselves, when that
-        // effect is a fire effect of a fire spell or the weapon's own enchantment carries a fire MGEF
+        // effect is a fire effect of a fire spell or the weapon's own enchantment carries a fire MGEF (FireSet.h
+        // HasFireEnchantment), and the weapon is a static seed's (IsFireBoundWeaponForm: the runtime list stays inside the copy
+        // closure, so a missing copy means stale copies, not a hole in the closure)
         void RefreshBoundFire(RE::PlayerCharacter* a_player)
         {
             std::vector<RE::FormID> found;
@@ -79,7 +67,7 @@ namespace BlackFlame
                     return;
                 }
                 const auto* weapon = base->data.associatedForm ? base->data.associatedForm->As<RE::TESObjectWEAP>() : nullptr;
-                if (!weapon || !weapon->IsBound() || a_effect->GetCasterActor().get() != a_player) {
+                if (!weapon || !weapon->IsBound() || !IsFireBoundWeaponForm(weapon) || a_effect->GetCasterActor().get() != a_player) {
                     return;
                 }
                 if (IsPlayerFireEffect(a_effect) || HasFireEnchantment(weapon)) {

@@ -4,6 +4,7 @@
 
 #include "EncodingUtils.h"
 
+#include <algorithm>
 #include <deque>
 #include <memory>
 #include <format>
@@ -92,6 +93,7 @@ namespace BlackFlame
                         Push(costliest, spell->GetFormID(), true);  // (b)
                     }
                 }
+                PushBoundArrows();
                 while (!m_queue.empty()) {
                     const Visit visit = m_queue.front();
                     m_queue.pop_front();
@@ -101,6 +103,29 @@ namespace BlackFlame
             }
 
         private:
+            // Bound-weapon stage 1: the arrows of the bound fire weapons (FireClosure.h)
+            void PushBoundArrows()
+            {
+                std::vector<RE::BGSProjectile*> arrows;
+                for (auto* ammo : BoundArrowAmmo()) {
+                    ++m_out.boundArrowAmmo;
+                    auto* projectile = ammo->GetRuntimeData().data.projectile;
+                    if (std::ranges::find(arrows, projectile) == arrows.end()) {
+                        arrows.push_back(projectile);
+                    }
+                }
+                for (const auto& seed : BoundFireSeeds()) {
+                    ++m_out.boundSeeds;
+                    const auto via = seed.effect->GetFormID();
+                    Push(seed.effect->data.projectileBase, via, true, kEdgeBoundArrow);
+                    if (seed.weapon->IsBow() || seed.weapon->IsCrossbow()) {
+                        for (auto* arrow : arrows) {
+                            Push(arrow, via, true, kEdgeBoundArrow);
+                        }
+                    }
+                }
+            }
+
             void Push(RE::TESForm* a_form, RE::FormID a_via, bool a_costliest, std::uint32_t a_edge = kEdgeOther)
             {
                 // J1: an excluded form is never walked, whichever seed reaches it again

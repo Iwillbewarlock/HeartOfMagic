@@ -412,9 +412,11 @@ namespace BlackFlame
         for (const auto& form : a_closure.forms) {
             ++perKind[static_cast<std::size_t>(form.kind)];
         }
-        logger::info("BlackFlame: copy request: {} forms (PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}) from {} fire spells, {} excluded, "
+        logger::info("BlackFlame: copy request: {} forms (PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}) from {} fire spells and {} bound "
+                     "fire weapon seeds ({} bound-arrow AMMO), {} excluded, "
                      "{} NIFs ({} failed) read in {} ms, fingerprint {}, request {}, dump {}, {} ms in all; folder {}",
-            g_state.forms, perKind[0], perKind[1], perKind[2], perKind[3], perKind[4], a_closure.spells, g_state.excluded,
+            g_state.forms, perKind[0], perKind[1], perKind[2], perKind[3], perKind[4], a_closure.spells, a_closure.boundSeeds,
+            a_closure.boundArrowAmmo, g_state.excluded,
             g_state.nifs, g_state.nifsFailed, g_state.readMs, g_state.computed ? g_state.fingerprint : std::string("NOT computed"),
             g_state.requestWritten ? "written" : "NOT written",
             g_state.dumpState, g_state.totalMs, PathText(g_state.folder));

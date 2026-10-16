@@ -510,6 +510,7 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Info("T9", std::format("dispelled {} Stoke effect(s) left on the player", dispelled));
             }
             CleanupArtSpells();  // J3: whatever path E6 took
+            CleanupBoundSpell();  // E-bound-launch's spell, when E-bound-off did not end it
             SelfTestLog::Info("T9", "counters: " + Tester::CounterSummary());  // F6: the session's swap counters
             a_c.waitingFor = "projectiles in flight before deleting the actors";
         }
