@@ -38,6 +38,7 @@ namespace
         // SKSE/Interfaces.h:272 (WriteRecord<T>: type, version, one value)
         if (!a_intfc->WriteRecord(ToxGame::kAccumulatedRecord, ToxGame::kAccumulatedVersion, accumulated)) {
             logger::error("Toxicology: co-save record ACCM ({:.2f} Magicka toward the next bottle) not written", accumulated);
+            FlushLog();
             return;
         }
         logger::info("Toxicology: co-save: {:.2f} Magicka toward the next bottle saved", accumulated);

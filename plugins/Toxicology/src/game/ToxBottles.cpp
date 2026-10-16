@@ -85,6 +85,10 @@ namespace
                 logger::warn("Toxicology: removing {} unfavorited bottle(s) of {} {:08X} ({}) shrank the favorited stack {} -> {}",
                     take->count, a_poison->GetName(), a_poison->GetFormID(), list ? "listed stack" : "stack outside any list",
                     before.favorited, after.favorited);
+                // The favorite may be gone with it: choose again; UseDoses takes the rest from the new choice
+                ToxGame::OnSelectionMaybeChanged();
+                taken += removed;
+                break;
             }
             logger::debug("Toxicology: {} bottle(s) of {:08X} removed from {} {} stack",
                 removed, a_poison->GetFormID(), fromFavorited ? "the favorited" : "an unfavorited", list ? "listed" : "unlisted");
