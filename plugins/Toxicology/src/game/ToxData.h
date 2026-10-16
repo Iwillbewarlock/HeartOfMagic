@@ -47,9 +47,13 @@ namespace ToxGame
     // For the hit task: at most once every kCatalogCheckSeconds it reads the catalog file's
     // last-write time and, when it differs from the one LoadPoisonSpells last read, calls
     // LoadPoisonSpells. Returns true when it reloaded. Cheap to call on every hit.
+    // Contract: the hit path calls this before every IsPoisonSpell check. On a fresh install
+    // Heart of Magic writes the catalog after kDataLoaded (its first full scan), so until the
+    // next save load this is the only path that fills the set.
     inline constexpr double kCatalogCheckSeconds = 5.0;
     bool ReloadPoisonSpellsIfChanged();
 
+    // Whether a_spell is in the poison set. Call ReloadPoisonSpellsIfChanged() first (above).
     bool IsPoisonSpell(RE::FormID a_spell);
 
     // Puts one tome into Elgrim's Elixirs' merchant chest (base container, in memory) unless

@@ -2,7 +2,6 @@
 
 #include "PluginNames.h"
 
-#include <charconv>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -30,11 +29,7 @@ namespace
     constexpr std::int32_t kTomesInShop = 1;
 
     constexpr std::uint8_t kNotLoadedCompileIndex = 0xFF;  // RE/T/TESDataHandler.cpp:128, LookupFormID's "not loaded" test
-    constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;        // a full plugin's local id: 24 bits
-    constexpr std::uint32_t kMaxLightLocalId = 0xFFF;      // a light plugin's: 12 bits
-    constexpr std::string_view kHexPrefixLower = "0x";
-    constexpr std::string_view kHexPrefixUpper = "0X";
-    constexpr int kHexBase = 16;
+    constexpr std::uint32_t kMaxLightLocalId = 0xFFF;      // a light plugin's local id: 12 bits
 
     // =========================================================================
     // State (game thread only, ToxData.h)
@@ -87,32 +82,9 @@ namespace
 
     using PluginLookup = PluginNames::Lookup<const RE::TESFile*>;
 
-    struct KeyParts
-    {
-        std::string plugin;
-        std::uint32_t local = 0;
-    };
-
-    // "Plugin.esp|0x00XXXX" -> (plugin, local); nullopt for anything else
-    std::optional<KeyParts> SplitKey(std::string_view a_key)
-    {
-        const auto bar = a_key.find('|');
-        if (bar == std::string_view::npos || bar == 0) return std::nullopt;
-        auto hex = a_key.substr(bar + 1);
-        if (hex.starts_with(kHexPrefixLower) || hex.starts_with(kHexPrefixUpper)) {
-            hex.remove_prefix(kHexPrefixLower.size());
-        }
-        KeyParts out{ std::string(a_key.substr(0, bar)), 0 };
-        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), out.local, kHexBase);
-        if (hex.empty() || ec != std::errc{} || end != hex.data() + hex.size() || out.local > kMaxLocalId) {
-            return std::nullopt;
-        }
-        return out;
-    }
-
     RE::SpellItem* ResolveSpell(RE::TESDataHandler* a_dh, PluginLookup& a_lookup, const std::string& a_key)
     {
-        const auto parts = SplitKey(a_key);
+        const auto parts = Toxicology::SplitCatalogKey(a_key);  // core/ToxCore.h, checked by tools/toxicology-test
         if (!parts) return nullptr;
         const RE::TESFile* file = a_lookup.Find(
             parts->plugin,
@@ -125,7 +97,7 @@ namespace
         // LookupFormID adds the local id to the file's index bits unmasked: a local id too wide
         // for a light plugin would land in another plugin's range
         if (!file || file->GetCompileIndex() == kNotLoadedCompileIndex ||
-            parts->local > (file->IsLight() ? kMaxLightLocalId : kMaxLocalId)) {
+            (file->IsLight() && parts->local > kMaxLightLocalId)) {
             return nullptr;
         }
         auto* form = a_dh->LookupForm(parts->local, file->GetFilename());
@@ -144,19 +116,17 @@ namespace
         return false;
     }
 
-    // The spell and, one level down, the spell each of its cloak effects casts on whoever comes
-    // near (EffectSettingData::associatedForm, RE/E/EffectSetting.h:71). The cloak effect on the
+    // The spell each of a spell's cloak effects casts on whoever comes near, one level down
+    // (EffectSettingData::associatedForm, RE/E/EffectSetting.h:71). The cloak effect on the
     // caster is not hostile (vanilla FireCloakFFSelf), its sub-spell is: the hostile filter runs
     // after this, so a poison cloak keeps its sub-spell and drops itself.
-    void AddWithCloakSpells(RE::SpellItem* a_spell, std::vector<RE::SpellItem*>& a_out, std::size_t& a_cloakSpells)
+    void AddCloakSpells(const RE::SpellItem* a_spell, std::vector<RE::SpellItem*>& a_out)
     {
-        a_out.push_back(a_spell);
         for (const auto* effect : a_spell->effects) {
             const auto* base = effect ? effect->baseEffect : nullptr;
             if (!base || !base->HasArchetype(RE::EffectSetting::Archetype::kCloak) || !base->data.associatedForm) continue;
             if (auto* sub = base->data.associatedForm->As<RE::SpellItem>()) {
                 a_out.push_back(sub);
-                ++a_cloakSpells;
             }
         }
     }
@@ -267,10 +237,8 @@ void ToxGame::LoadPoisonSpells()
     }
 
     PluginLookup lookup;  // one per pass: the file list is converted once, not once per key
-    std::vector<RE::SpellItem*> candidates;
-    std::size_t resolved = 0;
+    std::vector<RE::SpellItem*> catalogSpells;
     std::size_t unresolved = 0;
-    std::size_t cloakSpells = 0;
     for (const auto& key : keys) {
         auto* spell = ResolveSpell(dh, lookup, key);
         if (!spell) {
@@ -278,20 +246,31 @@ void ToxGame::LoadPoisonSpells()
             logger::debug("Toxicology: catalog key {} is not a loaded spell", key);
             continue;
         }
-        ++resolved;
-        AddWithCloakSpells(spell, candidates, cloakSpells);
+        catalogSpells.push_back(spell);
     }
+    std::vector<RE::SpellItem*> subSpells;
+    for (auto* spell : catalogSpells) {
+        AddCloakSpells(spell, subSpells);
+    }
+
+    // Each form once: the catalog spells first, then the cloak sub-spells that are not catalog
+    // spells themselves, so resolved + sub-spells = kept + left out
+    std::unordered_set<RE::FormID> seen;
+    std::size_t resolved = 0;
+    std::size_t cloakSpells = 0;
     std::size_t notHostile = 0;
-    std::unordered_set<RE::FormID> seen;  // a sub-spell two cloaks share, or a catalog spell that is also a sub-spell: counted once
-    for (auto* spell : candidates) {
-        if (!seen.insert(spell->GetFormID()).second) continue;
-        if (HasHostileEffect(spell)) {
-            g_poisonSpells.insert(spell->GetFormID());
+    const auto take = [&](RE::SpellItem* a_spell, std::size_t& a_count) {
+        if (!seen.insert(a_spell->GetFormID()).second) return;
+        ++a_count;
+        if (HasHostileEffect(a_spell)) {
+            g_poisonSpells.insert(a_spell->GetFormID());
         } else {
             ++notHostile;
         }
-    }
-    logger::info("Toxicology: poison spells: {} catalog keys, {} resolved, {} unresolved, {} cloak sub-spells, "
+    };
+    for (auto* spell : catalogSpells) take(spell, resolved);
+    for (auto* spell : subSpells) take(spell, cloakSpells);
+    logger::info("Toxicology: poison spells: {} catalog keys, {} resolved, {} unresolved, {} cloak sub-spells added, "
         "{} without a hostile effect left out, {} kept", keys.size(), resolved, unresolved, cloakSpells, notHostile,
         g_poisonSpells.size());
 }

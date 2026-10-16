@@ -266,6 +266,51 @@ namespace
         return ExpectInterval(5.0, 6.0, 1.0f, true);
     }
 
+    // ---------------------------------------------------------- catalog keys
+
+    std::string ExpectKey(std::string_view a_key, const char* a_plugin, std::uint32_t a_local)
+    {
+        const auto parts = Toxicology::SplitCatalogKey(a_key);
+        if (!parts) return std::string(a_key) + ": got nullopt";
+        if (parts->plugin != a_plugin || parts->local != a_local) {
+            return std::string(a_key) + ": got {" + parts->plugin + ", " + std::to_string(parts->local) + "}";
+        }
+        return {};
+    }
+
+    std::string ExpectRejected(std::string_view a_key)
+    {
+        const auto parts = Toxicology::SplitCatalogKey(a_key);
+        if (parts) return std::string(a_key) + ": accepted as {" + parts->plugin + ", " + std::to_string(parts->local) + "}";
+        return {};
+    }
+
+    std::string SplitKeyBasic()
+    {
+        auto detail = ExpectKey("A.esp|0x000D62", "A.esp", 0xD62);
+        if (detail.empty()) detail = ExpectKey("A.esp|0X000d62", "A.esp", 0xD62);
+        return detail;
+    }
+
+    std::string SplitKeyNoPrefix()
+    {
+        return ExpectKey("A.esp|FFFFFF", "A.esp", 0xFFFFFF);
+    }
+
+    // Past a full plugin's 24 bits: rejected (the light plugin's 12-bit limit is ToxData's check)
+    std::string SplitKeyTooLarge()
+    {
+        return ExpectRejected("A.esp|1000000");
+    }
+
+    std::string SplitKeyBad()
+    {
+        for (const auto key : { "|0x1", "A.esp|", "A.esp|0x", "A.esp|0xZZ", "A.esp|0x12G", "A.esp" }) {
+            if (auto detail = ExpectRejected(key); !detail.empty()) return detail;
+        }
+        return {};
+    }
+
     constexpr Check kChecks[] = {
         { "ParseSettingsDefaults", ParseSettingsDefaults },
         { "ParseSettingsValues", ParseSettingsValues },
@@ -287,6 +332,10 @@ namespace
         { "IntervalFirstTime", IntervalFirstTime },
         { "IntervalTooSoon", IntervalTooSoon },
         { "IntervalElapsedExactly", IntervalElapsedExactly },
+        { "SplitKeyBasic", SplitKeyBasic },
+        { "SplitKeyNoPrefix", SplitKeyNoPrefix },
+        { "SplitKeyTooLarge", SplitKeyTooLarge },
+        { "SplitKeyBad", SplitKeyBad },
     };
 
     int SelfTest()

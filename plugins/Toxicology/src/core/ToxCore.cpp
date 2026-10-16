@@ -1,6 +1,7 @@
 #include "core/ToxCore.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <limits>
 #include <string_view>
@@ -124,6 +125,29 @@ namespace Toxicology
             }
         }
         return best;
+    }
+
+    // Mirrors the split in SpellScanner's ResolveWith (plugins/spelllearning/src/spellscanner/SpellScannerFormId.cpp),
+    // stricter: the whole rest must be hex and fit 24 bits. Not shared: that file also holds the tree validation,
+    // which pulls in the scanner's gate and voice-slot code, so it cannot be compiled into the addon alone.
+    std::optional<CatalogKey> SplitCatalogKey(std::string_view a_key)
+    {
+        constexpr std::string_view kHexPrefixLower = "0x";
+        constexpr std::string_view kHexPrefixUpper = "0X";
+        constexpr int kHexBase = 16;
+
+        const auto bar = a_key.find('|');
+        if (bar == std::string_view::npos || bar == 0) return std::nullopt;
+        auto hex = a_key.substr(bar + 1);
+        if (hex.starts_with(kHexPrefixLower) || hex.starts_with(kHexPrefixUpper)) {
+            hex.remove_prefix(kHexPrefixLower.size());
+        }
+        CatalogKey out{ std::string(a_key.substr(0, bar)), 0 };
+        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), out.local, kHexBase);
+        if (hex.empty() || ec != std::errc{} || end != hex.data() + hex.size() || out.local > kMaxCatalogLocalId) {
+            return std::nullopt;
+        }
+        return out;
     }
 
     DoseResult ConsumeMagicka(float a_accumulated, float a_spent, float a_perDose)

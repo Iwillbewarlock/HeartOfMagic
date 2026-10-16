@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Toxicology
@@ -32,6 +33,21 @@ namespace Toxicology
     // Every spells key whose "elements" array holds "poison", sorted. Empty with
     // a_error set when "version" is not 1 or "spells" is not an object.
     std::vector<std::string> PoisonSpellKeys(const nlohmann::json& a_catalog, std::string& a_error);
+
+    // The largest local FormID a catalog key may name: a full plugin's 24 bits. A light plugin's
+    // narrower range (12 bits) is the caller's check, once it knows the file is light.
+    inline constexpr std::uint32_t kMaxCatalogLocalId = 0xFFFFFF;
+
+    struct CatalogKey
+    {
+        std::string plugin;
+        std::uint32_t local = 0;
+    };
+
+    // "Plugin.esp|0x00XXXX" -> {plugin, local}. The "0x"/"0X" prefix is optional; the rest must be
+    // hex digits only, at most kMaxCatalogLocalId. nullopt for anything else (no '|', empty plugin,
+    // empty or bad hex, too large).
+    std::optional<CatalogKey> SplitCatalogKey(std::string_view a_key);
 
     struct PoisonCandidate
     {
