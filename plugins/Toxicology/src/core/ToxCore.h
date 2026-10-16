@@ -72,6 +72,25 @@ namespace Toxicology
     // a_accumulated counts as 0; a non-positive or non-finite a_perDose takes no doses.
     DoseResult ConsumeMagicka(float a_accumulated, float a_spent, float a_perDose);
 
+    // One stack of a poison in the player's inventory: one ExtraDataList's bottles (favorited when
+    // the list carries ExtraHotkey), or the bottles outside any list.
+    struct BottleStack
+    {
+        std::int32_t count = 0;
+        bool favorited = false;
+    };
+
+    struct StackTake
+    {
+        std::size_t index = 0;
+        std::int32_t count = 0;
+    };
+
+    // Spec 12: where the next of a_doses bottles come from - the first stack in a_stacks that is
+    // not favorited and holds bottles, else the first favorited one; min(a_doses, its count) of
+    // them. nullopt when a_doses <= 0 or no stack holds a bottle.
+    std::optional<StackTake> NextDoseStack(const std::vector<BottleStack>& a_stacks, std::int32_t a_doses);
+
     // True when never seen (a_lastSeconds < 0) or a_nowSeconds - a_lastSeconds >= a_minInterval.
     bool IntervalElapsed(double a_lastSeconds, double a_nowSeconds, float a_minInterval);
 }

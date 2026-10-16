@@ -163,6 +163,20 @@ namespace Toxicology
         return { static_cast<std::int32_t>(whole), static_cast<float>(remainder) };
     }
 
+    std::optional<StackTake> NextDoseStack(const std::vector<BottleStack>& a_stacks, std::int32_t a_doses)
+    {
+        if (a_doses <= 0) return std::nullopt;
+        for (const bool favorited : { false, true }) {
+            for (std::size_t i = 0; i < a_stacks.size(); ++i) {
+                const auto& stack = a_stacks[i];
+                if (stack.favorited == favorited && stack.count > 0) {
+                    return StackTake{ i, std::min(a_doses, stack.count) };
+                }
+            }
+        }
+        return std::nullopt;
+    }
+
     bool IntervalElapsed(double a_lastSeconds, double a_nowSeconds, float a_minInterval)
     {
         if (a_lastSeconds < 0.0) return true;

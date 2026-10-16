@@ -5,13 +5,16 @@
 // favorited poison to the target. Data load: settings, the ESL's forms, the
 // poison spell set and the tome at Elgrim's Elixirs (game/ToxData.h). The
 // poison to copy and its icon keyword: game/ToxSelection.h. Hits: game/ToxHits.h;
-// applying or refreshing the poison: game/ToxApply.h.
+// applying or refreshing the poison: game/ToxApply.h. Magicka spent on poison
+// spells uses up bottles: game/ToxMagicka.h, kept in the co-save: game/ToxSave.h.
 // =============================================================================
 
 #include "Common.h"
 #include "game/ToxApply.h"
 #include "game/ToxData.h"
 #include "game/ToxHits.h"
+#include "game/ToxMagicka.h"
+#include "game/ToxSave.h"
 #include "game/ToxSelection.h"
 
 namespace
@@ -31,6 +34,7 @@ namespace
             ToxGame::PutTomeInShop();
             ToxGame::RegisterMenuSink();
             ToxGame::RegisterHitSink();
+            ToxGame::InstallMagickaTracking();
             FlushLog();
             break;
         case SKSE::MessagingInterface::kPreLoadGame:
@@ -44,6 +48,7 @@ namespace
         case SKSE::MessagingInterface::kNewGame:
             ToxGame::BumpGeneration();
             ToxGame::ClearApplications();
+            ToxGame::ResetMagicka();  // spec 5.6: a new game starts at 0 (co-save Revert does the same)
             // No kPreLoadGame before a new game: take the keyword off the last game's poison here
             ToxGame::ResetSelection();
             [[fallthrough]];
@@ -67,5 +72,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     if (!SKSE::GetMessagingInterface()->RegisterListener(OnSKSEMessage)) {
         logger::error("Toxicology: SKSE messaging listener not registered - the addon does nothing");
     }
+    ToxGame::RegisterCoSave();
     return true;
 }

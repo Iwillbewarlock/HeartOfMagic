@@ -20,6 +20,9 @@ set(TOXICOLOGY_SOURCES
     src/game/ToxSelection.cpp
     src/game/ToxApply.cpp
     src/game/ToxHits.cpp
+    src/game/ToxMagicka.cpp
+    src/game/ToxBottles.cpp
+    src/game/ToxSave.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

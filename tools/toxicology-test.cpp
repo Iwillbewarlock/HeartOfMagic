@@ -28,9 +28,11 @@ namespace
     constexpr const char* kKoreanPoison = "\xEB\x8F\x85\xEC\x95\xBD";
 
     using nlohmann::json;
+    using Toxicology::BottleStack;
     using Toxicology::DoseResult;
     using Toxicology::PoisonCandidate;
     using Toxicology::Settings;
+    using Toxicology::StackTake;
 
     // A check returns "" on success, otherwise what went wrong
     using CheckFn = std::string (*)();
@@ -249,6 +251,45 @@ namespace
         return detail;
     }
 
+    // ------------------------------------------------------------ dose stacks
+
+    std::string ExpectStack(const std::vector<BottleStack>& a_stacks, std::int32_t a_doses, std::optional<StackTake> a_expected)
+    {
+        const auto got = Toxicology::NextDoseStack(a_stacks, a_doses);
+        const auto describe = [](const std::optional<StackTake>& a_take) {
+            return a_take ? "{index=" + std::to_string(a_take->index) + ", count=" + std::to_string(a_take->count) + "}" :
+                            std::string("nullopt");
+        };
+        const bool same = got.has_value() == a_expected.has_value() &&
+                          (!got || (got->index == a_expected->index && got->count == a_expected->count));
+        if (same) return {};
+        return "doses " + std::to_string(a_doses) + " gave " + describe(got) + ", expected " + describe(a_expected);
+    }
+
+    // Spec 12: a stack without the hotkey goes first, wherever it sits
+    std::string NextDoseStackUnfavoritedFirst()
+    {
+        auto detail = ExpectStack({ { 3, true }, { 2, false } }, 1, StackTake{ 1, 1 });
+        if (detail.empty()) detail = ExpectStack({ { 0, false }, { 3, true }, { 4, false } }, 2, StackTake{ 2, 2 });
+        return detail;
+    }
+
+    // More doses than the stack holds: only what it holds; the favorited stack once it is all that is left
+    std::string NextDoseStackCapsAtCount()
+    {
+        auto detail = ExpectStack({ { 5, true }, { 2, false } }, 4, StackTake{ 1, 2 });
+        if (detail.empty()) detail = ExpectStack({ { 0, false }, { 2, true } }, 3, StackTake{ 1, 2 });
+        return detail;
+    }
+
+    std::string NextDoseStackNone()
+    {
+        auto detail = ExpectStack({ { 2, false } }, 0, std::nullopt);
+        if (detail.empty()) detail = ExpectStack({ { 0, false }, { -1, true } }, 1, std::nullopt);
+        if (detail.empty()) detail = ExpectStack({}, 1, std::nullopt);
+        return detail;
+    }
+
     // --------------------------------------------------------------- interval
 
     std::string IntervalFirstTime()
@@ -329,6 +370,9 @@ namespace
         { "ConsumeMagickaExact", ConsumeMagickaExact },
         { "ConsumeMagickaMulti", ConsumeMagickaMulti },
         { "ConsumeMagickaBadSpent", ConsumeMagickaBadSpent },
+        { "NextDoseStackUnfavoritedFirst", NextDoseStackUnfavoritedFirst },
+        { "NextDoseStackCapsAtCount", NextDoseStackCapsAtCount },
+        { "NextDoseStackNone", NextDoseStackNone },
         { "IntervalFirstTime", IntervalFirstTime },
         { "IntervalTooSoon", IntervalTooSoon },
         { "IntervalElapsedExactly", IntervalElapsedExactly },
