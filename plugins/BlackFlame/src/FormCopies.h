@@ -50,8 +50,31 @@ namespace BlackFlame
     /// What the last RefreshCopies found (one line per differing copy), for the self-test's T0-v2
     [[nodiscard]] std::vector<std::string> CopyRefreshNotes();
 
-    /// The copy of a source form, or null (any thread after kDataLoaded)
+    /// The copy of a source form, or null (any thread after kDataLoaded); null too for a copy whose model failed to load
+    /// in game (DisableCopiesForSession): that form stays original
     [[nodiscard]] RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept;
+
+    struct FilledCopy
+    {
+        const RE::TESForm* source = nullptr;
+        RE::TESForm* copy = nullptr;
+    };
+
+    /// Every copy that was filled (any thread after kDataLoaded)
+    [[nodiscard]] std::vector<FilledCopy> FilledCopies();
+
+    struct DisabledCopy
+    {
+        RE::FormID copy = 0;
+        std::string text;  // what failed: the path and the error
+    };
+
+    /// v2i safety net, main thread, once (CopyModelProbe): these copies' models did not load in game, so CopyOf stops handing
+    /// them out for the session (the form stays original instead of invisible). A second call is ignored.
+    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies);
+
+    /// The copies DisableCopiesForSession took out (empty before it ran)
+    [[nodiscard]] std::vector<DisabledCopy> CopiesFailedToLoad();
 
     template <class T>
     [[nodiscard]] T* CopyOfAs(const T* a_source) noexcept

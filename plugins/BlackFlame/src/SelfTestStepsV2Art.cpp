@@ -36,7 +36,8 @@ namespace BlackFlame::SelfTest
     {
         using namespace SelfTestText;
 
-        constexpr auto kWatch = std::chrono::milliseconds(2000);  // the art's 3D is cloned on a background task
+        // The art's 3D is cloned on a background task; 10 s (was 2 s) so a slow first load (H-B2) still shows, with its time
+        constexpr auto kWatch = std::chrono::milliseconds(10000);
 
         enum Phase : int
         {
@@ -132,6 +133,7 @@ namespace BlackFlame::SelfTest
             bool copy = false;
             bool original = false;
             RE::NiPointer<RE::NiAVObject> copy3D;
+            bool original3D = false;  // the original art's effect has its 3D (the control on the NPC)
         };
 
         // Collected inside the ProcessLists lock; nothing is called on the effects there but plain reads
@@ -152,6 +154,7 @@ namespace BlackFlame::SelfTest
                         }
                     } else if (a_effect->artObject == a_pick.art) {
                         seen.original = true;
+                        seen.original3D |= a_effect->artObject3D != nullptr;
                     }
                 }
                 return RE::BSContainer::ForEachResult::kContinue;
@@ -203,7 +206,7 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Info(a_id, std::format("cloak dispelled: {} effect(s)", dispelled));
         }
 
-        void JudgePlayer(const ArtSeen& a_seen)
+        void JudgePlayer(const ArtSeen& a_seen, Clock::time_point a_castAt)
         {
             const auto& pick = *g_art.pick;
             const auto copied = GetHitSlotStats(false).copied - g_art.copiedBefore;
@@ -214,10 +217,13 @@ namespace BlackFlame::SelfTest
             const bool noShapes = a_seen.copy3D && grey.effectProperties == 0;
             const bool allGrey = noShapes || grey.greyByRule == grey.effectProperties;  // v2i: the copies' rule
             const bool newOriginal = a_seen.original && !g_art.originalBefore;
+            const auto sinceCast = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_castAt).count();
             SelfTestLog::Check("E6", a_seen.copy && a_seen.copy3D && allGrey && copied > 0 && !newOriginal,
                 std::format("{}: {} live art effect(s) on the player; the copy {} ({}), the original {}; effect shapes {}, grey by "
                     "the copies' rule {}; GetHitEffectArt returned the copy {} time(s) since the cast", Describe(pick),
-                    a_seen.onTarget, a_seen.copy ? "FOUND" : "not found", a_seen.copy3D ? "3D loaded" : "no 3D yet",
+                    a_seen.onTarget, a_seen.copy ? "FOUND" : "not found",
+                    a_seen.copy3D ? std::format("3D loaded {} ms after the cast", sinceCast) :
+                                    std::format("NO 3D {} ms after the cast", sinceCast),
                     newOriginal ? "ALSO found (new)" : (a_seen.original ? "found, already there before the cast" : "not found"),
                     grey.effectProperties, grey.greyByRule, copied));
             if (noShapes) {
@@ -254,7 +260,7 @@ namespace BlackFlame::SelfTest
             if (!seen.copy3D && Clock::now() - a_c.stepStart < kWatch) {
                 return false;
             }
-            JudgePlayer(seen);
+            JudgePlayer(seen, a_c.lastCast.value_or(a_c.stepStart));
             EndCloak("E6", player);
             if (!seen.copy) {
                 return true;  // nothing to watch go
@@ -289,12 +295,16 @@ namespace BlackFlame::SelfTest
         }
         const auto& pick = *g_art.pick;
         const auto seen = Look(caster->GetHandle(), pick);
-        if (!seen.original && !seen.copy && Clock::now() - a_c.stepStart < kWatch) {
+        // The control: the original art's 3D on the NPC is waited for too (its time beside the copy's on the player)
+        if (!seen.copy && !seen.original3D && Clock::now() - a_c.stepStart < kWatch) {
             return false;
         }
+        const auto sinceCast = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.lastCast.value_or(a_c.stepStart)).count();
         SelfTestLog::Check("E6-npc", seen.original && !seen.copy, std::format("{}: on the caster the original {}, the copy {} "
             "({} live art effect(s))", Describe(pick), seen.original ? "found" : "NOT found", seen.copy ? "FOUND" : "not found",
             seen.onTarget));
+        SelfTestLog::Info("E6-npc", std::format("control: the original art's 3D on the caster {} {} ms after the cast",
+            seen.original3D ? "loaded" : "NOT loaded", sinceCast));
         EndCloak("E6-npc", caster);
         return true;
     }

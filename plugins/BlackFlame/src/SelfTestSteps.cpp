@@ -60,7 +60,7 @@ namespace BlackFlame::SelfTest
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
         // G2: 2.5 s settle + three casts x HitWait (flight to 1200 units + 0.8 s: 3.8 s at a projectile speed of 400) + 1.5 s
         constexpr float kE1mTimeout = 16.0f;
-        constexpr float kE6Timeout = 6.0f;         // J3: kWatch for the art, the dispel, kWatch for the art to go, and slack
+        constexpr float kE6Timeout = 23.0f;        // J3: kWatch (10 s) for the art, the dispel, kWatch for the art to go, and slack
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
 

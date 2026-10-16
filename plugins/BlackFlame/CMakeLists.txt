@@ -40,6 +40,8 @@ set(BLACKFLAME_SOURCES
     src/EffectEvents.cpp
     src/HitEffectHook.cpp
     src/HitArt.cpp
+    src/CloneWatch.cpp
+    src/CopyModelProbe.cpp
     src/HazardHook.cpp
     src/Attribution.cpp
     src/PlayerArt.cpp

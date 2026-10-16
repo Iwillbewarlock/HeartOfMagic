@@ -716,6 +716,31 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - 첫 회 로그(사본마다 한 줄, 세션당, 최대 256키, `LogLimit::FirstTime`): 사본 투사체 첫 발사(만들어졌는지), 사본 투사체 첫 3D(사본 규칙
   집계와 처음 재질들 - 재질 점검 5회 상한과 무관), 사본 손 아트·사본 hit 아트 첫 교체. 23:0x 로그로는 Dragonfire 발사·3D 여부를 알 수 없던 문제.
 
+### 원인 B 계측: Flame Cloak 사본 아트의 3D (scratchpad causeB-cloak/notes.md)
+
+- 확인된 것: ModelReferenceEffect는 아트를 생성자(34653)에서 한 번만 읽고(훅이 번갈아 답해도 무관, 반증), 3D는
+  BGSArtObjectCloneTask(효과 +0xC0)가 끝났을 때만 붙는다(task+0x80 non-null, state +0x0C == 5). Clone3D가 null이면 끝나지 않고 효과는
+  3D 없이 산다. 남은 가설: 모델 로드 실패(H-B1), 느린 로드(H-B2).
+- 감시(CloneWatch.cpp): GetHitEffectArt 훅이 사본 아트를 건넨 뒤 10초 동안 티커마다, 플레이어의 그 아트 효과의 클론 태스크를
+  ProcessLists 잠금 안에서 읽는다(state +0x0C, pending +0x50, queue +0x70, art +0x78, 결과 +0x80; 오프셋은 디스어셈블리, 16880/16883은
+  1.6.1170과 1.7.104 같음, CommonLib에 타입 없음). 엔진 호출 없이 평범한 읽기, 콜백 안 GuardedKeep, 태스크 포인터 null 확인. 값이 바뀔
+  때만 한 줄(최대 12), artObject3D가 생기면 걸린 시간과 함께 한 줄, 10초에 3D 없으면 마지막 값과 한 줄. 감시 중에는 티커가 100 ms.
+  훅이 엔진의 ProcessLists 잠금을 쥔 채 불릴 수 있으므로 감시 상태 뮤텍스를 쥔 채 순회하지 않는다.
+- 사본 모델 탐침(CopyModelProbe.cpp, 원인 B 조사 causeB/ledger.md 뒤 넓힘): kDataLoaded 뒤 메인 스레드(우리 큐의 첫 프레임, 메인 메뉴)에서
+  한 번, 채운 사본 전부(PROJ, EXPL, IPCT, HAZD, ARTO)의 레코드 모델과 PROJ 사본의 머즐 모델, 서로 다른 경로마다 BSModelDB::Demand(경로,
+  out, {}) (CommonLib RELOCATION_ID(74040, 75782); 기본 ArgsType은 LoadGraphics의 RequestModel2 인자 {0, 3, 0x1010001}와 같음). 요약(성공,
+  실패, ms), 실패마다 ErrorCode, 20초 예산을 넘으면 못 본 경로 목록. 핸들은 NiPointer reset. 경로는 레코드에 적힌 그대로(meshes\ 없음).
+- 안전망: 사본 경로가 실패하고 같은 역할의 원본 경로(대조)는 불러지면 그 사본을 세션 동안 CopyOf에서 뺀다(DisableCopiesForSession: 한 번
+  쓰고 atomic release로 공개, CopyOf는 acquire 뒤에만 읽음; byCopy/SourceOf는 그대로라 IsCopy는 참). 그 폼은 보이지 않는 대신 원본으로
+  남는다. 대조도 실패하면(경로 해석이 틀렸거나 원본도 없는 경우) 빼지 않고 경고만 - 탐침이 통째로 틀려도 사본을 다 끄지 않게. 테스터 파일
+  "copy NIF failed to load in game: N", T0-v2는 그런 사본마다 FAIL(경로, 오류).
+- 빌더 헤더 문자열(GreyNif.cpp WriteKeepingStrings): nifly(vcpkg 680a3c0)의 Save는 FinalizeData 끝에서 UpdateHeaderStrings(false)로
+  표를 지우고 아는 참조만 블록 순서로 다시 넣는다 - 고아 문자열이 빠지고 나머지 번호가 바뀐다. hasUnknown은 private이라 끌 수 없어서,
+  Save 뒤 원본 표를 그대로(중복 포함: 자리표시로 칸을 만든 뒤 SetStringById) 되돌리고, 각 참조를 Save 전 번호로(그 칸이 아직 같은
+  문자열일 때) 되돌린 다음, Save와 같은 순서로 직접 쓴다(헤더, 블록, 꼬리 1/0, 블록 크기 덮어쓰기). 결과 표가 원본 표로 시작하는지 검사.
+  TAKEALOOK 요청: 무변경 재저장 동일 156 -> 489/513, 나머지 24는 NiNode 빈 자식 참조 제거(파일 전체로 4-48바이트 짧아짐, 이번 범위 밖).
+- E6 kWatch 2초 -> 10초(E6-drop도), 단계 한도 6 -> 23초, 시전에서 3D까지 시간을 줄에, E6-npc는 원본 아트 3D를 10초까지 기다려 그 시간을 INFO로.
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.

@@ -1,6 +1,7 @@
 #include "BuffState.h"
 
 #include "CasterArt.h"
+#include "CloneWatch.h"
 #include "ExplosionHook.h"
 #include "Forms.h"
 #include "GameThread.h"
@@ -75,6 +76,7 @@ namespace BlackFlame
             g_tickPending.store(false);
             RecomputeBuff("tick");
             TickHitArt();  // layer 1: hit arts waiting for their 3D
+            TickCloneWatch();  // cause B diagnostics: a copy hit art's clone task (CloneWatch.h)
             TickExplosionLights();  // layer 3: lights that did not exist at Set3D
             TickHazards();          // layer 3: hazards whose owner was not set yet
             TickScriptTags();       // what scripts of the player's fire effects placed
@@ -91,7 +93,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !HasPendingHazards() && !HasScriptTags() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // A throw here would end the thread (and std::terminate the game): keep looping

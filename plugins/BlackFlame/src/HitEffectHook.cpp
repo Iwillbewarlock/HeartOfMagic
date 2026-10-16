@@ -3,6 +3,7 @@
 #include "TrackedMutex.h"
 
 #include "BuffState.h"
+#include "CloneWatch.h"
 #include "Config.h"
 #include "FireSet.h"
 #include "FormCopies.h"
@@ -312,6 +313,7 @@ namespace BlackFlame
                     logger::info("BlackFlame: first copy hit art {:08X} for {:08X} (spell {:08X})", copy->GetFormID(),
                         a_art->GetFormID(), spell ? spell->GetFormID() : 0);
                 }
+                ArmCloneWatch(copy);  // cause B diagnostics: when its effect on the player gets 3D (CloneWatch.h)
                 return copy ? copy : a_art;  // CopyOf was not null in Decide; the map never changes after kDataLoaded
             }
             if (outcome == Outcome::kSwapped) {

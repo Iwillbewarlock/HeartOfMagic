@@ -9,6 +9,8 @@
 #include "Common.h"
 
 #include "BuffState.h"
+#include "CloneWatch.h"
+#include "CopyModelProbe.h"
 #include "CasterArt.h"
 #include "Config.h"
 #include "CopyFreshness.h"
@@ -64,6 +66,7 @@ namespace
         }
         BlackFlame::LoadGreyMap();
         (void)BlackFlame::LoadPalette();
+        BlackFlame::QueueCopyModelProbe();  // v2i: every copy NIF demanded once on the main thread; failures out of the swaps
         BlackFlame::EffectEventSink::GetSingleton()->Register();
         BlackFlame::HitEventSink::GetSingleton()->Register();
         BlackFlame::StartTicker();
@@ -90,6 +93,7 @@ namespace
         BlackFlame::ResetBuffFlag();
         BlackFlame::ResetHitEffectState();
         BlackFlame::ResetHitArt();
+        BlackFlame::ResetCloneWatch();
         BlackFlame::ResetHazardState();
         BlackFlame::ResetScriptTags();
         BlackFlame::ResetPlayerArt();

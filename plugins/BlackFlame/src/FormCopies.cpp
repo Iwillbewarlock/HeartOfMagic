@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <optional>
 #include <format>
@@ -54,6 +55,21 @@ namespace BlackFlame
             std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
             std::unordered_set<RE::FormID> absentSources;          // H1: sources whose own mesh is absent (INFO, not FAIL)
         };
+
+        // v2i: copies whose model failed to load in game. Written once on the main thread, then published through
+        // g_disabledReady (release); CopyOf reads it only after an acquire load, and it never changes afterwards
+        std::vector<DisabledCopy>& DisabledList()
+        {
+            static auto* list = std::make_unique<std::vector<DisabledCopy>>().release();
+            return *list;
+        }
+        std::unordered_set<RE::FormID>& DisabledIds()
+        {
+            static auto* ids = std::make_unique<std::unordered_set<RE::FormID>>().release();
+            return *ids;
+        }
+        std::atomic<bool> g_disabledReady{ false };
+        std::atomic<bool> g_disabledTaken{ false };
 
         TrackedMutex g_refreshMutex;
         std::vector<std::string> g_refreshNotes;  // under g_refreshMutex
@@ -401,7 +417,41 @@ namespace BlackFlame
         }
         const auto& map = TheCopies().bySource;
         const auto it = map.find(a_source->GetFormID());
-        return it != map.end() ? it->second : nullptr;
+        if (it == map.end()) {
+            return nullptr;
+        }
+        if (g_disabledReady.load(std::memory_order_acquire) && DisabledIds().contains(it->second->GetFormID())) {
+            return nullptr;  // its model did not load in game: the source stays (v2i safety net)
+        }
+        return it->second;
+    }
+
+    std::vector<FilledCopy> FilledCopies()
+    {
+        std::vector<FilledCopy> out;
+        for (const auto& entry : TheCopies().entries) {
+            if (entry.ok && entry.source && entry.copy) {
+                out.push_back({ entry.source, entry.copy });
+            }
+        }
+        return out;
+    }
+
+    void DisableCopiesForSession(std::vector<DisabledCopy> a_copies)
+    {
+        if (g_disabledTaken.exchange(true)) {
+            return;
+        }
+        for (const auto& item : a_copies) {
+            DisabledIds().insert(item.copy);
+        }
+        DisabledList() = std::move(a_copies);
+        g_disabledReady.store(true, std::memory_order_release);
+    }
+
+    std::vector<DisabledCopy> CopiesFailedToLoad()
+    {
+        return g_disabledReady.load(std::memory_order_acquire) ? DisabledList() : std::vector<DisabledCopy>{};
     }
 
     const char* ExpectedMuzzleFor(const RE::TESForm* a_copy) noexcept
@@ -466,6 +516,11 @@ namespace BlackFlame
             lines.push_back({ diff.empty(), std::format("{} {:08X} -> copy {:08X}: {}", entry.sourceText,
                                                 entry.source->GetFormID(), entry.copy->GetFormID(),
                                                 diff.empty() ? "fields equal the live source, links to copies where one exists" : diff) });
+        }
+        // v2i: a copy whose NIF the game could not load is out of the swaps for the session (it stays original)
+        for (const auto& item : CopiesFailedToLoad()) {
+            lines.push_back({ false, std::format("copy {:08X}: copy NIF failed to load in game, the form stays original this "
+                                                 "session: {}", item.copy, item.text) });
         }
         return lines;
     }
