@@ -133,8 +133,11 @@ function filterWhitelistedSpells(spells) {
 
     return spells.filter(function(spell) {
         var plugin = spellPluginName(spell);
-        // Can't determine plugin - include it to be safe
-        return !plugin || disabledMap[foldPluginName(plugin)] !== true;
+        // Can't determine plugin - include it to be safe. An entry an older panel saved lowered
+        // with toLowerCase ("заклинания.esp") still turns its plugin off until the plugin list
+        // renames it (migrateLoweredWhitelist, settingsPanel.js); plugin names are not
+        // case-sensitive on Windows, so the lowered name is the same file
+        return !plugin || (disabledMap[foldPluginName(plugin)] !== true && disabledMap[plugin.toLowerCase()] !== true);
     });
 }
 

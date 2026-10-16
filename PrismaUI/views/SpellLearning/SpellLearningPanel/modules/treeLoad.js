@@ -13,14 +13,16 @@
  */
 function sendTreePrerequisites(nodes) {
     if (!window.callCpp || !nodes) return 0;
-    // A second copy of a spell (edit mode's Spawn, "<formId>_dup_<n>") is the same spell to C++:
-    // it is sent only when the tree has no node of its own for that spell, under the spell's
-    // formId. Sent as well, its empty lists would erase the original's requirements
+    // A second copy of a spell (edit mode's Spawn, "<formId>_dup_<n>") is the same spell to C++,
+    // which keeps one requirement entry per formId (the last one sent wins, an empty one erases
+    // it). So a copy goes only for a spell with no node of its own, and then only the first copy.
+    // A copy's own links reach C++ only then (C++ cannot say "this copy's links or the spell's")
     var plain = {};
     for (var ni = 0; ni < nodes.length; ni++) {
         var nId = nodes[ni].formId || nodes[ni].id;
         if (nId && _canonicalPrereqId(nId) === nId) plain[nId] = true;
     }
+    var sentIds = {};
     var prereqData = [];
     var hardCount = 0;
     var softCount = 0;
@@ -28,17 +30,15 @@ function sendTreePrerequisites(nodes) {
         var pNode = nodes[pi];
         var ownId = pNode.formId || pNode.id;
         var canonId = _canonicalPrereqId(ownId);
-        if (canonId !== ownId && plain[canonId]) continue;
-        var hard = (pNode.hardPrereqs || []).map(_canonicalPrereqId);
-        var soft = (pNode.softPrereqs || []).map(_canonicalPrereqId);
+        if (canonId !== ownId) {
+            if (plain[canonId] || sentIds[canonId]) continue;
+            sentIds[canonId] = true;
+        }
+        var hard = _canonicalPrereqList(pNode.hardPrereqs);
+        var soft = _canonicalPrereqList(pNode.softPrereqs);
         hardCount += hard.length;
         softCount += soft.length;
-        prereqData.push({
-            formId: canonId,
-            hardPrereqs: hard,
-            softPrereqs: soft,
-            softNeeded: pNode.softNeeded || 0
-        });
+        prereqData.push({ formId: canonId, hardPrereqs: hard, softPrereqs: soft, softNeeded: pNode.softNeeded || 0 });
     }
     console.log('[SpellLearning] Sending ' + prereqData.length + ' spell prereqs (' +
                 hardCount + ' hard, ' + softCount + ' soft) to C++');
@@ -49,9 +49,18 @@ function sendTreePrerequisites(nodes) {
 
 /** A node or prerequisite id without an edit mode copy's "_dup_<n>" suffix (getCanonicalFormId's rule) */
 function _canonicalPrereqId(id) {
-    var s = String(id);
-    var at = s.indexOf('_dup_');
+    var s = String(id), at = s.indexOf('_dup_');
     return at === -1 ? s : s.substring(0, at);
+}
+
+/** A prerequisite list with copies' ids made their spell's, each spell once */
+function _canonicalPrereqList(list) {
+    var out = [], seen = {};
+    (list || []).forEach(function(id) {
+        var c = _canonicalPrereqId(id);
+        if (!seen[c]) { seen[c] = true; out.push(c); }
+    });
+    return out;
 }
 
 /** The saved tree's nodes by formId (the raw nodes a load repair writes back to) */

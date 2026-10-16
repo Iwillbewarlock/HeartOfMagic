@@ -48,12 +48,13 @@ bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, con
         // registration. The player's saved settings for it (on/off, multiplier, cap) stay
         known->second.registered = true;
         known->second.internal = internal;
-        if (!displayName.empty()) known->second.displayName = displayName;
+        // The mod's name for it, unless it gave none (AddSourcedXP registers with the id itself)
+        if (!displayName.empty() && displayName != sourceId) known->second.displayName = displayName;
         logger::info("ProgressionManager: Registered {} XP source '{}' with its saved settings",
             internal ? "internal" : "modded", sourceId);
         if (!internal) {
             UIManager::GetSingleton()->NotifyModdedSourceRegistered(sourceId, known->second.displayName,
-                known->second.multiplier, known->second.cap);
+                known->second.multiplier, known->second.cap, known->second.enabled);
         }
         SendModEvent("SpellLearning_SourceRegistered", sourceId, 0.0f, nullptr);
         return true;
@@ -152,8 +153,10 @@ float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, co
     }
     // Modded sources
     else {
-        // Auto-register if unknown (refused when the registry is full)
-        if (m_xpSettings.moddedSources.find(sourceName) == m_xpSettings.moddedSources.end() &&
+        // Auto-register if unknown (refused when the registry is full), or known only from
+        // config.json: the mod's first XP is its registration (SourceRegistered, panel row)
+        const auto known = m_xpSettings.moddedSources.find(sourceName);
+        if ((known == m_xpSettings.moddedSources.end() || !known->second.registered) &&
             !RegisterModdedXPSource(sourceName, sourceName, internalCaller)) {
             return 0.0f;
         }

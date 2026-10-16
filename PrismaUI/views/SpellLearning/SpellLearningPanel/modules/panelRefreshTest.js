@@ -360,6 +360,14 @@ var PanelRefreshTest = {
             this.check(byId.Q && byId.Q.hardPrereqs.join() === 'P' && byId.Q.softPrereqs.join() === 'S',
                 'Prerequisites: a lone copy goes under its spell\'s formId, _dup_ ids in the lists become the spell\'s');
             env.sent.length = 0;
+            g.sendTreePrerequisites([
+                { formId: 'R_dup_1', originalFormId: 'R', hardPrereqs: ['P', 'P_dup_2'], softPrereqs: [] },
+                { formId: 'R_dup_2', originalFormId: 'R', hardPrereqs: [], softPrereqs: [] }
+            ]);
+            var two = JSON.parse(env.sent[1][1]);
+            this.check(two.length === 1 && two[0].formId === 'R' && two[0].hardPrereqs.join() === 'P',
+                'Prerequisites: two copies of a spell with no node of its own: the first goes once, the second cannot erase it; a list names each spell once');
+            env.sent.length = 0;
             this.check(g.sendTreePrerequisites([]) === 0 && JSON.parse(env.sent[1][1]).length === 0,
                 'Prerequisites: an empty tree sends the clear and an empty list');
         });

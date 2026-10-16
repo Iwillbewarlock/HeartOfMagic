@@ -44,8 +44,9 @@ When an external mod calls `AddSourcedXP` with a **custom source name** (anythin
    at game start, not only at the panel's next save (`ReadModdedSourcesFromConfig`, UIManagerConfig.cpp): a source the
    player turned off or slowed down counts that way from the first XP. A source the config names but no mod has
    registered yet is kept with its saved settings (`ModdedSourceConfig::registered` false); the mod's first
-   `RegisterXPSource` / `RegisterModdedXPSource` for it then returns true, sends `SourceRegistered` and the panel row
-   as a new registration would, and keeps the saved on/off, multiplier and cap (the display name is the mod's).
+   `RegisterXPSource` / `RegisterModdedXPSource` for it - or its first `AddSourcedXP`, which registers an unknown
+   source - then returns true, sends `SourceRegistered` and the panel row as a new registration would, and keeps the
+   saved on/off, multiplier and cap (the display name is the mod's when it gives one).
    A second registration returns false as before.
 
 The plugin's own internal sources (passive learning: `RegisterModdedXPSource(..., internal = true)`) get no UI

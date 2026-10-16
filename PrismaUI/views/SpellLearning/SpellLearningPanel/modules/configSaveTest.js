@@ -38,7 +38,8 @@ var ConfigSaveTest = {
     _load: function(g) {
         if (typeof require !== 'function') return false;
         var vm = require('vm'), fs = require('fs'), path = require('path');
-        var files = [['settingsPanel.js', 'noteConfigLoadResult'], ['cppStatusKeys.js', 'cppStatusKey']];
+        var files = [['settingsPanel.js', 'noteConfigLoadResult'], ['cppStatusKeys.js', 'cppStatusKey'],
+                     ['proceduralTreeBuilder.js', 'filterWhitelistedSpells']];
         for (var i = 0; i < files.length; i++) {
             if (typeof g[files[i][1]] === 'function') continue;
             var file = path.join(__dirname, files[i][0]);
@@ -234,6 +235,14 @@ var ConfigSaveTest = {
                 'plugin list: no rename when the scanned name has its own entry');
             this.check(g.migrateLoweredWhitelist(null, ['A.esp']) === 0 && g.migrateLoweredWhitelist([], []) === 0,
                 'plugin list: no list or no scan: nothing done');
+
+            // A build before the plugin list was opened: the lowered entry still turns its plugin off
+            g.settings.pluginWhitelist = [{ plugin: 'заклинания.esp', enabled: false }, { plugin: 'Übermagic.esp', enabled: true }];
+            var spells = [{ formId: '0x01000801', plugin: 'Заклинания.esp' }, { formId: '0x02000802', plugin: 'Übermagic.esp' },
+                          { formId: '0x03000803', plugin: 'Other.esp' }, { formId: '0x04000804' }];
+            var kept = g.filterWhitelistedSpells(spells).map(function(s) { return s.formId; });
+            this.check(kept.join() === '0x02000802,0x03000803,0x04000804',
+                'plugin list filter: a lowered "off" entry still leaves its plugin out; others and plugin-less spells stay');
         });
     },
 

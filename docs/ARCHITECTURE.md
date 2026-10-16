@@ -667,8 +667,10 @@ session (logged to SpellLearning.log as an error, and the scan status bar shows 
 line) - otherwise the next save would write an empty blacklist, whitelist, root choice and kept-spell list over the
 file. A later load that goes in whole lifts the block. Unlike C++'s `ConfigFile::SaveMode::Blocked`, which writes
 nothing but still applies what the panel sends, nothing is applied either: the game keeps the settings C++ read
-from the file at start, since the panel's own are partly defaults (the game applies a setting only through a save,
-`ApplySavedConfig`, so a change made in such a session takes effect at the next game start that loads whole). A
+from the file at start, since the panel's own are partly defaults (the game applies a setting through a save,
+`ApplySavedConfig`, so a change made in such a session takes effect at the next game start that loads whole; Pause
+Game on Focus is the exception, sent at once with `SetPauseGameOnFocus`). A later whole load does not clear the status
+line. A
 `configNotRead` config (C++ could not read the file) still saves, because C++ writes nothing then and applies the
 panel's settings for the session. The XP caps
 (`xpCapAny`, `xpCapSchool`, `xpCapDirect`) are read back on load (held to 0-100, defaults 5/15/50, `XP_CAP_*` in
@@ -681,14 +683,22 @@ added), internal and reserved names (passive, isl_study, any internal source), n
 entries past `ProgressionCoSave::kMaxModdedSources` left out. Both the config load at game start and every save use
 it; before, the load kept only the registered defaults, so a source the player turned off (BookXP) or slowed down
 counted at full rate until the panel's next save. An entry for a source no mod has registered yet is kept with
-`registered` false; the mod's first registration takes it as new (true, `SourceRegistered`, the panel row) with the
-saved settings (docs/PLAN-PUBLIC-MODDER-API.md).
+`registered` false; the mod's first registration - `RegisterXPSource`, or its first `AddSourcedXP`, which registers
+an unknown source - takes it as new (true, `SourceRegistered`, the panel row) with the saved settings, and the row
+shows the saved on/off (`NotifyModdedSourceRegistered` sends `enabled`; docs/PLAN-PUBLIC-MODDER-API.md).
+Plugin list entries an older panel saved with `toLowerCase` (non-ASCII capitals: "заклинания.esp") still turn their
+plugin off in a build (`filterWhitelistedSpells` also compares the lowered name) and take the scanned name when the
+plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`, ASCII
+`tolower`) does not match such an entry until it is renamed.
 
 **Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
-second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends a
-lone copy under the spell's formId, and strips `_dup_` from prerequisite ids; C++ `OnSetTreePrerequisites` skips a
-formId text it cannot parse to the end. Before, `stoul` read a copy's id as the original's formId and the copy's
-empty lists erased the original's requirements.
+second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
+the first copy, under the spell's formId, when it has none, and makes every prerequisite id its spell's (each once);
+C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end. Before, `stoul` read a copy's id as the
+original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
+entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
+spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
+tome of the spell is still judged by the spell's own links.
 
 **PrismaUI View Path:**
 ```

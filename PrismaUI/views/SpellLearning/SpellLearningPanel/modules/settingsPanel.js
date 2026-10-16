@@ -1678,8 +1678,11 @@ window.onModdedXPSourceRegistered = function(dataStr) {
                 cap: data.cap || 25
             };
         }
+        // The row shows the panel's own entry (the player's saved on/off, multiplier and cap)
+        var own = settings.moddedXPSources[data.sourceId];
         addModdedXPSourceUI(data.sourceId, data.displayName,
-            data.multiplier || 100, data.cap || 25, data.enabled !== false);
+            typeof own.multiplier === 'number' ? own.multiplier : 100,
+            typeof own.cap === 'number' ? own.cap : 25, own.enabled !== false);
     } catch (e) {
         console.error('[SpellLearning] Failed to parse modded XP source data:', e);
     }

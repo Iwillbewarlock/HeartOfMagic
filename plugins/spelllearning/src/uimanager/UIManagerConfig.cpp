@@ -501,7 +501,8 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     int notifiedCount = 0;
     for (auto& [srcId, srcConfig] : moddedSources) {
         if (srcConfig.internal) continue;
-        instance->NotifyModdedSourceRegistered(srcId, srcConfig.displayName, srcConfig.multiplier, srcConfig.cap);
+        instance->NotifyModdedSourceRegistered(srcId, srcConfig.displayName, srcConfig.multiplier, srcConfig.cap,
+            srcConfig.enabled);
         notifiedCount++;
     }
     if (notifiedCount > 0) {

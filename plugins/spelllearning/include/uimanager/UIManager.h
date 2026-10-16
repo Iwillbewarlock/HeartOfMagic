@@ -89,7 +89,7 @@ public:
     
     // Modded XP source notifications
     void NotifyModdedSourceRegistered(const std::string& sourceId, const std::string& displayName,
-                                       float multiplier, float cap);
+                                       float multiplier, float cap, bool enabled = true);
 
     // Spell Research registrations (SpellResearchPatch::StatusJson) to the panel:
     // when it opens and whenever a run changed them. Nothing when SR has no status.
