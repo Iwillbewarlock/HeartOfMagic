@@ -513,6 +513,52 @@ small orange specks is recoloured; a broken DDS, a BC5 and a float texture fail 
 emissive colour, per-tint copies, and the slots that must stay). Not checked: the DLL's texture dump in the game, and how
 the grey copies look.
 
+### Glow rules: `GreyGlow.h`
+
+After `GreyEffects` the builder writes a full-grey copy's colours again from the source NIF's own values (the same block
+numbers: the builder changes values only), so nothing is greyed twice:
+
+- **K, colour keys**: every key a shader's `BSEffectShaderPropertyColorController`s reach - the controller's own
+  `NiPoint3Interpolator`, and every `NiControllerSequence` controlled block that names the controller (by reference, or
+  for a block without one by node name, property type `BSEffectShaderProperty` and controller type) - gets the shader's
+  colour rule; a controller's own `NiBlendPoint3Interpolator` value too. Before, only the controller's own interpolator was
+  greyed, and keys played through a sequence kept their orange (Fire Rune's `Glow:0`).
+- **V, vertex colours**: on a shape without the palette flag that has the `Vertex_Colors` flag (SLSF2 bit 5), every vertex
+  colour goes to its luminance, alpha kept (`BSTriShape` vertex data and `NiTriShapeData`); a palette shape's are left (its
+  vertex red selects the palette row), and so is geometry a palette shape shares.
+
+The run ends with `glow  colour keys reached through controlled blocks greyed N; ...; vertex colours to luminance on N
+shape(s)`.
+
+### Visual-risk check: `GreyRisk.h`
+
+Each full-grey copy NIF and grey MPS is judged against its source shape by shape after it is written, by data alone
+(rules and constants from the 2026-10-17 prototype, `glow-rule.md` section 4). The report goes to
+`SKSE\Plugins\HeartOfMagic_BlackFlame_risk.txt` in the output (tab separated: SUMMARY, then FAIL, WARN, UNREAD, MISSING
+lines with the NIF, block and shape name) and the builder prints `T0 risk: PASS fail=0 unread=0 (...)` or
+`T0 risk: FAIL fail=<n> unread=<m> (see HeartOfMagic_BlackFlame_risk.txt)`. The gate is FAIL 0 and UNREAD 0; on a real
+run it is reported, not fatal.
+
+| Rule | Level | When |
+|---|---|---|
+| KEYS_LEFT | FAIL | a copy colour (base colour, any reached key) more saturated than `kRiskMaxKeySat` 0.05 |
+| VC_LEFT | FAIL | a shape without the palette flag whose copy vertex colours' alpha-weighted mean is more saturated than 0.10 |
+| PSYS_LEFT | FAIL | a copy `BSPSysSimpleColorModifier` or `NiColorData` key more saturated than 0.05 |
+| GREY_HALO | FAIL | a soft (no texture, or texture detail under 0.06) additive shape whose source colour (base x keys x texture mean x vertex colour) is warm (S >= 0.35) and whose copy shows luminance x emissive multiple above 0.01 |
+| TEX_COLOUR | FAIL | a coloured texture (20% of lit texels with S > 0.25, or a mean colour with S >= 0.30) the copy still names |
+| PAL_SHEET | FAIL | a palette shape whose energy (additive, x tintAdd) or coverage (normal) grows over 4x while the copy covers at least half the texture |
+| PAL_VANISH | FAIL | an additive palette shape that drew at least 0.01 whose energy falls under a quarter |
+| EFFECT_EMPTY | FAIL | a NIF whose source draws a shape and whose copy draws none |
+| PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT | WARN | energy over 4x on a small area; a soft additive neutral glow still visible; a palette texture with one flat green |
+| UNREAD | gate | a texture the rule needs is in no folder read (and the game did not say it is absent) or does not decode |
+| MISSING | INFO | the game itself does not have the texture (the request lists it as not opening): the source has the same hole |
+
+Textures (mip 0, 8-bit RGBA) are read from the `--in` folders (`--from-game`: the game's dump), the output being written
+and our own shipped ones. The palette rules assume NifSkope's effect shader model: palette colour looked up by the
+texture's green, palette alpha by its alpha, the row by base colour red x vertex red - not checked against the game.
+Measured on the 2026-10-16 load order (the dump plus the prototype's textures, `--no-textures`), the v2i copies gave
+FAIL 823 and WARN 225, every count equal to the prototype's; with K and V, KEYS_LEFT 70 -> 0 and VC_LEFT 103 -> 0.
+
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 
 The DLL reads copies map version 2 (and version 1, which counts as stale). A PROJ copy's muzzle flash model is the map's

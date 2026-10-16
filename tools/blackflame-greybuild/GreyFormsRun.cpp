@@ -13,6 +13,7 @@
 // AddOnNodes keep the original value), an AddOnNode value in no ADDN stays as it is.
 
 #include "GreyForms.h"
+#include "GreyGlow.h"
 #include "GreyRisk.h"
 
 #include <fmt/format.h>
@@ -326,7 +327,11 @@ namespace GreyBuild
             RiskJob risk;
             risk.textures = &textureSource;
             risk.tintAdd = a_plan.map.tintAdd;
-            const Judging judging{ a_options.textures ? &job : nullptr, nullptr, &risk };
+            GlowContext glow;
+            glow.textures = &textureSource;
+            glow.tint = a_plan.map.tint;
+            glow.tintAdd = a_plan.map.tintAdd;
+            const Judging judging{ a_options.textures ? &job : nullptr, &glow, &risk };
             bool built = false;
             {
                 const StageTimer time("NIF build: grey MPS (with their textures)");
@@ -345,6 +350,7 @@ namespace GreyBuild
                 return false;
             }
             // The check's report goes out with the copies; its gate is reported here, not fatal (README "Visual-risk check")
+            std::cout << GlowTotalsLine(glow.totals) << "\n";
             WriteRiskReport(risk, PluginsDir(a_staging) / kRiskReportName);
             a_totals.riskGate = RiskGateLine(risk);
             a_totals.riskPassed = RiskGatePasses(risk);

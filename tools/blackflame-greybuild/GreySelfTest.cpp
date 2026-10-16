@@ -412,6 +412,7 @@ namespace GreyBuild
             SelfTest::CheckGameRequest(check, dir, source);
             SelfTest::CheckPathRule(check);
             SelfTest::CheckTextures(check, dir);
+            SelfTest::CheckRisk(check);
             CheckMapRefusals(check, dir);
         } catch (const std::exception& e) {
             check.Check(false, fmt::format("exception: {}", e.what()));

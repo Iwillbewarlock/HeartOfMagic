@@ -38,4 +38,7 @@ namespace GreyBuild::SelfTest
 
     /// The path rule the DLL and the builder share (DataPathRule.h): normalising and the texture scan, one table (T7).
     void CheckPathRule(Checker& a_check);
+
+    /// The visual-risk check (GreyRisk.h) and the glow rules (GreyGlow.h) on made-up NIFs and 4 x 4 textures in memory.
+    void CheckRisk(Checker& a_check);
 }

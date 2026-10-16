@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyBuild.h"
+#include "GreyGlow.h"
 #include "GreyRisk.h"
 #include "GreyTexture.h"
 
@@ -96,6 +97,8 @@ namespace GreyBuild
         try {
             nifly::NifFile nif;
             LoadNif(nif, *source);
+            nifly::NifFile original;  // v2i: the header strings as the source has them (orphans included); the glow rules
+            LoadNif(original, *source);  // and the risk check read its values
             const int unknown = CountUnknownBlocks(nif);
             const RoundTrip roundTrip = CheckRoundTrip(*source);
 
@@ -105,6 +108,9 @@ namespace GreyBuild
                 stats = GreyEffects(nif, a_map.tint, a_map.tintAdd, &shaderNotes);
                 for (const auto& line : shaderNotes) {
                     std::cout << fmt::format("NOTE  {}: {}\n", a_rel, line);
+                }
+                if (a_options.judging.glow) {
+                    ApplyGlowRules(nif, original, *a_options.judging.glow, a_rel);  // from the source's values (GreyGlow.h)
                 }
                 if (a_options.judging.textures) {
                     RetargetTextures(nif, *a_options.judging.textures, a_rel);  // after GreyEffects: UsesPalette as the copy has it
@@ -133,8 +139,6 @@ namespace GreyBuild
             nifly::NifFile written;
             LoadNif(written, target);
             auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
-            nifly::NifFile original;  // v2i: the header strings as the source has them (orphans included)
-            LoadNif(original, *source);
             if (a_greyEffects && a_options.judging.risk) {
                 RiskCheckNif(original, written, a_greyRel, *a_options.judging.risk);  // the copy as written, against its source
             }
