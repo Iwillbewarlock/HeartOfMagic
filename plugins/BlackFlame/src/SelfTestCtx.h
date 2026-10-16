@@ -99,9 +99,11 @@ namespace BlackFlame::SelfTest
         Aim aim;                                       // C3: T5's confirmation of the T3 Firebolt's hit
         bool targetMade = false;                       // T2 turned the target's AI off
         std::string targetMadeText;                    // what MakeTarget said
-        float targetLastZ = 0.0f;                      // T2: the target's height when it was last seen moving
+        float targetLastZ = 0.0f;                      // T2: the target's height at rest
+        std::optional<RE::NiPoint3> targetRestPos;     // T2: where the target was when it was last seen moving
         std::optional<Clock::time_point> targetStillSince;
-        std::optional<RE::NiPoint3> casterHome;        // where the caster stood when T2 judged (the target at rest)
+        RE::NiPoint3 casterSpawn{};                    // where Spawn put the caster
+        std::optional<RE::NiPoint3> casterHome;        // its planned spot at the height it stood at in T2
     };
 
     using Handler = bool (*)(Ctx&, bool);  // true when the step is finished

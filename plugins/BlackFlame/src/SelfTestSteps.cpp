@@ -62,7 +62,8 @@ namespace BlackFlame::SelfTest
         // Placement: the target ahead (C3: close enough to hit, 550 units), the caster level with the player off to
         // the side, all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime, T2 checks it)
         constexpr float kTargetForward = 550.0f;
-        constexpr float kRestTolerance = 2.0f;                      // units the target's height may change at rest
+        constexpr float kRestTolerance = 2.0f;                      // units the target may move at rest
+        constexpr float kPlacementSlack = 200.0f;                   // the target may end this much further than planned
         constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long without moving
         constexpr float kCasterRight = 700.0f;
         constexpr float kHealthShare = 0.99f;  // the target's health must reach this share of kDummyHealth
@@ -176,6 +177,7 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             a_c.casterId = caster->GetFormID();
+            a_c.casterSpawn = caster->GetPosition();  // the planned spot (the player's height)
             SelfTestLog::Info("T2", std::format("spawned target {:08X} and caster {:08X} (both EncDeer)", dummy->GetFormID(),
                 caster->GetFormID()));
             return true;
@@ -192,24 +194,31 @@ namespace BlackFlame::SelfTest
             if (!dummy || !caster || !dummy->Is3DLoaded() || !caster->Is3DLoaded()) {
                 return false;
             }
-            // C3: spawned at the player's height, the target may still be falling: wait until it is at rest (D3: with its
-            // AI still on; it is turned off only once the target is at rest)
-            const float z = dummy->GetPositionZ();
-            if (!a_c.targetStillSince || std::fabs(z - a_c.targetLastZ) > kRestTolerance) {
-                a_c.targetLastZ = z;
-                a_c.targetStillSince = Clock::now();
-            }
-            if (Clock::now() - *a_c.targetStillSince < kRestTime) {
-                a_c.waitingFor = std::format("the target to come to rest (height {:.0f}, player at {:.0f})", z,
-                    Player()->GetPositionZ());
-                return false;
-            }
-            // The caster keeps its AI (an actor without it may never run its cast); the target is made passive now
+            // The target is made passive at once (D3's "AI off only after rest" refuted: in run 11:11 the target fell
+            // 300 units with its AI off, and the caster, AI on, wandered 3,548-8,443 units). The caster keeps its AI (an
+            // actor without it may never run its cast).
             if (!a_c.targetMade) {
                 a_c.targetMadeText = SelfTestWorld::MakeTarget(dummy);
                 a_c.targetMade = true;
             }
-            a_c.casterHome = caster->GetPosition();  // D3: where the caster stands now, as a whole (its own ground height)
+            // C3: spawned at the player's height, the target may still be falling: wait until it is at rest - its whole
+            // position (D3), not only its height
+            const auto pos = dummy->GetPosition();
+            if (!a_c.targetRestPos || pos.GetDistance(*a_c.targetRestPos) > kRestTolerance) {
+                a_c.targetRestPos = pos;
+                a_c.targetStillSince = Clock::now();
+            }
+            if (Clock::now() - *a_c.targetStillSince < kRestTime) {
+                a_c.waitingFor = std::format("the target to come to rest (at ({:.0f}, {:.0f}, {:.0f}), player height {:.0f})", pos.x,
+                    pos.y, pos.z, Player()->GetPositionZ());
+                return false;
+            }
+            a_c.targetLastZ = pos.z;
+            // The caster's home: its planned spot at the height it stands at now (O-L1 refuted: the caster wanders hundreds
+            // to thousands of units with its AI on, so its position at T2 may already be a drift point)
+            const auto casterNow = caster->GetPosition();
+            a_c.casterHome = RE::NiPoint3{ a_c.casterSpawn.x, a_c.casterSpawn.y, casterNow.z };
+            const float casterDrift = std::hypot(casterNow.x - a_c.casterSpawn.x, casterNow.y - a_c.casterSpawn.y);
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
@@ -217,12 +226,14 @@ namespace BlackFlame::SelfTest
             const float toPlayer = dummy->GetPosition().GetDistance(playerPos);
             const float toCaster = dummy->GetPosition().GetDistance(caster->GetPosition());
             const bool farEnough = toPlayer >= radius + kRadiusMargin && toCaster >= radius + kRadiusMargin;
-            const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && farEnough;
+            const bool closeEnough = toPlayer <= kTargetForward + kPlacementSlack;  // D3: placed where planned, not slid off
+            const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && farEnough &&
+                            closeEnough;
             a_c.actorsOk = ok;
             SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target to player {:.0f}, to caster {:.0f} "
-                "(explosion radius {:.0f} + {:.0f}); caster AI {}; target at rest at height {:.0f} (player {:.0f})", done, health,
-                toPlayer, toCaster, radius, kRadiusMargin, caster->IsAIEnabled() ? "on" : "off", dummy->GetPositionZ(),
-                playerPos.z));
+                "(explosion radius {:.0f} + {:.0f}; at most {:.0f} to the player); caster AI {}, {:.0f} units from its planned spot; "
+                "target at rest at height {:.0f} (player {:.0f})", done, health, toPlayer, toCaster, radius, kRadiusMargin,
+                kTargetForward + kPlacementSlack, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z, playerPos.z));
             return true;
         }
 

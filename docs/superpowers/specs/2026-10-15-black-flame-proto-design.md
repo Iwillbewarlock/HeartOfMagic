@@ -532,11 +532,13 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   남은 위험: 종료 순간 이미 시작된 플러시 한 번은 막지 못한다. README에 cdb 명령과 _NT_SYMBOL_PATH.
 - D3 자가 시험: muzzleFlashModel GetModel()의 null을 strcmp·SetModel 전에 막았다(Gemini 차단 항목, GetModel은 가상 함수). 필드 비교의
   폼 포인터는 역참조하지 않고 폼 맵에서 값으로 찾는다(차이가 있는 필드에만, 전체 탐색). 해제는 DispelEffect만(직접 Dispel 대체 없음),
-  주석을 "재진입 방지, 스레드 간 보호 아님"으로 고쳤다. T8·E2는 첫 해제가 남아야 PASS, 두 번째가 필요하면 FAIL. 조준: 목표의 AI는
-  멈춘 뒤에 끈다. 다시 쏠 때 검색 기준을 그 발사로 옮긴다(E1a는 발사·투사체·충돌 카운터를 새로). T5는 TESHitEvent 확인(kHit)을
+  주석을 "재진입 방지, 스레드 간 보호 아님"으로 고쳤다. T8·E2는 첫 해제가 남아야 PASS, 두 번째가 필요하면 FAIL. 조준: "AI는 멈춘
+  뒤에 끈다"는 반박: 11:11 실행에서 목표는 AI가 꺼진 채로 300 떨어졌고 AI가 켜진 시전자는 3548~8443 떠돌았다. 그래서 AI는 3D가 생기면
+  바로 끄고, 멈춤 판정은 높이만이 아니라 위치 전체(2 이내 0.5초), 그리고 계획보다 200 넘게 멀면 T2 FAIL. 다시 쏠 때 검색 기준을 그 발사로 옮긴다(E1a는 발사·투사체·충돌 카운터를 새로). T5는 TESHitEvent 확인(kHit)을
   기다리고, 우리 셰이더가 보이면 더 쏘지 않는다. T5의 셰이더·교체 기록은 t3Mark부터 그대로 찾는다(목표 쪽 기록이라 어느 발사가
   맞혔든 같다). E4 = 맞힘 확인 또는 셰이더 확인. 실패 줄은 첫 발사 이후 목표에 온 모든 TESHitEvent(cause, source, projectile)를
-  적고, projectile이 원본이나 사본 투사체여도 맞힘으로 친다. 시전자 집은 T2가 판정할 때 서 있던 자리 전체. RefreshCopies는 기대값
+  적고, projectile이 원본이나 사본 투사체여도 맞힘으로 친다. 시전자 집 = 계획한 자리 xy + T2 때의 높이(O-L1 반박: T2 때 자리는 이미
+  떠돈 자리일 수 있다; T2 줄에 그때까지 떠돈 거리를 적는다). RefreshCopies는 기대값
   구조체를 만들어 다를 때만 한 번에 쓴다(Refill). T8-cast는 "T3 grey (copy/recolour)"이고 버프 없는 발사는 늘 사본이 아니어야 한다.
   기한 메시지에 시작 지연을 넣고, 틱 공백 0.5초는 SelfTestCtx.h의 kMaxTickGap 하나로. SelfTestStepsLate.cpp는 574줄이라 나누지 않았다.
 - D4 다음 실행 설정(복사본만, 재색칠 끔)은 메인 세션이 사용자와 정한다: 코드는 바꾸지 않았다.
