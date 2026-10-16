@@ -1,5 +1,6 @@
 #include "CopyModelProbe.h"
 
+#include "FireClosure.h"
 #include "FormCopies.h"
 #include "GameThread.h"
 #include "SehGuard.h"
@@ -39,18 +40,17 @@ namespace BlackFlame
             return out;
         }
 
-        const char* ModelOf(const RE::TESForm* a_form)
+        // The record's own model (FireClosure.h ModelPathOf: a per-type cast; TESModel is a component, not a form type)
+        std::string ModelOf(const RE::TESForm* a_form)
         {
-            const auto* model = a_form ? a_form->As<RE::TESModel>() : nullptr;
-            const char* path = model ? model->GetModel() : nullptr;
-            return path && *path ? path : nullptr;
+            return ModelPathOf(a_form);
         }
 
-        const char* MuzzleOf(const RE::TESForm* a_form)
+        std::string MuzzleOf(const RE::TESForm* a_form)
         {
             const auto* projectile = a_form ? a_form->As<RE::BGSProjectile>() : nullptr;
-            const char* path = projectile ? projectile->muzzleFlashModel.GetModel() : nullptr;
-            return path && *path ? path : nullptr;
+            const char* path = projectile ? projectile->muzzleFlashModel.model.c_str() : nullptr;
+            return path ? std::string(path) : std::string();
         }
 
         Result Demand(const std::string& a_path)
@@ -89,13 +89,11 @@ namespace BlackFlame
             // Every (copy, role) use with its path; distinct paths probed once, in first-use order
             std::vector<Use> uses;
             for (const auto& filled : FilledCopies()) {
-                if (const char* path = ModelOf(filled.copy)) {
-                    const char* sourcePath = ModelOf(filled.source);
-                    uses.push_back({ filled.source, filled.copy, path, sourcePath ? sourcePath : "", "model" });
+                if (auto path = ModelOf(filled.copy); !path.empty()) {
+                    uses.push_back({ filled.source, filled.copy, std::move(path), ModelOf(filled.source), "model" });
                 }
-                if (const char* path = MuzzleOf(filled.copy)) {
-                    const char* sourcePath = MuzzleOf(filled.source);
-                    uses.push_back({ filled.source, filled.copy, path, sourcePath ? sourcePath : "", "muzzle" });
+                if (auto path = MuzzleOf(filled.copy); !path.empty()) {
+                    uses.push_back({ filled.source, filled.copy, std::move(path), MuzzleOf(filled.source), "muzzle" });
                 }
             }
             std::map<std::string, Result> results;  // by Key(path)
