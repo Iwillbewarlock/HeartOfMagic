@@ -3,6 +3,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
+#include "DevAutomation.h"
 #include "FormCopies.h"
 #include "Forms.h"
 #include "SelfTestLog.h"
@@ -368,6 +369,7 @@ namespace BlackFlame::SelfTest::Reload
                 SelfTestLog::Info("E3", std::format("E3: quicksave now, then quickload that save (within {} minutes, in this "
                     "cell; the test resumes after the load and ends with DONE E3; do not keep playing from that quicksave: it "
                     "holds the test rune and buff)", kE3Window.count()));
+                DevAutomation::OnE3Asked();  // dev only (config devAutoE3): the plugin saves and loads instead
                 g_step = {};
                 return true;
             }

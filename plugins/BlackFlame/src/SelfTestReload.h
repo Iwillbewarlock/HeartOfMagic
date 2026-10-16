@@ -9,9 +9,9 @@
 // Fire Rune launched at a marker 300 units ahead, its projectile checked (base = the
 // copy, explosion = a copy), a marker file (HeartOfMagic_BlackFlame_e3.json next to
 // the self-test file: rune FormID, copy base, cell, game days, session nonce) written,
-// and one line asks the player to quicksave and quickload. The DLL never saves or
-// loads by itself (MO2 local saves live elsewhere, and the engine's save/load code was
-// not read). On the next kPostLoadGame that succeeded, came after its kPreLoadGame and
+// and one line asks the player to quicksave and quickload. The shipped DLL never saves
+// or loads by itself; only the dev key devAutoE3 (DevAutomation.h) saves and loads
+// HoMBF_E3 for an unattended run. On the next kPostLoadGame that succeeded, came after its kPreLoadGame and
 // within kE3Window of the request, with the marker file matching this session, in the
 // same cell and not earlier in game time: the rune is found again (FormID, else a
 // projectile of the copy base in the cell) and judged - base the copy, explosion a

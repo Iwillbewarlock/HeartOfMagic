@@ -1,5 +1,6 @@
 #include "SelfTestLog.h"
 
+#include "DevAutomation.h"
 #include "Tester.h"
 
 #include <format>
@@ -92,5 +93,6 @@ namespace BlackFlame::SelfTestLog
         }
         FlushLog();  // info lines are buffered (plugins/Common.h): the results reach disk now
         Tester::NoteSelfTest(line);
+        DevAutomation::OnSelfTestDone(a_label);  // dev only (config devAutoQuit)
     }
 }

@@ -19,6 +19,7 @@ endif()
 set(BLACKFLAME_SOURCES
     src/Main.cpp
     src/Config.cpp
+    src/DevAutomation.cpp
     src/Forms.cpp
     src/FireSet.cpp
     src/FormCopies.cpp

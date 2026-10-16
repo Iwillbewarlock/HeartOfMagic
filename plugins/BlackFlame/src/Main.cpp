@@ -14,6 +14,7 @@
 #include "CopyFreshness.h"
 #include "CopyRequest.h"
 #include "CopySwap.h"
+#include "DevAutomation.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
@@ -79,6 +80,7 @@ namespace
         BlackFlame::InstallHazardSwap();
         BlackFlame::RunGreyCheck();
         BlackFlame::Tester::WriteStartup();  // every hook's state, the copies, the runtime (Tester.h)
+        BlackFlame::DevAutomation::Install();  // dev only: nothing unless a devAuto key is on with selfTest (DevAutomation.h)
     }
 
     // The world is torn down: nothing tracked from it may be touched again
@@ -121,6 +123,7 @@ namespace
             BlackFlame::Watchdog::NoteLoadStarted();
             TearDown("a save is being loaded");
             BlackFlame::SelfTest::OnPreLoadGame();
+            BlackFlame::DevAutomation::OnPreLoadGame();
             break;
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
@@ -135,6 +138,7 @@ namespace
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
             // "data contains a bool"); anything else is read as success
             BlackFlame::SelfTest::OnGameLoaded(a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0);
+            BlackFlame::DevAutomation::OnPostLoadGame();
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
@@ -149,6 +153,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kSaveGame:
             BlackFlame::Tester::Write("save");  // G5
+            BlackFlame::DevAutomation::OnSaveGame();
             FlushLog();
             break;
         default:

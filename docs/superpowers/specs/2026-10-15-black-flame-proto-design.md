@@ -697,3 +697,12 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - G7 README_TESTER: SE에서도 회색 맵의 해저드 모델은 적용. G8 재생 디코더 사례에 36885 첫머리(5). G9 항목 0개 맵은 따로 문구.
 - G10 주석(장치 6: AE 36885, SE 미사용), 빈 바이트는 '-', SlotSwap은 a_slot && a_to, 폭발 썽크 catch에서 before도 비움.
   반박: CopySwapArt의 HexBytes는 Patch::HexBytes 안에서 IsExecutable을 먼저 본다(Patch.cpp HexBytes 첫 줄). SpawnThunk는 이미 a_effect 널 확인 뒤 ReadAt.
+
+### v2 dev automation (580e315 이후)
+
+- 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.
+- `devAutoLoad` "세이브 이름(확장자 없음)": 세션에서 메인 메뉴가 처음 열리고 5초 뒤 메인 스레드에서 BGSSaveLoadManager::Load(이름, checkForMods false). 세션당 한 번, 그 전에 다른 불러오기가 시작됐으면 하지 않음. checkForMods false는 빠진 콘텐츠 창이 클릭을 기다리지 않게.
+- `devAutoE3`: E3가 저장·불러오기를 요청하면 3초 뒤 Save("HoMBF_E3"), SKSE kSaveGame 뒤 3초(신호 없으면 10초) 뒤 Load("HoMBF_E3"). E3 판정(표지 nonce·셀·게임 시간·preload·10분 창)은 그대로 - 플레이어의 퀵로드와 같은 길.
+- `devAutoQuit`: 본 실행의 DONE(E3가 걸려 있으면 DONE E3) 10초 뒤 메인 스레드에서 Main::quitGame = true. 마지막 불러오기(또는 자동 불러오기 요청) 뒤 6분 안에 끝나지 않으면 TIMEOUT을 남기고 종료.
+- 스레드 하나(250 ms 폴링, 분리)가 대기를 재고, 엔진 호출은 모두 MainQueue::Post. 쓰는 id(516860/403340, 34818/35727, 34819/35728, 516943/403449)는 Patch::HasIds로 먼저 확인, 없으면 꺼짐.
+- 게임 안에서 확인할 것: SKSE의 kPreLoadGame이 Load_Impl 경로에서도 오는지(안 오면 E3가 "preload not seen"으로 not run), 메인 메뉴 프레임에서 Load가 도는지.

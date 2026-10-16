@@ -68,6 +68,9 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `forcePalette` | `true` | Effect shapes without the grey-to-palette colour flag get the flag, so their own texture brightness is mapped through the grey ramp. Off: such shapes only get the desaturated base colour |
 | `particleColors` | `false` | Also desaturate `BSPSysSimpleColorModifier` colour keys in the player's recoloured 3D (layout not in CommonLib, from the Jonahex fork, unverified on AE; see the self-test step T7) |
 | `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
+| `devAutoLoad` | absent | **Dev only** (not in the shipped json or the tester package; ignored unless `selfTest` or `testerMode` is on): a save name without extension, loaded once, 5 s after the main menu first opens in a session, unless a load has started by then (`DevAutomation.h`) |
+| `devAutoE3` | `false` | **Dev only** (same rules): when E3 asks for a save and reload, the plugin waits 3 s, saves `HoMBF_E3`, waits for SKSE's save message plus 3 s (10 s at most without it) and loads `HoMBF_E3`; E3 judges that load as it judges a player's |
+| `devAutoQuit` | `false` | **Dev only** (same rules): the game quits (`Main::quitGame`) 10 s after the self-test's DONE, or after DONE E3 when E3 armed; 6 minutes after the last load (or the auto load's request) without that, it quits anyway and logs TIMEOUT |
 | `selfTestDelaySeconds` | `30` | Seconds of unpaused play (player in a loaded cell, no menu, not loading) after the load before the self-test's first step, and before E3 judges after its quickload (0..600) |
 | `tintScale` | `0.6` | Base colour RGB = luminance x tintScale (0..2), alpha kept |
 | `lightColor` | `[0.25, 0.22, 0.28]` | RGB 0..1 for the tinted lights |

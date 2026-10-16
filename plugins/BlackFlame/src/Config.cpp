@@ -19,6 +19,9 @@ namespace BlackFlame
         constexpr std::size_t kLightChannels = 3;
         constexpr float kMinSelfTestDelay = 0.0f;
         constexpr float kMaxSelfTestDelay = 600.0f;
+        constexpr std::string_view kSaveExt = ".ess";
+        constexpr std::size_t kMaxSaveNameLength = 200;
+        constexpr const char* kSaveNameForbidden = "/\\:*?\"<>|";
 
         Config g_config;
 
@@ -53,11 +56,14 @@ namespace BlackFlame
             BoolKey{ "selfTest", &Config::selfTest },
             BoolKey{ "testerMode", &Config::testerMode },
             BoolKey{ "particleColors", &Config::particleColors },
+            BoolKey{ "devAutoE3", &Config::devAutoE3 },
+            BoolKey{ "devAutoQuit", &Config::devAutoQuit },
         };
 
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "tintScale" || key == "lightColor" || key == "burnMode" || key == "selfTestDelaySeconds") {
+            if (key == "tintScale" || key == "lightColor" || key == "burnMode" || key == "selfTestDelaySeconds" ||
+                key == "devAutoLoad") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -128,6 +134,43 @@ namespace BlackFlame
             out.selfTestDelaySeconds = it->get<float>();
         }
 
+        // Dev only: a save name in the game's save folder (no folder part); a trailing .ess is dropped
+        void ReadDevAutoLoad(const nlohmann::json& j, Config& out)
+        {
+            const auto it = j.find("devAutoLoad");
+            if (it == j.end()) {
+                return;
+            }
+            if (!it->is_string()) {
+                logger::warn("BlackFlame: config 'devAutoLoad' is not a string ({}) - no save is loaded", it->dump());
+                return;
+            }
+            auto name = it->get<std::string>();
+            if (name.size() > kSaveExt.size() && name.ends_with(kSaveExt)) {
+                name.resize(name.size() - kSaveExt.size());
+            }
+            if (name.empty() || name.size() > kMaxSaveNameLength ||
+                name.find_first_of(kSaveNameForbidden) != std::string::npos || name.find("..") != std::string::npos) {
+                logger::warn("BlackFlame: config 'devAutoLoad' '{}' is not a save name (1..{} characters, no folder part, "
+                             "none of {}) - no save is loaded", it->get<std::string>(), kMaxSaveNameLength, kSaveNameForbidden);
+                return;
+            }
+            out.devAutoLoad = std::move(name);
+        }
+
+        // The dev keys run the self-test unattended: without the self-test there is nothing for them to do
+        void GateDevKeys(Config& out)
+        {
+            if (out.selfTest || (out.devAutoLoad.empty() && !out.devAutoE3 && !out.devAutoQuit)) {
+                return;
+            }
+            logger::warn("BlackFlame: config devAutoLoad/devAutoE3/devAutoQuit ignored: they work only with selfTest (or "
+                         "testerMode) on");
+            out.devAutoLoad.clear();
+            out.devAutoE3 = false;
+            out.devAutoQuit = false;
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -163,11 +206,11 @@ namespace BlackFlame
             logger::info(
                 "BlackFlame: config burnShader={} hitArt={} projectile={} explosion={} hazard={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
                 "forcePalette={} selfTest={} particleColors={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} copyHitArt={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
+                "copyImpacts={} copyHitArt={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} tintScale={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.projectile, g_config.explosion, g_config.hazard,
                 g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap, g_config.hazardSwap, g_config.light, g_config.forcePalette, g_config.selfTest, g_config.particleColors,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
-                g_config.copyHitArt, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.selfTestDelaySeconds,
+                g_config.copyHitArt, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.tintScale, g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             if (g_config.particleColors) {
                 logger::warn("BlackFlame: 'particleColors' is on - particle colour modifiers in the player's recoloured "
@@ -211,6 +254,8 @@ namespace BlackFlame
             spdlog::flush_on(spdlog::level::info);
             logger::info("BlackFlame: testerMode on: selfTest and writeRequest forced on, every log line written through");
         }
+        ReadDevAutoLoad(j, next);
+        GateDevKeys(next);
         g_config = next;
         LogConfig();
     }
