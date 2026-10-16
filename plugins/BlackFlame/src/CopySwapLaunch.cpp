@@ -10,6 +10,7 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "FormCopies.h"
+#include "MainThreadQueue.h"
 #include "PlayerArt.h"
 #include "SehGuard.h"
 #include "SelfTestProbe.h"
@@ -120,6 +121,7 @@ namespace BlackFlame
         RE::ProjectileHandle* LaunchThunk(RE::ProjectileHandle* a_result, RE::Projectile::LaunchData& a_data)
         {
             const ThreadTrace::Scope trace("Launch (v2 detour)");
+            MainQueue::NoteJobSideHook();  // G1
             g_launchCalls.fetch_add(1);
             RE::BGSProjectile* asked = a_data.projectileBase;
             RE::BGSProjectile* copy = nullptr;
@@ -232,6 +234,7 @@ namespace BlackFlame
         std::uintptr_t CreateThunk(void* a_data)
         {
             const ThreadTrace::Scope trace("explosion create (v2 detour)");
+            MainQueue::NoteJobSideHook();  // G1
             g_createCalls.fetch_add(1);
             RE::BGSExplosion* before = nullptr;
             RE::BGSExplosion* swapTo = nullptr;

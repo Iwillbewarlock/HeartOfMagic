@@ -34,12 +34,20 @@ namespace BlackFlame::MainQueue
 
     [[nodiscard]] bool Installed() noexcept;
 
-    /// The trace kind of a whole drain (ThreadTrace.h): T-threads checks that no job-side hook body starts inside one (E7)
+    /// The trace kind of a drain that ran tasks (ThreadTrace.h; G1: drains without tasks are not recorded)
     inline constexpr const char* kDrainKind = "main-thread drain";
 
     /// Any thread: runs a_task on the main thread at the end of the next Main::Update (or through SKSE's
     /// AddTask when the hook is not installed). a_name is a string literal (thread logs and the trace).
-    void Post(const char* a_name, std::function<void()> a_task);
+    /// False when nothing was queued (G3: a kind stopped for the session) - a caller holding a "queued" flag clears it.
+    bool Post(const char* a_name, std::function<void()> a_task);
+
+    /// Whether a drain is running now (any thread; G1)
+    [[nodiscard]] bool Draining() noexcept;
+
+    /// G1: at the entry of a job-side hook body (Launch, explosion creation, GetImpactData and Explosion::Update in a copy
+    /// window): counts the call when a drain is running and the caller is not the main thread
+    void NoteJobSideHook() noexcept;
 
     struct Stats
     {
@@ -49,6 +57,7 @@ namespace BlackFlame::MainQueue
         std::uint64_t bodiesOffMain = 0;  // of those, on another thread than Main::threadID (0 when the hook is right)
         std::uint64_t overlaps = 0;       // a drain began while another was running (0 when the hook is right)
         std::uint64_t fallbacks = 0;      // posts sent to SKSE's AddTask because the hook is not installed
+        std::uint64_t jobHooksDuringDrain = 0;  // G1: job-side hook bodies entered on a worker thread during a drain
         std::uint32_t thread = 0;         // the drain's thread (the first frame's)
         std::uint32_t mainThreadId = 0;   // RE::Main::threadID read in the first frame
     };

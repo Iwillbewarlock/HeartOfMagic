@@ -140,8 +140,16 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] std::string HitsListed(const Ctx& a_c, std::uint64_t a_mark);
     /// The player, the target, its 3D bound and their distance, for FAIL lines
     [[nodiscard]] std::string AimGeometry(const Ctx& a_c);
-    /// The caster moved back to where it stood in T2 when it wandered off (it keeps its AI)
-    void BringCasterHome(Ctx& a_c, const char* a_id);
+    /// The caster moved back home when it wandered off (it keeps its AI); true when it was moved - the caller casts on a
+    /// later tick (G2), after the move has taken effect
+    [[nodiscard]] bool BringCasterHome(Ctx& a_c, const char* a_id);
+
+    enum class Prepared
+    {
+        kReady,
+        kWait,   // the caster was just moved home: cast on a later tick
+        kFailed  // FAIL logged, nothing cast
+    };
 
     inline constexpr float kCasterLeash = 200.0f;  // the caster moved further than this from home: put back (E3: and T2)
 

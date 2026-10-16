@@ -212,9 +212,8 @@ namespace BlackFlame
         g_config.boundWeapon = false;
         g_config.light = false;
         g_config.particleColors = false;
-        logger::warn("BlackFlame: runtime recolour layers and light writes off for this session ({}); the copies and the per-call "
-                     "swaps stay on", a_why);
-        LogConfig();
+        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, projectile, explosion, hazard, handArt, "
+                     "boundWeapon, light and particleColors false; the copies and the per-call swaps stay on", a_why);
     }
 
     const Config& GetConfig() noexcept

@@ -1,4 +1,5 @@
 #include "ProjectileHook.h"
+#include "MainThreadQueue.h"
 
 #include "Attribution.h"
 #include "BuffState.h"
@@ -171,7 +172,7 @@ namespace BlackFlame
             const char* linkName = PlayerLinkName(link);
 
             auto& counter = byPlayer ? g_playerMaterialLogs : g_npcMaterialLogs;
-            const bool logMaterials = counter.fetch_add(1) < kMaxMaterialLogs;
+            const bool logMaterials = MainQueue::Installed() && counter.fetch_add(1) < kMaxMaterialLogs;  // G5
             const bool recolor = byPlayer && IsStoked() && (GetConfig().projectile || GetConfig().light);
             if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;

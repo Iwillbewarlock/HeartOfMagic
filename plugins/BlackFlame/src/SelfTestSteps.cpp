@@ -218,9 +218,10 @@ namespace BlackFlame::SelfTest
             // to thousands of units with its AI on, so its position at T2 may already be a drift point)
             const auto casterNow = caster->GetPosition();
             const float casterDrift = std::hypot(casterNow.x - a_c.casterSpawn.x, casterNow.y - a_c.casterSpawn.y);
-            // E3: its present height only while it is still near the spot; wandered off, the spawn height (it falls from there)
+            // E3/G2: its present height only while it is still near the spot; wandered off, the target's rest height (a real
+            // ground height nearby; the spawn height is the player's)
             a_c.casterHome = RE::NiPoint3{ a_c.casterSpawn.x, a_c.casterSpawn.y,
-                casterDrift <= kCasterLeash ? casterNow.z : a_c.casterSpawn.z };
+                casterDrift <= kCasterLeash ? casterNow.z : a_c.targetLastZ };
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;

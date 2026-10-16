@@ -3,6 +3,7 @@
 #include "BuffState.h"
 #include "GameThread.h"
 #include "Patch.h"
+#include "SehGuard.h"
 #include "ThreadTrace.h"
 #include "TrackedMutex.h"
 
@@ -59,6 +60,7 @@ namespace BlackFlame::MainQueue
         std::atomic<std::uint64_t> g_bodiesOffMain{ 0 };
         std::atomic<std::uint64_t> g_overlaps{ 0 };
         std::atomic<std::uint64_t> g_fallbacks{ 0 };
+        std::atomic<std::uint64_t> g_jobHooksDuringDrain{ 0 };
         std::atomic<std::uint32_t> g_thread{ 0 };
         std::atomic<std::uint32_t> g_mainThreadId{ 0 };
         bool g_pausedLogged = false;  // drain thread only
@@ -142,10 +144,23 @@ namespace BlackFlame::MainQueue
             return StoppedLocked(a_kind);
         }
 
-        void RunTask(Task& a_task, std::uint32_t a_thread, std::uint32_t a_main)
+        void StopKind(const char* a_name, const char* a_why)
+        {
+            {
+                std::lock_guard lock(g_mutex);
+                g_stoppedKinds.emplace_back(a_name);
+            }
+            const bool ticker = std::string_view(a_name) == "BlackFlameTick";
+            logger::error("BlackFlame: main-thread task '{}' {}: tasks of this kind are not run again this session{}", a_name, a_why,
+                ticker ? " - that is the ticker: the buff flag, the hand and bound weapon art, script-placed fire and the self-test "
+                         "stop until the game is restarted" : "");
+        }
+
+        // True when the task ran (G5: the heartbeat counts these)
+        bool RunTask(Task& a_task, std::uint32_t a_thread, std::uint32_t a_main)
         {
             if (Stopped(a_task.name)) {
-                return;  // E9: this kind threw a non-C++ exception earlier: not run again this session
+                return false;  // E9: this kind threw a non-C++ exception earlier: not run again this session
             }
             const ThreadTrace::Scope trace(a_task.name);
             LogThread(a_task.name, "task");
@@ -154,18 +169,18 @@ namespace BlackFlame::MainQueue
                 g_bodiesOffMain.fetch_add(1);
             }
             try {
-                a_task.run();
+                // G4: the build uses /EHa, so a hardware fault would reach catch (...) with nothing said about where;
+                // under the SEH guard it is logged with its code and module+offset (SehGuard.h) and the kind stops
+                if (!Guarded(a_task.name, [&]() { a_task.run(); })) {
+                    StopKind(a_task.name, "faulted (hardware exception, logged above)");
+                }
             } catch (const std::exception& e) {
                 logger::error("BlackFlame: main-thread task '{}' threw: {}", a_task.name, e.what());
             } catch (...) {
-                // E9: not a C++ exception of ours: its state may be broken, so this kind stops for the session
-                {
-                    std::lock_guard lock(g_mutex);
-                    g_stoppedKinds.emplace_back(a_task.name);
-                }
-                logger::error("BlackFlame: main-thread task '{}' threw a non-C++ exception: tasks of this kind are not run again "
-                              "this session", a_task.name);
+                // E9: another exception type: its state may be broken, so this kind stops for the session
+                StopKind(a_task.name, "threw an exception of an unknown type");
             }
+            return true;
         }
 
         // Marks the frame's end even when a task escapes the per-task catch (the watchdog's stall signal)
@@ -185,7 +200,7 @@ namespace BlackFlame::MainQueue
                 return;
             }
             const FrameEnd frameEnd;
-            const ThreadTrace::Scope drainTrace(kDrainKind);  // E7: hooks starting inside it are counted by T-threads
+            const auto drainStart = ThreadTrace::Now();
             const auto thread = REX::W32::GetCurrentThreadId();
             const auto frame = g_frames.fetch_add(1) + 1;
             NoteFirstFrames(frame, thread);
@@ -197,10 +212,14 @@ namespace BlackFlame::MainQueue
                 g_pendingCount.store(0);
             }
             const auto main = g_mainThreadId.load();
+            std::size_t ran = 0;
             for (auto& task : batch) {
-                RunTask(task, thread, main);
+                ran += RunTask(task, thread, main) ? 1 : 0;
             }
-            Heartbeat(thread, batch.size());
+            if (ran > 0) {  // G1: only drains that ran tasks go into the trace ring (it holds ~30 s of every frame otherwise)
+                ThreadTrace::Record(kDrainKind, thread, drainStart, ThreadTrace::Now());
+            }
+            Heartbeat(thread, ran);
         }
 
         struct MainUpdateHook
@@ -211,7 +230,12 @@ namespace BlackFlame::MainQueue
                 try {
                     Drain();
                 } catch (...) {
-                    // nothing may leave Main::Update; the per-task catch already logged a task's failure
+                    // nothing may leave Main::Update (G4: logged once; a task's own failure was logged by its catch)
+                    static std::atomic<bool> logged{ false };
+                    if (!logged.exchange(true)) {
+                        logger::error("BlackFlame: main-thread queue: the drain threw outside a task; further failures are not "
+                                      "logged");
+                    }
                 }
             }
 
@@ -271,7 +295,19 @@ namespace BlackFlame::MainQueue
         return g_installed.load();
     }
 
-    void Post(const char* a_name, std::function<void()> a_task)
+    bool Draining() noexcept
+    {
+        return g_draining.load(std::memory_order_relaxed);
+    }
+
+    void NoteJobSideHook() noexcept
+    {
+        if (g_draining.load(std::memory_order_relaxed) && REX::W32::GetCurrentThreadId() != g_mainThreadId.load()) {
+            g_jobHooksDuringDrain.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
+    bool Post(const char* a_name, std::function<void()> a_task)
     {
         if (!g_installed.load()) {
             g_fallbacks.fetch_add(1);
@@ -284,11 +320,11 @@ namespace BlackFlame::MainQueue
                 LogThread(a_name, "task (SKSE fallback)");
                 task();
             });
-            return;
+            return true;
         }
         std::lock_guard lock(g_mutex);
         if (StoppedLocked(a_name)) {
-            return;  // F3: a stopped kind is not queued either
+            return false;  // F3/G3: a stopped kind is not queued either; the caller clears its own flag
         }
         g_pending->push_back({ a_name, std::move(a_task) });
         g_pendingCount.store(g_pending->size());
@@ -296,12 +332,13 @@ namespace BlackFlame::MainQueue
             logger::warn("BlackFlame: main-thread queue: {} tasks waiting (last '{}') - the drain is not keeping up",
                 g_pending->size(), a_name);
         }
+        return true;
     }
 
     Stats GetStats() noexcept
     {
         return { g_frames.load(), g_pausedFrames.load(), g_bodies.load(), g_bodiesOffMain.load(), g_overlaps.load(),
-            g_fallbacks.load(), g_thread.load(), g_mainThreadId.load() };
+            g_fallbacks.load(), g_jobHooksDuringDrain.load(), g_thread.load(), g_mainThreadId.load() };
     }
 
     std::int64_t LastFrameEnd() noexcept

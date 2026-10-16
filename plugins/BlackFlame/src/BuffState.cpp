@@ -107,7 +107,9 @@ namespace BlackFlame
                         g_tickPending.store(false);
                         continue;
                     }
-                    QueueTask("BlackFlameTick", &Tick);
+                    if (!QueueTask("BlackFlameTick", &Tick)) {
+                        g_tickPending.store(false);  // G3: the kind is stopped; the flag must not stick
+                    }
                 } catch (...) {
                     g_tickPending.store(false);
                     if (!g_loopFailureReported.exchange(true)) {
@@ -153,10 +155,12 @@ namespace BlackFlame
         // Called from the effect event sink: a throw (allocation) must neither escape nor leave the
         // flag set, or no recompute would ever be queued again
         try {
-            QueueTask("BlackFlameBuff", [a_reason]() {
-                g_recomputePending.store(false);
-                RecomputeBuff(a_reason);
-            });
+            if (!QueueTask("BlackFlameBuff", [a_reason]() {
+                    g_recomputePending.store(false);
+                    RecomputeBuff(a_reason);
+                })) {
+                g_recomputePending.store(false);  // G3
+            }
         } catch (...) {
             g_recomputePending.store(false);
             logger::error("BlackFlame: could not queue the buff recompute ({})", a_reason);

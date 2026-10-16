@@ -7,6 +7,7 @@
 
 #include "Config.h"
 #include "FormCopies.h"
+#include "MainThreadQueue.h"
 #include "SehGuard.h"
 #include "ThreadTrace.h"
 
@@ -54,6 +55,7 @@ namespace BlackFlame
                     return original;
                 }
                 const ThreadTrace::Scope trace("GetImpactData in a copy window");
+                MainQueue::NoteJobSideHook();  // G1: T-threads judges by this count
                 g_windowCalls.fetch_add(1);
                 try {
                     RE::BGSImpactData* copy = nullptr;

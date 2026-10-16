@@ -151,18 +151,21 @@ namespace BlackFlame::SelfTest
         return AimResult::kWaiting;
     }
 
-    void BringCasterHome(Ctx& a_c, const char* a_id)
+    bool BringCasterHome(Ctx& a_c, const char* a_id)
     {
         auto* caster = ActorOf(a_c.caster);
         if (!caster || !a_c.casterHome) {
-            return;
+            return false;
         }
-        const float away = caster->GetPosition().GetDistance(*a_c.casterHome);
+        // G2: on the ground plane, as T2 measures the drift
+        const auto pos = caster->GetPosition();
+        const float away = std::hypot(pos.x - a_c.casterHome->x, pos.y - a_c.casterHome->y);
         if (away <= kCasterLeash) {
-            return;
+            return false;
         }
         caster->SetPosition(*a_c.casterHome, true);  // Actor::SetPosition (RE/A/Actor.h:384): the character controller too
         SelfTestLog::Info(a_id, std::format("the caster wandered {:.0f} units from where T2 placed it: moved back to {}", away,
             Point(*a_c.casterHome)));
+        return true;
     }
 }

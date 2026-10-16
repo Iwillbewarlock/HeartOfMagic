@@ -269,7 +269,9 @@ namespace BlackFlame::SelfTest
                 a_c.waitingFor = "the earlier Fireball explosion to end";
                 return false;
             }
-            BringCasterHome(a_c, "E1c");  // C3: near the target like the other steps
+            if (BringCasterHome(a_c, "E1c")) {  // C3: near the target like the other steps; G2: cast on a later tick
+                return false;
+            }
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitA);
@@ -293,7 +295,9 @@ namespace BlackFlame::SelfTest
             if (since < kSettle) {
                 return false;
             }
-            BringCasterHome(a_c, "E1c");
+            if (BringCasterHome(a_c, "E1c")) {
+                return false;
+            }
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitB);
@@ -310,7 +314,9 @@ namespace BlackFlame::SelfTest
             if (a_c.lastCast && Clock::now() - *a_c.lastCast < kSettle) {
                 return false;
             }
-            BringCasterHome(a_c, "E1c");
+            if (BringCasterHome(a_c, "E1c")) {
+                return false;
+            }
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitC);

@@ -96,9 +96,10 @@ namespace BlackFlame
 
     /// Runs a_task on the main thread at the end of the next Main::Update (MainThreadQueue.h); every body traced
     /// (ThreadTrace.h) and the first runs of each kind logged with their thread
-    inline void QueueTask(const char* a_name, std::function<void()> a_task)
+    /// False when nothing was queued (a kind stopped for the session): a caller holding a "queued" flag clears it (G3)
+    inline bool QueueTask(const char* a_name, std::function<void()> a_task)
     {
-        MainQueue::Post(a_name, std::move(a_task));
+        return MainQueue::Post(a_name, std::move(a_task));
     }
 
     /// The first kMaxThreadLogs calls per counter: which thread a hook ran on

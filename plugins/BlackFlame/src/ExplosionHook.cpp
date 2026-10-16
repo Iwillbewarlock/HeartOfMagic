@@ -1,4 +1,5 @@
 #include "ExplosionHook.h"
+#include "MainThreadQueue.h"
 #include "TrackedMutex.h"
 
 #include "Attribution.h"
@@ -285,7 +286,8 @@ namespace BlackFlame
                 }
             }
             const bool recolor = byPlayer && !notFireCast && IsStoked() && (GetConfig().explosion || GetConfig().light);
-            const bool logMaterials = !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
+            // G5: the material logs walk 3D in a task: not without the main-thread queue
+            const bool logMaterials = MainQueue::Installed() && !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
             if (!recolor && !logMaterials && !SelfTestProbe::Recording()) {
                 return;
             }
@@ -415,6 +417,7 @@ namespace BlackFlame
                     std::optional<ThreadTrace::Scope> trace;
                     if (copyOpen) {
                         trace.emplace("Explosion::Update (copy window)");
+                        MainQueue::NoteJobSideHook();  // G1
                     }
                     const CopyWindow copyWindow(copyOpen);
                     const ImpactWindow window(open);

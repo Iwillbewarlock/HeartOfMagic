@@ -566,3 +566,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   대체 경로(AddTask)에서 TaskInterface가 없으면 위험물 훅·버프 재계산은 플래그를 세우기 전에 그만둔다.
 - F4 T-threads 겹침은 구간 교차(시작이 드레인 끝 이전이고 끝이 드레인 시작 이후).
 - F5 열린 몸체 칸: 점유 플래그를 따로 두고 thread·start·kind는 홀수 구간 안에서만 쓴다, 해제 때 start도 0, 읽기의 seq 두 번 모두 acquire.
+
+### v2 수정 G (리뷰어 2차 리뷰)
+
+- G1 T-threads: 드레인 중 작업 스레드에서 들어온 작업 쪽 훅 몸체를 훅 입구에서 바로 센다(MainQueue::NoteJobSideHook, 세션 전체).
+  링에는 작업을 돌린 드레인만 남긴다(매 프레임 기록하면 4096칸이 약 30초뿐).
+- G2 시전자 집: 떠났으면 높이는 목표의 멈춘 높이, 집 거리 판정은 T2와 같은 바닥면 거리, 옮긴 다음 틱에 쏜다(PrepareCaster kWait).
+- G3 Post는 bool: 멈춘 종류면 false, 부른 쪽이 대기 플래그를 푼다(틱·버프 재계산·위험물). 멈춤 줄은 틱이면 그 결과를 적는다.
+  F3의 "플래그는 풀 필요 없다"는 틀렸다: 멈춘 종류의 다음 Post가 거절되면 플래그가 세워진 채 남아 틱이 세션 내내 죽는다.
+- G4 /EHa 확인(CompilerFlags.cmake): catch(...)가 SEH도 잡는다. 작업을 Guarded로 감싸 코드·모듈+오프셋을 남기고 그 종류를 멈춘다.
+  썽크의 바깥 catch는 한 번 로그. README 문구 수정.
+- G5 큐가 없으면 재질 로그(3D 걷기) 끔, 위험물 큐 넣기가 던져도 플래그 해제, 첫 프레임 없음 STALL은 따로 문장, 하트비트는
+  실제로 돈 작업 수, DisableEngineWrites는 LogConfig를 다시 부르지 않고 바꾼 키를 한 줄로.

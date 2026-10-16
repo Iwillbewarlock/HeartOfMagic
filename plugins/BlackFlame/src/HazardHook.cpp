@@ -130,10 +130,18 @@ namespace BlackFlame
                 return;
             }
             if (!g_tickQueued.exchange(true)) {  // E10: one TickHazards in the queue at a time
-                QueueTask("BlackFlameHazard", []() {
-                    g_tickQueued.store(false);
-                    TickHazards();
-                });
+                bool queued = false;
+                try {
+                    queued = QueueTask("BlackFlameHazard", []() {
+                        g_tickQueued.store(false);
+                        TickHazards();
+                    });
+                } catch (...) {
+                    queued = false;  // G5: an allocation failure must not leave the flag set
+                }
+                if (!queued) {
+                    g_tickQueued.store(false);  // G3
+                }
             }
         }
 

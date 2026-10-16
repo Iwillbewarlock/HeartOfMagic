@@ -38,12 +38,18 @@ namespace BlackFlame::Watchdog
             return MainQueue::Installed() ? MainQueue::LastFrameEnd() : ThreadTrace::LastTickEnd();
         }
 
-        void ReportStall(std::int64_t a_last, std::int64_t a_now, bool a_loading)
+        void ReportStall(std::int64_t a_last, std::int64_t a_now, bool a_loading, bool a_neverRan = false)
         {
-            logger::warn("BlackFlame: STALL: no {} for {:.1f} s ({}; the last frame was {}). Last {} trace entries, bodies "
-                         "started and not ended, held mutexes follow", MainQueue::Installed() ? "main-thread frame" : "ticker body",
-                SecondsAgo(a_last, a_now), a_loading ? "a load is under way" : "no load under way",
-                MainQueue::LastFramePaused() ? "paused" : "not paused", kLastEntries);
+            if (a_neverRan) {
+                logger::warn("BlackFlame: STALL: the main-thread queue is installed but has run no frame in the {:.1f} s since the "
+                             "watchdog started ({}). Last {} trace entries, bodies started and not ended, held mutexes follow",
+                    SecondsAgo(a_last, a_now), a_loading ? "a load is under way" : "no load under way", kLastEntries);
+            } else {
+                logger::warn("BlackFlame: STALL: no {} for {:.1f} s ({}; the last frame was {}). Last {} trace entries, bodies "
+                             "started and not ended, held mutexes follow", MainQueue::Installed() ? "main-thread frame" : "ticker body",
+                    SecondsAgo(a_last, a_now), a_loading ? "a load is under way" : "no load under way",
+                    MainQueue::LastFramePaused() ? "paused" : "not paused", kLastEntries);
+            }
             for (const auto& e : ThreadTrace::LastEntries(kLastEntries)) {
                 logger::warn("BlackFlame: STALL trace: {} {} thread {} started {:.3f} s ago{}", e.end == 0 ? "START" : "END  ",
                     e.kind, e.thread, SecondsAgo(e.start, a_now),
@@ -86,9 +92,7 @@ namespace BlackFlame::Watchdog
                         if (MainQueue::Installed() && !g_stallReported.load() &&
                             std::chrono::steady_clock::duration(now - g_startedAt.load()) > kFirstFrameTime) {
                             g_stallReported.store(true);
-                            logger::warn("BlackFlame: STALL: the main-thread queue is installed but has run no frame {} s after "
-                                         "the watchdog started", kFirstFrameTime.count());
-                            ReportStall(g_startedAt.load(), now, g_loading.load());
+                            ReportStall(g_startedAt.load(), now, g_loading.load(), true);
                         }
                         continue;
                     }
