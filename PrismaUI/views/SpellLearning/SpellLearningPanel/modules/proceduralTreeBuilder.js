@@ -75,6 +75,8 @@ function spellPluginName(spell) {
     return spell.plugin || spell.source || '';
 }
 
+// foldPluginName (plugin names compared A-Z folded) is in constants.js
+
 /**
  * Filter blacklisted spells from a spell array.
  * Uses settings.spellBlacklist (saved persistently via UnifiedConfig). An entry with
@@ -91,7 +93,7 @@ function filterBlacklistedSpells(spells) {
     var formIds = {};
     settings.spellBlacklist.forEach(function(entry) {
         if (entry.plugin && entry.localFormId) {
-            keys[String(entry.plugin).toLowerCase() + ':' + String(entry.localFormId).toLowerCase()] = true;
+            keys[foldPluginName(entry.plugin) + ':' + String(entry.localFormId).toLowerCase()] = true;
         } else if (entry.formId) {
             formIds[entry.formId] = true;
         }
@@ -101,7 +103,7 @@ function filterBlacklistedSpells(spells) {
         var formId = spell.formId || spell.id;
         var plugin = spellPluginName(spell);
         if (plugin && formId && typeof getLocalFormId === 'function' &&
-                keys[plugin.toLowerCase() + ':' + getLocalFormId(formId)]) return false;
+                keys[foldPluginName(plugin) + ':' + getLocalFormId(formId)]) return false;
         return !formIds[formId];
     });
 }
@@ -126,13 +128,16 @@ function filterWhitelistedSpells(spells) {
 
     var disabledMap = {};
     settings.pluginWhitelist.forEach(function(entry) {
-        if (entry.enabled === false && entry.plugin) disabledMap[String(entry.plugin).toLowerCase()] = true;
+        if (entry.enabled === false && entry.plugin) disabledMap[foldPluginName(entry.plugin)] = true;
     });
 
     return spells.filter(function(spell) {
         var plugin = spellPluginName(spell);
-        // Can't determine plugin - include it to be safe
-        return !plugin || disabledMap[plugin.toLowerCase()] !== true;
+        // Can't determine plugin - include it to be safe. An entry an older panel saved lowered
+        // with toLowerCase ("заклинания.esp") still turns its plugin off until the plugin list
+        // renames it (migrateLoweredWhitelist, settingsPanel.js); plugin names are not
+        // case-sensitive on Windows, so the lowered name is the same file
+        return !plugin || (disabledMap[foldPluginName(plugin)] !== true && disabledMap[plugin.toLowerCase()] !== true);
     });
 }
 

@@ -264,7 +264,7 @@ void UIManager::NotifyLearningTargetDropped(const std::string& school, RE::FormI
 
 void UIManager::NotifyModdedSourceRegistered(const std::string& sourceId,
                                               const std::string& displayName,
-                                              float multiplier, float cap)
+                                              float multiplier, float cap, bool enabled)
 {
     if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
         logger::warn("UIManager: Cannot notify modded source registered - PrismaUI not valid");
@@ -276,7 +276,7 @@ void UIManager::NotifyModdedSourceRegistered(const std::string& sourceId,
     j["displayName"] = displayName;
     j["multiplier"] = multiplier;
     j["cap"] = cap;
-    j["enabled"] = true;
+    j["enabled"] = enabled;   // a saved "off" stays off on the row the panel makes
 
     logger::info("UIManager: Notifying UI - modded XP source registered: '{}' ('{}')", sourceId, displayName);
     CallView("onModdedXPSourceRegistered", JsonText::Dump(j).c_str());

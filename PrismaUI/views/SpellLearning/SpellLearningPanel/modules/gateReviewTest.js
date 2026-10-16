@@ -84,6 +84,8 @@ var GateReviewTest = {
             } finally {
                 g.settings = oldSettings;
             }
+            this._checkPluginKeys(g, R);
+            this._checkMigration(g, R);
             this.check(['free', 'banishOnly', 'longSummon', 'horseSummon', 'uniqueSummon', 'nonHostileSummon', 'cheapScript']
                 .every(function(r) { return R.reasonText(r) !== r; }), 'every reason the DLL gives has words');
             this.check(R.reasonText('rule:adultFramework').length > 0 && R.reasonText('somethingNew') === 'somethingNew',
@@ -92,6 +94,96 @@ var GateReviewTest = {
             g.getLocalFormId = oldLocal;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** The DLL's key for a plugin name (SpellScannerGate.cpp PluginKey): its UTF-8 bytes, A-Z folded */
+    _dllFold: function(name) {
+        if (typeof Buffer === 'undefined') return null;
+        var bytes = Buffer.from(String(name), 'utf8');
+        for (var i = 0; i < bytes.length; i++) {
+            if (bytes[i] >= 0x41 && bytes[i] <= 0x5A) bytes[i] += 0x20;
+        }
+        return bytes.toString('utf8');
+    },
+
+    /** Non-ASCII plugin names: the panel's key is the DLL's, so an included spell comes back in both */
+    _checkPluginKeys: function(g, R) {
+        var self = this;
+        var names = ['Mounts.esp', '마법 확장.esp', 'Заклинания.ESP', 'ÜberMagic.esp', 'Magie_Élémentaire.esl'];
+        var sameAsDll = names.every(function(n) {
+            var dll = self._dllFold(n);
+            return dll === null || g.foldPluginName(n) === dll;
+        });
+        this.check(sameAsDll, 'plugin keys: the panel folds A-Z only, the same bytes the DLL makes (Korean, Cyrillic, accented)');
+        this.check(g.foldPluginName('Заклинания.ESP') === 'Заклинания.esp' && g.foldPluginName('ÜberMagic.esp') === 'Übermagic.esp',
+            'plugin keys: a Cyrillic or accented capital is kept, A-Z is folded');
+        var ru = { formId: '0x01000801', plugin: 'Заклинания.ESP', taughtByTome: true, gate: { band: 'out', reasons: ['free'] } };
+        var ko = { formId: '0x01000802', plugin: '마법 확장.esp', taughtByTome: true, gate: { band: 'out', reasons: ['free'] } };
+        this.check(R.key(ru) === 'Заклинания.esp:000801' && R.key(ko) === '마법 확장.esp:000802',
+            'plugin keys: Keep writes the DLL\'s key');
+        this.check(R.pending([ru, ko], [], [R.key(ru), R.key(ko)], 'out').length === 0,
+            'plugin keys: included spells of non-ASCII plugins leave the "left out" list');
+        this.check(R.pending([ru], [], ['заклинания.esp:000801'], 'out').length === 1,
+            'plugin keys: a key saved before (toLowerCase) is not the key (migrateKeys replaces it)');
+        this.check(R.pending([ru, ko], [{ plugin: 'заклинания.esp', localFormId: '000801' }], [], 'out').length === 2,
+            'plugin keys: a blacklist entry folds the same way (a lowercase Cyrillic name is another name)');
+        this.check(R.pending([ru], [{ plugin: 'Заклинания.esp', localFormId: '000801' }], [], 'out').length === 0,
+            'plugin keys: a blacklist entry differing only in A-Z case matches');
+        var oldSettings = g.settings, oldRender = R.render, oldSave = g.autoSaveSettings, oldCount = g.updatePrimedCount;
+        try {
+            g.settings = { gateReviewed: [] };
+            R.render = function() {};
+            g.autoSaveSettings = function() {};
+            g.updatePrimedCount = function() {};
+            R.keep(ru);
+            this.check(g.settings.gateReviewed.length === 1 && g.settings.gateReviewed[0] === 'Заклинания.esp:000801',
+                'plugin keys: Keep saves the DLL\'s key');
+        } finally {
+            R.render = oldRender;
+            g.autoSaveSettings = oldSave;
+            g.updatePrimedCount = oldCount;
+            g.settings = oldSettings;
+        }
+    },
+
+    /** Keys saved with toLowerCase before 2026-10-17 become the DLL's key, once, saved once */
+    _checkMigration: function(g, R) {
+        var oldSettings = g.settings, oldSave = g.autoSaveSettings, oldReady = R._configReady, oldState = g.state;
+        var saves = 0;
+        var ru = { formId: '0x01000801', plugin: 'Заклинания.ESP' };
+        var de = { formId: '0x01000802', plugin: 'ÜberMagic.esp' };
+        var en = { formId: '0x01000803', plugin: 'Mounts.ESP' };
+        try {
+            g.autoSaveSettings = function() { saves++; };
+            g.settings = { gateReviewed: ['заклинания.esp:000801', 'Übermagic.esp:000802', 'mounts.esp:000803', 'übermagic.esp:000802', 'gone.esp:000999'] };
+            R._configReady = false;
+            this.check(R.migrateKeys([ru, de, en]) === 0 && saves === 0 && g.settings.gateReviewed[0] === 'заклинания.esp:000801',
+                'migration: nothing before the config is read');
+            R._configReady = true;
+            var replaced = R.migrateKeys([ru, de, en]);
+            var list = g.settings.gateReviewed;
+            this.check(replaced === 1 && saves === 1 && list[0] === 'Заклинания.esp:000801',
+                'migration: an old Cyrillic key becomes the DLL\'s key, saved once');
+            this.check(list[1] === 'Übermagic.esp:000802' && list[3] === 'übermagic.esp:000802' && list[2] === 'mounts.esp:000803',
+                'migration: a spell kept under its new key is untouched (its old key too); an ASCII key is the same key');
+            this.check(list[4] === 'gone.esp:000999' && list.length === 5, 'migration: an old key no scanned spell has stays');
+            this.check(R.migrateKeys([ru, de, en]) === 0 && saves === 1, 'migration: a second run changes and saves nothing');
+            this.check(R.isKept(ru) && R.pending([{ formId: ru.formId, plugin: ru.plugin, gate: { band: 'out' } }], [], list, 'out').length === 0,
+                'migration: the migrated spell is kept and leaves the "left out" list');
+            g.settings = { gateReviewed: ['заклинания.esp:000801'] };
+            g.state = { lastSpellData: { spells: [ru] } };
+            R.configLoaded(false);
+            this.check(saves === 1 && g.settings.gateReviewed[0] === 'заклинания.esp:000801',
+                'migration: a config C++ could not read (configNotRead) migrates nothing');
+            R.configLoaded(true);
+            this.check(saves === 2 && g.settings.gateReviewed[0] === 'Заклинания.esp:000801',
+                'migration: a whole config with a scan here migrates at once');
+        } finally {
+            g.autoSaveSettings = oldSave;
+            g.settings = oldSettings;
+            g.state = oldState;
+            R._configReady = oldReady;
+        }
     }
 };
 

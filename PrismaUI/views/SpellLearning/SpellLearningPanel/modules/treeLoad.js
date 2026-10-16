@@ -4,6 +4,66 @@
  * treeViewerUI.js (600-line limit); loads right after it.
  */
 
+/**
+ * The tree's prerequisites to C++ (SetTreePrerequisites): cleared, then every node's hard
+ * and soft lists - what the tome and unlock checks read. A tree load sends them, and so does
+ * edit mode after a change (EditMode.commitPrerequisites).
+ * @param {Array} nodes - the tree's nodes (formId or id, hardPrereqs, softPrereqs, softNeeded)
+ * @returns {number} the nodes sent (0 with no C++ bridge)
+ */
+function sendTreePrerequisites(nodes) {
+    if (!window.callCpp || !nodes) return 0;
+    // A second copy of a spell (edit mode's Spawn, "<formId>_dup_<n>") is the same spell to C++,
+    // which keeps one requirement entry per formId (the last one sent wins, an empty one erases
+    // it). So a copy goes only for a spell with no node of its own, and then only the first copy.
+    // A copy's own links reach C++ only then (C++ cannot say "this copy's links or the spell's")
+    var plain = {};
+    for (var ni = 0; ni < nodes.length; ni++) {
+        var nId = nodes[ni].formId || nodes[ni].id;
+        if (nId && _canonicalPrereqId(nId) === nId) plain[nId] = true;
+    }
+    var sentIds = {};
+    var prereqData = [];
+    var hardCount = 0;
+    var softCount = 0;
+    for (var pi = 0; pi < nodes.length; pi++) {
+        var pNode = nodes[pi];
+        var ownId = pNode.formId || pNode.id;
+        if (!ownId) continue;
+        var canonId = _canonicalPrereqId(ownId);
+        if (canonId !== ownId) {
+            if (plain[canonId] || sentIds[canonId]) continue;
+            sentIds[canonId] = true;
+        }
+        var hard = _canonicalPrereqList(pNode.hardPrereqs);
+        var soft = _canonicalPrereqList(pNode.softPrereqs);
+        hardCount += hard.length;
+        softCount += soft.length;
+        prereqData.push({ formId: canonId, hardPrereqs: hard, softPrereqs: soft, softNeeded: pNode.softNeeded || 0 });
+    }
+    console.log('[SpellLearning] Sending ' + prereqData.length + ' spell prereqs (' +
+                hardCount + ' hard, ' + softCount + ' soft) to C++');
+    window.callCpp('SetTreePrerequisites', JSON.stringify({ clear: true }));
+    window.callCpp('SetTreePrerequisites', JSON.stringify(prereqData));
+    return prereqData.length;
+}
+
+/** A node or prerequisite id without an edit mode copy's "_dup_<n>" suffix (getCanonicalFormId's rule) */
+function _canonicalPrereqId(id) {
+    var s = String(id), at = s.indexOf('_dup_');
+    return at === -1 ? s : s.substring(0, at);
+}
+
+/** A prerequisite list with copies' ids made their spell's, each spell once */
+function _canonicalPrereqList(list) {
+    var out = [], seen = {};
+    (list || []).forEach(function(id) {
+        var c = _canonicalPrereqId(id);
+        if (!seen[c]) { seen[c] = true; out.push(c); }
+    });
+    return out;
+}
+
 /** The saved tree's nodes by formId (the raw nodes a load repair writes back to) */
 function _rawNodesById(rawData) {
     var byId = {};
@@ -224,19 +284,7 @@ function _loadTrustedTree(data, switchToTreeTab, options) {
     // Send prereqs to C++ (already baked, no splitting needed)
     if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
 
-    if (window.callCpp) {
-        var prereqData = [];
-        for (var pi = 0; pi < nodes.length; pi++) {
-            prereqData.push({
-                formId: nodes[pi].formId,
-                hardPrereqs: nodes[pi].hardPrereqs,
-                softPrereqs: nodes[pi].softPrereqs,
-                softNeeded: nodes[pi].softNeeded
-            });
-        }
-        window.callCpp('SetTreePrerequisites', JSON.stringify({ clear: true }));
-        window.callCpp('SetTreePrerequisites', JSON.stringify(prereqData));
-    }
+    sendTreePrerequisites(nodes);
 
     // Request spell names for display
     SpellCache.requestBatch(allFormIds, function() {
@@ -526,30 +574,8 @@ function loadTreeData(jsonData, switchToTreeTab, isManualImport, options) {
     if (typeof BridgeView !== 'undefined') BridgeView.setTree(state.treeData);
 
     // Send tree prerequisites (hard/soft system) to C++ for tome learning validation
-    if (window.callCpp) {
-        var prereqData = [];
-        var hardCount = 0;
-        var softCount = 0;
+    sendTreePrerequisites(result.nodes);
 
-        for (var pi = 0; pi < result.nodes.length; pi++) {
-            var pNode = result.nodes[pi];
-            hardCount += (pNode.hardPrereqs ? pNode.hardPrereqs.length : 0);
-            softCount += (pNode.softPrereqs ? pNode.softPrereqs.length : 0);
-            prereqData.push({
-                formId: pNode.formId || pNode.id,
-                hardPrereqs: pNode.hardPrereqs || [],
-                softPrereqs: pNode.softPrereqs || [],
-                softNeeded: pNode.softNeeded || 0
-            });
-        }
-
-        // First clear existing prerequisites, then set new ones
-        console.log('[SpellLearning] Sending ' + prereqData.length + ' spell prereqs (' +
-                    hardCount + ' hard, ' + softCount + ' soft) to C++');
-        window.callCpp('SetTreePrerequisites', JSON.stringify({ clear: true }));
-        window.callCpp('SetTreePrerequisites', JSON.stringify(prereqData));
-    }
-    
     // After tree is loaded, sync with player's known spells and progression data
     if (window.callCpp && !(options && options.skipProgressFetch)) {
         console.log('[SpellLearning] Tree loaded - syncing progress and player known spells...');

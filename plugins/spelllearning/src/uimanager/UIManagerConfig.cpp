@@ -74,6 +74,39 @@ ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& co
     return xpSettings;
 }
 
+std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModdedSourcesFromConfig(const nlohmann::json& config)
+{
+    auto* progression = ProgressionManager::GetSingleton();
+    auto sources = progression->GetXPSettings().moddedSources;
+    if (!config.contains("moddedXPSources") || !config["moddedXPSources"].is_object()) {
+        return sources;
+    }
+
+    std::size_t fromFile = 0;
+    for (const auto& [srcId, srcData] : config["moddedXPSources"].items()) {
+        // An internal source (passive) has no panel controls: an entry left in the
+        // file would make it an external one, capped at 25% again. A name the
+        // co-save cannot hold is refused at registration too (ProgressionCoSave.h)
+        if (progression->IsReservedSourceName(srcId) || !ProgressionCoSave::IsWritableSourceName(srcId)) continue;
+        const auto known = sources.find(srcId);
+        if (known == sources.end() && sources.size() >= ProgressionCoSave::kMaxModdedSources) continue;
+
+        ProgressionManager::ModdedSourceConfig sourceConfig;
+        sourceConfig.displayName = SafeJsonValue<std::string>(srcData, "displayName",
+            known != sources.end() ? known->second.displayName : srcId);
+        sourceConfig.enabled = SafeJsonValue<bool>(srcData, "enabled", true);
+        sourceConfig.multiplier = SafeJsonValue<float>(srcData, "multiplier", 100.0f);
+        sourceConfig.cap = SafeJsonValue<float>(srcData, "cap", 25.0f);
+        // A source only the file names waits for its mod: RegisterModdedXPSource then takes
+        // it as a first registration (event, panel row) and keeps these settings
+        sourceConfig.registered = known != sources.end() && known->second.registered;
+        sources[srcId] = sourceConfig;
+        ++fromFile;
+    }
+    logger::debug("UIManager: {} modded XP source settings from config.json, {} sources in all", fromFile, sources.size());
+    return sources;
+}
+
 // Apply runtime settings from a fully-merged config JSON.
 // Shared between OnLoadUnifiedConfig and the config save (UIManagerConfigSave.cpp).
 // Handles: early learning, spell tome, passive learning, and notification settings.
@@ -408,8 +441,9 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // Update ProgressionManager with loaded XP settings
     // All fields are guaranteed to exist from defaults, but use SafeJsonValue for extra safety
     ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(unifiedConfig);
-    // Preserve modded sources registered by API consumers before config loaded
-    xpSettings.moddedSources = ProgressionManager::GetSingleton()->GetXPSettings().moddedSources;
+    // The sources mods registered before this load, with the player's saved settings
+    // for them (BookXP off, a multiplier); only the panel's next save applied them before
+    xpSettings.moddedSources = ReadModdedSourcesFromConfig(unifiedConfig);
     ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
 
     // Apply early learning, tome, passive, and notification settings
@@ -467,7 +501,8 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     int notifiedCount = 0;
     for (auto& [srcId, srcConfig] : moddedSources) {
         if (srcConfig.internal) continue;
-        instance->NotifyModdedSourceRegistered(srcId, srcConfig.displayName, srcConfig.multiplier, srcConfig.cap);
+        instance->NotifyModdedSourceRegistered(srcId, srcConfig.displayName, srcConfig.multiplier, srcConfig.cap,
+            srcConfig.enabled);
         notifiedCount++;
     }
     if (notifiedCount > 0) {

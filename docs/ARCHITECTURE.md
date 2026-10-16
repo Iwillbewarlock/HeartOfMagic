@@ -98,7 +98,13 @@ spell, 2026-10-05), `gate` (the spell gate, `SpellScannerGate.cpp` `JudgeSpell`,
 when the band is not "in". "out" - free, or only dismisses a summon (banish only), or an "out" rule from
 `gate/rules.json` (none ships) - leaves the tree, a saved tree's load (`ValidateAndFixTree`) and Spell Research
 unless the player includes it again from the blacklist window's "Left out by itself" list (`GateLeavesOut`
-with `ReadGateKept`, the panel's `gateReviewed` in config.json); "review" - a summon or reanimation over an
+with `ReadGateKept`, the panel's `gateReviewed` in config.json: "plugin:localid" keys whose plugin name is
+UTF-8 with A-Z folded and nothing else, `PluginKey` in C++ and `foldPluginName` (constants.js)
+in the panel, so a Korean, Russian or accented plugin name matches on both sides since 2026-10-17; the
+panel's blacklist, plugin list and chosen roots compare plugin names through `foldPluginName` too. A key the
+panel saved before with `toLowerCase` (a Cyrillic or accented capital folded) is replaced by
+`GateReview.migrateKeys` once a whole config and a scan holding that spell are both in, and saved once; an
+old key no scanned spell has stays as it is); "review" - a summon or reanimation over an
 hour, a horse summon, a unique NPC summon, a summon of a non-hostile race (`nonHostileSummon`, the race's
 RACE_DATA flags2 NonHostile: mounts and pets, 2026-10-10), a script-only spell under 20 Magicka, a rule from
 `gate/rules.json` (plugin masters plus effect archetypes, never spell names; the shipped one is "review") -
@@ -616,8 +622,18 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 - On tree load, every node with a persistentId takes the FormID it resolves to (since 2026-10-05 also when the
   saved FormID is still a valid form: after a load order change it can be another plugin's record, shown as an
   unnamed "Constant Effect" node; a persistentId that no longer resolves drops the node); `children`,
-  `prerequisites`, `hardPrereqs`, `softPrereqs` (all schools, after every school is checked), the school
-  `root` and the cross school `bridges` (both ends) follow the new FormIDs, and a bridge to a removed spell goes
+  `prerequisites`, `hardPrereqs`, `softPrereqs` (all schools, after every school is checked), Pre Req Master
+  `locks[].nodeId`, the school `root` and the cross school `bridges` (both ends) follow the new FormIDs, and a
+  link, lock or bridge to a removed spell goes (see "FormID Validation Flow")
+- A persistentId resolves only to a loaded plugin: `TESDataHandler::files` (and `LookupModByName`) lists
+  plugins that are unchecked in the load order too, kept at compile index 0xFF; those count as missing
+  (CommonLib's own `LookupFormID` refuses them the same way, 2026-10-17). A local id that does not fit the
+  plugin (above 0xFFF in a light plugin: saved while it was a full ESP, then ESL-flagged without compacting)
+  resolves to nothing instead of being cut to 12 bits, which named another record. The tree load logs why a
+  persistentId gave nothing at info (plugin not loaded, no such record, local id does not fit) and reports
+  plugins that are not loaded (`missingPlugins`) apart from persistentIds of loaded plugins without the
+  record (`missingRecords`). The form id bit layout is `include/FormIdBits.h`, shared with the spell gate and
+  tome reach.
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
@@ -640,6 +656,50 @@ Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIMa
 
 **Config save off the game thread** (2026-09-25): the panel saves its settings every time it closes. Reading `config.json`, merging the update into it and writing it back (temp file, move, one `.bak`) used to run as a game-thread task on the frame the game resumes. `OnSaveUnifiedConfig` now queues the text for one background worker (`UIManagerConfigSave.cpp`) that does the file work one save at a time, in the order they came in, so two saves never interleave their writes. The worker then posts `ApplyUnifiedConfig` to the game thread, which applies hotkey, pause, XP settings and `ApplySettingsFromConfig` exactly as before - those setters change state the game thread reads unlocked. The panel language file (`WritePanelLocale`) is written by the worker too. A config load (`LoadUnifiedConfig`) first waits, at most 2 s, for queued saves to reach the disk and holds the same file lock while it reads: a load that ran mid-write would find `config.json` moved aside and write the defaults over it. The worker thread is detached, not joined, because Windows ends it before static destructors run at exit; a save cut off there leaves the previous file in place. The repeated per-save log lines (XP caps, tier XP, each power step) are now debug level.
 
+**Every save is written; a broken load writes nothing** (2026-10-17): `OnSaveUnifiedConfig` no longer drops a save
+that comes within 500 ms of the last one. That debounce lost the last change (a slider moved, then the panel closed
+right after an autosave) while the panel had already recorded the text as saved; the panel itself sends nothing when
+the text equals its last save (`_lastSavedConfigText`, settingsPanel.js), and the worker writes each save in order.
+On the panel side, closing it (`onPanelHiding` -> `saveSettings`) cancels a pending 500 ms autosave and saves at once.
+`onUnifiedConfigLoaded` reports every load in its `finally` (`noteConfigLoadResult`): a config that threw part way, did
+not parse or held nothing leaves the settings partly defaults, so `saveUnifiedConfig` sends nothing for the rest of the
+session (logged to SpellLearning.log as an error, and the scan status bar shows the DLL's `status.configNotSaved`
+line) - otherwise the next save would write an empty blacklist, whitelist, root choice and kept-spell list over the
+file. A later load that goes in whole lifts the block. Unlike C++'s `ConfigFile::SaveMode::Blocked`, which writes
+nothing but still applies what the panel sends, nothing is applied either: the game keeps the settings C++ read
+from the file at start, since the panel's own are partly defaults (the game applies a setting through a save,
+`ApplySavedConfig`, so a change made in such a session takes effect at the next game start that loads whole; Pause
+Game on Focus is the exception, sent at once with `SetPauseGameOnFocus`). A later whole load does not clear the status
+line. A
+`configNotRead` config (C++ could not read the file) still saves, because C++ writes nothing then and applies the
+panel's settings for the session. The XP caps
+(`xpCapAny`, `xpCapSchool`, `xpCapDirect`) are read back on load (held to 0-100, defaults 5/15/50, `XP_CAP_*` in
+constants.js) - before, they were saved but never loaded, so the next save put the defaults back - and Reset to
+Defaults resets them.
+
+**Modded XP sources at game start** (2026-10-17): `ReadModdedSourcesFromConfig` (UIManagerConfig.cpp) gives the
+sources the game uses - the ones mods registered, each `moddedXPSources` entry of the config over its source (or
+added), internal and reserved names (passive, isl_study, any internal source), names the co-save cannot hold and
+entries past `ProgressionCoSave::kMaxModdedSources` left out. Both the config load at game start and every save use
+it; before, the load kept only the registered defaults, so a source the player turned off (BookXP) or slowed down
+counted at full rate until the panel's next save. An entry for a source no mod has registered yet is kept with
+`registered` false; the mod's first registration - `RegisterXPSource`, or its first `AddSourcedXP`, which registers
+an unknown source - takes it as new (true, `SourceRegistered`, the panel row) with the saved settings, and the row
+shows the saved on/off (`NotifyModdedSourceRegistered` sends `enabled`; docs/PLAN-PUBLIC-MODDER-API.md).
+Plugin list entries an older panel saved with `toLowerCase` (non-ASCII capitals: "заклинания.esp") still turn their
+plugin off in a build (`filterWhitelistedSpells` also compares the lowered name) and take the scanned name when the
+plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`, ASCII
+`tolower`) does not match such an entry until it is renamed.
+
+**Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
+second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
+the first copy, under the spell's formId, when it has none, and makes every prerequisite id its spell's (each once);
+C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end. Before, `stoul` read a copy's id as the
+original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
+entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
+spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
+tome of the spell is still judged by the spell's own links.
+
 **PrismaUI View Path:**
 ```
 CreateView("SpellLearning/SpellLearningPanel/index.html", ...)
@@ -650,7 +710,7 @@ MO2/mods/HeartOfMagic_RELEASE/PrismaUI/views/SpellLearning/SpellLearningPanel/
 ```
 
 ### 3. **ProgressionManager** (`plugins/spelllearning/src/progressionmanager/`, `plugins/spelllearning/include/ProgressionManager.h`)
-Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, ProgressionManagerAPI.cpp, ProgressionManagerTargets.cpp, ProgressionManagerXP.cpp
+Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, ProgressionManagerAPI.cpp, ProgressionManagerTargets.cpp, ProgressionManagerXP.cpp, ProgressionManagerStudy.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -677,6 +737,65 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 - `ClearLearningTarget(school)` - Clear that school's target, and the same spell under any other school key
 - `TargetSchoolOf(spell)` - The one school key a spell is a learning target under: the tree node's school (first effect, `SpellScanner::GetSpellSchool`), which the panel keys by; the costliest effect's school only when the first effect has none. The tome path and the cast's school (`SpellCastHandler`, for the same-school rate) use it too
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
+
+**Co-save records** (unique id `'SPLL'`). The SKSE callbacks are in `src/CoSave.cpp` (`CoSave::OnGameSaved`,
+`OnGameLoaded`, `OnRevert`, registered in `SKSEPluginLoad`): one `GetNextRecordInfo` loop offers each record to
+its owner in turn. Every record version ever written is still read.
+
+| Record | Owner | Version written | Layout |
+|---|---|---|---|
+| `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
+| `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
+| `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
+| `SLEL` | SpellEffectivenessHook | 1 | count, then the early-learned spells' formIds |
+| `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
+
+- The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
+  `tools/progression-check --self-test` writes and reads `SLPR` v1-v3, `SLPX` and `SLTX` records in byte buffers.
+- `SLPX` (2026-10-17): the built-in sources' XP, which their caps (any 5%, school 15%, direct 50% of the
+  required XP) count against, was not saved, so the caps opened again on every load. It is a record of its own
+  rather than an `SLPR` v3: 1.5.0 skips a record it does not know ("no owner") but would skip an `SLPR` of an
+  unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
+  `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
+  in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
+  `SLPX` loads with the counters at 0, as before. The required XP is not saved: a load starts from the tier XP
+  and the panel sends its own (`RequiredXPSync`).
+- A failed or short read anywhere in an `SLPR` entry ends the record (the entries read before it are kept,
+  the error says how many were skipped); it used to leave only the inner loop and read the next entry from
+  the wrong offset. `SLPX` and `SLTX` refuse a count their record length cannot hold before allocating, and keep
+  the whole entries read before a short read.
+- `SLTX` (2026-10-17): the tome "XP once" list used to live only in memory and was never cleared - a save
+  loaded later kept the list of the session (its own tomes gave no XP), and a restart gave the XP again.
+  `CoSave::OnRevert` now clears it (`ClearTomeXPTracking`) and the load brings the save's own list; a save
+  from before has none and starts empty. Each id goes through `ResolveFormID`, so a removed plugin's spells drop out.
+  1.5.0 skips it. A cheat-mode Relock takes the spell off the list (`UnmarkTomeXPGranted`): back to nothing,
+  its tome gives XP again.
+
+**Progress entries and XP limits** (2026-10-17):
+- An entry is made only through `EnsureProgress`, with the spell's own required XP (`GetRequiredXP`: tier,
+  reverse-unlock share). `operator[]` used to make it with the struct's 100, so a Master tome read before the
+  spell was ever a target (`autoSetLearningTarget` off) or the API's first XP counted against 100 XP.
+- `SetSpellXP` (cheat mode, C++ API, Papyrus) clamps the progress to 0..1 of the required XP
+  (`ProgressionMath::ProgressForXP`); 200 XP on a 100 XP spell used to read as 200%. NaN gives 0, so a NaN
+  from the API cannot stay in the co-save as the spell's progress.
+- Mastery (`AddXP` with early learning on, `ProgressionMath::ShouldMaster`) fires when the progress crosses
+  1.0, or when it was already there, not unlocked, and the spell is early learned and the player has it. A spell
+  held for ISL that ISL has not taught yet (early learned, not owned) is never mastered and gets no power step
+  rename: mastery adds no spell, and ISL teaching it afterwards re-registered a mastered spell as pending. It
+  stays "ready"; `OnStudyComplete` grants it 0 XP once taught, which masters it. A spell left at 1.0 by the
+  study overflow below masters the same way. Crossing 1.0 for a spell not early learned (a copy known) masters
+  as before. A spell set to 100% by cheat mode and never granted stays "ready" for the Unlock button.
+- **Internal sources** (`RegisterModdedXPSource(..., internal = true)`: passive learning) are tracked per spell
+  in `xpFromModded` but `AddInternalSourcedXP` does not cut them with the modded multiplier or cap
+  (`GetSourceCap` answers 100): the modded default cap of 25% cut passive's per-tier caps (up to 50% for Master)
+  at 25%. Passive asks for the amount that lands inside its tier cap after the overall multiplier
+  (`ProgressionMath::PreMultiplierGrant`). `AddSourcedXP` and `RegisterModdedXPSource` from other mods refuse
+  the reserved names (`IsReservedSourceName`: `passive`, `isl_study`, any internal source), so a mod cannot skip
+  the modded cap by naming itself "passive". A saved config entry for a reserved name is ignored
+  (`ApplySavedConfig`), so it cannot come back as an external, capped one.
+- **Source names the co-save can carry.** `ReadEntry` refuses a name over 4096 bytes or more than 4096
+  sources, and with them every later `SLPR` entry. So the API refuses such a name or a new source past the
+  limit (one warning per session), and `WriteEntry` leaves out any that got in anyway (one warning per save).
 
 **Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the
 player already knows - a higher spell from a tome, a vendor, another mod - now opens its **direct**
@@ -792,8 +911,13 @@ Split across: SpellEffectivenessHookCore.cpp, SpellEffectivenessHookDisplay.cpp,
 - `GetPowerStepLabel(step)` - Get label ("Budding", "Developing", etc.)
 - `GrantEarlySpell(spell)` - Add spell to player, mark as early-learned
 - `CheckAndRegrantSpell(formId)` - Regrant spell when setting learning target
-- `RemoveEarlySpellFromPlayer(formId)` - Remove when switching targets
+- `RemoveEarlySpellFromPlayer(formId)` - Remove when switching targets (or clearing, or relocking): puts the
+  spell's own name and effect descriptions back first, as `MarkMastered` does. An effect's description is shared
+  by every spell that uses it, so "[x% Power] ..." left on it showed on another spell until the next load
+  (2026-10-17); `CheckAndRegrantSpell` applies the weakened ones again when the spell is the target once more
 - `MarkMastered(formId)` - Remove from early-learned list (full power)
+- `SyncProgress(formId, progress)` - ProgressionManager's new progress for an early-learned spell
+  (`AddXP`, `AddXPNoGrant`, `SetSpellXP`); see the effect hook's progress mirror under Threading Model
 - `ApplyEffectivenessScaling(effect)` - Scale magnitude on ActiveEffect
 - `GetModifiedSpellName(spell)` - Return "(Learning - X%)" name
 - `UpdateSpellDisplayCache(formId, spell)` - Update cached display data
@@ -829,6 +953,16 @@ struct EarlyLearningSettings {
     bool modifyGameDisplay = true;      // Modify spell names in game menus
 };
 ```
+
+**Modify Game Display** (`earlySpellLearning.modifyGameDisplay`, read by `ApplySettingsFromConfig`; acted on since
+2026-10-17 - before, C++ read the value and never used it): `SetSettings` mirrors it in the atomic
+`m_modifyGameDisplay`. Off, `ApplyModifiedSpellName` and `ApplyModifiedDescriptions` change nothing (the spells keep
+their own names and the effects their own descriptions, untracked), and turning it off at runtime puts back every
+name and description this hook changed (`PutBackOriginalTextLocked`, the same loop `OnRevert` uses; the originals
+stay stored and the effect tracking starts over). Turning it on again renames the weakened spells
+(`RefreshAllSpellNames`). Both happen on the game thread: `SetSettings` is reached only through
+`ApplySettingsFromConfig`, from the config load and every save, both game-thread tasks. The power scaling itself is
+not affected.
 
 **Hook Targets:**
 ```cpp
@@ -908,7 +1042,7 @@ falls back to the English text at the call. Papyrus reaches it through `SpellLea
 missing and the call gives "", still shows its own English text - docs/PLAN-PUBLIC-MODDER-API.md), other
 plugins through `ISpellLearningAPI::ShowNotification` (API v2). Safe from any thread.
 
-### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookGate.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookGate.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
+### 6. **SpellTomeHook** (`plugins/spelllearning/src/SpellTomeHook.cpp`, `plugins/spelllearning/src/SpellTomeHookGate.cpp`, `plugins/spelllearning/src/SpellTomeHookInventory.cpp`, `plugins/spelllearning/src/SpellTomeHookSave.cpp`, `plugins/spelllearning/include/SpellTomeHook.h`, `plugins/spelllearning/include/SpellTomeHookGate.h`, `plugins/spelllearning/include/SpellTomeHookSites.h`)
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -967,6 +1101,14 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
   (hours studied / hours to master) of the spell's early-learning threshold XP (the unlock threshold %
   of its required XP); there is no XP-per-hour setting. `OnStudyComplete` applies the weakened name and
   descriptions once ISL has taught the spell
+- Study XP is capped per spell (`ProgressionManager::AddXPNoGrant`, 2026-10-17): all study of a spell is worth
+  its threshold share at most, counted in `xpFromModded["isl_study"]` (so the co-save keeps it). ISL starts
+  its own count again when the player swaps books mid-study, and each new count used to add its share on top -
+  past 25%, and on a spell with cast XP up to 1.0 without ISL having taught it. Study XP also stops at
+  `ProgressionMath::kNoGrantMaxProgress` (0.99): the last step comes from a cast once ISL has taught the spell.
+  The count is made at the first study XP granted (`ProgressionManagerStudy.cpp`). A spell studied with an
+  earlier version starts it at 0 - its study so far cannot be told apart from cast XP - so it can get its
+  share once more
 - The tome inventory bonus is `SpellTomeHook`'s (see above), not this module's
 
 **Supported Plugin Names:**
@@ -1233,6 +1375,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 - All `RE::` engine calls (form lookups, spell add/remove, HUD messages)
 - Event sinks (InputHandler, BookMenuWatcher). `SpellCastHandler` is called on the casting thread and posts its work to the task queue
 - Hooks (SpellTomeHook, SpellEffectivenessHook) - both entry points are wrapped in try/catch: they sit above engine machine code with no unwind information, so an exception leaving them would end the process instead of reaching any handler
+- The effect hook (`ActiveEffect::AdjustForPerks`) is **not** assumed to be on the game thread: the headers do not say which thread the engine calls it on, and the engine applies magic during actor updates that are not pinned to one thread. So it reads nothing of ProgressionManager (whose maps have no lock): `ScalingFor` checks the early-learned set first and takes the progress from `m_progressMirror`, a copy under the hook's own `m_mutex` kept for early-learned spells only - set when a spell enters the set, by `SyncProgress` wherever ProgressionManager changes a progress, and rebuilt in `EndLoad`; a spell missing from it reads as 0 (the lowest step). Before 2026-10-17 it read `m_spellProgress` directly, which could race a rehash on the game thread
 - Papyrus native functions (PapyrusAPI, ISLIntegration) - **not called there**: the script VM runs natives on its own worker threads. Natives that return nothing post their work with `AddTaskToGameThread()`; natives that return a value use `RunOnGameThreadAndWait()` and hand the script a fallback if the game thread does not answer. `IsMenuOpen` is the exception and reads an atomic flag directly
 - SKSE serialization callbacks (co-save read/write)
 - UIManager callbacks dispatch to game thread via `AddTaskToGameThread()`
@@ -1245,7 +1388,7 @@ Note on "game thread": SKSE drains its task queue one task at a time, but not al
 
 **Synchronization primitives:**
 - `SpellEffectivenessHook` — `std::shared_mutex` (reader-writer) for hot-path spell data
-- `SpellTomeHook` — `std::mutex` for tome XP tracking set; a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink and a tree load or clear only touch the counter)
+- `SpellTomeHook` — `std::mutex` for tome XP tracking set (saved in the co-save, `SLTX`); a second `std::mutex` plus an `std::atomic` generation counter for the tome inventory cache (the container event sink and a tree load or clear only touch the counter)
 - `PassiveLearningSource` — `std::mutex` for settings, `std::atomic<bool>` for lifecycle
 - `UIManager` — `std::atomic<bool>` guards for concurrent build/score prevention; `m_isPanelVisible` is atomic because Papyrus reads it off the game thread. Every call into the panel goes through `CallView()`, which drops the call with a warning when the PrismaUI view is gone instead of dereferencing it
 - `ProgressionManager` — no mutex (game-thread-only invariant, documented in header)
@@ -1672,11 +1815,29 @@ Player reads spell tome → TESObjectBOOK::ProcessBook hooked
 Load spell_tree.json → For each node:
   → persistentId field ("Plugin.esp|0x001234")? ResolvePersistentFormId() → the node takes that FormID
     (whether or not the saved one is still a valid form); none resolved → the node goes
-  → No persistentId: the saved FormID stays if it is valid
+  → No persistentId, saved under the same FormID as a node with one (the same spell in another
+    school): it follows that node - its new FormID, or out when that node went
+  → Otherwise no persistentId: the saved FormID stays if it is valid, unless a node with a
+    persistentId (saved under another FormID) now resolves to it: that was the other spell's
+    slot, the persistentId names the record, and the legacy node goes
+  → A node that is not an object or has no string formId goes (logged with a count)
+  → FormIDs are compared as "0x%08X" (TreeRemap::NormalizeFormId), so "0xfe905800" in a link
+    and "0xFE905800" on a node are one spell; kept nodes and links come out in that form
   → Then, after every school: every node's link lists (children, prerequisites, hardPrereqs,
     softPrereqs), its Pre Req Master locks[].nodeId, the school root and the tree's bridges
     follow the new FormIDs; an entry naming a dropped node goes (softNeeded is held to the
     soft list by treeParser.clampSoftNeeded and UIManagerProgression, not here)
+  → Every link in the file holds the FormID its node had when the file was saved, so each is
+    looked up once by that saved value (saved -> new for a node that moved, dropped for one
+    that went). A new FormID that equals another node's saved one is never looked up again:
+    light plugin A removed with B and C one index down, or two plugins swapping indices, keep
+    every link on its own spell. (2026-10-05 to 10-17 the pass erased every kept node's new
+    FormID from both maps, which sent those links to the neighbour; tree-remap-check shows it.)
+  → The node verdicts ask the game (ResolveWith, IsFormIdValid, IsPlayerSpell); the FormIDs and
+    links are fixed by include/TreeRemap.h (no game types), which tools/tree-remap-check runs
+    on made-up trees: `tree-remap-check --self-test` (links read back by spell name, and a
+    second pass over the fixed tree - the next load - must change nothing). Each school root
+    that changes is logged (school, old, new)
   → OnLoadSpellTree sends the fixed tree to the panel whenever a node moved or was dropped
     (resolvedFromPersistent or invalidNodes > 0); the file on disk is not rewritten, so this
     runs again on every load
@@ -1808,8 +1969,13 @@ HeartOfMagic/
 │   │   │   ├── JsonText.h                   ✅ JsonText::Dump - dump that replaces bytes that are not UTF-8 (no game types)
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
+│   │   │   ├── FormIdBits.h                 ✅ form id bit layout: load index, light index, local id masks (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
+│   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
+│   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
+│   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
+│   │   │   ├── ProgressionMath.h            ✅ XP cap, study, SetSpellXP clamp and mastery arithmetic (no game types)
 │   │   │   ├── SimdKernels.h                ✅ SIMD kernel header
 │   │   │   ├── SpellCastHandler.h           ✅ Spell cast events header
 │   │   │   ├── SpellCastXPSource.h          ✅ XP source implementation header
@@ -1834,12 +2000,14 @@ HeartOfMagic/
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers
 │   │   └── src/
-│   │       ├── Main.cpp                     ✅ Entry point, event registration, serialization
+│   │       ├── Main.cpp                     ✅ Entry point, event registration, serialization registration
+│   │       ├── CoSave.cpp                   ✅ Co-save callbacks: one record loop for every owner
 │   │       ├── SpellCastHandler.cpp         ✅ Spell cast events, notification throttling
 │   │       ├── SpellCastXPSource.cpp        ✅ XP source implementation
 │   │       ├── SpellTomeHook.cpp            ✅ Tome interception, XP grant, keep book
 │   │       ├── SpellTomeHookGate.cpp        ✅ Tome hook site check and its log (image range, AddSpell)
 │   │       ├── SpellTomeHookInventory.cpp   ✅ Tome inventory boost and its cache
+│   │       ├── SpellTomeHookSave.cpp        ✅ Tome "XP once" list in the co-save (SLTX)
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
@@ -1862,12 +2030,13 @@ HeartOfMagic/
 │   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
 │   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
-│   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (5 files)
+│   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (7 files)
 │   │       │   ├── ProgressionManagerCore.cpp       (singleton, core logic)
 │   │       │   ├── ProgressionManagerSerialization.cpp (co-save read/write)
 │   │       │   ├── ProgressionManagerAPI.cpp        (public API methods)
 │   │       │   ├── ProgressionManagerTargets.cpp    (learning target management)
-│   │       │   └── ProgressionManagerXP.cpp         (XP calculation, grants)
+│   │       │   ├── ProgressionManagerXP.cpp         (XP calculation, grants)
+│   │       │   └── ProgressionManagerStudy.cpp      (ISL study XP, capped per spell)
 │   │       ├── spelleffectiveness/          ✅ Runtime magnitude scaling (4 files)
 │   │       │   ├── SpellEffectivenessHookCore.cpp   (hook install, settings, main scaling)
 │   │       │   ├── SpellEffectivenessHookDisplay.cpp (display name/description modification)
@@ -2046,7 +2215,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 - **Classic builder** — Tier-first builder. Novice=depth 0, Master=depth 4. NLP similarity guides within-tier parent selection.
 - **Tree builder** — NLP-based builder. TF-IDF similarity drives parent→child links. Round-robin theme interleaving. (Removed 2026-09-27.)
 - **Shared error handler** — `_handleBuildFailure()` in `proceduralTreeBuilder.js` replaced the duplicate error handlers of the Classic and Tree modes; only Classic uses it now (its Retry reruns `TreeGrowthClassic.buildTree()` since 2026-09-28)
-- **Classic `buildTree()` sends** `command: 'build_tree_classic'` and its config. It also named `tier_zones`, but read them from the wrong object, so the value was always undefined and dropped from the JSON, and C++ never read the key; the line went on 2026-09-28. Tier zones act in the panel: `ClassicLayout` places the returned tree by `TreeGrowthClassic.settings.tierZones`. A throw while the request is put together now releases the pending flag, the Build buttons and the progress modal (as a result parse error does), since no reply will come
+- **Classic `buildTree()` sends** `command: 'build_tree_classic'` and its config. It also named `tier_zones`, but read them from the wrong object, so the value was always undefined and dropped from the JSON, and C++ never read the key; the line went on 2026-09-28. Tier zones act in the panel: `ClassicLayout` places the returned tree by `TreeGrowthClassic.settings.tierZones`. The tier zone chart (`ClassicSettings`) reads and drags those same zones since 2026-10-17 (it kept a copy of its own: a scanner preset did not show on it, and a drag started from the stale copy and wrote it over the preset's zones); applying a scanner preset redraws it (`ClassicSettings.refreshTierChart`). A throw while the request is put together now releases the pending flag, the Build buttons and the progress modal (as a result parse error does), since no reply will come
 - **Tree `buildTree()` sends** `command: 'build_tree'` explicitly (Tree mode removed 2026-09-27)
 - **Fixes Classic tier zone controls** — Tier zone sliders now work because tree structure matches tier ordering (Novice near roots, Master at edges)
 

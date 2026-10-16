@@ -25,6 +25,13 @@ var FONT_SIZE_MULTIPLIER_MAX = 2.0;
 var NODE_FONT_SIZE_MIN = 6;
 var NODE_FONT_SIZE_MAX = 18;
 
+// XP caps (Settings > Progression > XP Caps): percent of a spell's XP each source may
+// give. The sliders' range (index.html xpCap*Slider) and the defaults C++ also uses
+// (UIManagerConfig.cpp ReadXPSettingsFromConfig)
+var XP_CAP_MIN = 0;
+var XP_CAP_MAX = 100;
+var XP_CAP_DEFAULTS = { xpCapAny: 5, xpCapSchool: 15, xpCapDirect: 50 };
+
 /**
  * A saved number held to [min, max]; a missing or non-number value gives
  * `fallback`. `whole` rounds it (a slider with step 1).
@@ -35,6 +42,20 @@ function clampSetting(value, min, max, fallback, whole) {
     if (whole) v = Math.round(v);
     return v < min ? min : (v > max ? max : v);
 }
+
+/**
+ * A plugin name to compare by: A-Z folded, every other letter as it is. The DLL folds
+ * plugin names the same way (AsciiText, SpellScannerGate.cpp PluginKey), so a Korean,
+ * Russian or accented name matches on both sides; toLowerCase would also fold Cyrillic
+ * and accented capitals, which the DLL cannot. The spell gate's keys, the blacklist,
+ * the plugin list and chosen roots all compare plugin names through this. Here, the
+ * first script the page loads, so no module depends on the load order to have it.
+ */
+function foldPluginName(name) {
+    return String(name).replace(/[A-Z]+/g, function(run) { return run.toLowerCase(); });
+}
+
+window.foldPluginName = foldPluginName;
 
 // =============================================================================
 // DEFAULT TREE RULES PROMPT

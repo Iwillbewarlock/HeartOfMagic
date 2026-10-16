@@ -99,6 +99,7 @@ target_compile_features(tome-reach-test PRIVATE cxx_std_23)
 
 target_include_directories(tome-reach-test PRIVATE
     ${SL_SRC_DIR}
+    ${SL_INCLUDE_DIR}
 )
 
 target_link_libraries(tome-reach-test PRIVATE
@@ -153,4 +154,42 @@ target_include_directories(tree-save-check PRIVATE
 
 target_link_libraries(tree-save-check PRIVATE
     nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# tree-remap-check  -  offline check of a saved tree's load order fix
+# =============================================================================
+# The plugin's own TreeRemap.h (header only, no game types), the part of
+# SpellScanner::ValidateAndFixTree that moves formIds and links: --self-test on
+# made-up trees and load orders (shift, swap, legacy nodes, removed spells).
+
+add_executable(tree-remap-check
+    tree-remap-check.cpp
+)
+
+target_compile_features(tree-remap-check PRIVATE cxx_std_23)
+
+target_include_directories(tree-remap-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(tree-remap-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# progression-check  -  offline check of the progression co-save and XP maths
+# =============================================================================
+# The plugin's own ProgressionCoSave.h and ProgressionMath.h (header only, no game
+# types): --self-test writes and reads SLPR v1-v3, SLPX and SLTX records in byte
+# buffers (cut short, over the limits) and runs the cap, study and mastery numbers.
+
+add_executable(progression-check
+    progression-check.cpp
+)
+
+target_compile_features(progression-check PRIVATE cxx_std_23)
+
+target_include_directories(progression-check PRIVATE
+    ${SL_INCLUDE_DIR}
 )

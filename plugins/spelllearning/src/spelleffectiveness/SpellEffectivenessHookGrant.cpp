@@ -148,6 +148,14 @@ void SpellEffectivenessHook::RemoveEarlySpellFromPlayer(RE::FormID spellFormId)
         return;  // Not an early-learned spell, don't touch it
     }
 
+    // Its own name and effect descriptions back first, as MarkMastered does (the
+    // name restore can fall back to the display cache cleared below). An effect's
+    // description is shared by every spell using it: left as "[x% Power] ..." it
+    // showed on another spell until the next load. CheckAndRegrantSpell applies
+    // them again when the spell is the target once more.
+    hook->RestoreOriginalSpellName(spellFormId);
+    hook->RestoreOriginalDescriptions(spellFormId);
+
     if (player->HasSpell(spell)) {
         player->RemoveSpell(spell);
         logger::info("SpellEffectivenessHook: Removed early-learned spell {} ({:08X}) from player",
@@ -206,6 +214,10 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
         if (!isTracked) {
             AddEarlyLearnedSpell(spellFormId);
             UpdateSpellDisplayCache(spellFormId, spell);
+            // RemoveEarlySpellFromPlayer put the name and descriptions back when
+            // the spell stopped being the target
+            ApplyModifiedSpellName(spellFormId);
+            ApplyModifiedDescriptions(spellFormId);
 
             logger::info("SpellEffectivenessHook: Tracking spell {} ({:08X}) as early-learned - progress {:.1f}%",
                 spell->GetName(), spellFormId, progressPercent);
@@ -257,6 +269,17 @@ void SpellEffectivenessHook::BeginLoad()
 
 void SpellEffectivenessHook::EndLoad()
 {
+    // The effect hook's progress copy, now that ProgressionManager has the save's
+    // progress (its records are read in the same loop; CoSave.cpp ends its load first)
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        m_progressMirror.clear();
+        auto* progression = ProgressionManager::GetSingleton();
+        for (RE::FormID formId : m_earlyLearnedSpells) {
+            m_progressMirror[formId] = progression->GetProgressPercent(formId) * 100.0f;
+        }
+    }
+
     // Refresh all spell displays after load (no lock held: RefreshAllSpellDisplays
     // takes its own). Deferred so the game is fully loaded first.
     AddTaskToGameThread("RefreshSpellDisplays", [this]() {
@@ -284,6 +307,7 @@ bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
         m_earlyLearnedSpells.clear();
         m_earlySpellCount.store(0, std::memory_order_release);
         m_displayCache.clear();  // Clear display cache too
+        m_progressMirror.clear();  // EndLoad fills it
 
         uint32_t notSpells = 0;
         for (uint32_t i = 0; i < count; ++i) {
@@ -328,6 +352,20 @@ void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterf
     // and the next grant then stored that as the original - seen in game as
     // "Spell (Learning - 20%) (Learning - 20%)", and after mastery the name
     // stayed wrong until the game was restarted. Put them back first.
+    PutBackOriginalTextLocked();
+
+    m_earlyLearnedSpells.clear();
+    m_earlySpellCount.store(0, std::memory_order_release);
+    m_displayCache.clear();
+    m_originalSpellNames.clear();
+    m_originalEffectDescriptions.clear();
+    m_effectSpellTracking.clear();
+    m_progressMirror.clear();
+    logger::info("SpellEffectivenessHook: Cleared all early-learned spell data on revert");
+}
+
+void SpellEffectivenessHook::PutBackOriginalTextLocked()
+{
     for (const auto& [spellId, name] : m_originalSpellNames) {
         if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId)) {
             spell->fullName = name;
@@ -339,15 +377,7 @@ void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterf
         }
     }
     if (!m_originalSpellNames.empty() || !m_originalEffectDescriptions.empty()) {
-        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions before revert",
+        logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions",
             m_originalSpellNames.size(), m_originalEffectDescriptions.size());
     }
-
-    m_earlyLearnedSpells.clear();
-    m_earlySpellCount.store(0, std::memory_order_release);
-    m_displayCache.clear();
-    m_originalSpellNames.clear();
-    m_originalEffectDescriptions.clear();
-    m_effectSpellTracking.clear();
-    logger::info("SpellEffectivenessHook: Cleared all early-learned spell data on revert");
 }

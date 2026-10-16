@@ -202,12 +202,12 @@ void SpellEffectivenessHook::ApplyEffectivenessScalingFast(RE::ActiveEffect* a_e
 
     RE::FormID spellId = spell->GetFormID();
 
-    // One lock for the early-learned check, the power step and the binary
-    // threshold, and the progress read without copying its struct. This runs
-    // for every effect of every player spell (several at once for a cloak or
-    // an area spell, again and again for a concentration spell); it used to
-    // take the lock four or five times and copy the progress twice.
-    float progressPercent = ProgressionManager::GetSingleton()->GetProgressPercent(spellId) * 100.0f;
+    // One lock for the early-learned check, the progress, the power step and
+    // the binary threshold. This runs for every effect of every player spell
+    // (several at once for a cloak or an area spell, again and again for a
+    // concentration spell). The progress comes from the hook's own mirror, not
+    // ProgressionManager: this may not be the game thread (m_progressMirror).
+    float progressPercent = 0.0f;
     float effectiveness = 1.0f;
     float threshold = 0.0f;
     if (!ScalingFor(spellId, progressPercent, effectiveness, threshold)) {
@@ -261,13 +261,34 @@ void SpellEffectivenessHook::ApplyEffectivenessScaling(RE::ActiveEffect* a_effec
 // SETTINGS MANAGEMENT
 // =============================================================================
 
+// Game thread: ApplySettingsFromConfig, from the config load and every save (both
+// reach it through AddTaskToGameThread) - turning Modify Game Display off or on
+// writes the spells' names and descriptions, which are game-thread only
 void SpellEffectivenessHook::SetSettings(const EarlyLearningSettings& settings)
 {
-    std::unique_lock<std::shared_mutex> lock(m_mutex);
-    m_settings = settings;
-    m_settingsEnabled.store(settings.enabled, std::memory_order_release);
-    logger::info("SpellEffectivenessHook: Settings updated - enabled: {}, unlock: {}%, min: {}%, max: {}%",
-        settings.enabled, settings.unlockThreshold, settings.minEffectiveness, settings.maxEffectiveness);
+    bool displayWasOn = false;
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        m_settings = settings;
+        m_settingsEnabled.store(settings.enabled, std::memory_order_release);
+        displayWasOn = m_modifyGameDisplay.exchange(settings.modifyGameDisplay, std::memory_order_acq_rel);
+        logger::info("SpellEffectivenessHook: Settings updated - enabled: {}, unlock: {}%, min: {}%, max: {}%, "
+            "modify game display: {}", settings.enabled, settings.unlockThreshold, settings.minEffectiveness,
+            settings.maxEffectiveness, settings.modifyGameDisplay);
+
+        if (displayWasOn && !settings.modifyGameDisplay) {
+            // Off: every name and description back as the game has it. The originals stay
+            // stored for when it is turned on again; the effect tracking starts over then
+            PutBackOriginalTextLocked();
+            m_effectSpellTracking.clear();
+            logger::info("SpellEffectivenessHook: Modify Game Display off - spell names and descriptions put back");
+        }
+    }
+
+    if (!displayWasOn && settings.modifyGameDisplay) {
+        // On again: the weakened spells get their "(Learning - N%)" names and scaled descriptions
+        RefreshAllSpellNames();
+    }
 }
 
 SpellEffectivenessHook::EarlyLearningSettings SpellEffectivenessHook::GetSettings() const
@@ -303,6 +324,7 @@ void SpellEffectivenessHook::AddToEarlySet(RE::FormID formId)
     if (inserted) {
         m_earlySpellCount.fetch_add(1, std::memory_order_release);
     }
+    m_progressMirror[formId] = ProgressionManager::GetSingleton()->GetProgressPercent(formId) * 100.0f;
 }
 
 void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
@@ -310,6 +332,27 @@ void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
     size_t erased = m_earlyLearnedSpells.erase(formId);
     if (erased > 0) {
         m_earlySpellCount.fetch_sub(1, std::memory_order_release);
+    }
+    m_progressMirror.erase(formId);
+}
+
+void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progressFraction)
+{
+    // Every cast's XP comes through here: no exclusive lock against the effect
+    // hook's reads when no spell is early learned (count 0 means the set is empty)
+    if (m_earlySpellCount.load(std::memory_order_acquire) == 0) {
+        return;
+    }
+    // Membership under the shared lock first: most targets are not early learned
+    {
+        std::shared_lock<std::shared_mutex> readLock(m_mutex);
+        if (!m_earlyLearnedSpells.contains(spellFormId)) {
+            return;
+        }
+    }
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    if (m_earlyLearnedSpells.contains(spellFormId)) {
+        m_progressMirror[spellFormId] = progressFraction * 100.0f;
     }
 }
 
@@ -427,13 +470,15 @@ std::string SpellEffectivenessHook::GetPowerStepLabel(int step) const
     return m_powerSteps[step].label;
 }
 
-bool SpellEffectivenessHook::ScalingFor(RE::FormID spellFormId, float progressPercent,
+bool SpellEffectivenessHook::ScalingFor(RE::FormID spellFormId, float& progressPercent,
                                         float& effectiveness, float& binaryThreshold) const
 {
     std::shared_lock<std::shared_mutex> lock(m_mutex);
     if (m_earlyLearnedSpells.find(spellFormId) == m_earlyLearnedSpells.end()) {
         return false;
     }
+    const auto mirrored = m_progressMirror.find(spellFormId);
+    progressPercent = mirrored != m_progressMirror.end() ? mirrored->second : 0.0f;
     // Same step as GetCurrentPowerStep / GetSteppedEffectiveness: the highest
     // step whose threshold the progress has reached, step 0 otherwise
     int numSteps = static_cast<int>(m_powerSteps.size());

@@ -89,7 +89,7 @@ public:
     
     // Modded XP source notifications
     void NotifyModdedSourceRegistered(const std::string& sourceId, const std::string& displayName,
-                                       float multiplier, float cap);
+                                       float multiplier, float cap, bool enabled = true);
 
     // Spell Research registrations (SpellResearchPatch::StatusJson) to the panel:
     // when it opens and whenever a run changed them. Nothing when SR has no status.
@@ -237,11 +237,6 @@ private:
     bool m_hasFocus = false;  // Track if we have focus (for main menu → game fix)
     bool m_pauseGameOnFocus = false;  // Default false to avoid input conflicts with menu mods in heavy modlists
     
-    // Config save debouncing - prevent duplicate saves and defer off critical frame
-    std::mutex m_configSaveMutex;
-    std::chrono::steady_clock::time_point m_lastConfigSaveTime{};
-    static constexpr int kConfigSaveDebounceMs = 500;  // Ignore saves within 500ms of each other
-
     // Background computation guards - prevent concurrent builds/scoring
     std::atomic<bool> m_treeBuildInProgress{false};
 

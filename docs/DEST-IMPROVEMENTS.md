@@ -323,6 +323,7 @@ the book is not removed.
 | `plugins/spelllearning/src/SpellTomeHookGate.cpp` | Site check and its log: resolves AddSpell and the image range (PE header), asks `SpellTomeSites::Decide`, logs a failed check |
 | `plugins/spelllearning/src/SpellTomeHook.cpp` | Xbyak patch, callback logic |
 | `plugins/spelllearning/src/SpellTomeHookInventory.cpp` | Tome inventory cache for the carried-tome XP boost |
+| `plugins/spelllearning/src/SpellTomeHookSave.cpp` | The tome "XP once" list in the co-save (record `SLTX`, cleared on revert; see ARCHITECTURE.md, "Co-save records") |
 
 ## Credits
 

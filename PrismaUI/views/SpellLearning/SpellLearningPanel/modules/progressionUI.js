@@ -441,6 +441,12 @@ function onLearnClick() {
     WheelRenderer.updateNodeStates();
 }
 
+/** A spell's state changed here: the tree repaints (ProgressUpdates.repaintStates, progressUpdates.js) */
+function _repaintTreeStates() {
+    if (typeof ProgressUpdates !== 'undefined' && ProgressUpdates.repaintStates) ProgressUpdates.repaintStates();
+    else if (typeof WheelRenderer !== 'undefined') WheelRenderer.updateNodeStates();
+}
+
 function onUnlockClick() {
     if (!state.selectedNode) return;
     
@@ -466,7 +472,7 @@ function onUnlockClick() {
             if (typeof syncDuplicateState === 'function') syncDuplicateState(node);
 
             // Update UI
-            WheelRenderer.updateNodeStates();
+            _repaintTreeStates();
             updateDetailsProgression(node);
 
             // Update the state badge
@@ -491,9 +497,11 @@ function onUnlockClick() {
             };
             node.state = 'unlocked';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(node);
-            
+            // Its children open now, as they do when C++ says the spell was unlocked
+            if (typeof recalculateNodeAvailability === 'function') recalculateNodeAvailability();
+
             // Update UI
-            WheelRenderer.updateNodeStates();
+            _repaintTreeStates();
             updateDetailsProgression(node);
             
             // Update the state badge
@@ -769,12 +777,9 @@ window.onSpellUnlocked = function(dataStr) {
             // redraws and the card wait for onPanelShowing's refresh
             if (window._panelVisible === false) return;
 
-            // Refresh display - full re-render needed in discovery mode to show new nodes
-            if (settings.discoveryMode) {
-                WheelRenderer.render();
-            } else {
-                WheelRenderer.updateNodeStates();
-            }
+            // The tree with its discovery set (new spells show) and learning paths.
+            // updateSpellState, which C++ sends next, skips this: the state is already 'unlocked'
+            _repaintTreeStates();
 
             var selectedCanon = state.selectedNode ? ((typeof getCanonicalFormId === 'function') ? getCanonicalFormId(state.selectedNode) : state.selectedNode.formId) : null;
             if (state.selectedNode && selectedCanon === canonId) {

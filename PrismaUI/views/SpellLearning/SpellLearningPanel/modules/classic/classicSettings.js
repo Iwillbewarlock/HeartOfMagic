@@ -22,14 +22,19 @@ var ClassicSettings = {
     _treeBuilt: false,
     _nodeCount: 0,
 
-    // Tier zone defaults
-    _tierZones: {
+    // Tier zone defaults: settings without tierZones start from a copy of these
+    DEFAULT_TIER_ZONES: {
         Novice:     { min: 0,  max: 40 },
         Apprentice: { min: 10, max: 55 },
         Adept:      { min: 30, max: 75 },
         Expert:     { min: 50, max: 90 },
         Master:     { min: 65, max: 100 }
     },
+
+    // The object whose tierZones the chart shows and a drag changes: the settings
+    // buildHTML was given (TreeGrowthClassic.settings). One copy, so a preset written
+    // into it (scannerPresets.js) is what the chart shows and what a drag starts from
+    _zoneSource: {},
 
     // Tier display config
     _tierConfig: [
@@ -54,6 +59,7 @@ var ClassicSettings = {
      */
     buildHTML: function (settings) {
         var s = settings || {};
+        this._zoneSource = s;
         var opacity = s.ghostOpacity !== undefined ? s.ghostOpacity : 35;
         var nodeSize = s.nodeRadius !== undefined ? s.nodeRadius : 5;
         var spread = s.spread !== undefined ? s.spread : 50;
@@ -115,7 +121,7 @@ var ClassicSettings = {
 
     /** Build the tier zone bar chart HTML. @private */
     _buildTierChartHTML: function (settings) {
-        var zones = (settings && settings.tierZones) || this._tierZones;
+        var zones = this._zones();
         // Use inline styles to avoid CSS loading issues (matches treeSettings alloc bar pattern)
         var html = '<div id="tgClassicTierChart" style="display:flex; flex-direction:row; gap:6px; padding:6px 8px; height:260px; border:1px solid rgba(184,168,120,0.2); border-radius:4px; user-select:none; -webkit-user-select:none;">';
 
@@ -257,37 +263,47 @@ var ClassicSettings = {
         this._refreshDOM();
     },
 
+    /** The settings' tier zones; a missing tier is made from the defaults. @private */
+    _zones: function () {
+        var src = this._zoneSource || (this._zoneSource = {});
+        if (!src.tierZones || typeof src.tierZones !== 'object') src.tierZones = {};
+        for (var key in this.DEFAULT_TIER_ZONES) {
+            if (this.DEFAULT_TIER_ZONES.hasOwnProperty(key) && !src.tierZones[key]) {
+                src.tierZones[key] = { min: this.DEFAULT_TIER_ZONES[key].min, max: this.DEFAULT_TIER_ZONES[key].max };
+            }
+        }
+        return src.tierZones;
+    },
+
     /** Return a copy of the current tier zones. */
     getTierZones: function () {
-        var copy = {};
-        for (var key in this._tierZones) {
-            if (this._tierZones.hasOwnProperty(key)) {
-                copy[key] = { min: this._tierZones[key].min, max: this._tierZones[key].max };
-            }
+        var zones = this._zones(), copy = {};
+        for (var key in zones) {
+            if (zones.hasOwnProperty(key)) copy[key] = { min: zones[key].min, max: zones[key].max };
         }
         return copy;
     },
 
-    /** Update tier zones from external data and refresh the bar chart. */
+    /** Write tier zones into the settings and refresh the bar chart. */
     setTierZones: function (zones) {
         if (!zones) return;
+        var current = this._zones();
         for (var key in zones) {
-            if (zones.hasOwnProperty(key) && this._tierZones.hasOwnProperty(key)) {
-                this._tierZones[key].min = zones[key].min;
-                this._tierZones[key].max = zones[key].max;
+            if (zones.hasOwnProperty(key) && current.hasOwnProperty(key)) {
+                current[key] = { min: zones[key].min, max: zones[key].max };
             }
         }
-        this._refreshTierChart();
+        this.refreshTierChart();
     },
 
-    /** Update bar chart fill positions from _tierZones state. @private */
-    _refreshTierChart: function () {
+    /** Redraw the bar chart from the settings' tier zones (after a preset wrote them). */
+    refreshTierChart: function () {
         var chart = document.getElementById('tgClassicTierChart');
         if (!chart) return;
         var cols = chart.querySelectorAll('.classic-tier-col');
         for (var ci = 0; ci < cols.length; ci++) {
             var tier = cols[ci].getAttribute('data-tier');
-            var zone = this._tierZones[tier];
+            var zone = this._zones()[tier];
             if (!zone) continue;
             var fill = cols[ci].querySelector('.classic-tier-fill');
             if (!fill) continue;
@@ -339,7 +355,8 @@ var ClassicSettings = {
             pct = Math.round(pct / 5) * 5;
             pct = Math.max(0, Math.min(100, pct));
 
-            var zone = self._tierZones[dragging.tier];
+            // Read on every move: a preset or the change callback may have replaced it
+            var zone = self._zones()[dragging.tier];
             if (!zone) return;
 
             if (dragging.handleType === 'max') {
@@ -370,7 +387,7 @@ var ClassicSettings = {
 
     /** Re-apply tracked state to freshly built DOM elements. @private */
     _refreshDOM: function () {
-        this._refreshTierChart();
+        this.refreshTierChart();
     },
 
     // =========================================================================

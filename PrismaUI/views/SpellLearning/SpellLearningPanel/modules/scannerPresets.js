@@ -214,7 +214,8 @@ function applyScannerPreset(name) {
         });
         // Spell matching toggle needs special handling
         _updateClassicMatchButtons(TreeGrowthClassic.settings.spellMatching);
-        // Tier zones chart is visual-only; redrawn on next render
+        // The tier zone chart reads the same settings (classicSettings.js): show the preset's zones
+        if (typeof ClassicSettings !== 'undefined' && ClassicSettings.refreshTierChart) ClassicSettings.refreshTierChart();
     }
 
     // --- Classic builder options (Type grouping, Tiers by Magicka cost) ---

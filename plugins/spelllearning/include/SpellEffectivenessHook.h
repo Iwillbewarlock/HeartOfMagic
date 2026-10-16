@@ -87,11 +87,17 @@ public:
     // Calculate effectiveness multiplier (stepped, not continuous)
     float CalculateEffectiveness(RE::FormID spellFormId) const;
 
-    // For the effect hook: is the spell early-learned, and if so its stepped
-    // effectiveness and the binary-effect threshold - one lock, no copies.
-    // progressPercent is 0..100. False: not early-learned (leave it alone).
-    bool ScalingFor(RE::FormID spellFormId, float progressPercent,
+    // For the effect hook: is the spell early-learned, and if so its progress
+    // (0..100, from m_progressMirror), stepped effectiveness and the binary-effect
+    // threshold - one lock, no copies, nothing read from ProgressionManager.
+    // False: not early-learned (leave it alone).
+    bool ScalingFor(RE::FormID spellFormId, float& progressPercent,
                     float& effectiveness, float& binaryThreshold) const;
+
+    // ProgressionManager tells the hook a spell's new progress (0..1) wherever it
+    // changes it (AddXP, AddXPNoGrant, SetSpellXP). Kept only for early-learned
+    // spells. Game thread.
+    void SyncProgress(RE::FormID spellFormId, float progressFraction);
     
     // Only a spell (kSpell) of one of the five schools is learned early and weakened.
     // A power, lesser power or ability, or a spell with no school, is never in the tree,
@@ -205,6 +211,16 @@ private:
     // This prevents double-counting when ApplyModifiedDescriptions is called multiple times
     std::unordered_map<RE::FormID, std::unordered_set<RE::FormID>> m_effectSpellTracking;  // guarded by m_mutex
 
+    // Progress (0..100) of each early-learned spell, for the AdjustForPerks hook.
+    // The hook can run off the game thread (the engine's actor and magic updates
+    // are not pinned to it, and ARCHITECTURE.md records SKSE tasks on several
+    // threads), where reading ProgressionManager's unlocked map could race a
+    // rehash. Written on the game thread when a spell enters the set
+    // (AddToEarlySet), by SyncProgress, and at load (EndLoad); erased with the
+    // spell (RemoveFromEarlySet). A spell missing here reads as 0: the lowest step,
+    // as a spell with no progress entry did before.
+    std::unordered_map<RE::FormID, float> m_progressMirror;  // guarded by m_mutex
+
     // Atomic mirror of m_earlyLearnedSpells.size() for lock-free fast-path check.
     // INVARIANT: count == 0 implies set is empty. Maintained by AddToEarlySet/RemoveFromEarlySet.
     // All mutations to m_earlyLearnedSpells MUST go through these helpers to keep count in sync.
@@ -221,15 +237,25 @@ private:
     // Maintained by SetSettings. Mirrors the pattern of m_earlySpellCount.
     std::atomic<bool> m_settingsEnabled{true};
 
+    // Mirror of m_settings.modifyGameDisplay (Settings > Modify Game Display), set by
+    // SetSettings: off, ApplyModifiedSpellName / ApplyModifiedDescriptions change nothing
+    std::atomic<bool> m_modifyGameDisplay{true};
+
     // Reader-writer mutex for thread safety (shared_mutex allows concurrent reads).
     // Protects all internal data structures above. Does NOT protect RE game object
     // fields — those are only accessed from the game thread (see display file comments).
     mutable std::shared_mutex m_mutex;
 
-    // Centralized mutation helpers for m_earlyLearnedSpells / m_earlySpellCount.
-    // Caller MUST hold unique_lock on m_mutex.
+    // Centralized mutation helpers for m_earlyLearnedSpells / m_earlySpellCount
+    // (and m_progressMirror). Caller MUST hold unique_lock on m_mutex, on the
+    // game thread (AddToEarlySet reads the spell's progress from ProgressionManager).
     // Only modifies m_earlySpellCount when m_earlyLearnedSpells actually changes
     // (conditional fetch_add/fetch_sub based on insert/erase return values).
     void AddToEarlySet(RE::FormID formId);
     void RemoveFromEarlySet(RE::FormID formId);
+
+    // Every spell name and effect description this hook changed back to the stored
+    // original; the originals stay stored. Caller MUST hold unique_lock on m_mutex,
+    // on the game thread (the forms' fields are game-thread only).
+    void PutBackOriginalTextLocked();
 };

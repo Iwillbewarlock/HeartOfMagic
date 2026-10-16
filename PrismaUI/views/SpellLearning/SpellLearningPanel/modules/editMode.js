@@ -230,12 +230,32 @@ var EditMode = {
         this.isErasing = false;
         this.eraserPath = [];
 
+        // The changed prerequisites to C++ and the spells they open or lock
+        this.commitPrerequisites();
+
         // Refresh details panel to re-apply reveal rules
         if (state.selectedNode && typeof showSpellDetails === 'function') {
             showSpellDetails(state.selectedNode);
         }
 
         console.log('[EditMode] Deactivated');
+    },
+
+    /**
+     * Prerequisites changed in edit mode (a link, a delete, a spell added) reach C++ here; before,
+     * C++ had them only from the next tree load, and a tome was judged by the old links until then.
+     * Called when edit mode ends and when the panel hides (edit mode stays on while the player
+     * reads tomes). Then the tree's available and locked spells follow the new links.
+     * @returns {boolean} something was sent
+     */
+    commitPrerequisites: function() {
+        if (!this._prereqsChanged) return false;
+        if (!state.treeData || !state.treeData.nodes || typeof sendTreePrerequisites !== 'function') return false;
+        this._prereqsChanged = false;
+        sendTreePrerequisites(state.treeData.nodes);
+        if (typeof recalculateNodeAvailability === 'function') recalculateNodeAvailability();
+        if (typeof CanvasRenderer !== 'undefined') CanvasRenderer._needsRender = true;
+        return true;
     },
 
     /**
@@ -1086,6 +1106,8 @@ var EditMode = {
      */
     syncPrerequisitesToRawData: function() {
         if (!state.treeData || !state.treeData.rawData || !CanvasRenderer.nodes) return;
+        // Every prerequisite edit passes here: C++ gets the new lists when edit mode ends
+        this._prereqsChanged = true;
 
         var rawData = state.treeData.rawData;
 
@@ -1470,14 +1492,15 @@ var EditMode = {
             return formId;
         }
 
-        function addSpell(formId, name, school, level) {
+        function addSpell(formId, name, school, level, persistentId) {
             if (!formId || seenIds[formId]) return;
             seenIds[formId] = true;
             self.allSpells.push({
                 formId: formId,
                 name: resolveName(formId, name),
                 school: school || 'Unknown',
-                level: level || 'Unknown'
+                level: level || 'Unknown',
+                persistentId: persistentId || null   // "Plugin.esp|0x..." (spawnSpell keeps it on the node)
             });
         }
 
@@ -1499,7 +1522,8 @@ var EditMode = {
                     spell.formId || spell.id,
                     spell.name || spell.spellName,
                     spell.school,
-                    spell.skillLevel || spell.level
+                    spell.skillLevel || spell.level,
+                    spell.persistentId
                 );
             });
         }
@@ -1512,7 +1536,8 @@ var EditMode = {
                     node.formId || node.id,
                     node.name,
                     node.school,
-                    node.level
+                    node.level,
+                    node.persistentId
                 );
             });
         }
@@ -1528,7 +1553,8 @@ var EditMode = {
                             node.formId || node.id || node.spellId,
                             node.name || node.spellName,
                             schoolName,
-                            node.level || node.skillLevel
+                            node.level || node.skillLevel,
+                            node.persistentId
                         );
                     });
                 }
@@ -1746,6 +1772,10 @@ var EditMode = {
             children: [],
             isRoot: false
         };
+        // The spell's load-order-proof id, so a load order change moves this node to the
+        // spell's new formId (SpellScannerFormId.cpp). Not on a copy: its formId carries
+        // _dup_, and the persistentId would turn it into the original's formId
+        if (!isDuplicate && spell.persistentId) newNode.persistentId = spell.persistentId;
 
         // Add to CanvasRenderer
         if (CanvasRenderer.nodes) {
@@ -1758,15 +1788,17 @@ var EditMode = {
         // Add to rawData
         this.addNodeToRawData(newNode);
 
-        // Add to state.treeData.nodes
+        // Add to state.treeData.nodes - unless that is the same array as CanvasRenderer.nodes
+        // (a loaded tree hands its node list to the renderer), or the spell is in it twice
         if (state.treeData && state.treeData.nodes) {
-            state.treeData.nodes.push(newNode);
+            if (state.treeData.nodes !== CanvasRenderer.nodes) state.treeData.nodes.push(newNode);
             // Node lookups and the card's shared-name counts are made again at next use
             if (typeof invalidateNodeLookup === 'function') invalidateNodeLookup();
             if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
         }
 
-        // Save and refresh
+        // Save and refresh; C++ learns of the new spell when edit mode ends
+        this._prereqsChanged = true;
         this.saveTree();
         CanvasRenderer.buildSpatialIndex();
         CanvasRenderer._needsRender = true;
@@ -1811,7 +1843,8 @@ var EditMode = {
             hardPrereqs: (node.hardPrereqs || []).slice(),
             softPrereqs: (node.softPrereqs || []).slice(),
             softNeeded: node.softNeeded || 0,
-            children: (node.children || []).slice()
+            children: (node.children || []).slice(),
+            persistentId: node.persistentId || null
         });
 
         console.log('[EditMode] Added node to rawData:', node.formId);

@@ -1,4 +1,7 @@
+#include "AsciiText.h"
 #include "Common.h"
+#include "EncodingUtils.h"
+#include "FormIdBits.h"
 #include "JsonText.h"
 #include "librarian/LibrarianInternal.h"
 #include "SpellScanner.h"
@@ -41,12 +44,6 @@ namespace SpellScanner
 
         constexpr const char* kRulesPath = "Data/SKSE/Plugins/SpellLearning/gate/rules.json";
 
-        // A form id's load index and local id (light plugins sit at index 0xFE)
-        constexpr unsigned kLoadIndexShift = 24;
-        constexpr RE::FormID kLightIndex = 0xFE;
-        constexpr RE::FormID kLightLocalMask = 0xFFF;
-        constexpr RE::FormID kFullLocalMask = 0xFFFFFF;
-
         struct GateRule
         {
             std::string id;
@@ -55,10 +52,18 @@ namespace SpellScanner
             std::set<RE::EffectArchetype> archetypes; // every effect of the spell is one of these (empty: any)
         };
 
+        // A-Z only, the way the panel's foldPluginName (constants.js) folds (UTF-8 bytes stay as they are)
         std::string Lower(std::string text)
         {
-            std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::ranges::transform(text, text.begin(), AsciiText::ToLower);
             return text;
+        }
+
+        // A plugin file name as the panel and config.json hold it: UTF-8 (the game keeps it in
+        // the ANSI code page, a Korean or Russian name), A-Z folded
+        std::string PluginKey(const char* rawFileName)
+        {
+            return Lower(EncodingUtils::SanitizeToUTF8(rawFileName ? rawFileName : ""));
         }
 
         std::optional<RE::EffectArchetype> ArchetypeByName(const std::string& name)
@@ -154,9 +159,9 @@ namespace SpellScanner
         bool PluginDependsOn(RE::TESFile* file, const std::vector<std::string>& masters)
         {
             if (!file) return false;
-            if (std::ranges::find(masters, Lower(std::string(file->GetFilename()))) != masters.end()) return true;
+            if (std::ranges::find(masters, PluginKey(file->fileName)) != masters.end()) return true;
             for (const char* master : file->masters) {
-                if (master && std::ranges::find(masters, Lower(master)) != masters.end()) return true;
+                if (master && std::ranges::find(masters, PluginKey(master)) != masters.end()) return true;
             }
             return false;
         }
@@ -281,8 +286,9 @@ namespace SpellScanner
         if (!file) return true;
         // The local id as the panel's getLocalFormId reads it: 12 bits in a light plugin, 24 in a full one
         const RE::FormID id = spell->GetFormID();
-        const RE::FormID local = (id >> kLoadIndexShift) == kLightIndex ? (id & kLightLocalMask) : (id & kFullLocalMask);
-        return !kept.contains(Lower(std::string(file->GetFilename())) + "|" + std::to_string(local));
+        using namespace FormIdBits;
+        const RE::FormID local = (id >> kFileIndexShift) == kLightIndex ? (id & kLightLocalMask) : (id & kFullLocalMask);
+        return !kept.contains(PluginKey(file->fileName) + "|" + std::to_string(local));
     }
 
     void MarkGate(json& spellJson, RE::SpellItem* spell)
