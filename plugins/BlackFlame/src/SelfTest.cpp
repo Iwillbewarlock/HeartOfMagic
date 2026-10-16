@@ -1,6 +1,7 @@
 #include "SelfTest.h"
 
 #include "Config.h"
+#include "HitEffectHook.h"
 #include "MainThreadQueue.h"
 #include "SelfTestCtx.h"
 #include "SelfTestLog.h"
@@ -159,6 +160,7 @@ namespace BlackFlame::SelfTest
             const bool first = !g_entered;
             if (first) {
                 g_entered = true;
+                ResetHitDiagnostics();  // H7: each step gets its own diagnostic lines (E6's were cut by the cap)
                 g_ctx.stepStart = Clock::now();
                 g_ctx.phase = 0;
                 g_ctx.waitingFor.clear();

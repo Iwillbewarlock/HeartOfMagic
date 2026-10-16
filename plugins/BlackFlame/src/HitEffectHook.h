@@ -48,4 +48,7 @@ namespace BlackFlame
 
     /// At kPreLoadGame / kNewGame: forgets the cached player handle (read again on the next call)
     void ResetHitEffectState();
+
+    /// H7: the per-call diagnostic lines start counting again (each self-test step start, so a late step's lines show)
+    void ResetHitDiagnostics() noexcept;
 }

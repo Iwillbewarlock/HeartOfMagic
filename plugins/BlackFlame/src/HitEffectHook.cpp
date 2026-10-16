@@ -372,6 +372,15 @@ namespace BlackFlame
         g_playerHandle.store(0);
     }
 
+    void ResetHitDiagnostics() noexcept
+    {
+        for (auto& slot : g_diagnostics) {
+            for (auto& counter : slot) {
+                counter.store(0);
+            }
+        }
+    }
+
     HitSlotStats GetHitSlotStats(bool a_shader) noexcept
     {
         const auto& stats = g_stats[a_shader ? kShaderSlot : kArtSlot];

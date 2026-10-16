@@ -4,6 +4,7 @@
 #include "ThreadTrace.h"
 #include "TrackedMutex.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -18,7 +19,9 @@ namespace BlackFlame::Watchdog
         constexpr auto kStallTime = std::chrono::seconds(10);
         constexpr auto kLoadingStallTime = std::chrono::seconds(120);  // a save load may hold the main thread that long
         constexpr std::size_t kLastEntries = 64;
-        constexpr auto kFirstFrameTime = std::chrono::seconds(60);  // E5: the queue is installed but never ran
+        // E5 / H6: the queue is installed but never ran. Startup to the main menu took 3 min 20 s on a 4,500-mod order
+        // (run 580e315-auto2: kDataLoaded 21:42:09, first frame 21:45:29), so the first frame gets 300 s
+        constexpr auto kFirstFrameTime = std::chrono::seconds(300);
 
         std::atomic<bool> g_started{ false };
         std::atomic<bool> g_stop{ false };  // set at process exit (atexit): no flush after it
@@ -26,6 +29,9 @@ namespace BlackFlame::Watchdog
         std::atomic<bool> g_stallReported{ false };
         std::atomic<std::int64_t> g_stallMark{ 0 };  // the last frame end the reported stall measured from
         std::atomic<std::int64_t> g_startedAt{ 0 };
+        // H6: a load's end; until the first frame after it the loading limit still applies and the time counts from it
+        std::atomic<std::int64_t> g_loadEndedAt{ 0 };
+        std::atomic<std::int64_t> g_frameAtLoadEnd{ 0 };  // LastSign() when the load ended
 
         double SecondsAgo(std::int64_t a_ticks, std::int64_t a_now)
         {
@@ -103,11 +109,15 @@ namespace BlackFlame::Watchdog
                         continue;
                     }
                     const bool loading = g_loading.load();
-                    const auto limit = loading ? kLoadingStallTime : kStallTime;
-                    if (!g_stallReported.load() && std::chrono::steady_clock::duration(now - last) > limit) {
+                    // H6: after a load ends, no frame yet: still the loading limit (grace), measured from the load's end
+                    const auto loadEnded = g_loadEndedAt.load();
+                    const bool grace = loadEnded != 0 && last == g_frameAtLoadEnd.load();
+                    const auto from = std::max(last, loadEnded);
+                    const auto limit = loading || grace ? kLoadingStallTime : kStallTime;
+                    if (!g_stallReported.load() && std::chrono::steady_clock::duration(now - from) > limit) {
                         g_stallReported.store(true);
                         g_stallMark.store(last);
-                        ReportStall(last, now, loading);
+                        ReportStall(from, now, loading || grace);
                     }
                 } catch (...) {
                     // a diagnostic thread must never end the process
@@ -131,7 +141,8 @@ namespace BlackFlame::Watchdog
         g_startedAt.store(ThreadTrace::Now());
         std::thread(&Loop).detach();
         logger::info("BlackFlame: watchdog started (log flushed every {} s; a STALL block after {} s without a main-thread "
-                     "frame, {} s while a load is under way)", kPeriod.count(), kStallTime.count(), kLoadingStallTime.count());
+                     "frame, {} s while a load is under way or until the first frame after it, {} s before the session's first "
+                     "frame)", kPeriod.count(), kStallTime.count(), kLoadingStallTime.count(), kFirstFrameTime.count());
     }
 
     void NoteLoadStarted() noexcept
@@ -141,6 +152,8 @@ namespace BlackFlame::Watchdog
 
     void NoteLoadEnded() noexcept
     {
+        g_frameAtLoadEnd.store(LastSign());
+        g_loadEndedAt.store(ThreadTrace::Now());
         g_loading.store(false);
     }
 
