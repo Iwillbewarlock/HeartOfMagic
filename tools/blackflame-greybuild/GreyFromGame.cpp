@@ -72,7 +72,7 @@ namespace GreyBuild
     }
 
     int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint, bool a_reclaim,
-        float a_tintAdd)
+        float a_tintAdd, bool a_textures)
     {
         constexpr int kOk = 0;
         constexpr int kFail = 1;
@@ -135,6 +135,13 @@ namespace GreyBuild
         options.reclaimRetired = a_reclaim;
         options.warnAndContinue = true;
         options.tintAdd = a_tintAdd;
+        // T1: textures need the dump of a DLL that writes them; an older request builds without them, saying so
+        options.textures = a_textures && parsed.hasTextures;
+        options.texturesNotDumped = parsed.texturesNotDumped;
+        if (a_textures && !parsed.hasTextures) {
+            std::cout << "NOTE  the request lists no textures (written by an older Black Flame DLL): no texture copies this run. "
+                         "Start the game once to the main menu with this release, quit, then run this again.\n";
+        }
         const auto totals = BuildForms(parsed.forms, *parsed.addons, { dump }, a_out, a_tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} warnings, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.warnings + static_cast<int>(parsed.warnings.size()), totals.failed);

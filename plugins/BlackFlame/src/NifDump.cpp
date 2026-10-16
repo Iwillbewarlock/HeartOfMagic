@@ -16,6 +16,10 @@ namespace BlackFlame::NifDump
         constexpr int kMaxChunks = 1 << 16;  // 4 GiB of 64 KiB reads: a stream that never ends is refused
         constexpr std::string_view kForbidden = "<>\"|?*";
         constexpr unsigned char kFirstPrintable = 0x20;
+        constexpr unsigned char kDelete = 0x7F;
+        constexpr std::string_view kTexturesRoot = "textures\\";
+        constexpr std::string_view kDdsSuffix = ".dds";
+        constexpr std::size_t kMaxTexturePath = 260;  // MAX_PATH: a longer run of text before ".dds" is no texture slot
         std::atomic<bool> g_seekWarned{ false };
 
         const char* ErrorText(RE::BSResource::ErrorCode a_code)
@@ -44,46 +48,104 @@ namespace BlackFlame::NifDump
         }
     }
 
-    std::optional<std::string> NormalizeModelPath(std::string_view a_model)
+    namespace
     {
-        std::string path;
-        path.reserve(a_model.size() + kMeshesRoot.size());
-        for (std::size_t i = 0; i < a_model.size(); ++i) {
-            const auto c = static_cast<unsigned char>(a_model[i]);
-            if (c >= 0x80 && ::IsDBCSLeadByteEx(CP_ACP, c) && i + 1 < a_model.size()) {
-                path.push_back(a_model[i]);  // a double-byte character as it is: its trail byte may look like '\\' or a letter
-                path.push_back(a_model[++i]);
-                continue;
+        // NormalizeModelPath / NormalizeTexturePath: one rule, a_root ("meshes\\" or "textures\\") the folder put in front
+        std::optional<std::string> NormalizeDataPathImpl(std::string_view a_model, std::string_view a_root)
+        {
+            std::string path;
+            path.reserve(a_model.size() + a_root.size());
+            for (std::size_t i = 0; i < a_model.size(); ++i) {
+                const auto c = static_cast<unsigned char>(a_model[i]);
+                if (c >= 0x80 && ::IsDBCSLeadByteEx(CP_ACP, c) && i + 1 < a_model.size()) {
+                    path.push_back(a_model[i]);  // a double-byte character as it is: its trail byte may look like '\\' or a letter
+                    path.push_back(a_model[++i]);
+                    continue;
+                }
+                if (c == ':' || c < kFirstPrintable || kForbidden.find(static_cast<char>(c)) != std::string_view::npos) {
+                    return std::nullopt;  // a drive letter, a stream name or a character no file name has
+                }
+                const char out = c == '/' ? '\\' : static_cast<char>(c < 0x80 ? std::tolower(c) : c);
+                if (out == '\\' && (path.empty() || path.back() == '\\')) {
+                    continue;  // a leading or repeated separator
+                }
+                path.push_back(out);
             }
-            if (c == ':' || c < kFirstPrintable || kForbidden.find(static_cast<char>(c)) != std::string_view::npos) {
-                return std::nullopt;  // a drive letter, a stream name or a character no file name has
-            }
-            const char out = c == '/' ? '\\' : static_cast<char>(c < 0x80 ? std::tolower(c) : c);
-            if (out == '\\' && (path.empty() || path.back() == '\\')) {
-                continue;  // a leading or repeated separator
-            }
-            path.push_back(out);
-        }
-        for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too
-            stripped = false;
-            for (const auto root : { kDataRoot, kMeshesRoot }) {
-                if (path.starts_with(root)) {
-                    path.erase(0, root.size());
-                    stripped = true;
+            for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too
+                stripped = false;
+                for (const auto root : { kDataRoot, a_root }) {
+                    if (path.starts_with(root)) {
+                        path.erase(0, root.size());
+                        stripped = true;
+                    }
                 }
             }
-        }
-        if (path.empty() || path.back() == '\\') {
-            return std::nullopt;
-        }
-        for (std::size_t at = 0; at < path.size();) {
-            const auto end = std::min(path.find('\\', at), path.size());
-            if (std::string_view(path).substr(at, end - at) == "..") {
+            if (path.empty() || path.back() == '\\') {
                 return std::nullopt;
             }
-            at = end + 1;
+            for (std::size_t at = 0; at < path.size();) {
+                const auto end = std::min(path.find('\\', at), path.size());
+                if (std::string_view(path).substr(at, end - at) == "..") {
+                    return std::nullopt;
+                }
+                at = end + 1;
+            }
+            return std::string(a_root) + path;
         }
-        return std::string(kMeshesRoot) + path;
+
+        [[nodiscard]] bool IsPathByte(unsigned char a_byte) noexcept
+        {
+            return a_byte >= kFirstPrintable && a_byte != kDelete;
+        }
+
+        [[nodiscard]] bool EndsWithDds(const std::byte* a_end) noexcept
+        {
+            for (std::size_t i = 0; i < kDdsSuffix.size(); ++i) {
+                const auto c = static_cast<unsigned char>(a_end[i]);
+                if (std::tolower(c) != kDdsSuffix[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    std::optional<std::string> NormalizeModelPath(std::string_view a_model)
+    {
+        return NormalizeDataPathImpl(a_model, kMeshesRoot);
+    }
+
+    std::optional<std::string> NormalizeTexturePath(std::string_view a_texture)
+    {
+        return NormalizeDataPathImpl(a_texture, kTexturesRoot);
+    }
+
+    std::vector<std::string> TexturePathsIn(const std::vector<std::byte>& a_bytes)
+    {
+        std::vector<std::string> paths;
+        const std::size_t size = a_bytes.size();
+        for (std::size_t at = 0; at + kDdsSuffix.size() <= size; ++at) {
+            if (!EndsWithDds(a_bytes.data() + at)) {
+                continue;
+            }
+            const std::size_t end = at + kDdsSuffix.size();
+            std::size_t start = at;
+            while (start > 0 && end - start < kMaxTexturePath && IsPathByte(static_cast<unsigned char>(a_bytes[start - 1]))) {
+                --start;
+            }
+            if (start < sizeof(std::uint32_t)) {
+                continue;
+            }
+            std::uint32_t length = 0;  // little-endian, as every NIF 20.2.0.7 field
+            for (std::size_t i = 0; i < sizeof(std::uint32_t); ++i) {
+                length |= static_cast<std::uint32_t>(a_bytes[start - sizeof(std::uint32_t) + i]) << (8 * i);
+            }
+            if (length == end - start) {
+                paths.emplace_back(reinterpret_cast<const char*>(a_bytes.data() + start), end - start);
+                at = end - 1;
+            }
+        }
+        return paths;
     }
 
     std::uint64_t Fnv64(const void* a_bytes, std::size_t a_size, std::uint64_t a_hash) noexcept

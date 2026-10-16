@@ -19,7 +19,12 @@
 //                        own), the closure's impact and hazard models, every NIF read (path, size, fnv64, ok)
 //   data\meshes\...      the winning bytes of every NIF the request names (form and muzzle models, ADDN models),
 //                        rewritten only when the fingerprint differs from dump-manifest.json's
-//   dump-manifest.json   the fingerprint the dump was made for
+//   data\textures\...    T1: every texture those NIFs name inline (NifDump::TexturePathsIn), read through the same file
+//                        system within a per-texture and a total cap (CopyRequestData.h); request.json "textures" lists
+//                        each with ok / error. Opened for their size at every start with writeRequest on, read only when
+//                        the dump is written. Not part of the fingerprint (a texture-only change does not make the
+//                        copies stale); its own size fingerprint in the manifest decides when the dump is written again
+//   dump-manifest.json   the fingerprints the dump was made for (request, textures)
 // The fingerprint is one formula, used by the request (the builder copies it into the copies map) and by the
 // freshness check at every start: FNV-1a 64 over the sorted lines (type, source, model, muzzle) of every closure
 // form, (index, source, model) of every ADDN not in our plugins, and (path, totalSize, fnv64) of every NIF. Scalars,

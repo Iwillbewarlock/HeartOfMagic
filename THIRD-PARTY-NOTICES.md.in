@@ -229,3 +229,4 @@ with the Microsoft Visual C++ Redistributable, which Skyrim and SKSE setups alre
 | Library | Version | License | License text | Used by |
 |---|---|---|---|---|
 | nifly | 1.0.0 (vcpkg port 1.0.0#1) | GPL-3.0 | `licenses/nifly.txt` | `tools/blackflame-greybuild` only: a repository build tool that writes the Black Flame prototype's grey mesh copies. No DLL links it, and the tool is not in this zip |
+| DirectXTex | 2025-10-27 (vcpkg port, upstream tag oct2025) | MIT | `licenses/directxtex.txt` | `tools/blackflame-greybuild` only: decodes, recolours and encodes the DDS textures of the Black Flame grey copies. Statically linked into the builder, which the Black Flame tester package ships (not this zip); no DLL links it. Through DirectXTex's OpenMP BC6H/BC7 encoder the builder also loads Microsoft's `vcomp140.dll` from the Visual C++ Redistributable, as `SpellLearning.dll` does |

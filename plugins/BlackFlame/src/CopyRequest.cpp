@@ -26,6 +26,10 @@ namespace BlackFlame
         constexpr const char* kRequestName = "request.json";
         constexpr const char* kManifestName = "dump-manifest.json";
         constexpr const char* kDumpRoot = "data";
+        constexpr const char* kFingerprintKey = "fingerprint";
+        constexpr const char* kTextureFingerprintKey = "textureFingerprint";
+        using CopyRequestData::Texture;
+        using CopyRequestData::kMiB;
 
         using Clock = std::chrono::steady_clock;
         using Json = nlohmann::ordered_json;
@@ -191,7 +195,7 @@ namespace BlackFlame
             return std::format("fnv64:{:016x}", hash);
         }
 
-        Json RequestJson(const FireClosure& a_closure, const std::vector<Nif>& a_nifs)
+        Json RequestJson(const FireClosure& a_closure, const std::vector<Nif>& a_nifs, const std::vector<Texture>& a_textures)
         {
             Json root;
             root["version"] = kRequestVersion;
@@ -230,6 +234,7 @@ namespace BlackFlame
                 }
                 root["nifs"].push_back(std::move(item));
             }
+            root["textures"] = CopyRequestData::TexturesJson(a_textures);  // T1
             return root;
         }
 
@@ -249,7 +254,7 @@ namespace BlackFlame
             std::filesystem::rename(temp, a_file);  // MSVC: MoveFileExW with MOVEFILE_REPLACE_EXISTING
         }
 
-        std::string ManifestFingerprint(const std::filesystem::path& a_folder)
+        std::string ManifestValue(const std::filesystem::path& a_folder, const char* a_key)
         {
             std::ifstream in(a_folder / kManifestName, std::ios::binary);
             if (!in) {
@@ -258,26 +263,77 @@ namespace BlackFlame
             std::stringstream text;
             text << in.rdbuf();
             const auto root = nlohmann::json::parse(text.str(), nullptr, false);
-            return root.is_object() && root.contains("fingerprint") && root["fingerprint"].is_string() ?
-                       root["fingerprint"].get<std::string>() :
-                       std::string();
+            return root.is_object() && root.contains(a_key) && root[a_key].is_string() ? root[a_key].get<std::string>() :
+                                                                                        std::string();
         }
 
-        // J6: "unchanged" holds only while every dumped NIF is there with its size
-        bool DumpIntact(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs)
+        // J6: "unchanged" holds only while every dumped NIF and planned texture (T1) is there with its size
+        bool DumpIntact(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs, const std::vector<Texture>& a_textures)
         {
             const auto root = a_folder / kDumpRoot;
-            for (const auto& nif : a_nifs) {
+            const auto sizeIs = [&](const std::string& a_path, std::uint64_t a_size) {
                 std::error_code ec;
-                if (nif.blob.ok && std::filesystem::file_size(LongPath(UnderRoot(root, nif.path)), ec) != nif.blob.size) {
-                    return false;  // missing (ec) or another size
+                return std::filesystem::file_size(LongPath(UnderRoot(root, a_path)), ec) == a_size && !ec;
+            };
+            for (const auto& nif : a_nifs) {
+                if (nif.blob.ok && !sizeIs(nif.path, nif.blob.size)) {
+                    return false;  // missing or another size
+                }
+            }
+            for (const auto& texture : a_textures) {
+                if (texture.planned && !sizeIs(texture.path, texture.probe.totalSize)) {
+                    return false;
                 }
             }
             return true;
         }
 
-        // Every NIF's bytes from the one read written under data\; a failed one's stale copy is removed
-        std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs, const std::string& a_fingerprint)
+        // a_bytes into a_file (its folder made); false on a failure
+        bool WriteDumpFile(const std::filesystem::path& a_file, const std::vector<std::byte>& a_bytes)
+        {
+            std::error_code ec;
+            std::filesystem::create_directories(a_file.parent_path(), ec);
+            std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
+            out.write(reinterpret_cast<const char*>(a_bytes.data()), static_cast<std::streamsize>(a_bytes.size()));
+            out.close();
+            return static_cast<bool>(out);
+        }
+
+        // T1: every planned texture read (one at a time) and written under data\; one not planned, or that cannot be read,
+        // has its stale copy removed (marked not planned, its error kept for the request). Returns the write failures.
+        int DumpTextures(const std::filesystem::path& a_root, std::vector<Texture>& a_textures, int& a_written,
+            std::uint64_t& a_bytes)
+        {
+            int failed = 0;
+            for (auto& texture : a_textures) {
+                const auto file = LongPath(UnderRoot(a_root, texture.path));
+                std::error_code ec;
+                std::vector<std::byte> bytes;
+                if (texture.planned) {
+                    const auto blob = NifDump::ReadModel(texture.path, &bytes);
+                    if (!blob.ok) {
+                        texture.planned = false;
+                        texture.error = blob.error;
+                    }
+                }
+                if (!texture.planned) {
+                    std::filesystem::remove(file, ec);
+                    continue;
+                }
+                if (!WriteDumpFile(file, bytes)) {
+                    ++failed;
+                    logger::warn("BlackFlame: copy request: writing the dump of texture {} failed", Utf8(texture.path));
+                    continue;
+                }
+                ++a_written;
+                a_bytes += bytes.size();
+            }
+            return failed;
+        }
+
+        // Every NIF's bytes from the one read written under data\ (a failed one's stale copy removed), then the textures (T1)
+        std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs, std::vector<Texture>& a_textures,
+            const std::string& a_fingerprint, const std::string& a_textureFingerprint)
         {
             const auto root = a_folder / kDumpRoot;
             int written = 0;
@@ -289,11 +345,7 @@ namespace BlackFlame
                     std::filesystem::remove(file, ec);
                     continue;
                 }
-                std::filesystem::create_directories(file.parent_path(), ec);
-                std::ofstream out(file, std::ios::binary | std::ios::trunc);
-                out.write(reinterpret_cast<const char*>(nif.bytes.data()), static_cast<std::streamsize>(nif.bytes.size()));
-                out.close();
-                if (!out) {
+                if (!WriteDumpFile(file, nif.bytes)) {
                     ++failed;
                     logger::warn("BlackFlame: copy request: writing the dump of {} failed", Utf8(nif.path));
                     continue;
@@ -301,12 +353,17 @@ namespace BlackFlame
                 ++written;
                 std::vector<std::byte>().swap(nif.bytes);
             }
+            int textures = 0;
+            std::uint64_t textureBytes = 0;
+            failed += DumpTextures(root, a_textures, textures, textureBytes);
             if (failed == 0) {
-                WriteWhole(a_folder / kManifestName, Json{ { "fingerprint", a_fingerprint } }.dump(kJsonIndent) + "\n");
+                WriteWhole(a_folder / kManifestName,
+                    Json{ { kFingerprintKey, a_fingerprint }, { kTextureFingerprintKey, a_textureFingerprint } }.dump(kJsonIndent) + "\n");
             }
-            return failed == 0 ? std::format("written ({} NIFs)", written) :
-                                 std::format("written with {} failure(s) ({} NIFs; the manifest not updated, so the next start "
-                                             "dumps again)", failed, written);
+            const auto counts = std::format("{} NIFs, {} textures ({} MiB)", written, textures, textureBytes / kMiB);
+            return failed == 0 ? std::format("written ({})", counts) :
+                                 std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "
+                                             "dumps again)", failed, counts);
         }
     }
 
@@ -386,24 +443,60 @@ namespace BlackFlame
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fingerprint failed: {}", e.what());
         }
+        // T1: the textures the read NIFs name, opened for their size (no byte read unless the dump is written)
+        std::vector<Texture> textures;
+        std::string textureFingerprint;
+        long long textureMs = 0;  // listing and opening the textures
+        long long dumpMs = 0;     // the dump step (NIFs and textures written, or the unchanged check)
+        try {
+            const auto textureStart = Clock::now();
+            std::vector<const std::vector<std::byte>*> nifBytes;
+            for (const auto& nif : nifs) {
+                if (nif.blob.ok) {
+                    nifBytes.push_back(&nif.bytes);
+                }
+            }
+            textures = CopyRequestData::PlanTextures(nifBytes);
+            textureFingerprint = CopyRequestData::TextureFingerprint(textures);
+            textureMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - textureStart).count();
+        } catch (const std::exception& e) {
+            textures.clear();
+            logger::error("BlackFlame: copy request: listing the NIFs' textures failed: {}", e.what());
+        }
         const auto folder = RequestFolder();
         g_state.folder = folder.value_or(std::filesystem::path());
         if (g_state.computed && folder) {
+            // The dump before the request: a texture the dump could not read is named in the request with its error
             try {
                 std::filesystem::create_directories(*folder);
-                WriteWhole(*folder / kRequestName, RequestJson(a_closure, nifs).dump(kJsonIndent) + "\n");
-                g_state.requestWritten = true;
-            } catch (const std::exception& e) {
-                logger::error("BlackFlame: copy request: writing {} failed: {}", kRequestName, e.what());
-            }
-            try {
-                g_state.dumpState = ManifestFingerprint(*folder) == g_state.fingerprint && DumpIntact(*folder, nifs) ?
+                const auto dumpStart = Clock::now();
+                g_state.dumpState = ManifestValue(*folder, kFingerprintKey) == g_state.fingerprint &&
+                                            ManifestValue(*folder, kTextureFingerprintKey) == textureFingerprint &&
+                                            DumpIntact(*folder, nifs, textures) ?
                                         std::string("unchanged") :
-                                        Dump(*folder, nifs, g_state.fingerprint);
+                                        Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint);
+                dumpMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - dumpStart).count();
             } catch (const std::exception& e) {
                 g_state.dumpState = std::format("failed: {}", e.what());
                 logger::error("BlackFlame: copy request: the NIF dump failed: {}", e.what());
             }
+            try {
+                WriteWhole(*folder / kRequestName, RequestJson(a_closure, nifs, textures).dump(kJsonIndent) + "\n");
+                g_state.requestWritten = true;
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: copy request: writing {} failed: {}", kRequestName, e.what());
+            }
+            std::size_t planned = 0;
+            std::uint64_t plannedBytes = 0;
+            for (const auto& texture : textures) {
+                if (texture.planned) {
+                    ++planned;
+                    plannedBytes += texture.probe.totalSize;
+                }
+            }
+            logger::info("BlackFlame: copy request: textures: {} named by the NIFs, {} in the dump ({} MiB), {} left out; listed "
+                         "and opened in {} ms; the dump step (NIFs and textures, dump {}) {} ms", textures.size(), planned,
+                plannedBytes / kMiB, textures.size() - planned, textureMs, g_state.dumpState, dumpMs);
         } else if (!folder) {
             logger::warn("BlackFlame: copy request: no SKSE log folder - no request written");
         }

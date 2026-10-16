@@ -291,7 +291,7 @@ without a copy stays orange and is logged once. The per-instance light tint stay
 ### Copies (S1): `blackflame-greybuild --forms`
 
 ```
-blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--in <dir> ...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
+blackflame-greybuild --forms <forms.json> --request <addons.json> --in <dir> [--in <dir> ...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--no-textures]
 ```
 
 The forms request (version 2) lists source forms, each with `source` (`Plugin|localId`, the defining plugin), `type`
@@ -342,9 +342,10 @@ overwrite stays clean):
 
 | File | What |
 |---|---|
-| `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error). Written through a temporary file and a rename |
+| `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error); `textures` (T1: each texture those NIFs name - path, size, ok = in the dump, error) and `textureCaps`. Written through a temporary file and a rename, after the dump |
 | `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump |
-| `dump-manifest.json` | the fingerprint the dump was made for |
+| `data\textures\...` | T1: the textures the dumped NIFs name, read the same way within the caps (Texture copies below) |
+| `dump-manifest.json` | the fingerprint the dump was made for, and the textures' own `textureFingerprint` |
 
 Model paths are normalised (ASCII lower case, `/` as `\`, repeated separators folded, a leading `data\`/`meshes\` dropped,
 one `meshes\` put in front); a path with a drive letter, `:` or a `..` token is refused and never read or written. Each
@@ -372,7 +373,7 @@ runtime) is excluded, and a hazard's spell seeds only its fire effects and its c
 ### Builder from the game (v2 expansion C2): `--from-game`
 
 ```
-blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired]
+blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
 ```
 
 The request folder defaults to `<Documents>\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame` (SE and AE)
@@ -412,6 +413,55 @@ a simulated game request made from the spike's hand-made requests with the same 
 byte for byte, the same local ESL and grey map as the `--forms` run, and a second run kept every id; `--roundtrip` of the LE
 streams `bluefiresprayfx01.nif` (Skeletal Revenants, Vigilant) and Vigilant's `flamering.nif`: string table reordered only.
 Not checked: a request written by the game (C1 needs the in-game run).
+
+### Texture copies (T1): `GreyTexture.h`, `--no-textures`
+
+`GreyEffects` changes shader values only, so colour **painted into a texture** stays: an orange diffuse or glow map on a
+lighting-shaded mesh, or the source texture of an effect shader the builder leaves off the palette. `--forms` and
+`--from-game` (not `--map` / `--request`) therefore also write grey copies of those textures; `--no-textures` turns it
+off (the copy NIFs then keep naming the source textures).
+
+- **Which textures** (NIF data only, any load order): in every full-grey copy NIF and grey MPS, `BSLightingShaderProperty`
+  texture set slots 0 (diffuse) and 2 (glow), and the source texture of every `BSEffectShaderProperty` that `UsesPalette`
+  rejects (a palette shader's texture is a greyscale map through our palette). Our own textures
+  (`textures\heartofmagic\blackflame\...`) are skipped. A texture whose mean HSV saturation over the visible pixels of mip
+  0 is under `kGreyscaleSaturation` (0.05; BC1 quantisation alone leaves about 0.02) is already grey and left; so is a
+  one-channel format (BC4, R8, A8). A two-channel format (BC5, R8G8) cannot hold grey (no blue) and is left as a failure.
+- **Recolour** (DirectXTex, MIT, linked into the builder only): decode (BCn to 8-bit RGBA in the source's colour space, so
+  sRGB stays sRGB), each pixel set to its Rec. 709 luminance (the builder's own `Luminance`) x the role's tint, alpha kept,
+  encoded again in the **source format** (BC1/BC2/BC3/BC7 or the uncompressed format; BC7 with `TEX_COMPRESS_BC7_QUICK`)
+  with the same size, mip count and array size. Tints: diffuse `kTextureTintDiffuse` 0.6 (lighting shaders are otherwise
+  left alone), glow `kTextureTintGlow` 1.0 (a brightness mask), effect source `kTextureTintEffect` 1.0 (the base colour
+  already carries the tint). Each texture is made once per run; one met again in another role reuses the first copy (a
+  `TEX NOTE` line). HDR (BC6H), typeless, planar, palettized and video formats are refused with a reason.
+- **Where**: `textures\heartofmagic\blackflame\copies\<path after textures\>` in `--out` (staged and committed with the
+  rest); the slot is rewritten as that path with `textures\` in front, as `kPalettePath` is. The source file is never
+  written. A texture that is missing, unreadable or fails leaves its slot as it was; it never fails the NIF.
+- **Output**: one `TEX OK|GREY|FAIL|MISS` line per texture the first time it is met, and at the end
+  `textures  recoloured N, skipped greyscale G, failed F, not in the dump M; R of S slots now name a grey copy; copies X MiB`.
+  `MISS` names the game's reason when the request lists the texture as left out of the dump.
+- **Where the textures come from** (`--from-game`): the DLL's dump (`data\textures\...`, Copy request above). A request
+  written by an older DLL has no `textures` list: the run says so and builds without texture copies. `--forms` reads them
+  from the `--in` folders.
+- **The DLL side**: with `writeRequest` on, every NIF that read ok is scanned for inline texture strings
+  (`NifDump::TexturePathsIn`: each `.dds`, any case, whose run of printable bytes before it is exactly as long as the 4
+  length bytes in front say - no NIF parser, so every block type's slots are found), normalised like model paths with
+  `textures\` as the root, opened for their size (`ProbeModel`) and planned in path order within `kMaxTextureBytes` (64
+  MiB each) and `kMaxTextureDumpBytes` (768 MiB in all; a texture that no longer fits is left out, smaller ones after it
+  still go in). They are read and written only when the dump is (re)written. The request fingerprint is unchanged (the
+  players' freshness check shares it), so a texture-only change does not make the copies stale; `dump-manifest.json`
+  carries its own `textureFingerprint` (path, size, planned), and a manifest without one - a dump made before T1 - is
+  written again once.
+- **Cost** (writeRequest on only; players' default `false` opens no texture): on the 662-NIF dump of 2026-10-16 the scan
+  finds 411 distinct texture paths (216 under `textures\effects\`, 23 normal maps, the palette gradients too: the DLL takes
+  every path, the builder picks the slots). Opening them for their size at every start: about 80-100 ms (677 NIFs took
+  136 ms in the tester run). Reading and writing them when the dump is written: not measured; estimated 300-600 MB and 2-6
+  s (677 NIFs, 20 MB, read in 289 ms), once per load order change.
+
+Checked offline (2026-10-17): the builder self-test (a coloured BC3, BC7 and B8G8R8A8 become grey with alpha, format and 7
+mips kept and the source unchanged; a grey BC1 is skipped; a broken DDS and a BC5 fail with a reason; a NIF's diffuse slot
+and an off-palette effect source are repointed, a normal slot, a grey glow, a palette shader's texture, a missing one and
+our own are left, each texture made once). Not checked: the DLL's texture dump in the game, and how the grey copies look.
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 

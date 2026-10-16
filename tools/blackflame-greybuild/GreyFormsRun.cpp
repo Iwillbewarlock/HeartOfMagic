@@ -126,14 +126,14 @@ namespace GreyBuild
 
         // Grey MPS copies: a failure drops the grey index under warn-and-continue (its AddOnNodes keep the original value)
         [[nodiscard]] bool StageMps(Plan& a_plan, const std::vector<std::filesystem::path>& a_inputs,
-            const std::filesystem::path& a_staging, bool a_warn, FormsTotals& a_totals)
+            const std::filesystem::path& a_staging, bool a_warn, TextureJob* a_textures, FormsTotals& a_totals)
         {
             std::map<std::string, NifResult> done;
             for (const auto& [index, entry] : a_plan.map.addons) {
                 if (done.count(entry.greyModel) == 0) {  // indices sharing one MPS share its grey copy
                     Totals totals;
                     const auto& result = done.emplace(entry.greyModel, BuildNifWith(a_plan.map, a_inputs, a_staging, entry.model,
-                                                      entry.greyModel, NifOptions{ true, true, a_warn }, totals)).first->second;
+                                                      entry.greyModel, NifOptions{ true, true, a_warn, a_textures }, totals)).first->second;
                     if (result.ok) {
                         AddShaderCounts(a_totals.shaders, result.stats);
                     }
@@ -192,7 +192,7 @@ namespace GreyBuild
         // a note (the record then names the source's model)
         [[nodiscard]] bool StageCopies(const Plan& a_plan, const std::vector<FormSource>& a_sources, CopiesMap& a_copies,
             const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_staging,
-            const FormsRunOptions& a_options, FormsTotals& a_totals)
+            const FormsRunOptions& a_options, TextureJob* a_textures, FormsTotals& a_totals)
         {
             const std::set<std::string> unreadable(a_options.failedNifs.begin(), a_options.failedNifs.end());
             std::map<std::string, std::string> failures;  // model -> why
@@ -203,7 +203,7 @@ namespace GreyBuild
                 }
                 Totals totals;
                 const auto result = BuildNifWith(a_plan.map, a_inputs, a_staging, model, CopyModelFor(model),
-                    NifOptions{ true, true, a_options.warnAndContinue }, totals);
+                    NifOptions{ true, true, a_options.warnAndContinue, a_textures }, totals);
                 if (result.ok) {
                     ++a_totals.nifsBuilt;
                     AddShaderCounts(a_totals.shaders, result.stats);
@@ -259,9 +259,18 @@ namespace GreyBuild
             if (!WriteEsl(a_copies, a_sources, esl, a_totals)) {
                 return false;
             }
-            // 2. The grey MPS, the remapped impact copies, then the full-grey copy of every distinct source model
-            if (!StageMps(a_plan, a_inputs, a_staging, warn, a_totals) || !StageRemapped(a_plan, a_inputs, a_staging, warn, a_totals) ||
-                !StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, a_totals)) {
+            // 2. The grey MPS, the remapped impact copies, then the full-grey copy of every distinct source model; the
+            //    full-grey ones get texture copies (T1) unless textures are off
+            TextureJob job;
+            job.inputs = a_inputs;
+            job.out = a_staging;
+            job.notDumped = a_options.texturesNotDumped;
+            TextureJob* textures = a_options.textures ? &job : nullptr;
+            const bool built = StageMps(a_plan, a_inputs, a_staging, warn, textures, a_totals) &&
+                               StageRemapped(a_plan, a_inputs, a_staging, warn, a_totals) &&
+                               StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, textures, a_totals);
+            a_totals.textures = job.totals;
+            if (!built) {
                 return false;
             }
             // 3. The copies ESL again (a copy without its grey NIF names the source's model), the local ADDN ESL (always,
@@ -368,6 +377,9 @@ namespace GreyBuild
                                  "without an alpha property), palette additive {} (GradBlackFlameAdd.dds, tint {}), left with a grey "
                                  "base colour {}\n", totals.shaders.effectShaders, totals.shaders.paletted, plan.map.tint,
             totals.shaders.paletteNoAlpha, totals.shaders.palettedAdd, plan.map.tintAdd, totals.shaders.paletteLeft);
+        std::cout << (a_options.textures ? TextureTotalsLine(totals.textures) :
+                                           std::string("textures  off (--no-textures, or a game request without a texture list)"))
+                  << "\n";
         std::cout << fmt::format("wrote {} ({} copies) and {}\n", PathText(out / kCopiesPluginName), totals.copies,
             PathText(PluginsDir(out) / kCopiesMapName));
         return totals;

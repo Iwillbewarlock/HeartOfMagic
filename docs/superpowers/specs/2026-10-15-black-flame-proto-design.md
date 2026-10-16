@@ -749,3 +749,13 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - `devAutoQuit`: 본 실행의 DONE(E3가 걸려 있으면 DONE E3) 10초 뒤 메인 스레드에서 Main::quitGame = true. 마지막 불러오기(또는 자동 불러오기 요청, devAutoLoad가 있으면 kDataLoaded) 뒤 6분 안에 끝나지 않으면 TIMEOUT을 남기고 종료.
 - 스레드 하나(250 ms 폴링, 분리)가 대기를 재고, 엔진 호출은 모두 MainQueue::Post. 쓰는 id(516860/403340, 34818/35727, 34819/35728, 516943/403449)는 Patch::HasIds로 먼저 확인, 없으면 꺼짐.
 - 게임 안에서 확인할 것: SKSE의 kPreLoadGame이 Load_Impl 경로에서도 오는지(안 오면 E3가 "preload not seen"으로 not run), 메인 메뉴 프레임에서 Load가 도는지.
+
+### 텍스처 사본 (texture copies, T1, 2026-10-17, feature/black-flame-tex)
+
+- 문제: 빌더는 셰이더 값(팔레트, 기본·발광 색)만 바꾸고 텍스처 그림은 그대로 둔다. 그래서 텍스처에 칠해진 색(조명 셰이더 메시의 주황 diffuse·glow 맵, 팔레트 밖에 남긴 이펙트 셰이더의 source 텍스처)은 주황으로 남는다. 덧붙여 코드상 조명 셰이더는 GreyEffects가 세기만 하고 emissive 색은 바꾸지 않는다(회색 glow 맵 × 주황 emissive = 여전히 주황일 수 있음, 남은 문제).
+- 고르는 규칙(NIF 데이터만, 어떤 로드 오더든): 전부 회색 사본 NIF와 회색 MPS의 BSLightingShaderProperty 텍스처 세트 슬롯 0(diffuse)·2(glow), UsesPalette가 아닌 BSEffectShaderProperty의 source 텍스처. 우리 텍스처(`textures\heartofmagic\blackflame\`)는 건너뜀. 0단계 밉의 보이는 픽셀 평균 HSV 채도가 kGreyscaleSaturation(0.05) 미만이면 이미 회색이라 둠(BC1 양자화만으로 약 0.02). 한 채널 형식(BC4·R8·A8)도 둠. 두 채널(BC5·R8G8)은 파랑이 없어 회색을 담을 수 없으니 실패로 둠.
+- 다시 칠하기(빌더만 DirectXTex, MIT): BCn은 원본 색공간 그대로 8비트 RGBA로 풀고, 픽셀마다 Rec.709 휘도(빌더의 Luminance) × 역할별 tint, 알파 유지, 원본 형식·크기·밉 수·배열 크기 그대로 다시 압축(BC7은 TEX_COMPRESS_BC7_QUICK). tint: diffuse 0.6(조명 셰이더는 그 밖에 손대지 않으니 어둡게 하는 몫), glow 1.0(밝기 마스크), 이펙트 source 1.0(기본 색이 이미 tint를 가짐). 텍스처마다 한 번, 다른 역할로 다시 나오면 첫 사본을 씀(TEX NOTE).
+- 출력: `--out`의 `textures\heartofmagic\blackflame\copies\<textures\ 뒤 경로>`(스테이징 뒤 커밋), 슬롯은 `textures\`를 앞에 붙인 그 경로(kPalettePath와 같은 꼴). 원본은 쓰지 않음. 없거나 못 읽거나 실패한 텍스처는 슬롯을 그대로 두고 NIF를 실패시키지 않음. 끝에 `textures  recoloured N, skipped greyscale G, failed F, not in the dump M; R of S slots ...; copies X MiB`. `--no-textures`로 끔. `--map`/`--request`에는 없음.
+- DLL(writeRequest 켬일 때만): 잘 읽힌 NIF 바이트에서 `.dds`로 끝나고 앞 4바이트 길이와 정확히 맞는 문자열을 모두 찾고(NifDump::TexturePathsIn, NIF 파서 없음), 모델 경로와 같은 규칙에 `textures\` 루트로 정규화, ProbeModel로 크기만 열어 경로 순으로 상한(한 장 64 MiB, 합 768 MiB) 안에서 계획. 바이트는 덤프를 다시 쓸 때만 읽음. 요청 지문 공식은 그대로(플레이어 신선도 검사와 공유), 매니페스트에 `textureFingerprint`(경로·크기·계획)를 따로 둠. 예전 매니페스트는 한 번 다시 덤프. request.json에 `textures`(path, size, ok, error)와 `textureCaps`, 요청은 덤프 뒤에 씀. 텍스처 목록이 없는 예전 요청이면 빌더가 알리고 텍스처 없이 빌드.
+- 비용: 2026-10-16 덤프(NIF 662개)에서 텍스처 경로 411개(effects 216, 노멀맵 23, 팔레트 그라디언트 포함: DLL은 경로를 다 받고 빌더가 슬롯을 고름). 매 시작 크기 열기 약 80-100 ms(테스터 실행에서 NIF 677개 열기 136 ms), 덤프를 쓸 때 읽기·쓰기는 미측정, 추정 300-600 MB·2-6초(NIF 677개 20 MB 읽기 289 ms 기준). writeRequest 끔(플레이어 기본)이면 0.
+- 확인: 빌더 자가 시험 147/147(색 BC3·BC7·B8G8R8A8 → 회색, 알파·형식·밉 7 유지, 원본 불변; 회색 BC1 건너뜀; 깨진 DDS·BC5 이유와 함께 실패; NIF 슬롯 바꿈 규칙). 미확인: 게임 안 텍스처 덤프, 회색 사본이 화면에서 어떻게 보이는지.

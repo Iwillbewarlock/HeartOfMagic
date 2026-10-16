@@ -109,10 +109,10 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 set(_commonlib_dir "${CMAKE_SOURCE_DIR}/plugins/external/commonlibsse-ng")
 set(_licenses_dist "${DIST_VERSION_DIR}/licenses")
 set(_vcpkg_share "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share")
-# The vcpkg ports whose code ends up in the DLLs (vcpkg.json, and CommonLib's DirectXTK), and nifly,
+# The vcpkg ports whose code ends up in the DLLs (vcpkg.json, and CommonLib's DirectXTK), and nifly and DirectXTex,
 # linked only by the build tool tools/blackflame-greybuild (THIRD-PARTY-NOTICES.md.in, "Build tools")
 set(_vcpkg_license_ports
-    fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway zlib nifly)
+    fmt spdlog nlohmann-json rapidcsv xbyak directxmath directxtk rapidfuzz-cpp highway zlib nifly directxtex)
 
 configure_file(
     "${CMAKE_SOURCE_DIR}/THIRD-PARTY-NOTICES.md.in"

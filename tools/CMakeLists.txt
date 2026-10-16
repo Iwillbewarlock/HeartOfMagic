@@ -163,6 +163,8 @@ target_link_libraries(tree-save-check PRIVATE
 # the grey ADDN indices. nifly (GPL-3.0) is linked here only - never into a DLL.
 
 find_package(nifly CONFIG REQUIRED)
+# DirectXTex (MIT): the texture copies (GreyTexture.cpp) decode, recolour and encode DDS files; linked here only
+find_package(directxtex CONFIG REQUIRED)
 
 add_executable(blackflame-greybuild
     blackflame-greybuild/main.cpp
@@ -181,6 +183,9 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyFormsEsl.cpp
     blackflame-greybuild/GreyFormsRun.cpp
     blackflame-greybuild/GreyFromGame.cpp
+    blackflame-greybuild/GreyTexture.cpp
+    blackflame-greybuild/GreyTextureNif.cpp
+    blackflame-greybuild/GreySelfTestTexture.cpp
 )
 
 # C++17 (std::format via fmt): nifly's Matrix3/Matrix4 declare a non-const operator==, which
@@ -193,6 +198,7 @@ target_link_libraries(blackflame-greybuild PRIVATE
     shell32
     ole32
     nifly
+    Microsoft::DirectXTex
     fmt::fmt
     nlohmann_json::nlohmann_json
 )

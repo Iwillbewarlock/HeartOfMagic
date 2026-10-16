@@ -25,6 +25,14 @@ namespace BlackFlame::NifDump
     /// forbids in a file name (<>"|?* and control characters): such a path could name a file outside Data or no file at all.
     [[nodiscard]] std::optional<std::string> NormalizeModelPath(std::string_view a_model);
 
+    /// NormalizeModelPath's rule with "textures\" in place of "meshes\": a NIF texture slot's text as a Data-relative path
+    [[nodiscard]] std::optional<std::string> NormalizeTexturePath(std::string_view a_texture);
+
+    /// Every texture path a NIF names inline (BSShaderTextureSet slots, effect shader textures: a uint32 length, then the
+    /// text): each ".dds" (any case) whose run of printable bytes before it is exactly as long as the 4 bytes in front say.
+    /// Reads bytes only (no NIF parser), so it finds the slots of any block type; the text as stored, not normalised.
+    [[nodiscard]] std::vector<std::string> TexturePathsIn(const std::vector<std::byte>& a_bytes);
+
     /// FNV-1a 64 over a_bytes, continuing from a_hash (start with kFnvOffset)
     inline constexpr std::uint64_t kFnvOffset = 0xCBF29CE484222325ull;
     [[nodiscard]] std::uint64_t Fnv64(const void* a_bytes, std::size_t a_size, std::uint64_t a_hash = kFnvOffset) noexcept;

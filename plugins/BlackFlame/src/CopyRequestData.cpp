@@ -2,6 +2,8 @@
 
 #include "EncodingUtils.h"
 
+#include <format>
+#include <set>
 #include <utility>
 
 namespace BlackFlame::CopyRequestData
@@ -101,6 +103,62 @@ namespace BlackFlame::CopyRequestData
                 { "editorId", Utf8(addon->GetFormEditorID()) }, { "source", SourceText(addon) },
                 { "masterParticleCap", addon->data.masterParticleCap }, { "dnamFlags", addon->data.flags.underlying() },
                 { "own", IsOwnPluginForm(addon) } });
+        }
+        return list;
+    }
+
+    std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes)
+    {
+        constexpr std::string_view kOwnTextureRoot = "textures\\heartofmagic\\blackflame\\";  // the palettes, texture copies
+        std::set<std::string> paths;
+        for (const auto* bytes : a_nifBytes) {
+            for (const auto& raw : NifDump::TexturePathsIn(*bytes)) {
+                if (const auto path = NifDump::NormalizeTexturePath(raw); path && !path->starts_with(kOwnTextureRoot)) {
+                    paths.insert(*path);
+                }
+            }
+        }
+        std::vector<Texture> textures;
+        std::uint64_t total = 0;
+        for (const auto& path : paths) {
+            Texture texture{ path, NifDump::ProbeModel(path), false, {} };
+            const std::uint64_t size = texture.probe.totalSize;
+            if (!texture.probe.opened) {
+                texture.error = texture.probe.error;
+            } else if (size > kMaxTextureBytes) {
+                texture.error = std::format("over the per-texture cap ({} bytes > {})", size, kMaxTextureBytes);
+            } else if (total + size > kMaxTextureDumpBytes) {
+                texture.error = std::format("over the dump's total cap ({} bytes)", kMaxTextureDumpBytes);
+            } else {
+                texture.planned = true;
+                total += size;
+            }
+            textures.push_back(std::move(texture));
+        }
+        return textures;
+    }
+
+    std::string TextureFingerprint(const std::vector<Texture>& a_textures)
+    {
+        std::uint64_t hash = NifDump::kFnvOffset;
+        for (const auto& texture : a_textures) {  // in path order (PlanTextures)
+            const auto line = std::format("T|{}|{}|{}\n", EncodingUtils::SanitizeToUTF8(texture.path), texture.probe.totalSize,
+                texture.planned ? "dumped" : "left");
+            hash = NifDump::Fnv64(line.data(), line.size(), hash);
+        }
+        return std::format("fnv64:{:016x}", hash);
+    }
+
+    Json TexturesJson(const std::vector<Texture>& a_textures)
+    {
+        Json list = Json::array();
+        for (const auto& texture : a_textures) {
+            Json item{ { "path", EncodingUtils::SanitizeToUTF8(texture.path) }, { "size", texture.probe.totalSize },
+                { "ok", texture.planned } };
+            if (!texture.planned) {
+                item["error"] = EncodingUtils::SanitizeToUTF8(texture.error);
+            }
+            list.push_back(std::move(item));
         }
         return list;
     }
