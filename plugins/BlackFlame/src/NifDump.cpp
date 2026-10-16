@@ -96,6 +96,26 @@ namespace BlackFlame::NifDump
         return a_hash;
     }
 
+    ModelBlob ProbeModel(const std::string& a_dataPath)
+    {
+        ModelBlob blob;
+        blob.dataPath = a_dataPath;
+        std::optional<RE::BSResourceNiBinaryStream> file;
+        file.emplace(a_dataPath.c_str());
+        if (!file->good() && file->lastError == RE::BSResource::ErrorCode::kBusy) {
+            file.emplace(a_dataPath.c_str());
+        }
+        if (auto* stream = file->good() ? file->stream.get() : nullptr) {
+            blob.opened = true;
+            blob.ok = true;
+            blob.totalSize = stream->totalSize;
+            blob.size = blob.totalSize;
+        } else {
+            blob.error = std::format("does not open (last error {})", ErrorText(file->lastError));
+        }
+        return blob;
+    }
+
     ModelBlob ReadModel(const std::string& a_dataPath, std::vector<std::byte>* a_outBytes)
     {
         ModelBlob blob;
@@ -112,6 +132,8 @@ namespace BlackFlame::NifDump
         }
         // StreamBase::totalSize is at 0x08 on SE and AE alike (RE/S/StreamBase.h)
         const std::uint64_t total = stream->totalSize;
+        blob.opened = true;
+        blob.totalSize = total;
         std::uint64_t sought = 0;
         if (const auto code = stream->DoSeek(0, RE::BSResource::SeekMode::kSet, sought); code == RE::BSResource::ErrorCode::kUnsupported) {
             if (!g_seekWarned.exchange(true)) {

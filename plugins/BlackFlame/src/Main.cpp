@@ -11,6 +11,7 @@
 #include "BuffState.h"
 #include "CasterArt.h"
 #include "Config.h"
+#include "CopyFreshness.h"
 #include "CopyRequest.h"
 #include "CopySwap.h"
 #include "EffectEvents.h"
@@ -52,7 +53,9 @@ namespace
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
         // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
         try {
-            BlackFlame::PrepareCopyRequest(BlackFlame::BuildFireClosure());
+            const auto closure = BlackFlame::BuildFireClosure();
+            BlackFlame::PrepareCopyRequest(closure);
+            BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing (CopyFreshness.h)
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
         }
@@ -123,6 +126,7 @@ namespace
         case SKSE::MessagingInterface::kPostLoadGame:
             BlackFlame::Watchdog::NoteLoadEnded();
             BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
+            BlackFlame::NotifyFreshnessOnce();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("game loaded");
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
@@ -134,6 +138,7 @@ namespace
             BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
             BlackFlame::RefreshCopies("new game");
+            BlackFlame::NotifyFreshnessOnce();
             BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");

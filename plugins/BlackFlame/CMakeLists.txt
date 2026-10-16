@@ -29,6 +29,7 @@ set(BLACKFLAME_SOURCES
     src/CopyRequest.cpp
     src/CopyRequestData.cpp
     src/Tester.cpp
+    src/CopyFreshness.cpp
     src/Palette.cpp
     src/ThreadTrace.cpp
     src/TrackedMutex.cpp

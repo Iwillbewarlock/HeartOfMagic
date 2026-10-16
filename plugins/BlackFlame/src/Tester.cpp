@@ -1,6 +1,7 @@
 #include "Tester.h"
 
 #include "Config.h"
+#include "CopyFreshness.h"
 #include "CopyRequest.h"
 #include "CopySwap.h"
 #include "FireSet.h"
@@ -46,8 +47,10 @@ namespace BlackFlame::Tester
             const auto c = GetCopyCounts();
             const auto& request = GetCopyRequestState();
             const auto fire = GetFireSetCounts();
-            std::string out = std::format("  map {}: {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {}\n",
-                c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed);
+            const auto& fresh = GetFreshness();
+            std::string out = std::format("  freshness {}: {}\n", FreshnessName(fresh.state), fresh.detail);
+            out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {}\n",
+                c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed);
             out += std::format("  fire spells {} ({} cloak-associated), fire effects {}\n", fire.total, fire.cloakAssociated,
                 fire.effects);
             out += std::format("  request: {} closure forms, {} excluded; fingerprint {}; request {}; dump {}; NIFs {} ({} failed) "

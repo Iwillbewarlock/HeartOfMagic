@@ -646,3 +646,10 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - 고정 오프셋 대체(다른 플러그인이 바꾼 호출)는 확인된 빌드에서만: GetImpactData 44213+0xBC는 1170·1.7.104, 충격 창 자리는 SE 1.5.97과 1170·1.7.104. 그 밖은 스캔만.
 - 모든 훅 기록(Patch::WriteCall/WriteVfunc/PrologueDetour → HookRecord), tester.txt에 설치·건너뜀·주소·바이트·이유, 사본·요청·자가 시험 요약. testerMode 키.
 - 테스터 패키지 스크립트 Make-TesterPackage.ps1, README_TESTER.md. 생성 사본·비어 있지 않은 ESL·사본 맵은 넣지 않는다(스크립트가 거절).
+
+### v2 확장 C3: 맵 v2, 머즐, 낡음
+
+- DLL이 맵 v2를 읽는다(v1은 stale). PROJ 사본 머즐 = 맵 greyMuzzleModel(meshes\ 뗀 레코드 형태), 없으면 원본. Fill·Compare·Refill이 같은 기대값.
+- 낡음: none(맵 없음·항목 0) / pluginMissing(Copies.esp 미로드 또는 항목 절반 넘게 사본 폼 없음) / stale(v1 맵, 지문 다름) / fresh. 지문은 writeRequest가 계산한 바이트 형태, 아니면 크기 형태(스트림 열기만, 바이트 안 읽음).
+- 세션당 한 번 첫 불러오기·새 게임에 메인 큐로 SendHUDMessage(영어), 큐가 없으면 로그만. 사본 없는 폼은 폼마다 한 번 로그에 상태와 이유.
+- tester.txt에 낡음 상태와 맵 버전.

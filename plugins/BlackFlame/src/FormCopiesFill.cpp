@@ -48,6 +48,17 @@ namespace BlackFlame::CopyFill
             return copy ? reinterpret_cast<RE::TESObjectREFR*>(copy) : a_link;
         }
 
+        // C3: Fill, Compare and Refill all hold a PROJ copy to the same muzzle: the map's grey copy, else the source's own
+        // (never null). Without this RefreshCopies would put the source's back at every load and T0-v2 would FAIL.
+        const char* ExpectedMuzzle(const RE::BGSProjectile& a_copy, const RE::BGSProjectile& a_source)
+        {
+            if (const char* grey = ExpectedMuzzleFor(&a_copy)) {
+                return grey;
+            }
+            const char* own = a_source.muzzleFlashModel.GetModel();  // virtual: may be null
+            return own ? own : "";
+        }
+
         RE::BGSProjectileData ExpectedData(const RE::BGSProjectile& a_source)
         {
             RE::BGSProjectileData data;
@@ -71,8 +82,8 @@ namespace BlackFlame::CopyFill
             Bytes::Copy(a_copy.boundData, a_source.boundData);
             a_copy.soundLevel = a_source.soundLevel;
             a_copy.fullName = a_source.fullName;
-            const char* model = a_source.muzzleFlashModel.GetModel();  // virtual: may be null
-            a_copy.muzzleFlashModel.SetModel(model ? model : "");
+            const char* model = ExpectedMuzzle(a_copy, a_source);
+            a_copy.muzzleFlashModel.SetModel(model);
         }
 
         void FillExplosion(RE::BGSExplosion& a_copy, const RE::BGSExplosion& a_source)
@@ -280,10 +291,10 @@ namespace BlackFlame::CopyFill
             }
             DiffName(out, a_copy, a_source);
             const char* copyModel = a_copy.muzzleFlashModel.GetModel();
-            const char* sourceModel = a_source.muzzleFlashModel.GetModel();
-            if (std::strcmp(copyModel ? copyModel : "", sourceModel ? sourceModel : "") != 0) {  // D3: null guards
-                Note(out, std::format("muzzleFlashModel: source {} copy {}", Quoted(a_source.muzzleFlashModel.GetModel()),
-                    Quoted(a_copy.muzzleFlashModel.GetModel())));
+            const char* expected = ExpectedMuzzle(a_copy, a_source);  // C3: the grey muzzle copy when the map names one
+            if (std::strcmp(copyModel ? copyModel : "", expected) != 0) {  // D3: null guards
+                Note(out, std::format("muzzleFlashModel: expected {} (the source's {}) copy {}", Quoted(expected),
+                    Quoted(a_source.muzzleFlashModel.GetModel()), Quoted(copyModel)));
             }
             if (!Bytes::Same(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
@@ -405,10 +416,10 @@ namespace BlackFlame::CopyFill
             changed |= Bytes::WriteIfDiffers(p->boundData, s.boundData);
             changed |= AssignIfDiffers(p->soundLevel, s.soundLevel);
             changed |= RefillName(*p, s);
-            const char* model = s.muzzleFlashModel.GetModel();
+            const char* model = ExpectedMuzzle(*p, s);
             const char* now = p->muzzleFlashModel.GetModel();
-            if (std::strcmp(now ? now : "", model ? model : "") != 0) {
-                p->muzzleFlashModel.SetModel(model ? model : "");
+            if (std::strcmp(now ? now : "", model) != 0) {
+                p->muzzleFlashModel.SetModel(model);
                 changed = true;
             }
         } else if (auto* e = a_copy->As<RE::BGSExplosion>()) {

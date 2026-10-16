@@ -385,6 +385,28 @@ byte for byte, the same local ESL and grey map as the `--forms` run, and a secon
 streams `bluefiresprayfx01.nif` (Skeletal Revenants, Vigilant) and Vigilant's `flamering.nif`: string table reordered only.
 Not checked: a request written by the game (C1 needs the in-game run).
 
+### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
+
+The DLL reads copies map version 2 (and version 1, which counts as stale). A PROJ copy's muzzle flash model is the map's
+`greyMuzzleModel` when the builder made one, else the source's own: the fill, the compare and the refresh all hold the
+copy to that same value (otherwise every load would put the source's back and T0-v2 would fail). At kDataLoaded, after
+the copy request, the copies are judged:
+
+| State | When |
+|---|---|
+| `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
+| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or more than half of its entries lost their copy form (the output mod placed before Black Flame, or not enabled) |
+| `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms) |
+| `fresh` | otherwise |
+
+The log line gives the state, why, how many closure forms have no copy and how many map entries lost their source. Once
+per session, at the first save load or new game, the player sees a corner notice through the main-thread queue (no
+queue: the log only): stale or none - "Black Flame: your fire spells changed. Run the Black Flame builder, then restart
+the game."; pluginMissing - "Black Flame: the generated copies are not enabled. Enable
+HeartOfMagic_BlackFlame_Copies.esp." English only (as the rest of this prototype's HUD lines); no id goes on screen. A
+player's fire form without a copy stays orange, logged once per form with the freshness state. Do not deploy a C2
+builder output with a DLL older than C3 (it reads only map version 1).
+
 ### Fill (S1, DLL): `FormCopies.h`
 
 At kDataLoaded only, before any hook reads them, each copy is filled from the LIVE winning source (so SkyPatcher and

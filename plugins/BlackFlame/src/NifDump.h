@@ -35,6 +35,8 @@ namespace BlackFlame::NifDump
         std::uint64_t size = 0;
         std::uint64_t fnv64 = 0;
         bool ok = false;
+        bool opened = false;          // the stream opened (C3's size-only fingerprint uses opened and totalSize)
+        std::uint64_t totalSize = 0;  // the stream's own size
         std::string error;  // why not ok
     };
 
@@ -44,4 +46,7 @@ namespace BlackFlame::NifDump
     /// tried once more, so a transient error does not change the fingerprint.
     /// a_outBytes (optional) receives the bytes.
     [[nodiscard]] ModelBlob ReadModel(const std::string& a_dataPath, std::vector<std::byte>* a_outBytes);
+
+    /// C3: opens a_dataPath and takes its totalSize without reading a byte (opened, totalSize set; ok = opened)
+    [[nodiscard]] ModelBlob ProbeModel(const std::string& a_dataPath);
 }

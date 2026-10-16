@@ -131,7 +131,7 @@ namespace BlackFlame
                 }
             }
             for (const auto& nif : a_nifs) {
-                lines.push_back(a_sizesOnly ? std::format("N|{}|{}|{}", Utf8(nif.path), nif.blob.size, nif.blob.ok ? "ok" : "failed") :
+                lines.push_back(a_sizesOnly ? std::format("N|{}|{}|{}", Utf8(nif.path), nif.blob.totalSize, nif.blob.opened ? "opened" : "missing") :
                                               std::format("N|{}|{}|{:016x}|{}", Utf8(nif.path), nif.blob.size, nif.blob.fnv64,
                                                   nif.blob.ok ? "ok" : "failed"));
             }
@@ -285,9 +285,24 @@ namespace BlackFlame
         g_state.excluded = a_closure.excluded.size();
         std::vector<Nif> nifs;
         if (!GetConfig().writeRequest) {
-            // J7: players' default - no NIF is read and no fingerprint made (C3's freshness check makes the cheap one)
+            // J7 / C3: players' default - no NIF byte is read; each stream is only opened for its size (the size-only
+            // fingerprint the freshness check compares with the map's)
+            try {
+                std::vector<std::string> refused;
+                const auto probeStart = Clock::now();
+                for (const auto& path : ModelsToRead(a_closure, refused)) {
+                    nifs.push_back({ path, NifDump::ProbeModel(path), {} });
+                    g_state.nifsFailed += nifs.back().blob.opened ? 0 : 1;
+                }
+                g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - probeStart).count();
+                g_state.nifs = nifs.size();
+                g_state.sizeFingerprint = ComputeFingerprint(a_closure, nifs, true);
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: copy request: the size fingerprint failed: {}", e.what());
+            }
             logger::info("BlackFlame: copy request: off (writeRequest false): {} closure forms, {} excluded, from {} fire spells; "
-                         "no NIF read", g_state.forms, g_state.excluded, a_closure.spells);
+                         "{} NIFs opened for their size ({} missing) in {} ms, size fingerprint {}", g_state.forms, g_state.excluded,
+                a_closure.spells, g_state.nifs, g_state.nifsFailed, g_state.readMs, g_state.sizeFingerprint);
             g_state.dumpState = "off";
             return;
         }

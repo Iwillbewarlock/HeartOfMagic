@@ -21,7 +21,9 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr int kMapVersion = 1;
+        constexpr int kMapVersionOld = 1;  // read: stale by definition (the C3 freshness check)
+        constexpr int kMapVersion = 2;
+        constexpr std::string_view kMeshesPrefix = "meshes\\";
         constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;
         constexpr std::uint32_t kMaxLightLocalId = 0xFFF;
         constexpr int kHexBase = 16;
@@ -33,6 +35,8 @@ namespace BlackFlame
             RE::TESForm* source = nullptr;
             RE::TESForm* copy = nullptr;
             bool ok = false;
+            bool sourceMissing = false;
+            bool copyMissing = false;
             std::string detail;
         };
 
@@ -42,6 +46,7 @@ namespace BlackFlame
             std::unordered_map<RE::FormID, const RE::TESForm*> byCopy;
             std::vector<Entry> entries;
             CopyCounts counts;
+            std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
         };
 
         TrackedMutex g_refreshMutex;
@@ -126,6 +131,8 @@ namespace BlackFlame
             }
             entry.source = LookupLocal(a_dh, a_lookup, entry.sourceText.substr(0, bar), sourceLocal);
             entry.copy = LookupLocal(a_dh, a_lookup, kCopiesPluginName, copyLocal);
+            entry.sourceMissing = !entry.source;
+            entry.copyMissing = !entry.copy;
             if (!entry.source || !entry.copy) {
                 entry.detail = std::format("{} not found ({} is the source in the load order? is {} enabled?)",
                     !entry.source ? "source" : "copy", entry.sourceText, kCopiesPluginName);
@@ -200,9 +207,10 @@ namespace BlackFlame
             text << file.rdbuf();
             a_root = nlohmann::json::parse(text.str(), nullptr, false);
             if (a_root.is_discarded() || !a_root.is_object() || !a_root.contains("version") ||
-                a_root["version"] != kMapVersion || !a_root.contains("copies") || !a_root["copies"].is_array()) {
-                logger::warn("BlackFlame: copies: '{}' is not a version {} copies map - no v2 copies", kCopiesMapPath,
-                    kMapVersion);
+                (a_root["version"] != kMapVersion && a_root["version"] != kMapVersionOld) || !a_root.contains("copies") ||
+                !a_root["copies"].is_array()) {
+                logger::warn("BlackFlame: copies: '{}' is not a version {} or {} copies map - no v2 copies", kCopiesMapPath,
+                    kMapVersionOld, kMapVersion);
                 return false;
             }
             return true;
@@ -224,10 +232,27 @@ namespace BlackFlame
         }
         copies.counts.mapRead = true;
         copies.counts.mapEntries = root["copies"].size();
+        copies.counts.mapVersion = root["version"].get<int>();
+        const auto text = [&](const char* a_key) {
+            return root.contains(a_key) && root[a_key].is_string() ? root[a_key].get<std::string>() : std::string();
+        };
+        copies.counts.requestFingerprint = text("requestFingerprint");
+        copies.counts.requestFingerprintSizes = text("requestFingerprintSizes");
         PluginNames::Lookup<const RE::TESFile*> lookup;
         // Pass 1: resolve and fill data members; failures stay out of the lookup
         for (const auto& item : root["copies"]) {
             Entry entry = ResolveEntry(dh, lookup, item);
+            copies.counts.sourceMissing += entry.sourceMissing ? 1 : 0;
+            copies.counts.copyMissing += entry.copyMissing ? 1 : 0;
+            // C3: a PROJ copy's muzzle is the map's grey copy when the builder made one (before the fill reads it)
+            if (entry.copy && entry.type == RE::FormType::Projectile && item.contains("greyMuzzleModel") &&
+                item["greyMuzzleModel"].is_string() && !item["greyMuzzleModel"].get<std::string>().empty()) {
+                std::string muzzle = item["greyMuzzleModel"].get<std::string>();
+                if (muzzle.size() > kMeshesPrefix.size() && _strnicmp(muzzle.c_str(), kMeshesPrefix.data(), kMeshesPrefix.size()) == 0) {
+                    muzzle.erase(0, kMeshesPrefix.size());  // a record's model string leaves out the meshes folder
+                }
+                copies.muzzles.emplace(entry.copy->GetFormID(), std::move(muzzle));
+            }
             // Checked before the fill: a second entry must not overwrite a copy another source already filled,
             // and the two maps stay one-to-one (the first entry wins, the second is logged and left out)
             if (entry.ok && copies.bySource.contains(entry.source->GetFormID())) {
@@ -318,6 +343,16 @@ namespace BlackFlame
         const auto& map = TheCopies().bySource;
         const auto it = map.find(a_source->GetFormID());
         return it != map.end() ? it->second : nullptr;
+    }
+
+    const char* ExpectedMuzzleFor(const RE::TESForm* a_copy) noexcept
+    {
+        if (!a_copy) {
+            return nullptr;
+        }
+        const auto& map = TheCopies().muzzles;
+        const auto it = map.find(a_copy->GetFormID());
+        return it != map.end() ? it->second.c_str() : nullptr;
     }
 
     const RE::TESForm* SourceOf(const RE::TESForm* a_form) noexcept

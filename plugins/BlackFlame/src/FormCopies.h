@@ -60,6 +60,10 @@ namespace BlackFlame
         return copy ? copy->As<T>() : nullptr;
     }
 
+    /// C3: the muzzle flash model a PROJ copy should hold - the map's greyMuzzleModel (record form, without meshes\),
+    /// or null for the source's own (FormCopiesFill.cpp); any thread after kDataLoaded
+    [[nodiscard]] const char* ExpectedMuzzleFor(const RE::TESForm* a_copy) noexcept;
+
     /// The source a copy was filled from, or null when a_form is not a copy
     [[nodiscard]] const RE::TESForm* SourceOf(const RE::TESForm* a_form) noexcept;
 
@@ -86,6 +90,11 @@ namespace BlackFlame
         std::size_t arts = 0;
         std::size_t failed = 0;      // left out of the map
         std::size_t linksToCopies = 0;  // links the second pass pointed at a copy
+        int mapVersion = 0;             // 1 (spike builds) or 2 (C2 builder)
+        std::size_t sourceMissing = 0;  // entries whose source form is not in the load order
+        std::size_t copyMissing = 0;    // entries whose copy form is not there (the copies plugin not enabled?)
+        std::string requestFingerprint;       // map v2: the request's fingerprint
+        std::string requestFingerprintSizes;  // map v2: its size-only form
     };
 
     [[nodiscard]] CopyCounts GetCopyCounts() noexcept;

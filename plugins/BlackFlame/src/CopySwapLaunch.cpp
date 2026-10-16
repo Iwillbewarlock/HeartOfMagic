@@ -8,6 +8,7 @@
 #include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
+#include "CopyFreshness.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "MainThreadQueue.h"
@@ -71,8 +72,9 @@ namespace BlackFlame
                     return;
                 }
             }
-            logger::info("BlackFlame: {} {:08X} of a player's fire launch has no grey copy - it stays orange (re-run "
-                         "blackflame-greybuild --forms to add it)", a_what, a_form->GetFormID());
+            const auto& fresh = GetFreshness();
+            logger::info("BlackFlame: {} {:08X} of a player's fire launch has no grey copy - it stays orange (copies {}: {}; run "
+                         "the Black Flame builder to add it)", a_what, a_form->GetFormID(), FreshnessName(fresh.state), fresh.detail);
         }
 
         bool IsPlayerFireLaunch(const RE::Projectile::LaunchData& a_data)
