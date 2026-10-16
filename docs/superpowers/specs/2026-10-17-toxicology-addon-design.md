@@ -6,7 +6,7 @@
 ## 1. 목적
 
 하트 오브 매직 Librarian 이 `poison` 태그를 붙인 주문(독 마법)이 대상에 맞으면, 플레이어가 즐겨찾기한 독약의
-효과를 그 대상에게 건다. 독 마법이 독약의 구조를 복제하는 것이다. 독약은 줄지 않는다(사용자 결정).
+효과를 그 대상에게 건다. 독 마법이 독약의 구조를 복제하는 것이다. 독약은 피격마다 줄지 않고, 독 마법에 쓴 매지카가 100 쌓일 때마다 한 병 준다(사용자 결정, 5.6).
 
 넥서스에 별도 페이지로 배포하는 애드온. 원작 Heart of Magic 과는 호환되지 않는다 — Librarian 이 쓰는
 `spell_catalog.json` 의 태그를 읽기 때문이다(넥서스 페이지와 README 에 명시).
@@ -17,7 +17,7 @@
 
 | 항목 | 결정 |
 |---|---|
-| 독약 소모 | 없음 |
+| 독약 소모 | 독 마법에 쓴 매지카 100 마다 복제 중인 독약 한 병(고정값, 설정에서 변경 가능) |
 | 어떤 독약 | 즐겨찾기한 독약 중 즐겨찾기 메뉴 맨 위 하나 |
 | 겹침 | 처음 맞을 때 효과를 걸고, 효과가 남아 있는 동안 다시 맞으면 지속 시간만 처음으로 되돌린다(쌓이지 않음). 대상·독약마다 최소 1초 간격(설정) |
 | 표시 | I4 로 복제 중인 독약의 아이콘을 "마법진 앞의 독약병" 그림으로 바꾼다 |
@@ -41,7 +41,7 @@
 |---|---|
 | `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드 레코드 `HoMTox_MimicPoison` 하나. I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | 본체 |
-| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `minIntervalSeconds`(기본 1.0) |
+| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `minIntervalSeconds`(기본 1.0), `magickaPerDose`(기본 100) |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 규칙: `{"match":{"formType":"Potion","keywords":"HoMTox_MimicPoison"},"assign":{"iconSource":"HeartOfMagicToxicology/icons.swf","iconLabel":"potion_mimic","iconColor":"#62A636"}}` |
 | `Interface/HeartOfMagicToxicology/icons.swf` | 아이콘 1개(라벨 `potion_mimic`) |
 | `SKSE/Plugins/HeartOfMagic_Toxicology/` | `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/` (NPC Spells 와 같은 방식) |
@@ -116,6 +116,22 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
   메뉴는 정확"을 README 의 알려진 한계로 적는다.
 - 메뉴가 열린 채 즐겨찾기를 바꾸면 아이콘은 다음에 메뉴를 열 때 바뀐다(알려진 한계).
 
+### 5.6 독약 소모
+
+복제할 독약이 있는 동안 플레이어가 시전한 독 마법(5.1 집합)의 매지카 소모량을 쌓는다. 쌓인 양이
+`magickaPerDose`(설정, 기본 100, 사용자 결정) 이상이 되면 그때 복제 중인 독약을 한 병 없애고 그만큼 뺀다.
+나머지는 다음으로 넘어간다. 이하 내 결정(사용자에게 말함):
+- 맞혔는지와 상관없이 시전으로 쓴 매지카를 센다.
+- 양은 실제 소모량(퍽·장비 감소 뒤). 집중 주문은 유지한 시간만큼. 측정 방법은 빌더 판단 — 후보:
+  시전 시점의 `MagicItem::CalculateMagickaCost(Actor*)`(`MagicItem.h:112`, 집중은 초당 값 × 유지 시간),
+  또는 독 마법 시전 중 플레이어 매지카 감소량. 어느 쪽이든 자가 테스트에서 실제 감소량과 비교한다.
+- 복제할 독약이 없을 때(즐겨찾기 독약 없음, `enabled` false) 쓴 매지카는 세지 않는다.
+- 독약을 바꿔도 쌓인 양은 이어진다. 한 번에 여러 병 기준을 넘으면 그만큼 여러 병.
+- 병을 없앤 뒤 그 독약이 0 병이 되면 5.2 를 다시 계산해 다음 독약으로 넘어간다(키워드도 옮김). 남은 게 없으면 멈춤.
+- 쌓인 양은 SKSE co-save 에 저장한다(고유 ID 는 빌더가 정함). 새 게임은 0.
+- 없애는 방법은 `RemoveItem`(조용히, 알림 없음). 플레이어가 만든 독약(0xFF 폼)도 같은 방식.
+- `magickaPerDose` 가 0 이하이거나 숫자가 아니면 기본값 100.
+
 ## 6. 아이콘 그림
 
 - 내용: 마법진(원과 룬 문자) 앞에 독약병 실루엣. 단색(흰색 채움 + 투명). I4 가 `iconColor` 로 색을 덮어쓰므로
@@ -147,7 +163,8 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
 `plugins/Toxicology/` (BookXP·NPC Spells 와 같은 CMake 구조, CommonLibSSE-NG, 파일당 600줄 한도).
 - 순수 부분(게임 없이 도는 것): 카탈로그 JSON → 독 마법 키 목록, 독약 후보(이름, 즐겨찾기) 목록 → 고른 하나.
   오프라인 도구 `tools/toxicology-test --self-test` 로 확인(정상·경계·실패 각각).
-- 게임 부분: 이벤트 싱크, 태스크, 활성 효과 갱신, 키워드 이동, I5 purge.
+- 순수 부분에 소모 계산도 넣는다: (쌓인 양, 이번 소모량, 기준) → (없앨 병 수, 남은 양).
+- 게임 부분: 이벤트 싱크, 태스크, 활성 효과 갱신, 키워드 이동, I5 purge, 매지카 측정, 병 제거, co-save.
 
 ## 9. 테스트
 
@@ -162,6 +179,8 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
   4. 독약 효과의 크기를 독약 레코드 값과 비교해 로그(퍽 반영 여부 기록, 판정 없음).
   5. I5 가 있으면 `i5 cache purge` 실행 결과 로그.
   6. 효과의 시전자가 플레이어인지.
+  7. 독 마법을 여러 번 시전 → 센 매지카 양이 플레이어 매지카 실제 감소량과 맞는지(집중 포함), 100 을 넘을 때
+     독약이 정확히 한 병 줄었는지, 마지막 병을 쓰면 다음 독약으로 넘어가는지, 저장·불러오기 뒤 쌓인 양이 그대로인지.
   게임 실행·세이브 로드는 NPC Spells 와 같은 경로(mo2_guard -Mode Test, DevBench).
 - 사용자 눈 확인(자동화 불가: 화면 모양): 즐겨찾기 메뉴와 인벤토리에서 아이콘이 알아볼 만한지, 색.
 - 리뷰: 독립 리뷰어 에이전트 + OCR(프로젝트 규칙). Gemini 는 이미지 전담(2026-10-16 이후 메모리 규칙).
@@ -182,3 +201,4 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
 - I5 캐시를 DLL 에서 비울 수 있는지.
 - 바닐라(SkyUI 없음) 즐겨찾기 메뉴의 정렬 순서.
 - 설치된 I5 버전(meta 0.4.0, 로그 0.3.1).
+- 매지카 소모량을 시전 시점에 정확히 얻는 방법(특히 집중 주문).
