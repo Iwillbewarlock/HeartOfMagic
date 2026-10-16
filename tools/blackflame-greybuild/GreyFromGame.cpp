@@ -11,6 +11,7 @@
 
 #include <fmt/format.h>
 #include <iostream>
+#include <optional>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -115,7 +116,9 @@ namespace GreyBuild
                 PathText(a_out), PathText(folder));
             return kUsage;
         }
+        std::optional<StageTimer> readTime(std::in_place, "read request");
         const FormsRequest parsed = LoadFormsRequestFile(request);
+        readTime.reset();
         if (parsed.version != kGameRequestVersion || !parsed.addons) {
             std::cerr << fmt::format("{} is a version {} request; --from-game reads the game's (version {}). Use --forms for a "
                                      "hand-made one.\n", PathText(request), parsed.version, kGameRequestVersion);

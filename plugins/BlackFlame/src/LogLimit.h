@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "Perf.h"
 #include "TrackedMutex.h"
 
 #include <chrono>
@@ -31,6 +32,7 @@ namespace BlackFlame
         /// gets the number held back since the last one written (then reset).
         [[nodiscard]] static bool Allow(std::string_view a_kind, RE::FormID a_spell, int& a_suppressed)
         {
+            const Perf::Scope perf(Perf::kLogLimit);  // perf audit 2
             static TrackedMutex mutex;
             static std::unordered_map<std::string, Entry> entries;
             const auto now = std::chrono::steady_clock::now();
@@ -69,6 +71,7 @@ namespace BlackFlame
     private:
         [[nodiscard]] static bool Once(std::string_view a_kind, RE::FormID a_form, bool a_mark)
         {
+            const Perf::Scope perf(Perf::kLogLimit);  // perf audit 2
             static TrackedMutex mutex;
             static std::unordered_set<std::string> seen;
             std::lock_guard lock(mutex);

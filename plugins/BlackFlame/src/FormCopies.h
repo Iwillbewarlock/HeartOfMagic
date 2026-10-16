@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // =============================================================================
@@ -172,6 +173,35 @@ namespace BlackFlame
         /// D3 (refresh): writes into a_copy only what differs from a fill now, each data struct as one write with its links
         /// already pointing at copies; whether anything changed
         bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_pointersOnly = false);
+
+        /// Perf: the copies' own sources and copies by pointer (FormCopies, once after the fill resolved them; read-only after),
+        /// so a diff text names a link to one of them without walking the game's form map
+        void SetKnownForms(std::unordered_map<const RE::TESForm*, RE::FormID> a_known);
+
+        /// Perf: while one lives on this thread, a form pointer the known forms do not name is looked up in one reverse map of
+        /// the game's form map, built on the first need (one walk per scope, not one per differing field). Without a scope the
+        /// old per-pointer walk stays (the D3 rule either way: a pointer is compared, never dereferenced)
+        class PointerNameScope
+        {
+        public:
+            PointerNameScope();
+            ~PointerNameScope();
+            PointerNameScope(const PointerNameScope&) = delete;
+            PointerNameScope& operator=(const PointerNameScope&) = delete;
+
+            [[nodiscard]] long long LookupMicros() const noexcept { return m_micros; }  // time spent naming pointers
+            [[nodiscard]] bool Walked() const noexcept { return m_built; }               // the form map was walked once
+
+        private:
+            friend std::string NamePointer(const RE::TESForm* a_form);
+            std::unordered_map<const RE::TESForm*, RE::FormID> m_forms;
+            bool m_built = false;
+            long long m_micros = 0;
+            PointerNameScope* m_outer = nullptr;
+        };
+
+        /// The pointer's FormID text ("XXXXXXXX"), "null", or that it is not in the form map (FormCopiesFill.cpp)
+        [[nodiscard]] std::string NamePointer(const RE::TESForm* a_form);
 
         /// The second pass: links that have a copy point at it; returns how many were rewired
         int RewireLinks(RE::TESForm* a_copy);

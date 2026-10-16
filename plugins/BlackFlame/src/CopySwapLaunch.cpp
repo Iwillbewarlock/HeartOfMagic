@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "CopySwap.h"
+#include "Perf.h"
 #include "TrackedMutex.h"
 
 #include "Attribution.h"
@@ -134,6 +135,7 @@ namespace BlackFlame
 
         RE::ProjectileHandle* LaunchThunk(RE::ProjectileHandle* a_result, RE::Projectile::LaunchData& a_data)
         {
+            auto perfStart = Perf::Now();  // perf audit 2: our parts, apart from the original Launch
             const ThreadTrace::Scope trace("Launch (v2 detour)");
             MainQueue::NoteJobSideHook();  // G1
             g_launchCalls.fetch_add(1);
@@ -164,7 +166,9 @@ namespace BlackFlame
                 a_data.projectileBase = copy;
                 g_launchSwaps.fetch_add(1);
             }
+            const auto perfBefore = Perf::Now() - perfStart;
             auto* result = reinterpret_cast<LaunchFn*>(g_launchOriginal)(a_result, a_data);
+            perfStart = Perf::Now();
             if (copy) {
                 a_data.projectileBase = asked;  // the caller's struct as it was
                 // v2i: one line the first time each copy is launched (the swap itself is not logged per call); I9: nothing
@@ -185,6 +189,7 @@ namespace BlackFlame
             } catch (...) {
                 ReportOnce(g_launchFailure, "the Launch detour (after)");
             }
+            Perf::Add(Perf::kLaunch, perfBefore + (Perf::Now() - perfStart));
             return result;
         }
 

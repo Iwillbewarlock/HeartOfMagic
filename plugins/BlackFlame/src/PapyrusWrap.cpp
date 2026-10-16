@@ -1,4 +1,5 @@
 #include "PapyrusWrap.h"
+#include "Perf.h"
 #include "TrackedMutex.h"
 
 #include "BuffState.h"
@@ -283,17 +284,22 @@ namespace BlackFlame
                 RE::VMStackID a_stackID, RE::BSScript::Variable& a_resultValue,
                 const RE::BSScript::StackFrame& a_frame) const override
             {
+                // Perf audit 2: our parts before and after the native, timed apart from it; stoked (the caller is read) or not
+                const auto perfStart = Perf::Now();
+                const bool stoked = IsStoked();
                 Decision decision;
                 bool look = false;
                 try {
-                    if (IsStoked()) {
+                    if (stoked) {
                         (void)Guarded("native wrapper (before)", [&]() { look = Before(a_baseValue, a_frame, decision); });
                     }
                 } catch (...) {
                     look = false;
                     ReportFailure();
                 }
+                const auto perfBefore = Perf::Now() - perfStart;
                 const bool done = m_native->MarshallAndDispatch(a_baseValue, a_vm, a_stackID, a_resultValue, a_frame);
+                const auto perfAfterStart = Perf::Now();
                 try {
                     if (look && done) {
                         (void)Guarded("native wrapper (after)", [&]() { After(a_resultValue, decision); });
@@ -301,6 +307,7 @@ namespace BlackFlame
                 } catch (...) {
                     ReportFailure();
                 }
+                Perf::Add(stoked ? Perf::kPapyrusStoked : Perf::kPapyrusIdle, perfBefore + (Perf::Now() - perfAfterStart));
                 return done;
             }
 

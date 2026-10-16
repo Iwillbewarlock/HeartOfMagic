@@ -1,4 +1,5 @@
 #include "HazardHook.h"
+#include "Perf.h"
 #include "Patch.h"
 #include "MainThreadQueue.h"
 #include "TrackedMutex.h"
@@ -102,6 +103,7 @@ namespace BlackFlame
         // Any thread: queue a hazard with 3D once, and have it handled on the next game-thread task
         void Queue(RE::Hazard* a_hazard)
         {
+            const Perf::Scope perf(Perf::kHazardQueue);  // perf audit 2
             // Made inside the player's impact (SpawnCollisionEffects creates the impact hazard; its owner is
             // not set there and the cause is no rule): tagged, so the attribution below knows it. v2: also inside
             // a copy window, and a hazard whose base is a copy (only the player's fire chain reaches a copy)

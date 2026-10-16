@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <charconv>
 #include <optional>
 #include <format>
@@ -367,6 +368,19 @@ namespace BlackFlame
             copies.entries.push_back(std::move(entry));
         }
         MarkAbsentSources(copies);
+        {
+            // Perf: the diff texts name links to our own sources and copies from this map (CopyFill::NamePointer)
+            std::unordered_map<const RE::TESForm*, RE::FormID> known;
+            for (const auto& entry : copies.entries) {
+                if (entry.source) {
+                    known.emplace(entry.source, entry.source->GetFormID());
+                }
+                if (entry.copy) {
+                    known.emplace(entry.copy, entry.copy->GetFormID());
+                }
+            }
+            CopyFill::SetKnownForms(std::move(known));
+        }
         // Pass 2: links that have a copy point at it (all copies exist now)
         for (const auto& entry : copies.entries) {
             if (entry.ok) {
@@ -374,6 +388,7 @@ namespace BlackFlame
             }
         }
         // C5: a copy that differs right after its own fill is a fill fault, not a later change
+        const CopyFill::PointerNameScope names;
         for (const auto& entry : copies.entries) {
             if (const auto diff = entry.ok ? CopyFill::Compare(entry.copy, entry.source) : std::string(); !diff.empty()) {
                 logger::warn("BlackFlame: copies: {} {:08X} -> {:08X} differs right after the fill: {}", entry.sourceText,
@@ -388,23 +403,41 @@ namespace BlackFlame
 
     void RefreshCopies(const char* a_reason, bool a_pointersOnly)
     {
+        using Clock = std::chrono::steady_clock;
+        const auto micros = [](Clock::duration a_d) { return std::chrono::duration_cast<std::chrono::microseconds>(a_d).count(); };
+        const auto start = Clock::now();
+        Clock::duration compare{};
+        Clock::duration refill{};
+        const CopyFill::PointerNameScope names;  // perf: one form map walk for this refresh's diff texts, at most
         std::vector<std::string> notes;
+        std::size_t compared = 0;
         for (const auto& entry : TheCopies().entries) {
             if (!entry.ok) {
                 continue;
             }
+            ++compared;
+            auto t = Clock::now();
             const auto before = CopyFill::Compare(entry.copy, entry.source);
+            compare += Clock::now() - t;
             if (before.empty()) {
                 continue;
             }
+            t = Clock::now();
             (void)CopyFill::Refill(entry.copy, entry.source, a_pointersOnly);  // D3: no window where a copy points at an original
+            refill += Clock::now() - t;
+            t = Clock::now();
             const auto after = CopyFill::Compare(entry.copy, entry.source);
+            compare += Clock::now() - t;
             notes.push_back(std::format("{} {:08X} -> copy {:08X} differed at the {} ({}); filled again: {}", entry.sourceText,
                 entry.source->GetFormID(), entry.copy->GetFormID(), a_reason, before, after.empty() ? "now equal" : after));
             logger::warn("BlackFlame: copies: {}", notes.back());
         }
-        logger::info("BlackFlame: copies: refresh at the {}: {} cop{} differed from the live source", a_reason, notes.size(),
-            notes.size() == 1 ? "y" : "ies");
+        // Perf: the diff texts' pointer naming is part of compare (diff text); before the reverse map it walked the form
+        // map once per differing link field (1249 ms for 157 differing copies)
+        logger::info("BlackFlame: copies: refresh at the {}: {} compared, {} cop{} differed from the live source; compare {} ms "
+                     "(diff text pointer names {} ms{}), refill {} ms, {} ms in all", a_reason, compared, notes.size(),
+            notes.size() == 1 ? "y" : "ies", micros(compare) / 1000, names.LookupMicros() / 1000,
+            names.Walked() ? ", form map walked once" : "", micros(refill) / 1000, micros(Clock::now() - start) / 1000);
         if (a_pointersOnly) {
             logger::info("BlackFlame: copies: refresh at the {} wrote pointers and values only (in play); names and muzzle models "
                          "follow at the next load's refresh", a_reason);
@@ -539,6 +572,7 @@ namespace BlackFlame
         std::vector<CopyCheckLine> lines;
         const auto& copies = TheCopies();
         const auto& c = copies.counts;
+        const CopyFill::PointerNameScope names;  // perf: one form map walk for these diff texts, at most (Tester::Write, T0-v2)
         lines.push_back({ c.mapRead && c.failed == c.sourceAbsent && c.mapEntries > 0,
             std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {}, {} left out ({} of them: "
                 "source mesh absent in this load order), {} links to copies", c.mapRead ? "read" : "NOT read", c.mapEntries,

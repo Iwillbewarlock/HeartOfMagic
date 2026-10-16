@@ -13,10 +13,14 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <chrono>
 #include <cstring>
 #include <format>
 #include <string_view>
 #include <type_traits>
+#include <memory>
+#include <optional>
+#include <unordered_map>
 #include <utility>
 
 namespace BlackFlame::CopyFill
@@ -188,25 +192,7 @@ namespace BlackFlame::CopyFill
         };
 #undef BF_FIELD
 
-        // D3: a form pointer named without dereferencing it - found in the game's form map by value (LookupByID would need
-        // the id, which only the dereference gives). A full scan under the map's read lock: it runs only for a field that
-        // differs, a handful per load at most; a cache or a reverse map would be the upgrade if that ever changes.
-        std::string FormPointerText(const RE::TESForm* a_form)
-        {
-            if (!a_form) {
-                return "null";
-            }
-            auto [map, lock] = RE::TESForm::GetAllForms();
-            if (map) {
-                const RE::BSReadLockGuard guard(lock.get());
-                for (const auto& [id, form] : *map) {
-                    if (form == a_form) {
-                        return std::format("{:08X}", id);
-                    }
-                }
-            }
-            return std::format("pointer {:X} (not a form in the map)", reinterpret_cast<std::uintptr_t>(a_form));
-        }
+        std::string FormPointerText(const RE::TESForm* a_form) { return NamePointer(a_form); }
 
         std::string FieldValue(const void* a_struct, const Field& a_field)
         {
@@ -402,6 +388,89 @@ namespace BlackFlame::CopyFill
         {
             return AssignIfDiffers(a_copy.fullName, a_source.fullName);
         }
+    }
+
+    namespace
+    {
+        // Set once at kDataLoaded before any Compare reads it (FormCopies.cpp LoadAndFillCopies), read-only afterwards
+        std::unordered_map<const RE::TESForm*, RE::FormID>& KnownForms()
+        {
+            static auto* known = std::make_unique<std::unordered_map<const RE::TESForm*, RE::FormID>>().release();
+            return *known;
+        }
+
+        thread_local PointerNameScope* t_scope = nullptr;
+
+        // D3: the game's form map walked under its read lock, comparing pointer values only
+        template <class Visit>
+        void WalkForms(Visit&& a_visit)
+        {
+            auto [map, lock] = RE::TESForm::GetAllForms();
+            if (!map) {
+                return;
+            }
+            const RE::BSReadLockGuard guard(lock.get());
+            for (const auto& [id, form] : *map) {
+                if (!a_visit(id, form)) {
+                    return;
+                }
+            }
+        }
+    }
+
+    void SetKnownForms(std::unordered_map<const RE::TESForm*, RE::FormID> a_known)
+    {
+        KnownForms() = std::move(a_known);
+    }
+
+    PointerNameScope::PointerNameScope() :
+        m_outer(t_scope)
+    {
+        t_scope = this;
+    }
+
+    PointerNameScope::~PointerNameScope()
+    {
+        t_scope = m_outer;
+    }
+
+    // D3: a form pointer named without dereferencing it. First our own sources and copies (most links point there), then the
+    // game's form map by value (LookupByID would need the id, which only the dereference gives): one reverse map per
+    // PointerNameScope, or a full walk per pointer without one (measured: 7-34 ms a field at a load with 157 differing copies)
+    std::string NamePointer(const RE::TESForm* a_form)
+    {
+        if (!a_form) {
+            return "null";
+        }
+        if (const auto it = KnownForms().find(a_form); it != KnownForms().end()) {
+            return std::format("{:08X}", it->second);
+        }
+        const auto start = std::chrono::steady_clock::now();
+        std::optional<RE::FormID> id;
+        if (auto* scope = t_scope) {
+            if (!scope->m_built) {
+                WalkForms([&](RE::FormID a_id, const RE::TESForm* a_entry) {
+                    scope->m_forms.emplace(a_entry, a_id);
+                    return true;
+                });
+                scope->m_built = true;
+            }
+            if (const auto it = scope->m_forms.find(a_form); it != scope->m_forms.end()) {
+                id = it->second;
+            }
+            scope->m_micros +=
+                std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        } else {
+            WalkForms([&](RE::FormID a_id, const RE::TESForm* a_entry) {
+                if (a_entry == a_form) {
+                    id = a_id;
+                    return false;
+                }
+                return true;
+            });
+        }
+        return id ? std::format("{:08X}", *id) :
+                    std::format("pointer {:X} (not a form in the map)", reinterpret_cast<std::uintptr_t>(a_form));
     }
 
     bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_pointersOnly)

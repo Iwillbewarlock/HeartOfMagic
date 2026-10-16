@@ -1,4 +1,5 @@
 #include "HitEffectHook.h"
+#include "Perf.h"
 #include "Patch.h"
 #include "TrackedMutex.h"
 
@@ -332,6 +333,7 @@ namespace BlackFlame
             static RE::TESEffectShader* thunk(Controller* a_this)
             {
                 auto* original = func(a_this);
+                const Perf::Scope perf(Perf::kHitShader);  // perf audit 2: our part, after the original
                 auto* result = original;
                 // Entered from the engine's vtable: nothing may throw out of here, and a fault in our
                 // part returns the engine's shader
@@ -354,6 +356,7 @@ namespace BlackFlame
             static RE::BGSArtObject* thunk(Controller* a_this)
             {
                 auto* art = func(a_this);
+                const Perf::Scope perf(Perf::kHitArt);  // perf audit 2: our part, after the original
                 auto* result = art;
                 // As the shader thunk: nothing may throw out of here, and a fault in our part returns the engine's art
                 try {

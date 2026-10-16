@@ -1,4 +1,5 @@
 #include "ExplosionHook.h"
+#include "Perf.h"
 #include "Patch.h"
 #include "MainThreadQueue.h"
 #include "TrackedMutex.h"
@@ -392,6 +393,9 @@ namespace BlackFlame
         {
             static void thunk(RE::Explosion* a_this, float a_delta)
             {
+                // Perf audit 2: our parts before and after the original, timed apart from it
+                auto perfStart = Perf::Now();
+                std::int64_t perfTicks = 0;
                 bool open = false;
                 bool copyOpen = false;
                 try {
@@ -416,7 +420,9 @@ namespace BlackFlame
                     }
                     const CopyWindow copyWindow(copyOpen);
                     const ImpactWindow window(open);
+                    perfTicks += Perf::Now() - perfStart;
                     func(a_this, a_delta);
+                    perfStart = Perf::Now();
                 }
                 try {
                     if (a_this && a_this->Get3D()) {
@@ -427,6 +433,7 @@ namespace BlackFlame
                         logger::error("BlackFlame: explosion hook threw; further failures are not logged");
                     }
                 }
+                Perf::Add(Perf::kExplosionUpdate, perfTicks + (Perf::Now() - perfStart));
             }
 
             static inline REL::Relocation<decltype(thunk)> func;

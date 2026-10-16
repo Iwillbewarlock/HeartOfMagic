@@ -1,4 +1,5 @@
 #include "MainThreadQueue.h"
+#include "Perf.h"
 
 #include "BuffState.h"
 #include "GameThread.h"
@@ -127,9 +128,10 @@ namespace BlackFlame::MainQueue
                 return;
             }
             g_nextHeartbeat = now + kHeartbeat;
-            logger::info("BlackFlame: heartbeat: frame {}, tasks run this frame {}, waiting {}, stoked {}, paused {}, thread {}",
+            logger::info("BlackFlame: heartbeat: frame {}, tasks run this frame {}, waiting {}, stoked {}, paused {}, thread {} | ours "
+                         "this window: {}",
                 g_frames.load(), a_ran, g_pendingCount.load(), IsStoked() ? "yes" : "no", g_lastPaused.load() ? "yes" : "no",
-                a_thread);
+                a_thread, Perf::TakeWindow());
         }
 
         // Caller holds g_mutex; compared by content (F3: the same name from two translation units may be two pointers)
@@ -199,6 +201,7 @@ namespace BlackFlame::MainQueue
                 g_overlaps.fetch_add(1);
                 return;
             }
+            const Perf::Scope perf(Perf::kDrain);  // perf audit 2: our share of the frame (heartbeat line)
             const FrameEnd frameEnd;
             const auto drainStart = ThreadTrace::Now();
             const auto thread = REX::W32::GetCurrentThreadId();

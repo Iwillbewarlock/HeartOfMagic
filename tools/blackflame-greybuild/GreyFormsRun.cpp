@@ -16,6 +16,7 @@
 
 #include <fmt/format.h>
 #include <iostream>
+#include <optional>
 #include <set>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -256,14 +257,33 @@ namespace GreyBuild
             const bool warn = a_options.warnAndContinue;
             // 1. Record bytes first: every value is validated before a single NIF is built (written again in step 3)
             const auto esl = a_staging / kCopiesPluginName;
-            if (!WriteEsl(a_copies, a_sources, esl, a_totals)) {
-                return false;
+            {
+                const StageTimer time("copies ESL (check)");
+                if (!WriteEsl(a_copies, a_sources, esl, a_totals)) {
+                    return false;
+                }
             }
             // 2. The grey MPS, the remapped impact copies, then the full-grey copy of every distinct source model
-            if (!StageMps(a_plan, a_inputs, a_staging, warn, a_totals) || !StageRemapped(a_plan, a_inputs, a_staging, warn, a_totals) ||
-                !StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, a_totals)) {
-                return false;
+            {
+                const StageTimer time("NIF build: grey MPS");
+                if (!StageMps(a_plan, a_inputs, a_staging, warn, a_totals)) {
+                    return false;
+                }
             }
+            {
+                const StageTimer time("NIF build: remapped impact / hazard copies");
+                if (!StageRemapped(a_plan, a_inputs, a_staging, warn, a_totals)) {
+                    return false;
+                }
+            }
+            {
+                const StageTimer time("NIF build: copy NIFs");
+                if (!StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, a_totals)) {
+                    return false;
+                }
+            }
+            // (Perf hook point: the texture step of the texture branch goes here, timed with its own StageTimer)
+            const StageTimer time("ESLs and maps");
             // 3. The copies ESL again (a copy without its grey NIF names the source's model), the local ADDN ESL (always,
             //    empty or not: the same rule as the empty one shipped with the mod), the grey map and the copies map
             if (!WriteEsl(a_copies, a_sources, esl, a_totals)) {
@@ -314,6 +334,7 @@ namespace GreyBuild
         }
         // The grey ADDN plan (the copies' models count for the AddOnNode values that need a grey index) and the ids,
         // before anything is written
+        std::optional<StageTimer> planTime(std::in_place, "plan (ADDN plan, copy ids)");
         Plan plan = PlanFromRequest(a_addons, a_inputs, a_tint, CopyModels(a_sources), a_options.warnAndContinue);
         plan.map.tintAdd = a_options.tintAdd;
         for (const auto& line : plan.warnings) {
@@ -332,6 +353,7 @@ namespace GreyBuild
         copies.requestFingerprintSizes = a_options.fingerprintSizes;
         copies.excluded = a_options.excluded;
 
+        planTime.reset();
         if (!RemoveAll(staging)) {
             std::cout << fmt::format("FAIL  the staging folder {} left by an earlier run cannot be cleared: nothing written\n",
                 PathText(staging));
@@ -340,6 +362,7 @@ namespace GreyBuild
         }
         bool staged = false;
         try {
+            const StageTimer time("stage (all)");
             staged = Stage(a_sources, plan, copies, a_inputs, staging, a_options, totals);
         } catch (const std::exception& e) {
             std::cout << fmt::format("FAIL  {}\n", e.what());
@@ -350,7 +373,12 @@ namespace GreyBuild
             std::cout << "nothing written into " << PathText(out) << " (its previous outputs are unchanged)\n";
             return totals;
         }
-        if (!Commit(staging, out)) {
+        bool committed = false;
+        {
+            const StageTimer time("commit");
+            committed = Commit(staging, out);
+        }
+        if (!committed) {
             ++totals.failed;
             return totals;
         }

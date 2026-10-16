@@ -15,6 +15,12 @@
 
 namespace GreyBuild
 {
+    StageTimer::~StageTimer()
+    {
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_start).count();
+        std::cout << fmt::format("time  {}: {} ms\n", m_stage, ms);
+    }
+
     namespace
     {
         void PrintStats(const GreyStats& a_stats)

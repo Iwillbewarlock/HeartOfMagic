@@ -10,6 +10,7 @@
 // master particle system NIFs (shipped under new ADDN indices) and copies of the
 // impact / hazard NIFs whose AddOnNodes point at the grey indices.
 
+#include <chrono>
 #include <climits>
 #include <cstdint>
 #include <filesystem>
@@ -27,6 +28,22 @@ namespace nifly
 
 namespace GreyBuild
 {
+    /// Perf audit 2: "time  <stage>: N ms" when it goes out of scope (stdout, with the run's other lines)
+    class StageTimer
+    {
+    public:
+        explicit StageTimer(const char* a_stage) noexcept :
+            m_stage(a_stage), m_start(std::chrono::steady_clock::now())
+        {}
+        ~StageTimer();
+        StageTimer(const StageTimer&) = delete;
+        StageTimer& operator=(const StageTimer&) = delete;
+
+    private:
+        const char* m_stage;
+        std::chrono::steady_clock::time_point m_start;
+    };
+
     // =========================================================================
     // Constants
     // =========================================================================

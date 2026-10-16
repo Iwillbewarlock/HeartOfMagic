@@ -12,6 +12,7 @@
 #include "PapyrusWrap.h"
 #include "Patch.h"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
 #include <string_view>
@@ -79,6 +80,7 @@ namespace BlackFlame::Tester
 
         void WriteFile(const char* a_when)
         {
+            const auto start = std::chrono::steady_clock::now();
             const auto dir = SKSE::log::log_directory();
             if (!dir) {
                 return;
@@ -105,6 +107,11 @@ namespace BlackFlame::Tester
             if (!out) {
                 logger::warn("BlackFlame: the tester file could not be written");
             }
+            out.close();
+            // Perf: it runs at every save and load on the main thread (CheckCopies compares every copy)
+            logger::info("BlackFlame: tester file written at {} in {} ms ({} lines)", a_when,
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(),
+                std::ranges::count(text, '\n'));
         }
     }
 
